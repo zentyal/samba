@@ -118,7 +118,8 @@ clean: unpatch
 	-$(MAKE) -C source distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html
+	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \
+		source/include/stamp-h
 
 	dh_clean
 

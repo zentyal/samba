@@ -1,3 +1,9 @@
+samba (3.0.2-1) unstable; urgency=high
+
+  * New upstream release (closes: #225328)
+
+ -- Eloy A. Paris <peloy@debian.org>  Wed,  4 Feb 2004 23:15:46 -0500
+
 samba (3.0.1-2) unstable; urgency=low
 
   * Include ntlm_auth's man page.

@@ -28,18 +28,6 @@ diff -uNr samba-3.0.0beta1.orig/source/client/smbmount.c samba-3.0.0beta1/source
  		}
  		strupper_m(username);
  	}
-diff -uNr samba-3.0.0beta1.orig/source/smbwrapper/smbsh.c samba-3.0.0beta1/source/smbwrapper/smbsh.c
---- samba-3.0.0beta1.orig/source/smbwrapper/smbsh.c	2003-06-07 12:57:40.000000000 -0500
-+++ samba-3.0.0beta1/source/smbwrapper/smbsh.c	2003-06-30 20:12:22.000000000 -0500
-@@ -36,7 +36,7 @@
- int main(int argc, char *argv[])
- {
- 	char *p, *u;
--	const char *libd = dyn_BINDIR;
-+	const char *libd = dyn_LIBDIR;
- 	pstring line, wd;
- 	int opt;
- 	extern char *optarg;
 diff -uNr samba-3.0.0beta1.orig/source/web/diagnose.c samba-3.0.0beta1/source/web/diagnose.c
 --- samba-3.0.0beta1.orig/source/web/diagnose.c	2003-06-07 12:57:41.000000000 -0500
 +++ samba-3.0.0beta1/source/web/diagnose.c	2003-06-30 20:12:22.000000000 -0500

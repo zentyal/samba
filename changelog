@@ -12,6 +12,8 @@ samba (2.999+3.0.alpha21-4) unstable; urgency=low
   * smbclient -M must always connect to port 139, because port 445
     doesn't support messaging and we can't do the port 135 stuff yet
     (closes: #175292, #167859).
+  * Import the diff from upstream CVS, which has fixed a few bugs
+    (closes: #178219, #177583).
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 27 Dec 2002 00:37:00 -0600
 

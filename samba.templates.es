@@ -1,16 +1,3 @@
-Template: samba/run_mode
-Type: select
-Default: daemons
-Choices: daemons, inetd
-Choices-es: demonios, inetd
-Description: How do you want to run Samba?
- The Samba services (nmbd and smbd) can run as normal daemons or 
- from inetd. Running as daemons is the recommended approach.
-Description-es: ¿Cómo quiere que Samba se ejecute?
- Los servicios Samba (nmbd y smbd) pueden ejecutarse como demonios
- normales o desde el inetd.  Se recomienda que se ejecuten como demonios
- independientes.
-
 Template: samba/generate_smbpasswd
 Type: boolean
 Default: false
@@ -54,3 +41,15 @@ Description-es: Se han movido los ficheros de registro de Samba.
  los ficheros de registro para los dos demonios del Samba (nmbd y smbd)
  se encuentran en /var/log/samba/.  Los nombres de estos ficheros
  son log.nmbd y log.smbd, para nmbd y smbd respectivamente.
+
+Template: samba/run_mode
+Type: select
+Default: daemons
+Choices: daemons, inetd
+Choices-es: demonios, inetd
+Description: How do you want to run Samba?
+ The Samba daemon smbd can run as a normal daemon or from inetd.
+ Running as a daemon is the recommended approach.
+Description-es: ¿Cómo quiere que Samba se ejecute?
+ El servicio Samba smbd puede ejecutarse como demonio normal o desde el
+ inetd.  Se recomienda que se ejecute como demonio independiente.

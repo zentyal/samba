@@ -1,15 +1,3 @@
-Template: samba/run_mode
-Type: select
-Choices: daemons, inetd
-Choices-pt_BR: 
-Default: daemons
-Description: How do you want to run Samba?
- The Samba services (nmbd and smbd) can run as normal daemons or from
- inetd. Running as daemons is the recommended approach.
-Description-pt_BR: Como você deseja que o Samba seja executado ?
- Os serviços Samba (nmbd e smbd) podem ser executados como daemons normais
- ou a partir do inetd. Executá-los como daemons é o método recomendado.
-
 Template: samba/generate_smbpasswd
 Type: boolean
 Default: false
@@ -55,3 +43,15 @@ Description-pt_BR: Arquivos de log do Samba foram movidos.
  .
  Os antigos arquivos de log que estavam em /var/log/ serão movidos para
  a nova localização automaticamente para você.
+
+Template: samba/run_mode
+Type: select
+Choices: daemons, inetd
+Choices-pt_BR: 
+Default: daemons
+Description: How do you want to run Samba?
+ The Samba daemon smbd can run as a normal daemon or from inetd.
+ Running as a daemon is the recommended approach.
+Description-pt_BR: Como você deseja que o Samba seja executado ?
+ O serviço Samba smbd pode ser executado como daemon normal ou a partir
+ do inetd. Executá-lo como daemon é o método recomendado.

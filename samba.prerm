@@ -16,12 +16,8 @@ then
 	fi
 fi
 
-# We read /etc/default/samba to know if we're running from inetd or as
-# daemons so we don't call the init script if we are running from inetd.
-[ -r /etc/default/samba ] && . /etc/default/samba
-
-# We call the init script to stop Samba only if we are running as daemons.
-[ -x /etc/init.d/samba -a "$RUN_MODE" != "inetd" ] && /etc/init.d/samba stop
+# We call the init script to stop Samba, even if it only affects nmbd.
+[ -x /etc/init.d/samba ] && /etc/init.d/samba stop
 
 if [ "$1" = upgrade -a -n "$2" ] && dpkg --compare-versions "$2" lt 2.99 \
    && [ -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]

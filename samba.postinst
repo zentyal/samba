@@ -42,7 +42,7 @@ umask 022
 # This is a POSIX shell fragment
 #
 
-# How should Samba (nmbd and smbd) run? Possible values are "daemons"
+# How should Samba (smbd) run? Possible values are "daemons"
 #	or "inetd".
 RUN_MODE=""
 EOFMAGICNUMBER1234
@@ -142,7 +142,7 @@ fi
 
 umask 022
 
-if [ "$1" = "configure" -a -n "$2" -a -e /etc/samba/smbpasswd \
+if [ -n "$2" -a -e /etc/samba/smbpasswd \
      -a ! -e /etc/samba/passdb.tdb -a "$PDB_MIGRATE" = "true" ] \
    && dpkg --compare-versions "$2" lt 2.99.cvs.20020713-2
 then
@@ -172,6 +172,12 @@ fi
 
 # ------------------------- Debconf questions end ---------------------
 
+# Handle removal of nmbd from inetd.conf, which is no longer a supported
+#	configuration.
+if dpkg --compare-versions "$2" lt 2.999+3.0.alpha20-4; then
+	update-inetd --remove netbios-ns
+fi
+
 # We always run /etc/init.d/samba, even if we run Samba from inetd.
 #	The init.d script takes care of handling the conflict of running
 #	from inetd or as daemons.
@@ -180,16 +186,13 @@ update-rc.d samba defaults 20 19 > /dev/null
 # We want to add these entries to inetd.conf commented out. Otherwise
 #	UDP traffic could make inetd to start nmbd or smbd right during
 #	the configuration stage.
-if [ "$1" = "configure" -a -z "$2" ]; then
-	update-inetd --add "#<off># netbios-ns	dgram	udp	wait	root 	/usr/sbin/tcpd	/usr/sbin/nmbd -a"
+if [ -z "$2" ]; then
 	update-inetd --add "#<off># netbios-ssn	stream	tcp	nowait	root	/usr/sbin/tcpd	/usr/sbin/smbd"
 fi
 
 if [ "$RUN_MODE" = "daemons" ]; then
-	update-inetd --disable netbios-ns
 	update-inetd --disable netbios-ssn
 else
-	update-inetd --enable netbios-ns
 	update-inetd --enable netbios-ssn
 fi
 
@@ -198,8 +201,7 @@ fi
 
 # Run the init script if this is a first-time install, or if it's an
 # upgrade and Samba was running before, _and_ we're not running from inetd.
-if [ \( -z "$2" -o ! -f /tmp/samba-was-not-running \) -a \
-		"$RUN_MODE" = "daemons" ]; then
+if [ -z "$2" -o ! -f /tmp/samba-was-not-running ]; then
 	# Check the script is executable before running it.
 	[ -x /etc/init.d/samba ] && /etc/init.d/samba start
 fi

@@ -42,16 +42,3 @@ diff -uNr samba-2.999+3.0.alpha20.orig/source/passdb/pdb_nisplus.c samba-2.999+3
  	(*pdb_method)->private_data = private;
  
  	return NT_STATUS_OK;
-diff -uNr samba-2.999+3.0.alpha20.orig/source/passdb/pdb_unix.c samba-2.999+3.0.alpha20/source/passdb/pdb_unix.c
---- samba-2.999+3.0.alpha20.orig/source/passdb/pdb_unix.c	2002-09-26 14:38:35.000000000 -0500
-+++ samba-2.999+3.0.alpha20/source/passdb/pdb_unix.c	2002-10-24 19:17:35.000000000 -0500
-@@ -154,7 +154,8 @@
- 	(*pdb_method)->add_sam_account = unixsam_add_sam_account;
- 	(*pdb_method)->update_sam_account = unixsam_update_sam_account;
- 	(*pdb_method)->delete_sam_account = unixsam_delete_sam_account;
--	
-+	(*pdb_method)->free_private_data = NULL;
-+
- 	/* There's not very much to initialise here */
- 	return NT_STATUS_OK;
- }

@@ -1,6 +1,6 @@
 samba (3.0.1-1) unstable; urgency=low
 
-  * Early Christmas present from the Samba Team: new upstream version.
+  * New upstream version (closes: #225565)
   * Add support in the dhcp hook for netbios scope, and handle better
     the case of multiple DHCP-using interfaces (closes: #224109).
   * Use "tail -n 1 ..." instead of "tail -1 ..." so POSIX-compliant
@@ -9,7 +9,7 @@ samba (3.0.1-1) unstable; urgency=low
   * Run configure with "--with-piddir=/var/run/samba" since the
     default got changed to /var/run in this new upstream version.
 
- -- Eloy A. Paris <peloy@debian.org>  Mon, 22 Dec 2003 18:15:59 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 30 Dec 2003 16:21:31 -0500
 
 samba (3.0.0final-1) unstable; urgency=low
 

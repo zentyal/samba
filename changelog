@@ -1,3 +1,13 @@
+samba (3.0.2a-2) unstable; urgency=low
+
+  * Incorporate Catalan debconf translations; thanks to
+    Aleix Badia i Bosch <abadia@ica.es> and the Debian L10n Catalan Team.
+    (closes: #236640)
+  * Incorporate Czech debconf translations; thanks to
+    Miroslav Kure <kurem@upcase.inf.upol.cz> (closes: #236274).
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon,  8 Mar 2004 09:57:00 -0500
+
 samba (3.0.2a-1) unstable; urgency=low
 
   * New upstream version.

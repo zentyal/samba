@@ -1,0 +1,29 @@
+Template: samba/run_mode
+Type: select
+Default: daemons
+Choices: daemons, inetd
+Description: How do you want to run Samba?
+ The Samba services (nmbd and smbd) can run as normal daemons or 
+ from inetd. Running as daemons is the recommended approach.
+
+Template: samba/generate_smbpasswd
+Type: boolean
+Default: false
+Description: Generate /etc/samba/smbpasswd?
+ If this is a new installation or you do not have a /etc/samba/smbpasswd
+ file it is recommended that you say yes here. This will cause samba's
+ postinst script to generate a smbpasswd file from your current
+ /etc/passwd file. You will then need to set the passwords for each
+ user using the smbpasswd command as the conversion only transfers
+ user names, not passwords.
+
+Template: samba/log_files_moved
+Type: note
+Description: Samba's log files stored now in a new location:
+ Starting with the first packages of Samba 2.2 for Debian the log
+ files for both Samba daemons (nmbd and smbd) are now stored in
+ /var/samba/. The names of the files are log.nmbd and log.smbd,
+ for nmbd and smbd respectively.
+ .
+ The old log files that were in /var/log/ will be moved to
+ the new location.

@@ -1,8 +1,6 @@
 #!/bin/sh
 
 if [ "$1" = purge ]; then
-	update-rc.d samba remove >/dev/null
-
 	# Remove WINS.DAT, BROWSE.DAT and lock information file
 	rm -Rf /var/samba/
 
@@ -10,11 +8,10 @@ if [ "$1" = purge ]; then
 	rm -Rf /var/lock/samba/
 
 	# Remove files left in /etc/samba/
-	rm -Rf /etc/samba/debian_config
 	rm -Rf /etc/samba/MACHINE.SID
 
 	# Remove log files
-	rm -f /var/log/[ns]mb*
+	rm -f /var/log/samba/
 
 	# Remove NetBIOS entries from /etc/inetd.conf
 	update-inetd --remove netbios-ssn
@@ -24,3 +21,5 @@ else
 	update-inetd --disable netbios-ssn
 	update-inetd --disable netbios-ns
 fi
+
+#DEBHELPER#

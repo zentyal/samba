@@ -8,7 +8,7 @@ Standards-Version: 3.1.1
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}
+Depends: debconf, samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}
 Replaces: samba-common (<= 2.0.5a-2)
 Suggests: samba-doc
 Description: A LanManager like file and printer server for Unix.
@@ -34,7 +34,7 @@ Description: A LanManager like file and printer server for Unix.
 
 Package: samba-common
 Architecture: any
-Depends: libpam-modules, ${shlibs:Depends}
+Depends: debconf, libpam-modules, ${shlibs:Depends}
 Replaces: samba (<= 2.0.5a-2)
 Description: Samba common files used by both the server and the client.
  The Samba software suite is a collection of programs that

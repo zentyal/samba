@@ -1,4 +1,10 @@
-samba (2.2.2-11) unstable; urgency=low
+samba (2.2.2.cvs20020120-1) experimental; urgency=low
+
+  * CVS update: code that will become Samba 2.2.3.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 19 Jan 2002 23:57:20 -0500
+
+samba (2.2.2-11.1) experimental; urgency=low
 
   * Building with --with-libsmbclient. We have created two new
     packages: libsmbclient and libsmbclient-dev. Hopefully this
@@ -29,41 +35,42 @@ samba (2.2.2-11) unstable; urgency=low
       in smb.conf.
     - %G would fail to be expanded in an "include = ..."
       line.
+  * Removed Build-Depends on libldap2-dev.
 
- -- Eloy A. Paris <peloy@debian.org>  Sat, 19 Jan 2002 21:35:26 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 19 Jan 2002 22:46:09 -0500
 
-samba (2.2.2-10) unstable; urgency=low
+samba (2.2.2-10.1) experimental; urgency=low
 
   * (Steve) Add missing manual pages.
     Closes: Bug#128928: missing manpages in smbfs.
 
- -- Eloy A. Paris <peloy@debian.org>  Sun, 13 Jan 2002 14:39:55 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 13 Jan 2002 14:41:18 -0500
 
-samba (2.2.2-9) unstable; urgency=low
+samba (2.2.2-9.1) experimental; urgency=low
 
   * (Steve) Fix broken URL's in HTML docs.
     Closes: Bug#17741: bad links in html docs (at last!!!)
 
- -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 13:37:07 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 13:38:03 -0500
 
-samba (2.2.2-8) unstable; urgency=low
+samba (2.2.2-8.1) experimental; urgency=low
 
   * Added "Replaces: samba (<= 2.2.2-5)" to the smbclient section in
     debian/control so rpcclient.1, which was in samba-2.2.2-5, does not
     cause problems now that it is part of smbclient (>= 2.2.2-6).  Closes:
     Closes: Bug#128684: error upgrading smbclient in sid.
 
- -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 11:42:40 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 11:47:47 -0500
 
-samba (2.2.2-7) unstable; urgency=low
+samba (2.2.2-7.1) experimental; urgency=low
 
   * (Steve) Patch to make behavior honor what the docs. say about "hosts allow"
     taking precedence over "hosts deny".
     Closes: Bug#49249: swat: error with host deny ?!
 
- -- Eloy A. Paris <peloy@debian.org>  Thu, 10 Jan 2002 12:36:58 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 10 Jan 2002 12:41:18 -0500
 
-samba (2.2.2-6) unstable; urgency=low
+samba (2.2.2-6.1) experimental; urgency=low
 
   * (Steve) Adds manpage for rpcclient to the proper file,
     removes smbtorture from the distro because this tool isn't intended for
@@ -73,9 +80,9 @@ samba (2.2.2-6) unstable; urgency=low
     debian/rules so config.sub is able to properly create the host and target
     tuples.
 
- -- Eloy A. Paris <peloy@debian.org>  Wed,  9 Jan 2002 14:39:51 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Wed,  9 Jan 2002 14:57:41 -0500
 
-samba (2.2.2-5) unstable; urgency=low
+samba (2.2.2-5.1) experimental; urgency=low
 
   * Fixes from vorlon:
   * Use /usr/bin/pager instead of more.
@@ -85,12 +92,10 @@ samba (2.2.2-5) unstable; urgency=low
     /etc/logrotate.d/samba.
     Closes: #127897: log file rotation.
     Closes: #118277: /etc/logrotate.d/samba not listed in conffiles.
-  * s/covert/convert/.
-    Closes: #121653 probable typo in install message.
 
- -- Eloy A. Paris <peloy@debian.org>  Sun,  6 Jan 2002 03:14:58 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Sun,  6 Jan 2002 03:03:45 -0500
 
-samba (2.2.2-4) unstable; urgency=low
+samba (2.2.2-4.1) experimental; urgency=low
 
   * Applied patch from Steve to work around problem in glibc that affects the
     HPPA architecure. The patch detects the error condition at configure time
@@ -103,7 +108,7 @@ samba (2.2.2-4) unstable; urgency=low
 
  -- Eloy A. Paris <peloy@debian.org>  Mon, 31 Dec 2001 14:32:47 -0500
 
-samba (2.2.2-3) unstable; urgency=low
+samba (2.2.2-3.1) experimental; urgency=low
 
   * Added some spaces in package description in debian/control.
     Closes: #120730 - missing spaces in package description for nice
@@ -113,9 +118,17 @@ samba (2.2.2-3) unstable; urgency=low
   * Steve Langasek <vorlon@debian.org> is the co-maintainer of the Debian
     Samba packages!!! Added him to the uploaders field in debian/control.
 
- -- Eloy A. Paris <peloy@debian.org>  Tue, 18 Dec 2001 00:54:25 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 18 Dec 2001 00:56:28 -0500
 
-samba (2.2.2-2) unstable; urgency=low
+samba (2.2.2-2.2) experimental; urgency=low
+
+  * Having problems with encrypted passwords and LDAP. Not compiling
+    with --with-ldapsam and removed build-depends on libldap2-dev
+    while I sort this out.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 10 Dec 2001 07:46:23 -0500
+
+samba (2.2.2-2.1) experimental; urgency=low
 
   * Backed out changes to source/filename.c per Andrew Tridgell's request.
     This changes were introduced in 2.2.1a-7 as an attempt to fix #47493.
@@ -127,9 +140,36 @@ samba (2.2.2-2) unstable; urgency=low
     /usr/share/doc/<package>/ directories.
   * Installing libnss_winbind.so and pam_winbind.so.
     Closes: #116790: nss and pam modules for winbind missing.
+  * Building with MSDFS support.
+    Closes: #116793: support for msdfs.
+  * Building with LDAP support.
+    Closes: #115537: SAMBA now supports LDAP SAM databases.
   * Removed user-emacs-settings from changelog.
+  * Added libldap2-dev to Build-Depends.
 
- -- Eloy A. Paris <peloy@debian.org>  Mon, 29 Oct 2001 19:16:26 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 29 Oct 2001 20:03:42 -0500
+
+samba (2.2.2-1.1) experimental; urgency=low
+
+  * Continued debconf tweaking. Got help from Steve Langasek.
+    - Moved all smb.conf-related questions to samba-common (smb.conf
+      is part of the samba-common package, not the samba package.)
+    - smb.conf is not a samba-common conffile anymore since it is
+      being managed by debconf. It is ABSOLUTELY necessary to make
+      sure /etc/samba/smb.conf _NEVER_ gets overwritten by changes
+      made via debconf. In other words, any changes made by the user
+      should be honored by the debconf interface.
+  * samba.postinst now moves old log files from /var/log/ to
+    /var/log/samba/. There's a Debconf note that informs the user
+    the log files are stored now in a new location.
+  * It's been a looong while since the sambades package disappeared
+    and since Samba supports encrypted passwords. So, removed
+    comments in README.Debian that mention this.
+  * Other updates to README.Debian.
+  * Added Samba-HOWTO-Collection.pdf and other README files to the
+	/usr/share/doc/<package>/ directories.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 16 Oct 2001 12:33:21 -0400
 
 samba (2.2.2-1) unstable; urgency=low
 
@@ -146,6 +186,49 @@ samba (2.2.2-1) unstable; urgency=low
                      smbd to fail on Sparc.
 
  -- Eloy A. Paris <peloy@debian.org>  Mon, 15 Oct 2001 10:26:10 -0400
+
+samba (2.2.1a-10) experimental; urgency=low
+
+  * Finally, debconf support is here!!! This is just a first try and
+    I am sure there are hidden bugs all over the place since I had to
+    touch lots of files and the conversion from the old configuration
+    method is complex. Uploading to experimental for now.
+  * Changes:
+    - debian/control:
+      + Make samba depend on debconf.
+    - New file debian/samba.templates.
+    - New file debian/samba.config.
+    - Re-worked debian/samba.postinst.
+      + Got rid of all /etc/samba/debian_config sillyness.
+    - Removed /usr/sbin/sambaconfig; "dpkg-reconfigure samba" replaces
+      it.
+    - Removed debian/samba.prerm.
+    - Cleaned up /etc/init.d/samba.
+      + Added infrastructure for debconf.
+      + Got rid of all /etc/samba/debian_config sillyness.
+      + Got rid of /etc/samba/smbpasswd conversion stuff for
+        compatibility with versions of Samba < 2.0.0final-2.
+    - Many others I am sure I forgot.
+  * I'll go through a few iterations and once the samba package has
+    solid debconf support I'll continue adding debconf support to the
+    other packages, although I think only swat and perhaps smbmount
+    require debconf support.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 11 Sep 2001 02:10:00 -0400
+
+samba (2.2.1a-9.1) unstable; urgency=low
+
+  * Quick hack to avoid smbmount reveal password length. Please note
+    that even with this hack there is a small window when password is
+    completely visible with 'ps aux'. There are other methods that should
+    be used to automate mounting of SMB shares.
+    Closes: #112195: smbmount-2.2.x reveals password length.
+  * Applied patch from Steve Langasek <vorlon@debian.org> to prevent
+    forcing use of setresuid() in Sparc.
+    Closes: #112779: samba build forces use of setresuid, which causes
+                     smbd to fail on Sparc.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 24 Sep 2001 19:52:07 -0400
 
 samba (2.2.1a-9) unstable; urgency=low
 

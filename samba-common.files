@@ -5,3 +5,4 @@ etc/pam.d/
 usr/share/man/man1/nmblookup.1
 usr/share/man/man8/smbpasswd.8
 usr/share/samba/codepages/
+usr/share/samba/smb.conf

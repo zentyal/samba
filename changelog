@@ -13,8 +13,8 @@ samba (2.999+3.0.alpha21-4) unstable; urgency=low
     doesn't support messaging and we can't do the port 135 stuff yet
     (closes: #175292, #167859).
   * Import the diff from upstream CVS, which has fixed a few bugs
-    (closes: #178219, #177583, #181487, #181467).  Remove a few patches
-    of ours which are now superseded.
+    (closes: #178219, #177583, #181467, #181487, #181603).  Remove a
+    few patches of ours which are now superseded.
   * Add po-debconf support to the tree, for better i18n.
   * Install the libsmbclient.so symlink in the libsmbclient-dev package,
     per policy (closes: #181466).

@@ -28,21 +28,6 @@ diff -uNr samba-3.0alpha23.orig/source/client/smbmount.c samba-3.0alpha23/source
  		}
  		strupper(username);
  	}
-diff -uNr samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c
---- samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c	2002-08-26 09:46:05.000000000 -0500
-+++ samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c	2003-04-04 21:05:58.000000000 -0600
-@@ -192,6 +192,11 @@
- 
-     } else if (flags & PAM_UPDATE_AUTHTOK) {
- 
-+/*
-+	The following has been commented out per Steve Langasek
-+	<vorlon@debian.org> instructions. It's about Debian bug
-+	#113763.
-+*/
- #if 0
-         /* We used to return when this flag was set, but that breaks
-            password synchronization when /other/ tokens are expired.  For
 diff -uNr samba-3.0alpha23.orig/source/script/installbin.sh samba-3.0alpha23/source/script/installbin.sh
 --- samba-3.0alpha23.orig/source/script/installbin.sh	2002-04-22 13:16:20.000000000 -0500
 +++ samba-3.0alpha23/source/script/installbin.sh	2003-04-04 21:05:58.000000000 -0600

@@ -1,0 +1,137 @@
+diff -uNr samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c
+--- samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c	2003-04-07 00:35:54.000000000 -0500
++++ samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c	2003-04-07 01:02:55.000000000 -0500
+@@ -1,18 +1,22 @@
+-/* Unix NT password database implementation, version 0.7.5.
+- *
+- * This program is free software; you can redistribute it and/or modify it under
+- * the terms of the GNU General Public License as published by the Free
+- * Software Foundation; either version 2 of the License, or (at your option)
+- * any later version.
+- *
+- * This program is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+- * more details.
+- *
+- * You should have received a copy of the GNU General Public License along with
+- * this program; if not, write to the Free Software Foundation, Inc., 675
+- * Mass Ave, Cambridge, MA 02139, USA.
++/*
++   Unix SMB/CIFS implementation.
++   Use PAM to update user passwords in the local SAM
++   Copyright (C) Steve Langasek		1998-2003
++   
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 2 of the License, or
++   (at your option) any later version.
++   
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++   
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++
+ */
+ 
+ /* indicate the following groups are defined */
+@@ -20,12 +24,13 @@
+ 
+ #include "includes.h"
+ 
+-#ifndef LINUX
++/* This is only used in the Sun implementation.  FIXME: we really
++   want a define here that distinguishes between the Solaris PAM
++   and others (including FreeBSD). */
+ 
+-/* This is only used in the Sun implementation. */
++#ifndef LINUX
+ #include <security/pam_appl.h>
+-
+-#endif  /* LINUX */
++#endif
+ 
+ #include <security/pam_modules.h>
+ 
+@@ -35,34 +40,34 @@
+ 
+ int smb_update_db( pam_handle_t *pamh, int ctrl, const char *user,  const char *pass_new )
+ {
+- int		retval;
+- pstring	err_str;
+- pstring	msg_str;
+-
+-    err_str[0] = '\0';
+-    msg_str[0] = '\0';
+-
+-    retval = local_password_change( user, 0, pass_new, err_str, sizeof(err_str),
+-			            msg_str, sizeof(msg_str) );
+-
+-    if (!retval) {
+-        if (*err_str) {
+-            err_str[PSTRING_LEN-1] = '\0';
+-            make_remark( pamh, ctrl, PAM_ERROR_MSG, err_str );
+-        }
+-
+-        /* FIXME: what value is appropriate here? */
+-        retval = PAM_AUTHTOK_ERR;
+-    } else {
+-        if (*msg_str) {
+-            msg_str[PSTRING_LEN-1] = '\0';
+-            make_remark( pamh, ctrl, PAM_TEXT_INFO, msg_str );
+-        }
+-        retval = PAM_SUCCESS;
+-    }
+-
+-    return retval;      
++	int retval;
++	pstring err_str;
++	pstring msg_str;
++
++	err_str[0] = '\0';
++	msg_str[0] = '\0';
++
++	retval = local_password_change( user, LOCAL_SET_PASSWORD, pass_new,
++	                                err_str, sizeof(err_str),
++	                                msg_str, sizeof(msg_str) );
++
++	if (!retval) {
++		if (*err_str) {
++			err_str[PSTRING_LEN-1] = '\0';
++			make_remark( pamh, ctrl, PAM_ERROR_MSG, err_str );
++		}
++
++		/* FIXME: what value is appropriate here? */
++		retval = PAM_AUTHTOK_ERR;
++	} else {
++		if (*msg_str) {
++			msg_str[PSTRING_LEN-1] = '\0';
++			make_remark( pamh, ctrl, PAM_TEXT_INFO, msg_str );
++		}
++		retval = PAM_SUCCESS;
++	}
+ 
++	return retval;      
+ }
+ 
+ 
+@@ -192,15 +197,6 @@
+ 
+     } else if (flags & PAM_UPDATE_AUTHTOK) {
+ 
+-#if 0
+-        /* We used to return when this flag was set, but that breaks
+-           password synchronization when /other/ tokens are expired.  For
+-           now, we change the password whenever we're asked. SRL */
+-        if (flags & PAM_CHANGE_EXPIRED_AUTHTOK) {
+-            pdb_free_sam(&sampass);
+-            return PAM_SUCCESS;
+-        }
+-#endif
+         /*
+          * obtain the proposed password
+          */

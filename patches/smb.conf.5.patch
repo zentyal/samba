@@ -1,0 +1,23 @@
+--- samba-2.2.2.cvs20020201/docs/manpages/smb.conf.5.orig	Fri Feb  1 17:03:50 2002
++++ samba-2.2.2.cvs20020201/docs/manpages/smb.conf.5	Fri Feb  1 18:45:41 2002
+@@ -460,8 +460,9 @@
+ steps fail, then the connection request is rejected. However, if one of the 
+ steps succeeds, then the following steps are not checked.
+ .PP
+-If the service is marked "guest only = yes" then
+-steps 1 to 5 are skipped.
++If the service is marked "guest only = yes" and the
++server is running with share-level security ("security = share")
++then steps 1 to 5 are skipped.
+ .IP 1. 
+ If the client has passed a username/password 
+ pair and that username/password pair is validated by the UNIX 
+@@ -4424,7 +4425,7 @@
+ Here's a way of sending the messages as mail to root:
+ .PP
+ .PP
+-\fBmessage command = /bin/mail -s 'message from %f on 
++\fBmessage command = /usr/bin/mail -s 'message from %f on 
+ %m' root < %s; rm %s\fR
+ .PP
+ .PP

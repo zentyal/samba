@@ -11,6 +11,8 @@ samba (2.2.5-2) unstable; urgency=low
     it (closes: #148586).
   * reorder postinst, so that installing samba-common from scratch loads
     the debconf answers properly (closes: #151985).
+  * add lintian overrides for winbind, to eliminate some noise.
+  * rename pam_smbpass changelog to comply with policy.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Jun 2002 22:45:04 -0500
 

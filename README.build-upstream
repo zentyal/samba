@@ -3,10 +3,15 @@ Building Samba Packages for Debian GNU/Linux
 
 Building Debian packages is not as hard as some people might think. The
 following instructions will allow you to build your own Samba Debian
-packages. These instructions, and the files in packaging/Debian/, are
-current as of Samba 2.2.5, and should allow you to build Debian packages
-for Debian Potato (2.2), Debian Woody (3.0), and Debian unstable as of
-the date Samba 2.2.5 was released.
+packages. These instructions, and the files in packaging/Debian/, should
+be current as of Samba 3.0beta1, and should allow you to build Debian
+packages for Debian unstable.
+
+We try to maintain as much compatibility with previous releases
+of Debian as possible, so it is possible that the files in
+packaging/Debian/ can also be used to build Samba Debian packages for
+other Debian releases. However, sometimes this is just not possible
+because we need to use stuff that is only available on Debian unstable.
 
 Instructions
 ------------

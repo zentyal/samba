@@ -18,6 +18,9 @@ samba (3.0.0beta2-1) unstable; urgency=low
     privilege.tdb).
   * Remove python-linker.patch, since the Kerberos package has been
     fixed to no longer use rpath
+  * Remove configure.patch: the hppa glibc bug this was added for is
+    long since fixed, and upstream isn't interested in supporting this
+    kludge.
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
 

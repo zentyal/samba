@@ -2,6 +2,8 @@ samba (3.0.10-2) unstable; urgency=low
 
   * Fix logrotate script to exit true instead of false when nmbd.pid is
     missing (closes: #287263).
+  * Added Portuguese debconf translation. Thanks to Miguel Figueiredo 
+    <elmig@debianpt.org>. (closes: #286375)
 
  -- Steve Langasek <vorlon@debian.org>  Sun,  2 Jan 2005 02:15:55 -0800
 

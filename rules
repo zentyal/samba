@@ -201,7 +201,7 @@ binary-indep: build install
 	dh_testdir
 	dh_testroot
 	dh_installdebconf
-	dh_installdocs -A docs/textdocs/DIAGNOSIS.txt debian/README.build docs/README* docs/Samba-HOWTO-Collection.pdf
+	dh_installdocs -A debian/README.build
 	# dh_installexamples is not available in Debian Potato...
 	[ -x /usr/bin/dh_installexamples ] && dh_installexamples
 #	dh_installmenu

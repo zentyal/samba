@@ -1,0 +1,81 @@
+diff -ur samba-2.999+3.0cvs20020723.orig/source/Makefile.in samba-2.999+3.0cvs20020723/source/Makefile.in
+--- samba-2.999+3.0cvs20020723.orig/source/Makefile.in	2002-08-05 21:50:38.000000000 -0500
++++ samba-2.999+3.0cvs20020723/source/Makefile.in	2002-08-05 21:50:59.000000000 -0500
+@@ -22,6 +22,8 @@
+ TERMLDFLAGS=@TERMLDFLAGS@
+ TERMLIBS=@TERMLIBS@
+ 
++SMBDLIBS=@SMBDLIBS@
++
+ LINK=$(CC) $(FLAGS) $(LDFLAGS)
+ 
+ INSTALLCMD=@INSTALL@
+@@ -616,7 +618,7 @@
+ 
+ bin/smbd: $(SMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+-	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(LIBS) 
++	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(SMBDLIBS) $(LIBS)
+ 
+ bin/nmbd: $(NMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+diff -ur samba-2.999+3.0cvs20020723.orig/source/configure.in samba-2.999+3.0cvs20020723/source/configure.in
+--- samba-2.999+3.0cvs20020723.orig/source/configure.in	2002-08-05 21:50:39.000000000 -0500
++++ samba-2.999+3.0cvs20020723/source/configure.in	2002-08-05 21:50:59.000000000 -0500
+@@ -157,6 +157,7 @@
+ AC_SUBST(SHLIBEXT)
+ AC_SUBST(LIBSMBCLIENT_SHARED)
+ AC_SUBST(LIBSMBCLIENT)
++AC_SUBST(SMBDLIBS)
+ 
+ # compile with optimization and without debugging by default
+ CFLAGS="-O ${CFLAGS}"
+@@ -528,7 +529,7 @@
+                         AC_DEFINE(HAVE_CUPS)
+ 		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
+ 		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
+-		LIBS="$LIBS `$CUPS_CONFIG --libs`"
++		SMBDLIBS="$SMBDLIBS `$CUPS_CONFIG --libs`"
+         fi
+ fi
+ 
+@@ -536,7 +537,7 @@
+ # we need dlopen/dlclose/dlsym/dlerror for PAM, the password database plugins and the new VFS code
+ AC_CHECK_FUNCS(dlopen)
+ if test x"$ac_cv_func_dlopen" = x"no"; then
+-    AC_CHECK_LIB(dl, dlopen, [LIBS="$LIBS -ldl";
++    AC_CHECK_LIB(dl, dlopen, [SMBDLIBS="$SMBDLIBS -ldl";
+ 	AC_DEFINE(HAVE_DLOPEN)])
+ fi
+ # dlopen/dlclose/dlsym/dlerror will be checked again later and defines will be set then
+@@ -643,7 +644,7 @@
+ # test for where we get crypt() from
+ AC_CHECK_FUNCS(crypt)
+ if test x"$ac_cv_func_crypt" = x"no"; then
+-    AC_CHECK_LIB(crypt, crypt, [LIBS="$LIBS -lcrypt";
++    AC_CHECK_LIB(crypt, crypt, [SMBDLIBS="$SMBDLIBS -lcrypt";
+ 	AC_DEFINE(HAVE_CRYPT)])
+ fi
+ 
+@@ -2139,7 +2140,7 @@
+ if test $with_pam_for_crypt = no; then
+ AC_CHECK_FUNCS(crypt)
+ if test x"$ac_cv_func_crypt" = x"no"; then
+-    AC_CHECK_LIB(crypt, crypt, [LIBS="$LIBS -lcrypt";
++    AC_CHECK_LIB(crypt, crypt, [SMBDLIBS="$SMBDLIBS -lcrypt";
+ 	AC_DEFINE(HAVE_CRYPT)])
+ fi
+ fi
+@@ -2632,10 +2633,10 @@
+ 	*osf*)
+ 		AC_MSG_RESULT(Using Tru64 ACLs)
+ 		AC_DEFINE(HAVE_TRU64_ACLS)
+-		LIBS="$LIBS -lpacl"
++		SMBDLIBS="$SMBDLIBS -lpacl"
+ 		;;
+         *)
+-		AC_CHECK_LIB(acl,acl_get_file)
++		AC_CHECK_LIB(acl,acl_get_file, [SMBDLIBS="$SMBDLIBS -lacl"])
+ 		AC_CACHE_CHECK([for ACL support],samba_cv_HAVE_POSIX_ACLS,[
+ 		AC_TRY_LINK([#include <sys/types.h>
+ #include <sys/acl.h>],

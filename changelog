@@ -1,10 +1,13 @@
-samba (2.999+3.0cvs20020826-1) unstable; urgency=low
+samba (2.999+3.0cvs20020827-1) unstable; urgency=low
 
-  * CVS update.
+  * CVS update. (Closes: #158508)
   * Part 1 of 3 of the library separation patch that Vorlon wrote has
-    gone upstream.
+    gone upstream - removed the patch from our patches/ directory.
+  * Debconf note to warn users that their smb.conf will be re-written
+    and changed if they use Swat to maintain it. (Closes: #158479)
+  * Fixed typo in samba.prerm.
 
- -- Eloy A. Paris <peloy@debian.org>  Mon, 26 Aug 2002 13:20:07 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 27 Aug 2002 15:23:23 -0400
 
 samba (2.999+3.0cvs20020825-2) unstable; urgency=low
 

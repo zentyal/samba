@@ -70,7 +70,7 @@ Description: A LanManager like simple client for Unix.
 
 Package: swat
 Architecture: any
-Depends: samba (= ${Source-Version}), ${shlibs:Depends}
+Depends: debconf, samba (= ${Source-Version}), ${shlibs:Depends}
 Recommends: samba-doc
 Description: Samba Web Administration Tool
  The Samba software suite is a collection of programs that

@@ -5,8 +5,11 @@ samba (3.0.2a-2) unstable; urgency=low
     (closes: #236640)
   * Incorporate Czech debconf translations; thanks to
     Miroslav Kure <kurem@upcase.inf.upol.cz> (closes: #236274).
+  * Update libsmbclient shlibs, due to an incompatibility with older
+    versions that prevents gnome-vfs from working correctly
+    (closes: #245869).
 
- -- Eloy A. Paris <peloy@debian.org>  Mon,  8 Mar 2004 09:57:00 -0500
+ -- Steve Langasek <vorlon@debian.org>  Sun, 25 Apr 2004 17:33:21 -0500
 
 samba (3.0.2a-1) unstable; urgency=low
 

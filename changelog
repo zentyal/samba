@@ -6,7 +6,7 @@ samba (3.0.7-2) unstable; urgency=high
   * debian/patches/make-distclean.patch: add some missing files to the
     distclean target in source/Makefile.in (mostly-fixes: #276203).
   * Change compile-time default of 'use sendfile' to 'no', since the
-    current Samba implementation is broken (closes: #261917).
+    current Samba implementation is broken (closes: #261917, #275741).
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 01:35:23 -0700
 

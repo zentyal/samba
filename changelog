@@ -2,6 +2,8 @@ samba (2.999+3.0.alpha21-5) unstable; urgency=low
 
   * touch up the package descriptions a little bit (caps, punctuation)
   * remove addtosmbpass, which snuck back in when we weren't looking
+  * reverse the position of the wins server tag, after looking more
+    closely at the code (closes: #183061)
 
  -- Steve Langasek <vorlon@debian.org>  Sat,  1 Mar 2003 15:14:00 -0600
 

@@ -1,3 +1,13 @@
+samba (3.0.6-1) unstable; urgency=low
+
+  * New upstream version.
+  * Incorporate Turkish debconf translation; thanks to Recai Oktas
+    <roktas@omu.edu.tr>. (closes: #252031)
+  * Update pt_BR debconf translation. Thanks to Andre Luis Lopes
+    <andrelop@debian.org>. (closes: #208113)
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 23 Aug 2004 12:34:44 -0400
+
 samba (3.0.5-2) unstable; urgency=high
 
   * Patches from Fabien Chevalier <fabien.chevalier@supelec.fr>

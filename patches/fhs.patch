@@ -1,7 +1,7 @@
 diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makefile.in
 --- samba-3.0.0beta2.orig/source/Makefile.in	2003-07-02 23:26:46.000000000 -0500
 +++ samba-3.0.0beta2/source/Makefile.in	2003-07-02 23:19:46.000000000 -0500
-@@ -92,6 +93,13 @@
+@@ -95,6 +96,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
  
@@ -15,7 +15,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  # the directory where pid files go
  PIDDIR = @piddir@
  # man pages language(s)
-@@ -116,7 +124,7 @@
+@@ -119,7 +123,7 @@
  PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
  PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
  	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
@@ -35,7 +35,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR)$(SWATDIR) $(srcdir)
 --- samba-3.0.4/source/configure.in.orig	2004-04-29 03:34:48.000000000 -0400
 +++ samba-3.0.4/source/configure.in	2004-05-10 14:47:41.000000000 -0400
-@@ -27,7 +27,7 @@
+@@ -35,7 +35,7 @@
  [  --with-fhs              Use FHS-compliant paths (default=no)],
  [ case "$withval" in
    yes)
@@ -44,7 +44,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-@@ -35,6 +35,10 @@
+@@ -43,6 +43,10 @@
      libdir="\${prefix}/lib/samba"
      configdir="${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
@@ -55,7 +55,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
      ;;
    esac])
  
-@@ -193,6 +197,9 @@
+@@ -201,6 +205,9 @@
  AC_SUBST(swatdir)
  AC_SUBST(bindir)
  AC_SUBST(sbindir)
@@ -174,7 +174,7 @@ diff -uNr samba-3.0.0beta2.orig/source/lib/account_pol.c samba-3.0.0beta2/source
 diff -uNr samba-3.0.0beta2.orig/source/lib/util.c samba-3.0.0beta2/source/lib/util.c
 --- samba-3.0.0beta2.orig/source/lib/util.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/lib/util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -2229,6 +2229,61 @@
+@@ -2204,6 +2204,61 @@
  }
  
  /**
@@ -302,7 +302,7 @@ diff -uNr samba-3.0.0beta2.orig/source/libsmb/samlogon_cache.c samba-3.0.0beta2/
  		DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
  			WINS_LIST, strerror(errno) ));
  		return True;
-@@ -1805,7 +1805,7 @@
+@@ -1810,7 +1810,7 @@
  		}
  	}
  
@@ -348,7 +348,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1091,8 +1091,13 @@
+@@ -1101,8 +1101,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
@@ -365,7 +365,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
 diff -uNr samba-3.0.0beta2.orig/source/passdb/pdb_tdb.c samba-3.0.0beta2/source/passdb/pdb_tdb.c
 --- samba-3.0.0beta2.orig/source/passdb/pdb_tdb.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/passdb/pdb_tdb.c	2003-07-02 23:19:02.000000000 -0500
-@@ -728,10 +728,7 @@
+@@ -734,10 +734,7 @@
  	if (location) {
  		tdb_state->tdbsam_location = talloc_strdup(pdb_context->mem_ctx, location);
  	} else {
@@ -392,7 +392,7 @@ diff -uNr samba-3.0.0beta2.orig/source/passdb/privileges.c samba-3.0.0beta2/sour
 diff -uNr samba-3.0.0beta2.orig/source/passdb/secrets.c samba-3.0.0beta2/source/passdb/secrets.c
 --- samba-3.0.0beta2.orig/source/passdb/secrets.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/passdb/secrets.c	2003-07-02 23:19:02.000000000 -0500
-@@ -38,8 +38,7 @@
+@@ -55,8 +55,7 @@
  	if (tdb)
  		return True;
  
@@ -443,7 +443,7 @@ diff -uNr samba-3.0.0beta2.orig/source/printing/nt_printing.c samba-3.0.0beta2/s
 diff -uNr samba-3.0.0beta2.orig/source/printing/printing.c samba-3.0.0beta2/source/printing/printing.c
 --- samba-3.0.0beta2.orig/source/printing/printing.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/printing/printing.c	2003-07-02 23:19:02.000000000 -0500
-@@ -174,8 +174,8 @@
+@@ -177,8 +177,8 @@
  	if (local_pid == sys_getpid())
  		return True;
  

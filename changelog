@@ -1,6 +1,8 @@
 samba (3.0.1-1) unstable; urgency=low
 
   * Early Christmas present from the Samba Team: new upstream version.
+  * Add support in the dhcp hook for netbios scope, and handle better
+    the case of multiple DHCP-using interfaces (closes: #224109).
 
  -- Eloy A. Paris <peloy@debian.org>  Tue, 16 Dec 2003 15:54:19 -0500
 

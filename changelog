@@ -12,13 +12,14 @@ samba (2.999+3.0.alpha23-5) unstable; urgency=low
     only does using /tmp violate SELinux policies, it introduces the
     possibility of data loss during the final copy if /tmp is a separate
     filesystem. (closes: #189823)
-  * Pull in fix for SWAT, so that logins work again (closes: #188255).
+  * Pull in fix for SWAT, so that logins work again
+    (closes: #188255, #192077).
   * Move passdb.tdb into /var/lib/samba, since it's not user-editable.
   * Make sure with don't ship any .cvsignore files.
   * Don't ship examples for python2.2-samba and samba-doc in an
-    "examples" directory inside another "examples" directory. 
+    "examples" directory inside another "examples" directory.
 
- -- Eloy A. Paris <peloy@debian.org>  Tue,  6 May 2003 09:45:11 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Tue,  6 May 2003 12:05:46 -0400
 
 samba (2.999+3.0.alpha23-4) unstable; urgency=low
 

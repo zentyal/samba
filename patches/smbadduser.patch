@@ -1,7 +1,7 @@
-diff -ur samba-2.99.cvs.20020713.orig/source/smbadduser samba-2.99.cvs.20020713/source/smbadduser
---- samba-2.99.cvs.20020713.orig/source/smbadduser	Mon Oct 13 07:13:11 1997
-+++ samba-2.99.cvs.20020713/source/smbadduser	Sat Jul 13 15:02:34 2002
-@@ -2,11 +2,14 @@
+diff -uNr samba-3.0alpha21.orig/source/smbadduser samba-3.0alpha21/source/smbadduser
+--- samba-3.0alpha21.orig/source/smbadduser	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/smbadduser	2003-02-16 16:25:16.000000000 -0600
+@@ -2,13 +2,14 @@
  #
  # smbadduser - Written by Mike Zakharoff
  #
@@ -13,7 +13,9 @@ diff -ur samba-2.99.cvs.20020713.orig/source/smbadduser samba-2.99.cvs.20020713/
 +#set path = ($path /usr/local/samba/bin)
  
 -set smbpasswd = /usr/local/samba/private/smbpasswd
+-#set smbpasswd = /etc/samba/smbpasswd
 -set user_map  = /usr/local/samba/lib/users.map
+-#set user_map  = /etc/samba/smbusers
 +set smbpasswd = /etc/samba/smbpasswd
 +set user_map  = /etc/samba/users.map
  #

@@ -1,7 +1,7 @@
-diff -uNr samba-2.999+3.0.alpha21.orig/source/Makefile.in samba-2.999+3.0.alpha21/source/Makefile.in
---- samba-2.999+3.0.alpha21.orig/source/Makefile.in	2002-12-16 23:15:30.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/Makefile.in	2002-12-16 23:17:10.000000000 -0600
-@@ -50,6 +50,7 @@
+diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makefile.in
+--- samba-3.0alpha21.orig/source/Makefile.in	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/Makefile.in	2003-02-16 13:34:07.000000000 -0600
+@@ -56,6 +56,7 @@
  CONFIGDIR = @configdir@
  VARDIR = @localstatedir@
  MANDIR = @mandir@
@@ -9,7 +9,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/Makefile.in samba-2.999+3.0.alpha2
  
  # The permissions to give the executables
  INSTALLPERMS = 0755
-@@ -73,6 +74,13 @@
+@@ -79,6 +80,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
  
@@ -23,27 +23,27 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/Makefile.in samba-2.999+3.0.alpha2
  # the directory where pid files go
  PIDDIR = @piddir@
  # man pages language(s)
-@@ -96,7 +104,7 @@
- PATH_FLAGS3 = $(PATH_FLAGS2) -DLMHOSTSFILE=\"$(LMHOSTSFILE)\" 
+@@ -103,7 +111,7 @@
  PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
- PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" -DLOGFILEBASE=\"$(LOGFILEBASE)\" 
--PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGFIR)\"
-+PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGFIR)\" -DCODEPAGEDIR=\"$(CODEPAGEDIR)\" -DCACHEDIR=\"$(CACHEDIR)\" -DSTATEDIR=\"$(STATEDIR)\"
+ PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
+ 	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
+-PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\"
++PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\" -DCODEPAGEDIR=\"$(CODEPAGEDIR)\" -DCACHEDIR=\"$(CACHEDIR)\" -DSTATEDIR=\"$(STATEDIR)\"
  PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
  
- WINBIND_PROGS = @WINBIND_TARGETS@
-@@ -874,7 +882,7 @@
- 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(BINDIR) $(SCRIPTS)
+ # Note that all executable programs now provide for an optional executable suffix.
+@@ -1005,7 +1013,7 @@
+ 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
  
  installdat: installdirs
--	@$(SHELL) $(srcdir)/script/installdat.sh $(LIBDIR) $(srcdir)
-+	@$(SHELL) $(srcdir)/script/installdat.sh $(CODEPAGEDIR) $(srcdir)
+-	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR)$(LIBDIR) $(srcdir)
++	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR)$(CODEPAGEDIR) $(srcdir)
  
  installswat: installdirs
- 	@$(SHELL) $(srcdir)/script/installswat.sh $(SWATDIR) $(srcdir)
-diff -uNr samba-2.999+3.0.alpha21.orig/source/configure.in samba-2.999+3.0.alpha21/source/configure.in
---- samba-2.999+3.0.alpha21.orig/source/configure.in	2002-12-16 23:15:41.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/configure.in	2002-12-16 23:17:10.000000000 -0600
+ 	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR)$(SWATDIR) $(srcdir)
+diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
+--- samba-3.0alpha21.orig/source/configure.in	2003-02-16 13:04:57.000000000 -0600
++++ samba-3.0alpha21/source/configure.in	2003-02-16 13:05:11.000000000 -0600
 @@ -12,18 +12,25 @@
  AC_ARG_WITH(fhs, 
  [  --with-fhs              Use FHS-compliant paths (default=no)],
@@ -83,10 +83,10 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/configure.in samba-2.999+3.0.alpha
  
  dnl Unique-to-Samba variables we'll be playing with.
  AC_SUBST(SHELL)
-diff -uNr samba-2.999+3.0.alpha21.orig/source/dynconfig.c samba-2.999+3.0.alpha21/source/dynconfig.c
---- samba-2.999+3.0.alpha21.orig/source/dynconfig.c	2002-09-26 15:04:52.000000000 -0500
-+++ samba-2.999+3.0.alpha21/source/dynconfig.c	2002-12-16 23:17:10.000000000 -0600
-@@ -52,11 +52,11 @@
+diff -uNr samba-3.0alpha21.orig/source/dynconfig.c samba-3.0alpha21/source/dynconfig.c
+--- samba-3.0alpha21.orig/source/dynconfig.c	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/dynconfig.c	2003-02-16 13:35:56.000000000 -0600
+@@ -53,11 +53,11 @@
  pstring dyn_LMHOSTSFILE = LMHOSTSFILE;
  
  /**
@@ -96,15 +96,17 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/dynconfig.c samba-2.999+3.0.alpha2
 - * @sa lib_path() to get the path to a file inside the LIBDIR.
 + * @sa data_path() to get the path to a file inside the CODEPAGEDIR.
   **/
--pstring dyn_LIBDIR = LIBDIR;  
-+pstring dyn_CODEPAGEDIR = CODEPAGEDIR;  
+-pstring dyn_LIBDIR = LIBDIR;
++pstring dyn_CODEPAGEDIR = CODEPAGEDIR;
+ const fstring dyn_SHLIBEXT = SHLIBEXT;
  
  /**
-  * @brief Directory holding lock files.
-@@ -72,3 +72,25 @@
+@@ -70,3 +70,27 @@
+ 
+ const pstring dyn_SMB_PASSWD_FILE = SMB_PASSWD_FILE;
  const pstring dyn_PRIVATE_DIR = PRIVATE_DIR;
- 
- 
++
++
 +/* In non-FHS mode, these should be configurable using 'lock dir =';
 +   but in FHS mode, they are their own directory.  Implement as wrapper
 +   functions so that everything can still be kept in dynconfig.c.
@@ -127,9 +129,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/dynconfig.c samba-2.999+3.0.alpha2
 +	return lp_lockdir();
 +#endif
 +}
-diff -uNr samba-2.999+3.0.alpha21.orig/source/groupdb/mapping.c samba-2.999+3.0.alpha21/source/groupdb/mapping.c
---- samba-2.999+3.0.alpha21.orig/source/groupdb/mapping.c	2002-11-26 20:54:18.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/groupdb/mapping.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/groupdb/mapping.c samba-3.0alpha21/source/groupdb/mapping.c
+--- samba-3.0alpha21.orig/source/groupdb/mapping.c	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/groupdb/mapping.c	2003-02-16 13:05:11.000000000 -0600
 @@ -214,7 +214,7 @@
  	
  	if (tdb && local_pid == sys_getpid())
@@ -139,9 +141,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/groupdb/mapping.c samba-2.999+3.0.
  	if (!tdb) {
  		DEBUG(0,("Failed to open group mapping database\n"));
  		return False;
-diff -uNr samba-2.999+3.0.alpha21.orig/source/include/config.h.in samba-2.999+3.0.alpha21/source/include/config.h.in
---- samba-2.999+3.0.alpha21.orig/source/include/config.h.in	2002-11-26 20:54:18.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/include/config.h.in	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/include/config.h.in samba-3.0alpha21/source/include/config.h.in
+--- samba-3.0alpha21.orig/source/include/config.h.in	2002-11-26 20:54:18.000000000 -0600
++++ samba-3.0alpha21/source/include/config.h.in	2003-02-16 13:05:11.000000000 -0600
 @@ -99,6 +99,9 @@
  /* Whether the minor macro for dev_t is available */
  #undef HAVE_DEVICE_MINOR_FN
@@ -152,32 +154,32 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/include/config.h.in samba-2.999+3.
  /* Whether dirent has a d_off member */
  #undef HAVE_DIRENT_D_OFF
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/include/dynconfig.h samba-2.999+3.0.alpha21/source/include/dynconfig.h
---- samba-2.999+3.0.alpha21.orig/source/include/dynconfig.h	2002-09-26 15:04:52.000000000 -0500
-+++ samba-2.999+3.0.alpha21/source/include/dynconfig.h	2002-12-16 23:17:10.000000000 -0600
-@@ -29,9 +29,12 @@
+diff -uNr samba-3.0alpha21.orig/source/include/dynconfig.h samba-3.0alpha21/source/include/dynconfig.h
+--- samba-3.0alpha21.orig/source/include/dynconfig.h	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/include/dynconfig.h	2003-02-16 13:30:42.000000000 -0600
+@@ -30,9 +30,12 @@
  
  extern pstring dyn_CONFIGFILE;
  extern pstring dyn_LOGFILEBASE, dyn_LMHOSTSFILE;
 -extern pstring dyn_LIBDIR;
 +extern pstring dyn_CODEPAGEDIR;
+ extern const fstring dyn_SHLIBEXT;
  extern const pstring dyn_LOCKDIR; 
  extern const pstring dyn_PIDDIR;
- extern const pstring dyn_DRIVERFILE; 
  extern const pstring dyn_SMB_PASSWD_FILE;
  extern const pstring dyn_PRIVATE_DIR;
 +
 +char *dyn_STATEDIR();
 +char *dyn_CACHEDIR();
-diff -uNr samba-2.999+3.0.alpha21.orig/source/intl/lang_tdb.c samba-2.999+3.0.alpha21/source/intl/lang_tdb.c
---- samba-2.999+3.0.alpha21.orig/source/intl/lang_tdb.c	2002-11-26 20:54:18.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/intl/lang_tdb.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/intl/lang_tdb.c samba-3.0alpha21/source/intl/lang_tdb.c
+--- samba-3.0alpha21.orig/source/intl/lang_tdb.c	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/intl/lang_tdb.c	2003-02-16 13:30:59.000000000 -0600
 @@ -123,7 +123,7 @@
  	/* if no lang then we don't translate */
  	if (!lang) return True;
  
--	asprintf(&msg_path, "%s.msg", lib_path((char *)lang));
-+	asprintf(&msg_path, "%s.msg", data_path((char *)lang));
+-	asprintf(&msg_path, "%s.msg", lib_path((const char *)lang));
++	asprintf(&msg_path, "%s.msg", data_path((const char *)lang));
  	if (stat(msg_path, &st) != 0) {
  		/* the msg file isn't available */
  		free(msg_path);
@@ -190,9 +192,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/intl/lang_tdb.c samba-2.999+3.0.al
  
  	tdb = tdb_open_log(path, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0644);
  	if (!tdb) {
-diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/account_pol.c samba-2.999+3.0.alpha21/source/lib/account_pol.c
---- samba-2.999+3.0.alpha21.orig/source/lib/account_pol.c	2002-11-26 20:54:18.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/lib/account_pol.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/lib/account_pol.c samba-3.0alpha21/source/lib/account_pol.c
+--- samba-3.0alpha21.orig/source/lib/account_pol.c	2003-02-16 13:01:45.000000000 -0600
++++ samba-3.0alpha21/source/lib/account_pol.c	2003-02-16 13:05:11.000000000 -0600
 @@ -36,7 +36,7 @@
  
  	if (tdb && local_pid == sys_getpid())
@@ -202,10 +204,10 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/account_pol.c samba-2.999+3.0.
  	if (!tdb) {
  		DEBUG(0,("Failed to open account policy database\n"));
  		return False;
-diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/util.c samba-2.999+3.0.alpha21/source/lib/util.c
---- samba-2.999+3.0.alpha21.orig/source/lib/util.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/lib/util.c	2002-12-16 23:17:10.000000000 -0600
-@@ -2098,17 +2098,57 @@
+diff -uNr samba-3.0alpha21.orig/source/lib/util.c samba-3.0alpha21/source/lib/util.c
+--- samba-3.0alpha21.orig/source/lib/util.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/lib/util.c	2003-02-16 13:05:11.000000000 -0600
+@@ -2169,17 +2169,57 @@
  }
  
  /**
@@ -267,9 +269,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/util.c samba-2.999+3.0.alpha21
  	return fname;
  }
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/util_unistr.c samba-2.999+3.0.alpha21/source/lib/util_unistr.c
---- samba-2.999+3.0.alpha21.orig/source/lib/util_unistr.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/lib/util_unistr.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/lib/util_unistr.c samba-3.0alpha21/source/lib/util_unistr.c
+--- samba-3.0alpha21.orig/source/lib/util_unistr.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/lib/util_unistr.c	2003-02-16 13:05:11.000000000 -0600
 @@ -43,8 +43,8 @@
  	if (initialised) return;
  	initialised = 1;
@@ -290,9 +292,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/lib/util_unistr.c samba-2.999+3.0.
  	if (valid_table) {
  		mapped_file = 1;
  		return;
-diff -uNr samba-2.999+3.0.alpha21.orig/source/libsmb/netlogon_unigrp.c samba-2.999+3.0.alpha21/source/libsmb/netlogon_unigrp.c
---- samba-2.999+3.0.alpha21.orig/source/libsmb/netlogon_unigrp.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/libsmb/netlogon_unigrp.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/libsmb/netlogon_unigrp.c samba-3.0alpha21/source/libsmb/netlogon_unigrp.c
+--- samba-3.0alpha21.orig/source/libsmb/netlogon_unigrp.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/libsmb/netlogon_unigrp.c	2003-02-16 13:05:11.000000000 -0600
 @@ -40,7 +40,7 @@
  BOOL uni_group_cache_init(void)
  {
@@ -302,7 +304,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/libsmb/netlogon_unigrp.c samba-2.9
  						   TDB_DEFAULT, O_RDWR | O_CREAT, 0644);
  	}
  
-@@ -110,7 +110,7 @@
+@@ -112,7 +112,7 @@
  		return NULL;
  	}
  	if (!netlogon_unigrp_tdb) {
@@ -311,10 +313,10 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/libsmb/netlogon_unigrp.c samba-2.9
                  				    TDB_DEFAULT, O_RDWR, 0644);
  	}
  	if (!netlogon_unigrp_tdb) {
-diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_serverlistdb.c samba-2.999+3.0.alpha21/source/nmbd/nmbd_serverlistdb.c
---- samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_serverlistdb.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/nmbd/nmbd_serverlistdb.c	2002-12-16 23:17:10.000000000 -0600
-@@ -344,7 +344,7 @@
+diff -uNr samba-3.0alpha21.orig/source/nmbd/nmbd_serverlistdb.c samba-3.0alpha21/source/nmbd/nmbd_serverlistdb.c
+--- samba-3.0alpha21.orig/source/nmbd/nmbd_serverlistdb.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/nmbd/nmbd_serverlistdb.c	2003-02-16 13:05:11.000000000 -0600
+@@ -343,7 +343,7 @@
  
    updatecount++;
      
@@ -323,9 +325,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_serverlistdb.c samba-2.9
    trim_string(fname,NULL,"/");
    pstrcat(fname,"/");
    pstrcat(fname,SERVER_LIST);
-diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_winsserver.c samba-2.999+3.0.alpha21/source/nmbd/nmbd_winsserver.c
---- samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_winsserver.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/nmbd/nmbd_winsserver.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/nmbd/nmbd_winsserver.c samba-3.0alpha21/source/nmbd/nmbd_winsserver.c
+--- samba-3.0alpha21.orig/source/nmbd/nmbd_winsserver.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/nmbd/nmbd_winsserver.c	2003-02-16 13:05:11.000000000 -0600
 @@ -234,7 +234,7 @@
  
  	add_samba_names_to_subnet(wins_server_subnet);
@@ -335,7 +337,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_winsserver.c samba-2.999
  	if (!tdb) {
  		DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n", WINS_LIST, strerror(errno) ));
  		return True;
-@@ -1785,7 +1785,7 @@
+@@ -1786,7 +1786,7 @@
  		}
  	}
  
@@ -344,9 +346,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_winsserver.c samba-2.999
  	all_string_sub(fname,"//", "/", 0);
  	slprintf(fnamenew,sizeof(fnamenew)-1,"%s.%u", fname, (unsigned int)sys_getpid());
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_ads.c samba-2.999+3.0.alpha21/source/nsswitch/winbindd_ads.c
---- samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_ads.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/nsswitch/winbindd_ads.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/nsswitch/winbindd_ads.c samba-3.0alpha21/source/nsswitch/winbindd_ads.c
+--- samba-3.0alpha21.orig/source/nsswitch/winbindd_ads.c	2003-02-16 13:01:46.000000000 -0600
++++ samba-3.0alpha21/source/nsswitch/winbindd_ads.c	2003-02-16 13:05:11.000000000 -0600
 @@ -46,7 +46,7 @@
  	}
  
@@ -356,9 +358,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_ads.c samba-2.99
  	SETENV("KRB5CCNAME", ccache, 1);
  	unlink(ccache);
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_cache.c samba-2.999+3.0.alpha21/source/nsswitch/winbindd_cache.c
---- samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_cache.c	2002-11-26 20:54:19.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/nsswitch/winbindd_cache.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/nsswitch/winbindd_cache.c samba-3.0alpha21/source/nsswitch/winbindd_cache.c
+--- samba-3.0alpha21.orig/source/nsswitch/winbindd_cache.c	2002-11-26 20:54:19.000000000 -0600
++++ samba-3.0alpha21/source/nsswitch/winbindd_cache.c	2003-02-16 13:05:11.000000000 -0600
 @@ -53,7 +53,7 @@
  	}
  	if (opt_nocache) return;
@@ -368,9 +370,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_cache.c samba-2.
  				   TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0600);
  
  	if (!wcache->tdb) {
-diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_idmap.c samba-2.999+3.0.alpha21/source/nsswitch/winbindd_idmap.c
---- samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_idmap.c	2002-09-26 15:04:53.000000000 -0500
-+++ samba-2.999+3.0.alpha21/source/nsswitch/winbindd_idmap.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/nsswitch/winbindd_idmap.c samba-3.0alpha21/source/nsswitch/winbindd_idmap.c
+--- samba-3.0alpha21.orig/source/nsswitch/winbindd_idmap.c	2002-09-26 15:04:53.000000000 -0500
++++ samba-3.0alpha21/source/nsswitch/winbindd_idmap.c	2003-02-16 13:05:11.000000000 -0600
 @@ -430,14 +430,14 @@
  {
  	/* Open tdb cache */
@@ -388,10 +390,10 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/nsswitch/winbindd_idmap.c samba-2.
  		DEBUG(0, ("winbindd_idmap_init: Unable to open idmap database\n"));
  		return False;
  	}
-diff -uNr samba-2.999+3.0.alpha21.orig/source/param/loadparm.c samba-2.999+3.0.alpha21/source/param/loadparm.c
---- samba-2.999+3.0.alpha21.orig/source/param/loadparm.c	2002-11-26 20:54:20.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/param/loadparm.c	2002-12-16 23:17:10.000000000 -0600
-@@ -94,6 +94,9 @@
+diff -uNr samba-3.0alpha21.orig/source/param/loadparm.c samba-3.0alpha21/source/param/loadparm.c
+--- samba-3.0alpha21.orig/source/param/loadparm.c	2003-02-16 13:01:47.000000000 -0600
++++ samba-3.0alpha21/source/param/loadparm.c	2003-02-16 13:05:11.000000000 -0600
+@@ -95,6 +95,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
  	char *szOs2DriverMap;
@@ -401,7 +403,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/param/loadparm.c samba-2.999+3.0.a
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1015,8 +1018,13 @@
+@@ -1023,8 +1026,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE},
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED | FLAG_DEVELOPER},
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED | FLAG_DEVELOPER},
@@ -415,9 +417,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/param/loadparm.c samba-2.999+3.0.a
  	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED | FLAG_DEVELOPER}, 
  #ifdef WITH_UTMP
  	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED | FLAG_DEVELOPER},
-diff -uNr samba-2.999+3.0.alpha21.orig/source/passdb/secrets.c samba-2.999+3.0.alpha21/source/passdb/secrets.c
---- samba-2.999+3.0.alpha21.orig/source/passdb/secrets.c	2002-11-26 20:54:20.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/passdb/secrets.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/passdb/secrets.c samba-3.0alpha21/source/passdb/secrets.c
+--- samba-3.0alpha21.orig/source/passdb/secrets.c	2003-02-16 13:01:47.000000000 -0600
++++ samba-3.0alpha21/source/passdb/secrets.c	2003-02-16 13:05:11.000000000 -0600
 @@ -37,8 +37,7 @@
  	if (tdb)
  		return True;
@@ -428,9 +430,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/passdb/secrets.c samba-2.999+3.0.a
  
  	tdb = tdb_open_log(fname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/nt_printing.c samba-2.999+3.0.alpha21/source/printing/nt_printing.c
---- samba-2.999+3.0.alpha21.orig/source/printing/nt_printing.c	2002-11-26 20:54:20.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/printing/nt_printing.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/printing/nt_printing.c samba-3.0alpha21/source/printing/nt_printing.c
+--- samba-3.0alpha21.orig/source/printing/nt_printing.c	2003-02-16 13:01:47.000000000 -0600
++++ samba-3.0alpha21/source/printing/nt_printing.c	2003-02-16 13:05:11.000000000 -0600
 @@ -271,28 +271,28 @@
   
  	if (tdb_drivers)
@@ -466,10 +468,10 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/nt_printing.c samba-2.999
  		return False;
  	}
   
-diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/printing.c samba-2.999+3.0.alpha21/source/printing/printing.c
---- samba-2.999+3.0.alpha21.orig/source/printing/printing.c	2002-11-26 20:54:20.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/printing/printing.c	2002-12-16 23:17:10.000000000 -0600
-@@ -150,8 +150,8 @@
+diff -uNr samba-3.0alpha21.orig/source/printing/printing.c samba-3.0alpha21/source/printing/printing.c
+--- samba-3.0alpha21.orig/source/printing/printing.c	2003-02-16 13:01:47.000000000 -0600
++++ samba-3.0alpha21/source/printing/printing.c	2003-02-16 13:05:11.000000000 -0600
+@@ -173,8 +173,8 @@
  	if (local_pid == sys_getpid())
  		return True;
  
@@ -480,9 +482,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/printing.c samba-2.999+3.
  	mkdir(printing_path,0755);
  
  	local_pid = sys_getpid();
-diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/printing_db.c samba-2.999+3.0.alpha21/source/printing/printing_db.c
---- samba-2.999+3.0.alpha21.orig/source/printing/printing_db.c	2002-11-26 07:40:23.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/printing/printing_db.c	2002-12-16 23:19:41.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/printing/printing_db.c samba-3.0alpha21/source/printing/printing_db.c
+--- samba-3.0alpha21.orig/source/printing/printing_db.c	2003-02-16 13:01:47.000000000 -0600
++++ samba-3.0alpha21/source/printing/printing_db.c	2003-02-16 13:05:11.000000000 -0600
 @@ -86,7 +86,7 @@
  		DLIST_ADD(print_db_head, p);
  	}
@@ -492,9 +494,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/printing/printing_db.c samba-2.999
  	pstrcat(printdb_path, printername);
  	pstrcat(printdb_path, ".tdb");
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/registry/reg_db.c samba-2.999+3.0.alpha21/source/registry/reg_db.c
---- samba-2.999+3.0.alpha21.orig/source/registry/reg_db.c	2002-09-26 15:04:53.000000000 -0500
-+++ samba-2.999+3.0.alpha21/source/registry/reg_db.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/registry/reg_db.c samba-3.0alpha21/source/registry/reg_db.c
+--- samba-3.0alpha21.orig/source/registry/reg_db.c	2002-09-26 15:04:53.000000000 -0500
++++ samba-3.0alpha21/source/registry/reg_db.c	2003-02-16 13:05:11.000000000 -0600
 @@ -131,13 +131,13 @@
  	 * if we need to init the data in the registry
  	 */
@@ -512,9 +514,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/registry/reg_db.c samba-2.999+3.0.
  			return False;
  		}
  		
-diff -uNr samba-2.999+3.0.alpha21.orig/source/rpc_server/srv_srvsvc_nt.c samba-2.999+3.0.alpha21/source/rpc_server/srv_srvsvc_nt.c
---- samba-2.999+3.0.alpha21.orig/source/rpc_server/srv_srvsvc_nt.c	2002-11-26 20:54:21.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/rpc_server/srv_srvsvc_nt.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/rpc_server/srv_srvsvc_nt.c samba-3.0alpha21/source/rpc_server/srv_srvsvc_nt.c
+--- samba-3.0alpha21.orig/source/rpc_server/srv_srvsvc_nt.c	2003-02-16 13:01:49.000000000 -0600
++++ samba-3.0alpha21/source/rpc_server/srv_srvsvc_nt.c	2003-02-16 13:05:11.000000000 -0600
 @@ -133,10 +133,10 @@
   
  	if (share_tdb && local_pid == sys_getpid())
@@ -528,9 +530,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/rpc_server/srv_srvsvc_nt.c samba-2
  		return False;
  	}
   
-diff -uNr samba-2.999+3.0.alpha21.orig/source/smbd/lanman.c samba-2.999+3.0.alpha21/source/smbd/lanman.c
---- samba-2.999+3.0.alpha21.orig/source/smbd/lanman.c	2002-11-26 20:54:21.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/smbd/lanman.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/smbd/lanman.c samba-3.0alpha21/source/smbd/lanman.c
+--- samba-3.0alpha21.orig/source/smbd/lanman.c	2003-02-16 13:01:49.000000000 -0600
++++ samba-3.0alpha21/source/smbd/lanman.c	2003-02-16 13:05:11.000000000 -0600
 @@ -966,9 +966,9 @@
    BOOL local_list_only;
    int i;
@@ -543,9 +545,9 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/smbd/lanman.c samba-2.999+3.0.alph
      return(0);
    }
  
-diff -uNr samba-2.999+3.0.alpha21.orig/source/wrepld/process.c samba-2.999+3.0.alpha21/source/wrepld/process.c
---- samba-2.999+3.0.alpha21.orig/source/wrepld/process.c	2002-11-26 20:54:22.000000000 -0600
-+++ samba-2.999+3.0.alpha21/source/wrepld/process.c	2002-12-16 23:17:10.000000000 -0600
+diff -uNr samba-3.0alpha21.orig/source/wrepld/process.c samba-3.0alpha21/source/wrepld/process.c
+--- samba-3.0alpha21.orig/source/wrepld/process.c	2003-02-16 13:01:50.000000000 -0600
++++ samba-3.0alpha21/source/wrepld/process.c	2003-02-16 13:05:11.000000000 -0600
 @@ -197,7 +197,7 @@
  {
  	TDB_CONTEXT *tdb;

@@ -1,7 +1,7 @@
-diff -uNr samba-2.999+3.0.alpha21.orig/source/Makefile.in samba-2.999+3.0.alpha21/source/Makefile.in
---- samba-2.999+3.0.alpha21.orig/source/Makefile.in	Thu Dec  5 13:53:10 2002
-+++ samba-2.999+3.0.alpha21/source/Makefile.in	Thu Dec  5 13:57:42 2002
-@@ -24,6 +24,7 @@
+diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makefile.in
+--- samba-3.0alpha21.orig/source/Makefile.in	2003-02-16 13:40:12.000000000 -0600
++++ samba-3.0alpha21/source/Makefile.in	2003-02-16 13:40:25.000000000 -0600
+@@ -26,6 +26,7 @@
  TERMLIBS=@TERMLIBS@
  PRINTLIBS=@PRINTLIBS@
  AUTHLIBS=@AUTHLIBS@
@@ -9,27 +9,27 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/Makefile.in samba-2.999+3.0.alpha2
  
  LINK=$(CC) $(FLAGS) $(LDFLAGS)
  
-@@ -638,7 +639,7 @@
- bin/smbd: $(SMBD_OBJ) @BUILD_POPT@ bin/.dummy
+@@ -699,7 +700,7 @@
+ bin/smbd@EXEEXT@: $(SMBD_OBJ) @BUILD_POPT@ bin/.dummy
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
 -	  $(AUTHLIBS) $(LIBS) @BUILD_POPT@
 +	  $(AUTHLIBS) $(ACLLIBS) $(LIBS) @BUILD_POPT@
  
- bin/nmbd: $(NMBD_OBJ) @BUILD_POPT@ bin/.dummy
+ bin/nmbd@EXEEXT@: $(NMBD_OBJ) @BUILD_POPT@ bin/.dummy
  	@echo Linking $@
-diff -uNr samba-2.999+3.0.alpha21.orig/source/configure.in samba-2.999+3.0.alpha21/source/configure.in
---- samba-2.999+3.0.alpha21.orig/source/configure.in	Thu Dec  5 13:53:10 2002
-+++ samba-2.999+3.0.alpha21/source/configure.in	Thu Dec  5 14:02:02 2002
-@@ -160,6 +160,7 @@
+diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
+--- samba-3.0alpha21.orig/source/configure.in	2003-02-16 13:40:12.000000000 -0600
++++ samba-3.0alpha21/source/configure.in	2003-02-16 13:44:08.000000000 -0600
+@@ -156,6 +156,7 @@
  AC_SUBST(LIBSMBCLIENT)
  AC_SUBST(PRINTLIBS)
  AC_SUBST(AUTHLIBS)
 +AC_SUBST(ACLLIBS)
- 
- # compile with optimization and without debugging by default
- CFLAGS="-O ${CFLAGS}"
-@@ -2750,23 +2751,29 @@
+ AC_SUBST(SHLIB_PROGS)
+ AC_SUBST(SMBWRAPPER)
+ AC_SUBST(EXTRA_BIN_PROGS)
+@@ -2938,23 +2939,29 @@
  	*osf*)
  		AC_MSG_RESULT(Using Tru64 ACLs)
  		AC_DEFINE(HAVE_TRU64_ACLS,1,[Whether Tru64 ACLs are available])

@@ -113,7 +113,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmount.c samba-2.999+3.0.
  
  static void usage(void);
  
-@@ -249,6 +250,9 @@
+@@ -253,6 +254,9 @@
                  return;
          }
  
@@ -123,7 +123,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmount.c samba-2.999+3.0.
          if ((fd = open(MOUNTED"~", O_RDWR|O_CREAT|O_EXCL, 0600)) == -1) {
                  DEBUG(0,("%d: Can't get "MOUNTED"~ lock file", sys_getpid()));
                  return;
-@@ -442,6 +446,9 @@
+@@ -446,6 +450,9 @@
  	args[i++] = "-s";
  	args[i++] = svc2;
  
@@ -133,7 +133,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmount.c samba-2.999+3.0.
  	if (mount_ro) {
  		args[i++] = "-r";
  	}
-@@ -633,7 +640,7 @@
+@@ -637,7 +644,7 @@
  ****************************************************************************/
  static void usage(void)
  {
@@ -142,7 +142,7 @@ diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmount.c samba-2.999+3.0.
  
  	printf("Version %s\n\n",VERSION);
  
-@@ -697,8 +704,13 @@
+@@ -703,8 +707,13 @@
  	argc -= 2;
  	argv += 2;
  

@@ -178,7 +178,7 @@ Package: python2.2-samba
 Section: net
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, python2.2
 Description: Python bindings that allow access to various aspects of Samba
  The Samba Python bindings allow you to access various aspects of Samba.
  At the moment their status is "experimental" but they have been reported

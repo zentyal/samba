@@ -24,6 +24,8 @@ if [ "$1" = purge ]; then
 	# Remove NetBIOS entries from /etc/inetd.conf
 	update-inetd --remove netbios-ssn
 	update-inetd --remove netbios-ns
+
+	update-rc.d samba remove >/dev/null
 else
 	# Not purging, do not remove NetBIOS entries from /etc/inetd.conf
 	update-inetd --disable netbios-ssn

@@ -10,14 +10,15 @@ samba and sambades (merged together for longer than we can remember.)
 
 Contents of this README file:
 
-- Notes
-- Packages Generated from the Samba Sources
-- Support for NT Domains
-- Samba and LDAP
+1. Notes
+2. Packages Generated from the Samba Sources
+3. Support for NT Domains
+4. Samba and LDAP
+5. Reporting bugs
 
 
-Notes
------
+1. Notes
+--------
 
 - As of Samba 2.0.6-1, the Debian version of Samba is compiled with
   Pluggable Authentication Modules (PAM) support. PAM support was 
@@ -35,8 +36,8 @@ Notes
   (/var/log/{nmb,smb} were moved to the new location.
 
 
-Packages Generated from the Samba Sources
------------------------------------------
+2. Packages Generated from the Samba Sources
+--------------------------------------------
 
 Currently, the Samba sources produce the following binary packages:
 
@@ -63,8 +64,8 @@ with glibc2.1 get cleared out (the problem is with glibc, not with Samba
 itself).
 
 
-Support for NT Domains
-----------------------
+3. Support for NT Domains
+-------------------------
 
 Samba 2.2 includes preliminary support for NT domains. A Samba server
 can now be part of a Windows NT domain whose Primary Domain Controller
@@ -83,20 +84,54 @@ Please note that NT domain PDC support is far from complete and is still
 experimental.
 
 
-Samba and LDAP
---------------
+4. Samba and LDAP
+-----------------
 
 Samba 2.2 has experimental LDAP code. However, the official Debian
 packages have not been compiled with LDAP support for a good reason: if
 LDAP support is compiled in then the other authentication methods (PAM,
 smbpasswd, etc.) cannot be used, only LDAP will work. So, until LDAP
-cannot coexist peacefully with the other methods we will not provided
+can coexist peacefully with the other methods we will not provide
 LDAP-enabled packages. The workaround is, of course, to build your own
 packages. We can help with this if you don't know how to build packages.
 
 We follow Samba development, so please do not file bug reports asking
-for LDAP, we will add support for it when it doesn't break other
+for LDAP; we will add support for it when it doesn't break other
 things.
+
+
+5. Reporting Bugs
+-----------------
+
+If you believe you have found a bug please make sure the possible bug
+also exists in the latest version of Samba that is available for the
+unstable Debian distribution. If you are running Debian stable this
+means that you will probably have to build your own packages. And if the
+problem does not exist in the latest version of Samba we have packaged it
+means that you will have to run the version of Samba you built yourself
+since it is not easy to upload new packages to the stable distribution,
+unless they fix critical security problems.
+
+If you can reproduce the problem in the latest version of Samba then
+it is likely to be a real bug. Your best shot is to search the Samba
+mailing lists to see if it is something that has already been reported
+and fixed - if it is a simple fix we can add the patch to our packages
+without waiting for a new Samba release.
+
+If you decide that your problem deserves to be submitted to the Debian
+Bug Tracking System (BTS) we expect you to be responsive if we request
+more information. If we request more information and do not receive
+any in a reasonable time frame expect to see your bug closed without
+explanation - we can't fix bugs we can't reproduce, and most of the
+time we need more information to be able to reproduce them.
+
+When submitting a bug to the Debian BTS please include the version of
+the Debian package you are using as well as the Debian distribution you
+are using. Think _twice_ about the severity you assign to the bug: we
+are _very_ sensitive about bug severities; the fact that it doesn't
+work for you doesn't mean that the severity must be such that it holds
+a major Debian release. In fact, that it doesn't work for you it
+doesn't mean that it doesn't work for others. So again: think _twice_.
 
 
 Eloy A. Paris <peloy@debian.org>

@@ -22,10 +22,12 @@ these instructions:
   It's important that you copy instead of symlink because the build
   tools in Potato have a problem that prevents the build to work with
   a symlink.
-3) dch -i
+3) dch -i (this is completely optional - only do it if you understand
+   Debian version numbers! Don't complain later if you can't upgrade
+   to official versions of the Samba packages for Debian.)
   - Edit the changelog and make sure the version is right. For example,
-  for Samba 2.2.3, the version number should be 2.2.3-0.1 (use
-  a number less than 1 like 0.1, 0.2, etc. so there is no conflict
+  for Samba 2.2.4, the version number should something like 2.2.4-0.1
+  (use a number less than 1 like 0.1, 0.2, etc. so there is no conflict
   with future upgrades to the official Debian packages.)
 4) Run 'debian/rules binary'.
   - It is better that you prefix the above command with 'fakeroot'.

@@ -138,12 +138,13 @@ else
 	update-inetd --enable netbios-ssn
 fi
 
-# Start Samba: nothing wrong should happen if Samba is running from inetd
-#	and /etc/init.d/samba is run.
+# Start Samba: we don't want to call /etc/init.d/samba if we are
+# running from inetd because a nasty help message would be printed out.
 
 # Run the init script if this is a first-time install, or if it's an
-# upgrade and Samba was running before.
-if [ -z "$2" -o ! -f /tmp/samba-was-not-running ]; then
+# upgrade and Samba was running before, _and_ we're not running from inetd.
+if [ \( -z "$2" -o ! -f /tmp/samba-was-not-running \) -a \
+		"$RUN_MODE" = "daemons" ]; then
 	# Check the script is executable before running it.
 	[ -x /etc/init.d/samba ] && /etc/init.d/samba start
 fi
@@ -167,11 +168,10 @@ rm -f /etc/samba/debian_config
 mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null || true
 mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
 
-# Take care of the /usr/doc/ to /usr/shar/doc/ migration.
-if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
-	ln -sf ../share/doc/samba /usr/doc/samba
-fi
-
 # Do this last, so we don't accidentally start the daemons if something 
 # else in the script fails above.
 rm -f /tmp/samba-was-not-running
+
+#DEBHELPER#
+
+exit 0

@@ -80,6 +80,9 @@ Description: Samba Web Administration Tool
  .
  This package contains the components of the Samba suite that are needed
  for Web administration of the Samba server.
+ .
+ Note: if you want to use the on-line documentation that is accesible
+ through the Swat front-end you must install the samba-doc package.
 
 Package: samba-doc
 Section: doc

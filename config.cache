@@ -124,8 +124,6 @@ samba_cv_HAVE_FCNTL_LOCK=${samba_cv_HAVE_FCNTL_LOCK=yes}
 # to support transparent userland VFS.  We might as well preempt
 # any checks for shadowed symbols that are only useful for smbwrapper.
 
-ac_cv_func___acl=${ac_cv_func___acl=no}
-ac_cv_func__acl=${ac_cv_func__acl=no}
 ac_cv_func___chdir=${ac_cv_func___chdir=no}
 ac_cv_func__chdir=${ac_cv_func__chdir=no}
 ac_cv_func___close=${ac_cv_func___close=no}
@@ -136,8 +134,6 @@ ac_cv_func___dup=${ac_cv_func___dup=no}
 ac_cv_func__dup=${ac_cv_func__dup=no}
 ac_cv_func___dup2=${ac_cv_func___dup2=no}
 ac_cv_func__dup2=${ac_cv_func__dup2=no}
-ac_cv_func___facl=${ac_cv_func___facl=no}
-ac_cv_func__facl=${ac_cv_func__facl=no}
 ac_cv_func___fchdir=${ac_cv_func___fchdir=no}
 ac_cv_func__fchdir=${ac_cv_func__fchdir=no}
 ac_cv_func___fcntl=${ac_cv_func___fcntl=no}

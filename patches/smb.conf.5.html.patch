@@ -1,18 +1,6 @@
---- samba-2.2.2.cvs20020201/docs/htmldocs/smb.conf.5.html.orig	Fri Feb  1 17:03:50 2002
-+++ samba-2.2.2.cvs20020201/docs/htmldocs/smb.conf.5.html	Fri Feb  1 18:45:41 2002
-@@ -782,8 +782,9 @@
- 	steps fail, then the connection request is rejected.  However, if one of the 
- 	steps succeeds, then the following steps are not checked.</P
- ><P
-->If the service is marked "guest only = yes" then
--	steps 1 to 5 are skipped.</P
-+>If the service is marked "guest only = yes" and the
-+server is running with share-level security ("security = share")
-+then steps 1 to 5 are skipped.</P
- ><P
- ></P
- ><OL
-@@ -12163,7 +12164,7 @@
+--- samba-2.2.4/docs/htmldocs/smb.conf.5.html.orig	Thu May  2 21:24:13 2002
++++ samba-2.2.4/docs/htmldocs/smb.conf.5.html	Sun May  5 18:22:35 2002
+@@ -12238,7 +12238,7 @@
  ><P
  ><B
  CLASS="COMMAND"
@@ -21,7 +9,7 @@
  		%m' root &#60; %s; rm %s</B
  ></P
  ><P
-@@ -19430,4 +19431,5 @@
+@@ -19550,4 +19550,5 @@
  ></DIV
  ></BODY
  ></HTML

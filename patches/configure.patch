@@ -1,15 +1,6 @@
---- samba-2.2.2.cvs20020120.orig/source/configure.in
-+++ samba-2.2.2.cvs20020120/source/configure.in
-@@ -145,7 +145,7 @@
- AC_SUBST(SHLIBEXT)
- AC_SUBST(BLDSHARED)
- AC_SUBST(LIBSMBCLIENT_SHARED)
--AC_SUBST(LIBSMBCLIENT)
-+AC_SUBST(LIBSMBCLIENT_STATIC)
- 
- # compile with optimization and without debugging by default
- CFLAGS="-O ${CFLAGS}"
-@@ -340,6 +340,28 @@
+--- samba-2.2.4/source/configure.in.orig	Thu May  2 00:10:02 2002
++++ samba-2.2.4/source/configure.in	Thu May  2 00:10:17 2002
+@@ -380,6 +380,28 @@
  #endif
  }
  ], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
@@ -38,25 +29,3 @@
          CPPFLAGS="$old_CPPFLAGS"
          if test x$LINUX_LFS_SUPPORT = xyes ; then
            CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-@@ -2232,7 +2254,7 @@
- # should we build libsmbclient?
- 
- LIBSMBCLIENT_SHARED=
--LIBSMBCLIENT=
-+LIBSMBCLIENT_STATIC=
- AC_MSG_CHECKING(whether to build the libsmbclient shared library)
- AC_ARG_WITH(libsmbclient,
- [  --with-libsmbclient     Build the libsmbclient shared library (default=no)],
-@@ -2240,10 +2262,10 @@
-   yes)
-      if test $BLDSHARED = true; then
-         LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
--	LIBSMBCLIENT=libsmbclient
-+        LIBSMBCLIENT_STATIC=bin/libsmbclient.a
-         AC_MSG_RESULT(yes)
-      else
--        AC_MSG_RESULT(no shared library support)
-+        AC_MSG_RESULT(no static or shared libsmbclient support)
-      fi
-      ;;
-   *)

@@ -1,51 +1,3 @@
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbclient.1.sgml samba-2.2.2.cvs20020120/docs/docbook/manpages/smbclient.1.sgml
---- samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbclient.1.sgml	Sat Jan 19 23:45:35 2002
-+++ samba-2.2.2.cvs20020120/docs/docbook/manpages/smbclient.1.sgml	Wed Jan 23 22:53:59 2002
-@@ -434,9 +434,9 @@
- 		
- 		<varlistentry>
- 		<term>-W WORKGROUP</term>
--		<listitem><para>Override the default workgroup specified in the 
--		workgroup parameter of the <filename>smb.conf</filename> file 
--		for this connection. This may be needed to connect to some 
-+		<listitem><para>Override the default workgroup (domain) specified
-+		in the workgroup parameter of the <filename>smb.conf</filename>
-+		file for this connection. This may be needed to connect to some
- 		servers. </para></listitem>
- 		</varlistentry>
- 		
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbmount.8.sgml samba-2.2.2.cvs20020120/docs/docbook/manpages/smbmount.8.sgml
---- samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbmount.8.sgml	Wed Sep 26 17:45:05 2001
-+++ samba-2.2.2.cvs20020120/docs/docbook/manpages/smbmount.8.sgml	Wed Jan 23 22:53:59 2002
-@@ -14,7 +14,7 @@
- 
- <refsynopsisdiv>
- 	<cmdsynopsis>
--		<command>smbumount</command>
-+		<command>smbmount</command>
- 		<arg choice="req">service</arg>
- 		<arg choice="req">mount-point</arg>
- 		<arg choice="opt">-o options</arg>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbmount.8.html samba-2.2.2.cvs20020120/docs/htmldocs/smbmount.8.html
---- samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbmount.8.html	Wed Sep 26 17:45:11 2001
-+++ samba-2.2.2.cvs20020120/docs/htmldocs/smbmount.8.html	Wed Jan 23 22:59:11 2002
-@@ -35,7 +35,7 @@
- ><P
- ><B
- CLASS="COMMAND"
-->smbumount</B
-+>smbmount</B
- >  {service} {mount-point} [-o options]</P
- ></DIV
- ><DIV
-@@ -465,4 +465,5 @@
- ></DIV
- ></BODY
- ></HTML
-->
-\ No newline at end of file
-+>
-+
 diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html
 --- samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html	Sun Jul 30 03:38:29 2000
 +++ samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html	Wed Jan 23 22:59:11 2002
@@ -65,30 +17,6 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samb
  	domain logons = yes
  
  	security = user </pre></div><DIV CLASS="sect3">
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/smbclient.1 samba-2.2.2.cvs20020120/docs/manpages/smbclient.1
---- samba-2.2.2.cvs20020120.orig/docs/manpages/smbclient.1	Mon Jan 14 13:14:10 2002
-+++ samba-2.2.2.cvs20020120/docs/manpages/smbclient.1	Wed Jan 23 22:59:11 2002
-@@ -327,7 +327,7 @@
- observed to speed up file transfers to and from a Win9x server. 
- .TP
- \fB-W WORKGROUP\fR
--Override the default workgroup specified in the 
-+Override the default workgroup (domain) specified in the 
- workgroup parameter of the \fIsmb.conf\fR file 
- for this connection. This may be needed to connect to some 
- servers. 
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/smbmount.8 samba-2.2.2.cvs20020120/docs/manpages/smbmount.8
---- samba-2.2.2.cvs20020120.orig/docs/manpages/smbmount.8	Wed Jan  2 09:42:24 2002
-+++ samba-2.2.2.cvs20020120/docs/manpages/smbmount.8	Wed Jan 23 22:59:11 2002
-@@ -8,7 +8,7 @@
- smbmount \- mount an smbfs filesystem
- .SH SYNOPSIS
- .sp
--\fBsmbumount\fR \fBservice\fR \fBmount-point\fR [ \fB-o options\fR ] 
-+\fBsmbmount\fR \fBservice\fR \fBmount-point\fR [ \fB-o options\fR ] 
- .SH "DESCRIPTION"
- .PP
- \fBsmbmount\fR mounts a Linux SMB filesystem. It 
 diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8 samba-2.2.2.cvs20020120/docs/manpages/swat.8
 --- samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8	Wed Jan  2 09:42:25 2002
 +++ samba-2.2.2.cvs20020120/docs/manpages/swat.8	Wed Jan 23 22:59:11 2002
@@ -162,4 +90,3 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8 sam
  is to make available to clients. 
  .SH "WARNINGS"
  .PP
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/source/include/stamp-h samba-2.2.2.cvs20020120/source/include/stamp-h

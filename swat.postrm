@@ -6,7 +6,6 @@
 case "$1" in
 	purge)
 		update-inetd --remove '/usr/sbin/swat$'
-		exit 0
 		;;
 	remove)
 		;;
@@ -17,6 +16,8 @@ case "$1" in
 		exit 0
 		;;
 esac
+
+#DEBHELPER#
 
 exit 0
 

@@ -8,7 +8,7 @@ Standards-Version: 3.1.1
 
 Package: samba
 Architecture: any
-Depends: debconf, samba-common (= ${Source-Version}), netbase, logrotate, procps, ${shlibs:Depends}
+Depends: debconf, samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}
 Replaces: samba-common (<= 2.0.5a-2)
 Suggests: samba-doc
 Description: A LanManager like file and printer server for Unix.

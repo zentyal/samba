@@ -3,8 +3,13 @@ samba (2.999+3.0.alpha20-3) unstable; urgency=low
   * Make sure smbstatus behavior is sane when Samba *has* been started,
     as well as when it has not (closes: #164179).  Thank to Robbert Kouprie
     <robbert@radium.jvb.tudelft.nl> for this patch.
+  * Not using 'killall' in any of the maintainer scripts (the last one
+    remaining was winbind.logrotate.) We now just use 'kill' to send
+    a SIGHUP to a specific PID (which is stored in a file in
+    /var/run/samba.)
+  * Do not depend on procps because we're not using killall anymore.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 12 Oct 2002 19:18:00 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 15 Oct 2002 22:15:57 -0400
 
 samba (2.999+3.0.alpha20-2) unstable; urgency=low
 

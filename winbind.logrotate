@@ -3,7 +3,7 @@
 	missingok
 	rotate 7
 	postrotate
-		killall -q -HUP winbindd || true
+	[ -f /var/run/samba/winbindd.pid ] && kill -HUP `cat /var/run/samba/winbindd.pid`
 	endscript
 	compress
 	notifempty

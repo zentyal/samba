@@ -1,16 +1,3 @@
-diff -ur samba-3.0.0beta1.orig/debian/rules samba-3.0.0beta1/debian/rules
---- samba-3.0.0beta1.orig/debian/rules	2003-06-16 23:59:01.000000000 -0500
-+++ samba-3.0.0beta1/debian/rules	2003-06-17 00:00:26.000000000 -0500
-@@ -95,7 +95,8 @@
- build-stamp:
- 	dh_testdir
- 
--	$(MAKE) -C source all nsswitch/libnss_wins.so python_ext
-+	$(MAKE) -C source all nsswitch/libnss_wins.so python_ext \
-+		LDSHFLAGS="-shared -Wl,-z,defs -g -O2"
- 
- 	touch build-stamp
- 
 diff -ur samba-3.0.0beta1.orig/source/Makefile.in samba-3.0.0beta1/source/Makefile.in
 --- samba-3.0.0beta1.orig/source/Makefile.in	2003-06-16 23:59:19.000000000 -0500
 +++ samba-3.0.0beta1/source/Makefile.in	2003-06-17 00:13:50.000000000 -0500

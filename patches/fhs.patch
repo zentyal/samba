@@ -288,3 +288,16 @@ diff -uNr samba-2.2.5pre1.orig/source/smbd/lanman.c samba-2.2.5pre1/source/smbd/
      return(0);
    }
  
+diff -ur samba-2.2.4+5pre1.orig/source/passdb/secrets.c samba-2.2.4+5pre1/source/passdb/secrets.c
+--- samba-2.2.4+5pre1.orig/source/passdb/secrets.c	Mon Mar 18 17:55:49 2002
++++ samba-2.2.4+5pre1/source/passdb/secrets.c	Thu Jun 13 10:37:44 2002
+@@ -34,8 +34,7 @@
+ 	if (tdb)
+ 		return True;
+ 
+-	get_private_directory(fname);
+-	pstrcat(fname,"/secrets.tdb");
++	pstrcpy(fname,state_path("secrets.tdb"));
+ 
+ 	tdb = tdb_open_log(fname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+ 

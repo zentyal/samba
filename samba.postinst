@@ -90,6 +90,13 @@ do
 	fi
 done
 
+# Beginning with Samba 2.2.5-1, we also move the domain secrets file
+# to a more suitable location, since no one really edits this by hand.
+if [ -e /etc/samba/secrets.tdb -a ! -e /var/lib/samba/secrets.tdb ]
+then
+	mv /etc/samba/secrets.tdb /var/lib/samba/
+fi
+
 # --- End of FHS migration code ---
 
 # ------------------------- Debconf questions start ---------------------

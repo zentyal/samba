@@ -138,7 +138,7 @@ clean: unpatch
 		source/bin/libsmbclient.a source/bin/mount.cifs \
 		source/include/stamp-h
 
-	sed -e "s/@libacl@`type-handling any linux-gnu`/g" \
+	sed -e "s/@libacl@/`type-handling any linux-gnu`/g" \
 		< debian/control.in > debian/control
 
 	dh_clean

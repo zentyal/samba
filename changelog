@@ -14,6 +14,10 @@ samba (3.0.7-2) unstable; urgency=high
     are considered closed unless someone can show that they exist with
     the cifs driver as well (closes: #249890, #269443, #227791, #236869,
     #260707, #261808, #270175).
+  * Fix FHS migration code so that it only affects upgrades from old
+    package versions, and doesn't cause us to mess with non-standard
+    directories that may have been re-added by the admin
+   (closes: #251858).
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 01:35:23 -0700
 

@@ -1,3 +1,9 @@
+samba (3.0.1-1) unstable; urgency=low
+
+  * Early Christmas present from the Samba Team: new upstream version.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 16 Dec 2003 15:54:19 -0500
+
 samba (3.0.0final-1) unstable; urgency=low
 
   * It's here, it's here, it's here, Samba 3.0.0 is here!

@@ -171,10 +171,11 @@ install: build
 	#	right location in the libpam-smbpass package.
 	install -m 0644 source/bin/pam_smbpass.so $(DESTDIR)/lib/security/
 
-	# Create the symlink that will allow us to do "mount -t smbfs ...".
-	#	Create also a symlink that will allow "mount -t smb ..." to
-	#	work too. The symlink is created in $(DESTDIR)/sbin/ but 
-	#	will be moved by dh_movefiles to the smbfs package later on.
+	# Create the symlinks that will allow us to do "mount -t smbfs ..."
+	# and "mount -t smb ...". Note that the source/script/installbin.sh
+	# tries to create the first symlink, but we have commented
+	# that code out and do everything here. We also create
+	# symlinks for the man pages.
 	ln -s /usr/bin/smbmount $(DESTDIR)/sbin/mount.smbfs
 	ln -s /usr/bin/smbmount $(DESTDIR)/sbin/mount.smb
 	ln -s smbmount.8 $(DESTDIR)/usr/share/man/man8/mount.smb.8

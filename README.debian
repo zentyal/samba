@@ -1,27 +1,42 @@
 Samba for Debian
 ----------------
 
-This package was built by Eloy Paris <peloy@debian.org> and Steve
-Langasek <vorlon@debian.org>, current maintainers of the Samba packages
-for Debian, based on work from Bruce Perens <Bruce@Pixar.com>, Andrew
+This package was built by Eloy Paris <peloy@debian.org> and Steve Langasek
+<vorlon@debian.org>, current maintainers of the Samba packages for Debian,
+based on previous work from Bruce Perens <Bruce@Pixar.com>, Andrew
 Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and Michael
 Meskes <meskes@topsystem.de>, all previous maintainers of the packages
-samba and sambades (now merged together - see below).
+samba and sambades (merged together for longer than we can remember.)
 
-As of Samba 2.0.6-1, the Debian version of Samba is compiled with
-Pluggable Authentication Modules (PAM) support. PAM support was 
-discontinued during the libc5 -> libc6 migration process and I never
-brought it back until 2.0.6-1.
+Contents of this README file:
 
-The smbfs package does not support the 2.0.x Linux kernels anymore.
-This has been the case since the very first packages of the CVS sources
-that eventually became Samba 2.2. To use the smbfs package you need to
-run a 2.2.x kernel or later.
+- Notes
+- Packages Generated from the Samba Sources
+- Support for NT Domains
+- Samba and LDAP
 
-Starting with the Debian packages for Samba 2.2, the Samba log files (for
-nmbd and smbd) have been moved to a new location: /var/log/samba/. The
-files also have new names: log.nmbd and log.smbd. The old files
-(/var/log/{nmb,smb} were moved to the new location.
+
+Notes
+-----
+
+- As of Samba 2.0.6-1, the Debian version of Samba is compiled with
+  Pluggable Authentication Modules (PAM) support. PAM support was 
+  discontinued during the libc5 -> libc6 migration process and I never
+  brought it back until 2.0.6-1.
+
+- The smbfs package does not support the 2.0.x Linux kernels anymore.
+  This has been the case since the very first packages of the CVS sources
+  that eventually became Samba 2.2. To use the smbfs package you need to
+  run a 2.2.x kernel or later.
+
+- Starting with the Debian packages for Samba 2.2, the Samba log files (for
+  nmbd and smbd) have been moved to a new location: /var/log/samba/. The
+  files also have new names: log.nmbd and log.smbd. The old files
+  (/var/log/{nmb,smb} were moved to the new location.
+
+
+Packages Generated from the Samba Sources
+-----------------------------------------
 
 Currently, the Samba sources produce the following binary packages:
 
@@ -47,6 +62,7 @@ recommended to disable the compilation of smbwrapper until some issues
 with glibc2.1 get cleared out (the problem is with glibc, not with Samba
 itself).
 
+
 Support for NT Domains
 ----------------------
 
@@ -65,6 +81,23 @@ section).
 
 Please note that NT domain PDC support is far from complete and is still 
 experimental.
+
+
+Samba and LDAP
+--------------
+
+Samba 2.2 has experimental LDAP code. However, the official Debian
+packages have not been compiled with LDAP support for a good reason: if
+LDAP support is compiled in then the other authentication methods (PAM,
+smbpasswd, etc.) cannot be used, only LDAP will work. So, until LDAP
+cannot coexist peacefully with the other methods we will not provided
+LDAP-enabled packages. The workaround is, of course, to build your own
+packages. We can help with this if you don't know how to build packages.
+
+We follow Samba development, so please do not file bug reports asking
+for LDAP, we will add support for it when it doesn't break other
+things.
+
 
 Eloy A. Paris <peloy@debian.org>
 Steve Langasek <vorlon@debian.org>

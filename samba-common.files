@@ -1,4 +1,4 @@
-etc/samba/
+etc/samba
 usr/bin/nmblookup
 usr/bin/smbpasswd
 etc/pam.d/

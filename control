@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Eloy A. Paris <peloy@debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>
-Build-Depends: debhelper (>=2.0.103), libpam0g-dev, libreadline4-dev, libcupsys2-dev, autoconf
+Build-Depends: debhelper (>=2.0.103), libpam0g-dev, libreadline4-dev, libcupsys2-dev, autoconf, acl-dev (>= 2.0.0)
 Standards-Version: 3.1.1
 
 Package: samba

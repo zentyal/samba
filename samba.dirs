@@ -5,7 +5,6 @@ var/log/samba
 var/lib/samba
 var/run/samba
 var/cache/samba
-etc/samba
 etc/pam.d
 usr/share
 usr/share/samba

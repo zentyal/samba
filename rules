@@ -24,8 +24,6 @@ DEB_BUILD_GNU_TYPE	:= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 export DEB_HOST_GNU_TYPE
 export DEB_BUILD_GNU_TYPE
 
-BVARS = SMBLOGFILE=/var/log/smb NMBLOGFILE=/var/log/nmb
-
 DESTDIR=`pwd`/debian/samba
 SWATDIR=`pwd`/debian/swat
 SAMBABOOK=`pwd`/debian/swat
@@ -56,24 +54,10 @@ configure: patch-stamp configure-stamp
 configure-stamp:
 	dh_testdir
 
-	# Add here commands to configure the package.
-# > 
-# > Does the --with-fhs option work in configure? I tried it with
-# > alpha3, but everything was stored in /usr/local. Is that correct?
-# > ...
-#
-# Yes - the default prefix is still /usr/local; --with-fhs just
-# changes the default paths for the config, etc. files to match
-# the GNU/FHS specs.  To get a complete FHS directory spec, use:
-#
-#     ./configure --with-fhs --prefix=/usr --sysconfdir=/etc \
-#        --localstatedir=/var
-
 	if [ -f debian/config.cache ]; then \
 		cp -f debian/config.cache source/config.cache; \
 	fi
 
-#	[ -f source/Makefile ] || (cd source && ./configure --with-fhs --prefix=/usr --exec-prefix=/usr --with-netatalk --with-smbmount --with-pam --with-syslog --with-sambabook --with-utmp)
 	[ -f source/Makefile ] || (cd source && ./configure \
 		--host=$(DEB_HOST_GNU_TYPE) \
 		--build=$(DEB_BUILD_GNU_TYPE) \
@@ -92,6 +76,7 @@ configure-stamp:
 		--with-pam_smbpass \
 		--with-libsmbclient \
 		--with-winbind \
+		--with-acl-support \
 		--with-msdfs)
 
 	touch configure-stamp
@@ -100,9 +85,7 @@ build: patch-stamp configure-stamp build-stamp
 build-stamp:
 	dh_testdir
 
-	# Compile the Samba package first
-#	$(MAKE) -C source $(BVARS) all smbtorture rpctorture debug2html
-	$(MAKE) -C source all
+	$(MAKE) -C source all nsswitch/libnss_wins.so
 
 	touch build-stamp
 
@@ -152,6 +135,10 @@ install: build
 		$(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 source/nsswitch/pam_winbind.so \
 		$(DESTDIR)/lib/security/
+
+	# Install libnss_wins.so, which is not installed by 'make install' either.
+	install -m 0644 source/nsswitch/libnss_wins.so \
+		$(DESTDIR)/lib/libnss_wins.so
 
 	# pam_smbpass.so is installed by 'make install' in $(DESTDIR)/usr/bin/.
 	#	We'll move it here to $(DESTDIR)/lib/security/ and then

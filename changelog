@@ -1,3 +1,10 @@
+samba (2.2.3a-6.1) experimental; urgency=low
+
+  * Sync'ed with the woody branch.
+  * Enabled ACL support.
+
+ -- Eloy A. Paris <peloy@debian.org>  Wed, 13 Mar 2002 23:12:33 -0500
+
 samba (2.2.3a-1.1) experimental; urgency=low
 
   * New upstream version (closes: #135001)

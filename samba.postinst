@@ -25,9 +25,12 @@ esac
 
 INITCONFFILE=/etc/default/samba
 
+# We generate several files during the postinst, and we don't want
+#	them to be readable only by root.
+umask 022
+
 # Generate configuration file if it does not exist, using default values.
 [ -r "${INITCONFFILE}" ] || {
-	umask 022
 	echo Generating ${INITCONFFILE}... >&2
 	cat >${INITCONFFILE} <<'EOFMAGICNUMBER1234'
 # Defaults for samba initscript
@@ -48,10 +51,10 @@ EOFMAGICNUMBER1234
 # --- Begin of FHS migration code ---
 
 # Starting with Samba 2.2.3-4 the WINS database, the browse
-#       database and other important run-time files are stored in
-#       FHS-compliant directories. The following code takes care of
-#       moving the files in the old directories (/var/samba/ and
-#       /var/state/samba) to the new FHS-compliant directories.
+#	database and other important run-time files are stored in
+#	FHS-compliant directories. The following code takes care of
+#	moving the files in the old directories (/var/samba/ and
+#	/var/state/samba) to the new FHS-compliant directories.
 
 if [ -d /var/samba/ ]; then
 	mv /var/samba/* /var/lib/samba/ 2>/dev/null || true
@@ -59,8 +62,8 @@ if [ -d /var/samba/ ]; then
 fi
 
 # Default for anything we don't know about (see next two 'for' loops)
-#       is /var/lib/samba -- guaranteed not to accidentally tromp on any 
-#       files the admin thought were safe.
+#	is /var/lib/samba -- guaranteed not to accidentally tromp on any 
+#	files the admin thought were safe.
 if [ -d /var/state/samba ]; then
 	mv /var/state/samba/* /var/lib/samba/ 2>/dev/null || true
 	rmdir /var/state/samba/
@@ -71,7 +74,7 @@ if [ -d /var/state/samba ]; then
 fi
 
 # All these files are now placed in their respective FHS-compliant
-#       directories.  Separate out the individual files accordingly.
+#	directories.  Separate out the individual files accordingly.
 for F in browse.dat printing.tdb winbindd_cache.tdb
 do
 	if [ -e /var/lib/samba/"$F" ]; then
@@ -89,8 +92,6 @@ done
 
 # --- End of FHS migration code ---
 
-umask 022
-
 # ------------------------- Debconf questions start ---------------------
 
 # Run Samba as daemons or from inetd?
@@ -105,6 +106,9 @@ mv -f ${TMPFILE} ${INITCONFFILE}
 # Generate a smbpasswd file?
 db_get samba/generate_smbpasswd || true
 GENERATE_SMBPASSWD="${RET}"
+
+# Done with debconf now.
+db_stop
 
 if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /etc/samba/smbpasswd ]; then
 	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
@@ -121,8 +125,10 @@ update-rc.d samba defaults 20 19 > /dev/null
 # We want to add these entries to inetd.conf commented out. Otherwise
 #	UDP traffic could make inetd to start nmbd or smbd right during
 #	the configuration stage.
-update-inetd --add "#<off># netbios-ns	dgram	udp	wait	root 	/usr/sbin/tcpd	/usr/sbin/nmbd -a"
-update-inetd --add "#<off># netbios-ssn	stream	tcp	nowait	root	/usr/sbin/tcpd	/usr/sbin/smbd"
+if [ "$1" = "configure" -a -z "$2" ]; then
+	update-inetd --add "#<off># netbios-ns	dgram	udp	wait	root 	/usr/sbin/tcpd	/usr/sbin/nmbd -a"
+	update-inetd --add "#<off># netbios-ssn	stream	tcp	nowait	root	/usr/sbin/tcpd	/usr/sbin/smbd"
+fi
 
 if [ "$RUN_MODE" = "daemons" ]; then
 	update-inetd --disable netbios-ns
@@ -134,12 +140,13 @@ fi
 
 # Start Samba: nothing wrong should happen if Samba is running from inetd
 #	and /etc/init.d/samba is run.
-# NOTE: starting with samba-2.2.1a-10 we do not stop the Samba daemons
-#	when upgrading so this postinst script should not start samba
-#	after the upgrade is done. peloy@debian.org, 9/25/2001
-#/etc/init.d/samba start
-# FIXME: should we at least have a note in here about restarting, or 
-# maybe call /etc/init.d/samba restart?  vorlon@debian.org, 3/5/2002
+
+# Run the init script if this is a first-time install, or if it's an
+# upgrade and Samba was running before.
+if [ -z "$2" -o ! -f /tmp/samba-was-not-running ]; then
+	# Check the script is executable before running it.
+	[ -x /etc/init.d/samba ] && /etc/init.d/samba start
+fi
 
 # This check is a safety net: the /etc/samba/smbpasswd file must have
 #	permissions 600.
@@ -165,4 +172,6 @@ if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
 	ln -sf ../share/doc/samba /usr/doc/samba
 fi
 
-db_stop
+# Do this last, so we don't accidentally start the daemons if something 
+# else in the script fails above.
+rm -f /tmp/samba-was-not-running

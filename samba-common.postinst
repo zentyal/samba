@@ -8,7 +8,7 @@ set -e
 # We need a default smb.conf file. If one doesn't exist we put in place
 #	one that has some basic defaults.
 if [ ! -e /etc/samba/smb.conf ]; then
-	cp -a /usr/share/samba/smb.conf /etc/samba
+	cp -a /usr/share/samba/smb.conf /etc/samba/
 fi
 
 # Do debconf stuff here
@@ -18,23 +18,23 @@ fi
 
 # Is the user configuring with debconf, or he/she prefers swat/manual
 #	config?
-db_get samba/do_debconf || true
+db_get samba-common/do_debconf || true
 if [ "${RET}" = "true" ]; then
 	# Get workgroup name
-	db_get samba/workgroup || true
+	db_get samba-common/workgroup || true
 	WORKGROUP="${RET}"
 
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-	sed -e "s/^[[:space:]]*workgroup[[:space:]]*=.*/workgroup = ${WORKGROUP}/" \
+	sed -e "s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf
 
 	# Encrypt passwords?
-	db_get samba/encrypt_passwords || true
+	db_get samba-common/encrypt_passwords || true
 	ENCRYPT_PASSWORDS="${RET}"
 
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-	sed -e "s/^[[:space:]]*encrypt passwords[[:space:]]*=.*/encrypt passwords = ${ENCRYPT_PASSWORDS}/" \
+	sed -e "s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf
 fi

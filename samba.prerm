@@ -23,4 +23,11 @@ fi
 # We call the init script to stop Samba only if we are running as daemons.
 [ -x /etc/init.d/samba -a "$RUN_MODE" != "inetd" ] && /etc/init.d/samba stop
 
+if [ "$1" = upgrade -a -n "$2" ] && dpkg --compare-versions "$2" -lt 2.99 \
+   && [ -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]
+then
+	pdbedit -i tdbsam -e smbpasswd
+	rm -f /etc/samba/passdb.tdb
+fi
+
 #DEBHELPER#

@@ -1,5 +1,5 @@
 #
-# 26 December 2001  Steve Langasek <vorlon@debian.org>
+# 22 August 2001  Steve Langasek <vorlon@debian.org>
 #
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -17,7 +17,7 @@
 #
 #
 # This config.cache file contains a list of acceptable autoconf
-# values which can be used in compiling Samba for Debian potato.
+# values which can be used in compiling Samba for Debian woody/sid.
 #
 # Autoconf sorts options alphabetically in its output.  This file
 # groups options logically.
@@ -38,13 +38,12 @@ samba_cv_HAVE_KERNEL_OPLOCKS_LINUX=${samba_cv_HAVE_KERNEL_OPLOCKS_LINUX=no}
 samba_cv_HAVE_KERNEL_CHANGE_NOTIFY=${samba_cv_HAVE_KERNEL_CHANGE_NOTIFY=no}
 samba_cv_HAVE_KERNEL_SHARE_MODES=${samba_cv_HAVE_KERNEL_SHARE_MODES=no}
 
-# These are present in 2.2 kernels, but not in 2.0; use the setreuid
-# interface only, for Linux 2.0 compatibility (required by potato)
 
-samba_cv_have_setresuid=${samba_cv_have_setresuid=no}
-samba_cv_have_setresgid=${samba_cv_have_setresgid=no}
-samba_cv_USE_SETRESUID=${samba_cv_USE_SETRESUID=no}
-samba_cv_USE_SETREUID=${samba_cv_USE_SETREUID=yes}
+# These are present in 2.2 kernels, but not in 2.0...
+
+samba_cv_have_setresuid=${samba_cv_have_setresuid=yes}
+samba_cv_have_setresgid=${samba_cv_have_setresgid=yes}
+samba_cv_USE_SETRESUID=${samba_cv_USE_SETRESUID=yes}
 
 
 # POSIX ACL support not present in Linux 2.2; not allowed in the

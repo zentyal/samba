@@ -6,8 +6,8 @@
 PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 DEBIAN_CONFIG=/etc/samba/debian_config
 
-NMBDPID=/var/samba/nmbd.pid
-SMBDPID=/var/samba/smbd.pid
+NMBDPID=/var/state/samba/nmbd.pid
+SMBDPID=/var/state/samba/smbd.pid
 
 if [ ! -f $DEBIAN_CONFIG ]; then
 	echo "The file $DEBIAN_CONFIG does not exist! There is something wrong"

@@ -1,52 +1,454 @@
-samba (2.0.7-5) stable; urgency=high
+samba (2.2.2-11) unstable; urgency=low
 
-  * Add Build-Depends line; the previous upload was missing potentially
-    important library linkage on some architectures.
-  * Fix debian/rules to use xxx-linux instead of xxx-linux-gnu;
-    config.sub doesn't grok the latter, causing printing to break
-    (closes: #127444)
+  * Building with --with-libsmbclient. We have created two new
+    packages: libsmbclient and libsmbclient-dev. Hopefully this
+    will help some people that want to add the capability of
+    speaking SMB to their applications.
+    Closes: #117132 - libsmbclient support library?
+  * (Steve) Make swat do the right thing when reading (parsing)
+    the saved preferences in smb.conf.
+    Closes: #55617 swat mutilates the linpopup message command.
+  * Updated README.Debian. Updated descriptions in debian/control.
+  * Remembered to bump up version number in source/include/version.h
+    (need to automate this or else I'll keep forgetting.)
+  * (Steve) one liner for source/web/diagnose.c.
+    Closes: #106976 - smbd/nmbd not running message with swat/linuxconf.
+  * Added '|| true' to the post-rotate script so logrotate doesn't
+    fail if either nmbd or smbd is not running.
+    Closes: #127897 - /etc/logrotate.d/samba fails if there is no smbd process.
+  * Fixed incorrect file locations in swat's man page and added a
+    Debian-specific note to /usr/share/doc/swat/README.
+    Closes: #71586 swat: needs documentation fixes for debian.
+  * smbmount in the smbfs package does not have the setuid bit set.
+    Apparently, smbmount uses libsmb without checking the environment.
+    Thanks to Christian Jaeger <christian.jaeger@sl.ethz.ch> for
+    finding the local root exploit.
+  * Applied old patch from Jerry) Carter" <jerry@samba.org> to correct
+    the following two problems in Samba 2.2.2:
+    - %U and %G could not be used in services names
+      in smb.conf.
+    - %G would fail to be expanded in an "include = ..."
+      line.
 
- -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jan 2002 09:07:00 -0600
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 19 Jan 2002 21:35:26 -0500
 
-samba (2.0.7-4) stable; urgency=low
+samba (2.2.2-10) unstable; urgency=low
 
-  * Permanently fix problem with NMU's being built against incorrect kernel
-    interfaces (closes: #94380, #95015, #102226)
-  * add uploaders: header to control file
+  * (Steve) Add missing manual pages.
+    Closes: Bug#128928: missing manpages in smbfs.
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 26 Dec 2001 10:22:00 -0600
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 13 Jan 2002 14:39:55 -0500
 
-samba (2.0.7-3.4) stable; urgency=high
+samba (2.2.2-9) unstable; urgency=low
 
-  * Non-maintainer upload by security team
-  * Filter characters from netbios names
+  * (Steve) Fix broken URL's in HTML docs.
+    Closes: Bug#17741: bad links in html docs (at last!!!)
 
- -- Wichert Akkerman <wakkerma@debian.org>  Sat, 23 Jun 2001 12:46:38 +0200
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 13:37:07 -0500
 
-samba (2.0.7-3.3) stable; urgency=high
+samba (2.2.2-8) unstable; urgency=low
 
-  * Non-maintainer upload by security team
-  * One symlink attack escaped the previous fix, squash it now.
+  * Added "Replaces: samba (<= 2.2.2-5)" to the smbclient section in
+    debian/control so rpcclient.1, which was in samba-2.2.2-5, does not
+    cause problems now that it is part of smbclient (>= 2.2.2-6).  Closes:
+    Closes: Bug#128684: error upgrading smbclient in sid.
 
- -- Wichert Akkerman <wakkerma@debian.org>  Tue,  8 May 2001 15:22:04 +0200
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 11 Jan 2002 11:42:40 -0500
 
-samba (2.0.7-3.2) stable; urgency=high
+samba (2.2.2-7) unstable; urgency=low
 
-  * Non-maintainer upload by security team
-  * Move to latest 2.0.8 upstream release which is just an updated version
-    of the security patch applied in 2.0.7-3.1. We can not use the 2.0.8
-    version unfortunately since an official release has not been made yet.
+  * (Steve) Patch to make behavior honor what the docs. say about "hosts allow"
+    taking precedence over "hosts deny".
+    Closes: Bug#49249: swat: error with host deny ?!
 
- -- Wichert Akkerman <wakkerma@debian.org>  Tue, 17 Apr 2001 17:28:42 +0200
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 10 Jan 2002 12:36:58 -0500
 
-samba (2.0.7-3.1) stable; urgency=high
+samba (2.2.2-6) unstable; urgency=low
 
-  * Non-maintainer upload by security team
-  * Merge upstream security patch:
-    + use mkstemp everywhere
-    + move lpq cache to lockdir
+  * (Steve) Adds manpage for rpcclient to the proper file,
+    removes smbtorture from the distro because this tool isn't intended for
+    widespread consumption.
+    Closes: #63057 - no manual page for smbtorture.
+  * (Steve) Removed -gnu from the configure arguments (--build, --host) in
+    debian/rules so config.sub is able to properly create the host and target
+    tuples.
 
- -- Wichert Akkerman <wakkerma@debian.org>  Fri, 13 Apr 2001 20:02:26 +0200
+ -- Eloy A. Paris <peloy@debian.org>  Wed,  9 Jan 2002 14:39:51 -0500
+
+samba (2.2.2-5) unstable; urgency=low
+
+  * Fixes from vorlon:
+  * Use /usr/bin/pager instead of more.
+    Closes: #125603: smbclient violates pager policy.
+  * Make /etc/logrotate.d/samba a conffile, send smbd and nmbd
+    a SIGHUP to have the log files reopened, fixes to
+    /etc/logrotate.d/samba.
+    Closes: #127897: log file rotation.
+    Closes: #118277: /etc/logrotate.d/samba not listed in conffiles.
+  * s/covert/convert/.
+    Closes: #121653 probable typo in install message.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun,  6 Jan 2002 03:14:58 -0500
+
+samba (2.2.2-4) unstable; urgency=low
+
+  * Applied patch from Steve to work around problem in glibc that affects the
+    HPPA architecure. The patch detects the error condition at configure time
+    and compiles without LFS support if necessary.
+    Closes: Bug#126763: samba completely broken on hppa.
+  * Including unicode_map.1251.
+    Closes: Bug#126719: samba-common: unicode_map.1251 missing.
+  * Updated smbd daemon version to match Debian package version.
+    Closes: Bug#127199: Package version and smbd daemon version don't match.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 31 Dec 2001 14:32:47 -0500
+
+samba (2.2.2-3) unstable; urgency=low
+
+  * Added some spaces in package description in debian/control.
+    Closes: #120730 - missing spaces in package description for nice
+            alignment.
+  * Spelling fixes.
+    Closes: #125328, #125329, #125330, #125367, #125365, #125403.
+  * Steve Langasek <vorlon@debian.org> is the co-maintainer of the Debian
+    Samba packages!!! Added him to the uploaders field in debian/control.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 18 Dec 2001 00:54:25 -0500
+
+samba (2.2.2-2) unstable; urgency=low
+
+  * Backed out changes to source/filename.c per Andrew Tridgell's request.
+    This changes were introduced in 2.2.1a-7 as an attempt to fix #47493.
+    Tridge found out that they break smbd.
+  * Changed version number in source/includes/version.h so it is clear that
+    this is a version of Samba packaged for Debian. This is another request from
+    Tridge and will help the Samba Team to get bogus bug reports.
+  * Added Samba-HOWTO-Collection.pdf and other README files to the
+    /usr/share/doc/<package>/ directories.
+  * Installing libnss_winbind.so and pam_winbind.so.
+    Closes: #116790: nss and pam modules for winbind missing.
+  * Removed user-emacs-settings from changelog.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 29 Oct 2001 19:16:26 -0500
+
+samba (2.2.2-1) unstable; urgency=low
+
+  * New upstream version.
+  * Temporary fix for #113763 (Steve Langasek)
+  * Quick hack to avoid smbmount reveal password length. Please note
+    that even with this hack there is a small window when password is
+    completely visible with 'ps aux'. There are other methods that should
+    be used to automate mounting of SMB shares.
+    Closes: #112195: smbmount-2.2.x reveals password length.
+  * Applied patch from Steve Langasek <vorlon@debian.org> to prevent
+    forcing use of setresuid() in Sparc.
+    Closes: #112779: samba build forces use of setresuid, which causes
+                     smbd to fail on Sparc.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 15 Oct 2001 10:26:10 -0400
+
+samba (2.2.1a-9) unstable; urgency=low
+
+  * Replaced $(LD) with $(CC) all the way through source/Makefile.
+    Closes: #111036: ld shouldn't be used to link shlibs.
+  * s/\/bin\/mail/\/usr\/bin\/mail/ in smb.conf's man page (HTML and
+    sgml as well.)
+    Closes: #110963: smb.conf: mail should be /usr/bin/mail.
+  * Documented better smbclient's -W behavior. Patch from Steve
+    Langasek.
+    Closes: #53672: smbclient: -W flag is interpreted as domain, not
+            workgroup.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue,  4 Sep 2001 23:10:41 -0400
+
+samba (2.2.1a-8) unstable; urgency=low
+
+  * Set some reasonable default perms for the samba logdir (again,
+    thanks to vorlon :-)
+    Closes: #72529: insecure permissions on log files.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 26 Aug 2001 15:40:47 -0400
+
+samba (2.2.1a-7) unstable; urgency=low
+
+  * Another attempt at fixing #47493. Patch from Steve Langasek
+    <vorlon@netexpress.net>. Let's keep our fingers crossed Steve!
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 26 Aug 2001 13:37:06 -0400
+
+samba (2.2.1a-6) unstable; urgency=low
+
+  * Backed out fix to #47493 introduced in 2.2.1a-4 as it is causing
+    smbd to die with signal 11 under some unidentified situations.
+    Closes: #109774: Latest debian version breaks printer driver download.
+    Closes: #109946: not all files appear in samba-exported directories.
+  * Another patch from Steve Langasek. This one adds quotes around 
+    printer names for print systems it's reasonable for Debian to
+    support. Together with the patch in #29957 (see changelog for
+    2.2.1a-4), this should take care of the problems with multi-word 
+    printer names in Samba.
+
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 24 Aug 2001 21:12:27 -0400
+
+samba (2.2.1a-5) unstable; urgency=low
+
+  * Important changes that affect how Samba is built on Debian
+    machines are implemented in this release. All of this changes
+    were suggested by the energetic Steve Langasek <vorlon@debian.org>,
+    and his arguments were so sound and reasonable that I decided
+    to implement them. Here's Steve's original changelog:
+
+       * Fix up the build system to avoid needing to run configure 
+         as root to answer questions we already know the answers to.
+       * In the process, make surprising progress towards being able to
+         cross-compile the samba packages.
+
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 24 Aug 2001 01:08:06 -0400
+
+samba (2.2.1a-4) unstable; urgency=low
+
+  * Fixed typo in smbmount's mount page.
+    Closes: #109317: smbfs: mistype in smbmount manpage.
+  * Included symlink to smbspool to better support CUPS printing.
+    Closes: #109509: include symlink for cups samba support.
+  * Applied patch from Steve Langasek <vorlon@netexpress.net> to
+    fix bug #29957.
+    Closes: #29957: samba strips trailing " from strings in smb.conf.
+  * First attempt at fixing #47493. Another patch from Steve "I want
+    a bug-free Samba" Langasek.
+    Closes: #47493: Samba doesn't handle ':' in dir names right.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 21 Aug 2001 23:26:38 -0400
+
+samba (2.2.1a-3) unstable; urgency=low
+
+  * Steve Langasek <vorlon@netexpress.net> has been hard at work in
+    the last few days looking at the long list of open bugs filed
+    against the Samba packages. I don't know how to thank him. It's been
+    a pleasure working with Steve, and all the fixes, patches, etc. in
+    this release come from him. The bug list is greatly reduced thanks
+    to Steve's efforts.
+  * Steve's additions/modifications/patches/etc. are:
+    - New package that (libpam-smbpass) provides pam_smbpass. Before, this
+      was provided in another package but now the sources are part of
+      the Samba sources so we can start providing it from here.
+      Closes: #107043 - pam_smbpass now present in Samba source,
+        should be built from there
+    - Patch to source/smbd/service.c that allows admins to call
+      /bin/umount from the root postexec of a Samba share.
+      Closes: #40561 - samba pre/postexec commands do not work.
+    - Clear TMPDIR before starting smbd in /etc/init.d/samba.
+      Closes: #51295 - Problems with Samba and TMPDIR.
+    - Correction to documentation of "guest only".
+      Closes #38282 - "guest only" share still requires a password.
+  * Applied patch from Santiago Vila <sanvila@unex.es> to convert
+    /usr/sbin/mksmbpasswd from a shell script into a real awk script.
+    Sorry it took so long, Santiago; I hadn't realized you even
+    provided a patch :-)
+    Closes: #77891 - mksmbpasswd could be a real awk script.
+  * Updated description of the smbfs and smbclient packages. Also have
+    each package recommend the other.
+    Closes: #108650: Should suggest or recommend smbfs.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 13 Aug 2001 22:21:55 -0400
+
+samba (2.2.1a-2) unstable; urgency=low
+
+  * Build-depends: depend on debhelper (>=2.0.103).
+    Closes: #105795: Build-Depends are wrong.
+  * Run samba's preinst and postinst scripts without -e so failed commands
+    do not abort installation.
+    Closes: #106384: postinstall crashes abnormally. (And really closes
+      #104471.)
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 26 Jul 2001 00:30:37 -0400
+
+samba (2.2.1a-1) unstable; urgency=low
+
+  * New upstream version.
+  * Make sure samba's postinst script exits with a zero status.
+    Closes: #104471: Samba postinst problem.
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 12 Jul 2001 21:55:21 -0400
+
+samba (2.2.1-1) unstable; urgency=low
+
+  * New upstream version.
+    Closes: #103339: config.guess and config.sub update required.
+    Closes: #98518: Samba 2.2 can't act as PDC for NT4/W2K due to 
+                    incompatibility with PAM.
+    Closes: #97447: nmbd crashes due to bugs in DAVE 2.5.2.
+    Closes: #95777: Samba 2.2 is unable to join or authenticate against 
+                    Samba 2.2 PDC domain.
+    Closes: #68842: samba should use PAM for password changing (I
+                    haven't personally tried this one, but it's been
+                    advertised this works.)
+    Closes: #102506: PAM account checking fails.
+    Closes: #102518: Complains about unknown paramter "obey pam
+                     restrictions"
+    Closes: #94774: Build failure on PARISC machines.
+  * Moved away from /etc/cron.weekly/samba for log file rotation.
+    Now using logrotate.
+    Closes: #95548: typo in /etc/cron.weekly/samba.
+    Closes: #74951: nmbd does not rename its log file.
+  * Removed Debian-specific addtosmbpass.8 man page since this script
+    is not longer provided upstream. Users should use the smbpasswd
+    program instead.
+  * Updated sample /etc/samba/smb.conf to reflect the recent changes
+    affecting handling of PAM authentication. Also updated
+    /etc/pam.d/samba.
+
+ -- Eloy A. Paris <peloy@debian.org>  Wed, 11 Jul 2001 00:44:14 -0400
+
+samba (2.2.0.final.a-1) unstable; urgency=high
+
+  * New upstream version (contains security fix from DSA-065-1.)
+    Closes: #97241: samba 2.2.0 fails to process hostnames in
+      "hosts allow" config line.
+  * Removed Debian-specific addtosmbpass.8 man page since this script
+    is not longer provided upstream. Users should use the smbpasswd
+    program instead.
+    Closes: #98365: addtosmbpass is missing from 2.2.0.final-2.
+  * Updated sample /etc/samba/smb.conf to reflect the recent changes
+    affecting handling of PAM authentication. Also updated
+    /etc/pam.d/samba.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 24 Jun 2001 11:11:59 -0400
+
+samba (2.2.0.final-2) unstable; urgency=low
+
+  * Added libcupsys2-dev to Build-Depends.
+  * Samba depends now (again) on netbase so update-inetd is always
+    available for the Samba maintainer scripts.
+    Closes: #86063: Fails to uninstall if inetd is not installed.
+  * Updated source/config.{sub,guess} so ARM built doesn't fail.
+    Closes: #94480: config.sub out of date; can't build on arm.
+    Closes: #85801: config.sub/guess out of date.
+  * Not using brace expansion, i.e. {foo,bar} in any of the maintainers
+    scripts nor in debian/rules.
+    Closes: #88007: samba postrm has is not POSIX sh compliant.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 21 Apr 2001 17:27:18 -0400
+
+samba (2.2.0.final-1) unstable; urgency=low
+
+  * New upstream release. Lots of new things. See WHATSNEW.txt.
+  * Goofy version number because of my stupidity when assigning version
+    numbers to the CVS packages I have been uploading to experimental.
+    Will be fixed when 2.2.1 is released. I've no doubts a 2.2.1 release
+    will follow soon.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 17 Apr 2001 22:58:14 -0400
+
+samba (2.2.0.cvs20010416-1) experimental; urgency=low
+
+  * CVS update.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 16 Apr 2001 21:25:15 -0400
+
+samba (2.2.0.cvs20010410-1) experimental; urgency=low
+
+  * CVS update.
+  * Added libreadline4-dev to Build-Depends.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 10 Apr 2001 16:53:45 -0400
+
+samba (2.2.0.cvs20010407-1) experimental; urgency=low
+
+  * CVS update. Includes what is in 2.2.0alpha3.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sat,  7 Apr 2001 16:00:33 -0400
+
+samba (2.2.0.cvs20010316-1) experimental; urgency=low
+
+  * Started working on Samba 2.2.0. Using the SAMBA_2_2_0 branch
+    from Samba CVS.
+  * Not compiling rpctorture as it has compile errors. Change in
+    debian/rules.
+  * Removed Linux kernel 2.0.x and smbfs compatibility baggage. Now
+    the smbfs does not support 2.0.x kernels; a kernel > 2.2.x is
+    needed to use smbfs. Updated debian/control, debian/rules and
+    README.Debian to reflect this change.
+  * Added to swat a versioned dependency on samba (so a user is forced to
+    install a new version of swat each time a new version of samba is
+    installed.)
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 18 Mar 2001 14:21:14 -0500
+
+samba (2.0.7-5) unstable; urgency=medium
+
+  * Transition from suidmanager to dpkg-statoverride.
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 18 Jan 2001 23:51:56 -0500
+
+samba (2.0.7-4) unstable; urgency=medium
+
+  * Applied Urban Widmark <urban@teststation.com> fixes to smbmount. Urban
+    is the maintainer of the smbfs in the kernel and of the userland
+    utilities.
+  * Links to HTML documents are correct now.
+    Closes: #69439: swat: Broken help file symlinks
+    Closes: #72615: samba-doc directory changed: removed htmldocs from path
+    Closes: #75847: swat: Wrong symlink
+    Closes: #66857: Wrong links to html documents.
+    Closes: #77912: misplaced documentation symlinks for swat
+  * Building Samba with CUPS support. For this I reverted the change to
+    source/configure.in that I did in 2.0.7-3 and re-ran autoconf.
+    Closes: #59038: samba: not compiled with cups support.
+  * Fix against previous known/unknown user time difference patch to swat
+    (make username / password lookups take the same time.) Remove CGI
+    logging code in Swat.
+    Closes: #76341 - Security holes in swat
+  * Updated Build-depends.
+  * Updated debian/copyright to refer to the correct location of the GPL.
+  * debian/rules: changed DESTDIR to `pwd`/debian/samba (was
+    `pwd`/debian/tmp.)
+  * debian/rules: added '--sourcedir=debian/samba' to dh_movefiles (for some
+    strange reason dh_installdirs is not creating debian/tmp/ so I needed
+    to tweak everything to install stuff in debian/samba rather than in
+    debian/tmp.)
+  * debian/control: changed section of samba-docs to 'doc' (was 'docs')
+  * Using relative symlinks in /usr/share/samba/swat/ (changed debian/rules
+    and source/scripts/installswat.sh.)
+  * Fixed (by tweaking debian/rules)
+    /usr/bin/{smbmnt,smbumount-2.*,smbmount-2.*} to be suid.
+  * Added "Provides: samba-client" to smbclient's section in control.
+    Closes: #71143: smbclient: Smbclient should provide samba-client.
+  * Fix for desired_access being zero in map_share_mode() (patch to
+    source/smbd/nttrans.c.) Thanks to Gary Wilson
+    <wilsong@sergievsky.cpmc.columbia.edu> for bringing this patch to my
+    attention.
+  * Hacked source/lib/util_sec.c so smbd works fine in both 2.0.x and
+    2.2.x kernels even when the build is done in a system running
+    a 2.2.x kernel.
+    Closes: #78858: samba-common: samba2.0.7 needs kernel 2.2.x but
+                    doesnt depend on it.
+    Closes: #72758: README.Debian should comment on 2.0.x kernels.
+    Closes: #56935: Samba 2.0.6 and Kernel 2.0.x.
+    Closes: #58126: Samba 2.0.6 and Kernel 2.0.x -- more info.
+    Closes: #60580: samba: failed to set gid.
+    Closes: #64280: Samba panics, can't set gid.
+    Closes: #66816: Must deal with brokenness under 2.0.x.
+    Closes: #67682: potatoe samba 2.0.7-3 out of order, 2.0.5a-1 OK.
+    Closes: #69735: PANIC: failed to set gid
+    Closes: #66122: "smbclient -L localhost -U%" returns with "tree
+                    connect failed: code 0".
+    Closes: #57637: Samba says tree connect error.
+    Closes: #58015: potato samba wins support is broken.
+  * Fixed comments in sample smb.conf to point to the correct location.
+    Closes: #69578: comments in smb.conf points to wrong path.
+  * Move codepages from /etc/samba/codepages/ to
+    /usr/share/samba/codepages/.
+    Closes: #63813: samba; codepages should go in /usr/lib.
+  * Moved /var/samba/ to /var/state/samba/.
+    Closes: #49011: samba package not FHS compliant.
+  * Hacked source/configure.in (and re-ran autoconf) so yp_get_default_domain()
+    is found.
+    Closes: #44558: netgroup support missing in samba 2.0.5a-1.
+  * /etc/init.d/samba was calling start-stop-daemon with both --pidfile and
+    --exec. Got rid of --exec so --pidfile works.
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 11 Jan 2001 00:15:57 -0500
 
 samba (2.0.7-3) frozen unstable; urgency=high
 
@@ -1137,8 +1539,3 @@ samba (1.9.16p9-1) unstable; urgency=low
  9-January-1994 Bruce Perens <Bruce@Pixar.com>
  * Added Debian GNU/Linux package maintenance system files, and
    configured for Debian systems.
-
-Local variables:
-mode: debian-changelog
-add-log-mailing-address: "peloy@debian.org"
-End:

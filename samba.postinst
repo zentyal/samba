@@ -1,8 +1,12 @@
-#!/bin/sh -e
+#!/bin/sh
 #
 # Post-installation script for the Samba package for Debian GNU/Linux
 #
-# Written by Eloy A. Paris for the Debian project.
+# Written by Eloy A. Paris <peloy@debian.org> for the Debian project.
+#
+# The prerm script (run before the postinst) disables Samba in /etc/inetd.conf
+#	and stops both nmbd and smbd. So, when this script is run we
+#	know that neither nmbd nor smbd can start.
 #
 
 case "$1" in
@@ -20,8 +24,19 @@ case "$1" in
 	;;
 esac
 
+# Take care of the /usr/doc/ to /usr/shar/doc/ migration.
 if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
 	ln -sf ../share/doc/samba /usr/doc/samba
+fi
+
+# Starting with Samba 2.0.7-4 the location of the WINS database, the browse
+#	database and other important run-time files are stored in
+#	/var/state/samba/ rather than in /var/samba/. The following
+#	code takes care of moving the files in the old directory to
+#	the new directory.
+if [ -d /var/samba/ ]; then
+	mv /var/samba/* /var/state/samba/
+	rmdir /var/samba/
 fi
 
 # Define some constants...
@@ -150,7 +165,7 @@ else	# if (samba_configured) ...
 
 	# At this point the NetBIOS daemons are disabled in /etc/inetd.conf.
 	#	This is a consequence of what we did in the prerm. If Samba was
-	#	configured to run from inetd we need toenable the entries in
+	#	configured to run from inetd we need to enable the entries in
 	#	/etc/inetd.conf.
 
 	# Read current Samba configuration
@@ -180,7 +195,7 @@ if test "$1" = configure && dpkg --compare-versions "$2" lt 2.0.0final-2 && [ -f
 
 The format of the smbpasswd file (which is used only if you are using
 encrypted passwords) is different in Samba 2.0.0 and above. I will
-covert it to the new format.
+convert it to the new format.
 
 EOF
 
@@ -199,3 +214,5 @@ fi
 if [ -f /var/backups/smbpasswd.bak ]; then
 	chmod 600 /var/backups/smbpasswd.bak
 fi
+
+exit 0

@@ -10,7 +10,8 @@ if [ "$1" = purge ]; then
 	rm -Rf /var/lock/samba/
 
 	# Remove files left in /etc/samba/
-	rm -Rf /etc/samba/{debian_config,MACHINE.SID}
+	rm -Rf /etc/samba/debian_config
+	rm -Rf /etc/samba/MACHINE.SID
 
 	# Remove log files
 	rm -f /var/log/[ns]mb*

@@ -1,8 +1,8 @@
-#! /bin/sh -e
+#!/bin/sh
 #
 # The purpose of the preinst script for the samba package is to help
-#	the migration of the smb.conf file from its old location (/etc/) to its
-#	new location (/etc/samba/).
+#	the migration of the conffiles smb.conf and smbpasswd from their
+#	old location (/etc/) to their new location (/etc/samba/).
 #
 # Thanks to Ben Pfaff <pfaffben@pilot.msu.edu> for sharing on debian-devel
 #	his ideas about how to move conffiles to new locations.

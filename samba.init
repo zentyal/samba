@@ -6,8 +6,11 @@
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 DEBIAN_CONFIG=/etc/samba/debian_config
 
-NMBDPID=/var/samba/nmbd.pid
-SMBDPID=/var/samba/smbd.pid
+NMBDPID=/var/state/samba/nmbd.pid
+SMBDPID=/var/state/samba/smbd.pid
+
+# clear conflicting settings from the environment
+unset TMPDIR
 
 # Sanity check: see if Samba has been configured on this system.
 if [ ! -f $DEBIAN_CONFIG ]; then
@@ -43,10 +46,10 @@ case "$1" in
 		echo -n "Starting Samba daemons:"
 
 		echo -n " nmbd"
-		start-stop-daemon --start --quiet --pidfile $NMBDPID --exec /usr/sbin/nmbd -- -D
+		start-stop-daemon --start --quiet --exec /usr/sbin/nmbd -- -D
 
 		echo -n " smbd"
-		start-stop-daemon --start --quiet --pidfile $SMBDPID --exec /usr/sbin/smbd -- -D
+		start-stop-daemon --start --quiet --exec /usr/sbin/smbd -- -D
 
 		echo "."
 		;;
@@ -54,16 +57,16 @@ case "$1" in
 		echo -n "Stopping Samba daemons:"
 
 		echo -n " nmbd"
-		start-stop-daemon --stop --quiet --pidfile $NMBDPID --exec /usr/sbin/nmbd -- -D
+		start-stop-daemon --stop --quiet --pidfile $NMBDPID
 
 		echo -n " smbd"
-		start-stop-daemon --stop --quiet --pidfile $SMBDPID --exec /usr/sbin/smbd -- -D
+		start-stop-daemon --stop --quiet --pidfile $SMBDPID
 
 		echo "."
 		;;
 	reload)
 		echo -n "Reloading /etc/samba/smb.conf (smbd only)"
-		start-stop-daemon --stop --signal HUP --pidfile /var/samba/smbd.pid --exec /usr/sbin/smbd -- -D
+		start-stop-daemon --stop --signal HUP --pidfile $SMBDPID
 
 		echo "."
 		;;
@@ -71,14 +74,14 @@ case "$1" in
 		echo -n "Restarting Samba daemons:"
 
 		echo -n " nmbd"
-		start-stop-daemon --stop --quiet --pidfile $NMBDPID --exec /usr/sbin/nmbd -- -D
+		start-stop-daemon --stop --quiet --pidfile $NMBDPID
 		sleep 2
-		start-stop-daemon --start --quiet --pidfile $NMBDPID --exec /usr/sbin/nmbd -- -D
+		start-stop-daemon --start --quiet --exec /usr/sbin/nmbd -- -D
 
 		echo -n " smbd"
-		start-stop-daemon --stop --quiet --pidfile $SMBDPID --exec /usr/sbin/smbd -- -D
+		start-stop-daemon --stop --quiet --pidfile $SMBDPID
 		sleep 2
-		start-stop-daemon --start --quiet --pidfile $SMBDPID --exec /usr/sbin/smbd -- -D
+		start-stop-daemon --start --quiet --exec /usr/sbin/smbd -- -D
 
 		echo "."
 		;;

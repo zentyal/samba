@@ -1,3 +1,11 @@
+samba (3.0.5-1) unstable; urgency=high
+
+  * New upstream version. Urgency "high" because of potential buffer
+    overflows. The security fixes are the only difference between
+    3.0.4 and 3.0.5.
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 22 Jul 2004 08:07:36 -0400
+
 samba (3.0.4-5) unstable; urgency=low
 
   * Doh! Build-depends on libcupsys2-dev (>=1.1.20final+cvs20040330-4),

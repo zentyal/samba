@@ -152,8 +152,10 @@ then
 	umask 022
 
 	# The database has been moved, now make sure we can still find it.
-	PASSDB=`grep -i '^[[:space:]]*passdb backend[[:space:]]*=' /etc/samba/smb.conf \
-	 | sed -e's/^[[:space:]]*passdb backend[[:space:]]*=[[:space:]]*//i' \
+	PASSDB=`sed -n -e"s/^[[:space:]]*\[global\]/\[global\]/i
+			/^\[global\]/,/^[[:space:]]*\[/ \
+				s/^[[:space:]]*passdb backend[[:space:]]*=[[:space:]]*//pi" \
+			< /etc/samba/smb.conf \
 	 | tail -1`
 	if echo "$PASSDB" | egrep -q "(^|[[:space:]])smbpasswd"; then
 		if ! echo "$PASSDB" | egrep -q "(^|[[:space:]])tdbsam"; then
@@ -164,7 +166,9 @@ then
 		PASSDB="tdbsam $PASSDB"
 	fi
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-	sed -e "s/^\([[:space:]]*\)passdb backend[[:space:]]*=.*/\1passdb backend = ${PASSDB}/" \
+	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
+			s/^\([[:space:]]*\)passdb backend[[:space:]]*=.*/\1passdb backend = ${PASSDB}/i" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	chmod a+r ${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf

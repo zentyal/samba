@@ -25,7 +25,9 @@ if [ "${RET}" = "true" ]; then
 	WORKGROUP="${RET}"
 
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-	sed -e "s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/" \
+	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
+			s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/i" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf
 
@@ -34,7 +36,9 @@ if [ "${RET}" = "true" ]; then
 	ENCRYPT_PASSWORDS="${RET}"
 
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-	sed -e "s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/" \
+	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
+		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf
 
@@ -46,9 +50,13 @@ if [ "${RET}" = "true" ]; then
 		if [ -n "$DISPLAYCHARSET" ]
 		then
 			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-			sed -e "/^[[:space:]]*character set[[:space:]]*=/c \\
+			sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+				s/^\([[:space:]]*\)character set/\1character set/i
+				/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
+					/^[[:space:]]*character set[[:space:]]*=/c \\
    display charset = $DISPLAYCHARSET\\
-   unix charset = $DISPLAYCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
+   unix charset = $DISPLAYCHARSET
+				}" < /etc/samba/smb.conf > ${TMPFILE}
 			mv -f ${TMPFILE} /etc/samba/smb.conf
 		fi
 	fi
@@ -60,8 +68,12 @@ if [ "${RET}" = "true" ]; then
 		if [ -n "$DOSCHARSET" ]
 		then
 			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-			sed -e "/^[[:space:]]*client code page[[:space:]]*=/c \\
-   dos charset = $DOSCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
+			sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+				s/^\([[:space:]]*\)client code page/\1client code page/i
+				/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
+					/^[[:space:]]*client code page[[:space:]]*=/c \\
+   dos charset = $DOSCHARSET
+}" < /etc/samba/smb.conf > ${TMPFILE}
 			mv -f ${TMPFILE} /etc/samba/smb.conf
 		fi
 	fi
@@ -70,7 +82,8 @@ if [ "${RET}" = "true" ]; then
 	   && ! grep -q "^[[:space:]]*panic action[[:space:]]*=" /etc/samba/smb.conf
 	then
 		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-		sed -e "/^[[:space:]]*\[global\]/a \\
+		sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+			/^[[:space:]]*\[global\]/a \\
 \\
 # Do something sensible when Samba crashes: mail the admin a backtrace\\
    panic action = /usr/share/samba/panic-action %d" < /etc/samba/smb.conf > ${TMPFILE}

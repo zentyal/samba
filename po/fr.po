@@ -11,14 +11,13 @@
 #
 #    Developers do not need to manually edit POT or PO files.
 #
-#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
+"Project-Id-Version: Samba for Debian 2.999+3.0.alpha23-1\n"
 "POT-Creation-Date: 2003-03-08 23:53-0600\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2003-04-05 08:03:00-0600\n"
+"Last-Translator: Christian Perrier <bubulle@debian.org>\n"
+"Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=ISO-8859-15\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -26,7 +25,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:3
 msgid "Character Set for Unix filesystem"
-msgstr ""
+msgstr "Jeu de caractères pour les systèmes de fichiers Unix"
 
 #. Description
 #: ../samba-common.templates:3
@@ -38,16 +37,26 @@ msgid ""
 "system and how smbclient will interpret these names when you connect to a "
 "file server."
 msgstr ""
+"Une instruction « character set » (jeu de caractères) est utilisée dans "
+"votre fichier smb.conf. Avec Samba 3.0, cette option est remplacée par deux "
+"nouvelles options, « unix charset » (jeu de caractères Unix) et « display "
+"charset » (jeu de caractères à l'affichage). Veuillez indiquer le jeu de "
+"caractères que vous voulez utiliser avec chacune de ces deux options. La "
+"première permet d'interpréter les noms de fichiers sur le système et la "
+"seconde permet à smbclient d'interpréter ces noms lors d'une connexion à un "
+"serveur de fichiers."
 
 #. Description
 #: ../samba-common.templates:3
 msgid "If you leave this option blank, your smb.conf will not be changed."
 msgstr ""
+"Le fichier smb.conf ne sera pas modifié si vous laissez cette option sans "
+"réponse."
 
 #. Description
 #: ../samba-common.templates:15
 msgid "Character Set for DOS clients"
-msgstr ""
+msgstr "Jeu de caractères pour les clients DOS"
 
 #. Description
 #: ../samba-common.templates:15
@@ -59,11 +68,19 @@ msgid ""
 "needed to support Windows clients, it is only for DOS clients.  If you leave "
 "this option blank, your smb.conf will not be changed."
 msgstr ""
+"Votre fichier smb.conf contient une option « client code page » (page de "
+"codes du client). Avec Samba 3.0, cette option a été remplacée par l'option "
+"« dos charset » (jeu de caractères DOS). Veuillez indiquer le jeu de "
+"caractères que vous voulez utiliser avec la nouvelle option. En général le "
+"jeu de caractères choisi par défaut est suffisant. Veuillez noter que cette "
+"option ne sert pas pour les clients Windows mais seulement pour les clients "
+"DOS. Le fichier smb.conf ne sera pas modifié si vous laissez cette option "
+"sans réponse. "
 
 #. Description
 #: ../samba-common.templates:26
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "Modifier smb.conf pour utiliser les paramètres WINS fournis par DHCP ?"
 
 #. Description
 #: ../samba-common.templates:26
@@ -74,13 +91,18 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"Si votre ordinateur obtient ses paramètres IP à partir d'un serveur DHCP du "
+"réseau, ce serveur peut aussi fournir des informations sur les serveurs WINS "
+"(serveurs de noms NetBIOS) présents sur le réseau. Une modification du "
+"fichier smb.conf est nécessaire afin que les réglages WINS fournis par le "
+"serveur DHCP soient lus dans /etc/samba/dhcp.conf."
 
 #. Description
 #: ../samba-common.templates:26
 msgid ""
 "You must have the dhcp3-client package installed to take advantage of this "
 "feature."
-msgstr ""
+msgstr "Pour cela, le paquet dhcp3-client doit être installé."
 
 #. Description
 #: ../samba-common.templates:39
@@ -89,7 +111,6 @@ msgstr "Voulez-vous configurer smb.conf avec debconf ?"
 
 #. Description
 #: ../samba-common.templates:39
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -99,10 +120,9 @@ msgid ""
 msgstr ""
 "La suite de la configuration de Samba pose des questions sur des paramètres "
 "de /etc/samba/smb.conf, le fichier utilisé pour configurer les programmes de "
-"Samba (nmbd et smbd). Si vous voulez bien répondre à quelques questions, "
-"choisissez « Yes » et poursuivez la configuration. Si vous voulez un "
-"contrôle total, choisissez « No » et configurez le fichier smb.conf "
-"manuellement ou avec SWAT."
+"Samba (nmbd et smbd). Votre fichier actuel contient une ligne« « include » "
+"ou une option qui s'étale sur plusieurs lignes : cela peut perturber debconf "
+"et il vaut mieux gérer manuellement le contenu de ce fichier."
 
 #. Description
 #: ../samba-common.templates:39
@@ -208,7 +228,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:28
 msgid "Running nmbd from inetd is no longer supported"
-msgstr ""
+msgstr "L'utilisation de nmbd à partir d'inetd n'est plus supportée"
 
 #. Description
 #: ../samba.templates:28
@@ -218,6 +238,10 @@ msgid ""
 "If you have modified your /etc/init.d/samba startup script, you may need to "
 "adjust it by hand now so that nmbd will start."
 msgstr ""
+"Votre système lançait nmbd et smbd à partir d'inetd. Depuis la version 2.999"
+"+3.0.alpha20-4, on ne peut plus exécuter nmbd à partir d'inetd. Si vous avez "
+"modifié le script de lancement /etc/init.d/samba, vous avez peut-être besoin "
+"de le corriger manuellement pour permettre le lancement de nmbd. "
 
 #. Choices
 #: ../samba.templates:36
@@ -241,9 +265,8 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:45
-#, fuzzy
 msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
-msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
+msgstr "Faut-il convertir /etc/samba/smbpasswd en /etc/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:45
@@ -253,11 +276,16 @@ msgid ""
 "smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
 "to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
 msgstr ""
+"Avec Samba 3.0, une nouvelle et meilleure interface pour les bases de "
+"données SAM vient remplacer le fichier /etc/samba/smbpasswd. Voulez-vous que "
+"votre fichier existant soit remplacé par /etc/samba/passdb.tdb ? Si vous "
+"envisagez d'utiliser une autre interface d'authentification (p.ex. LDAP), "
+"refusez la proposition maintenant."
 
 #. Description
 #: ../swat.templates:3
 msgid "Your smb.conf will be re-written!"
-msgstr ""
+msgstr "Ré-écriture de votre fichier smb.conf !"
 
 #. Description
 #: ../swat.templates:3
@@ -266,3 +294,7 @@ msgid ""
 "delete all comments, include= and copy= options. If you have a carefully "
 "crafted smb.conf then back it up or don't use SWAT!"
 msgstr ""
+"SWAT va modifier votre fichier smb.conf. Les entrées seront réorganisées et "
+"les commentaires détruits aisi que les entrées « include = » et « copy = ». "
+"Si votre smb.conf était soigneusement construit, sauvegardez-le ou "
+"n'utilisez pas SWAT !"

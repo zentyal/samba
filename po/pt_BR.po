@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_2.999+3.0.alpha20-4\n"
 "POT-Creation-Date: 2003-03-08 23:53-0600\n"
-"PO-Revision-Date: 2003-03-03 17:33+0300\n"
+"PO-Revision-Date: 2003-04-05 09:10-0600\n"
 "Last-Translator: André Luís Lopes <andrelop@ig.com.br>\n"
 "Language-Team: Debian-BR Project <debian-l10n-portuguese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -77,26 +77,18 @@ msgstr ""
 
 #. Description
 #: ../samba-common.templates:26
-#, fuzzy
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Usar configurações WINS fornecidas via DHCP ?"
+msgstr "Modificar smb.conf a usar configurações WINS fornecidas via DHCP ?"
 
 #. Description
 #: ../samba-common.templates:26
-#, fuzzy
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
 "(\"NetBIOS name servers\") present on the network.  This requires a change "
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
-msgstr ""
-"Caso seu computador obtenha as informações de endereçamento IP de um "
-"servidor DHCP na rede, o servidor DHCP pode também fornecer informações "
-"sobre servidor WINS (\"Servidor de Nomes NetBIOS\") presentes na rede. Caso "
-"você escolha \"sim\" aqui, seu arquivo smb.conf será modificado de maneira "
-"que as configurações WINS fornecidas pelo servidor DHCP serão "
-"automaticamente lidas do arquivo /etc/samba/dhcp.conf."
+msgstr "Caso seu computador obtenha as informações de endereçamento IP de um servidor DHCP na rede, o servidor DHCP pode também fornecer informações sobre servidor WINS (\"Servidor de Nomes NetBIOS\") presentes na rede. Para o Samba ler as configurações WINS fornecidas pelo servidor DHCP automaticamente do arquivo /etc/samba/dhcp.conf, é preciso modificar seu arquivo smb.conf."
 
 #. Description
 #: ../samba-common.templates:26
@@ -130,17 +122,12 @@ msgstr ""
 
 #. Description
 #: ../samba-common.templates:39
-#, fuzzy
 msgid ""
 "If you don't use debconf to configure smb.conf, you will have to handle any "
 "configuration changes yourself, and will not be able to take advantage of "
 "periodic configuration enhancements.  Therefore, use of debconf is "
 "recommended if possible."
-msgstr ""
-"Caso você escolha \"não\" aqui, será necessário que você lide com quaisquer "
-"mudanças de configurações manualmente e você não poderá aproveitar os "
-"melhoramentos periódicos de configuração. Por esse motivo, a escolha "
-"recomendada é \"sim\", caso seja possível."
+msgstr "Caso você decide não usar o debconf para configurar o smb.conf, será necessário que você lide com quaisquer mudanças de configurações manualmente e você não poderá aproveitar os melhoramentos periódicos de configuração. Por esse motivo, é recomendado usar o debconf, caso seja possível."
 
 #. Description
 #: ../samba-common.templates:54

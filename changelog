@@ -1,3 +1,9 @@
+samba (3.0.0beta2+3.0.0rc4-1) unstable; urgency=low
+
+  * New upstream version.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 13 Sep 2003 08:47:56 -0400
+
 samba (3.0.0beta2+3.0.0rc3-1) unstable; urgency=low
 
   * New upstream release. Last Release Candidate according to the

@@ -1,3 +1,26 @@
+Template: samba-common/charset
+Type: string
+Description: Character Set for Unix filesystem
+ You currently have a "character set" configured in your smb.conf.  In
+ Samba 3.0, this option is replaced by two new options, "unix charset"
+ and "display charset".  Please specify the character set you wish to use
+ for these new options, which control how Samba interprets filenames on
+ the file system and how smbclient will interpret these names when you
+ connect to a file server.
+ .
+ If you leave this option blank, your smb.conf will not be changed.
+
+Template: samba-common/codepage
+Type: string
+Description: Character Set for DOS clients
+ You currently have a "client code page" set in your smb.conf.  In
+ Samba 3.0, this option is replaced by the option "dos charset".  Please
+ specify the character set you wish to use for this new option.  In most
+ cases, the default chosen for you will be sufficient.  Note that this
+ option is not needed to support Windows clients, it is only for DOS
+ clients.  If you leave this option blank, your smb.conf will not be
+ changed.
+
 Template: samba-common/do_debconf
 Type: boolean
 Default: true

@@ -37,6 +37,26 @@ if [ "${RET}" = "true" ]; then
 	sed -e "s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/" \
 		< /etc/samba/smb.conf >${TMPFILE}
 	mv -f ${TMPFILE} /etc/samba/smb.conf
+
+	# Update charset settings?
+	db_get samba-common/character_set || true
+	DISPLAYCHARSET="${RET}"
+	if [ -n "$DISPLAYCHARSET" ]; then
+		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+		sed -e "/^[[:space:]]*character set[[:space:]]*=/c \
+   display character set = $DISPLAYCHARSET\
+   unix character set = $DISPLAYCHARSET" < $FILE > ${TMPFILE}
+		mv -f ${TMPFILE} /etc/samba/smb.conf
+	fi
+
+	db_get samba-common/codepage || true
+	DOSCHARSET="${RET}"
+	if [ -n "$DOSCHARSET" ]; then
+		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+		sed -e "/^[[:space:]]*client code page[[:space:]]*=/c \
+   dos character set = $DOSCHARSET" < $FILE > ${TMPFILE}
+		mv -f ${TMPFILE} /etc/samba/smb.conf
+	fi
 fi
 
 chmod a+r /etc/samba/smb.conf

@@ -1,3 +1,11 @@
+samba (2.999+3.0cvs20020906-1) unstable; urgency=low
+
+  * CVS update.
+  * Factor out common code in samba-common.config
+  * Handle character set settings in smb.conf on upgrade (closes: #153913)
+
+ -- Steve Langasek <vorlon@debian.org>  Sat,  7 Sep 2002 11:46:00 -0500
+
 samba (2.999+3.0cvs20020829-1) unstable; urgency=low
 
   * CVS update.

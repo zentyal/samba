@@ -1,3 +1,11 @@
+samba (2.999+3.0cvs20020826-1) unstable; urgency=low
+
+  * CVS update.
+  * Part 1 of 3 of the library separation patch that Vorlon wrote has
+    gone upstream.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 26 Aug 2002 13:20:07 -0400
+
 samba (2.999+3.0cvs20020825-2) unstable; urgency=low
 
   * scale back the tdbsam migration support, because of undesirable

@@ -1,6 +1,6 @@
 diff -uNr samba-2.999+3.0cvs20020805.orig/source/Makefile.in samba-2.999+3.0cvs20020805/source/Makefile.in
---- samba-2.999+3.0cvs20020805.orig/source/Makefile.in	2002-08-20 15:16:34.000000000 -0500
-+++ samba-2.999+3.0cvs20020805/source/Makefile.in	2002-08-20 15:21:54.000000000 -0500
+--- samba-2.999+3.0cvs20020805.orig/source/Makefile.in	2002-08-20 16:55:01.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/Makefile.in	2002-08-20 16:56:23.000000000 -0500
 @@ -23,6 +23,7 @@
  TERMLIBS=@TERMLIBS@
  PRINTLIBS=@PRINTLIBS@
@@ -9,7 +9,7 @@ diff -uNr samba-2.999+3.0cvs20020805.orig/source/Makefile.in samba-2.999+3.0cvs2
  
  LINK=$(CC) $(FLAGS) $(LDFLAGS)
  
-@@ -611,7 +612,7 @@
+@@ -620,7 +621,7 @@
  bin/smbd: $(SMBD_OBJ) bin/.dummy
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
@@ -19,9 +19,17 @@ diff -uNr samba-2.999+3.0cvs20020805.orig/source/Makefile.in samba-2.999+3.0cvs2
  bin/nmbd: $(NMBD_OBJ) bin/.dummy
  	@echo Linking $@
 diff -uNr samba-2.999+3.0cvs20020805.orig/source/configure.in samba-2.999+3.0cvs20020805/source/configure.in
---- samba-2.999+3.0cvs20020805.orig/source/configure.in	2002-08-20 15:16:34.000000000 -0500
-+++ samba-2.999+3.0cvs20020805/source/configure.in	2002-08-20 15:23:44.000000000 -0500
-@@ -2605,23 +2605,29 @@
+--- samba-2.999+3.0cvs20020805.orig/source/configure.in	2002-08-20 16:55:01.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/configure.in	2002-08-20 16:56:37.000000000 -0500
+@@ -159,6 +159,7 @@
+ AC_SUBST(LIBSMBCLIENT)
+ AC_SUBST(PRINTLIBS)
+ AC_SUBST(AUTHLIBS)
++AC_SUBST(ACLLIBS)
+ 
+ # compile with optimization and without debugging by default
+ CFLAGS="-O ${CFLAGS}"
+@@ -2637,23 +2638,29 @@
  	*osf*)
  		AC_MSG_RESULT(Using Tru64 ACLs)
  		AC_DEFINE(HAVE_TRU64_ACLS)

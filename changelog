@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha21-1) unstable; urgency=low
+
+  * new upstream release, many patches now incorporated upstream
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 16 Dec 2002 23:39:00 -0600
+
 samba (2.999+3.0.alpha20-4) unstable; urgency=low
 
   * Remove obsolete comments about non-existant LDAP support in the

@@ -1,6 +1,6 @@
-diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmnt.c samba-2.999+3.0cvs20020906/source/client/smbmnt.c
---- samba-2.999+3.0cvs20020906.orig/source/client/smbmnt.c	2002-09-08 14:20:16.000000000 -0500
-+++ samba-2.999+3.0cvs20020906/source/client/smbmnt.c	2002-09-08 14:20:21.000000000 -0500
+diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmnt.c samba-2.999+3.0.alpha21/source/client/smbmnt.c
+--- samba-2.999+3.0.alpha21.orig/source/client/smbmnt.c	2002-12-16 23:35:42.000000000 -0600
++++ samba-2.999+3.0.alpha21/source/client/smbmnt.c	2002-12-16 23:36:05.000000000 -0600
 @@ -28,6 +28,7 @@
  static uid_t mount_uid;
  static gid_t mount_gid;
@@ -102,10 +102,10 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmnt.c samba-2.999+3.0
  
  	return 0;
  }	
-diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c samba-2.999+3.0cvs20020906/source/client/smbmount.c
---- samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c	2002-09-08 14:16:47.000000000 -0500
-+++ samba-2.999+3.0cvs20020906/source/client/smbmount.c	2002-09-08 14:20:21.000000000 -0500
-@@ -48,6 +48,7 @@
+diff -uNr samba-2.999+3.0.alpha21.orig/source/client/smbmount.c samba-2.999+3.0.alpha21/source/client/smbmount.c
+--- samba-2.999+3.0.alpha21.orig/source/client/smbmount.c	2002-12-16 23:30:06.000000000 -0600
++++ samba-2.999+3.0.alpha21/source/client/smbmount.c	2002-12-16 23:36:05.000000000 -0600
+@@ -47,6 +47,7 @@
  static int mount_ro;
  static unsigned mount_fmask;
  static unsigned mount_dmask;
@@ -113,7 +113,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c samba-2.999+3
  
  static void usage(void);
  
-@@ -250,6 +251,9 @@
+@@ -249,6 +250,9 @@
                  return;
          }
  
@@ -123,7 +123,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c samba-2.999+3
          if ((fd = open(MOUNTED"~", O_RDWR|O_CREAT|O_EXCL, 0600)) == -1) {
                  DEBUG(0,("%d: Can't get "MOUNTED"~ lock file", sys_getpid()));
                  return;
-@@ -444,6 +448,9 @@
+@@ -442,6 +446,9 @@
  	args[i++] = "-s";
  	args[i++] = svc2;
  
@@ -133,7 +133,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c samba-2.999+3
  	if (mount_ro) {
  		args[i++] = "-r";
  	}
-@@ -635,7 +642,7 @@
+@@ -633,7 +640,7 @@
  ****************************************************************************/
  static void usage(void)
  {
@@ -142,7 +142,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/client/smbmount.c samba-2.999+3
  
  	printf("Version %s\n\n",VERSION);
  
-@@ -700,8 +707,13 @@
+@@ -697,8 +704,13 @@
  	argc -= 2;
  	argv += 2;
  

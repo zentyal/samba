@@ -1,6 +1,6 @@
-diff -ur samba-2.99.cvs.20020713.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.99.cvs.20020713/docs/htmldocs/using_samba/ch06_05.html
---- samba-2.99.cvs.20020713.orig/docs/htmldocs/using_samba/ch06_05.html	Sun Jul 30 02:38:29 2000
-+++ samba-2.99.cvs.20020713/docs/htmldocs/using_samba/ch06_05.html	Sat Jul 13 13:37:15 2002
+diff -uNr samba-2.999+3.0.alpha21.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.999+3.0.alpha21/docs/htmldocs/using_samba/ch06_05.html
+--- samba-2.999+3.0.alpha21.orig/docs/htmldocs/using_samba/ch06_05.html	2000-07-30 02:38:29.000000000 -0500
++++ samba-2.999+3.0.alpha21/docs/htmldocs/using_samba/ch06_05.html	2002-12-16 23:15:46.000000000 -0600
 @@ -102,13 +102,13 @@
  WARNING:</strong> You will need to use at least Samba 2.1 to ensure that PDC functionality for Windows NT clients is present. Prior to Samba 2.1, only limited user authentication for NT clients was present. At the time this book went to press, Samba 2.0.5 was the latest version, but Samba  2.1 was available through CVS download. Instructions on downloading alpha versions of Samba are given in <a href="appe_01.html"><b>Appendix E, <CITE CLASS="appendix">Downloading Samba with CVS</cite></b></a>.</p></blockquote><P CLASS="para">
  As before, you need to ensure that Samba is a primary domain controller for the current workgroup and is using user-level security. However, you must also ensure that Samba is using encrypted passwords. In other words, alter the <CODE CLASS="literal">
@@ -17,10 +17,10 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/htmldocs/using_samba/ch06_05.html sam
  	domain logons = yes
  
  	security = user </pre></div><DIV CLASS="sect3">
-diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.20020713/docs/manpages/swat.8
---- samba-2.99.cvs.20020713.orig/docs/manpages/swat.8	Mon Jan 28 11:36:33 2002
-+++ samba-2.99.cvs.20020713/docs/manpages/swat.8	Sat Jul 13 13:37:15 2002
-@@ -41,19 +41,26 @@
+diff -uNr samba-2.999+3.0.alpha21.orig/docs/manpages/swat.8 samba-2.999+3.0.alpha21/docs/manpages/swat.8
+--- samba-2.999+3.0.alpha21.orig/docs/manpages/swat.8	2002-11-26 20:54:13.000000000 -0600
++++ samba-2.999+3.0.alpha21/docs/manpages/swat.8	2002-12-16 23:15:46.000000000 -0600
+@@ -42,19 +42,26 @@
  server. \fR
  .SH "INSTALLATION"
  .PP
@@ -31,7 +31,7 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.200207
 +restart inetd.
 +.PP
  After you compile SWAT you need to run \fBmake install
- \fRto install the \fBswat\fR binary
+ \fR to install the \fBswat\fR binary
 -and the various help files and images. A default install would put 
 -these in: 
 +and the various help files and images. Under \fBDebian\fR, these
@@ -52,16 +52,16 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.200207
  .SS "INETD INSTALLATION"
  .PP
  You need to edit your \fI/etc/inetd.conf
-@@ -61,7 +68,7 @@
+@@ -62,7 +69,7 @@
  to enable SWAT to be launched via \fBinetd\fR.
  .PP
  In \fI/etc/services\fR you need to 
 -add a line like this: 
 +add a line like this (not needed for Debian): 
  .PP
- \fBswat 901/tcp\fR
+ \fBswat            901/tcp\fR
  .PP
-@@ -75,10 +82,11 @@
+@@ -76,10 +83,11 @@
  \fBinetd\fR daemon). 
  .PP
  In \fI/etc/inetd.conf\fR you should 
@@ -69,37 +69,24 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.200207
 +add a line like this (not needed for Debian, the postinst script takes 
 +care of this): 
  .PP
- \fBswat stream tcp nowait.400 root
+ \fBswat    stream  tcp     nowait.400  root
 -/usr/local/samba/bin/swat swat\fR
 +/usr/sbin/swat swat\fR
  .PP
  One you have edited \fI/etc/services\fR 
  and \fI/etc/inetd.conf\fR you need to send a 
-@@ -104,11 +112,10 @@
+@@ -105,11 +113,10 @@
  (e.g., swat) to service port (e.g., 901) and protocol type 
- (e.g., tcp). 
+ (e.g., tcp).  
  .TP
 -\fB\fI/usr/local/samba/lib/smb.conf\fB\fR
 +\fB\fI/etc/samba/smb.conf\fB\fR
  This is the default location of the \fIsmb.conf(5)
--\fRserver configuration file that swat edits. Other 
--common places that systems install this file are \fI /usr/samba/lib/smb.conf\fR and \fI/etc/smb.conf
--\fR\&. This file describes all the services the server 
+-\fR server configuration file that swat edits. Other 
+-common places that systems install this file are \fI  /usr/samba/lib/smb.conf\fR and \fI/etc/smb.conf
+-\fR.  This file describes all the services the server 
 +\fRserver configuration file that swat edits.
 +This file describes all the services the server 
  is to make available to clients. 
  .SH "WARNINGS"
  .PP
---- samba-2.999+3.0.alpha20/source/pam_smbpass/README.orig	2002-11-16 13:59:10.000000000 -0500
-+++ samba-2.999+3.0.alpha20/source/pam_smbpass/README	2002-11-16 14:09:14.000000000 -0500
-@@ -43,8 +43,8 @@
- 	smbconf=<file>	-	specify an alternate path to the smb.conf
- 				file.
- 
--See the samples/ directory for example PAM configurations using this
--module.
-+See the /usr/share/doc/libpam-smbpam/examples/ directory for example PAM
-+configurations using this module.
- 
- Thanks go to the following people:
- 

@@ -1,7 +1,7 @@
-diff -uNr samba-2.999+3.0.alpha20.orig/source/nmbd/nmbd_subnetdb.c samba-2.999+3.0.alpha20/source/nmbd/nmbd_subnetdb.c
---- samba-2.999+3.0.alpha20.orig/source/nmbd/nmbd_subnetdb.c	2002-07-15 10:10:43.000000000 -0500
-+++ samba-2.999+3.0.alpha20/source/nmbd/nmbd_subnetdb.c	2002-11-08 20:54:04.000000000 -0600
-@@ -234,12 +234,16 @@
+diff -uNr samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_subnetdb.c samba-2.999+3.0.alpha21/source/nmbd/nmbd_subnetdb.c
+--- samba-2.999+3.0.alpha21.orig/source/nmbd/nmbd_subnetdb.c	2002-11-26 20:54:19.000000000 -0600
++++ samba-2.999+3.0.alpha21/source/nmbd/nmbd_subnetdb.c	2002-12-16 23:34:13.000000000 -0600
+@@ -231,12 +231,16 @@
    extern struct in_addr loopback_ip;
  
    if(num_interfaces == 0) {

@@ -1,0 +1,30 @@
+diff -uNr samba-2.999+3.0.alpha20.orig/source/utils/net_help.c samba-2.999+3.0.alpha20/source/utils/net_help.c
+--- samba-2.999+3.0.alpha20.orig/source/utils/net_help.c	2002-09-26 14:38:36.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/utils/net_help.c	2002-11-09 04:28:54.000000000 -0600
+@@ -94,6 +94,18 @@
+ 	return -1;
+ }
+ 
++int net_help_join(int argc, const char **argv)
++{
++	d_printf("\nnet [<method>] join [misc. options]\n"
++	         "\tjoin this server to an NT4 domain or ADS realm\n");
++	d_printf("Valid methods: (auto-detected if not specified)\n");
++	d_printf("\tads\t\t\t\tActive Directory (LDAP/Kerberos)\n");
++	d_printf("\trpc\t\t\t\tDCE-RPC\n");
++	d_printf("\n");
++	net_common_flags_usage(argc, argv);
++	return -1;
++}
++
+ int net_help_share(int argc, const char **argv)
+ {
+ 	d_printf(
+@@ -165,6 +177,7 @@
+ 		{"PRINTQ", net_rap_printq_usage},
+ 		{"USER", net_help_user},
+ 		{"GROUP", net_help_group},
++		{"JOIN", net_help_join},
+ 		{"VALIDATE", net_rap_validate_usage},
+ 		{"GROUPMEMBER", net_rap_groupmember_usage},
+ 		{"ADMIN", net_rap_admin_usage},

@@ -13,7 +13,7 @@ Description-pt_BR: Como você deseja que o Samba seja executado ?
 Template: samba/generate_smbpasswd
 Type: boolean
 Default: false
-Description: Create samba password file, /etc/samba/smbpasswd?
+Description: Create samba password database, /etc/samba/passdb.tdb?
  To be compatible with the defaults in most versions of Windows, Samba must
  be configured to use encrypted passwords.  This requires user passwords to
  be stored in a file separate from /etc/passwd. This file can be created
@@ -23,7 +23,7 @@ Description: Create samba password file, /etc/samba/smbpasswd?
  (and probably your client machines) to use plaintext passwords. See
  See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the 
  samba-doc package for more details.
-Description-pt_BR: Gerar o arquivo de senhas /etc/samba/smbpasswd ?
+Description-pt_BR: Gerar a base de dados para senhas /etc/samba/passdb.tdb ?
  Para compatibilidade com os padrões adotados em todas as versões
  atuais do Windows o Samba deve ser configurado para usar senhas
  encriptadas. Isso requer que as senhas dos usuários sejam armazenadas

@@ -1,17 +1,13 @@
-diff -uNr samba-2.2.5pre1.orig/source/Makefile.in samba-2.2.5pre1/source/Makefile.in
---- samba-2.2.5pre1.orig/source/Makefile.in	Tue Jun  4 15:54:14 2002
-+++ samba-2.2.5pre1/source/Makefile.in	Wed Jun 12 15:25:42 2002
-@@ -714,9 +714,10 @@
+diff -uNr samba-2.999+3.0cvs20020723.orig/source/Makefile.in samba-2.999+3.0cvs20020723/source/Makefile.in
+--- samba-2.999+3.0cvs20020723.orig/source/Makefile.in	Thu Jul 18 18:00:23 2002
++++ samba-2.999+3.0cvs20020723/source/Makefile.in	Thu Jul 25 10:20:49 2002
+@@ -834,7 +834,8 @@
  	@$(SHELL) $(srcdir)/script/installswat.sh $(SWATDIR) $(srcdir)
  
  installclientlib:
--	-$(INSTALLCMD) bin/libsmbclient.so
--	-$(INSTALLCMD) -d ${prefix}/include
--	-$(INSTALLCMD) include/libsmbclient.h ${prefix}/include
+-	-$(INSTALLCMD) bin/libsmbclient.so ${prefix}/lib
 +	-$(INSTALLCMD) bin/libsmbclient.so $(BASEDIR)/lib
 +	-$(INSTALLCMD) bin/libsmbclient.a $(BASEDIR)/lib
-+	-$(INSTALLCMD) -d $(INCLUDEDIR)
-+	-$(INSTALLCMD) include/libsmbclient.h $(INCLUDEDIR)
+ 	-$(INSTALLCMD) -d ${prefix}/include
+ 	-$(INSTALLCMD) include/libsmbclient.h ${prefix}/include
  
- # revert to the previously installed version
- revert:

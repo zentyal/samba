@@ -1,17 +1,18 @@
---- samba-2.2.4/source/client/client.c.orig	Wed May  1 23:13:57 2002
-+++ samba-2.2.4/source/client/client.c	Thu May  2 00:34:16 2002
-@@ -91,10 +91,10 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/client/client.c samba-2.99.cvs.20020713/source/client/client.c
+--- samba-2.99.cvs.20020713.orig/source/client/client.c	Fri Jul 12 22:51:27 2002
++++ samba-2.99.cvs.20020713/source/client/client.c	Sat Jul 13 15:10:06 2002
+@@ -94,10 +94,10 @@
  extern file_info def_finfo;
  
  /* timing globals */
 -int get_total_size = 0;
 -int get_total_time_ms = 0;
--int put_total_size = 0;
--int put_total_time_ms = 0;
+-static int put_total_size = 0;
+-static int put_total_time_ms = 0;
 +SMB_BIG_UINT get_total_size = 0;
 +unsigned int get_total_time_ms = 0;
-+SMB_BIG_UINT put_total_size = 0;
-+unsigned int put_total_time_ms = 0;
++static SMB_BIG_UINT put_total_size = 0;
++static unsigned int put_total_time_ms = 0;
  
  /* totals globals */
  static double dir_total;

@@ -29,6 +29,7 @@ SWATDIR=`pwd`/debian/swat
 SAMBABOOK=`pwd`/debian/swat
 
 IVARS = BASEDIR=$(DESTDIR)/usr \
+		prefix=$(DESTDIR)/usr \
 		BINDIR=$(DESTDIR)/usr/bin \
 		SBINDIR=$(DESTDIR)/usr/sbin \
 		MANDIR=$(DESTDIR)/usr/share/man \
@@ -37,7 +38,8 @@ IVARS = BASEDIR=$(DESTDIR)/usr \
 		INCLUDEDIR=$(DESTDIR)/usr/include \
 		SWATDIR=$(SWATDIR)/usr/share/samba/swat \
 		SAMBABOOK=$(SAMBABOOK)/usr/share/samba/swat/using_samba \
-		CODEPAGEDIR=$(DESTDIR)/usr/share/samba/codepages
+		CODEPAGEDIR=$(DESTDIR)/usr/share/samba/ \
+		PRIVATEDIR=$(DESTDIR)/etc/samba
 
 patch: patch-stamp
 patch-stamp:
@@ -64,6 +66,7 @@ configure-stamp:
 		--with-fhs \
 		--prefix=/usr \
 		--sysconfdir=/etc \
+		--libdir=/etc/samba \
 		--with-privatedir=/etc/samba \
 		--localstatedir=/var \
 		--with-netatalk \
@@ -78,7 +81,9 @@ configure-stamp:
 		--with-winbind \
 		--with-msdfs \
 		--with-automount \
-		--with-acl-support)
+		--with-acl-support \
+		--with-tdbsam \
+		--with-ldapsam)
 
 	touch configure-stamp
 
@@ -102,7 +107,7 @@ clean: unpatch
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
 	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \
-		source/include/stamp-h
+		source/bin/libsmbclient.a source/include/stamp-h
 
 	dh_clean
 
@@ -175,10 +180,6 @@ install: build
 	#	pages.
 	find debian/ -name 'findsmb*' -exec rm -f {} \;
 
-	# Until we move from smbpasswd to pdb we are not shipping the
-	#	pdbedit man page.
-	find debian/ -name 'pdbedit*' -exec rm -f {} \;
-
 	# Install samba-common's conffiles - they'll get moved later to their
 	#	correct place by dh_movefiles.
 	cp debian/smb.conf $(DESTDIR)/usr/share/samba/
@@ -194,9 +195,6 @@ install: build
 	rmdir $(DESTDIR)/sbin
 	rmdir $(DESTDIR)/lib/security
 	rmdir $(DESTDIR)/lib
-
-	# Remove the deprecated make_printerdef util.
-	rm $(DESTDIR)/usr/bin/make_printerdef
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.

@@ -1,7 +1,7 @@
-diff -ur samba-2.2.4+5pre1.orig/source/include/libsmbclient.h samba-2.2.4+5pre1/source/include/libsmbclient.h
---- samba-2.2.4+5pre1.orig/source/include/libsmbclient.h	Thu Jun 13 17:59:24 2002
-+++ samba-2.2.4+5pre1/source/include/libsmbclient.h	Thu Jun 13 18:00:39 2002
-@@ -50,7 +50,7 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/include/libsmbclient.h samba-2.99.cvs.20020713/source/include/libsmbclient.h
+--- samba-2.99.cvs.20020713.orig/source/include/libsmbclient.h	Sat Jul 13 02:18:41 2002
++++ samba-2.99.cvs.20020713/source/include/libsmbclient.h	Sat Jul 13 14:16:38 2002
+@@ -51,7 +51,7 @@
  *   \ingroup libsmbclient
  *   Functions used to access printing functionality
  */

@@ -108,18 +108,58 @@ RUN_MODE="${RET}"
 TMPFILE=`mktemp -q /tmp/samba.config.XXXXXX`
 sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
         < ${INITCONFFILE} >${TMPFILE}
+chmod a+r ${TMPFILE}
 mv -f ${TMPFILE} ${INITCONFFILE}
 
 # Generate a smbpasswd file?
 db_get samba/generate_smbpasswd || true
 GENERATE_SMBPASSWD="${RET}"
 
+db_get samba/tdbsam || true
+PDB_MIGRATE="${RET}"
+
 # Done with debconf now.
 db_stop
 
-if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /etc/samba/smbpasswd ]; then
+umask 066
+
+# FIXME: disable if ldapsam support is enabled?
+# FIXME: we don't want to pass these through the smbpasswd backend,
+# some of the faking can cause us problems!
+if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
 	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
-	chmod 600 /etc/samba/smbpasswd 
+	pdbedit -i smbpasswd -e tdbsam
+	rm /etc/samba/smbpasswd
+fi
+
+umask 022
+
+if [ "$1" = "configure" -a -n "$2" -a -e /etc/samba/smbpasswd \
+     -a ! -e /etc/samba/passdb.tdb -a "$PDB_MIGRATE" = "true" ] \
+   && dpkg --compare-versions "$2" lt 2.99.cvs.20020713-2
+then
+	umask 066
+	pdbedit -i smbpasswd -e tdbsam
+	rm /etc/samba/smbpasswd
+	umask 022
+
+	# The database has been moved, now make sure we can still find it.
+	PASSDB=`grep -i '^[[:space:]]*passdb backend[[:space:]]*=' /etc/samba/smb.conf \
+	 | sed -e's/^[[:space:]]*passdb backend[[:space:]]*=[[:space:]]*//i' \
+	 | tail -1`
+	if echo "$PASSDB" | egrep -q "(^|[[:space:]])smbpasswd"; then
+		if ! echo "$PASSDB" | egrep -q "(^|[[:space:]])tdbsam"; then
+			PASSDB=`echo $PASSDB | sed -e's/\(^\|[[:space:]]\)smbpasswd/\1tdbsam/'`
+		fi
+	fi
+	if ! echo "$PASSDB" | egrep -q "(^|[[:space:]])tdbsam"; then
+		PASSDB="tdbsam $PASSDB"
+	fi
+	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+	sed -e "s/^\([[:space:]]*\)passdb backend[[:space:]]*=.*/\1passdb backend = ${PASSDB}/" \
+		< /etc/samba/smb.conf >${TMPFILE}
+	chmod a+r ${TMPFILE}
+	mv -f ${TMPFILE} /etc/samba/smb.conf
 fi
 
 # ------------------------- Debconf questions end ---------------------

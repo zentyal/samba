@@ -1,6 +1,7 @@
---- samba-2.2.5/docs/manpages/smb.conf.5.orig	Tue Jun 18 21:13:19 2002
-+++ samba-2.2.5/docs/manpages/smb.conf.5	Tue Jun 18 23:15:08 2002
-@@ -4578,7 +4578,7 @@
+diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/smb.conf.5 samba-2.99.cvs.20020713/docs/manpages/smb.conf.5
+--- samba-2.99.cvs.20020713.orig/docs/manpages/smb.conf.5	Wed May  8 10:35:02 2002
++++ samba-2.99.cvs.20020713/docs/manpages/smb.conf.5	Sat Jul 13 14:36:26 2002
+@@ -4323,7 +4323,7 @@
  Here's a way of sending the messages as mail to root:
  .PP
  .PP

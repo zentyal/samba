@@ -1,3 +1,35 @@
+samba (2.999+3.0cvs20020723-2) unstable; urgency=low
+
+  * scale back the tdbsam migration support, because of undesirable
+    side-effects; now always defaults to 'no'.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 28 Jul 2002 09:44:24 -0500
+
+samba (2.999+3.0cvs20020723-1) unstable; urgency=medium
+
+  * remove spurious line from samba.config
+  * migrate from smbpasswd to tdbsam
+  * re-add the pdbedit util and manpage
+  * compile in ldapsam support (closes: #146935)
+  * add PRIVATEDIR to the list of vars we override for the install
+    target, so Samba doesn't try to create /etc/samba (closes: #153746).
+  * fix makefile handling of LOGBASEDIR, so that logs always end up in
+    the right place (closes: 153727).
+  * Fixed bug in the FHS migration path that causes nmbd to read its
+    state from one location, but write it out to another. (closes: #154210)
+  * Make sure nmbd is always looking for wins.tdb in the same place.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 19 Jul 2002 21:38:54 -0500
+
+samba (2.99.cvs.20020713-1) unstable; urgency=low
+
+  * first attempt for 3.0pre.
+  * only post a debconf note about moving logfiles if we're upgrading
+    from a version that had the logfiles in the old location
+    (closes: #152924).
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 13 Jul 2002 12:54:25 -0500
+
 samba (2.2.5-2) unstable; urgency=low
 
   * No longer ship make_printerdef, which is deprecated. (closes: #63059)

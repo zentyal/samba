@@ -1,15 +1,16 @@
---- samba-2.2.4/source/client/smbmount.c.orig	Wed May  1 23:13:57 2002
-+++ samba-2.2.4/source/client/smbmount.c	Thu May  2 00:20:44 2002
-@@ -716,7 +716,7 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/client/smbmount.c samba-2.99.cvs.20020713/source/client/smbmount.c
+--- samba-2.99.cvs.20020713.orig/source/client/smbmount.c	Wed Mar 13 19:53:02 2002
++++ samba-2.99.cvs.20020713/source/client/smbmount.c	Sat Jul 13 14:25:02 2002
+@@ -726,7 +726,7 @@
  					*lp = 0;
  					pstrcpy(password,lp+1);
  					got_pass = True;
--					memset(strchr(opteq+1,'%')+1,'X',strlen(password));
-+					memset(strchr(opteq+1,'%')+1,'\0',strlen(password));
+-					memset(strchr_m(opteq+1,'%')+1,'X',strlen(password));
++					memset(strchr_m(opteq+1,'%')+1,'\0',strlen(password));
  				}
- 				if ((lp=strchr(username,'/'))) {
+ 				if ((lp=strchr_m(username,'/'))) {
  					*lp = 0;
-@@ -726,7 +726,7 @@
+@@ -736,7 +736,7 @@
  				  !strcmp(opts, "password")) {
  				pstrcpy(password,opteq+1);
  				got_pass = True;
@@ -18,18 +19,19 @@
  			} else if(!strcmp(opts, "credentials")) {
  				pstrcpy(credentials,opteq+1);
  			} else if(!strcmp(opts, "netbiosname")) {
-@@ -819,7 +819,7 @@
+@@ -836,7 +836,7 @@
  			*p = 0;
  			pstrcpy(password,p+1);
  			got_pass = True;
--			memset(strchr(getenv("USER"),'%')+1,'X',strlen(password));
-+			memset(strchr(getenv("USER"),'%')+1,'\0',strlen(password));
+-			memset(strchr_m(getenv("USER"),'%')+1,'X',strlen(password));
++			memset(strchr_m(getenv("USER"),'%')+1,'\0',strlen(password));
  		}
  		strupper(username);
  	}
---- samba-2.2.4/source/pam_smbpass/pam_smb_passwd.c.orig	Wed May  1 23:14:47 2002
-+++ samba-2.2.4/source/pam_smbpass/pam_smb_passwd.c	Thu May  2 00:20:44 2002
-@@ -190,6 +190,11 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/pam_smbpass/pam_smb_passwd.c samba-2.99.cvs.20020713/source/pam_smbpass/pam_smb_passwd.c
+--- samba-2.99.cvs.20020713.orig/source/pam_smbpass/pam_smb_passwd.c	Wed May  8 23:05:37 2002
++++ samba-2.99.cvs.20020713/source/pam_smbpass/pam_smb_passwd.c	Sat Jul 13 14:23:11 2002
+@@ -189,6 +189,11 @@
  
      } else if (flags & PAM_UPDATE_AUTHTOK) {
  
@@ -41,18 +43,10 @@
  #if 0
          /* We used to return when this flag was set, but that breaks
             password synchronization when /other/ tokens are expired.  For
---- samba-2.2.2.cvs20020120.orig/source/script/installbin.sh
-+++ samba-2.2.2.cvs20020120/source/script/installbin.sh
-@@ -11,7 +11,7 @@
- shift
- shift
- 
--for d in $BASEDIR $BINDIR $LIBDIR $VARDIR $BASEDIR/private; do
-+for d in $BASEDIR $BINDIR $LIBDIR $VARDIR; do
- if [ ! -d $d ]; then
- mkdir $d
- if [ ! -d $d ]; then
-@@ -33,9 +33,11 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/script/installbin.sh samba-2.99.cvs.20020713/source/script/installbin.sh
+--- samba-2.99.cvs.20020713.orig/source/script/installbin.sh	Tue Mar 12 19:21:02 2002
++++ samba-2.99.cvs.20020713/source/script/installbin.sh	Sat Jul 13 14:23:11 2002
+@@ -22,9 +22,11 @@
   chmod $INSTALLPERMS $BINDIR/$p2
  
   # this is a special case, mount needs this in a specific location
@@ -67,9 +61,10 @@
  done
  
  
---- samba-2.2.2.cvs20020120.orig/source/script/installswat.sh
-+++ samba-2.2.2.cvs20020120/source/script/installswat.sh
-@@ -48,8 +48,8 @@
+diff -ur samba-2.99.cvs.20020713.orig/source/script/installswat.sh samba-2.99.cvs.20020713/source/script/installswat.sh
+--- samba-2.99.cvs.20020713.orig/source/script/installswat.sh	Mon Oct 15 00:15:31 2001
++++ samba-2.99.cvs.20020713/source/script/installswat.sh	Sat Jul 13 14:23:11 2002
+@@ -56,8 +56,8 @@
  for f in $SRCDIR../docs/htmldocs/*.html; do
        FNAME=$SWATDIR/help/`basename $f`
        echo $FNAME
@@ -80,7 +75,7 @@
  done
  
  # Install "server-side" includes
-@@ -63,7 +63,10 @@
+@@ -73,7 +73,10 @@
  
  # Install Using Samba book
  
@@ -92,51 +87,11 @@
  
      # Create directories
  
---- samba-2.2.2.cvs20020120.orig/source/smbwrapper/smbsh.c
-+++ samba-2.2.2.cvs20020120/source/smbwrapper/smbsh.c
-@@ -39,7 +39,7 @@
- int main(int argc, char *argv[])
- {
- 	char *p, *u;
--	char *libd = BINDIR;	
-+	char *libd = "/usr/share/samba";	
- 	pstring line, wd;
- 	int opt;
- 	extern char *optarg;
---- samba-2.2.2.cvs20020120.orig/source/web/diagnose.c
-+++ samba-2.2.2.cvs20020120/source/web/diagnose.c
-@@ -54,6 +54,7 @@
- 	static struct cli_state cli;
- 	extern struct in_addr loopback_ip;
- 
-+	loopback_ip.s_addr = htonl((127 << 24) + 1);
- 	if (!cli_initialise(&cli))
- 		return False;
- 
---- samba-2.2.2.cvs20020120.orig/source/web/startstop.c
-+++ samba-2.2.2.cvs20020120/source/web/startstop.c
-@@ -37,7 +37,7 @@
- 		return;
- 	}
- 
--	slprintf(binfile, sizeof(pstring) - 1, "%s/smbd", SBINDIR);
-+	slprintf(binfile, sizeof(pstring) - 1, "%s/smbd", "/usr/sbin");
- 
- 	become_daemon();
- 
-@@ -58,7 +58,7 @@
- 		return;
- 	}
- 
--	slprintf(binfile, sizeof(pstring) - 1, "%s/nmbd", SBINDIR);
-+	slprintf(binfile, sizeof(pstring) - 1, "%s/nmbd", "/usr/sbin");
- 	
- 	become_daemon();
- 
---- samba-2.2.4/source/smbd/service.c.orig	Wed May  1 23:15:10 2002
-+++ samba-2.2.4/source/smbd/service.c	Thu May  2 00:20:44 2002
-@@ -713,6 +713,14 @@
- 		smbrun(cmd,NULL);
+diff -ur samba-2.99.cvs.20020713.orig/source/smbd/service.c samba-2.99.cvs.20020713/source/smbd/service.c
+--- samba-2.99.cvs.20020713.orig/source/smbd/service.c	Wed Jul 10 23:53:39 2002
++++ samba-2.99.cvs.20020713/source/smbd/service.c	Sat Jul 13 14:23:11 2002
+@@ -867,6 +867,14 @@
+ 		change_to_root_user();
  	}
  
 +	/* If our root postexec command includes a call to 'unmount', we want
@@ -150,3 +105,26 @@
  	change_to_root_user();
  	/* execute any "root postexec = " line */
  	if (*lp_rootpostexec(SNUM(conn)))  {
+diff -ur samba-2.99.cvs.20020713.orig/source/smbwrapper/smbsh.c samba-2.99.cvs.20020713/source/smbwrapper/smbsh.c
+--- samba-2.99.cvs.20020713.orig/source/smbwrapper/smbsh.c	Wed Jan 30 00:08:41 2002
++++ samba-2.99.cvs.20020713/source/smbwrapper/smbsh.c	Sat Jul 13 14:29:07 2002
+@@ -36,7 +36,7 @@
+ int main(int argc, char *argv[])
+ {
+ 	char *p, *u;
+-	char *libd = dyn_BINDIR;
++	char *libd = dyn_LIBDIR;
+ 	pstring line, wd;
+ 	int opt;
+ 	extern char *optarg;
+diff -ur samba-2.99.cvs.20020713.orig/source/web/diagnose.c samba-2.99.cvs.20020713/source/web/diagnose.c
+--- samba-2.99.cvs.20020713.orig/source/web/diagnose.c	Wed Jun 26 07:17:11 2002
++++ samba-2.99.cvs.20020713/source/web/diagnose.c	Sat Jul 13 14:23:11 2002
+@@ -53,6 +53,7 @@
+ 	static struct cli_state cli;
+ 	extern struct in_addr loopback_ip;
+ 
++	loopback_ip.s_addr = htonl((127 << 24) + 1);
+ 	if (!cli_initialise(&cli))
+ 		return False;
+ 

@@ -9,7 +9,7 @@ Description: How do you want to run Samba?
 Template: samba/generate_smbpasswd
 Type: boolean
 Default: false
-Description: Create samba password file, /etc/samba/smbpasswd?
+Description: Create samba password database, /etc/samba/passdb.tdb?
  To be compatible with the defaults in most versions of Windows,
  Samba must be configured to use encrypted passwords.  This requires
  user passwords to be stored in a file separate from /etc/passwd.
@@ -31,3 +31,13 @@ Description: Samba's log files have moved.
  .
  The old log files that were in /var/log/ will be moved to
  the new location for you.
+
+Template: samba/tdbsam
+Type: boolean
+Default: false
+Description: Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?
+ Samba 3.0 introduces a newer, more complete SAM database interface
+ which supersedes the /etc/samba/smbpasswd file.  Would you like your
+ existing smbpasswd file to be migrated to /etc/samba/passdb.tdb for
+ you?  If you plan to use another pdb backend (e.g., LDAP) instead,
+ you should answer 'no' here.

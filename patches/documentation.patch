@@ -1,6 +1,6 @@
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html
---- samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html	Sun Jul 30 03:38:29 2000
-+++ samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html	Wed Jan 23 22:59:11 2002
+diff -ur samba-2.99.cvs.20020713.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.99.cvs.20020713/docs/htmldocs/using_samba/ch06_05.html
+--- samba-2.99.cvs.20020713.orig/docs/htmldocs/using_samba/ch06_05.html	Sun Jul 30 02:38:29 2000
++++ samba-2.99.cvs.20020713/docs/htmldocs/using_samba/ch06_05.html	Sat Jul 13 13:37:15 2002
 @@ -102,13 +102,13 @@
  WARNING:</strong> You will need to use at least Samba 2.1 to ensure that PDC functionality for Windows NT clients is present. Prior to Samba 2.1, only limited user authentication for NT clients was present. At the time this book went to press, Samba 2.0.5 was the latest version, but Samba  2.1 was available through CVS download. Instructions on downloading alpha versions of Samba are given in <a href="appe_01.html"><b>Appendix E, <CITE CLASS="appendix">Downloading Samba with CVS</cite></b></a>.</p></blockquote><P CLASS="para">
  As before, you need to ensure that Samba is a primary domain controller for the current workgroup and is using user-level security. However, you must also ensure that Samba is using encrypted passwords. In other words, alter the <CODE CLASS="literal">
@@ -17,8 +17,9 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samb
  	domain logons = yes
  
  	security = user </pre></div><DIV CLASS="sect3">
---- samba-2.2.5/docs/manpages/swat.8.orig	Tue Jun 18 21:13:20 2002
-+++ samba-2.2.5/docs/manpages/swat.8	Tue Jun 18 23:15:07 2002
+diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.20020713/docs/manpages/swat.8
+--- samba-2.99.cvs.20020713.orig/docs/manpages/swat.8	Mon Jan 28 11:36:33 2002
++++ samba-2.99.cvs.20020713/docs/manpages/swat.8	Sat Jul 13 13:37:15 2002
 @@ -41,19 +41,26 @@
  server. \fR
  .SH "INSTALLATION"
@@ -74,7 +75,7 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samb
  .PP
  One you have edited \fI/etc/services\fR 
  and \fI/etc/inetd.conf\fR you need to send a 
-@@ -146,11 +154,10 @@
+@@ -104,11 +112,10 @@
  (e.g., swat) to service port (e.g., 901) and protocol type 
  (e.g., tcp). 
  .TP

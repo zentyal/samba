@@ -1,3 +1,21 @@
+samba (3.0.7-1) unstable; urgency=high
+
+  * New upstream release. This release fixes two possible denial of
+    service conditions; one in nmbd and one in smbd. The CVE numbers
+    for these vulnerabilities are:
+
+    CAN-2004-0807 for the smbd DoS
+    CAN-2004-0808 for the nmbd DoS
+
+    Urgency is set to "high" because of these vulnerabilities; so this
+    new release propagates to testing ASAP.
+
+    Thanks to the Samba Team and the Debian Security Team for the
+    heads up.
+  * Remove post-3.0.6 patches that are now in 3.0.7.
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 13 Sep 2004 00:53:38 -0400
+
 samba (3.0.6-4) unstable; urgency=low
 
   * Update LDAP schema (closes: #269797).

@@ -85,7 +85,7 @@ msgid ""
 "settings will automatically be read from /etc/samba/dhcp.conf."
 msgstr "Si su sistema recibe la dirección IP desde un servidor DHCP en la "
 "red, el servidor DHCP también puede proveerle informaciones sobre los "
-"servidores de WINS que hhaya en la red.  Si contesta \"Sí\" aquí, se "
+"servidores de WINS que haya en la red.  Si contesta \"Sí\" aquí, se "
 "modificará smb.conf para que la configuración de WINS proveniente de "
 "DHCP se lea automaticamente de /etc/samba/dhcp.conf."
 

@@ -1,3 +1,12 @@
+samba (2.999+3.0.alpha21-2) unstable; urgency=low
+
+  * add CONFIGDIR to the set of directories exported in the install
+    target, so we don't try to write to /etc/ on the autobuilders.
+  * Reset the default 'passdb backend' value to something sensible, so
+    that we don't unnecessarily break upgrading systems (closes: #173731).
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 20 Dec 2002 09:13:00 -0600
+
 samba (2.999+3.0.alpha21-1) unstable; urgency=low
 
   * new upstream release, many patches now incorporated upstream

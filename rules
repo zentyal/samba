@@ -275,7 +275,7 @@ binary-arch: build install
 	fi
 #	dh_installemacsen
 #	dh_installpam
-	DH_OPTIONS= dh_installinit -psamba -- "defaults 20 19"
+	DH_OPTIONS= dh_installinit -psamba -n
 	DH_OPTIONS= dh_installinit -pwinbind
 	dh_installcron 
 #	dh_installmanpages

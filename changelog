@@ -5,6 +5,9 @@ samba (2.999+3.0.alpha23-2) unstable; urgency=low
     package is welcome, as we (Debian Samba maintainers) don't use them.
     (closes: #170731, #173322)
   * Move libsmbclient-dev from section "devel" to "libdevel".
+  * Fix panic action script to give a sensible error message instead of
+    an empty backtrace when we don't have permission to attach to the
+    process. (closes: #188164)
 
  -- Eloy A. Paris <peloy@debian.org>  Sun,  6 Apr 2003 21:40:33 -0400
 

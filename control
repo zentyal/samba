@@ -22,16 +22,17 @@ Description: a LanManager-like file and printer server for Unix
  .
  Currently, the Samba Debian packages consist of the following:
  .
-  samba - A LanManager like file and printer server for Unix.
+  samba - LanManager-like file and printer server for Unix.
   samba-common - Samba common files used by both the server and the client.
-  smbclient - A LanManager like simple client for Unix.
+  smbclient - LanManager-like simple client for Unix.
   swat - Samba Web Administration Tool
   samba-doc - Samba documentation.
-  smbfs - Mount and umount commands for the smbfs (kernels 2.0.x and above).
+  smbfs - Mount and umount commands for the smbfs (kernels 2.2.x and above).
   libpam-smbpass - pluggable authentication module for SMB password database
   libsmbclient - Shared library that allows applications to talk to SMB servers
   libsmbclient-dev - libsmbclient shared libraries
   winbind: Service to resolve user and group information from Windows NT servers
+  python2.2-samba: Python bindings that allow access to various aspects of Samba
  .
  It is possible to install a subset of these packages depending on
  your particular needs. For example, to access other SMB servers you

@@ -54,6 +54,8 @@ libsmbclient: Shared library that allows applications to talk to SMB servers.
 libsmbclient-dev: libsmbclient shared libraries.
 winbind: Service to resolve user and group information from a Windows NT 
 	server.
+python2.2-samba: Python bindings that allow access to various aspects of
+	Samba.
 
 Please note that the package smbwrapper (a shared library that provides
 SMB client services that existed between Samba 2.0.0-1 and Samba-2.0.5a-4

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 #
 # Post-installation script for the Samba package for Debian GNU/Linux
 #
@@ -59,6 +59,36 @@ if [ -d /var/samba/ ]; then
 	mv /var/samba/* /var/state/samba/
 	rmdir /var/samba/
 fi
+
+# And as of Samba 2.2.3-3, all these files are now placed in their 
+# respective FHS-compliant directories.  Separate out the individual 
+# files accordingly.
+for F in browse.dat printing.tdb winbindd_cache.tdb
+do
+	if [ -e /var/state/samba/"$F" ]; then
+		mv /var/state/samba/"$F" /var/cache/samba/
+	fi
+done
+
+for F in brlock.tdb connections.tdb locking.tdb messages.tdb nmbd.pid \
+         sessionid.tdb smbd.pid unexpected.tdb 
+do
+	if [ -e /var/state/samba/"$F" ]; then
+		mv /var/state/samba/"$F" /var/run/samba/
+	fi
+done
+
+# Default for anything we don't know about is /var/lib/samba -- 
+# guaranteed not to accidentally tromp on any files the admin thought 
+# were safe.
+if [ -d /var/state/samba ]; then
+	mv /var/state/samba/* /var/lib/samba/
+	rmdir /var/state/samba/
+fi
+
+# It's not FHS, and it's probably our fault this is here,
+# so delete it if we can.
+rmdir /var/state || true
 
 umask 022
 

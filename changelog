@@ -1,3 +1,35 @@
+samba (2.2.3-5.1) experimental; urgency=low
+
+  * Whoops, missed a spot on the samba.postinst -- will fail badly if
+    /var/state/samba/ no longer exists.  Better get this fix into the
+    next upload. ;)
+  * Regenerate configure only if it is older than configure.in.
+
+ -- Eloy A. Paris <peloy@debian.org>  Fri,  8 Feb 2002 20:59:46 -0500
+
+samba (2.2.3-4.1) experimental; urgency=low
+
+  * FHS cleanup; files in /var are now properly sorted according to
+    their nature. (Closes: #102101)
+  * Remove patches to source/configure, since we now call autoconf to
+    regenerate this file cleanly.
+  * lintian fixes:
+      - Create winbind.conffiles and add /etc/logrotate.d/winbind and
+        /etc/init.d/winbind to it.
+      - Use a relative symlink for /usr/lib/cups/backend/smb.
+      - Removal of a .cvsignore file in the samba-doc package.
+  * winbind.init fixes:
+      - Corrected name of the pid file (Steve)
+      - Make start-stop-daemon create a pid file for winbindd since it
+        does not create one on his own.
+  * #DEBHELPER# is not needed in samba.postinst because we are adding
+    manually everything that debhelper adds automatically. In fact,
+    since we are calling update-rc.d without standard paramaters I
+    think we can't use #DEBHELPER#.
+  * Fix fatal syntax error in samba.prerm.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu,  7 Feb 2002 13:12:08 -0500
+
 samba (2.2.3-3.1) experimental; urgency=low
 
   * work on lintian-cleanness in the package (wrong permissions,

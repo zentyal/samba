@@ -35,7 +35,7 @@ IVARS = BASEDIR=$(DESTDIR)/usr \
 		SBINDIR=$(DESTDIR)/usr/sbin \
 		MANDIR=$(DESTDIR)/usr/share/man \
 		LIBDIR=$(DESTDIR)/etc/samba \
-		VARDIR=$(DESTDIR)/var/state/samba \
+		VARDIR=$(DESTDIR)/var \
 		INCLUDEDIR=$(DESTDIR)/usr/include \
 		SWATDIR=$(SWATDIR)/usr/share/samba/swat \
 		SAMBABOOK=$(SAMBABOOK)/usr/share/samba/swat/using_samba \
@@ -81,7 +81,6 @@ configure-stamp:
 		--prefix=/usr \
 		--sysconfdir=/etc \
 		--with-privatedir=/etc/samba \
-		--with-lockdir=/var/state/samba \
 		--localstatedir=/var \
 		--with-netatalk \
 		--with-smbmount \
@@ -172,7 +171,7 @@ install: build
 	# For CUPS to support printing to samba printers, it's necessary
 	#	to make the following symlink (according to
 	#	Erich Schubert <debian@vitavonni.de> in #109509):
-	ln -s /usr/bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
+	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
 	# To avoid duplication of a large number of files, the swat package
 	#	does not contain the "Using Samba" book nor the HTML docs.

@@ -4,6 +4,7 @@
 #
 
 if [ "$1" = purge ]; then
+
 	# Remove WINS.DAT, BROWSE.DAT and lock information file
 	rm -Rf /var/samba/
 
@@ -14,7 +15,7 @@ if [ "$1" = purge ]; then
 	rm -Rf /etc/samba/MACHINE.SID
 
 	# Remove log files
-	rm -f /var/log/samba/
+	rm -Rf /var/log/samba/
 
 	# Remove init.d configuration file
 	echo  Removing configuration file /etc/default/samba...  >&2

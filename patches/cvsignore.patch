@@ -1,0 +1,6 @@
+diff -uNr samba-2.2.3.orig/examples/VFS/.cvsignore samba-2.2.3/examples/VFS/.cvsignore
+--- samba-2.2.3.orig/examples/VFS/.cvsignore	Wed Apr  5 18:42:06 2000
++++ samba-2.2.3/examples/VFS/.cvsignore	Wed Dec 31 19:00:00 1969
+@@ -1,2 +0,0 @@
+-.libs
+-*.so

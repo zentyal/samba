@@ -8,7 +8,9 @@ for patch in `ls debian/patches/*.patch | sort -r`; do
 	patch -p1 -R --ignore-whitespace < $patch
 done
 
-# perl -pi -e's/-.* for Debian//' source/include/version.h
+TMPFILE=source/VERSION.debian
+sed -e "s/^\(SAMBA_VERSION_VENDOR_SUFFIX=\).*$/\1/" source/VERSION > ${TMPFILE}
+mv -f ${TMPFILE} source/VERSION
 
 # Regenerate configure only if it is older than configure.in
 [ source/configure -ot source/configure.in ] && (cd source && autoheader && autoconf)

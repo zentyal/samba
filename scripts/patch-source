@@ -7,8 +7,12 @@ for patch in debian/patches/*.patch; do
 	patch -p1 --ignore-whitespace < $patch
 done
 
-#cat debian/changelog | perl -pi -e '($version) = <STDIN> =~/\((.*)\)/; \
-#		s/^SAMBA_VERSION_VENDOR_SUFFIX/&=Debian-$version/' source/VERSION
+DEBIAN_VERSION=`head -1 debian/changelog | sed -e 's/^.*(\(.*\)).*$/\1/'`
+
+TMPFILE=source/VERSION.debian
+sed -e "s/^\(SAMBA_VERSION_VENDOR_SUFFIX=\).*$/\1Debian-${DEBIAN_VERSION}/" \
+	source/VERSION > ${TMPFILE}
+mv -f ${TMPFILE} source/VERSION
 
 # Regenerate configure only if it is older than configure.in
 [ source/configure -ot source/configure.in ] && (cd source && sh ./autogen.sh)

@@ -1,3 +1,10 @@
+samba (2.999+3.0.alpha21-4) unstable; urgency=low
+
+  * add scripts to samba-common to grab the netbios-name-servers options
+    if we're running a DHCP client (closes: #38413)
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 27 Dec 2002 00:37:00 -0600
+
 samba (2.999+3.0.alpha21-3) unstable; urgency=low
 
   * Drop --with-ldapsam from the configure options, since this no longer

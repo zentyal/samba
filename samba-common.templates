@@ -21,6 +21,20 @@ Description: Character Set for DOS clients
  clients.  If you leave this option blank, your smb.conf will not be
  changed.
 
+Template: samba-common/dhcp
+Type: boolean
+Default: false
+Description: Use WINS settings from DHCP?
+ If your computer gets IP address information from a DHCP server on the
+ network, the DHCP server may also provide information about WINS
+ servers ("NetBIOS name servers") present on the network.  If you say
+ "yes" here, your smb.conf file will be modified in such a way that
+ DHCP-provided WINS settings will automatically be read from
+ /etc/samba/dhcp.conf.
+ .
+ You must have the dhcp3-client package installed to take advantage of
+ this feature.
+
 Template: samba-common/do_debconf
 Type: boolean
 Default: true

@@ -188,6 +188,7 @@ install: build
 	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
 	cp debian/samba.pamd $(DESTDIR)/etc/pam.d/samba
+	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba-common
 
 	# This is to comply with policy (the symlink that ldconfig would 
 	#	produce must exist in the package).

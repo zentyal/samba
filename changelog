@@ -5,6 +5,8 @@ samba (2.2.4+2.2.5pre1-1) experimental; urgency=low
   * Look for secrets.tdb in /var/lib/samba, and handle in the postinst.
     This is not really a config file, because users don't edit it.
     (closes: #147429)
+  * Doxygen fix for libsmbclient.h, thanks to Tommi Komulainen
+    <Tommi.Komulainen@iki.fi> for the patch. (closes: #144847)
 
  -- Eloy A. Paris <peloy@debian.org>  Sun,  9 Jun 2002 15:49:21 -0400
 

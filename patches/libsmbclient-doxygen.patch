@@ -1,0 +1,12 @@
+diff -ur samba-2.2.4+5pre1.orig/source/include/libsmbclient.h samba-2.2.4+5pre1/source/include/libsmbclient.h
+--- samba-2.2.4+5pre1.orig/source/include/libsmbclient.h	Thu Jun 13 17:59:24 2002
++++ samba-2.2.4+5pre1/source/include/libsmbclient.h	Thu Jun 13 18:00:39 2002
+@@ -50,7 +50,7 @@
+ *   \ingroup libsmbclient
+ *   Functions used to access printing functionality
+ */
+-/** \defgroup attribute Miscellaneous Functions
++/** \defgroup misc Miscellaneous Functions
+ *   \ingroup libsmbclient
+ *   Functions that don't fit in to other categories
+ */

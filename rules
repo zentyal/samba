@@ -153,10 +153,6 @@ install: build
 	#	right location in the libpam-smbpass package.
 	mv $(DESTDIR)/usr/bin/pam_smbpass.so $(DESTDIR)/lib/security/
 
-	# This is only temporary, while we create new packages for winbind and friends
-	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
-	install -m 0644 source/nsswitch/pam_winbind.so $(DESTDIR)/lib/security/
-
 	# Create the symlink that will allow us to do "mount -t smbfs ...".
 	#	Create also a symlink that will allow "mount -t smb ..." to
 	#	work too. The symlink is created in $(DESTDIR)/sbin/ but 

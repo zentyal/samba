@@ -1,3 +1,21 @@
+samba (3.0.6-2) unstable; urgency=low
+
+  * Added Danish debconf translation. Thanks to Claus Hindsgaul
+    <claus_h@image.dk>.
+
+    Claus Hindsgaul: please fix your mail server. I can't talk to you about
+    this bug due to apparent mail server problems:
+
+    2004-08-23 12:18:21 1BzHBV-0008Pb-3Q == claus_h@image.dk R=dnslookup
+    T=remote_smtp defer (110): Connection timed out
+    [...]
+    2004-08-23 12:45:23 1BzHBV-0008Pb-3Q ** claus_h@image.dk R=dnslookup
+    T=remote_smtp: SMTP error from remote mailer after RCPT
+    TO:<claus_h@image.dk>: host mailgw1.tiscali.dk [212.54.64.159]: 550 RCPT
+    TO:<claus_h@image.dk> User unknown
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 23 Aug 2004 17:24:19 -0400
+
 samba (3.0.6-1) unstable; urgency=low
 
   * New upstream version.

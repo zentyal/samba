@@ -32,7 +32,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
  
  # Note that all executable programs now provide for an optional executable suffix.
-@@ -1167,7 +1175,7 @@
+@@ -1200,7 +1208,7 @@
  	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
  
  installdat: installdirs
@@ -301,7 +301,7 @@ diff -uNr samba-3.0.0beta2.orig/source/libsmb/samlogon_cache.c samba-3.0.0beta2/
 diff -uNr samba-3.0.0beta2.orig/source/nmbd/nmbd_serverlistdb.c samba-3.0.0beta2/source/nmbd/nmbd_serverlistdb.c
 --- samba-3.0.0beta2.orig/source/nmbd/nmbd_serverlistdb.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/nmbd/nmbd_serverlistdb.c	2003-07-02 23:19:02.000000000 -0500
-@@ -343,7 +343,7 @@
+@@ -327,7 +327,7 @@
  
    updatecount++;
      
@@ -310,26 +310,25 @@ diff -uNr samba-3.0.0beta2.orig/source/nmbd/nmbd_serverlistdb.c samba-3.0.0beta2
    trim_string(fname,NULL,"/");
    pstrcat(fname,"/");
    pstrcat(fname,SERVER_LIST);
-diff -uNr samba-3.0.0beta2.orig/source/nmbd/nmbd_winsserver.c samba-3.0.0beta2/source/nmbd/nmbd_winsserver.c
---- samba-3.0.0beta2.orig/source/nmbd/nmbd_winsserver.c	2003-07-02 23:26:47.000000000 -0500
-+++ samba-3.0.0beta2/source/nmbd/nmbd_winsserver.c	2003-07-02 23:19:02.000000000 -0500
-@@ -230,7 +230,7 @@
+--- samba-3.0.0rc2/source/nmbd/nmbd_winsserver.c.orig	2003-08-28 17:42:44.000000000 -0400
++++ samba-3.0.0rc2/source/nmbd/nmbd_winsserver.c	2003-08-31 08:09:11.000000000 -0400
+@@ -228,7 +228,7 @@
  
-   add_samba_names_to_subnet(wins_server_subnet);
+ 	add_samba_names_to_subnet(wins_server_subnet);
  
--  if((fp = x_fopen(lock_path(WINS_LIST),O_RDONLY,0)) == NULL)
-+  if((fp = x_fopen(state_path(WINS_LIST),O_RDONLY,0)) == NULL)
-   {
-     DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
-            WINS_LIST, strerror(errno) ));
-@@ -1836,7 +1836,7 @@
- 	  }
-   }
+-	if((fp = x_fopen(lock_path(WINS_LIST),O_RDONLY,0)) == NULL) {
++	if((fp = x_fopen(state_path(WINS_LIST),O_RDONLY,0)) == NULL) {
+ 		DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
+ 			WINS_LIST, strerror(errno) ));
+ 		return True;
+@@ -1759,7 +1759,7 @@
+ 		}
+ 	}
  
--  slprintf(fname,sizeof(fname)-1,"%s/%s", lp_lockdir(), WINS_LIST);
-+  slprintf(fname,sizeof(fname)-1,"%s/%s", dyn_STATEDIR(), WINS_LIST);
-   all_string_sub(fname,"//", "/", 0);
-   slprintf(fnamenew,sizeof(fnamenew)-1,"%s.%u", fname, (unsigned int)sys_getpid());
+-	slprintf(fname,sizeof(fname)-1,"%s/%s", lp_lockdir(), WINS_LIST);
++	slprintf(fname,sizeof(fname)-1,"%s/%s", dyn_STATEDIR(), WINS_LIST);
+ 	all_string_sub(fname,"//", "/", 0);
+ 	slprintf(fnamenew,sizeof(fnamenew)-1,"%s.%u", fname, (unsigned int)sys_getpid());
  
 diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_cache.c samba-3.0.0beta2/source/nsswitch/winbindd_cache.c
 --- samba-3.0.0beta2.orig/source/nsswitch/winbindd_cache.c	2003-07-02 23:26:47.000000000 -0500
@@ -346,7 +345,7 @@ diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_cache.c samba-3.0.0beta
 diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c samba-3.0.0beta2/source/nsswitch/winbindd_util.c
 --- samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c	2003-07-01 15:44:25.000000000 -0500
 +++ samba-3.0.0beta2/source/nsswitch/winbindd_util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -769,7 +769,7 @@
+@@ -800,7 +800,7 @@
  	SMB_STRUCT_STAT stbuf;
  	TDB_CONTEXT *idmap_tdb;
  
@@ -368,7 +367,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1083,8 +1083,13 @@
+@@ -1082,8 +1082,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 

@@ -1,9 +1,10 @@
-samba (3.0.0beta2+3.0.0rc1-2) unstable; urgency=low
+samba (3.0.0beta2+3.0.0rc2-1) unstable; urgency=low
 
+  * New upstream release.
   * Incorporate Dutch debconf translations; thanks to Bart Cornelis
     <cobaco@linux.be>.  (closes: #207824)
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 30 Aug 2003 19:12:46 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 31 Aug 2003 08:04:30 -0400
 
 samba (3.0.0beta2+3.0.0rc1-1) unstable; urgency=low
 

@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_2.999+3.0.alpha20-4\n"
 "POT-Creation-Date: 2003-03-08 23:53-0600\n"
-"PO-Revision-Date: 2003-04-05 09:10-0600\n"
+"PO-Revision-Date: 2003-04-05 13:30-0300\n"
 "Last-Translator: André Luís Lopes <andrelop@ig.com.br>\n"
 "Language-Team: Debian-BR Project <debian-l10n-portuguese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -78,7 +78,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:26
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Modificar smb.conf a usar configurações WINS fornecidas via DHCP ?"
+msgstr "Modificar smb.conf para usar configurações WINS fornecidas via DHCP ?"
 
 #. Description
 #: ../samba-common.templates:26
@@ -127,7 +127,7 @@ msgid ""
 "configuration changes yourself, and will not be able to take advantage of "
 "periodic configuration enhancements.  Therefore, use of debconf is "
 "recommended if possible."
-msgstr "Caso você decide não usar o debconf para configurar o smb.conf, será necessário que você lide com quaisquer mudanças de configurações manualmente e você não poderá aproveitar os melhoramentos periódicos de configuração. Por esse motivo, é recomendado usar o debconf, caso seja possível."
+msgstr "Caso você opte por não usar o debconf para configurar o smb.conf, será necessário que você lide com quaisquer mudanças de configurações manualmente e você não poderá aproveitar os melhoramentos periódicos de configuração. Por esse motivo, é recomendado usar o debconf, caso seja possível."
 
 #. Description
 #: ../samba-common.templates:54

@@ -65,6 +65,18 @@ if [ "${RET}" = "true" ]; then
 			mv -f ${TMPFILE} /etc/samba/smb.conf
 		fi
 	fi
+
+	if dpkg --compare-versions "$2" lt 2.999+3.0.alpha20-4 \
+	   && ! grep -q "^[[:space:]]*panic action[[:space:]]*=" /etc/samba/smb.conf
+	then
+		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+		sed -e "/^[[:space:]]*\[global\]/a \\
+\\
+# Do something sensible when Samba crashes: mail the admin a backtrace\\
+   panic action = /usr/share/samba/panic-action %d" < /etc/samba/smb.conf > ${TMPFILE}
+		mv -f ${TMPFILE} /etc/samba/smb.conf
+	fi
+
 fi
 
 chmod a+r /etc/samba/smb.conf

@@ -14,6 +14,8 @@ samba (2.999+3.0.alpha20-4) unstable; urgency=low
     pointer<->int size mismatch bug.  Already fixed in upstream CVS.
   * Merge fix from CVS for broken libsmbclient.h references to internal
     structures (closes: #162956).
+  * Add a default 'panic action' for Samba that will give us genuinely
+    useful debugging information after a crash
 
  -- Eloy A. Paris <peloy@debian.org>  Wed, 16 Oct 2002 13:40:33 -0400
 

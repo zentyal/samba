@@ -44,12 +44,12 @@ IVARS = BASEDIR=$(DESTDIR)/usr \
 patch: patch-stamp
 patch-stamp:
 	dh_testdir
-	if [ ! -f patch-stamp ]; then debian/scripts/patch-source; fi
+	if [ ! -f patch-stamp ]; then /bin/sh debian/scripts/patch-source; fi
 	touch patch-stamp
 
 unpatch:
 	dh_testdir
-	if [ -f patch-stamp ]; then debian/scripts/unpatch-source; fi
+	if [ -f patch-stamp ]; then /bin/sh debian/scripts/unpatch-source; fi
 	rm -f patch-stamp
 
 configure: patch-stamp configure-stamp

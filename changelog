@@ -3,6 +3,9 @@ samba (3.0.8-2) unstable; urgency=low
   * Fix the module paths for python2.3-samba so that "import foo from samba"
     works, and include the __init__.py glue; closes: #222867).
   * Enable quota support; closes: #246839.
+  * Fix missing symbols in libsmbclient (and libnss_wins), and add
+    -Wl,-z,defs to the libsmbclient link options to prevent future
+    instances of undefined symbols (closes: #281181).
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 15 Nov 2004 06:54:13 -0800
 

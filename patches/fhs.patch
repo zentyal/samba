@@ -140,19 +140,6 @@ diff -uNr samba-3.0alpha21.orig/source/groupdb/mapping.c samba-3.0alpha21/source
  	if (!tdb) {
  		DEBUG(0,("Failed to open group mapping database\n"));
  		return False;
-diff -uNr samba-3.0alpha21.orig/source/include/config.h.in samba-3.0alpha21/source/include/config.h.in
---- samba-3.0alpha21.orig/source/include/config.h.in	2002-11-26 20:54:18.000000000 -0600
-+++ samba-3.0alpha21/source/include/config.h.in	2003-02-16 19:09:24.000000000 -0600
-@@ -99,6 +99,9 @@
- /* Whether the minor macro for dev_t is available */
- #undef HAVE_DEVICE_MINOR_FN
- 
-+/* Whether to use fully FHS-compatible paths */
-+#undef FHS_COMPATIBLE
-+
- /* Whether dirent has a d_off member */
- #undef HAVE_DIRENT_D_OFF
- 
 diff -uNr samba-3.0alpha21.orig/source/include/dynconfig.h samba-3.0alpha21/source/include/dynconfig.h
 --- samba-3.0alpha21.orig/source/include/dynconfig.h	2003-02-16 19:08:39.000000000 -0600
 +++ samba-3.0alpha21/source/include/dynconfig.h	2003-02-16 19:12:08.000000000 -0600

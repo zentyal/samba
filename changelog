@@ -12,6 +12,8 @@ samba (2.999+3.0.alpha20-4) unstable; urgency=low
     listen on (closes: #168079)
   * Fix to get samba working again on 64-bit archs, after a
     pointer<->int size mismatch bug.  Already fixed in upstream CVS.
+  * Merge fix from CVS for broken libsmbclient.h references to internal
+    structures (closes: #162956).
 
  -- Eloy A. Paris <peloy@debian.org>  Wed, 16 Oct 2002 13:40:33 -0400
 

@@ -108,9 +108,9 @@ Description: mount and umount commands for the smbfs (for kernels >= than 2.2.x)
  .
  Starting with the Debian Samba packages version 2.2.0-1, the old smbfs
  utilities for 2.0.x have been removed. There are no wrapper scripts
- that call a specific smbmount/smbmount depending on the kernel version.
- If you are using a 2.0.x kernel please upgrade or use the latest Samba
- 2.0.7 Debian package.
+ that call a specific smbmount/smbumount depending on the kernel
+ version.  If you are using a 2.0.x kernel please upgrade or use the
+ latest Samba 2.0.7 Debian package.
 
 Package: libpam-smbpass
 Section: admin
@@ -141,7 +141,7 @@ Package: libsmbclient-dev
 Section: devel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${Source-Version}), ${shlibs:Depends}
+Depends: libsmbclient (= ${Source-Version})
 Description: libsmbclient static libraries and headers
  libsmbclient allows to write applications that use the SMB protocol.
  This gives applications the ability to talk to Microsoft Windows servers

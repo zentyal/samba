@@ -1,3 +1,8 @@
+samba (2.2.3-1.1) experimental; urgency=low
+  * Merge in fixes from latest unstable release
+
+ -- Steve Langasek <vorlon@debian.org>  Mon,  4 Feb 2002 09:51:00 -0600
+
 samba (2.2.2.cvs20020120-1) experimental; urgency=low
 
   * CVS update: code that will become Samba 2.2.3.

@@ -11,6 +11,8 @@ samba (3.0.11-1) unstable; urgency=high
     missing (closes: #287263).
   * Added Portuguese debconf translation. Thanks to Miguel Figueiredo
     <elmig@debianpt.org>. (closes: #286375)
+  * Added Italian debconf translation. Thanks to Luca Monducci
+    <luca.mo@tiscali.it>. (closes: #284125)
   * Add support for building on the Debian BSD and Hurd ports; thanks to
     Robert Millan for the patch. (closes: #266693)
   * debian/patches/xp-missing-files.patch: import patch from upstream to

@@ -85,6 +85,7 @@ configure-stamp:
 		--sysconfdir=/etc \
 		--libdir=/etc/samba \
 		--with-privatedir=/etc/samba \
+		--with-piddir=/var/run/samba \
 		--localstatedir=/var \
 		--with-netatalk \
 		--with-smbmount \

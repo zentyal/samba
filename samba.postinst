@@ -45,46 +45,49 @@ RUN_MODE=""
 EOFMAGICNUMBER1234
 }
 
-# Starting with Samba 2.0.7-4 the WINS database, the browse
-#	database and other important run-time files are stored in
-#	/var/state/samba/ rather than in /var/samba/. The following
-#	code takes care of moving the files in the old directory to
-#	the new directory.
+# --- Begin of FHS migration code ---
+
+# Starting with Samba 2.2.3-4 the WINS database, the browse
+#       database and other important run-time files are stored in
+#       FHS-compliant directories. The following code takes care of
+#       moving the files in the old directories (/var/samba/ and
+#       /var/state/samba) to the new FHS-compliant directories.
+
 if [ -d /var/samba/ ]; then
-	mkdir -p /var/state/samba || true
-	mv /var/samba/* /var/state/samba/
+	mv /var/samba/* /var/lib/samba/ 2>/dev/null || true
 	rmdir /var/samba/
 fi
 
-# And as of Samba 2.2.3-3, all these files are now placed in their 
-# respective FHS-compliant directories.  Separate out the individual 
-# files accordingly.
+# Default for anything we don't know about (see next two 'for' loops)
+#       is /var/lib/samba -- guaranteed not to accidentally tromp on any 
+#       files the admin thought were safe.
+if [ -d /var/state/samba ]; then
+	mv /var/state/samba/* /var/lib/samba/ 2>/dev/null || true
+	rmdir /var/state/samba/
+
+	# It's not FHS, and it's probably our fault this is here,
+	# so delete it if we can.
+	rmdir /var/state/ 2> /dev/null || true
+fi
+
+# All these files are now placed in their respective FHS-compliant
+#       directories.  Separate out the individual files accordingly.
 for F in browse.dat printing.tdb winbindd_cache.tdb
 do
-	if [ -e /var/state/samba/"$F" ]; then
-		mv /var/state/samba/"$F" /var/cache/samba/
+	if [ -e /var/lib/samba/"$F" ]; then
+		mv /var/lib/samba/"$F" /var/cache/samba/
 	fi
 done
 
 for F in brlock.tdb connections.tdb locking.tdb messages.tdb nmbd.pid \
          sessionid.tdb smbd.pid unexpected.tdb 
 do
-	if [ -e /var/state/samba/"$F" ]; then
-		mv /var/state/samba/"$F" /var/run/samba/
+	if [ -e /var/lib/samba/"$F" ]; then
+		mv /var/lib/samba/"$F" /var/run/samba/
 	fi
 done
 
-# Default for anything we don't know about is /var/lib/samba -- 
-# guaranteed not to accidentally tromp on any files the admin thought 
-# were safe.
-if [ -d /var/state/samba ]; then
-	mv /var/state/samba/* /var/lib/samba/
-	rmdir /var/state/samba/
-
-	# It's not FHS, and it's probably our fault this is here,
-	# so delete it if we can.
-	rmdir /var/state || true
-fi
+# --- End of FHS migration code ---
 
 umask 022
 
@@ -135,6 +138,8 @@ fi
 #	when upgrading so this postinst script should not start samba
 #	after the upgrade is done. peloy@debian.org, 9/25/2001
 #/etc/init.d/samba start
+# FIXME: should we at least have a note in here about restarting, or 
+# maybe call /etc/init.d/samba restart?  vorlon@debian.org, 3/5/2002
 
 # This check is a safety net: the /etc/samba/smbpasswd file must have
 #	permissions 600.

@@ -190,6 +190,10 @@ install: build
 	#	delete the related man pages.
 	rm $(DESTDIR)/usr/share/man/man1/smbsh.1
 
+	# We're not providing findsmb (should we?) so let's remove the man
+	#       pages.
+	find debian/ -name 'findsmb*' -exec rm {} \;
+
 	# Install samba-common's conffiles - they'll get moved later to their
 	#	correct place by dh_movefiles.
 	cp debian/smb.conf $(DESTDIR)/usr/share/samba/
@@ -243,8 +247,9 @@ binary-arch: build install
 	if [ -x /usr/bin/dh_installlogrotate ]; then \
 		dh_installlogrotate; \
 	else \
-		mkdir debian/samba/etc/logrotate.d; \
+		mkdir -p debian/samba/etc/logrotate.d; \
 		cp debian/samba.logrotate debian/samba/etc/logrotate.d/samba; \
+		mkdir -p debian/winbind/etc/logrotate.d; \
 		cp debian/winbind.logrotate debian/winbind/etc/logrotate.d/winbind; \
 	fi
 #	dh_installemacsen

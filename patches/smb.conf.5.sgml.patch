@@ -1,5 +1,5 @@
---- samba-2.2.2.cvs20020201/docs/docbook/manpages/smb.conf.5.sgml.orig	Fri Feb  1 17:03:50 2002
-+++ samba-2.2.2.cvs20020201/docs/docbook/manpages/smb.conf.5.sgml	Fri Feb  1 18:45:41 2002
+--- samba-2.2.3a/docs/docbook/manpages/smb.conf.5.sgml.orig	Wed Feb  6 21:55:42 2002
++++ samba-2.2.3a/docs/docbook/manpages/smb.conf.5.sgml	Wed Feb 20 13:29:07 2002
 @@ -537,8 +537,10 @@
  	steps fail, then the connection request is rejected.  However, if one of the 
  	steps succeeds, then the following steps are not checked.</para>
@@ -13,7 +13,7 @@
  
  	<orderedlist numeration="Arabic">
  		<listitem><para>If the client has passed a username/password 
-@@ -4694,7 +4696,7 @@
+@@ -4695,7 +4697,7 @@
  
  		<para>Here's a way of sending the messages as mail to root:</para>
  

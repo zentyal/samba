@@ -1,3 +1,33 @@
+samba (2.2.3a-1.1) experimental; urgency=low
+
+  * New upstream version (closes: #135001)
+  * Potato builds were failing because debian/rules was not creating
+    debian/winbind/etc/logrotate.d/. A user having problems creating
+    Potato packages brought this to my attention. dh_installlogrotate
+    takes care of creating the directory for us, that's why we didn't
+    notice.
+  * Removed code that converts /etc/samba/smbpasswd from an ancient
+    format to the new format of Samba 2.0.0 and later.
+    Closes: #134375 - samba: postinst failed due to missing
+            /usr/bin/convert_smbpasswd.
+  * Re-organized FHS migration code in samba.postinst. Make sure we
+    don't fail when we move files that don't exist.
+    Closes: #133813 - samba: Install failed.
+  * Adding docs. to the libpam-smbpass package.
+  * Remove man pages for findsmb because we are not providing this
+    script.
+    Closes: #134181 - findsmb referenced, but not included.
+  * Removed replace.patch because it is now present upstream.
+  * Added patch from Jerry Carter to fix a problem when saving
+    document preferences for printing from NT clients.
+  * The real winbindd daemon is a forked process so we can't use
+    --make-pidfile when calling start-stop-daemon. Fixed 
+    /etc/init.d/winbind to work around the issue. Thanks to 
+    Lin Li <linl@xandros.com> for the patience and for reporting 
+    the problems. Hopefully I got it right this time.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue,  5 Mar 2002 09:52:27 -0600
+
 samba (2.2.3-6.1) experimental; urgency=low
 
   * Make sure there are actual files in /var/state/samba before trying 

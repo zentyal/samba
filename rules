@@ -184,7 +184,7 @@ install: build
 	# Install samba-common's conffiles - they'll get moved later to their
 	#	correct place by dh_movefiles.
 	cp debian/smb.conf $(DESTDIR)/usr/share/samba/
-	cp debian/panic-action $(DESTDIR)/usr/share/samba/
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
 	cp debian/samba.pamd $(DESTDIR)/etc/pam.d/samba
 

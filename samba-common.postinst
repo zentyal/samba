@@ -25,6 +25,11 @@ if [ "${RET}" = "true" ]; then
 	WORKGROUP="${RET}"
 
 	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+	# Oh my GOD, this is ugly.  Why would anyone put these
+	# characters in a workgroup name?  Why, Lord, why???
+	WORKGROUP=`echo $WORKGROUP | \
+	           sed -e's/\\/\\\\/g; s/\//\\\//g; s/\&/\\\&/g; s/\$/\\\$/'`
+
 	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/i" \

@@ -7,6 +7,8 @@ samba (2.999+3.0.alpha21-5) unstable; urgency=low
   * fix a glitch in the Spanish .po that rendered it invalid, plus a typo
   * updated Brazilian Portuguese templates (closes: #183295)
   * fix a typo in upstream manpage (s/shave/share/) (closes: #180546)
+  * run sed before we run sed, to deal with crazybad special chars
+    in the workgroup name (!) (closes: #176717)
 
  -- Steve Langasek <vorlon@debian.org>  Sat,  1 Mar 2003 15:14:00 -0600
 

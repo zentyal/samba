@@ -1,0 +1,19 @@
+diff -uNr samba-3.0.7.orig/source/Makefile.in samba-3.0.7/source/Makefile.in
+--- samba-3.0.7.orig/source/Makefile.in	2004-10-25 02:17:26.000000000 -0700
++++ samba-3.0.7/source/Makefile.in	2004-10-25 02:21:39.000000000 -0700
+@@ -1424,6 +1424,7 @@
+ 	@rm -f include/proto.h include/build_env.h  include/wrepld_proto.h \
+ 		nsswitch/winbindd_proto.h web/swat_proto.h \
+ 		client/client_proto.h utils/net_proto.h \
++	        utils/ntlm_auth_proto.h \
+ 		smbd/build_options.c
+ 
+ MKPROTO_SH = $(srcdir)/script/mkproto.sh
+@@ -1499,6 +1500,7 @@
+ 
+ distclean: realclean
+ 	-rm -f include/stamp-h
++	-rm -f script/gen-8bit-gap.sh adduser
+ 	-rm -f include/config.h Makefile
+ 	-rm -f config.status config.cache so_locations
+ 	-rm -rf .deps TAGS

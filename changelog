@@ -2,7 +2,8 @@ samba (3.0.7-2) unstable; urgency=low
 
   * Use autogen.sh in unpatch-source as well as in patch-source, to get
     rid of the autom4te.cache cruft.
-
+  * debian/patches/make-distclean.patch: add some missing files to the
+    distclean target in source/Makefile.in (mostly-fixes: #276203).
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 25 Oct 2004 02:13:14 -0700
 

@@ -173,7 +173,11 @@ install: build
 
 	# We're not providing findsmb (should we?) so let's remove the man
 	#	pages.
-	find debian/ -name 'findsmb*' -exec rm {} \;
+	find debian/ -name 'findsmb*' -exec rm -f {} \;
+
+	# Until we move from smbpasswd to pdb we are not shipping the
+	#	pdbedit man page.
+	find debian/ -name 'pdbedit*' -exec rm -f {} \;
 
 	# Install samba-common's conffiles - they'll get moved later to their
 	#	correct place by dh_movefiles.
@@ -229,7 +233,7 @@ binary-arch: build install
 	dh_testdir
 	dh_testroot
 	dh_installdebconf
-	dh_installdocs -A docs/textdocs/DIAGNOSIS.txt debian/README.build docs/README* docs/Samba-HOWTO-Collection.pdf
+	dh_installdocs -A debian/README.build
 	# dh_installexamples is not available in Debian Potato...
 	[ -x /usr/bin/dh_installexamples ] && dh_installexamples
 #	dh_installmenu

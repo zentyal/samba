@@ -5,6 +5,8 @@ samba (2.2.5-2) unstable; urgency=low
   * Add call to dh_installinit for winbind rc.x symlinks (closes: #151860).
   * Clean up per-package documentation lists, to reduce clutter
     (closes: #147638).
+  * Make sure we don't ship pdbedit's man page since we are still using
+    smbpasswd passwords. (closes: #152208)
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Jun 2002 22:45:04 -0500
 

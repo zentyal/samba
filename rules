@@ -215,7 +215,7 @@ binary-indep: build install
 	dh_installdebconf
 	dh_installdocs -A debian/README.build
 	# dh_installexamples is not available in Debian Potato...
-	[ -x /usr/bin/dh_installexamples ] && dh_installexamples
+	[ -x /usr/bin/dh_installexamples ] && DH_OPTIONS= dh_installexamples -v -psamba-doc examples/*
 #	dh_installmenu
 #	dh_installemacsen
 #	dh_installpam
@@ -228,6 +228,10 @@ binary-indep: build install
 	dh_link
 	dh_compress
 	dh_fixperms
+
+	# Get rid of those pesky .cvsignore files to make lintian happy
+	find debian/ -name .cvsignore -exec rm -f {} \;
+
 	dh_installdeb
 #	dh_perl
 	dh_gencontrol
@@ -243,7 +247,7 @@ binary-arch: build install
 	dh_installdebconf
 	dh_installdocs -A debian/README.build
 	# dh_installexamples is not available in Debian Potato...
-	[ -x /usr/bin/dh_installexamples ] && dh_installexamples
+	[ -x /usr/bin/dh_installexamples ] && DH_OPTIONS= dh_installexamples -v -ppython2.2-samba source/python/examples/*
 #	dh_installmenu
 	# dh_installlogrotate is not available in Debian Potato...
 	if [ -x /usr/bin/dh_installlogrotate ]; then \
@@ -262,7 +266,7 @@ binary-arch: build install
 #	dh_installmanpages
 #	dh_installinfo
 	cp debian/winbind.lintian debian/winbind/usr/share/lintian/overrides/winbind
-	dh_undocumented
+#	dh_undocumented
 	dh_installchangelogs -Nlibpam-smbpass
 	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source/pam_smbpass/CHANGELOG
 	dh_strip
@@ -284,6 +288,11 @@ binary-arch: build install
 	# Set some reasonable default perms for the samba logdir.
 	chmod 0750 debian/samba/var/log/samba/
 	chown root.adm debian/samba/var/log/samba/
+
+	# Get rid of those pesky .cvsignore files to make lintian happy
+	# (maybe we only need the "find ... -exec rm -f {} ;" we have
+	# in the binary-indep target?) peloy.-
+	find debian/ -name .cvsignore -exec rm -f {} \;
 
 	dh_installdeb
 #	dh_makeshlibs

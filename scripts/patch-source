@@ -4,4 +4,7 @@ for patch in debian/patches/*.patch; do
 	patch -p1 < $patch
 done
 
+cat debian/changelog | perl -pi -e '($version) = <STDIN> =~/\((.*)\)/; \
+		s/\".*\"/\"$version for Debian\"/' source/include/version.h
+
 exit 0

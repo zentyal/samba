@@ -1,5 +1,67 @@
---- samba-2.2.2.cvs20020120.orig/source/configure
-+++ samba-2.2.2.cvs20020120/source/configure
+--- samba-2.2.2.cvs20020120.orig/source/configure.in
++++ samba-2.2.2.cvs20020120/source/configure.in
+@@ -145,7 +145,7 @@
+ AC_SUBST(SHLIBEXT)
+ AC_SUBST(BLDSHARED)
+ AC_SUBST(LIBSMBCLIENT_SHARED)
+-AC_SUBST(LIBSMBCLIENT)
++AC_SUBST(LIBSMBCLIENT_STATIC)
+ 
+ # compile with optimization and without debugging by default
+ CFLAGS="-O ${CFLAGS}"
+@@ -340,6 +340,28 @@
+ #endif
+ }
+ ], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
++	if test x$LINUX_LFS_SUPPORT = xyes ; then
++          AC_TRY_RUN([
++#include <unistd.h>
++#include <sys/types.h>
++#include <fcntl.h>
++main() {
++   unsigned int *padding;
++   struct flock foo_lock = {F_WRLCK, SEEK_SET, 0, 1, 0};
++   int fd = open("/dev/null", O_RDWR);
++
++   /* Yes, we're depending on the internals of the Linux flock structure
++      here -- but this test is explicitly Linux-specific to begin with. */
++   padding = (unsigned int *)&foo_lock;
++   padding[1] = 0xffffffff;
++   foo_lock.l_start = 0;
++   if (fcntl(fd, F_SETLK, &foo_lock) < 0)
++      exit(1);
++
++   exit(0);
++}
++], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
++	fi
+         CPPFLAGS="$old_CPPFLAGS"
+         if test x$LINUX_LFS_SUPPORT = xyes ; then
+           CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
+@@ -2232,7 +2254,7 @@
+ # should we build libsmbclient?
+ 
+ LIBSMBCLIENT_SHARED=
+-LIBSMBCLIENT=
++LIBSMBCLIENT_STATIC=
+ AC_MSG_CHECKING(whether to build the libsmbclient shared library)
+ AC_ARG_WITH(libsmbclient,
+ [  --with-libsmbclient     Build the libsmbclient shared library (default=no)],
+@@ -2240,10 +2262,10 @@
+   yes)
+      if test $BLDSHARED = true; then
+         LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
+-	LIBSMBCLIENT=libsmbclient
++        LIBSMBCLIENT_STATIC=bin/libsmbclient.a
+         AC_MSG_RESULT(yes)
+      else
+-        AC_MSG_RESULT(no shared library support)
++        AC_MSG_RESULT(no static or shared libsmbclient support)
+      fi
+      ;;
+   *)
+--- samba-2.2.3/source/configure.orig	Sat Feb  2 22:42:51 2002
++++ samba-2.2.3/source/configure	Sat Feb  2 22:43:45 2002
 @@ -1077,7 +1077,7 @@
  
  test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
@@ -713,7 +775,7 @@
  if eval "test \"`echo '$''{'ac_cv_sizeof_int'+set}'`\" = set"; then
    echo $ac_n "(cached) $ac_c" 1>&6
  else
-@@ -2701,18 +2742,19 @@
+@@ -2701,9 +2742,10 @@
    ac_cv_sizeof_int=cross
  else
    cat > conftest.$ac_ext <<EOF
@@ -721,16 +783,12 @@
 +#line 2746 "configure"
  #include "confdefs.h"
  #include <stdio.h>
--int main()
 +#include <sys/types.h>
-+main()
+ main()
  {
    FILE *f=fopen("conftestval", "w");
--  if (!f) return(1);
-+  if (!f) exit(1);
-   fprintf(f, "%d\n", sizeof(int));
--  return(0);
-+  exit(0);
+@@ -2712,7 +2754,7 @@
+   exit(0);
  }
  EOF
 -if { (eval echo configure:2716: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
@@ -747,7 +805,7 @@
  if eval "test \"`echo '$''{'ac_cv_sizeof_long'+set}'`\" = set"; then
    echo $ac_n "(cached) $ac_c" 1>&6
  else
-@@ -2740,18 +2782,19 @@
+@@ -2740,9 +2782,10 @@
    ac_cv_sizeof_long=cross
  else
    cat > conftest.$ac_ext <<EOF
@@ -755,16 +813,12 @@
 +#line 2786 "configure"
  #include "confdefs.h"
  #include <stdio.h>
--int main()
 +#include <sys/types.h>
-+main()
+ main()
  {
    FILE *f=fopen("conftestval", "w");
--  if (!f) return(1);
-+  if (!f) exit(1);
-   fprintf(f, "%d\n", sizeof(long));
--  return(0);
-+  exit(0);
+@@ -2751,7 +2794,7 @@
+   exit(0);
  }
  EOF
 -if { (eval echo configure:2755: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
@@ -781,7 +835,7 @@
  if eval "test \"`echo '$''{'ac_cv_sizeof_short'+set}'`\" = set"; then
    echo $ac_n "(cached) $ac_c" 1>&6
  else
-@@ -2779,18 +2822,19 @@
+@@ -2779,9 +2822,10 @@
    ac_cv_sizeof_short=cross
  else
    cat > conftest.$ac_ext <<EOF
@@ -789,16 +843,12 @@
 +#line 2826 "configure"
  #include "confdefs.h"
  #include <stdio.h>
--int main()
 +#include <sys/types.h>
-+main()
+ main()
  {
    FILE *f=fopen("conftestval", "w");
--  if (!f) return(1);
-+  if (!f) exit(1);
-   fprintf(f, "%d\n", sizeof(short));
--  return(0);
-+  exit(0);
+@@ -2790,7 +2834,7 @@
+   exit(0);
  }
  EOF
 -if { (eval echo configure:2794: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
@@ -5980,65 +6030,3 @@
  s%@CC@%$CC%g
  s%@INSTALL_PROGRAM@%$INSTALL_PROGRAM%g
  s%@INSTALL_SCRIPT@%$INSTALL_SCRIPT%g
---- samba-2.2.2.cvs20020120.orig/source/configure.in
-+++ samba-2.2.2.cvs20020120/source/configure.in
-@@ -145,7 +145,7 @@
- AC_SUBST(SHLIBEXT)
- AC_SUBST(BLDSHARED)
- AC_SUBST(LIBSMBCLIENT_SHARED)
--AC_SUBST(LIBSMBCLIENT)
-+AC_SUBST(LIBSMBCLIENT_STATIC)
- 
- # compile with optimization and without debugging by default
- CFLAGS="-O ${CFLAGS}"
-@@ -340,6 +340,28 @@
- #endif
- }
- ], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
-+	if test x$LINUX_LFS_SUPPORT = xyes ; then
-+          AC_TRY_RUN([
-+#include <unistd.h>
-+#include <sys/types.h>
-+#include <fcntl.h>
-+main() {
-+   unsigned int *padding;
-+   struct flock foo_lock = {F_WRLCK, SEEK_SET, 0, 1, 0};
-+   int fd = open("/dev/null", O_RDWR);
-+
-+   /* Yes, we're depending on the internals of the Linux flock structure
-+      here -- but this test is explicitly Linux-specific to begin with. */
-+   padding = (unsigned int *)&foo_lock;
-+   padding[1] = 0xffffffff;
-+   foo_lock.l_start = 0;
-+   if (fcntl(fd, F_SETLK, &foo_lock) < 0)
-+      exit(1);
-+
-+   exit(0);
-+}
-+], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
-+	fi
-         CPPFLAGS="$old_CPPFLAGS"
-         if test x$LINUX_LFS_SUPPORT = xyes ; then
-           CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-@@ -2232,7 +2254,7 @@
- # should we build libsmbclient?
- 
- LIBSMBCLIENT_SHARED=
--LIBSMBCLIENT=
-+LIBSMBCLIENT_STATIC=
- AC_MSG_CHECKING(whether to build the libsmbclient shared library)
- AC_ARG_WITH(libsmbclient,
- [  --with-libsmbclient     Build the libsmbclient shared library (default=no)],
-@@ -2240,10 +2262,10 @@
-   yes)
-      if test $BLDSHARED = true; then
-         LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
--	LIBSMBCLIENT=libsmbclient
-+        LIBSMBCLIENT_STATIC=bin/libsmbclient.a
-         AC_MSG_RESULT(yes)
-      else
--        AC_MSG_RESULT(no shared library support)
-+        AC_MSG_RESULT(no static or shared libsmbclient support)
-      fi
-      ;;
-   *)

@@ -1,5 +1,0 @@
---- samba-2.2.2.cvs20020120.orig/source/include/version.h
-+++ samba-2.2.2.cvs20020120/source/include/version.h
-@@ -1 +1 @@
--#define VERSION "2.2.3-pre"
-+#define VERSION "2.2.2.cvs20020120-1 for Debian"

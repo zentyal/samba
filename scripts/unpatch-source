@@ -4,4 +4,6 @@ for patch in debian/patches/*.patch; do
 	patch -p1 -R < $patch
 done
 
+perl -pi -e's/-.* for Debian//' source/include/version.h
+
 exit 0

@@ -27,10 +27,15 @@ Default: true
 Description: Configure smb.conf through debconf?
  The rest of the configuration of Samba deals with questions that
  affect parameters in /etc/samba/smb.conf, which is the file used
- to configure the Samba programs (nmbd and smbd.) If you want to be
- asked just a few questions then select "Yes" and continue with the
- configuration. If you want to have full control, select "No" and
- configure your smb.conf manually or through SWAT.
+ to configure the Samba programs (nmbd and smbd.) Your current smb.conf
+ contains an 'include' line or an option that spans multiple lines,
+ which could confuse debconf and require you to edit your smb.conf by
+ hand to get it working again.
+ .
+ If you say "no" here, you will have to handle any configuration
+ changes yourself, and will not be able to take advantage of periodic
+ configuration enhancements.  Therefore, the recommended response is
+ "yes" if possible.
 
 Template: samba-common/workgroup
 Type: string

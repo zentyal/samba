@@ -9,15 +9,6 @@ diff -uNr samba-2.999+3.0cvs20020723.orig/source/Makefile.in samba-2.999+3.0cvs2
  
  # The permissions to give the executables
  INSTALLPERMS = 0755
-@@ -52,7 +53,7 @@
- # set these to where to find various files
- # These can be overridden by command line switches (see smbd(8))
- # or in smb.conf (see smb.conf(5))
--LOGFILEBASE = $(VARDIR)
-+LOGFILEBASE = @logfilebase@
- CONFIGFILE = $(LIBDIR)/smb.conf
- LMHOSTSFILE = $(LIBDIR)/lmhosts
- DRIVERFILE = $(LIBDIR)/printers.def
 @@ -68,6 +69,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@

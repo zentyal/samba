@@ -1,3 +1,9 @@
+samba (3.0.2a-1) unstable; urgency=low
+
+  * New upstream version.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 24 Feb 2004 10:30:47 -0500
+
 samba (3.0.2-2) unstable; urgency=high
 
   * Apply patch from Urban Widmark <urban@teststation.com> to prevent

@@ -4,10 +4,9 @@ samba (3.0.0beta1-2) unstable; urgency=low
     to make sure we get the right shlib dependencies (closes: #193149).
   * Update the dhcp config hooks so they're suitable for sourcing (i.e.,
     don't call "exit") (closes: #196477).
-  * Bring package into line with current policy, updating
-    Standards-Version to 3.5.10:
-    - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
-      symbols (-gstabs) by default
+  * Bring package into line with current policy by adding support for
+    the DEB_BUILD_OPTIONS flag, and enabling debugging symbols (-gstabs)
+    by default
   * Make sure libpam-smbpass is a self-contained DSO.
   * Fix a typo in samba-common.dhcp that caused us to spuriously rewrite
     the server list.
@@ -18,6 +17,8 @@ samba (3.0.0beta1-2) unstable; urgency=low
   * Remove dangerous and confusing browse options from the default 
     smb.conf (closes: #198804).
   * Reorder smb.conf options for clearer grouping.
+  * Add a default [print$] share to the sample smb.conf, and create the
+    necessary tree under /var/lib/samba/printers. (closes: #168173)
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

@@ -1,5 +1,12 @@
-samba (3.0.10-2) unstable; urgency=low
+samba (3.0.11-1) unstable; urgency=high
 
+  * New upstream version
+    - Fixes duplicated entry in swat(8) manpage (closes: #292957).
+    - Fix queue handling so that processes serving print clients don't
+      spin off into infinity and clobber the system (closes: #274969).
+    - Make sure we use C-locale toupper/tolower functions for case
+      conversion, since Turkish pairing rules are incompatible
+      (closes: #286174).
   * Fix logrotate script to exit true instead of false when nmbd.pid is
     missing (closes: #287263).
   * Added Portuguese debconf translation. Thanks to Miguel Figueiredo

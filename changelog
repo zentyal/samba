@@ -1,3 +1,10 @@
+samba (3.0.7-3) unstable; urgency=low
+
+  * Introduce new -dbg package, so we can make better sense out of the
+    cleverly-supplied backtrace emails.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 14:13:26 -0700
+
 samba (3.0.7-2) unstable; urgency=high
 
   * High-urgency upload for sarge-targetted RC fixes.

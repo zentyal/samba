@@ -178,7 +178,7 @@ install: build
 
 	# Install mount.cifs and its man page
 	install -m 0755 source/client/mount.cifs $(DESTDIR)/sbin/
-	install -m 0644 docs/manpages/mount.cifs $(DESTDIR)/usr/share/man/man8/
+	install -m 0644 docs/manpages/mount.cifs.8 $(DESTDIR)/usr/share/man/man8/
 
 	# For CUPS to support printing to samba printers, it's necessary
 	#	to make the following symlink (according to

@@ -127,7 +127,7 @@ install: build
 	         $(DESTDIR)/lib/security $(DESTDIR)/sbin \
 	         $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
 	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d \
-	         $(DESTDIR)/usr/lib/python2.2/lib-dynload
+	         $(DESTDIR)/usr/lib/python2.2/site-packages
 
 	# Add here commands to install the package into debian/tmp.
 	$(MAKE) -C source install $(IVARS)
@@ -202,7 +202,7 @@ install: build
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
 
 	# Install the Python modules
-	cp source/build/lib.*/samba/*.so $(DESTDIR)/usr/lib/python2.2/lib-dynload/
+	cp source/build/lib.*/samba/*.so $(DESTDIR)/usr/lib/python2.2/lib-dynload/site-packages/
 
 	dh_movefiles
 

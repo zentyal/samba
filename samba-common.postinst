@@ -95,6 +95,16 @@ if [ "${RET}" = "true" ]; then
 		fi
 	fi
 
+	if ! grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
+	then
+		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+		sed -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
+			/^[[:space:]]*passdb backend/ {
+				s/unixsam/guest/i
+			}' < /etc/samba/smb.conf > ${TMPFILE}
+		mv -f ${TMPFILE} /etc/samba/smb.conf
+	fi
+
 	if ! grep -q "^[[:space:]]*dos charset[[:space:]]*=" /etc/samba/smb.conf
 	then
 		db_get samba-common/codepage || true

@@ -25,6 +25,8 @@ samba (3.0.0beta2-1) unstable; urgency=low
     (closes: #187632).
   * Fix handling of krb5 link line, building on a patch from Stefan
     Metzmacher <metze@metzemix.de>.
+  * Add patch so smbclient's tar support works with popt
+    (closes: #194921).
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
 

@@ -191,7 +191,7 @@ install: build
 	rm $(DESTDIR)/usr/share/man/man1/smbsh.1
 
 	# We're not providing findsmb (should we?) so let's remove the man
-	#       pages.
+	#	pages.
 	find debian/ -name 'findsmb*' -exec rm {} \;
 
 	# Install samba-common's conffiles - they'll get moved later to their

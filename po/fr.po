@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Samba for Debian 2.999+3.0.alpha23-1\n"
 "POT-Creation-Date: 2003-03-08 23:53-0600\n"
-"PO-Revision-Date: 2003-04-05 08:03:00-0600\n"
+"PO-Revision-Date: 2003-04-13 12:52-0100\n"
 "Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -120,9 +120,9 @@ msgid ""
 msgstr ""
 "La suite de la configuration de Samba pose des questions sur des paramètres "
 "de /etc/samba/smb.conf, le fichier utilisé pour configurer les programmes de "
-"Samba (nmbd et smbd). Votre fichier actuel contient une ligne « include » "
-"ou une option qui s'étale sur plusieurs lignes : cela peut perturber debconf "
-"et il vaut mieux gérer manuellement le contenu de ce fichier."
+"Samba (nmbd et smbd). Votre fichier actuel contient une ligne « include » ou "
+"une option qui s'étale sur plusieurs lignes : cela peut perturber debconf et "
+"il vaut mieux gérer manuellement le contenu de ce fichier."
 
 #. Description
 #: ../samba-common.templates:39
@@ -132,6 +132,10 @@ msgid ""
 "periodic configuration enhancements.  Therefore, use of debconf is "
 "recommended if possible."
 msgstr ""
+"Si vous n'utilisez pas debconf pour configurer smb.conf, vous devrez vous-"
+"même gérer les modifications de configuration et vous ne pourrez pas "
+"bénéficier des améliorations faites dans la configuration. Si possible, il "
+"est conseillé d'utiliser debconf."
 
 #. Description
 #: ../samba-common.templates:54

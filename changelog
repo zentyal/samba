@@ -1,12 +1,14 @@
 samba (2.999+3.0cvs20020906-1) unstable; urgency=low
 
-  * CVS update.
+  * CVS update
     - domain authentication works again (closes: #158698)
   * Factor out common code in samba-common.config
   * Handle character set settings in smb.conf on upgrade
     (closes: #153913, #158770)
   * Don't use killall in logrotate script; there are better ways
     (closes: #160076)
+  * Ignore value of 'hostname lookups' for hosts allow/hosts deny
+    (closes: #154376)
 
  -- Steve Langasek <vorlon@debian.org>  Sat,  7 Sep 2002 11:46:00 -0500
 

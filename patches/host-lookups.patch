@@ -1,0 +1,86 @@
+diff -uNr samba-2.999+3.0cvs20020906.orig/source/lib/access.c samba-2.999+3.0cvs20020906/source/lib/access.c
+--- samba-2.999+3.0cvs20020906.orig/source/lib/access.c	2002-06-13 21:06:58.000000000 -0500
++++ samba-2.999+3.0cvs20020906/source/lib/access.c	2002-09-08 18:38:43.000000000 -0500
+@@ -64,6 +64,7 @@
+ 	 */
+ 
+ 	if (tok[0] == '.') {			/* domain: match last fields */
++		DEBUG(0,("Blee: got a partial domain token, '%s', matching against '%s'.\n",tok,s));
+ 		if ((str_len = strlen(s)) > (tok_len = strlen(tok))
+ 		    && strcasecmp(tok, s + str_len - tok_len) == 0)
+ 			return (True);
+@@ -316,20 +317,20 @@
+ 		else
+ 		{
+ 			DEBUG (3, ("check_access: hostnames in host allow/deny list.\n"));
+-			ret = allow_access(deny_list,allow_list, get_socket_name(sock),
++			ret = allow_access(deny_list,allow_list, get_socket_name(sock,True),
+ 					   get_socket_addr(sock));
+ 		}
+ 		
+ 		if (ret) 
+ 		{
+ 			DEBUG(2,("Allowed connection from %s (%s)\n",
+-				 only_ip ? "" : get_socket_name(sock),
++				 only_ip ? "" : get_socket_name(sock,True),
+ 				 get_socket_addr(sock)));
+ 		} 
+ 		else 
+ 		{
+ 			DEBUG(0,("Denied connection from %s (%s)\n",
+-				 only_ip ? "" : get_socket_name(sock),
++				 only_ip ? "" : get_socket_name(sock,True),
+ 				 get_socket_addr(sock)));
+ 		}
+ 	}
+diff -uNr samba-2.999+3.0cvs20020906.orig/source/lib/util_sock.c samba-2.999+3.0cvs20020906/source/lib/util_sock.c
+--- samba-2.999+3.0cvs20020906.orig/source/lib/util_sock.c	2002-08-25 16:46:49.000000000 -0500
++++ samba-2.999+3.0cvs20020906/source/lib/util_sock.c	2002-09-08 18:38:58.000000000 -0500
+@@ -832,7 +832,7 @@
+ 
+ char *client_name(void)
+ {
+-	return get_socket_name(client_fd);
++	return get_socket_name(client_fd,False);
+ }
+ 
+ char *client_addr(void)
+@@ -890,7 +890,7 @@
+ /*******************************************************************
+  return the DNS name of the remote end of a socket
+  ******************************************************************/
+-char *get_socket_name(int fd)
++char *get_socket_name(int fd, BOOL force_lookup)
+ {
+ 	static pstring name_buf;
+ 	static fstring addr_buf;
+@@ -902,7 +902,7 @@
+ 	   situations won't work because many networks don't link dhcp
+ 	   with dns. To avoid the delay we avoid the lookup if
+ 	   possible */
+-	if (!lp_hostname_lookups()) {
++	if (!lp_hostname_lookups() && (force_lookup == False)) {
+ 		return get_socket_addr(fd);
+ 	}
+ 	
+diff -uNr samba-2.999+3.0cvs20020906.orig/source/web/cgi.c samba-2.999+3.0cvs20020906/source/web/cgi.c
+--- samba-2.999+3.0cvs20020906.orig/source/web/cgi.c	2002-06-24 21:29:09.000000000 -0500
++++ samba-2.999+3.0cvs20020906/source/web/cgi.c	2002-09-08 18:33:46.000000000 -0500
+@@ -636,7 +636,7 @@
+ char *cgi_remote_host(void)
+ {
+ 	if (inetd_server) {
+-		return get_socket_name(1);
++		return get_socket_name(1,False);
+ 	}
+ 	return getenv("REMOTE_HOST");
+ }
+@@ -647,7 +647,7 @@
+ char *cgi_remote_addr(void)
+ {
+ 	if (inetd_server) {
+-		return get_socket_addr(1);
++		return get_socket_addr(1,False);
+ 	}
+ 	return getenv("REMOTE_ADDR");
+ }

@@ -1,8 +1,8 @@
-samba (2.2.4+2.2.5.cvs20020605-1) unstable; urgency=low
+samba (2.2.4+2.2.5pre1-1) experimental; urgency=low
 
   * Getting ready for Samba 2.2.5.
 
- -- Eloy A. Paris <peloy@debian.org>  Wed,  5 Jun 2002 11:20:32 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Sun,  9 Jun 2002 15:49:21 -0400
 
 samba (2.2.4-2) unstable; urgency=low
 

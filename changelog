@@ -13,6 +13,8 @@ samba (3.0.0beta1-2) unstable; urgency=low
     the server list.
   * Fix python install script to ignore -Wl linker flags, as seen in the
     output from the latest krb5-config.
+  * Add LDAP and Unicode information about upgrading from 2.2 to
+    README.debian.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

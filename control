@@ -149,3 +149,39 @@ Description: libsmbclient static libraries and headers
  .
  This package contains the libsmbclient static libraries and headers
  needed to build applications that use SMB services.
+
+Package: winbind
+Section: net
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: Support programs for the winbind service
+ This package provides the winbindd daemon, which provides a
+ service for the Name Service Switch capability that is present
+ in most modern C libraries (like the GNU C Library - glibc.)
+ .
+ The service provided by winbindd is called `winbind' and
+ can be used to resolve user and group information from a
+ Windows NT server. The service can also provide authentication
+ services via an associated PAM module.
+
+Package: libnss-winbind
+Section: admin
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Replaces: samba (<= 2.2.3-2)
+Description: Name Service Switch module using winbind
+ This package provides a Name Service Switch that can be used
+ to resolve user and group information from a Windows NT server.
+
+Package: libpam-winbind
+Section: admin
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Replaces: samba (<= 2.2.3-2)
+Description: PAM module to provide authentication of Windows NT users
+ The libpam-winbind package provides the PAM module required to
+ provide authentication services to Windows NT users. This is
+ part of the winbind service included with Samba.

@@ -256,6 +256,9 @@ binary-arch: build install
 	dh_compress
 	dh_fixperms
 
+	# Why this is executable, I have NO idea...
+	chmod a-x debian/usr/include/libsmbclient.h
+
 	# You may want to make some executables suid here.
 	# The smbmnt and smbumount binaries should be setuid-root. This
 	#	has security implications because these programs haven't had

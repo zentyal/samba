@@ -13,7 +13,7 @@ diff -uNr samba-3.0.7.orig/source/Makefile.in samba-3.0.7/source/Makefile.in
  
  distclean: realclean
  	-rm -f include/stamp-h
-+	-rm -f script/gen-8bit-gap.sh adduser
++	-rm -f script/gen-8bit-gap.sh smbadduser
  	-rm -f include/config.h Makefile
  	-rm -f config.status config.cache so_locations
  	-rm -rf .deps TAGS

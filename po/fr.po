@@ -15,7 +15,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2002-12-29 18:59-0600\n"
+"POT-Creation-Date: 2003-03-08 23:53-0600\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -62,7 +62,7 @@ msgstr ""
 
 #. Description
 #: ../samba-common.templates:26
-msgid "Use WINS settings from DHCP?"
+msgid "Modify smb.conf to use WINS settings from DHCP?"
 msgstr ""
 
 #. Description
@@ -70,9 +70,9 @@ msgstr ""
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  If you say \"yes\" here, "
-"your smb.conf file will be modified in such a way that DHCP-provided WINS "
-"settings will automatically be read from /etc/samba/dhcp.conf."
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
 msgstr ""
 
 #. Description
@@ -107,18 +107,19 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:39
 msgid ""
-"If you say \"no\" here, you will have to handle any configuration changes "
-"yourself, and will not be able to take advantage of periodic configuration "
-"enhancements.  Therefore, the recommended response is \"yes\" if possible."
+"If you don't use debconf to configure smb.conf, you will have to handle any "
+"configuration changes yourself, and will not be able to take advantage of "
+"periodic configuration enhancements.  Therefore, use of debconf is "
+"recommended if possible."
 msgstr ""
 
 #. Description
-#: ../samba-common.templates:53
+#: ../samba-common.templates:54
 msgid "Workgroup/Domain Name?"
 msgstr "Groupe de travail et nom de domaine ?"
 
 #. Description
-#: ../samba-common.templates:53
+#: ../samba-common.templates:54
 msgid ""
 "This controls what workgroup your server will appear to be in when queried "
 "by clients. Note that this parameter also controls the Domain name used with "
@@ -129,12 +130,12 @@ msgstr ""
 "« security=domain »."
 
 #. Description
-#: ../samba-common.templates:61
+#: ../samba-common.templates:62
 msgid "Use password encryption?"
 msgstr "Voulez-vous chiffrer les mots de passe ?"
 
 #. Description
-#: ../samba-common.templates:61
+#: ../samba-common.templates:62
 msgid ""
 "Recent Windows clients communicate with SMB servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "

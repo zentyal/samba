@@ -23,12 +23,12 @@ _Description: Character Set for DOS clients
 Template: samba-common/dhcp
 Type: boolean
 Default: false
-_Description: Use WINS settings from DHCP?
+_Description: Modify smb.conf to use WINS settings from DHCP?
  If your computer gets IP address information from a DHCP server on the
  network, the DHCP server may also provide information about WINS servers
- ("NetBIOS name servers") present on the network.  If you say "yes" here,
- your smb.conf file will be modified in such a way that DHCP-provided WINS
- settings will automatically be read from /etc/samba/dhcp.conf.
+ ("NetBIOS name servers") present on the network.  This requires a
+ change to your smb.conf file so that DHCP-provided WINS settings will
+ automatically be read from /etc/samba/dhcp.conf.
  .
  You must have the dhcp3-client package installed to take advantage of this
  feature.
@@ -44,9 +44,10 @@ _Description: Configure smb.conf through debconf?
  debconf and require you to edit your smb.conf by hand to get it working
  again.
  .
- If you say "no" here, you will have to handle any configuration changes
- yourself, and will not be able to take advantage of periodic configuration
- enhancements.  Therefore, the recommended response is "yes" if possible.
+ If you don't use debconf to configure smb.conf, you will have to handle
+ any configuration changes yourself, and will not be able to take
+ advantage of periodic configuration enhancements.  Therefore, use of
+ debconf is recommended if possible.
 
 Template: samba-common/workgroup
 Type: string

@@ -1,0 +1,91 @@
+diff -uNr samba-2.999+3.0cvs20020805.orig/source/Makefile.in samba-2.999+3.0cvs20020805/source/Makefile.in
+--- samba-2.999+3.0cvs20020805.orig/source/Makefile.in	2002-08-18 22:09:04.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/Makefile.in	2002-08-20 15:15:39.000000000 -0500
+@@ -22,6 +22,7 @@
+ TERMLDFLAGS=@TERMLDFLAGS@
+ TERMLIBS=@TERMLIBS@
+ PRINTLIBS=@PRINTLIBS@
++AUTHLIBS=@AUTHLIBS@
+ 
+ LINK=$(CC) $(FLAGS) $(LDFLAGS)
+ 
+@@ -609,7 +610,8 @@
+ 
+ bin/smbd: $(SMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+-	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) $(LIBS) 
++	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
++	  $(AUTHLIBS) $(LIBS) 
+ 
+ bin/nmbd: $(NMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+@@ -621,7 +623,8 @@
+ 
+ bin/swat: $(SWAT_OBJ) bin/.dummy
+ 	@echo Linking $@
+-	@$(CC) $(FLAGS) -o $@ $(SWAT_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) $(LIBS) 
++	@$(CC) $(FLAGS) -o $@ $(SWAT_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
++	  $(AUTHLIBS) $(LIBS) 
+ 
+ bin/rpcclient: $(RPCCLIENT_OBJ) @BUILD_POPT@ bin/.dummy
+ 	@echo Linking $@
+@@ -791,7 +794,7 @@
+ nsswitch/pam_winbind.so: $(PAM_WINBIND_OBJ) bin/.dummy
+ 	@echo Linking $@
+ 	@$(SHLD) $(LDSHFLAGS) -o $@ $(PAM_WINBIND_OBJ) \
+-		@SONAMEFLAG@`basename $@`
++		@SONAMEFLAG@`basename $@` -lpam
+ 
+ bin/wbinfo: $(WBINFO_OBJ) $(PARAM_OBJ) $(LIB_OBJ) \
+ 		$(UBIQX_OBJ) $(SECRETS_OBJ) @BUILD_POPT@ bin/.dummy
+diff -uNr samba-2.999+3.0cvs20020805.orig/source/configure.in samba-2.999+3.0cvs20020805/source/configure.in
+--- samba-2.999+3.0cvs20020805.orig/source/configure.in	2002-08-18 22:09:04.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/configure.in	2002-08-20 15:00:44.000000000 -0500
+@@ -148,6 +148,7 @@
+ AC_SUBST(LIBSMBCLIENT_SHARED)
+ AC_SUBST(LIBSMBCLIENT)
+ AC_SUBST(PRINTLIBS)
++AC_SUBST(AUTHLIBS)
+ 
+ # compile with optimization and without debugging by default
+ CFLAGS="-O ${CFLAGS}"
+@@ -612,7 +613,7 @@
+ # test for where we get crypt() from
+ AC_CHECK_FUNCS(crypt)
+ if test x"$ac_cv_func_crypt" = x"no"; then
+-    AC_CHECK_LIB(crypt, crypt, [LIBS="$LIBS -lcrypt";
++    AC_CHECK_LIB(crypt, crypt, [AUTHLIBS="$AUTHLIBS -lcrypt";
+ 	AC_DEFINE(HAVE_CRYPT)])
+ fi
+ 
+@@ -2060,7 +2061,7 @@
+   yes)
+     AC_MSG_RESULT(yes)
+     AC_DEFINE(WITH_PAM)
+-    LIBS="$LIBS -lpam"
++    AUTHLIBS="$AUTHLIBS -lpam"
+     with_pam_for_crypt=yes
+     ;;
+   *)
+@@ -2108,7 +2109,7 @@
+ if test $with_pam_for_crypt = no; then
+ AC_CHECK_FUNCS(crypt)
+ if test x"$ac_cv_func_crypt" = x"no"; then
+-    AC_CHECK_LIB(crypt, crypt, [LIBS="$LIBS -lcrypt";
++    AC_CHECK_LIB(crypt, crypt, [AUTHLIBS="$AUTHLIBS -lcrypt";
+ 	AC_DEFINE(HAVE_CRYPT)])
+ fi
+ fi
+@@ -2121,8 +2122,11 @@
+ ##
+ if test $with_pam_for_crypt = no; then
+ AC_CACHE_CHECK([for a crypt that needs truncated salt],samba_cv_HAVE_TRUNCATED_SALT,[
++crypt_LIBS="$LIBS"
++LIBS="$AUTHLIBS $LIBS"
+ AC_TRY_RUN([#include "${srcdir-.}/tests/crypttest.c"],
+-	samba_cv_HAVE_TRUNCATED_SALT=no,samba_cv_HAVE_TRUNCATED_SALT=yes,samba_cv_HAVE_TRUNCATED_SALT=cross)])
++	samba_cv_HAVE_TRUNCATED_SALT=no,samba_cv_HAVE_TRUNCATED_SALT=yes,samba_cv_HAVE_TRUNCATED_SALT=cross)
++LIBS="$crypt_LIBS"])
+ if test x"$samba_cv_HAVE_TRUNCATED_SALT" = x"yes"; then
+ 	AC_DEFINE(HAVE_TRUNCATED_SALT)
+ fi

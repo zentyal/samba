@@ -1,0 +1,57 @@
+diff -uNr samba-2.999+3.0cvs20020805.orig/source/Makefile.in samba-2.999+3.0cvs20020805/source/Makefile.in
+--- samba-2.999+3.0cvs20020805.orig/source/Makefile.in	2002-08-20 15:16:34.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/Makefile.in	2002-08-20 15:21:54.000000000 -0500
+@@ -23,6 +23,7 @@
+ TERMLIBS=@TERMLIBS@
+ PRINTLIBS=@PRINTLIBS@
+ AUTHLIBS=@AUTHLIBS@
++ACLLIBS=@ACLLIBS@
+ 
+ LINK=$(CC) $(FLAGS) $(LDFLAGS)
+ 
+@@ -611,7 +612,7 @@
+ bin/smbd: $(SMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+ 	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
+-	  $(AUTHLIBS) $(LIBS) 
++	  $(AUTHLIBS) $(ACLLIBS) $(LIBS) 
+ 
+ bin/nmbd: $(NMBD_OBJ) bin/.dummy
+ 	@echo Linking $@
+diff -uNr samba-2.999+3.0cvs20020805.orig/source/configure.in samba-2.999+3.0cvs20020805/source/configure.in
+--- samba-2.999+3.0cvs20020805.orig/source/configure.in	2002-08-20 15:16:34.000000000 -0500
++++ samba-2.999+3.0cvs20020805/source/configure.in	2002-08-20 15:23:44.000000000 -0500
+@@ -2605,23 +2605,29 @@
+ 	*osf*)
+ 		AC_MSG_RESULT(Using Tru64 ACLs)
+ 		AC_DEFINE(HAVE_TRU64_ACLS)
+-		LIBS="$LIBS -lpacl"
++		ACLLIBS="$ACLLIBS -lpacl"
+ 		;;
+         *)
+-		AC_CHECK_LIB(acl,acl_get_file)
++		AC_CHECK_LIB(acl,acl_get_file,[ACLLIBS="$ACLLIBS -lacl"])
+ 		AC_CACHE_CHECK([for ACL support],samba_cv_HAVE_POSIX_ACLS,[
++		acl_LIBS=$LIBS
++		LIBS="$LIBS -lacl"
+ 		AC_TRY_LINK([#include <sys/types.h>
+ #include <sys/acl.h>],
+ [ acl_t acl; int entry_id; acl_entry_t *entry_p; return acl_get_entry( acl, entry_id, entry_p);],
+-samba_cv_HAVE_POSIX_ACLS=yes,samba_cv_HAVE_POSIX_ACLS=no)])
++samba_cv_HAVE_POSIX_ACLS=yes,samba_cv_HAVE_POSIX_ACLS=no)
++		LIBS=$acl_LIBS])
+ 			if test x"$samba_cv_HAVE_POSIX_ACLS" = x"yes"; then
+ 				AC_MSG_RESULT(Using posix ACLs)
+ 				AC_DEFINE(HAVE_POSIX_ACLS)
+ 				AC_CACHE_CHECK([for acl_get_perm_np],samba_cv_HAVE_ACL_GET_PERM_NP,[
++				acl_LIBS=$LIBS
++				LIBS="$LIBS -lacl"
+ 				AC_TRY_LINK([#include <sys/types.h>
+ #include <sys/acl.h>],
+ [ acl_permset_t permset_d; acl_perm_t perm; return acl_get_perm_np( permset_d, perm);],
+-samba_cv_HAVE_ACL_GET_PERM_NP=yes,samba_cv_HAVE_ACL_GET_PERM_NP=no)])
++samba_cv_HAVE_ACL_GET_PERM_NP=yes,samba_cv_HAVE_ACL_GET_PERM_NP=no)
++				LIBS=$acl_LIBS])
+ 				if test x"$samba_cv_HAVE_ACL_GET_PERM_NP" = x"yes"; then
+ 					AC_DEFINE(HAVE_ACL_GET_PERM_NP)
+ 				fi

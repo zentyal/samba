@@ -45,7 +45,7 @@ if [ "${RET}" = "true" ]; then
 		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 		sed -e "/^[[:space:]]*character set[[:space:]]*=/c \
    display character set = $DISPLAYCHARSET\
-   unix character set = $DISPLAYCHARSET" < $FILE > ${TMPFILE}
+   unix character set = $DISPLAYCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
 		mv -f ${TMPFILE} /etc/samba/smb.conf
 	fi
 
@@ -54,7 +54,7 @@ if [ "${RET}" = "true" ]; then
 	if [ -n "$DOSCHARSET" ]; then
 		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 		sed -e "/^[[:space:]]*client code page[[:space:]]*=/c \
-   dos character set = $DOSCHARSET" < $FILE > ${TMPFILE}
+   dos character set = $DOSCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
 		mv -f ${TMPFILE} /etc/samba/smb.conf
 	fi
 fi

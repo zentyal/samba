@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Samba for Debian 2.999+3.0.alpha21-4\n"
 "POT-Creation-Date: 2003-03-08 23:52-0600\n"
-"PO-Revision-Date: 2003-01-19 22:54-0600\n"
+"PO-Revision-Date: 2003-03-09 20:27-0600\n"
 "Last-Translator: Steve Langasek <vorlon@debian.org>\n"
 "Language-Team: Spanish <debian-l10n-spanish@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -74,25 +74,18 @@ msgstr ""
 
 #. Description
 #: ../samba-common.templates:26
-#, fuzzy
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "¿Usar la configuración WINS que proviene de DHCP?"
+msgstr "¿Modificar smb.conf para usar la configuración WINS que proviene de DHCP?"
 
 #. Description
 #: ../samba-common.templates:26
-#, fuzzy
 msgid ""
 "If your computer gets IP address information from a DHCP server on the "
 "network, the DHCP server may also provide information about WINS servers "
 "(\"NetBIOS name servers\") present on the network.  This requires a change "
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
-msgstr ""
-"Si su sistema recibe la dirección IP desde un servidor DHCP en la red, el "
-"servidor DHCP también puede proveerle informaciones sobre los servidores de "
-"WINS que haya en la red.  Si contesta \"Sí\" aquí, se modificará smb.conf "
-"para que la configuración de WINS proveniente de DHCP se lea automaticamente "
-"de /etc/samba/dhcp.conf."
+msgstr "Si su sistema recibe la dirección IP desde un servidor DHCP en la red, el servidor DHCP también puede proveerle informaciones sobre los servidores de WINS que haya en la red.  Esto requiere un cambio en el fichero smb.conf para que la configuración de WINS proveniente de DHCP se lea automaticamente de /etc/samba/dhcp.conf."
 
 #. Description
 #: ../samba-common.templates:26
@@ -125,17 +118,12 @@ msgstr ""
 
 #. Description
 #: ../samba-common.templates:39
-#, fuzzy
 msgid ""
 "If you don't use debconf to configure smb.conf, you will have to handle any "
 "configuration changes yourself, and will not be able to take advantage of "
 "periodic configuration enhancements.  Therefore, use of debconf is "
 "recommended if possible."
-msgstr ""
-"Si contesta \"No\" aquí, tendrá que cuidar a mano cualquier cambio a la "
-"configuración de Samba y no disfrutará de aumentos periódicos de "
-"configuración.  Por eso se recomienda contestar \"Sí\" aquí cuando sea "
-"posible."
+msgstr "Si no usa debconf para configurar smb.conf, tendrá que cuidar a mano cualquier cambio a la configuración de Samba y no disfrutará de aumentos periódicos de configuración.  Por eso se recomienda el uso de debconf cuando sea posible."
 
 #. Description
 #: ../samba-common.templates:54
@@ -182,7 +170,6 @@ msgstr "¿Crear el base de dados de contraseñas /etc/samba/passdb.tdb?"
 
 #. Description
 #: ../samba.templates:4
-#, fuzzy
 msgid ""
 "To be compatible with the defaults in most versions of Windows, Samba must "
 "be configured to use encrypted passwords.  This requires user passwords to "

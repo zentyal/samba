@@ -1,6 +1,7 @@
 samba (2.999+3.0cvs20020829-1) unstable; urgency=low
 
   * CVS update.
+  * Move the smb.conf manpage to the samba-common package (closes: #159572)
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 29 Aug 2002 17:53:25 -0500
 

@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha23-5) unstable; urgency=low
+
+  * Move the python package from section "net" to section "python".
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 14 Apr 2003 17:58:50 -0400
+
 samba (2.999+3.0.alpha23-4) unstable; urgency=low
 
   * Instead of s/LPT1:/LPT:/, we need to do s/LPT:/LPT1:/ -- now all

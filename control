@@ -176,7 +176,7 @@ Description: service to resolve user and group information from Windows NT serve
  services via an associated PAM module.
 
 Package: python2.2-samba
-Section: net
+Section: python
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}, python2.2

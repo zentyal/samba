@@ -24,7 +24,7 @@ DEB_BUILD_GNU_TYPE	:= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 export DEB_HOST_GNU_TYPE
 export DEB_BUILD_GNU_TYPE
 
-DESTDIR=`pwd`/debian/samba
+DESTDIR=`pwd`/debian/tmp
 SWATDIR=`pwd`/debian/swat
 SAMBABOOK=`pwd`/debian/swat
 
@@ -120,6 +120,11 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
+	mkdir -p $(DESTDIR)/usr/share/man $(DESTDIR)/usr/lib \
+	         $(DESTDIR)/lib/security $(DESTDIR)/sbin \
+	         $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
+	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
+
 	# Add here commands to install the package into debian/tmp.
 	$(MAKE) -C source install $(IVARS)
 
@@ -194,12 +199,7 @@ install: build
 	#	produce must exist in the package).
 	/sbin/ldconfig -n $(DESTDIR)/usr/lib/
 
-	dh_movefiles --sourcedir=debian/samba/
-
-	# Remove empty directories that will never be used.
-	rmdir $(DESTDIR)/sbin
-	rmdir $(DESTDIR)/lib/security
-	rmdir $(DESTDIR)/lib
+	dh_movefiles
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.
@@ -277,8 +277,8 @@ binary-arch: build install
 	chmod u+s debian/smbfs/usr/bin/smbumount
 
 	# Set some reasonable default perms for the samba logdir.
-	chmod 0750 $(DESTDIR)/var/log/samba/
-	chown root.adm $(DESTDIR)/var/log/samba/
+	chmod 0750 debian/samba/var/log/samba/
+	chown root.adm debian/samba/var/log/samba/
 
 	dh_installdeb
 #	dh_makeshlibs

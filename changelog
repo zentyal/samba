@@ -2,6 +2,11 @@ samba (2.999+3.0.alpha21-4) unstable; urgency=low
 
   * add scripts to samba-common to grab the netbios-name-servers options
     if we're running a DHCP client (closes: #38413)
+  * major rearrangement of build scripts: install target now operates on
+    debian/tmp, not debian/samba, so we can see when new files are
+    added and decide where to put them; several files that should have
+    been in samba-common but were in samba (for the above reason) --
+    smbcacls, -- have been moved, with a replaces: added.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 27 Dec 2002 00:37:00 -0600
 

@@ -11,4 +11,5 @@ usr/share/man/man1/rpcclient.1
 usr/share/man/man8/smbspool.8
 usr/share/man/man1/smbcacls.1
 usr/share/man/man1/smbcquotas.1
+usr/share/man/man1/smbtree.1
 usr/lib/cups/backend/smb

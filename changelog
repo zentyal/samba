@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha24-3) unstable; urgency=low
+
+  * Make sure Samba DSOs are compiled with -fPIC. (closes: #194324)
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 22 May 2003 15:32:00 -0500
+
 samba (2.999+3.0.alpha24-2) unstable; urgency=low
 
   * Fixed description of the smbfs package. (closes: #194183)

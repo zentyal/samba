@@ -40,7 +40,7 @@ Description: A LanManager like file and printer server for Unix.
 Package: samba-common
 Architecture: any
 Depends: debconf, libpam-modules, ${shlibs:Depends}
-Replaces: samba (<= 2.0.5a-2)
+Replaces: samba (<< 2.999+3.0cvs20020829-1)
 Description: Samba common files used by both the server and the client.
  The Samba software suite is a collection of programs that
  implements the SMB protocol for unix systems, allowing you to serve

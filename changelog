@@ -1,6 +1,7 @@
 samba (2.999+3.0cvs20020906-1) unstable; urgency=low
 
   * CVS update.
+    - domain authentication works again (closes: #158698)
   * Factor out common code in samba-common.config
   * Handle character set settings in smb.conf on upgrade (closes: #153913)
 

@@ -11,6 +11,8 @@ samba (3.0.0beta1-2) unstable; urgency=low
   * Make sure libpam-smbpass is a self-contained DSO.
   * Fix a typo in samba-common.dhcp that caused us to spuriously rewrite
     the server list.
+  * Fix python install script to ignore -Wl linker flags, as seen in the
+    output from the latest krb5-config.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

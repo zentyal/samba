@@ -1,7 +1,7 @@
-diff -uNr samba-2.999+3.0cvs20020906.orig/source/Makefile.in samba-2.999+3.0cvs20020906/source/Makefile.in
---- samba-2.999+3.0cvs20020906.orig/source/Makefile.in	2002-09-08 14:13:27.000000000 -0500
-+++ samba-2.999+3.0cvs20020906/source/Makefile.in	2002-09-08 14:13:33.000000000 -0500
-@@ -23,6 +23,7 @@
+diff -uNr samba-2.999+3.0.alpha20.orig/source/Makefile.in samba-2.999+3.0.alpha20/source/Makefile.in
+--- samba-2.999+3.0.alpha20.orig/source/Makefile.in	2002-10-02 21:41:16.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/Makefile.in	2002-10-02 21:41:43.000000000 -0500
+@@ -24,6 +24,7 @@
  TERMLIBS=@TERMLIBS@
  PRINTLIBS=@PRINTLIBS@
  AUTHLIBS=@AUTHLIBS@
@@ -9,7 +9,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/Makefile.in samba-2.999+3.0cvs2
  
  LINK=$(CC) $(FLAGS) $(LDFLAGS)
  
-@@ -625,7 +626,7 @@
+@@ -628,7 +629,7 @@
  bin/smbd: $(SMBD_OBJ) bin/.dummy
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(PRINTLIBS) \
@@ -18,9 +18,9 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/Makefile.in samba-2.999+3.0cvs2
  
  bin/nmbd: $(NMBD_OBJ) bin/.dummy
  	@echo Linking $@
-diff -uNr samba-2.999+3.0cvs20020906.orig/source/configure.in samba-2.999+3.0cvs20020906/source/configure.in
---- samba-2.999+3.0cvs20020906.orig/source/configure.in	2002-09-08 14:13:27.000000000 -0500
-+++ samba-2.999+3.0cvs20020906/source/configure.in	2002-09-08 14:13:33.000000000 -0500
+diff -uNr samba-2.999+3.0.alpha20.orig/source/configure.in samba-2.999+3.0.alpha20/source/configure.in
+--- samba-2.999+3.0.alpha20.orig/source/configure.in	2002-10-02 21:41:16.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/configure.in	2002-10-02 21:41:43.000000000 -0500
 @@ -159,6 +159,7 @@
  AC_SUBST(LIBSMBCLIENT)
  AC_SUBST(PRINTLIBS)
@@ -29,7 +29,7 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/configure.in samba-2.999+3.0cvs
  
  # compile with optimization and without debugging by default
  CFLAGS="-O ${CFLAGS}"
-@@ -2663,23 +2664,29 @@
+@@ -2716,23 +2717,29 @@
  	*osf*)
  		AC_MSG_RESULT(Using Tru64 ACLs)
  		AC_DEFINE(HAVE_TRU64_ACLS)

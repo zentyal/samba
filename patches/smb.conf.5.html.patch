@@ -1,20 +1,12 @@
-diff -uNr samba-2.999+3.0cvs20020906.orig/docs/htmldocs/smb.conf.5.html samba-2.999+3.0cvs20020906/docs/htmldocs/smb.conf.5.html
---- samba-2.999+3.0cvs20020906.orig/docs/htmldocs/smb.conf.5.html	2002-09-08 14:18:32.000000000 -0500
-+++ samba-2.999+3.0cvs20020906/docs/htmldocs/smb.conf.5.html	2002-09-08 14:16:56.000000000 -0500
-@@ -11545,7 +11545,7 @@
+diff -uNr samba-2.999+3.0.alpha20.orig/docs/htmldocs/smb.conf.5.html samba-2.999+3.0.alpha20/docs/htmldocs/smb.conf.5.html
+--- samba-2.999+3.0.alpha20.orig/docs/htmldocs/smb.conf.5.html	2002-09-26 14:38:32.000000000 -0500
++++ samba-2.999+3.0.alpha20/docs/htmldocs/smb.conf.5.html	2002-10-02 21:44:10.000000000 -0500
+@@ -12456,7 +12456,7 @@
  ><P
  ><B
  CLASS="COMMAND"
 ->message command = /bin/mail -s 'message from %f on 
 +>message command = /usr/bin/mail -s 'message from %f on 
- 		%m' root &#60; %s; rm %s</B
+ 		%m' root &lt; %s; rm %s</B
  ></P
  ><P
-@@ -18460,4 +18460,5 @@
- ></DIV
- ></BODY
- ></HTML
-->
-\ No newline at end of file
-+>
-+

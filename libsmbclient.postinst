@@ -2,7 +2,6 @@
 #
 # postinst script for libsmbclient
 #
-# $Id$
 #
 
 if [ "$1" = "configure" ]; then

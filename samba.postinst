@@ -2,7 +2,6 @@
 #
 # Post-installation script for the Samba package for Debian GNU/Linux
 #
-# $Id$
 #
 
 case "$1" in

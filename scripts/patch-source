@@ -1,6 +1,5 @@
 #!/bin/sh -e
 #
-# $Id$
 #
 
 for patch in debian/patches/*.patch; do

@@ -2,7 +2,6 @@
 #
 # Start/stops the winbindd daemon.
 #
-# $Id$
 #
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin

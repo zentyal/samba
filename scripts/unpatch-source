@@ -1,6 +1,5 @@
 #!/bin/sh -e
 #
-# $Id$
 #
 
 # We want to reverse the patches in the opposite order we applied

@@ -1,7 +1,7 @@
-diff -ur samba-2.99.cvs.20020713.orig/docs/htmldocs/smb.conf.5.html samba-2.99.cvs.20020713/docs/htmldocs/smb.conf.5.html
---- samba-2.99.cvs.20020713.orig/docs/htmldocs/smb.conf.5.html	Wed May  8 10:34:59 2002
-+++ samba-2.99.cvs.20020713/docs/htmldocs/smb.conf.5.html	Sat Jul 13 14:34:16 2002
-@@ -11907,7 +11907,7 @@
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/htmldocs/smb.conf.5.html samba-2.999+3.0cvs20020906/docs/htmldocs/smb.conf.5.html
+--- samba-2.999+3.0cvs20020906.orig/docs/htmldocs/smb.conf.5.html	2002-09-08 14:18:32.000000000 -0500
++++ samba-2.999+3.0cvs20020906/docs/htmldocs/smb.conf.5.html	2002-09-08 14:16:56.000000000 -0500
+@@ -11545,7 +11545,7 @@
  ><P
  ><B
  CLASS="COMMAND"
@@ -10,7 +10,7 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/htmldocs/smb.conf.5.html samba-2.99.c
  		%m' root &#60; %s; rm %s</B
  ></P
  ><P
-@@ -19389,4 +19389,5 @@
+@@ -18460,4 +18460,5 @@
  ></DIV
  ></BODY
  ></HTML

@@ -1,6 +1,6 @@
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ-1.html samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ-1.html
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ-1.html	Mon Aug 25 21:43:25 1997
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ-1.html	Wed Jan 23 22:55:28 2002
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ-1.html samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ-1.html
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ-1.html	1997-08-25 20:43:25.000000000 -0500
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ-1.html	2002-09-08 14:06:06.000000000 -0500
 @@ -29,7 +29,7 @@
  </UL>
  </P>
@@ -10,9 +10,9 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FA
  features. The components of the suite are (in summary):</P>
  <P>
  <DL>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.html samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.html
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.html	Mon Aug 28 09:41:46 2000
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.html	Wed Jan 23 22:55:28 2002
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ.html samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ.html
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ.html	2000-08-28 08:41:46.000000000 -0500
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ.html	2002-09-08 14:06:06.000000000 -0500
 @@ -44,8 +44,7 @@
  document for Samba, the free and very popular SMB and CIFS server
  product. A general 
@@ -23,9 +23,9 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FA
  topics to do with Samba software. This is current to Samba version
  1.9.17. Please send any corrections to the author. </EM><HR></P>
  <P>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.sgml samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.sgml
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.sgml	Sat Apr 14 17:24:59 2001
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.sgml	Wed Jan 23 22:55:28 2002
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ.sgml samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ.sgml
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-Server-FAQ.sgml	2002-08-28 05:50:29.000000000 -0500
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-Server-FAQ.sgml	2002-09-08 14:06:06.000000000 -0500
 @@ -18,11 +18,9 @@
  <abstract> This is the <em>Server</em> Frequently Asked Questions (FAQ)
  document for Samba, the free and very popular SMB and CIFS server
@@ -50,9 +50,9 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FA
  features. The components of the suite are (in summary):
  
  <descrip>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-1.html samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-1.html
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-1.html	Sat Nov 21 08:19:43 1998
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-1.html	Wed Jan 23 22:55:28 2002
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ-1.html samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ-1.html
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ-1.html	1998-11-21 07:19:43.000000000 -0600
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ-1.html	2002-09-08 14:06:06.000000000 -0500
 @@ -38,9 +38,10 @@
  Samba team has put together an installation package. To see if your OS
  is included have a look at the directory
@@ -94,12 +94,10 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-
  instead.
  </LI>
  <LI> 
-@@ -129,22 +130,6 @@
- information about server-side issues. Includes configuration tips and
- pointers for Samba on particular operating systems (with 40 to choose
+@@ -131,22 +132,6 @@
  from...)
--</LI>
--<LI> 
+ </LI>
+ <LI> 
 -<A HREF="Samba-Client-FAQ.html">Samba-Client-FAQ.html</A> is the best starting point for
 -information about client-side issues, includes a list of all clients
 -that are known to work with Samba.
@@ -114,12 +112,14 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-
 -a large number of text files have been contributed to samba covering
 -many topics. These are gradually being absorbed into the FAQs and HOWTOs
 -but in the meantime you might find helpful answers here.
+-</LI>
+-<LI> 
  </LI>
- <LI> 
- </LI>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-2.html samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-2.html
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-2.html	Sat Apr 14 17:22:01 2001
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-2.html	Wed Jan 23 22:55:28 2002
+ </UL>
+ </P>
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ-2.html samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ-2.html
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ-2.html	2001-12-06 01:36:57.000000000 -0600
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ-2.html	2002-09-08 14:06:06.000000000 -0500
 @@ -75,7 +75,7 @@
  </P>
  <P>The Samba suite is available via anonymous ftp from samba.org and
@@ -129,9 +129,9 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-
  faster performance if you use a mirror site. The latest and greatest
  versions of the suite are in the directory:</P>
  <P>/pub/samba/</P>
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.sgml samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.sgml
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.sgml	Sat Apr 14 17:22:01 2001
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.sgml	Wed Jan 23 22:55:28 2002
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ.sgml samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ.sgml
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ.sgml	2002-08-28 05:50:29.000000000 -0500
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ.sgml	2002-09-08 14:08:48.000000000 -0500
 @@ -49,7 +49,7 @@
  Samba team has put together an installation package. To see if your OS
  is included have a look at the directory
@@ -159,7 +159,7 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.
  
  <label id="ImpExp"><tag/Exporting files to SMB clients:/ You should read the manual pages
  for smb.conf, but here is a <url url="Samba-Server-FAQ.html#Exporting"
-@@ -114,27 +114,14 @@
+@@ -114,18 +114,14 @@
  <item> Meta-FAQ. This is the mother of all documents, and is the one you
  are reading now. The latest version is always at <url
  url="http://samba.org/[.....]"> but there is probably a much
@@ -177,34 +177,12 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.
 -information about client-side issues, includes a list of all clients
 -that are known to work with Samba.
 -
--<item> <url url="samba-man-index.html" name="manual pages"> contains
--descriptions of and links to all the Samba manual pages, in Unix man and
--postscript format.
--
--<item> <url url="samba-txt-index.html"> has descriptions of and links to
--a large number of text files have been contributed to samba covering
--many topics. These are gradually being absorbed into the FAQs and HOWTOs
--but in the meantime you might find helpful answers here.
--
- <item> 
- 
  </itemize>
-@@ -196,9 +183,9 @@
- <sect1> Where can I get it? <p><label id="WhereFrom">
  
- The Samba suite is available via anonymous ftp from samba.org and
--many <url url="../MIRRORS" name="mirror"> sites. You will get much
--faster performance if you use a mirror site. The latest and greatest
--versions of the suite are in the directory:
-+many <url url="http://www.samba.org/" name="mirror"> sites. You will get
-+much faster performance if you use a mirror site. The latest and
-+greatest versions of the suite are in the directory:
- 
- /pub/samba/
- 
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.txt samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.txt
---- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.txt	Sat Apr 14 17:22:01 2001
-+++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.txt	Wed Jan 23 22:55:28 2002
+ <sect> General Information<p><label id="general_info">
+diff -uNr samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ.txt samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ.txt
+--- samba-2.999+3.0cvs20020906.orig/docs/faq/Samba-meta-FAQ.txt	2001-12-06 01:36:57.000000000 -0600
++++ samba-2.999+3.0cvs20020906/docs/faq/Samba-meta-FAQ.txt	2002-09-08 14:06:06.000000000 -0500
 @@ -109,18 +109,18 @@
          an operating system for which the Samba team has put together an
          installation package. To see if your OS is included have a look

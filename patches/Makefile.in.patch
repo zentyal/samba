@@ -1,7 +1,7 @@
-diff -uNr samba-2.999+3.0cvs20020723.orig/source/Makefile.in samba-2.999+3.0cvs20020723/source/Makefile.in
---- samba-2.999+3.0cvs20020723.orig/source/Makefile.in	Thu Jul 18 18:00:23 2002
-+++ samba-2.999+3.0cvs20020723/source/Makefile.in	Thu Jul 25 10:20:49 2002
-@@ -834,7 +834,8 @@
+diff -uNr samba-2.999+3.0cvs20020906.orig/source/Makefile.in samba-2.999+3.0cvs20020906/source/Makefile.in
+--- samba-2.999+3.0cvs20020906.orig/source/Makefile.in	2002-08-30 07:46:54.000000000 -0500
++++ samba-2.999+3.0cvs20020906/source/Makefile.in	2002-09-08 13:41:26.000000000 -0500
+@@ -841,7 +841,8 @@
  	@$(SHELL) $(srcdir)/script/installswat.sh $(SWATDIR) $(srcdir)
  
  installclientlib:

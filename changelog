@@ -1,6 +1,5 @@
-samba (2.999+3.0cvs20020805-1) unstable; urgency=low
+samba (2.999+3.0cvs20020825-2) unstable; urgency=low
 
-  * fresh CVS snapshot.
   * scale back the tdbsam migration support, because of undesirable
     side-effects; now always defaults to 'no'.
   * strip out hyperactive library dependencies that are only needed by
@@ -12,6 +11,13 @@ samba (2.999+3.0cvs20020805-1) unstable; urgency=low
     current ones.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 28 Jul 2002 09:44:24 -0500
+
+samba (2.999+3.0cvs20020825-1) unstable; urgency=low
+
+  * CVS update. These packages are based on Samba 3.0alpha19 + any
+    code commited after 3.0alpha19 was released.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 25 Aug 2002 14:56:46 -0400
 
 samba (2.999+3.0cvs20020723-1) unstable; urgency=medium
 

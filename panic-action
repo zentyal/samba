@@ -21,6 +21,14 @@
 	echo "was called for pid $1 ($BINARYNAME)."
 	echo
 
+	if [ -z "$BINARYNAME" ]; then
+		echo "This means there was a problem with the program, such as a segfault."
+		echo "However, the executable could not be found for process $1."
+		echo "It may have died unexpectedly, or you may not have permission to"
+		echo "debug the process."
+		exit 1
+	fi
+
 	# No debugger
 	if [ ! -x /usr/bin/gdb ]; then
 		echo "This means there was a problem with the program, such as a segfault."

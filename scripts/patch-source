@@ -10,8 +10,7 @@ done
 DEBIAN_VERSION=`head -1 debian/changelog | sed -e 's/^.*(\(.*\)).*$/\1/'`
 
 TMPFILE=source/VERSION.debian
-sed -e "s/^\(SAMBA_VERSION_VENDOR_SUFFIX=\).*$/\1Debian-${DEBIAN_VERSION}/" \
-	source/VERSION > ${TMPFILE}
+sed -e "s/^\(SAMBA_VERSION_VENDOR_SUFFIX=\).*$/\1\"Debian-${DEBIAN_VERSION}\"/"  source/VERSION > ${TMPFILE}
 mv -f ${TMPFILE} source/VERSION
 
 # Regenerate configure only if it is older than configure.in

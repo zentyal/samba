@@ -83,38 +83,6 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
  
  dnl Unique-to-Samba variables we'll be playing with.
  AC_SUBST(SHELL)
-diff -uNr samba-3.0alpha21.orig/source/configure.in.orig samba-3.0alpha21/source/configure.in.orig
---- samba-3.0alpha21.orig/source/configure.in.orig	2003-02-16 19:08:39.000000000 -0600
-+++ samba-3.0alpha21/source/configure.in.orig	2003-02-16 19:08:54.000000000 -0600
-@@ -503,6 +503,28 @@
- #endif
- }
- ], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
-+	if test x$LINUX_LFS_SUPPORT = xyes ; then
-+          AC_TRY_RUN([
-+#include <unistd.h>
-+#include <sys/types.h>
-+#include <fcntl.h>
-+main() {
-+   unsigned int *padding;
-+   struct flock foo_lock = {F_WRLCK, SEEK_SET, 0, 1, 0};
-+   int fd = open("/dev/null", O_RDWR);
-+
-+   /* Yes, we're depending on the internals of the Linux flock structure
-+      here -- but this test is explicitly Linux-specific to begin with. */
-+   padding = (unsigned int *)&foo_lock;
-+   padding[1] = 0xffffffff;
-+   foo_lock.l_start = 0;
-+   if (fcntl(fd, F_SETLK, &foo_lock) < 0)
-+      exit(1);
-+
-+   exit(0);
-+}
-+], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
-+	fi
-         CPPFLAGS="$old_CPPFLAGS"
-         if test x$LINUX_LFS_SUPPORT = xyes ; then
-           CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
 diff -uNr samba-3.0alpha21.orig/source/dynconfig.c samba-3.0alpha21/source/dynconfig.c
 --- samba-3.0alpha21.orig/source/dynconfig.c	2003-02-16 19:08:39.000000000 -0600
 +++ samba-3.0alpha21/source/dynconfig.c	2003-02-16 19:11:27.000000000 -0600

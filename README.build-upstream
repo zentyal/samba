@@ -8,6 +8,15 @@ don't provide deb's, or you don't want to use official packages, or
 you want to add --this-cool-switch to configure, or whatever, follow
 these instructions:
 
+0) Make sure you have the following packages installed:
+  debhelper
+  libpam0g-dev
+  libreadline4-dev
+  libcupsys2-dev
+  + the minimum Debian development stuff (dpkg-dev, libc6-dev, etc.)
+  Note: the libcupsys2-dev is not available in Debian Potato. That's
+    fine; the configure script won't detect CUPS support and the
+    resulting binaries won't support CUPS.   
 1) cd samba[-<version>]
 2) cp -a packaging/Debian/debian/ debian
   It's important that you copy instead of symlink because the build
@@ -24,11 +33,11 @@ these instructions:
 5) That's it. Your new packages should be in ../. Install with dpkg.
 
 Please e-mail samba@packages.debian.org with comments, question or
-usggestions. Please talk to us and not to the Samba Team. They have
+suggestions. Please talk to us and not to the Samba Team. They have
 better things to do and know nothing about the Debian packaging system.
 
 Eloy A. Paris <peloy@debian.org>
 Steve Langasek <vorlon@debian.org>
 
-Sat Feb  2 00:44:42 CET 2002
+$Id$
 

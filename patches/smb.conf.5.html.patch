@@ -1,7 +1,6 @@
-diff -uNr samba-2.2.5pre1.orig/docs/htmldocs/smb.conf.5.html samba-2.2.5pre1/docs/htmldocs/smb.conf.5.html
---- samba-2.2.5pre1.orig/docs/htmldocs/smb.conf.5.html	Thu May 16 11:33:15 2002
-+++ samba-2.2.5pre1/docs/htmldocs/smb.conf.5.html	Wed Jun 12 15:46:10 2002
-@@ -12241,7 +12241,7 @@
+--- samba-2.2.5/docs/htmldocs/smb.conf.5.html.orig	Tue Jun 18 21:13:19 2002
++++ samba-2.2.5/docs/htmldocs/smb.conf.5.html	Tue Jun 18 23:15:08 2002
+@@ -12458,7 +12458,7 @@
  ><P
  ><B
  CLASS="COMMAND"
@@ -10,7 +9,7 @@ diff -uNr samba-2.2.5pre1.orig/docs/htmldocs/smb.conf.5.html samba-2.2.5pre1/doc
  		%m' root &#60; %s; rm %s</B
  ></P
  ><P
-@@ -19563,4 +19563,5 @@
+@@ -19780,4 +19780,5 @@
  ></DIV
  ></BODY
  ></HTML

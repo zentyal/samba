@@ -180,9 +180,8 @@ diff -uNr samba-2.2.5pre1.orig/source/nsswitch/winbindd_idmap.c samba-2.2.5pre1/
  		DEBUG(0, ("winbindd_idmap_init: Unable to open idmap database\n"));
  		return False;
  	}
-diff -uNr samba-2.2.5pre1.orig/source/param/loadparm.c samba-2.2.5pre1/source/param/loadparm.c
---- samba-2.2.5pre1.orig/source/param/loadparm.c	Thu May 30 23:13:00 2002
-+++ samba-2.2.5pre1/source/param/loadparm.c	Wed Jun 12 15:30:29 2002
+--- samba-2.2.5/source/param/loadparm.c.orig	Tue Jun 18 21:13:45 2002
++++ samba-2.2.5/source/param/loadparm.c	Tue Jun 18 23:24:14 2002
 @@ -107,6 +107,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
@@ -193,7 +192,7 @@ diff -uNr samba-2.2.5pre1.orig/source/param/loadparm.c samba-2.2.5pre1/source/pa
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1025,8 +1028,13 @@
+@@ -1032,8 +1035,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE},
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_DOS_STRING},
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_DOS_STRING},

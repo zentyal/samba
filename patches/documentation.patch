@@ -17,9 +17,8 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samb
  	domain logons = yes
  
  	security = user </pre></div><DIV CLASS="sect3">
-diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8 samba-2.2.2.cvs20020120/docs/manpages/swat.8
---- samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8	Wed Jan  2 09:42:25 2002
-+++ samba-2.2.2.cvs20020120/docs/manpages/swat.8	Wed Jan 23 22:59:11 2002
+--- samba-2.2.5/docs/manpages/swat.8.orig	Tue Jun 18 21:13:20 2002
++++ samba-2.2.5/docs/manpages/swat.8	Tue Jun 18 23:15:07 2002
 @@ -41,19 +41,26 @@
  server. \fR
  .SH "INSTALLATION"
@@ -75,7 +74,7 @@ diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8 sam
  .PP
  One you have edited \fI/etc/services\fR 
  and \fI/etc/inetd.conf\fR you need to send a 
-@@ -104,11 +112,10 @@
+@@ -146,11 +154,10 @@
  (e.g., swat) to service port (e.g., 901) and protocol type 
  (e.g., tcp). 
  .TP

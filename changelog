@@ -2,6 +2,8 @@ samba (2.999+3.0.alpha20-2) unstable; urgency=low
 
   * fix an off-by-one error in smbd/lanman.c, which should shut off the
     flood of log messages (closes: #157432)
+  * add a --config-cache option to the configure invocation, since
+    autoconf 2.5 doesn't load config.cache by default (closes: #163504)
 
  -- Steve Langasek <vorlon@debian.org>  Sat,  5 Oct 2002 01:40:00 -0500
 

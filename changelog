@@ -7,6 +7,10 @@ samba (2.2.5-2) unstable; urgency=low
     (closes: #147638).
   * Make sure we don't ship pdbedit's man page since we are still using
     smbpasswd passwords. (closes: #152208)
+  * move libnss_wins.so to libnss_wins.so.2, where glibc expects to find
+    it (closes: #148586).
+  * reorder postinst, so that installing samba-common from scratch loads
+    the debconf answers properly (closes: #151985).
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Jun 2002 22:45:04 -0500
 

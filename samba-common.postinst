@@ -5,14 +5,14 @@
 
 set -e
 
+# Do debconf stuff here
+. /usr/share/debconf/confmodule
+
 # We need a default smb.conf file. If one doesn't exist we put in place
 #	one that has some basic defaults.
 if [ ! -e /etc/samba/smb.conf ]; then
 	cp -a /usr/share/samba/smb.conf /etc/samba/
 fi
-
-# Do debconf stuff here
-. /usr/share/debconf/confmodule
 
 # ------------------------- Debconf questions start ---------------------
 

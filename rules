@@ -132,7 +132,7 @@ install: build
 
 	# Install libnss_wins.so, which is not installed by 'make install' either.
 	install -m 0644 source/nsswitch/libnss_wins.so \
-		$(DESTDIR)/lib/libnss_wins.so
+		$(DESTDIR)/lib/libnss_wins.so.2
 
 	# pam_smbpass.so is installed by 'make install' in $(DESTDIR)/usr/bin/.
 	#	We'll move it here to $(DESTDIR)/lib/security/ and then

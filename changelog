@@ -16,8 +16,10 @@ samba (2.999+3.0.alpha20-4) unstable; urgency=low
     structures (closes: #162956).
   * Add a default 'panic action' for Samba that will give us genuinely
     useful debugging information after a crash
+  * Fixed correct patch to example configurations in the libpam-smbpass
+    packages (closes: #169350).
 
- -- Eloy A. Paris <peloy@debian.org>  Wed, 16 Oct 2002 13:40:33 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 16 Nov 2002 14:11:05 -0500
 
 samba (2.999+3.0.alpha20-3) unstable; urgency=low
 

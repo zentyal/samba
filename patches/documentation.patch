@@ -90,3 +90,16 @@ diff -ur samba-2.99.cvs.20020713.orig/docs/manpages/swat.8 samba-2.99.cvs.200207
  is to make available to clients. 
  .SH "WARNINGS"
  .PP
+--- samba-2.999+3.0.alpha20/source/pam_smbpass/README.orig	2002-11-16 13:59:10.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/pam_smbpass/README	2002-11-16 14:09:14.000000000 -0500
+@@ -43,8 +43,8 @@
+ 	smbconf=<file>	-	specify an alternate path to the smb.conf
+ 				file.
+ 
+-See the samples/ directory for example PAM configurations using this
+-module.
++See the /usr/share/doc/libpam-smbpam/examples/ directory for example PAM
++configurations using this module.
+ 
+ Thanks go to the following people:
+ 

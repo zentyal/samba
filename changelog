@@ -1,3 +1,10 @@
+samba (3.0.0beta2-2) unstable; urgency=low
+
+  * Drag new unpackaged tools into the packages: smbcquotas (smbclient),
+    vfs modules (samba), tdbbackup(8) manpage (samba). (closes: #151158)
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 12 Jul 2003 19:27:31 -0500
+
 samba (3.0.0beta2-1) unstable; urgency=low
 
   * New upstream release

@@ -1,3 +1,10 @@
+samba (2.999+3.0.alpha23-4) unstable; urgency=low
+
+  * Instead of s/LPT1:/LPT:/, we need to do s/LPT:/LPT1:/ -- now all
+    non-RPC printing clients are working again.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 11 Apr 2003 14:42:00 -0500
+
 samba (2.999+3.0.alpha23-3) unstable; urgency=low
 
   * Put the Samba Python modules in /usr/lib/python2.2/site-packages/,

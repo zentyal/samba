@@ -1,11 +1,6 @@
-Index: source/smbd/mangle_hash2.c
-===================================================================
-RCS file: /cvsroot/samba/source/smbd/mangle_hash2.c,v
-retrieving revision 1.16
-retrieving revision 1.17
-diff -u -w -r1.16 -r1.17
---- source/smbd/mangle_hash2.c	31 Aug 2002 16:17:36 -0000	1.16
-+++ source/smbd/mangle_hash2.c	15 Oct 2002 05:40:24 -0000	1.17
+diff -uNr samba-2.999+3.0.alpha20.orig/source/smbd/mangle_hash2.c samba-2.999+3.0.alpha20/source/smbd/mangle_hash2.c
+--- samba-2.999+3.0.alpha20.orig/source/smbd/mangle_hash2.c	2002-09-26 14:38:35.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/smbd/mangle_hash2.c	2002-11-10 19:27:57.000000000 -0600
 @@ -147,14 +147,12 @@
  {
  	if (prefix_cache) return True;

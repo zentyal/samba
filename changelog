@@ -1,6 +1,8 @@
 samba (2.999+3.0.alpha24-3) unstable; urgency=low
 
   * Make sure Samba DSOs are compiled with -fPIC. (closes: #194324)
+  * Rebuild against pristine Kerberos libs, to squelch warnings about
+    versioned symbols. (closes: #194431, #194396)
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 22 May 2003 15:32:00 -0500
 

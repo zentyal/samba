@@ -1,3 +1,13 @@
+samba (2.999+3.0.alpha21-3) unstable; urgency=low
+
+  * Drop --with-ldapsam from the configure options, since this no longer
+    means what we thought it did.  Revert patch for changing the 'passdb
+    backend' defaults.
+  * Add patch from CVS HEAD to fix pdbedit segfault; postinst script
+    should work better now. (Closes: #173936)
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 22 Dec 2002 13:29:00 -0600
+
 samba (2.999+3.0.alpha21-2) unstable; urgency=low
 
   * add CONFIGDIR to the set of directories exported in the install

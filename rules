@@ -85,7 +85,7 @@ configure-stamp:
 		--with-automount \
 		--with-acl-support \
 		--with-tdbsam \
-		--with-ldapsam)
+		--with-ldap)
 
 	touch configure-stamp
 

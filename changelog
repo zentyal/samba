@@ -6,6 +6,8 @@ samba (3.0.8-2) unstable; urgency=low
   * Fix missing symbols in libsmbclient (and libnss_wins), and add
     -Wl,-z,defs to the libsmbclient link options to prevent future
     instances of undefined symbols (closes: #281181).
+  * Fix for the legacy ldapsam_compat backend; thanks to Fabien
+    Chevalier for the patch (closes: #274155).
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 15 Nov 2004 06:54:13 -0800
 

@@ -87,7 +87,8 @@ configure-stamp:
 		--with-automount \
 		--with-acl-support \
 		--with-tdbsam \
-		--with-ldap)
+		--with-ldap \
+		--with-python=python2.2)
 
 	touch configure-stamp
 
@@ -95,7 +96,7 @@ build: patch-stamp configure-stamp build-stamp
 build-stamp:
 	dh_testdir
 
-	$(MAKE) -C source all nsswitch/libnss_wins.so
+	$(MAKE) -C source all nsswitch/libnss_wins.so python_ext
 
 	touch build-stamp
 

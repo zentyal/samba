@@ -61,32 +61,6 @@ diff -uNr samba-3.0alpha23.orig/source/script/installbin.sh samba-3.0alpha23/sou
  done
  
  
-diff -uNr samba-3.0alpha23.orig/source/script/installswat.sh samba-3.0alpha23/source/script/installswat.sh
---- samba-3.0alpha23.orig/source/script/installswat.sh	2001-10-17 15:00:14.000000000 -0500
-+++ samba-3.0alpha23/source/script/installswat.sh	2003-04-04 21:05:58.000000000 -0600
-@@ -56,8 +56,8 @@
- for f in $SRCDIR../docs/htmldocs/*.html; do
-       FNAME=$SWATDIR/help/`basename $f`
-       echo $FNAME
--      cp $f $FNAME || echo Cannot install $FNAME. Does $USER have privileges?
--      chmod 0644 $FNAME
-+      ln -s ../../../doc/samba-doc/htmldocs/`basename $f` $FNAME || echo Cannot install $FNAME. Does $USER have privileges?
-+#      chmod 0644 $FNAME
- done
- 
- # Install "server-side" includes
-@@ -73,7 +73,10 @@
- 
- # Install Using Samba book
- 
--if [ "x$BOOKDIR" != "x" ]; then
-+# For Debian we do not install anything here, we just create a symlink
-+#	pointing to /usr/share/doc/samba-doc/htmldocs/using_samba/ in
-+#	debian/rules (peloy@debian.org)
-+if /bin/false; then
- 
-     # Create directories
- 
 diff -uNr samba-3.0alpha23.orig/source/smbd/service.c samba-3.0alpha23/source/smbd/service.c
 --- samba-3.0alpha23.orig/source/smbd/service.c	2003-03-30 20:28:31.000000000 -0600
 +++ samba-3.0alpha23/source/smbd/service.c	2003-04-04 21:05:58.000000000 -0600

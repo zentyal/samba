@@ -1,3 +1,12 @@
+samba (2.999+3.0.alpha23-2) unstable; urgency=low
+
+  * New package python2.2-samba that includes the Python modules
+    included in the Samba sources. Feedback on these modules and the new
+    package is welcome, as we (Debian Samba maintainers) don't use them.
+    (closes: #170731, #173322)
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun,  6 Apr 2003 00:31:53 -0500
+
 samba (2.999+3.0.alpha23-1) unstable; urgency=high
 
   * new upstream release, includes security fix for DSA-262

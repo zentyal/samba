@@ -1,3 +1,13 @@
+samba (3.0.1-2) unstable; urgency=low
+
+  * Include ntlm_auth's man page.
+  * Don't create directories outside of the source directory during
+    package build time. (closes: #227221, #227238, #225862)
+  * Don't include the "Using Samba" book in the swat package, just a
+    symlink that points to the book included in the samba-doc package.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 13 Jan 2004 13:48:13 -0500
+
 samba (3.0.1-1) unstable; urgency=low
 
   * New upstream version (closes: #225565)

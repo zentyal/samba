@@ -1,7 +1,7 @@
 samba (3.0.6-2) unstable; urgency=low
 
   * Added Danish debconf translation. Thanks to Claus Hindsgaul
-    <claus_h@image.dk>.
+    <claus_h@image.dk>. (closes: #232884)
 
     Claus Hindsgaul: please fix your mail server. I can't talk to you about
     this bug due to apparent mail server problems:

@@ -13,6 +13,9 @@ samba (3.0.11-1) unstable; urgency=high
     <elmig@debianpt.org>. (closes: #286375)
   * Add support for building on the Debian BSD and Hurd ports; thanks to
     Robert Millan for the patch. (closes: #266693)
+  * debian/patches/xp-missing-files.patch: import patch from upstream to
+    fix missing entries in directory listings when talking to WinXP
+    servers (closes: #297771).
 
  -- Steve Langasek <vorlon@debian.org>  Wed, 23 Mar 2005 00:13:16 -0800
 

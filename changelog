@@ -13,7 +13,9 @@ samba (2.999+3.0.alpha21-4) unstable; urgency=low
     doesn't support messaging and we can't do the port 135 stuff yet
     (closes: #175292, #167859).
   * Import the diff from upstream CVS, which has fixed a few bugs
-    (closes: #178219, #177583).
+    (closes: #178219, #177583).  Remove a few patches of ours, which are
+    now superseded.
+  * Add po-debconf support to the tree, for better i18n.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 27 Dec 2002 00:37:00 -0600
 

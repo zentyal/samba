@@ -7,6 +7,9 @@ samba (3.0.10-1) unstable; urgency=high
   * Sync the fhs.patch to samba 3.0.10.
   * Install mount.cifs suid root, to make user mounts possible
     (closes: #283819).
+  * debian/patches/cups.patch: Change the default printing system, so we
+    can compile in CUPS support without making it the default -- CUPS is
+    not a reasonable default on Debian, at least for sarge.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 17 Dec 2004 11:56:01 -0800
 

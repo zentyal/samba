@@ -1,5 +1,7 @@
-samba (3.0.0beta2-2) unstable; urgency=low
+samba (3.0.0beta3+3.0.0rc1-1) unstable; urgency=low
 
+  * New upstream version (skipped samba 3.0.0beta3 due to time
+    constraints.)
   * Drag new unpackaged tools into the packages: smbcquotas (smbclient),
     vfs modules (samba), smbtree(1) manpage (smbclient), tdbbackup(8)
     manpage (samba). (closes: #151158)
@@ -12,7 +14,7 @@ samba (3.0.0beta2-2) unstable; urgency=low
     - add support for ${misc:Depends} in control for those packages with
       init scripts
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 12 Jul 2003 19:27:31 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 19 Aug 2003 21:50:05 -0400
 
 samba (3.0.0beta2-1) unstable; urgency=low
 

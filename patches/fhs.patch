@@ -33,39 +33,29 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  
  installswat: installdirs
  	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR)$(SWATDIR) $(srcdir)
---- samba-3.0.1/source/configure.in.orig	2003-12-17 11:05:40.000000000 -0500
-+++ samba-3.0.1/source/configure.in	2003-12-17 11:05:42.000000000 -0500
-@@ -17,19 +17,26 @@
- AC_ARG_WITH(fhs, 
+--- samba-3.0.4/source/configure.in.orig	2004-04-29 03:34:48.000000000 -0400
++++ samba-3.0.4/source/configure.in	2004-05-10 14:47:41.000000000 -0400
+@@ -27,7 +27,7 @@
  [  --with-fhs              Use FHS-compliant paths (default=no)],
-     configdir="${sysconfdir}/samba"
+ [ case "$withval" in
+   yes)
 -    lockdir="\${VARDIR}/lib/samba"
 +    lockdir="\${VARDIR}/run/samba"
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-     privatedir="\${CONFIGDIR}/private"
+@@ -35,6 +35,10 @@
      libdir="\${prefix}/lib/samba"
--    swatdir="\${DATADIR}/samba/swat",
-+    swatdir="\${DATADIR}/samba/swat"
+     configdir="${sysconfdir}/samba"
+     swatdir="\${DATADIR}/samba/swat"
 +    codepagedir="\${DATADIR}/samba"
 +    statedir="\${VARDIR}/lib/samba"
 +    cachedir="\${VARDIR}/cache/samba"
-+    AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths]),
-     configdir="\${LIBDIR}"
-     logfilebase="\${VARDIR}"
-     lockdir="\${VARDIR}/locks"
-     piddir="\${VARDIR}/locks"
-     privatedir="\${prefix}/private"
--    swatdir="\${prefix}/swat")
-+    codepagedir="\${LIBDIR}"
-+    swatdir="\${prefix}/swat"
-+    statedir="\${LOCKDIR}"
-+    cachedir="\${LOCKDIR}")
++    AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
+     ;;
+   esac])
  
- #################################################
- # set private directory location
-@@ -154,6 +161,9 @@
+@@ -193,6 +197,9 @@
  AC_SUBST(swatdir)
  AC_SUBST(bindir)
  AC_SUBST(sbindir)
@@ -123,7 +113,7 @@ diff -uNr samba-3.0.0beta2.orig/source/dynconfig.c samba-3.0.0beta2/source/dynco
 diff -uNr samba-3.0.0beta2.orig/source/groupdb/mapping.c samba-3.0.0beta2/source/groupdb/mapping.c
 --- samba-3.0.0beta2.orig/source/groupdb/mapping.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/groupdb/mapping.c	2003-07-02 23:19:02.000000000 -0500
-@@ -134,7 +134,7 @@
+@@ -141,7 +141,7 @@
  	
  	if (tdb && local_pid == sys_getpid())
  		return True;
@@ -184,7 +174,7 @@ diff -uNr samba-3.0.0beta2.orig/source/lib/account_pol.c samba-3.0.0beta2/source
 diff -uNr samba-3.0.0beta2.orig/source/lib/util.c samba-3.0.0beta2/source/lib/util.c
 --- samba-3.0.0beta2.orig/source/lib/util.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/lib/util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -2195,6 +2195,61 @@
+@@ -2229,6 +2229,61 @@
  }
  
  /**
@@ -312,7 +302,7 @@ diff -uNr samba-3.0.0beta2.orig/source/libsmb/samlogon_cache.c samba-3.0.0beta2/
  		DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
  			WINS_LIST, strerror(errno) ));
  		return True;
-@@ -1765,7 +1765,7 @@
+@@ -1805,7 +1805,7 @@
  		}
  	}
  
@@ -336,7 +326,7 @@ diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_cache.c samba-3.0.0beta
 diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c samba-3.0.0beta2/source/nsswitch/winbindd_util.c
 --- samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c	2003-07-01 15:44:25.000000000 -0500
 +++ samba-3.0.0beta2/source/nsswitch/winbindd_util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -874,7 +874,7 @@
+@@ -947,7 +947,7 @@
  	SMB_STRUCT_STAT stbuf;
  	TDB_CONTEXT *idmap_tdb;
  
@@ -358,7 +348,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1083,8 +1083,13 @@
+@@ -1091,8 +1091,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
@@ -375,7 +365,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
 diff -uNr samba-3.0.0beta2.orig/source/passdb/pdb_tdb.c samba-3.0.0beta2/source/passdb/pdb_tdb.c
 --- samba-3.0.0beta2.orig/source/passdb/pdb_tdb.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/passdb/pdb_tdb.c	2003-07-02 23:19:02.000000000 -0500
-@@ -501,10 +501,7 @@
+@@ -728,10 +728,7 @@
  	if (location) {
  		tdb_state->tdbsam_location = talloc_strdup(pdb_context->mem_ctx, location);
  	} else {
@@ -453,7 +443,7 @@ diff -uNr samba-3.0.0beta2.orig/source/printing/nt_printing.c samba-3.0.0beta2/s
 diff -uNr samba-3.0.0beta2.orig/source/printing/printing.c samba-3.0.0beta2/source/printing/printing.c
 --- samba-3.0.0beta2.orig/source/printing/printing.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/printing/printing.c	2003-07-02 23:19:02.000000000 -0500
-@@ -175,8 +175,8 @@
+@@ -174,8 +174,8 @@
  	if (local_pid == sys_getpid())
  		return True;
  

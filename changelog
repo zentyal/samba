@@ -1,4 +1,13 @@
-samba (3.0.2a-2) unstable; urgency=low
+samba (3.0.4-1) unstable; urgency=low
+
+  Eloy:
+
+  * New upstream version.
+    Closes: #247640 (New upstream version available)
+    Closes: #238905 (Printing crash fix)
+    Closes: #247090 (panic in viewing printerqueue)
+
+  Vorlon:
 
   * Incorporate Catalan debconf translations; thanks to
     Aleix Badia i Bosch <abadia@ica.es> and the Debian L10n Catalan Team.
@@ -9,7 +18,7 @@ samba (3.0.2a-2) unstable; urgency=low
     versions that prevents gnome-vfs from working correctly
     (closes: #245869).
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 25 Apr 2004 17:33:21 -0500
+ -- Eloy A. Paris <peloy@debian.org>  Fri, 21 May 2004 11:42:19 -0400
 
 samba (3.0.2a-1) unstable; urgency=low
 

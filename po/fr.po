@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Samba for Debian 2.999+3.0.alpha23-1\n"
 "POT-Creation-Date: 2003-03-08 23:53-0600\n"
-"PO-Revision-Date: 2003-04-13 12:52-0100\n"
+"PO-Revision-Date: 2003-04-19 08:28-0100\n"
 "Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -37,10 +37,10 @@ msgid ""
 "system and how smbclient will interpret these names when you connect to a "
 "file server."
 msgstr ""
-"Une instruction « character set » (jeu de caractères) est utilisée dans "
+"Une instruction « character set » (jeu de caractères) est utilisée dans "
 "votre fichier smb.conf. Avec Samba 3.0, cette option est remplacée par deux "
-"nouvelles options, « unix charset » (jeu de caractères Unix) et « display "
-"charset » (jeu de caractères à l'affichage). Veuillez indiquer le jeu de "
+"nouvelles options, « unix charset » (jeu de caractères Unix) et « display "
+"charset » (jeu de caractères à l'affichage). Veuillez indiquer le jeu de "
 "caractères que vous voulez utiliser avec chacune de ces deux options. La "
 "première permet d'interpréter les noms de fichiers sur le système et la "
 "seconde permet à smbclient d'interpréter ces noms lors d'une connexion à un "
@@ -80,7 +80,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:26
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Modifier smb.conf pour utiliser les paramètres WINS fournis par DHCP ?"
+msgstr "Modifier smb.conf pour utiliser les paramètres WINS fournis par DHCP ?"
 
 #. Description
 #: ../samba-common.templates:26
@@ -120,8 +120,8 @@ msgid ""
 msgstr ""
 "La suite de la configuration de Samba pose des questions sur des paramètres "
 "de /etc/samba/smb.conf, le fichier utilisé pour configurer les programmes de "
-"Samba (nmbd et smbd). Votre fichier actuel contient une ligne « include » ou "
-"une option qui s'étale sur plusieurs lignes : cela peut perturber debconf et "
+"Samba (nmbd et smbd). Votre fichier actuel contient une ligne « include » ou "
+"une option qui s'étale sur plusieurs lignes : cela peut perturber debconf et "
 "il vaut mieux gérer manuellement le contenu de ce fichier."
 
 #. Description
@@ -179,7 +179,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:4
 msgid "Create samba password database, /etc/samba/passdb.tdb?"
-msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
+msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:4
@@ -270,7 +270,7 @@ msgstr ""
 #. Description
 #: ../samba.templates:45
 msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
-msgstr "Faut-il convertir /etc/samba/smbpasswd en /etc/samba/passdb.tdb ?"
+msgstr "Faut-il convertir /etc/samba/smbpasswd en /etc/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:45
@@ -280,16 +280,16 @@ msgid ""
 "smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
 "to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
 msgstr ""
-"Avec Samba 3.0, une nouvelle et meilleure interface pour les bases de "
-"données SAM vient remplacer le fichier /etc/samba/smbpasswd. Voulez-vous que "
-"votre fichier existant soit remplacé par /etc/samba/passdb.tdb ? Si vous "
+"Avec Samba 3.0, une nouvelle interface pour les bases de données SAM, plus "
+"complète, vient remplacer le fichier /etc/samba/smbpasswd. Voulez-vous que "
+"votre fichier existant soit remplacé par /etc/samba/passdb.tdb ? Si vous "
 "envisagez d'utiliser une autre interface d'authentification (p.ex. LDAP), "
 "refusez la proposition maintenant."
 
 #. Description
 #: ../swat.templates:3
 msgid "Your smb.conf will be re-written!"
-msgstr "Ré-écriture de votre fichier smb.conf !"
+msgstr "Ré-écriture de votre fichier smb.conf !"
 
 #. Description
 #: ../swat.templates:3
@@ -299,6 +299,6 @@ msgid ""
 "crafted smb.conf then back it up or don't use SWAT!"
 msgstr ""
 "SWAT va modifier votre fichier smb.conf. Les entrées seront réorganisées et "
-"les commentaires détruits aisi que les entrées « include = » et « copy = ». "
+"les commentaires détruits ainsi que les entrées « include = » et « copy = ». "
 "Si votre smb.conf était soigneusement construit, sauvegardez-le ou "
-"n'utilisez pas SWAT !"
+"n'utilisez pas SWAT !"

@@ -1,8 +1,0 @@
-In no particular order:
-
-- Fix stuff in packaging/Debian/ (add infrastructure for stable
-  builds)
-- Compile with LDAP support.
-- Review /etc/init.d/samba (Brian White reports problems, should add
-  --oknodo to start-stop-daemon)
-

@@ -5,7 +5,8 @@ samba (2.999+3.0.alpha21-5) unstable; urgency=low
   * reverse the position of the wins server tag, after looking more
     closely at the code (closes: #183061)
   * fix a glitch in the Spanish .po that rendered it invalid, plus a typo
-  * updated Brazilian Portuguese templates (closes: 183295)
+  * updated Brazilian Portuguese templates (closes: #183295)
+  * fix a typo in upstream manpage (s/shave/share/) (closes: #180546)
 
  -- Steve Langasek <vorlon@debian.org>  Sat,  1 Mar 2003 15:14:00 -0600
 

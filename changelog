@@ -1,3 +1,10 @@
+samba (3.0.0beta2+3.0.0rc1-2) unstable; urgency=low
+
+  * Incorporate Dutch debconf translations; thanks to Bart Cornelis
+    <cobaco@linux.be>.  (closes: #207824)
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 30 Aug 2003 19:12:46 -0500
+
 samba (3.0.0beta2+3.0.0rc1-1) unstable; urgency=low
 
   * New upstream version (skipped samba 3.0.0beta3 due to time
@@ -469,7 +476,7 @@ samba (2.2.3a-7) unstable; urgency=medium
     running before the upgrade starts.
   * Tweak the wording of debconf templates.
   * Incorporate debconf translations for French, Spanish and Portuguese;
-    thanks to Carlos Valdivia Yagüe <valyag@hotpop.com> (es),
+    thanks to Carlos Valdivia YagÃ¼e <valyag@hotpop.com> (es),
     Andre Luis Lopes <andrelop@ig.com.br> (pt_BR), and Philippe
     Batailler and Denis Barbier <barbier@debian.org> (fr).
     (closes: #142657, #142659, #141551, #141699, #141682)

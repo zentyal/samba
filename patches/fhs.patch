@@ -1,7 +1,7 @@
 diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makefile.in
 --- samba-3.0alpha21.orig/source/Makefile.in	2003-02-16 19:08:39.000000000 -0600
 +++ samba-3.0alpha21/source/Makefile.in	2003-02-16 19:09:24.000000000 -0600
-@@ -56,6 +56,7 @@
+@@ -57,6 +57,7 @@
  CONFIGDIR = @configdir@
  VARDIR = @localstatedir@
  MANDIR = @mandir@
@@ -9,7 +9,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
  
  # The permissions to give the executables
  INSTALLPERMS = 0755
-@@ -79,6 +80,13 @@
+@@ -80,6 +81,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
  
@@ -23,7 +23,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
  # the directory where pid files go
  PIDDIR = @piddir@
  # man pages language(s)
-@@ -103,7 +111,7 @@
+@@ -104,7 +112,7 @@
  PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
  PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
  	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
@@ -32,7 +32,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
  PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
  
  # Note that all executable programs now provide for an optional executable suffix.
-@@ -1005,7 +1013,7 @@
+@@ -1020,7 +1028,7 @@
  	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
  
  installdat: installdirs
@@ -44,7 +44,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
 diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
 --- samba-3.0alpha21.orig/source/configure.in	2003-02-16 19:09:11.000000000 -0600
 +++ samba-3.0alpha21/source/configure.in	2003-02-16 19:09:24.000000000 -0600
-@@ -15,18 +15,25 @@
+@@ -18,18 +18,25 @@
  AC_ARG_WITH(fhs, 
  [  --with-fhs              Use FHS-compliant paths (default=no)],
      configdir="${sysconfdir}/samba"
@@ -73,7 +73,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
  
  #################################################
  # set private directory location
-@@ -132,6 +139,9 @@
+@@ -135,6 +142,9 @@
  AC_SUBST(swatdir)
  AC_SUBST(bindir)
  AC_SUBST(sbindir)
@@ -192,7 +192,7 @@ diff -uNr samba-3.0alpha21.orig/source/lib/account_pol.c samba-3.0alpha21/source
 diff -uNr samba-3.0alpha21.orig/source/lib/util.c samba-3.0alpha21/source/lib/util.c
 --- samba-3.0alpha21.orig/source/lib/util.c	2003-02-16 19:08:40.000000000 -0600
 +++ samba-3.0alpha21/source/lib/util.c	2003-02-16 19:13:10.000000000 -0600
-@@ -2184,6 +2184,61 @@
+@@ -2198,6 +2198,61 @@
  }
  
  /**

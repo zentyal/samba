@@ -1,0 +1,57 @@
+diff -uNr samba-2.999+3.0.alpha20.orig/source/passdb/pdb_interface.c samba-2.999+3.0.alpha20/source/passdb/pdb_interface.c
+--- samba-2.999+3.0.alpha20.orig/source/passdb/pdb_interface.c	2002-09-26 14:38:35.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/passdb/pdb_interface.c	2002-10-24 19:17:35.000000000 -0500
+@@ -225,7 +225,8 @@
+ 	struct pdb_methods *pdb_selected = (*context)->pdb_methods;
+ 
+ 	while (pdb_selected){
+-		pdb_selected->free_private_data(&(pdb_selected->private_data));
++		if (pdb->selected->free_private_data)
++			pdb_selected->free_private_data(&(pdb_selected->private_data));
+ 		pdb_selected = pdb_selected->next;
+ 	}
+ 
+diff -uNr samba-2.999+3.0.alpha20.orig/source/passdb/pdb_nisplus.c samba-2.999+3.0.alpha20/source/passdb/pdb_nisplus.c
+--- samba-2.999+3.0.alpha20.orig/source/passdb/pdb_nisplus.c	2002-09-26 14:38:35.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/passdb/pdb_nisplus.c	2002-10-24 19:17:35.000000000 -0500
+@@ -1507,6 +1507,19 @@
+ 	return result;
+ }
+ 
++static void free_private_data(void **vp)
++{
++	struct nisplus_private_info **private = (struct nisplus_private_info **)vp;
++
++	if ((*private)->result) {
++		nis_freeresult ((*private)->result);
++	}
++
++	free(*private);
++
++        /* No need to free any further, as it is talloc()ed */
++}
++
+ NTSTATUS pdb_init_nisplussam (PDB_CONTEXT * pdb_context,
+ 			      PDB_METHODS ** pdb_method, const char *location)
+ {
+@@ -1535,6 +1548,7 @@
+ 	(*pdb_method)->add_sam_account = nisplussam_add_sam_account;
+ 	(*pdb_method)->update_sam_account = nisplussam_update_sam_account;
+ 	(*pdb_method)->delete_sam_account = nisplussam_delete_sam_account;
++	(*pdb_method)->free_private_data = free_private_data;
+ 	(*pdb_method)->private_data = private;
+ 
+ 	return NT_STATUS_OK;
+diff -uNr samba-2.999+3.0.alpha20.orig/source/passdb/pdb_unix.c samba-2.999+3.0.alpha20/source/passdb/pdb_unix.c
+--- samba-2.999+3.0.alpha20.orig/source/passdb/pdb_unix.c	2002-09-26 14:38:35.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/passdb/pdb_unix.c	2002-10-24 19:17:35.000000000 -0500
+@@ -154,7 +154,8 @@
+ 	(*pdb_method)->add_sam_account = unixsam_add_sam_account;
+ 	(*pdb_method)->update_sam_account = unixsam_update_sam_account;
+ 	(*pdb_method)->delete_sam_account = unixsam_delete_sam_account;
+-	
++	(*pdb_method)->free_private_data = NULL;
++
+ 	/* There's not very much to initialise here */
+ 	return NT_STATUS_OK;
+ }

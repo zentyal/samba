@@ -16,11 +16,13 @@ samba (3.0.0beta1-2) unstable; urgency=low
     README.debian.
   * Remove dangerous and confusing browse options from the default 
     smb.conf (closes: #198804).
-  * Reorder smb.conf options for clearer grouping.
+  * Reorder smb.conf options for clearer grouping, and clarify the
+    comments.
   * Add a default [print$] share to the sample smb.conf, and create the
     necessary tree under /var/lib/samba/printers. (closes: #168173)
+  * s/winbind/idmap/ in smb.conf, since the option names have changed.
   * Fix the patch for postexec handling, so that we chdir("/") at the
-    right time
+    right time.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

@@ -1,6 +1,7 @@
 samba (2.999+3.0.alpha20-1) unstable; urgency=low
 
   * new upstream release
+    - non-primary groups appear to work again (closes: #161271)
   * the official beginning of the upstream 3.0 branch
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Oct 2002 19:02:00 -0500

@@ -1,9 +1,14 @@
-samba (3.0.7-3) unstable; urgency=low
+samba (3.0.8-1) unstable; urgency=high
 
+  * New upstream package. Urgency set to "high" because of a potential
+    Denial of Service vulnerability in previous 3.0.x releases
+    (CAN-2004-0930). (Eloy)
   * Introduce new -dbg package, so we can make better sense out of the
-    cleverly-supplied backtrace emails.
+    cleverly-supplied backtrace emails. (Vorlon)
+  * Applied patch from Luke Mewburn <luke@mewburn.net> to fix missing
+    lock_path() to state_path() change in the FHS patches. (Eloy)
 
- -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 14:13:26 -0700
+ -- Eloy A. Paris <peloy@debian.org>  Mon,  8 Nov 2004 13:39:34 -0500
 
 samba (3.0.7-2) unstable; urgency=high
 

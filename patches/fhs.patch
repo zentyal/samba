@@ -550,3 +550,14 @@ diff -uNr samba-3.0.0beta2.orig/source/wrepld/process.c samba-3.0.0beta2/source/
  	if (!tdb) {
  		DEBUG(2,("send_entry_request: Can't open wins database file %s. Error was %s\n", WINS_LIST, strerror(errno) ));
  		return;
+--- samba-3.0.8/source/utils/net_idmap.c	20 Jul 2004 16:28:15 -0000	1.1.1.1
++++ samba-3.0.8/source/utils/net_idmap.c	22 Sep 2004 12:39:28 -0000	1.2
+@@ -126,7 +126,7 @@ static NTSTATUS net_idmap_fixup_hwm(void
+ 		return NT_STATUS_UNSUCCESSFUL;
+ 	}
+ 
+-	tdbfile = strdup(lock_path("winbindd_idmap.tdb"));
++	tdbfile = strdup(state_path("winbindd_idmap.tdb"));
+ 	if (!tdbfile) {
+ 		DEBUG(0, ("idmap_init: out of memory!\n"));
+ 		return NT_STATUS_NO_MEMORY;

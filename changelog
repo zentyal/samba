@@ -1,3 +1,20 @@
+samba (3.0.0beta2-1) unstable; urgency=low
+
+  * New upstream release
+    - The smb.conf(5) manpage documents config options again
+      (closes: #197963).
+    - Handling of winbind/idmap has been restructured; domain members
+      should be able to map domain accounts to local accounts again
+      (closes: #196815).
+    - Use the locale charset for 'display charset' by default
+      (closes: #194406).
+    - Fix for segfault in smbclient when using the -b option
+      (closes: #196833).
+  * Don't set 'display charset' anymore on upgrade, since this is now
+    grabbed from the locale by default -- a much better option.
+
+ -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
+
 samba (3.0.0beta1-2) unstable; urgency=low
 
   * Update build-deps to libacl1-dev (>= 2.2.11-1), libacl1 (>= 2.2.11-1)

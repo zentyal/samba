@@ -371,18 +371,6 @@ diff -uNr samba-3.0.10.orig/source/passdb/pdb_tdb.c samba-3.0.10/source/passdb/p
  		tdb_state->tdbsam_location = talloc_strdup(pdb_context->mem_ctx, tdbfile);
  	}
  
-diff -uNr samba-3.0.10.orig/source/passdb/privileges.c samba-3.0.10/source/passdb/privileges.c
---- samba-3.0.10.orig/source/passdb/privileges.c	2004-12-17 03:50:09.000000000 -0800
-+++ samba-3.0.10/source/passdb/privileges.c	2004-12-17 03:55:30.000000000 -0800
-@@ -62,7 +62,7 @@
- /* initialise the privilege database */
- BOOL privilege_init(void)
- {
--	tdb = tdb_open_log(lock_path("privilege.tdb"), 0, TDB_DEFAULT, 
-+	tdb = tdb_open_log(state_path("privilege.tdb"), 0, TDB_DEFAULT, 
- 			   O_RDWR|O_CREAT, 0600);
- 	if (!tdb) {
- 		DEBUG(0,("Failed to open privilege database\n"));
 diff -uNr samba-3.0.10.orig/source/passdb/secrets.c samba-3.0.10/source/passdb/secrets.c
 --- samba-3.0.10.orig/source/passdb/secrets.c	2004-12-17 03:50:09.000000000 -0800
 +++ samba-3.0.10/source/passdb/secrets.c	2004-12-17 03:55:30.000000000 -0800

@@ -1,0 +1,16 @@
+diff -uNr samba-3.0alpha23.orig/source/lib/util_str.c samba-3.0alpha23/source/lib/util_str.c
+--- samba-3.0alpha23.orig/source/lib/util_str.c	2003-03-30 20:28:28.000000000 -0600
++++ samba-3.0alpha23/source/lib/util_str.c	2003-04-27 00:38:19.000000000 -0500
+@@ -1662,10 +1662,10 @@
+ {
+ 	DATA_BLOB decoded = base64_decode_data_blob(s);
+ 	memcpy(s, decoded.data, decoded.length);
+-	data_blob_free(&decoded);
+-
+ 	/* null terminate */
+ 	s[decoded.length] = '\0';
++
++	data_blob_free(&decoded);
+ }
+ 
+ /**

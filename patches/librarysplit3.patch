@@ -21,7 +21,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
 diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
 --- samba-3.0alpha21.orig/source/configure.in	2003-02-16 13:40:12.000000000 -0600
 +++ samba-3.0alpha21/source/configure.in	2003-02-16 13:44:08.000000000 -0600
-@@ -156,6 +156,7 @@
+@@ -157,6 +157,7 @@
  AC_SUBST(LIBSMBCLIENT)
  AC_SUBST(PRINTLIBS)
  AC_SUBST(AUTHLIBS)
@@ -29,7 +29,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
  AC_SUBST(SHLIB_PROGS)
  AC_SUBST(SMBWRAPPER)
  AC_SUBST(EXTRA_BIN_PROGS)
-@@ -2938,23 +2939,29 @@
+@@ -2939,23 +2940,29 @@
  	*osf*)
  		AC_MSG_RESULT(Using Tru64 ACLs)
  		AC_DEFINE(HAVE_TRU64_ACLS,1,[Whether Tru64 ACLs are available])

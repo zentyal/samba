@@ -44,7 +44,7 @@ diff -uNr samba-3.0alpha21.orig/source/Makefile.in samba-3.0alpha21/source/Makef
 diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
 --- samba-3.0alpha21.orig/source/configure.in	2003-02-16 13:04:57.000000000 -0600
 +++ samba-3.0alpha21/source/configure.in	2003-02-16 13:05:11.000000000 -0600
-@@ -12,18 +12,25 @@
+@@ -13,18 +13,25 @@
  AC_ARG_WITH(fhs, 
  [  --with-fhs              Use FHS-compliant paths (default=no)],
      configdir="${sysconfdir}/samba"
@@ -73,7 +73,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
  
  #################################################
  # set private directory location
-@@ -129,6 +136,9 @@
+@@ -130,6 +137,9 @@
  AC_SUBST(swatdir)
  AC_SUBST(bindir)
  AC_SUBST(sbindir)

@@ -7,6 +7,11 @@ samba (3.0.7-2) unstable; urgency=high
     distclean target in source/Makefile.in (mostly-fixes: #276203).
   * Change compile-time default of 'use sendfile' to 'no', since the
     current Samba implementation is broken (closes: #261917, #275741).
+  * Add mount.cifs into the smbfs package; thanks to Igor Belyi for
+    showing us just how simple this patch should be. ;)  Since cifs is
+    the preferred kernel driver in 2.6, bugs related to smbfs and 2.6
+    are considered closed unless someone can show that they exist with
+    the cifs driver as well (closes: #249890, #269443, #227791, #236869).
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 01:35:23 -0700
 

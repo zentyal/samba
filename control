@@ -147,7 +147,7 @@ Description: shared library that allows applications to talk to SMB servers
  This package contains the libsmbclient shared library.
 
 Package: libsmbclient-dev
-Section: devel
+Section: libdevel
 Priority: extra
 Architecture: any
 Depends: libsmbclient (= ${Source-Version})

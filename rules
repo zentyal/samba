@@ -111,8 +111,7 @@ build: patch-stamp configure-stamp build-stamp
 build-stamp:
 	dh_testdir
 
-	$(MAKE) -C source all nsswitch/libnss_wins.so python_ext \
-		LDSHFLAGS="-shared -Wl,-z,defs $(CFLAGS)"
+	$(MAKE) -C source all nsswitch/libnss_wins.so python_ext
 
 	touch build-stamp
 

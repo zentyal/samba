@@ -8,8 +8,6 @@ samba (3.0.0beta1-2) unstable; urgency=low
     Standards-Version to 3.5.10:
     - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
       symbols by default
-    - add support for the -Wl,-z,defs option in LDSHFLAGS, since
-      libpam-smbpass was unusable due to undeclared LDAP dependencies.
   * Make sure libpam-smbpass is a self-contained DSO.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500

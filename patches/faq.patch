@@ -1,0 +1,279 @@
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ-1.html samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ-1.html
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ-1.html	Mon Aug 25 21:43:25 1997
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ-1.html	Wed Jan 23 22:55:28 2002
+@@ -29,7 +29,7 @@
+ </UL>
+ </P>
+ <P>Look at the 
+-<A HREF="samba-man-index.html">manual pages</A> included with the package for a full list of
++<A HREF="../htmldocs/">manual pages</A> included with the package for a full list of
+ features. The components of the suite are (in summary):</P>
+ <P>
+ <DL>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.html samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.html
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.html	Mon Aug 28 09:41:46 2000
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.html	Wed Jan 23 22:55:28 2002
+@@ -44,8 +44,7 @@
+ document for Samba, the free and very popular SMB and CIFS server
+ product. A general 
+ <A HREF="Samba-meta-FAQ.html">meta FAQ</A>
+-exists and also a companion 
+-<A HREF="Samba-Client-FAQ.html">Client FAQ</A>, together with more detailed HOWTO documents on
++exists, together with more detailed HOWTO documents on
+ topics to do with Samba software. This is current to Samba version
+ 1.9.17. Please send any corrections to the author. </EM><HR></P>
+ <P>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.sgml samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.sgml
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-Server-FAQ.sgml	Sat Apr 14 17:24:59 2001
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-Server-FAQ.sgml	Wed Jan 23 22:55:28 2002
+@@ -18,11 +18,9 @@
+ <abstract> This is the <em>Server</em> Frequently Asked Questions (FAQ)
+ document for Samba, the free and very popular SMB and CIFS server
+ product. A general <url url="Samba-meta-FAQ.html" name="meta FAQ">
+-exists and also a companion <url url="Samba-Client-FAQ.html"
+-name="Client FAQ">, together with more detailed HOWTO documents on
+-topics to do with Samba software. This is current to Samba version
+-1.9.17. Please send any corrections to the author. 
+-
++exists, together with more detailed HOWTO documents on topics to do
++with Samba software. This is current to Samba version 1.9.17. Please
++send any corrections to the author.  
+ </abstract>
+ 
+ <toc>
+@@ -47,7 +45,7 @@
+ <item>guest connections
+ </itemize>
+ 
+-Look at the <url url="samba-man-index.html" name="manual pages"> included with the package for a full list of
++Look at the <url url="../htmldocs/" name="manual pages"> included with the package for a full list of
+ features. The components of the suite are (in summary):
+ 
+ <descrip>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-1.html samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-1.html
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-1.html	Sat Nov 21 08:19:43 1998
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-1.html	Wed Jan 23 22:55:28 2002
+@@ -38,9 +38,10 @@
+ Samba team has put together an installation package. To see if your OS
+ is included have a look at the directory
+ /pub/samba/Binary_Packages/"OS_Vendor" on your nearest 
+-<A HREF="../MIRRORS">mirror site</A>. If it is included follow the
+-installation instructions in the README file there and then do some 
+-<A HREF="#ImpTest">basic testing</A>. If you are not so fortunate, follow the normal 
++<A HREF="http://www.samba.org/">mirror site</A>. If it is included
++follow the installation instructions in the README file there and then
++do some <A HREF="#ImpTest">basic testing</A>. If you are not so
++fortunate, follow the normal
+ <A HREF="Samba-meta-FAQ-2.html#WhereFrom">download instructions</A> and then continue with 
+ <A HREF="#ImpInst">building and installing Samba</A>.</P>
+ <P>
+@@ -49,7 +50,7 @@
+ <DT><B>Building and Installing Samba:</B><DD><P>At the moment
+ there are two kinds of Samba server installs besides the prepackaged
+ binaries mentioned in the previous step. You need to decide if you have a 
+-<A HREF="../UNIX_INSTALL.txt">Unix or close relative</A> or 
++<A HREF="../htmldocs/UNIX_INSTALL.html">Unix or close relative</A> or 
+ <A HREF="Samba-Server-FAQ.html#PortInfo">other supported operating system</A>.</P>
+ <P>
+ <A NAME="ImpTest"></A> 
+@@ -68,7 +69,7 @@
+ </P>
+ <DT><B>Debug sequence:</B><DD><P>If you think you have completed the 
+ previous step and things aren't working properly work through 
+-<A HREF="../DIAGNOSIS.txt">the diagnosis recipe.</A></P>
++<A HREF="../textdocs/DIAGNOSIS.txt">the diagnosis recipe.</A></P>
+ <P>
+ <A NAME="ImpExp"></A> 
+ </P>
+@@ -121,7 +122,7 @@
+ are reading now. The latest version is always at 
+ <A HREF="http://samba.org/[.....]">http://samba.org/[.....]</A> but there is probably a much
+ nearer 
+-<A HREF="../MIRRORS">mirror site</A> which you should use
++<A HREF="http://www.samba.org/">mirror site</A> which you should use
+ instead.
+ </LI>
+ <LI> 
+@@ -129,22 +130,6 @@
+ information about server-side issues. Includes configuration tips and
+ pointers for Samba on particular operating systems (with 40 to choose
+ from...)
+-</LI>
+-<LI> 
+-<A HREF="Samba-Client-FAQ.html">Samba-Client-FAQ.html</A> is the best starting point for
+-information about client-side issues, includes a list of all clients
+-that are known to work with Samba.
+-</LI>
+-<LI> 
+-<A HREF="samba-man-index.html">manual pages</A> contains
+-descriptions of and links to all the Samba manual pages, in Unix man and
+-postscript format.
+-</LI>
+-<LI> 
+-<A HREF="samba-txt-index.html">samba-txt-index.html</A> has descriptions of and links to
+-a large number of text files have been contributed to samba covering
+-many topics. These are gradually being absorbed into the FAQs and HOWTOs
+-but in the meantime you might find helpful answers here.
+ </LI>
+ <LI> 
+ </LI>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-2.html samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-2.html
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ-2.html	Sat Apr 14 17:22:01 2001
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ-2.html	Wed Jan 23 22:55:28 2002
+@@ -75,7 +75,7 @@
+ </P>
+ <P>The Samba suite is available via anonymous ftp from samba.org and
+ many 
+-<A HREF="../MIRRORS">mirror</A> sites. You will get much
++<A HREF="http://www.samba.org/">mirror</A> sites. You will get much
+ faster performance if you use a mirror site. The latest and greatest
+ versions of the suite are in the directory:</P>
+ <P>/pub/samba/</P>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.sgml samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.sgml
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.sgml	Sat Apr 14 17:22:01 2001
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.sgml	Wed Jan 23 22:55:28 2002
+@@ -49,7 +49,7 @@
+ Samba team has put together an installation package. To see if your OS
+ is included have a look at the directory
+ /pub/samba/Binary_Packages/"OS_Vendor" on your nearest <url
+-url="../MIRRORS" name="mirror site">. If it is included follow the
++url="http://www.samba.org/" name="mirror site">. If it is included follow the
+ installation instructions in the README file there and then do some <ref id="ImpTest"
+ name="basic testing">. If you are not so fortunate, follow the normal <ref
+ id="WhereFrom" name="download instructions"> and then continue with <ref
+@@ -57,7 +57,7 @@
+ 
+ <label id="ImpInst"><tag/Building and Installing Samba:/ At the moment
+ there are two kinds of Samba server installs besides the prepackaged
+-binaries mentioned in the previous step. You need to decide if you have a <url url="../UNIX_INSTALL.txt"
++binaries mentioned in the previous step. You need to decide if you have a <url url="../htmldocs/UNIX_INSTALL.html"
+ name="Unix or close relative"> or <url
+ url="Samba-Server-FAQ.html#PortInfo" name="other supported operating system">.
+ 
+@@ -75,7 +75,7 @@
+ 
+ <label id="ImpDebug"><tag/Debug sequence:/ If you think you have completed the 
+ previous step and things aren't working properly work through 
+-<url url="../DIAGNOSIS.txt" name="the diagnosis recipe.">
++<url url="../textdocs/DIAGNOSIS.txt" name="the diagnosis recipe.">
+ 
+ <label id="ImpExp"><tag/Exporting files to SMB clients:/ You should read the manual pages
+ for smb.conf, but here is a <url url="Samba-Server-FAQ.html#Exporting"
+@@ -114,27 +114,14 @@
+ <item> Meta-FAQ. This is the mother of all documents, and is the one you
+ are reading now. The latest version is always at <url
+ url="http://samba.org/[.....]"> but there is probably a much
+-nearer <url url="../MIRRORS" name="mirror site"> which you should use
+-instead.
++nearer <url url="http://www.samba.org/" name="mirror site"> which you
++should use instead.
+ 
+ <item> <url url="Samba-Server-FAQ.html"> is the best starting point for
+ information about server-side issues. Includes configuration tips and
+ pointers for Samba on particular operating systems (with 40 to choose
+ from...)
+ 
+-<item> <url url="Samba-Client-FAQ.html"> is the best starting point for
+-information about client-side issues, includes a list of all clients
+-that are known to work with Samba.
+-
+-<item> <url url="samba-man-index.html" name="manual pages"> contains
+-descriptions of and links to all the Samba manual pages, in Unix man and
+-postscript format.
+-
+-<item> <url url="samba-txt-index.html"> has descriptions of and links to
+-a large number of text files have been contributed to samba covering
+-many topics. These are gradually being absorbed into the FAQs and HOWTOs
+-but in the meantime you might find helpful answers here.
+-
+ <item> 
+ 
+ </itemize>
+@@ -196,9 +183,9 @@
+ <sect1> Where can I get it? <p><label id="WhereFrom">
+ 
+ The Samba suite is available via anonymous ftp from samba.org and
+-many <url url="../MIRRORS" name="mirror"> sites. You will get much
+-faster performance if you use a mirror site. The latest and greatest
+-versions of the suite are in the directory:
++many <url url="http://www.samba.org/" name="mirror"> sites. You will get
++much faster performance if you use a mirror site. The latest and
++greatest versions of the suite are in the directory:
+ 
+ /pub/samba/
+ 
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.txt samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.txt
+--- samba-2.2.2.cvs20020120.orig/docs/faq/Samba-meta-FAQ.txt	Sat Apr 14 17:22:01 2001
++++ samba-2.2.2.cvs20020120/docs/faq/Samba-meta-FAQ.txt	Wed Jan 23 22:55:28 2002
+@@ -109,18 +109,18 @@
+         an operating system for which the Samba team has put together an
+         installation package. To see if your OS is included have a look
+         at the directory /pub/samba/Binary_Packages/"OS_Vendor" on your
+-        nearest mirror site <../MIRRORS>. If it is included follow the
+-        installation instructions in the README file there and then do
+-        some ``basic testing''. If you are not so fortunate, follow the
+-        normal ``download instructions'' and then continue with
+-        ``building and installing Samba''.
++        nearest mirror site <http://www.samba.org/>. If it is included
++        follow the installation instructions in the README file there
++        and then do some ``basic testing''. If you are not so fortunate,
++        follow the normal ``download instructions'' and then continue
++        with ``building and installing Samba''.
+ 
+ 
+      BBuuiillddiinngg aanndd IInnssttaalllliinngg SSaammbbaa::
+         At the moment there are two kinds of Samba server installs
+         besides the prepackaged binaries mentioned in the previous step.
+         You need to decide if you have a Unix or close relative
+-        <../UNIX_INSTALL.txt> or other supported operating system
++        <../htmldocs/UNIX_INSTALL.html> or other supported operating system
+         <Samba-Server-FAQ.html#PortInfo>.
+ 
+ 
+@@ -138,7 +138,7 @@
+      DDeebbuugg sseeqquueennccee::
+         If you think you have completed the previous step and things
+         aren't working properly work through the diagnosis recipe.
+-        <../DIAGNOSIS.txt>
++        <../textdocs/DIAGNOSIS.txt>
+ 
+ 
+      EExxppoorrttiinngg ffiilleess ttoo SSMMBB cclliieennttss::
+@@ -183,26 +183,14 @@
+   +o  Meta-FAQ. This is the mother of all documents, and is the one you
+      are reading now. The latest version is always at
+      <http://samba.org/[.....]> but there is probably a much
+-     nearer mirror site <../MIRRORS> which you should use instead.
++     nearer mirror site <http://www.samba.org> which you should use
++     instead.
+ 
+   +o  <Samba-Server-FAQ.html> is the best starting point for information
+      about server-side issues. Includes configuration tips and pointers
+      for Samba on particular operating systems (with 40 to choose
+      from...)
+ 
+-  +o  <Samba-Client-FAQ.html> is the best starting point for information
+-     about client-side issues, includes a list of all clients that are
+-     known to work with Samba.
+-
+-  +o  manual pages <samba-man-index.html> contains descriptions of and
+-     links to all the Samba manual pages, in Unix man and postscript
+-     format.
+-
+-  +o  <samba-txt-index.html> has descriptions of and links to a large
+-     number of text files have been contributed to samba covering many
+-     topics. These are gradually being absorbed into the FAQs and HOWTOs
+-     but in the meantime you might find helpful answers here.
+-
+   +o
+ 
+ 
+@@ -269,7 +257,7 @@
+ 
+ 
+   The Samba suite is available via anonymous ftp from samba.org
+-  and many mirror <../MIRRORS> sites. You will get much faster
++  and many mirror <http://www.samba.org/> sites. You will get much faster
+   performance if you use a mirror site. The latest and greatest versions
+   of the suite are in the directory:
+ 

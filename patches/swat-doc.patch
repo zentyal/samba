@@ -1,0 +1,14 @@
+--- samba-2.2.2.cvs20020120.orig/swat/README
++++ samba-2.2.2.cvs20020120/swat/README
+@@ -1,3 +1,11 @@
++[Debian-specific Note: you can safely skip the installation notes in
++this document. swat was configured for you when the package was
++installed. For security reasons, swat is not enable. To enable it, you
++need to edit /etc/inetd.conf, uncomment the swat entry, and reload
++inetd. Please note that the file locations given in this file are not
++correct for the Debian version of swat. The correct file locations are
++given in swat's man page.]
++
+ This is a brief description of how to install and use the Samba Web
+ Administration Tool on your machine.
+ 

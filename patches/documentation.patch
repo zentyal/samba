@@ -1,0 +1,266 @@
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smb.conf.5.sgml samba-2.2.2.cvs20020120/docs/docbook/manpages/smb.conf.5.sgml
+--- samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smb.conf.5.sgml	Sat Jan 19 23:45:35 2002
++++ samba-2.2.2.cvs20020120/docs/docbook/manpages/smb.conf.5.sgml	Wed Jan 23 22:49:09 2002
+@@ -537,8 +537,10 @@
+ 	steps fail, then the connection request is rejected.  However, if one of the 
+ 	steps succeeds, then the following steps are not checked.</para>
+ 
+-	<para>If the service is marked "guest only = yes" then
+-	steps 1 to 5 are skipped.</para>
++	<para>If the service is marked "guest only = yes" and the
++	server is running with share-level security ("security = share")
++	then steps 1 to 5 are skipped.</para>
++
+ 
+ 	<orderedlist numeration="Arabic">
+ 		<listitem><para>If the client has passed a username/password 
+@@ -4655,7 +4657,7 @@
+ 
+ 		<para>Here's a way of sending the messages as mail to root:</para>
+ 
+-		<para><command>message command = /bin/mail -s 'message from %f on 
++		<para><command>message command = /usr/bin/mail -s 'message from %f on 
+ 		%m' root &lt; %s; rm %s</command></para>
+ 
+ 		<para>If you don't have a message command then the message 
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbclient.1.sgml samba-2.2.2.cvs20020120/docs/docbook/manpages/smbclient.1.sgml
+--- samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbclient.1.sgml	Sat Jan 19 23:45:35 2002
++++ samba-2.2.2.cvs20020120/docs/docbook/manpages/smbclient.1.sgml	Wed Jan 23 22:53:59 2002
+@@ -434,9 +434,9 @@
+ 		
+ 		<varlistentry>
+ 		<term>-W WORKGROUP</term>
+-		<listitem><para>Override the default workgroup specified in the 
+-		workgroup parameter of the <filename>smb.conf</filename> file 
+-		for this connection. This may be needed to connect to some 
++		<listitem><para>Override the default workgroup (domain) specified
++		in the workgroup parameter of the <filename>smb.conf</filename>
++		file for this connection. This may be needed to connect to some
+ 		servers. </para></listitem>
+ 		</varlistentry>
+ 		
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbmount.8.sgml samba-2.2.2.cvs20020120/docs/docbook/manpages/smbmount.8.sgml
+--- samba-2.2.2.cvs20020120.orig/docs/docbook/manpages/smbmount.8.sgml	Wed Sep 26 17:45:05 2001
++++ samba-2.2.2.cvs20020120/docs/docbook/manpages/smbmount.8.sgml	Wed Jan 23 22:53:59 2002
+@@ -14,7 +14,7 @@
+ 
+ <refsynopsisdiv>
+ 	<cmdsynopsis>
+-		<command>smbumount</command>
++		<command>smbmount</command>
+ 		<arg choice="req">service</arg>
+ 		<arg choice="req">mount-point</arg>
+ 		<arg choice="opt">-o options</arg>
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/smb.conf.5.html samba-2.2.2.cvs20020120/docs/htmldocs/smb.conf.5.html
+--- samba-2.2.2.cvs20020120.orig/docs/htmldocs/smb.conf.5.html	Mon Jan 14 13:14:09 2002
++++ samba-2.2.2.cvs20020120/docs/htmldocs/smb.conf.5.html	Wed Jan 23 22:59:11 2002
+@@ -782,8 +782,9 @@
+ 	steps fail, then the connection request is rejected.  However, if one of the 
+ 	steps succeeds, then the following steps are not checked.</P
+ ><P
+->If the service is marked "guest only = yes" then
+-	steps 1 to 5 are skipped.</P
++>If the service is marked "guest only = yes" and the
++server is running with share-level security ("security = share")
++then steps 1 to 5 are skipped.</P
+ ><P
+ ></P
+ ><OL
+@@ -12088,7 +12089,7 @@
+ ><P
+ ><B
+ CLASS="COMMAND"
+->message command = /bin/mail -s 'message from %f on 
++>message command = /usr/bin/mail -s 'message from %f on 
+ 		%m' root &#60; %s; rm %s</B
+ ></P
+ ><P
+@@ -19336,4 +19337,5 @@
+ ></DIV
+ ></BODY
+ ></HTML
+->
+\ No newline at end of file
++>
++
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbclient.1.html samba-2.2.2.cvs20020120/docs/htmldocs/smbclient.1.html
+--- samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbclient.1.html	Mon Jan 14 13:14:09 2002
++++ samba-2.2.2.cvs20020120/docs/htmldocs/smbclient.1.html	Wed Jan 23 22:59:11 2002
+@@ -673,7 +673,7 @@
+ >-W WORKGROUP</DT
+ ><DD
+ ><P
+->Override the default workgroup specified in the 
++>Override the default workgroup (domain) specified in the 
+ 		workgroup parameter of the <TT
+ CLASS="FILENAME"
+ >smb.conf</TT
+@@ -1553,4 +1553,5 @@
+ ></DIV
+ ></BODY
+ ></HTML
+->
+\ No newline at end of file
++>
++
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbmount.8.html samba-2.2.2.cvs20020120/docs/htmldocs/smbmount.8.html
+--- samba-2.2.2.cvs20020120.orig/docs/htmldocs/smbmount.8.html	Wed Sep 26 17:45:11 2001
++++ samba-2.2.2.cvs20020120/docs/htmldocs/smbmount.8.html	Wed Jan 23 22:59:11 2002
+@@ -35,7 +35,7 @@
+ ><P
+ ><B
+ CLASS="COMMAND"
+->smbumount</B
++>smbmount</B
+ >  {service} {mount-point} [-o options]</P
+ ></DIV
+ ><DIV
+@@ -465,4 +465,5 @@
+ ></DIV
+ ></BODY
+ ></HTML
+->
+\ No newline at end of file
++>
++
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html
+--- samba-2.2.2.cvs20020120.orig/docs/htmldocs/using_samba/ch06_05.html	Sun Jul 30 03:38:29 2000
++++ samba-2.2.2.cvs20020120/docs/htmldocs/using_samba/ch06_05.html	Wed Jan 23 22:59:11 2002
+@@ -102,13 +102,13 @@
+ WARNING:</strong> You will need to use at least Samba 2.1 to ensure that PDC functionality for Windows NT clients is present. Prior to Samba 2.1, only limited user authentication for NT clients was present. At the time this book went to press, Samba 2.0.5 was the latest version, but Samba  2.1 was available through CVS download. Instructions on downloading alpha versions of Samba are given in <a href="appe_01.html"><b>Appendix E, <CITE CLASS="appendix">Downloading Samba with CVS</cite></b></a>.</p></blockquote><P CLASS="para">
+ As before, you need to ensure that Samba is a primary domain controller for the current workgroup and is using user-level security. However, you must also ensure that Samba is using encrypted passwords. In other words, alter the <CODE CLASS="literal">
+ [global]</code> options the previous example to include the <CODE CLASS="literal">
+-encrypted</code> <CODE CLASS="literal">
++encrypt</code> <CODE CLASS="literal">
+ passwords</code> <CODE CLASS="literal">
+ =</code> <CODE CLASS="literal">
+ yes</code> option, as shown here: </p><PRE CLASS="programlisting">
+ [global]
+ 	workgroup = SIMPLE
+-	encrypted passwords = yes
++	encrypt passwords = yes
+ 	domain logons = yes
+ 
+ 	security = user </pre></div><DIV CLASS="sect3">
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/smb.conf.5 samba-2.2.2.cvs20020120/docs/manpages/smb.conf.5
+--- samba-2.2.2.cvs20020120.orig/docs/manpages/smb.conf.5	Mon Jan 14 13:14:10 2002
++++ samba-2.2.2.cvs20020120/docs/manpages/smb.conf.5	Wed Jan 23 22:59:11 2002
+@@ -460,8 +460,9 @@
+ steps fail, then the connection request is rejected. However, if one of the 
+ steps succeeds, then the following steps are not checked.
+ .PP
+-If the service is marked "guest only = yes" then
+-steps 1 to 5 are skipped.
++If the service is marked "guest only = yes" and the
++server is running with share-level security ("security = share")
++then steps 1 to 5 are skipped.
+ .IP 1. 
+ If the client has passed a username/password 
+ pair and that username/password pair is validated by the UNIX 
+@@ -4390,7 +4391,7 @@
+ Here's a way of sending the messages as mail to root:
+ .PP
+ .PP
+-\fBmessage command = /bin/mail -s 'message from %f on 
++\fBmessage command = /usr/bin/mail -s 'message from %f on 
+ %m' root < %s; rm %s\fR
+ .PP
+ .PP
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/smbclient.1 samba-2.2.2.cvs20020120/docs/manpages/smbclient.1
+--- samba-2.2.2.cvs20020120.orig/docs/manpages/smbclient.1	Mon Jan 14 13:14:10 2002
++++ samba-2.2.2.cvs20020120/docs/manpages/smbclient.1	Wed Jan 23 22:59:11 2002
+@@ -327,7 +327,7 @@
+ observed to speed up file transfers to and from a Win9x server. 
+ .TP
+ \fB-W WORKGROUP\fR
+-Override the default workgroup specified in the 
++Override the default workgroup (domain) specified in the 
+ workgroup parameter of the \fIsmb.conf\fR file 
+ for this connection. This may be needed to connect to some 
+ servers. 
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/smbmount.8 samba-2.2.2.cvs20020120/docs/manpages/smbmount.8
+--- samba-2.2.2.cvs20020120.orig/docs/manpages/smbmount.8	Wed Jan  2 09:42:24 2002
++++ samba-2.2.2.cvs20020120/docs/manpages/smbmount.8	Wed Jan 23 22:59:11 2002
+@@ -8,7 +8,7 @@
+ smbmount \- mount an smbfs filesystem
+ .SH SYNOPSIS
+ .sp
+-\fBsmbumount\fR \fBservice\fR \fBmount-point\fR [ \fB-o options\fR ] 
++\fBsmbmount\fR \fBservice\fR \fBmount-point\fR [ \fB-o options\fR ] 
+ .SH "DESCRIPTION"
+ .PP
+ \fBsmbmount\fR mounts a Linux SMB filesystem. It 
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8 samba-2.2.2.cvs20020120/docs/manpages/swat.8
+--- samba-2.2.2.cvs20020120.orig/docs/manpages/swat.8	Wed Jan  2 09:42:25 2002
++++ samba-2.2.2.cvs20020120/docs/manpages/swat.8	Wed Jan 23 22:59:11 2002
+@@ -41,19 +41,26 @@
+ server. \fR
+ .SH "INSTALLATION"
+ .PP
++\fBDebian-specific Note\fR: all these steps have already been done for
++you. However, by default, swat is not enabled. This has been done for
++security reasons. To enable swat you need to edit /etc/inetd.conf,
++uncomment the swat entry (usually at the end of the file), and then
++restart inetd.
++.PP
+ After you compile SWAT you need to run \fBmake install
+ \fRto install the \fBswat\fR binary
+-and the various help files and images. A default install would put 
+-these in: 
++and the various help files and images. Under \fBDebian\fR, these
++files are in (please note that these locations are different than the
++default location):
+ .TP 0.2i
+ \(bu
+-/usr/local/samba/bin/swat
++/usr/sbin/*
+ .TP 0.2i
+ \(bu
+-/usr/local/samba/swat/images/*
++/usr/share/samba/swat/images/*
+ .TP 0.2i
+ \(bu
+-/usr/local/samba/swat/help/*
++/usr/share/samba/swat/help/*
+ .SS "INETD INSTALLATION"
+ .PP
+ You need to edit your \fI/etc/inetd.conf
+@@ -61,7 +68,7 @@
+ to enable SWAT to be launched via \fBinetd\fR.
+ .PP
+ In \fI/etc/services\fR you need to 
+-add a line like this: 
++add a line like this (not needed for Debian): 
+ .PP
+ \fBswat 901/tcp\fR
+ .PP
+@@ -75,10 +82,11 @@
+ \fBinetd\fR daemon). 
+ .PP
+ In \fI/etc/inetd.conf\fR you should 
+-add a line like this: 
++add a line like this (not needed for Debian, the postinst script takes 
++care of this): 
+ .PP
+ \fBswat stream tcp nowait.400 root
+-/usr/local/samba/bin/swat swat\fR
++/usr/sbin/swat swat\fR
+ .PP
+ One you have edited \fI/etc/services\fR 
+ and \fI/etc/inetd.conf\fR you need to send a 
+@@ -104,11 +112,10 @@
+ (e.g., swat) to service port (e.g., 901) and protocol type 
+ (e.g., tcp). 
+ .TP
+-\fB\fI/usr/local/samba/lib/smb.conf\fB\fR
++\fB\fI/etc/samba/smb.conf\fB\fR
+ This is the default location of the \fIsmb.conf(5)
+-\fRserver configuration file that swat edits. Other 
+-common places that systems install this file are \fI /usr/samba/lib/smb.conf\fR and \fI/etc/smb.conf
+-\fR\&. This file describes all the services the server 
++\fRserver configuration file that swat edits.
++This file describes all the services the server 
+ is to make available to clients. 
+ .SH "WARNINGS"
+ .PP
+diff -uNr --exclude=debian samba-2.2.2.cvs20020120.orig/source/include/stamp-h samba-2.2.2.cvs20020120/source/include/stamp-h

@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha24-2) unstable; urgency=low
+
+  * Fixed description of the smbfs package. (closes: #194183)
+
+ -- Eloy A. Paris <peloy@debian.org>  Wed, 21 May 2003 12:21:53 -0400
+
 samba (2.999+3.0.alpha24-1) unstable; urgency=low
 
   * New upstream version. (closes: #189354)

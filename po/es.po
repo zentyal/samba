@@ -192,7 +192,7 @@ msgstr "Para manterner la compatibilidad con el comportamiento por defecto de "
 "imprescindible configurar Samba (y posiblemente los sistemas Windows) "
 "para que use contraseñas no cifradas.  Véa "
 "/usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html del paquete samba-doc "
-"para más información
+"para más información."
 
 #. Description
 #: ../samba.templates:17

@@ -1,3 +1,15 @@
+samba (2.2.3-6.1) experimental; urgency=low
+
+  * Make sure there are actual files in /var/state/samba before trying 
+    to move them (Closes: #133534, #133510).
+  * Fix up the 2.2.3 makefile so that pam_smbpass builds correctly 
+    again.
+  * Tweaks, corrections to debconf templates.
+  * Make samba.postinst ignore the absence of /var/log/{s,n}mb*;
+    makes for a clean upgrade path.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 19 Feb 2002 19:59:51 -0600
+
 samba (2.2.3-5.1) experimental; urgency=low
 
   * Whoops, missed a spot on the samba.postinst -- will fail badly if

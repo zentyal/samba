@@ -19,11 +19,11 @@ Description: Generate /etc/samba/smbpasswd?
 
 Template: samba/log_files_moved
 Type: note
-Description: Samba's log files stored now in a new location:
+Description: Samba's log files have moved.
  Starting with the first packages of Samba 2.2 for Debian the log
  files for both Samba daemons (nmbd and smbd) are now stored in
- /var/samba/. The names of the files are log.nmbd and log.smbd,
+ /var/log/samba/. The names of the files are log.nmbd and log.smbd,
  for nmbd and smbd respectively.
  .
  The old log files that were in /var/log/ will be moved to
- the new location.
+ the new location for you.

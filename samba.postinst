@@ -152,8 +152,8 @@ fi
 rm -f /etc/samba/debian_config
 
 # Move old log files to the new location of Samba's log files
-mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null
-mv -f /var/log/smb* /var/log/samba/ 2> /dev/null
+mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null || true
+mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
 
 # Take care of the /usr/doc/ to /usr/shar/doc/ migration.
 if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then

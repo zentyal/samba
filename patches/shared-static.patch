@@ -145,7 +145,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
 +	enable_static=yes
 +        AC_MSG_RESULT(no shared library support -- will supply static library)
 +     fi
-+     if test enable_static = yes; then
++     if test $enable_static = yes; then
          INSTALLCLIENTCMD_A="\$(INSTALLCMD)"
          LIBSMBCLIENT=libsmbclient
 -        AC_MSG_RESULT(no shared library support -- will supply static library)
@@ -161,7 +161,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
 +     enable_static=yes
 +     AC_MSG_RESULT(no shared library support -- will supply static library)
 +   fi
-+   if test enable_static = yes; then
++   if test $enable_static = yes; then
       INSTALLCLIENTCMD_A="\$(INSTALLCMD)"
       LIBSMBCLIENT=libsmbclient
 -     AC_MSG_RESULT(no shared library support -- will supply static library)

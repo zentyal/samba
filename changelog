@@ -1,5 +1,14 @@
 samba (2.999+3.0.alpha23-4) unstable; urgency=low
 
+  * Change shlibs to 0 instead of 0.1.  The library already in the
+    archive is using this soname, and there are no packages depending
+    on libsmbclient, so skip changing the package name for now.
+    (closes: #188661)
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 14 Apr 2003 11:00:00 -0500
+
+samba (2.999+3.0.alpha23-4) unstable; urgency=low
+
   * Instead of s/LPT1:/LPT:/, we need to do s/LPT:/LPT1:/ -- now all
     non-RPC printing clients are working again.
 

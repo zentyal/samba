@@ -1,11 +1,14 @@
-samba (3.0.7-2) unstable; urgency=low
+samba (3.0.7-2) unstable; urgency=high
 
+  * High-urgency upload for sarge-targetted RC fixes.
   * Use autogen.sh in unpatch-source as well as in patch-source, to get
     rid of the autom4te.cache cruft.
   * debian/patches/make-distclean.patch: add some missing files to the
     distclean target in source/Makefile.in (mostly-fixes: #276203).
+  * Change compile-time default of 'use sendfile' to 'no', since the
+    current Samba implementation is broken (closes: #261917).
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 25 Oct 2004 02:13:14 -0700
+ -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 01:35:23 -0700
 
 samba (3.0.7-1) unstable; urgency=high
 

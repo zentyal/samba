@@ -1,0 +1,12 @@
+diff -uNr samba-3.0.7.orig/source/param/loadparm.c samba-3.0.7/source/param/loadparm.c
+--- samba-3.0.7.orig/source/param/loadparm.c	2004-10-26 00:58:33.000000000 -0700
++++ samba-3.0.7/source/param/loadparm.c	2004-10-26 01:17:10.000000000 -0700
+@@ -541,7 +541,7 @@
+ 	False,			/* bDefaultDevmode */
+ 	True,			/* bNTAclSupport */
+ 	False,                  /* bForceUnknownAclUser */
+-	True,			/* bUseSendfile */
++	False,			/* bUseSendfile */
+ 	False,			/* bProfileAcls */
+ 	False,			/* bMap_acl_inherit */
+ 	False,			/* bAfs_Share */

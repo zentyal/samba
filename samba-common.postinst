@@ -30,7 +30,7 @@ if [ "${RET}" = "true" ]; then
 	WORKGROUP=`echo $WORKGROUP | \
 	           sed -e's/\\\\/\\\\\\\\/g
 	                  s#/#\\\\/#g
-	                  s/\\\&/\\\\\\\&/g
+	                  s/&/\\\&/g
 	                  s/\\\$/\\\\\\\$/g'`
 
 	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i

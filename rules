@@ -103,7 +103,7 @@ configure-stamp:
 		--with-acl-support \
 		--with-tdbsam \
 		--with-ldap \
-		--with-python=python2.2)
+		--with-python=python2.3)
 
 	touch configure-stamp
 

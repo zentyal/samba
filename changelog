@@ -1,7 +1,8 @@
-samba (3.0.0beta3+3.0.0rc1-1) unstable; urgency=low
+samba (3.0.0beta2+3.0.0rc1-1) unstable; urgency=low
 
   * New upstream version (skipped samba 3.0.0beta3 due to time
-    constraints.)
+    constraints.) This ugly version number will go away when the final
+    Samba 3.0.0 is released.
   * Drag new unpackaged tools into the packages: smbcquotas (smbclient),
     vfs modules (samba), smbtree(1) manpage (smbclient), tdbbackup(8)
     manpage (samba). (closes: #151158)
@@ -15,8 +16,10 @@ samba (3.0.0beta3+3.0.0rc1-1) unstable; urgency=low
       init scripts
   * Add versioned dependency on libpam-runtime and change
     /etc/pam.d/samba to use the new common PAM config blocks.
+  * New samba-python2.3 package (old samba-python2.2 is no more.)
+    (closes: #206171)
 
- -- Eloy A. Paris <peloy@debian.org>  Tue, 19 Aug 2003 21:50:05 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 25 Aug 2003 17:05:14 -0400
 
 samba (3.0.0beta2-1) unstable; urgency=low
 

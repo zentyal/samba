@@ -1,8 +1,8 @@
 samba (2.999+3.0.alpha24-1) unstable; urgency=low
 
-  * New upstream version.
+  * New upstream version. (closes: #189354)
 
- -- Eloy A. Paris <peloy@debian.org>  Sun, 18 May 2003 17:34:36 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 20 May 2003 13:55:57 -0400
 
 samba (2.999+3.0.alpha23-5) unstable; urgency=low
 

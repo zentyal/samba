@@ -1,7 +1,7 @@
 diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/configure.in
 --- samba-3.0alpha21.orig/source/configure.in	2003-02-16 13:01:45.000000000 -0600
 +++ samba-3.0alpha21/source/configure.in	2003-02-16 13:04:03.000000000 -0600
-@@ -508,6 +508,28 @@
+@@ -481,6 +481,28 @@
  #endif
  }
  ], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])

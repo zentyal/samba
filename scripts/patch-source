@@ -4,6 +4,7 @@
 #
 
 for patch in debian/patches/*.patch; do
+	echo '->'`basename $patch`:
 	patch -p1 < $patch
 done
 

@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha24-1) unstable; urgency=low
+
+  * New upstream version.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun, 18 May 2003 17:34:36 -0400
+
 samba (2.999+3.0.alpha23-5) unstable; urgency=low
 
   * Move the python package from section "net" to section "python".

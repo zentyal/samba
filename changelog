@@ -9,6 +9,8 @@ samba (3.0.0beta1-2) unstable; urgency=low
     - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
       symbols by default
   * Make sure libpam-smbpass is a self-contained DSO.
+  * Fix a typo in samba-common.dhcp that caused us to spuriously rewrite
+    the server list.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

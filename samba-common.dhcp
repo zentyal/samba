@@ -18,7 +18,7 @@ netbios_setup() {
 		# FIXME: add sed magic to only remove wins servers
 		# associated with this interface
 		echo -n > /etc/samba/dhcp.conf
-	elif [ "$new_netbios_name_servers" != "old_netbios_name_servers" ]
+	elif [ "$new_netbios_name_servers" != "$old_netbios_name_servers" ]
 	then
 		local serverlist=""
 		for server in $new_netbios_name_servers

@@ -2,3 +2,6 @@ usr/sbin/winbindd
 usr/bin/wbinfo
 usr/share/man/man1/wbinfo.1
 usr/share/man/man8/winbindd.8
+nss-winbind.files
+lib/security/
+lib/libnss_winbind.so.2

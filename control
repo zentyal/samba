@@ -20,7 +20,7 @@ Description: A LanManager like file and printer server for Unix.
  This package contains all the components necessary to turn your
  Debian GNU/Linux box into a powerful file and printer server.
  .
- As of Samba 2.2.1a-3, the Samba Debian packages consist of the following:
+ Currently, the Samba Debian packages consist of the following:
  .
   samba - A LanManager like file and printer server for Unix.
   samba-common - Samba common files used by both the server and the client.
@@ -31,6 +31,11 @@ Description: A LanManager like file and printer server for Unix.
   libpam-smbpass - pluggable authentication module for SMB password database
   libsmbclient - Shared library that allows applications to talk to SMB servers
   libsmbclient-dev - libsmbclient shared libraries
+  winbind: Service to resolve user and group information from Windows NT servers
+ .
+ It is possible to install a subset of these packages depending on
+ your particular needs. For example, to access other SMB servers you
+ should only need the smbclient and samba-common packages.
 
 Package: samba-common
 Architecture: any
@@ -155,7 +160,8 @@ Section: net
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: Support programs for the winbind service
+Replaces: samba (<= 2.2.3-2)
+Description: Service to resolve user and group information from Windows NT servers
  This package provides the winbindd daemon, which provides a
  service for the Name Service Switch capability that is present
  in most modern C libraries (like the GNU C Library - glibc.)
@@ -164,24 +170,3 @@ Description: Support programs for the winbind service
  can be used to resolve user and group information from a
  Windows NT server. The service can also provide authentication
  services via an associated PAM module.
-
-Package: libnss-winbind
-Section: admin
-Priority: optional
-Architecture: any
-Depends: ${shlibs:Depends}
-Replaces: samba (<= 2.2.3-2)
-Description: Name Service Switch module using winbind
- This package provides a Name Service Switch that can be used
- to resolve user and group information from a Windows NT server.
-
-Package: libpam-winbind
-Section: admin
-Priority: optional
-Architecture: any
-Depends: ${shlibs:Depends}
-Replaces: samba (<= 2.2.3-2)
-Description: PAM module to provide authentication of Windows NT users
- The libpam-winbind package provides the PAM module required to
- provide authentication services to Windows NT users. This is
- part of the winbind service included with Samba.

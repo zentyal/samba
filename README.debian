@@ -23,8 +23,7 @@ nmbd and smbd) have been moved to a new location: /var/log/samba/. The
 files also have new names: log.nmbd and log.smbd. The old files
 (/var/log/{nmb,smb} were moved to the new location.
 
-As of Samba 2.2.2-11, the Samba sources produce the following binary
-packages:
+Currently, the Samba sources produce the following binary packages:
 
 samba: A LanManager like file and printer server for Unix.
 samba-common: Samba common files used by both the server and the client.
@@ -37,7 +36,8 @@ libpam-smbpass: pluggable authentication module for SMB password
 	database.
 libsmbclient: Shared library that allows applications to talk to SMB servers.
 libsmbclient-dev: libsmbclient shared libraries.
-
+winbind: Service to resolve user and group information from a Windows NT 
+	server.
 
 Please note that the package smbwrapper (a shared library that provides
 SMB client services that existed between Samba 2.0.0-1 and Samba-2.0.5a-4

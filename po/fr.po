@@ -120,7 +120,7 @@ msgid ""
 msgstr ""
 "La suite de la configuration de Samba pose des questions sur des paramètres "
 "de /etc/samba/smb.conf, le fichier utilisé pour configurer les programmes de "
-"Samba (nmbd et smbd). Votre fichier actuel contient une ligne« « include » "
+"Samba (nmbd et smbd). Votre fichier actuel contient une ligne « include » "
 "ou une option qui s'étale sur plusieurs lignes : cela peut perturber debconf "
 "et il vaut mieux gérer manuellement le contenu de ce fichier."
 

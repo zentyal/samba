@@ -1,0 +1,16 @@
+diff -ur samba-3.0alpha21.orig/source/client/client.c samba-3.0alpha21/source/client/client.c
+--- samba-3.0alpha21.orig/source/client/client.c	2002-11-26 20:54:18.000000000 -0600
++++ samba-3.0alpha21/source/client/client.c	2003-01-06 14:08:54.000000000 -0600
+@@ -2995,6 +2995,12 @@
+ 		}
+ 	}
+ 
++	/* If -M is specified and -p is not, make sure we use port 139
++	   instead of port 445. srl */
++	if (message && port == 0) {
++		port = 139;
++	}
++
+ 	init_names();
+ 
+ 	if(*new_name_resolve_order)

@@ -4,6 +4,13 @@ samba (3.0.0beta1-2) unstable; urgency=low
     to make sure we get the right shlib dependencies (closes: #193149).
   * Update the dhcp config hooks so they're suitable for sourcing (i.e.,
     don't call "exit"). (closes: #196477)
+  * Bring package into line with current policy, updating
+    Standards-Version to 3.5.10:
+    - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
+      symbols by default
+    - add support for the -Wl,-z,defs option in LDSHFLAGS, since
+      libpam-smbpass was unusable due to undeclared LDAP dependencies.
+  * Make sure libpam-smbpass is a self-contained DSO.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

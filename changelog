@@ -1,9 +1,44 @@
-samba (2.2.3-1.1) experimental; urgency=low
-  * Merge in fixes from latest unstable release
+samba (2.2.3-3.1) experimental; urgency=low
+
+  * work on lintian-cleanness in the package (wrong permissions,
+    maintainer scripts in need of debhelpering)
+  * /lib/security/pam_smbpass.so is now being included in the
+    libpam-smbpass package only, and not in both the libpam-smbpass and
+    samba packages (which was the case prior to 2.2.3-3.)
+  * Instead of making our patch scripts executable in the rules file
+    we run them through /bin/sh.
+  * New 'winbind' package that has all the winbind stuff that was in the 
+    samba package in 2.2.3-2 and before.
+  * Added replace.patch: patch from Jeremy Allison to fix problems when
+    replacing or overwriting files in a Samba share. Patch was sent to
+    the samba mailing list.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue,  5 Feb 2002 21:12:48 -0500
+
+samba (2.2.3-2.1) experimental; urgency=low
+
+  * add support to debian/scripts/{patch-source,unpatch-source} for
+    automatic updating and cleaning of <version.h>. This was a request
+    from the Samba Team: they wanted us to clearly mark our packages
+    so it is always known a user is running Samba with (possibly)
+    Debian-specific patches.
   * Change init.d killscript link to K19samba, so we stop before autofs 
     (closes: 117327)
+  * Make our patch scripts executable in the rules file -- dpkg won't do 
+    this for us (closes: #132415).
 
  -- Steve Langasek <vorlon@debian.org>  Mon,  4 Feb 2002 09:51:00 -0600
+
+samba (2.2.3-1.1) experimental; urgency=low
+
+  * New upstream release (closes: #131228).
+  * Restructured build system that provides DBS-like separation of 
+    patches
+  * Fix typo in smbfs description (closes: #116209).
+  * Use killall -q in logrotate.d script, to avoid spurious cron 
+    emails (closes: #130100).
+
+ -- Steve Langasek <vorlon@debian.org>  Sat,  2 Feb 2002 19:56:18 -0500
 
 samba (2.2.2.cvs20020120-1) experimental; urgency=low
 

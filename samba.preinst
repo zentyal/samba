@@ -47,3 +47,5 @@ if [ -f /etc/smbpasswd -a ! -e /etc/samba/smbpasswd ]; then
 	# Finally, move the conffile to its new location.
 	mv /etc/smbpasswd /etc/samba/smbpasswd
 fi
+
+#DEBHELPER#

@@ -13,6 +13,7 @@ samba (2.999+3.0.alpha23-5) unstable; urgency=low
     possibility of data loss during the final copy if /tmp is a separate
     filesystem. (closes: #189823)
   * Pull in fix for SWAT, so that logins work again (closes: #188255).
+  * Move passdb.tdb into /var/lib/samba, since it's not user-editable.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 14 Apr 2003 17:58:50 -0400
 

@@ -14,7 +14,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba for Debian 2.999+3.0.alpha21-4\n"
-"POT-Creation-Date: 2003-03-08 23:52-0600\n"
+"POT-Creation-Date: 2003-04-30 13:11-0500\n"
 "PO-Revision-Date: 2003-03-09 20:27-0600\n"
 "Last-Translator: Steve Langasek <vorlon@debian.org>\n"
 "Language-Team: Spanish <debian-l10n-spanish@lists.debian.org>\n"
@@ -75,7 +75,8 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:26
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "¿Modificar smb.conf para usar la configuración WINS que proviene de DHCP?"
+msgstr ""
+"¿Modificar smb.conf para usar la configuración WINS que proviene de DHCP?"
 
 #. Description
 #: ../samba-common.templates:26
@@ -85,7 +86,12 @@ msgid ""
 "(\"NetBIOS name servers\") present on the network.  This requires a change "
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
-msgstr "Si su sistema recibe la dirección IP desde un servidor DHCP en la red, el servidor DHCP también puede proveerle informaciones sobre los servidores de WINS que haya en la red.  Esto requiere un cambio en el fichero smb.conf para que la configuración de WINS proveniente de DHCP se lea automaticamente de /etc/samba/dhcp.conf."
+msgstr ""
+"Si su sistema recibe la dirección IP desde un servidor DHCP en la red, el "
+"servidor DHCP también puede proveerle informaciones sobre los servidores de "
+"WINS que haya en la red.  Esto requiere un cambio en el fichero smb.conf "
+"para que la configuración de WINS proveniente de DHCP se lea automaticamente "
+"de /etc/samba/dhcp.conf."
 
 #. Description
 #: ../samba-common.templates:26
@@ -123,7 +129,11 @@ msgid ""
 "configuration changes yourself, and will not be able to take advantage of "
 "periodic configuration enhancements.  Therefore, use of debconf is "
 "recommended if possible."
-msgstr "Si no usa debconf para configurar smb.conf, tendrá que cuidar a mano cualquier cambio a la configuración de Samba y no disfrutará de aumentos periódicos de configuración.  Por eso se recomienda el uso de debconf cuando sea posible."
+msgstr ""
+"Si no usa debconf para configurar smb.conf, tendrá que cuidar a mano "
+"cualquier cambio a la configuración de Samba y no disfrutará de aumentos "
+"periódicos de configuración.  Por eso se recomienda el uso de debconf cuando "
+"sea posible."
 
 #. Description
 #: ../samba-common.templates:54
@@ -165,8 +175,8 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:4
-msgid "Create samba password database, /etc/samba/passdb.tdb?"
-msgstr "¿Crear el base de dados de contraseñas /etc/samba/passdb.tdb?"
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "¿Crear el base de dados de contraseñas /var/lib/samba/passdb.tdb?"
 
 #. Description
 #: ../samba.templates:4
@@ -258,8 +268,9 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:45
-msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
-msgstr "¿Convertir el fichero /etc/samba/smbpasswd en /etc/samba/passdb.tdb?"
+msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+msgstr ""
+"¿Convertir el fichero /etc/samba/smbpasswd en /var/lib/samba/passdb.tdb?"
 
 #. Description
 #: ../samba.templates:45
@@ -267,12 +278,13 @@ msgstr "¿Convertir el fichero /etc/samba/smbpasswd en /etc/samba/passdb.tdb?"
 msgid ""
 "Samba 3.0 introduces a newer, more complete SAM database interface which "
 "supersedes the /etc/samba/smbpasswd file.  Would you like your existing "
-"smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
-"to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
+"smbpasswd file to be migrated to /var/lib/samba/passdb.tdb for you?  If you "
+"plan to use another pdb backend (e.g., LDAP) instead, you should answer 'no' "
+"here."
 msgstr ""
 "La versión 3.0 de Samba introduce un nuevo base de dados \"SAM\" más "
 "completo que suplanta al fichero /etc/samba/smbpasswd.  ¿Quiere que el "
-"fichero corriente smbpasswd sea convertido en /etc/samba/passdb.tdb?  Si "
+"fichero corriente smbpasswd sea convertido en /var/lib/samba/passdb.tdb?  Si "
 "pretende usar otro  "
 
 #. Description

@@ -14,7 +14,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2.999+3.0.alpha20-4\n"
-"POT-Creation-Date: 2003-03-08 23:53-0600\n"
+"POT-Creation-Date: 2003-04-30 13:11-0500\n"
 "PO-Revision-Date: 2003-04-05 13:30-0300\n"
 "Last-Translator: André Luís Lopes <andrelop@ig.com.br>\n"
 "Language-Team: Debian-BR Project <debian-l10n-portuguese@lists.debian.org>\n"
@@ -91,10 +91,10 @@ msgid ""
 msgstr ""
 "Caso seu computador obtenha as informações de endereçamento IP de um "
 "servidor DHCP na rede, o servidor DHCP pode também fornecer informações "
-"sobre servidor WINS (\"Servidor de Nomes NetBIOS\") presentes na rede. "
-"Para o Samba ler as configurações WINS fornecidas pelo servidor DHCP "
-"automaticamente do arquivo /etc/samba/dhcp.conf, é preciso modificar "
-"seu arquivo smb.conf."
+"sobre servidor WINS (\"Servidor de Nomes NetBIOS\") presentes na rede. Para "
+"o Samba ler as configurações WINS fornecidas pelo servidor DHCP "
+"automaticamente do arquivo /etc/samba/dhcp.conf, é preciso modificar seu "
+"arquivo smb.conf."
 
 #. Description
 #: ../samba-common.templates:26
@@ -135,10 +135,9 @@ msgid ""
 "recommended if possible."
 msgstr ""
 "Caso você opte por não usar o debconf para configurar o smb.conf, será "
-"necessário que você lide com quaisquer mudanças de configurações "
-"manualmente e você não poderá aproveitar os melhoramentos periódicos de "
-"configuração. Por esse motivo, é recomendado usar o debconf, caso seja "
-"possível."
+"necessário que você lide com quaisquer mudanças de configurações manualmente "
+"e você não poderá aproveitar os melhoramentos periódicos de configuração. "
+"Por esse motivo, é recomendado usar o debconf, caso seja possível."
 
 #. Description
 #: ../samba-common.templates:54
@@ -175,14 +174,14 @@ msgstr ""
 "Clientes Windows atuais comunicam-se com servidores SMB usando senhas "
 "encriptadas. Caso você queira usar senhas em texto puro você precisará "
 "modificar um parâmetro no registro de seu Windows. É recomendado que você "
-"use senhas encriptadas. Se for usá-las, certifique-se de possuir um arquivo "
-"/etc/samba/smbpasswd válido e que você tenha definido senhas no mesmo para "
+"use senhas encriptadas. Se for usá-las, certifique-se de possuir um arquivo /"
+"etc/samba/smbpasswd válido e que você tenha definido senhas no mesmo para "
 "cada usuário, utilizando o comando smbpasswd."
 
 #. Description
 #: ../samba.templates:4
-msgid "Create samba password database, /etc/samba/passdb.tdb?"
-msgstr "Gerar a base de dados para senhas /etc/samba/passdb.tdb ?"
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Gerar a base de dados para senhas /var/lib/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:4
@@ -205,8 +204,8 @@ msgstr ""
 "utilitário smbpasswd. Você deve certificar-se de manter esse arquivo "
 "atualizado futuramente. Caso você não crie esse arquivo, você terá que "
 "reconfigurar o Samba (e provavelmente suas máquinas clientes) para "
-"utilização de senhas em texto puro. Consulte a documentação do pacote "
-"samba-doc em /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html para maiores "
+"utilização de senhas em texto puro. Consulte a documentação do pacote samba-"
+"doc em /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html para maiores "
 "detalhes."
 
 #. Description
@@ -275,20 +274,21 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:45
-msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
-msgstr "Mover /etc/samba/smbpasswd para /etc/samba/passdb.tdb ?"
+msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+msgstr "Mover /etc/samba/smbpasswd para /var/lib/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:45
 msgid ""
 "Samba 3.0 introduces a newer, more complete SAM database interface which "
 "supersedes the /etc/samba/smbpasswd file.  Would you like your existing "
-"smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
-"to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
+"smbpasswd file to be migrated to /var/lib/samba/passdb.tdb for you?  If you "
+"plan to use another pdb backend (e.g., LDAP) instead, you should answer 'no' "
+"here."
 msgstr ""
 "O Samba 3.0 introduz uma nova e mais complete interface de base de dados SAM "
 "que substitui o arquivo /etc/samba/smbpasswd. Você gostaria que o arquivo "
-"smbpasswd existente fosse migrado para /etc/samba/passdb.tdb para você ? "
+"smbpasswd existente fosse migrado para /var/lib/samba/passdb.tdb para você ? "
 "Caso você planeje usar um outro backend (como LDAP, por exemplo) você deverá "
 "escolher 'não' aqui."
 

@@ -20,10 +20,10 @@ fi
 [ -x /etc/init.d/samba ] && /etc/init.d/samba stop
 
 if [ "$1" = upgrade -a -n "$2" ] && dpkg --compare-versions "$2" lt 2.99 \
-   && [ -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]
+   && [ -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]
 then
 	pdbedit -i tdbsam -e smbpasswd
-	rm -f /etc/samba/passdb.tdb
+	rm -f /var/lib/samba/passdb.tdb
 fi
 
 #DEBHELPER#

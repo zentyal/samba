@@ -15,7 +15,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2003-03-08 23:53-0600\n"
+"POT-Creation-Date: 2003-04-30 13:11-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -137,7 +137,7 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:4
-msgid "Create samba password database, /etc/samba/passdb.tdb?"
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 msgstr ""
 
 #. Description
@@ -207,7 +207,7 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:45
-msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
+msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 msgstr ""
 
 #. Description
@@ -215,8 +215,9 @@ msgstr ""
 msgid ""
 "Samba 3.0 introduces a newer, more complete SAM database interface which "
 "supersedes the /etc/samba/smbpasswd file.  Would you like your existing "
-"smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
-"to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
+"smbpasswd file to be migrated to /var/lib/samba/passdb.tdb for you?  If you "
+"plan to use another pdb backend (e.g., LDAP) instead, you should answer 'no' "
+"here."
 msgstr ""
 
 #. Description

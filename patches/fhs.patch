@@ -539,3 +539,18 @@ diff -uNr samba-3.0alpha23.orig/source/wrepld/process.c samba-3.0alpha23/source/
  	if (!tdb) {
  		DEBUG(2,("send_entry_request: Can't open wins database file %s. Error was %s\n", WINS_LIST, strerror(errno) ));
  		return;
+diff -uNr samba-3.0alpha23.orig/source/passdb/pdb_tdb.c samba-3.0alpha23/source/passdb/pdb_tdb.c
+--- samba-3.0alpha23.orig/source/passdb/pdb_tdb.c	2003-03-30 20:28:29.000000000 -0600
++++ samba-3.0alpha23/source/passdb/pdb_tdb.c	2003-04-30 13:51:43.000000000 -0500
+@@ -944,10 +944,7 @@
+ 	if (location) {
+ 		tdb_state->tdbsam_location = talloc_strdup(pdb_context->mem_ctx, location);
+ 	} else {
+-		pstring tdbfile;
+-		get_private_directory(tdbfile);
+-		pstrcat(tdbfile, "/");
+-		pstrcat(tdbfile, PASSDB_FILE_NAME);
++		char *tdbfile = lib_path(PASSDB_FILE_NAME);
+ 		tdb_state->tdbsam_location = talloc_strdup(pdb_context->mem_ctx, tdbfile);
+ 	}
+ 

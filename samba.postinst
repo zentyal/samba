@@ -98,6 +98,15 @@ then
 	mv /etc/samba/secrets.tdb /var/lib/samba/
 fi
 
+# If upgrading from a previous 2.999 snapshot, move the passdb.tdb
+# database into /var/lib.
+
+if [ -n "$2" ] && dpkg --compare-versions "$2" lt 2.999+3.0.alpha23-5 \
+   && [ -e /etc/samba/passdb.tdb -a ! -e /var/lib/samba/passdb.tdb ]
+then
+	mv /etc/samba/passdb.tdb /var/lib/samba/
+fi
+
 # --- End of FHS migration code ---
 
 # If upgrading from a previous 2.999 snapshot, clear the broken
@@ -135,7 +144,7 @@ umask 066
 # FIXME: disable if ldapsam support is enabled?
 # FIXME: we don't want to pass these through the smbpasswd backend,
 # some of the faking can cause us problems!
-if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
+if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
 	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
 	pdbedit -i smbpasswd -e tdbsam
 	rm /etc/samba/smbpasswd
@@ -144,7 +153,7 @@ fi
 umask 022
 
 if [ -n "$2" -a -e /etc/samba/smbpasswd \
-     -a ! -e /etc/samba/passdb.tdb -a "$PDB_MIGRATE" = "true" ] \
+     -a ! -e /var/lib/samba/passdb.tdb -a "$PDB_MIGRATE" = "true" ] \
    && dpkg --compare-versions "$2" lt 2.99.cvs.20020713-2
 then
 	umask 066

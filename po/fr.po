@@ -14,7 +14,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba for Debian 2.999+3.0.alpha23-1\n"
-"POT-Creation-Date: 2003-03-08 23:53-0600\n"
+"POT-Creation-Date: 2003-04-30 13:11-0500\n"
 "PO-Revision-Date: 2003-04-19 08:28-0100\n"
 "Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
@@ -178,8 +178,8 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:4
-msgid "Create samba password database, /etc/samba/passdb.tdb?"
-msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Faut-il créer une base de données /var/lib/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:4
@@ -269,20 +269,21 @@ msgstr ""
 
 #. Description
 #: ../samba.templates:45
-msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
-msgstr "Faut-il convertir /etc/samba/smbpasswd en /etc/samba/passdb.tdb ?"
+msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+msgstr "Faut-il convertir /etc/samba/smbpasswd en /var/lib/samba/passdb.tdb ?"
 
 #. Description
 #: ../samba.templates:45
 msgid ""
 "Samba 3.0 introduces a newer, more complete SAM database interface which "
 "supersedes the /etc/samba/smbpasswd file.  Would you like your existing "
-"smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
-"to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
+"smbpasswd file to be migrated to /var/lib/samba/passdb.tdb for you?  If you "
+"plan to use another pdb backend (e.g., LDAP) instead, you should answer 'no' "
+"here."
 msgstr ""
 "Avec Samba 3.0, une nouvelle interface pour les bases de données SAM, plus "
 "complète, vient remplacer le fichier /etc/samba/smbpasswd. Voulez-vous que "
-"votre fichier existant soit remplacé par /etc/samba/passdb.tdb ? Si vous "
+"votre fichier existant soit remplacé par /var/lib/samba/passdb.tdb ? Si vous "
 "envisagez d'utiliser une autre interface d'authentification (p.ex. LDAP), "
 "refusez la proposition maintenant."
 

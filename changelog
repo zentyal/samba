@@ -1,3 +1,10 @@
+samba (3.0.4-5) unstable; urgency=low
+
+  * Doh! Build-depends on libcupsys2-dev (>=1.1.20final+cvs20040330-4),
+    not an unversioned libcupsys2-dev. (closes# 250523)
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue, 25 May 2004 07:43:54 -0400
+
 samba (3.0.4-4) unstable; urgency=low
 
   * Rebuilt with libcupsys2-gnutls10 for unstable.

@@ -4,8 +4,10 @@ samba (2.999+3.0.alpha23-5) unstable; urgency=low
   * Make sure we use PIC code for python on all platforms
   * French translation of an additional debconf template, courtesy of
     Christian Perrier <bubulle@debian.org> (closes: #188832)
+  * Updated Brazilian Portuguese translation from André Luís Lopes
+    <andrelop@ig.com.br>
 
- -- Eloy A. Paris <peloy@debian.org>  Mon, 14 Apr 2003 17:58:50 -0400
+ -- Steve Langasek <vorlon@debian.org>  Mon, 14 Apr 2003 17:58:50 -0400
 
 samba (2.999+3.0.alpha23-4) unstable; urgency=low
 

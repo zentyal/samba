@@ -1,18 +1,12 @@
-#!/bin/sh
+#!/bin/sh -e
 #
 # $Id$
 #
 
 if [ "$1" = purge ]; then
 
-	# Remove WINS.DAT, BROWSE.DAT and lock information file
-	rm -Rf /var/samba/
-
-	# Remove any files in the old and obsolete /var/lock/samba directory
-	rm -Rf /var/lock/samba/
-
-	# Remove files left in /etc/samba/
-	rm -Rf /etc/samba/MACHINE.SID
+	# Remove Samba's state files, both volatile and non-volatile
+	rm -Rf /var/run/samba/ /var/cache/samba/ /var/lib/samba
 
 	# Remove log files
 	rm -Rf /var/log/samba/
@@ -30,6 +24,14 @@ else
 	# Not purging, do not remove NetBIOS entries from /etc/inetd.conf
 	update-inetd --disable netbios-ssn
 	update-inetd --disable netbios-ns
+
+fi
+
+if [ "$1" = upgrade -a -n "$2" ] && dpkg --compare-versions "$2" -lt 2.99 \
+   && [ -e /etc/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]
+then
+        pdbedit -i tdbsam -e smbpasswd
+	rm -f /etc/samba/passdb.tdb
 fi
 
 #DEBHELPER#

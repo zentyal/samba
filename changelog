@@ -6,6 +6,10 @@ samba (2.999+3.0cvs20020805-1) unstable; urgency=low
   * strip out hyperactive library dependencies that are only needed by
     smbd (closes: #155156).
   * nuke any broken registry.tdb files left by previous CVS snapshots.
+  * support rolling back the smbpasswd->tdbsam conversion on downgrade,
+    since many people are likely to need to downgrade for a while.
+  * remove postrm handling of legacy directories, and add handling of
+    current ones.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 28 Jul 2002 09:44:24 -0500
 

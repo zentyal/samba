@@ -123,7 +123,7 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	mkdir -p $(DESTDIR)/usr/share/man $(DESTDIR)/usr/lib \
+	mkdir -p $(DESTDIR)/usr/share/man $(DESTDIR)/usr/lib/samba \
 	         $(DESTDIR)/lib/security $(DESTDIR)/sbin \
 	         $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
 	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d \
@@ -135,9 +135,9 @@ install: build
 	# libsmbclient files are not installed by the standard
 	#	'make install' - do it manually.
 	$(MAKE) -C source installclientlib DESTDIR=$(DESTDIR)
-	mv $(DESTDIR)/usr/lib/libsmbclient.so $(DESTDIR)/usr/lib/libsmbclient.so.0.1
-	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/libsmbclient.so.0
-	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/libsmbclient.so
+	mv $(DESTDIR)/usr/lib/samba/libsmbclient.so $(DESTDIR)/usr/lib/samba/libsmbclient.so.0.1
+	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
+	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so
 
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd

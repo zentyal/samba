@@ -2,8 +2,9 @@ samba (3.0.8-2) unstable; urgency=low
 
   * Fix the module paths for python2.3-samba so that "import foo from samba"
     works, and include the __init__.py glue; closes: #222867).
+  * Enable quota support; closes: #246839.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 15 Nov 2004 06:50:08 -0800
+ -- Steve Langasek <vorlon@debian.org>  Mon, 15 Nov 2004 06:54:13 -0800
 
 samba (3.0.8-1) unstable; urgency=high
 

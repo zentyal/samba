@@ -7,6 +7,8 @@ samba (2.999+3.0.alpha21-4) unstable; urgency=low
     added and decide where to put them; several files that should have
     been in samba-common but were in samba (for the above reason) --
     smbcacls, -- have been moved, with a replaces: added.
+  * Fix rc script so that whitespace is consistent between inetd and
+    daemon modes (closes: #174677).
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 27 Dec 2002 00:37:00 -0600
 

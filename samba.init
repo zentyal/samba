@@ -46,7 +46,7 @@ case "$1" in
 			# remove it (should be removed by nmbd itself IMHO.)
 			rm -f $NMBDPID
 		fi
-		echo -n "nmbd "
+		echo -n "nmbd"
 
 		if [ "$RUN_MODE" != "inetd" ]; then
 			start-stop-daemon --stop --quiet --pidfile $SMBDPID
@@ -58,8 +58,10 @@ case "$1" in
 				# remove it (should be removed by smbd itself IMHO.)
 				rm -f $SMBDPID
 			fi
-			echo "smbd."
+			echo -n " smbd"
 		fi
+
+		echo "."
 
 		;;
 	reload)

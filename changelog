@@ -19,6 +19,8 @@ samba (3.0.0beta1-2) unstable; urgency=low
   * Reorder smb.conf options for clearer grouping.
   * Add a default [print$] share to the sample smb.conf, and create the
     necessary tree under /var/lib/samba/printers. (closes: #168173)
+  * Fix the patch for postexec handling, so that we chdir("/") at the
+    right time
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

@@ -10,6 +10,7 @@ samba (3.0.0beta2-1) unstable; urgency=low
       (closes: #194406).
     - Fix for segfault in smbclient when using the -b option
       (closes: #196833).
+    - Handle an empty 'passdb backend' list gracefully (closes: #193946).
   * Don't set 'display charset' anymore on upgrade, since this is now
     grabbed from the locale by default -- a much better option.
 

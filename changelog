@@ -3,7 +3,7 @@ samba (3.0.0beta1-2) unstable; urgency=low
   * Update build-deps to libacl1-dev (>= 2.2.11-1), libacl1 (>= 2.2.11-1)
     to make sure we get the right shlib dependencies (closes: #193149).
   * Update the dhcp config hooks so they're suitable for sourcing (i.e.,
-    don't call "exit"). (closes: #196477)
+    don't call "exit") (closes: #196477).
   * Bring package into line with current policy, updating
     Standards-Version to 3.5.10:
     - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
@@ -15,6 +15,9 @@ samba (3.0.0beta1-2) unstable; urgency=low
     output from the latest krb5-config.
   * Add LDAP and Unicode information about upgrading from 2.2 to
     README.debian.
+  * Remove dangerous and confusing browse options from the default 
+    smb.conf (closes: #198804).
+  * Reorder smb.conf options for clearer grouping.
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 12 Jun 2003 15:02:00 -0500
 

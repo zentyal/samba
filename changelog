@@ -7,7 +7,7 @@ samba (3.0.0beta1-2) unstable; urgency=low
   * Bring package into line with current policy, updating
     Standards-Version to 3.5.10:
     - add support for the DEB_BUILD_OPTIONS flag, and enabling debugging
-      symbols by default
+      symbols (-gstabs) by default
   * Make sure libpam-smbpass is a self-contained DSO.
   * Fix a typo in samba-common.dhcp that caused us to spuriously rewrite
     the server list.

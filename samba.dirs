@@ -1,0 +1,7 @@
+sbin
+usr/bin
+usr/sbin
+var/samba
+etc/samba
+etc/pam.d
+usr/share

@@ -1,0 +1,6 @@
+etc/samba/
+etc/pam.d/
+usr/bin/nmblookup
+usr/bin/smbpasswd
+usr/share/man/man1/nmblookup.1
+usr/share/man/man8/smbpasswd.8

@@ -1,0 +1,16 @@
+sbin/mount.smbfs
+sbin/mount.smb
+usr/bin/smbmount
+usr/bin/smbumount
+usr/bin/smbmnt
+usr/bin/smbmount-2.2.x
+usr/bin/smbumount-2.2.x
+usr/bin/smbmount-2.0.x
+usr/bin/smbumount-2.0.x
+usr/share/man/man8/smbmount.8
+usr/share/man/man8/smbumount.8
+usr/share/man/man8/smbmnt.8
+usr/share/man/man8/smbmount-2.2.x.8
+usr/share/man/man8/smbumount-2.2.x.8
+usr/share/man/man8/smbmount-2.0.x.8
+usr/share/man/man8/smbumount-2.0.x.8

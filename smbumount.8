@@ -1,0 +1,30 @@
+.TH SMBUMOUNT 8 11-Nov-1999
+.SH NAME
+smbumount \- unmounts an SMB filesystem
+.SH SYNOPSIS
+Please check the man pages smbumount-2.2.x(8) and smbumount-2.0.x(8) for
+specific details (syntax depends on whether you are running a 2.0.x or
+a 2.2.x kernel).
+.SH DESCRIPTION
+The are two versions of the
+.B smbumount
+command. One is called
+.B smbumount-2.2.x
+and the other one is called
+.B smbumount-2.0.x.
+Two versions are required because of internal changes
+inside the Linux kernel that prevent the use of a single binary for
+different kernel versions.
+
+/usr/bin/smbumount is actually a wrapper script that determines the
+version of the kernel currently running and calls the appropiate binary
+(smbumount-2.0.x or smbumount-2.2.x).
+
+The wrapper script /usr/bin/smbumount just passes directly all the arguments 
+it receives to the appropiate binary, so you still need to check the 
+correct syntax in the corresponding man page.
+.SH SEE ALSO
+smbumount-2.2.x(8), smbumount-2.0.x(8), smbmount(8), smbmount-2.2.x(8),
+smbmount-2.0.x(8)
+.SH AUTHOR
+Eloy A. Paris <peloy@debian.org>

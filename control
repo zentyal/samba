@@ -8,7 +8,7 @@ Standards-Version: 3.5.10
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}, ${misc:Depends}
+Depends: samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules
 Replaces: samba-common (<= 2.0.5a-2)
 Suggests: samba-doc
 Description: a LanManager-like file and printer server for Unix

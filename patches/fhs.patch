@@ -2365,3 +2365,25 @@ diff -ur samba-2.2.3.orig/source/rpc_server/srv_srvsvc_nt.c samba-2.2.3/source/r
  		return False;
  	}
   
+Common subdirectories: samba-2.2.3.orig/docs and samba-2.2.3/docs
+Common subdirectories: samba-2.2.3.orig/examples and samba-2.2.3/examples
+Common subdirectories: samba-2.2.3.orig/packaging and samba-2.2.3/packaging
+Common subdirectories: samba-2.2.3.orig/pcp and samba-2.2.3/pcp
+Common subdirectories: samba-2.2.3.orig/source and samba-2.2.3/source
+Common subdirectories: samba-2.2.3.orig/swat and samba-2.2.3/swat
+Common subdirectories: samba-2.2.3.orig/testsuite and samba-2.2.3/testsuite
+diff -ur samba-2.2.3.orig/source/smbd/lanman.c samba-2.2.3/source/smbd/lanman.c
+--- samba-2.2.3.orig/source/smbd/lanman.c	Sat Feb  2 18:46:56 2002
++++ samba-2.2.3/source/smbd/lanman.c	Sat Feb  9 16:37:17 2002
+@@ -1109,9 +1109,9 @@
+   BOOL local_list_only;
+   int i;
+ 
+-  lines = file_lines_load(lock_path(SERVER_LIST), NULL, False);
++  lines = file_lines_load(cache_path(SERVER_LIST), NULL, False);
+   if (!lines) {
+-    DEBUG(4,("Can't open %s - %s\n",lock_path(SERVER_LIST),strerror(errno)));
++    DEBUG(4,("Can't open %s - %s\n",cache_path(SERVER_LIST),strerror(errno)));
+     return(0);
+   }
+ 

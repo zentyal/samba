@@ -45,17 +45,13 @@ RUN_MODE=""
 EOFMAGICNUMBER1234
 }
 
-# Take care of the /usr/doc/ to /usr/shar/doc/ migration.
-if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
-	ln -sf ../share/doc/samba /usr/doc/samba
-fi
-
-# Starting with Samba 2.0.7-4 the location of the WINS database, the browse
+# Starting with Samba 2.0.7-4 the WINS database, the browse
 #	database and other important run-time files are stored in
 #	/var/state/samba/ rather than in /var/samba/. The following
 #	code takes care of moving the files in the old directory to
 #	the new directory.
 if [ -d /var/samba/ ]; then
+	mkdir -p /var/state/samba || true
 	mv /var/samba/* /var/state/samba/
 	rmdir /var/samba/
 fi
@@ -84,11 +80,11 @@ done
 if [ -d /var/state/samba ]; then
 	mv /var/state/samba/* /var/lib/samba/
 	rmdir /var/state/samba/
-fi
 
-# It's not FHS, and it's probably our fault this is here,
-# so delete it if we can.
-rmdir /var/state || true
+	# It's not FHS, and it's probably our fault this is here,
+	# so delete it if we can.
+	rmdir /var/state || true
+fi
 
 umask 022
 
@@ -158,5 +154,10 @@ rm -f /etc/samba/debian_config
 # Move old log files to the new location of Samba's log files
 mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null
 mv -f /var/log/smb* /var/log/samba/ 2> /dev/null
+
+# Take care of the /usr/doc/ to /usr/shar/doc/ migration.
+if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
+	ln -sf ../share/doc/samba /usr/doc/samba
+fi
 
 db_stop

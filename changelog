@@ -3,8 +3,10 @@ samba (3.0.10-1) unstable; urgency=high
   * New upstream release.
     - CAN-2004-1154: integer overflow can lead to remote code execution
       by authenticated users; closes: #286023.
-  * Sync the fhs.patch to samba 3.0.10.
   * High-urgency upload for sarge-targetted RC bugfix.  
+  * Sync the fhs.patch to samba 3.0.10.
+  * Install mount.cifs suid root, to make user mounts possible
+    (closes: #283819).
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 17 Dec 2004 11:56:01 -0800
 

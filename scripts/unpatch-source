@@ -12,6 +12,6 @@ done
 perl -pi -e's/-.* for Debian//' source/include/version.h
 
 # Regenerate configure only if it is older than configure.in
-[ source/configure -ot source/configure.in ] && (cd source && autoconf)
+[ source/configure -ot source/configure.in ] && (cd source && ./autogen.sh)
 
 exit 0

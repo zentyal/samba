@@ -59,7 +59,7 @@ diff -uNr samba-3.0alpha21.orig/source/configure.in samba-3.0alpha21/source/conf
 +    codepagedir="\${DATADIR}/samba"
 +    statedir="\${VARDIR}/lib/samba"
 +    cachedir="\${VARDIR}/cache/samba"
-+    AC_DEFINE(FHS_COMPATIBLE),
++    AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths]),
      configdir="\${LIBDIR}"
      logfilebase="\${VARDIR}"
      lockdir="\${VARDIR}/locks"

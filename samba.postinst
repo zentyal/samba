@@ -2,7 +2,7 @@
 #
 # Post-installation script for the Samba package for Debian GNU/Linux
 #
-# Written by Eloy A. Paris <peloy@debian.org>.
+# $Id$
 #
 
 case "$1" in

@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# $Id$
+#
 
 if [ "$1" = purge ]; then
 	# Remove WINS.DAT, BROWSE.DAT and lock information file

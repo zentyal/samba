@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# $Id$
+#
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 

@@ -1,8 +1,10 @@
 #!/usr/bin/make -f
 # 
 # Important modifications (introduction of a saved config.cache to
-#	solve build problems) we introduced in Samba 2.2.1a-5. These
+#	solve build problems) introduced in Samba 2.2.1a-5. These
 #	modification were made by Steve Langasek <vorlon@netexpress.net>.
+#
+# $Id$
 #
 
 # Uncomment this to turn on verbose mode. 

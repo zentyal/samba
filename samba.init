@@ -2,6 +2,8 @@
 #
 # Start/stops the Samba daemons (nmbd and smbd).
 #
+# $Id$
+#
 
 # Defaults
 RUN_MODE="daemons"

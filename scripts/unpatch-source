@@ -1,4 +1,7 @@
 #!/bin/sh -e
+#
+# $Id$
+#
 
 for patch in debian/patches/*.patch; do
 	patch -p1 -R < $patch

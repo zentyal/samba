@@ -1,12 +1,15 @@
 samba (2.999+3.0.alpha20-4) unstable; urgency=low
 
-  * Remove obsolete comments about inexistant LDAP support in the
+  * Remove obsolete comments about non-existant LDAP support in the
     Debian Samba packages. (Closes: #165035)
   * Apply patch for segfault in pam_smbpass when using the unixsam
     backend
   * Drop support for nmbd in inetd, since it's not supported by
-    upstream and is reported to cause problems
+    upstream and is reported to cause problems (closes: #23243, #137726,
+    165037)
   * clarify example printing configs in smb.conf (closes: #168174)
+  * make sure nmbd still responds to SIGTERM if it has no interfaces to
+    listen on (closes: #168079)
 
  -- Eloy A. Paris <peloy@debian.org>  Wed, 16 Oct 2002 13:40:33 -0400
 

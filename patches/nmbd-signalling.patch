@@ -1,0 +1,20 @@
+diff -uNr samba-2.999+3.0.alpha20.orig/source/nmbd/nmbd_subnetdb.c samba-2.999+3.0.alpha20/source/nmbd/nmbd_subnetdb.c
+--- samba-2.999+3.0.alpha20.orig/source/nmbd/nmbd_subnetdb.c	2002-07-15 10:10:43.000000000 -0500
++++ samba-2.999+3.0.alpha20/source/nmbd/nmbd_subnetdb.c	2002-11-08 20:54:04.000000000 -0600
+@@ -234,12 +234,16 @@
+   extern struct in_addr loopback_ip;
+ 
+   if(num_interfaces == 0) {
++	  void (*old_handler)(int);
++
+ 	  DEBUG(0,("create_subnets: No local interfaces !\n"));
+ 	  DEBUG(0,("create_subnets: Waiting for an interface to appear ...\n"));
++	  old_handler = CatchSignal( SIGTERM, SIGNAL_CAST SIG_DFL );
+ 	  while (iface_count() == 0) {
+ 		  sleep(5);
+ 		  load_interfaces();
+ 	  }
++	  CatchSignal( SIGTERM, SIGNAL_CAST old_handler );
+   }
+ 
+   num_interfaces = iface_count();

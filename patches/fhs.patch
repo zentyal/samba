@@ -544,3 +544,15 @@ diff -uNr samba-3.0.10.orig/source/wrepld/process.c samba-3.0.10/source/wrepld/p
  	if (!tdb) {
  		DEBUG(2,("send_entry_request: Can't open wins database file %s. Error was %s\n", WINS_LIST, strerror(errno) ));
  		return;
+diff -uNr samba-3.0.11.orig/source/printing/nt_printing.c samba-3.0.11/source/printing/nt_printing.c
+--- samba-3.0.11.orig/source/printing/nt_printing.c	2005-03-23 02:51:08.000000000 -0800
++++ samba-3.0.11/source/printing/nt_printing.c	2005-03-23 02:54:33.000000000 -0800
+@@ -2065,7 +2065,7 @@
+ 	close_all_print_db();
+ 
+ 	if (geteuid() == 0) {
+-		pstrcpy(printdb_path, lock_path("printing/"));
++		pstrcpy(printdb_path, cache_path("printing/"));
+ 		pstrcat(printdb_path, sharename);
+ 		pstrcat(printdb_path, ".tdb");
+ 

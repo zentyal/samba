@@ -1,6 +1,6 @@
-diff -uNr --exclude=debian samba/source/Makefile.in samba-2.2.4/source/Makefile.in
---- samba/source/Makefile.in	Wed May  1 23:13:15 2002
-+++ samba-2.2.4/source/Makefile.in	Thu May  2 01:00:13 2002
+diff -uNr samba-2.2.5pre1.orig/source/Makefile.in samba-2.2.5pre1/source/Makefile.in
+--- samba-2.2.5pre1.orig/source/Makefile.in	Wed Jun 12 15:26:50 2002
++++ samba-2.2.5pre1/source/Makefile.in	Wed Jun 12 15:30:29 2002
 @@ -83,7 +83,7 @@
  FLAGS1 = $(CFLAGS) @FLAGS1@ -Iinclude -I$(srcdir)/include -I$(srcdir)/ubiqx -I$(srcdir)/smbwrapper $(CPPFLAGS) -DLOGFILEBASE=\"$(LOGFILEBASE)\"
  FLAGS2 = -DCONFIGFILE=\"$(CONFIGFILE)\" -DLMHOSTSFILE=\"$(LMHOSTSFILE)\"  
@@ -10,20 +10,20 @@ diff -uNr --exclude=debian samba/source/Makefile.in samba-2.2.4/source/Makefile.
  FLAGS5 = $(FLAGS1) $(FLAGS2) $(FLAGS3) $(FLAGS4) -DHAVE_INCLUDES_H
  FLAGS  = $(ISA) $(FLAGS5) $(PASSWD_FLAGS)
  FLAGS32  = $(ISA32) $(FLAGS5) $(PASSWD_FLAGS)
-diff -uNr --exclude=debian samba/source/acconfig.h samba-2.2.4/source/acconfig.h
---- samba/source/acconfig.h	Wed May  1 23:13:15 2002
-+++ samba-2.2.4/source/acconfig.h	Thu May  2 01:00:33 2002
-@@ -176,6 +176,7 @@
+diff -uNr samba-2.2.5pre1.orig/source/acconfig.h samba-2.2.5pre1/source/acconfig.h
+--- samba-2.2.5pre1.orig/source/acconfig.h	Fri May 17 11:22:12 2002
++++ samba-2.2.5pre1/source/acconfig.h	Wed Jun 12 15:30:29 2002
+@@ -177,6 +177,7 @@
  #undef HAVE_DEVICE_MAJOR_FN
  #undef HAVE_DEVICE_MINOR_FN
  #undef HAVE_MAKEDEV_FN
 +#undef FHS_COMPATIBLE
  #undef HAVE_GETGROUPS_TOO_MANY_EGIDS
- /*
-  * Add these definitions to allow VFS modules to
-diff -uNr --exclude=debian samba/source/configure.in samba-2.2.4/source/configure.in
---- samba/source/configure.in	Wed May  1 23:13:57 2002
-+++ samba-2.2.4/source/configure.in	Thu May  2 01:01:58 2002
+ #undef HAVE_PASSWD_PW_COMMENT
+ #undef HAVE_PASSWD_PW_AGE
+diff -uNr samba-2.2.5pre1.orig/source/configure.in samba-2.2.5pre1/source/configure.in
+--- samba-2.2.5pre1.orig/source/configure.in	Wed Jun 12 15:28:30 2002
++++ samba-2.2.5pre1/source/configure.in	Wed Jun 12 15:30:29 2002
 @@ -12,11 +12,12 @@
  [  --with-fhs              Use FHS-compliant paths (default=no)],
      codepagedir="\$(DATADIR)/samba/codepages"
@@ -39,20 +39,20 @@ diff -uNr --exclude=debian samba/source/configure.in samba-2.2.4/source/configur
      codepagedir="\$(LIBDIR)/codepages"
      configdir="\$(LIBDIR)"
      logfilebase="\$(VARDIR)"
-diff -uNr --exclude=debian samba/source/include/config.h.in samba-2.2.4/source/include/config.h.in
---- samba/source/include/config.h.in	Wed May  1 23:14:00 2002
-+++ samba-2.2.4/source/include/config.h.in	Thu May  2 01:02:36 2002
-@@ -242,6 +242,7 @@
+diff -uNr samba-2.2.5pre1.orig/source/include/config.h.in samba-2.2.5pre1/source/include/config.h.in
+--- samba-2.2.5pre1.orig/source/include/config.h.in	Sat Jun  8 07:55:55 2002
++++ samba-2.2.5pre1/source/include/config.h.in	Wed Jun 12 15:30:29 2002
+@@ -243,6 +243,7 @@
  #undef HAVE_DEVICE_MAJOR_FN
  #undef HAVE_DEVICE_MINOR_FN
  #undef HAVE_MAKEDEV_FN
 +#undef FHS_COMPATIBLE
  #undef HAVE_GETGROUPS_TOO_MANY_EGIDS
- /*
-  * Add these definitions to allow VFS modules to
-diff -uNr --exclude=debian samba/source/include/local.h samba-2.2.4/source/include/local.h
---- samba/source/include/local.h	Sat Feb  2 16:02:43 2002
-+++ samba-2.2.4/source/include/local.h	Thu May  2 01:03:45 2002
+ #undef HAVE_PASSWD_PW_COMMENT
+ #undef HAVE_PASSWD_PW_AGE
+diff -uNr samba-2.2.5pre1.orig/source/include/local.h samba-2.2.5pre1/source/include/local.h
+--- samba-2.2.5pre1.orig/source/include/local.h	Tue Jan 15 10:02:37 2002
++++ samba-2.2.5pre1/source/include/local.h	Wed Jun 12 15:30:29 2002
 @@ -189,4 +189,20 @@
  /* Allocation roundup. */
  #define SMB_ROUNDUP_ALLOCATION_SIZE 0x100000
@@ -74,10 +74,10 @@ diff -uNr --exclude=debian samba/source/include/local.h samba-2.2.4/source/inclu
 +#endif
 +
  #endif
-diff -uNr --exclude=debian samba/source/lib/util.c samba-2.2.4/source/lib/util.c
---- samba/source/lib/util.c	Wed May  1 23:14:23 2002
-+++ samba-2.2.4/source/lib/util.c	Thu May  2 01:08:20 2002
-@@ -1856,6 +1856,46 @@
+diff -uNr samba-2.2.5pre1.orig/source/lib/util.c samba-2.2.5pre1/source/lib/util.c
+--- samba-2.2.5pre1.orig/source/lib/util.c	Mon Jun  3 21:11:11 2002
++++ samba-2.2.5pre1/source/lib/util.c	Wed Jun 12 15:30:29 2002
+@@ -1860,6 +1860,46 @@
  	return fname;
  }
  
@@ -124,9 +124,9 @@ diff -uNr --exclude=debian samba/source/lib/util.c samba-2.2.4/source/lib/util.c
  /*******************************************************************
   Given a filename - get its directory name
   NB: Returned in static storage.  Caveats:
-diff -uNr --exclude=debian samba/source/nmbd/nmbd_serverlistdb.c samba-2.2.4/source/nmbd/nmbd_serverlistdb.c
---- samba/source/nmbd/nmbd_serverlistdb.c	Sat Feb  2 16:02:55 2002
-+++ samba-2.2.4/source/nmbd/nmbd_serverlistdb.c	Thu May  2 01:09:23 2002
+diff -uNr samba-2.2.5pre1.orig/source/nmbd/nmbd_serverlistdb.c samba-2.2.5pre1/source/nmbd/nmbd_serverlistdb.c
+--- samba-2.2.5pre1.orig/source/nmbd/nmbd_serverlistdb.c	Mon Jan 21 10:35:19 2002
++++ samba-2.2.5pre1/source/nmbd/nmbd_serverlistdb.c	Wed Jun 12 15:30:29 2002
 @@ -348,7 +348,7 @@
  
    updatecount++;
@@ -136,9 +136,9 @@ diff -uNr --exclude=debian samba/source/nmbd/nmbd_serverlistdb.c samba-2.2.4/sou
    trim_string(fname,NULL,"/");
    pstrcat(fname,"/");
    pstrcat(fname,SERVER_LIST);
-diff -uNr --exclude=debian samba/source/nmbd/nmbd_winsserver.c samba-2.2.4/source/nmbd/nmbd_winsserver.c
---- samba/source/nmbd/nmbd_winsserver.c	Wed May  1 23:14:38 2002
-+++ samba-2.2.4/source/nmbd/nmbd_winsserver.c	Thu May  2 01:10:42 2002
+diff -uNr samba-2.2.5pre1.orig/source/nmbd/nmbd_winsserver.c samba-2.2.5pre1/source/nmbd/nmbd_winsserver.c
+--- samba-2.2.5pre1.orig/source/nmbd/nmbd_winsserver.c	Fri Mar  1 08:32:13 2002
++++ samba-2.2.5pre1/source/nmbd/nmbd_winsserver.c	Wed Jun 12 15:30:29 2002
 @@ -178,7 +178,7 @@
  
    add_samba_names_to_subnet(wins_server_subnet);
@@ -148,9 +148,9 @@ diff -uNr --exclude=debian samba/source/nmbd/nmbd_winsserver.c samba-2.2.4/sourc
    {
      DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
             WINS_LIST, strerror(errno) ));
-diff -uNr --exclude=debian samba/source/nsswitch/winbindd_cache.c samba-2.2.4/source/nsswitch/winbindd_cache.c
---- samba/source/nsswitch/winbindd_cache.c	Wed May  1 23:14:43 2002
-+++ samba-2.2.4/source/nsswitch/winbindd_cache.c	Thu May  2 01:11:45 2002
+diff -uNr samba-2.2.5pre1.orig/source/nsswitch/winbindd_cache.c samba-2.2.5pre1/source/nsswitch/winbindd_cache.c
+--- samba-2.2.5pre1.orig/source/nsswitch/winbindd_cache.c	Wed Jun  5 07:02:34 2002
++++ samba-2.2.5pre1/source/nsswitch/winbindd_cache.c	Wed Jun 12 15:30:29 2002
 @@ -50,7 +50,7 @@
  	}
  	if (opt_nocache) return;
@@ -160,9 +160,9 @@ diff -uNr --exclude=debian samba/source/nsswitch/winbindd_cache.c samba-2.2.4/so
  				   TDB_DEFAULT, O_RDWR | O_CREAT | O_TRUNC, 0600);
  
  	if (!wcache->tdb) {
-diff -uNr --exclude=debian samba/source/nsswitch/winbindd_idmap.c samba-2.2.4/source/nsswitch/winbindd_idmap.c
---- samba/source/nsswitch/winbindd_idmap.c	Wed May  1 23:14:44 2002
-+++ samba-2.2.4/source/nsswitch/winbindd_idmap.c	Thu May  2 01:12:51 2002
+diff -uNr samba-2.2.5pre1.orig/source/nsswitch/winbindd_idmap.c samba-2.2.5pre1/source/nsswitch/winbindd_idmap.c
+--- samba-2.2.5pre1.orig/source/nsswitch/winbindd_idmap.c	Wed May  1 11:56:29 2002
++++ samba-2.2.5pre1/source/nsswitch/winbindd_idmap.c	Wed Jun 12 15:30:29 2002
 @@ -427,14 +427,14 @@
  {
  	/* Open tdb cache */
@@ -180,9 +180,9 @@ diff -uNr --exclude=debian samba/source/nsswitch/winbindd_idmap.c samba-2.2.4/so
  		DEBUG(0, ("winbindd_idmap_init: Unable to open idmap database\n"));
  		return False;
  	}
-diff -uNr --exclude=debian samba/source/param/loadparm.c samba-2.2.4/source/param/loadparm.c
---- samba/source/param/loadparm.c	Wed May  1 23:14:47 2002
-+++ samba-2.2.4/source/param/loadparm.c	Thu May  2 01:20:33 2002
+diff -uNr samba-2.2.5pre1.orig/source/param/loadparm.c samba-2.2.5pre1/source/param/loadparm.c
+--- samba-2.2.5pre1.orig/source/param/loadparm.c	Thu May 30 23:13:00 2002
++++ samba-2.2.5pre1/source/param/loadparm.c	Wed Jun 12 15:30:29 2002
 @@ -107,6 +107,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
@@ -193,7 +193,7 @@ diff -uNr --exclude=debian samba/source/param/loadparm.c samba-2.2.4/source/para
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1023,8 +1026,13 @@
+@@ -1025,8 +1028,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE},
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_DOS_STRING},
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_DOS_STRING},
@@ -207,9 +207,9 @@ diff -uNr --exclude=debian samba/source/param/loadparm.c samba-2.2.4/source/para
  	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, 0}, 
  #ifdef WITH_UTMP
  	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, 0},
-diff -uNr --exclude=debian samba/source/printing/nt_printing.c samba-2.2.4/source/printing/nt_printing.c
---- samba/source/printing/nt_printing.c	Wed May  1 23:14:51 2002
-+++ samba-2.2.4/source/printing/nt_printing.c	Thu May  2 01:14:04 2002
+diff -uNr samba-2.2.5pre1.orig/source/printing/nt_printing.c samba-2.2.5pre1/source/printing/nt_printing.c
+--- samba-2.2.5pre1.orig/source/printing/nt_printing.c	Thu Jun  6 08:15:02 2002
++++ samba-2.2.5pre1/source/printing/nt_printing.c	Wed Jun 12 15:30:29 2002
 @@ -263,24 +263,24 @@
  	if (tdb_drivers && tdb_printers && tdb_forms && local_pid == sys_getpid())
  		return True;
@@ -241,9 +241,9 @@ diff -uNr --exclude=debian samba/source/printing/nt_printing.c samba-2.2.4/sourc
  		return False;
  	}
   
-diff -uNr --exclude=debian samba/source/printing/printing.c samba-2.2.4/source/printing/printing.c
---- samba/source/printing/printing.c	Wed May  1 23:14:52 2002
-+++ samba-2.2.4/source/printing/printing.c	Thu May  2 01:15:27 2002
+diff -uNr samba-2.2.5pre1.orig/source/printing/printing.c samba-2.2.5pre1/source/printing/printing.c
+--- samba-2.2.5pre1.orig/source/printing/printing.c	Fri Apr 19 14:05:01 2002
++++ samba-2.2.5pre1/source/printing/printing.c	Wed Jun 12 15:30:30 2002
 @@ -55,10 +55,10 @@
  
  	if (tdb && local_pid == sys_getpid())
@@ -257,9 +257,9 @@ diff -uNr --exclude=debian samba/source/printing/printing.c samba-2.2.4/source/p
  		return False;
  	}
  	local_pid = sys_getpid();
-diff -uNr --exclude=debian samba/source/rpc_server/srv_srvsvc_nt.c samba-2.2.4/source/rpc_server/srv_srvsvc_nt.c
---- samba/source/rpc_server/srv_srvsvc_nt.c	Wed May  1 23:15:06 2002
-+++ samba-2.2.4/source/rpc_server/srv_srvsvc_nt.c	Thu May  2 01:16:15 2002
+diff -uNr samba-2.2.5pre1.orig/source/rpc_server/srv_srvsvc_nt.c samba-2.2.5pre1/source/rpc_server/srv_srvsvc_nt.c
+--- samba-2.2.5pre1.orig/source/rpc_server/srv_srvsvc_nt.c	Thu Jun  6 08:15:03 2002
++++ samba-2.2.5pre1/source/rpc_server/srv_srvsvc_nt.c	Wed Jun 12 15:30:30 2002
 @@ -127,10 +127,10 @@
   
  	if (share_tdb && local_pid == sys_getpid())
@@ -273,9 +273,9 @@ diff -uNr --exclude=debian samba/source/rpc_server/srv_srvsvc_nt.c samba-2.2.4/s
  		return False;
  	}
   
-diff -uNr --exclude=debian samba/source/smbd/lanman.c samba-2.2.4/source/smbd/lanman.c
---- samba/source/smbd/lanman.c	Wed May  1 23:15:08 2002
-+++ samba-2.2.4/source/smbd/lanman.c	Thu May  2 01:16:55 2002
+diff -uNr samba-2.2.5pre1.orig/source/smbd/lanman.c samba-2.2.5pre1/source/smbd/lanman.c
+--- samba-2.2.5pre1.orig/source/smbd/lanman.c	Mon Mar 18 17:55:49 2002
++++ samba-2.2.5pre1/source/smbd/lanman.c	Wed Jun 12 15:30:30 2002
 @@ -1109,9 +1109,9 @@
    BOOL local_list_only;
    int i;
@@ -288,14 +288,3 @@ diff -uNr --exclude=debian samba/source/smbd/lanman.c samba-2.2.4/source/smbd/la
      return(0);
    }
  
---- samba-2.2.4+2.2.5.cvs20020605/source/include/proto.h.orig	Wed Jun  5 11:25:55 2002
-+++ samba-2.2.4+2.2.5.cvs20020605/source/include/proto.h	Wed Jun  5 11:23:35 2002
-@@ -1174,6 +1174,8 @@
- char *myhostname(void);
- char *lock_path(char *name);
- char *pid_path(char *name);
-+char *state_path(char *name);
-+char *cache_path(char *name);
- char *parent_dirname(const char *path);
- BOOL ms_has_wild(char *s);
- BOOL mask_match(char *string, char *pattern, BOOL is_case_sensitive);

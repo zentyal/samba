@@ -1,3 +1,10 @@
+samba (3.0.6-4) unstable; urgency=low
+
+  * Update LDAP schema (closes: #269797).
+  * Applied a couple of upstream fixes that will be present in Samba 3.0.7.
+
+ -- Eloy A. Paris <peloy@debian.org>  Tue,  7 Sep 2004 15:28:42 -0400
+
 samba (3.0.6-3) unstable; urgency=low
 
   * Put libsmbclient where it belongs, in /usr/lib. (closes: #267704)

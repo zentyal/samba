@@ -1,3 +1,12 @@
+samba (3.0.2-2) unstable; urgency=high
+
+  * Apply patch from Urban Widmark <urban@teststation.com> to prevent
+    users from mounting remote filesystems containing suid files
+    (closes: 232327).  This represents an exploitable security hole on
+    systems running Linux 2.6 kernels.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 12 Feb 2004 21:38:40 -0600
+
 samba (3.0.2-1) unstable; urgency=high
 
   * New upstream release.

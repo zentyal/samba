@@ -1,0 +1,11 @@
+diff -urN -X exclude samba-3.0.2-orig/source/client/smbmnt.c samba-3.0.2/source/client/smbmnt.c
+--- samba-3.0.2-orig/source/client/smbmnt.c	Thu Aug 28 23:42:42 2003
++++ samba-3.0.2/source/client/smbmnt.c	Tue Feb 10 22:56:58 2004
+@@ -240,7 +240,7 @@
+                         data.dir_mode |= S_IXOTH;
+         }
+ 
+-	flags = MS_MGC_VAL;
++	flags = MS_MGC_VAL | MS_NOSUID | MS_NODEV;
+ 
+ 	if (mount_ro) flags |= MS_RDONLY;

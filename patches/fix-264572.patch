@@ -1,0 +1,12 @@
+--- samba-3.0.5-orig/source/smbd/filename.c
++++ samba-3.0.5-orig/source/smbd/filename.c
+@@ -132,6 +132,10 @@
+ 	if (!*name) {
+ 		name[0] = '.';
+ 		name[1] = '\0';
++		if (SMB_VFS_STAT(conn,name,&st) == 0) {
++			*pst = st;
++		}
++		DEBUG(5,("conversion finished %s -> %s\n",orig_path, name));
+ 		return(True);
+ 	}

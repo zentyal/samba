@@ -1,0 +1,11 @@
+--- samba-3.0.5-orig/source/nsswitch/wins.c.orig	2004-06-21 21:01:02.000000000 +0100
++++ samba-3.0.5/source/nsswitch/wins.c	2004-06-21 21:02:22.000000000 +0100
+@@ -90,7 +90,7 @@
+ {
+ 	int fd = -1;
+ 	struct ip_service *address = NULL;
+-	struct in_addr *ret;
++	struct in_addr *ret = NULL;
+ 	int j, flags = 0;
+ 
+ 	if (!initialised) {

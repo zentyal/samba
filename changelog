@@ -1,3 +1,18 @@
+samba (3.0.5-2) unstable; urgency=high
+
+  * Patches from Fabien Chevalier <fabien.chevalier@supelec.fr>
+    to fix:
+    + libnss_wins crashes other programs (closes: #252591)
+    + Can't list share files/dirs, but can acces deeper files/dirs
+      (closes: #264572)
+    + Samba 3.0.5 Printserver doesn't work with WinXP SP2 (closes: #265871)
+  * Urgency "high" to make it into testing as soon as possible since
+    at least #265871 is pretty bad now that WinXP SP2 has been released.
+    Thanks for the help Fabien! Both Vorlon and I have been very busy
+    lately.
+
+ -- Eloy A. Paris <peloy@debian.org>  Wed, 18 Aug 2004 13:25:41 -0400
+
 samba (3.0.5-1) unstable; urgency=high
 
   * New upstream version. Urgency "high" because of potential buffer

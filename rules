@@ -39,7 +39,18 @@ IVARS = BASEDIR=$(DESTDIR)/usr \
 		SAMBABOOK=$(SAMBABOOK)/usr/share/samba/swat/using_samba \
 		CODEPAGEDIR=$(DESTDIR)/usr/share/samba/codepages
 
-configure: configure-stamp
+patch: patch-stamp
+patch-stamp:
+	dh_testdir
+	if [ ! -f patch-stamp ]; then debian/scripts/patch-source; fi
+	touch patch-stamp
+
+unpatch:
+	dh_testdir
+	if [ -f patch-stamp ]; then debian/scripts/unpatch-source; fi
+	rm -f patch-stamp
+
+configure: patch-stamp configure-stamp
 configure-stamp:
 	dh_testdir
 
@@ -93,7 +104,7 @@ build-stamp:
 
 	touch build-stamp
 
-clean:
+clean: unpatch
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp configure-stamp
@@ -102,11 +113,10 @@ clean:
 #	-$(MAKE) -C source realclean
 #	-$(MAKE) -C source clean
 	-$(MAKE) -C source distclean
-	rm -f source/bin/rpctorture
-	rm -f source/bin/debug2html
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source/bin/wbinfo source/bin/winbindd
+	rm -f source/bin/wbinfo source/bin/winbindd source/bin/rpctorture \
+		source/bin/debug2html
 
 	dh_clean
 

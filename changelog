@@ -6,7 +6,7 @@ samba (2.2.2.cvs20020120-1) experimental; urgency=low
   * (Steve) Patch for source/client/client.c.
     Closes: #86438 smbclient: Transfering several GB causes the average 
             speed to be messed up.
- 
+
  -- Eloy A. Paris <peloy@debian.org>  Wed, 23 Jan 2002 23:37:06 -0500
 
 samba (2.2.2-11.1) experimental; urgency=low

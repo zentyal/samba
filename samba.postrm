@@ -13,6 +13,10 @@ if [ "$1" = purge ]; then
 	# Remove log files
 	rm -f /var/log/samba/
 
+	# Remove init.d configuration file
+	echo  Removing configuration file /etc/default/samba...  >&2
+	rm -f /etc/default/samba
+
 	# Remove NetBIOS entries from /etc/inetd.conf
 	update-inetd --remove netbios-ssn
 	update-inetd --remove netbios-ns

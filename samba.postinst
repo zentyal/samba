@@ -25,6 +25,26 @@ esac
 
 INITCONFFILE=/etc/default/samba
 
+# Generate configuration file if it does not exist, using default values.
+[ -r "${INITCONFFILE}" ] || {
+	umask 022
+	echo Generating ${INITCONFFILE}... >&2
+	cat >${INITCONFFILE} <<'EOFMAGICNUMBER1234'
+# Defaults for samba initscript
+# sourced by /etc/init.d/samba
+# installed at /etc/default/samba by the maintainer scripts
+#
+
+#
+# This is a POSIX shell fragment
+#
+
+# How should Samba (nmbd and smbd) run? Possible values are "daemons"
+#	or "inetd".
+RUN_MODE=""
+EOFMAGICNUMBER1234
+}
+
 # Take care of the /usr/doc/ to /usr/shar/doc/ migration.
 if [ -d /usr/doc -a ! -e /usr/doc/samba -a -d /usr/share/doc/samba ]; then
 	ln -sf ../share/doc/samba /usr/doc/samba
@@ -39,6 +59,8 @@ if [ -d /var/samba/ ]; then
 	mv /var/samba/* /var/state/samba/
 	rmdir /var/samba/
 fi
+
+umask 022
 
 # ------------------------- Debconf questions start ---------------------
 
@@ -59,8 +81,6 @@ if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /etc/samba/smbpasswd ]; then
 	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
 	chmod 600 /etc/samba/smbpasswd 
 fi
-
-chmod a+r ${INITCONFFILE}
 
 # ------------------------- Debconf questions end ---------------------
 

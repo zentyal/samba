@@ -1,8 +1,19 @@
 samba (3.0.2-1) unstable; urgency=high
 
-  * New upstream release (closes: #225328)
+  * New upstream release.
+    - LaMont Jones: correct false failure LFS test that resulted
+      in _GNU_SOURCE not being defined (thus resulting in strndup()
+      not being defined) (closes: #226694)
+    - Segfault fixes. (closes: #230012) (maybe more, but we need bug
+      reporters to confirm.)
 
- -- Eloy A. Paris <peloy@debian.org>  Wed,  4 Feb 2004 23:15:46 -0500
+    Urgency "high" due to a password initialization bug that could grant
+    an attacker unauthorized access to a user account created by the
+    mksmbpasswd.sh shell script. See WHATSNEWS.txt for details and
+    workarounds for those not wishing to upgrade (which is a bad idea
+    anyway since this new release fixes lots of other bugs.)
+
+ -- Eloy A. Paris <peloy@debian.org>  Sun,  8 Feb 2004 10:06:29 -0500
 
 samba (3.0.1-2) unstable; urgency=low
 

@@ -139,6 +139,12 @@ install: build
 	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
 	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so
 
+	# Starting with Samba 3.0.6 libsmbclient.so is installed in
+	# /usr/lib/samba. We don't want it there since it is not in the
+	# default library path. Here we move it to /usr/lib/.
+	mv $(DESTDIR)/usr/lib/samba/libsmbclient* \
+		$(DESTDIR)/usr/lib/
+
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 

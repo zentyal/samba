@@ -1,6 +1,12 @@
 samba (3.0.0beta1-1) unstable; urgency=low
 
   * New upstream version.
+    - fix for empty browselist bug (closes: #194553)
+    - fix for tab completion segfault in smbclient (closes: #194776)
+    - Samba now works as a domain member again without segfaulting
+      (closes: #194134, #194394, #194775)
+    - WinXP machines can join a Samba-controlled domain again
+      (closes: #195362)
   * Build-depend on python-dev >= 2.2 instead of on just python-dev
     (without version).
 

@@ -1,3 +1,14 @@
+samba (3.0.9-1) unstable; urgency=low
+
+  * New upstream release
+    - Fixes Win9x printing; closes: #283530, #282571, #283818.
+    - Fixes a problem with setting dosmodes on filesystems without ACL
+      support; closes: #283661.
+    - Drop ldapsam_compat.patch, redundant now that a fix is integrated
+      upstream
+
+ -- Steve Langasek <vorlon@debian.org>  Thu,  2 Dec 2004 01:11:39 -0800
+
 samba (3.0.8-2) unstable; urgency=low
 
   * Fix the module paths for python2.3-samba so that "import foo from samba"

@@ -1,7 +1,7 @@
 diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makefile.in
 --- samba-3.0.0beta2.orig/source/Makefile.in	2003-07-02 23:26:46.000000000 -0500
 +++ samba-3.0.0beta2/source/Makefile.in	2003-07-02 23:19:46.000000000 -0500
-@@ -95,6 +96,13 @@
+@@ -90,6 +90,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
  
@@ -15,7 +15,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  # the directory where pid files go
  PIDDIR = @piddir@
  # man pages language(s)
-@@ -119,7 +123,7 @@
+@@ -114,7 +121,7 @@
  PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
  PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
  	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
@@ -24,7 +24,7 @@ diff -uNr samba-3.0.0beta2.orig/source/Makefile.in samba-3.0.0beta2/source/Makef
  PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
  
  # Note that all executable programs now provide for an optional executable suffix.
-@@ -1234,7 +1242,7 @@
+@@ -1319,7 +1326,7 @@
  	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
  
  installdat: installdirs
@@ -113,7 +113,7 @@ diff -uNr samba-3.0.0beta2.orig/source/dynconfig.c samba-3.0.0beta2/source/dynco
 diff -uNr samba-3.0.0beta2.orig/source/groupdb/mapping.c samba-3.0.0beta2/source/groupdb/mapping.c
 --- samba-3.0.0beta2.orig/source/groupdb/mapping.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/groupdb/mapping.c	2003-07-02 23:19:02.000000000 -0500
-@@ -141,7 +141,7 @@
+@@ -140,7 +140,7 @@
  	
  	if (tdb && local_pid == sys_getpid())
  		return True;
@@ -162,7 +162,7 @@ diff -uNr samba-3.0.0beta2.orig/source/intl/lang_tdb.c samba-3.0.0beta2/source/i
 diff -uNr samba-3.0.0beta2.orig/source/lib/account_pol.c samba-3.0.0beta2/source/lib/account_pol.c
 --- samba-3.0.0beta2.orig/source/lib/account_pol.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/lib/account_pol.c	2003-07-02 23:19:02.000000000 -0500
-@@ -36,7 +36,7 @@
+@@ -35,7 +35,7 @@
  
  	if (tdb && local_pid == sys_getpid())
  		return True;
@@ -174,7 +174,7 @@ diff -uNr samba-3.0.0beta2.orig/source/lib/account_pol.c samba-3.0.0beta2/source
 diff -uNr samba-3.0.0beta2.orig/source/lib/util.c samba-3.0.0beta2/source/lib/util.c
 --- samba-3.0.0beta2.orig/source/lib/util.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/lib/util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -2204,6 +2204,61 @@
+@@ -2264,6 +2264,61 @@
  }
  
  /**
@@ -326,7 +326,7 @@ diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_cache.c samba-3.0.0beta
 diff -uNr samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c samba-3.0.0beta2/source/nsswitch/winbindd_util.c
 --- samba-3.0.0beta2.orig/source/nsswitch/winbindd_util.c	2003-07-01 15:44:25.000000000 -0500
 +++ samba-3.0.0beta2/source/nsswitch/winbindd_util.c	2003-07-02 23:19:02.000000000 -0500
-@@ -947,7 +947,7 @@
+@@ -957,7 +957,7 @@
  	SMB_STRUCT_STAT stbuf;
  	TDB_CONTEXT *idmap_tdb;
  
@@ -348,7 +348,7 @@ diff -uNr samba-3.0.0beta2.orig/source/param/loadparm.c samba-3.0.0beta2/source/
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1101,8 +1101,13 @@
+@@ -1105,8 +1108,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
@@ -405,7 +405,7 @@ diff -uNr samba-3.0.0beta2.orig/source/passdb/secrets.c samba-3.0.0beta2/source/
 diff -uNr samba-3.0.0beta2.orig/source/printing/nt_printing.c samba-3.0.0beta2/source/printing/nt_printing.c
 --- samba-3.0.0beta2.orig/source/printing/nt_printing.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/printing/nt_printing.c	2003-07-02 23:19:02.000000000 -0500
-@@ -293,28 +293,28 @@
+@@ -298,28 +298,28 @@
   
  	if (tdb_drivers)
  		tdb_close(tdb_drivers);
@@ -457,7 +457,7 @@ diff -uNr samba-3.0.0beta2.orig/source/printing/printing.c samba-3.0.0beta2/sour
 diff -uNr samba-3.0.0beta2.orig/source/printing/printing_db.c samba-3.0.0beta2/source/printing/printing_db.c
 --- samba-3.0.0beta2.orig/source/printing/printing_db.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/printing/printing_db.c	2003-07-02 23:19:02.000000000 -0500
-@@ -87,7 +87,7 @@
+@@ -89,7 +89,7 @@
  		DLIST_ADD(print_db_head, p);
  	}
  
@@ -517,7 +517,7 @@ diff -uNr samba-3.0.0beta2.orig/source/sam/idmap_tdb.c samba-3.0.0beta2/source/s
 diff -uNr samba-3.0.0beta2.orig/source/smbd/lanman.c samba-3.0.0beta2/source/smbd/lanman.c
 --- samba-3.0.0beta2.orig/source/smbd/lanman.c	2003-07-02 23:26:47.000000000 -0500
 +++ samba-3.0.0beta2/source/smbd/lanman.c	2003-07-02 23:19:02.000000000 -0500
-@@ -970,9 +970,9 @@
+@@ -969,9 +969,9 @@
    BOOL local_list_only;
    int i;
  

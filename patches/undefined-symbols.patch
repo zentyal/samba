@@ -1,17 +1,7 @@
 diff -uNr samba-3.0.8.orig/source/Makefile.in samba-3.0.8/source/Makefile.in
 --- samba-3.0.8.orig/source/Makefile.in	2004-11-15 07:00:28.000000000 -0800
 +++ samba-3.0.8/source/Makefile.in	2004-11-15 07:37:49.000000000 -0800
-@@ -515,7 +515,8 @@
- 		   libsmb/libsmb_cache.o \
- 		   $(PARAM_OBJ) $(LIB_NONSMBD_OBJ) \
- 	  	   $(LIBSMB_OBJ) $(KRBCLIENT_OBJ) $(UBIQX_OBJ) \
--		   $(LIBMSRPC_OBJ) $(RPC_PARSE_OBJ) $(PASSDB_GET_SET_OBJ)
-+		   $(LIBMSRPC_OBJ) $(RPC_PARSE_OBJ) $(PASSDB_GET_SET_OBJ) \
-+		   $(SECRETS_OBJ)
- 
- # This shared library is intended for linking with unit test programs
- # to test Samba internals.  It's called libbigballofmud.so to
-@@ -631,7 +632,8 @@
+@@ -632,7 +632,8 @@
  	    $(RPC_ECHO_OBJ) $(SMBLDAP_OBJ) $(IDMAP_OBJ) libsmb/spnego.o $(PASSCHANGE_OBJ)
  
  WINBIND_WINS_NSS_OBJ = nsswitch/wins.o $(PARAM_OBJ) $(UBIQX_OBJ) \
@@ -21,7 +11,7 @@ diff -uNr samba-3.0.8.orig/source/Makefile.in samba-3.0.8/source/Makefile.in
  
  WINBIND_WINS_NSS_PICOBJS = $(WINBIND_WINS_NSS_OBJ:.o=.@PICSUFFIX@)
  
-@@ -997,7 +999,7 @@
+@@ -998,7 +999,7 @@
  
  bin/libsmbclient.@SHLIBEXT@: $(LIBSMBCLIENT_PICOBJS)
  	@echo Linking libsmbclient shared library $@

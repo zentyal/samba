@@ -16,6 +16,8 @@ samba (3.0.0beta2-1) unstable; urgency=low
   * Removed time.c.patch which is now in the upstream sources.
   * Update FHS patch for two new tdb files (netsamlogon_cache.tdb,
     privilege.tdb).
+  * Remove python-linker.patch, since the Kerberos package has been
+    fixed to no longer use rpath
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
 

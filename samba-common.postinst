@@ -94,7 +94,7 @@ if [ "${RET}" = "true" ]; then
 		fi
 	fi
 
-	if ! grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
+	if grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
 	then
 		sed -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
 			/^[[:space:]]*passdb backend/ {

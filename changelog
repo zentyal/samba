@@ -23,6 +23,8 @@ samba (3.0.0beta2-1) unstable; urgency=low
     kludge.
   * Update references to missing documentation in sample smb.conf file
     (closes: #187632).
+  * Fix handling of krb5 link line, building on a patch from Stefan
+    Metzmacher <metze@metzemix.de>.
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
 

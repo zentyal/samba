@@ -1,3 +1,11 @@
+samba (3.0.4-4) unstable; urgency=low
+
+  * Rebuilt with libcupsys2-gnutls10 for unstable.
+    Closes: #250424, #250483, #250491, #250515, #250523, #250592, #250736
+    Closes: #250742, #250733
+
+ -- Eloy A. Paris <peloy@debian.org>  Mon, 24 May 2004 22:32:52 -0400
+
 samba (3.0.4-3) unstable; urgency=low
 
   * Color me stupid; I uploaded an experimental version to unstable.

@@ -23,7 +23,7 @@ samba (2.999+3.0.alpha20-4) unstable; urgency=low
   * Only ask the user for permission to edit if there's a chance of us
     damaging something.
 
- -- Eloy A. Paris <peloy@debian.org>  Mon, 18 Nov 2002 19:53:00 -0500
+ -- Steve Langasek <vorlon@debian.org>  Mon, 18 Nov 2002 19:53:00 -0500
 
 samba (2.999+3.0.alpha20-3) unstable; urgency=low
 

@@ -1,4 +1,4 @@
-Template: samba-common/charset
+Template: samba-common/character_set
 Type: string
 Description: Character Set for Unix filesystem
  You currently have a "character set" configured in your smb.conf.  In

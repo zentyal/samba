@@ -39,23 +39,31 @@ if [ "${RET}" = "true" ]; then
 	mv -f ${TMPFILE} /etc/samba/smb.conf
 
 	# Update charset settings?
-	db_get samba-common/character_set || true
-	DISPLAYCHARSET="${RET}"
-	if [ -n "$DISPLAYCHARSET" ]; then
-		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-		sed -e "/^[[:space:]]*character set[[:space:]]*=/c \
-   display character set = $DISPLAYCHARSET\
-   unix character set = $DISPLAYCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
-		mv -f ${TMPFILE} /etc/samba/smb.conf
+	if ! grep -q "^[[:space:]]*unix charset[[:space:]]*=" /etc/samba/smb.conf
+	then
+		db_get samba-common/character_set || true
+		DISPLAYCHARSET="${RET}"
+		if [ -n "$DISPLAYCHARSET" ]
+		then
+			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+			sed -e "/^[[:space:]]*character set[[:space:]]*=/c \\
+   display charset = $DISPLAYCHARSET\\
+   unix charset = $DISPLAYCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
+			mv -f ${TMPFILE} /etc/samba/smb.conf
+		fi
 	fi
 
-	db_get samba-common/codepage || true
-	DOSCHARSET="${RET}"
-	if [ -n "$DOSCHARSET" ]; then
-		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
-		sed -e "/^[[:space:]]*client code page[[:space:]]*=/c \
-   dos character set = $DOSCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
-		mv -f ${TMPFILE} /etc/samba/smb.conf
+	if ! grep -q "^[[:space:]]*dos charset[[:space:]]*=" /etc/samba/smb.conf
+	then
+		db_get samba-common/codepage || true
+		DOSCHARSET="${RET}"
+		if [ -n "$DOSCHARSET" ]
+		then
+			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+			sed -e "/^[[:space:]]*client code page[[:space:]]*=/c \\
+   dos charset = $DOSCHARSET" < /etc/samba/smb.conf > ${TMPFILE}
+			mv -f ${TMPFILE} /etc/samba/smb.conf
+		fi
 	fi
 fi
 

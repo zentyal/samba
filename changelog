@@ -1,5 +1,7 @@
 samba (2.2.3-1.1) experimental; urgency=low
   * Merge in fixes from latest unstable release
+  * Change init.d killscript link to K19samba, so we stop before autofs 
+    (closes: 117327)
 
  -- Steve Langasek <vorlon@debian.org>  Mon,  4 Feb 2002 09:51:00 -0600
 

@@ -99,6 +99,14 @@ fi
 
 # --- End of FHS migration code ---
 
+# If upgrading from a previous 2.999 snapshot, clear the broken
+# registry.tdb file.
+if [ -n "$2" ] && dpkg --compare-versions "$2" gt 2.99.cvs.20020713-1 \
+   && dpkg --compare-versions "$2" lt 2.999+3.0cvs20020805-1
+then
+	rm -f /var/lib/samba/registry.tdb
+fi
+
 # ------------------------- Debconf questions start ---------------------
 
 # Run Samba as daemons or from inetd?

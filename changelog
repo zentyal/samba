@@ -4,7 +4,8 @@ samba (2.999+3.0cvs20020805-1) unstable; urgency=low
   * scale back the tdbsam migration support, because of undesirable
     side-effects; now always defaults to 'no'.
   * strip out hyperactive library dependencies that are only needed by
-    smbd.
+    smbd (closes: #155156).
+  * nuke any broken registry.tdb files left by previous CVS snapshots.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 28 Jul 2002 09:44:24 -0500
 

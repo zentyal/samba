@@ -1,0 +1,267 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"POT-Creation-Date: 2002-12-29 18:59-0600\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=ISO-8859-15\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Description
+#: ../samba-common.templates:3
+msgid "Character Set for Unix filesystem"
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:3
+msgid ""
+"You currently have a \"character set\" configured in your smb.conf.  In "
+"Samba 3.0, this option is replaced by two new options, \"unix charset\" and "
+"\"display charset\".  Please specify the character set you wish to use for "
+"these new options, which control how Samba interprets filenames on the file "
+"system and how smbclient will interpret these names when you connect to a "
+"file server."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:3
+msgid "If you leave this option blank, your smb.conf will not be changed."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:15
+msgid "Character Set for DOS clients"
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:15
+msgid ""
+"You currently have a \"client code page\" set in your smb.conf.  In Samba "
+"3.0, this option is replaced by the option \"dos charset\".  Please specify "
+"the character set you wish to use for this new option.  In most cases, the "
+"default chosen for you will be sufficient.  Note that this option is not "
+"needed to support Windows clients, it is only for DOS clients.  If you leave "
+"this option blank, your smb.conf will not be changed."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:26
+msgid "Use WINS settings from DHCP?"
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:26
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  If you say \"yes\" here, "
+"your smb.conf file will be modified in such a way that DHCP-provided WINS "
+"settings will automatically be read from /etc/samba/dhcp.conf."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:26
+msgid ""
+"You must have the dhcp3-client package installed to take advantage of this "
+"feature."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:39
+msgid "Configure smb.conf through debconf?"
+msgstr "Voulez-vous configurer smb.conf avec debconf ?"
+
+#. Description
+#: ../samba-common.templates:39
+#, fuzzy
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd.) Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse debconf and "
+"require you to edit your smb.conf by hand to get it working again."
+msgstr ""
+"La suite de la configuration de Samba pose des questions sur des paramètres "
+"de /etc/samba/smb.conf, le fichier utilisé pour configurer les programmes de "
+"Samba (nmbd et smbd). Si vous voulez bien répondre à quelques questions, "
+"choisissez « Yes » et poursuivez la configuration. Si vous voulez un "
+"contrôle total, choisissez « No » et configurez le fichier smb.conf "
+"manuellement ou avec SWAT."
+
+#. Description
+#: ../samba-common.templates:39
+msgid ""
+"If you say \"no\" here, you will have to handle any configuration changes "
+"yourself, and will not be able to take advantage of periodic configuration "
+"enhancements.  Therefore, the recommended response is \"yes\" if possible."
+msgstr ""
+
+#. Description
+#: ../samba-common.templates:53
+msgid "Workgroup/Domain Name?"
+msgstr "Groupe de travail et nom de domaine ?"
+
+#. Description
+#: ../samba-common.templates:53
+msgid ""
+"This controls what workgroup your server will appear to be in when queried "
+"by clients. Note that this parameter also controls the Domain name used with "
+"the security=domain setting."
+msgstr ""
+"Ce paramètre indique le groupe de travail où les clients trouveront le "
+"serveur. Il indique aussi le nom de domaine utilisé par le paramètre "
+"« security=domain »."
+
+#. Description
+#: ../samba-common.templates:61
+msgid "Use password encryption?"
+msgstr "Voulez-vous chiffrer les mots de passe ?"
+
+#. Description
+#: ../samba-common.templates:61
+msgid ""
+"Recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry. It is recommended that you use encrypted "
+"passwords. If you do, make sure you have a valid /etc/samba/smbpasswd file "
+"and that you set passwords in there for each user using the smbpasswd "
+"command."
+msgstr ""
+"Des clients Windows récents communiquent avec les serveurs SMB en utilisant "
+"des mots de passe chiffrés. Si vous voulez utiliser des mots de passe sans "
+"chiffrement, vous devez modifier un paramètre dans le registre de Windows. "
+"Il est recommandé d'utiliser des mots de passe chiffrés. Si vous le faites, "
+"n'oubliez pas de créer un fichier /etc/samba/smbpasswd et d'y mettre les "
+"mots de passe de tous les utilisateurs qui se servent de la commande "
+"smbpasswd."
+
+#. Description
+#: ../samba.templates:4
+msgid "Create samba password database, /etc/samba/passdb.tdb?"
+msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
+
+#. Description
+#: ../samba.templates:4
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd. This file can be created "
+"automatically, but the passwords must be added manually (by you or the user) "
+"by running smbpasswd, and you must arrange to keep it up-to-date in the "
+"future.  If you do not create it, you will have to reconfigure samba (and "
+"probably your client machines) to use plaintext passwords. See /usr/share/"
+"doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc package for more "
+"details."
+msgstr ""
+"Pour préserver la compatibilité avec le comportement par défaut de la "
+"plupart des systèmes Windows, Samba doit utiliser les mots de passe "
+"chiffrés. Cela exige la création d'un fichier, distinct du fichier /etc/"
+"passwd, pour mettre les mots de passe des utilisateurs. Ce fichier peut être "
+"créé automatiquement, mais quelqu'un (vous ou l'utilisateur) devra ajouter "
+"les mots de passe manuellement en utilisant la commande smbpasswd ; et vous "
+"devrez maintenir à jour ce fichier. Si vous ne voulez pas créer le fichier "
+"maintenant, Samba (et peut-être les ordinateurs Windows) devra utiliser des "
+"mots de passe non chiffrés. Voyez /usr/share/doc/samba-doc/htmldocs/"
+"ENCRYPTION.html dans le paquet samba-doc pour plus de détails."
+
+#. Description
+#: ../samba.templates:17
+msgid "Samba's log files have moved."
+msgstr "Les fichiers-journaux de Samba ont changé de place."
+
+#. Description
+#: ../samba.templates:17
+msgid ""
+"Starting with the first packages of Samba 2.2 for Debian the log files for "
+"both Samba daemons (nmbd and smbd) are now stored in /var/log/samba/. The "
+"names of the files are log.nmbd and log.smbd, for nmbd and smbd respectively."
+msgstr ""
+"À partir des premiers paquets de Samba 2.2 pour Debian, les fichiers-"
+"journaux des démons nmbd et smbd se trouvent dans /var/log/samba/. Les noms "
+"de ces fichiers sont log.nmbd et log.smbd pour, respectivement, nmbd et smbd."
+
+#. Description
+#: ../samba.templates:17
+msgid ""
+"The old log files that were in /var/log/ will be moved to the new location "
+"for you."
+msgstr ""
+"Les anciens fichiers-journaux dans /var/log/ seront mis au bon endroit."
+
+#. Description
+#: ../samba.templates:28
+msgid "Running nmbd from inetd is no longer supported"
+msgstr ""
+
+#. Description
+#: ../samba.templates:28
+msgid ""
+"Your system was previously configured to start nmbd and smbd from inetd.  As "
+"of version 2.999+3.0.alpha20-4, nmbd will no longer be started from inetd.  "
+"If you have modified your /etc/init.d/samba startup script, you may need to "
+"adjust it by hand now so that nmbd will start."
+msgstr ""
+
+#. Choices
+#: ../samba.templates:36
+msgid "daemons, inetd"
+msgstr "démons, inetd"
+
+#. Description
+#: ../samba.templates:38
+msgid "How do you want to run Samba?"
+msgstr "Comment voulez-vous lancer Samba ?"
+
+#. Description
+#: ../samba.templates:38
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Le service de Samba smbd peut s'exécuter en tant que démon classique ou bien "
+"être lancé par inetd. L'approche recommandée est qu'il s'exécute en tant que "
+"démon."
+
+#. Description
+#: ../samba.templates:45
+#, fuzzy
+msgid "Move /etc/samba/smbpasswd to /etc/samba/passdb.tdb?"
+msgstr "Faut-il créer une base de données /etc/samba/passdb.tdb ?"
+
+#. Description
+#: ../samba.templates:45
+msgid ""
+"Samba 3.0 introduces a newer, more complete SAM database interface which "
+"supersedes the /etc/samba/smbpasswd file.  Would you like your existing "
+"smbpasswd file to be migrated to /etc/samba/passdb.tdb for you?  If you plan "
+"to use another pdb backend (e.g., LDAP) instead, you should answer 'no' here."
+msgstr ""
+
+#. Description
+#: ../swat.templates:3
+msgid "Your smb.conf will be re-written!"
+msgstr ""
+
+#. Description
+#: ../swat.templates:3
+msgid ""
+"SWAT will rewrite your smb.conf file. It will rearrange the entries and "
+"delete all comments, include= and copy= options. If you have a carefully "
+"crafted smb.conf then back it up or don't use SWAT!"
+msgstr ""

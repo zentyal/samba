@@ -11,7 +11,7 @@ Architecture: any
 Depends: debconf, samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}
 Replaces: samba-common (<= 2.0.5a-2)
 Suggests: samba-doc
-Description: A LanManager like file and printer server for Unix.
+Description: a LanManager-like file and printer server for Unix
  The Samba software suite is a collection of programs that
  implements the SMB protocol for unix systems, allowing you to serve
  files and printers to Windows, NT, OS/2 and DOS clients. This protocol
@@ -41,7 +41,7 @@ Package: samba-common
 Architecture: any
 Depends: debconf, libpam-modules, ${shlibs:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4)
-Description: Samba common files used by both the server and the client.
+Description: Samba common files used by both the server and the client
  The Samba software suite is a collection of programs that
  implements the SMB protocol for unix systems, allowing you to serve
  files and printers to Windows, NT, OS/2 and DOS clients. This protocol
@@ -57,7 +57,7 @@ Depends: samba-common (= ${Source-Version}), ${shlibs:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4)
 Provides: samba-client
 Suggests: smbfs
-Description: A LanManager like simple client for Unix.
+Description: a LanManager-like simple client for Unix
  The Samba software suite is a collection of programs that
  implements the SMB protocol for unix systems, allowing you to serve
  files and printers to Windows, NT, OS/2 and DOS clients. This protocol
@@ -87,7 +87,7 @@ Description: Samba Web Administration Tool
 Package: samba-doc
 Section: doc
 Architecture: all
-Description: Samba documentation.
+Description: Samba documentation
  The Samba software suite is a collection of programs that
  implements the SMB protocol for unix systems, allowing you to serve
  files and printers to Windows, NT, OS/2 and DOS clients. This protocol
@@ -138,7 +138,7 @@ Section: libs
 Priority: extra
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: Shared library that allows applications to talk to SMB servers
+Description: shared library that allows applications to talk to SMB servers
  libsmbclient allows to write applications that use the SMB protocol.
  This gives applications the ability to talk to Microsoft Windows servers
  and Unix servers running Samba.
@@ -164,7 +164,7 @@ Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}
 Replaces: samba (<= 2.2.3-2)
-Description: Service to resolve user and group information from Windows NT servers
+Description: service to resolve user and group information from Windows NT servers
  This package provides the winbindd daemon, which provides a
  service for the Name Service Switch capability that is present
  in most modern C libraries (like the GNU C Library - glibc.)

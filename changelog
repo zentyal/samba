@@ -1,3 +1,9 @@
+samba (2.999+3.0.alpha21-5) unstable; urgency=low
+
+  * touch up the package descriptions a little bit (caps, punctuation)
+
+ -- Steve Langasek <vorlon@debian.org>  Sat,  1 Mar 2003 15:14:00 -0600
+
 samba (2.999+3.0.alpha21-4) unstable; urgency=low
 
   * add scripts to samba-common to grab the netbios-name-servers options

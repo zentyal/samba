@@ -92,6 +92,7 @@ configure-stamp:
 		--with-readline \
 		--with-pam_smbpass \
 		--with-libsmbclient \
+		--with-winbind \
 		--with-msdfs)
 
 	touch configure-stamp
@@ -145,7 +146,12 @@ install: build
 
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
-	install -m 0755 source/bin/pam_smbpass.so $(DESTDIR)/lib/security/
+
+	# pam_smbpass.so is installed by 'make install' in $(DESTDIR)/usr/bin/.
+	#	We'll move it here to $(DESTDIR)/lib/security/ and then
+	#	libpam-smbpass.files will make dh_movefiles move it to the
+	#	right location in the libpam-smbpass package.
+	mv $(DESTDIR)/usr/bin/pam_smbpass.so $(DESTDIR)/lib/security/
 
 	# This is only temporary, while we create new packages for winbind and friends
 	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2

@@ -1,8 +1,10 @@
 samba (3.0.0beta2+3.0.0rc3-1) unstable; urgency=low
 
-  * New upstream release.
+  * New upstream release. Last Release Candidate according to the
+    Samba Team. Samba 3.0.0 is around the corner, in a week or so.
+    (closes: #208773)
 
- -- Eloy A. Paris <peloy@debian.org>  Mon,  8 Sep 2003 22:25:16 -0400
+ -- Eloy A. Paris <peloy@debian.org>  Tue,  9 Sep 2003 07:57:16 -0400
 
 samba (3.0.0beta2+3.0.0rc2-1) unstable; urgency=low
 

@@ -20,7 +20,7 @@ Description: Create samba password database, /etc/samba/passdb.tdb?
  automatically, but the passwords must be added manually (by you or the
  user) by running smbpasswd, and you must arrange to keep it up-to-date in
  the future.  If you do not create it, you will have to reconfigure samba
- (and probably your client machines) to use plaintext passwords. See
+ (and probably your client machines) to use plaintext passwords.
  See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the 
  samba-doc package for more details.
 Description-pt_BR: Gerar a base de dados para senhas /etc/samba/passdb.tdb ?

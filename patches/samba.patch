@@ -1,6 +1,6 @@
-diff -uNr samba-3.0alpha22.orig/source/client/smbmount.c samba-3.0alpha22/source/client/smbmount.c
---- samba-3.0alpha22.orig/source/client/smbmount.c	2003-02-24 09:12:29.000000000 -0600
-+++ samba-3.0alpha22/source/client/smbmount.c	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/client/smbmount.c samba-3.0alpha23/source/client/smbmount.c
+--- samba-3.0alpha23.orig/source/client/smbmount.c	2003-03-30 20:28:28.000000000 -0600
++++ samba-3.0alpha23/source/client/smbmount.c	2003-04-04 21:05:58.000000000 -0600
 @@ -762,7 +762,7 @@
  					*lp = 0;
  					pstrcpy(password,lp+1);
@@ -28,9 +28,9 @@ diff -uNr samba-3.0alpha22.orig/source/client/smbmount.c samba-3.0alpha22/source
  		}
  		strupper(username);
  	}
-diff -uNr samba-3.0alpha22.orig/source/pam_smbpass/pam_smb_passwd.c samba-3.0alpha22/source/pam_smbpass/pam_smb_passwd.c
---- samba-3.0alpha22.orig/source/pam_smbpass/pam_smb_passwd.c	2002-08-26 09:46:05.000000000 -0500
-+++ samba-3.0alpha22/source/pam_smbpass/pam_smb_passwd.c	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c
+--- samba-3.0alpha23.orig/source/pam_smbpass/pam_smb_passwd.c	2002-08-26 09:46:05.000000000 -0500
++++ samba-3.0alpha23/source/pam_smbpass/pam_smb_passwd.c	2003-04-04 21:05:58.000000000 -0600
 @@ -192,6 +192,11 @@
  
      } else if (flags & PAM_UPDATE_AUTHTOK) {
@@ -43,9 +43,9 @@ diff -uNr samba-3.0alpha22.orig/source/pam_smbpass/pam_smb_passwd.c samba-3.0alp
  #if 0
          /* We used to return when this flag was set, but that breaks
             password synchronization when /other/ tokens are expired.  For
-diff -uNr samba-3.0alpha22.orig/source/script/installbin.sh samba-3.0alpha22/source/script/installbin.sh
---- samba-3.0alpha22.orig/source/script/installbin.sh	2002-04-22 13:16:20.000000000 -0500
-+++ samba-3.0alpha22/source/script/installbin.sh	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/script/installbin.sh samba-3.0alpha23/source/script/installbin.sh
+--- samba-3.0alpha23.orig/source/script/installbin.sh	2002-04-22 13:16:20.000000000 -0500
++++ samba-3.0alpha23/source/script/installbin.sh	2003-04-04 21:05:58.000000000 -0600
 @@ -22,9 +22,11 @@
   chmod $INSTALLPERMS $BINDIR/$p2
  
@@ -61,9 +61,9 @@ diff -uNr samba-3.0alpha22.orig/source/script/installbin.sh samba-3.0alpha22/sou
  done
  
  
-diff -uNr samba-3.0alpha22.orig/source/script/installswat.sh samba-3.0alpha22/source/script/installswat.sh
---- samba-3.0alpha22.orig/source/script/installswat.sh	2001-10-17 15:00:14.000000000 -0500
-+++ samba-3.0alpha22/source/script/installswat.sh	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/script/installswat.sh samba-3.0alpha23/source/script/installswat.sh
+--- samba-3.0alpha23.orig/source/script/installswat.sh	2001-10-17 15:00:14.000000000 -0500
++++ samba-3.0alpha23/source/script/installswat.sh	2003-04-04 21:05:58.000000000 -0600
 @@ -56,8 +56,8 @@
  for f in $SRCDIR../docs/htmldocs/*.html; do
        FNAME=$SWATDIR/help/`basename $f`
@@ -87,10 +87,10 @@ diff -uNr samba-3.0alpha22.orig/source/script/installswat.sh samba-3.0alpha22/so
  
      # Create directories
  
-diff -uNr samba-3.0alpha22.orig/source/smbd/service.c samba-3.0alpha22/source/smbd/service.c
---- samba-3.0alpha22.orig/source/smbd/service.c	2003-02-24 09:12:33.000000000 -0600
-+++ samba-3.0alpha22/source/smbd/service.c	2003-03-15 12:02:04.000000000 -0600
-@@ -883,6 +883,14 @@
+diff -uNr samba-3.0alpha23.orig/source/smbd/service.c samba-3.0alpha23/source/smbd/service.c
+--- samba-3.0alpha23.orig/source/smbd/service.c	2003-03-30 20:28:31.000000000 -0600
++++ samba-3.0alpha23/source/smbd/service.c	2003-04-04 21:05:58.000000000 -0600
+@@ -894,6 +894,14 @@
  		change_to_root_user();
  	}
  
@@ -105,9 +105,9 @@ diff -uNr samba-3.0alpha22.orig/source/smbd/service.c samba-3.0alpha22/source/sm
  	change_to_root_user();
  	/* execute any "root postexec = " line */
  	if (*lp_rootpostexec(SNUM(conn)))  {
-diff -uNr samba-3.0alpha22.orig/source/smbwrapper/smbsh.c samba-3.0alpha22/source/smbwrapper/smbsh.c
---- samba-3.0alpha22.orig/source/smbwrapper/smbsh.c	2003-02-21 10:40:45.000000000 -0600
-+++ samba-3.0alpha22/source/smbwrapper/smbsh.c	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/smbwrapper/smbsh.c samba-3.0alpha23/source/smbwrapper/smbsh.c
+--- samba-3.0alpha23.orig/source/smbwrapper/smbsh.c	2003-03-30 20:28:31.000000000 -0600
++++ samba-3.0alpha23/source/smbwrapper/smbsh.c	2003-04-04 21:05:58.000000000 -0600
 @@ -36,7 +36,7 @@
  int main(int argc, char *argv[])
  {
@@ -117,9 +117,9 @@ diff -uNr samba-3.0alpha22.orig/source/smbwrapper/smbsh.c samba-3.0alpha22/sourc
  	pstring line, wd;
  	int opt;
  	extern char *optarg;
-diff -uNr samba-3.0alpha22.orig/source/web/diagnose.c samba-3.0alpha22/source/web/diagnose.c
---- samba-3.0alpha22.orig/source/web/diagnose.c	2003-01-18 13:03:58.000000000 -0600
-+++ samba-3.0alpha22/source/web/diagnose.c	2003-03-15 12:02:04.000000000 -0600
+diff -uNr samba-3.0alpha23.orig/source/web/diagnose.c samba-3.0alpha23/source/web/diagnose.c
+--- samba-3.0alpha23.orig/source/web/diagnose.c	2003-01-18 13:03:58.000000000 -0600
++++ samba-3.0alpha23/source/web/diagnose.c	2003-04-04 21:05:58.000000000 -0600
 @@ -70,6 +70,7 @@
  	static struct cli_state cli;
  	extern struct in_addr loopback_ip;

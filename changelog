@@ -1,6 +1,6 @@
-samba (2.999+3.0.alpha22-1) unstable; urgency=low
+samba (2.999+3.0.alpha23-1) unstable; urgency=high
 
-  * new upstream release
+  * new upstream release, includes security fix for DSA-262
   * tweak the debconf templates to avoid references to specific
     front-ends (closes: #183718)
 

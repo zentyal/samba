@@ -21,6 +21,8 @@ samba (3.0.0beta2-1) unstable; urgency=low
   * Remove configure.patch: the hppa glibc bug this was added for is
     long since fixed, and upstream isn't interested in supporting this
     kludge.
+  * Update references to missing documentation in sample smb.conf file
+    (closes: #187632).
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  2 Jul 2003 20:59:09 -0500
 

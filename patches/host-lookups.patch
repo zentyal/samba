@@ -1,15 +1,7 @@
 diff -uNr samba-2.999+3.0cvs20020906.orig/source/lib/access.c samba-2.999+3.0cvs20020906/source/lib/access.c
 --- samba-2.999+3.0cvs20020906.orig/source/lib/access.c	2002-06-13 21:06:58.000000000 -0500
 +++ samba-2.999+3.0cvs20020906/source/lib/access.c	2002-09-08 18:38:43.000000000 -0500
-@@ -64,6 +64,7 @@
- 	 */
- 
- 	if (tok[0] == '.') {			/* domain: match last fields */
-+		DEBUG(0,("Blee: got a partial domain token, '%s', matching against '%s'.\n",tok,s));
- 		if ((str_len = strlen(s)) > (tok_len = strlen(tok))
- 		    && strcasecmp(tok, s + str_len - tok_len) == 0)
- 			return (True);
-@@ -316,20 +317,20 @@
+@@ -316,20 +316,20 @@
  		else
  		{
  			DEBUG (3, ("check_access: hostnames in host allow/deny list.\n"));
@@ -74,13 +66,4 @@ diff -uNr samba-2.999+3.0cvs20020906.orig/source/web/cgi.c samba-2.999+3.0cvs200
 +		return get_socket_name(1,False);
  	}
  	return getenv("REMOTE_HOST");
- }
-@@ -647,7 +647,7 @@
- char *cgi_remote_addr(void)
- {
- 	if (inetd_server) {
--		return get_socket_addr(1);
-+		return get_socket_addr(1,False);
- 	}
- 	return getenv("REMOTE_ADDR");
  }

@@ -3,23 +3,25 @@ samba (2.999+3.0.alpha20-4) unstable; urgency=low
   * Remove obsolete comments about non-existant LDAP support in the
     Debian Samba packages. (Closes: #165035)
   * Apply patch for segfault in pam_smbpass when using the unixsam
-    backend
+    backend.
   * Drop support for nmbd in inetd, since it's not supported by
     upstream and is reported to cause problems (closes: #23243, #137726,
-    165037)
-  * clarify example printing configs in smb.conf (closes: #168174)
-  * make sure nmbd still responds to SIGTERM if it has no interfaces to
-    listen on (closes: #168079)
+    165037).
+  * Clarify example printing configs in smb.conf (closes: #168174).
+  * Make sure nmbd still responds to SIGTERM if it has no interfaces to
+    listen on (closes: #168079).
   * Fix to get samba working again on 64-bit archs, after a
     pointer<->int size mismatch bug.  Already fixed in upstream CVS.
   * Merge fix from CVS for broken libsmbclient.h references to internal
     structures (closes: #162956).
   * Add a default 'panic action' for Samba that will give us genuinely
-    useful debugging information after a crash
+    useful debugging information after a crash.
   * Fixed correct patch to example configurations in the libpam-smbpass
     packages (closes: #169350).
   * acl-dev is not in sid anymore; Build-Depend on libacl1-dev instead
-    (closes: #169682)
+    (closes: #169682).
+  * Only ask the user for permission to edit if there's a chance of us
+    damaging something.
 
  -- Eloy A. Paris <peloy@debian.org>  Mon, 18 Nov 2002 19:53:00 -0500
 

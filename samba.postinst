@@ -29,6 +29,7 @@ INITCONFFILE=/etc/default/samba
 #	them to be readable only by root.
 umask 022
 
+
 # Generate configuration file if it does not exist, using default values.
 [ -r "${INITCONFFILE}" ] || {
 	echo Generating ${INITCONFFILE}... >&2
@@ -113,7 +114,7 @@ fi
 db_get samba/run_mode || true
 RUN_MODE="${RET}"
 
-TMPFILE=`mktemp -q /tmp/samba.config.XXXXXX`
+TMPFILE=/etc/default/samba.dpkg-tmp
 sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
         < ${INITCONFFILE} >${TMPFILE}
 chmod a+r ${TMPFILE}
@@ -165,7 +166,7 @@ then
 	if ! echo "$PASSDB" | egrep -q "(^|[[:space:]])tdbsam"; then
 		PASSDB="tdbsam $PASSDB"
 	fi
-	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
+	TMPFILE=/etc/samba/smb.conf.dpkg-tmp
 	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			s/^\([[:space:]]*\)passdb backend[[:space:]]*=.*/\1passdb backend = ${PASSDB}/i" \

@@ -14,6 +14,9 @@ if [ ! -e /etc/samba/smb.conf ]; then
 	cp -a /usr/share/samba/smb.conf /etc/samba/
 fi
 
+# Static tempfile location, dpkg-style
+TMPFILE=/etc/samba/smb.conf.dpkg-tmp
+
 # ------------------------- Debconf questions start ---------------------
 
 # Is the user configuring with debconf, or he/she prefers swat/manual
@@ -24,7 +27,6 @@ if [ "${RET}" = "true" ]; then
 	db_get samba-common/workgroup || true
 	WORKGROUP="${RET}"
 
-	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 	# Oh my GOD, this is ugly.  Why would anyone put these
 	# characters in a workgroup name?  Why, Lord, why???
 	WORKGROUP=`echo $WORKGROUP | \
@@ -43,7 +45,6 @@ if [ "${RET}" = "true" ]; then
 	db_get samba-common/encrypt_passwords || true
 	ENCRYPT_PASSWORDS="${RET}"
 
-	TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
@@ -56,7 +57,6 @@ if [ "${RET}" = "true" ]; then
 	if [ "$DHCPVAL" = true ] && [ "$RET" != true ] && \
 	   ! grep -q dhcp.conf /etc/samba/smb.conf
 	then
-		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 		sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
 				/wins server[[:space:]]*=/a \\
@@ -83,7 +83,6 @@ if [ "${RET}" = "true" ]; then
 		DISPLAYCHARSET="${RET}"
 		if [ -n "$DISPLAYCHARSET" ]
 		then
-			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 			sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 				s/^\([[:space:]]*\)character set/\1character set/i
 				/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
@@ -97,7 +96,6 @@ if [ "${RET}" = "true" ]; then
 
 	if ! grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
 	then
-		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 		sed -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
 			/^[[:space:]]*passdb backend/ {
 				s/unixsam/guest/i
@@ -111,7 +109,6 @@ if [ "${RET}" = "true" ]; then
 		DOSCHARSET="${RET}"
 		if [ -n "$DOSCHARSET" ]
 		then
-			TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 			sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 				s/^\([[:space:]]*\)client code page/\1client code page/i
 				/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
@@ -125,7 +122,6 @@ if [ "${RET}" = "true" ]; then
 	if dpkg --compare-versions "$2" lt 2.999+3.0.alpha20-4 \
 	   && ! grep -q "^[[:space:]]*panic action[[:space:]]*=" /etc/samba/smb.conf
 	then
-		TMPFILE=`mktemp -q /tmp/smb.conf.XXXXXX`
 		sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/a \\
 \\

@@ -8,6 +8,10 @@ samba (2.999+3.0.alpha23-5) unstable; urgency=low
     <andrelop@ig.com.br>.
   * s/unixsam/guest/ everywhere, since the unixsam backend is now
     deprecated. (closes: #190095)
+  * Create our temp config file as /etc/samba/smb.conf.dpkg-tmp; not
+    only does using /tmp violate SELinux policies, it introduces the
+    possibility of data loss during the final copy if /tmp is a separate
+    filesystem. (closes: #189823)
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 14 Apr 2003 17:58:50 -0400
 

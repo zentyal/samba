@@ -201,7 +201,8 @@ binary-indep: build install
 	dh_testroot
 	dh_installdebconf
 	dh_installdocs -A docs/textdocs/DIAGNOSIS.txt debian/README.build docs/README* docs/Samba-HOWTO-Collection.pdf
-	dh_installexamples
+	# dh_installexamples is not available in Debian Potato...      
+	[ -x /usr/bin/dh_installexamples ] && dh_installexamples        
 #	dh_installmenu
 #	dh_installemacsen
 #	dh_installpam
@@ -230,7 +231,8 @@ binary-arch: build install
 	dh_testroot
 	dh_installdebconf
 	dh_installdocs -A docs/textdocs/DIAGNOSIS.txt debian/README.build docs/README* docs/Samba-HOWTO-Collection.pdf
-	dh_installexamples
+	# dh_installexamples is not available in Debian Potato...      
+	[ -x /usr/bin/dh_installexamples ] && dh_installexamples        
 #	dh_installmenu
 	# dh_installlogrotate is not available in Debian Potato...
 	if [ -x dh_installlogrotate ]; then dh_installlogrotate; else mkdir debian/samba/etc/logrotate.d; cp debian/samba.logrotate debian/samba/etc/logrotate.d/samba; fi

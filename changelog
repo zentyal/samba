@@ -1,3 +1,9 @@
+samba (3.0.4-3) unstable; urgency=low
+
+  * Color me stupid; I uploaded an experimental version to unstable.
+
+ -- Eloy A. Paris <peloy@debian.org>  Sat, 22 May 2004 00:40:58 -0400
+
 samba (3.0.4-1) unstable; urgency=low
 
   Eloy:

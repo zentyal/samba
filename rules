@@ -181,10 +181,6 @@ install: build
 	#	delete the related man pages.
 	rm $(DESTDIR)/usr/share/man/man1/smbsh.1
 
-	# These files are not part of the main samba package, move to where they
-	#	belong...
-	#mv $(DESTDIR)/usr/bin/smbwrapper.so debian/smbwrapper/usr/share/samba/
-
 	# Install samba-common's conffiles - they'll get moved later to their
 	#	correct place by dh_movefiles.
 	cp debian/smb.conf $(DESTDIR)/usr/share/samba/
@@ -236,7 +232,8 @@ binary-arch: build install
 	dh_installdocs -A docs/textdocs/DIAGNOSIS.txt debian/README.build docs/README* docs/Samba-HOWTO-Collection.pdf
 	dh_installexamples
 #	dh_installmenu
-	dh_installlogrotate
+	# dh_installlogrotate is not available in Debian Potato...
+	if [ -x dh_installlogrotate ]; then dh_installlogrotate; else mkdir debian/samba/etc/logrotate.d; cp debian/samba.logrotate debian/samba/etc/logrotate.d/samba; fi
 #	dh_installemacsen
 #	dh_installpam
 	dh_installinit

@@ -4,6 +4,8 @@ samba (3.0.14a-1) unstable; urgency=low
     - A more complete upstream fix for missing files in file listings,
       should really give us working (closes: #302771); drop
       xp-missing-files.patch, which has been superseded.
+  * Use the right path when removing mount.cifs binary in the clean
+    target.  Closes: #303318.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 18 Apr 2005 03:22:29 -0700
 

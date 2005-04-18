@@ -1,3 +1,12 @@
+samba (3.0.14a-1) unstable; urgency=low
+
+  * New upstream version
+    - A more complete upstream fix for missing files in file listings,
+      should really give us working (closes: #302771); drop
+      xp-missing-files.patch, which has been superseded.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 18 Apr 2005 03:22:29 -0700
+
 samba (3.0.11-1) unstable; urgency=high
 
   * New upstream version

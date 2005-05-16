@@ -2,6 +2,9 @@ samba (3.0.14a-2) unstable; urgency=low
 
   * Point the sense of the file_is_special() check right way around;
     thanks to Matthijs Mohlmann for catching this.  Closes: #305747.
+  * debian/patches/dos7-xcopy-always-copies-files.patch:
+    Fix the MS-DOS 7 XCOPY copying files over and over bug
+    Closes: #309003
 
  -- Steve Langasek <vorlon@debian.org>  Sun,  8 May 2005 04:43:21 -0700
 

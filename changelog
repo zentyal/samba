@@ -1,3 +1,13 @@
+samba (3.0.14a-3) unstable; urgency=high
+
+  * Urgency set to high for a bug that makes smbclient/libsmbclient
+    /almost/ mostly unusable
+  * Fix smbclient's search continuation logic so that it works correctly
+    against 2K servers offering VFAT-hosted shares; many thanks to
+    Jeremy Allison for the timely upstream fix.  Closes: #309798.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 26 May 2005 17:51:42 -0700
+
 samba (3.0.14a-2) unstable; urgency=low
 
   * Point the sense of the file_is_special() check right way around;

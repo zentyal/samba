@@ -13,10 +13,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_3.0.0beta2-1\n"
-"Report-Msgid-Bugs-To: \n"
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: debian-l10n-portuguese@lists.debian.org\n"
 "POT-Creation-Date: 2003-08-30 19:08-0500\n"
-"PO-Revision-Date: 2003-08-31 21:46-0300\n"
+"PO-Revision-Date: 2005-05-10 14:07-0300\n"
 "Last-Translator: André Luís Lopes <andrelop@debian.org>\n"
 "Language-Team: Debian-BR Project <debian-l10n-portuguese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -158,7 +158,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:60
 msgid "Use password encryption?"
-msgstr "Usar encriptação de senhas ?"
+msgstr "Usar senhas criptografadas ?"
 
 #. Description
 #: ../samba-common.templates:60
@@ -171,9 +171,9 @@ msgid ""
 "command."
 msgstr ""
 "Clientes Windows atuais comunicam-se com servidores SMB usando senhas "
-"encriptadas. Caso você queira usar senhas em texto puro você precisará "
+"criptografadas. Caso você queira usar senhas em texto puro você precisará "
 "modificar um parâmetro no registro de seu Windows. É recomendado que você "
-"use senhas encriptadas. Caso as utilize, certifique-se de possuir um "
+"use senhas criptografadas. Caso as utilize, certifique-se de possuir um "
 "arquivo /etc/samba/smbpasswd válido e que você tenha definido senhas no "
 "mesmo para cada usuário, utilizando o comando smbpasswd."
 
@@ -196,7 +196,7 @@ msgid ""
 "details."
 msgstr ""
 "Para compatibilidade com os padrões adotados em todas as versões atuais do "
-"Windows, o Samba deve ser configurado para usar senhas encriptadas. Isso "
+"Windows, o Samba deve ser configurado para usar senhas criptografadas. Isso "
 "requer que as senhas dos usuários sejam armazenadas em um arquivo diferente "
 "do arquivo /etc/passwd. Esse arquivo pode ser criado automaticamente, mas "
 "as senhas devem ser definidas manualmente (por você ou pelo usuário) "

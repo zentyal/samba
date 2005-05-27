@@ -5,10 +5,12 @@ samba (3.0.14a-3) unstable; urgency=high
   * Fix smbclient's search continuation logic so that it works correctly
     against 2K servers offering VFAT-hosted shares; many thanks to
     Jeremy Allison for the timely upstream fix.  Closes: #309798.
-  * Updat pt_BR debconf translation.  Thanks to Andre Luis Lopes
+  * Update pt_BR debconf translation.  Thanks to Andre Luis Lopes
     <andrelop@debian.org>. (closes: #308510)
+  * Add Russian debconf translation, thanks to Yuriy Talakan
+    <yt@amur.elektra.ru>. (closes: #310063)
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 26 May 2005 23:31:05 -0700
+ -- Steve Langasek <vorlon@debian.org>  Thu, 26 May 2005 23:37:57 -0700
 
 samba (3.0.14a-2) unstable; urgency=low
 

@@ -1,3 +1,10 @@
+samba (3.0.14a-3sarge1) unstable; urgency=low
+
+  * Incorporate debian/patches/schannel-64bit-align.patch from upstream,
+    so that we're compatible with WinXP 64.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 12 Jul 2005 00:54:38 -0700
+
 samba (3.0.14a-3) unstable; urgency=high
 
   * Urgency set to high for a bug that makes smbclient/libsmbclient

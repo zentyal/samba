@@ -1,0 +1,122 @@
+#!/bin/sh -e
+#
+# Post-installation script for the Samba package for Debian GNU/Linux
+#
+#
+
+case "$1" in
+	configure)
+		# continue below
+	;;
+
+	abort-upgrade|abort-remove|abort-deconfigure)
+		exit 0
+	;;
+
+	*)
+		echo "postinst called with unknown argument \`$1'" >&2
+		exit 0
+	;;
+esac
+
+# Handle debconf
+. /usr/share/debconf/confmodule
+
+INITCONFFILE=/etc/default/samba
+
+# We generate several files during the postinst, and we don't want
+#	them to be readable only by root.
+umask 022
+
+
+# Generate configuration file if it does not exist, using default values.
+[ -r "${INITCONFFILE}" ] || {
+	echo Generating ${INITCONFFILE}... >&2
+	cat >${INITCONFFILE} <<'EOFMAGICNUMBER1234'
+# Defaults for samba initscript
+# sourced by /etc/init.d/samba
+# installed at /etc/default/samba by the maintainer scripts
+#
+
+#
+# This is a POSIX shell fragment
+#
+
+# How should Samba (smbd) run? Possible values are "daemons"
+#	or "inetd".
+RUN_MODE=""
+EOFMAGICNUMBER1234
+}
+
+# ------------------------- Debconf questions start ---------------------
+
+# Run Samba as daemons or from inetd?
+db_get samba/run_mode || true
+RUN_MODE="${RET}"
+
+TMPFILE=/etc/default/samba.dpkg-tmp
+sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
+        < ${INITCONFFILE} >${TMPFILE}
+chmod a+r ${TMPFILE}
+mv -f ${TMPFILE} ${INITCONFFILE}
+
+# Generate a smbpasswd file?
+db_get samba/generate_smbpasswd || true
+GENERATE_SMBPASSWD="${RET}"
+
+db_get samba/tdbsam || true
+PDB_MIGRATE="${RET}"
+
+# Done with debconf now.
+db_stop
+
+umask 066
+
+# FIXME: disable if ldapsam support is enabled?
+# FIXME: we don't want to pass these through the smbpasswd backend,
+# some of the faking can cause us problems!
+if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
+	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
+	pdbedit -i smbpasswd -e tdbsam
+	rm /etc/samba/smbpasswd
+fi
+
+umask 022
+
+# ------------------------- Debconf questions end ---------------------
+
+# We want to add these entries to inetd.conf commented out. Otherwise
+#	UDP traffic could make inetd to start nmbd or smbd right during
+#	the configuration stage.
+if [ -z "$2" ]; then
+	update-inetd --add "#<off># netbios-ssn	stream	tcp	nowait	root	/usr/sbin/tcpd	/usr/sbin/smbd"
+fi
+
+if [ "$RUN_MODE" = "daemons" ]; then
+	update-inetd --disable netbios-ssn
+else
+	update-inetd --enable netbios-ssn
+fi
+
+# This check is a safety net: the /etc/samba/smbpasswd file must have
+#	permissions 600.
+if [ -f /etc/samba/smbpasswd ]; then
+	chmod 600 /etc/samba/smbpasswd
+fi
+
+# Do the same check for /var/backup/smbpasswd.bak, just in case.
+if [ -f /var/backups/smbpasswd.bak ]; then
+	chmod 600 /var/backups/smbpasswd.bak
+fi
+
+# Delete old /etc/samba/debian_config file, which is not used anymore
+#	now that we are using debconf.
+rm -f /etc/samba/debian_config
+
+# Move old log files to the new location of Samba's log files
+mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null || true
+mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
+
+#DEBHELPER#
+
+exit 0

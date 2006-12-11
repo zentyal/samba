@@ -1,0 +1,21 @@
+Goal: Adapt example script to Debian
+Fixes: #346234
+
+Status wrt upstream: Debian specific
+
+Index: samba-3.0.23d/docs/manpages/smb.conf.5
+===================================================================
+--- samba-3.0.23d.orig/docs/manpages/smb.conf.5	2006-09-02 10:08:44.724548775 +0200
++++ samba-3.0.23d/docs/manpages/smb.conf.5	2006-09-02 10:09:36.184964559 +0200
+@@ -561,8 +561,8 @@
+ Default:
+ \fB\fIadd machine script\fR = \fR
+ .sp
+-Example:
+-\fB\fIadd machine script\fR = /usr/sbin/adduser -n -g machines -c Machine -d /var/lib/nobody -s /bin/false %u \fR
++Example for Debian:
++\fB\fIadd machine script\fR = /usr/sbin/adduser -n -g machines -c Machine -d /var/lib/samba -s /bin/false %u \fR
+ .TP 3n
+ add port command (G)
+ Samba 3.0.23 introduces support for adding printer ports remotely using the Windows "Add Standard TCP/IP Port Wizard". This option defines an external program to be executed when smbd receives a request to add a new Port to the system. he script is passed two parameters:
+

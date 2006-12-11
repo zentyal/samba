@@ -1,0 +1,70 @@
+Index: samba-3.0.23c/source/client/smbmount.c
+===================================================================
+--- samba-3.0.23c.orig/source/client/smbmount.c	2006-09-02 10:08:46.104559928 +0200
++++ samba-3.0.23c/source/client/smbmount.c	2006-09-02 10:09:30.072915188 +0200
+@@ -767,7 +767,7 @@
+ 					*lp = 0;
+ 					pstrcpy(password,lp+1);
+ 					got_pass = True;
+-					memset(strchr_m(opteq+1,'%')+1,'X',strlen(password));
++					memset(strchr_m(opteq+1,'%')+1,'\0',strlen(password));
+ 				}
+ 				if ((lp=strchr_m(username,'/'))) {
+ 					*lp = 0;
+@@ -777,7 +777,7 @@
+ 				  !strcmp(opts, "password")) {
+ 				pstrcpy(password,opteq+1);
+ 				got_pass = True;
+-				memset(opteq+1,'X',strlen(password));
++				memset(opteq+1,'\0',strlen(password));
+ 			} else if(!strcmp(opts, "credentials")) {
+ 				pstrcpy(credentials,opteq+1);
+ 			} else if(!strcmp(opts, "netbiosname")) {
+@@ -893,7 +893,7 @@
+ 			*p = 0;
+ 			pstrcpy(password,p+1);
+ 			got_pass = True;
+-			memset(strchr_m(getenv("USER"),'%')+1,'X',strlen(password));
++			memset(strchr_m(getenv("USER"),'%')+1,'\0',strlen(password));
+ 		}
+ 		strupper_m(username);
+ 	}
+Index: samba-3.0.23c/source/web/diagnose.c
+===================================================================
+--- samba-3.0.23c.orig/source/web/diagnose.c	2006-09-02 10:08:46.136560187 +0200
++++ samba-3.0.23c/source/web/diagnose.c	2006-09-02 10:09:30.072915188 +0200
+@@ -62,6 +62,7 @@
+ {
+ 	static struct cli_state cli;
+ 
++	loopback_ip.s_addr = htonl((127 << 24) + 1);
+ 	if (!cli_initialise(&cli))
+ 		return False;
+ 
+Index: samba-3.0.23c/source/script/installbin.sh.in
+===================================================================
+--- samba-3.0.23c.orig/source/script/installbin.sh.in	2006-09-02 10:08:46.188560607 +0200
++++ samba-3.0.23c/source/script/installbin.sh.in	2006-09-02 10:09:30.072915188 +0200
+@@ -21,13 +21,15 @@
+  chmod $INSTALLPERMS $DESTDIR/$BINDIR/$p2
+ 
+  # this is a special case, mount needs this in a specific location
+- if [ $p2 = smbmount ]; then
+-   if [ ! -d $DESTDIR/@rootsbindir@ ]; then
+-      mkdir $DESTDIR/@rootsbindir@
+-   fi
+-   echo "Creating sym link $DESTDIR/@rootsbindir@/mount.smbfs to $BINDIR/$p2 "
+-   ln -sf $BINDIR/$p2 $DESTDIR/@rootsbindir@/mount.smbfs
+- fi
++ # Commented out for the Debian Samba package. We take care of this
++ # important symlink in debian/rules. (peloy@debian.org)
++ # if [ $p2 = smbmount ]; then
++ #  if [ ! -d $DESTDIR/@rootsbindir@ ]; then
++ #     mkdir $DESTDIR/@rootsbindir@
++ #  fi
++ #  echo "Creating sym link $DESTDIR/@rootsbindir@/mount.smbfs to $BINDIR/$p2 "
++ #  ln -sf $BINDIR/$p2 $DESTDIR/@rootsbindir@/mount.smbfs
++ # fi
+ done
+ 
+ 

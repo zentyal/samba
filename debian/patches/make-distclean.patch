@@ -1,0 +1,20 @@
+Index: samba-3.0.23c/source/Makefile.in
+===================================================================
+--- samba-3.0.23c.orig/source/Makefile.in	2006-09-02 10:09:15.160794719 +0200
++++ samba-3.0.23c/source/Makefile.in	2006-09-02 10:09:19.872832788 +0200
+@@ -1521,6 +1521,7 @@
+ 
+ python_clean:
+ 	@-if test -n "$(PYTHON)"; then $(PYTHON) python/setup.py clean; fi
++	@-rm -rf build/
+ 
+ # revert to the previously installed version
+ revert:
+@@ -1698,6 +1699,7 @@
+ 
+ distclean: realclean
+ 	-rm -f include/stamp-h
++	-rm -f smbadduser
+ 	-rm -f include/config.h Makefile
+ 	-rm -f config.status config.cache so_locations
+ 	-rm -rf .deps TAGS

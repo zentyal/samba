@@ -1,0 +1,8 @@
+#! /bin/sh
+
+set -e
+
+getent group winbindd_priv >/dev/null 2>&1 ||
+	addgroup --system --force-badname --quiet winbindd_priv
+
+#DEBHELPER#

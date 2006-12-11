@@ -1,0 +1,2 @@
+version=3
+http://www.samba.org/samba/ftp/stable/samba-(\d[\w.]+).tar.gz

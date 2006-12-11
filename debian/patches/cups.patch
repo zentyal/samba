@@ -1,0 +1,16 @@
+Index: samba-3.0.23c/source/include/includes.h
+===================================================================
+--- samba-3.0.23c.orig/source/include/includes.h	2006-09-02 10:08:49.224585143 +0200
++++ samba-3.0.23c/source/include/includes.h	2006-09-02 10:09:13.060777752 +0200
+@@ -1084,10 +1084,7 @@
+ #endif
+ 
+ #ifndef DEFAULT_PRINTING
+-#ifdef HAVE_CUPS
+-#define DEFAULT_PRINTING PRINT_CUPS
+-#define PRINTCAP_NAME "cups"
+-#elif defined(SYSV)
++#if defined(SYSV)
+ #define DEFAULT_PRINTING PRINT_SYSV
+ #define PRINTCAP_NAME "lpstat"
+ #else

@@ -1,0 +1,19 @@
+#!/bin/sh -e
+
+action="$1"
+oldversion="$2"
+
+# Set up swat, turned off by default.
+update-inetd --group OTHER --add \
+ 'swat\t\tstream\ttcp\tnowait.400\troot\t/usr/sbin/tcpd\t/usr/sbin/swat'
+
+# Fix symlinks
+for dir in manpages Samba3-ByExample Samba3-Developers-Guide Samba3-HOWTO; do
+	if [ ! -L /usr/share/samba/swat/help/$dir ] && \
+	   dpkg --compare-versions "$oldversion" lt-nl 3.0.20b-3; then
+		rm -rf /usr/share/samba/swat/help/$dir
+		ln -s ../../../doc/samba-doc/htmldocs/$dir /usr/share/samba/swat/help/$dir
+	fi
+done
+
+#DEBHELPER#

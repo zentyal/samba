@@ -1,3 +1,10 @@
+samba (3.0.23d-3) UNRELEASED; urgency=low
+
+  * Debconf translation updates:
+    - Malayalam added. Closes: #403107
+
+ -- Christian Perrier <bubulle@kheops.perrier.eu.org>  Fri, 15 Dec 2006 07:24:36 +0100
+
 samba (3.0.23d-2) unstable; urgency=low
 
   * Build-Conflicts: libfam-dev to avoid problems accessing shares

@@ -2,6 +2,7 @@ samba (3.0.23d-3) UNRELEASED; urgency=low
 
   * Debconf translation updates:
     - Malayalam added. Closes: #403107
+    - Tamil added. Closes: #403353
 
  -- Christian Perrier <bubulle@kheops.perrier.eu.org>  Fri, 15 Dec 2006 07:24:36 +0100
 

@@ -1,9 +1,9 @@
-samba (3.0.23d-4) UNRELEASED; urgency=low
+samba (3.0.23d-4) unstable; urgency=low
 
   * Debconf translation updates:
     - Slovenian added.
 
- -- Christian Perrier <bubulle@debian.org>  Wed,  3 Jan 2007 08:38:18 +0100
+ -- Christian Perrier <bubulle@debian.org>  Wed,  3 Jan 2007 08:43:50 +0100
 
 samba (3.0.23d-3) unstable; urgency=low
 

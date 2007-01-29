@@ -1,3 +1,10 @@
+samba (3.0.23d-5) UNRELEASED; urgency=low
+
+  * Correct paths for the documentation pointers in the default smb.conf
+    file. Thanks to Ted Percival for his care reporting this. Closes: #4008898
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 29 Jan 2007 08:31:39 +0100
+
 samba (3.0.23d-4) unstable; urgency=low
 
   * Debconf translation updates:

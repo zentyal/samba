@@ -7,7 +7,7 @@ samba (3.0.24-1) unstable; urgency=high
       NSS library on Solaris)
     - CVE-2007-0454 (Format string bug in afsacl.so VFS plugin)
   * Correct paths for the documentation pointers in the default smb.conf
-    file. Thanks to Ted Percival for his care reporting this. Closes: #4008898
+    file. Thanks to Ted Percival for his care reporting this. Closes: #408898
 
  -- Christian Perrier <bubulle@debian.org>  Mon,  5 Feb 2007 05:27:07 +0100
 

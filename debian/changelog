@@ -2,10 +2,12 @@ samba (3.0.24-1) unstable; urgency=high
 
   * New upstream release, security update
   * Fixes for the following security advisories:
-    - CVE-2007-0452 (Potential Denial of Service bug in smbd)
-    - CVE-2007-0453 (Buffer overrun in NSS host lookup Winbind
-      NSS library on Solaris)
-    - CVE-2007-0454 (Format string bug in afsacl.so VFS plugin)
+    - Directly affecting Debian:
+      - CVE-2007-0452 (Potential Denial of Service bug in smbd)
+    - Not affecting Debian:
+      - CVE-2007-0453 (Buffer overrun in NSS host lookup Winbind
+        NSS library on Solaris)
+      - CVE-2007-0454 (Format string bug in afsacl.so VFS plugin)
   * Correct paths for the documentation pointers in the default smb.conf
     file. Thanks to Ted Percival for his care reporting this. Closes: #408898
 

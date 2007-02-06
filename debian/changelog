@@ -1,3 +1,9 @@
+samba (3.0.24-2) unstable; urgency=low
+
+  * Re-upload with a proper .orig.tar.gz.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon,  5 Feb 2007 19:55:34 -0800
+
 samba (3.0.24-1) unstable; urgency=high
 
   * New upstream release, security update

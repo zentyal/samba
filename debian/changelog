@@ -2,6 +2,8 @@ samba (3.0.24-3) UNRELEASED; urgency=low
 
   * Merge some Ubuntu changes:
     - do not expose the Samba version anymore
+    - default workgroup set to WORKGROUP (default workgroup of
+      Windows workstations)
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 11 Feb 2007 10:52:51 +0100
 

@@ -1,10 +1,9 @@
 samba (3.0.14a-3sarge2) stable-security; urgency=high
 
-  * High-urgency upload for security fix.
-  * Added debian/patches/samba-3.0-CAN-2006-3403.patch: fix for
-    CAN-2006-3403, memory exhaustion DoS agaisnt smbd.  Closes: #378070.
+  * Non-maintainer upload by the Security Team:
+    Fix anonymous memory exhaustion DoS. [CVE-2006-3403]
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 13 Jul 2006 03:26:08 -0700
+ -- Moritz Muehlenhoff <jmm@debian.org>  Thu, 13 Jul 2006 20:44:12 +0200
 
 samba (3.0.14a-3sarge1) stable; urgency=low
 

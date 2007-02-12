@@ -51,18 +51,17 @@ conf_args = \
 		--with-shared-modules=idmap_rid,idmap_ad \
 		--with-automount \
 		--with-ldap \
-		--with-cifsmount \
 		--with-python=python
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
-		--with-smbmount \
+		--with-smbmount --with-cifsmount \
 		--with-acl-support \
 		--with-quotas
   mount_cifs	= yes
   smbfs		= yes
 else
-  conf_args +=	--without-quotas
+  conf_args +=	--without-quotas --without-smbmount --without-cifsmount
   mount_cifs	= no
   smbfs		= no
 endif
@@ -109,7 +108,11 @@ clean-patched:
 
 	dh_clean
 
-install: DH_OPTIONS=
+ifeq ($(smbfs),no)
+  DH_EXTRAS=-Nsmbfs
+endif
+
+install: DH_OPTIONS=$(DH_EXTRAS)
 install: build
 	dh_testdir
 	dh_testroot
@@ -185,9 +188,6 @@ binary-indep: build install
 
 # Build architecture-dependent files here.
 # Pass -a to all debhelper commands in this target to reduce clutter.
-ifeq ($(smbfs),no)
-  DH_EXTRAS=-Nsmbfs
-endif
 
 binary-arch: DH_OPTIONS=-a $(DH_EXTRAS)
 binary-arch: build install

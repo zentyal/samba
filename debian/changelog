@@ -1,11 +1,13 @@
-samba (3.0.24-3) UNRELEASED; urgency=low
+samba (3.0.24-3) UNRELEASED_experimental; urgency=low
 
   * Merge some Ubuntu changes:
     - do not expose the Samba version anymore
     - default workgroup set to WORKGROUP (default workgroup of
       Windows workstations)
+  * Fix FTBFS on GNU/kFreeBSD. Thanks to Petr Salinger for the patch
+    Closes: #394830
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 11 Feb 2007 10:52:51 +0100
+ -- Christian Perrier <bubulle@debian.org>  Mon, 12 Feb 2007 22:03:47 +0100
 
 samba (3.0.24-2) unstable; urgency=low
 

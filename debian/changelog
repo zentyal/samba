@@ -6,6 +6,9 @@ samba (3.0.24-3) UNRELEASED_experimental; urgency=low
       Windows workstations)
   * Fix FTBFS on GNU/kFreeBSD. Thanks to Petr Salinger for the patch
     Closes: #394830
+  * Add commented "winbind enum*" settings in smb.conf
+    This will point users to these important settings which changed
+    their default behaviour between sarge and etch. Closes: #368251
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 12 Feb 2007 22:03:47 +0100
 

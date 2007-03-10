@@ -1,5 +1,6 @@
-samba (3.0.24-3) UNRELEASED_experimental; urgency=low
+samba (3.0.24-3) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Merge some Ubuntu changes:
     - do not expose the Samba version anymore
     - default workgroup set to WORKGROUP (default workgroup of
@@ -10,7 +11,17 @@ samba (3.0.24-3) UNRELEASED_experimental; urgency=low
     This will point users to these important settings which changed
     their default behaviour between sarge and etch. Closes: #368251
 
- -- Christian Perrier <bubulle@debian.org>  Mon, 12 Feb 2007 22:03:47 +0100
+  [ Steve Langasek ]
+  * samba-common.dhcp: support creating /etc/samba/dhcp.conf the first
+    time the script is called if the dhcp client was already running at
+    the time of install, and manually reload samba to get the updated
+    config files read.  Thanks to Bas Zoetekouw for the patch.
+    Closes: #407408.
+  * While we're at it, use atomic replace for /etc/samba/dhcp.conf just 
+    in case someone else reloads samba while the script is running.  Low
+    impact, low-risk change.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 10 Mar 2007 03:22:13 -0800
 
 samba (3.0.24-2) unstable; urgency=low
 

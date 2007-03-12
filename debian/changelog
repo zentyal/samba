@@ -1,11 +1,15 @@
 samba (3.0.24-4) UNRELEASED; urgency=medium
 
+  [ Steve Langasek ]
   * Documentation fix for a problem affecting upgrades from sarge: if
     passdb backend is still a comma- or space-separated list after any
     attempts at automatic fix-ups, throw a debconf error notifying the
     user that they'll need to fix this manually.  Closes: #408981.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 02:25:29 -0700
+  [ Debconf translations ]
+  * French
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 12 Mar 2007 20:09:17 +0100
 
 samba (3.0.24-3) unstable; urgency=low
 

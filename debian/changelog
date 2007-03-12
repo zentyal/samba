@@ -1,4 +1,4 @@
-samba (3.0.24-3) UNRELEASED; urgency=low
+samba (3.0.24-3) unstable; urgency=low
 
   [ Christian Perrier ]
   * Merge some Ubuntu changes:
@@ -17,11 +17,11 @@ samba (3.0.24-3) UNRELEASED; urgency=low
     the time of install, and manually reload samba to get the updated
     config files read.  Thanks to Bas Zoetekouw for the patch.
     Closes: #407408.
-  * While we're at it, use atomic replace for /etc/samba/dhcp.conf just 
+  * While we're at it, use atomic replace for /etc/samba/dhcp.conf just
     in case someone else reloads samba while the script is running.  Low
     impact, low-risk change.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 10 Mar 2007 03:22:13 -0800
+ -- Steve Langasek <vorlon@debian.org>  Sun, 11 Mar 2007 23:34:10 -0700
 
 samba (3.0.24-2) unstable; urgency=low
 

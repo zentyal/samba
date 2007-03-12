@@ -1,17 +1,18 @@
-# translation of samba_3.0.23.c-1.po to Bulgarian
+# translation of bg.po to Bulgarian
 #
-# Damyan Ivanov <dam@modsoftsys.com>, 2006.
+# Damyan Ivanov <dam@modsoftsys.com>, 2006, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-11-09 13:38+0200\n"
+"PO-Revision-Date: 2007-03-12 22:58+0200\n"
 "Last-Translator: Damyan Ivanov <dam@modsoftsys.com>\n"
 "Language-Team: Bulgarian <dict@fsa-bg.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.11.4\n"
 
 #. Type: boolean
 #. Description
@@ -125,6 +126,7 @@ msgstr "Използването на шифрирани пароли е сил�
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
 msgstr ""
+"Новата версия на samba не поддържа работа с няколко бази данни с пароли"
 
 #. Type: note
 #. Description
@@ -135,6 +137,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
+"пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
+"„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
+"Новата версия на samba няма да работи докато не коригирате това."
 
 #. Type: boolean
 #. Description

@@ -15,6 +15,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Norwegian Bokmål; closes: #414619.
   * Bulgarian; closes: #414624.
   * Romanian; closes: #414629.
+  * Tagalog; closes: #414637.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
 

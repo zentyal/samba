@@ -8,7 +8,8 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
 
   [ Debconf translations ]
   * French
-  * Galician
+  * Galician; closes: #414605.
+  * Swedish; closes: #414610.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
 

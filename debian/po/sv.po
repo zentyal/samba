@@ -15,7 +15,7 @@ msgstr ""
 "Project-Id-Version: samba 3.0.20b-3\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-08 08:55+0100\n"
+"PO-Revision-Date: 2007-03-12 20:57+0100\n"
 "Last-Translator: Daniel Nylander <po@danielnylander.se>\n"
 "Language-Team: Swedish <tp-sv@listor.tp-sv.se>\n"
 "MIME-Version: 1.0\n"
@@ -132,7 +132,7 @@ msgid ""
 "valid /etc/samba/smbpasswd file and that you set passwords in there for each "
 "user using the smbpasswd command."
 msgstr ""
-"Det rekommenderas att du aktiverar detta alternativ. Om du gör det, "
+"Det rekommenderas varmt att du aktiverar detta alternativ. Om du gör det, "
 "kontrollera att du har en giltig /etc/samba/smbpasswd och att du har ställt "
 "in lösenorden där för varje användare med kommandot smbpasswd."
 
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Kedjekoppling av passdb-bakändar stöds inte"
 
 #. Type: note
 #. Description
@@ -151,6 +151,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Från och med version 3.0.23 kommer Samba inte längre att ha stöd för att "
+"kedjekoppla flera bakändar i parametern \"passdb backend\".  Det verkar som "
+"om din smb.conf-fil innehåller en sådan bakändesparameter som innehåller en "
+"lista över bakändar.  Den nya versionen av Samba kommer inte att fungera "
+"tills du har rättat till det här."
 
 #. Type: boolean
 #. Description

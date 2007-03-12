@@ -8,8 +8,9 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
 
   [ Debconf translations ]
   * French
+  * Galician
 
- -- Christian Perrier <bubulle@debian.org>  Mon, 12 Mar 2007 20:09:17 +0100
+ -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
 
 samba (3.0.24-3) unstable; urgency=low
 

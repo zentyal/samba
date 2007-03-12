@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-08-14 17:39+0200\n"
+"PO-Revision-Date: 2007-03-12 20:24+0100\n"
 "Last-Translator: Jacobo Tarrio <jtarrio@debian.org>\n"
 "Language-Team: Galician <trasno@ceu.fi.udc.es>\n"
 "MIME-Version: 1.0\n"
@@ -142,7 +142,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Non está soportado o encadeamento de motores de passdb"
 
 #. Type: note
 #. Description
@@ -153,6 +153,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"A partires da versión 3.0.23, samba xa non soporta o encadeamento de varios "
+"motores no parámetro \"passdb backend\". Semella que o seu ficheiro smb.conf "
+"contén un parámetro de motor de passdb que consiste nunha lista de motores. "
+"A nova versión de samba non ha funcionar ata que o corrixa."
 
 #. Type: boolean
 #. Description

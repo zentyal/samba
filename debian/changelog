@@ -12,6 +12,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Swedish; closes: #414610.
   * Brazilian Portuguese; closes: #414603.
   * German; closes: #414630.
+  * Norwegian Bokmål; closes: #414619.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
 

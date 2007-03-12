@@ -44,3 +44,12 @@ _Description: Use password encryption?
  Enabling this option is highly recommended. If you do, make sure you
  have a valid /etc/samba/smbpasswd file and that you set passwords in
  there for each user using the smbpasswd command.
+
+Template: samba-common/unsupported-passdb
+Type: note
+_Description: Chaining passdb backends is not supported
+ Beginning with version 3.0.23, samba no longer supports chaining
+ multiple backends in the "passdb backend" parameter.  It appears that
+ your smb.conf file contains a passdb backend parameter consisting of a
+ list of backends.  The new version of samba will not work until you
+ correct this.

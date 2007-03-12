@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-08-15 07:59-0500\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-03-12 03:35-0700\n"
 "PO-Revision-Date: 2006-10-03 13:38+0200\n"
 "Last-Translator: Mehmet Turker <mturker@innova.com.tr>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
@@ -132,6 +132,22 @@ msgstr ""
 "Bu iþlemi yapmanýz þiddetle önerilir. Eðer yapacaksanýz, geçerli bir /etc/"
 "samba/smbpasswd dosyanýz olduðundan emin olun ve smbpasswd komutunu "
 "kullanarak bütün kullanýcýlar için parola belirleyin."
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid "Chaining passdb backends is not supported"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
 
 #. Type: boolean
 #. Description

@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-08-15 07:59-0500\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-03-12 03:35-0700\n"
 "PO-Revision-Date: 2006-09-27 13:47+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
@@ -138,6 +138,22 @@ msgstr ""
 "Aukera hau erabiltzea oso gomendagarri da. Erabiltzea hautatu ezkero "
 "ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula eta pasahitzak "
 "smbpasswd programaren bidez ezarri dituzula."
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid "Chaining passdb backends is not supported"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
 
 #. Type: boolean
 #. Description

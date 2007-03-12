@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-08-15 07:59-0500\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-03-12 03:35-0700\n"
 "PO-Revision-Date: 2006-08-14 15:36+0530\n"
 "Last-Translator: Jurmey Rabgay <jur_gay@yahoo.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -140,6 +140,22 @@ msgstr ""
 "གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་ལུ་"
 "ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
 "ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid "Chaining passdb backends is not supported"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
 
 #. Type: boolean
 #. Description

@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 3.0.22-1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-08-15 07:59-0500\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-03-12 03:35-0700\n"
 "PO-Revision-Date: 2006-10-03 19:36-0500\n"
 "Last-Translator: Carlos Z.F. Liu <carlosliu@users.sourceforge.ent>\n"
 "Language-Team: Debian Chinese [GB] <debian-chinese-gb@lists.debian.org>\n"
@@ -131,6 +131,22 @@ msgid ""
 msgstr ""
 "强烈推荐开启此选项。如果选中，请确保您拥有一个有效的 /etc/samba/smbpasswd 文"
 "件，并且此文件包含用 smbpasswd 命令为每个用户设定的密码。"
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid "Chaining passdb backends is not supported"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
 
 #. Type: boolean
 #. Description

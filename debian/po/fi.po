@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba fi\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-08-15 07:59-0500\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-03-12 03:35-0700\n"
 "PO-Revision-Date: 2006-09-29 16:31+0300\n"
 "Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
 "Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
@@ -125,6 +125,22 @@ msgstr ""
 "T‰m‰n valitsimen pit‰mist‰ p‰‰ll‰ suositellaan suuresti. Jos se on p‰‰ll‰, "
 "on varmistuttava tiedoston /etc/samba/smbpasswd kelvollisuudesta ja ett‰ "
 "siell‰ on jokaiselle k‰ytt‰j‰lle tehty salasana komennolla smbpasswd."
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid "Chaining passdb backends is not supported"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../samba-common.templates:5001
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
 
 #. Type: boolean
 #. Description

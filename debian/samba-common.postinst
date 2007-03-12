@@ -95,6 +95,14 @@ if [ "${RET}" = "true" ]; then
 	fi
 fi
 
+if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 &&
+   grep -qi '^[[:space:]]*passdb backend[[:space:]]*=[^,]*\,\?[[:space:]]*[^[:space:]]\+' \
+	/etc/samba/smb.conf
+then
+	db_input high samba-common/unsupported-passdb || true
+	db_go
+fi
+
 chmod a+r /etc/samba/smb.conf
 
 # ------------------------- Debconf questions end ---------------------

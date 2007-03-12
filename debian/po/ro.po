@@ -1,4 +1,4 @@
-# translation of samba_po_ro.po to Română
+# translation of ro.po to Romanian
 #
 #    Translators, if you are not familiar with the PO format, gettext
 #    documentation is worth reading, especially sections dedicated to
@@ -11,20 +11,21 @@
 #    Developers do not need to manually edit POT or PO files.
 #
 # Eddy Petrişor <eddy.petrisor@gmail.com>, 2006.
+# Eddy Petrișor <eddy.petrisor@gmail.com>, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_ro\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-16 14:25+0300\n"
-"Last-Translator: Eddy Petrişor <eddy.petrisor@gmail.com>\n"
+"PO-Revision-Date: 2007-03-12 23:25+0200\n"
+"Last-Translator: Eddy Petrișor <eddy.petrisor@gmail.com>\n"
 "Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: nplurals=3;plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?"
-"2:1))\n"
+"Plural-Forms: nplurals=3;plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
+"20)) ? 1 : 2;\n"
 
 #. Type: boolean
 #. Description
@@ -147,7 +148,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Înlănţuirea suporturilor pentru passdb nu este posibilă"
 
 #. Type: note
 #. Description
@@ -158,6 +159,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Începând cu versiunea 3.0.23, în samba nu mai este posibilă înlănţuirea "
+"suporturilor în parametrul „passdb backend”. Se pare că fişierul smb.conf "
+"conţine un asemenea parametru care consistă într-o listă de suporturi. Noua "
+"versiune de samba nu va funcţiona până când nu veţi fi corectat această "
+"problemă."
 
 #. Type: boolean
 #. Description

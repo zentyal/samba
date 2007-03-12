@@ -13,10 +13,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_3.0.23b-2\n"
+"Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-03 09:02+0200\n"
+"PO-Revision-Date: 2007-03-12 22:27+0100\n"
 "Last-Translator: Holger Wansing <linux@wansing-online.de>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -145,7 +145,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Auflistung mehrerer passdb-Backends wird nicht unterstützt."
 
 #. Type: note
 #. Description
@@ -156,6 +156,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Seit Version 3.0.23 wird die Angabe von mehreren Backends im "
+"»passdb backend«-Parameter von Samba nicht mehr unterstützt. Es scheint so, "
+"als ob Ihre smb.conf-Datei einen »passdb backend«-Parameter mit einer "
+"Auflistung mehrerer Backends enthält. Die neue Samba-Version wird nicht "
+"funktionieren, bevor dies behoben wurde."
 
 #. Type: boolean
 #. Description
@@ -174,7 +179,7 @@ msgid ""
 "and be kept up-to-date in the future."
 msgstr ""
 "Um mit den Standards in den meisten Windows-Versionen kompatibel zu sein, "
-"muss Samba konfiguriert sein, verschlüsselte Passwörter zu benutzen. Dies "
+"muss Samba konfiguriert werden, verschlüsselte Passwörter zu benutzen. Dies "
 "erfordert es, Benutzerpasswörter in einer anderen Datei als in /etc/passwd "
 "abzulegen. Diese Datei kann automatisch erstellt werden, aber die Passwörter "
 "müssen über den Befehl smbpasswd manuell eingefügt werden und in der Zukunft "

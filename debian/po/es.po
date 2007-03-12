@@ -1,5 +1,5 @@
 # samba translation to spanish
-# Copyright (C) 2003-2006 Steve Langasek <vorlon@debian.org>
+# Copyright (C) 2003-2007 Steve Langasek <vorlon@debian.org>
 # Copyright (C) 2006 Software in the Public Interest, SPI Inc.
 # This file is distributed under the same license as the samba package.
 #
@@ -9,6 +9,9 @@
 #
 #  - Revision and update
 #        Javier Fernandez-Sanguino, 2006
+#
+#  - Translation of new templates
+#        Steve Langasek, 2007
 #
 #   Traductores, si no conoce el formato PO, merece la pena leer la 
 #   documentación de gettext, especialmente las secciones dedicadas a este
@@ -163,7 +166,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "El encadenamiento de motores «passdb» ya no está soportado"
 
 #. Type: note
 #. Description
@@ -174,6 +177,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"A partir de la versión 3.0.23 de samba, ya no se soporta el encadenamiento "
+"de más de un motor en el parámetro «passdb backend».  Parece que en su "
+"smb.conf tiene un parámetro «passdb backend» que consta de una lista de "
+"motores.  La nueva versión de samba no funcionará hasta que lo corrija."
 
 #. Type: boolean
 #. Description

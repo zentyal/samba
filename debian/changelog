@@ -8,6 +8,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
 
   [ Debconf translations ]
   * French
+  * Spanish
   * Galician; closes: #414605.
   * Swedish; closes: #414610.
   * Brazilian Portuguese; closes: #414603.

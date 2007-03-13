@@ -16,12 +16,13 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-06 19:21+0100\n"
-"Last-Translator: Bart Cornelis <cobaco@linux.be>\n"
-"Language-Team: dutch <debian-l10n-dutch@lists.debian.org>\n"
+"PO-Revision-Date: 2007-03-12 21:30+0100\n"
+"Last-Translator: Bart Cornelis <cobaco@skolelinux.no>\n"
+"Language-Team: debian-l10n-dutch <debian-l10n-dutch@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=iso-8859-1\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Dutch\n"
 
 #. Type: boolean
 #. Description
@@ -40,7 +41,7 @@ msgid ""
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
 "Indien uw computer zijn ip-adresinformatie van een DHCP-server op het "
-"netwerk haalt, voorziet deze mogelijks ook informatie betreffende de op het "
+"netwerk haalt, voorziet deze mogelijk ook informatie betreffende de op het "
 "netwerk aanwezige WINS-servers (\"NetBIOS naamservers\").\" Dit vereist een "
 "verandering aan uw smb.conf bestand, opdat de door DHCP doorgegeven WINS "
 "instellingen automatisch gelezen worden van /etc/samba/dhcp.conf."
@@ -51,7 +52,7 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
-"Het pakket dhcp3-client dient geïnstalleerd te zijn om van deze optie "
+"Het pakket dhcp3-client dient geÃ¯nstalleerd te zijn om van deze optie "
 "gebruik te kunnen maken."
 
 #. Type: boolean
@@ -143,7 +144,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Aaneenschakelen van passdb-backends wordt niet ondersteund"
 
 #. Type: note
 #. Description
@@ -154,6 +155,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Startend vanaf versie 3.0.23 ondersteund samba niet langer het "
+"aaneenschakelen van meerdere backends voor de 'passdb backend'-parameter. "
+"Het lijkt erop dat uw 'smb.conf'-bestand een 'passdb backend'-parameter "
+"bevat die bestaat uit een lijst van backends. De nieuwe samba-versie zal pas "
+"juist werken eens u dit gecorrigeerd heeft."
 
 #. Type: boolean
 #. Description
@@ -240,8 +246,8 @@ msgid ""
 "Samba 3.0 introduced a more complete SAM database interface which supersedes "
 "the /etc/samba/smbpasswd file."
 msgstr ""
-"Samba 3.0 introduceerde een meer complete SAM-databaseinterface die het /etc/"
-"samba/smbpasswd bestand vervangt."
+"Samba 3.0 introduceerde een meer complete SAM-database-interface die het /"
+"etc/samba/smbpasswd bestand vervangt."
 
 #. Type: boolean
 #. Description

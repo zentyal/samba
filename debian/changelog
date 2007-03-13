@@ -32,8 +32,9 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Turkish
   * Italian; closes: #414708
   * Finnish; closes: #414736
+  * Dutch; closes: #414741
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 20:05:07 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 20:06:01 +0100
 
 samba (3.0.24-3) unstable; urgency=low
 

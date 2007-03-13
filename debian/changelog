@@ -26,6 +26,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Hungarian; closes: #414677.
   * Dzongkha; closes: #414680.
   * Estonian; closes: #414679.
+  * Catalan
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 08:30:43 +0100
 

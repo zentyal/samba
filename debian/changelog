@@ -23,6 +23,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Slovenian
   * Simplified Chinese; closes: #414671.
   * Japanese; closes: #414673.
+  * Hungarian; closes: #414677.
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 08:30:43 +0100
 

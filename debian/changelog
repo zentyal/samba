@@ -1,4 +1,4 @@
-samba (3.0.24-4) UNRELEASED; urgency=medium
+samba (3.0.24-4) unstable; urgency=medium
 
   [ Steve Langasek ]
   * Documentation fix for a problem affecting upgrades from sarge: if
@@ -36,7 +36,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Albanian; closes: #414778.
   * Czech; closes: #414793.
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 20:06:01 +0100
+ -- Steve Langasek <vorlon@debian.org>  Tue, 13 Mar 2007 16:29:21 -0700
 
 samba (3.0.24-3) unstable; urgency=low
 

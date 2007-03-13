@@ -136,7 +136,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "不支持串联 passdb 后端"
 
 #. Type: note
 #. Description
@@ -147,6 +147,9 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"从版本 3.0.23 开始，samba 的 \"passdb backend\" 参数不再支持多个后端的串联。"
+"而在你的 smb.conf 文件中的 passdb backend 参数包含了一个后端列表。如果不修改"
+"这个问题的话，新版本的 samba 将不能工作。"
 
 #. Type: boolean
 #. Description

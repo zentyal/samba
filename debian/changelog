@@ -21,6 +21,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Thai; closes: #414664.
   * Slovak; closes: #414665.
   * Slovenian
+  * Simplified Chinese; closes: #414671.
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 08:30:43 +0100
 

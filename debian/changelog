@@ -29,8 +29,9 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Catalan
   * Malayalam; closes: #414728
   * Traditional Chinese; closes: #414730
+  * Turkish
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 19:25:28 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 19:26:36 +0100
 
 samba (3.0.24-3) unstable; urgency=low
 

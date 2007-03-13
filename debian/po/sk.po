@@ -19,7 +19,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-10 18:33+0200\n"
+"PO-Revision-Date: 2007-03-13 07:17+0100\n"
 "Last-Translator: Peter Mann <Peter.Mann@tuke.sk>\n"
 "Language-Team: Slovak <sk-i18n@lists.linux.sk>\n"
 "MIME-Version: 1.0\n"
@@ -142,7 +142,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Zreťazenie rôznych formátov passdb nie je podporované"
 
 #. Type: note
 #. Description
@@ -153,6 +153,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Samba už od verzie 3.0.23 nepodporuje zreťazenie viacerých formátov pri "
+"nastavení parametra \"passdb backend\". Vyzerá to tak, že váš súbor smb.conf "
+"obsahuje parameter passdb backend pozostávajúci zo zoznamu formátov. "
+"Táto nová verzia samby nebude funkčná, kým to neopravíte."
 
 #. Type: boolean
 #. Description

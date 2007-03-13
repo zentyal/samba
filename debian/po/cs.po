@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-08-30 22:10+0200\n"
+"PO-Revision-Date: 2007-03-13 22:31+0100\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Řetězení backendů passdb není podporováno"
 
 #. Type: note
 #. Description
@@ -151,6 +151,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Počínaje verzi 3.0.23 již Samba v parametru \"passdb backend\" nepodporuje "
+"řetězení několika backendů. Zdá se, že váš soubor smb.conf obsahuje v "
+"parametru passdb backend několik backendů. Dokud to neopravíte, nová verze "
+"Samby nebude fungovat."
 
 #. Type: boolean
 #. Description

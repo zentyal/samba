@@ -8,14 +8,14 @@
 # or http://www.debian.org/intl/l10n/po-debconf/README-trans
 # Developers do not need to manually edit POT or PO files.
 # , fuzzy
-# 
-# 
+#
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-17 20:15+0200\n"
+"PO-Revision-Date: 2007-03-13 21:25+0100\n"
 "Last-Translator: Elian Myftiu <elian.myftiu@gmail.com>\n"
 "Language-Team: Debian L10n Albanian <debian-l10n-albanian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Vargëzimi i passdb nuk suportohet"
 
 #. Type: note
 #. Description
@@ -151,6 +151,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Duke filluar nga versioni 3.0.23, samba nuk do ta suportojë më vargëzimin në "
+"parametrin \"passdb backend\". Ngjan që kartela jote smb.conf përmban një "
+"parametër passdb që përmban një listë me backend-a. Versioni i ri i samba-s "
+"nuk do të punojë deri kur ta korrigjoni këtë."
 
 #. Type: boolean
 #. Description

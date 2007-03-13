@@ -147,8 +147,8 @@ msgid ""
 "The new version of samba will not work until you correct this."
 msgstr ""
 "Des de la versió 3.0.23, Samba ja no permet l'encadenament de més d'un "
-"passdb al paràmetre \"passdb backend\". Sembla que el vostre smb.conf conté "
-"un paràmetre \"passdb backend\" que consta d'una llista de rerefons. La nova "
+"passdb al paràmetre «passdb backend». Sembla que el vostre smb.conf conté "
+"un paràmetre «passdb backend» que consta d'una llista de rerefons. La nova "
 "versió de Samba no funcionarà fins que ho corregiu."
 
 #. Type: boolean

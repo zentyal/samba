@@ -1,4 +1,4 @@
-# translation of samba_po_km.po to Khmer
+# translation of km.po to Khmer
 #
 #    Translators, if you are not familiar with the PO format, gettext
 #    documentation is worth reading, especially sections dedicated to
@@ -12,19 +12,19 @@
 #
 #    Developers do not need to manually edit POT or PO files.
 #
-# Khoem Sokhem <khoemsokhem@khmeros.info>, 2006.
+# Khoem Sokhem <khoemsokhem@khmeros.info>, 2006, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-08-15 09:31+0700\n"
+"PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.2\n"
+"X-Generator: KBabel 1.11.4\n"
 
 #  Type: boolean
 #  Description
@@ -161,7 +161,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "មិនគាំទ្រ​ការ​ដាក់​កម្មវិធី​ខាង​ក្រោយ passdb ជា​លំដាប់"
 
 #. Type: note
 #. Description
@@ -172,6 +172,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"ដោយ​ចាប់ផ្ដើម​ជា​មួយកំណែ ៣.០.២៣ samba មិន​គាំទ្រ​កម្មវិធី​ខាង​ក្រោយ​ជា​ច្រើន​ដាក់​ជា​លំដាប់នៅ​ក្នុង​"
+"ប៉ារ៉ាម៉ែត្រ \"កម្មវិធី​ខាង​ក្រោយ passdb\" ។  វា​បង្ហាញ​ថា ឯកសារ smb.conf របស់​អ្នក​"
+"មានប៉ារ៉ាម៉ែត្រ​កម្មវិធី​ខាង​ក្រោយ passdb ដែល​មាន​បញ្ជី​របស់​កម្មវិធី​ខាង​ក្រោយ ។  កំណែ​ថ្មី​របស់ samba នឹង​"
+"មិន​ដំណើរការ​ទេ​រហូត​ដល់​អ្នក​កែវា ។"
 
 #  Type: boolean
 #  Description
@@ -284,8 +288,3 @@ msgstr ""
 "សូម​អះអាង​ថាតើ​អ្នកចង់​ឲ្យ​ឯកសារ​ពាក្យ​សម្ងាត់​ដែល​មាន​ស្រាប់ត្រូវ​បាន​ប្ដូរដោយ​ស្វ័យ​ប្រវត្តិ​ទៅ​ទៅ​ /var/lib/"
 "samba/passdb.tdb ។  កុំជ្រើស​ជម្រើស​នេះ ប្រសិន​បើ​អ្នក​មាន​គម្រោង​ប្រើ​កម្មវិធី​ខាង​ក្រោយ pdb ដទៃ​"
 "ទៀត (ឧទាហរណ៍ LDAP) ជំនួស​វិញ ។"
-
-#  Type: select
-#  Choices
-#~ msgid "daemons, inetd"
-#~ msgstr "ដេមិន , inetd"

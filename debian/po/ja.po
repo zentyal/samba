@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-08 19:25+0900\n"
+"PO-Revision-Date: 2007-03-13 16:39+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "passdb バックエンドのチェーン化はサポートされません"
 
 #. Type: note
 #. Description
@@ -151,6 +151,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"バージョン 3.0.23 から、samba は \"passdb backend\" パラメータでの複数のバッ"
+"クエンドのチェーン化をサポートしません。あなたの smb.conf ファイルは、バック"
+"エンドのリストを構成する passdb バックエンドパラメータを含んでいます。samba "
+"の新しいバージョンはあなたがこれを訂正するまで動作しません。"
 
 #. Type: boolean
 #. Description
@@ -249,6 +253,3 @@ msgstr ""
 "既存の smbpasswd ファイルを自動的に /var/lib/samba/passdb.tdb に移行してよい"
 "かどうか確認してください。別の pdb バックエンド (LDAP など) を代わりに計画し"
 "ているのであれば、ここでは「いいえ」と答えてください。"
-
-#~ msgid "daemons, inetd"
-#~ msgstr "デーモン, inetd"

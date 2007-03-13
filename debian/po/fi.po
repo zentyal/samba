@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: Samba fi\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-29 16:31+0300\n"
+"PO-Revision-Date: 2007-03-13 18:35+0200\n"
 "Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
 "Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -74,9 +74,7 @@ msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
-msgstr ""
-"Jos et valitse t‰t‰ toimintoa, on kaikki asetusten muutokset teht‰v‰ itse, "
-"etk‰ p‰‰se hyˆtym‰‰n jaksottaisista asetusten parannuksista."
+msgstr "Jos et valitse t‰t‰ toimintoa, on kaikki asetusten muutokset teht‰v‰ itse, etk‰ p‰‰se hyˆtym‰‰n julkaistavista asetusten parannuksista."
 
 #. Type: string
 #. Description
@@ -130,7 +128,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "passdb:n taustaosien ketjuttamista ei tueta"
 
 #. Type: note
 #. Description
@@ -140,7 +138,7 @@ msgid ""
 "backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
-msgstr ""
+msgstr "Versiosta 3.0.23 alkaen samba ei en‰‰ tue useiden taustaosien ketjuttamista \"passdb backend\" -parametrissa. T‰m‰n koneen smb.conf-tiedostossa vaikuttaa olevan bassdb backend -parametri jossa on luettelo taustaosista. Samban uusi versio ei toimi ennen kuin t‰m‰ korjataan."
 
 #. Type: boolean
 #. Description

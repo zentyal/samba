@@ -17,11 +17,12 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Bulgarian; closes: #414624.
   * Romanian; closes: #414629.
   * Tagalog; closes: #414637.
-  * Khmer
+  * Khmer; closes: #381833.
   * Thai; closes: #414664.
   * Slovak; closes: #414665.
+  * Slovenian
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
+ -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 08:30:43 +0100
 
 samba (3.0.24-3) unstable; urgency=low
 

@@ -27,8 +27,9 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Dzongkha; closes: #414680.
   * Estonian; closes: #414679.
   * Catalan
+  * Malayalam; closes: #414728
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 08:30:43 +0100
+ -- Christian Perrier <bubulle@debian.org>  Tue, 13 Mar 2007 19:24:23 +0100
 
 samba (3.0.24-3) unstable; urgency=low
 

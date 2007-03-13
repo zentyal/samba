@@ -18,19 +18,34 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "WINS ayarlarýný DHCP'den kullanmak için smb.conf dosyasýnda deðiþiklik yapýlsýn mý?"
+msgstr ""
+"WINS ayarlarýný DHCP'den kullanmak için smb.conf dosyasýnda deðiþiklik "
+"yapýlsýn mý?"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "If your computer gets IP address information from a DHCP server on the network, the DHCP server may also provide information about WINS servers (\"NetBIOS name servers\") present on the network.  This requires a change to your smb.conf file so that DHCP-provided WINS settings will automatically be read from /etc/samba/dhcp.conf."
-msgstr "Eðer bilgisayarýnýz IP adresini aðýnýzdaki bir DHCP sunucusundan alýyorsa, DHCP sunucusu ayrýca aðýnýzda bulunan WINS sunucularý (\"NetBIOS alanadý sunucularý\") hakkýnda da bilgi verebilir.  Bu, smb.conf dosyanýzda DHCP tarafýndan sunulan WINS ayarlarýnýn otomatik olarak /etc/samba/dhcp.conf dosyasýndan okunmasýný saðlayan bir deðiþikliði gerektirir."
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Eðer bilgisayarýnýz IP adresini aðýnýzdaki bir DHCP sunucusundan alýyorsa, "
+"DHCP sunucusu ayrýca aðýnýzda bulunan WINS sunucularý (\"NetBIOS alanadý "
+"sunucularý\") hakkýnda da bilgi verebilir.  Bu, smb.conf dosyanýzda DHCP "
+"tarafýndan sunulan WINS ayarlarýnýn otomatik olarak /etc/samba/dhcp.conf "
+"dosyasýndan okunmasýný saðlayan bir deðiþikliði gerektirir."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Bu özellikten yararlanabilmek için dhcp3-client paketinin kurulmuþ olmasý gerekir."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Bu özellikten yararlanabilmek için dhcp3-client paketinin kurulmuþ olmasý "
+"gerekir."
 
 #. Type: boolean
 #. Description
@@ -41,14 +56,33 @@ msgstr "smb.conf dosyasý otomatik olarak yapýlandýrýlsýn mý?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-msgid "The rest of the configuration of Samba deals with questions that affect parameters in /etc/samba/smb.conf, which is the file used to configure the Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' line or an option that spans multiple lines, which could confuse the automated configuration process and require you to edit your smb.conf by hand to get it working again."
-msgstr "Geri kalan Samba yapýlandýrmasý, Samba uygulamalarýný (nmbd ve smbd) yapýlandýrmak için kullanýlan /etc/samba/smb.conf dosyasýndaki parametreleri etkileyen sorularla devam edecektir. Mevcut smb.conf dosyasý, debconf'u þaþýrtabilecek ve smb.conf dosyanýzý elle deðiþtirilmesi zorunda kýlacak bir 'include' satýrý veya birden fazla satýr boyunca devam eden bir seçenek içeriyor ve tekrar çalýþabilmesi için smb.conf dosyanýzýn sizin tarafýnýzdan deðiþtirilmesi gerekiyor."
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Geri kalan Samba yapýlandýrmasý, Samba uygulamalarýný (nmbd ve smbd) "
+"yapýlandýrmak için kullanýlan /etc/samba/smb.conf dosyasýndaki parametreleri "
+"etkileyen sorularla devam edecektir. Mevcut smb.conf dosyasý, debconf'u "
+"þaþýrtabilecek ve smb.conf dosyanýzý elle deðiþtirilmesi zorunda kýlacak bir "
+"'include' satýrý veya birden fazla satýr boyunca devam eden bir seçenek "
+"içeriyor ve tekrar çalýþabilmesi için smb.conf dosyanýzýn sizin tarafýnýzdan "
+"deðiþtirilmesi gerekiyor."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-msgid "If you do not choose this option, you will have to handle any configuration changes yourself, and will not be able to take advantage of periodic configuration enhancements."
-msgstr "Eðer bu seçeneði seçmezseniz, bütün yapýlandýrma deðiþikliklerini kendiniz yapmak zorunda kalacaksýnýz ve periyodik yapýlandýrma iyileþtirmelerinin avantajlarýný kullanamayacaksýnýz."
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Eðer bu seçeneði seçmezseniz, bütün yapýlandýrma deðiþikliklerini kendiniz "
+"yapmak zorunda kalacaksýnýz ve periyodik yapýlandýrma iyileþtirmelerinin "
+"avantajlarýný kullanamayacaksýnýz."
 
 #. Type: string
 #. Description
@@ -59,8 +93,15 @@ msgstr "Çalýþma Grubu/Etki Alaný Ýsmi:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-msgid "Please specify the workgroup you want this server to appear to be in when queried by clients. Note that this parameter also controls the domain name used with the security=domain setting."
-msgstr "Lütfen sunucunuzun istemciler tarafýndan sorgulandýðýnda içerisinde gözükmesini istediðiniz Çalýþma Grubu'nu belirtiniz. Aklýnýzda bulunsun, bu parametre ayrýca security=domain ayarý ile beraber kullanýlacak Etki Alanýný da kontrol eder."
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Lütfen sunucunuzun istemciler tarafýndan sorgulandýðýnda içerisinde "
+"gözükmesini istediðiniz Çalýþma Grubu'nu belirtiniz. Aklýnýzda bulunsun, bu "
+"parametre ayrýca security=domain ayarý ile beraber kullanýlacak Etki Alanýný "
+"da kontrol eder."
 
 #. Type: boolean
 #. Description
@@ -71,26 +112,48 @@ msgstr "Parola þifrelenmesi kullanýlsýn mý?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-msgid "All recent Windows clients communicate with SMB servers using encrypted passwords. If you want to use clear text passwords you will need to change a parameter in your Windows registry."
-msgstr "Yeni Windows istemcileri SBM sunucularýyla þifrelenmiþ parolalar kullanarak iletiþim kurarlar. Eðer düz metin parolalarý kullanmak istiyorsanýz Windows registry içinde bir parametreyi deðiþtirmelisiniz."
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Yeni Windows istemcileri SBM sunucularýyla þifrelenmiþ parolalar kullanarak "
+"iletiþim kurarlar. Eðer düz metin parolalarý kullanmak istiyorsanýz Windows "
+"registry içinde bir parametreyi deðiþtirmelisiniz."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-msgid "Enabling this option is highly recommended. If you do, make sure you have a valid /etc/samba/smbpasswd file and that you set passwords in there for each user using the smbpasswd command."
-msgstr "Bu iþlemi yapmanýz þiddetle önerilir. Eðer yapacaksanýz, geçerli bir /etc/samba/smbpasswd dosyanýz olduðundan emin olun ve smbpasswd komutunu kullanarak bütün kullanýcýlar için parola belirleyin."
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Bu iþlemi yapmanýz þiddetle önerilir. Eðer yapacaksanýz, geçerli bir /etc/"
+"samba/smbpasswd dosyanýz olduðundan emin olun ve smbpasswd komutunu "
+"kullanarak bütün kullanýcýlar için parola belirleyin."
 
 #. Type: note
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr "Parola veritabaný için çoklu arkayüz kullanýlabilmesi özelliði  desteklenmiyor"
+msgstr ""
+"Parola veritabaný için çoklu arkayüz kullanýlabilmesi özelliði  "
+"desteklenmiyor"
 
 #. Type: note
 #. Description
 #: ../samba-common.templates:5001
-msgid "Beginning with version 3.0.23, samba no longer supports chaining multiple backends in the \"passdb backend\" parameter.  It appears that your smb.conf file contains a passdb backend parameter consisting of a list of backends.  The new version of samba will not work until you correct this."
-msgstr "Versiyon 3.0.23 ile beraber, samba artýk \"passdb backend\" parametresindeki çoklu arkayüz kullanýlabilmesi özelliðini  desteklemiyor. Öyle gözüküyorki, smb.conf dosyanýzdaki parola veritabaný arkayüz parametresi bir liste içeriyor. Bunu düzeltene kadar yeni samba versiyonu çalýþmayacaktýr."
+msgid ""
+"Beginning with version 3.0.23, samba no longer supports chaining multiple "
+"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
+"file contains a passdb backend parameter consisting of a list of backends.  "
+"The new version of samba will not work until you correct this."
+msgstr ""
+"Versiyon 3.0.23 ile beraber, samba artýk \"passdb backend\" parametresindeki "
+"çoklu arkayüz kullanýlabilmesi özelliðini  desteklemiyor. Öyle gözüküyorki, "
+"smb.conf dosyanýzdaki parola veritabaný arkayüz parametresi bir liste "
+"içeriyor. Bunu düzeltene kadar yeni samba versiyonu çalýþmayacaktýr."
 
 #. Type: boolean
 #. Description
@@ -101,20 +164,40 @@ msgstr "Samba parola veritabaný /var/lib/samba/passwd.tdb yaratýlsýn mý?"
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "To be compatible with the defaults in most versions of Windows, Samba must be configured to use encrypted passwords.  This requires user passwords to be stored in a file separate from /etc/passwd.  This file can be created automatically, but the passwords must be added manually by running smbpasswd and be kept up-to-date in the future."
-msgstr "Windows'un çoðu versiyonunda öntanýmlý olarak kullanýlan deðerler ile uyumlu olabilmesi için Samba'nýn þifrelenmiþ parolalarý kullanacak þekilde ayarlanmasý gerekir. Bu yöntem kullanýcý parolalarýnýn /etc/passwd dosyasý dýþýnda saklanmasýný gerektirir. Bu dosya otomatik olarak yaratýlabilir, fakat parolalarýn smbpasswd komutu çalýþtýrýlarak eklenmesi ve ilerleyen zamanlarda güncel tutulmasý gerekir."
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Windows'un çoðu versiyonunda öntanýmlý olarak kullanýlan deðerler ile uyumlu "
+"olabilmesi için Samba'nýn þifrelenmiþ parolalarý kullanacak þekilde "
+"ayarlanmasý gerekir. Bu yöntem kullanýcý parolalarýnýn /etc/passwd dosyasý "
+"dýþýnda saklanmasýný gerektirir. Bu dosya otomatik olarak yaratýlabilir, "
+"fakat parolalarýn smbpasswd komutu çalýþtýrýlarak eklenmesi ve ilerleyen "
+"zamanlarda güncel tutulmasý gerekir."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "If you do not create it, you will have to reconfigure Samba (and probably your client machines) to use plaintext passwords."
-msgstr "Eðer yaratmazsanýz, daha sonra Sambayý (ve büyük ihtimalle istemci makineleri de) düz metin parolalarýný kullanmasý için tekrar yapýlandýrmanýz gerekir."
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Eðer yaratmazsanýz, daha sonra Sambayý (ve büyük ihtimalle istemci "
+"makineleri de) düz metin parolalarýný kullanmasý için tekrar yapýlandýrmanýz "
+"gerekir."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
-msgid "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc package for more details."
-msgstr "Daha detaylýý bilgi için samba-doc paketinden /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html dosyasýna gözatýn."
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Daha detaylýý bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
+"htmldocs/ENCRYPTION.html dosyasýna gözatýn."
 
 #. Type: select
 #. Choices
@@ -137,8 +220,12 @@ msgstr "Samba'nýn nasýl çalýþmasýný istersiniz?"
 #. Type: select
 #. Description
 #: ../samba.templates:2002
-msgid "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a daemon is the recommended approach."
-msgstr "Samba artalan süreci smbd, normal bir artalan süreci olarak veya inetd'den çalýþabilir. Tavsiye edilen yaklaþým artalan süreci olarak çalýþtýrmaktýr."
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba artalan süreci smbd, normal bir artalan süreci olarak veya inetd'den "
+"çalýþabilir. Tavsiye edilen yaklaþým artalan süreci olarak çalýþtýrmaktýr."
 
 #. Type: boolean
 #. Description
@@ -149,15 +236,25 @@ msgstr "/etc/samba/smbpasswd /var/lib/samba/passwd.tdb'ye taþýnsýn mý?"
 #. Type: boolean
 #. Description
 #: ../samba.templates:3001
-msgid "Samba 3.0 introduced a more complete SAM database interface which supersedes the /etc/samba/smbpasswd file."
-msgstr "Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasýnýn da yerine geçecek bir SAM veritabanýný içerir."
+msgid ""
+"Samba 3.0 introduced a more complete SAM database interface which supersedes "
+"the /etc/samba/smbpasswd file."
+msgstr ""
+"Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasýnýn da yerine geçecek "
+"bir SAM veritabanýný içerir."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:3001
-msgid "Please confirm whether you would like the existing smbpasswd file to be automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr "Lütfen smbpasswd dosyasýnýn otomatik olarak /var/lib/samba/passdb.tdb dosyasýna dönüþtürülmesini isteyip istemediðinizi onaylayýnýz. Eðer baþka bir pdb arkayüzü (ör. LDAP) kullanmayý planlýyorsanýz, burada 'hayýr' cevabýný vermelisiniz."
+msgid ""
+"Please confirm whether you would like the existing smbpasswd file to be "
+"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+"option if you plan to use another pdb backend (e.g., LDAP) instead."
+msgstr ""
+"Lütfen smbpasswd dosyasýnýn otomatik olarak /var/lib/samba/passdb.tdb "
+"dosyasýna dönüþtürülmesini isteyip istemediðinizi onaylayýnýz. Eðer baþka "
+"bir pdb arkayüzü (ör. LDAP) kullanmayý planlýyorsanýz, burada 'hayýr' "
+"cevabýný vermelisiniz."
 
 #~ msgid "daemons, inetd"
 #~ msgstr "artalan süreçleri, inetd"
-

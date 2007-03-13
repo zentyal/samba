@@ -1,14 +1,14 @@
 # Italian (it) translation of debconf templates for samba
 # Copyright (C) 2004 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Luca Monducci <luca.mo@tiscali.it>, 2004-2006.
+# Luca Monducci <luca.mo@tiscali.it>, 2004-2007.
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 3.0.23c-1 italian debconf templates\n"
+"Project-Id-Version: samba 3.0.24-4 italian debconf templates\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-11 08:45+0200\n"
+"PO-Revision-Date: 2006-03-13 13:47+0100\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -134,7 +134,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Il caricamento a catena dei backend passdb non è supportato"
 
 #. Type: note
 #. Description
@@ -145,6 +145,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"A partire dalla versione 3.0.23, samba non supporta più il caricamento a "
+"catena di più backend nel parametro \"passdb backend\". Sembra che il prorio "
+"file smb.conf contenga nel parametro passdb backend un elenco di backend. La "
+"nuova versione di samba non funziona se non si corregge questo valore."
 
 #. Type: boolean
 #. Description

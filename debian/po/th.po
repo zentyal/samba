@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-21 00:06+0700\n"
+"PO-Revision-Date: 2007-03-13 10:05+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <l10n@opentle.org>\n"
 "MIME-Version: 1.0\n"
@@ -126,7 +126,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"
 
 #. Type: note
 #. Description
@@ -137,6 +137,9 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"ตั้งแต่รุ่น 3.0.23 เป็นต้นไป samba ไม่สนับสนุนการเชื่อมลูกโซ่หลายแบ็กเอนด์ในพารามิเตอร์ "
+"\"passdb backend\" แต่ดูเหมือนแฟ้ม smb.conf ของคุณจะมีพารามิเตอร์ passdb backend "
+"เป็นรายชื่อแบ็กเอนด์หลายตัว ซึ่ง samba รุ่นใหม่นี้จะไม่ทำงาน จนกว่าคุณจะแก้ไขค่านี้"
 
 #. Type: boolean
 #. Description

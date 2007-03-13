@@ -18,6 +18,7 @@ samba (3.0.24-4) UNRELEASED; urgency=medium
   * Romanian; closes: #414629.
   * Tagalog; closes: #414637.
   * Khmer
+  * Thai; closes: #414664.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 12 Mar 2007 12:40:13 -0700
 

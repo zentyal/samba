@@ -1,4 +1,4 @@
-# translation of samba_po.po to Nepali
+# translation of ne.po to Nepali
 #
 #    Translators, if you are not familiar with the PO format, gettext
 #    documentation is worth reading, especially sections dedicated to
@@ -12,19 +12,20 @@
 #
 # Shiva Prasad Pokharel <pokharelshiva@hotmail.com>, 2006.
 # Nabin Gautam <nabin@mpp.org.np>, 2006.
+# Shiva Pokharel <shiva@mpp.org.np>, 2007.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_po\n"
+"Project-Id-Version: ne\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-26 17:21+0545\n"
-"Last-Translator: Shiva Prasad Pokharel <pokharelshiva@hotmail.com>\n"
+"PO-Revision-Date: 2007-03-14 05:36+0545\n"
+"Last-Translator: Shiva Pokharel <shiva@mpp.org.np>\n"
 "Language-Team: Nepali <info@mpp.org.np>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.2\n"
-"Plural-Forms: nplurals=2;plural=(n!=1)\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms: nplurals=2; nplural(n!=1)\n"
 
 #. Type: boolean
 #. Description
@@ -51,8 +52,7 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+msgid "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "यो विशेषताको फाइदा लिन dhcp3-क्लाइन्ट प्याकेज स्थापना गरिएको हुन पर्छ ।"
 
 #. Type: boolean
@@ -140,7 +140,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "passdb ब्याकेन्ड चेन गर्नेका लागि समर्थन छैन "
 
 #. Type: note
 #. Description
@@ -150,7 +150,7 @@ msgid ""
 "backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
-msgstr ""
+msgstr "सँस्करण 3.0.23 सँग सुरु गर्दा साम्बाले \"passdb backend\" परामितिमा यो भन्दा बढि बहुविध ब्याकेन्ड समर्थन गर्दैन । सायद तपाईँको smb.conf फाइलमा ब्याकेन्डहरूको सूची भएको एउटा  passdb ब्याकेन्ड भएको हुनुपर्दछ । तपाईँले यसलाई नसच्याउनु भएसम्म साम्बाको नयाँ संस्करणले काम गर्दैन ।"
 
 #. Type: boolean
 #. Description
@@ -248,3 +248,4 @@ msgstr ""
 "कृपया तपाइँले स्वचालित रुपले /var/lib/samba/passdb.tdb मा सर्ने अवस्थित smbpasswd "
 "फाइल चाहनुहुन्छ भने यकीन गर्नुहोस् ।  यदि तपाईँ साटोमा अर्को pdb backend (जस्तै: LDAP) "
 "प्रयोग गर्ने योजना बनाउनुहुन्छ भने यो विकल्प नरोज्नुहोस् ।"
+

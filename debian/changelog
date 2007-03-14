@@ -1,3 +1,10 @@
+samba (3.0.24-5) UNRELEASED; urgency=low
+
+  [ Debconf translations ]
+  * Nepali
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 14 Mar 2007 22:45:25 +0100
+
 samba (3.0.24-4) unstable; urgency=medium
 
   [ Steve Langasek ]

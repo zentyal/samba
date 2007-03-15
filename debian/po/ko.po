@@ -5,7 +5,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-21 11:22-0400\n"
+"PO-Revision-Date: 2007-03-14 09:28-0400\n"
 "Last-Translator: Sunjae Park <darehanl@gmail.com>\n"
 "Language-Team: Korean <debian-l10n-korean@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -60,10 +60,10 @@ msgid ""
 "hand to get it working again."
 msgstr ""
 "앞으로 남은 Samba 설정은 Samba 프로그램들(nmbd와 smbd)을 설정할 때 사용하는 /"
-"etc/samba/smb.conf에 있는 각종 인자들을 변경하는 질문들로 구성되어있습니다.현"
-"재의 smb.conf은 'include'를 사용하거나 여러 줄에 걸친 옵션을 사용하고 있습니"
-"다. 이는 자동 설정 과정에 혼돈을 줄 수 있으며 나중에 손으로 smb.conf을 수정하"
-"셔야 제대로 동작합니다."
+"etc/samba/smb.conf에 있는 각종 매개 변수들을 변경하는 질문들로 구성되어 있습"
+"니다. 현재의 smb.conf은 'include'를 사용하거나 여러 줄에 걸친 옵션을 사용하"
+"고 있습니다. 이는 자동 설정 과정에 혼돈을 줄 수 있으며 나중에 손으로 smb.conf"
+"을 수정하셔야 제대로 동작합니다."
 
 #. Type: boolean
 #. Description
@@ -91,8 +91,8 @@ msgid ""
 "used with the security=domain setting."
 msgstr ""
 "클라이언트에서 질의가 들어올 때 이 서버가 소속된 작업그룹을 지정해주십시오. "
-"참고로 security=domain 방식의 설정을 사용할 경우 사용하는 도메인 이름도 이 인"
-"자를 통해 설정합니다."
+"참고로 security=domain 방식의 설정을 사용할 경우 사용하는 도메인 이름도 이 매"
+"개변수를 통해 설정합니다."
 
 #. Type: boolean
 #. Description
@@ -110,7 +110,7 @@ msgid ""
 msgstr ""
 "최신 윈도우 클라이언트들은 모두 암호화된 비밀번호를 통해 SMB 서버와 통신합니"
 "다. 암호화 안 된 클리어텍스트 비밀번호를 사용하려면 윈도우 레지스트리에 있는 "
-"인자를 변경하셔야 합니다."
+"매개변수를 변경하셔야 합니다."
 
 #. Type: boolean
 #. Description
@@ -128,7 +128,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "연쇄 passdb 백엔드는 작업은 지원되지 않습니다"
 
 #. Type: note
 #. Description
@@ -139,6 +139,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"삼바는 3.0.23 버전부터 \"passdb backend\" 매개변수는 더 이상 연쇄 백엔드를 지"
+"원하지 않습니다. smb.conf 파일에 있는 passdb 백엔드 매개변수에 백엔드 목록이 "
+"지정되어 있는 것으로 보입니다. 이것을 바꾸기 전까지는 새 버전의 삼바가 동작하"
+"지 않습니다."
 
 #. Type: boolean
 #. Description

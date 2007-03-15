@@ -1,22 +1,22 @@
-# translation of samba_po.po to Arabic
+# translation of ar.po to Arabic
 # xserver-xorg translation
 # Copyright (C) 2006 The Arabeyes Project
 # This file is distributed under the same license as the xserver-xorg package.
 #
 # younes <behloul.younes@gmail.com>, 2006.
-# Ossama M. Khayat <okhayat@yahoo.com>, 2006.
+# Ossama M. Khayat <okhayat@yahoo.com>, 2006, 2007.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_po\n"
+"Project-Id-Version: ar\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-08-25 12:47+0300\n"
+"PO-Revision-Date: 2007-03-14 11:37+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.2\n"
+"X-Generator: KBabel 1.11.4\n"
 
 #. Type: boolean
 #. Description
@@ -42,8 +42,7 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+msgid "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "يجب تثبيت رزمة dhcp3-client للاستفادة من هذه الميزة."
 
 #. Type: boolean
@@ -130,7 +129,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "الربط التسلسلي لملفات passdb غير مدعوم"
 
 #. Type: note
 #. Description
@@ -141,6 +140,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر "
+"المعطى \"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي "
+"هذا المعطى والذي يحدد قائمة من ملفات دعم passdb. "
+"لن تعمل نسخة samba الجديدة حتى تقوم بتصحيح هذا المعطى."
 
 #. Type: boolean
 #. Description
@@ -237,70 +240,3 @@ msgstr ""
 "samba/passdb.tdb. لا تختر هذا الخيار إذا كنت تنوي استعمال قاعدة كلمات مرور "
 "خلفية ( pdb backend) مثل LDAP."
 
-#~ msgid "Character Set for Unix filesystem"
-#~ msgstr "مجموعة الرموز لنظام ملفات Unix"
-
-#~ msgid ""
-#~ "The \"character set\" option is currently configured in smb.conf.  In "
-#~ "Samba 3.0, this option is replaced by a new option, \"unix charset\". "
-#~ "Please specify the character set you wish to use for this new option, "
-#~ "which controls how Samba interprets filenames on the file system."
-#~ msgstr ""
-#~ "إن خيار \"مجموعة الرموز\" يتواجد حاليا في smb.conf مع نسخة Samba ـ 3.0, "
-#~ "هذا الخيار قد استبدل بخيار جديد, \"مجموعة الرموز لنظام ملفات Unix\" من "
-#~ "فضلك عين مجموعة الرموز المراد استعمالها لهذا الخيار الجديد,و الذي يتحكم "
-#~ "في كيفية تفسير Samba لأسماء الملفات المتواجدة على نظام الملفات."
-
-#~ msgid ""
-#~ "If you leave this option blank, the smb.conf file will not be changed."
-#~ msgstr "إذا تركت هذا الخيار فارغا,  فإن ملف smb.conf  لن يُغيَّر."
-
-#~ msgid "Character Set for DOS clients"
-#~ msgstr "مجموعة الرموز لمستخدمي DOS"
-
-#~ msgid ""
-#~ "The \"client code page\" option is currently configured in smb.conf.  In "
-#~ "Samba 3.0, this option is replaced by the option \"dos charset\".  Please "
-#~ "specify the character set you wish to use for this new option.  In most "
-#~ "cases, the default chosen for you will be sufficient.  Note that this "
-#~ "option is not needed to support Windows clients, it is only for DOS "
-#~ "clients."
-#~ msgstr ""
-#~ " يتواجد خيار \"صفحة رموز المستخدم\" في ملف smb.conf. و قد استبدل هذا "
-#~ "الخيار مع النسخة Samba 3.0. بخيار \"dos charset\". من فضلك حدد صفحة "
-#~ "الرموز التي ترغب في استعمالها لهذا الخيار الجديد. عادة الخيار الإفتراضي "
-#~ "يكفي. لاحظ أن هذا الخيار غير لازم لمماشات مستخدمي Windows, هو يعني "
-#~ "مستخدمي DOS فقط."
-
-#~ msgid "Samba's log files moved"
-#~ msgstr " نُقلت ملفات تسجيل Samba."
-
-#~ msgid ""
-#~ "The log files for both Samba daemons (nmbd and smbd) are now stored in /"
-#~ "var/log/samba/. The names of the files are log.nmbd and log.smbd, for "
-#~ "nmbd and smbd respectively."
-#~ msgstr ""
-#~ "ملفات التسجيل لكل من رقيبي Samba ـ (nmbd و smbd)  محفوظة الآن في /var/log/"
-#~ "samba . اسماء الملفات هي   log.nmbd و log.smbd لكل من nmbd و smbd على "
-#~ "الترتيب."
-
-#~ msgid ""
-#~ "The old log files from /var/log/ will automatically be moved to the new "
-#~ "location."
-#~ msgstr "ملفات التسجيل القديمة في /var/log/ ستنقل آليا إلى الموفع الجديد."
-
-#~ msgid "Running nmbd from inetd no longer supported"
-#~ msgstr "تشغيل nmbd من inetd لم يعد مدعوما"
-
-#~ msgid ""
-#~ "This system was previously configured to start nmbd and smbd from inetd. "
-#~ "In recent Samba versions, nmbd cannot be started from inetd. If you have "
-#~ "modified your /etc/init.d/samba startup script, you may need to adjust it "
-#~ "now so that nmbd will start."
-#~ msgstr ""
-#~ "هذا النظام أُعِدّ مسبّقا لتشغيل nmbd و smbd عبر inetd. مع نُسخ Samba الحديثة, "
-#~ "لا يمكن لرقيب nmbd أن يُشَغّل عبر inetd. إذا كنت قد غيرت مخطوط الاشتغال /etc/"
-#~ "init.d/samba, عليك بتعديله لتشغيل nmbd أيضا."
-
-#~ msgid "Samba run method:"
-#~ msgstr "طريقة تشغيل Samba:"

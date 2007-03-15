@@ -1,18 +1,19 @@
-# Translation of samba_3.0.23c-1_ru.po to Russian
+# Translation of samba_3.0.23c-1.po to Russian
 # Yuriy Talakan' <yt@amur.elektra.ru>, 2005, 2006.
-# Pavel Maryanov <acid_jack@ukr.net>, 2006.
+# Pavel Maryanov <acid_jack@ukr.net>, 2006, 2007.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_3.0.23c-1_ru\n"
+"Project-Id-Version: samba_3.0.23c-1\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-28 00:51+0300\n"
+"PO-Revision-Date: 2007-03-13 22:22+0200\n"
 "Last-Translator: Pavel Maryanov <acid_jack@ukr.net>\n"
 "Language-Team: Russian <ru@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.2\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. Type: boolean
 #. Description
@@ -39,10 +40,8 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr ""
-"Чтобы использовать эту возможность, нужно установить пакет dhcp3-client."
+msgid "The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "Чтобы использовать эту возможность, нужно установить пакет dhcp3-client."
 
 #. Type: boolean
 #. Description
@@ -132,7 +131,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Объединение СУБД паролей не поддерживается."
 
 #. Type: note
 #. Description
@@ -143,6 +142,8 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Начиная с версии 3.0.23, в samba больше не поддерживается использование нескольких "
+"СУБД в параметре \"passdb backend\". Похоже, что в текущем файле smb.conf есть этот параметр, состоящий из нескольких систем управления БД паролей. Новая версия samba не сможет работать с этим параметром. Его необходимо исправить."
 
 #. Type: boolean
 #. Description
@@ -245,3 +246,4 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "daemons, inetd"
+

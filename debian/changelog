@@ -3,8 +3,11 @@ samba (3.0.24-5) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Nepali
   * Korean; closes: #414883.
+  * Russian
+  * Arabic
+  * Portuguese
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 14 Mar 2007 22:45:25 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 15 Mar 2007 19:46:56 +0100
 
 samba (3.0.24-4) unstable; urgency=medium
 

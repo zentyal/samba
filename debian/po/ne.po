@@ -52,7 +52,8 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "यो विशेषताको फाइदा लिन dhcp3-क्लाइन्ट प्याकेज स्थापना गरिएको हुन पर्छ ।"
 
 #. Type: boolean
@@ -150,7 +151,11 @@ msgid ""
 "backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
-msgstr "सँस्करण 3.0.23 सँग सुरु गर्दा साम्बाले \"passdb backend\" परामितिमा यो भन्दा बढि बहुविध ब्याकेन्ड समर्थन गर्दैन । सायद तपाईँको smb.conf फाइलमा ब्याकेन्डहरूको सूची भएको एउटा  passdb ब्याकेन्ड भएको हुनुपर्दछ । तपाईँले यसलाई नसच्याउनु भएसम्म साम्बाको नयाँ संस्करणले काम गर्दैन ।"
+msgstr ""
+"सँस्करण 3.0.23 सँग सुरु गर्दा साम्बाले \"passdb backend\" परामितिमा यो भन्दा बढि "
+"बहुविध ब्याकेन्ड समर्थन गर्दैन । सायद तपाईँको smb.conf फाइलमा ब्याकेन्डहरूको सूची भएको "
+"एउटा  passdb ब्याकेन्ड भएको हुनुपर्दछ । तपाईँले यसलाई नसच्याउनु भएसम्म साम्बाको नयाँ "
+"संस्करणले काम गर्दैन ।"
 
 #. Type: boolean
 #. Description
@@ -248,4 +253,3 @@ msgstr ""
 "कृपया तपाइँले स्वचालित रुपले /var/lib/samba/passdb.tdb मा सर्ने अवस्थित smbpasswd "
 "फाइल चाहनुहुन्छ भने यकीन गर्नुहोस् ।  यदि तपाईँ साटोमा अर्को pdb backend (जस्तै: LDAP) "
 "प्रयोग गर्ने योजना बनाउनुहुन्छ भने यो विकल्प नरोज्नुहोस् ।"
-

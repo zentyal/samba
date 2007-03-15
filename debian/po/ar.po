@@ -42,7 +42,8 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
 msgstr "يجب تثبيت رزمة dhcp3-client للاستفادة من هذه الميزة."
 
 #. Type: boolean
@@ -140,10 +141,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
-"بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر "
-"المعطى \"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي "
-"هذا المعطى والذي يحدد قائمة من ملفات دعم passdb. "
-"لن تعمل نسخة samba الجديدة حتى تقوم بتصحيح هذا المعطى."
+"بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر المعطى "
+"\"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي هذا المعطى والذي "
+"يحدد قائمة من ملفات دعم passdb. لن تعمل نسخة samba الجديدة حتى تقوم بتصحيح "
+"هذا المعطى."
 
 #. Type: boolean
 #. Description
@@ -239,4 +240,3 @@ msgstr ""
 "من فضلك أكّد إذا ما كنت تفضل هجرة آلية لملف smbpasswd المتواجد إلى /var/lib/"
 "samba/passdb.tdb. لا تختر هذا الخيار إذا كنت تنوي استعمال قاعدة كلمات مرور "
 "خلفية ( pdb backend) مثل LDAP."
-

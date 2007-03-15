@@ -147,8 +147,8 @@ msgid ""
 "The new version of samba will not work until you correct this."
 msgstr ""
 "A partir da versão 3.0.23, o samba deixou de suportar carregar vários "
-"backends no parâmentro \"passdb_backend\".  Parece que o seu ficheiro "
-"smb.conf contém um pârametro passdb backend que consiste numa lista de "
+"backends no parâmentro \"passdb_backend\".  Parece que o seu ficheiro smb."
+"conf contém um pârametro passdb backend que consiste numa lista de "
 "backends.  A nova versão do Samba não irá funcionar até você corrigir isto."
 
 #. Type: boolean

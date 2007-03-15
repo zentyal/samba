@@ -40,8 +40,10 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Чтобы использовать эту возможность, нужно установить пакет dhcp3-client."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Чтобы использовать эту возможность, нужно установить пакет dhcp3-client."
 
 #. Type: boolean
 #. Description
@@ -142,8 +144,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
-"Начиная с версии 3.0.23, в samba больше не поддерживается использование нескольких "
-"СУБД в параметре \"passdb backend\". Похоже, что в текущем файле smb.conf есть этот параметр, состоящий из нескольких систем управления БД паролей. Новая версия samba не сможет работать с этим параметром. Его необходимо исправить."
+"Начиная с версии 3.0.23, в samba больше не поддерживается использование "
+"нескольких СУБД в параметре \"passdb backend\". Похоже, что в текущем файле "
+"smb.conf есть этот параметр, состоящий из нескольких систем управления БД "
+"паролей. Новая версия samba не сможет работать с этим параметром. Его "
+"необходимо исправить."
 
 #. Type: boolean
 #. Description
@@ -246,4 +251,3 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "daemons, inetd"
-

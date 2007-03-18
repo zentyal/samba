@@ -7,8 +7,9 @@ samba (3.0.24-5) UNRELEASED; urgency=low
   * Arabic
   * Portuguese
   * Greek. Closes: #415122
+  * Norwegian Nynorsk added.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 18 Mar 2007 09:27:52 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sun, 18 Mar 2007 09:28:26 +0100
 
 samba (3.0.24-4) unstable; urgency=medium
 

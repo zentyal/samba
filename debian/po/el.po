@@ -1,4 +1,4 @@
-# translation of samba_el.po to Greek
+# translation of samba_el.po to
 #
 #    Translators, if you are not familiar with the PO format, gettext
 #    documentation is worth reading, especially sections dedicated to
@@ -16,9 +16,9 @@ msgstr ""
 "Project-Id-Version: samba_el\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-18 17:10+0300\n"
-"Last-Translator: QUAD-nrg.net <yodesy@quad-nrg.net>\n"
-"Language-Team: Greek <debian-l10n-greek@lists.debian.org>\n"
+"PO-Revision-Date: 2007-03-16 11:29+0200\n"
+"Last-Translator: galaxico\n"
+"Language-Team:  <en@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -151,7 +151,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Η αλύσωση των backend των passdb δεν υποστηρίζεται"
 
 #. Type: note
 #. Description
@@ -162,6 +162,11 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Αρχίζοντας με την έκδοση 3.0.23, η samba δεν υποστηρίζει πλέον την αλύσωση "
+"πολλαπλών backend για την παράμετρο \"passdb backend\". Φαίνεται ότι το "
+"αρχείο σας smb.conf περιέχει μια παράμετρο backend passdb αποτελούμενη από "
+"μια λίστα τέτοιων backend. Η καινούρια έκδοση της samba δεν θα δουλέψει "
+"μέχρι να διορθώσετε αυτή τη ρύθμιση."
 
 #. Type: boolean
 #. Description

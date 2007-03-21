@@ -1,4 +1,16 @@
-samba (3.0.24-5) UNRELEASED; urgency=low
+samba (3.0.24-5) unstable; urgency=high
+
+  * The "see what you get for trusting the quality of my packages,
+    release team?  Release team, please unblock this package" release.
+  * High-urgency brown-paper-upload for etch-targetted fix for
+    regression introduced in the last version
+
+  [ Steve Langasek ]
+  * Fixed the regexp used for matching broken passdb backend settings,
+    since we were getting false positives on *all* values. :/  The
+    correct match should be: one or more non-space, non-comma
+    characters, followed by a space or a comma, followed by zero or more
+    spaces, followed by one or more non-space characters.  Closes: #415725.
 
   [ Debconf translations ]
   * Nepali
@@ -9,7 +21,7 @@ samba (3.0.24-5) UNRELEASED; urgency=low
   * Greek. Closes: #415122
   * Norwegian Nynorsk added.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 18 Mar 2007 09:28:26 +0100
+ -- Steve Langasek <vorlon@debian.org>  Wed, 21 Mar 2007 13:49:46 -0700
 
 samba (3.0.24-4) unstable; urgency=medium
 

@@ -1,3 +1,11 @@
+samba (3.0.24-6) unstable; urgency=high
+
+  * Arrrgh, cut'n'paste error in the regexp in the last upload, so the bug
+    is still present :/  Fix a missing ] in the regexp for passdb backend
+    checking, really-closes: #415725.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 24 Mar 2007 03:32:46 -0700
+
 samba (3.0.24-5) unstable; urgency=high
 
   * The "see what you get for trusting the quality of my packages,

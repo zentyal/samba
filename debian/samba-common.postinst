@@ -97,7 +97,7 @@ fi
 
 if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 &&
 
-   grep -qi '^[[:space:]]*passdb backend[[:space:]]*=[[:space:]]*[^,[:space:]]\+[,[:space:][[:space:]]*[^[:space:]]\+' \
+   grep -qi '^[[:space:]]*passdb backend[[:space:]]*=[[:space:]]*[^,[:space:]]\+[,[:space:]][[:space:]]*[^[:space:]]\+' \
 	/etc/samba/smb.conf
 then
 	db_input high samba-common/unsupported-passdb || true

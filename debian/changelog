@@ -1,3 +1,10 @@
+samba (3.0.24-7) UNRELEASED; urgency=low
+
+  [ Debconf translations ]
+  * Marathi added. Closes: #416802
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 01 Apr 2007 14:00:11 +0200
+
 samba (3.0.24-6) unstable; urgency=high
 
   * Arrrgh, cut'n'paste error in the regexp in the last upload, so the bug
@@ -28,8 +35,13 @@ samba (3.0.24-5) unstable; urgency=high
   * Portuguese
   * Greek. Closes: #415122
   * Norwegian Nynorsk added.
+  * Marathi added. Closes: #416802
 
+<<<<<<< .mine
+ -- Christian Perrier <bubulle@debian.org>  Sun, 01 Apr 2007 13:59:15 +0200
+=======
  -- Steve Langasek <vorlon@debian.org>  Wed, 21 Mar 2007 13:49:46 -0700
+>>>>>>> .r1309
 
 samba (3.0.24-4) unstable; urgency=medium
 

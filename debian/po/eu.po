@@ -12,13 +12,13 @@
 #
 #    Developers do not need to manually edit POT or PO files.
 #
-# Piarres Beobide <pi@beobide.net>, 2006.
+# Piarres Beobide <pi@beobide.net>, 2006, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-09-27 13:47+0200\n"
+"PO-Revision-Date: 2007-04-07 23:18+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
 "MIME-Version: 1.0\n"
@@ -45,7 +45,7 @@ msgid ""
 msgstr ""
 "Zure sistemak IP helbidea sareko DHCP zerbitzari batetatik jaso ezkero, "
 "zerbitzari horrek sareko WINS (\"NetBIOS name servers\") zerbitzarien datuak "
-"eman ditzake.  Honek smb.conf fitxategian aldaketa bat behar du DHCP-bidezko "
+"eman ditzake.  Honek smb.conf fitxategian aldaketa bat behar du DHCP bidezko "
 "WINS ezarpenak /etc/samba/dhcp.conf-etik irakurtzeko."
 
 #. Type: boolean
@@ -143,7 +143,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "\"passbd\" motore kateatzea ez da onartzen"
 
 #. Type: note
 #. Description
@@ -154,6 +154,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"2.0.23 bertsiotik aurrera ez da gehiago onartzen motore bat baino gehiagoren "
+"kateatzea \"passdb backend\" parametroan.  Dirudienez zure smb.conf "
+"fitxategiko \"passdb backend\" parametroak motore zerrenda bat du.  Samba "
+"bertsio berriak ez du funtzionatuko hau konpondu arte."
 
 #. Type: boolean
 #. Description
@@ -185,7 +189,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-" Fixtategi hau ez sortu ezkero beharrezkoa da Samba (eta ziurrenik Windows "
+" Fitxategi hau ez sortu ezkero beharrezkoa da Samba (eta ziurrenik Windows "
 "bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
 
 #. Type: boolean

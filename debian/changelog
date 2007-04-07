@@ -3,8 +3,9 @@ samba (3.0.24-7) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Marathi added. Closes: #416802
   * Esperanto added. Closes: #417795.
+  * Basque updated. Closes: #418196.
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 04 Apr 2007 19:39:09 -0700
+ -- Steve Langasek <vorlon@debian.org>  Sat, 07 Apr 2007 15:34:46 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 

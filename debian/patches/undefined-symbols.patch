@@ -1,23 +1,13 @@
-Index: samba-3.0.23c/source/Makefile.in
+Index: samba-3.0.25rc1/source/Makefile.in
 ===================================================================
---- samba-3.0.23c.orig/source/Makefile.in	2006-09-02 10:09:22.248851983 +0200
-+++ samba-3.0.23c/source/Makefile.in	2006-09-02 10:09:34.652952184 +0200
-@@ -692,7 +692,8 @@
-             $(RPC_NTSVCS_OBJ) utils/passwd_util.o
+--- samba-3.0.25rc1.orig/source/Makefile.in	2007-04-10 09:35:05.501779580 +0200
++++ samba-3.0.25rc1/source/Makefile.in	2007-04-10 09:44:53.170594444 +0200
+@@ -1158,7 +1158,7 @@
  
- WINBIND_WINS_NSS_OBJ = nsswitch/wins.o $(PARAM_OBJ) \
--	$(LIBSMB_OBJ) $(LIB_NONSMBD_OBJ) $(NSSWINS_OBJ) $(KRBCLIENT_OBJ)
-+	$(LIBSMB_OBJ) $(LIB_NONSMBD_OBJ) $(NSSWINS_OBJ) $(KRBCLIENT_OBJ) \
-+	$(SECRETS_OBJ)
- 
- WINBIND_WINS_NSS_PICOBJS = $(WINBIND_WINS_NSS_OBJ:.o=.@PICSUFFIX@)
- 
-@@ -1094,7 +1095,7 @@
- 
- bin/libsmbclient.@SHLIBEXT@: $(LIBSMBCLIENT_PICOBJS)
+ bin/libsmbclient.@SHLIBEXT@: proto_exists $(LIBSMBCLIENT_OBJ)
  	@echo Linking libsmbclient shared library $@
--	@$(SHLD) $(LDSHFLAGS) -o $@ $(LIBSMBCLIENT_PICOBJS) $(LDFLAGS) $(LIBS) \
-+	@$(SHLD) $(LDSHFLAGS) -Wl,-z,defs -o $@ $(LIBSMBCLIENT_PICOBJS) $(LDFLAGS) $(LIBS) \
- 		$(KRB5LIBS) $(LDAP_LIBS) \
+-	@$(SHLD) $(LDSHFLAGS) -o $@ $(LIBSMBCLIENT_OBJ) $(LDFLAGS) $(LIBS) \
++	@$(SHLD) $(LDSHFLAGS) -Wl,-z,defs -o $@ $(LIBSMBCLIENT_OBJ) $(LDFLAGS) $(LIBS) \
+ 		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
  		@SONAMEFLAG@`basename $@`.$(LIBSMBCLIENT_MAJOR)
  

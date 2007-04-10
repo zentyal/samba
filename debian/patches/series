@@ -5,7 +5,6 @@ installswat.sh.patch
 make-distclean.patch
 nmbd-signalling.patch
 non-linux-ports.patch
-nonpic-libsmbclient.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
 samba.patch

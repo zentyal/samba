@@ -1,8 +1,8 @@
-Index: samba-3.0.23c/source/utils/status.c
+Index: samba-3.0.25rc1/source/utils/status.c
 ===================================================================
---- samba-3.0.23c.orig/source/utils/status.c	2006-09-02 10:08:45.104551846 +0200
-+++ samba-3.0.23c/source/utils/status.c	2006-09-02 10:09:33.940946433 +0200
-@@ -714,6 +714,16 @@
+--- samba-3.0.25rc1.orig/source/utils/status.c	2007-04-10 10:00:41.170386723 +0200
++++ samba-3.0.25rc1/source/utils/status.c	2007-04-10 10:01:44.854912683 +0200
+@@ -367,6 +367,16 @@
  	if ( show_locks ) {
  		int ret;
  

@@ -1,17 +1,17 @@
-Index: samba-3.0.23c/source/python/examples/tdbpack/tdbtimetrial.py
+Index: samba-3.0.25rc1/source/python/examples/tdbpack/tdbtimetrial.py
 ===================================================================
---- samba-3.0.23c.orig/source/python/examples/tdbpack/tdbtimetrial.py	2006-09-02 10:08:44.380545994 +0200
-+++ samba-3.0.23c/source/python/examples/tdbpack/tdbtimetrial.py	2006-09-02 10:09:38.884986367 +0200
+--- samba-3.0.25rc1.orig/source/python/examples/tdbpack/tdbtimetrial.py	2007-04-10 10:00:40.790383582 +0200
++++ samba-3.0.25rc1/source/python/examples/tdbpack/tdbtimetrial.py	2007-04-10 10:01:46.426925654 +0200
 @@ -1,4 +1,4 @@
 -#! /usr/bin/python2.2
 +#! /usr/bin/python
  
  def run_trial():
      # import tdbutil
-Index: samba-3.0.23c/source/python/examples/tdbpack/test_tdbpack.py
+Index: samba-3.0.25rc1/source/python/examples/tdbpack/test_tdbpack.py
 ===================================================================
---- samba-3.0.23c.orig/source/python/examples/tdbpack/test_tdbpack.py	2006-09-02 10:08:44.428546382 +0200
-+++ samba-3.0.23c/source/python/examples/tdbpack/test_tdbpack.py	2006-09-02 10:09:38.884986367 +0200
+--- samba-3.0.25rc1.orig/source/python/examples/tdbpack/test_tdbpack.py	2007-04-10 10:00:40.806383714 +0200
++++ samba-3.0.25rc1/source/python/examples/tdbpack/test_tdbpack.py	2007-04-10 10:01:46.462925951 +0200
 @@ -1,4 +1,4 @@
 -#! /usr/bin/env python2.2
 +#! /usr/bin/env python

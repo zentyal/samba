@@ -1,7 +1,7 @@
-Index: samba-3.0.23c/source/pam_smbpass/README
+Index: samba-3.0.25rc1/source/pam_smbpass/README
 ===================================================================
---- samba-3.0.23c.orig/source/pam_smbpass/README	2006-09-02 10:08:46.444562676 +0200
-+++ samba-3.0.23c/source/pam_smbpass/README	2006-09-02 10:09:22.952857670 +0200
+--- samba-3.0.25rc1.orig/source/pam_smbpass/README	2007-04-10 10:00:42.110394494 +0200
++++ samba-3.0.25rc1/source/pam_smbpass/README	2007-04-10 10:01:41.934888588 +0200
 @@ -37,7 +37,7 @@
  	smbconf=<file>	-	specify an alternate path to the smb.conf
  				file.

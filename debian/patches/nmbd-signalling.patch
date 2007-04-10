@@ -1,7 +1,7 @@
-Index: samba-3.0.23c/source/nmbd/nmbd_subnetdb.c
+Index: samba-3.0.25rc1/source/nmbd/nmbd_subnetdb.c
 ===================================================================
---- samba-3.0.23c.orig/source/nmbd/nmbd_subnetdb.c	2006-09-02 10:08:46.896566329 +0200
-+++ samba-3.0.23c/source/nmbd/nmbd_subnetdb.c	2006-09-02 10:09:20.660839154 +0200
+--- samba-3.0.25rc1.orig/source/nmbd/nmbd_subnetdb.c	2007-04-10 10:00:42.258395717 +0200
++++ samba-3.0.25rc1/source/nmbd/nmbd_subnetdb.c	2007-04-10 10:01:41.138882019 +0200
 @@ -185,12 +185,16 @@
  	struct in_addr unicast_ip, ipzero;
  

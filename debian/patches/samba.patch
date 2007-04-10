@@ -1,7 +1,7 @@
 Index: samba-3.0.25rc1/source/client/smbmount.c
 ===================================================================
---- samba-3.0.25rc1.orig/source/client/smbmount.c	2007-03-01 05:55:16.000000000 +0100
-+++ samba-3.0.25rc1/source/client/smbmount.c	2007-04-10 09:36:52.574664241 +0200
+--- samba-3.0.25rc1.orig/source/client/smbmount.c	2007-04-10 10:00:41.914392874 +0200
++++ samba-3.0.25rc1/source/client/smbmount.c	2007-04-10 10:01:42.722895091 +0200
 @@ -768,7 +768,7 @@
  					*lp = 0;
  					pstrcpy(password,lp+1);
@@ -31,8 +31,8 @@ Index: samba-3.0.25rc1/source/client/smbmount.c
  	}
 Index: samba-3.0.25rc1/source/web/diagnose.c
 ===================================================================
---- samba-3.0.25rc1.orig/source/web/diagnose.c	2007-03-01 05:54:42.000000000 +0100
-+++ samba-3.0.25rc1/source/web/diagnose.c	2007-04-10 09:38:09.619297657 +0200
+--- samba-3.0.25rc1.orig/source/web/diagnose.c	2007-04-10 10:00:41.926392973 +0200
++++ samba-3.0.25rc1/source/web/diagnose.c	2007-04-10 10:01:42.726895124 +0200
 @@ -62,6 +62,7 @@
  {
  	struct cli_state *cli;
@@ -43,8 +43,8 @@ Index: samba-3.0.25rc1/source/web/diagnose.c
  
 Index: samba-3.0.25rc1/source/script/installbin.sh.in
 ===================================================================
---- samba-3.0.25rc1.orig/source/script/installbin.sh.in	2006-06-13 03:52:17.000000000 +0200
-+++ samba-3.0.25rc1/source/script/installbin.sh.in	2007-04-10 09:36:52.714665393 +0200
+--- samba-3.0.25rc1.orig/source/script/installbin.sh.in	2007-04-10 10:00:41.942393105 +0200
++++ samba-3.0.25rc1/source/script/installbin.sh.in	2007-04-10 10:01:42.762895421 +0200
 @@ -21,13 +21,15 @@
   chmod $INSTALLPERMS $DESTDIR/$BINDIR/$p2
  

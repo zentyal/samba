@@ -1,7 +1,7 @@
-Index: samba-3.0.23c/source/client/smbmnt.c
+Index: samba-3.0.25rc1/source/client/smbmnt.c
 ===================================================================
---- samba-3.0.23c.orig/source/client/smbmnt.c	2006-09-02 10:09:31.684928210 +0200
-+++ samba-3.0.23c/source/client/smbmnt.c	2006-09-02 10:09:32.396933961 +0200
+--- samba-3.0.25rc1.orig/source/client/smbmnt.c	2007-04-10 10:01:43.566902055 +0200
++++ samba-3.0.25rc1/source/client/smbmnt.c	2007-04-10 10:01:43.950905224 +0200
 @@ -44,6 +44,7 @@
  static uid_t mount_uid;
  static gid_t mount_gid;
@@ -103,11 +103,11 @@ Index: samba-3.0.23c/source/client/smbmnt.c
  
  	return 0;
  }	
-Index: samba-3.0.23c/source/client/smbmount.c
+Index: samba-3.0.25rc1/source/client/smbmount.c
 ===================================================================
---- samba-3.0.23c.orig/source/client/smbmount.c	2006-09-02 10:09:30.072915188 +0200
-+++ samba-3.0.23c/source/client/smbmount.c	2006-09-02 10:09:32.432934252 +0200
-@@ -46,6 +46,7 @@
+--- samba-3.0.25rc1.orig/source/client/smbmount.c	2007-04-10 10:01:42.722895091 +0200
++++ samba-3.0.25rc1/source/client/smbmount.c	2007-04-10 10:01:43.998905620 +0200
+@@ -48,6 +48,7 @@
  static int mount_ro;
  static unsigned mount_fmask;
  static unsigned mount_dmask;
@@ -115,7 +115,7 @@ Index: samba-3.0.23c/source/client/smbmount.c
  static BOOL use_kerberos;
  /* TODO: Add code to detect smbfs version in kernel */
  static BOOL status32_smbfs = False;
-@@ -271,6 +272,9 @@
+@@ -273,6 +274,9 @@
                  return;
          }
  
@@ -125,7 +125,7 @@ Index: samba-3.0.23c/source/client/smbmount.c
          if ((fd = open(MOUNTED"~", O_RDWR|O_CREAT|O_EXCL, 0600)) == -1) {
                  DEBUG(0,("%d: Can't get "MOUNTED"~ lock file", sys_getpid()));
                  return;
-@@ -468,6 +472,9 @@
+@@ -470,6 +474,9 @@
  	args[i++] = "-s";
  	args[i++] = svc2;
  
@@ -135,7 +135,7 @@ Index: samba-3.0.23c/source/client/smbmount.c
  	if (mount_ro) {
  		args[i++] = "-r";
  	}
-@@ -663,7 +670,7 @@
+@@ -665,7 +672,7 @@
  ****************************************************************************/
  static void usage(void)
  {
@@ -144,7 +144,7 @@ Index: samba-3.0.23c/source/client/smbmount.c
  
  	printf("Version %s\n\n",SAMBA_VERSION_STRING);
  
-@@ -741,8 +748,13 @@
+@@ -742,8 +749,13 @@
  	argc -= 2;
  	argv += 2;
  

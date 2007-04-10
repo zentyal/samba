@@ -5,8 +5,8 @@ Status wrt upstream: Debian specific
 
 Index: samba-3.0.25rc1/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.25rc1.orig/docs/manpages/smb.conf.5	2007-04-09 19:47:39.000000000 +0200
-+++ samba-3.0.25rc1/docs/manpages/smb.conf.5	2007-04-10 09:48:33.664382470 +0200
+--- samba-3.0.25rc1.orig/docs/manpages/smb.conf.5	2007-04-10 10:00:40.906384541 +0200
++++ samba-3.0.25rc1/docs/manpages/smb.conf.5	2007-04-10 10:01:46.018922287 +0200
 @@ -542,7 +542,7 @@
  
  Default: \fB\fIadd machine script\fR = \fR 

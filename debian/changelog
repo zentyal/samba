@@ -1,4 +1,6 @@
-samba (3.0.24-7) UNRELEASED; urgency=low
+samba (3.0.25rc1-1) UNRELEASED; urgency=low
+
+  * New upstream version
 
   [ Debconf translations ]
   * Marathi added. Closes: #416802

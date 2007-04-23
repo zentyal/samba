@@ -5,6 +5,9 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
     - nmbd no longer segfaults on bad interface line
       Closes: #265577, #386922, #359155, #366800
     - documentation issues about displaycharset. Closes: #350790
+    - documentation makes it clear that case options such as
+      "default case" can only be set on a per-share basis.
+      Closes: #231229
 
   [ Debconf translations ]
   * Marathi added. Closes: #416802

@@ -3,7 +3,7 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
   * New upstream version
   * Bugs fixed upstream
     - nmbd no longer segfaults on bad interface line
-      Closes: #285577, #386922, #359155, #366800
+      Closes: #265577, #386922, #359155, #366800
     - documentation issues about displaycharset. Closes: #350790
 
   [ Debconf translations ]

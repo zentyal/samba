@@ -1,7 +1,7 @@
 samba (3.0.25rc1-1) UNRELEASED; urgency=low
 
   * New upstream version
-  * Bugs fixed upstream
+  * Bugs fixed upstream:
     - nmbd no longer segfaults on bad interface line
       Closes: #265577, #386922, #359155, #366800
     - documentation issues about displaycharset. Closes: #350790
@@ -12,6 +12,8 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
       Closes: #408507
     - two typos on "account" fixed in source/passdb/pdb_ldap.c and 
       source/utils/pdbedit.c. Closes: #402392
+    - no longer panic when using the (deprecated) "only user" option
+      in user level security. Closes: #388282
 
   [ Debconf translations ]
   * Marathi added. Closes: #416802

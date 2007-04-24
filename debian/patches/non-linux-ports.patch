@@ -1,8 +1,8 @@
-Index: samba-3.0.25rc1/source/configure.in
+Index: samba-3.0.25rc2/source/configure.in
 ===================================================================
---- samba-3.0.25rc1.orig/source/configure.in	2007-04-10 10:01:38.742862246 +0200
-+++ samba-3.0.25rc1/source/configure.in	2007-04-10 10:01:41.538885320 +0200
-@@ -757,6 +757,15 @@
+--- samba-3.0.25rc2.orig/source/configure.in	2007-04-24 11:07:47.435810377 +0200
++++ samba-3.0.25rc2/source/configure.in	2007-04-24 11:07:49.843893867 +0200
+@@ -758,6 +758,15 @@
        fi
      ;;
  
@@ -18,7 +18,7 @@ Index: samba-3.0.25rc1/source/configure.in
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -1379,7 +1388,7 @@
+@@ -1380,7 +1389,7 @@
  #
  #
  case "$host_os" in
@@ -27,7 +27,7 @@ Index: samba-3.0.25rc1/source/configure.in
         # glibc <= 2.3.2 has a broken getgrouplist
         AC_TRY_RUN([
  #include <unistd.h>
-@@ -1680,7 +1689,10 @@
+@@ -1681,7 +1690,10 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -39,7 +39,7 @@ Index: samba-3.0.25rc1/source/configure.in
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -5376,7 +5388,7 @@
+@@ -5398,7 +5410,7 @@
  	AC_MSG_RESULT(yes);
  
  	case "$host_os" in
@@ -48,7 +48,7 @@ Index: samba-3.0.25rc1/source/configure.in
  		AC_CACHE_CHECK([for linux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
  		AC_TRY_LINK([#include <sys/sendfile.h>],
  [\
-@@ -5681,11 +5693,11 @@
+@@ -5703,11 +5715,11 @@
  SMB_KRB5_LOCATOR="bin/smb_krb5_locator.$SHLIBEXT"
  
  case "$host_os" in

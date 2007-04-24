@@ -1,8 +1,8 @@
-Index: samba-3.0.25rc1/source/Makefile.in
+Index: samba-3.0.25rc2/source/Makefile.in
 ===================================================================
---- samba-3.0.25rc1.orig/source/Makefile.in	2007-04-10 10:01:40.754878851 +0200
-+++ samba-3.0.25rc1/source/Makefile.in	2007-04-10 10:01:45.246915918 +0200
-@@ -1158,7 +1158,7 @@
+--- samba-3.0.25rc2.orig/source/Makefile.in	2007-04-24 11:07:49.231872700 +0200
++++ samba-3.0.25rc2/source/Makefile.in	2007-04-24 11:07:55.864100146 +0200
+@@ -1161,7 +1161,7 @@
  
  bin/libsmbclient.@SHLIBEXT@: proto_exists $(LIBSMBCLIENT_OBJ)
  	@echo Linking libsmbclient shared library $@

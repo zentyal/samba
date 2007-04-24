@@ -1,8 +1,8 @@
-Index: samba-3.0.25rc1/source/Makefile.in
+Index: samba-3.0.25rc2/source/Makefile.in
 ===================================================================
---- samba-3.0.25rc1.orig/source/Makefile.in	2007-04-10 10:01:38.710861982 +0200
-+++ samba-3.0.25rc1/source/Makefile.in	2007-04-10 10:01:40.754878851 +0200
-@@ -1678,6 +1678,7 @@
+--- samba-3.0.25rc2.orig/source/Makefile.in	2007-04-24 11:07:47.427810099 +0200
++++ samba-3.0.25rc2/source/Makefile.in	2007-04-24 11:07:49.231872700 +0200
+@@ -1683,6 +1683,7 @@
  
  python_clean:
  	@-if test -n "$(PYTHON)"; then $(PYTHON) python/setup.py clean; fi
@@ -10,7 +10,7 @@ Index: samba-3.0.25rc1/source/Makefile.in
  
  # revert to the previously installed version
  revert:
-@@ -1866,6 +1867,7 @@
+@@ -1871,6 +1872,7 @@
  
  distclean: realclean
  	-rm -f include/stamp-h

@@ -1,7 +1,7 @@
-Index: samba-3.0.25rc1/source/include/includes.h
+Index: samba-3.0.25rc2/source/include/includes.h
 ===================================================================
---- samba-3.0.25rc1.orig/source/include/includes.h	2007-04-10 10:00:44.158411423 +0200
-+++ samba-3.0.25rc1/source/include/includes.h	2007-04-10 10:01:36.746845773 +0200
+--- samba-3.0.25rc2.orig/source/include/includes.h	2007-04-24 11:07:02.626148126 +0200
++++ samba-3.0.25rc2/source/include/includes.h	2007-04-24 11:07:46.491777495 +0200
 @@ -809,10 +809,7 @@
  #endif
  

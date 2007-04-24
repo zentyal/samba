@@ -8,6 +8,10 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
     - documentation makes it clear that case options such as
       "default case" can only be set on a per-share basis.
       Closes: #231229
+    - all occurrences of "encypt" fixed in smb.conf(5)
+      Closes: #408507
+    - two typos on "account" fixed in source/passdb/pdb_ldap.c and 
+      source/utils/pdbedit.c. Closes: #402392
 
   [ Debconf translations ]
   * Marathi added. Closes: #416802

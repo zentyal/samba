@@ -10,7 +10,7 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
       Closes: #231229
     - all occurrences of "encypt" fixed in smb.conf(5)
       Closes: #408507
-    - two typos on "account" fixed in source/passdb/pdb_ldap.c and 
+    - two typos on "account" fixed in source/passdb/pdb_ldap.c and
       source/utils/pdbedit.c. Closes: #402392
     - no longer panic when using the (deprecated) "only user" option
       in user level security. Closes: #388282
@@ -20,7 +20,11 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
   * Esperanto added. Closes: #417795.
   * Basque updated. Closes: #418196.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 07 Apr 2007 15:34:46 -0700
+  [ Christian Perrier ]
+  * /etc/dhcp3/dhclient-enter-hooks.d/samba tests for /etc/init.d/samba
+    before running invoke-rc.d. Closes: #414841
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 24 Apr 2007 14:51:09 +0200
 
 samba (3.0.24-6) unstable; urgency=high
 

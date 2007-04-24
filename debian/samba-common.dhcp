@@ -65,7 +65,8 @@ netbios_setup() {
 	mv ${SAMBA_DHCP_CONF}.new $SAMBA_DHCP_CONF
 
 	# reload the samba server
-	/usr/sbin/invoke-rc.d samba reload
+	# We don't necessarily have the samba package installed. #414841
+	[ -x /etc/init.d/samba ] && /usr/sbin/invoke-rc.d samba reload
 
 }
 

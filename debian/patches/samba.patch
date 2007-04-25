@@ -1,3 +1,14 @@
+Goal: Seems to be multiple:
+      - chunk 1: ?
+      - chunk 2: ?
+      - chunk 3: installing smbmount and smbumount is done The Debian Way in debian/rules
+
+Fixes: ?
+
+Status wrt upstream: Chunk 3 is Debian specific. Not sure for chunks 1 and 2
+
+Note: 
+
 Index: samba-3.0.25rc2/source/client/smbmount.c
 ===================================================================
 --- samba-3.0.25rc2.orig/source/client/smbmount.c	2007-04-24 11:07:00.702071823 +0200

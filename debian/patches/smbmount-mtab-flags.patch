@@ -1,3 +1,11 @@
+Goal: Always put the "ro|rw" option in mtab
+
+Fixes: ?
+
+Status wrt upstream: Should be forwarded if pertinent
+
+Note: 
+
 Index: samba-3.0.25rc2/source/client/smbmnt.c
 ===================================================================
 --- samba-3.0.25rc2.orig/source/client/smbmnt.c	2007-04-24 11:07:00.470062591 +0200

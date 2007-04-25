@@ -1,3 +1,20 @@
+Goal: Better respect FHS
+
+Fixes: #49011
+
+Status wrt upstream: Should be forwarded upstream (good luck..:-))
+
+Note: Use dedicated directories for:
+      - discardable cache data (/var/cache/samba): 
+          browse.dat, printers.tbd, <printer>.tdb
+      - non discardable state data:
+          all TDB files that may need to be backed up
+      - shared data (/usr/share/samba):
+          codepage stuff
+
+      That patch may need some work to check that files still go where they should go
+      It also needs work to be cleaner wrt people who want to run multiple instances of samba
+
 Index: samba-3.0.25rc2/source/Makefile.in
 ===================================================================
 --- samba-3.0.25rc2.orig/source/Makefile.in	2007-04-24 11:07:02.194131035 +0200

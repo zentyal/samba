@@ -1,7 +1,10 @@
 Goal: Adapt example script to Debian
+
 Fixes: #346234
 
 Status wrt upstream: Debian specific
+
+Note: 
 
 Index: samba-3.0.25rc2/docs/manpages/smb.conf.5
 ===================================================================

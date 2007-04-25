@@ -1,3 +1,11 @@
+Goal: add some missing files to the distclean target in source/Makefile.in
+
+Fixes: #276203 (mostly)
+
+Status wrt upstream: Should be forwarded upstream
+
+Note: 
+
 Index: samba-3.0.25rc2/source/Makefile.in
 ===================================================================
 --- samba-3.0.25rc2.orig/source/Makefile.in	2007-04-24 11:07:47.427810099 +0200

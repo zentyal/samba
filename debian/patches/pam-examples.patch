@@ -1,3 +1,11 @@
+Goal: The pam_smbpass examples are not in samples/ but examples/
+
+Fixes: ?
+
+Status wrt upstream: Debian specific
+
+Note: 
+
 Index: samba-3.0.25rc2/source/pam_smbpass/README
 ===================================================================
 --- samba-3.0.25rc2.orig/source/pam_smbpass/README	2007-04-24 11:07:00.878078827 +0200

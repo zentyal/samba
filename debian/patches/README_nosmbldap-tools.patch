@@ -1,3 +1,11 @@
+Goal: Amend the LDAP/README example as smbldap-tools are packaged separately
+
+Fixes: #341934
+
+Status wrt upstream: Debian specific
+
+Note: 
+
 Index: samba-3.0.25rc2/examples/LDAP/README
 ===================================================================
 --- samba-3.0.25rc2.orig/examples/LDAP/README	2007-04-24 11:07:00.794075484 +0200

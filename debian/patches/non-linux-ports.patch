@@ -1,3 +1,12 @@
+Goal: Support non Linux ports
+
+Fixes: 266693
+
+Status wrt upstream: Should be forwarded
+
+Note: Upstream would probably welcome patches allowing to build on new architectures. 
+      As this patch is the most often broken by new upstream releases, everybody would benefit from it.
+
 Index: samba-3.0.25rc2/source/configure.in
 ===================================================================
 --- samba-3.0.25rc2.orig/source/configure.in	2007-04-24 11:07:47.435810377 +0200

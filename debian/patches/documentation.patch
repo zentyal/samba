@@ -1,3 +1,11 @@
+Goal: Remove documentation parts that do not apply to Debian
+
+Fixes: ?
+
+Status wrt upstream: Debian specific
+
+Note: Some part should maybe go in the FHS patch
+
 Index: samba-3.0.25rc2/docs/manpages/swat.8
 ===================================================================
 --- samba-3.0.25rc2.orig/docs/manpages/swat.8	2007-04-24 11:07:02.502143220 +0200

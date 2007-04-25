@@ -1,3 +1,11 @@
+Goal: Do not hardcode the Python version in examples
+
+Fixes: #380939?
+
+Status wrt upstream: Should be reported
+
+Note: Probably other vendors would benefit from examples not hardcoding the Python version
+
 Index: samba-3.0.25rc1/source/python/examples/tdbpack/tdbtimetrial.py
 ===================================================================
 --- samba-3.0.25rc1.orig/source/python/examples/tdbpack/tdbtimetrial.py	2007-04-10 10:00:40.790383582 +0200

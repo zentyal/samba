@@ -1,3 +1,11 @@
+Goal: Unknown
+
+Fixes: ?
+
+Status wrt upstream: No apparent reason for not being forwarded upstream
+
+Note: 
+
 Index: samba-3.0.25rc2/source/nmbd/nmbd_subnetdb.c
 ===================================================================
 --- samba-3.0.25rc2.orig/source/nmbd/nmbd_subnetdb.c	2007-04-24 11:07:01.050085666 +0200

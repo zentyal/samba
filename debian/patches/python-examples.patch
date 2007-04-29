@@ -2,7 +2,7 @@ Goal: Do not hardcode the Python version in examples
 
 Fixes: #380939?
 
-Status wrt upstream: Should be reported
+Status wrt upstream: Forwarded upstream, will be in 3.0.26
 
 Note: Probably other vendors would benefit from examples not hardcoding the Python version
 

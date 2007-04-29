@@ -4,7 +4,8 @@ Goal:  Fix missing symbols in libsmbclient (and libnss_wins), and add
 
 Fixes: #281181
 
-Status wrt upstream: Not forwarded. Should be?
+Status wrt upstream: Not forwarded. Should be once there is a configure test 
+for it.
 
 Note: 
 

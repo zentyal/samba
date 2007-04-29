@@ -2,7 +2,7 @@ Goal: add some missing files to the distclean target in source/Makefile.in
 
 Fixes: #276203 (mostly)
 
-Status wrt upstream: Should be forwarded upstream
+Status wrt upstream: Forwarded upstream, will be in 3.0.26
 
 Note: 
 

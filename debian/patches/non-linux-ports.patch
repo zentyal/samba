@@ -2,7 +2,7 @@ Goal: Support non Linux ports
 
 Fixes: 266693
 
-Status wrt upstream: Should be forwarded
+Status wrt upstream: Forwarded, will be in 3.0.26
 
 Note: Upstream would probably welcome patches allowing to build on new architectures. 
       As this patch is the most often broken by new upstream releases, everybody would benefit from it.

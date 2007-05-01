@@ -19,6 +19,7 @@ samba (3.0.25rc1-1) UNRELEASED; urgency=low
   * Marathi added. Closes: #416802
   * Esperanto added. Closes: #417795.
   * Basque updated. Closes: #418196.
+  * Wolof updated. Closes: #421636
 
   [ Christian Perrier ]
   * /etc/dhcp3/dhclient-enter-hooks.d/samba tests for /etc/init.d/samba

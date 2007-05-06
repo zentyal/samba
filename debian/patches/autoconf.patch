@@ -6,7 +6,24 @@ Fixes: no specific bug
 
 Status wrt upstream: Debian specific
 
-Note: 
+Note: This patch will normally have to be updated by hand after every
+      new upstream release and after updates of any other patches that
+      touch configure.in -- the first because configure scripts don't
+      hold patches well between updates, the second so that our changes
+      are recognized in the version of the script actually used in the
+      build process.
+
+      The process for refreshing this patch is:
+
+ export QUILT_PATCHES=debian/patches
+ quilt push autoconf.patch # to get everything applied up to this point
+ quilt push -f autoconf.patch # to override the errors when applying
+ (cd source && autoconf -I lib/replace)
+   # the -I lib/replace is needed because upstream seems to have done
+   # something screwy with where their m4 include files are distributed in the
+   # source tree; so this option may not be necessary in the future
+ quilt refresh
+ find . -name '*.rej' | xargs rm
 
 Index: samba-3.0.25rc3/source/configure
 ===================================================================

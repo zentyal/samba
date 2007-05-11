@@ -1,3 +1,12 @@
+samba (3.0.14a-3sarge5) oldstable-security; urgency=high
+
+  * Security fixes:
+    - CVE-2007-2447 (Unescaped user input parameters are passed as
+                     arguments to /bin/sh allowing for remote command
+                     execution)
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 11 May 2007 20:24:27 +0200
+
 samba (3.0.14a-3sarge4) stable-security; urgency=high
 
   * Update endless-loop DoS fix to cover another attack vector.

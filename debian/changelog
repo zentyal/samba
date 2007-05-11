@@ -1,3 +1,11 @@
+samba (3.0.24-6etch1) stable-security; urgency=low
+
+  * Security fix:
+    - CVE-2007-2444 (User privilege elevation because of a local SID/Name
+      translation bug)
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 May 2007 07:58:11 +0200
+
 samba (3.0.24-6) unstable; urgency=high
 
   * Arrrgh, cut'n'paste error in the regexp in the last upload, so the bug

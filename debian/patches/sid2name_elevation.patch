@@ -1,0 +1,113 @@
+Index: samba-3.0.24/source/lib/util_sec.c
+===================================================================
+--- samba-3.0.24.orig/source/lib/util_sec.c	2007-05-03 16:41:17.000000000 -0500
++++ samba-3.0.24/source/lib/util_sec.c	2007-05-03 16:41:24.000000000 -0500
+@@ -286,28 +286,6 @@
+ }
+ 
+ /****************************************************************************
+- Lightweight become root - no group change.
+-****************************************************************************/
+-
+-void become_root_uid_only(void)
+-{
+-	save_re_uid();
+-	set_effective_uid(0);
+-}
+-
+-/****************************************************************************
+- Lightweight unbecome root - no group change. Expects we are root already,
+- saves errno across call boundary.
+-****************************************************************************/
+-
+-void unbecome_root_uid_only(void)
+-{
+-	int saved_errno = errno;
+-	restore_re_uid_fromroot();
+-	errno = saved_errno;
+-}
+-
+-/****************************************************************************
+  save the real and effective gid for later restoration. Used by the 
+  getgroups code
+ ****************************************************************************/
+Index: samba-3.0.24/source/passdb/lookup_sid.c
+===================================================================
+--- samba-3.0.24.orig/source/passdb/lookup_sid.c	2007-05-03 16:41:17.000000000 -0500
++++ samba-3.0.24/source/passdb/lookup_sid.c	2007-05-03 16:41:24.000000000 -0500
+@@ -421,10 +421,10 @@
+ 			return False;
+ 		}
+ 
+-		become_root_uid_only();
++		become_root();
+ 		result = pdb_lookup_rids(domain_sid, num_rids, rids,
+ 					 *names, *types);
+-		unbecome_root_uid_only();
++		unbecome_root();
+ 
+ 		return (NT_STATUS_IS_OK(result) ||
+ 			NT_STATUS_EQUAL(result, NT_STATUS_NONE_MAPPED) ||
+@@ -1085,9 +1085,9 @@
+ 		goto done;
+ 	}
+ 
+-	become_root_uid_only();
++	become_root();
+ 	ret = pdb_uid_to_rid(uid, &rid);
+-	unbecome_root_uid_only();
++	unbecome_root();
+ 
+ 	if (ret) {
+ 		/* This is a mapped user */
+@@ -1131,9 +1131,9 @@
+ 		goto done;
+ 	}
+ 
+-	become_root_uid_only();
++	become_root();
+ 	ret = pdb_gid_to_sid(gid, psid);
+-	unbecome_root_uid_only();
++	unbecome_root();
+ 
+ 	if (ret) {
+ 		/* This is a mapped group */
+@@ -1179,9 +1179,9 @@
+ 		union unid_t id;
+ 		BOOL ret;
+ 
+-		become_root_uid_only();
++		become_root();
+ 		ret = pdb_sid_to_id(psid, &id, &type);
+-		unbecome_root_uid_only();
++		unbecome_root();
+ 
+ 		if (ret) {
+ 			if (type != SID_NAME_USER) {
+@@ -1259,9 +1259,9 @@
+ 	     sid_check_is_in_wellknown_domain(psid))) {
+ 		BOOL ret;
+ 
+-		become_root_uid_only();
++		become_root();
+ 		ret = pdb_getgrsid(&map, *psid);
+-		unbecome_root_uid_only();
++		unbecome_root();
+ 
+ 		if (ret) {
+ 			*pgid = map.gid;
+@@ -1273,9 +1273,9 @@
+ 	if (sid_peek_check_rid(get_global_sam_sid(), psid, &rid)) {
+ 		BOOL ret;
+ 
+-		become_root_uid_only();
++		become_root();
+ 		ret = pdb_sid_to_id(psid, &id, &type);
+-		unbecome_root_uid_only();
++		unbecome_root();
+ 
+ 		if (ret) {
+ 			if ((type != SID_NAME_DOM_GRP) &&
+
+
+

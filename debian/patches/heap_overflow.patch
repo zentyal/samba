@@ -1,0 +1,255 @@
+Goal: Fix multiple heap overflows that allow remote code execution
+
+Fixes: CVE-2007-2446
+
+Status wrt upstream: Fixed in 3.0.25
+
+Note: 
+
+Index: samba-3.0.24/source/include/smb_macros.h
+===================================================================
+--- samba-3.0.24.orig/source/include/smb_macros.h	2007-05-10 09:47:34.000000000 -0500
++++ samba-3.0.24/source/include/smb_macros.h	2007-05-10 09:48:03.000000000 -0500
+@@ -310,7 +310,6 @@
+ #if defined(PARANOID_MALLOC_CHECKER)
+ 
+ #define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem_((ps),sizeof(type),(count))
+-#define PRS_ALLOC_MEM_VOID(ps, size) prs_alloc_mem_((ps),(size),1)
+ 
+ /* Get medieval on our ass about malloc.... */
+ 
+@@ -354,7 +353,6 @@
+ #define __location__ __FILE__ ":" __LINESTR__
+ 
+ #define PRS_ALLOC_MEM(ps, type, count) (type *)prs_alloc_mem((ps),sizeof(type),(count))
+-#define PRS_ALLOC_MEM_VOID(ps, size) prs_alloc_mem((ps),(size),1)
+ 
+ /* Regular malloc code. */
+ 
+Index: samba-3.0.24/source/rpc_parse/parse_dfs.c
+===================================================================
+--- samba-3.0.24.orig/source/rpc_parse/parse_dfs.c	2007-05-10 09:47:28.000000000 -0500
++++ samba-3.0.24/source/rpc_parse/parse_dfs.c	2007-05-10 09:48:03.000000000 -0500
+@@ -325,7 +325,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->stores = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->stores)*v->num_stores);
++			v->stores = PRS_ALLOC_MEM(ps,NETDFS_DFS_STORAGEINFO,v->num_stores);
++			if (!v->stores)
++				return False;
+ 		}
+ 		for (i_stores_1=0; i_stores_1<v->num_stores;i_stores_1++) {
+ 			if (!netdfs_io_dfs_StorageInfo_p("stores", &v->stores[i_stores_1], ps, depth))
+@@ -447,7 +449,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->stores = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->stores)*v->num_stores);
++			v->stores = PRS_ALLOC_MEM(ps,NETDFS_DFS_STORAGEINFO,v->num_stores);
++			if (!v->stores)
++				return False;
+ 		}
+ 		for (i_stores_1=0; i_stores_1<v->num_stores;i_stores_1++) {
+ 			if (!netdfs_io_dfs_StorageInfo_p("stores", &v->stores[i_stores_1], ps, depth))
+@@ -920,7 +924,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO1,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info1_p("s", &v->s[i_s_1], ps, depth))
+@@ -986,7 +992,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO2,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info2_p("s", &v->s[i_s_1], ps, depth))
+@@ -1052,7 +1060,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO3,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info3_p("s", &v->s[i_s_1], ps, depth))
+@@ -1118,7 +1128,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO4,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info4_p("s", &v->s[i_s_1], ps, depth))
+@@ -1184,7 +1196,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO200,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info200_p("s", &v->s[i_s_1], ps, depth))
+@@ -1250,7 +1264,9 @@
+ 			return False;
+ 		
+ 		if (UNMARSHALLING(ps)) {
+-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
++			v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO300,v->count);
++			if (!v->s)
++				return False;
+ 		}
+ 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
+ 			if (!netdfs_io_dfs_Info300_p("s", &v->s[i_s_1], ps, depth))
+Index: samba-3.0.24/source/rpc_parse/parse_lsa.c
+===================================================================
+--- samba-3.0.24.orig/source/rpc_parse/parse_lsa.c	2007-05-10 09:47:14.000000000 -0500
++++ samba-3.0.24/source/rpc_parse/parse_lsa.c	2007-05-10 09:47:58.000000000 -0500
+@@ -1349,12 +1349,17 @@
+ 			       &trn->num_entries2))
+ 			return False;
+ 
++		if (trn->num_entries2 != trn->num_entries) {
++			/* RPC fault */
++			return False;
++		}
++
+ 		if (UNMARSHALLING(ps)) {
+-			if ((trn->name = PRS_ALLOC_MEM(ps, LSA_TRANS_NAME, trn->num_entries)) == NULL) {
++			if ((trn->name = PRS_ALLOC_MEM(ps, LSA_TRANS_NAME, trn->num_entries2)) == NULL) {
+ 				return False;
+ 			}
+ 
+-			if ((trn->uni_name = PRS_ALLOC_MEM(ps, UNISTR2, trn->num_entries)) == NULL) {
++			if ((trn->uni_name = PRS_ALLOC_MEM(ps, UNISTR2, trn->num_entries2)) == NULL) {
+ 				return False;
+ 			}
+ 		}
+@@ -1406,12 +1411,17 @@
+ 			       &trn->num_entries2))
+ 			return False;
+ 
++		if (trn->num_entries2 != trn->num_entries) {
++			/* RPC fault */
++			return False;
++		}
++
+ 		if (UNMARSHALLING(ps)) {
+-			if ((trn->name = PRS_ALLOC_MEM(ps, LSA_TRANS_NAME2, trn->num_entries)) == NULL) {
++			if ((trn->name = PRS_ALLOC_MEM(ps, LSA_TRANS_NAME2, trn->num_entries2)) == NULL) {
+ 				return False;
+ 			}
+ 
+-			if ((trn->uni_name = PRS_ALLOC_MEM(ps, UNISTR2, trn->num_entries)) == NULL) {
++			if ((trn->uni_name = PRS_ALLOC_MEM(ps, UNISTR2, trn->num_entries2)) == NULL) {
+ 				return False;
+ 			}
+ 		}
+@@ -2759,7 +2769,7 @@
+ 
+ static BOOL lsa_io_privilege_set(const char *desc, PRIVILEGE_SET *out, prs_struct *ps, int depth)
+ {
+-	uint32 i;
++	uint32 i, dummy;
+ 
+ 	prs_debug(ps, depth, desc, "lsa_io_privilege_set");
+ 	depth++;
+@@ -2767,7 +2777,7 @@
+ 	if(!prs_align(ps))
+ 		return False;
+  
+-	if(!prs_uint32("count", ps, depth, &out->count))
++	if(!prs_uint32("count", ps, depth, &dummy))
+ 		return False;
+ 	if(!prs_uint32("control", ps, depth, &out->control))
+ 		return False;
+Index: samba-3.0.24/source/rpc_parse/parse_prs.c
+===================================================================
+--- samba-3.0.24.orig/source/rpc_parse/parse_prs.c	2007-05-10 09:47:19.000000000 -0500
++++ samba-3.0.24/source/rpc_parse/parse_prs.c	2007-05-10 09:48:03.000000000 -0500
+@@ -156,7 +156,7 @@
+ {
+ 	char *ret = NULL;
+ 
+-	if (size) {
++	if (size && count) {
+ 		/* We can't call the type-safe version here. */
+ 		ret = _talloc_zero_array(ps->mem_ctx, size, count, "parse_prs");
+ 	}
+@@ -642,7 +642,7 @@
+ 		return True;
+ 
+ 	if (UNMARSHALLING(ps)) {
+-		if ( !(*data = PRS_ALLOC_MEM_VOID(ps, data_size)) )
++		if ( !(*data = (void *)PRS_ALLOC_MEM(ps, char, data_size)) )
+ 			return False;
+ 	}
+ 
+Index: samba-3.0.24/source/rpc_parse/parse_sec.c
+===================================================================
+--- samba-3.0.24.orig/source/rpc_parse/parse_sec.c	2007-05-10 09:47:22.000000000 -0500
++++ samba-3.0.24/source/rpc_parse/parse_sec.c	2007-05-10 09:48:01.000000000 -0500
+@@ -122,7 +122,7 @@
+  for you as it reads them.
+ ********************************************************************/
+ 
+-BOOL sec_io_acl(const char *desc, SEC_ACL **ppsa, prs_struct *ps, int depth)
++static BOOL sec_io_acl(const char *desc, SEC_ACL **ppsa, prs_struct *ps, int depth)
+ {
+ 	unsigned int i;
+ 	uint32 old_offset;
+@@ -165,13 +165,10 @@
+ 		return False;
+ 
+ 	if (UNMARSHALLING(ps)) {
+-		/*
+-		 * Even if the num_aces is zero, allocate memory as there's a difference
+-		 * between a non-present DACL (allow all access) and a DACL with no ACE's
+-		 * (allow no access).
+-		 */
+-		if((psa->ace = PRS_ALLOC_MEM(ps, SEC_ACE, psa->num_aces+1)) == NULL)
+-			return False;
++		if (psa->num_aces) {
++			if((psa->ace = PRS_ALLOC_MEM(ps, SEC_ACE, psa->num_aces)) == NULL)
++				return False;
++		}
+ 	}
+ 
+ 	for (i = 0; i < psa->num_aces; i++) {
+Index: samba-3.0.24/source/rpc_parse/parse_spoolss.c
+===================================================================
+--- samba-3.0.24.orig/source/rpc_parse/parse_spoolss.c	2007-05-10 09:47:16.000000000 -0500
++++ samba-3.0.24/source/rpc_parse/parse_spoolss.c	2007-05-10 09:48:00.000000000 -0500
+@@ -227,8 +227,13 @@
+ 	if(!prs_uint32("count2", ps, depth, &type->count2))
+ 		return False;
+ 	
+-	if (type->count2 != type->count)
++	if (type->count2 != type->count) {
+ 		DEBUG(4,("What a mess, count was %x now is %x !\n", type->count, type->count2));
++		return False;
++	}
++	if (type->count2 > MAX_NOTIFY_TYPE_FOR_NOW) {
++		return False;
++	}
+ 
+ 	/* parse the option type data */
+ 	for(i=0;i<type->count2;i++)
+

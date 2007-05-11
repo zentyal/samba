@@ -1,8 +1,12 @@
 samba (3.0.24-6etch1) stable-security; urgency=low
 
-  * Security fix:
+  * Security fixes:
     - CVE-2007-2444 (User privilege elevation because of a local SID/Name
       translation bug)
+    - CVE-2007-2446 (Multiple heap overflows allow remote code execution)
+    - CVE-2007-2447 (Unescaped user input parameters are passed as
+                     arguments to /bin/sh allowing for remote command
+                     execution)
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 05 May 2007 07:58:11 +0200
 

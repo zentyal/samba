@@ -21,3 +21,5 @@ autoconf.patch
 python-examples.patch
 no_unbreakable_spaces_in_man.patch
 sid2name_elevation.patch
+heap_overflow.patch
+shell_escape.patch

@@ -1,9 +1,7 @@
 samba (3.0.14a-3sarge5) oldstable-security; urgency=high
 
-  * Security fixes:
-    - CVE-2007-2447 (Unescaped user input parameters are passed as
-                     arguments to /bin/sh allowing for remote command
-                     execution)
+  * Fix heap overflow in NDR parsing code. (CVE-2007-2446)
+  * Fix lack of proper escaping of arguments to /bin/sh (CVE-2007-2447)
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 11 May 2007 20:24:27 +0200
 

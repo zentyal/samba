@@ -25,7 +25,12 @@ samba (3.0.25~rc3-1) UNRELEASED; urgency=low
   * /etc/dhcp3/dhclient-enter-hooks.d/samba tests for /etc/init.d/samba
     before running invoke-rc.d. Closes: #414841
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 24 Apr 2007 14:51:09 +0200
+  [ Steve Langasek ]
+  * debian/patches/python-build-fixes.patch: fix the python bindings so that
+    they build in 3.0.25rc3; patch should be integrated upstream in 3.0.25
+    final.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 12 May 2007 03:29:01 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 

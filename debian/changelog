@@ -26,11 +26,11 @@ samba (3.0.25-1) UNRELEASED; urgency=low
     before running invoke-rc.d. Closes: #414841
 
   [ Steve Langasek ]
-  * debian/patches/python-build-fixes.patch: fix the python bindings so that
-    they build in 3.0.25rc3; patch should be integrated upstream in 3.0.25
-    final.
+  * Comment out use of type-handling in the clean target, because
+    type-handling is currently broken in unstable and clean shouldn't be
+    editing debian/control anyway.
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 13 May 2007 23:50:06 -0700
+ -- Steve Langasek <vorlon@debian.org>  Mon, 14 May 2007 00:38:18 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 

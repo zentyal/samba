@@ -102,8 +102,8 @@ clean-patched:
 
 	-$(MAKE) -C source distclean
 
-	sed -e "s/@libacl@/`type-handling any linux-gnu`/g" \
-		< debian/control.in > debian/control
+	#sed -e "s/@libacl@/`type-handling any linux-gnu`/g" \
+	#	< debian/control.in > debian/control
 	debconf-updatepo
 
 	dh_clean

@@ -18,4 +18,3 @@ VERSION.patch
 adapt_machine_creation_script.patch
 autoconf.patch
 python-examples.patch
-python-build-fixes.patch

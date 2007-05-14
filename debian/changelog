@@ -1,4 +1,4 @@
-samba (3.0.25~rc3-1) UNRELEASED; urgency=low
+samba (3.0.25-1) UNRELEASED; urgency=low
 
   * New upstream version
   * Bugs fixed upstream:
@@ -30,7 +30,7 @@ samba (3.0.25~rc3-1) UNRELEASED; urgency=low
     they build in 3.0.25rc3; patch should be integrated upstream in 3.0.25
     final.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 12 May 2007 03:29:01 -0700
+ -- Steve Langasek <vorlon@debian.org>  Sun, 13 May 2007 23:50:06 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 

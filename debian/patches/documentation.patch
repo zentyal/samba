@@ -6,211 +6,272 @@ Status wrt upstream: Debian specific
 
 Note: Some part should maybe go in the FHS patch
 
-Index: samba-3.0.25rc2/docs/manpages/swat.8
+Index: samba-3.0.25/docs/manpages/swat.8
 ===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/swat.8	2007-04-24 11:07:02.502143220 +0200
-+++ samba-3.0.25rc2/docs/manpages/swat.8	2007-04-24 11:07:46.831789353 +0200
-@@ -81,51 +81,6 @@
- \-h|\-\-help
- Print a summary of command line options\&.
- 
+--- samba-3.0.25.orig/docs/manpages/swat.8	2007-05-11 02:02:07.000000000 +0000
++++ samba-3.0.25/docs/manpages/swat.8	2007-05-14 07:05:47.000000000 +0000
+@@ -111,60 +111,6 @@
+ .RS 3n
+ Print a summary of command line options.
+ .RE
 -.SH "INSTALLATION"
--
 -.PP
--Swat is included as binary package with most distributions\&. The package manager in this case takes care of the installation and configuration\&. This section is only for those who have compiled swat from scratch\&.
--
+-Swat is included as binary package with most distributions. The package manager in this case takes care of the installation and configuration. This section is only for those who have compiled swat from scratch.
 -.PP
--After you compile SWAT you need to run \fBmake install \fR to install the \fBswat\fR binary and the various help files and images\&. A default install would put these in:
--
--.TP 3
--\(bu
+-After you compile SWAT you need to run
+-\fBmake install \fR
+-to install the
+-\fBswat\fR
+-binary and the various help files and images. A default install would put these in:
+-.TP 3n
+-&#8226;
 -/usr/local/samba/sbin/swat
--.TP
--\(bu
+-.TP 3n
+-&#8226;
 -/usr/local/samba/swat/images/*
--.TP
--\(bu
+-.TP 3n
+-&#8226;
 -/usr/local/samba/swat/help/*
--.LP
--
 -.SS "Inetd Installation"
--
 -.PP
--You need to edit your \fI/etc/inetd\&.conf \fR and \fI/etc/services\fR to enable SWAT to be launched via \fBinetd\fR\&.
--
+-You need to edit your
+-\fI/etc/inetd.conf \fR
+-and
+-\fI/etc/services\fR
+-to enable SWAT to be launched via
+-\fBinetd\fR.
 -.PP
--In \fI/etc/services\fR you need to add a line like this:
--
+-In
+-\fI/etc/services\fR
+-you need to add a line like this:
 -.PP
 -\fBswat 901/tcp\fR
--
 -.PP
--Note for NIS/YP and LDAP users \- you may need to rebuild the NIS service maps rather than alter your local \fI /etc/services\fR file\&.
--
+-Note for NIS/YP and LDAP users - you may need to rebuild the NIS service maps rather than alter your local
+-\fI /etc/services\fR
+-file.
 -.PP
--the choice of port number isn't really important except that it should be less than 1024 and not currently used (using a number above 1024 presents an obscure security hole depending on the implementation details of your\fBinetd\fR daemon)\&.
--
+-the choice of port number isn't really important except that it should be less than 1024 and not currently used (using a number above 1024 presents an obscure security hole depending on the implementation details of your
+-\fBinetd\fR
+-daemon).
 -.PP
--In \fI/etc/inetd\&.conf\fR you should add a line like this:
--
+-In
+-\fI/etc/inetd.conf\fR
+-you should add a line like this:
 -.PP
--\fBswat stream tcp nowait\&.400 root /usr/local/samba/sbin/swat swat\fR
--
+-\fBswat stream tcp nowait.400 root /usr/local/samba/sbin/swat swat\fR
 -.PP
--Once you have edited \fI/etc/services\fR and \fI/etc/inetd\&.conf\fR you need to send a HUP signal to inetd\&. To do this use \fBkill \-1 PID \fR where PID is the process ID of the inetd daemon\&.
--
+-Once you have edited
+-\fI/etc/services\fR
+-and
+-\fI/etc/inetd.conf\fR
+-you need to send a HUP signal to inetd. To do this use
+-\fBkill -1 PID \fR
+-where PID is the process ID of the inetd daemon.
  .SH "LAUNCHING"
- 
  .PP
-@@ -145,8 +100,8 @@
- This file must contain a mapping of service name (e\&.g\&., swat) to service port (e\&.g\&., 901) and protocol type (e\&.g\&., tcp)\&.
- 
- .TP
--\fI/usr/local/samba/lib/smb\&.conf\fR
--This is the default location of the \fBsmb\&.conf\fR(5) server configuration file that swat edits\&. Other common places that systems install this file are \fI /usr/samba/lib/smb\&.conf\fR and \fI/etc/smb\&.conf \fR\&. This file describes all the services the server is to make available to clients\&.
-+\fI/etc/samba/smb\&.conf\fR
-+This is the default location of the \fBsmb\&.conf\fR(5) server configuration file that swat edits\&. This file describes all the services the server is to make available to clients\&.
- 
+ To launch SWAT just run your favorite web browser and point it at "http://localhost:901/".
+@@ -182,14 +128,11 @@
+ This file must contain a mapping of service name (e.g., swat) to service port (e.g., 901) and protocol type (e.g., tcp).
+ .RE
+ .PP
+-\fI/usr/local/samba/lib/smb.conf\fR
++\fI/etc/samba/smb.conf\fR
+ .RS 3n
+ This is the default location of the
+ \fBsmb.conf\fR(5)
+-server configuration file that swat edits. Other common places that systems install this file are
+-\fI /usr/samba/lib/smb.conf\fR
+-and
+-\fI/etc/smb.conf \fR. This file describes all the services the server is to make available to clients.
++server configuration file that swat edits. This file describes all the services the server is to make available to clients.
+ .RE
  .SH "WARNINGS"
- 
-Index: samba-3.0.25rc2/docs/manpages/nmbd.8
-===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/nmbd.8	2007-04-24 11:07:02.510143537 +0200
-+++ samba-3.0.25rc2/docs/manpages/nmbd.8	2007-04-24 11:07:46.835789493 +0200
-@@ -74,7 +74,7 @@
- \-H <filename>
- NetBIOS lmhosts file\&. The lmhosts file is a list of NetBIOS names to IP addresses that is loaded by the nmbd server and used via the name resolution mechanism name resolve order described in \fBsmb\&.conf\fR(5) to resolve any NetBIOS name queries needed by the server\&. Note that the contents of this file are \fBNOT\fR used by \fBnmbd\fR to answer any name queries\&. Adding a line to this file affects name NetBIOS resolution from this host \fBONLY\fR\&.
- 
--The default path to this file is compiled into Samba as part of the build process\&. Common defaults are \fI/usr/local/samba/lib/lmhosts\fR,\fI/usr/samba/lib/lmhosts\fR or\fI/etc/samba/lmhosts\fR\&. See the \fBlmhosts\fR(5) man page for details on the contents of this file\&.
-+The default path to this file is \fI/etc/samba/lmhosts\fR. See the \fBlmhosts\fR(5) man page for details on the contents of this file\&.
- 
- .TP
- \-V
-@@ -119,8 +119,8 @@
- If running the server via the meta\-daemon \fBinetd\fR, this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
- 
- .TP
--\fI/usr/local/samba/lib/smb\&.conf\fR
--This is the default location of the \fBsmb\&.conf\fR(5) server configuration file\&. Other common places that systems install this file are \fI/usr/samba/lib/smb\&.conf\fR and \fI/etc/samba/smb\&.conf\fR\&.
-+\fI/etc/samba/smb\&.conf\fR
-+This is the default location of the \fBsmb\&.conf\fR(5) server configuration file\&.
- 
- When run as a WINS server (see thewins support parameter in the \fBsmb\&.conf\fR(5) man page),\fBnmbd\fR will store the WINS database in the file \fIwins\&.dat\fR in the \fIvar/locks\fR directory configured under wherever Samba was configured to install itself\&.
- 
-@@ -132,7 +132,7 @@
- To shut down an \fBnmbd\fR process it is recommended that SIGKILL (\-9) \fBNOT\fR be used, except as a last resort, as this may leave the name database in an inconsistent state\&. The correct way to terminate \fBnmbd\fR is to send it a SIGTERM (\-15) signal and wait for it to die on its own\&.
- 
  .PP
--\fBnmbd\fR will accept SIGHUP, which will cause it to dump out its namelists into the file \fInamelist\&.debug \fR in the \fI/usr/local/samba/var/locks\fR directory (or the \fIvar/locks\fR directory configured under wherever Samba was configured to install itself)\&. This will also cause \fBnmbd\fR to dump out its server database in the \fIlog\&.nmb\fR file\&.
-+\fBnmbd\fR will accept SIGHUP, which will cause it to dump out its namelists into the file \fInamelist\&.debug \fR in the \fI/var/run/samba\fR directory\&. This will also cause \fBnmbd\fR to dump out its server database in the \fIlog\&.nmb\fR file\&.
- 
+Index: samba-3.0.25/docs/manpages/nmbd.8
+===================================================================
+--- samba-3.0.25.orig/docs/manpages/nmbd.8	2007-05-11 02:01:14.000000000 +0000
++++ samba-3.0.25/docs/manpages/nmbd.8	2007-05-14 07:08:43.000000000 +0000
+@@ -113,11 +113,9 @@
+ to answer any name queries. Adding a line to this file affects name NetBIOS resolution from this host
+ \fBONLY\fR.
+ .sp
+-The default path to this file is compiled into Samba as part of the build process. Common defaults are
+-\fI/usr/local/samba/lib/lmhosts\fR,
+-\fI/usr/samba/lib/lmhosts\fR
+-or
+-\fI/etc/samba/lmhosts\fR. See the
++The default path to this file is
++\fI/etc/samba/lmhosts\fR.
++See the
+ \fBlmhosts\fR(5)
+ man page for details on the contents of this file.
+ .RE
+@@ -185,14 +183,11 @@
+ \fBinetd\fR, this file must contain a mapping of service name (e.g., netbios-ssn) to service port (e.g., 139) and protocol type (e.g., tcp).
+ .RE
  .PP
- The debug log level of nmbd may be raised or lowered using \fBsmbcontrol\fR(1) (SIGUSR[1|2] signals are no longer used since Samba 2\&.2)\&. This is to allow transient problems to be diagnosed, whilst still running at a normally low log level\&.
-Index: samba-3.0.25rc2/docs/manpages/smbd.8
+-\fI/usr/local/samba/lib/smb.conf\fR
++\fI/etc/samba/smb.conf\fR
+ .RS 3n
+ This is the default location of the
+ \fBsmb.conf\fR(5)
+-server configuration file. Other common places that systems install this file are
+-\fI/usr/samba/lib/smb.conf\fR
+-and
+-\fI/etc/samba/smb.conf\fR.
++server configuration file.
+ .sp
+ When run as a WINS server (see the
+ wins support parameter in the
+@@ -234,10 +229,8 @@
+ will accept SIGHUP, which will cause it to dump out its namelists into the file
+ \fInamelist.debug \fR
+ in the
+-\fI/usr/local/samba/var/locks\fR
+-directory (or the
+-\fIvar/locks\fR
+-directory configured under wherever Samba was configured to install itself). This will also cause
++\fI/var/run/samba\fR
++directory. This will also cause
+ \fBnmbd\fR
+ to dump out its server database in the
+ \fIlog.nmb\fR
+Index: samba-3.0.25/docs/manpages/smbd.8
 ===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/smbd.8	2007-04-24 11:07:02.518143853 +0200
-+++ samba-3.0.25rc2/docs/manpages/smbd.8	2007-04-24 11:07:46.863790469 +0200
-@@ -119,8 +119,8 @@
- If running the server via the meta\-daemon \fBinetd\fR, this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
- 
- .TP
--\fI/usr/local/samba/lib/smb\&.conf\fR
--This is the default location of the \fBsmb\&.conf\fR(5) server configuration file\&. Other common places that systems install this file are \fI/usr/samba/lib/smb\&.conf\fR and \fI/etc/samba/smb\&.conf\fR\&.
-+\fI/etc/samba/smb\&.conf\fR
-+This is the default location of the \fBsmb\&.conf\fR(5) server configuration file\&.
- 
- This file describes all the services the server is to make available to clients\&. See \fBsmb\&.conf\fR(5) for more information\&.
- 
-Index: samba-3.0.25rc2/docs/manpages/lmhosts.5
+--- samba-3.0.25.orig/docs/manpages/smbd.8	2007-05-11 02:01:40.000000000 +0000
++++ samba-3.0.25/docs/manpages/smbd.8	2007-05-14 07:09:29.000000000 +0000
+@@ -168,14 +168,11 @@
+ \fBinetd\fR, this file must contain a mapping of service name (e.g., netbios-ssn) to service port (e.g., 139) and protocol type (e.g., tcp).
+ .RE
+ .PP
+-\fI/usr/local/samba/lib/smb.conf\fR
++\fI/etc/samba/smb.conf\fR
+ .RS 3n
+ This is the default location of the
+ \fBsmb.conf\fR(5)
+-server configuration file. Other common places that systems install this file are
+-\fI/usr/samba/lib/smb.conf\fR
+-and
+-\fI/etc/samba/smb.conf\fR.
++server configuration file.
+ .sp
+ This file describes all the services the server is to make available to clients. See
+ \fBsmb.conf\fR(5)
+Index: samba-3.0.25/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/lmhosts.5	2007-04-24 11:07:02.526144170 +0200
-+++ samba-3.0.25rc2/docs/manpages/lmhosts.5	2007-04-24 11:07:46.927792702 +0200
-@@ -75,7 +75,7 @@
+--- samba-3.0.25.orig/docs/manpages/lmhosts.5	2007-05-11 02:01:06.000000000 +0000
++++ samba-3.0.25/docs/manpages/lmhosts.5	2007-05-14 07:10:00.000000000 +0000
+@@ -77,10 +77,8 @@
+ file.
  .SH "FILES"
- 
  .PP
--lmhosts is loaded from the configuration directory\&. This is usually \fI/etc/samba\fR or \fI/usr/local/samba/lib\fR\&.
-+lmhosts is loaded from the configuration directory\&. This is \fI/etc/samba\fR\&.
- 
+-lmhosts is loaded from the configuration directory. This is usually
+-\fI/etc/samba\fR
+-or
+-\fI/usr/local/samba/lib\fR.
++lmhosts is loaded from the configuration directory. This is
++\fI/etc/samba\fR.
  .SH "VERSION"
- 
-Index: samba-3.0.25rc2/docs/manpages/ntlm_auth.1
-===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/ntlm_auth.1	2007-04-24 11:07:02.534144486 +0200
-+++ samba-3.0.25rc2/docs/manpages/ntlm_auth.1	2007-04-24 11:07:46.967794097 +0200
-@@ -42,7 +42,7 @@
- The \fBwinbindd\fR(8) daemon must be operational for many of these commands to function\&.
- 
  .PP
--Some of these commands also require access to the directory \fIwinbindd_privileged\fR in \fI$LOCKDIR\fR\&. This should be done either by running this command as root or providing group access to the \fIwinbindd_privileged\fR directory\&. For security reasons, this directory should not be world\-accessable\&.
-+Some of these commands also require access to the directory \fIwinbindd_privileged\fR in \fI/var/run/samba\fR\&. This should be done either by running this command as root or providing group access to the \fIwinbindd_privileged\fR directory\&. For security reasons, this directory should not be world\-accessable\&.
- 
+ This man page is correct for version 3.0 of the Samba suite.
+Index: samba-3.0.25/docs/manpages/ntlm_auth.1
+===================================================================
+--- samba-3.0.25.orig/docs/manpages/ntlm_auth.1	2007-05-11 02:01:18.000000000 +0000
++++ samba-3.0.25/docs/manpages/ntlm_auth.1	2007-05-14 07:11:15.000000000 +0000
+@@ -43,7 +43,7 @@
+ Some of these commands also require access to the directory
+ \fIwinbindd_privileged\fR
+ in
+-\fI$LOCKDIR\fR. This should be done either by running this command as root or providing group access to the
++\fI/var/run/samba\fR. This should be done either by running this command as root or providing group access to the
+ \fIwinbindd_privileged\fR
+ directory. For security reasons, this directory should not be world-accessable.
  .SH "OPTIONS"
- 
-@@ -64,7 +64,7 @@
- squid\-2\&.5\-ntlmssp
- Server\-side helper for use with Squid 2\&.5's NTLMSSP authentication\&.
- 
--Requires access to the directory \fIwinbindd_privileged\fR in\fI$LOCKDIR\fR\&. The protocol used is described here: http://devel\&.squid\-cache\&.org/ntlm/squid_helper_protocol\&.html\&. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the \fBYR\fR command\&. (Thus avoiding loss of information in the protocol exchange)\&.
-+Requires access to the directory \fIwinbindd_privileged\fR in\fI/var/run/samba\fR\&. The protocol used is described here: http://devel\&.squid\-cache\&.org/ntlm/squid_helper_protocol\&.html\&. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the \fBYR\fR command\&. (Thus avoiding loss of information in the protocol exchange)\&.
- 
- .TP
- ntlmssp\-client\-1
-@@ -76,7 +76,7 @@
- gss\-spnego
- Server\-side helper that implements GSS\-SPNEGO\&. This uses a protocol that is almost the same as\fBsquid\-2\&.5\-ntlmssp\fR, but has some subtle differences that are undocumented outside the source at this stage\&.
- 
--Requires access to the directory \fIwinbindd_privileged\fR in\fI$LOCKDIR\fR\&.
-+Requires access to the directory \fIwinbindd_privileged\fR in\fI/var/run/samba\fR\&.
- 
- .TP
- gss\-spnego\-client
-Index: samba-3.0.25rc2/docs/manpages/tdbbackup.8
+@@ -71,7 +71,7 @@
+ Requires access to the directory
+ \fIwinbindd_privileged\fR
+ in
+-\fI$LOCKDIR\fR. The protocol used is described here:
++\fI/var/run/samba\fR. The protocol used is described here:
+ http://devel.squid-cache.org/ntlm/squid_helper_protocol.html. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the
+ \fBYR\fR
+ command. (Thus avoiding loss of information in the protocol exchange).
+@@ -94,7 +94,7 @@
+ Requires access to the directory
+ \fIwinbindd_privileged\fR
+ in
+-\fI$LOCKDIR\fR.
++\fI/var/run/samba\fR.
+ .RE
+ .PP
+ gss-spnego-client
+Index: samba-3.0.25/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/tdbbackup.8	2007-04-24 11:07:02.550145119 +0200
-+++ samba-3.0.25rc2/docs/manpages/tdbbackup.8	2007-04-24 11:07:46.999795213 +0200
-@@ -72,13 +72,13 @@
+--- samba-3.0.25.orig/docs/manpages/tdbbackup.8	2007-05-11 02:02:09.000000000 +0000
++++ samba-3.0.25/docs/manpages/tdbbackup.8	2007-05-14 07:12:18.000000000 +0000
+@@ -70,17 +70,17 @@
+ &#8226;
  
- .TP 3
- \(bu
--\fBsecrets\&.tdb\fR \- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba\&.
-+\fBsecrets\&.tdb\fR \- in the /var/lib/samba directory\&.
- .TP
- \(bu
--\fBpassdb\&.tdb\fR \- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba\&.
-+\fBpassdb\&.tdb\fR \- in the /var/lib/samba directory\&.
- .TP
- \(bu
--\fB*\&.tdb\fR located in the /usr/local/samba/var directory or on some systems in the /var/cache or /var/lib/samba directories\&.
-+\fB*\&.tdb\fR located in the /var/lib/samba and /var/run/samba directories\&.
- .LP
+ \fBsecrets.tdb\fR
+-- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba.
++- in the /var/lib/samba directory.
+ .TP 3n
+ &#8226;
  
+ \fBpassdb.tdb\fR
+-- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba.
++- in the /var/lib/samba directory.
+ .TP 3n
+ &#8226;
+ 
+ \fB*.tdb\fR
+-located in the /usr/local/samba/var directory or on some systems in the /var/cache or /var/lib/samba directories.
++located in the /var/lib/samba and /var/run/samba directories.
  .SH "VERSION"
-Index: samba-3.0.25rc2/docs/manpages/winbindd.8
+ .PP
+ This man page is correct for version 3.0 of the Samba suite.
+Index: samba-3.0.25/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.0.25rc2.orig/docs/manpages/winbindd.8	2007-04-24 11:07:02.562145594 +0200
-+++ samba-3.0.25rc2/docs/manpages/winbindd.8	2007-04-24 11:07:47.035796465 +0200
-@@ -308,19 +308,19 @@
- The UNIX pipe over which clients communicate with the \fBwinbindd\fR program\&. For security reasons, the winbind client will only attempt to connect to the winbindd daemon if both the \fI/tmp/\&.winbindd\fR directory and \fI/tmp/\&.winbindd/pipe\fR file are owned by root\&.
- 
- .TP
+--- samba-3.0.25.orig/docs/manpages/winbindd.8	2007-05-11 02:02:57.000000000 +0000
++++ samba-3.0.25/docs/manpages/winbindd.8	2007-05-14 07:14:38.000000000 +0000
+@@ -436,16 +436,16 @@
+ file are owned by root.
+ .RE
+ .PP
 -$LOCKDIR/winbindd_privileged/pipe
--The UNIX pipe over which 'privileged' clients communicate with the \fBwinbindd\fR program\&. For security reasons, access to some winbindd functions \- like those needed by the \fBntlm_auth\fR utility \- is restricted\&. By default, only users in the 'root' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like 'squid' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the \fI$LOCKDIR/winbindd_privileged\fR directory and \fI$LOCKDIR/winbindd_privileged/pipe\fR file are owned by root\&.
-+/var/run/samba/winbindd_privileged/pipe
-+The UNIX pipe over which 'privileged' clients communicate with the \fBwinbindd\fR program\&. For security reasons, access to some winbindd functions \- like those needed by the \fBntlm_auth\fR utility \- is restricted\&. By default, only users in the 'root' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like 'squid' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the \fI/var/run/samba/winbindd_privileged\fR directory and \fI/var/run/samba/winbindd_privileged/pipe\fR file are owned by root\&.
- 
- .TP
- /lib/libnss_winbind\&.so\&.X
- Implementation of name service switch library\&.
- 
- .TP
--$LOCKDIR/winbindd_idmap\&.tdb
-+/var/run/samba/winbindd_idmap\&.tdb
- Storage for the Windows NT rid to UNIX user/group id mapping\&. The lock directory is specified when Samba is initially compiled using the \fI\-\-with\-lockdir\fR option\&. This directory is by default \fI/usr/local/samba/var/locks \fR\&.
- 
- .TP
--$LOCKDIR/winbindd_cache\&.tdb
-+/var/run/samba/winbindd_cache\&.tdb
- Storage for cached user and group information\&.
- 
- .SH "VERSION"
++$/var/run/samba/winbindd_privileged/pipe
+ .RS 3n
+ The UNIX pipe over which 'privileged' clients communicate with the
+ \fBwinbindd\fR
+ program. For security reasons, access to some winbindd functions - like those needed by the
+ \fBntlm_auth\fR
+-utility - is restricted. By default, only users in the 'root' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like 'squid' to use ntlm_auth. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
+-\fI$LOCKDIR/winbindd_privileged\fR
++utility - is restricted. By default, only users in the 'root' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like 'squid' to use ntlm_auth. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
++\fI/var/run/samba/winbindd_privileged\fR
+ directory and
+-\fI$LOCKDIR/winbindd_privileged/pipe\fR
++\fI/var/run/samba/winbindd_privileged/pipe\fR
+ file are owned by root.
+ .RE
+ .PP
+@@ -454,15 +454,12 @@
+ Implementation of name service switch library.
+ .RE
+ .PP
+-$LOCKDIR/winbindd_idmap.tdb
++/var/run/samba/winbindd_idmap.tdb
+ .RS 3n
+-Storage for the Windows NT rid to UNIX user/group id mapping. The lock directory is specified when Samba is initially compiled using the
+-\fI--with-lockdir\fR
+-option. This directory is by default
+-\fI/usr/local/samba/var/locks \fR.
++Storage for the Windows NT rid to UNIX user/group id mapping.
+ .RE
+ .PP
+-$LOCKDIR/winbindd_cache.tdb
++/var/run/samba/winbindd_cache.tdb
+ .RS 3n
+ Storage for cached user and group information.
+ .RE

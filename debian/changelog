@@ -1,4 +1,4 @@
-samba (3.0.25-1) UNRELEASED; urgency=low
+samba (3.0.25-1) unstable; urgency=low
 
   * New upstream version
   * Bugs fixed upstream:
@@ -30,7 +30,7 @@ samba (3.0.25-1) UNRELEASED; urgency=low
     type-handling is currently broken in unstable and clean shouldn't be
     editing debian/control anyway.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 14 May 2007 00:38:18 -0700
+ -- Steve Langasek <vorlon@debian.org>  Mon, 14 May 2007 00:42:45 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 

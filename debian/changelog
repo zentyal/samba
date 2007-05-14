@@ -1,6 +1,6 @@
-samba (3.0.25-1) unstable; urgency=low
+samba (3.0.25-1) unstable; urgency=high
 
-  * New upstream version
+  * New upstream version including security fixes
   * Bugs fixed upstream:
     - nmbd no longer segfaults on bad interface line
       Closes: #265577, #386922, #359155, #366800
@@ -14,6 +14,12 @@ samba (3.0.25-1) unstable; urgency=low
       source/utils/pdbedit.c. Closes: #402392
     - no longer panic when using the (deprecated) "only user" option
       in user level security. Closes: #388282
+    - CVE-2007-2444 (User privilege elevation because of a local SID/Name
+      translation bug)
+    - CVE-2007-2446 (Multiple heap overflows allow remote code execution)
+    - CVE-2007-2447 (Unescaped user input parameters are passed as
+                     arguments to /bin/sh allowing for remote command
+                     execution)
 
   [ Debconf translations ]
   * Marathi added. Closes: #416802
@@ -30,7 +36,7 @@ samba (3.0.25-1) unstable; urgency=low
     type-handling is currently broken in unstable and clean shouldn't be
     editing debian/control anyway.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 14 May 2007 00:42:45 -0700
+ -- Christian Perrier <bubulle@debian.org>  Mon, 14 May 2007 10:30:15 +0200
 
 samba (3.0.24-6) unstable; urgency=high
 

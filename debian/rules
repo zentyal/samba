@@ -51,6 +51,7 @@ conf_args = \
 		--with-shared-modules=idmap_rid,idmap_ad \
 		--with-automount \
 		--with-ldap \
+		--with-ads \
 		--with-python=python
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)

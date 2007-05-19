@@ -1,3 +1,12 @@
+samba (3.0.25-2) UNRELEASED; urgency=low
+
+  * Debian packaging fixes:
+    - Enforce building with "--with-ads" and therefore fail
+      when the build can't be done with kerberos support. 
+      Closes: #424637
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 19 May 2007 09:00:56 +0200
+
 samba (3.0.25-1) unstable; urgency=high
 
   * New upstream version including security fixes

@@ -15,6 +15,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 [ -r /etc/default/winbind ] && . /etc/default/winbind
 
 DAEMON=/usr/sbin/winbindd
+PIDDIR=/var/run/samba
 
 # clear conflicting settings from the environment
 unset TMPDIR
@@ -29,8 +30,8 @@ case "$1" in
 		log_daemon_msg "Starting the Winbind daemon" "winbind"
 
 		mkdir -p /var/run/samba/winbindd_privileged || return 1
-		chgrp winbindd_priv /var/run/samba/winbindd_privileged/ || return 1
-		chmod 0750 /var/run/samba/winbindd_privileged/ || return 1
+		chgrp winbindd_priv $PIDDIR/winbindd_privileged/ || return 1
+		chmod 0750 $PIDDIR/winbindd_privileged/ || return 1
 		start-stop-daemon --start --quiet --oknodo --exec $DAEMON -- $WINBINDD_OPTS
 
 		log_end_msg $?

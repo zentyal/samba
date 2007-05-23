@@ -350,6 +350,18 @@ Index: samba-3.0.25rc2/source/nsswitch/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
+@@ -2223,9 +2223,9 @@
+                tdb_close(wcache->tdb);
+                wcache->tdb = NULL;
+
+-               if (unlink(lock_path("winbindd_cache.tdb")) == -1) {
++               if (unlink(cache_path("winbindd_cache.tdb")) == -1) {
+                        DEBUG(0,("initialize_winbindd_cache: unlink %s failed %s ",
+-                               lock_path("winbindd_cache.tdb"),
++                               cache_path("winbindd_cache.tdb"),
+                                strerror(errno) ));
+                        return False;
+                }
 Index: samba-3.0.25rc2/source/param/loadparm.c
 ===================================================================
 --- samba-3.0.25rc2.orig/source/param/loadparm.c	2007-04-24 11:07:02.358137523 +0200

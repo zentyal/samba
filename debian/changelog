@@ -7,6 +7,10 @@ samba (3.0.25-2) UNRELEASED; urgency=low
   * Merge Ubuntu changes:
     - use of PIDDIR instead of hardcoding it in samba.init and winbind.init
     - The default files permissions in [homes] is 0600 and not 0700
+  * Patches to upstream source:
+    - patches/fhs.patch: recreate winbindd_cache.tdb in the cache directory
+      instead of the lock directory. Thanks to C. K. Jester-Young for the
+      patch. Closes: #425640
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 19 May 2007 09:00:56 +0200
 

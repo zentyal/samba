@@ -4,7 +4,7 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
   * Bugs fixed upstream:
     - password expiration loog on samba domain controllers. Closes: #425083
     - no more login on samba servers that are members of samba domains
-      Closes: #425680
+      Closes: #425680, #426002
     - users no longer have access according to their secondary groups
       on shares with "force group". Closes: #424629
   * Debian packaging fixes:
@@ -955,7 +955,7 @@ samba (3.0.5-1) unstable; urgency=high
 samba (3.0.4-5) unstable; urgency=low
 
   * Doh! Build-depends on libcupsys2-dev (>=1.1.20final+cvs20040330-4),
-    not an unversioned libcupsys2-dev. (closes# 250523)
+    not an unversioned libcupsys2-dev. (closes: #250523)
 
  -- Eloy A. Paris <peloy@debian.org>  Tue, 25 May 2004 07:43:54 -0400
 

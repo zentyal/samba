@@ -10,8 +10,9 @@ XS-Python-Version: current
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${Source-Version}), netbase, logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps
+Depends: samba-common (= ${Source-Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd
 Recommends: smbldap-tools
+Suggests: openbsd-inetd | inet-superserver
 Replaces: samba-common (<= 2.0.5a-2)
 Description: a LanManager-like file and printer server for Unix
  The Samba software suite is a collection of programs that
@@ -77,7 +78,7 @@ Description: a LanManager-like simple client for Unix
 
 Package: swat
 Architecture: any
-Depends: samba (= ${Source-Version}), samba-doc (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, netbase
+Depends: samba (= ${Source-Version}), samba-doc (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, update-inetd, openbsd-inetd | inet-superserver
 Description: Samba Web Administration Tool
  The Samba software suite is a collection of programs that
  implements the SMB/CIFS protocol for unix systems, allowing you to serve

@@ -1,5 +1,6 @@
 samba (3.0.25a-1) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * New upstream version
   * Bugs fixed upstream:
     - password expiration loog on samba domain controllers. Closes: #425083
@@ -9,19 +10,22 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
       on shares with "force group". Closes: #424629
   * Debian packaging fixes:
     - Enforce building with "--with-ads" and therefore fail
-      when the build can't be done with kerberos support. 
+      when the build can't be done with kerberos support.
       Closes: #424637
     - debian/control: wrap long lines in packages' descriptions
   * Merge Ubuntu changes:
     - use of PIDDIR instead of hardcoding it in samba.init and winbind.init
-    - swat and samba depend on "openbsd-inetd | inet-superserver" and 
-      no longer netbase (Ubuntu hardcodes this to update-inetd)
   * Patches to upstream source:
     - patches/fhs.patch: recreate winbindd_cache.tdb in the cache directory
       instead of the lock directory. Thanks to C. K. Jester-Young for the
       patch. Closes: #425640
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 19 May 2007 09:00:56 +0200
+  [ Steve Langasek ]
+  * swat and samba depend on update-inetd instead of on netbase; swat also
+    depends on "openbsd-inetd | inet-superserver", for samba this is only a
+    Suggests.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 26 May 2007 15:21:36 -0700
 
 samba (3.0.25-1) unstable; urgency=high
 

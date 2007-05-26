@@ -11,9 +11,11 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
     - Enforce building with "--with-ads" and therefore fail
       when the build can't be done with kerberos support. 
       Closes: #424637
-    - debian/control wrap long lines in packages' descriptions
+    - debian/control: wrap long lines in packages' descriptions
   * Merge Ubuntu changes:
     - use of PIDDIR instead of hardcoding it in samba.init and winbind.init
+    - swat and samba depend on "openbsd-inetd | inet-superserver" and 
+      no longer netbase (Ubuntu hardcodes this to update-inetd)
   * Patches to upstream source:
     - patches/fhs.patch: recreate winbindd_cache.tdb in the cache directory
       instead of the lock directory. Thanks to C. K. Jester-Young for the

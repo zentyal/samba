@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: Some part should maybe go in the FHS patch
 
-Index: samba-3.0.25/docs/manpages/swat.8
+Index: samba-3.0.25a/docs/manpages/swat.8
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/swat.8	2007-05-11 02:02:07.000000000 +0000
-+++ samba-3.0.25/docs/manpages/swat.8	2007-05-14 07:05:47.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/swat.8	2007-05-26 07:45:41.924233583 +0200
++++ samba-3.0.25a/docs/manpages/swat.8	2007-05-26 07:46:28.136601722 +0200
 @@ -111,60 +111,6 @@
  .RS 3n
  Print a summary of command line options.
@@ -88,10 +88,10 @@ Index: samba-3.0.25/docs/manpages/swat.8
  .RE
  .SH "WARNINGS"
  .PP
-Index: samba-3.0.25/docs/manpages/nmbd.8
+Index: samba-3.0.25a/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/nmbd.8	2007-05-11 02:01:14.000000000 +0000
-+++ samba-3.0.25/docs/manpages/nmbd.8	2007-05-14 07:08:43.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/nmbd.8	2007-05-26 07:45:41.932233647 +0200
++++ samba-3.0.25a/docs/manpages/nmbd.8	2007-05-26 07:46:28.136601722 +0200
 @@ -113,11 +113,9 @@
  to answer any name queries. Adding a line to this file affects name NetBIOS resolution from this host
  \fBONLY\fR.
@@ -137,10 +137,10 @@ Index: samba-3.0.25/docs/manpages/nmbd.8
  \fBnmbd\fR
  to dump out its server database in the
  \fIlog.nmb\fR
-Index: samba-3.0.25/docs/manpages/smbd.8
+Index: samba-3.0.25a/docs/manpages/smbd.8
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/smbd.8	2007-05-11 02:01:40.000000000 +0000
-+++ samba-3.0.25/docs/manpages/smbd.8	2007-05-14 07:09:29.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/smbd.8	2007-05-26 07:45:41.948233774 +0200
++++ samba-3.0.25a/docs/manpages/smbd.8	2007-05-26 07:46:28.172602009 +0200
 @@ -168,14 +168,11 @@
  \fBinetd\fR, this file must contain a mapping of service name (e.g., netbios-ssn) to service port (e.g., 139) and protocol type (e.g., tcp).
  .RE
@@ -158,10 +158,10 @@ Index: samba-3.0.25/docs/manpages/smbd.8
  .sp
  This file describes all the services the server is to make available to clients. See
  \fBsmb.conf\fR(5)
-Index: samba-3.0.25/docs/manpages/lmhosts.5
+Index: samba-3.0.25a/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/lmhosts.5	2007-05-11 02:01:06.000000000 +0000
-+++ samba-3.0.25/docs/manpages/lmhosts.5	2007-05-14 07:10:00.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/lmhosts.5	2007-05-26 07:45:41.956233838 +0200
++++ samba-3.0.25a/docs/manpages/lmhosts.5	2007-05-26 07:46:28.204602264 +0200
 @@ -77,10 +77,8 @@
  file.
  .SH "FILES"
@@ -175,10 +175,10 @@ Index: samba-3.0.25/docs/manpages/lmhosts.5
  .SH "VERSION"
  .PP
  This man page is correct for version 3.0 of the Samba suite.
-Index: samba-3.0.25/docs/manpages/ntlm_auth.1
+Index: samba-3.0.25a/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/ntlm_auth.1	2007-05-11 02:01:18.000000000 +0000
-+++ samba-3.0.25/docs/manpages/ntlm_auth.1	2007-05-14 07:11:15.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/ntlm_auth.1	2007-05-26 07:45:41.968233934 +0200
++++ samba-3.0.25a/docs/manpages/ntlm_auth.1	2007-05-26 07:46:28.244602583 +0200
 @@ -43,7 +43,7 @@
  Some of these commands also require access to the directory
  \fIwinbindd_privileged\fR
@@ -206,10 +206,10 @@ Index: samba-3.0.25/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss-spnego-client
-Index: samba-3.0.25/docs/manpages/tdbbackup.8
+Index: samba-3.0.25a/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/tdbbackup.8	2007-05-11 02:02:09.000000000 +0000
-+++ samba-3.0.25/docs/manpages/tdbbackup.8	2007-05-14 07:12:18.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/tdbbackup.8	2007-05-26 07:45:41.976233997 +0200
++++ samba-3.0.25a/docs/manpages/tdbbackup.8	2007-05-26 07:46:28.276602838 +0200
 @@ -70,17 +70,17 @@
  &#8226;
  
@@ -231,10 +231,10 @@ Index: samba-3.0.25/docs/manpages/tdbbackup.8
  .SH "VERSION"
  .PP
  This man page is correct for version 3.0 of the Samba suite.
-Index: samba-3.0.25/docs/manpages/winbindd.8
+Index: samba-3.0.25a/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.0.25.orig/docs/manpages/winbindd.8	2007-05-11 02:02:57.000000000 +0000
-+++ samba-3.0.25/docs/manpages/winbindd.8	2007-05-14 07:14:38.000000000 +0000
+--- samba-3.0.25a.orig/docs/manpages/winbindd.8	2007-05-26 07:45:42.008234252 +0200
++++ samba-3.0.25a/docs/manpages/winbindd.8	2007-05-26 07:46:28.316603157 +0200
 @@ -436,16 +436,16 @@
  file are owned by root.
  .RE

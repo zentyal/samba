@@ -1,3 +1,11 @@
+samba (3.0.24-6etch3) stable-security; urgency=high
+
+  * The fix for CVE-2007-2444 broke connections to servers that are domain
+    members. Upstream bug #4637
+    Closes: #425680
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 23 May 2007 21:35:28 +0200
+
 samba (3.0.24-6etch2) stable-security; urgency=high
 
   * The fix for CVE-2007-2444 broke the behaviour of "force group" when

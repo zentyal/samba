@@ -24,3 +24,4 @@ security-CVE-2007-2444.patch
 security-CVE-2007-2446.patch
 security-CVE-2007-2447.patch
 security-CVE-2007-2444_fixed-force-group.patch
+security-CVE-2007-2444_fixed-parse_prs.patch

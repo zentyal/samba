@@ -1,5 +1,12 @@
-samba (3.0.25-2) UNRELEASED; urgency=low
+samba (3.0.25a-1) UNRELEASED; urgency=low
 
+  * New upstream version
+  * Bugs fixed upstream:
+    - password expiration loog on samba domain controllers. Closes: #425083
+    - no more login on samba servers that are members of samba domains
+      Closes: #425680
+    - users no longer have access according to their secondary groups
+      on shares with "force group". Closes: #424629
   * Debian packaging fixes:
     - Enforce building with "--with-ads" and therefore fail
       when the build can't be done with kerberos support. 

@@ -13,6 +13,8 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
       when the build can't be done with kerberos support.
       Closes: #424637
     - debian/control: wrap long lines in packages' descriptions
+    - uncomment out use of type-handling in the clean target, because
+      type-handling has been fixed to support the new /usr/share/dpkg/ostable
   * Merge Ubuntu changes:
     - use of PIDDIR instead of hardcoding it in samba.init and winbind.init
   * Patches to upstream source:

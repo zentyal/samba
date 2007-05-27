@@ -1,4 +1,4 @@
-samba (3.0.25a-1) UNRELEASED; urgency=low
+samba (3.0.25a-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream version
@@ -15,7 +15,7 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
     - debian/control: wrap long lines in packages' descriptions
     - uncomment out use of type-handling in the clean target, because
       type-handling has been fixed to support the new /usr/share/dpkg/ostable
-    - avoid installing extra COPYING files in /usr/share/doc/* (one was 
+    - avoid installing extra COPYING files in /usr/share/doc/* (one was
       installed along with the pcap2nbench example)
   * Merge Ubuntu changes:
     - use of PIDDIR instead of hardcoding it in samba.init and winbind.init
@@ -29,7 +29,7 @@ samba (3.0.25a-1) UNRELEASED; urgency=low
     depends on "openbsd-inetd | inet-superserver", for samba this is only a
     Suggests.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 26 May 2007 15:21:36 -0700
+ -- Christian Perrier <bubulle@debian.org>  Sun, 27 May 2007 09:30:02 +0200
 
 samba (3.0.25-1) unstable; urgency=high
 

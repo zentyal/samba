@@ -177,7 +177,7 @@ binary-indep: build install
 	dh_installdocs -A debian/README.build
 	# Ignore COPYING. Otherwise, an extra copy of the GPL licence 
 	# in smbldap-tools example is included in samba-doc
-	dh_installexamples -Xsmbldap-tools-*
+	dh_installexamples -Xsmbldap-tools-* -XCOPYING
 	dh_installchangelogs
 	dh_link
 	dh_compress

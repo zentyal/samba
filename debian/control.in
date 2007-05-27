@@ -32,11 +32,14 @@ Description: a LanManager-like file and printer server for Unix
   samba-doc - Samba documentation.
   samba-doc-pdf - Samba documentation in PDF format.
   smbfs - Mount and umount commands for the smbfs (kernels 2.2.x and above).
-  libpam-smbpass - pluggable authentication module for SMB/CIFS password database
-  libsmbclient - Shared library that allows applications to talk to SMB/CIFS servers
+  libpam-smbpass - pluggable authentication module for SMB/CIFS password 
+                   database
+  libsmbclient - Shared library that allows applications to talk to SMB/CIFS
+                 servers
   libsmbclient-dev - libsmbclient shared libraries
-  winbind: Service to resolve user and group information from Windows NT servers
-  python-samba: Python bindings that allow access to various aspects of Samba
+  winbind - Service to resolve user and group information from Windows NT 
+            servers
+  python-samba - Python bindings that allow access to various aspects of Samba
  .
  It is possible to install a subset of these packages depending on
  your particular needs. For example, to access other SMB/CIFS servers you

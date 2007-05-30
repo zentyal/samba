@@ -1,8 +1,9 @@
-Goal: Add an option to not update mtab
+Goal: Add an option to not update mtab. This allows using smbfs when
+      the root filesystem is mounted read-only
 
-Fixes: ?
+Fixes: #139590
 
-Status wrt upstream: Should be forwarded
+Status wrt upstream: Forwarded on 2007/05/30
 
 Note: Part of no-longer maintained smbfs stuff?
       The manpages are not modified

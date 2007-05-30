@@ -1,8 +1,10 @@
 Goal: Use the pager alternative as pager is PAGER is undefined
 
-Fixes: ?
+Fixes: #125603
 
 Status wrt upstream: Debian specific
+
+Author: Steve Langasek <vorlon@debian.org>
 
 Note: 
 

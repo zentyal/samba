@@ -7,6 +7,7 @@ nmbd-signalling.patch
 non-linux-ports.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
+hide_password_length.patch
 samba.patch
 no_smbmount_symlink.patch
 smbclient-pager.patch

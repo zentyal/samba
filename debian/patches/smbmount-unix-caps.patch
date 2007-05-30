@@ -2,9 +2,11 @@ Goal: respect requests for uid-flattening mount options by disabling Unix permis
 
 Fixes: ?
 
-Status wrt upstream: If pertinent, should probably be forwarded
+Status wrt upstream: Forwarded on 2007/05/30
 
-Note: Part of no-longer maintained smbfs stuff?
+Author: Unknown
+
+Note: Part of no-longer maintained smbfs stuff
 
 Index: samba-3.0.25a/source/client/smbmount.c
 ===================================================================

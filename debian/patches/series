@@ -8,6 +8,7 @@ non-linux-ports.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
 samba.patch
+no_smbmount_symlink.patch
 smbclient-pager.patch
 smbmount-mtab-flags.patch
 smbmount-nomtab.patch

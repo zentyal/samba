@@ -1,8 +1,10 @@
 Goal: Always put the "ro|rw" option in mtab
 
-Fixes: ?
+Fixes: #140397?
 
 Status wrt upstream: Should be forwarded if pertinent
+
+Author: Steve Langasek <vorlon@debian.org>
 
 Note: 
 

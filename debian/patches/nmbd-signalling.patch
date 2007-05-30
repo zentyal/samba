@@ -5,7 +5,9 @@ Fixes: #168079
 
 Status wrt upstream: No apparent reason for not being forwarded upstream
 
-Note: TO be confirmed by Steve
+Author: Stave Langasek <vorlon@debian.org>
+
+Note: To be confirmed by Steve
 
 Index: samba-3.0.25a/source/nmbd/nmbd_subnetdb.c
 ===================================================================

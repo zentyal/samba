@@ -2,13 +2,13 @@
 # translation of samba Debian debconf template to Danish
 #
 # Claus Hindsgaul <claus_h@image.dk>, 2004.
-# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2006.
+# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2006, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: da\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-03 14:52+0200\n"
+"PO-Revision-Date: 2007-05-30 22:20+0200\n"
 "Last-Translator: Claus Hindsgaul <claus.hindsgaul@gmail.com>\n"
 "Language-Team: Danish\n"
 "MIME-Version: 1.0\n"
@@ -135,7 +135,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "Sammenkædning af passdb-bagender understøttes ikke"
 
 #. Type: note
 #. Description
@@ -146,6 +146,10 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"Fra og med version 3.0.23 understøtter samba ikke længere sammenkædning af "
+"flere bagender i parameteren \"passdb backend\". Det lader til, at din smb."
+"conf-fil indeholder en passdb-bagendeparemeter, der består af en liste med "
+"bagender. Den nye version af samba vil ikke fungere, før du har rettet dette."
 
 #. Type: boolean
 #. Description

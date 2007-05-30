@@ -3,9 +3,9 @@ Goal: Make sure nmbd still responds to SIGTERM if it has no interfaces to
 
 Fixes: #168079
 
-Status wrt upstream: No apparent reason for not being forwarded upstream
+Status wrt upstream: forwarded to samba-technical 2007/05/30
 
-Author: Stave Langasek <vorlon@debian.org>
+Author: Steve Langasek <vorlon@debian.org>
 
 Note: To be confirmed by Steve
 

@@ -3,7 +3,11 @@ samba (3.0.25a-2) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Danish updated. Closes: #426773
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 30 May 2007 23:21:07 +0200
+  [ Christian Perrier ]
+  * Clean out some remaining cruft that is not deleted
+    by "make clean". Taken from Ubuntu patches.
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 31 May 2007 21:09:30 +0200
 
 samba (3.0.25a-1) unstable; urgency=low
 

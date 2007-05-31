@@ -103,8 +103,15 @@ clean-patched:
 
 	-$(MAKE) -C source distclean
 
+	# Delete stuff left after a build that is not deleted by 'make clean'
+	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \
+	source/bin/libsmbclient.a \
+	source/client/mount.cifs source/client/umount.cifs \
+	source/include/stamp-h
+
 	sed -e "s/@libacl@/`type-handling any linux-gnu`/g" \
 		< debian/control.in > debian/control
+
 	debconf-updatepo
 
 	dh_clean

@@ -1,9 +1,17 @@
+samba (3.0.14a-3sarge6) oldstable-security; urgency=high
+
+  * Fix typo in patch for CVE-2007-2447 that would cause segfaults
+    when performing string comparisons.
+
+ -- Noah Meyerhans <noahm@debian.org>  Mon, 14 May 2007 11:06:08 -0400
+
 samba (3.0.14a-3sarge5) oldstable-security; urgency=high
 
-  * Fix heap overflow in NDR parsing code. (CVE-2007-2446)
-  * Fix lack of proper escaping of arguments to /bin/sh (CVE-2007-2447)
+   * Non-maintainer upload by the Security Team
+   * Fix heap overflow in NDR parsing code. (CVE-2007-2446)
+   * Fix lack of proper escaping of arguments to /bin/sh (CVE-2007-2447)
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 11 May 2007 20:24:27 +0200
+ -- Noah Meyerhans <noahm@debian.org>  Fri, 11 May 2007 12:18:20 -0400
 
 samba (3.0.14a-3sarge4) stable-security; urgency=high
 

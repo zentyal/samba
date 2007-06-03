@@ -7,16 +7,14 @@ nmbd-signalling.patch
 non-linux-ports.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
-hide_password_length.patch
 samba.patch
-no_smbmount_symlink.patch
 smbclient-pager.patch
 smbmount-mtab-flags.patch
 smbmount-nomtab.patch
-smbmount-unix-caps.patch
 smbstatus-locking.patch
 undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
 autoconf.patch
 python-examples.patch
+missing_userspace_bugzilla999.patch

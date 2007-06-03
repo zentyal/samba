@@ -6,6 +6,12 @@ samba (3.0.25a-2) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * Clean out some remaining cruft that is not deleted
     by "make clean". Taken from Ubuntu patches.
+  * Add missing userspace patches to properly pass uid and gid with 2.6
+    kernels. See #408033 and upstream's #999 for rationale
+  * Drop smbmount-unix-caps.patch as workaraound for #310982 as the issue
+    is fixed in 2.4 and 2.6 kernels (2.6 kernels need
+    missing_userspace_bugzilla999.patch, though)
+    Closes: #408033
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 31 May 2007 21:09:30 +0200
 

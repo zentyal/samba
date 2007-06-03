@@ -1,0 +1,134 @@
+Goal: Userspaces fixes to properly use uid and gid options with kernel 2.6
+
+Fixes: Bugzilla #999
+
+Status wrt upstream: Not applied. Mentioned by Dann Frazier in 
+                     http://lists.samba.org/archive/samba-technical/2007-January/051069.html
+                     Jerry Carter agreed to apply but not applied yet
+
+Author: Haroldo Gamal (see https://bugzilla.samba.org/attachment.cgi?id=634&action=view)
+
+
+Index: samba-3.0.25a/source/client/smbmnt.c
+===================================================================
+--- samba-3.0.25a.orig/source/client/smbmnt.c	2007-06-03 14:45:55.284942463 +0200
++++ samba-3.0.25a/source/client/smbmnt.c	2007-06-03 18:48:17.111694949 +0200
+@@ -49,6 +49,10 @@
+ static unsigned mount_dmask;
+ static int user_mount;
+ static char *options;
++static int opt_uid = 0;
++static int opt_gid = 0; 
++static int opt_fmode = 0;
++static int opt_dmode = 0; 
+ 
+ static void
+ help(void)
+@@ -82,11 +86,13 @@
+                 case 'u':
+ 			if (!user_mount) {
+ 				mount_uid = strtol(optarg, NULL, 0);
++				opt_uid++;
+ 			}
+                         break;
+                 case 'g':
+ 			if (!user_mount) {
+ 				mount_gid = strtol(optarg, NULL, 0);
++				opt_gid++;
+ 			}
+                         break;
+ 		case 'n':
+@@ -97,9 +103,11 @@
+                         break;
+                 case 'f':
+                         mount_fmask = strtol(optarg, NULL, 8);
++                       opt_fmode++;
+                         break;
+                 case 'd':
+                         mount_dmask = strtol(optarg, NULL, 8);
++                       opt_dmode++;
+                         break;
+ 		case 'o':
+ 			options = optarg;
+@@ -182,9 +190,17 @@
+ 		data2 = (char *) data;
+ 	}
+ 
+-	slprintf(opts, sizeof(opts)-1,
+-		 "version=7,uid=%d,gid=%d,file_mode=0%o,dir_mode=0%o,%s",
+-		 mount_uid, mount_gid, data->file_mode, data->dir_mode,options);
++	slprintf(opts, sizeof(opts)-1, "version=7,");
++	if (opt_uid) 
++		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "uid=%d,", mount_uid);
++	if (opt_gid) 
++		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "gid=%d,", mount_gid);
++	if (opt_fmode) 
++		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "file_mode=%d,", data->file_mode);
++	if (opt_dmode) 
++		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "dir_mode=%d,", data->dir_mode);
++	slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "%s",options);
++
+ 	if (mount(share_name, ".", "smbfs", flags, data1) == 0)
+ 		return 0;
+ 	return mount(share_name, ".", "smbfs", flags, data2);
+Index: samba-3.0.25a/source/client/smbmount.c
+===================================================================
+--- samba-3.0.25a.orig/source/client/smbmount.c	2007-06-03 14:45:55.284942463 +0200
++++ samba-3.0.25a/source/client/smbmount.c	2007-06-03 18:45:36.618010848 +0200
+@@ -43,6 +43,10 @@
+ static int smb_port = 0;
+ static BOOL got_user;
+ static BOOL got_pass;
++static BOOL use_uid = 0;
++static BOOL use_gid = 0;
++static BOOL use_fmask = 0;
++static BOOL use_dmask = 0;
+ static uid_t mount_uid;
+ static gid_t mount_gid;
+ static int mount_ro;
+@@ -484,22 +488,22 @@
+ 	if (mount_ro) {
+ 		args[i++] = "-r";
+ 	}
+-	if (mount_uid) {
++	if (use_uid) {
+ 		slprintf(tmp, sizeof(tmp)-1, "%d", mount_uid);
+ 		args[i++] = "-u";
+ 		args[i++] = smb_xstrdup(tmp);
+ 	}
+-	if (mount_gid) {
++	if (use_gid) {
+ 		slprintf(tmp, sizeof(tmp)-1, "%d", mount_gid);
+ 		args[i++] = "-g";
+ 		args[i++] = smb_xstrdup(tmp);
+ 	}
+-	if (mount_fmask) {
++	if (use_fmask) {
+ 		slprintf(tmp, sizeof(tmp)-1, "0%o", mount_fmask);
+ 		args[i++] = "-f";
+ 		args[i++] = smb_xstrdup(tmp);
+ 	}
+-	if (mount_dmask) {
++	if (use_dmask) {
+ 		slprintf(tmp, sizeof(tmp)-1, "0%o", mount_dmask);
+ 		args[i++] = "-d";
+ 		args[i++] = smb_xstrdup(tmp);
+@@ -801,14 +805,18 @@
+ 				pstrcpy(my_netbios_name,opteq+1);
+ 			} else if(!strcmp(opts, "uid")) {
+ 				mount_uid = nametouid(opteq+1);
++				use_uid++;
+ 			} else if(!strcmp(opts, "gid")) {
+ 				mount_gid = nametogid(opteq+1);
++				use_gid++;
+ 			} else if(!strcmp(opts, "port")) {
+ 				smb_port = val;
+ 			} else if(!strcmp(opts, "fmask")) {
+ 				mount_fmask = strtol(opteq+1, NULL, 8);
++				use_fmask++;
+ 			} else if(!strcmp(opts, "dmask")) {
+ 				mount_dmask = strtol(opteq+1, NULL, 8);
++				use_dmask++;
+ 			} else if(!strcmp(opts, "debug")) {
+ 				DEBUGLEVEL = val;
+ 			} else if(!strcmp(opts, "ip")) {

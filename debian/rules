@@ -214,8 +214,8 @@ binary-arch: build install
 	done
 	dh_installchangelogs -Nlibpam-smbpass
 	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source/pam_smbpass/CHANGELOG
-	DH_OPTIONS= dh_strip -psamba -psmbclient --dbg-package=samba-dbg
-	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient
+	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common --dbg-package=samba-dbg
+	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common
 	dh_link
 	DH_OPTIONS= dh_pycentral -ppython-samba
 	dh_python

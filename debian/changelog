@@ -12,6 +12,8 @@ samba (3.0.25a-2) UNRELEASED; urgency=low
     is fixed in 2.4 and 2.6 kernels (2.6 kernels need
     missing_userspace_bugzilla999.patch, though)
     Closes: #408033
+  * Add the samba-common and winbind packages to samba-dbg to get
+    debugging symbols for winbindd, net, etc.
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 31 May 2007 21:09:30 +0200
 

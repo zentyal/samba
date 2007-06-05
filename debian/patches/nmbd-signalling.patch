@@ -4,6 +4,7 @@ Goal: Make sure nmbd still responds to SIGTERM if it has no interfaces to
 Fixes: #168079
 
 Status wrt upstream: forwarded to samba-technical 2007/05/30
+                     will be in 3.0.26
 
 Author: Steve Langasek <vorlon@debian.org>
 

@@ -10,7 +10,7 @@ XS-Python-Version: current
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${Source-Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd
+Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd
 Recommends: smbldap-tools
 Suggests: openbsd-inetd | inet-superserver
 Replaces: samba-common (<= 2.0.5a-2)
@@ -63,7 +63,7 @@ Description: Samba common files used by both the server and the client
 
 Package: smbclient
 Architecture: any
-Depends: samba-common (= ${Source-Version}), ${shlibs:Depends}
+Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Conflicts: smbget
 Provides: samba-client
@@ -81,7 +81,7 @@ Description: a LanManager-like simple client for Unix
 
 Package: swat
 Architecture: any
-Depends: samba (= ${Source-Version}), samba-doc (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, update-inetd, openbsd-inetd | inet-superserver
+Depends: samba (= ${binary:Version}), samba-doc (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, update-inetd, openbsd-inetd | inet-superserver
 Description: Samba Web Administration Tool
  The Samba software suite is a collection of programs that
  implements the SMB/CIFS protocol for unix systems, allowing you to serve
@@ -124,7 +124,7 @@ Package: smbfs
 Section: otherosfs
 Priority: optional
 Architecture: any
-Depends: netbase (>= 2.02), samba-common (= ${Source-Version}), ${shlibs:Depends}
+Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}
 Suggests: smbclient
 Replaces: smbfsx
 Conflicts: smbfsx, suidmanager (<< 0.50)
@@ -142,7 +142,7 @@ Package: libpam-smbpass
 Section: admin
 Priority: extra
 Architecture: any
-Depends: ${shlibs:Depends}, samba-common (= ${Source-Version})
+Depends: ${shlibs:Depends}, samba-common (= ${binary:Version})
 Suggests: samba
 Description: pluggable authentication module for SMB/CIFS password database
  This is a stackable PAM module that allows a system administrator to easily
@@ -167,7 +167,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${Source-Version})
+Depends: libsmbclient (= ${binary:Version})
 Description: libsmbclient static libraries and headers
  libsmbclient allows to write applications that use the SMB/CIFS protocol.
  This gives applications the ability to talk to Microsoft Windows servers
@@ -180,7 +180,7 @@ Package: winbind
 Section: net
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (= ${Source-Version}), lsb-base (>= 3.0-6), adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (= ${binary:Version}), lsb-base (>= 3.0-6), adduser
 Replaces: samba (<= 2.2.3-2)
 Description: service to resolve user and group information from Windows NT servers
  This package provides the winbindd daemon, which provides a
@@ -212,7 +212,7 @@ Package: samba-dbg
 Section: devel
 Priority: extra
 Architecture: any
-Depends: samba (= ${Source-Version})
+Depends: samba (= ${binary:Version})
 Description: Samba debugging symbols
  The Samba software suite is a collection of programs that
  implements the SMB/CIFS protocol for unix systems, allowing you to serve

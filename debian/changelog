@@ -14,6 +14,9 @@ samba (3.0.25a-2) UNRELEASED; urgency=low
     Closes: #408033
   * Add the samba-common and winbind packages to samba-dbg to get
     debugging symbols for winbindd, net, etc.
+  * Replace all occurrences of ${Source:Version} by ${$binary:Version} in
+    dependencies. All these were Arch:any depending on Arch:any (the only
+    Arch:any depending on Arch:all already used ${source:Version}
 
   [ Steve Langasek ]
   * Update samba.config to not override user preference on passdb.tdb

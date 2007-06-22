@@ -1,3 +1,10 @@
+samba (3.0.25a-3) UNRELEASED; urgency=low
+
+  [  ]
+  * 
+
+ -- Noèl Köthe <noel@debian.org>  Fri, 22 Jun 2007 17:12:57 +0200
+
 samba (3.0.25a-2) unstable; urgency=low
 
   [ Debconf translations ]

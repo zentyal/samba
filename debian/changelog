@@ -1,3 +1,10 @@
+samba (3.0.25b-2) UNRELEASED; urgency=low
+
+  * Don't start nmbd if 'disable netbios' is set in the config.
+    Closes: #429429.
+
+ -- Steve Langasek <vorlon@debian.org>  Wed, 27 Jun 2007 12:12:40 -0700
+
 samba (3.0.25b-1) unstable; urgency=low
 
   * New upstream version

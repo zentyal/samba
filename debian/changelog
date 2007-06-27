@@ -2,6 +2,8 @@ samba (3.0.25b-1) UNRELEASED; urgency=low
 
   * New upstream version
   * Bugs fixed upstream:
+  * Drop patches that have been applied upstream:
+    - nmbd-signalling.patch
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jun 2007 08:40:18 +0200
 

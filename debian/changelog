@@ -2,10 +2,20 @@ samba (3.0.25b-1) UNRELEASED; urgency=low
 
   * New upstream version
   * Bugs fixed upstream:
+    - correct default mentioned for "store dos attribute" in smb.conf(5)
+      Closes: #367379
+    - fix typo in pdbedit.c. Closes: #421758
+    - fixed crashes in idmap_rid. Closes: #428411
+    - misleading documentation in smb.conf(5). Closes: #218477
+    - don't crash when no eventlog names are defined in smb.conf
+      Closes: #424683
+    - typography errors in manpages. Closes: #427865, #418811
+    - fix compilation and linking of pam_smbpass.so. Closes: #430755
   * Drop patches that have been applied upstream:
     - nmbd-signalling.patch
+  * 
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jun 2007 08:40:18 +0200
+ -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jun 2007 15:12:13 +0200
 
 samba (3.0.25a-2) unstable; urgency=low
 

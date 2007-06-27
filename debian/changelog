@@ -1,4 +1,4 @@
-samba (3.0.25b-1) UNRELEASED; urgency=low
+samba (3.0.25b-1) unstable; urgency=low
 
   * New upstream version
   * Bugs fixed upstream:
@@ -13,7 +13,6 @@ samba (3.0.25b-1) UNRELEASED; urgency=low
     - fix compilation and linking of pam_smbpass.so. Closes: #430755
   * Drop patches that have been applied upstream:
     - nmbd-signalling.patch
-  * 
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jun 2007 15:12:13 +0200
 

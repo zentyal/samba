@@ -10,10 +10,10 @@ Status wrt upstream: Not applied. Mentioned by Dann Frazier in
 Author: Haroldo Gamal (see https://bugzilla.samba.org/attachment.cgi?id=634&action=view)
 
 
-Index: samba-3.0.25a/source/client/smbmnt.c
+Index: samba-3.0.25b/source/client/smbmnt.c
 ===================================================================
---- samba-3.0.25a.orig/source/client/smbmnt.c	2007-06-03 19:05:54.072802810 +0200
-+++ samba-3.0.25a/source/client/smbmnt.c	2007-06-03 19:06:00.072588923 +0200
+--- samba-3.0.25b.orig/source/client/smbmnt.c	2007-06-27 09:28:37.735603237 +0200
++++ samba-3.0.25b/source/client/smbmnt.c	2007-06-27 09:29:03.234391955 +0200
 @@ -49,6 +49,10 @@
  static unsigned mount_dmask;
  static int user_mount;
@@ -72,10 +72,10 @@ Index: samba-3.0.25a/source/client/smbmnt.c
  	if (mount(share_name, ".", "smbfs", flags, data1) == 0)
  		return 0;
  	return mount(share_name, ".", "smbfs", flags, data2);
-Index: samba-3.0.25a/source/client/smbmount.c
+Index: samba-3.0.25b/source/client/smbmount.c
 ===================================================================
---- samba-3.0.25a.orig/source/client/smbmount.c	2007-06-03 19:05:54.072802810 +0200
-+++ samba-3.0.25a/source/client/smbmount.c	2007-06-03 19:06:00.072588924 +0200
+--- samba-3.0.25b.orig/source/client/smbmount.c	2007-06-27 09:28:37.735603237 +0200
++++ samba-3.0.25b/source/client/smbmount.c	2007-06-27 09:29:03.234391955 +0200
 @@ -43,6 +43,10 @@
  static int smb_port = 0;
  static BOOL got_user;
@@ -114,7 +114,7 @@ Index: samba-3.0.25a/source/client/smbmount.c
  		slprintf(tmp, sizeof(tmp)-1, "0%o", mount_dmask);
  		args[i++] = "-d";
  		args[i++] = smb_xstrdup(tmp);
-@@ -797,14 +801,18 @@
+@@ -800,14 +804,18 @@
  				pstrcpy(my_netbios_name,opteq+1);
  			} else if(!strcmp(opts, "uid")) {
  				mount_uid = nametouid(opteq+1);

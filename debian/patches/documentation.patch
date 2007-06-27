@@ -8,8 +8,8 @@ Note: Some part should maybe go in the FHS patch
 
 Index: samba-3.0.25b/docs/manpages/swat.8
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/swat.8	2007-06-19 10:03:04.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/swat.8	2007-06-27 08:34:45.893162839 +0200
+--- samba-3.0.25b.orig/docs/manpages/swat.8	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/swat.8	2007-06-27 09:28:03.237241060 +0200
 @@ -111,60 +111,6 @@
  .RS 3n
  Print a summary of command line options.
@@ -90,8 +90,8 @@ Index: samba-3.0.25b/docs/manpages/swat.8
  .PP
 Index: samba-3.0.25b/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/nmbd.8	2007-06-19 10:02:10.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/nmbd.8	2007-06-27 08:35:53.389847479 +0200
+--- samba-3.0.25b.orig/docs/manpages/nmbd.8	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/nmbd.8	2007-06-27 09:28:03.237241060 +0200
 @@ -113,11 +113,9 @@
  to answer any name queries. Adding a line to this file affects name NetBIOS resolution from this host
  \fBONLY\fR.
@@ -139,8 +139,8 @@ Index: samba-3.0.25b/docs/manpages/nmbd.8
  \fIlog.nmb\fR
 Index: samba-3.0.25b/docs/manpages/smbd.8
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/smbd.8	2007-06-19 10:02:38.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/smbd.8	2007-06-27 08:34:13.894734502 +0200
+--- samba-3.0.25b.orig/docs/manpages/smbd.8	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/smbd.8	2007-06-27 09:28:03.237241060 +0200
 @@ -168,14 +168,11 @@
  inetd, this file must contain a mapping of service name (e.g., netbios-ssn) to service port (e.g., 139) and protocol type (e.g., tcp).
  .RE
@@ -160,8 +160,8 @@ Index: samba-3.0.25b/docs/manpages/smbd.8
  \fBsmb.conf\fR(5)
 Index: samba-3.0.25b/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/lmhosts.5	2007-06-19 10:02:02.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/lmhosts.5	2007-06-27 08:34:14.394709945 +0200
+--- samba-3.0.25b.orig/docs/manpages/lmhosts.5	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/lmhosts.5	2007-06-27 09:28:03.237241060 +0200
 @@ -77,10 +77,8 @@
  file.
  .SH "FILES"
@@ -177,8 +177,8 @@ Index: samba-3.0.25b/docs/manpages/lmhosts.5
  This man page is correct for version 3.0 of the Samba suite.
 Index: samba-3.0.25b/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/ntlm_auth.1	2007-06-19 10:02:14.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/ntlm_auth.1	2007-06-27 08:34:14.394709945 +0200
+--- samba-3.0.25b.orig/docs/manpages/ntlm_auth.1	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/ntlm_auth.1	2007-06-27 09:28:03.237241060 +0200
 @@ -43,7 +43,7 @@
  Some of these commands also require access to the directory
  \fIwinbindd_privileged\fR
@@ -208,8 +208,8 @@ Index: samba-3.0.25b/docs/manpages/ntlm_auth.1
  gss-spnego-client
 Index: samba-3.0.25b/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/tdbbackup.8	2007-06-19 10:03:06.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/tdbbackup.8	2007-06-27 08:37:03.886384577 +0200
+--- samba-3.0.25b.orig/docs/manpages/tdbbackup.8	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/tdbbackup.8	2007-06-27 09:28:03.237241060 +0200
 @@ -70,17 +70,17 @@
  \(bu
  
@@ -233,8 +233,8 @@ Index: samba-3.0.25b/docs/manpages/tdbbackup.8
  This man page is correct for version 3.0 of the Samba suite.
 Index: samba-3.0.25b/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/winbindd.8	2007-06-19 10:03:56.000000000 +0200
-+++ samba-3.0.25b/docs/manpages/winbindd.8	2007-06-27 08:38:55.880882830 +0200
+--- samba-3.0.25b.orig/docs/manpages/winbindd.8	2007-06-27 09:25:44.243828154 +0200
++++ samba-3.0.25b/docs/manpages/winbindd.8	2007-06-27 09:28:03.237241060 +0200
 @@ -440,16 +440,16 @@
  file are owned by root.
  .RE

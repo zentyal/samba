@@ -12,16 +12,16 @@ Author: Haroldo Gamal (see https://bugzilla.samba.org/attachment.cgi?id=634&acti
 
 Index: samba-3.0.25b/source/client/smbmnt.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmnt.c	2007-06-27 09:28:37.735603237 +0200
-+++ samba-3.0.25b/source/client/smbmnt.c	2007-06-27 09:29:03.234391955 +0200
+--- samba-3.0.25b.orig/source/client/smbmnt.c	2007-07-08 17:50:36.000000000 -0700
++++ samba-3.0.25b/source/client/smbmnt.c	2007-07-08 17:56:51.000000000 -0700
 @@ -49,6 +49,10 @@
  static unsigned mount_dmask;
  static int user_mount;
  static char *options;
 +static int opt_uid = 0;
-+static int opt_gid = 0; 
++static int opt_gid = 0;
 +static int opt_fmode = 0;
-+static int opt_dmode = 0; 
++static int opt_dmode = 0;
  
  static void
  help(void)
@@ -59,23 +59,32 @@ Index: samba-3.0.25b/source/client/smbmnt.c
 -		 "version=7,uid=%d,gid=%d,file_mode=0%o,dir_mode=0%o,%s",
 -		 mount_uid, mount_gid, data->file_mode, data->dir_mode,options);
 +	slprintf(opts, sizeof(opts)-1, "version=7,");
-+	if (opt_uid) 
++	if (opt_uid)
 +		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "uid=%d,", mount_uid);
-+	if (opt_gid) 
++	if (opt_gid)
 +		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "gid=%d,", mount_gid);
-+	if (opt_fmode) 
++	if (opt_fmode)
 +		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "file_mode=%d,", data->file_mode);
-+	if (opt_dmode) 
++	if (opt_dmode)
 +		slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "dir_mode=%d,", data->dir_mode);
 +	slprintf(opts+strlen(opts), sizeof(opts)-strlen(opts)-1, "%s",options);
 +
  	if (mount(share_name, ".", "smbfs", flags, data1) == 0)
  		return 0;
  	return mount(share_name, ".", "smbfs", flags, data2);
+@@ -213,6 +229,8 @@
+ 
+ 	if (getuid() != 0) {
+ 		user_mount = 1;
++		opt_uid++;
++		opt_gid++;
+ 	}
+ 
+         if (geteuid() != 0) {
 Index: samba-3.0.25b/source/client/smbmount.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmount.c	2007-06-27 09:28:37.735603237 +0200
-+++ samba-3.0.25b/source/client/smbmount.c	2007-06-27 09:29:03.234391955 +0200
+--- samba-3.0.25b.orig/source/client/smbmount.c	2007-07-08 17:50:36.000000000 -0700
++++ samba-3.0.25b/source/client/smbmount.c	2007-07-08 17:50:36.000000000 -0700
 @@ -43,6 +43,10 @@
  static int smb_port = 0;
  static BOOL got_user;

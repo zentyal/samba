@@ -85,6 +85,16 @@ umask 022
 
 # ------------------------- Debconf questions end ---------------------
 
+# move a tdb that should have been in /var/lib all along
+if dpkg --compare-versions "$2" lt-nl 3.0.25b-2 \
+   && dpkg --compare-versions "$2" ge 3.0.23-1 \
+   && [ -e /var/run/samba/share_info.tdb ] \
+   && ! [ -e /var/lib/samba/share_info.tdb ]
+then
+	mv /var/run/samba/share_info.tdb /var/lib/samba/share_info.tdb
+fi
+
+
 # We want to add these entries to inetd.conf commented out. Otherwise
 #	UDP traffic could make inetd to start nmbd or smbd right during
 #	the configuration stage.

@@ -5,8 +5,16 @@ samba (3.0.25b-2) UNRELEASED; urgency=low
   * missing_userspace_bugzilla999.patch: always use opt_gid and opt_uid,
     set to those of the invoking user, when called as non-root.
     Closes: #431661.
+  * Fix up fhs.patch for some new FHS regressions:
+    - make sure all references to winbindd_idmap.tdb look in /var/lib/samba
+    - make sure all references to winbindd_cache.tdb look in /var/cache/samba
+    - share_info.tdb belongs in /var/lib/samba; this is a regression
+      introduced in 3.0.23-1, so fix up this path on samba upgrade
+    - move the ADS "gpo" cache directory to /var/cache/samba
+    - move idmap_cache.tdb to /var/cache/samba, and fix up the path on
+      winbind upgrade
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 27 Jun 2007 12:12:40 -0700
+ -- Steve Langasek <vorlon@debian.org>  Mon, 09 Jul 2007 22:49:42 -0700
 
 samba (3.0.25b-1) unstable; urgency=low
 

@@ -19,3 +19,4 @@ python-examples.patch
 missing_userspace_bugzilla999.patch
 linux-cifs-user-perms.patch
 cifs-umount-trailing-slashes.patch
+cifs-umount-same-user.patch

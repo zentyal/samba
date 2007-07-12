@@ -17,3 +17,4 @@ adapt_machine_creation_script.patch
 autoconf.patch
 python-examples.patch
 missing_userspace_bugzilla999.patch
+linux-cifs-user-perms.patch

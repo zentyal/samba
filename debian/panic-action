@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# bail out if there's no "mail" command
+type mail >/dev/null 2>&1 || exit 0
+
 # Redirect all output to our mail command
 (
 	# We must be given a pid to look at

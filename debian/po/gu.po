@@ -88,7 +88,7 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-msgid "Workgroup/Domain Name:"
+msgid "Workgroup/domain name:"
 msgstr "વર્કગ્રુપ/ડોમેઇન નામ:"
 
 #. Type: string

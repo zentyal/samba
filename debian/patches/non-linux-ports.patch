@@ -9,8 +9,8 @@ Note: Upstream would probably welcome patches allowing to build on new architect
 
 Index: samba-3.0.25b/source/configure.in
 ===================================================================
---- samba-3.0.25b.orig/source/configure.in	2007-06-27 09:28:06.237098685 +0200
-+++ samba-3.0.25b/source/configure.in	2007-06-27 09:28:20.736410420 +0200
+--- samba-3.0.25b.orig/source/configure.in
++++ samba-3.0.25b/source/configure.in
 @@ -758,6 +758,15 @@
        fi
      ;;

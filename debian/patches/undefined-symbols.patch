@@ -11,8 +11,8 @@ Note:
 
 Index: samba-3.0.25b/source/Makefile.in
 ===================================================================
---- samba-3.0.25b.orig/source/Makefile.in	2007-06-27 09:28:16.236624041 +0200
-+++ samba-3.0.25b/source/Makefile.in	2007-06-27 09:28:43.235342031 +0200
+--- samba-3.0.25b.orig/source/Makefile.in
++++ samba-3.0.25b/source/Makefile.in
 @@ -1161,7 +1161,7 @@
  
  bin/libsmbclient.@SHLIBEXT@: proto_exists $(LIBSMBCLIENT_OBJ)

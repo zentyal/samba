@@ -8,8 +8,8 @@ Note:
 
 Index: samba-3.0.25b/source/script/installswat.sh
 ===================================================================
---- samba-3.0.25b.orig/source/script/installswat.sh	2007-06-27 09:25:40.743993768 +0200
-+++ samba-3.0.25b/source/script/installswat.sh	2007-06-27 09:28:13.736742711 +0200
+--- samba-3.0.25b.orig/source/script/installswat.sh
++++ samba-3.0.25b/source/script/installswat.sh
 @@ -198,7 +198,11 @@
  
  # Install/ remove Using Samba book (but only if it is there)

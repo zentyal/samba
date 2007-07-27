@@ -9,8 +9,8 @@ Note: We need to decide whether it's still reasonable to use "printing=bsd"
 
 Index: samba-3.0.25b/source/include/includes.h
 ===================================================================
---- samba-3.0.25b.orig/source/include/includes.h	2007-06-27 09:25:45.243780834 +0200
-+++ samba-3.0.25b/source/include/includes.h	2007-06-27 09:28:00.237383426 +0200
+--- samba-3.0.25b.orig/source/include/includes.h
++++ samba-3.0.25b/source/include/includes.h
 @@ -809,10 +809,7 @@
  #endif
  

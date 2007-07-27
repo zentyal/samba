@@ -8,8 +8,8 @@ Note:
 
 Index: samba-3.0.25b/source/script/installbin.sh.in
 ===================================================================
---- samba-3.0.25b.orig/source/script/installbin.sh.in	2007-06-27 09:25:37.244159369 +0200
-+++ samba-3.0.25b/source/script/installbin.sh.in	2007-06-27 09:28:30.235959381 +0200
+--- samba-3.0.25b.orig/source/script/installbin.sh.in
++++ samba-3.0.25b/source/script/installbin.sh.in
 @@ -21,13 +21,15 @@
   chmod $INSTALLPERMS $DESTDIR/$BINDIR/$p2
  

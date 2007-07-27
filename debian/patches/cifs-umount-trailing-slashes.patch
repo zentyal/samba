@@ -6,8 +6,8 @@ Upstream status: submitted as bugzilla bug #4781
 
 Index: samba-3.0.25b/source/client/umount.cifs.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/umount.cifs.c	2007-07-11 20:33:17.000000000 -0700
-+++ samba-3.0.25b/source/client/umount.cifs.c	2007-07-11 20:39:23.000000000 -0700
+--- samba-3.0.25b.orig/source/client/umount.cifs.c
++++ samba-3.0.25b/source/client/umount.cifs.c
 @@ -342,6 +342,10 @@
  
  	/* fixup path if needed */

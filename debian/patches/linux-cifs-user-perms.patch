@@ -5,8 +5,8 @@ Upstream status: submitted as bugzilla bug #4780
 
 Index: samba-3.0.25b/source/client/mount.cifs.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/mount.cifs.c	2007-07-11 19:54:30.000000000 -0700
-+++ samba-3.0.25b/source/client/mount.cifs.c	2007-07-11 20:17:40.000000000 -0700
+--- samba-3.0.25b.orig/source/client/mount.cifs.c
++++ samba-3.0.25b/source/client/mount.cifs.c
 @@ -321,6 +321,8 @@
  	int out_len = 0;
  	int word_len;

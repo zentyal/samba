@@ -10,8 +10,8 @@ Note: Part of no-longer maintained smbfs stuff?
 
 Index: samba-3.0.25b/source/client/smbmnt.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmnt.c	2007-06-27 09:28:35.235721957 +0200
-+++ samba-3.0.25b/source/client/smbmnt.c	2007-06-27 09:28:37.735603237 +0200
+--- samba-3.0.25b.orig/source/client/smbmnt.c
++++ samba-3.0.25b/source/client/smbmnt.c
 @@ -44,6 +44,7 @@
  static uid_t mount_uid;
  static gid_t mount_gid;
@@ -115,8 +115,8 @@ Index: samba-3.0.25b/source/client/smbmnt.c
  }	
 Index: samba-3.0.25b/source/client/smbmount.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmount.c	2007-06-27 09:25:34.744277648 +0200
-+++ samba-3.0.25b/source/client/smbmount.c	2007-06-27 09:28:37.735603237 +0200
+--- samba-3.0.25b.orig/source/client/smbmount.c
++++ samba-3.0.25b/source/client/smbmount.c
 @@ -48,6 +48,7 @@
  static int mount_ro;
  static unsigned mount_fmask;

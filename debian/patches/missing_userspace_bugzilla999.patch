@@ -12,8 +12,8 @@ Author: Haroldo Gamal (see https://bugzilla.samba.org/attachment.cgi?id=634&acti
 
 Index: samba-3.0.25b/source/client/smbmnt.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmnt.c	2007-07-08 17:50:36.000000000 -0700
-+++ samba-3.0.25b/source/client/smbmnt.c	2007-07-08 17:56:51.000000000 -0700
+--- samba-3.0.25b.orig/source/client/smbmnt.c
++++ samba-3.0.25b/source/client/smbmnt.c
 @@ -49,6 +49,10 @@
  static unsigned mount_dmask;
  static int user_mount;
@@ -83,8 +83,8 @@ Index: samba-3.0.25b/source/client/smbmnt.c
          if (geteuid() != 0) {
 Index: samba-3.0.25b/source/client/smbmount.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/smbmount.c	2007-07-08 17:50:36.000000000 -0700
-+++ samba-3.0.25b/source/client/smbmount.c	2007-07-08 17:50:36.000000000 -0700
+--- samba-3.0.25b.orig/source/client/smbmount.c
++++ samba-3.0.25b/source/client/smbmount.c
 @@ -43,6 +43,10 @@
  static int smb_port = 0;
  static BOOL got_user;

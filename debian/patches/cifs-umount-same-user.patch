@@ -9,8 +9,8 @@ Upstream status: submitted as bugzilla bug #4784
 
 Index: samba-3.0.25b/source/client/umount.cifs.c
 ===================================================================
---- samba-3.0.25b.orig/source/client/umount.cifs.c	2007-07-12 00:30:57.000000000 -0700
-+++ samba-3.0.25b/source/client/umount.cifs.c	2007-07-12 15:44:00.000000000 -0700
+--- samba-3.0.25b.orig/source/client/umount.cifs.c
++++ samba-3.0.25b/source/client/umount.cifs.c
 @@ -131,7 +131,7 @@
  		printf("user unmounting via %s is an optional feature of",thisprogram);
  		printf(" the cifs filesystem driver (cifs.ko)");

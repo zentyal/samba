@@ -8,8 +8,8 @@ Note:
 
 Index: samba-3.0.25b/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.25b.orig/docs/manpages/smb.conf.5	2007-06-27 09:25:31.244443227 +0200
-+++ samba-3.0.25b/docs/manpages/smb.conf.5	2007-06-27 09:28:53.734843287 +0200
+--- samba-3.0.25b.orig/docs/manpages/smb.conf.5
++++ samba-3.0.25b/docs/manpages/smb.conf.5
 @@ -662,8 +662,8 @@
  Default:
  \fB\fIadd machine script\fR = \fR

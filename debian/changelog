@@ -23,6 +23,9 @@ samba (3.0.25b-2) UNRELEASED; urgency=low
     in umount.cifs assumed that errors would return a value > 0, when in fact
     the return value on failure is -1.  Correct this assumption, which was
     allowing any user to unmount shares mounted by other users.
+  * smbpasswd-syslog.patch: Fix pam_smbpass to no longer call openlog()
+    and closelog(), since this will interfere with syslogging behavior
+    of the calling application.  Closes: #434372.
 
   [ Christian Perrier ]
   * debian/panic-action: bail out if there's no "mail" command
@@ -30,7 +33,7 @@ samba (3.0.25b-2) UNRELEASED; urgency=low
   * debian/samba-common.templates: remove extra capitalization and unfuzzy
     translations
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 17 Jul 2007 20:26:13 +0200
+ -- Steve Langasek <vorlon@debian.org>  Fri, 27 Jul 2007 14:34:43 -0700
 
 samba (3.0.25b-1) unstable; urgency=low
 

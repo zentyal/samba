@@ -1,0 +1,77 @@
+Goal: Don't call openlog() or closelog() from pam_smbpass
+
+Fixes: bug #434372
+
+Upstream status: submitted as bugzilla bug #4831
+
+Index: samba-3.0.25b/source/pam_smbpass/support.c
+===================================================================
+--- samba-3.0.25b.orig/source/pam_smbpass/support.c
++++ samba-3.0.25b/source/pam_smbpass/support.c
+@@ -71,12 +71,27 @@
+ 	void _log_err( int err, const char *format, ... )
+ 	{
+ 	    va_list args;
++	    const char tag[] = "(pam_smbpass) ";
++	    char *mod_format;
++	    int free_mod_format = 1;
++
++	    mod_format = SMB_MALLOC_ARRAY(char, sizeof(tag) + strlen(format));
++	    /* try really, really hard to log something, since this may have
++	       been a message about a malloc() failure... */
++	    if (mod_format == NULL) {
++		mod_format = (char *) format;
++		free_mod_format = 0;
++	    } else {
++		strncpy(mod_format, tag, strlen(tag)+1);
++		strncat(mod_format, format, strlen(format));
++	    }
+ 
+ 	    va_start( args, format );
+-	    openlog( "PAM_smbpass", LOG_CONS | LOG_PID, LOG_AUTH );
+-	    vsyslog( err, format, args );
++	    vsyslog( err | LOG_AUTH, mod_format, args );
+ 	    va_end( args );
+-	    closelog();
++
++	    if (free_mod_format)
++		free(mod_format);
+ 	}
+ 
+ 	/* this is a front-end for module-application conversations */
+Index: samba-3.0.25b/source/pam_smbpass/pam_smb_auth.c
+===================================================================
+--- samba-3.0.25b.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.0.25b/source/pam_smbpass/pam_smb_auth.c
+@@ -75,7 +75,6 @@
+ 
+ 	/* Samba initialization. */
+ 	load_case_tables();
+-	setup_logging("pam_smbpass",False);
+ 	in_client = True;
+ 
+ 	ctrl = set_ctrl(flags, argc, argv);
+Index: samba-3.0.25b/source/pam_smbpass/pam_smb_acct.c
+===================================================================
+--- samba-3.0.25b.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.0.25b/source/pam_smbpass/pam_smb_acct.c
+@@ -52,7 +52,6 @@
+ 
+ 	/* Samba initialization. */
+ 	load_case_tables();
+-	setup_logging("pam_smbpass",False);
+ 	in_client = True;
+ 
+ 	ctrl = set_ctrl( flags, argc, argv );
+Index: samba-3.0.25b/source/pam_smbpass/pam_smb_passwd.c
+===================================================================
+--- samba-3.0.25b.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.0.25b/source/pam_smbpass/pam_smb_passwd.c
+@@ -104,7 +104,6 @@
+ 
+     /* Samba initialization. */
+     load_case_tables();
+-    setup_logging( "pam_smbpass", False );
+     in_client = True;
+ 
+     ctrl = set_ctrl(flags, argc, argv);

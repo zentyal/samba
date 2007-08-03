@@ -59,7 +59,7 @@ Index: samba-3.0.25b/source/pam_smbpass/pam_smb_acct.c
  
  	/* Samba initialization. */
  	load_case_tables();
--	setup_logging("pam_smbpass",False);
+-	setup_logging( "pam_smbpass", False );
  	in_client = True;
  
  	ctrl = set_ctrl( flags, argc, argv );

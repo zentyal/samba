@@ -35,6 +35,9 @@ samba (3.0.25b-2) UNRELEASED; urgency=low
   * debian/samba-common.templates: remove extra capitalization and unfuzzy
     translations
 
+  [ Debconf translations ]
+  * Gujarati updated. Closes: #436215
+
  -- Steve Langasek <vorlon@debian.org>  Sat, 28 Jul 2007 22:39:46 -0700
 
 samba (3.0.25b-1) unstable; urgency=low

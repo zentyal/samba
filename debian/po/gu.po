@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba_gu\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-03-12 03:35-0700\n"
-"PO-Revision-Date: 2006-10-20 20:22+0530\n"
+"PO-Revision-Date: 2007-06-08 20:22+0530\n"
 "Last-Translator: Kartik Mistry <kartik.mistry@gmail.com>\n"
 "Language-Team: Gujarati <team@utkarsh.org>\n"
 "MIME-Version: 1.0\n"
@@ -41,7 +41,7 @@ msgid ""
 msgstr ""
 "જો તમારું કમ્પ્યુટર નેટવર્કમાં આઇપી સરનામાંની માહિતી DHCP સર્વરમાંથી લે છે તો,  DHCP સર્વર "
 "નેટવર્કમાં હાજર રહેલ WINS સર્વરો (\"NetBIOS નામ સર્વરો\") વિશેની માહિતી પણ પૂરી પાડી "
-"શકે છે.   આને માટે તમારે smb.conf ફાઇલમાં ફેરફાર કરવો પડશે જેથી DHCP એ પુરી પાડેલ WINS "
+"શકે છે.  આને માટે તમારે smb.conf ફાઇલમાં ફેરફાર કરવો પડશે જેથી DHCP એ પુરી પાડેલ WINS "
 "ગોઠવણીઓ આપમેળે /etc/samba/dhcp.conf માંથી વાંચી શકાય."
 
 #. Type: boolean
@@ -82,8 +82,8 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"જો તમે આ વિકલ્પ પસંદ નહી કરો તો,  તમારે કોઇપણ રુપરેખાંકનો તમારી જાતે કરવાં પડશે, અને તમે "
-"આવૃતિક રુપરેખાંકન સુધારાોઓનો લાભ લઇ શકશો નહીં."
+"જો તમે આ વિકલ્પ પસંદ નહી કરો તો, તમારે બધા રુપરેખાંકનો તમારી જાતે કરવા પડશે, અને તમે "
+"આવૃતિક રુપરેખાંકન સુધારાઓનો લાભ લઇ શકશો નહી."
 
 #. Type: string
 #. Description
@@ -137,7 +137,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Chaining passdb backends is not supported"
-msgstr ""
+msgstr "passdb બેકએન્ડ બદલવાનું આધાર આપવામાં આવતું નથી"
 
 #. Type: note
 #. Description
@@ -148,6 +148,9 @@ msgid ""
 "file contains a passdb backend parameter consisting of a list of backends.  "
 "The new version of samba will not work until you correct this."
 msgstr ""
+"આવૃતિ ૩.૦.૨૩ ની સાથે, સામ્બા હવે \"પાસવર્ડ બેકએન્ડ\" વિકલ્પમાં એક કરતાં વધુ બેકએન્ડનો "
+"આધાર આપતું નથી.  એવું જાણવામાં આવેલ છે કે તમારી smb.conf ફાઇલ પાસવર્ડ બેકએન્ડ વિકલ્પ સાથે "
+"બેકએન્ડની યાદી ધરાવે છે.  તમે જ્યાં સુધી આ સુધારશો નહી ત્યાં સુધી સામ્બા કામ કરશે નહી."
 
 #. Type: boolean
 #. Description
@@ -177,8 +180,8 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"જો તમે નહી બનાવો તો, તમારે સાદા પાસવર્ડો વાપરવા માટે સામ્બા ફરીથી રુપરેખાંકિત કરવું "
-"પડશે (અને કદાચ તમારા ક્લાયન્ટ મશીનો)."
+"જો તમે નહી બનાવો તો, તમારે સાદા પાસવર્ડો વાપરવા માટે સામ્બા (અને કદાચ તમારા ક્લાયન્ટ "
+"મશીનોને) ફરીથી રુપરેખાંકિત કરવાં પડશે."
 
 #. Type: boolean
 #. Description
@@ -187,7 +190,7 @@ msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
 "package for more details."
 msgstr ""
-"સામ્બા-ડોક પેકેજમાં /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html વધુ માહિતી "
+"samba-doc પેકેજમાં /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html વધુ માહિતી "
 "માટે જુઓ."
 
 #. Type: select
@@ -200,7 +203,7 @@ msgstr "ડેમોન્સ"
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr "આઇનેટડી"
+msgstr "inetd"
 
 #. Type: select
 #. Description
@@ -215,7 +218,7 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
-"સામ્બા ડેમોન smbd સામાન્ય ડેમોન અથવા આઇનેટડી તરીકે ચાલી શકે છે. ડેમોન તરીકે ચલાવવાનું "
+"સામ્બા ડેમોન smbd સામાન્ય ડેમોન અથવા inetd તરીકે ચાલી શકે છે. ડેમોન તરીકે ચલાવવાનું "
 "સલાહભર્યું છે."
 
 #. Type: boolean
@@ -242,6 +245,6 @@ msgid ""
 "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
 "option if you plan to use another pdb backend (e.g., LDAP) instead."
 msgstr ""
-"મહેરબાની કરી ખાતરી કરો કે તમે હાલની સામ્બાપાસવર્ડ ફાઇલને આપમેળે /var/lib/samba/"
+"મહેરબાની કરી ખાતરી કરો કે તમે હાલની સામ્બા પાસવર્ડ ફાઇલને આપમેળે /var/lib/samba/"
 "passdb.tdb માં ખસેડવા માંગો છો.  આ વિકલ્પ પસંદ કરશો નહી જો તમે બીજું pdb બેકએન્ડ (દા."
-"ત., LDAP) વાપરવાનું નક્કી કર્યું હોય. "
+"ત., LDAP) વાપરવાનું નક્કી કર્યું હોય."

@@ -101,7 +101,7 @@ clean-patched:
 	dh_testroot
 	rm -f build-stamp configure-stamp
 
-	-$(MAKE) -C source distclean
+	[ ! -f source/Makefile ] || $(MAKE) -C source distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
 	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \

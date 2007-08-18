@@ -79,7 +79,7 @@ msgstr "Jos et valitse tätä toimintoa, on kaikki asetusten muutokset tehtävä its
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-msgid "Workgroup/domain name:"
+msgid "Workgroup/Domain Name:"
 msgstr "Työryhmän/Verkkoalueen nimi:"
 
 #. Type: string

@@ -11,6 +11,9 @@ samba (3.0.25c-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Fix the Python build with upstream's SVN r24635
+  * swat: turn the dependency on samba-doc to a Recommends:
+    Thanks to Peter Eisentraut for dealing with that issue and bringing it
+    back. Closes: #391742
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 26 Aug 2007 14:57:16 +0200
 

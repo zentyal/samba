@@ -7,10 +7,10 @@ Status wrt upstream: Forwarded, will be in 3.0.26
 Note: Upstream would probably welcome patches allowing to build on new architectures. 
       As this patch is the most often broken by new upstream releases, everybody would benefit from it.
 
-Index: samba-3.0.25b/source/configure.in
+Index: samba-3.0.25c/source/configure.in
 ===================================================================
---- samba-3.0.25b.orig/source/configure.in
-+++ samba-3.0.25b/source/configure.in
+--- samba-3.0.25c.orig/source/configure.in	2007-08-26 13:08:59.419847863 +0200
++++ samba-3.0.25c/source/configure.in	2007-08-26 13:09:01.919725881 +0200
 @@ -758,6 +758,15 @@
        fi
      ;;
@@ -36,7 +36,7 @@ Index: samba-3.0.25b/source/configure.in
         # glibc <= 2.3.2 has a broken getgrouplist
         AC_TRY_RUN([
  #include <unistd.h>
-@@ -1681,7 +1690,10 @@
+@@ -1689,7 +1698,10 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -48,7 +48,7 @@ Index: samba-3.0.25b/source/configure.in
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -5409,7 +5421,7 @@
+@@ -5417,7 +5429,7 @@
  	AC_MSG_RESULT(yes);
  
  	case "$host_os" in
@@ -57,7 +57,7 @@ Index: samba-3.0.25b/source/configure.in
  		AC_CACHE_CHECK([for linux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
  		AC_TRY_LINK([#include <sys/sendfile.h>],
  [\
-@@ -5714,11 +5726,11 @@
+@@ -5722,11 +5734,11 @@
  SMB_KRB5_LOCATOR="bin/smb_krb5_locator.$SHLIBEXT"
  
  case "$host_os" in

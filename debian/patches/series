@@ -21,3 +21,4 @@ linux-cifs-user-perms.patch
 cifs-umount-trailing-slashes.patch
 cifs-umount-same-user.patch
 smbpasswd-syslog.patch
+python-build.patch

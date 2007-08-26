@@ -1,8 +1,14 @@
 samba (3.0.25c-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * new upstream released from 2007-08-20
+    - added smbfs deprecation information to help and manpage
+      Closes: #360384
+    - fixed winbind leaking file descriptors
+      Closes: #410663
+    - fixed smbpasswd fails with errorcode SUCCESS as normal user
+      Closes: #155345
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 26 Aug 2007 12:03:05 +0200
+ -- Noèl Köthe <noel@debian.org>  Sun, 26 Aug 2007 13:07:58 +0200
 
 samba (3.0.25b-2) unstable; urgency=low
 

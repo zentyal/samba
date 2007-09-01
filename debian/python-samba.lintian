@@ -1,5 +1,0 @@
-# Lintian looks for any text file beginning with #!.  But not all
-# files that begin with #! should be executable scripts; this is a file that
-# should not be executable, and there's nothing wrong with having the
-# !/usr/bin/python line in it, so the warning should just be ignored.
-python-samba: script-not-executable ./usr/share/pycentral/python-samba/site-packages/samba/printerdata.py

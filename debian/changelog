@@ -10,7 +10,7 @@ samba (3.0.25c-1) UNRELEASED; urgency=low
       Closes: #155345
 
   [ Christian Perrier ]
-  * Fix the Python build with upstream's SVN r24635
+  * Drop the (upstream unmaintained) python bindings (python-samba package)
   * swat: turn the dependency on samba-doc to a Recommends:
     Thanks to Peter Eisentraut for dealing with that issue and bringing it
     back. Closes: #391742

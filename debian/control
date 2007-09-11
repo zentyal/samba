@@ -79,7 +79,8 @@ Description: a LanManager-like simple client for Unix
 
 Package: swat
 Architecture: any
-Depends: samba (= ${binary:Version}), samba-doc (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
+Depends: samba (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
+Recommends: samba-doc (= ${source:Version})
 Description: Samba Web Administration Tool
  The Samba software suite is a collection of programs that
  implements the SMB/CIFS protocol for unix systems, allowing you to serve

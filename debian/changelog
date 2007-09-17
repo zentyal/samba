@@ -4,6 +4,9 @@ samba (3.0.26a-1) unstable; urgency=low
   * Remove the samba-common/unsupported-passdb debconf template and
     the associated code in samba-common.postinst, that deals with pre-etch
     versions transition
+  * Remove the samba/tdbsam template and the remaining line referencing
+    it (for no need) in samba.postinst. That code was removed in 3.0.23c-2
+    and was dealing with pre-3.0 transitions.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 16 Sep 2007 10:16:29 +0200
 

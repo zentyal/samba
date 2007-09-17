@@ -64,9 +64,6 @@ mv -f ${TMPFILE} ${INITCONFFILE}
 db_get samba/generate_smbpasswd || true
 GENERATE_SMBPASSWD="${RET}"
 
-db_get samba/tdbsam || true
-PDB_MIGRATE="${RET}"
-
 # Done with debconf now.
 db_stop
 

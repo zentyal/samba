@@ -22,14 +22,3 @@ _Description: How do you want to run Samba?
  The Samba daemon smbd can run as a normal daemon or from inetd. Running as
  a daemon is the recommended approach.
 
-Template: samba/tdbsam
-Type: boolean
-Default: false
-_Description: Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?
- Samba 3.0 introduced a more complete SAM database interface which
- supersedes the /etc/samba/smbpasswd file.
- .
- Please confirm whether you would like the existing smbpasswd file to
- be automatically migrated to /var/lib/samba/passdb.tdb.  Do not
- choose this option if you plan to use another pdb backend (e.g.,
- LDAP) instead.

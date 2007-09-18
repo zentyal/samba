@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: da\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-05-30 22:20+0200\n"
 "Last-Translator: Claus Hindsgaul <claus.hindsgaul@gmail.com>\n"
 "Language-Team: Danish\n"
@@ -131,26 +131,6 @@ msgstr ""
 "har en gyldig /etc/samba/smbpasswd-fil og at du her angiver adgangskoder for "
 "hver bruger med kommandoen smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Sammenkædning af passdb-bagender understøttes ikke"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Fra og med version 3.0.23 understøtter samba ikke længere sammenkædning af "
-"flere bagender i parameteren \"passdb backend\". Det lader til, at din smb."
-"conf-fil indeholder en passdb-bagendeparemeter, der består af en liste med "
-"bagender. Den nye version af samba vil ikke fungere, før du har rettet dette."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -221,33 +201,39 @@ msgstr ""
 "Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
 "anbefales at køre den som dæmon."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Flyt /etc/samba/smbpasswd til /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Sammenkædning af passdb-bagender understøttes ikke"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 introducerede en mere komplet SAM-databasegrænseflade, som "
-"efterfølger til filen /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Fra og med version 3.0.23 understøtter samba ikke længere sammenkædning "
+#~ "af flere bagender i parameteren \"passdb backend\". Det lader til, at din "
+#~ "smb.conf-fil indeholder en passdb-bagendeparemeter, der består af en "
+#~ "liste med bagender. Den nye version af samba vil ikke fungere, før du har "
+#~ "rettet dette."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Bekræft om du ønsker at migrere den eksisterende smbpasswd-fil til /var/lib/"
-"samba/passdb.tdb automatisk. Vælg ikke denne indstilling, hvis du i stedet "
-"planlægger at benytte en anden pdb-håndtering (f.eks. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Flyt /etc/samba/smbpasswd til /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 introducerede en mere komplet SAM-databasegrænseflade, som "
+#~ "efterfølger til filen /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Bekræft om du ønsker at migrere den eksisterende smbpasswd-fil til /var/"
+#~ "lib/samba/passdb.tdb automatisk. Vælg ikke denne indstilling, hvis du i "
+#~ "stedet planlægger at benytte en anden pdb-håndtering (f.eks. LDAP)."
 
 #~ msgid "daemons, inetd"
 #~ msgstr "dæmoner, inetd"

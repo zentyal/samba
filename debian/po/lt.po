@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba-lt\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2006-11-26 00:20+0200\n"
 "Last-Translator: Gintautas Miliauskas <gintas@akl.lt>\n"
 "Language-Team: Lithuanian <komp_lt@konferencijos.lt>\n"
@@ -140,22 +140,6 @@ msgstr ""
 "rinkmeną ir kad ten nurodyti visų naudotojų, naudojančių smbpasswd, "
 "slaptažodžiai."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr ""
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -226,30 +210,21 @@ msgstr ""
 "Samba tarnyba smbd gali veikti kaip įprastinė tarnyba arba ji gali būti "
 "paleidžiama iš inetd. Rekomenduojama Samba naudoti kaip įprastinę tarnybą."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Perkelti /etc/samba/smbpasswd į /var/lib/samba/passdb.tdb?"
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Perkelti /etc/samba/smbpasswd į /var/lib/samba/passdb.tdb?"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 versijoje atsirado išsamesnė SAM duomenų bazės sąsaja, todėl "
-"rinkmena /etc/samba/smbpasswd nebenaudojama."
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 versijoje atsirado išsamesnė SAM duomenų bazės sąsaja, todėl "
+#~ "rinkmena /etc/samba/smbpasswd nebenaudojama."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Patvirtinkite, kad norite esamą smbpasswd rinkmeną automatiškai numigruoti "
-"į /var/lib/samba/passdb.tdb.  Nesirinkite šios galimybės, jei vietoj "
-"standartinio planuojate naudoti kitą pdb modulį (pvz., LDAP)."
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Patvirtinkite, kad norite esamą smbpasswd rinkmeną automatiškai "
+#~ "numigruoti į /var/lib/samba/passdb.tdb.  Nesirinkite šios galimybės, jei "
+#~ "vietoj standartinio planuojate naudoti kitą pdb modulį (pvz., LDAP)."

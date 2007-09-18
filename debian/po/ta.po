@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_po\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2006-12-16 20:10+0530\n"
 "Last-Translator: drtvasudevan <agnihot3@gmail.com>\n"
 "Language-Team: TAMIL <Ubuntu-tam@lists.ubuntu.com>\n"
@@ -137,22 +137,6 @@ msgstr ""
 "பயனருக்கும் smbpasswd கட்டளை மூலம் தனித்தனி கடவுச் சொல் அமைப்பதையும் உறுதி செய்து "
 "கொள்ளவும். "
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr ""
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -223,30 +207,21 @@ msgstr ""
 "சாம்பா கிங்கரனான எஸ்எம்பிடி இயல்பான கிங்கரனாக இயங்கலாம் அல்லது inetd லிருந்து இயங்கலாம். "
 "கிங்கரனாக இயங்குவதே பரிந்துரைக்கப் படுகிறது."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "/etc/samba/smbpasswd ஐ /var/lib/samba/passdb.tdb க்கு நகர்த்தவா?"
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd ஐ /var/lib/samba/passdb.tdb க்கு நகர்த்தவா?"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"சாம்பா 3.0 /etc/samba/smbpasswd கோப்பை நீக்கி செம்மையான முழுமையான SAM (எஸ்ஏஎம்) "
-"தரவுத்தள இடைமுகத்தை அறிமுகப் படுத்துகிறது."
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "சாம்பா 3.0 /etc/samba/smbpasswd கோப்பை நீக்கி செம்மையான முழுமையான SAM (எஸ்ஏஎம்) "
+#~ "தரவுத்தள இடைமுகத்தை அறிமுகப் படுத்துகிறது."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"இருப்பிலுள்ள smbpasswd கோப்பை /var/lib/samba/passdb.tdb க்கு தானியங்கியாக மாற்ற "
-"வேண்டுமா என உறுதி செய்யவும். நீங்கள் LDAP போன்ற வேறு pdb பின் நிலையை பயன் படுத்த "
-"உத்தேசித்து இருந்தால் இதை தேர்ந்தெடுக்க வேண்டாம்."
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "இருப்பிலுள்ள smbpasswd கோப்பை /var/lib/samba/passdb.tdb க்கு தானியங்கியாக மாற்ற "
+#~ "வேண்டுமா என உறுதி செய்யவும். நீங்கள் LDAP போன்ற வேறு pdb பின் நிலையை பயன் படுத்த "
+#~ "உத்தேசித்து இருந்தால் இதை தேர்ந்தெடுக்க வேண்டாம்."

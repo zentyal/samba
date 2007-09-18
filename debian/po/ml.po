@@ -17,7 +17,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2006-12-11 19:30+0530\n"
 "Last-Translator: Praveen A <pravi.a@gmail.com>\n"
 "Language-Team: Swathanthra Malayalam Computing <smc-discuss@googlegroups."
@@ -141,26 +141,6 @@ msgstr ""
 "smbpasswd എന്ന ആജ്ഞ ഉപയോഗിച്ച് ഓരോ ഉപയോക്താക്കള്‍ക്കും അവിടെ അടയാള വാക്ക് സെറ്റ് ചെയ്തു എന്ന് "
 "ഉറപ്പാക്കുകയും ചെയ്യുക."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "passdb ബാക്കെന്‍ഡുകള്‍ ചെയിന്‍ ചെയ്യുന്നതിനെ പിന്‍തുണയ്ക്കുന്നില്ല"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"3.0.23 ലക്കം മുതല്‍ സാംബ \"passdb backend\" പരാമീറ്ററില്‍ ഒന്നില്‍ കൂടുതല്‍ ബാക്കെന്‍ഡുകളെ "
-"ചെയിന്‍ ചെയ്യുന്നത് പിന്‍തുണയ്ക്കുന്നില്ല. നിങ്ങളുടെ smb.conf ല്‍ ബാക്കെന്‍ഡുകളുടെ പട്ടികയുള്‍‌ക്കൊള്ളുന്ന "
-"ഒരു passdb backend പരാമീറ്റര്‍ ഉള്‍‌ക്കൊള്ളുന്നതായി തോന്നുന്നു. നിങ്ങള്‍ ഇത് ശരിയാക്കുന്നത് വരെ "
-"സാംബയുടെ പുതിയ ലക്കം പ്രവര്‍ത്തിക്കുകയില്ല."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -231,30 +211,36 @@ msgstr ""
 "സാംബ ഡെമണ്‍ smbd ഒരു സാധാരണ ഡെമണായോ അല്ലെങ്കില്‍ inetd യില്‍ നിന്നോ "
 "പ്രവര്‍ത്തിപ്പിക്കാവുന്നതാണ്. ഡെമണായി ഓടിക്കുന്നതാണ് ശുപാര്‍ശ ചെയ്തിട്ടുള്ള വഴി."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "/etc/samba/smbpasswd നെ /var/lib/samba/passdb.tdb യിലേക്ക് മാറ്റണോ?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "passdb ബാക്കെന്‍ഡുകള്‍ ചെയിന്‍ ചെയ്യുന്നതിനെ പിന്‍തുണയ്ക്കുന്നില്ല"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"നേരത്തെയുണ്ടായിരുന്ന /etc/samba/smbpasswd ഫയലിനെ മാറ്റിക്കൊണ്ട് സാംബ 3.0 ഒരു കൂടുതല്‍ "
-"പൂര്‍ണമായ SAM ഡാറ്റാബേസ് ഇന്റര്‍ഫേസ് കൊണ്ടുവന്നിട്ടുണ്ട്."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "3.0.23 ലക്കം മുതല്‍ സാംബ \"passdb backend\" പരാമീറ്ററില്‍ ഒന്നില്‍ കൂടുതല്‍ ബാക്കെന്‍ഡുകളെ "
+#~ "ചെയിന്‍ ചെയ്യുന്നത് പിന്‍തുണയ്ക്കുന്നില്ല. നിങ്ങളുടെ smb.conf ല്‍ ബാക്കെന്‍ഡുകളുടെ "
+#~ "പട്ടികയുള്‍‌ക്കൊള്ളുന്ന ഒരു passdb backend പരാമീറ്റര്‍ ഉള്‍‌ക്കൊള്ളുന്നതായി തോന്നുന്നു. നിങ്ങള്‍ ഇത് "
+#~ "ശരിയാക്കുന്നത് വരെ സാംബയുടെ പുതിയ ലക്കം പ്രവര്‍ത്തിക്കുകയില്ല."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"ദയവായി നിലവിലുള്ള smbpasswd ഫയല്‍ സ്വയമേ /var/lib/samba/passdb.tdb യിലേക്ക് മാറ്റുവാന്‍ "
-"നിങ്ങളാഗ്രഹിക്കുന്നുണ്ടോ എന്ന് നിശ്ചയിക്കുക. ഇതിന് പകരം മറ്റൊരു pdb ബാക്കെന്‍ഡ് (ഉദാ. LDAP) "
-"ഇതിന് പകരം ഉപയോഗിക്കാന്‍ നിങ്ങള്‍ക്ക് പദ്ധതിയുണ്ടെങ്കില്‍ ഈ തിരഞ്ഞെടുക്കാവുന്ന വില തിരഞ്ഞെടുക്കരുത്."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd നെ /var/lib/samba/passdb.tdb യിലേക്ക് മാറ്റണോ?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "നേരത്തെയുണ്ടായിരുന്ന /etc/samba/smbpasswd ഫയലിനെ മാറ്റിക്കൊണ്ട് സാംബ 3.0 ഒരു കൂടുതല്‍ "
+#~ "പൂര്‍ണമായ SAM ഡാറ്റാബേസ് ഇന്റര്‍ഫേസ് കൊണ്ടുവന്നിട്ടുണ്ട്."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "ദയവായി നിലവിലുള്ള smbpasswd ഫയല്‍ സ്വയമേ /var/lib/samba/passdb.tdb യിലേക്ക് "
+#~ "മാറ്റുവാന്‍ നിങ്ങളാഗ്രഹിക്കുന്നുണ്ടോ എന്ന് നിശ്ചയിക്കുക. ഇതിന് പകരം മറ്റൊരു pdb ബാക്കെന്‍ഡ് "
+#~ "(ഉദാ. LDAP) ഇതിന് പകരം ഉപയോഗിക്കാന്‍ നിങ്ങള്‍ക്ക് പദ്ധതിയുണ്ടെങ്കില്‍ ഈ തിരഞ്ഞെടുക്കാവുന്ന "
+#~ "വില തിരഞ്ഞെടുക്കരുത്."

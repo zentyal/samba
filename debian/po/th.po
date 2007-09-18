@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 10:05+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <l10n@opentle.org>\n"
@@ -122,25 +122,6 @@ msgstr ""
 "samba/smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง "
 "smbpasswd"
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"ตั้งแต่รุ่น 3.0.23 เป็นต้นไป samba ไม่สนับสนุนการเชื่อมลูกโซ่หลายแบ็กเอนด์ในพารามิเตอร์ "
-"\"passdb backend\" แต่ดูเหมือนแฟ้ม smb.conf ของคุณจะมีพารามิเตอร์ passdb backend "
-"เป็นรายชื่อแบ็กเอนด์หลายตัว ซึ่ง samba รุ่นใหม่นี้จะไม่ทำงาน จนกว่าคุณจะแก้ไขค่านี้"
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -210,28 +191,32 @@ msgstr ""
 "ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
 "ทางที่ขอแนะนำคือเรียกแบบดีมอน"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "ย้าย /etc/samba/smbpasswd ไปเป็น /var/lib/samba/passdb.tdb หรือไม่?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 มีอินเทอร์เฟซฐานข้อมูล SAM ที่สมบูรณ์กว่า ซึ่งมาแทนแฟ้ม /etc/samba/smbpasswd"
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "ตั้งแต่รุ่น 3.0.23 เป็นต้นไป samba ไม่สนับสนุนการเชื่อมลูกโซ่หลายแบ็กเอนด์ในพารามิเตอร์ "
+#~ "\"passdb backend\" แต่ดูเหมือนแฟ้ม smb.conf ของคุณจะมีพารามิเตอร์ passdb backend "
+#~ "เป็นรายชื่อแบ็กเอนด์หลายตัว ซึ่ง samba รุ่นใหม่นี้จะไม่ทำงาน จนกว่าคุณจะแก้ไขค่านี้"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"กรุณายืนยันว่าคุณต้องการย้ายจากการใช้แฟ้ม smbpasswd ไปใช้ /var/lib/samba/passdb.tdb "
-"โดยอัตโนมัติหรือไม่  อย่าเลือกตัวเลือกนี้ถ้าคุณมีแผนที่จะใช้แบ็กเอนด์ pdb อื่น (เช่น LDAP) แทน"
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "ย้าย /etc/samba/smbpasswd ไปเป็น /var/lib/samba/passdb.tdb หรือไม่?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 มีอินเทอร์เฟซฐานข้อมูล SAM ที่สมบูรณ์กว่า ซึ่งมาแทนแฟ้ม /etc/samba/smbpasswd"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "กรุณายืนยันว่าคุณต้องการย้ายจากการใช้แฟ้ม smbpasswd ไปใช้ /var/lib/samba/passdb.tdb "
+#~ "โดยอัตโนมัติหรือไม่  อย่าเลือกตัวเลือกนี้ถ้าคุณมีแผนที่จะใช้แบ็กเอนด์ pdb อื่น (เช่น LDAP) แทน"

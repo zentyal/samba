@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-12 22:27+0100\n"
 "Last-Translator: Holger Wansing <linux@wansing-online.de>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
@@ -141,27 +141,6 @@ msgstr ""
 "Fall sicher, dass Sie eine gültige /etc/samba/smbpasswd-Datei haben und dort "
 "mittels dem smbpasswd-Befehl Passwörter für alle Benutzer setzen."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Auflistung mehrerer passdb-Backends wird nicht unterstützt."
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Seit Version 3.0.23 wird die Angabe von mehreren Backends im "
-"»passdb backend«-Parameter von Samba nicht mehr unterstützt. Es scheint so, "
-"als ob Ihre smb.conf-Datei einen »passdb backend«-Parameter mit einer "
-"Auflistung mehrerer Backends enthält. Die neue Samba-Version wird nicht "
-"funktionieren, bevor dies behoben wurde."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -234,31 +213,37 @@ msgstr ""
 "Der Samba-Prozess smbd kann als normaler Hintergrunddienst (Daemon) laufen "
 "oder über inetd gestartet werden. Ersteres wird jedoch empfohlen."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Daten von /etc/samba/smbpasswd nach /var/lib/samba/passdb.tdb verschieben?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Auflistung mehrerer passdb-Backends wird nicht unterstützt."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Mit Samba 3.0 wurde eine vollständigere SAM-Datenbank-Schnittstelle "
-"eingeführt, die die /etc/samba/smbpasswd-Datei ersetzt."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Seit Version 3.0.23 wird die Angabe von mehreren Backends im »passdb "
+#~ "backend«-Parameter von Samba nicht mehr unterstützt. Es scheint so, als "
+#~ "ob Ihre smb.conf-Datei einen »passdb backend«-Parameter mit einer "
+#~ "Auflistung mehrerer Backends enthält. Die neue Samba-Version wird nicht "
+#~ "funktionieren, bevor dies behoben wurde."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Möchten Sie die bestehende smbpasswd-Datei automatisch nach /var/lib/samba/"
-"passdb.tdb migrieren? Wenn Sie vorhaben, ein anderes pdb-Backend (z.B. LDAP) "
-"zu verwenden, sollten Sie hier mit »Nein« antworten."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Daten von /etc/samba/smbpasswd nach /var/lib/samba/passdb.tdb verschieben?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Mit Samba 3.0 wurde eine vollständigere SAM-Datenbank-Schnittstelle "
+#~ "eingeführt, die die /etc/samba/smbpasswd-Datei ersetzt."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Möchten Sie die bestehende smbpasswd-Datei automatisch nach /var/lib/"
+#~ "samba/passdb.tdb migrieren? Wenn Sie vorhaben, ein anderes pdb-Backend (z."
+#~ "B. LDAP) zu verwenden, sollten Sie hier mit »Nein« antworten."

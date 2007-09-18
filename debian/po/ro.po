@@ -16,7 +16,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_ro\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-12 23:25+0200\n"
 "Last-Translator: Eddy Petrișor <eddy.petrisor@gmail.com>\n"
 "Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
@@ -144,27 +144,6 @@ msgstr ""
 "asiguraţi-vă că fişierul /etc/samba/smbpasswd este valid şi că aveţi "
 "configurată o parolă pentru fiecare utilizator (folosind comanda smbpasswd)."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Înlănţuirea suporturilor pentru passdb nu este posibilă"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Începând cu versiunea 3.0.23, în samba nu mai este posibilă înlănţuirea "
-"suporturilor în parametrul „passdb backend”. Se pare că fişierul smb.conf "
-"conţine un asemenea parametru care consistă într-o listă de suporturi. Noua "
-"versiune de samba nu va funcţiona până când nu veţi fi corectat această "
-"problemă."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -235,33 +214,39 @@ msgstr ""
 "Demonul Samba smbd poate rula ca un demon normal sau din inetd. Rularea ca "
 "demon este recomandată."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Se mută /etc/samba/smbpasswd în /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Înlănţuirea suporturilor pentru passdb nu este posibilă"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 a introdus o interfaţă pentru baza de date SAM mai completă care "
-"înlocuieşte fişierul /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Începând cu versiunea 3.0.23, în samba nu mai este posibilă înlănţuirea "
+#~ "suporturilor în parametrul „passdb backend”. Se pare că fişierul smb.conf "
+#~ "conţine un asemenea parametru care consistă într-o listă de suporturi. "
+#~ "Noua versiune de samba nu va funcţiona până când nu veţi fi corectat "
+#~ "această problemă."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Vă rugăm să confirmaţi dacă doriţi ca fişierul smbpasswd existent să fie "
-"migrat automat în /var/lib/samba/passdb.tdb. Nu alegeţi această opţiune dacă "
-"plănuiţi să folosiţi un alt suport pentru pdb (ex. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Se mută /etc/samba/smbpasswd în /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 a introdus o interfaţă pentru baza de date SAM mai completă "
+#~ "care înlocuieşte fişierul /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Vă rugăm să confirmaţi dacă doriţi ca fişierul smbpasswd existent să fie "
+#~ "migrat automat în /var/lib/samba/passdb.tdb. Nu alegeţi această opţiune "
+#~ "dacă plănuiţi să folosiţi un alt suport pentru pdb (ex. LDAP)."
 
 #~ msgid "daemons, inetd"
 #~ msgstr "demoni, inetd"

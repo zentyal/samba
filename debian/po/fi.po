@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Samba fi\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 18:35+0200\n"
 "Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
 "Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
@@ -74,7 +74,9 @@ msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
-msgstr "Jos et valitse t‰t‰ toimintoa, on kaikki asetusten muutokset teht‰v‰ itse, etk‰ p‰‰se hyˆtym‰‰n julkaistavista asetusten parannuksista."
+msgstr ""
+"Jos et valitse t‰t‰ toimintoa, on kaikki asetusten muutokset teht‰v‰ itse, "
+"etk‰ p‰‰se hyˆtym‰‰n julkaistavista asetusten parannuksista."
 
 #. Type: string
 #. Description
@@ -123,22 +125,6 @@ msgstr ""
 "T‰m‰n valitsimen pit‰mist‰ p‰‰ll‰ suositellaan suuresti. Jos se on p‰‰ll‰, "
 "on varmistuttava tiedoston /etc/samba/smbpasswd kelvollisuudesta ja ett‰ "
 "siell‰ on jokaiselle k‰ytt‰j‰lle tehty salasana komennolla smbpasswd."
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "passdb:n taustaosien ketjuttamista ei tueta"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr "Versiosta 3.0.23 alkaen samba ei en‰‰ tue useiden taustaosien ketjuttamista \"passdb backend\" -parametrissa. T‰m‰n koneen smb.conf-tiedostossa vaikuttaa olevan bassdb backend -parametri jossa on luettelo taustaosista. Samban uusi versio ei toimi ennen kuin t‰m‰ korjataan."
 
 #. Type: boolean
 #. Description
@@ -210,32 +196,37 @@ msgstr ""
 "Samban palvelinprosessi smbd voi toimia tavallisena prosessina tai inetd voi "
 "k‰ynnist‰‰ sen. Tavallisen prosessin k‰ytt‰mist‰ suositellaan."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Siirret‰‰nkˆ tiedosto /etc/samba/smbpasswd tiedostoksi /var/lib/samba/passdb."
-"tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "passdb:n taustaosien ketjuttamista ei tueta"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samban versiossa 3.0 tuli mukaan t‰ydellisempi SAM-tietokantarajapinta joka "
-"korvaa tiedoston /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Versiosta 3.0.23 alkaen samba ei en‰‰ tue useiden taustaosien "
+#~ "ketjuttamista \"passdb backend\" -parametrissa. T‰m‰n koneen smb.conf-"
+#~ "tiedostossa vaikuttaa olevan bassdb backend -parametri jossa on luettelo "
+#~ "taustaosista. Samban uusi versio ei toimi ennen kuin t‰m‰ korjataan."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Vahvista, ett‰ olemassa oleva tiedosto smbpasswd siirret‰‰n automaattisesti "
-"tiedostoksi /var/lib/samba/passdb.tdb. ƒl‰ valitse t‰t‰ jos aiot k‰ytt‰‰ "
-"jotain muuta pdb-taustaosaa (esim. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Siirret‰‰nkˆ tiedosto /etc/samba/smbpasswd tiedostoksi /var/lib/samba/"
+#~ "passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samban versiossa 3.0 tuli mukaan t‰ydellisempi SAM-tietokantarajapinta "
+#~ "joka korvaa tiedoston /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Vahvista, ett‰ olemassa oleva tiedosto smbpasswd siirret‰‰n "
+#~ "automaattisesti tiedostoksi /var/lib/samba/passdb.tdb. ƒl‰ valitse t‰t‰ "
+#~ "jos aiot k‰ytt‰‰ jotain muuta pdb-taustaosaa (esim. LDAP)."

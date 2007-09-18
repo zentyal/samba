@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_el\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-16 11:29+0200\n"
 "Last-Translator: galaxico\n"
 "Language-Team:  <en@li.org>\n"
@@ -147,27 +147,6 @@ msgstr ""
 "κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη που χρησιμοποιεί την εντολή "
 "smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Η αλύσωση των backend των passdb δεν υποστηρίζεται"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Αρχίζοντας με την έκδοση 3.0.23, η samba δεν υποστηρίζει πλέον την αλύσωση "
-"πολλαπλών backend για την παράμετρο \"passdb backend\". Φαίνεται ότι το "
-"αρχείο σας smb.conf περιέχει μια παράμετρο backend passdb αποτελούμενη από "
-"μια λίστα τέτοιων backend. Η καινούρια έκδοση της samba δεν θα δουλέψει "
-"μέχρι να διορθώσετε αυτή τη ρύθμιση."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -244,31 +223,37 @@ msgstr ""
 "δαίμονας ή από τον inetd. Η εκτέλεσή του σαν συνηθισμένου δαίμονα είναι η "
 "συνιστώμενη προσέγγιση."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Μετακίνηση του αρχείου /etc/samba/smbpasswd στο /var/lib/samba/passdb.tdb;"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Η αλύσωση των backend των passdb δεν υποστηρίζεται"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Η έκδοση 3.0 της Samba εισήγαγε μια πιο ολοκληρωμένη διεπαφή για την βάση "
-"δεδομένων SAM που αντικαθιστά το αρχείο /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Αρχίζοντας με την έκδοση 3.0.23, η samba δεν υποστηρίζει πλέον την "
+#~ "αλύσωση πολλαπλών backend για την παράμετρο \"passdb backend\". Φαίνεται "
+#~ "ότι το αρχείο σας smb.conf περιέχει μια παράμετρο backend passdb "
+#~ "αποτελούμενη από μια λίστα τέτοιων backend. Η καινούρια έκδοση της samba "
+#~ "δεν θα δουλέψει μέχρι να διορθώσετε αυτή τη ρύθμιση."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Παρακαλώ επιβεβαιώστε αν θέλετε το υπάρχον αρχείο smbpasswd να μεταβεί "
-"αυτόματα στο /var/lib/samba/passdb.tdb. Μην κάνετε αυτή την επιλογή αν "
-"σκοπεύετε αντί γι αυτό να χρησιμοποιήσετε ένα άλλο pdb backend (πχ. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Μετακίνηση του αρχείου /etc/samba/smbpasswd στο /var/lib/samba/passdb.tdb;"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Η έκδοση 3.0 της Samba εισήγαγε μια πιο ολοκληρωμένη διεπαφή για την βάση "
+#~ "δεδομένων SAM που αντικαθιστά το αρχείο /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Παρακαλώ επιβεβαιώστε αν θέλετε το υπάρχον αρχείο smbpasswd να μεταβεί "
+#~ "αυτόματα στο /var/lib/samba/passdb.tdb. Μην κάνετε αυτή την επιλογή αν "
+#~ "σκοπεύετε αντί γι αυτό να χρησιμοποιήσετε ένα άλλο pdb backend (πχ. LDAP)."

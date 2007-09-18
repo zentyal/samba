@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2006-08-15 07:59-0500\n"
 "Last-Translator: Priti Patil <prithisd@gmail.com>\n"
 "Language-Team:  Marathi, janabhaaratii, C-DAC, Mumbai, India "
@@ -139,22 +139,6 @@ msgstr ""
 "(/etc/samba/smbpasswd)ईटीसी/सांबा/एसएमबी पासवर्ड संचिका आहे, तसेच ,एसएमबी पासवर्ड "
 "आज्ञावली वापरुन, प्रत्येक उपयोजकासाठी परवलीचे शब्द निर्धारित केल्याची खात्री करा."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr ""
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -227,31 +211,22 @@ msgstr ""
 "सांबा डिमन एसएमबीडी हा प्रोग्राम सर्वसाधारण डिमन म्हणून किंवा आयएनइटीडी मधून चालविता "
 "येतो. डिमन म्हणून चालविणे अधिक श्रेयस्कर."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"/ईटीसी/सांबा/एसएमबी पासवर्ड,/व्हीएआर/एलआयबी/सांबा/पासवर्ड।टीडीबी कडे हलवायचा का?"
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "/ईटीसी/सांबा/एसएमबी पासवर्ड,/व्हीएआर/एलआयबी/सांबा/पासवर्ड।टीडीबी कडे हलवायचा का?"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"सांबा ३.० ने पूर्णतर असा एसएएम डेटाबेस अंतराफलक प्रस्तुत केला असून तो इटीसी/सांबा/एसएमबी "
-"पासवर्ड संचिकेला मागे टाकतो."
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "सांबा ३.० ने पूर्णतर असा एसएएम डेटाबेस अंतराफलक प्रस्तुत केला असून तो इटीसी/सांबा/"
+#~ "एसएमबी पासवर्ड संचिकेला मागे टाकतो."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"कृपया तुम्हाला सध्याची एसएमबी पासवर्ड संचिका आपोआप/व्हीएआर/एलआयबी/सांबा/"
-"पासडीबी।टीडीबी कडे स्थलांतरित झाल्यास चालेल का याची खात्री करा. तुम्हाला त्याऐवजी "
-"दुसरी कोणती पीडीबी बॅकएंड(उदा.एलडीएपी)करावयाची असल्यास हा पर्याय स्वीकारु नका"
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "कृपया तुम्हाला सध्याची एसएमबी पासवर्ड संचिका आपोआप/व्हीएआर/एलआयबी/सांबा/"
+#~ "पासडीबी।टीडीबी कडे स्थलांतरित झाल्यास चालेल का याची खात्री करा. तुम्हाला त्याऐवजी "
+#~ "दुसरी कोणती पीडीबी बॅकएंड(उदा.एलडीएपी)करावयाची असल्यास हा पर्याय स्वीकारु नका"

@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 06:13+0800\n"
 "Last-Translator: eric pareja <xenos@upm.edu.ph>\n"
 "Language-Team: Tagalog <debian-tl@banwa.upm.edu.ph>\n"
@@ -140,27 +140,6 @@ msgstr ""
 "nakatakda kayong kontrasenyas para sa bawat gumagamit na ginamitan ng "
 "smbpasswd na utos."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Ang pagdudugtong ng mga backend ng passdb ay hindi suportado"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Simula sa bersiyon 3.0.23, hindi na suportado ng samba ang pagdudugtong ng "
-"multiple backend sa parameter na \"passdb backend\".  Mukhang ang talaksang "
-"smb.conf ay naglalaman ng passdb backend parameter na naglilista ng mga "
-"backend. Ang bagong bersiyon ng samba ay hindi aandar ng wasto hanggang ito "
-"ay ayusin."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -235,30 +214,37 @@ msgstr ""
 "Ang daemon na smbd ng Samba ay maaaring patakbuhin bilang normal na daemon o "
 "mula sa inetd. Pagpapatakbo nito bilang daemon ang rekomendado."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Ilipat ang /etc/samba/smbpasswd sa /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Ang pagdudugtong ng mga backend ng passdb ay hindi suportado"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Ipinakilala ng Samba 3.0 ang mas-kumpletong SAM database interface na siyang "
-"pumalit sa talaksang /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Simula sa bersiyon 3.0.23, hindi na suportado ng samba ang pagdudugtong "
+#~ "ng multiple backend sa parameter na \"passdb backend\".  Mukhang ang "
+#~ "talaksang smb.conf ay naglalaman ng passdb backend parameter na "
+#~ "naglilista ng mga backend. Ang bagong bersiyon ng samba ay hindi aandar "
+#~ "ng wasto hanggang ito ay ayusin."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Pakitiyak kung inyong nais na mailipat ng awtomatiko ang kasalukuyang "
-"talaksang smbpasswd patungong /var/lib/samba/passdb.tdb. Huwag piliin ang "
-"opsiyon na ito kung balak ninyong gumamit ng ibang pdb backend (hal., LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ilipat ang /etc/samba/smbpasswd sa /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Ipinakilala ng Samba 3.0 ang mas-kumpletong SAM database interface na "
+#~ "siyang pumalit sa talaksang /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Pakitiyak kung inyong nais na mailipat ng awtomatiko ang kasalukuyang "
+#~ "talaksang smbpasswd patungong /var/lib/samba/passdb.tdb. Huwag piliin ang "
+#~ "opsiyon na ito kung balak ninyong gumamit ng ibang pdb backend (hal., "
+#~ "LDAP)."

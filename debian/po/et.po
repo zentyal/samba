@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 10:26+0300\n"
 "Last-Translator: Siim Põder <siim@p6drad-teel.net>\n"
 "Language-Team: \n"
@@ -134,26 +134,6 @@ msgstr ""
 "sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
 "kasutajale smbpasswd käsu abil parool."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "passdb backends mitme järjestikkuse variandi määramine pole toetatud"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Samba versioonid alates 3.0.23 ei toeta enam \"passdb backend\" parameetri "
-"juures mitmest variandist koosnevat nimekirja. Paistab, et sinu smb.conf "
-"failis on passdb backend parameetrile määratud nimekiri. Uus samba versioon "
-"ei tööta, kuni sellega tegeletud on."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -223,30 +203,36 @@ msgstr ""
 "Samba deemon võib käivituda kui tavaline deemon või inetd'ist. Soovitatav "
 "lähenemine on käivitamine tavalise deemonina."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Kanda /etc/samba/smbpasswd üle /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "passdb backends mitme järjestikkuse variandi määramine pole toetatud"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 võttis kasutusele täielikuma SAM andmebaasiliidese, mis ületab /"
-"etc/samba/smbpasswd faili."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Samba versioonid alates 3.0.23 ei toeta enam \"passdb backend\" "
+#~ "parameetri juures mitmest variandist koosnevat nimekirja. Paistab, et "
+#~ "sinu smb.conf failis on passdb backend parameetrile määratud nimekiri. "
+#~ "Uus samba versioon ei tööta, kuni sellega tegeletud on."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Palun kinnita, kas soovid olemasoleva smbpasswd faili automaatset "
-"ülekandmist /var/lib/samba/passdb.tdb. Ära nõustu, kui soovid kasutada "
-"hoopis mõnd muud pdb lahendust (näiteks LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Kanda /etc/samba/smbpasswd üle /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 võttis kasutusele täielikuma SAM andmebaasiliidese, mis ületab /"
+#~ "etc/samba/smbpasswd faili."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Palun kinnita, kas soovid olemasoleva smbpasswd faili automaatset "
+#~ "ülekandmist /var/lib/samba/passdb.tdb. Ära nõustu, kui soovid kasutada "
+#~ "hoopis mõnd muud pdb lahendust (näiteks LDAP)."

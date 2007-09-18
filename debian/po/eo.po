@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-04-04 17:14+0200\n"
 "Last-Translator: Serge Leblanc <serge.leblanc@wanadoo.fr>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
@@ -127,26 +127,6 @@ msgstr ""
 "validan '/etc/samba/smbpasswd'-dosieron, en kiu vi enmetis pasvortojn por "
 "ĉiu uzanto kiu uzas la 'smbpasswd'-ordonon."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Multmetodo sinsekvo mastrumanta la pasvortojn ne estas administrita"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Ekde la '3.0.23'-eldono, la 'samba'-programo ne plu traktas la sinsekvan "
-"multan metodon per la parametro \"passdb backend\". Verŝajne via 'smb.conf'-"
-"dosiero enhavas tian 'passdb backend'-parametron. La nova 'samba'-versio ne "
-"funkcios ĝis kiam tiu agordo ne estos ŝanĝita."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -217,31 +197,37 @@ msgstr ""
 "La 'Samba'-demono 'smbd' povas ruli tiel kutima demono aŭ per la 'inetd'-"
 "programo. Oni konsilas demone lanĉi la 'Samba'-programon."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Movu la '/etc/samba/smbpasswd'-dosieron al '/var/lib/samba/passdb.tdb'?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Multmetodo sinsekvo mastrumanta la pasvortojn ne estas administrita"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"'Samba 3.0'-pragramo enigas plian kompletan 'SAM'-datumbazan interfacon, "
-"anstataŭantan la '/etc/samba/smbpasswd'-dosieron."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Ekde la '3.0.23'-eldono, la 'samba'-programo ne plu traktas la sinsekvan "
+#~ "multan metodon per la parametro \"passdb backend\". Verŝajne via 'smb."
+#~ "conf'-dosiero enhavas tian 'passdb backend'-parametron. La nova 'samba'-"
+#~ "versio ne funkcios ĝis kiam tiu agordo ne estos ŝanĝita."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Bonvolu konfirmi ĉu vi volas anstataŭigi la nunan 'smbpasswd'-dosieron per "
-"memmigrita '/var/lib/samba/passdb.tdb'-dosiero. Neniam elekti ĉi tiun eblon "
-"se vi planas anstataŭe uzi alian 'pdb'-internan interfacon (ekz. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Movu la '/etc/samba/smbpasswd'-dosieron al '/var/lib/samba/passdb.tdb'?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "'Samba 3.0'-pragramo enigas plian kompletan 'SAM'-datumbazan interfacon, "
+#~ "anstataŭantan la '/etc/samba/smbpasswd'-dosieron."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Bonvolu konfirmi ĉu vi volas anstataŭigi la nunan 'smbpasswd'-dosieron "
+#~ "per memmigrita '/var/lib/samba/passdb.tdb'-dosiero. Neniam elekti ĉi tiun "
+#~ "eblon se vi planas anstataŭe uzi alian 'pdb'-internan interfacon (ekz. "
+#~ "LDAP)."

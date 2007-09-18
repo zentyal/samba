@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-12 22:58+0200\n"
 "Last-Translator: Damyan Ivanov <dam@modsoftsys.com>\n"
 "Language-Team: Bulgarian <dict@fsa-bg.org>\n"
@@ -121,27 +121,6 @@ msgid ""
 "user using the smbpasswd command."
 msgstr "Използването на шифрирани пароли е силно препоръчително."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr ""
-"Новата версия на samba не поддържа работа с няколко бази данни с пароли"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
-"пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
-"„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
-"Новата версия на samba няма да работи докато не коригирате това."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -211,30 +190,38 @@ msgstr ""
 "фонов процес (със зареждането на операционната система). Препоръчителният "
 "начин за изпълнение е като фонов процес."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Да се премести ли /etc/samba/smbpasswd във /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "Новата версия на samba не поддържа работа с няколко бази данни с пароли"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 въвежда по-пълна база с потребители, която прави излишен /etc/"
-"samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
+#~ "пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
+#~ "„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
+#~ "Новата версия на samba няма да работи докато не коригирате това."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Потвърдете дали желаете съществуващият /etc/samba/smbpasswd да бъде мигриран "
-"автоматично към /var/lib/samba/passdb.tdb. Не избирайте тази настройка ако "
-"планирате да използвате друг начин на удостоверяване (например LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Да се премести ли /etc/samba/smbpasswd във /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 въвежда по-пълна база с потребители, която прави излишен /etc/"
+#~ "samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Потвърдете дали желаете съществуващият /etc/samba/smbpasswd да бъде "
+#~ "мигриран автоматично към /var/lib/samba/passdb.tdb. Не избирайте тази "
+#~ "настройка ако планирате да използвате друг начин на удостоверяване "
+#~ "(например LDAP)."

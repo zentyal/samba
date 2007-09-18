@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba 3.0.23rc1-1\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-06-01 15:32+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
@@ -130,27 +130,6 @@ msgstr ""
 "samba/smbpasswd> hợp lệ và bạn cũng đặt mật khẩu trong nó cho mỗi người dùng "
 "bằng lênh « smbpasswd »."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Không hỗ trợ khả năng xích lại các hậu phương mật khẩu"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Bắt đầu trong phiên bản 3.0.23, trình samba không còn hỗ trợ lại khả năng "
-"xích lại nhiều hậu phương trong tham số « passdb backend ». Có vẻ là tập tin "
-"cấu hình « smb.conf » của bạn vẫn còn chứa một tham số « passdb backend » "
-"làm danh sách các hậu phương. Phiên bản samba mới sẽ chỉ hoạt động được sau "
-"khi bạn sửa chữa trường hợp này."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -221,35 +200,41 @@ msgstr ""
 "Trình nền Samba smbd có thể chạy với tư cách trình nền chuẩn, hoặc từ inetd. "
 "Khuyên bạn chạy nó là trình nền."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Di chuyển tập tin </etc/samba/smbpasswd> sang </var/lib/samba/passdb.tdb> "
-"không?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Không hỗ trợ khả năng xích lại các hậu phương mật khẩu"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Phần mềm Samba phiên bản 3.0 đã giới thiệu giao diện cơ sở dữ liệu SAM hoàn "
-"toàn hơn mà thay thế tập tin </etc/samba/smbpasswd>."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Bắt đầu trong phiên bản 3.0.23, trình samba không còn hỗ trợ lại khả năng "
+#~ "xích lại nhiều hậu phương trong tham số « passdb backend ». Có vẻ là tập "
+#~ "tin cấu hình « smb.conf » của bạn vẫn còn chứa một tham số « passdb "
+#~ "backend » làm danh sách các hậu phương. Phiên bản samba mới sẽ chỉ hoạt "
+#~ "động được sau khi bạn sửa chữa trường hợp này."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Hãy xác nhận nếu bạn muốn tập tin mật khẩu <smbpasswd> tồn tại được nâng cấp "
-"tự động sang </var/lib/samba/passdb.tdb>. Đừng bật tùy chọn này nếu bạn định "
-"sử dụng một hậu phương PBD khác (v.d. LDAP) thay thế."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Di chuyển tập tin </etc/samba/smbpasswd> sang </var/lib/samba/passdb.tdb> "
+#~ "không?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Phần mềm Samba phiên bản 3.0 đã giới thiệu giao diện cơ sở dữ liệu SAM "
+#~ "hoàn toàn hơn mà thay thế tập tin </etc/samba/smbpasswd>."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Hãy xác nhận nếu bạn muốn tập tin mật khẩu <smbpasswd> tồn tại được nâng "
+#~ "cấp tự động sang </var/lib/samba/passdb.tdb>. Đừng bật tùy chọn này nếu "
+#~ "bạn định sử dụng một hậu phương PBD khác (v.d. LDAP) thay thế."
 
 #~ msgid "daemons, inetd"
 #~ msgstr "trình nền, inetd"

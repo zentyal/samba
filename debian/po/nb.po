@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_debian_po_nb\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-12 21:44+0100\n"
 "Last-Translator: Bjørn Steensrud <bjornst@powertech.no>\n"
 "Language-Team: Norwegian Bokmål <i18n-nb@lister.ping.uio.no>\n"
@@ -136,26 +136,6 @@ msgstr ""
 "du har en gyldig fil i /etc/samba/smbpasswd og at du lagrer passord der for "
 "hver bruker med kommandoen smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Det er ikke støtte for å kjede sammen passdb-motorer"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Fra og med versjon 3.0.23 støtter ikke samba lenger muligheten for å koble sammen "
-"flere motorer i parameteren «passdb backend». Det ser ut til at fila smb.conf på "
-"dette systemet inneholder en passdb backend-parameter som består av en liste "
-"over passdb -motorer. Den nye samba-versjonen vil ikke virke før dette er rettet."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -227,30 +207,36 @@ msgstr ""
 "Samba-prosessen smbd kan kjøres som en normal nisse eller fra inetd. Det "
 "anbefales å kjøre som en nisse."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Flytte /etc/samba/smbpasswd til /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Det er ikke støtte for å kjede sammen passdb-motorer"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"I Samba 3.0 ble det innført et mer utfyllende grensesnitt til SAM-databasen "
-"som erstatter fila /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Fra og med versjon 3.0.23 støtter ikke samba lenger muligheten for å "
+#~ "koble sammen flere motorer i parameteren «passdb backend». Det ser ut til "
+#~ "at fila smb.conf på dette systemet inneholder en passdb backend-parameter "
+#~ "som består av en liste over passdb -motorer. Den nye samba-versjonen vil "
+#~ "ikke virke før dette er rettet."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Bekreft om du vil at den eksisterende smbpasswd-fila skal automatisk "
-"omgjøres til /var/lib/samba/passdb.tdb. Ikke velg dette om du har til "
-"hensikt å bruke en annen pdb-motor i stedet (f.eks. LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Flytte /etc/samba/smbpasswd til /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "I Samba 3.0 ble det innført et mer utfyllende grensesnitt til SAM-"
+#~ "databasen som erstatter fila /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Bekreft om du vil at den eksisterende smbpasswd-fila skal automatisk "
+#~ "omgjøres til /var/lib/samba/passdb.tdb. Ikke velg dette om du har til "
+#~ "hensikt å bruke en annen pdb-motor i stedet (f.eks. LDAP)."

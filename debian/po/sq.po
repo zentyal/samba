@@ -14,7 +14,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 21:25+0100\n"
 "Last-Translator: Elian Myftiu <elian.myftiu@gmail.com>\n"
 "Language-Team: Debian L10n Albanian <debian-l10n-albanian@lists.debian.org>\n"
@@ -136,26 +136,6 @@ msgstr ""
 "ke një skedar të vlefshëm /etc/samba/smbpasswd dhe që i cakton fjalëkalimet "
 "atje për secilin përdorues duke përdorur komandën smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Vargëzimi i passdb nuk suportohet"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Duke filluar nga versioni 3.0.23, samba nuk do ta suportojë më vargëzimin në "
-"parametrin \"passdb backend\". Ngjan që kartela jote smb.conf përmban një "
-"parametër passdb që përmban një listë me backend-a. Versioni i ri i samba-s "
-"nuk do të punojë deri kur ta korrigjoni këtë."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -226,30 +206,36 @@ msgstr ""
 "Daemon Samba smbd mund të xhirojë si një daemon normal ose nga inetd. "
 "Rekomandohet puna si daemon."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Ta lëviz /etc/samba/smbpasswd në /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Vargëzimi i passdb nuk suportohet"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 paraqiti një ndërfaqe baze të dhënash më të plotë SAM që "
-"zëvendëson skedën /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Duke filluar nga versioni 3.0.23, samba nuk do ta suportojë më vargëzimin "
+#~ "në parametrin \"passdb backend\". Ngjan që kartela jote smb.conf përmban "
+#~ "një parametër passdb që përmban një listë me backend-a. Versioni i ri i "
+#~ "samba-s nuk do të punojë deri kur ta korrigjoni këtë."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Të lutem poho nëse do dëshironit që skeda ekzistuese smbpasswd të "
-"shpërngulej automatikisht në /var/lib/samba/passdb.tdb.  Mos e zgjidh këtë "
-"mundësi nëse synon të përdorësh një tjetër organizues pdb (p.sh., LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ta lëviz /etc/samba/smbpasswd në /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 paraqiti një ndërfaqe baze të dhënash më të plotë SAM që "
+#~ "zëvendëson skedën /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Të lutem poho nëse do dëshironit që skeda ekzistuese smbpasswd të "
+#~ "shpërngulej automatikisht në /var/lib/samba/passdb.tdb.  Mos e zgjidh "
+#~ "këtë mundësi nëse synon të përdorësh një tjetër organizues pdb (p.sh., "
+#~ "LDAP)."

@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: wo\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-04-30 18:13+0000\n"
 "Last-Translator: Mouhamadou Mamoune Mbacke <mouhamadoumamoune@gmail.com>\n"
 "Language-Team: Wolof\n"
@@ -137,26 +137,6 @@ msgstr ""
 "fiise /etc/samba/smbpasswd bu baax, ta nga def foofa baatujall bu "
 "jëfandikukat yéppu. Dangay jëfandikoo komaand bu smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Ceene passdb backends manula nekk"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Liko dale ci version 3.0.23 ba leegi, samba naŋgootul ceene ay backends yu "
-"bare ci parameetaru \"passdb backend\".   Dafa mel ne nak  sa fiise smb.conf "
-"dafa am parameetaru passdb backend budoon ab list bu ay backend. version bu "
-"samba bu beesbi du naŋgoo dox fii ak ngay defaraat loolu."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -229,31 +209,36 @@ msgstr ""
 "Daemon bu Samba smbd maneesna koo doxal ne ab deamon normaal, maneesna koo "
 "doxale yit ak inetd. Liñuy deŋkaane nak mooy doxalko muy ab daemon."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr ""
-"Ndax nu toxal /etc/samba/smbpasswd yobbuko ci /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Ceene passdb backends manula nekk"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 dafa indaale ab interfaas bu baasu done SAM bu gëna mat, buy wuutu "
-"fiise bu /etc/samba/smbpasswd"
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Liko dale ci version 3.0.23 ba leegi, samba naŋgootul ceene ay backends "
+#~ "yu bare ci parameetaru \"passdb backend\".   Dafa mel ne nak  sa fiise "
+#~ "smb.conf dafa am parameetaru passdb backend budoon ab list bu ay backend. "
+#~ "version bu samba bu beesbi du naŋgoo dox fii ak ngay defaraat loolu."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Feddlin baxam bëggnga fiise smbpasswd bifi nekk ñu toxalalko suñu boppy "
-"yobbuko ca /var/lib/samba/passdb.tdb. Bul tann lii bu fekkee yaangi jappa "
-"jëfandikoo baneen paket bu pdb (ci misaal LDAP)."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Ndax nu toxal /etc/samba/smbpasswd yobbuko ci /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 dafa indaale ab interfaas bu baasu done SAM bu gëna mat, buy "
+#~ "wuutu fiise bu /etc/samba/smbpasswd"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Feddlin baxam bëggnga fiise smbpasswd bifi nekk ñu toxalalko suñu boppy "
+#~ "yobbuko ca /var/lib/samba/passdb.tdb. Bul tann lii bu fekkee yaangi jappa "
+#~ "jëfandikoo baneen paket bu pdb (ci misaal LDAP)."

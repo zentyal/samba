@@ -18,7 +18,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 07:17+0100\n"
 "Last-Translator: Peter Mann <Peter.Mann@tuke.sk>\n"
 "Language-Team: Slovak <sk-i18n@lists.linux.sk>\n"
@@ -138,26 +138,6 @@ msgstr ""
 "platný súbor /etc/samba/smbpasswd a že v ňom nastavíte heslá všetkým "
 "používateľom príkazom smbpasswd."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "Zreťazenie rôznych formátov passdb nie je podporované"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Samba už od verzie 3.0.23 nepodporuje zreťazenie viacerých formátov pri "
-"nastavení parametra \"passdb backend\". Vyzerá to tak, že váš súbor smb.conf "
-"obsahuje parameter passdb backend pozostávajúci zo zoznamu formátov. "
-"Táto nová verzia samby nebude funkčná, kým to neopravíte."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -228,30 +208,35 @@ msgstr ""
 "Samba server smbd sa môže spúšťať ako obyčajný daemon (odporúča sa), alebo "
 "sa môže spúšťať z inetd."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "Presunúť /etc/samba/smbpasswd do /var/lib/samba/passdb.tdb?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Zreťazenie rôznych formátov passdb nie je podporované"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 zaviedla nové, kompletnejšie rozhranie k SAM databáze, ktoré "
-"nahradzuje pôvodný súbor /etc/samba/smbpasswd."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Samba už od verzie 3.0.23 nepodporuje zreťazenie viacerých formátov pri "
+#~ "nastavení parametra \"passdb backend\". Vyzerá to tak, že váš súbor smb."
+#~ "conf obsahuje parameter passdb backend pozostávajúci zo zoznamu formátov. "
+#~ "Táto nová verzia samby nebude funkčná, kým to neopravíte."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Rozhodnite sa, či chcete automaticky previesť aktuálny súbor smbpasswd do /"
-"var/lib/samba/passwd.tdb. Ak chcete použiť inú pdb databázu (napr. LDAP), "
-"zamietnite túto voľbu."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Presunúť /etc/samba/smbpasswd do /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 zaviedla nové, kompletnejšie rozhranie k SAM databáze, ktoré "
+#~ "nahradzuje pôvodný súbor /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Rozhodnite sa, či chcete automaticky previesť aktuálny súbor smbpasswd "
+#~ "do /var/lib/samba/passwd.tdb. Ak chcete použiť inú pdb databázu (napr. "
+#~ "LDAP), zamietnite túto voľbu."

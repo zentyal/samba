@@ -19,7 +19,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0.22-1\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2006-10-03 19:36-0500\n"
 "Last-Translator: Carlos Z.F. Liu <carlosliu@users.sourceforge.ent>\n"
 "Language-Team: Debian Chinese [GB] <debian-chinese-gb@lists.debian.org>\n"
@@ -132,25 +132,6 @@ msgstr ""
 "强烈推荐开启此选项。如果选中，请确保您拥有一个有效的 /etc/samba/smbpasswd 文"
 "件，并且此文件包含用 smbpasswd 命令为每个用户设定的密码。"
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr "不支持串联 passdb 后端"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"从版本 3.0.23 开始，samba 的 \"passdb backend\" 参数不再支持多个后端的串联。"
-"而在你的 smb.conf 文件中的 passdb backend 参数包含了一个后端列表。如果不修改"
-"这个问题的话，新版本的 samba 将不能工作。"
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -219,32 +200,36 @@ msgstr ""
 "Samba 守护进程 smbd 可以作为普通守护进程或者从 inetd 启动。以守护进程的方式运"
 "行是推荐的方式。"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "要移动 /etc/samba/smbpasswd 到 /var/lib/samba/passdb.tdb 吗？"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "不支持串联 passdb 后端"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 引入了一种更完整的 SAM 数据库接口，并用其取代了 /etc/samba/"
-"smbpasswd 文件。"
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "从版本 3.0.23 开始，samba 的 \"passdb backend\" 参数不再支持多个后端的串"
+#~ "联。而在你的 smb.conf 文件中的 passdb backend 参数包含了一个后端列表。如果"
+#~ "不修改这个问题的话，新版本的 samba 将不能工作。"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"请确定您是否想将现有的 smbpasswd 文件自动移植为 /var/lib/samba/passdb.tdb。如"
-"果您计划使用其它的 pdb 后端 (如 LDAP) 的话，请不要选中此选项。"
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "要移动 /etc/samba/smbpasswd 到 /var/lib/samba/passdb.tdb 吗？"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 引入了一种更完整的 SAM 数据库接口，并用其取代了 /etc/samba/"
+#~ "smbpasswd 文件。"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "请确定您是否想将现有的 smbpasswd 文件自动移植为 /var/lib/samba/passdb."
+#~ "tdb。如果您计划使用其它的 pdb 后端 (如 LDAP) 的话，请不要选中此选项。"
 
 #~ msgid "daemons, inetd"
 #~ msgstr "守护进程, inetd"

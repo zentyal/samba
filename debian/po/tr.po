@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-03-12 03:35-0700\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
 "PO-Revision-Date: 2007-03-13 18:47+0200\n"
 "Last-Translator: Mehmet Türker <mturker@innova.com.tr>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
@@ -133,28 +133,6 @@ msgstr ""
 "samba/smbpasswd dosyanız olduğundan emin olun ve smbpasswd komutunu "
 "kullanarak bütün kullanıcılar için parola belirleyin."
 
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid "Chaining passdb backends is not supported"
-msgstr ""
-"Parola veritabanı için çoklu arkayüz kullanılabilmesi özelliği  "
-"desteklenmiyor"
-
-#. Type: note
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Beginning with version 3.0.23, samba no longer supports chaining multiple "
-"backends in the \"passdb backend\" parameter.  It appears that your smb.conf "
-"file contains a passdb backend parameter consisting of a list of backends.  "
-"The new version of samba will not work until you correct this."
-msgstr ""
-"Versiyon 3.0.23 ile beraber, samba artık \"passdb backend\" parametresindeki "
-"çoklu arkayüz kullanılabilmesi özelliğini  desteklemiyor. Öyle gözüküyorki, "
-"smb.conf dosyanızdaki parola veritabanı arkayüz parametresi bir liste "
-"içeriyor. Bunu düzeltene kadar yeni samba versiyonu çalışmayacaktır."
-
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
@@ -227,34 +205,42 @@ msgstr ""
 "Samba artalan süreci smbd, normal bir artalan süreci olarak veya inetd'den "
 "çalışabilir. Tavsiye edilen yaklaşım artalan süreci olarak çalıştırmaktır."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-msgstr "/etc/samba/smbpasswd /var/lib/samba/passwd.tdb'ye taşınsın mı?"
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "Parola veritabanı için çoklu arkayüz kullanılabilmesi özelliği  "
+#~ "desteklenmiyor"
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Samba 3.0 introduced a more complete SAM database interface which supersedes "
-"the /etc/samba/smbpasswd file."
-msgstr ""
-"Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasının da yerine geçecek "
-"bir SAM veritabanını içerir."
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Versiyon 3.0.23 ile beraber, samba artık \"passdb backend\" "
+#~ "parametresindeki çoklu arkayüz kullanılabilmesi özelliğini  "
+#~ "desteklemiyor. Öyle gözüküyorki, smb.conf dosyanızdaki parola veritabanı "
+#~ "arkayüz parametresi bir liste içeriyor. Bunu düzeltene kadar yeni samba "
+#~ "versiyonu çalışmayacaktır."
 
-#. Type: boolean
-#. Description
-#: ../samba.templates:3001
-msgid ""
-"Please confirm whether you would like the existing smbpasswd file to be "
-"automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-"option if you plan to use another pdb backend (e.g., LDAP) instead."
-msgstr ""
-"Lütfen smbpasswd dosyasının otomatik olarak /var/lib/samba/passdb.tdb "
-"dosyasına dönüştürülmesini isteyip istemediğinizi onaylayınız. Eğer başka "
-"bir pdb arkayüzü (ör. LDAP) kullanmayı planlıyorsanız, burada 'hayır' "
-"cevabını vermelisiniz."
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd /var/lib/samba/passwd.tdb'ye taşınsın mı?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasının da yerine "
+#~ "geçecek bir SAM veritabanını içerir."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Lütfen smbpasswd dosyasının otomatik olarak /var/lib/samba/passdb.tdb "
+#~ "dosyasına dönüştürülmesini isteyip istemediğinizi onaylayınız. Eğer başka "
+#~ "bir pdb arkayüzü (ör. LDAP) kullanmayı planlıyorsanız, burada 'hayır' "
+#~ "cevabını vermelisiniz."
 
 #~ msgid "daemons, inetd"
 #~ msgstr "artalan süreçleri, inetd"

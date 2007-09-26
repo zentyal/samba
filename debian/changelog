@@ -4,6 +4,9 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     /var/run.  No transition handling in maintainer scripts, since this
     feature is not activated by default.
 
+  [ Debconf translations ]
+  * Hebrew updated. Closes: #444054
+
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Sep 2007 14:29:29 -0700
 
 samba (3.0.26a-1) unstable; urgency=low

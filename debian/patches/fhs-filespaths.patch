@@ -1,8 +1,11 @@
-Goal: Better respect FHS
+Goal: Prepare the sources to better respect FHS
+      New configurable paths are introduced in fhs-newpaths.patch
+      This patch associates files with the new paths
 
 Fixes: #49011
 
-Status wrt upstream: Should be forwarded upstream (good luck..:-))
+Status wrt upstream: Mean to be forwarded upstream (a good rationale 
+                     about FHS is probably recommended)
 
 Note: Use dedicated directories for:
       - discardable cache data (/var/cache/samba): 
@@ -42,143 +45,6 @@ Note: Use dedicated directories for:
       grep -r lp_lockdir source/ | grep -vE \
          '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: samba-3.0.26a/source/Makefile.in
-===================================================================
---- samba-3.0.26a.orig/source/Makefile.in
-+++ samba-3.0.26a/source/Makefile.in
-@@ -106,6 +106,13 @@
- # the directory where lock files go
- LOCKDIR = @lockdir@
- 
-+# FHS directories; equal to LOCKDIR if not using --with-fhs
-+CACHEDIR = @cachedir@
-+STATEDIR = @statedir@
-+
-+# Where to look for (and install) codepage databases.
-+CODEPAGEDIR = @codepagedir@
-+
- # the directory where pid files go
- PIDDIR = @piddir@
- 
-@@ -139,7 +146,7 @@
- PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
- PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
- 	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
--PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\"
-+PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\" -DCODEPAGEDIR=\"$(CODEPAGEDIR)\" -DCACHEDIR=\"$(CACHEDIR)\" -DSTATEDIR=\"$(STATEDIR)\"
- PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
- 
- # Note that all executable programs now provide for an optional executable suffix.
-@@ -1613,10 +1620,10 @@
- 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
- 
- installdat: installdirs
--	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR) $(LIBDIR) $(srcdir)
-+	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR) $(CODEPAGEDIR) $(srcdir)
- 
- installmsg: installdirs
--	@$(SHELL) $(srcdir)/script/installmsg.sh $(DESTDIR) $(LIBDIR) $(srcdir)
-+	@$(SHELL) $(srcdir)/script/installmsg.sh $(DESTDIR) $(CODEPAGEDIR) $(srcdir)
- 
- installswat: installdirs installmsg
- 	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR) $(SWATDIR) $(srcdir)
-Index: samba-3.0.26a/source/configure.in
-===================================================================
---- samba-3.0.26a.orig/source/configure.in
-+++ samba-3.0.26a/source/configure.in
-@@ -40,7 +40,7 @@
- [  --with-fhs              Use FHS-compliant paths (default=no)],
- [ case "$withval" in
-   yes)
--    lockdir="\${VARDIR}/lib/samba"
-+    lockdir="\${VARDIR}/run/samba"
-     piddir="\${VARDIR}/run"
-     mandir="\${prefix}/share/man"
-     logfilebase="\${VARDIR}/log/samba"
-@@ -48,6 +48,10 @@
-     libdir="\${prefix}/lib/samba"
-     configdir="\${sysconfdir}/samba"
-     swatdir="\${DATADIR}/samba/swat"
-+    codepagedir="\${DATADIR}/samba"
-+    statedir="\${VARDIR}/lib/samba"
-+    cachedir="\${VARDIR}/cache/samba"
-+    AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
-     ;;
-   esac])
- 
-@@ -252,6 +256,9 @@
- AC_SUBST(swatdir)
- AC_SUBST(bindir)
- AC_SUBST(sbindir)
-+AC_SUBST(codepagedir)
-+AC_SUBST(statedir)
-+AC_SUBST(cachedir)
- AC_SUBST(rootsbindir)
- AC_SUBST(pammodulesdir)
- 
-Index: samba-3.0.26a/source/dynconfig.c
-===================================================================
---- samba-3.0.26a.orig/source/dynconfig.c
-+++ samba-3.0.26a/source/dynconfig.c
-@@ -53,6 +53,13 @@
- pstring dyn_LMHOSTSFILE = LMHOSTSFILE;
- 
- /**
-+ * @brief Samba data directory.
-+ *
-+ * @sa data_path() to get the path to a file inside the CODEPAGEDIR.
-+ **/
-+pstring dyn_CODEPAGEDIR = CODEPAGEDIR;
-+
-+/**
-  * @brief Samba library directory.
-  *
-  * @sa lib_path() to get the path to a file inside the LIBDIR.
-@@ -70,3 +77,27 @@
- 
- pstring dyn_SMB_PASSWD_FILE = SMB_PASSWD_FILE;
- pstring dyn_PRIVATE_DIR = PRIVATE_DIR;
-+
-+
-+/* In non-FHS mode, these should be configurable using 'lock dir =';
-+   but in FHS mode, they are their own directory.  Implement as wrapper
-+   functions so that everything can still be kept in dynconfig.c.
-+ */
-+
-+char *dyn_STATEDIR(void)
-+{
-+#ifdef FHS_COMPATIBLE
-+	return STATEDIR;
-+#else
-+	return lp_lockdir();
-+#endif
-+}
-+
-+char *dyn_CACHEDIR(void)
-+{
-+#ifdef FHS_COMPATIBLE
-+	return CACHEDIR;
-+#else
-+	return lp_lockdir();
-+#endif
-+}
-Index: samba-3.0.26a/source/include/dynconfig.h
-===================================================================
---- samba-3.0.26a.orig/source/include/dynconfig.h
-+++ samba-3.0.26a/source/include/dynconfig.h
-@@ -31,8 +31,12 @@
- extern pstring dyn_CONFIGFILE;
- extern pstring dyn_LOGFILEBASE, dyn_LMHOSTSFILE;
- extern pstring dyn_LIBDIR;
-+extern pstring dyn_CODEPAGEDIR;
- extern fstring dyn_SHLIBEXT;
- extern pstring dyn_LOCKDIR;
- extern pstring dyn_PIDDIR;
- extern pstring dyn_SMB_PASSWD_FILE;
- extern pstring dyn_PRIVATE_DIR;
-+
-+char *dyn_STATEDIR(void);
-+char *dyn_CACHEDIR(void);
 Index: samba-3.0.26a/source/intl/lang_tdb.c
 ===================================================================
 --- samba-3.0.26a.orig/source/intl/lang_tdb.c

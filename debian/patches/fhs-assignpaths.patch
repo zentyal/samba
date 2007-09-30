@@ -1,0 +1,22 @@
+Goal: Change install paths to better respect FHS. This needs fhs-newpaths.patch
+      to introduce new path variables and fhs-filespaths.patch to
+      associate files with these
+
+Fixes: #49011
+
+Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
+                     change their default behaviour
+
+Index: samba-3.0.26a/source/configure.in
+===================================================================
+--- samba-3.0.26a.orig/source/configure.in
++++ samba-3.0.26a/source/configure.in
+@@ -40,7 +40,7 @@
+ [  --with-fhs              Use FHS-compliant paths (default=no)],
+ [ case "$withval" in
+   yes)
+-    lockdir="\${VARDIR}/lib/samba"
++    lockdir="\${VARDIR}/run/samba"
+     piddir="\${VARDIR}/run"
+     mandir="\${prefix}/share/man"
+     logfilebase="\${VARDIR}/log/samba"

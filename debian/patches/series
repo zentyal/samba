@@ -1,6 +1,8 @@
 cups.patch
 documentation.patch
-fhs.patch
+fhs-newpaths.patch
+fhs-filespaths.patch
+fhs-assignpaths.patch
 installswat.sh.patch
 make-distclean.patch
 non-linux-ports.patch

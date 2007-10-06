@@ -4,7 +4,6 @@ fhs-newpaths.patch
 fhs-filespaths.patch
 fhs-assignpaths.patch
 installswat.sh.patch
-make-distclean.patch
 non-linux-ports.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
@@ -12,7 +11,7 @@ no_smbmount_symlink.patch
 smbclient-pager.patch
 smbmount-mtab-flags.patch
 smbmount-nomtab.patch
-smbstatus-locking.patch
+#smbstatus-locking.patch
 undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch

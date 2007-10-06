@@ -18,19 +18,19 @@ Note: This patch will normally have to be updated by hand after every
  export QUILT_PATCHES=debian/patches
  quilt push autoconf.patch # to get everything applied up to this point
  quilt push -f autoconf.patch # to override the errors when applying
- (cd source && autoconf -I lib/replace)
+ (cd source && autoconf -I m4 -I lib/replace)
    # the -I lib/replace is needed because upstream seems to have done
    # something screwy with where their m4 include files are distributed in the
    # source tree; so this option may not be necessary in the future
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba-3.0.25c/source/configure
+Index: samba-3.2.0pre1/source/configure
 ===================================================================
---- samba-3.0.25c.orig/source/configure	2007-08-26 12:07:15.098370040 +0200
-+++ samba-3.0.25c/source/configure	2007-08-26 13:09:05.419555107 +0200
-@@ -671,6 +671,9 @@
- logfilebase
+--- samba-3.2.0pre1.orig/source/configure
++++ samba-3.2.0pre1/source/configure
+@@ -672,6 +672,9 @@
+ ctdbdir
  privatedir
  swatdir
 +codepagedir
@@ -39,7 +39,7 @@ Index: samba-3.0.25c/source/configure
  rootsbindir
  pammodulesdir
  SAMBA_CPPFLAGS
-@@ -2139,7 +2142,7 @@
+@@ -2145,7 +2148,7 @@
  if test "${with_fhs+set}" = set; then
    withval=$with_fhs;  case "$withval" in
    yes)
@@ -48,13 +48,13 @@ Index: samba-3.0.25c/source/configure
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-@@ -2147,6 +2150,14 @@
+@@ -2153,6 +2156,14 @@
      libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
-+    codepagedir="\${DATADIR}/samba"
++    codepagedir="\${prefix}/lib/samba"
 +    statedir="\${VARDIR}/lib/samba"
-+    cachedir="\${VARDIR}/cache/samba"
++    cachedir="\${VARDIR}/lib/samba"
 +
 +cat >>confdefs.h <<\_ACEOF
 +#define FHS_COMPATIBLE 1
@@ -63,7 +63,7 @@ Index: samba-3.0.25c/source/configure
      ;;
    esac
  fi
-@@ -2450,6 +2461,9 @@
+@@ -2472,6 +2483,9 @@
  
  
  
@@ -73,7 +73,7 @@ Index: samba-3.0.25c/source/configure
  ## check for --enable-debug first before checking CFLAGS before
  ## so that we don't mix -O and -g
  # Check whether --enable-debug was given.
-@@ -11604,6 +11618,27 @@
+@@ -11694,6 +11708,27 @@
        fi
      ;;
  
@@ -101,7 +101,7 @@ Index: samba-3.0.25c/source/configure
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -34332,7 +34367,7 @@
+@@ -34654,7 +34689,7 @@
  #
  #
  case "$host_os" in
@@ -110,7 +110,7 @@ Index: samba-3.0.25c/source/configure
         # glibc <= 2.3.2 has a broken getgrouplist
         if test "$cross_compiling" = yes; then
    { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-@@ -39240,11 +39275,14 @@
+@@ -39563,11 +39598,14 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -127,7 +127,7 @@ Index: samba-3.0.25c/source/configure
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -61780,7 +61818,7 @@
+@@ -62821,7 +62859,7 @@
  echo "${ECHO_T}yes" >&6; };
  
  	case "$host_os" in
@@ -136,8 +136,8 @@ Index: samba-3.0.25c/source/configure
  		{ echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
  echo $ECHO_N "checking for linux sendfile64 support... $ECHO_C" >&6; }
  if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
-@@ -62802,11 +62840,11 @@
- SMB_KRB5_LOCATOR="bin/smb_krb5_locator.$SHLIBEXT"
+@@ -63901,11 +63939,11 @@
+ NSSSONAMEVERSIONSUFFIX=""
  
  case "$host_os" in
 -	*linux*)
@@ -150,8 +150,8 @@ Index: samba-3.0.25c/source/configure
  		# FreeBSD winbind client is implemented as a wrapper around
  		# the Linux version.
  		NSSSONAMEVERSIONSUFFIX=".1"
-@@ -67324,6 +67362,9 @@
- logfilebase!$logfilebase$ac_delim
+@@ -68770,6 +68808,9 @@
+ ctdbdir!$ctdbdir$ac_delim
  privatedir!$privatedir$ac_delim
  swatdir!$swatdir$ac_delim
 +codepagedir!$codepagedir$ac_delim
@@ -160,40 +160,40 @@ Index: samba-3.0.25c/source/configure
  rootsbindir!$rootsbindir$ac_delim
  pammodulesdir!$pammodulesdir$ac_delim
  SAMBA_CPPFLAGS!$SAMBA_CPPFLAGS$ac_delim
-@@ -67361,9 +67402,6 @@
- PASSDB_LIBS!$PASSDB_LIBS$ac_delim
- IDMAP_LIBS!$IDMAP_LIBS$ac_delim
+@@ -68806,9 +68847,6 @@
  KRB5_LIBS!$KRB5_LIBS$ac_delim
--UUID_LIBS!$UUID_LIBS$ac_delim
--LDAP_LIBS!$LDAP_LIBS$ac_delim
+ UUID_LIBS!$UUID_LIBS$ac_delim
+ LDAP_LIBS!$LDAP_LIBS$ac_delim
 -PAM_MODULES!$PAM_MODULES$ac_delim
+-INSTALL_PAM_MODULES!$INSTALL_PAM_MODULES$ac_delim
+-UNINSTALL_PAM_MODULES!$UNINSTALL_PAM_MODULES$ac_delim
  _ACEOF
  
    if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
-@@ -67405,6 +67443,9 @@
+@@ -68850,6 +68888,9 @@
  ac_delim='%!_!# '
  for ac_last_try in false false false false false :; do
    cat >conf$$subs.sed <<_ACEOF
-+UUID_LIBS!$UUID_LIBS$ac_delim
-+LDAP_LIBS!$LDAP_LIBS$ac_delim
 +PAM_MODULES!$PAM_MODULES$ac_delim
- INSTALL_PAM_MODULES!$INSTALL_PAM_MODULES$ac_delim
- UNINSTALL_PAM_MODULES!$UNINSTALL_PAM_MODULES$ac_delim
++INSTALL_PAM_MODULES!$INSTALL_PAM_MODULES$ac_delim
++UNINSTALL_PAM_MODULES!$UNINSTALL_PAM_MODULES$ac_delim
  NSS_MODULES!$NSS_MODULES$ac_delim
-@@ -67488,7 +67529,7 @@
+ EXTRA_BIN_PROGS!$EXTRA_BIN_PROGS$ac_delim
+ SMBMOUNT_PROGS!$SMBMOUNT_PROGS$ac_delim
+@@ -68932,7 +68973,7 @@
  LTLIBOBJS!$LTLIBOBJS$ac_delim
  _ACEOF
  
--  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 81; then
-+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 84; then
+-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 80; then
++  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 83; then
      break
    elif $ac_last_try; then
      { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
-Index: samba-3.0.25c/source/include/config.h.in
+Index: samba-3.2.0pre1/source/include/config.h.in
 ===================================================================
---- samba-3.0.25c.orig/source/include/config.h.in	2007-08-26 12:07:15.098370040 +0200
-+++ samba-3.0.25c/source/include/config.h.in	2007-08-26 13:09:05.919530711 +0200
-@@ -57,6 +57,9 @@
+--- samba-3.2.0pre1.orig/source/include/config.h.in
++++ samba-3.2.0pre1/source/include/config.h.in
+@@ -60,6 +60,9 @@
  /* Define to turn on dmalloc debugging */
  #undef ENABLE_DMALLOC
  

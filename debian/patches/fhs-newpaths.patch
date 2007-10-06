@@ -10,11 +10,11 @@ Status wrt upstream: Mean to be forwarded upstream (a good rationale
 Note: See fhs-filespaths for rationale about the meaning of the new
       path variables
 
-Index: samba-3.0.25c/source/Makefile.in
+Index: samba-3.2.0pre1/source/Makefile.in
 ===================================================================
---- samba-3.0.25c.orig/source/Makefile.in	2007-08-26 13:07:02.925532676 +0200
-+++ samba-3.0.25c/source/Makefile.in	2007-08-26 13:08:59.419847863 +0200
-@@ -106,6 +106,13 @@
+--- samba-3.2.0pre1.orig/source/Makefile.in
++++ samba-3.2.0pre1/source/Makefile.in
+@@ -121,6 +121,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
  
@@ -28,17 +28,20 @@ Index: samba-3.0.25c/source/Makefile.in
  # the directory where pid files go
  PIDDIR = @piddir@
  
-@@ -139,7 +146,7 @@
- PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
- PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
- 	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
--PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\"
-+PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\" -DCODEPAGEDIR=\"$(CODEPAGEDIR)\" -DCACHEDIR=\"$(CACHEDIR)\" -DSTATEDIR=\"$(STATEDIR)\"
- PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
+@@ -148,7 +155,10 @@
+ 	-DLOGFILEBASE=\"$(LOGFILEBASE)\" \
+ 	-DSHLIBEXT=\"@SHLIBEXT@\" \
+ 	-DCTDBDIR=\"$(CTDBDIR)\" \
+-	-DCONFIGDIR=\"$(CONFIGDIR)\"
++	-DCONFIGDIR=\"$(CONFIGDIR)\" \
++	-DCODEPAGEDIR=\"$(CODEPAGEDIR)\" \
++	-DCACHEDIR=\"$(CACHEDIR)\" \
++	-DSTATEDIR=\"$(STATEDIR)\"
  
  # Note that all executable programs now provide for an optional executable suffix.
-@@ -1613,10 +1620,10 @@
- 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
+ 
+@@ -1785,10 +1795,10 @@
+ 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS_BIN) $(DESTDIR)$(BINDIR) $(SCRIPTS)
  
  installdat: installdirs
 -	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR) $(LIBDIR) $(srcdir)
@@ -50,11 +53,11 @@ Index: samba-3.0.25c/source/Makefile.in
  
  installswat: installdirs installmsg
  	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR) $(SWATDIR) $(srcdir)
-Index: samba-3.0.25c/source/configure.in
+Index: samba-3.2.0pre1/source/configure.in
 ===================================================================
---- samba-3.0.25c.orig/source/configure.in	2007-08-26 13:07:02.925532676 +0200
-+++ samba-3.0.25c/source/configure.in	2007-08-26 13:08:59.419847863 +0200
-@@ -48,6 +48,10 @@
+--- samba-3.2.0pre1.orig/source/configure.in
++++ samba-3.2.0pre1/source/configure.in
+@@ -54,6 +54,10 @@
      libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
@@ -65,7 +68,7 @@ Index: samba-3.0.25c/source/configure.in
      ;;
    esac])
  
-@@ -252,6 +256,9 @@
+@@ -273,6 +277,9 @@
  AC_SUBST(swatdir)
  AC_SUBST(bindir)
  AC_SUBST(sbindir)
@@ -75,11 +78,11 @@ Index: samba-3.0.25c/source/configure.in
  AC_SUBST(rootsbindir)
  AC_SUBST(pammodulesdir)
  
-Index: samba-3.0.25c/source/dynconfig.c
+Index: samba-3.2.0pre1/source/dynconfig.c
 ===================================================================
---- samba-3.0.25c.orig/source/dynconfig.c	2007-08-26 13:07:02.925532676 +0200
-+++ samba-3.0.25c/source/dynconfig.c	2007-08-26 13:08:59.419847863 +0200
-@@ -53,6 +53,13 @@
+--- samba-3.2.0pre1.orig/source/dynconfig.c
++++ samba-3.2.0pre1/source/dynconfig.c
+@@ -52,6 +52,13 @@
  pstring dyn_LMHOSTSFILE = LMHOSTSFILE;
  
  /**
@@ -93,7 +96,7 @@ Index: samba-3.0.25c/source/dynconfig.c
   * @brief Samba library directory.
   *
   * @sa lib_path() to get the path to a file inside the LIBDIR.
-@@ -70,3 +77,27 @@
+@@ -69,3 +76,27 @@
  
  pstring dyn_SMB_PASSWD_FILE = SMB_PASSWD_FILE;
  pstring dyn_PRIVATE_DIR = PRIVATE_DIR;
@@ -121,11 +124,11 @@ Index: samba-3.0.25c/source/dynconfig.c
 +	return lp_lockdir();
 +#endif
 +}
-Index: samba-3.0.25c/source/include/dynconfig.h
+Index: samba-3.2.0pre1/source/include/dynconfig.h
 ===================================================================
---- samba-3.0.25c.orig/source/include/dynconfig.h	2007-08-26 13:07:02.925532676 +0200
-+++ samba-3.0.25c/source/include/dynconfig.h	2007-08-26 13:08:59.419847863 +0200
-@@ -31,8 +31,12 @@
+--- samba-3.2.0pre1.orig/source/include/dynconfig.h
++++ samba-3.2.0pre1/source/include/dynconfig.h
+@@ -30,8 +30,12 @@
  extern pstring dyn_CONFIGFILE;
  extern pstring dyn_LOGFILEBASE, dyn_LMHOSTSFILE;
  extern pstring dyn_LIBDIR;

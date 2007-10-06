@@ -20,3 +20,15 @@ Index: samba-3.0.26a/source/configure.in
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
+@@ -48,9 +48,9 @@
+     libdir="\${prefix}/lib/samba"
+     configdir="\${sysconfdir}/samba"
+     swatdir="\${DATADIR}/samba/swat"
+-    codepagedir="\${prefix}/lib/samba"
++    codepagedir="\${DATADIR}/samba/swat"
+     statedir="\${VARDIR}/lib/samba"
+-    cachedir="\${VARDIR}/lib/samba"
++    cachedir="\${VARDIR}/cache/samba"
+     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
+     ;;
+   esac])

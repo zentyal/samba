@@ -25,7 +25,7 @@ Index: samba-3.0.26a/source/configure.in
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
 -    codepagedir="\${prefix}/lib/samba"
-+    codepagedir="\${DATADIR}/samba/swat"
++    codepagedir="\${DATADIR}/samba"
      statedir="\${VARDIR}/lib/samba"
 -    cachedir="\${VARDIR}/lib/samba"
 +    cachedir="\${VARDIR}/cache/samba"

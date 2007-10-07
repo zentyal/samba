@@ -1,7 +1,7 @@
 Goal: exit without error from smbstatus when no connections have
      been seen yet
 
-Fixes: #164489. Patch later corrected in #164179
+Fixes: #164179. Patch later corrected in #164489
 
 Status wrt upstream: Should be forwarded
 

@@ -52,9 +52,9 @@ Index: samba-3.2.0pre1/source/configure
      libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
-+    codepagedir="\${prefix}/lib/samba"
++    codepagedir="\${DATADIR}/samba"
 +    statedir="\${VARDIR}/lib/samba"
-+    cachedir="\${VARDIR}/lib/samba"
++    cachedir="\${VARDIR}/cache/samba"
 +
 +cat >>confdefs.h <<\_ACEOF
 +#define FHS_COMPATIBLE 1

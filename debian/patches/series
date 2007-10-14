@@ -11,7 +11,7 @@ no_smbmount_symlink.patch
 smbclient-pager.patch
 smbmount-mtab-flags.patch
 smbmount-nomtab.patch
-#smbstatus-locking.patch
+smbstatus-locking.patch
 undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch

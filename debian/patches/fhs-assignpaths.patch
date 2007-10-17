@@ -32,3 +32,31 @@ Index: samba-3.2.0pre1/source/configure.in
      AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
      ;;
    esac])
+Index: samba-3.2.0pre1/source/param/loadparm.c
+===================================================================
+--- samba-3.2.0pre1.orig/source/param/loadparm.c
++++ samba-3.2.0pre1/source/param/loadparm.c
+@@ -117,6 +117,9 @@
+ 	char *szAddPrinterCommand;
+ 	char *szDeletePrinterCommand;
+ 	char *szOs2DriverMap;
++#ifdef FHS_COMPATIBLE
++	char *szLockDirStub;
++#endif
+ 	char *szLockDir;
+ 	char *szPidDir;
+ 	char *szRootdir;
+@@ -1221,8 +1224,13 @@
+ 	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
+ 	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
+ 	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
++#ifdef FHS_COMPATIBLE
++	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0}, 
++	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0},
++#else
+ 	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_ADVANCED}, 
+ 	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_HIDE}, 
++#endif
+ 	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED}, 
+ #ifdef WITH_UTMP
+ 	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED}, 

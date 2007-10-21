@@ -141,11 +141,11 @@ Index: samba-3.2.0pre1/source/include/dynconfig.h
 +
 +char *dyn_STATEDIR(void);
 +char *dyn_CACHEDIR(void);
-Index: samba-3.0.26a/source/lib/util.c
+Index: samba-3.2.0pre1/source/lib/util.c
 ===================================================================
---- samba-3.0.26a.orig/source/lib/util.c
-+++ samba-3.0.26a/source/lib/util.c
-@@ -2632,6 +2632,41 @@
+--- samba-3.2.0pre1.orig/source/lib/util.c
++++ samba-3.2.0pre1/source/lib/util.c
+@@ -2655,6 +2655,39 @@
  }
  
  /**
@@ -153,14 +153,12 @@ Index: samba-3.0.26a/source/lib/util.c
 + *
 + * @param name File to find, relative to CODEPAGEDIR.
 + *
-+ * @retval Pointer to a static #pstring containing the full path.
++ * @retval Pointer to a talloc'ed string containing the full path.
 + **/
 +
 +char *data_path(const char *name)
 +{
-+	static pstring fname;
-+	snprintf(fname, sizeof(fname), "%s/%s", dyn_CODEPAGEDIR, name);
-+	return fname;
++	return talloc_asprintf(talloc_tos(), "%s/%s", dyn_CODEPAGEDIR, name);
 +}
 +
 +/*****************************************************************
@@ -168,7 +166,7 @@ Index: samba-3.0.26a/source/lib/util.c
 + *****************************************************************/
 +char *state_path(char *name)
 +{
-+	static pstring fname;
++	pstring fname;
 +
 +	pstrcpy(fname,dyn_STATEDIR());
 +	trim_string(fname,"","/");
@@ -180,7 +178,7 @@ Index: samba-3.0.26a/source/lib/util.c
 +	pstrcat(fname,"/");
 +	pstrcat(fname,name);
 +
-+	return fname;
++	return talloc_strdup(talloc_tos(), fname);
 +}
 +
 +/**

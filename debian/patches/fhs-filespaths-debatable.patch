@@ -50,8 +50,8 @@ Index: samba-3.2.0pre1/source/lib/util.c
 ===================================================================
 --- samba-3.2.0pre1.orig/source/lib/util.c
 +++ samba-3.2.0pre1/source/lib/util.c
-@@ -2689,6 +2689,27 @@
- 	return fname;
+@@ -2687,6 +2687,27 @@
+ 	return talloc_strdup(talloc_tos(), fname);
  }
  
 +
@@ -60,19 +60,19 @@ Index: samba-3.2.0pre1/source/lib/util.c
 + *****************************************************************/
 +char *cache_path(char *name)
 +{
-+	static pstring fname;
++	pstring fname;
 +
 +	pstrcpy(fname,dyn_CACHEDIR());
 +	trim_string(fname,"","/");
 +
 +	if (!directory_exist(fname,NULL)) {
-+			mkdir(fname,0755);
++		mkdir(fname,0755);
 +	}
 +
 +	pstrcat(fname,"/");
 +	pstrcat(fname,name);
 +
-+	return fname;
++	return talloc_strdup(talloc_tos(), fname);
 +}
 +
  /**

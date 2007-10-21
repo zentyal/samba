@@ -59,52 +59,6 @@ Index: samba-3.2.0pre1/source/intl/lang_tdb.c
  	if (stat(msg_path, &st) != 0) {
  		/* the msg file isn't available */
  		DEBUG(10, ("lang_tdb_init: %s: %s\n", msg_path, 
-Index: samba-3.2.0pre1/source/lib/util.c
-===================================================================
---- samba-3.2.0pre1.orig/source/lib/util.c
-+++ samba-3.2.0pre1/source/lib/util.c
-@@ -2655,6 +2655,41 @@
- }
- 
- /**
-+ * @brief Returns an absolute path to a file in the Samba data directory.
-+ *
-+ * @param name File to find, relative to CODEPAGEDIR.
-+ *
-+ * @retval Pointer to a static #pstring containing the full path.
-+ **/
-+
-+char *data_path(const char *name)
-+{
-+	static pstring fname;
-+	snprintf(fname, sizeof(fname), "%s/%s", dyn_CODEPAGEDIR, name);
-+	return fname;
-+}
-+
-+/*****************************************************************
-+a useful function for returning a path in the Samba state directory
-+ *****************************************************************/
-+char *state_path(char *name)
-+{
-+	static pstring fname;
-+
-+	pstrcpy(fname,dyn_STATEDIR());
-+	trim_string(fname,"","/");
-+
-+	if (!directory_exist(fname,NULL)) {
-+		mkdir(fname,0755);
-+	}
-+
-+	pstrcat(fname,"/");
-+	pstrcat(fname,name);
-+
-+	return fname;
-+}
-+
-+/**
-  * @brief Returns the platform specific shared library extension.
-  *
-  * @retval Pointer to a static #fstring containing the extension.
 Index: samba-3.2.0pre1/source/lib/util_unistr.c
 ===================================================================
 --- samba-3.2.0pre1.orig/source/lib/util_unistr.c

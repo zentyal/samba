@@ -22,10 +22,7 @@ samba (3.2.0~pre1-1) experimental; urgency=low
     - fhs-filespaths.patch: assign files to new paths
     - fhs-assignpaths.patch: assign paths to FHS-compatible locations
 
-  [ Steve Langasek ]
-  * 
-
- -- Steve Langasek <vorlon@debian.org>  Sat, 20 Oct 2007 22:08:08 -0700
+ -- Christian Perrier <bubulle@debian.org>  Sun, 21 Oct 2007 09:14:42 +0200
 
 samba (3.0.26a-1) unstable; urgency=low
 

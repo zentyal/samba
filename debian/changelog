@@ -1,11 +1,13 @@
 samba (3.2.0~pre1-1) experimental; urgency=low
 
   * New upstream (pre-)release
-  
+
   [ Steve Langasek ]
   * fhs.patch: net usershares should also be stored under /var/lib, not under
     /var/run.  No transition handling in maintainer scripts, since this
     feature is not activated by default.
+  * Update smbstatus-locking.patch to use db_open() instead of
+    tdb_open(), per upstream recommendation.
 
   [ Debconf translations ]
   * Hebrew added. Closes: #444054
@@ -17,7 +19,7 @@ samba (3.2.0~pre1-1) experimental; urgency=low
     - fhs-filespaths.patch: assign files to new paths
     - fhs-assignpaths.patch: assign paths to FHS-compatible locations
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 29 Sep 2007 12:02:13 +0200
+ -- Steve Langasek <vorlon@debian.org>  Sat, 20 Oct 2007 17:34:08 -0700
 
 samba (3.0.26a-1) unstable; urgency=low
 

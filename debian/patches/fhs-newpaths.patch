@@ -4,8 +4,7 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Mean to be forwarded upstream (a good rationale 
-                     about FHS is probably recommended)
+Status wrt upstream: Forwarded. Under discussion
 
 Note: See fhs-filespaths for rationale about the meaning of the new
       path variables

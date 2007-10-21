@@ -5,12 +5,9 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Mean to be forwarded upstream (a good rationale 
-                     about FHS is probably recommended)
+Status wrt upstream: Forwarded. Under discussion. Could be adopted.
 
 Note: Use dedicated directories for:
-      - discardable cache data (/var/cache/samba): 
-          browse.dat, printers.tbd, <printer>.tdb
       - non discardable state data:
           all TDB files that may need to be backed up
       - shared data (/usr/share/samba):
@@ -32,7 +29,8 @@ Note: Use dedicated directories for:
         lock_path; everything else needs to be investigated.
       - If the file name occurs elsewhere in the fhs.patch, update the
         patch to fix these new references to the same place (either
-        cache_path or state_path)
+        cache_path or state_path. If cache_path, the change belongs
+        to fhs-filespaths-debatable)
       - If the file is a tdb file, and the code that opens it uses
         TDB_CLEAR_IF_FIRST, lock_path is correct; just update the query
         above with the new filename, no other changes are needed.

@@ -4,7 +4,7 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Forwarded. Under discussion
+Status wrt upstream: Applied in 3.2.0
 
 Note: See fhs-filespaths for rationale about the meaning of the new
       path variables

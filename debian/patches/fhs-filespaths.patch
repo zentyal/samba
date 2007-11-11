@@ -5,7 +5,7 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Forwarded. Under discussion. Could be adopted.
+Status wrt upstream: Applied in 3.2.0
 
 Note: Use dedicated directories for:
       - non discardable state data:

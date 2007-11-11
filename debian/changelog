@@ -1,3 +1,11 @@
+samba (3.2.0~pre1-2) UNRELEASED; urgency=low
+
+  * Compile with DNS update support. Thanks to Matthias Gug for
+    reporting and contributions from Launchpad's #156686
+    Closes: #449422
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 11 Nov 2007 09:51:05 +0000
+
 samba (3.2.0~pre1-1) experimental; urgency=low
 
   * New upstream (pre-)release

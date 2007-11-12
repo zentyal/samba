@@ -124,6 +124,17 @@ rm -f /etc/samba/debian_config
 mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null || true
 mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
 
+# add the sambashare group
+if ! getent group sambashare > /dev/null 2>&1
+then
+	addgroup --system sambashare
+fi
+
+if [ ! -e /var/lib/samba/usershares ]
+then
+	install -d -m 1770 -g sambashare /var/lib/samba/usershares
+fi
+
 #DEBHELPER#
 
 exit 0

@@ -4,6 +4,13 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
   * fhs.patch: net usershares should also be stored under /var/lib, not under
     /var/run.  No transition handling in maintainer scripts, since this
     feature is not activated by default.
+  * get_global_sam_sid-non-root.patch: avoid calling get_global_sam_sid()
+    from smbpasswd -L or pam_smbpass when running as non-root, to avoid a
+    foreseeable panic.  Closes: #346547, #450738.
+  * usershare.patch: enable "user shares" by default in the server with a
+    default limit of 100, to support user shares on both upgrades and new
+    installs with no need to munge config files.  Thanks to Mathias Gug
+    <mathiaz@ubuntu.com> for the patch.  Closes: #443230.
 
   [ Debconf translations ]
   * Hebrew added. Closes: #444054
@@ -15,7 +22,7 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     - fhs-filespaths.patch: assign files to new paths
     - fhs-assignpaths.patch: assign paths to FHS-compatible locations
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 30 Sep 2007 14:32:27 +0200
+ -- Steve Langasek <vorlon@debian.org>  Sat, 10 Nov 2007 18:18:48 -0800
 
 samba (3.0.26a-1) unstable; urgency=low
 

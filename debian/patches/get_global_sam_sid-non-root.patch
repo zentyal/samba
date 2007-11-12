@@ -1,0 +1,73 @@
+Goal: client programs should short-circuit before calling
+get_global_sam_sid() as not-root, because the SAM SID can't be read without
+root privileges and get_global_sam_sid() panics when it can't be accessed --
+reasonable for the server, not reasonable for the client.
+
+Author: Steve Langasek <vorlon@debian.org>
+
+Upstream status: not yet submitted
+
+Index: samba-3.0.26a/source/utils/smbpasswd.c
+===================================================================
+--- samba-3.0.26a.orig/source/utils/smbpasswd.c
++++ samba-3.0.26a/source/utils/smbpasswd.c
+@@ -96,6 +96,10 @@
+ 	while ((ch = getopt(argc, argv, "c:axdehminjr:sw:R:D:U:LW")) != EOF) {
+ 		switch(ch) {
+ 		case 'L':
++			if (getuid() != 0) {
++				fprintf(stderr, "smbpasswd -L can only be used by root.\n");
++				exit(1);
++			}
+ 			local_flags |= LOCAL_AM_ROOT;
+ 			break;
+ 		case 'c':
+Index: samba-3.0.26a/source/pam_smbpass/pam_smb_auth.c
+===================================================================
+--- samba-3.0.26a.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.0.26a/source/pam_smbpass/pam_smb_auth.c
+@@ -100,6 +100,12 @@
+ 		_log_err(pamh, LOG_DEBUG, "username [%s] obtained", name);
+ 	}
+ 
++	if (geteuid() != 0) {
++		_log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
++		retval = PAM_AUTHINFO_UNAVAIL;
++		AUTH_RETURN;
++	}
++
+ 	if (!initialize_password_db(True)) {
+ 		_log_err(pamh, LOG_ALERT, "Cannot access samba password database");
+ 		retval = PAM_AUTHINFO_UNAVAIL;
+Index: samba-3.0.26a/source/pam_smbpass/pam_smb_acct.c
+===================================================================
+--- samba-3.0.26a.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.0.26a/source/pam_smbpass/pam_smb_acct.c
+@@ -69,6 +69,11 @@
+ 		_log_err(pamh, LOG_DEBUG, "acct: username [%s] obtained", name);
+ 	}
+ 
++	if (geteuid() != 0) {
++		_log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
++		return PAM_AUTHINFO_UNAVAIL;
++	}
++
+ 	/* Getting into places that might use LDAP -- protect the app
+ 		from a SIGPIPE it's not expecting */
+ 	oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
+Index: samba-3.0.26a/source/pam_smbpass/pam_smb_passwd.c
+===================================================================
+--- samba-3.0.26a.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.0.26a/source/pam_smbpass/pam_smb_passwd.c
+@@ -124,6 +124,11 @@
+         _log_err(pamh, LOG_DEBUG, "username [%s] obtained", user);
+     }
+ 
++    if (geteuid() != 0) {
++	_log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
++	return PAM_AUTHINFO_UNAVAIL;
++    }
++
+     /* Getting into places that might use LDAP -- protect the app
+        from a SIGPIPE it's not expecting */
+     oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);

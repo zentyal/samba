@@ -11,6 +11,10 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     default limit of 100, to support user shares on both upgrades and new
     installs with no need to munge config files.  Thanks to Mathias Gug
     <mathiaz@ubuntu.com> for the patch.  Closes: #443230.
+  * On Ubuntu, support autopopulating the sambashare group using the existing
+    members of the admin group; no equivalent handling is done on Debian,
+    because there doesn't seem to be an appropriate template group we can use
+    that wouldn't be considered a privilege escalation for those users.
 
   [ Debconf translations ]
   * Hebrew added. Closes: #444054
@@ -25,7 +29,7 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     reporting and contributions from Launchpad's #156686
     Closes: #449422
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 10 Nov 2007 18:18:48 -0800
+ -- Steve Langasek <vorlon@debian.org>  Tue, 13 Nov 2007 11:55:48 -0800
 
 samba (3.0.26a-1) unstable; urgency=low
 

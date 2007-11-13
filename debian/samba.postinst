@@ -128,6 +128,19 @@ mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
 if ! getent group sambashare > /dev/null 2>&1
 then
 	addgroup --system sambashare
+	# Only on Ubuntu, use the "admin" group as a template for the
+	# initial users for this group; Debian has no equivalent group,
+	# so leaving the sambashare group empty is the more secure default
+	if [ -x "`which lsb_release 2>/dev/null`" ] \
+	   && [ "`lsb_release -s -i`" = "Ubuntu" ]
+	then
+		OLDIFS="$IFS"
+		IFS=","
+		for USER in `getent group admin | cut -f4 -d:`; do
+			adduser "$USER" sambashare
+		done
+		IFS="$OLDIFS"
+	fi
 fi
 
 if [ ! -e /var/lib/samba/usershares ]

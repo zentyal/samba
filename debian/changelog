@@ -21,6 +21,9 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     - fhs-newpaths.patch: introduce new paths
     - fhs-filespaths.patch: assign files to new paths
     - fhs-assignpaths.patch: assign paths to FHS-compatible locations
+  * Compile with DNS update support. Thanks to Matthias Gug for
+    reporting and contributions from Launchpad's #156686
+    Closes: #449422
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 10 Nov 2007 18:18:48 -0800
 

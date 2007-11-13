@@ -9,7 +9,7 @@ Standards-Version: 3.7.2
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd
+Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd, adduser
 Recommends: smbldap-tools
 Suggests: openbsd-inetd | inet-superserver
 Replaces: samba-common (<= 2.0.5a-2)

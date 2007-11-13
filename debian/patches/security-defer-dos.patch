@@ -1,0 +1,241 @@
+diff -aur samba-3.0.14a.orig/source/printing/nt_printing.c samba-3.0.14a/source/printing/nt_printing.c
+--- samba-3.0.14a.orig/source/printing/nt_printing.c	2005-04-14 08:14:20.000000000 +0200
++++ samba-3.0.14a/source/printing/nt_printing.c	2007-01-31 12:15:02.000000000 +0100
+@@ -1526,12 +1526,12 @@
+ 				DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
+ 						new_name, old_name));
+ 				*perr = ntstatus_to_werror(status);
+-				unlink_internals(conn, 0, new_name);
++				unlink_internals(conn, 0, new_name, False);
+ 				ver = -1;
+ 			}
+ 		} else {
+ 			driver_unix_convert(new_name, conn, NULL, &bad_path, &st);
+-			unlink_internals(conn, 0, new_name);
++			unlink_internals(conn, 0, new_name, False);
+ 		}
+ 	}
+ 
+@@ -1547,12 +1547,12 @@
+ 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
+ 							new_name, old_name));
+ 					*perr = ntstatus_to_werror(status);
+-					unlink_internals(conn, 0, new_name);
++					unlink_internals(conn, 0, new_name, False);
+ 					ver = -1;
+ 				}
+ 			} else {
+ 				driver_unix_convert(new_name, conn, NULL, &bad_path, &st);
+-				unlink_internals(conn, 0, new_name);
++				unlink_internals(conn, 0, new_name, False);
+ 			}
+ 		}
+ 	}
+@@ -1570,12 +1570,12 @@
+ 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
+ 							new_name, old_name));
+ 					*perr = ntstatus_to_werror(status);
+-					unlink_internals(conn, 0, new_name);
++					unlink_internals(conn, 0, new_name, False);
+ 					ver = -1;
+ 				}
+ 			} else {
+ 				driver_unix_convert(new_name, conn, NULL, &bad_path, &st);
+-				unlink_internals(conn, 0, new_name);
++				unlink_internals(conn, 0, new_name, False);
+ 			}
+ 		}
+ 	}
+@@ -1594,12 +1594,12 @@
+ 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
+ 							new_name, old_name));
+ 					*perr = ntstatus_to_werror(status);
+-					unlink_internals(conn, 0, new_name);
++					unlink_internals(conn, 0, new_name, False);
+ 					ver = -1;
+ 				}
+ 			} else {
+ 				driver_unix_convert(new_name, conn, NULL, &bad_path, &st);
+-				unlink_internals(conn, 0, new_name);
++				unlink_internals(conn, 0, new_name, False);
+ 			}
+ 		}
+ 	}
+@@ -1627,12 +1627,12 @@
+ 						DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
+ 								new_name, old_name));
+ 						*perr = ntstatus_to_werror(status);
+-						unlink_internals(conn, 0, new_name);
++						unlink_internals(conn, 0, new_name, False);
+ 						ver = -1;
+ 					}
+ 				} else {
+ 					driver_unix_convert(new_name, conn, NULL, &bad_path, &st);
+-					unlink_internals(conn, 0, new_name);
++					unlink_internals(conn, 0, new_name, False);
+ 				}
+ 			}
+ 		NextDriver: ;
+@@ -4644,7 +4644,7 @@
+ 		if ( (s = strchr( &info_3->driverpath[1], '\\' )) != NULL ) {
+ 			driver_unix_convert(s, conn, NULL, &bad_path, &st);
+ 			DEBUG(10,("deleting driverfile [%s]\n", s));
+-			unlink_internals(conn, 0, s);
++			unlink_internals(conn, 0, s, False);
+ 		}
+ 	}
+ 		
+@@ -4652,7 +4652,7 @@
+ 		if ( (s = strchr( &info_3->configfile[1], '\\' )) != NULL ) {
+ 			driver_unix_convert(s, conn, NULL, &bad_path, &st);
+ 			DEBUG(10,("deleting configfile [%s]\n", s));
+-			unlink_internals(conn, 0, s);
++			unlink_internals(conn, 0, s, False);
+ 		}
+ 	}
+ 	
+@@ -4660,7 +4660,7 @@
+ 		if ( (s = strchr( &info_3->datafile[1], '\\' )) != NULL ) {
+ 			driver_unix_convert(s, conn, NULL, &bad_path, &st);
+ 			DEBUG(10,("deleting datafile [%s]\n", s));
+-			unlink_internals(conn, 0, s);
++			unlink_internals(conn, 0, s, False);
+ 		}
+ 	}
+ 	
+@@ -4668,7 +4668,7 @@
+ 		if ( (s = strchr( &info_3->helpfile[1], '\\' )) != NULL ) {
+ 			driver_unix_convert(s, conn, NULL, &bad_path, &st);
+ 			DEBUG(10,("deleting helpfile [%s]\n", s));
+-			unlink_internals(conn, 0, s);
++			unlink_internals(conn, 0, s, False);
+ 		}
+ 	}
+ 	
+@@ -4683,7 +4683,7 @@
+ 			if ( (file = strchr( info_3->dependentfiles[i]+1, '\\' )) != NULL ) {
+ 				driver_unix_convert(file, conn, NULL, &bad_path, &st);
+ 				DEBUG(10,("deleting dependent file [%s]\n", file));
+-				unlink_internals(conn, 0, file );
++				unlink_internals(conn, 0, file, False);
+ 			}
+ 			
+ 			i++;
+Only in samba-3.0.14a/source/printing: nt_printing.c~
+diff -aur samba-3.0.14a.orig/source/smbd/nttrans.c samba-3.0.14a/source/smbd/nttrans.c
+--- samba-3.0.14a.orig/source/smbd/nttrans.c	2005-04-14 08:14:20.000000000 +0200
++++ samba-3.0.14a/source/smbd/nttrans.c	2007-01-31 12:16:43.000000000 +0100
+@@ -790,7 +790,7 @@
+ 	/* Setting FILE_SHARE_DELETE is the hint. */
+ 	if ((share_access & FILE_SHARE_DELETE) && (desired_access & DELETE_ACCESS)) {
+ #endif
+-		status = can_delete(conn, fname, file_attributes, bad_path, True);
++		status = can_delete(conn, fname, file_attributes, bad_path, True, False);
+ 		/* We're only going to fail here if it's access denied, as that's the
+ 		   only error we care about for "can we delete this ?" questions. */
+ 		if (!NT_STATUS_IS_OK(status) && (NT_STATUS_EQUAL(status,NT_STATUS_ACCESS_DENIED) ||
+@@ -1350,7 +1350,7 @@
+ 	/* Setting FILE_SHARE_DELETE is the hint. */
+ 	if ((share_access & FILE_SHARE_DELETE) && (desired_access & DELETE_ACCESS)) {
+ #endif
+-		status = can_delete(conn, fname, file_attributes, bad_path, True);
++		status = can_delete(conn, fname, file_attributes, bad_path, True, False);
+ 		/* We're only going to fail here if it's access denied, as that's the
+ 		   only error we care about for "can we delete this ?" questions. */
+ 		if (!NT_STATUS_IS_OK(status) && (NT_STATUS_EQUAL(status,NT_STATUS_ACCESS_DENIED) ||
+@@ -1882,8 +1882,14 @@
+ 
+ 	status = rename_internals(conn, fsp->fsp_name,
+ 				  new_name, 0, replace_if_exists);
+-	if (!NT_STATUS_IS_OK(status))
++
++	if (!NT_STATUS_IS_OK(status)) {
++		if (open_was_deferred(SVAL(inbuf,smb_mid))) {
++			/* We have re-scheduled this call. */
++			return -1;
++		}
+ 		return ERROR_NT(status);
++	}
+ 
+ 	/*
+ 	 * Rename was successful.
+Only in samba-3.0.14a/source/smbd: nttrans.c.orig
+Only in samba-3.0.14a/source/smbd: nttrans.c~
+diff -aur samba-3.0.14a.orig/source/smbd/reply.c samba-3.0.14a/source/smbd/reply.c
+--- samba-3.0.14a.orig/source/smbd/reply.c	2005-04-14 08:14:20.000000000 +0200
++++ samba-3.0.14a/source/smbd/reply.c	2007-01-31 12:12:12.000000000 +0100
+@@ -1490,7 +1490,7 @@
+  Check if a user is allowed to delete a file.
+ ********************************************************************/
+ 
+-NTSTATUS can_delete(connection_struct *conn, char *fname, int dirtype, BOOL bad_path, BOOL check_is_at_open)
++NTSTATUS can_delete(connection_struct *conn, char *fname, int dirtype, BOOL bad_path, BOOL check_is_at_open, BOOL can_defer)
+ {
+ 	SMB_STRUCT_STAT sbuf;
+ 	int fmode;
+@@ -1544,7 +1544,7 @@
+ 		unix_ERR_code = 0;
+ 
+ 		fsp = open_file_shared1(conn, fname, &sbuf, DELETE_ACCESS, SET_DENY_MODE(DENY_ALL),
+-			(FILE_FAIL_IF_NOT_EXIST|FILE_EXISTS_OPEN), FILE_ATTRIBUTE_NORMAL, 0, &access_mode, &smb_action);
++			(FILE_FAIL_IF_NOT_EXIST|FILE_EXISTS_OPEN), FILE_ATTRIBUTE_NORMAL, can_defer ? 0 : INTERNAL_OPEN_ONLY, &access_mode, &smb_action);
+ 
+ 		if (!fsp) {
+ 			NTSTATUS ret = NT_STATUS_ACCESS_DENIED;
+@@ -1567,7 +1567,7 @@
+  code.
+ ****************************************************************************/
+ 
+-NTSTATUS unlink_internals(connection_struct *conn, int dirtype, char *name)
++NTSTATUS unlink_internals(connection_struct *conn, int dirtype, char *name, BOOL can_defer)
+ {
+ 	pstring directory;
+ 	pstring mask;
+@@ -1618,7 +1618,7 @@
+ 	if (!has_wild) {
+ 		pstrcat(directory,"/");
+ 		pstrcat(directory,mask);
+-		error = can_delete(conn,directory,dirtype,bad_path,False);
++		error = can_delete(conn,directory,dirtype,bad_path,False,can_defer);
+ 		if (!NT_STATUS_IS_OK(error))
+ 			return error;
+ 
+@@ -1676,7 +1676,7 @@
+ 				}
+ 
+ 				slprintf(fname,sizeof(fname)-1, "%s/%s",directory,dname);
+-				error = can_delete(conn,fname,dirtype,bad_path,False);
++				error = can_delete(conn,fname,dirtype,bad_path,False,False);
+ 				if (!NT_STATUS_IS_OK(error)) {
+ 					continue;
+ 				}
+@@ -1720,7 +1720,7 @@
+ 	
+ 	DEBUG(3,("reply_unlink : %s\n",name));
+ 	
+-	status = unlink_internals(conn, dirtype, name);
++	status = unlink_internals(conn, dirtype, name, True);
+ 	if (!NT_STATUS_IS_OK(status)) {
+ 		if (open_was_deferred(SVAL(inbuf,smb_mid))) {
+ 			/* We have re-scheduled this call. */
+Only in samba-3.0.14a/source/smbd: reply.c~
+diff -aur samba-3.0.14a.orig/source/smbd/trans2.c samba-3.0.14a/source/smbd/trans2.c
+--- samba-3.0.14a.orig/source/smbd/trans2.c	2005-04-14 08:14:20.000000000 +0200
++++ samba-3.0.14a/source/smbd/trans2.c	2007-01-31 12:16:43.000000000 +0100
+@@ -3771,9 +3771,15 @@
+ 					fname, newname ));
+ 				status = rename_internals(conn, fname, base_name, 0, overwrite);
+ 			}
++
+ 			if (!NT_STATUS_IS_OK(status)) {
++				if (open_was_deferred(SVAL(inbuf,smb_mid))) {
++					/* We have re-scheduled this call. */
++					return -1;
++				}
+ 				return ERROR_NT(status);
+ 			}
++
+ 			process_pending_change_notify_queue((time_t)0);
+ 			SSVAL(params,0,0);
+ 			send_trans2_replies(outbuf, bufsize, params, 2, *ppdata, 0);
+Only in samba-3.0.14a/source/smbd: trans2.c.orig

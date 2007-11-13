@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Eloy A. Paris <peloy@debian.org>, Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Adam Conrad <adconrad@0c3.net>, Peter Eisentraut <petere@debian.org>
-Build-Depends: debhelper (>= 5.0.37.2), libpam0g-dev, libreadline5-dev, libcupsys2-dev (>=1.1.20final+cvs20040330-4), libacl1-dev (>= 2.2.11-1) [@libacl@], libkrb5-dev, libldap2-dev, po-debconf, binutils (>= 2.14.90.0.7), type-handling (>= 0.2.1), libpopt-dev, dpkg-dev (>= 1.13.9), quilt (>= 0.40), uuid-dev
+Build-Depends: debhelper (>= 5.0.37.2), libpam0g-dev, libreadline5-dev, libcupsys2-dev (>=1.1.20final+cvs20040330-4), libacl1-dev (>= 2.2.11-1) [@libacl@], libkrb5-dev, libldap2-dev, po-debconf, binutils (>= 2.14.90.0.7), type-handling (>= 0.2.1), libpopt-dev, dpkg-dev (>= 1.13.9), quilt (>= 0.40)
 Build-Conflicts: libfam-dev
 Standards-Version: 3.7.2
 

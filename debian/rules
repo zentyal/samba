@@ -51,8 +51,7 @@ conf_args = \
 		--with-shared-modules=idmap_rid,idmap_ad \
 		--with-automount \
 		--with-ldap \
-		--with-ads \
-		--with-dnsupdate
+		--with-ads
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

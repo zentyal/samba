@@ -1,0 +1,51 @@
+Goal: Recent versions of Linux-PAM support localization of user prompts,
+so Samba must use the C locale when invoking PAM (directly or via
+/usr/bin/passwd) to ensure that password chat values match the prompts in a
+locale-invariant fashion.
+
+Authors: Mathias Gug <mathiaz@ubuntu.com>,
+         Steve Langasek <vorlon@debian.org>
+
+Upstream status: submitted in bugzilla bug #5082
+
+Index: samba-3.0.26a/source/smbd/chgpasswd.c
+===================================================================
+--- samba-3.0.26a.orig/source/smbd/chgpasswd.c
++++ samba-3.0.26a/source/smbd/chgpasswd.c
+@@ -126,6 +126,7 @@
+ 	struct termios stermios;
+ 	gid_t gid;
+ 	uid_t uid;
++	char *eptrs[1] = { NULL };
+ 
+ 	if (pass == NULL)
+ 	{
+@@ -222,7 +223,7 @@
+ 	       passwordprogram));
+ 
+ 	/* execl() password-change application */
+-	if (execl("/bin/sh", "sh", "-c", passwordprogram, NULL) < 0)
++	if (execle("/bin/sh", "sh", "-c", passwordprogram, NULL, eptrs) < 0)
+ 	{
+ 		DEBUG(3, ("Bad status returned from %s\n", passwordprogram));
+ 		return (False);
+@@ -498,6 +499,9 @@
+ #ifdef WITH_PAM
+ 	if (lp_pam_password_change()) {
+ 		BOOL ret;
++#ifdef HAVE_SETLOCALE
++		char *prevlocale = setlocale(LC_MESSAGES, "C");
++#endif
+ 
+ 		if (as_root)
+ 			become_root();
+@@ -511,6 +515,9 @@
+ 		if (as_root)
+ 			unbecome_root();
+ 
++#ifdef HAVE_SETLOCALE
++		setlocale(LC_MESSAGES, prevlocale);
++#endif
+ 		return ret;
+ 	}
+ #endif

@@ -31,6 +31,9 @@ test -x /usr/sbin/nmbd -a -x /usr/sbin/smbd || exit 0
 case "$1" in
 	start)
 		log_daemon_msg "Starting Samba daemons"
+		# Make sure we have our PIDDIR, even if it's on a tmpfs
+		install -o root -g root -m 755 -d $PIDDIR
+
 		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
 		if [ "$NMBD_DISABLED" != 'Yes' ]; then
 			log_progress_msg "nmbd"

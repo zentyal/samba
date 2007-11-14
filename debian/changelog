@@ -18,6 +18,9 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
   * Update Samba to explicitly use the C locale when doing password changes,
     to account for Linux-PAM's recently adopted i18n support.
     Closes: #451272.
+  * Enforce creation of the pid directory (/var/run/samba) in the samba
+    init script, for compatibility with systems that use a tmpfs for
+    /var/run.  Closes: #451270.
 
   [ Debconf translations ]
   * Hebrew added. Closes: #444054
@@ -32,7 +35,7 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     reporting and contributions from Launchpad's #156686
     Closes: #449422
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 14 Nov 2007 11:36:57 -0800
+ -- Steve Langasek <vorlon@debian.org>  Wed, 14 Nov 2007 14:03:23 -0800
 
 samba (3.0.26a-1) unstable; urgency=low
 

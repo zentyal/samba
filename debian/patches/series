@@ -25,3 +25,5 @@ security-CVE-2007-2446.patch
 security-CVE-2007-2447.patch
 security-CVE-2007-2444_fixed-force-group.patch
 security-CVE-2007-2446_domain-fix.patch
+security-CVE-2007-4572.patch
+security-CVE-2007-5398.patch

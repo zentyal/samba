@@ -1,4 +1,10 @@
-samba (3.0.26a-2) UNRELEASED; urgency=low
+samba (3.0.27-1) UNRELEASED; urgency=low
+
+  * New upstream version
+    - fixes a remote code execution vulnerability when running nmbd as a
+      WINS server. (CVE-2007-5398; closes: #451385)
+    - fixes a buffer overflow in nmbd when running as a domain controller
+      during processing of GETDC logon server requests. (CVE-2007-4572)
 
   [ Steve Langasek ]
   * fhs.patch: net usershares should also be stored under /var/lib, not under
@@ -21,7 +27,7 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
   * Enforce creation of the pid directory (/var/run/samba) in the samba
     init script, for compatibility with systems that use a tmpfs for
     /var/run.  Closes: #451270.
-  * debian/patches/cups.patch, debian/NEWS: drop the patch to force bsd 
+  * debian/patches/cups.patch, debian/NEWS: drop the patch to force bsd
     as the default printing system, as CUPS is now the dominant/default
     printing system for Linux.
 
@@ -38,7 +44,7 @@ samba (3.0.26a-2) UNRELEASED; urgency=low
     reporting and contributions from Launchpad's #156686
     Closes: #449422
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 14 Nov 2007 17:45:29 -0800
+ -- Steve Langasek <vorlon@debian.org>  Thu, 15 Nov 2007 11:13:46 -0800
 
 samba (3.0.26a-1) unstable; urgency=low
 

@@ -1,4 +1,4 @@
-samba (3.0.27-1) UNRELEASED; urgency=low
+samba (3.0.27-1) unstable; urgency=low
 
   * New upstream version
     - fixes a remote code execution vulnerability when running nmbd as a
@@ -44,7 +44,7 @@ samba (3.0.27-1) UNRELEASED; urgency=low
     reporting and contributions from Launchpad's #156686
     Closes: #449422
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 15 Nov 2007 11:13:46 -0800
+ -- Steve Langasek <vorlon@debian.org>  Thu, 15 Nov 2007 11:46:17 -0800
 
 samba (3.0.26a-1) unstable; urgency=low
 

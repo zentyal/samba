@@ -1,3 +1,12 @@
+samba (3.0.14a-3sarge7) oldstable-security; urgency=low
+
+  * Fix a remote code execution vulnerability when running nmbd as a
+    WINS server. (CVE-2007-5398)
+  * Fix a buffer overflow in nmbd when running as a domain controller
+    during the processing GETDC logon server requests. (CVE-2007-4572)
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 13 Nov 2007 16:15:31 -0800
+
 samba (3.0.14a-3sarge6) oldstable-security; urgency=high
 
   * Fix typo in patch for CVE-2007-2447 that would cause segfaults

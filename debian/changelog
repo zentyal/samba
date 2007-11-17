@@ -1,3 +1,10 @@
+samba (3.0.24-6etch6) stable-security; urgency=high
+
+  * debian/patches/security-CVE-2007-4572_part2.patch: fix a regression
+    introduced by the previous build that broke smbfs clients.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 16 Nov 2007 19:17:07 -0800
+
 samba (3.0.24-6etch5) stable-security; urgency=high
 
   * Fix a remote code execution vulnerability when running nmbd as a

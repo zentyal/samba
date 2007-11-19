@@ -1,3 +1,10 @@
+samba (3.0.27-2) UNRELEASED; urgency=low
+
+  * Drop the deprecated "printer admin" example from the default smb.conf.
+    Closes: #451273.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 19 Nov 2007 12:57:26 -0800
+
 samba (3.0.27-1) unstable; urgency=low
 
   * New upstream version

@@ -7,11 +7,11 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.0.26a/source/configure.in
+Index: samba-3.0.27a/source/configure.in
 ===================================================================
---- samba-3.0.26a.orig/source/configure.in
-+++ samba-3.0.26a/source/configure.in
-@@ -40,7 +40,7 @@
+--- samba-3.0.27a.orig/source/configure.in
++++ samba-3.0.27a/source/configure.in
+@@ -51,7 +51,7 @@
  [  --with-fhs              Use FHS-compliant paths (default=no)],
  [ case "$withval" in
    yes)
@@ -20,7 +20,7 @@ Index: samba-3.0.26a/source/configure.in
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-@@ -48,9 +48,9 @@
+@@ -59,9 +59,9 @@
      libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"

@@ -45,10 +45,10 @@ Note: Use dedicated directories for:
       grep -r lp_lockdir source/ | grep -vE \
          '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: samba-3.0.26a/source/intl/lang_tdb.c
+Index: samba-3.0.27a/source/intl/lang_tdb.c
 ===================================================================
---- samba-3.0.26a.orig/source/intl/lang_tdb.c
-+++ samba-3.0.26a/source/intl/lang_tdb.c
+--- samba-3.0.27a.orig/source/intl/lang_tdb.c
++++ samba-3.0.27a/source/intl/lang_tdb.c
 @@ -131,7 +131,7 @@
  	if (!lang) 
  		return True;
@@ -58,10 +58,10 @@ Index: samba-3.0.26a/source/intl/lang_tdb.c
  	if (stat(msg_path, &st) != 0) {
  		/* the msg file isn't available */
  		DEBUG(10, ("lang_tdb_init: %s: %s\n", msg_path, 
-Index: samba-3.0.26a/source/lib/util_unistr.c
+Index: samba-3.0.27a/source/lib/util_unistr.c
 ===================================================================
---- samba-3.0.26a.orig/source/lib/util_unistr.c
-+++ samba-3.0.26a/source/lib/util_unistr.c
+--- samba-3.0.27a.orig/source/lib/util_unistr.c
++++ samba-3.0.27a/source/lib/util_unistr.c
 @@ -88,11 +88,11 @@
  	}
  	initialised = 1;
@@ -85,10 +85,10 @@ Index: samba-3.0.26a/source/lib/util_unistr.c
  	if (valid_file) {
  		valid_table = valid_file;
  		mapped_file = 1;
-Index: samba-3.0.26a/source/libsmb/samlogon_cache.c
+Index: samba-3.0.27a/source/libsmb/samlogon_cache.c
 ===================================================================
---- samba-3.0.26a.orig/source/libsmb/samlogon_cache.c
-+++ samba-3.0.26a/source/libsmb/samlogon_cache.c
+--- samba-3.0.27a.orig/source/libsmb/samlogon_cache.c
++++ samba-3.0.27a/source/libsmb/samlogon_cache.c
 @@ -34,7 +34,7 @@
  BOOL netsamlogon_cache_init(void)
  {
@@ -107,10 +107,10 @@ Index: samba-3.0.26a/source/libsmb/samlogon_cache.c
  				   WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
  				   TDB_DEFAULT, O_RDWR, 0600);
  		if (!tdb) {
-Index: samba-3.0.26a/source/nmbd/nmbd_serverlistdb.c
+Index: samba-3.0.27a/source/nmbd/nmbd_serverlistdb.c
 ===================================================================
---- samba-3.0.26a.orig/source/nmbd/nmbd_serverlistdb.c
-+++ samba-3.0.26a/source/nmbd/nmbd_serverlistdb.c
+--- samba-3.0.27a.orig/source/nmbd/nmbd_serverlistdb.c
++++ samba-3.0.27a/source/nmbd/nmbd_serverlistdb.c
 @@ -325,7 +325,7 @@
  
  	updatecount++;
@@ -120,10 +120,10 @@ Index: samba-3.0.26a/source/nmbd/nmbd_serverlistdb.c
  	trim_char(fname,'\0' ,'/');
  	pstrcat(fname,"/");
  	pstrcat(fname,SERVER_LIST);
-Index: samba-3.0.26a/source/nmbd/nmbd_winsserver.c
+Index: samba-3.0.27a/source/nmbd/nmbd_winsserver.c
 ===================================================================
---- samba-3.0.26a.orig/source/nmbd/nmbd_winsserver.c
-+++ samba-3.0.26a/source/nmbd/nmbd_winsserver.c
+--- samba-3.0.27a.orig/source/nmbd/nmbd_winsserver.c
++++ samba-3.0.27a/source/nmbd/nmbd_winsserver.c
 @@ -585,7 +585,7 @@
  
  	add_samba_names_to_subnet(wins_server_subnet);
@@ -142,10 +142,10 @@ Index: samba-3.0.26a/source/nmbd/nmbd_winsserver.c
  	all_string_sub(fname,"//", "/", 0);
  	slprintf(fnamenew,sizeof(fnamenew)-1,"%s.%u", fname, (unsigned int)sys_getpid());
  
-Index: samba-3.0.26a/source/passdb/login_cache.c
+Index: samba-3.0.27a/source/passdb/login_cache.c
 ===================================================================
---- samba-3.0.26a.orig/source/passdb/login_cache.c
-+++ samba-3.0.26a/source/passdb/login_cache.c
+--- samba-3.0.27a.orig/source/passdb/login_cache.c
++++ samba-3.0.27a/source/passdb/login_cache.c
 @@ -36,7 +36,7 @@
  	/* skip file open if it's already opened */
  	if (cache) return True;
@@ -155,10 +155,10 @@ Index: samba-3.0.26a/source/passdb/login_cache.c
  	if (cache_fname)
  		DEBUG(5, ("Opening cache file at %s\n", cache_fname));
  	else {
-Index: samba-3.0.26a/source/nsswitch/winbindd_cache.c
+Index: samba-3.0.27a/source/nsswitch/winbindd_cache.c
 ===================================================================
---- samba-3.0.26a.orig/source/nsswitch/winbindd_cache.c
-+++ samba-3.0.26a/source/nsswitch/winbindd_cache.c
+--- samba-3.0.27a.orig/source/nsswitch/winbindd_cache.c
++++ samba-3.0.27a/source/nsswitch/winbindd_cache.c
 @@ -2181,7 +2181,7 @@
  		return True;
  
@@ -189,10 +189,10 @@ Index: samba-3.0.26a/source/nsswitch/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
-Index: samba-3.0.26a/source/param/loadparm.c
+Index: samba-3.0.27a/source/param/loadparm.c
 ===================================================================
---- samba-3.0.26a.orig/source/param/loadparm.c
-+++ samba-3.0.26a/source/param/loadparm.c
+--- samba-3.0.27a.orig/source/param/loadparm.c
++++ samba-3.0.27a/source/param/loadparm.c
 @@ -108,6 +108,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
@@ -226,10 +226,10 @@ Index: samba-3.0.26a/source/param/loadparm.c
  	pstrcat(s, "/usershares");
  	string_set(&Globals.szUsersharePath, s);
  	string_set(&Globals.szUsershareTemplateShare, "");
-Index: samba-3.0.26a/source/passdb/secrets.c
+Index: samba-3.0.27a/source/passdb/secrets.c
 ===================================================================
---- samba-3.0.26a.orig/source/passdb/secrets.c
-+++ samba-3.0.26a/source/passdb/secrets.c
+--- samba-3.0.27a.orig/source/passdb/secrets.c
++++ samba-3.0.27a/source/passdb/secrets.c
 @@ -58,8 +58,7 @@
  	if (tdb)
  		return True;
@@ -240,10 +240,10 @@ Index: samba-3.0.26a/source/passdb/secrets.c
  
  	tdb = tdb_open_log(fname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
  
-Index: samba-3.0.26a/source/printing/nt_printing.c
+Index: samba-3.0.27a/source/printing/nt_printing.c
 ===================================================================
---- samba-3.0.26a.orig/source/printing/nt_printing.c
-+++ samba-3.0.26a/source/printing/nt_printing.c
+--- samba-3.0.27a.orig/source/printing/nt_printing.c
++++ samba-3.0.27a/source/printing/nt_printing.c
 @@ -551,28 +551,28 @@
   
  	if (tdb_drivers)
@@ -288,10 +288,10 @@ Index: samba-3.0.26a/source/printing/nt_printing.c
  		pstrcat(printdb_path, sharename);
  		pstrcat(printdb_path, ".tdb");
  
-Index: samba-3.0.26a/source/printing/printing.c
+Index: samba-3.0.27a/source/printing/printing.c
 ===================================================================
---- samba-3.0.26a.orig/source/printing/printing.c
-+++ samba-3.0.26a/source/printing/printing.c
+--- samba-3.0.27a.orig/source/printing/printing.c
++++ samba-3.0.27a/source/printing/printing.c
 @@ -185,8 +185,8 @@
  	int services = lp_numservices();
  	int snum;
@@ -303,10 +303,10 @@ Index: samba-3.0.26a/source/printing/printing.c
  	mkdir(printing_path,0755);
  
  	/* handle a Samba upgrade */
-Index: samba-3.0.26a/source/printing/printing_db.c
+Index: samba-3.0.27a/source/printing/printing_db.c
 ===================================================================
---- samba-3.0.26a.orig/source/printing/printing_db.c
-+++ samba-3.0.26a/source/printing/printing_db.c
+--- samba-3.0.27a.orig/source/printing/printing_db.c
++++ samba-3.0.27a/source/printing/printing_db.c
 @@ -91,7 +91,7 @@
  		DLIST_ADD(print_db_head, p);
  	}
@@ -316,11 +316,11 @@ Index: samba-3.0.26a/source/printing/printing_db.c
  	pstrcat(printdb_path, printername);
  	pstrcat(printdb_path, ".tdb");
  
-Index: samba-3.0.26a/source/smbd/lanman.c
+Index: samba-3.0.27a/source/smbd/lanman.c
 ===================================================================
---- samba-3.0.26a.orig/source/smbd/lanman.c
-+++ samba-3.0.26a/source/smbd/lanman.c
-@@ -1088,9 +1088,9 @@
+--- samba-3.0.27a.orig/source/smbd/lanman.c
++++ samba-3.0.27a/source/smbd/lanman.c
+@@ -1094,9 +1094,9 @@
  	BOOL local_list_only;
  	int i;
  
@@ -332,10 +332,10 @@ Index: samba-3.0.26a/source/smbd/lanman.c
  		return 0;
  	}
  
-Index: samba-3.0.26a/source/registry/reg_db.c
+Index: samba-3.0.27a/source/registry/reg_db.c
 ===================================================================
---- samba-3.0.26a.orig/source/registry/reg_db.c
-+++ samba-3.0.26a/source/registry/reg_db.c
+--- samba-3.0.27a.orig/source/registry/reg_db.c
++++ samba-3.0.27a/source/registry/reg_db.c
 @@ -234,12 +234,12 @@
  	if ( tdb_reg )
  		return True;
@@ -366,10 +366,10 @@ Index: samba-3.0.26a/source/registry/reg_db.c
  	}
  
  	unbecome_root();
-Index: samba-3.0.26a/source/lib/account_pol.c
+Index: samba-3.0.27a/source/lib/account_pol.c
 ===================================================================
---- samba-3.0.26a.orig/source/lib/account_pol.c
-+++ samba-3.0.26a/source/lib/account_pol.c
+--- samba-3.0.27a.orig/source/lib/account_pol.c
++++ samba-3.0.27a/source/lib/account_pol.c
 @@ -213,9 +213,9 @@
  		return True;
  	}
@@ -382,10 +382,10 @@ Index: samba-3.0.26a/source/lib/account_pol.c
  		if (!tdb) {
  			DEBUG(0,("Failed to open account policy database\n"));
  			return False;
-Index: samba-3.0.26a/source/registry/reg_perfcount.c
+Index: samba-3.0.27a/source/registry/reg_perfcount.c
 ===================================================================
---- samba-3.0.26a.orig/source/registry/reg_perfcount.c
-+++ samba-3.0.26a/source/registry/reg_perfcount.c
+--- samba-3.0.27a.orig/source/registry/reg_perfcount.c
++++ samba-3.0.27a/source/registry/reg_perfcount.c
 @@ -46,7 +46,7 @@
  	
  	fstr_sprintf( path, "%s/%s", PERFCOUNTDIR, dbname );
@@ -404,10 +404,10 @@ Index: samba-3.0.26a/source/registry/reg_perfcount.c
  
  	/* no registry keys; just create the perfmon directory */
  	
-Index: samba-3.0.26a/source/rpc_server/srv_eventlog_lib.c
+Index: samba-3.0.27a/source/rpc_server/srv_eventlog_lib.c
 ===================================================================
---- samba-3.0.26a.orig/source/rpc_server/srv_eventlog_lib.c
-+++ samba-3.0.26a/source/rpc_server/srv_eventlog_lib.c
+--- samba-3.0.27a.orig/source/rpc_server/srv_eventlog_lib.c
++++ samba-3.0.27a/source/rpc_server/srv_eventlog_lib.c
 @@ -67,7 +67,7 @@
  {
  	fstring path;
@@ -426,10 +426,10 @@ Index: samba-3.0.26a/source/rpc_server/srv_eventlog_lib.c
  	if ( !directory_exist( eventlogdir, NULL ) )
  		mkdir( eventlogdir, 0755 );	
  	
-Index: samba-3.0.26a/source/passdb/pdb_tdb.c
+Index: samba-3.0.27a/source/passdb/pdb_tdb.c
 ===================================================================
---- samba-3.0.26a.orig/source/passdb/pdb_tdb.c
-+++ samba-3.0.26a/source/passdb/pdb_tdb.c
+--- samba-3.0.27a.orig/source/passdb/pdb_tdb.c
++++ samba-3.0.27a/source/passdb/pdb_tdb.c
 @@ -1559,7 +1559,7 @@
  	uint32 rid;
  	BOOL ret = False;
@@ -448,10 +448,10 @@ Index: samba-3.0.26a/source/passdb/pdb_tdb.c
  		pfile = tdbfile;
  	}
  	pstrcpy( tdbsam_filename, pfile );
-Index: samba-3.0.26a/source/groupdb/mapping_tdb.c
+Index: samba-3.0.27a/source/groupdb/mapping_tdb.c
 ===================================================================
---- samba-3.0.26a.orig/source/groupdb/mapping_tdb.c
-+++ samba-3.0.26a/source/groupdb/mapping_tdb.c
+--- samba-3.0.27a.orig/source/groupdb/mapping_tdb.c
++++ samba-3.0.27a/source/groupdb/mapping_tdb.c
 @@ -39,7 +39,7 @@
  	if (tdb)
  		return True;
@@ -461,10 +461,10 @@ Index: samba-3.0.26a/source/groupdb/mapping_tdb.c
  	if (!tdb) {
  		DEBUG(0,("Failed to open group mapping database\n"));
  		return False;
-Index: samba-3.0.26a/source/nsswitch/idmap_tdb.c
+Index: samba-3.0.27a/source/nsswitch/idmap_tdb.c
 ===================================================================
---- samba-3.0.26a.orig/source/nsswitch/idmap_tdb.c
-+++ samba-3.0.26a/source/nsswitch/idmap_tdb.c
+--- samba-3.0.27a.orig/source/nsswitch/idmap_tdb.c
++++ samba-3.0.27a/source/nsswitch/idmap_tdb.c
 @@ -247,7 +247,7 @@
  	}
  
@@ -474,10 +474,10 @@ Index: samba-3.0.26a/source/nsswitch/idmap_tdb.c
  	if (!tdbfile) {
  		DEBUG(0, ("Out of memory!\n"));
  		ret = NT_STATUS_NO_MEMORY;
-Index: samba-3.0.26a/source/utils/smbcontrol.c
+Index: samba-3.0.27a/source/utils/smbcontrol.c
 ===================================================================
---- samba-3.0.26a.orig/source/utils/smbcontrol.c
-+++ samba-3.0.26a/source/utils/smbcontrol.c
+--- samba-3.0.27a.orig/source/utils/smbcontrol.c
++++ samba-3.0.27a/source/utils/smbcontrol.c
 @@ -832,10 +832,10 @@
  	/* Remove the entry in the winbindd_cache tdb to tell a later
  	   starting winbindd that we're online. */
@@ -507,10 +507,10 @@ Index: samba-3.0.26a/source/utils/smbcontrol.c
  		return False;
  	}
  
-Index: samba-3.0.26a/source/lib/sharesec.c
+Index: samba-3.0.27a/source/lib/sharesec.c
 ===================================================================
---- samba-3.0.26a.orig/source/lib/sharesec.c
-+++ samba-3.0.26a/source/lib/sharesec.c
+--- samba-3.0.27a.orig/source/lib/sharesec.c
++++ samba-3.0.27a/source/lib/sharesec.c
 @@ -47,10 +47,10 @@
  		return True;
  	}
@@ -524,10 +524,10 @@ Index: samba-3.0.26a/source/lib/sharesec.c
  		return False;
  	}
   
-Index: samba-3.0.26a/source/libgpo/gpo_fetch.c
+Index: samba-3.0.27a/source/libgpo/gpo_fetch.c
 ===================================================================
---- samba-3.0.26a.orig/source/libgpo/gpo_fetch.c
-+++ samba-3.0.26a/source/libgpo/gpo_fetch.c
+--- samba-3.0.27a.orig/source/libgpo/gpo_fetch.c
++++ samba-3.0.27a/source/libgpo/gpo_fetch.c
 @@ -60,7 +60,7 @@
  		return NT_STATUS_NO_MEMORY;
  	}
@@ -546,10 +546,10 @@ Index: samba-3.0.26a/source/libgpo/gpo_fetch.c
  	char *current_dir;
  	fstring tok;
  
-Index: samba-3.0.26a/source/nsswitch/idmap_cache.c
+Index: samba-3.0.27a/source/nsswitch/idmap_cache.c
 ===================================================================
---- samba-3.0.26a.orig/source/nsswitch/idmap_cache.c
-+++ samba-3.0.26a/source/nsswitch/idmap_cache.c
+--- samba-3.0.27a.orig/source/nsswitch/idmap_cache.c
++++ samba-3.0.27a/source/nsswitch/idmap_cache.c
 @@ -55,7 +55,7 @@
  		return NULL;
  	}

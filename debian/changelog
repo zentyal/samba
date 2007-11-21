@@ -3,10 +3,11 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
   * New upstream release
     - fix regression with smbfs clients, introduced by the security fix in
       3.0.27.  Closes: #451839.
+    - debian/patches/cifs-umount-trailing-slashes.patch: merged upstream.
   * Drop the deprecated "printer admin" example from the default smb.conf.
     Closes: #451273.
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 21 Nov 2007 09:46:03 -0800
+ -- Steve Langasek <vorlon@debian.org>  Wed, 21 Nov 2007 10:32:06 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

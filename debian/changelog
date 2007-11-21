@@ -1,5 +1,6 @@
 samba (3.0.27a-1) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * New upstream release
     - fix regression with smbfs clients, introduced by the security fix in
       3.0.27.  Closes: #451839.
@@ -7,7 +8,10 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
   * Drop the deprecated "printer admin" example from the default smb.conf.
     Closes: #451273.
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 21 Nov 2007 10:32:06 -0800
+  [ Christian Perrier ]
+  * Update the "built by" part of README.debian
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 21 Nov 2007 19:50:06 +0000
 
 samba (3.0.27-1) unstable; urgency=low
 

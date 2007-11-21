@@ -1,12 +1,15 @@
 Samba for Debian
 ----------------
 
-This package was built by Eloy Paris <peloy@debian.org> and Steve Langasek
-<vorlon@debian.org>, current maintainers of the Samba packages for Debian,
-based on previous work from Bruce Perens <Bruce@Pixar.com>, Andrew
-Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and Michael
-Meskes <meskes@topsystem.de>, all previous maintainers of the packages
-samba and sambades (merged together for longer than we can remember.)
+This package was built by Eloy Paris <peloy@debian.org>, Steve
+Langasek <vorlon@debian.org>, Noèl Köthe <noel@debian.org>, Peter
+Eisentraut <petere@debian.org> and Christian Perrier
+<bubulle@debian.org>, current maintainers of the Samba packages for
+Debian, based on previous work from Bruce Perens <Bruce@Pixar.com>,
+Andrew Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and
+Michael Meskes <meskes@topsystem.de>, all previous maintainers of the
+packages samba and sambades (merged together for longer than we can
+remember.)
 
 Contents of this README file:
 
@@ -49,7 +52,7 @@ to upgrading from Samba 2.2, please let us know at
 Samba and LDAP
 --------------
 Starting with Samba 2.999+3.0cvs20020723-1 we are building Samba with
-LDAP support.  However, the LDAP schema for Samba 3.0 differs
+"LDAP support.  However, the LDAP schema for Samba 3.0 differs
 substantially from the schema used by many sites with Samba 2.2 (not
 enabled in the Debian packages).  If upgrading from an LDAP-enabled 2.2,
 you will need to run the convertSambaAccount script found in

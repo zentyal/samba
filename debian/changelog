@@ -10,6 +10,7 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Update the "built by" part of README.debian
+  * Remove the very outdated parts of README.debian
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 21 Nov 2007 19:50:06 +0000
 

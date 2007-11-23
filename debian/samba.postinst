@@ -105,25 +105,6 @@ else
 	update-inetd --enable netbios-ssn
 fi
 
-# This check is a safety net: the /etc/samba/smbpasswd file must have
-#	permissions 600.
-if [ -f /etc/samba/smbpasswd ]; then
-	chmod 600 /etc/samba/smbpasswd
-fi
-
-# Do the same check for /var/backup/smbpasswd.bak, just in case.
-if [ -f /var/backups/smbpasswd.bak ]; then
-	chmod 600 /var/backups/smbpasswd.bak
-fi
-
-# Delete old /etc/samba/debian_config file, which is not used anymore
-#	now that we are using debconf.
-rm -f /etc/samba/debian_config
-
-# Move old log files to the new location of Samba's log files
-mv -f /var/log/nmb* /var/log/samba/ 2> /dev/null || true
-mv -f /var/log/smb* /var/log/samba/ 2> /dev/null || true
-
 # add the sambashare group
 if ! getent group sambashare > /dev/null 2>&1
 then

@@ -18,12 +18,14 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
     priority based on whether there's an existing value, since there's
     now *always* an existing value but the value doesn't tell us
     anything meaningful about the user's preference.  Closes: #451271.
+  * Drop some code from samba.postinst that only applies to upgrades from
+    pre-3.0 (i.e., pre-sarge) packages
 
   [ Christian Perrier ]
   * Update the "built by" part of README.debian
   * Remove the very outdated parts of README.debian
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 11:33:46 -0800
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 12:58:14 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

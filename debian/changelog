@@ -7,12 +7,16 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
     - debian/patches/cifs-umount-trailing-slashes.patch: merged upstream.
   * Drop the deprecated "printer admin" example from the default smb.conf.
     Closes: #451273.
+  * Add a *new* debian/patches/cups.patch to *enable* cups as the default
+    printing system, because since the original introduction of this patch
+    in Debian there was a regression upstream that caused cups to never be
+    selected as the default print system.
 
   [ Christian Perrier ]
   * Update the "built by" part of README.debian
   * Remove the very outdated parts of README.debian
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 21 Nov 2007 19:50:06 +0000
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 10:45:47 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

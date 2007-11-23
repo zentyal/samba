@@ -1,0 +1,78 @@
+Goal: restore print system selection from 3.0.24, so that cups is again
+treated as the default print system when it's available
+
+Author: Steve Langasek <vorlon@debian.org>
+
+Upstream status: submitted as bugzilla bug #5101
+
+Index: samba-3.0.27a/source/include/includes.h
+===================================================================
+--- samba-3.0.27a.orig/source/include/includes.h
++++ samba-3.0.27a/source/include/includes.h
+@@ -54,19 +54,6 @@
+ 
+ #include "local.h"
+ 
+-#ifdef AIX
+-#define DEFAULT_PRINTING PRINT_AIX
+-#define PRINTCAP_NAME "/etc/qconfig"
+-#endif
+-
+-#ifdef HPUX
+-#define DEFAULT_PRINTING PRINT_HPUX
+-#endif
+-
+-#ifdef QNX
+-#define DEFAULT_PRINTING PRINT_QNX
+-#endif
+-
+ #ifdef SUNOS4
+ /* on SUNOS4 termios.h conflicts with sys/ioctl.h */
+ #undef HAVE_TERMIOS_H
+@@ -810,23 +797,6 @@
+ #define QSORT_CAST (int (*)(const void *, const void *))
+ #endif
+ 
+-#ifndef DEFAULT_PRINTING
+-#ifdef HAVE_CUPS
+-#define DEFAULT_PRINTING PRINT_CUPS
+-#define PRINTCAP_NAME "cups"
+-#elif defined(SYSV)
+-#define DEFAULT_PRINTING PRINT_SYSV
+-#define PRINTCAP_NAME "lpstat"
+-#else
+-#define DEFAULT_PRINTING PRINT_BSD
+-#define PRINTCAP_NAME "/etc/printcap"
+-#endif
+-#endif
+-
+-#ifndef PRINTCAP_NAME
+-#define PRINTCAP_NAME "/etc/printcap"
+-#endif
+-
+ #ifndef SIGCLD
+ #define SIGCLD SIGCHLD
+ #endif
+Index: samba-3.0.27a/source/lib/replace/system/printing.h
+===================================================================
+--- samba-3.0.27a.orig/source/lib/replace/system/printing.h
++++ samba-3.0.27a/source/lib/replace/system/printing.h
+@@ -37,8 +37,18 @@
+ #endif
+ 
+ #ifndef DEFAULT_PRINTING
++#ifdef HAVE_CUPS
++#define DEFAULT_PRINTING PRINT_CUPS
++#define PRINTCAP_NAME "cups"
++#elif defined(SYSV)
++#define DEFAULT_PRINTING PRINT_SYSV
++#define PRINTCAP_NAME "lpstat"
++#else
+ #define DEFAULT_PRINTING PRINT_BSD
++#define PRINTCAP_NAME "/etc/printcap"
++#endif
+ #endif
++
+ #ifndef PRINTCAP_NAME
+ #define PRINTCAP_NAME "/etc/printcap"
+ #endif

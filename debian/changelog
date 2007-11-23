@@ -1,4 +1,4 @@
-samba (3.0.27a-1) UNRELEASED; urgency=low
+samba (3.0.27a-1) unstable; urgency=low
 
   [ Steve Langasek ]
   * New upstream release
@@ -25,7 +25,7 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
   * Update the "built by" part of README.debian
   * Remove the very outdated parts of README.debian
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 12:58:14 -0800
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 13:04:52 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

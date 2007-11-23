@@ -28,6 +28,7 @@ _Description: Configure smb.conf automatically?
 
 Template: samba-common/workgroup
 Type: string
+Default: WORKGROUP
 _Description: Workgroup/Domain Name:
  Please specify the workgroup you want this server to appear to be in
  when queried by clients. Note that this parameter also controls the

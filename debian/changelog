@@ -11,12 +11,19 @@ samba (3.0.27a-1) UNRELEASED; urgency=low
     printing system, because since the original introduction of this patch
     in Debian there was a regression upstream that caused cups to never be
     selected as the default print system.
+  * Set the default value for the workgroup question to "WORKGROUP" in
+    samba-common.templates, not just in the template smb.conf, so that the
+    debconf question comes out right every time; and always treat this
+    as a high-priority debconf question instead of selecting the
+    priority based on whether there's an existing value, since there's
+    now *always* an existing value but the value doesn't tell us
+    anything meaningful about the user's preference.  Closes: #451271.
 
   [ Christian Perrier ]
   * Update the "built by" part of README.debian
   * Remove the very outdated parts of README.debian
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 10:45:47 -0800
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 11:33:46 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

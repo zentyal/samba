@@ -1,3 +1,13 @@
+samba (3.0.27a-2) UNRELEASED; urgency=low
+
+  * debian/patches/disable-weak-auth.patch: disable plaintext authentication
+    on the client, and lanman authentication on both client and server, by
+    default since these are only needed for Win9x or Samba with encrypted
+    passwords disabled and are potential password attack vectors.  This
+    change is backported from Samba 3.2.  LP: #163194.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 23:57:57 -0800
+
 samba (3.0.27a-1) unstable; urgency=low
 
   [ Steve Langasek ]

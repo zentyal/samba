@@ -24,3 +24,4 @@ get_global_sam_sid-non-root.patch
 usershare.patch
 chgpasswd.patch
 cups.patch
+disable-weak-auth.patch

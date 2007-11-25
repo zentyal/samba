@@ -5,8 +5,12 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
     default since these are only needed for Win9x or Samba with encrypted
     passwords disabled and are potential password attack vectors.  This
     change is backported from Samba 3.2.  LP: #163194.
+  * Don't build the userspace tools for the deprecated smbfs kernel driver
+    anymore; instead, use a shell wrapper around mount.cifs that translates
+    option names between the smbfs and cifs drivers.
+    Closes: #169624, #256637, #265468, #289179, #305210, #410075
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 23:57:57 -0800
+ -- Steve Langasek <vorlon@debian.org>  Sun, 25 Nov 2007 01:06:01 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 

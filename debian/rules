@@ -52,17 +52,18 @@ conf_args = \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
+		--without-smbmount \
 		--with-dnsupdate
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
-		--with-smbmount --with-cifsmount \
+		--with-cifsmount \
 		--with-acl-support \
 		--with-quotas
   mount_cifs	= yes
   smbfs		= yes
 else
-  conf_args +=	--without-quotas --without-smbmount --without-cifsmount
+  conf_args +=	--without-quotas --without-cifsmount
   mount_cifs	= no
   smbfs		= no
 endif
@@ -147,16 +148,8 @@ install: build
 	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
 
-ifeq ($(smbfs),yes)
-	# Create the symlinks that will allow us to do "mount -t smbfs ..."
-	# and "mount -t smb ...". Note that the source/script/installbin.sh
-	# tries to create the first symlink, but we have commented
-	# that code out and do everything here. We also create
-	# symlinks for the man pages.
-	ln -s /usr/bin/smbmount $(DESTDIR)/sbin/mount.smbfs
-	ln -s /usr/bin/smbmount $(DESTDIR)/sbin/mount.smb
-	ln -s smbmount.8 $(DESTDIR)/usr/share/man/man8/mount.smb.8
-	ln -s smbmount.8 $(DESTDIR)/usr/share/man/man8/mount.smbfs.8
+ifeq ($(mount_cifs),yes)
+	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs
 endif
 
 	# For CUPS to support printing to samba printers, it's necessary
@@ -224,14 +217,6 @@ binary-arch: build install
 	# it becomes executable
 	chmod a-x debian/libsmbclient-dev/usr/include/libsmbclient.h
 
-ifeq ($(smbfs),yes)
-	# The smbmnt and smbumount binaries should be setuid-root. This
-	# has security implications because these programs haven't had
-	# a thorough security audit. smbmount _does not_ have to have
-	# the setuid bit set. In fact, it is a security hole.
-	chmod u+s debian/smbfs/usr/bin/smbmnt
-	chmod ug+s debian/smbfs/usr/bin/smbumount
-endif
 ifeq ($(mount_cifs),yes)
 	chmod u+s debian/smbfs/sbin/mount.cifs
 	chmod u+s debian/smbfs/sbin/umount.cifs

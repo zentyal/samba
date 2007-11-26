@@ -8,7 +8,8 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
   * Don't build the userspace tools for the deprecated smbfs kernel driver
     anymore; instead, use a shell wrapper around mount.cifs that translates
     option names between the smbfs and cifs drivers.
-    Closes: #169624, #256637, #265468, #289179, #305210, #410075
+    Closes: #169624, #256637, #265468, #289179, #305210, #410075;
+    LP: #29413
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 25 Nov 2007 01:06:01 -0800
 

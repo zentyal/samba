@@ -10,8 +10,10 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
     option names between the smbfs and cifs drivers.
     Closes: #169624, #256637, #265468, #289179, #305210, #410075;
     LP: #29413
+  * debian/panic-action: detect when we're on an Ubuntu system and direct bug
+    reporters to Launchpad instead of to the Debian BTS.  Closes: #452940.
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 25 Nov 2007 01:06:01 -0800
+ -- Steve Langasek <vorlon@debian.org>  Mon, 26 Nov 2007 23:52:08 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 

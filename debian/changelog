@@ -1,3 +1,10 @@
+samba (3.0.14a-3sarge10) oldstable-security; urgency=low
+
+  * Fix for yet another regression in the fix for CVE-2007-4572 due to one
+    other missed patch in the 3.0.27a diff.  Closes: #453050.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 27 Nov 2007 23:42:21 -0800
+
 samba (3.0.14a-3sarge9) oldstable-security; urgency=low
 
   * Fix for one final regression related to the fix for CVE-2007-4572,

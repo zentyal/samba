@@ -12,8 +12,12 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
     LP: #29413
   * debian/panic-action: detect when we're on an Ubuntu system and direct bug
     reporters to Launchpad instead of to the Debian BTS.  Closes: #452940.
+  * debian/samba.init: call log_progress_msg separately for each daemon on
+    stop rather than passing a second arg to log_daemon_msg, for greater
+    compatibility with both Debian and Ubuntu LSB initscript implementations.
+    Closes: #453350.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 26 Nov 2007 23:52:08 -0800
+ -- Steve Langasek <vorlon@debian.org>  Thu, 29 Nov 2007 00:40:38 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 

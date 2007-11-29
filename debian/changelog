@@ -16,8 +16,11 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
     stop rather than passing a second arg to log_daemon_msg, for greater
     compatibility with both Debian and Ubuntu LSB initscript implementations.
     Closes: #453350.
+  * Drop smbldap-tools to Suggests:, consistent with the textbook meaning of
+    recommends/suggests which is now implemented correctly in apt.
+    Closes: #453144.
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 29 Nov 2007 00:40:38 -0800
+ -- Steve Langasek <vorlon@debian.org>  Thu, 29 Nov 2007 14:11:43 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 

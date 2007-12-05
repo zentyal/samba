@@ -19,8 +19,17 @@ samba (3.0.27a-2) UNRELEASED; urgency=low
   * Drop smbldap-tools to Suggests:, consistent with the textbook meaning of
     recommends/suggests which is now implemented correctly in apt.
     Closes: #453144.
+  * Get rid of the build-dependency on type-handling:
+    - add a new target, "update-archs", to be invoked by hand to refresh
+      the list of known Linux architectures for the libacl1-dev
+      build-dep; this avoids the clean target making changes to
+      debian/control
+    - rework the sed line so that it works in-place on debian/control,
+      so we can get rid of debian/control.in as well and just update
+      debian/control directly
+    Closes: #340570.
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 29 Nov 2007 14:11:43 -0800
+ -- Steve Langasek <vorlon@debian.org>  Tue, 04 Dec 2007 18:13:43 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 

@@ -1,3 +1,11 @@
+samba (3.0.28-1) unstable; urgency=high
+
+  * New upstream release. Security fix
+  * Fix a remote code execution vulnerability when running as a domain
+    logon server (PDC or BDC).  (CVE-2007-6015)
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 11 Dec 2007 00:12:11 +0530
+
 samba (3.0.27a-2) unstable; urgency=low
 
   * debian/patches/disable-weak-auth.patch: disable plaintext authentication

@@ -7,10 +7,12 @@ set -e
 # Do debconf stuff here
 . /usr/share/debconf/confmodule
 
+CONFIG=/etc/samba/smb.conf
+
 # We need a default smb.conf file. If one doesn't exist we put in place
 #	one that has some basic defaults.
-if [ ! -e /etc/samba/smb.conf ]; then
-	cp -a /usr/share/samba/smb.conf /etc/samba/
+if [ ! -e "$CONFIG" ]; then
+	cp -a /usr/share/samba/smb.conf $CONFIG
 fi
 
 # ------------------------- Debconf questions start ---------------------
@@ -34,7 +36,7 @@ if [ "${RET}" = "true" ]; then
 	sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/i" \
-		/etc/samba/smb.conf
+		"$CONFIG"
 
 	# Encrypt passwords?
 	db_get samba-common/encrypt_passwords || true
@@ -43,13 +45,13 @@ if [ "${RET}" = "true" ]; then
 	sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
-		/etc/samba/smb.conf
+		"$CONFIG"
 
 	# Install DHCP support
 	db_get samba-common/dhcp && DHCPVAL="$RET"
 	db_fget samba-common/dhcp applied || true
 	if [ "$DHCPVAL" = true ] && [ "$RET" != true ] && \
-	   ! grep -q dhcp.conf /etc/samba/smb.conf
+	   ! grep -q dhcp.conf "$CONFIG"
 	then
 		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
@@ -57,8 +59,8 @@ if [ "${RET}" = "true" ]; then
 \\
 # If we receive WINS server info from DHCP, override the options above. \\
    include = /etc/samba/dhcp.conf
-}" /etc/samba/smb.conf
-	elif [ "$RET" != true ] && grep -q dhcp.conf /etc/samba/smb.conf
+}" "$CONFIG"
+	elif [ "$RET" != true ] && grep -q dhcp.conf "$CONFIG"
 	then
 		:
 		# FIXME: here we /delete/ the lines?
@@ -69,25 +71,25 @@ if [ "${RET}" = "true" ]; then
 		db_fset samba-common/dhcp applied true
 	fi
 
-	if grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
+	if grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" "$CONFIG"
 	then
 		sed -i -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
 			/^[[:space:]]*passdb backend/ {
 				s/unixsam/guest/i
-			}' /etc/samba/smb.conf
+			}' "$CONFIG"
 	fi
 
 	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \
-	   && grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*guest" /etc/samba/smb.conf
+	   && grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*guest" "$CONFIG"
 	then
 		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			        s/^\([[:space:]]*passdb backend[[:space:]]*=[^,]*\),\?[[:space:]]*guest[[:space:]]*$/\1/i" \
-			/etc/samba/smb.conf
+			"$CONFIG"
 	fi
 fi
 
-chmod a+r /etc/samba/smb.conf
+chmod a+r "$CONFIG"
 
 # ------------------------- Debconf questions end ---------------------
 

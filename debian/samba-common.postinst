@@ -13,9 +13,6 @@ if [ ! -e /etc/samba/smb.conf ]; then
 	cp -a /usr/share/samba/smb.conf /etc/samba/
 fi
 
-# Static tempfile location, dpkg-style
-TMPFILE=/etc/samba/smb.conf.dpkg-tmp
-
 # ------------------------- Debconf questions start ---------------------
 
 # Is the user configuring with debconf, or he/she prefers swat/manual
@@ -34,21 +31,19 @@ if [ "${RET}" = "true" ]; then
 	                  s/&/\\\&/g
 	                  s/\\\$/\\\\\\\$/g'`
 
-	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+	sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/i" \
-		< /etc/samba/smb.conf >${TMPFILE}
-	mv -f ${TMPFILE} /etc/samba/smb.conf
+		/etc/samba/smb.conf
 
 	# Encrypt passwords?
 	db_get samba-common/encrypt_passwords || true
 	ENCRYPT_PASSWORDS="${RET}"
 
-	sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+	sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
-		< /etc/samba/smb.conf >${TMPFILE}
-	mv -f ${TMPFILE} /etc/samba/smb.conf
+		/etc/samba/smb.conf
 
 	# Install DHCP support
 	db_get samba-common/dhcp && DHCPVAL="$RET"
@@ -56,14 +51,13 @@ if [ "${RET}" = "true" ]; then
 	if [ "$DHCPVAL" = true ] && [ "$RET" != true ] && \
 	   ! grep -q dhcp.conf /etc/samba/smb.conf
 	then
-		sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
 				/wins server[[:space:]]*=/a \\
 \\
 # If we receive WINS server info from DHCP, override the options above. \\
    include = /etc/samba/dhcp.conf
-}" < /etc/samba/smb.conf > ${TMPFILE}
-		mv -f ${TMPFILE} /etc/samba/smb.conf
+}" /etc/samba/smb.conf
 	elif [ "$RET" != true ] && grep -q dhcp.conf /etc/samba/smb.conf
 	then
 		:
@@ -77,21 +71,19 @@ if [ "${RET}" = "true" ]; then
 
 	if grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" /etc/samba/smb.conf
 	then
-		sed -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
+		sed -i -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
 			/^[[:space:]]*passdb backend/ {
 				s/unixsam/guest/i
-			}' < /etc/samba/smb.conf > ${TMPFILE}
-		mv -f ${TMPFILE} /etc/samba/smb.conf
+			}' /etc/samba/smb.conf
 	fi
 
 	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \
 	   && grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*guest" /etc/samba/smb.conf
 	then
-		sed -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
 			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
 			        s/^\([[:space:]]*passdb backend[[:space:]]*=[^,]*\),\?[[:space:]]*guest[[:space:]]*$/\1/i" \
-			< /etc/samba/smb.conf >${TMPFILE}
-		mv -f ${TMPFILE} /etc/samba/smb.conf
+			/etc/samba/smb.conf
 	fi
 fi
 

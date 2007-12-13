@@ -1,3 +1,9 @@
+samba (3.0.28-2) UNRELEASED; urgency=low
+
+  * 
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 13 Dec 2007 01:15:49 -0800
+
 samba (3.0.28-1) unstable; urgency=high
 
   * New upstream release. Security fix

@@ -71,14 +71,6 @@ if [ "${RET}" = "true" ]; then
 		db_fset samba-common/dhcp applied true
 	fi
 
-	if grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*unixsam" "$CONFIG"
-	then
-		sed -i -e 's/^\([[:space:]]*\)passdb backend/\1passdb backend/i
-			/^[[:space:]]*passdb backend/ {
-				s/unixsam/guest/i
-			}' "$CONFIG"
-	fi
-
 	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \
 	   && grep -qi "^[[:space:]]*passdb backend[[:space:]]*=.*guest" "$CONFIG"
 	then

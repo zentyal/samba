@@ -1,8 +1,9 @@
 samba (3.0.28-2) UNRELEASED; urgency=low
 
-  * 
+  * Drop some further code in samba-common.postinst that's specific to
+    pre-3.0 upgrades.
 
- -- Steve Langasek <vorlon@debian.org>  Thu, 13 Dec 2007 01:15:49 -0800
+ -- Steve Langasek <vorlon@debian.org>  Thu, 13 Dec 2007 02:21:32 -0800
 
 samba (3.0.28-1) unstable; urgency=high
 

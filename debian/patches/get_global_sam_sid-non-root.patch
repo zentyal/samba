@@ -5,7 +5,7 @@ reasonable for the server, not reasonable for the client.
 
 Author: Steve Langasek <vorlon@debian.org>
 
-Upstream status: submitted in bugzilla bug #3727
+Upstream status: submitted in bugzilla bug #3727. Will be in 3.0.28a
 
 Index: samba-3.0.26a/source/utils/smbpasswd.c
 ===================================================================

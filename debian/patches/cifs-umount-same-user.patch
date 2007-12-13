@@ -5,7 +5,7 @@ users.
 
 Author: Steve Langasek <vorlon@debian.org>
 
-Upstream status: submitted as bugzilla bug #4784
+Upstream status: submitted as bugzilla bug #4784. Will be in 3.0.28a
 
 Index: samba-3.0.25c/source/client/umount.cifs.c
 ===================================================================

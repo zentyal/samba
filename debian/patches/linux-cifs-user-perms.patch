@@ -1,7 +1,7 @@
 Goal: when mount.cifs is called by a non-root user, provide default uid= and
 gid= options matching the current process
 
-Upstream status: submitted as bugzilla bug #4780
+Upstream status: submitted as bugzilla bug #4780. Applied for 3.0.28a
 
 Index: samba-3.0.25c/source/client/mount.cifs.c
 ===================================================================

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Debian mount.smbfs compatibility wrapper
 # Copyright 2007, Steve Langasek <vorlon@debian.org>
 # Licensed under the GNU General Public License, version 2.  See the
@@ -83,7 +83,7 @@ parse_mount_options () {
 	echo $options
 }
 
-args=""
+args=()
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	-o*)
@@ -95,11 +95,11 @@ while [ "$#" -gt 0 ]; do
 		fi
 		arg="$(parse_mount_options "$arg")"
 		if [ -n "$arg" ]; then
-			args="$args -o $arg"
+			args=("${args[@]}" "-o" "$arg")
 		fi
 		;;
 	*)
-		args="$args $1"
+		args=("${args[@]}" "$1")
 		shift
 		;;
 	esac
@@ -107,4 +107,4 @@ done
 
 USER="$(reverse_username_workgroup "$USER")"
 
-exec /sbin/mount.cifs $args
+exec /sbin/mount.cifs "${args[@]}"

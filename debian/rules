@@ -154,10 +154,10 @@ endif
 	#	Erich Schubert <debian@vitavonni.de> in #109509):
 	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
+	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_movefiles.
-	cp debian/smb.conf $(DESTDIR)/usr/share/samba/
-	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
 	cp debian/samba.pamd $(DESTDIR)/etc/pam.d/samba
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
@@ -199,7 +199,7 @@ binary-arch: build install
 	DH_OPTIONS= dh_installinit -psamba -- "defaults 20 19"
 	DH_OPTIONS= dh_installinit -pwinbind
 	dh_installcron 
-	for pkg in samba smbfs winbind; do \
+	for pkg in samba samba-common smbfs winbind; do \
 	  install -m 0644 -D debian/$$pkg.lintian debian/$$pkg/usr/share/lintian/overrides/$$pkg || exit; \
 	done
 	dh_installchangelogs -Nlibpam-smbpass

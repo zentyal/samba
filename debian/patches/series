@@ -21,3 +21,4 @@ usershare.patch
 chgpasswd.patch
 cups.patch
 disable-weak-auth.patch
+gcc42-arm-workaround.patch

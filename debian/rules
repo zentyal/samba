@@ -23,6 +23,12 @@ else
   CFLAGS += -O2
 endif
 
+ifeq ($(DEB_HOST_GNU_TYPE),arm-linux-gnu)
+  PARSE_PRS_FLAGS = -O0
+endif
+
+export PARSE_PRS_FLAGS
+
 include /usr/share/quilt/quilt.make
 
 DESTDIR=`pwd`/debian/tmp

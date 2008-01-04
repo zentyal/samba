@@ -64,6 +64,11 @@ parse_mount_options () {
 			options="$options${options:+,}sec=krb5"
 			;;
 
+		guest)
+			echo "Warning: mapping 'guest' to 'guest,sec=none'" >&2
+			options="$options${options:+,}guest,sec=none"
+			;;
+
 		# username and workgroup are reversed in username= arguments,
 		# so need to be parsed out
 		username=*/*)

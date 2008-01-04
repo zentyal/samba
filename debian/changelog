@@ -10,8 +10,10 @@ samba (3.0.28-2) UNRELEASED; urgency=low
     problem by building rpc_parse/parse_prs.o with -O0 on this architecture.
     Thanks to Martin Michlmayr for helping to pin down the problem file.
     Closes: #445566.
+  * mount.smbfs: map the smbfs "guest" option to "guest,sec=none", which is
+    a closer approximation of the semantics with cifs.
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 04 Jan 2008 01:45:02 -0800
+ -- Steve Langasek <vorlon@debian.org>  Fri, 04 Jan 2008 11:32:49 -0800
 
 samba (3.0.28-1) unstable; urgency=high
 

@@ -1,8 +1,9 @@
 samba (3.0.28-3) UNRELEASED; urgency=low
 
   * Apply the arm workaround to the armel architecture as well.
+  * Add missing eventlogadm(8) manpage.
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 06 Jan 2008 04:56:15 -0800
+ -- Steve Langasek <vorlon@debian.org>  Tue, 22 Jan 2008 06:16:18 -0800
 
 samba (3.0.28-2) unstable; urgency=low
 

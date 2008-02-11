@@ -2,6 +2,8 @@ samba (3.0.28-3) UNRELEASED; urgency=low
 
   * Apply the arm workaround to the armel architecture as well.
   * Add missing eventlogadm(8) manpage.
+  * Refresh the list of Linux architectures from type-handling, to pick up
+    libacl-dev on armel.  Closes: #465121.
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 22 Jan 2008 06:16:18 -0800
 

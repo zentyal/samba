@@ -7,36 +7,11 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.2.0pre1/source/configure.in
+Index: samba-3.2.0pre2/source/param/loadparm.c
 ===================================================================
---- samba-3.2.0pre1.orig/source/configure.in
-+++ samba-3.2.0pre1/source/configure.in
-@@ -46,7 +46,7 @@
- [  --with-fhs              Use FHS-compliant paths (default=no)],
- [ case "$withval" in
-   yes)
--    lockdir="\${VARDIR}/lib/samba"
-+    lockdir="\${VARDIR}/run/samba"
-     piddir="\${VARDIR}/run"
-     mandir="\${prefix}/share/man"
-     logfilebase="\${VARDIR}/log/samba"
-@@ -54,9 +54,9 @@
-     libdir="\${prefix}/lib/samba"
-     configdir="\${sysconfdir}/samba"
-     swatdir="\${DATADIR}/samba/swat"
--    codepagedir="\${prefix}/lib/samba"
-+    codepagedir="\${DATADIR}/samba"
-     statedir="\${VARDIR}/lib/samba"
--    cachedir="\${VARDIR}/lib/samba"
-+    cachedir="\${VARDIR}/cache/samba"
-     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
-     ;;
-   esac])
-Index: samba-3.2.0pre1/source/param/loadparm.c
-===================================================================
---- samba-3.2.0pre1.orig/source/param/loadparm.c
-+++ samba-3.2.0pre1/source/param/loadparm.c
-@@ -117,6 +117,9 @@
+--- samba-3.2.0pre2.orig/source/param/loadparm.c
++++ samba-3.2.0pre2/source/param/loadparm.c
+@@ -114,6 +114,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
  	char *szOs2DriverMap;
@@ -46,7 +21,7 @@ Index: samba-3.2.0pre1/source/param/loadparm.c
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1221,8 +1224,13 @@
+@@ -1246,8 +1249,13 @@
  	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
  	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
  	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
@@ -60,3 +35,28 @@ Index: samba-3.2.0pre1/source/param/loadparm.c
  	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED}, 
  #ifdef WITH_UTMP
  	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED}, 
+Index: samba-3.2.0pre2/source/configure
+===================================================================
+--- samba-3.2.0pre2.orig/source/configure
++++ samba-3.2.0pre2/source/configure
+@@ -1607,7 +1607,7 @@
+   withval="$with_fhs"
+    case "$withval" in
+   yes)
+-    lockdir="\${VARDIR}/lib/samba"
++    lockdir="\${VARDIR}/run/samba"
+     piddir="\${VARDIR}/run"
+     mandir="\${prefix}/share/man"
+     logfilebase="\${VARDIR}/log/samba"
+@@ -1615,9 +1615,9 @@
+     test "${libdir}" || libdir="\${prefix}/lib/samba"
+     configdir="\${sysconfdir}/samba"
+     swatdir="\${DATADIR}/samba/swat"
+-    codepagedir="\${LIBDIR}"
++    codepagedir="\${DATADIR}/samba"
+     statedir="\${VARDIR}/lib/samba"
+-    cachedir="\${VARDIR}/lib/samba"
++    cachedir="\${VARDIR}/cache/samba"
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define FHS_COMPATIBLE 1

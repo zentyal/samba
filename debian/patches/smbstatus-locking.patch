@@ -2,7 +2,7 @@ Goal: Unknown
 
 Fixes: Maybe #164179?
 
-Status wrt upstream: Applied
+Status wrt upstream: Should maybe be forwarded
 
 Note: 
 
@@ -10,21 +10,28 @@ Index: samba-3.2.0pre1/source/utils/status.c
 ===================================================================
 --- samba-3.2.0pre1.orig/source/utils/status.c
 +++ samba-3.2.0pre1/source/utils/status.c
-@@ -404,6 +404,17 @@
- 
+@@ -277,6 +277,7 @@
+ {
+ 	int c;
+ 	int profile_only = 0;
++	TDB_CONTEXT *tdb;
+ 	BOOL show_processes, show_locks, show_shares;
+ 	poptContext pc;
+ 	struct poptOption long_options[] = {
+@@ -405,6 +406,16 @@
  	if ( show_locks ) {
  		int result;
-+		struct db_context *db;
-+		db = db_open(NULL, lock_path("locking.tdb"), 0,
-+			     TDB_DEFAULT, O_RDONLY, 0);
+ 
++		tdb = tdb_open_log(lock_path("locking.tdb"), 0, TDB_DEFAULT, O_RDONLY, 0);
 +
-+		if (!db) {
++		if (!tdb) {
 +			d_printf("%s not initialised\n", lock_path("locking.tdb"));
 +			d_printf("This is normal if an SMB client has never connected to your server.\n");
 +			exit(0);
 +		} else {
-+			TALLOC_FREE(db);
++			tdb_close(tdb);
 +		}
- 
++
  		if (!locking_init(1)) {
  			d_printf("Can't initialise locking module - exiting\n");
+ 			ret = 1;

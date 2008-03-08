@@ -35,20 +35,20 @@ Index: samba-3.2.0pre2/source/param/loadparm.c
  	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED}, 
  #ifdef WITH_UTMP
  	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED}, 
-Index: samba-3.2.0pre2/source/configure
+Index: samba-3.2.0pre2/source/m4/check_path.m4
 ===================================================================
---- samba-3.2.0pre2.orig/source/configure
-+++ samba-3.2.0pre2/source/configure
-@@ -1607,7 +1607,7 @@
-   withval="$with_fhs"
-    case "$withval" in
+--- samba-3.2.0pre2.orig/source/m4/check_path.m4
++++ samba-3.2.0pre2/source/m4/check_path.m4
+@@ -33,7 +33,7 @@
+ [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
+ [ case "$withval" in
    yes)
 -    lockdir="\${VARDIR}/lib/samba"
 +    lockdir="\${VARDIR}/run/samba"
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-@@ -1615,9 +1615,9 @@
+@@ -41,9 +41,9 @@
      test "${libdir}" || libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
@@ -57,6 +57,6 @@ Index: samba-3.2.0pre2/source/configure
      statedir="\${VARDIR}/lib/samba"
 -    cachedir="\${VARDIR}/lib/samba"
 +    cachedir="\${VARDIR}/cache/samba"
- 
- cat >>confdefs.h <<\_ACEOF
- #define FHS_COMPATIBLE 1
+     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
+     ;;
+   esac])

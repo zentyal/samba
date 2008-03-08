@@ -5,9 +5,12 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Applied in 3.2.0
+Status wrt upstream: Mean to be forwarded upstream (a good rationale 
+                     about FHS is probably recommended)
 
 Note: Use dedicated directories for:
+      - discardable cache data (/var/cache/samba): 
+          browse.dat, printers.tbd, <printer>.tdb
       - non discardable state data:
           all TDB files that may need to be backed up
       - shared data (/usr/share/samba):
@@ -29,8 +32,7 @@ Note: Use dedicated directories for:
         lock_path; everything else needs to be investigated.
       - If the file name occurs elsewhere in the fhs.patch, update the
         patch to fix these new references to the same place (either
-        cache_path or state_path. If cache_path, the change belongs
-        to fhs-filespaths-debatable)
+        cache_path or state_path)
       - If the file is a tdb file, and the code that opens it uses
         TDB_CLEAR_IF_FIRST, lock_path is correct; just update the query
         above with the new filename, no other changes are needed.
@@ -57,6 +59,52 @@ Index: samba-3.2.0pre1/source/intl/lang_tdb.c
  	if (stat(msg_path, &st) != 0) {
  		/* the msg file isn't available */
  		DEBUG(10, ("lang_tdb_init: %s: %s\n", msg_path, 
+Index: samba-3.2.0pre1/source/lib/util.c
+===================================================================
+--- samba-3.2.0pre1.orig/source/lib/util.c
++++ samba-3.2.0pre1/source/lib/util.c
+@@ -2655,6 +2655,41 @@
+ }
+ 
+ /**
++ * @brief Returns an absolute path to a file in the Samba data directory.
++ *
++ * @param name File to find, relative to CODEPAGEDIR.
++ *
++ * @retval Pointer to a static #pstring containing the full path.
++ **/
++
++char *data_path(const char *name)
++{
++	static pstring fname;
++	snprintf(fname, sizeof(fname), "%s/%s", dyn_CODEPAGEDIR, name);
++	return fname;
++}
++
++/*****************************************************************
++a useful function for returning a path in the Samba state directory
++ *****************************************************************/
++char *state_path(char *name)
++{
++	static pstring fname;
++
++	pstrcpy(fname,dyn_STATEDIR());
++	trim_string(fname,"","/");
++
++	if (!directory_exist(fname,NULL)) {
++		mkdir(fname,0755);
++	}
++
++	pstrcat(fname,"/");
++	pstrcat(fname,name);
++
++	return fname;
++}
++
++/**
+  * @brief Returns the platform specific shared library extension.
+  *
+  * @retval Pointer to a static #fstring containing the extension.
 Index: samba-3.2.0pre1/source/lib/util_unistr.c
 ===================================================================
 --- samba-3.2.0pre1.orig/source/lib/util_unistr.c

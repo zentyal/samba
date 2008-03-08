@@ -313,25 +313,25 @@ Index: samba-3.2.0pre2/source/pam_smbpass/pam_smb_auth.c
  	if ( retval != PAM_SUCCESS ) {
  		if (on( SMB_DEBUG, ctrl )) {
 -			_log_err(LOG_DEBUG, "auth: could not identify user");
-+		  _log_err(pamh, LOG_DEBUG, "auth: could not identify user");
++			_log_err(pamh, LOG_DEBUG, "auth: could not identify user");
  		}
  		AUTH_RETURN;
  	}
  	if (on( SMB_DEBUG, ctrl )) {
 -		_log_err( LOG_DEBUG, "username [%s] obtained", name );
-+	  _log_err(pamh, LOG_DEBUG, "username [%s] obtained", name );
++		_log_err(pamh, LOG_DEBUG, "username [%s] obtained", name );
  	}
  
  	if (geteuid() != 0) {
 -		_log_err( LOG_DEBUG, "Cannot access samba password database, not running as root.");
-+	  _log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
++		_log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
  		retval = PAM_AUTHINFO_UNAVAIL;
  		AUTH_RETURN;
  	}
  
  	if (!initialize_password_db(True, NULL)) {
 -		_log_err( LOG_ALERT, "Cannot access samba password database" );
-+	  _log_err(pamh, LOG_ALERT, "Cannot access samba password database" );
++		_log_err(pamh, LOG_ALERT, "Cannot access samba password database" );
  		retval = PAM_AUTHINFO_UNAVAIL;
  		AUTH_RETURN;
  	}
@@ -339,7 +339,7 @@ Index: samba-3.2.0pre2/source/pam_smbpass/pam_smb_auth.c
  	sampass = samu_new( NULL );
      	if (!sampass) {
 -		_log_err( LOG_ALERT, "Cannot talloc a samu struct" );
-+	  _log_err(pamh, LOG_ALERT, "Cannot talloc a samu struct" );
++		_log_err(pamh, LOG_ALERT, "Cannot talloc a samu struct" );
  		retval = nt_status_to_pam(NT_STATUS_NO_MEMORY);
  		AUTH_RETURN;
  	}
@@ -366,7 +366,7 @@ Index: samba-3.2.0pre2/source/pam_smbpass/pam_smb_auth.c
  
  	if (retval != PAM_SUCCESS) {
 -		_log_err( LOG_ALERT
-+	  _log_err(pamh, LOG_ALERT
++		_log_err(pamh, LOG_ALERT
  			, "pam_get_item returned error to pam_sm_authenticate" );
  		return PAM_AUTHTOK_RECOVER_ERR;
  	} else if (pass == NULL) {
@@ -374,7 +374,47 @@ Index: samba-3.2.0pre2/source/pam_smbpass/pam_smb_acct.c
 ===================================================================
 --- samba-3.2.0pre2.orig/source/pam_smbpass/pam_smb_acct.c
 +++ samba-3.2.0pre2/source/pam_smbpass/pam_smb_acct.c
-@@ -100,7 +100,7 @@
+@@ -59,26 +59,25 @@
+ 
+ 	/* Samba initialization. */
+ 	load_case_tables();
+-	setup_logging( "pam_smbpass", False );
+ 	in_client = True;
+ 
+-	ctrl = set_ctrl( flags, argc, argv );
++	ctrl = set_ctrl(pamh, flags, argc, argv );
+ 
+ 	/* get the username */
+ 
+ 	retval = pam_get_user( pamh, &name, "Username: " );
+ 	if (retval != PAM_SUCCESS) {
+ 		if (on( SMB_DEBUG, ctrl )) {
+-			_log_err( LOG_DEBUG, "acct: could not identify user" );
++		  _log_err(pamh, LOG_DEBUG, "acct: could not identify user" );
+ 		}
+ 		return retval;
+ 	}
+ 	if (on( SMB_DEBUG, ctrl )) {
+-		_log_err( LOG_DEBUG, "acct: username [%s] obtained", name );
++	  _log_err(pamh, LOG_DEBUG, "acct: username [%s] obtained", name );
+ 	}
+ 
+ 	if (geteuid() != 0) {
+-		_log_err( LOG_DEBUG, "Cannot access samba password database, not running as root.");
++	  _log_err(pamh, LOG_DEBUG, "Cannot access samba password database, not running as root.");
+ 		return PAM_AUTHINFO_UNAVAIL;
+ 	}
+ 
+@@ -86,7 +85,7 @@
+ 		from a SIGPIPE it's not expecting */
+ 	oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
+ 	if (!initialize_password_db(True, NULL)) {
+-		_log_err( LOG_ALERT, "Cannot access samba password database" );
++	  _log_err(pamh, LOG_ALERT, "Cannot access samba password database" );
+ 		CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
+ 		return PAM_AUTHINFO_UNAVAIL;
+ 	}
+@@ -100,7 +99,7 @@
  	}
  
  	if (!pdb_getsampwnam(sampass, name )) {
@@ -383,7 +423,7 @@ Index: samba-3.2.0pre2/source/pam_smbpass/pam_smb_acct.c
          	CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
          	return PAM_USER_UNKNOWN;
  	}
-@@ -113,8 +113,8 @@
+@@ -113,8 +112,8 @@
  
  	if (pdb_get_acct_ctrl(sampass) & ACB_DISABLED) {
  		if (on( SMB_DEBUG, ctrl )) {

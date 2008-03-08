@@ -5,6 +5,9 @@ samba (3.0.28-3) UNRELEASED; urgency=low
   * Refresh the list of Linux architectures from type-handling, to pick up
     libacl-dev on armel.  Closes: #465121.
 
+  [ Debconf translations ]
+  * Indonesian added. Closes: #469976
+
  -- Steve Langasek <vorlon@debian.org>  Tue, 22 Jan 2008 06:16:18 -0800
 
 samba (3.0.28-2) unstable; urgency=low

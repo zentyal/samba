@@ -106,18 +106,18 @@
 # This boolean parameter controls whether Samba attempts to sync the Unix
 # password with the SMB password when the encrypted SMB password in the
 # passdb is changed.
-   unix password sync = yes
+;   unix password sync = no
 
 # For Unix password sync to work on a Debian GNU/Linux system, the following
 # parameters must be set (thanks to Ian Kahan <<kahan@informatik.tu-muenchen.de> for
 # sending the correct chat script for the passwd program in Debian Sarge).
    passwd program = /usr/bin/passwd %u
-   passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+   passwd chat = *Enter\snew\sUNIX\spassword:* %n\n *Retype\snew\sUNIX\spassword:* %n\n *password\supdated\ssuccessfully* .
 
 # This boolean controls whether PAM will be used for password changes
 # when requested by an SMB client instead of the program listed in
 # 'passwd program'. The default is 'no'.
-   pam password change = yes
+;   pam password change = no
 
 ########## Domains ###########
 
@@ -169,6 +169,12 @@
 ;   printing = cups
 ;   printcap name = cups
 
+# When using [print$], root is implicitly a 'printer admin', but you can
+# also give this right to other users to add drivers and set printer
+# properties
+;   printer admin = @ntadmin
+
+
 ############ Misc ############
 
 # Using the following line enables you to customise your configuration
@@ -208,12 +214,6 @@
 ;   winbind enum groups = yes
 ;   winbind enum users = yes
 
-# Setup usershare options to enable non-root users to share folders
-# with the net usershare command.
-
-# Maximum number of usershare. 0 (default) means that usershare is disabled.
-;   usershare max shares = 100
-
 #======================= Share Definitions =======================
 
 [homes]
@@ -232,10 +232,8 @@
 # create dirs. with group=rw permissions, set next parameter to 0775.
    directory mask = 0700
 
-# By default, \\server\username shares can be connected to by anyone
-# with access to the samba server.
-# The following parameter makes sure that only "username" can connect 
-# to \\server\username
+# Restrict access to home directories 
+# to the one of the authenticated user
 # This might need tweaking when using external authentication schemes
    valid users = %S
 

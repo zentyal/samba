@@ -7,20 +7,23 @@ set -e
 # Do debconf stuff here
 . /usr/share/debconf/confmodule
 
+TEMPDIR=/var/run/samba/upgrades
+NEWFILE=$TEMPDIR/smb.conf
 CONFIG=/etc/samba/smb.conf
-
-# We need a default smb.conf file. If one doesn't exist we put in place
-#	one that has some basic defaults.
-if [ ! -e "$CONFIG" ]; then
-	cp -a /usr/share/samba/smb.conf $CONFIG
-fi
 
 # ------------------------- Debconf questions start ---------------------
 
-# Is the user configuring with debconf, or he/she prefers swat/manual
-#	config?
-db_get samba-common/do_debconf || true
-if [ "${RET}" = "true" ]; then
+configure_smb_conf() {
+	local CONFIG
+	CONFIG="$1"
+
+	# Is the user configuring with debconf, or he/she prefers
+	# swat/manual config?
+	db_get samba-common/do_debconf || true
+	if [ "${RET}" != "true" ]; then
+		return 0
+	fi
+
 	# Get workgroup name
 	db_get samba-common/workgroup || true
 	WORKGROUP="${RET}"
@@ -48,9 +51,8 @@ if [ "${RET}" = "true" ]; then
 		"$CONFIG"
 
 	# Install DHCP support
-	db_get samba-common/dhcp && DHCPVAL="$RET"
-	db_fget samba-common/dhcp applied || true
-	if [ "$DHCPVAL" = true ] && [ "$RET" != true ] && \
+	db_get samba-common/dhcp
+	if [ "$RET" = true ] && \
 	   ! grep -q dhcp.conf "$CONFIG"
 	then
 		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
@@ -60,15 +62,11 @@ if [ "${RET}" = "true" ]; then
 # If we receive WINS server info from DHCP, override the options above. \\
    include = /etc/samba/dhcp.conf
 }" "$CONFIG"
-	elif [ "$RET" != true ] && grep -q dhcp.conf "$CONFIG"
-	then
-		:
-		# FIXME: here we /delete/ the lines?
-	fi
-	# Once we get here, the config has been applied, whatever
-	# it is.
-	if [ "$RET" != true ]; then
-		db_fset samba-common/dhcp applied true
+	elif [ "$RET" != true ]; then
+		sed -i -e '
+			/^#[[:space:]]*If we receive WINS server info from DHCP, override the options above/d
+			/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*/etc/samba/dhcp.conf/d
+		' "$CONFIG"
 	fi
 
 	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \
@@ -79,7 +77,37 @@ if [ "${RET}" = "true" ]; then
 			        s/^\([[:space:]]*passdb backend[[:space:]]*=[^,]*\),\?[[:space:]]*guest[[:space:]]*$/\1/i" \
 			"$CONFIG"
 	fi
+}
+
+
+if [ -e "$CONFIG" ]; then
+	configure_smb_conf "$CONFIG"
 fi
+
+mkdir -p "$TEMPDIR"
+
+if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.28-2; then
+	if dpkg --compare-versions "$2" lt 3.0.26a-1 && [ "$2" != "${2%ubuntu*}" ]
+	then
+		base=dapper
+	elif [ "$2" != "${2%ubuntu*}" ]
+	then
+		base=gutsy
+	else
+		base=etch
+	fi
+
+	TEMPLATE=/usr/share/samba/smb.conf.${base}
+
+	cp "$TEMPLATE" "$NEWFILE"
+	configure_smb_conf "$NEWFILE"
+	ucf --debconf-ok "$NEWFILE" "$CONFIG"
+fi
+
+cp /usr/share/samba/smb.conf "$NEWFILE"
+configure_smb_conf "$NEWFILE"
+ucf --three-way --debconf-ok "$NEWFILE" "$CONFIG"
+ucfr samba-common "$CONFIG"
 
 chmod a+r "$CONFIG"
 

@@ -4,6 +4,10 @@ samba (3.0.28-3) UNRELEASED; urgency=low
   * Add missing eventlogadm(8) manpage.
   * Refresh the list of Linux architectures from type-handling, to pick up
     libacl-dev on armel.  Closes: #465121.
+  * Convert handling of smb.conf to use ucf, so that we can sanely manage
+    syntax changes going forward.
+  * In the process, fix the dhcp handling to allow proper reconfiguration
+    via debconf.
 
   [ Debconf translations ]
   * Indonesian added. Closes: #469976

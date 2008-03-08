@@ -24,10 +24,10 @@
 ## Browsing/Identification ###
 
 # Change this to the workgroup/NT-domain name your Samba server will part of
-   workgroup = WORKGROUP
+   workgroup = DEBIAN_FANS
 
 # server string is the equivalent of the NT Description field
-   server string = %h server
+   server string = %h server (Samba, Ubuntu)
 
 # Windows Internet Name Serving Support Section:
 # WINS Support - Tells the NMBD component of Samba to enable its WINS Server
@@ -86,7 +86,7 @@
 
 # "security = user" is always a good idea. This will require a Unix account
 # in this server for every user accessing the server. See
-# /usr/share/doc/samba-doc/htmldocs/Samba3-HOWTO/ServerType.html
+# /usr/share/doc/samba-doc/htmldocs/Samba-HOWTO-Collection/ServerType.html
 # in the samba-doc package for details.
 ;   security = user
 
@@ -106,18 +106,18 @@
 # This boolean parameter controls whether Samba attempts to sync the Unix
 # password with the SMB password when the encrypted SMB password in the
 # passdb is changed.
-   unix password sync = yes
+;   unix password sync = no
 
 # For Unix password sync to work on a Debian GNU/Linux system, the following
 # parameters must be set (thanks to Ian Kahan <<kahan@informatik.tu-muenchen.de> for
 # sending the correct chat script for the passwd program in Debian Sarge).
    passwd program = /usr/bin/passwd %u
-   passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+   passwd chat = *Enter\snew\sUNIX\spassword:* %n\n *Retype\snew\sUNIX\spassword:* %n\n *password\supdated\ssuccessfully* .
 
 # This boolean controls whether PAM will be used for password changes
 # when requested by an SMB client instead of the program listed in
 # 'passwd program'. The default is 'no'.
-   pam password change = yes
+;   pam password change = no
 
 ########## Domains ###########
 
@@ -169,6 +169,12 @@
 ;   printing = cups
 ;   printcap name = cups
 
+# When using [print$], root is implicitly a 'printer admin', but you can
+# also give this right to other users to add drivers and set printer
+# properties
+;   printer admin = @lpadmin
+
+
 ############ Misc ############
 
 # Using the following line enables you to customise your configuration
@@ -177,7 +183,7 @@
 ;   include = /home/samba/etc/smb.conf.%m
 
 # Most people will find that this option gives better performance.
-# See smb.conf(5) and /usr/share/doc/samba-doc/htmldocs/Samba3-HOWTO/speed.html
+# See smb.conf(5) and /usr/share/doc/samba-doc/htmldocs/speed.html
 # for details
 # You may want to add the following on a Linux system:
 #         SO_RCVBUF=8192 SO_SNDBUF=8192
@@ -198,46 +204,32 @@
 ;   idmap uid = 10000-20000
 ;   idmap gid = 10000-20000
 ;   template shell = /bin/bash
-;
-; The following was the default behaviour in sarge
-; but samba upstream reverted the default because it might induce
-; performance issues in large organizations
-; See #368251 for some of the consequences of *not* having
-; this setting and smb.conf(5) for all details
-;
-;   winbind enum groups = yes
-;   winbind enum users = yes
-
-# Setup usershare options to enable non-root users to share folders
-# with the net usershare command.
-
-# Maximum number of usershare. 0 (default) means that usershare is disabled.
-;   usershare max shares = 100
 
 #======================= Share Definitions =======================
 
-[homes]
-   comment = Home Directories
-   browseable = no
+# Un-comment the following (and tweak the other settings below to suit)
+# to enable the default home directory shares.  This will share each
+# user's home directory as \\server\username
+;[homes]
+;   comment = Home Directories
+;   browseable = no
+
+# By default, \\server\username shares can be connected to by anyone
+# with access to the samba server.  Un-comment the following parameter
+# to make sure that only "username" can connect to \\server\username
+;   valid users = %S
 
 # By default, the home directories are exported read-only. Change next
 # parameter to 'yes' if you want to be able to write to them.
-   writable = no
+;   writable = no
 
-# File creation mask is set to 0700 for security reasons. If you want to
-# create files with group=rw permissions, set next parameter to 0775.
-   create mask = 0700
+# File creation mask is set to 0600 for security reasons. If you want to
+# create files with group=rw permissions, set next parameter to 0664.
+;   create mask = 0600
 
 # Directory creation mask is set to 0700 for security reasons. If you want to
 # create dirs. with group=rw permissions, set next parameter to 0775.
-   directory mask = 0700
-
-# By default, \\server\username shares can be connected to by anyone
-# with access to the samba server.
-# The following parameter makes sure that only "username" can connect 
-# to \\server\username
-# This might need tweaking when using external authentication schemes
-   valid users = %S
+;   directory mask = 0700
 
 # Un-comment the following and create the netlogon directory for Domain Logons
 # (you need to configure Samba to act as a domain controller too.)
@@ -264,7 +256,7 @@
 [printers]
    comment = All Printers
    browseable = no
-   path = /var/spool/samba
+   path = /tmp
    printable = yes
    public = no
    writable = no

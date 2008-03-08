@@ -101,7 +101,7 @@ if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.28-3; then
 
 	cp "$TEMPLATE" "$NEWFILE"
 	configure_smb_conf "$NEWFILE"
-	ucf --debconf-ok "$NEWFILE" "$CONFIG"
+	ucf --three-way --debconf-ok "$NEWFILE" "$CONFIG"
 fi
 
 cp /usr/share/samba/smb.conf "$NEWFILE"

@@ -15,8 +15,10 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Brown paper bag: fix samba-common.files to list all of the smb.conf
     templates, not just the current one.  Closes: #470138.
+  * Drop debian/patches/gcc42-arm-workaround.patch, which should have been
+    dropped in the previous upload
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
+-- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
 
 samba (3.0.28-3) unstable; urgency=low
 

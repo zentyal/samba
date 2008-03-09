@@ -15,4 +15,3 @@ autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
 disable-weak-auth.patch
-gcc42-arm-workaround.patch

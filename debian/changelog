@@ -1,4 +1,4 @@
-samba (3.0.28-3) UNRELEASED; urgency=low
+samba (3.0.28-3) unstable; urgency=low
 
   * Drop the arm optimization workaround, as the compiler is now reported
     to be fixed.
@@ -13,7 +13,7 @@ samba (3.0.28-3) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Indonesian added. Closes: #469976
 
- -- Steve Langasek <vorlon@debian.org>  Tue, 22 Jan 2008 06:16:18 -0800
+ -- Steve Langasek <vorlon@debian.org>  Sat, 08 Mar 2008 17:11:16 -0800
 
 samba (3.0.28-2) unstable; urgency=low
 

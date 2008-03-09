@@ -13,7 +13,6 @@ VERSION.patch
 adapt_machine_creation_script.patch
 autoconf.patch
 smbpasswd-syslog.patch
-get_global_sam_sid-non-root.patch
 usershare.patch
 chgpasswd.patch
 cups.patch

@@ -4,10 +4,10 @@ Fixes: bug #434372
 
 Upstream status: submitted as bugzilla bug #4831
 
-Index: samba-3.0.25c/source/pam_smbpass/support.c
+Index: samba-3.0.28a/source/pam_smbpass/support.c
 ===================================================================
---- samba-3.0.25c.orig/source/pam_smbpass/support.c	2007-08-26 12:07:14.098417404 +0200
-+++ samba-3.0.25c/source/pam_smbpass/support.c	2007-08-26 13:09:09.419359938 +0200
+--- samba-3.0.28a.orig/source/pam_smbpass/support.c
++++ samba-3.0.28a/source/pam_smbpass/support.c
 @@ -15,6 +15,7 @@
  	 * Mass Ave, Cambridge, MA 02139, USA.
  	 */
@@ -292,10 +292,10 @@ Index: samba-3.0.25c/source/pam_smbpass/support.c
  	}
  	make_remark( pamh, ctrl, PAM_ERROR_MSG, pass_new == NULL ?
  				"No password supplied" : "Password unchanged" );
-Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
+Index: samba-3.0.28a/source/pam_smbpass/pam_smb_auth.c
 ===================================================================
---- samba-3.0.25c.orig/source/pam_smbpass/pam_smb_auth.c	2007-08-26 12:07:14.098417404 +0200
-+++ samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c	2007-08-26 13:09:09.419359938 +0200
+--- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.0.28a/source/pam_smbpass/pam_smb_auth.c
 @@ -75,10 +75,9 @@
  
  	/* Samba initialization. */
@@ -308,23 +308,27 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
  
  	/* Get a few bytes so we can pass our return value to
  		pam_sm_setcred(). */
-@@ -93,23 +92,23 @@
+@@ -93,12 +92,12 @@
  	retval = pam_get_user( pamh, &name, "Username: " );
  	if ( retval != PAM_SUCCESS ) {
  		if (on( SMB_DEBUG, ctrl )) {
 -			_log_err(LOG_DEBUG, "auth: could not identify user");
-+			_log_err(pamh, LOG_DEBUG, "auth: could not identify user");
++		  _log_err(pamh, LOG_DEBUG, "auth: could not identify user");
  		}
  		AUTH_RETURN;
  	}
  	if (on( SMB_DEBUG, ctrl )) {
 -		_log_err( LOG_DEBUG, "username [%s] obtained", name );
-+		_log_err(pamh, LOG_DEBUG, "username [%s] obtained", name);
++	  _log_err(pamh, LOG_DEBUG, "username [%s] obtained", name );
+ 	}
+ 
+ 	if (geteuid() != 0) {
+@@ -108,14 +107,14 @@
  	}
  
  	if (!initialize_password_db(True)) {
 -		_log_err( LOG_ALERT, "Cannot access samba password database" );
-+		_log_err(pamh, LOG_ALERT, "Cannot access samba password database");
++	  _log_err(pamh, LOG_ALERT, "Cannot access samba password database" );
  		retval = PAM_AUTHINFO_UNAVAIL;
  		AUTH_RETURN;
  	}
@@ -332,11 +336,11 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
  	sampass = samu_new( NULL );
      	if (!sampass) {
 -		_log_err( LOG_ALERT, "Cannot talloc a samu struct" );
-+		_log_err(pamh, LOG_ALERT, "Cannot talloc a samu struct");
++	  _log_err(pamh, LOG_ALERT, "Cannot talloc a samu struct" );
  		retval = nt_status_to_pam(NT_STATUS_NO_MEMORY);
  		AUTH_RETURN;
  	}
-@@ -123,7 +122,7 @@
+@@ -129,7 +128,7 @@
  	}
  
  	if (!found) {
@@ -345,7 +349,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
  		retval = PAM_USER_UNKNOWN;
  		TALLOC_FREE(sampass);
  		sampass = NULL;
-@@ -142,7 +141,7 @@
+@@ -148,7 +147,7 @@
  
  	retval = _smb_read_password(pamh, ctrl, NULL, "Password: ", NULL, _SMB_AUTHTOK, &p);
  	if (retval != PAM_SUCCESS ) {
@@ -354,7 +358,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
  		TALLOC_FREE(sampass);
  		AUTH_RETURN;
  	}
-@@ -194,8 +193,8 @@
+@@ -200,8 +199,8 @@
      retval = pam_get_item( pamh, PAM_AUTHTOK, (const void **) &pass );
  
      if (retval != PAM_SUCCESS) {
@@ -365,11 +369,11 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_auth.c
  	return PAM_AUTHTOK_RECOVER_ERR;
      } else if (pass == NULL) {
  	return PAM_AUTHTOK_RECOVER_ERR;
-Index: samba-3.0.25c/source/pam_smbpass/pam_smb_acct.c
+Index: samba-3.0.28a/source/pam_smbpass/pam_smb_acct.c
 ===================================================================
---- samba-3.0.25c.orig/source/pam_smbpass/pam_smb_acct.c	2007-08-26 12:07:14.098417404 +0200
-+++ samba-3.0.25c/source/pam_smbpass/pam_smb_acct.c	2007-08-26 13:09:09.419359938 +0200
-@@ -52,29 +52,28 @@
+--- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.0.28a/source/pam_smbpass/pam_smb_acct.c
+@@ -52,22 +52,21 @@
  
  	/* Samba initialization. */
  	load_case_tables();
@@ -385,25 +389,26 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_acct.c
  	if (retval != PAM_SUCCESS) {
  		if (on( SMB_DEBUG, ctrl )) {
 -			_log_err( LOG_DEBUG, "acct: could not identify user" );
-+			_log_err(pamh, LOG_DEBUG, "acct: could not identify user");
++		  _log_err(pamh, LOG_DEBUG, "acct: could not identify user" );
  		}
  		return retval;
  	}
  	if (on( SMB_DEBUG, ctrl )) {
 -		_log_err( LOG_DEBUG, "acct: username [%s] obtained", name );
-+		_log_err(pamh, LOG_DEBUG, "acct: username [%s] obtained", name);
++	  _log_err(pamh, LOG_DEBUG, "acct: username [%s] obtained", name );
  	}
  
- 	/* Getting into places that might use LDAP -- protect the app
+ 	if (geteuid() != 0) {
+@@ -79,7 +78,7 @@
  		from a SIGPIPE it's not expecting */
  	oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
  	if (!initialize_password_db(True)) {
 -		_log_err( LOG_ALERT, "Cannot access samba password database" );
-+		_log_err(pamh, LOG_ALERT, "Cannot access samba password database");
++	  _log_err(pamh, LOG_ALERT, "Cannot access samba password database" );
  		CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
  		return PAM_AUTHINFO_UNAVAIL;
  	}
-@@ -88,7 +87,7 @@
+@@ -93,7 +92,7 @@
  	}
  
  	if (!pdb_getsampwnam(sampass, name )) {
@@ -412,7 +417,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_acct.c
          	CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
          	return PAM_USER_UNKNOWN;
  	}
-@@ -101,8 +100,8 @@
+@@ -106,8 +105,8 @@
  
  	if (pdb_get_acct_ctrl(sampass) & ACB_DISABLED) {
  		if (on( SMB_DEBUG, ctrl )) {
@@ -423,10 +428,10 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_acct.c
  		}
  		make_remark( pamh, ctrl, PAM_ERROR_MSG
  			, "Your account has been disabled; "
-Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
+Index: samba-3.0.28a/source/pam_smbpass/pam_smb_passwd.c
 ===================================================================
---- samba-3.0.25c.orig/source/pam_smbpass/pam_smb_passwd.c	2007-08-26 12:07:14.098417404 +0200
-+++ samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c	2007-08-26 13:09:09.419359938 +0200
+--- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.0.28a/source/pam_smbpass/pam_smb_passwd.c
 @@ -104,10 +104,9 @@
  
      /* Samba initialization. */
@@ -453,8 +458,8 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
 +        _log_err(pamh, LOG_DEBUG, "username [%s] obtained", user);
      }
  
-     /* Getting into places that might use LDAP -- protect the app
-@@ -130,7 +129,7 @@
+     if (geteuid() != 0) {
+@@ -135,7 +134,7 @@
      oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
  
      if (!initialize_password_db(False)) {
@@ -463,7 +468,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
          CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
          return PAM_AUTHINFO_UNAVAIL;
      }
-@@ -142,12 +141,12 @@
+@@ -147,12 +146,12 @@
      }
  
      if (!pdb_getsampwnam(sampass,user)) {
@@ -478,7 +483,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
      }
  
      if (flags & PAM_PRELIM_CHECK) {
-@@ -173,7 +172,7 @@
+@@ -178,7 +177,7 @@
  #define greeting "Changing password for "
              Announce = SMB_MALLOC_ARRAY(char, sizeof(greeting)+strlen(user));
              if (Announce == NULL) {
@@ -487,7 +492,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
                  TALLOC_FREE(sampass);
                  CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
                  return PAM_BUF_ERR;
-@@ -188,8 +187,8 @@
+@@ -193,8 +192,8 @@
              SAFE_FREE( Announce );
  
              if (retval != PAM_SUCCESS) {
@@ -498,7 +503,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
                  TALLOC_FREE(sampass);
                  CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
                  return retval;
-@@ -234,7 +233,7 @@
+@@ -239,7 +238,7 @@
          }
  
          if (retval != PAM_SUCCESS) {
@@ -507,7 +512,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
              TALLOC_FREE(sampass);
              CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
              return retval;
-@@ -259,8 +258,8 @@
+@@ -264,8 +263,8 @@
  
          if (retval != PAM_SUCCESS) {
              if (on( SMB_DEBUG, ctrl )) {
@@ -518,7 +523,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
              }
              pass_old = NULL;                               /* tidy up */
              TALLOC_FREE(sampass);
-@@ -281,7 +280,7 @@
+@@ -286,7 +285,7 @@
          retval = _pam_smb_approve_pass(pamh, ctrl, pass_old, pass_new);
  
          if (retval != PAM_SUCCESS) {
@@ -527,7 +532,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
              pass_new = pass_old = NULL;               /* tidy up */
              TALLOC_FREE(sampass);
              CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
-@@ -301,16 +300,17 @@
+@@ -306,16 +305,17 @@
  	    
              /* password updated */
  		if (!sid_to_uid(pdb_get_user_sid(sampass), &uid)) {
@@ -549,7 +554,7 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
  	}
  
          pass_old = pass_new = NULL;
-@@ -321,7 +321,7 @@
+@@ -326,7 +326,7 @@
  
      } else {            /* something has broken with the library */
  
@@ -558,10 +563,10 @@ Index: samba-3.0.25c/source/pam_smbpass/pam_smb_passwd.c
          retval = PAM_ABORT;
  
      }
-Index: samba-3.0.25c/source/pam_smbpass/support.h
+Index: samba-3.0.28a/source/pam_smbpass/support.h
 ===================================================================
---- samba-3.0.25c.orig/source/pam_smbpass/support.h	2007-08-26 12:07:14.098417404 +0200
-+++ samba-3.0.25c/source/pam_smbpass/support.h	2007-08-26 13:09:09.419359938 +0200
+--- samba-3.0.28a.orig/source/pam_smbpass/support.h
++++ samba-3.0.28a/source/pam_smbpass/support.h
 @@ -1,8 +1,8 @@
  /* syslogging function for errors and other information */
 -extern void _log_err(int, const char *, ...);

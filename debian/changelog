@@ -6,6 +6,7 @@ samba (3.0.28a-1) unstable; urgency=low
   * Debian patches dropped as applied upstream:
     - make-distclean.patch
     - linux-cifs-user-perms.patch
+    - cifs-umount-same-user.patch
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
 

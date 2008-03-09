@@ -1,3 +1,11 @@
+samba (3.0.28a-1) unstable; urgency=low
+
+  * New upstream release. This fixes the following Debian bugs:
+    - Prevent nmbd from shutting down when no network
+      interfaces can be located. Closes: #433449
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
+
 samba (3.0.28-3) unstable; urgency=low
 
   * Drop the arm optimization workaround, as the compiler is now reported

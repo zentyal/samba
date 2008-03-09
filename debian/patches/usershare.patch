@@ -8,10 +8,10 @@ Authors: Mathias Gug <mathiaz@ubuntu.com>,
 
 Status wrt upstream: Debian-specific
 
-Index: samba-3.0.26a/docs/manpages/smb.conf.5
+Index: samba-3.0.28a/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.26a.orig/docs/manpages/smb.conf.5
-+++ samba-3.0.26a/docs/manpages/smb.conf.5
+--- samba-3.0.28a.orig/docs/manpages/smb.conf.5
++++ samba-3.0.28a/docs/manpages/smb.conf.5
 @@ -253,7 +253,7 @@
  .PP
  usershare path
@@ -88,10 +88,10 @@ Index: samba-3.0.26a/docs/manpages/smb.conf.5
  .RE
  .PP
  usershare prefix allow list (G)
-Index: samba-3.0.26a/docs/manpages/net.8
+Index: samba-3.0.28a/docs/manpages/net.8
 ===================================================================
---- samba-3.0.26a.orig/docs/manpages/net.8
-+++ samba-3.0.26a/docs/manpages/net.8
+--- samba-3.0.28a.orig/docs/manpages/net.8
++++ samba-3.0.28a/docs/manpages/net.8
 @@ -675,9 +675,9 @@
  Store a secret for the sepcified domain, used primarily for domains that use idmap_ldap as a backend. In this case the secret is used as the password for the user DN used to bind to the ldap server.
  .SS "USERSHARE"
@@ -104,11 +104,11 @@ Index: samba-3.0.26a/docs/manpages/net.8
  .PP
  The usershare commands are:
  .IP "" 3n
-Index: samba-3.0.26a/source/param/loadparm.c
+Index: samba-3.0.28a/source/param/loadparm.c
 ===================================================================
---- samba-3.0.26a.orig/source/param/loadparm.c
-+++ samba-3.0.26a/source/param/loadparm.c
-@@ -1676,7 +1676,7 @@
+--- samba-3.0.28a.orig/source/param/loadparm.c
++++ samba-3.0.28a/source/param/loadparm.c
+@@ -1689,7 +1689,7 @@
  	pstrcat(s, "/usershares");
  	string_set(&Globals.szUsersharePath, s);
  	string_set(&Globals.szUsershareTemplateShare, "");
@@ -117,10 +117,10 @@ Index: samba-3.0.26a/source/param/loadparm.c
  	/* By default disallow sharing of directories not owned by the sharer. */
  	Globals.bUsershareOwnerOnly = True;
  	/* By default disallow guest access to usershares. */
-Index: samba-3.0.26a/docs/htmldocs/manpages/smb.conf.5.html
+Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
 ===================================================================
---- samba-3.0.26a.orig/docs/htmldocs/manpages/smb.conf.5.html
-+++ samba-3.0.26a/docs/htmldocs/manpages/smb.conf.5.html
+--- samba-3.0.28a.orig/docs/htmldocs/manpages/smb.conf.5.html
++++ samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
 @@ -164,8 +164,8 @@
  	their own share definitions has been added. This capability is called <span class="emphasis"><em>usershares</em></span> and
  	is controlled by a set of parameters in the [global] section of the smb.conf.
@@ -166,10 +166,10 @@ Index: samba-3.0.26a/docs/htmldocs/manpages/smb.conf.5.html
  </em></span>
  </p></dd><dt><span class="term"><a name="USERSHAREPREFIXALLOWLIST"></a>usershare prefix allow list (G)</span></dt><dd><p>This parameter specifies a list of absolute pathnames
  	the root of which are allowed to be exported by user defined share definitions.
-Index: samba-3.0.26a/docs/htmldocs/manpages/net.8.html
+Index: samba-3.0.28a/docs/htmldocs/manpages/net.8.html
 ===================================================================
---- samba-3.0.26a.orig/docs/htmldocs/manpages/net.8.html
-+++ samba-3.0.26a/docs/htmldocs/manpages/net.8.html
+--- samba-3.0.28a.orig/docs/htmldocs/manpages/net.8.html
++++ samba-3.0.28a/docs/htmldocs/manpages/net.8.html
 @@ -249,30 +249,10 @@
  that use idmap_ldap as a backend. In this case the secret is used
  as the password for the user DN used to bind to the ldap server.

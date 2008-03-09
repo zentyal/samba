@@ -5,10 +5,10 @@ Author: Steve Langasek <vorlon@debian.org>
 
 Upstream status: submitted as bugzilla bug #5101
 
-Index: samba-3.0.27a/source/include/includes.h
+Index: samba-3.0.28a/source/include/includes.h
 ===================================================================
---- samba-3.0.27a.orig/source/include/includes.h
-+++ samba-3.0.27a/source/include/includes.h
+--- samba-3.0.28a.orig/source/include/includes.h
++++ samba-3.0.28a/source/include/includes.h
 @@ -54,19 +54,6 @@
  
  #include "local.h"
@@ -29,7 +29,7 @@ Index: samba-3.0.27a/source/include/includes.h
  #ifdef SUNOS4
  /* on SUNOS4 termios.h conflicts with sys/ioctl.h */
  #undef HAVE_TERMIOS_H
-@@ -810,23 +797,6 @@
+@@ -809,23 +796,6 @@
  #define QSORT_CAST (int (*)(const void *, const void *))
  #endif
  
@@ -53,10 +53,10 @@ Index: samba-3.0.27a/source/include/includes.h
  #ifndef SIGCLD
  #define SIGCLD SIGCHLD
  #endif
-Index: samba-3.0.27a/source/lib/replace/system/printing.h
+Index: samba-3.0.28a/source/lib/replace/system/printing.h
 ===================================================================
---- samba-3.0.27a.orig/source/lib/replace/system/printing.h
-+++ samba-3.0.27a/source/lib/replace/system/printing.h
+--- samba-3.0.28a.orig/source/lib/replace/system/printing.h
++++ samba-3.0.28a/source/lib/replace/system/printing.h
 @@ -37,8 +37,18 @@
  #endif
  

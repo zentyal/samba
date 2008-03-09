@@ -7,10 +7,10 @@ Upstream status: Debian-specific; should be dropped as soon as bug
 
 Author: Steve Langasek <vorlon@debian.org>
 
-Index: samba-3.0.28/source/Makefile.in
+Index: samba-3.0.28a/source/Makefile.in
 ===================================================================
---- samba-3.0.28.orig/source/Makefile.in
-+++ samba-3.0.28/source/Makefile.in
+--- samba-3.0.28a.orig/source/Makefile.in
++++ samba-3.0.28a/source/Makefile.in
 @@ -914,6 +914,8 @@
  	  mkdir "$$dir" || \
  	  exec false; fi || exec false

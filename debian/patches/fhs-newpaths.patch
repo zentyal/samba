@@ -10,10 +10,10 @@ Status wrt upstream: Mean to be forwarded upstream (a good rationale
 Note: See fhs-filespaths for rationale about the meaning of the new
       path variables
 
-Index: samba-3.0.27a/source/Makefile.in
+Index: samba-3.0.28a/source/Makefile.in
 ===================================================================
---- samba-3.0.27a.orig/source/Makefile.in
-+++ samba-3.0.27a/source/Makefile.in
+--- samba-3.0.28a.orig/source/Makefile.in
++++ samba-3.0.28a/source/Makefile.in
 @@ -106,6 +106,13 @@
  # the directory where lock files go
  LOCKDIR = @lockdir@
@@ -50,10 +50,10 @@ Index: samba-3.0.27a/source/Makefile.in
  
  installswat: installdirs installmsg
  	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR) $(SWATDIR) $(srcdir)
-Index: samba-3.0.27a/source/configure.in
+Index: samba-3.0.28a/source/configure.in
 ===================================================================
---- samba-3.0.27a.orig/source/configure.in
-+++ samba-3.0.27a/source/configure.in
+--- samba-3.0.28a.orig/source/configure.in
++++ samba-3.0.28a/source/configure.in
 @@ -59,6 +59,10 @@
      libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
@@ -75,10 +75,10 @@ Index: samba-3.0.27a/source/configure.in
  AC_SUBST(rootsbindir)
  AC_SUBST(pammodulesdir)
  
-Index: samba-3.0.27a/source/dynconfig.c
+Index: samba-3.0.28a/source/dynconfig.c
 ===================================================================
---- samba-3.0.27a.orig/source/dynconfig.c
-+++ samba-3.0.27a/source/dynconfig.c
+--- samba-3.0.28a.orig/source/dynconfig.c
++++ samba-3.0.28a/source/dynconfig.c
 @@ -53,6 +53,13 @@
  pstring dyn_LMHOSTSFILE = LMHOSTSFILE;
  
@@ -121,10 +121,10 @@ Index: samba-3.0.27a/source/dynconfig.c
 +	return lp_lockdir();
 +#endif
 +}
-Index: samba-3.0.27a/source/include/dynconfig.h
+Index: samba-3.0.28a/source/include/dynconfig.h
 ===================================================================
---- samba-3.0.27a.orig/source/include/dynconfig.h
-+++ samba-3.0.27a/source/include/dynconfig.h
+--- samba-3.0.28a.orig/source/include/dynconfig.h
++++ samba-3.0.28a/source/include/dynconfig.h
 @@ -31,8 +31,12 @@
  extern pstring dyn_CONFIGFILE;
  extern pstring dyn_LOGFILEBASE, dyn_LMHOSTSFILE;
@@ -138,10 +138,10 @@ Index: samba-3.0.27a/source/include/dynconfig.h
 +
 +char *dyn_STATEDIR(void);
 +char *dyn_CACHEDIR(void);
-Index: samba-3.0.27a/source/lib/util.c
+Index: samba-3.0.28a/source/lib/util.c
 ===================================================================
---- samba-3.0.27a.orig/source/lib/util.c
-+++ samba-3.0.27a/source/lib/util.c
+--- samba-3.0.28a.orig/source/lib/util.c
++++ samba-3.0.28a/source/lib/util.c
 @@ -2633,6 +2633,61 @@
  }
  

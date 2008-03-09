@@ -7,11 +7,11 @@ Fixes: LP #163194
 Upstream status: pulled from upstream 3.2 git tree, will be superseded
 with first release of 3.2
 
-Index: samba-3.0.27a/source/param/loadparm.c
+Index: samba-3.0.28a/source/param/loadparm.c
 ===================================================================
---- samba-3.0.27a.orig/source/param/loadparm.c
-+++ samba-3.0.27a/source/param/loadparm.c
-@@ -1562,9 +1562,9 @@
+--- samba-3.0.28a.orig/source/param/loadparm.c
++++ samba-3.0.28a/source/param/loadparm.c
+@@ -1572,9 +1572,9 @@
  	Globals.bStatCache = True;	/* use stat cache by default */
  	Globals.iMaxStatCacheSize = 1024; /* one Meg by default. */
  	Globals.restrict_anonymous = 0;
@@ -24,10 +24,10 @@ Index: samba-3.0.27a/source/param/loadparm.c
  	Globals.bNTLMAuth = True;	/* Do use NTLMv1 if it is available (otherwise NTLMv2) */
  	Globals.bClientNTLMv2Auth = False; /* Client should not use NTLMv2, as we can't tell that the server supports it. */
  	/* Note, that we will use NTLM2 session security (which is different), if it is available */
-Index: samba-3.0.27a/docs/htmldocs/manpages/smb.conf.5.html
+Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
 ===================================================================
---- samba-3.0.27a.orig/docs/htmldocs/manpages/smb.conf.5.html
-+++ samba-3.0.27a/docs/htmldocs/manpages/smb.conf.5.html
+--- samba-3.0.28a.orig/docs/htmldocs/manpages/smb.conf.5.html
++++ samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
 @@ -780,7 +780,7 @@
      without Windows 95/98 servers are advised to disable
      this option.  </p><p>Disabling this option will also disable the <code class="literal">client plaintext auth</code> option</p><p>Likewise, if the <code class="literal">client ntlmv2
@@ -55,10 +55,10 @@ Index: samba-3.0.27a/docs/htmldocs/manpages/smb.conf.5.html
  </em></span>
  </p></dd><dt><span class="term"><a name="LARGEREADWRITE"></a>large readwrite (G)</span></dt><dd><p>This parameter determines whether or not
      <a href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> supports the new 64k
-Index: samba-3.0.27a/docs/manpages/smb.conf.5
+Index: samba-3.0.28a/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.27a.orig/docs/manpages/smb.conf.5
-+++ samba-3.0.27a/docs/manpages/smb.conf.5
+--- samba-3.0.28a.orig/docs/manpages/smb.conf.5
++++ samba-3.0.28a/docs/manpages/smb.conf.5
 @@ -1272,7 +1272,7 @@
  parameter is enabled, then only NTLMv2 logins will be attempted.
  .sp

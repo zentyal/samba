@@ -7,13 +7,13 @@ Status wrt upstream: Should be forwarded
 
 Note: 
 
-Index: samba-3.0.25c/source/utils/status.c
+Index: samba-3.0.28a/source/utils/status.c
 ===================================================================
---- samba-3.0.25c.orig/source/utils/status.c	2007-08-26 12:07:15.598346358 +0200
-+++ samba-3.0.25c/source/utils/status.c	2007-08-26 13:09:04.419603900 +0200
-@@ -367,6 +367,16 @@
- 	if ( show_locks ) {
- 		int ret;
+--- samba-3.0.28a.orig/source/utils/status.c
++++ samba-3.0.28a/source/utils/status.c
+@@ -377,6 +377,16 @@
+ 			tdb_close(tdb);
+ 		}
  
 +		tdb = tdb_open_log(lock_path("locking.tdb"), 0, TDB_DEFAULT, O_RDONLY, 0);
 +

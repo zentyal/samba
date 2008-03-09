@@ -7,10 +7,10 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.0.27a/source/configure.in
+Index: samba-3.0.28a/source/configure.in
 ===================================================================
---- samba-3.0.27a.orig/source/configure.in
-+++ samba-3.0.27a/source/configure.in
+--- samba-3.0.28a.orig/source/configure.in
++++ samba-3.0.28a/source/configure.in
 @@ -51,7 +51,7 @@
  [  --with-fhs              Use FHS-compliant paths (default=no)],
  [ case "$withval" in

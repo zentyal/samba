@@ -64,9 +64,11 @@ configure_smb_conf() {
 }" "$CONFIG"
 	elif [ "$RET" != true ]; then
 		sed -i -e '
-			/^#[[:space:]]*If we receive WINS server info from DHCP, override the options above/d
-			/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*/etc/samba/dhcp.conf/d
-		' "$CONFIG"
+		/^#[[:space:]]*If we receive WINS server info from DHCP, override the options above/d
+		/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*\/etc\/samba\/dhcp.conf/,/[^[:space:]]/ {
+			/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*\/etc\/samba\/dhcp.conf/d
+			/^[[:space:]]*$/d
+		}' "$CONFIG"
 	fi
 
 	if [ -n "$2" ] && dpkg --compare-versions "$2" lt 3.0.23b-2 \

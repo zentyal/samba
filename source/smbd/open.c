@@ -1375,7 +1375,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 #endif /* O_SYNC */
   
-	if (posix_open & (access_mask & FILE_APPEND_DATA)) {
+	if (posix_open && (access_mask & FILE_APPEND_DATA)) {
 		flags2 |= O_APPEND;
 	}
 
@@ -1818,9 +1818,15 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		if (lp_map_archive(SNUM(conn)) ||
 		    lp_store_dos_attributes(SNUM(conn))) {
 			if (!posix_open) {
-				file_set_dosmode(conn, fname,
-					 new_dos_attributes | aARCH, NULL,
-					 parent_dir);
+				SMB_STRUCT_STAT tmp_sbuf;
+				SET_STAT_INVALID(tmp_sbuf);
+				if (file_set_dosmode(
+						conn, fname,
+						new_dos_attributes | aARCH,
+						&tmp_sbuf,
+						parent_dir) == 0) {
+					unx_mode = tmp_sbuf.st_mode;
+				}
 			}
 		}
 	}

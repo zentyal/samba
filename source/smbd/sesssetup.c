@@ -624,7 +624,7 @@ static BOOL reply_spnego_ntlmssp(connection_struct *conn, char *inbuf, char *out
 		/* NB. This is *NOT* an error case. JRA */
 		auth_ntlmssp_end(auth_ntlmssp_state);
 		/* Kill the intermediate vuid */
-		invalidate_vuid(vuid);
+		invalidate_intermediate_vuid(vuid);
 	}
 
 	return ret;
@@ -690,7 +690,7 @@ static int reply_spnego_negotiate(connection_struct *conn,
 	status = parse_spnego_mechanisms(blob1, &secblob, &got_kerberos_mechanism);
 	if (!NT_STATUS_IS_OK(status)) {
 		/* Kill the intermediate vuid */
-		invalidate_vuid(vuid);
+		invalidate_intermediate_vuid(vuid);
 		return ERROR_NT(nt_status_squash(status));
 	}
 
@@ -704,11 +704,20 @@ static int reply_spnego_negotiate(connection_struct *conn,
 		data_blob_free(&secblob);
 		if (destroy_vuid) {
 			/* Kill the intermediate vuid */
-			invalidate_vuid(vuid);
+			invalidate_intermediate_vuid(vuid);
 		}
 		return ret;
 	}
 #endif
+
+	if (got_kerberos_mechanism) {
+		invalidate_intermediate_vuid(vuid);
+		DEBUG(3,("reply_spnego_negotiate: network "
+			"misconfiguration, client sent us a "
+			"krb5 ticket and kerberos security "
+			"not enabled"));
+		return ERROR_NT(nt_status_squash(NT_STATUS_LOGON_FAILURE));
+	}
 
 	if (*auth_ntlmssp_state) {
 		auth_ntlmssp_end(auth_ntlmssp_state);
@@ -717,7 +726,7 @@ static int reply_spnego_negotiate(connection_struct *conn,
 	status = auth_ntlmssp_start(auth_ntlmssp_state);
 	if (!NT_STATUS_IS_OK(status)) {
 		/* Kill the intermediate vuid */
-		invalidate_vuid(vuid);
+		invalidate_intermediate_vuid(vuid);
 		return ERROR_NT(nt_status_squash(status));
 	}
 
@@ -755,9 +764,9 @@ static int reply_spnego_auth(connection_struct *conn, char *inbuf, char *outbuf,
 		file_save("auth.dat", blob1.data, blob1.length);
 #endif
 		/* Kill the intermediate vuid */
-		invalidate_vuid(vuid);
+		invalidate_intermediate_vuid(vuid);
 
-		return ERROR_NT(nt_status_squash(NT_STATUS_INVALID_PARAMETER));
+		return ERROR_NT(nt_status_squash(NT_STATUS_LOGON_FAILURE));
 	}
 
 	if (auth.data[0] == ASN1_APPLICATION(0)) {
@@ -776,7 +785,7 @@ static int reply_spnego_auth(connection_struct *conn, char *inbuf, char *outbuf,
 				data_blob_free(&auth);
 				if (destroy_vuid) {
 					/* Kill the intermediate vuid */
-					invalidate_vuid(vuid);
+					invalidate_intermediate_vuid(vuid);
 				}
 				return ret;
 			}
@@ -786,24 +795,24 @@ static int reply_spnego_auth(connection_struct *conn, char *inbuf, char *outbuf,
 
 	/* If we get here it wasn't a negTokenTarg auth packet. */
 	data_blob_free(&secblob);
-	
+
 	if (!*auth_ntlmssp_state) {
 		/* Kill the intermediate vuid */
-		invalidate_vuid(vuid);
+		invalidate_intermediate_vuid(vuid);
 
 		/* auth before negotiatiate? */
-		return ERROR_NT(nt_status_squash(NT_STATUS_INVALID_PARAMETER));
+		return ERROR_NT(NT_STATUS_LOGON_FAILURE);
 	}
-	
-	status = auth_ntlmssp_update(*auth_ntlmssp_state, 
+
+	status = auth_ntlmssp_update(*auth_ntlmssp_state,
 					auth, &auth_reply);
 
 	data_blob_free(&auth);
 
-	reply_spnego_ntlmssp(conn, inbuf, outbuf, vuid, 
+	reply_spnego_ntlmssp(conn, inbuf, outbuf, vuid,
 			     auth_ntlmssp_state,
 			     &auth_reply, status, True);
-		
+
 	data_blob_free(&auth_reply);
 
 	/* and tell smbd that we have already replied to this packet */
@@ -1112,7 +1121,7 @@ static int reply_sesssetup_and_X_spnego(connection_struct *conn, char *inbuf,
 	if (!NT_STATUS_IS_OK(status)) {
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 			/* Real error - kill the intermediate vuid */
-			invalidate_vuid(vuid);
+			invalidate_intermediate_vuid(vuid);
 		}
 		data_blob_free(&blob1);
 		return ERROR_NT(nt_status_squash(status));
@@ -1140,7 +1149,7 @@ static int reply_sesssetup_and_X_spnego(connection_struct *conn, char *inbuf,
 			status = auth_ntlmssp_start(&vuser->auth_ntlmssp_state);
 			if (!NT_STATUS_IS_OK(status)) {
 				/* Kill the intermediate vuid */
-				invalidate_vuid(vuid);
+				invalidate_intermediate_vuid(vuid);
 				data_blob_free(&blob1);
 				return ERROR_NT(nt_status_squash(status));
 			}

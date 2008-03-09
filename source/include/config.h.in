@@ -685,6 +685,9 @@
 /* Whether kernel has inotify support */
 #undef HAVE_INOTIFY
 
+/* Define to 1 if you have the `inotify_init' function. */
+#undef HAVE_INOTIFY_INIT
+
 /* Whether int16 typedef is included by rpc/rpc.h */
 #undef HAVE_INT16_FROM_RPC_RPC_H
 
@@ -842,8 +845,14 @@
 /* Define to 1 if you have the `krb5_principal_get_comp_string' function. */
 #undef HAVE_KRB5_PRINCIPAL_GET_COMP_STRING
 
+/* Whether the function krb5_principal_get_realm is defined */
+#undef HAVE_KRB5_PRINCIPAL_GET_REALM
+
 /* Whether krb5_princ_component is available */
 #undef HAVE_KRB5_PRINC_COMPONENT
+
+/* Whether the macro krb5_princ_realm is defined */
+#undef HAVE_KRB5_PRINC_REALM
 
 /* Define to 1 if you have the `krb5_princ_size' function. */
 #undef HAVE_KRB5_PRINC_SIZE
@@ -889,6 +898,9 @@
 
 /* Define to 1 if you have the <lber.h> header file. */
 #undef HAVE_LBER_H
+
+/* Support for LDAP/LBER logging interception */
+#undef HAVE_LBER_LOG_PRINT_FN
 
 /* Whether ldap is available */
 #undef HAVE_LDAP
@@ -1570,6 +1582,9 @@
 
 /* Define to 1 if you have the `strnlen' function. */
 #undef HAVE_STRNLEN
+
+/* Define to 1 if you have the <stropts.h> header file. */
+#undef HAVE_STROPTS_H
 
 /* Define to 1 if you have the `strpbrk' function. */
 #undef HAVE_STRPBRK
@@ -2279,6 +2294,9 @@
 /* Whether getpass should be replaced */
 #undef REPLACE_GETPASS
 
+/* getpass returns <9 chars where getpassphrase returns <265 chars */
+#undef REPLACE_GETPASS_BY_GETPASSPHRASE
+
 /* Whether inet_ntoa should be replaced */
 #undef REPLACE_INET_NTOA
 
@@ -2824,6 +2842,9 @@
 
 /* Whether to build vfs_netatalk as shared module */
 #undef vfs_netatalk_init
+
+/* Whether to build vfs_notify_fam as shared module */
+#undef vfs_notify_fam_init
 
 /* Whether to build vfs_posixacl as shared module */
 #undef vfs_posixacl_init

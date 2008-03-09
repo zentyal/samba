@@ -12,7 +12,6 @@ undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
 autoconf.patch
-linux-cifs-user-perms.patch
 cifs-umount-same-user.patch
 smbpasswd-syslog.patch
 get_global_sam_sid-non-root.patch

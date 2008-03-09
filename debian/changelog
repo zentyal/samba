@@ -5,6 +5,7 @@ samba (3.0.28a-1) unstable; urgency=low
       interfaces can be located. Closes: #433449
   * Debian patches dropped as applied upstream:
     - make-distclean.patch
+    - linux-cifs-user-perms.patch
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
 

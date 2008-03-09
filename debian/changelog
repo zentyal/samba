@@ -1,5 +1,6 @@
 samba (3.0.28a-1) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * New upstream release. This fixes the following Debian bugs:
     - Prevent nmbd from shutting down when no network
       interfaces can be located. Closes: #433449
@@ -9,6 +10,11 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     - cifs-umount-same-user.patch
     - get_global_sam_sid-non-root.patch
     - chgpasswd.patch
+    - cups.patch
+
+  [ Steve Langasek ]
+  * Brown paper bag: fix samba-common.files to list all of the smb.conf
+    templates, not just the current one.  Closes: #470138.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 08:57:28 +0100
 

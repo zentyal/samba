@@ -5182,7 +5182,7 @@ reads or writes a structure.
 void init_samr_q_create_user(SAMR_Q_CREATE_USER * q_u,
 			     POLICY_HND *pol,
 			     const char *name,
-			     uint32 acb_info, uint32 access_mask)
+			     uint32 acb_info, uint32 acct_flags)
 {
 	DEBUG(5, ("samr_init_samr_q_create_user\n"));
 
@@ -5192,7 +5192,7 @@ void init_samr_q_create_user(SAMR_Q_CREATE_USER * q_u,
 	init_uni_hdr(&q_u->hdr_name, &q_u->uni_name);
 
 	q_u->acb_info = acb_info;
-	q_u->access_mask = access_mask;
+	q_u->acct_flags = acct_flags;
 }
 
 /*******************************************************************
@@ -5223,7 +5223,7 @@ BOOL samr_io_q_create_user(const char *desc, SAMR_Q_CREATE_USER * q_u,
 		return False;
 	if(!prs_uint32("acb_info   ", ps, depth, &q_u->acb_info))
 		return False;
-	if(!prs_uint32("access_mask", ps, depth, &q_u->access_mask))
+	if(!prs_uint32("acct_flags", ps, depth, &q_u->acct_flags))
 		return False;
 
 	return True;
@@ -5869,6 +5869,25 @@ void init_sam_user_info23A(SAM_USER_INFO_23 * usr, NTTIME * logon_time,	/* all z
 		ZERO_STRUCT(usr->logon_hrs);
 	}
 }
+
+
+/*************************************************************************
+ init_samr_user_info25P
+ fields_present = ACCT_NT_PWD_SET | ACCT_LM_PWD_SET | ACCT_FLAGS
+*************************************************************************/
+
+void init_sam_user_info25P(SAM_USER_INFO_25 * usr,
+			   uint32 fields_present, uint32 acb_info,
+			   char newpass[532])
+{
+	usr->fields_present = fields_present;
+	ZERO_STRUCT(usr->padding1);
+	ZERO_STRUCT(usr->padding2);
+
+	usr->acb_info = acb_info;
+	memcpy(usr->pass, newpass, sizeof(usr->pass));
+}
+
 
 /*******************************************************************
 reads or writes a structure.

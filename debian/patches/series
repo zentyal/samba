@@ -14,7 +14,6 @@ adapt_machine_creation_script.patch
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
-chgpasswd.patch
 cups.patch
 disable-weak-auth.patch
 gcc42-arm-workaround.patch

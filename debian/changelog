@@ -1,6 +1,20 @@
 samba (3.2.0~pre2-1) experimental; urgency=low
 
-  * New upstream (pre-)release
+  * New upstream (pre-)release. It closes the following bugs:
+    - typos in net.8. Closes: #460487, #460491
+    - mention insmb.conf(5) that logging still occurs when
+      "syslog only" is enabled and "syslog=0". Closes: #311300
+    - bad link in HTML docs. Closes: #358479
+    - enhance a useless and confusing debug message in pdb_ldap
+      Closes: #448546
+    - mention the correct default debug level in smbclient(1)
+      Closes: #292371
+    - no longer mention that "ip" parameter can use the host name
+      in mount.cifs(8). Closes: #296057
+    - wrong spelling of "its own" in source comments fixed
+      Closes: #448686
+    - fix "ldapsam_getgroup: Did not find group" debug message
+      Closes: #448546
   * Temporarily disable documentation.patch and
     adapt_machine_creation_script.patchbecause some mess
     happened in upstream's manpages

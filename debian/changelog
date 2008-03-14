@@ -19,6 +19,9 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
       options, rather than historical synonyms
     - clarify the comment for 'max log size'.
     Thanks to Chuck Short and Richard Laager.
+  * Add an additional sed command to samba-common.postinst to cleverly
+    pick up any shares that have been appended to the default smb.conf 
+    and exclude them from the ucf diff.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 22:45:01 +0100
 

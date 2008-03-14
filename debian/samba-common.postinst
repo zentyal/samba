@@ -108,6 +108,13 @@ fi
 
 cp /usr/share/samba/smb.conf "$NEWFILE"
 configure_smb_conf "$NEWFILE"
+
+if [ -e "$CONFIG" ]; then
+	sed -e '1,/^[;#[:space:]]*\[cdrom\]/ { d }
+		1,/^[[:space:]]*\[/ { /^[^[]/d; /^$/d }
+	' "$CONFIG" >> "$NEWFILE"
+fi
+
 ucf --three-way --debconf-ok "$NEWFILE" "$CONFIG"
 ucfr samba-common "$CONFIG"
 

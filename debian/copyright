@@ -9,7 +9,7 @@ Steve Langasek <vorlon@debian.org>, and Víctor Pérez Pereira
 <bruce@pixar.com> from sources found at
 <URL:ftp://ftp.samba.org/pub/samba>.
 
-Copyright:
+Copyright © 1992-2008 Andrew Tridgell and the Samba Team
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

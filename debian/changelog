@@ -12,6 +12,7 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     - chgpasswd.patch
     - cups.patch
   * Fix doc-base section from Apps/Net to Network
+  * Fix copyright in debian/copyright
 
   [ Steve Langasek ]
   * Merge smb.conf changes from Ubuntu:

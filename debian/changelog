@@ -11,6 +11,7 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     - get_global_sam_sid-non-root.patch
     - chgpasswd.patch
     - cups.patch
+  * Fix doc-base section from Apps/Net to Network
 
   [ Steve Langasek ]
   * Merge smb.conf changes from Ubuntu:

@@ -12,6 +12,14 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     - chgpasswd.patch
     - cups.patch
 
+  [ Steve Langasek ]
+  * Merge smb.conf changes from Ubuntu:
+    - correct an inconsistency inthe winbind enum comment
+    - correct default and example settings to use the canonical names for all
+      options, rather than historical synonyms
+    - clarify the comment for 'max log size'.
+    Thanks to Chuck Short and Richard Laager.
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 22:45:01 +0100
 
 samba (3.0.28-4) unstable; urgency=low

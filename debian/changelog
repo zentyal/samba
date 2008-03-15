@@ -14,6 +14,8 @@ samba (3.0.28a-1) unstable; urgency=low
   * Fix doc-base section from Apps/Net to Network
   * Fix copyright in debian/copyright
   * Updated Standards-Version to 3.7.3 (no changes needed)
+  * [Lintian] No longer use -1 revision for the libacl-dev build
+    dependency
 
   [ Steve Langasek ]
   * Merge smb.conf changes from Ubuntu:

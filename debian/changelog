@@ -1,4 +1,4 @@
-samba (3.0.28a-1) UNRELEASED; urgency=low
+samba (3.0.28a-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. This fixes the following Debian bugs:
@@ -13,6 +13,7 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     - cups.patch
   * Fix doc-base section from Apps/Net to Network
   * Fix copyright in debian/copyright
+  * Updated Standards-Version to 3.7.3 (no changes needed)
 
   [ Steve Langasek ]
   * Merge smb.conf changes from Ubuntu:
@@ -25,7 +26,7 @@ samba (3.0.28a-1) UNRELEASED; urgency=low
     pick up any shares that have been appended to the default smb.conf 
     and exclude them from the ucf diff.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 09 Mar 2008 22:45:01 +0100
+ -- Christian Perrier <bubulle@debian.org>  Fri, 14 Mar 2008 21:28:16 +0100
 
 samba (3.0.28-4) unstable; urgency=low
  

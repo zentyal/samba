@@ -1,3 +1,9 @@
+samba (3.0.28a-2) UNRELEASED; urgency=low
+
+  * Removed myself from Uploaders
+
+ -- Peter Eisentraut <petere@debian.org>  Thu, 20 Mar 2008 11:37:06 +0100
+
 samba (3.0.28a-1) unstable; urgency=low
 
   [ Christian Perrier ]

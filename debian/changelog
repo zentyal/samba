@@ -15,6 +15,7 @@ samba (3.2.0~pre2-1) experimental; urgency=low
       Closes: #448686
     - fix "ldapsam_getgroup: Did not find group" debug message
       Closes: #448546
+    - fix smbclient(1): useless use of cat. Closes: #429349
   * Temporarily disable documentation.patch and
     adapt_machine_creation_script.patchbecause some mess
     happened in upstream's manpages

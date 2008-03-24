@@ -1,3 +1,4 @@
+fix-manpage-htmlchars.patch
 documentation.patch
 fhs-newpaths.patch
 fhs-filespaths.patch

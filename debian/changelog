@@ -1,4 +1,4 @@
-samba (3.2.0~pre2-1) experimental; urgency=low
+samba (3.2.0~pre2-1) UNRELEASED; urgency=low
 
   * New upstream (pre-)release. It closes the following bugs:
     - typos in net.8. Closes: #460487, #460491
@@ -16,6 +16,11 @@ samba (3.2.0~pre2-1) experimental; urgency=low
     - fix "ldapsam_getgroup: Did not find group" debug message
       Closes: #448546
     - fix smbclient(1): useless use of cat. Closes: #429349
+
+  [ Steve Langasek ]
+  * debian/patches/fix-manpage-htmlchars.patch: patch all the manpages from
+    3.2.0pre2, which ended up with html entity encodings embedded in them
+    by mistake.  This patch is expected to go away again for 3.2.0pre3.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 05 Mar 2008 22:45:28 +0100
 

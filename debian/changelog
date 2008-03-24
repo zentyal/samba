@@ -1,6 +1,12 @@
 samba (3.0.28a-2) UNRELEASED; urgency=low
 
+  [ Peter Eisentraut ]
   * Removed myself from Uploaders
+
+  [ Steve Langasek ]
+  * debian/patches/manpage-encoding.patch: fix up the manpage synopses to
+    not use embedded iso8859-1 non-break spaces, there is a roff escape
+    sequence that we should use instead.  Closes: #470844.
 
  -- Peter Eisentraut <petere@debian.org>  Thu, 20 Mar 2008 11:37:06 +0100
 

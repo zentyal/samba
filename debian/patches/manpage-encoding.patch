@@ -1,0 +1,455 @@
+Goal: Don't use non-portable nbsp characters in manpage synopses
+
+Fixes: 470844
+
+Status wrt upstream: not suitable for submission
+
+Note: should be superseded by a fixed db2man toolchain upstream
+
+Index: samba-3.0.28/docs/manpages/findsmb.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/findsmb.1
++++ samba-3.0.28/docs/manpages/findsmb.1
+@@ -22,7 +22,7 @@
+ findsmb - list info about machines that respond to SMB name queries on a subnet
+ .SH "SYNOPSIS"
+ .HP 1
+-findsmb [subnet broadcast address]
++findsmb [subnet\ broadcast\ address]
+ .SH "DESCRIPTION"
+ .PP
+ This perl script is part of the
+Index: samba-3.0.28/docs/manpages/nmblookup.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/nmblookup.1
++++ samba-3.0.28/docs/manpages/nmblookup.1
+@@ -22,7 +22,7 @@
+ nmblookup - NetBIOS over TCP/IP client used to lookup NetBIOS names
+ .SH "SYNOPSIS"
+ .HP 1
+-nmblookup [-M] [-R] [-S] [-r] [-A] [-h] [-B <broadcast address>] [-U <unicast address>] [-d <debug level>] [-s <smb config file>] [-i <NetBIOS scope>] [-T] [-f] {name}
++nmblookup [-M] [-R] [-S] [-r] [-A] [-h] [-B\ <broadcast\ address>] [-U\ <unicast\ address>] [-d\ <debug\ level>] [-s\ <smb\ config\ file>] [-i\ <NetBIOS\ scope>] [-T] [-f] {name}
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbd.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbd.8
++++ samba-3.0.28/docs/manpages/smbd.8
+@@ -22,7 +22,7 @@
+ smbd - server to provide SMB/CIFS services to clients
+ .SH "SYNOPSIS"
+ .HP 1
+-smbd [-D] [-F] [-S] [-i] [-h] [-V] [-b] [-d <debug level>] [-l <log directory>] [-p <port number(s)>] [-P <profiling level>] [-O <socket option>] [-s <configuration file>]
++smbd [-D] [-F] [-S] [-i] [-h] [-V] [-b] [-d\ <debug\ level>] [-l\ <log\ directory>] [-p\ <port\ number(s)>] [-P\ <profiling\ level>] [-O\ <socket\ option>] [-s\ <configuration\ file>]
+ .SH "DESCRIPTION"
+ .PP
+ This program is part of the
+Index: samba-3.0.28/docs/manpages/wbinfo.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/wbinfo.1
++++ samba-3.0.28/docs/manpages/wbinfo.1
+@@ -22,7 +22,7 @@
+ wbinfo - Query information from winbind daemon
+ .SH "SYNOPSIS"
+ .HP 1
+-wbinfo [-a user%password] [--all-domains] [--allocate-gid] [--allocate-uid] [-D domain] [--domain domain] [-g] [--getdcname domain] [--get-auth-user] [-G gid] [-h] [-i user] [-I ip] [-K user%password] [-m] [-n name] [-N netbios-name] [--own-domain] [-p] [-r user] [-s sid] [--separator] [--sequence] [--set-auth-user user%password] [-S sid] [-t] [-u] [--user-domgroups sid] [--user-sids sid] [-U uid] [-V] [-Y sid]
++wbinfo [-a\ user%password] [--all-domains] [--allocate-gid] [--allocate-uid] [-D\ domain] [--domain\ domain] [-g] [--getdcname\ domain] [--get-auth-user] [-G\ gid] [-h] [-i\ user] [-I\ ip] [-K\ user%password] [-m] [-n\ name] [-N\ netbios-name] [--own-domain] [-p] [-r\ user] [-s\ sid] [--separator] [--sequence] [--set-auth-user\ user%password] [-S\ sid] [-t] [-u] [--user-domgroups\ sid] [--user-sids\ sid] [-U\ uid] [-V] [-Y\ sid]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/eventlogadm.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/eventlogadm.8
++++ samba-3.0.28/docs/manpages/eventlogadm.8
+@@ -22,9 +22,9 @@
+ eventlogadm - push records into the Samba event log store
+ .SH "SYNOPSIS"
+ .HP 1
+-eventlogadm [\fB-d\fR] [\fB-h\fR] \fB-o\fR addsource \fIEVENTLOG\fR \fISOURCENAME\fR \fIMSGFILE\fR
++eventlogadm [\fB-d\fR] [\fB-h\fR] \fB-o\fR\ addsource\ \fIEVENTLOG\fR\ \fISOURCENAME\fR\ \fIMSGFILE\fR
+ .HP 1
+-eventlogadm [\fB-d\fR] [\fB-h\fR] \fB-o\fR write \fIEVENTLOG\fR
++eventlogadm [\fB-d\fR] [\fB-h\fR] \fB-o\fR\ write\ \fIEVENTLOG\fR
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/profiles.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/profiles.1
++++ samba-3.0.28/docs/manpages/profiles.1
+@@ -22,7 +22,7 @@
+ profiles - A utility to report and change SIDs in registry files
+ .SH "SYNOPSIS"
+ .HP 1
+-profiles [-v] [-c SID] [-n SID] {file}
++profiles [-v] [-c\ SID] [-n\ SID] {file}
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/rpcclient.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/rpcclient.1
++++ samba-3.0.28/docs/manpages/rpcclient.1
+@@ -22,7 +22,7 @@
+ rpcclient - tool for executing client side MS-RPC functions
+ .SH "SYNOPSIS"
+ .HP 1
+-rpcclient [-A authfile] [-c <command string>] [-d debuglevel] [-h] [-l logdir] [-N] [-s <smb config file>] [-U username[%password]] [-W workgroup] [-N] [-I destinationIP] {server}
++rpcclient [-A\ authfile] [-c\ <command\ string>] [-d\ debuglevel] [-h] [-l\ logdir] [-N] [-s\ <smb\ config\ file>] [-U\ username[%password]] [-W\ workgroup] [-N] [-I\ destinationIP] {server}
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/mount.cifs.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/mount.cifs.8
++++ samba-3.0.28/docs/manpages/mount.cifs.8
+@@ -22,7 +22,7 @@
+ mount.cifs - mount using the Common Internet File System (CIFS)
+ .SH "SYNOPSIS"
+ .HP 1
+-mount.cifs {service} {mount-point} [-o options]
++mount.cifs {service} {mount-point} [-o options]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/net.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/net.8
++++ samba-3.0.28/docs/manpages/net.8
+@@ -22,7 +22,7 @@
+ net - Tool for administration of Samba and remote CIFS servers.
+ .SH "SYNOPSIS"
+ .HP 1
+-net {<ads|rap|rpc>} [-h] [-w workgroup] [-W myworkgroup] [-U user] [-I ip-address] [-p port] [-n myname] [-s conffile] [-S server] [-l] [-P] [-d debuglevel] [-V]
++net {<ads|rap|rpc>} [-h] [-w workgroup] [-W myworkgroup] [-U user] [-I ip-address] [-p port] [-n myname] [-s conffile] [-S server] [-l] [-P] [-d debuglevel] [-V]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/nmbd.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/nmbd.8
++++ samba-3.0.28/docs/manpages/nmbd.8
+@@ -22,7 +22,7 @@
+ nmbd - NetBIOS name server to provide NetBIOS over IP naming services to clients
+ .SH "SYNOPSIS"
+ .HP 1
+-nmbd [-D] [-F] [-S] [-a] [-i] [-o] [-h] [-V] [-d <debug level>] [-H <lmhosts file>] [-l <log directory>] [-p <port number>] [-s <configuration file>]
++nmbd [-D] [-F] [-S] [-a] [-i] [-o] [-h] [-V] [-d <debug level>] [-H <lmhosts file>] [-l <log directory>] [-p <port number>] [-s <configuration file>]
+ .SH "DESCRIPTION"
+ .PP
+ This program is part of the
+Index: samba-3.0.28/docs/manpages/ntlm_auth.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/ntlm_auth.1
++++ samba-3.0.28/docs/manpages/ntlm_auth.1
+@@ -22,7 +22,7 @@
+ ntlm_auth - tool to allow external access to Winbind's NTLM authentication function
+ .SH "SYNOPSIS"
+ .HP 1
+-ntlm_auth [-d debuglevel] [-l logdir] [-s <smb config file>]
++ntlm_auth [-d debuglevel] [-l logdir] [-s <smb config file>]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+@@ -122,9 +122,9 @@
+ The username, expected to be in Samba's
+ unix charset.
+ .sp
+-\fBExample 1. \fRUsername: bob
++\fBExample 1. \fRUsername: bob
+ .sp
+-\fBExample 2. \fRUsername:: Ym9i
++\fBExample 2. \fRUsername:: Ym9i
+ .RE
+ .PP
+ Username
+@@ -132,9 +132,9 @@
+ The user's domain, expected to be in Samba's
+ unix charset.
+ .sp
+-\fBExample 3. \fRDomain: WORKGROUP
++\fBExample 3. \fRDomain: WORKGROUP
+ .sp
+-\fBExample 4. \fRDomain:: V09SS0dST1VQ
++\fBExample 4. \fRDomain:: V09SS0dST1VQ
+ .RE
+ .PP
+ Full-Username
+@@ -144,9 +144,9 @@
+ and qualified with the
+ winbind separator.
+ .sp
+-\fBExample 5. \fRFull-Username: WORKGROUP\bob
++\fBExample 5. \fRFull-Username: WORKGROUP\bob
+ .sp
+-\fBExample 6. \fRFull-Username:: V09SS0dST1VQYm9i
++\fBExample 6. \fRFull-Username:: V09SS0dST1VQYm9i
+ .RE
+ .PP
+ LANMAN-Challenge
+@@ -155,7 +155,7 @@
+ LANMAN Challenge
+ value, generated randomly by the server, or (in cases such as MSCHAPv2) generated in some way by both the server and the client.
+ .sp
+-\fBExample 7. \fRLANMAN-Challege: 0102030405060708
++\fBExample 7. \fRLANMAN-Challege: 0102030405060708
+ .RE
+ .PP
+ LANMAN-Response
+@@ -165,7 +165,7 @@
+ value, calculated from the user's password and the supplied
+ LANMAN Challenge. Typically, this is provided over the network by a client wishing to authenticate.
+ .sp
+-\fBExample 8. \fRLANMAN-Response: 0102030405060708090A0B0C0D0E0F101112131415161718
++\fBExample 8. \fRLANMAN-Response: 0102030405060708090A0B0C0D0E0F101112131415161718
+ .RE
+ .PP
+ NT-Response
+@@ -175,30 +175,30 @@
+ calculated from the user's password and the supplied
+ LANMAN Challenge. Typically, this is provided over the network by a client wishing to authenticate.
+ .sp
+-\fBExample 9. \fRNT-Response: 0102030405060708090A0B0C0D0E0F101112131415161718
++\fBExample 9. \fRNT-Response: 0102030405060708090A0B0C0D0E0F101112131415161718
+ .RE
+ .PP
+ Password
+ .RS 3n
+ The user's password. This would be provided by a network client, if the helper is being used in a legacy situation that exposes plaintext passwords in this way.
+ .sp
+-\fBExample 10. \fRPassword: samba2
++\fBExample 10. \fRPassword: samba2
+ .sp
+-\fBExample 11. \fRPassword:: c2FtYmEy
++\fBExample 11. \fRPassword:: c2FtYmEy
+ .RE
+ .PP
+ Request-User-Session-Key
+ .RS 3n
+ Apon sucessful authenticaiton, return the user session key associated with the login.
+ .sp
+-\fBExample 12. \fRRequest-User-Session-Key: Yes
++\fBExample 12. \fRRequest-User-Session-Key: Yes
+ .RE
+ .PP
+ Request-LanMan-Session-Key
+ .RS 3n
+ Apon sucessful authenticaiton, return the LANMAN session key associated with the login.
+ .sp
+-\fBExample 13. \fRRequest-LanMan-Session-Key: Yes
++\fBExample 13. \fRRequest-LanMan-Session-Key: Yes
+ .RE
+ .sp
+ .it 1 an-trap
+Index: samba-3.0.28/docs/manpages/pdbedit.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/pdbedit.8
++++ samba-3.0.28/docs/manpages/pdbedit.8
+@@ -22,7 +22,7 @@
+ pdbedit - manage the SAM database (Database of Samba Users)
+ .SH "SYNOPSIS"
+ .HP 1
+-pdbedit [-L] [-v] [-w] [-u username] [-f fullname] [-h homedir] [-D drive] [-S script] [-p profile] [-a] [-t, --password-from-stdin] [-m] [-r] [-x] [-i passdb-backend] [-e passdb-backend] [-b passdb-backend] [-g] [-d debuglevel] [-s configfile] [-P account-policy] [-C value] [-c account-control] [-y]
++pdbedit [-L] [-v] [-w] [-u username] [-f fullname] [-h homedir] [-D drive] [-S script] [-p profile] [-a] [-t, --password-from-stdin] [-m] [-r] [-x] [-i passdb-backend] [-e passdb-backend] [-b passdb-backend] [-g] [-d debuglevel] [-s configfile] [-P account-policy] [-C value] [-c account-control] [-y]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbcacls.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbcacls.1
++++ samba-3.0.28/docs/manpages/smbcacls.1
+@@ -22,7 +22,7 @@
+ smbcacls - Set or get ACLs on an NT file or directory names
+ .SH "SYNOPSIS"
+ .HP 1
+-smbcacls {//server/share} {filename} [-D acls] [-M acls] [-a acls] [-S acls] [-C name] [-G name] [--numeric] [-t] [-U username] [-h] [-d]
++smbcacls {//server/share} {filename} [-D acls] [-M acls] [-a acls] [-S acls] [-C name] [-G name] [--numeric] [-t] [-U username] [-h] [-d]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbclient.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbclient.1
++++ samba-3.0.28/docs/manpages/smbclient.1
+@@ -22,9 +22,9 @@
+ smbclient - ftp-like client to access SMB/CIFS resources on servers
+ .SH "SYNOPSIS"
+ .HP 1
+-smbclient [-b <buffer size>] [-d debuglevel] [-L <netbios name>] [-U username] [-I destinationIP] [-M <netbios name>] [-m maxprotocol] [-A authfile] [-N] [-i scope] [-O <socket options>] [-p port] [-R <name resolve order>] [-s <smb config file>] [-k] [-P] [-c <command>]
++smbclient [-b <buffer size>] [-d debuglevel] [-L <netbios name>] [-U username] [-I destinationIP] [-M <netbios name>] [-m maxprotocol] [-A authfile] [-N] [-i scope] [-O <socket options>] [-p port] [-R <name resolve order>] [-s <smb config file>] [-k] [-P] [-c <command>]
+ .HP 1
+-smbclient {servicename} [password] [-b <buffer size>] [-d debuglevel] [-D Directory] [-U username] [-W workgroup] [-M <netbios name>] [-m maxprotocol] [-A authfile] [-N] [-l logdir] [-I destinationIP] [-E] [-c <command string>] [-i scope] [-O <socket options>] [-p port] [-R <name resolve order>] [-s <smb config file>] [-T<c|x>IXFqgbNan] [-k]
++smbclient {servicename} [password] [-b <buffer size>] [-d debuglevel] [-D Directory] [-U username] [-W workgroup] [-M <netbios name>] [-m maxprotocol] [-A authfile] [-N] [-l logdir] [-I destinationIP] [-E] [-c <command string>] [-i scope] [-O <socket options>] [-p port] [-R <name resolve order>] [-s <smb config file>] [-T<c|x>IXFqgbNan] [-k]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbcquotas.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbcquotas.1
++++ samba-3.0.28/docs/manpages/smbcquotas.1
+@@ -22,7 +22,7 @@
+ smbcquotas - Set or get QUOTAs of NTFS 5 shares
+ .SH "SYNOPSIS"
+ .HP 1
+-smbcquotas {//server/share} [-u user] [-L] [-F] [-S QUOTA_SET_COMMAND] [-n] [-t] [-v] [-d debuglevel] [-s configfile] [-l logdir] [-V] [-U username] [-N] [-k] [-A]
++smbcquotas {//server/share} [-u user] [-L] [-F] [-S QUOTA_SET_COMMAND] [-n] [-t] [-v] [-d debuglevel] [-s configfile] [-l logdir] [-V] [-U username] [-N] [-k] [-A]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbget.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbget.1
++++ samba-3.0.28/docs/manpages/smbget.1
+@@ -22,7 +22,7 @@
+ smbget - wget-like utility for download files over SMB
+ .SH "SYNOPSIS"
+ .HP 1
+-smbget [-a, --guest] [-r, --resume] [-R, --recursive] [-u, --username=STRING] [-p, --password=STRING] [-w, --workgroup=STRING] [-n, --nonprompt] [-d, --debuglevel=INT] [-D, --dots] [-P, --keep-permissions] [-o, --outputfile] [-f, --rcfile] [-q, --quiet] [-v, --verbose] [-b, --blocksize] [-?, --help] [--usage] {smb://host/share/path/to/file} [smb://url2/] [...]
++smbget [-a, --guest] [-r, --resume] [-R, --recursive] [-u, --username=STRING] [-p, --password=STRING] [-w, --workgroup=STRING] [-n, --nonprompt] [-d, --debuglevel=INT] [-D, --dots] [-P, --keep-permissions] [-o, --outputfile] [-f, --rcfile] [-q, --quiet] [-v, --verbose] [-b, --blocksize] [-?, --help] [--usage] {smb://host/share/path/to/file} [smb://url2/] [...]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbmnt.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbmnt.8
++++ samba-3.0.28/docs/manpages/smbmnt.8
+@@ -22,7 +22,7 @@
+ smbmnt - helper utility for mounting SMB filesystems
+ .SH "SYNOPSIS"
+ .HP 1
+-smbmnt {mount-point} [-s <share>] [-r] [-u <uid>] [-g <gid>] [-f <mask>] [-d <mask>] [-o <options>] [-h]
++smbmnt {mount-point} [-s <share>] [-r] [-u <uid>] [-g <gid>] [-f <mask>] [-d <mask>] [-o <options>] [-h]
+ .SH "DESCRIPTION"
+ .PP
+ smbmnt
+Index: samba-3.0.28/docs/manpages/smbmount.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbmount.8
++++ samba-3.0.28/docs/manpages/smbmount.8
+@@ -22,7 +22,7 @@
+ smbmount - mount an smbfs filesystem
+ .SH "SYNOPSIS"
+ .HP 1
+-smbmount {service} {mount-point} [-o options]
++smbmount {service} {mount-point} [-o options]
+ .SH "DESCRIPTION"
+ .PP
+ smbmount
+Index: samba-3.0.28/docs/manpages/smbpasswd.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbpasswd.8
++++ samba-3.0.28/docs/manpages/smbpasswd.8
+@@ -22,7 +22,7 @@
+ smbpasswd - change a user's SMB password
+ .SH "SYNOPSIS"
+ .HP 1
+-smbpasswd [-a] [-c <config file>] [-x] [-d] [-e] [-D debuglevel] [-n] [-r <remote machine>] [-R <name resolve order>] [-m] [-U username[%password]] [-h] [-s] [-w pass] [-W] [-i] [-L] [username]
++smbpasswd [-a] [-c <config file>] [-x] [-d] [-e] [-D debuglevel] [-n] [-r <remote machine>] [-R <name resolve order>] [-m] [-U username[%password]] [-h] [-s] [-w pass] [-W] [-i] [-L] [username]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbsh.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbsh.1
++++ samba-3.0.28/docs/manpages/smbsh.1
+@@ -22,7 +22,7 @@
+ smbsh - Allows access to remote SMB shares using UNIX commands
+ .SH "SYNOPSIS"
+ .HP 1
+-smbsh [-W workgroup] [-U username] [-P prefix] [-R <name resolve order>] [-d <debug level>] [-l logdir] [-L libdir]
++smbsh [-W workgroup] [-U username] [-P prefix] [-R <name resolve order>] [-d <debug level>] [-l logdir] [-L libdir]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbstatus.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbstatus.1
++++ samba-3.0.28/docs/manpages/smbstatus.1
+@@ -22,7 +22,7 @@
+ smbstatus - report on current Samba connections
+ .SH "SYNOPSIS"
+ .HP 1
+-smbstatus [-P] [-b] [-d <debug level>] [-v] [-L] [-B] [-p] [-S] [-s <configuration file>] [-u <username>]
++smbstatus [-P] [-b] [-d <debug level>] [-v] [-L] [-B] [-p] [-S] [-s <configuration file>] [-u <username>]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/smbtar.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/smbtar.1
++++ samba-3.0.28/docs/manpages/smbtar.1
+@@ -22,7 +22,7 @@
+ smbtar - shell script for backing up SMB/CIFS shares directly to UNIX tape drives
+ .SH "SYNOPSIS"
+ .HP 1
+-smbtar [-r] [-i] [-a] [-v] {-s server} [-p password] [-x services] [-X] [-N filename] [-b blocksize] [-d directory] [-l loglevel] [-u user] [-t tape] {filenames}
++smbtar [-r] [-i] [-a] [-v] {-s server} [-p password] [-x services] [-X] [-N filename] [-b blocksize] [-d directory] [-l loglevel] [-u user] [-t tape] {filenames}
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/swat.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/swat.8
++++ samba-3.0.28/docs/manpages/swat.8
+@@ -22,7 +22,7 @@
+ swat - Samba Web Administration Tool
+ .SH "SYNOPSIS"
+ .HP 1
+-swat [-s <smb config file>] [-a] [-P]
++swat [-s <smb config file>] [-a] [-P]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/tdbbackup.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/tdbbackup.8
++++ samba-3.0.28/docs/manpages/tdbbackup.8
+@@ -22,7 +22,7 @@
+ tdbbackup - tool for backing up and for validating the integrity of samba .tdb files
+ .SH "SYNOPSIS"
+ .HP 1
+-tdbbackup [-s suffix] [-v] [-h]
++tdbbackup [-s suffix] [-v] [-h]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/testparm.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/testparm.1
++++ samba-3.0.28/docs/manpages/testparm.1
+@@ -22,7 +22,7 @@
+ testparm - check an smb.conf configuration file for internal correctness
+ .SH "SYNOPSIS"
+ .HP 1
+-testparm [-s] [-h] [-v] [-L <servername>] [-t <encoding>] {config filename} [hostname hostIP]
++testparm [-s] [-h] [-v] [-L <servername>] [-t <encoding>] {config filename} [hostname hostIP]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/vfstest.1
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/vfstest.1
++++ samba-3.0.28/docs/manpages/vfstest.1
+@@ -22,7 +22,7 @@
+ vfstest - tool for testing samba VFS modules
+ .SH "SYNOPSIS"
+ .HP 1
+-vfstest [-d debuglevel] [-c command] [-l logdir] [-h]
++vfstest [-d debuglevel] [-c command] [-l logdir] [-h]
+ .SH "DESCRIPTION"
+ .PP
+ This tool is part of the
+Index: samba-3.0.28/docs/manpages/winbindd.8
+===================================================================
+--- samba-3.0.28.orig/docs/manpages/winbindd.8
++++ samba-3.0.28/docs/manpages/winbindd.8
+@@ -22,7 +22,7 @@
+ winbindd - Name Service Switch daemon for resolving names from NT servers
+ .SH "SYNOPSIS"
+ .HP 1
+-winbindd [-F] [-S] [-i] [-Y] [-d <debug level>] [-s <smb config file>] [-n]
++winbindd [-F] [-S] [-i] [-Y] [-d <debug level>] [-s <smb config file>] [-n]
+ .SH "DESCRIPTION"
+ .PP
+ This program is part of the

@@ -1,4 +1,3 @@
-cups.patch
 #documentation.patch
 #fhs-newpaths.patch
 #fhs-filespaths.patch
@@ -22,3 +21,6 @@ autoconf.patch
 cifs-umount-trailing-slashes.patch
 #cifs-umount-same-user.patch
 smbpasswd-syslog.patch
+get_global_sam_sid-non-root.patch
+usershare.patch
+chgpasswd.patch

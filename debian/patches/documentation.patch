@@ -6,12 +6,12 @@ Status wrt upstream: Debian specific
 
 Note: Some part should maybe go in the FHS patch
 
-Index: samba-3.0.28a/docs/manpages/swat.8
+Index: samba-3.2.0~pre2/docs/manpages/swat.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/swat.8
-+++ samba-3.0.28a/docs/manpages/swat.8
-@@ -111,60 +111,6 @@
- .RS 3n
+--- samba-3.2.0~pre2.orig/docs/manpages/swat.8
++++ samba-3.2.0~pre2/docs/manpages/swat.8
+@@ -111,59 +111,6 @@
+ .RS 4
  Print a summary of command line options.
  .RE
 -.SH "INSTALLATION"
@@ -23,13 +23,12 @@ Index: samba-3.0.28a/docs/manpages/swat.8
 -to install the
 -swat
 -binary and the various help files and images. A default install would put these in:
--.TP 3n
 -\(bu
 -/usr/local/samba/sbin/swat
--.TP 3n
+-.TP
 -\(bu
 -/usr/local/samba/swat/images/*
--.TP 3n
+-.TP
 -\(bu
 -/usr/local/samba/swat/help/*
 -.SS "Inetd Installation"
@@ -71,13 +70,13 @@ Index: samba-3.0.28a/docs/manpages/swat.8
  .SH "LAUNCHING"
  .PP
  To launch SWAT just run your favorite web browser and point it at "http://localhost:901/".
-@@ -182,14 +128,11 @@
+@@ -181,14 +128,11 @@
  This file must contain a mapping of service name (e.g., swat) to service port (e.g., 901) and protocol type (e.g., tcp).
  .RE
  .PP
 -\fI/usr/local/samba/lib/smb.conf\fR
 +\fI/etc/samba/smb.conf\fR
- .RS 3n
+ .RS 4
  This is the default location of the
  \fBsmb.conf\fR(5)
 -server configuration file that swat edits. Other common places that systems install this file are
@@ -88,10 +87,10 @@ Index: samba-3.0.28a/docs/manpages/swat.8
  .RE
  .SH "WARNINGS"
  .PP
-Index: samba-3.0.28a/docs/manpages/nmbd.8
+Index: samba-3.2.0~pre2/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/nmbd.8
-+++ samba-3.0.28a/docs/manpages/nmbd.8
+--- samba-3.2.0~pre2.orig/docs/manpages/nmbd.8
++++ samba-3.2.0~pre2/docs/manpages/nmbd.8
 @@ -113,11 +113,9 @@
  to answer any name queries. Adding a line to this file affects name NetBIOS resolution from this host
  \fBONLY\fR.
@@ -113,7 +112,7 @@ Index: samba-3.0.28a/docs/manpages/nmbd.8
  .PP
 -\fI/usr/local/samba/lib/smb.conf\fR
 +\fI/etc/samba/smb.conf\fR
- .RS 3n
+ .RS 4
  This is the default location of the
  \fBsmb.conf\fR(5)
 -server configuration file. Other common places that systems install this file are
@@ -137,17 +136,17 @@ Index: samba-3.0.28a/docs/manpages/nmbd.8
  nmbd
  to dump out its server database in the
  \fIlog.nmb\fR
-Index: samba-3.0.28a/docs/manpages/smbd.8
+Index: samba-3.2.0~pre2/docs/manpages/smbd.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/smbd.8
-+++ samba-3.0.28a/docs/manpages/smbd.8
+--- samba-3.2.0~pre2.orig/docs/manpages/smbd.8
++++ samba-3.2.0~pre2/docs/manpages/smbd.8
 @@ -168,14 +168,11 @@
  inetd, this file must contain a mapping of service name (e.g., netbios-ssn) to service port (e.g., 139) and protocol type (e.g., tcp).
  .RE
  .PP
 -\fI/usr/local/samba/lib/smb.conf\fR
 +\fI/etc/samba/smb.conf\fR
- .RS 3n
+ .RS 4
  This is the default location of the
  \fBsmb.conf\fR(5)
 -server configuration file. Other common places that systems install this file are
@@ -158,11 +157,11 @@ Index: samba-3.0.28a/docs/manpages/smbd.8
  .sp
  This file describes all the services the server is to make available to clients. See
  \fBsmb.conf\fR(5)
-Index: samba-3.0.28a/docs/manpages/lmhosts.5
+Index: samba-3.2.0~pre2/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/lmhosts.5
-+++ samba-3.0.28a/docs/manpages/lmhosts.5
-@@ -77,10 +77,8 @@
+--- samba-3.2.0~pre2.orig/docs/manpages/lmhosts.5
++++ samba-3.2.0~pre2/docs/manpages/lmhosts.5
+@@ -76,10 +76,8 @@
  file.
  .SH "FILES"
  .PP
@@ -175,10 +174,10 @@ Index: samba-3.0.28a/docs/manpages/lmhosts.5
  .SH "VERSION"
  .PP
  This man page is correct for version 3.0 of the Samba suite.
-Index: samba-3.0.28a/docs/manpages/ntlm_auth.1
+Index: samba-3.2.0~pre2/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/ntlm_auth.1
-+++ samba-3.0.28a/docs/manpages/ntlm_auth.1
+--- samba-3.2.0~pre2.orig/docs/manpages/ntlm_auth.1
++++ samba-3.2.0~pre2/docs/manpages/ntlm_auth.1
 @@ -43,7 +43,7 @@
  Some of these commands also require access to the directory
  \fIwinbindd_privileged\fR
@@ -188,7 +187,7 @@ Index: samba-3.0.28a/docs/manpages/ntlm_auth.1
  \fIwinbindd_privileged\fR
  directory. For security reasons, this directory should not be world-accessable.
  .SH "OPTIONS"
-@@ -71,7 +71,7 @@
+@@ -69,7 +69,7 @@
  Requires access to the directory
  \fIwinbindd_privileged\fR
  in
@@ -197,7 +196,7 @@ Index: samba-3.0.28a/docs/manpages/ntlm_auth.1
  http://devel.squid-cache.org/ntlm/squid_helper_protocol.html. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the
  YR
  command. (Thus avoiding loss of information in the protocol exchange).
-@@ -94,7 +94,7 @@
+@@ -92,7 +92,7 @@
  Requires access to the directory
  \fIwinbindd_privileged\fR
  in
@@ -206,23 +205,23 @@ Index: samba-3.0.28a/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss-spnego-client
-Index: samba-3.0.28a/docs/manpages/tdbbackup.8
+Index: samba-3.2.0~pre2/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/tdbbackup.8
-+++ samba-3.0.28a/docs/manpages/tdbbackup.8
-@@ -70,17 +70,17 @@
+--- samba-3.2.0~pre2.orig/docs/manpages/tdbbackup.8
++++ samba-3.2.0~pre2/docs/manpages/tdbbackup.8
+@@ -69,17 +69,17 @@
  \(bu
  
  secrets.tdb
 -- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba.
-+- in the /var/lib/samba directory.
- .TP 3n
++- usual location is in the /var/lib/samba directory.
+ .TP
  \(bu
  
  passdb.tdb
 -- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba.
-+- in the /var/lib/samba directory.
- .TP 3n
++- usual location is in the /var/lib/samba directory.
+ .TP
  \(bu
  
  *.tdb
@@ -231,17 +230,17 @@ Index: samba-3.0.28a/docs/manpages/tdbbackup.8
  .SH "VERSION"
  .PP
  This man page is correct for version 3.0 of the Samba suite.
-Index: samba-3.0.28a/docs/manpages/winbindd.8
+Index: samba-3.2.0~pre2/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/winbindd.8
-+++ samba-3.0.28a/docs/manpages/winbindd.8
-@@ -440,16 +440,16 @@
+--- samba-3.2.0~pre2.orig/docs/manpages/winbindd.8
++++ samba-3.2.0~pre2/docs/manpages/winbindd.8
+@@ -447,16 +447,16 @@
  file are owned by root.
  .RE
  .PP
 -$LOCKDIR/winbindd_privileged/pipe
 +/var/run/samba/winbindd_privileged/pipe
- .RS 3n
+ .RS 4
  The UNIX pipe over which 'privileged' clients communicate with the
  winbindd
  program. For security reasons, access to some winbindd functions - like those needed by the
@@ -256,13 +255,13 @@ Index: samba-3.0.28a/docs/manpages/winbindd.8
  file are owned by root.
  .RE
  .PP
-@@ -458,15 +458,12 @@
+@@ -465,15 +465,12 @@
  Implementation of name service switch library.
  .RE
  .PP
 -$LOCKDIR/winbindd_idmap.tdb
 +/var/run/samba/winbindd_idmap.tdb
- .RS 3n
+ .RS 4
 -Storage for the Windows NT rid to UNIX user/group id mapping. The lock directory is specified when Samba is initially compiled using the
 -\fI--with-lockdir\fR
 -option. This directory is by default
@@ -272,6 +271,6 @@ Index: samba-3.0.28a/docs/manpages/winbindd.8
  .PP
 -$LOCKDIR/winbindd_cache.tdb
 +/var/run/samba/winbindd_cache.tdb
- .RS 3n
+ .RS 4
  Storage for cached user and group information.
  .RE

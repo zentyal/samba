@@ -55,7 +55,8 @@ case "$1" in
 		log_end_msg 0
 		;;
 	stop)
-		log_daemon_msg "Stopping Samba daemons" "nmbd"
+		log_daemon_msg "Stopping Samba daemons"
+		log_progress_msg "nmbd"
 
 		start-stop-daemon --stop --quiet --pidfile $NMBDPID
 		# Wait a little and remove stale PID file

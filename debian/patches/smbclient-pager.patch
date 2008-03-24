@@ -8,10 +8,10 @@ Author: Steve Langasek <vorlon@debian.org>
 
 Note: 
 
-Index: samba-3.0.25c/source/include/local.h
+Index: samba-3.0.28a/source/include/local.h
 ===================================================================
---- samba-3.0.25c.orig/source/include/local.h	2007-08-26 12:07:16.098322677 +0200
-+++ samba-3.0.25c/source/include/local.h	2007-08-26 13:09:03.419652692 +0200
+--- samba-3.0.28a.orig/source/include/local.h
++++ samba-3.0.28a/source/include/local.h
 @@ -109,7 +109,7 @@
  /* the default pager to use for the client "more" command. Users can
     override this with the PAGER environment variable */

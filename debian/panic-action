@@ -48,9 +48,16 @@ type mail >/dev/null 2>&1 || exit 0
 	echo "If the problem persists, you are encouraged to first install the"
 	echo "samba-dbg package, which contains the debugging symbols for the Samba"
 	echo "binaries.  Then submit the provided information as a bug report to"
-	echo "Debian.  For information about the procedure for submitting bug reports,"
-	echo "please see http://www.debian.org/Bugs/Reporting or the reportbug(1)"
-	echo "manual page."
+	if [ -x "`which lsb_release 2>/dev/null`" ] \
+	   && [ "`lsb_release -s -i`" = "Ubuntu" ]
+	then
+		echo "Ubuntu by visiting this link:"
+		echo "https://launchpad.net/ubuntu/+source/samba/+filebug"
+	else
+		echo "Debian.  For information about the procedure for submitting bug reports,"
+		echo "please see http://www.debian.org/Bugs/Reporting or the reportbug(1)"
+		echo "manual page."
+	fi
 	echo
 	gdb -x /etc/samba/gdbcommands -batch "$BINARYNAME" "$1"
 ) | mail -s "Panic or segfault in Samba" root

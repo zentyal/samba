@@ -19,12 +19,152 @@ samba (3.2.0~pre2-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 05 Mar 2008 22:45:28 +0100
 
-samba (3.0.27-2) UNRELEASED; urgency=low
+samba (3.0.28a-1) unstable; urgency=low
 
+  [ Christian Perrier ]
+  * New upstream release. This fixes the following Debian bugs:
+    - Prevent nmbd from shutting down when no network
+      interfaces can be located. Closes: #433449
+  * Debian patches dropped as applied upstream:
+    - make-distclean.patch
+    - linux-cifs-user-perms.patch
+    - cifs-umount-same-user.patch
+    - get_global_sam_sid-non-root.patch
+    - chgpasswd.patch
+    - cups.patch
+  * Fix doc-base section from Apps/Net to Network
+  * Fix copyright in debian/copyright
+  * Updated Standards-Version to 3.7.3 (no changes needed)
+  * [Lintian] No longer use -1 revision for the libacl-dev build
+    dependency
+
+  [ Steve Langasek ]
+  * Merge smb.conf changes from Ubuntu:
+    - correct an inconsistency inthe winbind enum comment
+    - correct default and example settings to use the canonical names for all
+      options, rather than historical synonyms
+    - clarify the comment for 'max log size'.
+    Thanks to Chuck Short and Richard Laager.
+  * Add an additional sed command to samba-common.postinst to cleverly
+    pick up any shares that have been appended to the default smb.conf 
+    and exclude them from the ucf diff.
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 14 Mar 2008 21:28:16 +0100
+
+samba (3.0.28-4) unstable; urgency=low
+ 
+  [ Steve Langasek ]
+  * Brown paper bag: fix samba-common.files to list all of the smb.conf
+    templates, not just the current one.  Closes: #470138.
+  * Drop debian/patches/gcc42-arm-workaround.patch, which should have been
+    dropped in the previous upload
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 09 Mar 2008 04:09:26 -0700
+
+samba (3.0.28-3) unstable; urgency=low
+
+  * Drop the arm optimization workaround, as the compiler is now reported
+    to be fixed.
+  * Add missing eventlogadm(8) manpage.
+  * Refresh the list of Linux architectures from type-handling, to pick up
+    libacl-dev on armel.  Closes: #465121.
+  * Convert handling of smb.conf to use ucf, so that we can sanely manage
+    syntax changes going forward.
+  * In the process, fix the dhcp handling to allow proper reconfiguration
+    via debconf.
+
+  [ Debconf translations ]
+  * Indonesian added. Closes: #469976
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 08 Mar 2008 17:11:16 -0800
+
+samba (3.0.28-2) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * Drop some further code in samba-common.postinst that's specific to
+    pre-3.0 upgrades.
+  * Make the mount.smbfs wrapper a bash script instead of a POSIX sh script,
+    so we can use bash array variables and cope with arguments containing
+    embedded spaces (such as share names).  Thanks to Julian Gilbey
+    <jdg@debian.org> for the patch.  Closes: #457105.
+  * debian/patches/gcc42-arm-workaround.patch: work around an arm compiler
+    problem by building rpc_parse/parse_prs.o with -O0 on this architecture.
+    Thanks to Martin Michlmayr for helping to pin down the problem file.
+    Closes: #445566.
+  * mount.smbfs: map the smbfs "guest" option to "guest,sec=none", which is
+    a closer approximation of the semantics with cifs.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 Jan 2008 09:46:06 +0100
+
+samba (3.0.28-1) unstable; urgency=high
+
+  * New upstream release. Security fix
+  * Fix a remote code execution vulnerability when running as a domain
+    logon server (PDC or BDC).  (CVE-2007-6015)
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 11 Dec 2007 00:12:11 +0530
+
+samba (3.0.27a-2) unstable; urgency=low
+
+  * debian/patches/disable-weak-auth.patch: disable plaintext authentication
+    on the client, and lanman authentication on both client and server, by
+    default since these are only needed for Win9x or Samba with encrypted
+    passwords disabled and are potential password attack vectors.  This
+    change is backported from Samba 3.2.  LP: #163194.
+  * Don't build the userspace tools for the deprecated smbfs kernel driver
+    anymore; instead, use a shell wrapper around mount.cifs that translates
+    option names between the smbfs and cifs drivers.
+    Closes: #169624, #256637, #265468, #289179, #305210, #410075;
+    LP: #29413
+  * debian/panic-action: detect when we're on an Ubuntu system and direct bug
+    reporters to Launchpad instead of to the Debian BTS.  Closes: #452940.
+  * debian/samba.init: call log_progress_msg separately for each daemon on
+    stop rather than passing a second arg to log_daemon_msg, for greater
+    compatibility with both Debian and Ubuntu LSB initscript implementations.
+    Closes: #453350.
+  * Drop smbldap-tools to Suggests:, consistent with the textbook meaning of
+    recommends/suggests which is now implemented correctly in apt.
+    Closes: #453144.
+  * Get rid of the build-dependency on type-handling:
+    - add a new target, "update-archs", to be invoked by hand to refresh
+      the list of known Linux architectures for the libacl1-dev
+      build-dep; this avoids the clean target making changes to
+      debian/control
+    - rework the sed line so that it works in-place on debian/control,
+      so we can get rid of debian/control.in as well and just update
+      debian/control directly
+    Closes: #340570.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 04 Dec 2007 18:35:29 -0800
+
+samba (3.0.27a-1) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * New upstream release
+    - fix regression with smbfs clients, introduced by the security fix in
+      3.0.27.  Closes: #451839.
+    - debian/patches/cifs-umount-trailing-slashes.patch: merged upstream.
   * Drop the deprecated "printer admin" example from the default smb.conf.
     Closes: #451273.
+  * Add a *new* debian/patches/cups.patch to *enable* cups as the default
+    printing system, because since the original introduction of this patch
+    in Debian there was a regression upstream that caused cups to never be
+    selected as the default print system.
+  * Set the default value for the workgroup question to "WORKGROUP" in
+    samba-common.templates, not just in the template smb.conf, so that the
+    debconf question comes out right every time; and always treat this
+    as a high-priority debconf question instead of selecting the
+    priority based on whether there's an existing value, since there's
+    now *always* an existing value but the value doesn't tell us
+    anything meaningful about the user's preference.  Closes: #451271.
+  * Drop some code from samba.postinst that only applies to upgrades from
+    pre-3.0 (i.e., pre-sarge) packages
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 19 Nov 2007 12:57:26 -0800
+  [ Christian Perrier ]
+  * Update the "built by" part of README.debian
+  * Remove the very outdated parts of README.debian
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 23 Nov 2007 13:04:52 -0800
 
 samba (3.0.27-1) unstable; urgency=low
 

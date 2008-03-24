@@ -1,4 +1,2 @@
 smbfs: setuid-binary sbin/mount.cifs 4755 root/root
 smbfs: setuid-binary sbin/umount.cifs 4755 root/root
-smbfs: setuid-gid-binary usr/bin/smbumount 6755 root/root
-smbfs: setuid-binary usr/bin/smbmnt 4755 root/root

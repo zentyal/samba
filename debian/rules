@@ -35,7 +35,7 @@ conf_args = \
 		--disable-pie \
 		--prefix=/usr \
 		--sysconfdir=/etc \
-		--libdir=/etc/samba \
+		--libdir=/usr/lib/samba \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
 		--localstatedir=/var \

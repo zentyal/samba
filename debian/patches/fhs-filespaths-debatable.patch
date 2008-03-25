@@ -50,7 +50,7 @@ Index: samba-3.2.0pre2/source/lib/util.c
 ===================================================================
 --- samba-3.2.0pre2.orig/source/lib/util.c
 +++ samba-3.2.0pre2/source/lib/util.c
-@@ -2543,6 +2543,27 @@
+@@ -2543,6 +2543,15 @@
  	return xx_path(name, get_dyn_STATEDIR());
  }
  
@@ -60,19 +60,7 @@ Index: samba-3.2.0pre2/source/lib/util.c
 + *****************************************************************/
 +char *cache_path(char *name)
 +{
-+	static pstring fname;
-+
-+	pstrcpy(fname,dyn_CACHEDIR());
-+	trim_string(fname,"","/");
-+
-+	if (!directory_exist(fname,NULL)) {
-+			mkdir(fname,0755);
-+	}
-+
-+	pstrcat(fname,"/");
-+	pstrcat(fname,name);
-+
-+	return fname;
++	return xx_path(name, get_dyn_CACHEDIR());
 +}
 +
  /**

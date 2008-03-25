@@ -97,7 +97,7 @@ Index: samba-3.2.0pre2/source/nmbd/nmbd_serverlistdb.c
  	updatecount++;
  
 -	fname = talloc_strdup(ctx, lp_lockdir());
-+	fname = talloc_strdup(ctx, dyn_CACHEDIR());
++	fname = talloc_strdup(ctx, get_dyn_CACHEDIR());
  	if (!fname) {
  		return;
  	}
@@ -110,7 +110,7 @@ Index: samba-3.2.0pre2/source/passdb/login_cache.c
  	if (cache) return True;
  
 -	asprintf(&cache_fname, "%s/%s", lp_lockdir(), LOGIN_CACHE_FILE);
-+	asprintf(&cache_fname, "%s/%s", dyn_CACHEDIR(), LOGIN_CACHE_FILE);
++	asprintf(&cache_fname, "%s/%s", get_dyn_CACHEDIR(), LOGIN_CACHE_FILE);
  	if (cache_fname)
  		DEBUG(5, ("Opening cache file at %s\n", cache_fname));
  	else {

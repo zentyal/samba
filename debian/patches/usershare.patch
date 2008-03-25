@@ -8,20 +8,20 @@ Authors: Mathias Gug <mathiaz@ubuntu.com>,
 
 Status wrt upstream: Debian-specific
 
-Index: samba-3.0.28a/docs/manpages/smb.conf.5
+Index: samba-3.2.0pre2/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/smb.conf.5
-+++ samba-3.0.28a/docs/manpages/smb.conf.5
-@@ -253,7 +253,7 @@
+--- samba-3.2.0pre2.orig/docs/manpages/smb.conf.5
++++ samba-3.2.0pre2/docs/manpages/smb.conf.5
+@@ -252,7 +252,7 @@
  .PP
  usershare path
- .RS 3n
+ .RS 4
 -Points to the directory containing the user defined share definitions. The filesystem permissions on this directory control who can create user defined shares.
 +Points to the directory containing the user-defined share definitions. The filesystem permissions on this directory control who can create user-defined shares.
  .RE
  .PP
  usershare prefix allow list
-@@ -271,32 +271,7 @@
+@@ -270,32 +270,7 @@
  Names a pre-existing share used as a template for creating new usershares. All other share parameters not specified in the user defined share definition are copied from this named share.
  .RE
  .PP
@@ -54,11 +54,11 @@ Index: samba-3.0.28a/docs/manpages/smb.conf.5
 +Members of the \fBsambashare\fR group can manipulate the user-defined shares using the following commands:
  .PP
  net usershare add sharename path [comment] [acl] [guest_ok=[y|n]]
- .RS 3n
-@@ -6964,9 +6939,9 @@
+ .RS 4
+@@ -7083,9 +7058,9 @@
  .PP
  usershare path (G)
- .RS 3n
+ .RS 4
 -This parameter specifies the absolute path of the directory on the filesystem used to store the user defined share definition files. This directory must be owned by root, and have no access for other, and be writable only by the group owner. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured). Members of the group owner of this directory are the users allowed to create usershares. If this parameter is undefined then no user defined shares are allowed.
 +This parameter specifies the absolute path of the directory on the filesystem used to store the user-defined share definition files. This directory must be owned by root, and have no access for other, and be writable only by the group owner. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured). Members of the group owner of this directory are the users allowed to create usershares. If this parameter is undefined then no user-defined shares are allowed.
  .sp
@@ -67,7 +67,7 @@ Index: samba-3.0.28a/docs/manpages/smb.conf.5
  .sp
  
  
-@@ -6974,16 +6949,16 @@
+@@ -7093,16 +7068,16 @@
  
  .nf
  
@@ -88,39 +88,39 @@ Index: samba-3.0.28a/docs/manpages/smb.conf.5
  .RE
  .PP
  usershare prefix allow list (G)
-Index: samba-3.0.28a/docs/manpages/net.8
+Index: samba-3.2.0pre2/docs/manpages/net.8
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/net.8
-+++ samba-3.0.28a/docs/manpages/net.8
-@@ -675,9 +675,9 @@
- Store a secret for the sepcified domain, used primarily for domains that use idmap_ldap as a backend. In this case the secret is used as the password for the user DN used to bind to the ldap server.
+--- samba-3.2.0pre2.orig/docs/manpages/net.8
++++ samba-3.2.0pre2/docs/manpages/net.8
+@@ -677,9 +677,9 @@
+ Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend. In this case the secret is used as the password for the user DN used to bind to the ldap server.
  .SS "USERSHARE"
  .PP
--Starting with version 3.0.23, a Samba server now supports the ability for non-root users to add user define shares to be exported using the "net usershare" commands.
+-Starting with version 3.0.23, a Samba server now supports the ability for non-root users to add user defined shares to be exported using the "net usershare" commands.
 +Starting with version 3.0.23, a Samba server now supports the ability for non-root users to add user-defined shares to be exported using the "net usershare" commands.
  .PP
--To set this up, first set up your smb.conf by adding to the [global] section : usershare path = /usr/local/samba/lib/usershares Next create the directory /usr/local/samba/lib/usershares, change the owner to root and set the group owner to the UNIX group who should have the ability to create usershares, for example a group called "serverops". Set the permissions on /usr/local/samba/lib/usershares to 01770. (Owner and group all access, no access for others, plus the sticky bit, which means that a file in that directory can be renamed or deleted only by the owner of the file). Finally, tell smbd how many usershares you will allow by adding to the [global] section of smb.conf a line such as : usershare max shares = 100. To allow 100 usershare definitions. Now, members of the UNIX group "serverops" can create user defined shares on demand using the commands below.
+-To set this up, first set up your smb.conf by adding to the [global] section: usershare path = /usr/local/samba/lib/usershares Next create the directory /usr/local/samba/lib/usershares, change the owner to root and set the group owner to the UNIX group who should have the ability to create usershares, for example a group called "serverops". Set the permissions on /usr/local/samba/lib/usershares to 01770. (Owner and group all access, no access for others, plus the sticky bit, which means that a file in that directory can be renamed or deleted only by the owner of the file). Finally, tell smbd how many usershares you will allow by adding to the [global] section of smb.conf a line such as : usershare max shares = 100. To allow 100 usershare definitions. Now, members of the UNIX group "serverops" can create user defined shares on demand using the commands below.
 +Members of the UNIX group "sambashare" can create user-defined shares on demand using the commands below.
  .PP
  The usershare commands are:
- .IP "" 3n
-Index: samba-3.0.28a/source/param/loadparm.c
+ .IP "" 4
+Index: samba-3.2.0pre2/source/param/loadparm.c
 ===================================================================
---- samba-3.0.28a.orig/source/param/loadparm.c
-+++ samba-3.0.28a/source/param/loadparm.c
-@@ -1689,7 +1689,7 @@
- 	pstrcat(s, "/usershares");
+--- samba-3.2.0pre2.orig/source/param/loadparm.c
++++ samba-3.2.0pre2/source/param/loadparm.c
+@@ -1745,7 +1745,7 @@
  	string_set(&Globals.szUsersharePath, s);
+ 	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");
 -	Globals.iUsershareMaxShares = 0;
 +	Globals.iUsershareMaxShares = 100;
  	/* By default disallow sharing of directories not owned by the sharer. */
  	Globals.bUsershareOwnerOnly = True;
  	/* By default disallow guest access to usershares. */
-Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
+Index: samba-3.2.0pre2/docs/htmldocs/manpages/smb.conf.5.html
 ===================================================================
---- samba-3.0.28a.orig/docs/htmldocs/manpages/smb.conf.5.html
-+++ samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
+--- samba-3.2.0pre2.orig/docs/htmldocs/manpages/smb.conf.5.html
++++ samba-3.2.0pre2/docs/htmldocs/manpages/smb.conf.5.html
 @@ -164,8 +164,8 @@
  	their own share definitions has been added. This capability is called <span class="emphasis"><em>usershares</em></span> and
  	is controlled by a set of parameters in the [global] section of the smb.conf.
@@ -132,7 +132,7 @@ Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
  		can be shared. Only directories below the pathnames in this list are permitted.</p></dd><dt><span class="term">usershare prefix deny list</span></dt><dd><p>Comma-separated list of absolute pathnames restricting what directories
  		can be shared. Directories below the pathnames in this list are prohibited.</p></dd><dt><span class="term">usershare template share</span></dt><dd><p>Names a pre-existing share used as a template for creating new usershares.
  		All other share parameters not specified in the user defined share definition
-@@ -4509,25 +4509,25 @@
+@@ -4654,25 +4654,25 @@
  	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>usershare owner only</code></em> = <code class="literal">True</code>
  </em></span>
  </p></dd><dt><span class="term"><a name="USERSHAREPATH"></a>usershare path (G)</span></dt><dd><p>This parameter specifies the absolute path of the directory on the
@@ -166,19 +166,19 @@ Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
  </em></span>
  </p></dd><dt><span class="term"><a name="USERSHAREPREFIXALLOWLIST"></a>usershare prefix allow list (G)</span></dt><dd><p>This parameter specifies a list of absolute pathnames
  	the root of which are allowed to be exported by user defined share definitions.
-Index: samba-3.0.28a/docs/htmldocs/manpages/net.8.html
+Index: samba-3.2.0pre2/docs/htmldocs/manpages/net.8.html
 ===================================================================
---- samba-3.0.28a.orig/docs/htmldocs/manpages/net.8.html
-+++ samba-3.0.28a/docs/htmldocs/manpages/net.8.html
-@@ -249,30 +249,10 @@
+--- samba-3.2.0pre2.orig/docs/htmldocs/manpages/net.8.html
++++ samba-3.2.0pre2/docs/htmldocs/manpages/net.8.html
+@@ -260,30 +260,10 @@
  that use idmap_ldap as a backend. In this case the secret is used
  as the password for the user DN used to bind to the ldap server.
- </p></div><div class="refsect2" lang="en"><a name="id302073"></a><h3>USERSHARE</h3><p>Starting with version 3.0.23, a Samba server now supports the ability for
--non-root users to add user define shares to be exported using the "net usershare"
+ </p></div><div class="refsect2" lang="en"><a name="id309566"></a><h3>USERSHARE</h3><p>Starting with version 3.0.23, a Samba server now supports the ability for
+-non-root users to add user defined shares to be exported using the "net usershare"
 +non-root users to add user-defined shares to be exported using the "net usershare"
  commands.
  </p><p>
--To set this up, first set up your smb.conf by adding to the [global] section :
+-To set this up, first set up your smb.conf by adding to the [global] section:
 -
 -usershare path = /usr/local/samba/lib/usershares
 -

@@ -21,6 +21,15 @@ samba (3.2.0~pre2-1) UNRELEASED; urgency=low
   * debian/patches/fix-manpage-htmlchars.patch: patch all the manpages from
     3.2.0pre2, which ended up with html entity encodings embedded in them
     by mistake.  This patch is expected to go away again for 3.2.0pre3.
+  * fix up the FHS patches for the new upstream release:
+    - debian/patches/fhs-newpaths.patch has been merged upstream, drop it.
+    - debian/patches/fhs-filespaths.patch has been mostly applied; only one
+      path usage remains inconsistent, and a new .tdb has been added with
+      the wrong path so fix this up here too.
+    - debian/patches/fhs-filespaths-debatable.patch: updated for some new
+      uses of lock_path() which we map to cache_path().
+    - debian/patches/fhs-assignpaths.patch: patch source/m4/check_path.m4
+      instead of source/configure.in.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 05 Mar 2008 22:45:28 +0100
 

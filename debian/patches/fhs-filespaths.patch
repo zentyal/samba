@@ -5,8 +5,12 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Mean to be forwarded upstream (a good rationale 
-                     about FHS is probably recommended)
+Status wrt upstream: This is a greatly reduced patch; most of the
+                     changes are already accepted upstream in 3.2, only
+                     two bits remain: one needs further analysis because
+                     Debian use of lp_private_dir() differs from that on
+                     other distros, the other is a newly-introduced tdb
+                     that went in the wrong dir
 
 Note: Use dedicated directories for:
       - discardable cache data (/var/cache/samba): 
@@ -44,382 +48,31 @@ Note: Use dedicated directories for:
         still used in the code.
 
       grep -r lp_lockdir source/ | grep -vE \
-         '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
+         '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm|smbd/oplock_irix)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: samba-3.2.0pre1/source/intl/lang_tdb.c
+Index: samba-3.2.0pre2/source/passdb/pdb_tdb.c
 ===================================================================
---- samba-3.2.0pre1.orig/source/intl/lang_tdb.c
-+++ samba-3.2.0pre1/source/intl/lang_tdb.c
-@@ -127,7 +127,7 @@
- 	if (!lang) 
- 		return True;
- 
--	asprintf(&msg_path, "%s.msg", lib_path((const char *)lang));
-+	asprintf(&msg_path, "%s.msg", data_path((const char *)lang));
- 	if (stat(msg_path, &st) != 0) {
- 		/* the msg file isn't available */
- 		DEBUG(10, ("lang_tdb_init: %s: %s\n", msg_path, 
-Index: samba-3.2.0pre1/source/lib/util.c
-===================================================================
---- samba-3.2.0pre1.orig/source/lib/util.c
-+++ samba-3.2.0pre1/source/lib/util.c
-@@ -2655,6 +2655,41 @@
- }
- 
- /**
-+ * @brief Returns an absolute path to a file in the Samba data directory.
-+ *
-+ * @param name File to find, relative to CODEPAGEDIR.
-+ *
-+ * @retval Pointer to a static #pstring containing the full path.
-+ **/
-+
-+char *data_path(const char *name)
-+{
-+	static pstring fname;
-+	snprintf(fname, sizeof(fname), "%s/%s", dyn_CODEPAGEDIR, name);
-+	return fname;
-+}
-+
-+/*****************************************************************
-+a useful function for returning a path in the Samba state directory
-+ *****************************************************************/
-+char *state_path(char *name)
-+{
-+	static pstring fname;
-+
-+	pstrcpy(fname,dyn_STATEDIR());
-+	trim_string(fname,"","/");
-+
-+	if (!directory_exist(fname,NULL)) {
-+		mkdir(fname,0755);
-+	}
-+
-+	pstrcat(fname,"/");
-+	pstrcat(fname,name);
-+
-+	return fname;
-+}
-+
-+/**
-  * @brief Returns the platform specific shared library extension.
-  *
-  * @retval Pointer to a static #fstring containing the extension.
-Index: samba-3.2.0pre1/source/lib/util_unistr.c
-===================================================================
---- samba-3.2.0pre1.orig/source/lib/util_unistr.c
-+++ samba-3.2.0pre1/source/lib/util_unistr.c
-@@ -87,11 +87,11 @@
- 	}
- 	initialised = 1;
- 
--	upcase_table = (smb_ucs2_t *)map_file(lib_path("upcase.dat"),
-+	upcase_table = (smb_ucs2_t *)map_file(data_path("upcase.dat"),
- 					      0x20000);
- 	upcase_table_use_unmap = ( upcase_table != NULL );
- 
--	lowcase_table = (smb_ucs2_t *)map_file(lib_path("lowcase.dat"),
-+	lowcase_table = (smb_ucs2_t *)map_file(data_path("lowcase.dat"),
- 					       0x20000);
- 	lowcase_table_use_unmap = ( lowcase_table != NULL );
- 
-@@ -229,7 +229,7 @@
- 		return;
- 	}
- 
--	valid_file = (uint8 *)map_file(lib_path("valid.dat"), 0x10000);
-+	valid_file = (uint8 *)map_file(data_path("valid.dat"), 0x10000);
- 	if (valid_file) {
- 		valid_table = valid_file;
- 		mapped_file = 1;
-Index: samba-3.2.0pre1/source/nmbd/nmbd_winsserver.c
-===================================================================
---- samba-3.2.0pre1.orig/source/nmbd/nmbd_winsserver.c
-+++ samba-3.2.0pre1/source/nmbd/nmbd_winsserver.c
-@@ -584,7 +584,7 @@
- 
- 	add_samba_names_to_subnet(wins_server_subnet);
- 
--	if((fp = x_fopen(lock_path(WINS_LIST),O_RDONLY,0)) == NULL) {
-+	if((fp = x_fopen(state_path(WINS_LIST),O_RDONLY,0)) == NULL) {
- 		DEBUG(2,("initialise_wins: Can't open wins database file %s. Error was %s\n",
- 			WINS_LIST, strerror(errno) ));
- 		return True;
-@@ -2337,7 +2337,7 @@
- 		}
- 	}
- 
--	slprintf(fname,sizeof(fname)-1,"%s/%s", lp_lockdir(), WINS_LIST);
-+	slprintf(fname,sizeof(fname)-1,"%s/%s", dyn_STATEDIR(), WINS_LIST);
- 	all_string_sub(fname,"//", "/", 0);
- 	slprintf(fnamenew,sizeof(fnamenew)-1,"%s.%u", fname, (unsigned int)sys_getpid());
- 
-Index: samba-3.2.0pre1/source/param/loadparm.c
-===================================================================
---- samba-3.2.0pre1.orig/source/param/loadparm.c
-+++ samba-3.2.0pre1/source/param/loadparm.c
-@@ -1692,7 +1700,7 @@
- 	Globals.bASUSupport       = False;
- 	
- 	/* User defined shares. */
--	pstrcpy(s, dyn_LOCKDIR);
-+	pstrcpy(s, dyn_STATEDIR());
- 	pstrcat(s, "/usershares");
- 	string_set(&Globals.szUsersharePath, s);
- 	string_set(&Globals.szUsershareTemplateShare, "");
-@@ -3332,12 +3340,12 @@
- 	uint32 vers_id;
- 
- 	become_root();
--	reg_tdb = tdb_wrap_open(NULL, lock_path("registry.tdb"), 0, 
-+	reg_tdb = tdb_wrap_open(NULL, state_path("registry.tdb"), 0, 
- 				REG_TDB_FLAGS, O_RDWR, 0600);
- 	unbecome_root();
- 	if (!reg_tdb) {
- 		DEBUG(1, ("lp_regdb_open: failed to open %s: %s\n",
--			 lock_path("registry.tdb"), strerror(errno)));
-+			 state_path("registry.tdb"), strerror(errno)));
- 		goto done;
- 	}
- 	else {
-@@ -3348,7 +3356,7 @@
- 	if (vers_id != REGVER_V1) {
- 		DEBUG(10, ("lp_regdb_open: INFO: registry tdb %s has wrong "
- 			  "INFO/version (got %d, expected %d)\n",
--			  lock_path("registry.tdb"), vers_id, REGVER_V1));
-+			  state_path("registry.tdb"), vers_id, REGVER_V1));
- 		/* this is apparently not implemented in the tdb */
- 	}
- 
-Index: samba-3.2.0pre1/source/printing/nt_printing.c
-===================================================================
---- samba-3.2.0pre1.orig/source/printing/nt_printing.c
-+++ samba-3.2.0pre1/source/printing/nt_printing.c
-@@ -552,28 +552,28 @@
-  
- 	if (tdb_drivers)
- 		tdb_close(tdb_drivers);
--	tdb_drivers = tdb_open_log(lock_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+	tdb_drivers = tdb_open_log(state_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 	if (!tdb_drivers) {
- 		DEBUG(0,("nt_printing_init: Failed to open nt drivers database %s (%s)\n",
--			lock_path("ntdrivers.tdb"), strerror(errno) ));
-+			state_path("ntdrivers.tdb"), strerror(errno) ));
- 		return False;
- 	}
-  
- 	if (tdb_printers)
- 		tdb_close(tdb_printers);
--	tdb_printers = tdb_open_log(lock_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+	tdb_printers = tdb_open_log(state_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 	if (!tdb_printers) {
- 		DEBUG(0,("nt_printing_init: Failed to open nt printers database %s (%s)\n",
--			lock_path("ntprinters.tdb"), strerror(errno) ));
-+			state_path("ntprinters.tdb"), strerror(errno) ));
- 		return False;
- 	}
-  
- 	if (tdb_forms)
- 		tdb_close(tdb_forms);
--	tdb_forms = tdb_open_log(lock_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+	tdb_forms = tdb_open_log(state_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 	if (!tdb_forms) {
- 		DEBUG(0,("nt_printing_init: Failed to open nt forms database %s (%s)\n",
--			lock_path("ntforms.tdb"), strerror(errno) ));
-+			state_path("ntforms.tdb"), strerror(errno) ));
- 		return False;
- 	}
-  
-Index: samba-3.2.0pre1/source/registry/reg_db.c
-===================================================================
---- samba-3.2.0pre1.orig/source/registry/reg_db.c
-+++ samba-3.2.0pre1/source/registry/reg_db.c
-@@ -230,12 +230,12 @@
- 	if ( tdb_reg )
- 		return True;
- 
--	if ( !(tdb_reg = tdb_wrap_open(NULL, lock_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR, 0600)) )
-+	if ( !(tdb_reg = tdb_wrap_open(NULL, state_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR, 0600)) )
- 	{
--		tdb_reg = tdb_wrap_open(NULL, lock_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR|O_CREAT, 0600);
-+		tdb_reg = tdb_wrap_open(NULL, state_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR|O_CREAT, 0600);
- 		if ( !tdb_reg ) {
- 			DEBUG(0,("regdb_init: Failed to open registry %s (%s)\n",
--				lock_path("registry.tdb"), strerror(errno) ));
-+				state_path("registry.tdb"), strerror(errno) ));
- 			return False;
- 		}
- 		
-@@ -278,11 +278,11 @@
- 	
- 	become_root();
- 
--	tdb_reg = tdb_wrap_open(NULL, lock_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR, 0600);
-+	tdb_reg = tdb_wrap_open(NULL, state_path("registry.tdb"), 0, REG_TDB_FLAGS, O_RDWR, 0600);
- 	if ( !tdb_reg ) {
- 		result = ntstatus_to_werror( map_nt_error_from_unix( errno ) );
- 		DEBUG(0,("regdb_open: Failed to open %s! (%s)\n", 
--			lock_path("registry.tdb"), strerror(errno) ));
-+			state_path("registry.tdb"), strerror(errno) ));
- 	}
- 
- 	unbecome_root();
-Index: samba-3.2.0pre1/source/lib/account_pol.c
-===================================================================
---- samba-3.2.0pre1.orig/source/lib/account_pol.c
-+++ samba-3.2.0pre1/source/lib/account_pol.c
-@@ -212,9 +212,9 @@
- 		return True;
- 	}
- 
--	tdb = tdb_open_log(lock_path("account_policy.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
-+	tdb = tdb_open_log(state_path("account_policy.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
- 	if (!tdb) { /* the account policies files does not exist or open failed, try to create a new one */
--		tdb = tdb_open_log(lock_path("account_policy.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+		tdb = tdb_open_log(state_path("account_policy.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 		if (!tdb) {
- 			DEBUG(0,("Failed to open account policy database\n"));
- 			return False;
-Index: samba-3.2.0pre1/source/registry/reg_perfcount.c
-===================================================================
---- samba-3.2.0pre1.orig/source/registry/reg_perfcount.c
-+++ samba-3.2.0pre1/source/registry/reg_perfcount.c
-@@ -45,7 +45,7 @@
- 	
- 	fstr_sprintf( path, "%s/%s", PERFCOUNTDIR, dbname );
- 	
--	pstrcpy( fname, lock_path( path ) );
-+	pstrcpy( fname, state_path( path ) );
- 	
- 	return talloc_strdup(talloc_tos(), fname);
- }
-@@ -55,7 +55,7 @@
- 
- void perfcount_init_keys( void )
- {
--	char *p = lock_path(PERFCOUNTDIR);
-+	char *p = state_path(PERFCOUNTDIR);
- 
- 	/* no registry keys; just create the perfmon directory */
- 	
-Index: samba-3.2.0pre1/source/rpc_server/srv_eventlog_lib.c
-===================================================================
---- samba-3.2.0pre1.orig/source/rpc_server/srv_eventlog_lib.c
-+++ samba-3.2.0pre1/source/rpc_server/srv_eventlog_lib.c
-@@ -66,7 +66,7 @@
- {
- 	fstring path;
- 	char *tdb_fullpath;
--	char *eventlogdir = lock_path( "eventlog" );
-+	char *eventlogdir = state_path( "eventlog" );
- 	
- 	pstr_sprintf( path, "%s/%s.tdb", eventlogdir, name );
- 	strlower_m( path );
-@@ -348,7 +348,7 @@
- 	
- 	/* make sure that the eventlog dir exists */
- 	
--	eventlogdir = lock_path( "eventlog" );
-+	eventlogdir = state_path( "eventlog" );
- 	if ( !directory_exist( eventlogdir, NULL ) )
- 		mkdir( eventlogdir, 0755 );	
- 	
-Index: samba-3.2.0pre1/source/passdb/pdb_tdb.c
-===================================================================
---- samba-3.2.0pre1.orig/source/passdb/pdb_tdb.c
-+++ samba-3.2.0pre1/source/passdb/pdb_tdb.c
-@@ -1542,7 +1542,7 @@
- 	uint32 rid;
- 	BOOL ret = False;
- 
--	tdb = tdb_open_log(lock_path("winbindd_idmap.tdb"), 0,
-+	tdb = tdb_open_log(state_path("winbindd_idmap.tdb"), 0,
- 			   TDB_DEFAULT, O_RDWR | O_CREAT, 0644);
- 
- 	if (tdb == NULL) {
-@@ -1606,7 +1606,7 @@
+--- samba-3.2.0pre2.orig/source/passdb/pdb_tdb.c
++++ samba-3.2.0pre2/source/passdb/pdb_tdb.c
+@@ -1612,7 +1612,7 @@
  	/* save the path for later */
- 			   
- 	if ( !location ) {
--		pstr_sprintf( tdbfile, "%s/%s", lp_private_dir(), PASSDB_FILE_NAME );
-+		pstr_sprintf( tdbfile, "%s/%s", dyn_STATEDIR(), PASSDB_FILE_NAME );
- 		pfile = tdbfile;
- 	}
- 	pstrcpy( tdbsam_filename, pfile );
-Index: samba-3.2.0pre1/source/groupdb/mapping_tdb.c
+ 
+ 	if (!location) {
+-		if (asprintf(&tdbfile, "%s/%s", lp_private_dir(),
++		if (asprintf(&tdbfile, "%s/%s", get_dyn_STATEDIR(),
+ 			     PASSDB_FILE_NAME) < 0) {
+ 			return NT_STATUS_NO_MEMORY;
+ 		}
+Index: samba-3.2.0pre2/source/modules/vfs_xattr_tdb.c
 ===================================================================
---- samba-3.2.0pre1.orig/source/groupdb/mapping_tdb.c
-+++ samba-3.2.0pre1/source/groupdb/mapping_tdb.c
-@@ -42,7 +42,7 @@
- 	if (tdb)
- 		return True;
- 		
--	tdb = tdb_open_log(lock_path("group_mapping.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+	tdb = tdb_open_log(state_path("group_mapping.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 	if (!tdb) {
- 		DEBUG(0,("Failed to open group mapping database\n"));
- 		return False;
-Index: samba-3.2.0pre1/source/lib/sharesec.c
-===================================================================
---- samba-3.2.0pre1.orig/source/lib/sharesec.c
-+++ samba-3.2.0pre1/source/lib/sharesec.c
-@@ -46,10 +46,10 @@
- 		return True;
- 	}
+--- samba-3.2.0pre2.orig/source/modules/vfs_xattr_tdb.c
++++ samba-3.2.0pre2/source/modules/vfs_xattr_tdb.c
+@@ -576,7 +576,7 @@
+ 	const char *dbname;
  
--	share_tdb = tdb_open_log(lock_path("share_info.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-+	share_tdb = tdb_open_log(state_path("share_info.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
- 	if (!share_tdb) {
- 		DEBUG(0,("Failed to open share info database %s (%s)\n",
--			lock_path("share_info.tdb"), strerror(errno) ));
-+			state_path("share_info.tdb"), strerror(errno) ));
- 		return False;
- 	}
-  
-Index: samba-3.2.0pre1/source/groupdb/mapping_ldb.c
-===================================================================
---- samba-3.2.0pre1.orig/source/groupdb/mapping_ldb.c
-+++ samba-3.2.0pre1/source/groupdb/mapping_ldb.c
-@@ -55,7 +55,7 @@
- 	/* this is needed as Samba3 doesn't have this globally yet */
- 	ldb_global_init();
+ 	dbname = lp_parm_const_string(snum, "xattr_tdb", "file",
+-				      lock_path("xattr.tdb"));
++				      state_path("xattr.tdb"));
  
--	db_path = lock_path("group_mapping.ldb");
-+	db_path = state_path("group_mapping.ldb");
- 
- 	ldb = ldb_init(NULL);
- 	if (ldb == NULL) goto failed;
-@@ -89,9 +89,9 @@
- 	}
- 
- 	/* possibly upgrade */
--	tdb_path = lock_path("group_mapping.tdb");
-+	tdb_path = state_path("group_mapping.tdb");
- 	if (file_exist(tdb_path, NULL) && !mapping_upgrade(tdb_path)) {
--		unlink(lock_path("group_mapping.ldb"));
-+		unlink(state_path("group_mapping.ldb"));
- 		goto failed;
- 	}
- 
-@@ -638,7 +638,7 @@
- 	}
- 
- 	pstrcpy(old_path, tdb_path);
--	pstrcpy(new_path, lock_path("group_mapping.tdb.upgraded"));
-+	pstrcpy(new_path, state_path("group_mapping.tdb.upgraded"));
- 
- 	if (rename(old_path, new_path) != 0) {
- 		DEBUG(0,("Failed to rename old group mapping database\n"));
-Index: samba-3.2.0pre1/source/winbindd/idmap_tdb.c
-===================================================================
---- samba-3.2.0pre1.orig/source/winbindd/idmap_tdb.c
-+++ samba-3.2.0pre1/source/winbindd/idmap_tdb.c
-@@ -221,7 +221,7 @@
- 	}
- 
- 	/* use the old database if present */
--	tdbfile = talloc_strdup(ctx, lock_path("winbindd_idmap.tdb"));
-+	tdbfile = talloc_strdup(ctx, state_path("winbindd_idmap.tdb"));
- 	if (!tdbfile) {
- 		DEBUG(0, ("Out of memory!\n"));
- 		ret = NT_STATUS_NO_MEMORY;
+ 	if (dbname == NULL) {
+ 		errno = ENOSYS;

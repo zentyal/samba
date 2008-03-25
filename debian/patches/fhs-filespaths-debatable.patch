@@ -1673,3 +1673,81 @@ Index: samba-3.2.0pre2/source/winbindd/idmap_cache.c
  
  	DEBUG(10, ("Opening cache file at %s\n", cache_fname));
  
+Index: samba-3.2.0pre2/source/winbindd/winbindd_cache.c
+===================================================================
+--- samba-3.2.0pre2.orig/source/winbindd/winbindd_cache.c
++++ samba-3.2.0pre2/source/winbindd/winbindd_cache.c
+@@ -2297,7 +2297,7 @@
+ 		return true;
+ 
+ 	/* when working offline we must not clear the cache on restart */
+-	wcache->tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
++	wcache->tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+ 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
+ 				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
+ 				O_RDWR|O_CREAT, 0600);
+@@ -2340,9 +2340,9 @@
+ 		tdb_close(wcache->tdb);
+ 		wcache->tdb = NULL;
+ 
+-		if (unlink(lock_path("winbindd_cache.tdb")) == -1) {
++		if (unlink(cache_path("winbindd_cache.tdb")) == -1) {
+ 			DEBUG(0,("initialize_winbindd_cache: unlink %s failed %s ",
+-				lock_path("winbindd_cache.tdb"),
++				cache_path("winbindd_cache.tdb"),
+ 				strerror(errno) ));
+ 			return false;
+ 		}
+@@ -2624,7 +2624,7 @@
+ 		return;
+ 
+ 	/* when working offline we must not clear the cache on restart */
+-	wcache->tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
++	wcache->tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+ 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
+ 				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
+ 				O_RDWR|O_CREAT, 0600);
+@@ -3380,7 +3380,7 @@
+ int winbindd_validate_cache(void)
+ {
+ 	int ret = -1;
+-	const char *tdb_path = lock_path("winbindd_cache.tdb");
++	const char *tdb_path = cache_path("winbindd_cache.tdb");
+ 	TDB_CONTEXT *tdb = NULL;
+ 
+ 	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
+@@ -3422,7 +3422,7 @@
+ int winbindd_validate_cache_nobackup(void)
+ {
+ 	int ret = -1;
+-	const char *tdb_path = lock_path("winbindd_cache.tdb");
++	const char *tdb_path = cache_path("winbindd_cache.tdb");
+ 
+ 	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
+ 	smb_panic_fn = validate_panic;
+Index: samba-3.2.0pre2/source/printing/nt_printing.c
+===================================================================
+--- samba-3.2.0pre2.orig/source/printing/nt_printing.c
++++ samba-3.2.0pre2/source/printing/nt_printing.c
+@@ -2541,7 +2541,7 @@
+ 
+ 	if (geteuid() == 0) {
+ 		if (asprintf(&printdb_path, "%s%s.tdb",
+-				lock_path("printing/"),
++				cache_path("printing/"),
+ 				sharename) < 0) {
+ 			return (uint32)-1;
+ 		}
+Index: samba-3.2.0pre2/source/winbindd/idmap_tdb2.c
+===================================================================
+--- samba-3.2.0pre2.orig/source/winbindd/idmap_tdb2.c
++++ samba-3.2.0pre2/source/winbindd/idmap_tdb2.c
+@@ -68,7 +68,7 @@
+ 		return NT_STATUS_OK;
+ 	}
+ 
+-	db_path = lock_path("idmap2_cache.tdb");
++	db_path = cache_path("idmap2_cache.tdb");
+ 
+ 	/* Open idmap repository */
+ 	if (!(idmap_tdb2_tmp = tdb_open_log(db_path, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644))) {

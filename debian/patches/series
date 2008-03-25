@@ -14,4 +14,3 @@ adapt_machine_creation_script.patch
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
-disable-weak-auth.patch

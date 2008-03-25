@@ -31,6 +31,8 @@ samba (3.2.0~pre2-1) UNRELEASED; urgency=low
     - debian/patches/fhs-assignpaths.patch: patch source/m4/check_path.m4
       instead of source/configure.in.
   * debian/patches/smbstatus-locking.patch: merged upstream
+  * debian/patches/smbpasswd-syslog.patch: updated to account for new
+    calls to logging functions
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 05 Mar 2008 22:45:28 +0100
 

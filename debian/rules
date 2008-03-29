@@ -53,7 +53,9 @@ conf_args = \
 		--with-ldap \
 		--with-ads \
 		--without-smbmount \
-		--with-dnsupdate
+		--with-dnsupdate \
+		--without-libtdb \
+		--without-libnetapi
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -138,6 +140,10 @@ install: build
 	# /usr/lib/samba. We don't want it there since it is not in the
 	# default library path. Here we move it to /usr/lib/.
 	mv $(DESTDIR)/usr/lib/samba/libsmbclient* $(DESTDIR)/usr/lib/
+
+	# same problem with libwbclient.
+	mv $(DESTDIR)/usr/lib/samba/libwbclient.so $(DESTDIR)/usr/lib/libwbclient.so.0
+	ln -s libwbclient.so.0 $(DESTDIR)/usr/lib/samba/libwbclient.so
 
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
@@ -225,6 +231,7 @@ endif
 	chmod 1777 debian/samba/var/spool/samba/
 
 	DH_OPTIONS= dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 3.0.2a-1)'
+	DH_OPTIONS= dh_makeshlibs -plibwbclient0
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol

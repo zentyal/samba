@@ -33,6 +33,13 @@ samba (3.2.0~pre2-1) UNRELEASED; urgency=low
   * debian/patches/smbstatus-locking.patch: merged upstream
   * debian/patches/smbpasswd-syslog.patch: updated to account for new
     calls to logging functions
+  * Handle the new libraries available in samba 3.2: ship libwbclient as a
+    shared library, link against the system libtalloc (adding a
+    build-dependency on libtalloc-dev - which is actually sort of kludgy
+    because this only works as long as the system libtalloc has the same
+    soname as the one within the samba tree, this should be fixed to
+    properly build against the system libtalloc), and suppress generation
+    of the tdb and netapi libraries which aren't useful to us right now.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 05 Mar 2008 22:45:28 +0100
 

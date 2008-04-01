@@ -1,4 +1,4 @@
-samba (3.2.0~pre2-1) UNRELEASED; urgency=low
+samba (3.2.0~pre2-1) unstable; urgency=low
 
   * New upstream (pre-)release. It closes the following bugs:
     - typos in net.8. Closes: #460487, #460491

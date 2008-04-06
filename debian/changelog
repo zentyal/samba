@@ -1,3 +1,9 @@
+samba (3.2.0~pre2-2) UNRELEASED; urgency=low
+
+  * Removed myself from Uploaders
+
+ -- Peter Eisentraut <petere@debian.org>  Sun, 06 Apr 2008 09:42:26 +0200
+
 samba (3.2.0~pre2-1) unstable; urgency=low
 
   * New upstream (pre-)release. It closes the following bugs:

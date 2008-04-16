@@ -7,6 +7,7 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
     default
   * Remove versoned Build-Depends when satisfied in etch (actually all
     versioning in Build-Depends)
+  * Remove Conflicts with non-existing packages
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

@@ -62,7 +62,6 @@ Package: smbclient
 Architecture: any
 Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
-Conflicts: smbget
 Provides: samba-client
 Suggests: smbfs
 Description: a LanManager-like simple client for Unix
@@ -125,7 +124,6 @@ Architecture: any
 Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}
 Suggests: smbclient
 Replaces: smbfsx
-Conflicts: smbfsx, suidmanager (<< 0.50)
 Description: mount and umount commands for the smbfs (for kernels >= than 2.2.x)
  Smbfs is a filesystem which understands the SMB/CIFS protocol.
  This is the protocol Windows for Workgroups, Windows NT or

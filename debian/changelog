@@ -5,6 +5,8 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
     noisy about this choice of ours
   * Drop commented "guest account = nobody". This is already upstream's
     default
+  * Remove versoned Build-Depends when satisfied in etch (actually all
+    versioning in Build-Depends)
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

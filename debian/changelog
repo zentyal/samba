@@ -18,6 +18,9 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
   * No longer gratuitously use /usr/lib/libsmbclient.so.0.1 but a more logical
     libsmbclient.so.0 as upstream doesn't assign versions
   * Add idmap_*(8) man pages (idea taken from SerNet packages)
+  * Create the entire set of directories needed by clients for
+    Point-and-Click printing (including old clients!) in
+    /var/lib/samba/printers (idea taken from SerNet packages)
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

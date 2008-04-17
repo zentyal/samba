@@ -11,7 +11,7 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
   * Drop dpkg-dev and binutils from Build-Depends, since the versioned
     build-dep is no longer needed and these are both Build-Essential
   * Mini-policy for settings in smb.conf:
-    - don't explicitely set settings to their default value
+    - don't explicitly set settings to their default value
     - commented settings with the default value are commented with "#"
     - commented settings with a non-default value are commented with ";"
   * Apply this policy to "socket options". Closes: #476104

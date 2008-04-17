@@ -130,9 +130,8 @@ install: build
 
 	$(MAKE) -C source install DESTDIR=$(DESTDIR)
 
-	mv $(DESTDIR)/usr/lib/samba/libsmbclient.so $(DESTDIR)/usr/lib/samba/libsmbclient.so.0.1
-	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
-	ln -s libsmbclient.so.0.1 $(DESTDIR)/usr/lib/samba/libsmbclient.so
+	mv $(DESTDIR)/usr/lib/samba/libsmbclient.so $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
+	ln -s libsmbclient.so.0 $(DESTDIR)/usr/lib/samba/libsmbclient.so
 
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the

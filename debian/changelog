@@ -15,6 +15,8 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
     - commented settings with the default value are commented with "#"
     - commented settings with a non-default value are commented with ";"
   * Apply this policy to "socket options". Closes: #476104
+  * No longer gratuitously use /usr/lib/libsmbclient.so.0.1 but a more logical
+    libsmbclient.so.0 as upstream doesn't assign versions
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

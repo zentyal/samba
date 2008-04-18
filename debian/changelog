@@ -1,5 +1,6 @@
 samba (1:3.0.28a-3) UNRELEASED; urgency=low
 
+  * The "bug hunting at SambaXP" release
   * Drop "invalid users = root" from the default smb.conf file
     as it differs from upstream's behaviour and upstream is fairly
     noisy about this choice of ours
@@ -23,6 +24,7 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
     /var/lib/samba/printers (idea taken from SerNet packages)
   * Update copyright and README.debian information for current and past
     maintainers. Remove redundant mention of Tridge (the copyright is enough)
+  * Add doc-base files for samba-doc-pdf. Closes: #451685
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

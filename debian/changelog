@@ -4,6 +4,8 @@ samba (1:3.2.0~pre3-1) experimental; urgency=low
   * debian/patches/fix-manpage-htmlchars.patch: dropped as fixed upstream
   * docs/registry removed from samba-doc as missing from upstream tarball
     (upstream bug #5421)
+  * debian/samba-doc.doc-base.samba-using: The index (and only) file
+    is now book.html
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 26 Apr 2008 08:20:21 +0200
 

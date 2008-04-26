@@ -7,11 +7,11 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.2.0pre2/source/param/loadparm.c
+Index: samba-3.2.0pre3/source/param/loadparm.c
 ===================================================================
---- samba-3.2.0pre2.orig/source/param/loadparm.c
-+++ samba-3.2.0pre2/source/param/loadparm.c
-@@ -114,6 +114,9 @@
+--- samba-3.2.0pre3.orig/source/param/loadparm.c
++++ samba-3.2.0pre3/source/param/loadparm.c
+@@ -121,6 +121,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
  	char *szOs2DriverMap;
@@ -21,24 +21,45 @@ Index: samba-3.2.0pre2/source/param/loadparm.c
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -1246,8 +1249,13 @@
- 	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
- 	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
- 	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
+@@ -3667,6 +3670,26 @@
+ 		.enum_list	= NULL,
+ 		.flags		= FLAG_ADVANCED,
+ 	},
 +#ifdef FHS_COMPATIBLE
-+	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0}, 
-+	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0},
++	{
++		.label		= "lock directory",
++		.type		= P_STRING,
++		.p_class	= P_GLOBAL,
++		.ptr		= &Globals.szLockDirStub,
++		.special	= NULL,
++		.enum_list	= NULL,
++		.flags		= 0,
++	},
++	{
++		.label		= "lock dir",
++		.type		= P_STRING,
++		.p_class	= P_GLOBAL,
++		.ptr		= &Globals.szLockDirStub,
++		.special	= NULL,
++		.enum_list	= NULL,
++		.flags		= 0,
++	},
 +#else
- 	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_ADVANCED}, 
- 	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_HIDE}, 
+ 	{
+ 		.label		= "lock directory",
+ 		.type		= P_STRING,
+@@ -3685,6 +3708,7 @@
+ 		.enum_list	= NULL,
+ 		.flags		= FLAG_HIDE,
+ 	},
 +#endif
- 	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED}, 
- #ifdef WITH_UTMP
- 	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED}, 
-Index: samba-3.2.0pre2/source/m4/check_path.m4
+ 	{
+ 		.label		= "pid directory",
+ 		.type		= P_STRING,
+Index: samba-3.2.0pre3/source/m4/check_path.m4
 ===================================================================
---- samba-3.2.0pre2.orig/source/m4/check_path.m4
-+++ samba-3.2.0pre2/source/m4/check_path.m4
+--- samba-3.2.0pre3.orig/source/m4/check_path.m4
++++ samba-3.2.0pre3/source/m4/check_path.m4
 @@ -33,7 +33,7 @@
  [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
  [ case "$withval" in

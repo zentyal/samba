@@ -1,4 +1,3 @@
-fix-manpage-htmlchars.patch
 documentation.patch
 fhs-filespaths.patch
 fhs-filespaths-debatable.patch

@@ -1,4 +1,4 @@
-samba (1:3.0.28a-3) UNRELEASED; urgency=low
+samba (1:3.0.28a-3) unstable; urgency=low
 
   * The "bug hunting at SambaXP" release
   * Drop "invalid users = root" from the default smb.conf file
@@ -25,9 +25,7 @@ samba (1:3.0.28a-3) UNRELEASED; urgency=low
   * Update copyright and README.debian information for current and past
     maintainers. Remove redundant mention of Tridge (the copyright is enough)
   * Add doc-base files for samba-doc-pdf. Closes: #451685
-  * Remove "socket options" from smb.conf (the value that was set
-    is the default value). Closes: #476104
-  * Kurdish. Closes: #480151
+  * Kurdish debconf translation. Closes: #480151
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
 

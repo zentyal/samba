@@ -7,10 +7,10 @@ Fixes: LP #163194
 Upstream status: pulled from upstream 3.2 git tree, will be superseded
 with first release of 3.2
 
-Index: samba-3.0.28a/source/param/loadparm.c
+Index: samba-3.0.29/source/param/loadparm.c
 ===================================================================
---- samba-3.0.28a.orig/source/param/loadparm.c
-+++ samba-3.0.28a/source/param/loadparm.c
+--- samba-3.0.29.orig/source/param/loadparm.c
++++ samba-3.0.29/source/param/loadparm.c
 @@ -1572,9 +1572,9 @@
  	Globals.bStatCache = True;	/* use stat cache by default */
  	Globals.iMaxStatCacheSize = 1024; /* one Meg by default. */
@@ -24,65 +24,65 @@ Index: samba-3.0.28a/source/param/loadparm.c
  	Globals.bNTLMAuth = True;	/* Do use NTLMv1 if it is available (otherwise NTLMv2) */
  	Globals.bClientNTLMv2Auth = False; /* Client should not use NTLMv2, as we can't tell that the server supports it. */
  	/* Note, that we will use NTLM2 session security (which is different), if it is available */
-Index: samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
+Index: samba-3.0.29/docs/htmldocs/manpages/smb.conf.5.html
 ===================================================================
---- samba-3.0.28a.orig/docs/htmldocs/manpages/smb.conf.5.html
-+++ samba-3.0.28a/docs/htmldocs/manpages/smb.conf.5.html
-@@ -780,7 +780,7 @@
+--- samba-3.0.29.orig/docs/htmldocs/manpages/smb.conf.5.html
++++ samba-3.0.29/docs/htmldocs/manpages/smb.conf.5.html
+@@ -871,7 +871,7 @@
      without Windows 95/98 servers are advised to disable
      this option.  </p><p>Disabling this option will also disable the <code class="literal">client plaintext auth</code> option</p><p>Likewise, if the <code class="literal">client ntlmv2
      auth</code> parameter is enabled, then only NTLMv2 logins will be
 -    attempted.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client lanman auth</code></em> = <code class="literal">yes</code>
 +    attempted.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client lanman auth</code></em> = <code class="literal">no</code>
  </em></span>
- </p></dd><dt><span class="term"><a name="CLIENTNTLMV2AUTH"></a>client ntlmv2 auth (G)</span></dt><dd><p>This parameter determines whether or not <a href="smbclient.8.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(8)</span></a> will attempt to
-     authenticate itself to servers using the NTLMv2 encrypted password
-@@ -795,7 +795,7 @@
- 	responses, and not the weaker LM or NTLM.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client ntlmv2 auth</code></em> = <code class="literal">no</code>
- </em></span>
- </p></dd><dt><span class="term"><a name="CLIENTPLAINTEXTAUTH"></a>client plaintext auth (G)</span></dt><dd><p>Specifies whether a client should send a plaintext 
+ </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id328533"></a>
+ 
+@@ -892,7 +892,7 @@
+ 
+ client plaintext auth (G)
+ </h3></div></div></div><a class="indexterm" name="id328614"></a><a name="CLIENTPLAINTEXTAUTH"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies whether a client should send a plaintext 
 -		password if the server does not support encrypted passwords.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client plaintext auth</code></em> = <code class="literal">yes</code>
 +		password if the server does not support encrypted passwords.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client plaintext auth</code></em> = <code class="literal">no</code>
  </em></span>
- </p></dd><dt><span class="term"><a name="CLIENTSCHANNEL"></a>client schannel (G)</span></dt><dd><p>
-     This controls whether the client offers or even demands the use of the netlogon schannel.
-@@ -2007,7 +2007,7 @@
+ </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id328651"></a>
+ 
+@@ -2404,7 +2404,7 @@
      auth</code> to disable this for Samba's clients (such as smbclient)</p><p>If this option, and <code class="literal">ntlm
      auth</code> are both disabled, then only NTLMv2 logins will be
      permited.  Not all clients support NTLMv2, and most will require
 -    special configuration to use it.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>lanman auth</code></em> = <code class="literal">yes</code>
 +    special configuration to use it.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>lanman auth</code></em> = <code class="literal">no</code>
  </em></span>
- </p></dd><dt><span class="term"><a name="LARGEREADWRITE"></a>large readwrite (G)</span></dt><dd><p>This parameter determines whether or not
-     <a href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> supports the new 64k
-Index: samba-3.0.28a/docs/manpages/smb.conf.5
+ </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id335983"></a>
+ 
+Index: samba-3.0.29/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/smb.conf.5
-+++ samba-3.0.28a/docs/manpages/smb.conf.5
-@@ -1272,7 +1272,7 @@
- parameter is enabled, then only NTLMv2 logins will be attempted.
+--- samba-3.0.29.orig/docs/manpages/smb.conf.5
++++ samba-3.0.29/docs/manpages/smb.conf.5
+@@ -1491,7 +1491,7 @@
+ parameter is enabled, then only NTLMv2 logins will be attempted\.
  .sp
  Default:
--\fB\fIclient lanman auth\fR = yes \fR
-+\fB\fIclient lanman auth\fR = no \fR
+-\fI\fIclient lanman auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
++\fI\fIclient lanman auth\fR\fR\fI = \fR\fIno\fR\fI \fR
  .RE
- .PP
+ 
  client ntlmv2 auth (G)
-@@ -1303,7 +1303,7 @@
- Specifies whether a client should send a plaintext password if the server does not support encrypted passwords.
+@@ -1524,7 +1524,7 @@
+ Specifies whether a client should send a plaintext password if the server does not support encrypted passwords\.
  .sp
  Default:
--\fB\fIclient plaintext auth\fR = yes \fR
-+\fB\fIclient plaintext auth\fR = no \fR
+-\fI\fIclient plaintext auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
++\fI\fIclient plaintext auth\fR\fR\fI = \fR\fIno\fR\fI \fR
  .RE
- .PP
+ 
  client schannel (G)
-@@ -3082,7 +3082,7 @@
- are both disabled, then only NTLMv2 logins will be permited. Not all clients support NTLMv2, and most will require special configuration to use it.
+@@ -3624,7 +3624,7 @@
+ are both disabled, then only NTLMv2 logins will be permited\. Not all clients support NTLMv2, and most will require special configuration to use it\.
  .sp
  Default:
--\fB\fIlanman auth\fR = yes \fR
-+\fB\fIlanman auth\fR = no \fR
+-\fI\fIlanman auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
++\fI\fIlanman auth\fR\fR\fI = \fR\fIno\fR\fI \fR
  .RE
- .PP
+ 
  large readwrite (G)

@@ -7,10 +7,10 @@ Status wrt upstream: Forwarded, will be in 3.0.26
 Note: Upstream would probably welcome patches allowing to build on new architectures. 
       As this patch is the most often broken by new upstream releases, everybody would benefit from it.
 
-Index: samba-3.0.28a/source/configure.in
+Index: samba-3.0.29/source/configure.in
 ===================================================================
---- samba-3.0.28a.orig/source/configure.in
-+++ samba-3.0.28a/source/configure.in
+--- samba-3.0.29.orig/source/configure.in
++++ samba-3.0.29/source/configure.in
 @@ -769,6 +769,15 @@
        fi
      ;;

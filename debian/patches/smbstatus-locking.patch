@@ -7,10 +7,10 @@ Status wrt upstream: Should be forwarded
 
 Note: 
 
-Index: samba-3.0.28a/source/utils/status.c
+Index: samba-3.0.29/source/utils/status.c
 ===================================================================
---- samba-3.0.28a.orig/source/utils/status.c
-+++ samba-3.0.28a/source/utils/status.c
+--- samba-3.0.29.orig/source/utils/status.c
++++ samba-3.0.29/source/utils/status.c
 @@ -377,6 +377,16 @@
  			tdb_close(tdb);
  		}

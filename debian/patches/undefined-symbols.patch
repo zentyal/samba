@@ -9,10 +9,10 @@ for it.
 
 Note: 
 
-Index: samba-3.0.28a/source/Makefile.in
+Index: samba-3.0.29/source/Makefile.in
 ===================================================================
---- samba-3.0.28a.orig/source/Makefile.in
-+++ samba-3.0.28a/source/Makefile.in
+--- samba-3.0.29.orig/source/Makefile.in
++++ samba-3.0.29/source/Makefile.in
 @@ -1161,7 +1161,7 @@
  
  bin/libsmbclient.@SHLIBEXT@: proto_exists $(LIBSMBCLIENT_OBJ)

@@ -6,18 +6,18 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.0.28a/docs/manpages/smb.conf.5
+Index: samba-3.0.29/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.0.28a.orig/docs/manpages/smb.conf.5
-+++ samba-3.0.28a/docs/manpages/smb.conf.5
-@@ -662,8 +662,8 @@
+--- samba-3.0.29.orig/docs/manpages/smb.conf.5
++++ samba-3.0.29/docs/manpages/smb.conf.5
+@@ -693,8 +693,8 @@
  Default:
- \fB\fIadd machine script\fR = \fR
+ \fI\fIadd machine script\fR\fR\fI = \fR\fI\fR\fI \fR
  .sp
 -Example:
--\fB\fIadd machine script\fR = /usr/sbin/adduser -n -g machines -c Machine -d /var/lib/nobody -s /bin/false %u \fR
+-\fI\fIadd machine script\fR\fR\fI = \fR\fI/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/nobody \-s /bin/false %u\fR\fI \fR
 +Example for Debian:
 +\fB\fIadd machine script\fR = /usr/sbin/adduser -n -g machines -c Machine -d /var/lib/samba -s /bin/false %u \fR
  .RE
- .PP
+ 
  add port command (G)

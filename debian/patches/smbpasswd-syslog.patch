@@ -4,10 +4,10 @@ Fixes: bug #434372
 
 Upstream status: submitted as bugzilla bug #4831
 
-Index: samba-3.0.28a/source/pam_smbpass/support.c
+Index: samba-3.0.29/source/pam_smbpass/support.c
 ===================================================================
---- samba-3.0.28a.orig/source/pam_smbpass/support.c
-+++ samba-3.0.28a/source/pam_smbpass/support.c
+--- samba-3.0.29.orig/source/pam_smbpass/support.c
++++ samba-3.0.29/source/pam_smbpass/support.c
 @@ -15,6 +15,7 @@
  	 * Mass Ave, Cambridge, MA 02139, USA.
  	 */
@@ -292,10 +292,10 @@ Index: samba-3.0.28a/source/pam_smbpass/support.c
  	}
  	make_remark( pamh, ctrl, PAM_ERROR_MSG, pass_new == NULL ?
  				"No password supplied" : "Password unchanged" );
-Index: samba-3.0.28a/source/pam_smbpass/pam_smb_auth.c
+Index: samba-3.0.29/source/pam_smbpass/pam_smb_auth.c
 ===================================================================
---- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_auth.c
-+++ samba-3.0.28a/source/pam_smbpass/pam_smb_auth.c
+--- samba-3.0.29.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.0.29/source/pam_smbpass/pam_smb_auth.c
 @@ -75,10 +75,9 @@
  
  	/* Samba initialization. */
@@ -369,10 +369,10 @@ Index: samba-3.0.28a/source/pam_smbpass/pam_smb_auth.c
  	return PAM_AUTHTOK_RECOVER_ERR;
      } else if (pass == NULL) {
  	return PAM_AUTHTOK_RECOVER_ERR;
-Index: samba-3.0.28a/source/pam_smbpass/pam_smb_acct.c
+Index: samba-3.0.29/source/pam_smbpass/pam_smb_acct.c
 ===================================================================
---- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_acct.c
-+++ samba-3.0.28a/source/pam_smbpass/pam_smb_acct.c
+--- samba-3.0.29.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.0.29/source/pam_smbpass/pam_smb_acct.c
 @@ -52,22 +52,21 @@
  
  	/* Samba initialization. */
@@ -428,10 +428,10 @@ Index: samba-3.0.28a/source/pam_smbpass/pam_smb_acct.c
  		}
  		make_remark( pamh, ctrl, PAM_ERROR_MSG
  			, "Your account has been disabled; "
-Index: samba-3.0.28a/source/pam_smbpass/pam_smb_passwd.c
+Index: samba-3.0.29/source/pam_smbpass/pam_smb_passwd.c
 ===================================================================
---- samba-3.0.28a.orig/source/pam_smbpass/pam_smb_passwd.c
-+++ samba-3.0.28a/source/pam_smbpass/pam_smb_passwd.c
+--- samba-3.0.29.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.0.29/source/pam_smbpass/pam_smb_passwd.c
 @@ -104,10 +104,9 @@
  
      /* Samba initialization. */
@@ -563,10 +563,10 @@ Index: samba-3.0.28a/source/pam_smbpass/pam_smb_passwd.c
          retval = PAM_ABORT;
  
      }
-Index: samba-3.0.28a/source/pam_smbpass/support.h
+Index: samba-3.0.29/source/pam_smbpass/support.h
 ===================================================================
---- samba-3.0.28a.orig/source/pam_smbpass/support.h
-+++ samba-3.0.28a/source/pam_smbpass/support.h
+--- samba-3.0.29.orig/source/pam_smbpass/support.h
++++ samba-3.0.29/source/pam_smbpass/support.h
 @@ -1,8 +1,8 @@
  /* syslogging function for errors and other information */
 -extern void _log_err(int, const char *, ...);

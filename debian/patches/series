@@ -15,4 +15,3 @@ autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
 disable-weak-auth.patch
-manpage-encoding.patch

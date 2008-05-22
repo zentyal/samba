@@ -37,7 +37,7 @@ Options recognized by this module are as follows:
 	smbconf=<file>	-	specify an alternate path to the smb.conf
 				file.
 
-See the samples/ directory for example PAM configurations using this
+See the examples/ directory for example PAM configurations using this
 module.
 
 Thanks go to the following people:

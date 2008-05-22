@@ -527,6 +527,10 @@ void winbind_child_died(pid_t pid)
 		return;
 	}
 
+	/* This will be re-added in fork_domain_child() */
+
+	DLIST_REMOVE(children, child);
+	
 	remove_fd_event(&child->event);
 	close(child->event.fd);
 	child->event.fd = 0;
@@ -893,9 +897,6 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 	ZERO_STRUCT(state);
 	state.pid = sys_getpid();
 
-	/* Stop zombies */
-	CatchChild();
-
 	/* Ensure we don't process messages whilst we're
 	   changing the disposition for the child. */
 	message_block();
@@ -923,6 +924,9 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 	}
 
 	/* Child */
+
+	/* Stop zombies in children */
+	CatchChild();
 
 	state.sock = fdpair[0];
 	close(fdpair[1]);
@@ -994,7 +998,6 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 	 * but not the main daemon */
 
 	if (child->domain && child->domain->internal && IS_DC) {
-		child->domain->internal = False;
 		child->domain->methods = &cache_methods;
 		child->domain->online = False;
 	}
@@ -1010,6 +1013,10 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 		/* free up any talloc memory */
 		lp_TALLOC_FREE();
 		main_loop_TALLOC_FREE();
+
+		/* check for signals */
+		winbind_check_sigterm();
+		winbind_check_sighup();
 
 		run_events(winbind_event_context(), 0, NULL, NULL);
 

@@ -185,8 +185,8 @@ BOOL print_backend_init(void)
 	int services = lp_numservices();
 	int snum;
 
-	unlink(lock_path("printing.tdb"));
-	pstrcpy(printing_path,lock_path("printing"));
+	unlink(cache_path("printing.tdb"));
+	pstrcpy(printing_path,cache_path("printing"));
 	mkdir(printing_path,0755);
 
 	/* handle a Samba upgrade */
@@ -2525,7 +2525,7 @@ BOOL print_job_end(int snum, uint32 jobid, enum file_close_type close_type)
 	if (ret)
 		goto fail;
 
-	/* The print job has been sucessfully handed over to the back-end */
+	/* The print job has been successfully handed over to the back-end */
 	
 	pjob->spooled = True;
 	pjob->status = LPQ_QUEUED;
@@ -2539,7 +2539,7 @@ BOOL print_job_end(int snum, uint32 jobid, enum file_close_type close_type)
 
 fail:
 
-	/* The print job was not succesfully started. Cleanup */
+	/* The print job was not successfully started. Cleanup */
 	/* Still need to add proper error return propagation! 010122:JRR */
 	unlink(pjob->filename);
 	pjob_delete(sharename, jobid);

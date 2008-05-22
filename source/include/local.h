@@ -109,7 +109,7 @@
 /* the default pager to use for the client "more" command. Users can
    override this with the PAGER environment variable */
 #ifndef PAGER
-#define PAGER "more"
+#define PAGER "/usr/bin/pager"
 #endif
 
 /* the size of the uid cache used to reduce valid user checks */

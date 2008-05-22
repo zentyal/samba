@@ -125,7 +125,7 @@ machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 
 	if (!lp_client_schannel()) {
 		/* We need to set up a creds chain on an unauthenticated netlogon pipe. */
-		uint32 neg_flags = NETLOGON_NEG_SELECT_AUTH2_FLAGS;
+		uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 		uint32 sec_chan_type = 0;
 		unsigned char machine_pwd[16];
 		const char *account_name;
@@ -256,7 +256,7 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 		DEBUG(0,("domain_client_validate: unable to validate password "
                          "for user %s in domain %s to Domain controller %s. "
                          "Error was %s.\n", user_info->smb_name,
-                         user_info->domain, dc_name, 
+                         user_info->client_domain, dc_name, 
                          nt_errstr(nt_status)));
 
 		/* map to something more useful */

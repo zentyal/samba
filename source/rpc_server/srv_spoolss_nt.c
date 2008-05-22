@@ -510,7 +510,12 @@ static BOOL set_printer_hnd_name(Printer_entry *Printer, char *handlename)
 		fstrcpy(sname, lp_servicename(snum));
 
 		printer = NULL;
-		result = get_a_printer( NULL, &printer, 2, sname );
+
+		/* This call doesn't fill in the location or comment from
+		 * a CUPS server for efficiency with large numbers of printers.
+		 * JRA.
+		 */
+		result = get_a_printer_search( NULL, &printer, 2, sname );
 		if ( !W_ERROR_IS_OK(result) ) {
 			DEBUG(0,("set_printer_hnd_name: failed to lookup printer [%s] -- result [%s]\n",
 				sname, dos_errstr(result)));
@@ -9471,8 +9476,13 @@ WERROR _spoolss_enumprinterdataex(pipes_struct *p, SPOOL_Q_ENUMPRINTERDATAEX *q_
 	}
 		
 	/* copy data into the reply */
-	
-	r_u->ctr.size        	= r_u->needed;
+
+	/* mz: Vista x64 returns 0x6f7 (The stub received bad data), if the
+	   response buffer size is != the offered buffer size
+
+		r_u->ctr.size           = r_u->needed;
+	*/
+	r_u->ctr.size           = in_size;
 
 	r_u->ctr.size_of_array 	= r_u->returned;
 	r_u->ctr.values 	= enum_values;

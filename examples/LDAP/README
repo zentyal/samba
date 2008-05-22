@@ -59,6 +59,9 @@ in Samba releases.
 The smbldap-tools package can be downloaded individually from 
 http://samba.idealx.org/dist/
 
+On Debian systems, the smbldap-tools exists as a separate package
+and is not included in LDAP examples.
+
 !==
 !== end of README
 !==

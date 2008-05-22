@@ -108,6 +108,9 @@ typedef struct {
 	char *szAddPrinterCommand;
 	char *szDeletePrinterCommand;
 	char *szOs2DriverMap;
+#ifdef FHS_COMPATIBLE
+	char *szLockDirStub;
+#endif
 	char *szLockDir;
 	char *szPidDir;
 	char *szRootdir;
@@ -1210,8 +1213,13 @@ static struct parm_struct parm_table[] = {
 	{"config file", P_STRING, P_GLOBAL, &Globals.szConfigFile, NULL, NULL, FLAG_HIDE}, 
 	{"preload", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
 	{"auto services", P_STRING, P_GLOBAL, &Globals.szAutoServices, NULL, NULL, FLAG_ADVANCED}, 
+#ifdef FHS_COMPATIBLE
+	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0}, 
+	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDirStub, NULL, NULL, 0},
+#else
 	{"lock directory", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_ADVANCED}, 
 	{"lock dir", P_STRING, P_GLOBAL, &Globals.szLockDir, NULL, NULL, FLAG_HIDE}, 
+#endif
 	{"pid directory", P_STRING, P_GLOBAL, &Globals.szPidDir, NULL, NULL, FLAG_ADVANCED}, 
 #ifdef WITH_UTMP
 	{"utmp directory", P_STRING, P_GLOBAL, &Globals.szUtmpDir, NULL, NULL, FLAG_ADVANCED}, 
@@ -1564,9 +1572,9 @@ static void init_globals(BOOL first_time_only)
 	Globals.bStatCache = True;	/* use stat cache by default */
 	Globals.iMaxStatCacheSize = 1024; /* one Meg by default. */
 	Globals.restrict_anonymous = 0;
-	Globals.bClientLanManAuth = True;	/* Do use the LanMan hash if it is available */
-	Globals.bClientPlaintextAuth = True;	/* Do use a plaintext password if is requested by the server */
-	Globals.bLanmanAuth = True;	/* Do use the LanMan hash if it is available */
+	Globals.bClientLanManAuth = False;	/* Do NOT use the LanMan hash if it is available */
+	Globals.bClientPlaintextAuth = False;	/* Do NOT use a plaintext password even if is requested by the server */
+	Globals.bLanmanAuth = False;	/* Do NOT use the LanMan hash, even if it is supplied */
 	Globals.bNTLMAuth = True;	/* Do use NTLMv1 if it is available (otherwise NTLMv2) */
 	Globals.bClientNTLMv2Auth = False; /* Client should not use NTLMv2, as we can't tell that the server supports it. */
 	/* Note, that we will use NTLM2 session security (which is different), if it is available */
@@ -1677,11 +1685,11 @@ static void init_globals(BOOL first_time_only)
 	Globals.bASUSupport       = False;
 	
 	/* User defined shares. */
-	pstrcpy(s, dyn_LOCKDIR);
+	pstrcpy(s, dyn_STATEDIR());
 	pstrcat(s, "/usershares");
 	string_set(&Globals.szUsersharePath, s);
 	string_set(&Globals.szUsershareTemplateShare, "");
-	Globals.iUsershareMaxShares = 0;
+	Globals.iUsershareMaxShares = 100;
 	/* By default disallow sharing of directories not owned by the sharer. */
 	Globals.bUsershareOwnerOnly = True;
 	/* By default disallow guest access to usershares. */

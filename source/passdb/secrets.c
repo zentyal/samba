@@ -58,7 +58,8 @@ BOOL secrets_init(void)
 	if (tdb)
 		return True;
 
-	pstrcpy(fname, state_path("secrets.tdb"));
+	pstrcpy(fname, lp_private_dir());
+	pstrcat(fname,"/secrets.tdb");
 
 	tdb = tdb_open_log(fname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 

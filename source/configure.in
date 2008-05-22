@@ -51,7 +51,7 @@ AC_ARG_WITH(fhs,
 [  --with-fhs              Use FHS-compliant paths (default=no)],
 [ case "$withval" in
   yes)
-    lockdir="\${VARDIR}/run/samba"
+    lockdir="\${VARDIR}/lib/samba"
     piddir="\${VARDIR}/run"
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
@@ -59,10 +59,6 @@ AC_ARG_WITH(fhs,
     libdir="\${prefix}/lib/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${DATADIR}/samba"
-    statedir="\${VARDIR}/lib/samba"
-    cachedir="\${VARDIR}/cache/samba"
-    AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
     ;;
   esac])
 
@@ -267,9 +263,6 @@ AC_SUBST(privatedir)
 AC_SUBST(swatdir)
 AC_SUBST(bindir)
 AC_SUBST(sbindir)
-AC_SUBST(codepagedir)
-AC_SUBST(statedir)
-AC_SUBST(cachedir)
 AC_SUBST(rootsbindir)
 AC_SUBST(pammodulesdir)
 
@@ -768,15 +761,6 @@ exit(1);
       AC_MSG_RESULT([$SINIX_LFS_SUPPORT])
       fi
     ;;
-
-# Systems with LFS support.
-#
-    gnu* | k*bsd*-gnu)
-	CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-	AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-	AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
-	AC_DEFINE(_GNU_SOURCE, 1, [Whether to use GNU libc extensions])
-	;;
 
 # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
 #
@@ -1400,7 +1384,7 @@ AC_DEFINE(HAVE_PRCTL, 1, [Whether prctl is available]),[])
 #
 #
 case "$host_os" in
-    linux*-gnu* | gnu* | k*bsd*-gnu)
+    *linux*)
        # glibc <= 2.3.2 has a broken getgrouplist
        AC_TRY_RUN([
 #include <unistd.h>
@@ -1709,10 +1693,7 @@ SHLIBEXT="so"
 
   # and these are for particular systems
   case "$host_os" in
-		linux*-gnu* | gnu* | k*bsd*-gnu)
-			case "$host_os" in linux*)
-				AC_DEFINE(LINUX,1,[Whether the host os is linux]) ;;
-			esac
+		*linux*)   AC_DEFINE(LINUX,1,[Whether the host os is linux])
 			BLDSHARED="true"
 			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
 				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
@@ -5479,7 +5460,7 @@ AC_ARG_WITH(sendfile-support,
 	AC_MSG_RESULT(yes);
 
 	case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		AC_CACHE_CHECK([for linux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
 		AC_TRY_LINK([#include <sys/sendfile.h>],
 [\
@@ -5784,11 +5765,11 @@ NSSSONAMEVERSIONSUFFIX=""
 SMB_KRB5_LOCATOR="bin/smb_krb5_locator.$SHLIBEXT"
 
 case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		NSSSONAMEVERSIONSUFFIX=".2"
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_linux.o"
 		;;
-	freebsd5*|*freebsd[[6-9]]*)
+	*freebsd[[5-9]]*)
 		# FreeBSD winbind client is implemented as a wrapper around
 		# the Linux version.
 		NSSSONAMEVERSIONSUFFIX=".1"

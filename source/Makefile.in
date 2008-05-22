@@ -106,13 +106,6 @@ SWATDIR = @swatdir@
 # the directory where lock files go
 LOCKDIR = @lockdir@
 
-# FHS directories; equal to LOCKDIR if not using --with-fhs
-CACHEDIR = @cachedir@
-STATEDIR = @statedir@
-
-# Where to look for (and install) codepage databases.
-CODEPAGEDIR = @codepagedir@
-
 # the directory where pid files go
 PIDDIR = @piddir@
 
@@ -146,7 +139,7 @@ PATH_FLAGS3 = $(PATH_FLAGS2) -DLMHOSTSFILE=\"$(LMHOSTSFILE)\"
 PATH_FLAGS4 = $(PATH_FLAGS3) -DSWATDIR=\"$(SWATDIR)\"  -DLOCKDIR=\"$(LOCKDIR)\" -DPIDDIR=\"$(PIDDIR)\"
 PATH_FLAGS5 = $(PATH_FLAGS4) -DLIBDIR=\"$(LIBDIR)\" \
 	      -DLOGFILEBASE=\"$(LOGFILEBASE)\" -DSHLIBEXT=\"@SHLIBEXT@\"
-PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\" -DCODEPAGEDIR=\"$(CODEPAGEDIR)\" -DCACHEDIR=\"$(CACHEDIR)\" -DSTATEDIR=\"$(STATEDIR)\"
+PATH_FLAGS6 = $(PATH_FLAGS5) -DCONFIGDIR=\"$(CONFIGDIR)\"
 PATH_FLAGS = $(PATH_FLAGS6) $(PASSWD_FLAGS)
 
 # Note that all executable programs now provide for an optional executable suffix.
@@ -1161,7 +1154,7 @@ bin/libaddns.a: proto_exists $(LIBADDNS_OBJ)
 
 bin/libsmbclient.@SHLIBEXT@: proto_exists $(LIBSMBCLIENT_OBJ)
 	@echo Linking libsmbclient shared library $@
-	@$(SHLD) $(LDSHFLAGS) -Wl,-z,defs -o $@ $(LIBSMBCLIENT_OBJ) $(LIBS) \
+	@$(SHLD) $(LDSHFLAGS) -o $@ $(LIBSMBCLIENT_OBJ) $(LIBS) \
 		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
 		@SONAMEFLAG@`basename $@`.$(LIBSMBCLIENT_MAJOR)
 
@@ -1620,10 +1613,10 @@ installscripts: installdirs
 	@$(SHELL) $(srcdir)/script/installscripts.sh $(INSTALLPERMS) $(DESTDIR)$(BINDIR) $(SCRIPTS)
 
 installdat: installdirs
-	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR) $(CODEPAGEDIR) $(srcdir)
+	@$(SHELL) $(srcdir)/script/installdat.sh $(DESTDIR) $(LIBDIR) $(srcdir)
 
 installmsg: installdirs
-	@$(SHELL) $(srcdir)/script/installmsg.sh $(DESTDIR) $(CODEPAGEDIR) $(srcdir)
+	@$(SHELL) $(srcdir)/script/installmsg.sh $(DESTDIR) $(LIBDIR) $(srcdir)
 
 installswat: installdirs installmsg
 	@$(SHELL) $(srcdir)/script/installswat.sh $(DESTDIR) $(SWATDIR) $(srcdir)

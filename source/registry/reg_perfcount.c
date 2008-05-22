@@ -46,7 +46,7 @@ static char* counters_directory( const char *dbname )
 	
 	fstr_sprintf( path, "%s/%s", PERFCOUNTDIR, dbname );
 	
-	pstrcpy( fname, state_path( path ) );
+	pstrcpy( fname, lock_path( path ) );
 	
 	return fname;
 }
@@ -56,7 +56,7 @@ static char* counters_directory( const char *dbname )
 
 void perfcount_init_keys( void )
 {
-	char *p = state_path(PERFCOUNTDIR);
+	char *p = lock_path(PERFCOUNTDIR);
 
 	/* no registry keys; just create the perfmon directory */
 	

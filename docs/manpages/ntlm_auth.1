@@ -35,7 +35,7 @@ daemon must be operational for many of these commands to function\.
 Some of these commands also require access to the directory
 \fIwinbindd_privileged\fR
 in
-\fI/var/run/samba\fR. This should be done either by running this command as root or providing group access to the
+\fI$LOCKDIR\fR\. This should be done either by running this command as root or providing group access to the
 \fIwinbindd_privileged\fR
 directory\. For security reasons, this directory should not be world\-accessable\.
 .SH "OPTIONS"
@@ -61,7 +61,7 @@ Server\-side helper for use with Squid 2\.5\'s NTLMSSP authentication\.
 Requires access to the directory
 \fIwinbindd_privileged\fR
 in
-\fI/var/run/samba\fR. The protocol used is described here:
+\fI$LOCKDIR\fR\. The protocol used is described here:
 http://devel\.squid\-cache\.org/ntlm/squid_helper_protocol\.html\. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the
 YR
 command\. (Thus avoiding loss of information in the protocol exchange)\.
@@ -84,7 +84,7 @@ squid\-2\.5\-ntlmssp, but has some subtle differences that are undocumented outs
 Requires access to the directory
 \fIwinbindd_privileged\fR
 in
-\fI/var/run/samba\fR.
+\fI$LOCKDIR\fR\.
 .RE
 .PP
 gss\-spnego\-client

@@ -60,7 +60,7 @@ NTSTATUS ads_gpo_explode_filesyspath(ADS_STRUCT *ads,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	pstrcpy(path, cache_path(GPO_CACHE_DIR));
+	pstrcpy(path, lock_path(GPO_CACHE_DIR));
 	pstrcat(path, "/");
 	pstrcat(path, file_sys_path);
 	pstring_sub(path, "\\", "/");
@@ -80,7 +80,7 @@ NTSTATUS ads_gpo_prepare_local_store(ADS_STRUCT *ads,
 				     TALLOC_CTX *mem_ctx, 
 				     const char *unix_path)
 {
-	const char *top_dir = cache_path(GPO_CACHE_DIR);
+	const char *top_dir = lock_path(GPO_CACHE_DIR);
 	char *current_dir;
 	fstring tok;
 

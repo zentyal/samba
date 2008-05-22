@@ -832,10 +832,10 @@ static BOOL do_winbind_online(const struct process_id pid,
 	/* Remove the entry in the winbindd_cache tdb to tell a later
 	   starting winbindd that we're online. */
 
-	tdb = tdb_open_log(cache_path("winbindd_cache.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
+	tdb = tdb_open_log(lock_path("winbindd_cache.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
 	if (!tdb) {
 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
-			cache_path("winbindd_cache.tdb"));
+			lock_path("winbindd_cache.tdb"));
 		return False;
 	}
 
@@ -868,13 +868,13 @@ static BOOL do_winbind_offline(const struct process_id pid,
 	   starting winbindd that we're offline. We may actually create
 	   it here... */
 
-	tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+	tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
 				TDB_DEFAULT /* TDB_CLEAR_IF_FIRST */, O_RDWR|O_CREAT, 0600);
 
 	if (!tdb) {
 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
-			cache_path("winbindd_cache.tdb"));
+			lock_path("winbindd_cache.tdb"));
 		return False;
 	}
 

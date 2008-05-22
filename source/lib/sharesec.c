@@ -47,10 +47,10 @@ BOOL share_info_db_init(void)
 		return True;
 	}
 
-	share_tdb = tdb_open_log(state_path("share_info.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	share_tdb = tdb_open_log(lock_path("share_info.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!share_tdb) {
 		DEBUG(0,("Failed to open share info database %s (%s)\n",
-			state_path("share_info.tdb"), strerror(errno) ));
+			lock_path("share_info.tdb"), strerror(errno) ));
 		return False;
 	}
  

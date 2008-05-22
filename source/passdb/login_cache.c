@@ -36,7 +36,7 @@ BOOL login_cache_init(void)
 	/* skip file open if it's already opened */
 	if (cache) return True;
 
-	asprintf(&cache_fname, "%s/%s", dyn_CACHEDIR(), LOGIN_CACHE_FILE);
+	asprintf(&cache_fname, "%s/%s", lp_lockdir(), LOGIN_CACHE_FILE);
 	if (cache_fname)
 		DEBUG(5, ("Opening cache file at %s\n", cache_fname));
 	else {

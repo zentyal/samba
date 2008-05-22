@@ -671,9 +671,6 @@ piddir
 logfilebase
 privatedir
 swatdir
-codepagedir
-statedir
-cachedir
 rootsbindir
 pammodulesdir
 SAMBA_CPPFLAGS
@@ -2154,7 +2151,7 @@ swatdir="\${prefix}/swat"
 if test "${with_fhs+set}" = set; then
   withval=$with_fhs;  case "$withval" in
   yes)
-    lockdir="\${VARDIR}/run/samba"
+    lockdir="\${VARDIR}/lib/samba"
     piddir="\${VARDIR}/run"
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
@@ -2162,14 +2159,6 @@ if test "${with_fhs+set}" = set; then
     libdir="\${prefix}/lib/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${DATADIR}/samba"
-    statedir="\${VARDIR}/lib/samba"
-    cachedir="\${VARDIR}/cache/samba"
-
-cat >>confdefs.h <<\_ACEOF
-#define FHS_COMPATIBLE 1
-_ACEOF
-
     ;;
   esac
 fi
@@ -2409,9 +2398,6 @@ SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/popt"
 if test "x${srcdir-.}" != "x."; then
 	SAMBA_CPPFLAGS=`echo ${SAMBA_CPPFLAGS} | sed -e "s;${srcdir};\$\(srcdir\);g"`
 fi
-
-
-
 
 
 
@@ -11629,27 +11615,6 @@ _ACEOF
 echo "${ECHO_T}$SINIX_LFS_SUPPORT" >&6; }
       fi
     ;;
-
-# Systems with LFS support.
-#
-    gnu* | k*bsd*-gnu)
-	CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-
-cat >>confdefs.h <<\_ACEOF
-#define _LARGEFILE64_SOURCE 1
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define _FILE_OFFSET_BITS 64
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define _GNU_SOURCE 1
-_ACEOF
-
-	;;
 
 # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
 #
@@ -34704,7 +34669,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 #
 #
 case "$host_os" in
-    linux*-gnu* | gnu* | k*bsd*-gnu)
+    *linux*)
        # glibc <= 2.3.2 has a broken getgrouplist
        if test "$cross_compiling" = yes; then
   { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
@@ -39612,14 +39577,11 @@ echo $ECHO_N "checking ability to build shared libraries... $ECHO_C" >&6; }
 
   # and these are for particular systems
   case "$host_os" in
-		linux*-gnu* | gnu* | k*bsd*-gnu)
-			case "$host_os" in linux*)
-
+		*linux*)
 cat >>confdefs.h <<\_ACEOF
 #define LINUX 1
 _ACEOF
- ;;
-			esac
+
 			BLDSHARED="true"
 			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
 				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
@@ -62350,7 +62312,7 @@ if test "${with_sendfile_support+set}" = set; then
 echo "${ECHO_T}yes" >&6; };
 
 	case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		{ echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
 echo $ECHO_N "checking for linux sendfile64 support... $ECHO_C" >&6; }
 if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
@@ -63372,11 +63334,11 @@ NSSSONAMEVERSIONSUFFIX=""
 SMB_KRB5_LOCATOR="bin/smb_krb5_locator.$SHLIBEXT"
 
 case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		NSSSONAMEVERSIONSUFFIX=".2"
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_linux.o"
 		;;
-	freebsd5*|*freebsd[6-9]*)
+	*freebsd[5-9]*)
 		# FreeBSD winbind client is implemented as a wrapper around
 		# the Linux version.
 		NSSSONAMEVERSIONSUFFIX=".1"
@@ -67933,9 +67895,6 @@ piddir!$piddir$ac_delim
 logfilebase!$logfilebase$ac_delim
 privatedir!$privatedir$ac_delim
 swatdir!$swatdir$ac_delim
-codepagedir!$codepagedir$ac_delim
-statedir!$statedir$ac_delim
-cachedir!$cachedir$ac_delim
 rootsbindir!$rootsbindir$ac_delim
 pammodulesdir!$pammodulesdir$ac_delim
 SAMBA_CPPFLAGS!$SAMBA_CPPFLAGS$ac_delim
@@ -67973,6 +67932,9 @@ ACL_LIBS!$ACL_LIBS$ac_delim
 PASSDB_LIBS!$PASSDB_LIBS$ac_delim
 IDMAP_LIBS!$IDMAP_LIBS$ac_delim
 KRB5_LIBS!$KRB5_LIBS$ac_delim
+UUID_LIBS!$UUID_LIBS$ac_delim
+LDAP_LIBS!$LDAP_LIBS$ac_delim
+PAM_MODULES!$PAM_MODULES$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -68014,9 +67976,6 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
-UUID_LIBS!$UUID_LIBS$ac_delim
-LDAP_LIBS!$LDAP_LIBS$ac_delim
-PAM_MODULES!$PAM_MODULES$ac_delim
 INSTALL_PAM_MODULES!$INSTALL_PAM_MODULES$ac_delim
 UNINSTALL_PAM_MODULES!$UNINSTALL_PAM_MODULES$ac_delim
 NSS_MODULES!$NSS_MODULES$ac_delim
@@ -68101,7 +68060,7 @@ SMBD_LIBS!$SMBD_LIBS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 85; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 82; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

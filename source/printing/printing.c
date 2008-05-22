@@ -185,8 +185,8 @@ BOOL print_backend_init(void)
 	int services = lp_numservices();
 	int snum;
 
-	unlink(cache_path("printing.tdb"));
-	pstrcpy(printing_path,cache_path("printing"));
+	unlink(lock_path("printing.tdb"));
+	pstrcpy(printing_path,lock_path("printing"));
 	mkdir(printing_path,0755);
 
 	/* handle a Samba upgrade */

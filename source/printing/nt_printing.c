@@ -560,28 +560,28 @@ BOOL nt_printing_init(void)
  
 	if (tdb_drivers)
 		tdb_close(tdb_drivers);
-	tdb_drivers = tdb_open_log(state_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_drivers = tdb_open_log(lock_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_drivers) {
 		DEBUG(0,("nt_printing_init: Failed to open nt drivers database %s (%s)\n",
-			state_path("ntdrivers.tdb"), strerror(errno) ));
+			lock_path("ntdrivers.tdb"), strerror(errno) ));
 		return False;
 	}
  
 	if (tdb_printers)
 		tdb_close(tdb_printers);
-	tdb_printers = tdb_open_log(state_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_printers = tdb_open_log(lock_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_printers) {
 		DEBUG(0,("nt_printing_init: Failed to open nt printers database %s (%s)\n",
-			state_path("ntprinters.tdb"), strerror(errno) ));
+			lock_path("ntprinters.tdb"), strerror(errno) ));
 		return False;
 	}
  
 	if (tdb_forms)
 		tdb_close(tdb_forms);
-	tdb_forms = tdb_open_log(state_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_forms = tdb_open_log(lock_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_forms) {
 		DEBUG(0,("nt_printing_init: Failed to open nt forms database %s (%s)\n",
-			state_path("ntforms.tdb"), strerror(errno) ));
+			lock_path("ntforms.tdb"), strerror(errno) ));
 		return False;
 	}
  
@@ -2368,7 +2368,7 @@ uint32 del_a_printer(const char *sharename)
 	close_all_print_db();
 
 	if (geteuid() == 0) {
-		pstrcpy(printdb_path, cache_path("printing/"));
+		pstrcpy(printdb_path, lock_path("printing/"));
 		pstrcat(printdb_path, sharename);
 		pstrcat(printdb_path, ".tdb");
 

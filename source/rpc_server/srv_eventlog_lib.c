@@ -67,7 +67,7 @@ char *elog_tdbname( const char *name )
 {
 	fstring path;
 	char *tdb_fullpath;
-	char *eventlogdir = state_path( "eventlog" );
+	char *eventlogdir = lock_path( "eventlog" );
 	
 	pstr_sprintf( path, "%s/%s.tdb", eventlogdir, name );
 	strlower_m( path );
@@ -349,7 +349,7 @@ ELOG_TDB *elog_open_tdb( char *logname, BOOL force_clear )
 	
 	/* make sure that the eventlog dir exists */
 	
-	eventlogdir = state_path( "eventlog" );
+	eventlogdir = lock_path( "eventlog" );
 	if ( !directory_exist( eventlogdir, NULL ) )
 		mkdir( eventlogdir, 0755 );	
 	

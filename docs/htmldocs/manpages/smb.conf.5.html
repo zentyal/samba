@@ -164,8 +164,8 @@ alias|alias|alias|alias...
 	their own share definitions has been added. This capability is called <span class="emphasis"><em>usershares</em></span> and
 	is controlled by a set of parameters in the [global] section of the smb.conf.
 	The relevant parameters are :
-	</p><div class="variablelist"><dl><dt><span class="term">usershare allow guests</span></dt><dd><p>Controls if usershares can permit guest access.</p></dd><dt><span class="term">usershare max shares</span></dt><dd><p>Maximum number of user defined shares allowed.</p></dd><dt><span class="term">usershare owner only</span></dt><dd><p>If set only directories owned by the sharing user can be shared.</p></dd><dt><span class="term">usershare path</span></dt><dd><p>Points to the directory containing the user-defined share definitions.
-		The filesystem permissions on this directory control who can create user-defined shares.</p></dd><dt><span class="term">usershare prefix allow list</span></dt><dd><p>Comma-separated list of absolute pathnames restricting what directories
+	</p><div class="variablelist"><dl><dt><span class="term">usershare allow guests</span></dt><dd><p>Controls if usershares can permit guest access.</p></dd><dt><span class="term">usershare max shares</span></dt><dd><p>Maximum number of user defined shares allowed.</p></dd><dt><span class="term">usershare owner only</span></dt><dd><p>If set only directories owned by the sharing user can be shared.</p></dd><dt><span class="term">usershare path</span></dt><dd><p>Points to the directory containing the user defined share definitions.
+		The filesystem permissions on this directory control who can create user defined shares.</p></dd><dt><span class="term">usershare prefix allow list</span></dt><dd><p>Comma-separated list of absolute pathnames restricting what directories
 		can be shared. Only directories below the pathnames in this list are permitted.</p></dd><dt><span class="term">usershare prefix deny list</span></dt><dd><p>Comma-separated list of absolute pathnames restricting what directories
 		can be shared. Directories below the pathnames in this list are prohibited.</p></dd><dt><span class="term">usershare template share</span></dt><dd><p>Names a pre-existing share used as a template for creating new usershares.
 		All other share parameters not specified in the user defined share definition
@@ -871,7 +871,7 @@ client lanman auth (G)
     without Windows 95/98 servers are advised to disable
     this option.  </p><p>Disabling this option will also disable the <code class="literal">client plaintext auth</code> option</p><p>Likewise, if the <code class="literal">client ntlmv2
     auth</code> parameter is enabled, then only NTLMv2 logins will be
-    attempted.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client lanman auth</code></em> = <code class="literal">no</code>
+    attempted.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client lanman auth</code></em> = <code class="literal">yes</code>
 </em></span>
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id328533"></a>
 
@@ -892,7 +892,7 @@ client ntlmv2 auth (G)
 
 client plaintext auth (G)
 </h3></div></div></div><a class="indexterm" name="id328614"></a><a name="CLIENTPLAINTEXTAUTH"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies whether a client should send a plaintext 
-		password if the server does not support encrypted passwords.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client plaintext auth</code></em> = <code class="literal">no</code>
+		password if the server does not support encrypted passwords.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>client plaintext auth</code></em> = <code class="literal">yes</code>
 </em></span>
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id328651"></a>
 
@@ -2404,7 +2404,7 @@ lanman auth (G)
     auth</code> to disable this for Samba's clients (such as smbclient)</p><p>If this option, and <code class="literal">ntlm
     auth</code> are both disabled, then only NTLMv2 logins will be
     permited.  Not all clients support NTLMv2, and most will require
-    special configuration to use it.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>lanman auth</code></em> = <code class="literal">no</code>
+    special configuration to use it.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>lanman auth</code></em> = <code class="literal">yes</code>
 </em></span>
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id335983"></a>
 

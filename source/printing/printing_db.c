@@ -91,7 +91,7 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 		DLIST_ADD(print_db_head, p);
 	}
 
-	pstrcpy(printdb_path, cache_path("printing/"));
+	pstrcpy(printdb_path, lock_path("printing/"));
 	pstrcat(printdb_path, printername);
 	pstrcat(printdb_path, ".tdb");
 

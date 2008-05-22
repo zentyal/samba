@@ -57,9 +57,6 @@
 /* Define to turn on dmalloc debugging */
 #undef ENABLE_DMALLOC
 
-/* Whether to use fully FHS-compatible paths */
-#undef FHS_COMPATIBLE
-
 /* Whether the host os is FreeBSD */
 #undef FREEBSD
 

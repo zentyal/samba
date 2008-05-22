@@ -34,7 +34,7 @@ static TDB_CONTEXT *netsamlogon_tdb = NULL;
 BOOL netsamlogon_cache_init(void)
 {
 	if (!netsamlogon_tdb) {
-		netsamlogon_tdb = tdb_open_log(cache_path(NETSAMLOGON_TDB), 0,
+		netsamlogon_tdb = tdb_open_log(lock_path(NETSAMLOGON_TDB), 0,
 						   TDB_DEFAULT, O_RDWR | O_CREAT, 0600);
 	}
 
@@ -67,7 +67,7 @@ void netsamlogon_clear_cached_user(TDB_CONTEXT *tdb, NET_USER_INFO_3 *user)
            winbindd_cache.tdb open.  Open the tdb if a NULL is passed. */
 
 	if (!tdb) {
-		tdb = tdb_open_log(cache_path("winbindd_cache.tdb"), 
+		tdb = tdb_open_log(lock_path("winbindd_cache.tdb"), 
 				   WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
 				   TDB_DEFAULT, O_RDWR, 0600);
 		if (!tdb) {

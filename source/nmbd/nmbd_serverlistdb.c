@@ -325,7 +325,7 @@ void write_browse_list(time_t t, BOOL force_write)
 
 	updatecount++;
     
-	pstrcpy(fname,dyn_CACHEDIR());
+	pstrcpy(fname,lp_lockdir());
 	trim_char(fname,'\0' ,'/');
 	pstrcat(fname,"/");
 	pstrcat(fname,SERVER_LIST);

@@ -33,6 +33,9 @@ extern uint32 global_client_caps;
  form /hostname/service/reqpath.
  We cope with either here.
 
+ If conn != NULL then ensure the provided service is
+ the one pointed to by the connection.
+
  Unfortunately, due to broken clients who might set the
  SVAL(inbuf,smb_flg2) & FLAGS2_DFS_PATHNAMES bit and then
  send a local path, we have to cope with that too....
@@ -40,13 +43,14 @@ extern uint32 global_client_caps;
  JRA.
 **********************************************************************/
 
-static NTSTATUS parse_dfs_path(const char *pathname,
+static NTSTATUS parse_dfs_path(connection_struct *conn,
+				const char *pathname,
 				BOOL allow_wcards,
 				struct dfs_path *pdp,
 				BOOL *ppath_contains_wcard)
 {
 	pstring pathname_local;
-	char *p,*temp;
+	char *p,*temp, *servicename;
 	NTSTATUS status = NT_STATUS_OK;
 	char sepchar;
 
@@ -106,12 +110,22 @@ static NTSTATUS parse_dfs_path(const char *pathname,
 	fstrcpy(pdp->hostname,temp);
 	DEBUG(10,("parse_dfs_path: hostname: %s\n",pdp->hostname));
 
-	/* If we got a hostname, is it ours (or an IP address) ? */
-	if (!is_myname_or_ipaddr(pdp->hostname)) {
-		/* Repair path. */
-		*p = sepchar;
-		DEBUG(10,("parse_dfs_path: hostname %s isn't ours. Try local path from path %s\n",
-			pdp->hostname, temp));
+	/* Parse out servicename. */
+	servicename = p+1;
+	p = strchr_m(servicename,sepchar);
+	if (p) {
+		*p = '\0';
+	}
+
+	/* Is this really our servicename ? */
+        if (conn && !( strequal(servicename, lp_servicename(SNUM(conn)))
+			|| (strequal(servicename, HOMES_NAME)
+			&& strequal(lp_servicename(SNUM(conn)),
+				get_current_username()) )) ) {
+
+		DEBUG(10,("parse_dfs_path: %s is not our servicename\n",
+			servicename));
+
 		/*
 		 * Possibly client sent a local path by mistake.
 		 * Try and convert to a local path.
@@ -120,24 +134,29 @@ static NTSTATUS parse_dfs_path(const char *pathname,
 		pdp->hostname[0] = '\0';
 		pdp->servicename[0] = '\0';
 
+		/* Repair the path - replace the sepchar's
+		   we nulled out */
+		servicename--;
+		*servicename = sepchar;
+		if (p) {
+			*p = sepchar;
+		}
+
 		p = temp;
-		DEBUG(10,("parse_dfs_path: trying to convert %s to a local path\n",
+		DEBUG(10,("parse_dfs_path: trying to convert %s "
+			"to a local path\n",
 			temp));
 		goto local_path;
 	}
 
-	/* Parse out servicename. */
-	temp = p+1;
-	p = strchr_m(temp,sepchar);
+	fstrcpy(pdp->servicename,servicename);
+
+	DEBUG(10,("parse_dfs_path: servicename: %s\n",pdp->servicename));
+
 	if(p == NULL) {
-		fstrcpy(pdp->servicename,temp);
 		pdp->reqpath[0] = '\0';
 		return NT_STATUS_OK;
 	}
-	*p = '\0';
-	fstrcpy(pdp->servicename,temp);
-	DEBUG(10,("parse_dfs_path: servicename: %s\n",pdp->servicename));
-
 	p++;
 
   local_path:
@@ -496,7 +515,7 @@ static NTSTATUS dfs_redirect( connection_struct *conn,
 	struct dfs_path dp;
 	pstring targetpath;
 	
-	status = parse_dfs_path(dfs_path, search_wcard_flag, &dp, ppath_contains_wcard);
+	status = parse_dfs_path(conn, dfs_path, search_wcard_flag, &dp, ppath_contains_wcard);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -521,15 +540,6 @@ static NTSTATUS dfs_redirect( connection_struct *conn,
 	if (dp.hostname[0] == '\0' && dp.servicename[0] == '\0') { 
 		pstrcpy(dfs_path, dp.reqpath);
 		return NT_STATUS_OK;
-	}
-
-	if (!( strequal(dp.servicename, lp_servicename(SNUM(conn))) 
-			|| (strequal(dp.servicename, HOMES_NAME) 
-			&& strequal(lp_servicename(SNUM(conn)), get_current_username()) )) ) {
-
-		/* The given sharename doesn't match this connection. */
-
-		return NT_STATUS_OBJECT_PATH_NOT_FOUND;
 	}
 
 	status = dfs_path_lookup(conn, dfs_path, &dp,
@@ -605,16 +615,9 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 
 	*self_referralp = False;
 
-	status = parse_dfs_path(dfs_path, False, &dp, &dummy);
+	status = parse_dfs_path(NULL, dfs_path, False, &dp, &dummy);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	/* Verify hostname in path */
-	if (!is_myname_or_ipaddr(dp.hostname)) {
-		DEBUG(3, ("get_referred_path: Invalid hostname %s in path %s\n",
-			dp.hostname, dfs_path));
-		return NT_STATUS_NOT_FOUND;
 	}
 
 	fstrcpy(jucn->service_name, dp.servicename);
@@ -1008,7 +1011,7 @@ BOOL create_junction(const char *dfs_path, struct junction_map *jucn)
 	BOOL dummy;
 	struct dfs_path dp;
  
-	NTSTATUS status = parse_dfs_path(dfs_path, False, &dp, &dummy);
+	NTSTATUS status = parse_dfs_path(NULL, dfs_path, False, &dp, &dummy);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return False;

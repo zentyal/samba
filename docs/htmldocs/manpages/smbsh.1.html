@@ -1,10 +1,10 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>smbsh</title><link rel="stylesheet" href="samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.71.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="smbsh.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>smbsh &#8212; Allows access to remote SMB shares
-	using UNIX commands</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">smbsh</code> [-W workgroup] [-U username] [-P prefix] [-R &lt;name resolve order&gt;] [-d &lt;debug level&gt;] [-l logdir] [-L libdir]</p></div></div><div class="refsect1" lang="en"><a name="id259559"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">smbsh</code> allows you to access an NT filesystem 
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>smbsh</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.2"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="smbsh.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>smbsh &#8212; Allows access to remote SMB shares
+	using UNIX commands</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">smbsh</code> [-W workgroup] [-U username] [-P prefix] [-R &lt;name resolve order&gt;] [-d &lt;debug level&gt;] [-l logdir] [-L libdir]</p></div></div><div class="refsect1" lang="en"><a name="id282765"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">smbsh</code> allows you to access an NT filesystem 
 	using UNIX commands such as <code class="literal">ls</code>, <code class="literal">
 	egrep</code>, and <code class="literal">rcp</code>. You must use a 
 	shell that is dynamically linked in order for <code class="literal">smbsh</code> 
-	to work correctly.</p></div><div class="refsect1" lang="en"><a name="id259359"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-W WORKGROUP</span></dt><dd><p>Override the default workgroup specified in the 
-		workgroup parameter of the <a href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> file 
+	to work correctly.</p></div><div class="refsect1" lang="en"><a name="id282815"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-W WORKGROUP</span></dt><dd><p>Override the default workgroup specified in the 
+		workgroup parameter of the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> file 
 		for this session. This may be needed to connect to some 
 		servers. </p></dd><dt><span class="term">-U username[%pass]</span></dt><dd><p>Sets the SMB username or username and password.
 		If this option is not specified, the user will be prompted for 
@@ -22,8 +22,8 @@ as descriptions of all the services that the server is
 to provide. See <code class="filename">smb.conf</code> for more information.
 The default configuration file name is determined at 
 compile time.</p></dd><dt><span class="term">-d|--debuglevel=level</span></dt><dd><p><em class="replaceable"><code>level</code></em> is an integer 
-from 0 to 10.  The default value if this parameter is 
-not specified is zero.</p><p>The higher this value, the more detail will be 
+from 0 to 10. The default value if this parameter is 
+not specified is 0.</p><p>The higher this value, the more detail will be 
 logged to the log files about the activities of the 
 server. At level 0, only critical errors and serious 
 warnings will be logged. Level 1 is a reasonable level for
@@ -33,7 +33,7 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="indexterm" name="id260377"></a> parameter
+override the <a class="link" href="smb.conf.5.html#LOGLEVEL">log level</a> parameter
 in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-R &lt;name resolve order&gt;</span></dt><dd><p>This option is used to determine what naming 
 services and in what order to resolve 
 host names to IP addresses. The option takes a space-separated 
@@ -42,7 +42,7 @@ They cause names to be resolved as follows :</p><div class="itemizedlist"><ul ty
 Lookup an IP address in the Samba lmhosts file. If the 
 line in lmhosts has no name type attached to the 
 NetBIOS name 
-(see the <a href="lmhosts.5.html"><span class="citerefentry"><span class="refentrytitle">lmhosts</span>(5)</span></a>	for details) 
+(see the <a class="citerefentry" href="lmhosts.5.html"><span class="citerefentry"><span class="refentrytitle">lmhosts</span>(5)</span></a>	for details) 
 then any name type matches for lookup.
 </p></li><li><p><code class="constant">host</code>: 
 Do a standard host name to IP address resolution, using
@@ -66,13 +66,13 @@ resolution methods as it depends on the target host
 being on a locally connected subnet.
 </p></li></ul></div><p>If this parameter is not set then the name resolve order 
 defined in the <code class="filename">smb.conf</code> file parameter  
-(<a class="indexterm" name="id260127"></a>) will be used.
+(<a class="link" href="smb.conf.5.html#NAMERESOLVEORDER">name resolve order</a>) will be used.
 </p><p>The default order is lmhosts, host, wins, bcast. Without 
-this parameter or any entry in the <a class="indexterm" name="id260137"></a> parameter of the <code class="filename">smb.conf</code> file, the name 
+this parameter or any entry in the <a class="link" href="smb.conf.5.html#NAMERESOLVEORDER">name resolve order</a> parameter of the <code class="filename">smb.conf</code> file, the name 
 resolution methods will be attempted in this order. </p></dd><dt><span class="term">-L libdir</span></dt><dd><p>This parameter specifies the location of the 
 		shared libraries used by <code class="literal">smbsh</code>. The default
 		value is specified at compile time.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id260170"></a><h2>EXAMPLES</h2><p>To use the <code class="literal">smbsh</code> command, execute <code class="literal">
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id324538"></a><h2>EXAMPLES</h2><p>To use the <code class="literal">smbsh</code> command, execute <code class="literal">
 	smbsh</code> from the prompt and enter the username and password 
 	that authenticates you to the machine running the Windows NT 
 	operating system.
@@ -89,19 +89,19 @@ resolution methods will be attempted in this order. </p></dd><dt><span class="te
 	<code class="literal">ls /smb/MYGROUP/&lt;machine-name&gt;</code> will show the share 
 	names for that machine. You could then, for example, use the <code class="literal">
 	cd</code> command to change directories, <code class="literal">vi</code> to 
-	edit files, and <code class="literal">rcp</code>  to copy files.</p></div><div class="refsect1" lang="en"><a name="id300498"></a><h2>VERSION</h2><p>This man page is correct for version 3.0 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id300508"></a><h2>BUGS</h2><p><code class="literal">smbsh</code> works by intercepting the standard 
+	edit files, and <code class="literal">rcp</code>  to copy files.</p></div><div class="refsect1" lang="en"><a name="id324634"></a><h2>VERSION</h2><p>This man page is correct for version 3.0 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id324644"></a><h2>BUGS</h2><p><code class="literal">smbsh</code> works by intercepting the standard 
 	libc calls with the dynamically loaded versions in <code class="filename">
 	smbwrapper.o</code>. Not all calls have been "wrapped", so 
 	some programs may not function correctly under <code class="literal">smbsh
 	</code>.</p><p>Programs which are not dynamically linked cannot make 
 	use of <code class="literal">smbsh</code>'s functionality. Most versions 
 	of UNIX have a <code class="literal">file</code> command that will 
-	describe how a program was linked.</p></div><div class="refsect1" lang="en"><a name="id300553"></a><h2>SEE ALSO</h2><p><a href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id300576"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	describe how a program was linked.</p></div><div class="refsect1" lang="en"><a name="id324684"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id324707"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 
 	The man page sources were converted to YODL format (another 
-	excellent piece of Open Source software, available at <a href="ftp://ftp.icce.rug.nl/pub/unix/" target="_top">
+	excellent piece of Open Source software, available at <a class="ulink" href="ftp://ftp.icce.rug.nl/pub/unix/" target="_top">
 	ftp://ftp.icce.rug.nl/pub/unix/</a>) and updated for the Samba 2.0 
 	release by Jeremy Allison.  The conversion to DocBook for 
 	Samba 2.2 was done by Gerald Carter. The conversion to DocBook XML 4.2

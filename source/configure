@@ -768,6 +768,7 @@ WINBIND_NSS_LDSHFLAGS
 WINBIND_NSS_EXTRA_OBJS
 WINBIND_NSS_EXTRA_LIBS
 NSSSONAMEVERSIONSUFFIX
+PAM_WINBIND_EXTRA_LIBS
 SMB_KRB5_LOCATOR
 BUILD_POPT
 POPTLIBS
@@ -63376,6 +63377,7 @@ case "$host_os" in
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_solaris.o \
 		    nsswitch/winbind_nss_linux.o"
 		WINBIND_NSS_EXTRA_LIBS="-lsocket"
+		PAM_WINBIND_EXTRA_LIBS="-lsocket"
 		;;
 	*hpux11*)
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_solaris.o"
@@ -63393,6 +63395,7 @@ case "$host_os" in
 		winbind_no_reason=", unsupported on $host_os"
 		;;
 esac
+
 
 
 
@@ -68030,6 +68033,7 @@ WINBIND_NSS_LDSHFLAGS!$WINBIND_NSS_LDSHFLAGS$ac_delim
 WINBIND_NSS_EXTRA_OBJS!$WINBIND_NSS_EXTRA_OBJS$ac_delim
 WINBIND_NSS_EXTRA_LIBS!$WINBIND_NSS_EXTRA_LIBS$ac_delim
 NSSSONAMEVERSIONSUFFIX!$NSSSONAMEVERSIONSUFFIX$ac_delim
+PAM_WINBIND_EXTRA_LIBS!$PAM_WINBIND_EXTRA_LIBS$ac_delim
 SMB_KRB5_LOCATOR!$SMB_KRB5_LOCATOR$ac_delim
 BUILD_POPT!$BUILD_POPT$ac_delim
 POPTLIBS!$POPTLIBS$ac_delim
@@ -68056,7 +68060,7 @@ SMBD_LIBS!$SMBD_LIBS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 81; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 82; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

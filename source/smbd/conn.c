@@ -64,10 +64,10 @@ BOOL conn_snum_used(int snum)
 	return(False);
 }
 
-
 /****************************************************************************
-find a conn given a cnum
+ Find a conn given a cnum.
 ****************************************************************************/
+
 connection_struct *conn_find(unsigned cnum)
 {
 	int count=0;
@@ -84,7 +84,6 @@ connection_struct *conn_find(unsigned cnum)
 
 	return NULL;
 }
-
 
 /****************************************************************************
   find first available connection slot, starting from a random position.

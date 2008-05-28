@@ -103,6 +103,11 @@ union srvsvc_NetConnCtr {
 	struct srvsvc_NetConnCtr1 *ctr1;/* [unique,case] */
 };
 
+struct srvsvc_NetConnInfoCtr {
+	uint32_t level;
+	union srvsvc_NetConnCtr ctr;/* [switch_is(level)] */
+};
+
 struct srvsvc_NetFileInfo2 {
 	uint32_t fid;
 };
@@ -133,6 +138,11 @@ union srvsvc_NetFileInfo {
 union srvsvc_NetFileCtr {
 	struct srvsvc_NetFileCtr2 *ctr2;/* [unique,case(2)] */
 	struct srvsvc_NetFileCtr3 *ctr3;/* [unique,case(3)] */
+};
+
+struct srvsvc_NetFileInfoCtr {
+	uint32_t level;
+	union srvsvc_NetFileCtr ctr;/* [switch_is(level)] */
 };
 
 struct srvsvc_NetSessInfo0 {
@@ -207,6 +217,11 @@ union srvsvc_NetSessCtr {
 	struct srvsvc_NetSessCtr2 *ctr2;/* [unique,case(2)] */
 	struct srvsvc_NetSessCtr10 *ctr10;/* [unique,case(10)] */
 	struct srvsvc_NetSessCtr502 *ctr502;/* [unique,case(502)] */
+};
+
+struct srvsvc_NetSessInfoCtr {
+	uint32_t level;
+	union srvsvc_NetSessCtr ctr;/* [switch_is(level)] */
 };
 
 enum srvsvc_ShareType
@@ -295,12 +310,11 @@ struct srvsvc_NetShareInfo502 {
 	enum srvsvc_ShareType type;
 	const char *comment;/* [unique,charset(UTF16)] */
 	uint32_t permissions;
-	int32_t max_users;
+	uint32_t max_users;
 	uint32_t current_users;
 	const char *path;/* [unique,charset(UTF16)] */
 	const char *password;/* [unique,charset(UTF16)] */
-	uint32_t unknown;
-	struct security_descriptor *sd;/* [unique,subcontext(4)] */
+	struct sec_desc_buf sd_buf;
 };
 
 struct srvsvc_NetShareCtr502 {
@@ -331,7 +345,7 @@ struct srvsvc_NetShareCtr1005 {
 };
 
 struct srvsvc_NetShareInfo1006 {
-	int32_t max_users;
+	uint32_t max_users;
 };
 
 struct srvsvc_NetShareCtr1006 {
@@ -378,6 +392,11 @@ union srvsvc_NetShareCtr {
 	struct srvsvc_NetShareCtr1006 *ctr1006;/* [unique,case(1006)] */
 	struct srvsvc_NetShareCtr1007 *ctr1007;/* [unique,case(1007)] */
 	struct srvsvc_NetShareCtr1501 *ctr1501;/* [unique,case(1501)] */
+};
+
+struct srvsvc_NetShareInfoCtr {
+	uint32_t level;
+	union srvsvc_NetShareCtr ctr;/* [switch_is(level)] */
 };
 
 enum srvsvc_PlatformId
@@ -1141,15 +1160,13 @@ struct srvsvc_NetConnEnum {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		const char *path;/* [unique,charset(UTF16)] */
 		uint32_t max_buffer;
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetConnCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetConnInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 	} in;
 
 	struct {
 		uint32_t *totalentries;/* [ref] */
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetConnCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetConnInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 		WERROR result;
 	} out;
@@ -1163,15 +1180,13 @@ struct srvsvc_NetFileEnum {
 		const char *path;/* [unique,charset(UTF16)] */
 		const char *user;/* [unique,charset(UTF16)] */
 		uint32_t max_buffer;
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetFileCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetFileInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 	} in;
 
 	struct {
 		uint32_t *totalentries;/* [ref] */
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetFileCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetFileInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 		WERROR result;
 	} out;
@@ -1213,15 +1228,13 @@ struct srvsvc_NetSessEnum {
 		const char *client;/* [unique,charset(UTF16)] */
 		const char *user;/* [unique,charset(UTF16)] */
 		uint32_t max_buffer;
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetSessCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetSessInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 	} in;
 
 	struct {
 		uint32_t *totalentries;/* [ref] */
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetSessCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetSessInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 		WERROR result;
 	} out;
@@ -1247,7 +1260,7 @@ struct srvsvc_NetShareAdd {
 	struct {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		uint32_t level;
-		union srvsvc_NetShareInfo info;/* [switch_is(level)] */
+		union srvsvc_NetShareInfo *info;/* [ref,switch_is(level)] */
 		uint32_t *parm_error;/* [unique] */
 	} in;
 
@@ -1263,15 +1276,13 @@ struct srvsvc_NetShareEnumAll {
 	struct {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		uint32_t max_buffer;
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetShareCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetShareInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 	} in;
 
 	struct {
 		uint32_t *totalentries;/* [ref] */
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetShareCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetShareInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 		WERROR result;
 	} out;
@@ -1299,7 +1310,7 @@ struct srvsvc_NetShareSetInfo {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		const char *share_name;/* [charset(UTF16)] */
 		uint32_t level;
-		union srvsvc_NetShareInfo info;/* [switch_is(level)] */
+		union srvsvc_NetShareInfo *info;/* [ref,switch_is(level)] */
 		uint32_t *parm_error;/* [unique] */
 	} in;
 
@@ -1371,7 +1382,7 @@ struct srvsvc_NetSrvSetInfo {
 	struct {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		uint32_t level;
-		union srvsvc_NetSrvInfo info;/* [switch_is(level)] */
+		union srvsvc_NetSrvInfo *info;/* [ref,switch_is(level)] */
 		uint32_t *parm_error;/* [unique] */
 	} in;
 
@@ -1472,7 +1483,7 @@ struct srvsvc_NetRemoteTOD {
 	} in;
 
 	struct {
-		struct srvsvc_NetRemoteTODInfo *info;/* [unique] */
+		struct srvsvc_NetRemoteTODInfo **info;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -1587,15 +1598,13 @@ struct srvsvc_NetShareEnum {
 	struct {
 		const char *server_unc;/* [unique,charset(UTF16)] */
 		uint32_t max_buffer;
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetShareCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetShareInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 	} in;
 
 	struct {
 		uint32_t *totalentries;/* [ref] */
-		uint32_t *level;/* [ref] */
-		union srvsvc_NetShareCtr *ctr;/* [ref,switch_is(*level)] */
+		struct srvsvc_NetShareInfoCtr *info_ctr;/* [ref] */
 		uint32_t *resume_handle;/* [unique] */
 		WERROR result;
 	} out;
@@ -1640,7 +1649,7 @@ struct srvsvc_NetGetFileSecurity {
 	} in;
 
 	struct {
-		struct sec_desc_buf *sd_buf;/* [unique] */
+		struct sec_desc_buf **sd_buf;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -1653,7 +1662,7 @@ struct srvsvc_NetSetFileSecurity {
 		const char *share;/* [unique,charset(UTF16)] */
 		const char *file;/* [charset(UTF16)] */
 		uint32_t securityinformation;
-		struct sec_desc_buf sd_buf;
+		struct sec_desc_buf *sd_buf;/* [ref] */
 	} in;
 
 	struct {

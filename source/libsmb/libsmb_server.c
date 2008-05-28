@@ -101,15 +101,29 @@ SMBC_call_auth_fn(TALLOC_CTX *ctx,
 	fstring workgroup;
 	fstring username;
 	fstring password;
+        smbc_get_auth_data_with_context_fn auth_with_context_fn;
         
 	strlcpy(workgroup, *pp_workgroup, sizeof(workgroup));
 	strlcpy(username, *pp_username, sizeof(username));
 	strlcpy(password, *pp_password, sizeof(password));
         
-        smbc_getFunctionAuthData(context)(server, share,
-                                          workgroup, sizeof(workgroup),
-                                          username, sizeof(username),
-                                          password, sizeof(password));
+        /* See if there's an authentication with context function provided */
+        auth_with_context_fn = smbc_getFunctionAuthDataWithContext(context);
+        if (auth_with_context_fn)
+        {
+            (* auth_with_context_fn)(context,
+                                     server, share,
+                                     workgroup, sizeof(workgroup),
+                                     username, sizeof(username),
+                                     password, sizeof(password));
+        }
+        else
+        {
+            smbc_getFunctionAuthData(context)(server, share,
+                                              workgroup, sizeof(workgroup),
+                                              username, sizeof(username),
+                                              password, sizeof(password));
+        }
         
 	TALLOC_FREE(*pp_workgroup);
 	TALLOC_FREE(*pp_username);
@@ -144,6 +158,10 @@ SMBC_find_server(TALLOC_CTX *ctx,
         SMBCSRV *srv;
         int auth_called = 0;
         
+        if (!pp_workgroup || !pp_username || !pp_password) {
+                return NULL;
+        }
+                
 check_server_cache:
         
 	srv = smbc_getFunctionGetCachedServer(context)(context,
@@ -155,10 +173,6 @@ check_server_cache:
                                      !*pp_password || !(*pp_password)[0])) {
 		SMBC_call_auth_fn(ctx, context, server, share,
                                   pp_workgroup, pp_username, pp_password);
-                
-		if (!pp_workgroup || !pp_username || !pp_password) {
-			return NULL;
-		}
                 
 		/*
                  * However, smbc_auth_fn may have picked up info relating to

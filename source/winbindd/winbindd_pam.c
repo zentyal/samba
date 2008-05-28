@@ -27,6 +27,8 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
+#define LOGON_KRB5_FAIL_CLOCK_SKEW	0x02000000
+
 static NTSTATUS append_info3_as_txt(TALLOC_CTX *mem_ctx,
 				    struct winbindd_cli_state *state,
 				    struct netr_SamInfo3 *info3)
@@ -311,7 +313,7 @@ static NTSTATUS check_info3_in_group(TALLOC_CTX *mem_ctx,
 	status = sid_array_from_info3(mem_ctx, info3, 
 				      &token->user_sids, 
 				      &token->num_sids,
-				      True);
+				      true, false);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -1283,6 +1285,17 @@ NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 	/* check authentication loop */
 
 	do {
+		NTSTATUS (*logon_fn)(struct rpc_pipe_client *cli,
+				     TALLOC_CTX *mem_ctx,
+				     uint32 logon_parameters,
+				     const char *server,
+				     const char *username,
+				     const char *domain,
+				     const char *workstation,
+				     const uint8 chal[8],
+				     DATA_BLOB lm_response,
+				     DATA_BLOB nt_response,
+				     struct netr_SamInfo3 **info3);
 
 		ZERO_STRUCTP(my_info3);
 		retry = False;
@@ -1294,18 +1307,52 @@ NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 			goto done;
 		}
 
-		result = rpccli_netlogon_sam_network_logon(netlogon_pipe,
-							   state->mem_ctx,
-							   0,
-							   contact_domain->dcname, /* server name */
-							   name_user,              /* user name */
-							   name_domain,            /* target domain */
-							   global_myname(),        /* workstation */
-							   chal,
-							   lm_resp,
-							   nt_resp,
-							   &my_info3);
+		/* It is really important to try SamLogonEx here,
+		 * because in a clustered environment, we want to use
+		 * one machine account from multiple physical
+		 * computers.  
+		 *
+		 * With a normal SamLogon call, we must keep the
+		 * credentials chain updated and intact between all
+		 * users of the machine account (which would imply
+		 * cross-node communication for every NTLM logon).
+		 *
+		 * (The credentials chain is not per NETLOGON pipe
+		 * connection, but globally on the server/client pair
+		 * by machine name).
+		 *
+		 * When using SamLogonEx, the credentials are not
+		 * supplied, but the session key is implied by the
+		 * wrapping SamLogon context.
+		 * 
+		 *  -- abartlet 21 April 2008
+		 */
+
+		logon_fn = contact_domain->can_do_samlogon_ex
+			? rpccli_netlogon_sam_network_logon_ex
+			: rpccli_netlogon_sam_network_logon;
+
+		result = logon_fn(netlogon_pipe,
+				  state->mem_ctx,
+				  0,
+				  contact_domain->dcname, /* server name */
+				  name_user,              /* user name */
+				  name_domain,            /* target domain */
+				  global_myname(),        /* workstation */
+				  chal,
+				  lm_resp,
+				  nt_resp,
+				  &my_info3);
 		attempts += 1;
+
+		if ((NT_STATUS_V(result) == DCERPC_FAULT_OP_RNG_ERROR)
+		    && contact_domain->can_do_samlogon_ex) {
+			DEBUG(3, ("Got a DC that can not do NetSamLogonEx, "
+				  "retrying with NetSamLogon\n"));
+			contact_domain->can_do_samlogon_ex = False;
+			retry = True;
+			continue;
+		}
 
 		/* We have to try a second time as cm_connect_netlogon
 		   might not yet have noticed that the DC has killed
@@ -1338,7 +1385,7 @@ NTSTATUS winbindd_dual_pam_auth_samlogon(struct winbindd_domain *domain,
 	 * caller, we look up the account flags ourselve - gd */
 
 	if ((state->request.flags & WBFLAG_PAM_INFO3_TEXT) && 
-	    (my_info3->base.acct_flags == 0) && NT_STATUS_IS_OK(result)) {
+	    NT_STATUS_IS_OK(result) && (my_info3->base.acct_flags == 0)) {
 
 		struct rpc_pipe_client *samr_pipe;
 		POLICY_HND samr_domain_handle, user_pol;
@@ -1612,12 +1659,24 @@ process_result:
 
 
 		if (state->request.flags & WBFLAG_PAM_GET_PWD_POLICY) {
-			result = fillup_password_policy(domain, state);
+			struct winbindd_domain *our_domain = find_our_domain();
+
+			/* This is not entirely correct I believe, but it is
+			   consistent.  Only apply the password policy settings
+			   too warn users for our own domain.  Cannot obtain these 
+			   from trusted DCs all the  time so don't do it at all. 
+			   -- jerry */
+
+			result = NT_STATUS_NOT_SUPPORTED;
+			if (our_domain == domain ) {
+				result = fillup_password_policy(our_domain, state);
+			}
 
 			if (!NT_STATUS_IS_OK(result) 
 			    && !NT_STATUS_EQUAL(result, NT_STATUS_NOT_SUPPORTED) ) 
 			{
-				DEBUG(10,("Failed to get password policies: %s\n", nt_errstr(result)));
+				DEBUG(10,("Failed to get password policies for domain %s: %s\n", 
+					  domain->name, nt_errstr(result)));
 				goto done;
 			}
 		}
@@ -1804,6 +1863,18 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 	}
 
 	do {
+		NTSTATUS (*logon_fn)(struct rpc_pipe_client *cli,
+				     TALLOC_CTX *mem_ctx,
+				     uint32 logon_parameters,
+				     const char *server,
+				     const char *username,
+				     const char *domain,
+				     const char *workstation,
+				     const uint8 chal[8],
+				     DATA_BLOB lm_response,
+				     DATA_BLOB nt_response,
+				     struct netr_SamInfo3 **info3);
+
 		retry = False;
 
 		netlogon_pipe = NULL;
@@ -1815,18 +1886,31 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 			goto done;
 		}
 
-		result = rpccli_netlogon_sam_network_logon(netlogon_pipe,
-							   state->mem_ctx,
-							   state->request.data.auth_crap.logon_parameters,
-							   contact_domain->dcname,
-							   name_user,
-							   name_domain, 
-									/* Bug #3248 - found by Stefan Burkei. */
-							   workstation, /* We carefully set this above so use it... */
-							   state->request.data.auth_crap.chal,
-							   lm_resp,
-							   nt_resp,
-							   &info3);
+		logon_fn = contact_domain->can_do_samlogon_ex
+			? rpccli_netlogon_sam_network_logon_ex
+			: rpccli_netlogon_sam_network_logon;
+
+		result = logon_fn(netlogon_pipe,
+				  state->mem_ctx,
+				  state->request.data.auth_crap.logon_parameters,
+				  contact_domain->dcname,
+				  name_user,
+				  name_domain, 
+				  /* Bug #3248 - found by Stefan Burkei. */
+				  workstation, /* We carefully set this above so use it... */
+				  state->request.data.auth_crap.chal,
+				  lm_resp,
+				  nt_resp,
+				  &info3);
+
+		if ((NT_STATUS_V(result) == DCERPC_FAULT_OP_RNG_ERROR)
+		    && contact_domain->can_do_samlogon_ex) {
+			DEBUG(3, ("Got a DC that can not do NetSamLogonEx, "
+				  "retrying with NetSamLogon\n"));
+			contact_domain->can_do_samlogon_ex = False;
+			retry = True;
+			continue;
+		}
 
 		attempts += 1;
 

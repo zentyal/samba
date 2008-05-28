@@ -63,7 +63,7 @@ bool is_ipaddress(const char *str)
 					sizeof(addr)));
 			sp = addr;
 		}
-		ret = inet_pton(AF_INET6, addr, &dest6);
+		ret = inet_pton(AF_INET6, sp, &dest6);
 		if (ret > 0) {
 			return true;
 		}
@@ -108,9 +108,13 @@ static bool interpret_string_addr_internal(struct addrinfo **ppres,
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = flags;
 
+	/* Linux man page on getaddinfo() says port will be
+	   uninitialized when service string in NULL */
+
 	ret = getaddrinfo(str, NULL,
 			&hints,
 			ppres);
+
 	if (ret) {
 		DEBUG(3,("interpret_string_addr_internal: getaddrinfo failed "
 			"for name %s [%s]\n",
@@ -370,7 +374,7 @@ void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
  Convert an IPv6 struct in_addr to a struct sockaddr_storage.
 ********************************************************************/
 
-void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
+ void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 		struct in6_addr ip)
 {
 	struct sockaddr_in6 *sa = (struct sockaddr_in6 *)ss;
@@ -541,50 +545,28 @@ char *print_canonical_sockaddr(TALLOC_CTX *ctx,
 	char *dest = NULL;
 	int ret;
 
+	/* Linux getnameinfo() man pages says port is unitialized if
+	   service name is NULL. */
+
 	ret = sys_getnameinfo((const struct sockaddr *)pss,
 			sizeof(struct sockaddr_storage),
 			addr, sizeof(addr),
 			NULL, 0,
 			NI_NUMERICHOST);
-	if (ret) {
+	if (ret != 0) {
 		return NULL;
 	}
+
 	if (pss->ss_family != AF_INET) {
 #if defined(HAVE_IPV6)
-		/* IPv6 */
-		const struct sockaddr_in6 *sa6 =
-			(const struct sockaddr_in6 *)pss;
-		uint16_t port = ntohs(sa6->sin6_port);
-
-		if (port) {
-			dest = talloc_asprintf(ctx,
-					"[%s]:%d",
-					addr,
-					(unsigned int)port);
-		} else {
-			dest = talloc_asprintf(ctx,
-					"[%s]",
-					addr);
-		}
+		dest = talloc_asprintf(ctx, "[%s]", addr);
 #else
 		return NULL;
 #endif
 	} else {
-		const struct sockaddr_in *sa =
-			(const struct sockaddr_in *)pss;
-		uint16_t port = ntohs(sa->sin_port);
-
-		if (port) {
-			dest = talloc_asprintf(ctx,
-					"%s:%d",
-					addr,
-					(unsigned int)port);
-		} else {
-			dest = talloc_asprintf(ctx,
-					"%s",
-					addr);
-		}
+		dest = talloc_asprintf(ctx, "%s", addr);
 	}
+	
 	return dest;
 }
 
@@ -855,7 +837,10 @@ void set_socket_options(int fd, const char *options)
 		}
 
 		if (ret != 0) {
-			DEBUG(0,("Failed to set socket option %s (Error %s)\n",
+			/* be aware that some systems like Solaris return
+			 * EINVAL to a setsockopt() call when the client
+			 * sent a RST previously - no need to worry */
+			DEBUG(2,("Failed to set socket option %s (Error %s)\n",
 				tok, strerror(errno) ));
 		}
 	}

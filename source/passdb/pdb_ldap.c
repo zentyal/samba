@@ -349,6 +349,7 @@ int ldapsam_search_suffix_by_name(struct ldapsam_privates *ldap_state,
 	filter = talloc_asprintf(talloc_tos(), "(&%s%s)", "(uid=%u)",
 		get_objclass_filter(ldap_state->schema_ver));
 	if (!filter) {
+		SAFE_FREE(escape_user);
 		return LDAP_NO_MEMORY;
 	}
 	/*
@@ -358,10 +359,10 @@ int ldapsam_search_suffix_by_name(struct ldapsam_privates *ldap_state,
 
 	filter = talloc_all_string_sub(talloc_tos(),
 				filter, "%u", escape_user);
+	SAFE_FREE(escape_user);
 	if (!filter) {
 		return LDAP_NO_MEMORY;
 	}
-	SAFE_FREE(escape_user);
 
 	ret = smbldap_search_suffix(ldap_state->smbldap_state,
 			filter, attr, result);
@@ -1725,10 +1726,16 @@ static NTSTATUS ldapsam_modify_entry(struct pdb_methods *my_methods,
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 
-		ber_printf (ber, "{");
-		ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_ID, utf8_dn);
-	        ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_NEW, utf8_password);
-	        ber_printf (ber, "n}");
+		if ((ber_printf (ber, "{") < 0) ||
+		    (ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_ID, utf8_dn) < 0) ||
+		    (ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_NEW, utf8_password) < 0) ||
+		    (ber_printf (ber, "n}") < 0)) {
+			DEBUG(0,("ldapsam_modify_entry: ber_printf returns a value <0\n"));
+                       ber_free(ber,1);
+                       SAFE_FREE(utf8_dn);
+                       SAFE_FREE(utf8_password);
+                       return NT_STATUS_UNSUCCESSFUL;
+		}
 
 	        if ((rc = ber_flatten (ber, &bv))<0) {
 			DEBUG(0,("ldapsam_modify_entry: ber_flatten returns a value <0\n"));
@@ -1912,8 +1919,9 @@ static NTSTATUS ldapsam_update_sam_account(struct pdb_methods *my_methods, struc
 			ldap_mods_free(mods,True);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
-	
-	if (mods == NULL) {
+
+	if ((lp_ldap_passwd_sync() != LDAP_PASSWD_SYNC_ONLY)
+	    && (mods == NULL)) {
 		DEBUG(4,("ldapsam_update_sam_account: mods is empty: nothing to update for user: %s\n",
 			 pdb_get_username(newpwd)));
 		SAFE_FREE(dn);
@@ -1921,7 +1929,11 @@ static NTSTATUS ldapsam_update_sam_account(struct pdb_methods *my_methods, struc
 	}
 	
 	ret = ldapsam_modify_entry(my_methods,newpwd,dn,mods,LDAP_MOD_REPLACE, element_is_changed);
-	ldap_mods_free(mods,True);
+
+	if (mods != NULL) {
+		ldap_mods_free(mods,True);
+	}
+
 	SAFE_FREE(dn);
 
 	/*

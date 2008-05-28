@@ -1196,6 +1196,32 @@ static NTSTATUS unix_perms_from_wire( connection_struct *conn,
 }
 
 /****************************************************************************
+ Needed to show the msdfs symlinks as directories. Modifies psbuf
+ to be a directory if it's a msdfs link.
+****************************************************************************/
+
+static bool check_msdfs_link(connection_struct *conn,
+				const char *pathname,
+				SMB_STRUCT_STAT *psbuf)
+{
+	int saved_errno = errno;
+	if(lp_host_msdfs() &&
+		lp_msdfs_root(SNUM(conn)) &&
+		is_msdfs_link(conn, pathname, psbuf)) {
+
+		DEBUG(5,("check_msdfs_link: Masquerading msdfs link %s "
+			"as a directory\n",
+			pathname));
+		psbuf->st_mode = (psbuf->st_mode & 0xFFF) | S_IFDIR;
+		errno = saved_errno;
+		return true;
+	}
+	errno = saved_errno;
+	return false;
+}
+
+
+/****************************************************************************
  Get a level dependent lanman2 dir entry.
 ****************************************************************************/
 
@@ -1207,6 +1233,7 @@ static bool get_lanman2_dir_entry(TALLOC_CTX *ctx,
 				int info_level,
 				int requires_resume_key,
 				bool dont_descend,
+				bool ask_sharemode,
 				char **ppdata,
 				char *base_data,
 				char *end_data,
@@ -1359,16 +1386,8 @@ static bool get_lanman2_dir_entry(TALLOC_CTX *ctx,
 				/* Needed to show the msdfs symlinks as
 				 * directories */
 
-				if(lp_host_msdfs() &&
-				   lp_msdfs_root(SNUM(conn)) &&
-				   ((ms_dfs_link = is_msdfs_link(conn, pathreal, &sbuf)) == True)) {
-					DEBUG(5,("get_lanman2_dir_entry: Masquerading msdfs link %s "
-						"as a directory\n",
-						pathreal));
-					sbuf.st_mode = (sbuf.st_mode & 0xFFF) | S_IFDIR;
-
-				} else {
-
+				ms_dfs_link = check_msdfs_link(conn, pathreal, &sbuf);
+				if (!ms_dfs_link) {
 					DEBUG(5,("get_lanman2_dir_entry:Couldn't stat [%s] (%s)\n",
 						pathreal,strerror(errno)));
 					TALLOC_FREE(pathreal);
@@ -1396,6 +1415,17 @@ static bool get_lanman2_dir_entry(TALLOC_CTX *ctx,
 			mdate_ts = get_mtimespec(&sbuf);
 			adate_ts = get_atimespec(&sbuf);
 			create_date_ts = get_create_timespec(&sbuf,lp_fake_dir_create_times(SNUM(conn)));
+
+			if (ask_sharemode) {
+				struct timespec write_time_ts;
+				struct file_id fileid;
+
+				fileid = vfs_file_id_from_sbuf(conn, &sbuf);
+				get_file_infos(fileid, NULL, &write_time_ts);
+				if (!null_timespec(write_time_ts)) {
+					mdate_ts = write_time_ts;
+				}
+			}
 
 			if (lp_dos_filetime_resolution(SNUM(conn))) {
 				dos_filetime_timespec(&create_date_ts);
@@ -1866,6 +1896,7 @@ static void call_trans2findfirst(connection_struct *conn,
 	SMB_STRUCT_STAT sbuf;
 	struct ea_list *ea_list = NULL;
 	NTSTATUS ntstatus = NT_STATUS_OK;
+	bool ask_sharemode = lp_parm_bool(SNUM(conn), "smbd", "search ask sharemode", true);
 	TALLOC_CTX *ctx = talloc_tos();
 
 	if (total_params < 13) {
@@ -2062,6 +2093,7 @@ total_data=%u (should be %u)\n", (unsigned int)total_data, (unsigned int)IVAL(pd
 					req->flags2,
 					mask,dirtype,info_level,
 					requires_resume_key,dont_descend,
+					ask_sharemode,
 					&p,pdata,data_end,
 					space_remaining, &out_of_space,
 					&got_exact_match,
@@ -2198,6 +2230,7 @@ static void call_trans2findnext(connection_struct *conn,
 	int space_remaining;
 	struct ea_list *ea_list = NULL;
 	NTSTATUS ntstatus = NT_STATUS_OK;
+	bool ask_sharemode = lp_parm_bool(SNUM(conn), "smbd", "search ask sharemode", true);
 	TALLOC_CTX *ctx = talloc_tos();
 
 	if (total_params < 13) {
@@ -2406,6 +2439,7 @@ total_data=%u (should be %u)\n", (unsigned int)total_data, (unsigned int)IVAL(pd
 						req->flags2,
 						mask,dirtype,info_level,
 						requires_resume_key,dont_descend,
+						ask_sharemode,
 						&p,pdata,data_end,
 						space_remaining, &out_of_space,
 						&got_exact_match,
@@ -3189,7 +3223,7 @@ cap_low = 0x%x, cap_high = 0x%x\n",
 				}
 
 				DEBUG( 4,("call_trans2setfsinfo: "
-					"request transport encrption.\n"));
+					"request transport encryption.\n"));
 
 				status = srv_request_encryption_setup(conn,
 								(unsigned char **)ppdata,
@@ -3784,11 +3818,13 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 	int len;
 	time_t create_time, mtime, atime;
 	struct timespec create_time_ts, mtime_ts, atime_ts;
+	struct timespec write_time_ts;
 	files_struct *fsp = NULL;
 	struct file_id fileid;
 	struct ea_list *ea_list = NULL;
 	uint32 access_mask = 0x12019F; /* Default - GENERIC_EXECUTE mapping from Windows */
 	char *lock_data = NULL;
+	bool ms_dfs_link = false;
 	TALLOC_CTX *ctx = talloc_tos();
 
 	if (!params) {
@@ -3797,6 +3833,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 	}
 
 	ZERO_STRUCT(sbuf);
+	ZERO_STRUCT(write_time_ts);
 
 	if (tran_call == TRANSACT2_QFILEINFO) {
 		if (total_params < 4) {
@@ -3861,7 +3898,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			}
 
 			fileid = vfs_file_id_from_sbuf(conn, &sbuf);
-			delete_pending = get_delete_on_close_flag(fileid);
+			get_file_infos(fileid, &delete_pending, &write_time_ts);
 		} else {
 			/*
 			 * Original code - this is an open file.
@@ -3877,7 +3914,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			}
 			pos = fsp->fh->position_information;
 			fileid = vfs_file_id_from_sbuf(conn, &sbuf);
-			delete_pending = get_delete_on_close_flag(fileid);
+			get_file_infos(fileid, &delete_pending, &write_time_ts);
 			access_mask = fsp->access_mask;
 		}
 
@@ -3941,14 +3978,19 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 				reply_unixerror(req, ERRDOS, ERRbadpath);
 				return;
 			}
+
 		} else if (!VALID_STAT(sbuf) && SMB_VFS_STAT(conn,fname,&sbuf) && (info_level != SMB_INFO_IS_NAME_VALID)) {
-			DEBUG(3,("call_trans2qfilepathinfo: SMB_VFS_STAT of %s failed (%s)\n",fname,strerror(errno)));
-			reply_unixerror(req, ERRDOS, ERRbadpath);
-			return;
+			ms_dfs_link = check_msdfs_link(conn,fname,&sbuf);
+
+			if (!ms_dfs_link) {
+				DEBUG(3,("call_trans2qfilepathinfo: SMB_VFS_STAT of %s failed (%s)\n",fname,strerror(errno)));
+				reply_unixerror(req, ERRDOS, ERRbadpath);
+				return;
+			}
 		}
 
 		fileid = vfs_file_id_from_sbuf(conn, &sbuf);
-		delete_pending = get_delete_on_close_flag(fileid);
+		get_file_infos(fileid, &delete_pending, &write_time_ts);
 		if (delete_pending) {
 			reply_nterror(req, NT_STATUS_DELETE_PENDING);
 			return;
@@ -3969,7 +4011,11 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 	else
 		base_name = p+1;
 
-	mode = dos_mode(conn,fname,&sbuf);
+	if (ms_dfs_link) {
+		mode = dos_mode_msdfs(conn,fname,&sbuf);
+	} else {
+		mode = dos_mode(conn,fname,&sbuf);
+	}
 	if (!mode)
 		mode = FILE_ATTRIBUTE_NORMAL;
 
@@ -4073,23 +4119,18 @@ total_data=%u (should be %u)\n", (unsigned int)total_data, (unsigned int)IVAL(pd
 
 	allocation_size = get_allocation_size(conn,fsp,&sbuf);
 
-	if (fsp) {
-		if (!null_timespec(fsp->pending_modtime)) {
-			/* the pending modtime overrides the current modtime */
-			mtime_ts = fsp->pending_modtime;
-		}
-	} else {
-		files_struct *fsp1;
+	if (!fsp) {
 		/* Do we have this path open ? */
+		files_struct *fsp1;
 		fileid = vfs_file_id_from_sbuf(conn, &sbuf);
 		fsp1 = file_find_di_first(fileid);
-		if (fsp1 && !null_timespec(fsp1->pending_modtime)) {
-			/* the pending modtime overrides the current modtime */
-			mtime_ts = fsp1->pending_modtime;
-		}
 		if (fsp1 && fsp1->initial_allocation_size) {
 			allocation_size = get_allocation_size(conn, fsp1, &sbuf);
 		}
+	}
+
+	if (!null_timespec(write_time_ts)) {
+		mtime_ts = write_time_ts;
 	}
 
 	if (lp_dos_filetime_resolution(SNUM(conn))) {
@@ -4781,12 +4822,12 @@ NTSTATUS hardlink_internals(TALLOC_CTX *ctx,
  Deal with setting the time from any of the setfilepathinfo functions.
 ****************************************************************************/
 
-static NTSTATUS smb_set_file_time(connection_struct *conn,
-				files_struct *fsp,
-				const char *fname,
-				const SMB_STRUCT_STAT *psbuf,
-				struct timespec ts[2],
-				bool setting_write_time)
+NTSTATUS smb_set_file_time(connection_struct *conn,
+			   files_struct *fsp,
+			   const char *fname,
+			   const SMB_STRUCT_STAT *psbuf,
+			   struct timespec ts[2],
+			   bool setting_write_time)
 {
 	uint32 action =
 		FILE_NOTIFY_CHANGE_LAST_ACCESS
@@ -4828,7 +4869,7 @@ static NTSTATUS smb_set_file_time(connection_struct *conn,
 		}
 	}
 
-	if(fsp != NULL) {
+	if (setting_write_time) {
 		/*
 		 * This was a setfileinfo on an open file.
 		 * NT does this a lot. We also need to 
@@ -4839,13 +4880,18 @@ static NTSTATUS smb_set_file_time(connection_struct *conn,
 		 * away and will set it on file close and after a write. JRA.
 		 */
 
-		if (!null_timespec(ts[1])) {
-			DEBUG(10,("smb_set_file_time: setting pending modtime to %s\n",
-				time_to_asc(convert_timespec_to_time_t(ts[1])) ));
-			fsp_set_pending_modtime(fsp, ts[1]);
-		}
+		DEBUG(10,("smb_set_file_time: setting pending modtime to %s\n",
+			  time_to_asc(convert_timespec_to_time_t(ts[1])) ));
 
+		if (fsp != NULL) {
+			set_write_time_fsp(fsp, ts[1], true);
+		} else {
+			set_write_time_path(conn, fname,
+					    vfs_file_id_from_sbuf(conn, psbuf),
+					    ts[1], true);
+		}
 	}
+
 	DEBUG(10,("smb_set_file_time: setting utimes to modified values.\n"));
 
 	if(file_ntimes(conn, fname, ts)!=0) {
@@ -4930,7 +4976,7 @@ static NTSTATUS smb_set_file_size(connection_struct *conn,
 	}
 
 	status = open_file_ntcreate(conn, req, fname, psbuf,
-				FILE_WRITE_DATA,
+				FILE_WRITE_ATTRIBUTES,
 				FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
 				FILE_OPEN,
 				0,
@@ -5322,7 +5368,8 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 		DEBUG(10,("smb_file_rename_information: SMB_FILE_RENAME_INFORMATION %s -> %s\n",
 			fname, base_name ));
 		status = rename_internals(ctx, conn, req, fname, base_name, 0,
-					  overwrite, False, dest_has_wcard);
+					overwrite, False, dest_has_wcard,
+					FILE_WRITE_ATTRIBUTES);
 	}
 
 	return status;
@@ -5669,14 +5716,11 @@ static NTSTATUS smb_set_file_allocation_info(connection_struct *conn,
 			}
 		}
 		/* But always update the time. */
-		if (null_timespec(fsp->pending_modtime)) {
-			/*
-			 * This is equivalent to a write. Ensure it's seen immediately
-			 * if there are no pending writes.
-			 */
-			set_filetime(fsp->conn, fsp->fsp_name,
-					timespec_current());
-		}
+		/*
+		 * This is equivalent to a write. Ensure it's seen immediately
+		 * if there are no pending writes.
+		 */
+		trigger_write_time_update(fsp);
 		return NT_STATUS_OK;
 	}
 
@@ -5706,10 +5750,11 @@ static NTSTATUS smb_set_file_allocation_info(connection_struct *conn,
 	}
 
 	/* Changing the allocation size should set the last mod time. */
-	/* Don't need to call set_filetime as this will be flushed on
-	 * close. */
-
-	fsp_set_pending_modtime(new_fsp, timespec_current());
+	/*
+	 * This is equivalent to a write. Ensure it's seen immediately
+	 * if there are no pending writes.
+	 */
+	trigger_write_time_update(new_fsp);
 
 	close_file(new_fsp,NORMAL_CLOSE);
 	return NT_STATUS_OK;
@@ -6430,7 +6475,8 @@ static NTSTATUS smb_posix_unlink(connection_struct *conn,
 	 * non-POSIX opens return SHARING_VIOLATION.
 	 */
 
-	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL);
+	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL,
+				  NULL);
 	if (lck == NULL) {
 		DEBUG(0, ("smb_posix_unlink: Could not get share mode "
 			"lock for file %s\n", fsp->fsp_name));
@@ -6655,11 +6701,6 @@ static void call_trans2setfilepathinfo(connection_struct *conn,
 	params = *pparams;
 
 	SSVAL(params,0,0);
-
-	if (fsp && !null_timespec(fsp->pending_modtime)) {
-		/* the pending modtime overrides the current modtime */
-		set_mtimespec(&sbuf, fsp->pending_modtime);
-	}
 
 	switch (info_level) {
 
@@ -7455,7 +7496,8 @@ void reply_trans2(struct smb_request *req)
 	unsigned int psoff;
 	unsigned int pscnt;
 	unsigned int tran_call;
-	int size;
+	unsigned int size;
+	unsigned int av_size;
 	struct trans_state *state;
 	NTSTATUS result;
 
@@ -7473,6 +7515,7 @@ void reply_trans2(struct smb_request *req)
 	pscnt = SVAL(req->inbuf, smb_pscnt);
 	tran_call = SVAL(req->inbuf, smb_setup0);
 	size = smb_len(req->inbuf) + 4;
+	av_size = smb_len(req->inbuf);
 
 	result = allow_new_trans(conn->pending_trans, req->mid);
 	if (!NT_STATUS_IS_OK(result)) {
@@ -7565,12 +7608,17 @@ void reply_trans2(struct smb_request *req)
 			END_PROFILE(SMBtrans2);
 			return;
 		}
-		if ((dsoff+dscnt < dsoff) || (dsoff+dscnt < dscnt))
+
+		if (dscnt > state->total_data ||
+				dsoff+dscnt < dsoff) {
 			goto bad_param;
-		if ((smb_base(req->inbuf)+dsoff+dscnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf)+dsoff+dscnt < smb_base(req->inbuf)))
+		}
+
+		if (dsoff > av_size ||
+				dscnt > av_size ||
+				dsoff+dscnt > av_size) {
 			goto bad_param;
+		}
 
 		memcpy(state->data,smb_base(req->inbuf)+dsoff,dscnt);
 	}
@@ -7588,12 +7636,17 @@ void reply_trans2(struct smb_request *req)
 			END_PROFILE(SMBtrans2);
 			return;
 		} 
-		if ((psoff+pscnt < psoff) || (psoff+pscnt < pscnt))
+
+		if (pscnt > state->total_param ||
+				psoff+pscnt < psoff) {
 			goto bad_param;
-		if ((smb_base(req->inbuf)+psoff+pscnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf)+psoff+pscnt < smb_base(req->inbuf)))
+		}
+
+		if (psoff > av_size ||
+				pscnt > av_size ||
+				psoff+pscnt > av_size) {
 			goto bad_param;
+		}
 
 		memcpy(state->param,smb_base(req->inbuf)+psoff,pscnt);
 	}
@@ -7642,7 +7695,8 @@ void reply_transs2(struct smb_request *req)
 	connection_struct *conn = req->conn;
 	unsigned int pcnt,poff,dcnt,doff,pdisp,ddisp;
 	struct trans_state *state;
-	int size;
+	unsigned int size;
+	unsigned int av_size;
 
 	START_PROFILE(SMBtranss2);
 
@@ -7655,6 +7709,7 @@ void reply_transs2(struct smb_request *req)
 	}
 
 	size = smb_len(req->inbuf)+4;
+	av_size = smb_len(req->inbuf);
 
 	for (state = conn->pending_trans; state != NULL;
 	     state = state->next) {
@@ -7693,36 +7748,38 @@ void reply_transs2(struct smb_request *req)
 		goto bad_param;
 
 	if (pcnt) {
-		if (pdisp+pcnt > state->total_param)
+		if (pdisp > state->total_param ||
+				pcnt > state->total_param ||
+				pdisp+pcnt > state->total_param ||
+				pdisp+pcnt < pdisp) {
 			goto bad_param;
-		if ((pdisp+pcnt < pdisp) || (pdisp+pcnt < pcnt))
+		}
+
+		if (poff > av_size ||
+				pcnt > av_size ||
+				poff+pcnt > av_size ||
+				poff+pcnt < poff) {
 			goto bad_param;
-		if (pdisp > state->total_param)
-			goto bad_param;
-		if ((smb_base(req->inbuf) + poff + pcnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf) + poff + pcnt < smb_base(req->inbuf)))
-			goto bad_param;
-		if (state->param + pdisp < state->param)
-			goto bad_param;
+		}
 
 		memcpy(state->param+pdisp,smb_base(req->inbuf)+poff,
 		       pcnt);
 	}
 
 	if (dcnt) {
-		if (ddisp+dcnt > state->total_data)
+		if (ddisp > state->total_data ||
+				dcnt > state->total_data ||
+				ddisp+dcnt > state->total_data ||
+				ddisp+dcnt < ddisp) {
 			goto bad_param;
-		if ((ddisp+dcnt < ddisp) || (ddisp+dcnt < dcnt))
+		}
+
+		if (ddisp > av_size ||
+				dcnt > av_size ||
+				ddisp+dcnt > av_size ||
+				ddisp+dcnt < ddisp) {
 			goto bad_param;
-		if (ddisp > state->total_data)
-			goto bad_param;
-		if ((smb_base(req->inbuf) + doff + dcnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf) + doff + dcnt < smb_base(req->inbuf)))
-			goto bad_param;
-		if (state->data + ddisp < state->data)
-			goto bad_param;
+		}
 
 		memcpy(state->data+ddisp, smb_base(req->inbuf)+doff,
 		       dcnt);      

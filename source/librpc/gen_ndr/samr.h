@@ -416,7 +416,7 @@ struct samr_UserInfo18 {
 };
 
 struct samr_UserInfo20 {
-	struct lsa_String parameters;
+	struct lsa_BinaryString parameters;
 };
 
 /* bitmap samr_FieldsPresent */
@@ -467,7 +467,7 @@ struct samr_UserInfo21 {
 	struct lsa_String description;
 	struct lsa_String workstations;
 	struct lsa_String comment;
-	struct lsa_String parameters;
+	struct lsa_BinaryString parameters;
 	struct lsa_String unknown1;
 	struct lsa_String unknown2;
 	struct lsa_String unknown3;
@@ -1358,7 +1358,7 @@ struct samr_GetDisplayEnumerationIndex {
 	struct {
 		struct policy_handle *domain_handle;/* [ref] */
 		uint16_t level;
-		struct lsa_String name;
+		struct lsa_String *name;/* [ref] */
 	} in;
 
 	struct {
@@ -1470,7 +1470,7 @@ struct samr_GetDisplayEnumerationIndex2 {
 	struct {
 		struct policy_handle *domain_handle;/* [ref] */
 		uint16_t level;
-		struct lsa_String name;
+		struct lsa_String *name;/* [ref] */
 	} in;
 
 	struct {

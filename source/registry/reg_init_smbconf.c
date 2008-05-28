@@ -67,31 +67,38 @@ done:
  * for use in places where not the whole registry is needed,
  * e.g. utils/net_conf.c and loadparm.c
  */
-bool registry_init_smbconf(void)
+WERROR registry_init_smbconf(const char *keyname)
 {
-	bool ret = false;
-	int saved_errno = 0;
-	static REGISTRY_HOOK smbconf_reg_hook = {KEY_SMBCONF, &smbconf_reg_ops};
+	WERROR werr;
 
 	DEBUG(10, ("registry_init_smbconf called\n"));
 
-	if (!regdb_init()) {
-		saved_errno = errno;
-		DEBUG(1, ("Can't open the registry"));
-		if (saved_errno) {
-			DEBUGADD(1, (": %s", strerror(saved_errno)));
-		}
-		DEBUGADD(1, (".\n"));
-		goto done;
+	if (keyname == NULL) {
+		DEBUG(10, ("registry_init_smbconf: defaulting to key '%s'\n",
+			   KEY_SMBCONF));
+		keyname = KEY_SMBCONF;
 	}
-	reghook_cache_init();
-	if (!reghook_cache_add(&smbconf_reg_hook)) {
-		DEBUG(1, ("Error adding smbconf reghooks to reghook cache.\n"));
+
+	werr = registry_init_common();
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	ret = true;
+	werr = init_registry_key(keyname);
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(1, ("Failed to initialize registry key '%s': %s\n",
+			  keyname, dos_errstr(werr)));
+		goto done;
+	}
+
+	werr = reghook_cache_add(keyname, &smbconf_reg_ops);
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(1, ("Failed to add smbconf reghooks to reghook cache: "
+			  "%s\n", dos_errstr(werr)));
+		goto done;
+	}
 
 done:
-	return ret;
+	regdb_close();
+	return werr;
 }

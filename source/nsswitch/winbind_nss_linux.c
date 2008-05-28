@@ -73,8 +73,6 @@ NSS_STATUS _nss_winbind_gidtosid(gid_t gid, char **sid, char *buffer,
 
 /* Prototypes from wb_common.c */
 
-extern int winbindd_fd;
-
 /* Allocate some space from the nss static buffer.  The buffer and buflen
    are the pointers passed in by the C library to the _nss_ntdom_*
    functions. */
@@ -149,7 +147,7 @@ static bool next_token_alloc(const char **ptr,
 	}
 
 	/* We started with len = 1 so we have space for the nul. */
-	*pp_buff = malloc(len);
+	*pp_buff = (char *)malloc(len);
 	if (!*pp_buff) {
 		return false;
 	}

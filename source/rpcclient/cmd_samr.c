@@ -52,6 +52,16 @@ static void display_samr_user_info_16(struct samr_UserInfo16 *r)
 }
 
 /****************************************************************************
+ display samr_user_info_20 structure
+ ****************************************************************************/
+static void display_samr_user_info_20(struct samr_UserInfo20 *r)
+{
+	printf("\tRemote Dial :\n");
+	dump_data(0, (uint8_t *)r->parameters.array, r->parameters.length*2);
+}
+
+
+/****************************************************************************
  display samr_user_info_21 structure
  ****************************************************************************/
 static void display_samr_user_info_21(struct samr_UserInfo21 *r)
@@ -65,7 +75,8 @@ static void display_samr_user_info_21(struct samr_UserInfo21 *r)
 	printf("\tDescription :\t%s\n", r->description.string);
 	printf("\tWorkstations:\t%s\n", r->workstations.string);
 	printf("\tComment     :\t%s\n", r->comment.string);
-	printf("\tRemote Dial :\t%s\n", r->parameters.string);
+	printf("\tRemote Dial :\n");
+	dump_data(0, (uint8_t *)r->parameters.array, r->parameters.length*2);
 
 	printf("\tLogon Time               :\t%s\n",
 	       http_timestring(nt_time_to_unix(r->last_logon)));
@@ -253,28 +264,6 @@ static void display_sam_info_5(struct samr_DispEntryAscii *r)
 	printf("Account: %s\n", r->account_name.string);
 }
 
-/****************************************************************************
- Try samr_connect4 first, then samr_connect2 if it fails
- ****************************************************************************/
-static NTSTATUS try_samr_connects(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
-				  uint32 access_mask, POLICY_HND *connect_pol)
-{
-	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-
-	result = rpccli_samr_Connect4(cli, mem_ctx,
-				      cli->cli->desthost,
-				      SAMR_CONNECT_W2K,
-				      access_mask,
-				      connect_pol);
-	if (!NT_STATUS_IS_OK(result)) {
-		result = rpccli_samr_Connect2(cli, mem_ctx,
-					      cli->cli->desthost,
-					      access_mask,
-					      connect_pol);
-	}
-	return result;
-}
-
 /**********************************************************************
  * Query user information
  */
@@ -287,7 +276,6 @@ static NTSTATUS cmd_samr_query_user(struct rpc_pipe_client *cli,
 	uint32 info_level = 21;
 	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
 	union samr_UserInfo *info = NULL;
-	fstring server;
 	uint32 user_rid = 0;
 
 	if ((argc < 2) || (argc > 4)) {
@@ -304,11 +292,9 @@ static NTSTATUS cmd_samr_query_user(struct rpc_pipe_client *cli,
 		sscanf(argv[3], "%x", &access_mask);
 
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -373,6 +359,9 @@ static NTSTATUS cmd_samr_query_user(struct rpc_pipe_client *cli,
 		break;
 	case 16:
 		display_samr_user_info_16(&info->info16);
+		break;
+	case 20:
+		display_samr_user_info_20(&info->info20);
 		break;
 	case 21:
 		display_samr_user_info_21(&info->info21);
@@ -475,7 +464,6 @@ static NTSTATUS cmd_samr_query_group(struct rpc_pipe_client *cli,
 	enum samr_GroupInfoEnum info_level = GROUPINFOALL;
 	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
 	union samr_GroupInfo *group_info = NULL;
-	fstring			server;
 	uint32 group_rid;
 
 	if ((argc < 2) || (argc > 4)) {
@@ -491,11 +479,9 @@ static NTSTATUS cmd_samr_query_group(struct rpc_pipe_client *cli,
 	if (argc > 3)
 		sscanf(argv[3], "%x", &access_mask);
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -548,7 +534,6 @@ static NTSTATUS cmd_samr_query_usergroups(struct rpc_pipe_client *cli,
 	uint32 			user_rid;
 	uint32			access_mask = MAXIMUM_ALLOWED_ACCESS;
 	int 			i;
-	fstring			server;
 	struct samr_RidWithAttributeArray *rid_array = NULL;
 
 	if ((argc < 2) || (argc > 3)) {
@@ -561,11 +546,9 @@ static NTSTATUS cmd_samr_query_usergroups(struct rpc_pipe_client *cli,
 	if (argc > 2)
 		sscanf(argv[2], "%x", &access_mask);
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -619,7 +602,6 @@ static NTSTATUS cmd_samr_query_useraliases(struct rpc_pipe_client *cli,
 	size_t                     num_sids;
 	uint32			access_mask = MAXIMUM_ALLOWED_ACCESS;
 	int 			i;
-	fstring			server;
 	struct lsa_SidArray sid_array;
 	struct samr_Ids alias_rids;
 
@@ -660,11 +642,9 @@ static NTSTATUS cmd_samr_query_useraliases(struct rpc_pipe_client *cli,
 
 	sid_array.num_sids = num_sids;
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -716,7 +696,6 @@ static NTSTATUS cmd_samr_query_groupmem(struct rpc_pipe_client *cli,
 	uint32 group_rid;
 	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
 	int i;
-	fstring			server;
 	unsigned int old_timeout;
 	struct samr_RidTypeArray *rids = NULL;
 
@@ -730,11 +709,9 @@ static NTSTATUS cmd_samr_query_groupmem(struct rpc_pipe_client *cli,
 	if (argc > 2)
 		sscanf(argv[2], "%x", &access_mask);
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -808,8 +785,9 @@ static NTSTATUS cmd_samr_enum_dom_users(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -887,8 +865,9 @@ static NTSTATUS cmd_samr_enum_dom_groups(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -964,8 +943,9 @@ static NTSTATUS cmd_samr_enum_als_groups(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1051,9 +1031,9 @@ static NTSTATUS cmd_samr_enum_domains(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx,
-				   access_mask,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  access_mask,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
@@ -1117,8 +1097,9 @@ static NTSTATUS cmd_samr_query_aliasmem(struct rpc_pipe_client *cli,
 
 	/* Open SAMR handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1205,9 +1186,9 @@ static NTSTATUS cmd_samr_query_aliasinfo(struct rpc_pipe_client *cli,
 
 	/* Open SAMR handle */
 
-	result = try_samr_connects(cli, mem_ctx,
-				   SEC_FLAG_MAXIMUM_ALLOWED,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  SEC_FLAG_MAXIMUM_ALLOWED,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
@@ -1303,8 +1284,9 @@ static NTSTATUS cmd_samr_delete_alias(struct rpc_pipe_client *cli,
 
 	/* Open SAMR handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1414,8 +1396,9 @@ static NTSTATUS cmd_samr_query_dispinfo_internal(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1588,8 +1571,9 @@ static NTSTATUS cmd_samr_query_dominfo(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1691,8 +1675,9 @@ static NTSTATUS cmd_samr_create_dom_user(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1766,8 +1751,9 @@ static NTSTATUS cmd_samr_create_dom_group(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1831,8 +1817,9 @@ static NTSTATUS cmd_samr_create_dom_alias(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1895,8 +1882,9 @@ static NTSTATUS cmd_samr_lookup_names(struct rpc_pipe_client *cli,
 
 	/* Get sam policy and domain handles */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -1977,8 +1965,9 @@ static NTSTATUS cmd_samr_lookup_rids(struct rpc_pipe_client *cli,
 
 	/* Get sam policy and domain handles */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2059,8 +2048,9 @@ static NTSTATUS cmd_samr_delete_dom_group(struct rpc_pipe_client *cli,
 
 	/* Get sam policy and domain handles */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2139,8 +2129,9 @@ static NTSTATUS cmd_samr_delete_dom_user(struct rpc_pipe_client *cli,
 
 	/* Get sam policy and domain handles */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2210,7 +2201,6 @@ static NTSTATUS cmd_samr_query_sec_obj(struct rpc_pipe_client *cli,
 	POLICY_HND connect_pol, domain_pol, user_pol, *pol;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	uint32 sec_info = DACL_SECURITY_INFORMATION;
-	fstring server;
 	uint32 user_rid = 0;
 	TALLOC_CTX *ctx = NULL;
 	SEC_DESC_BUF *sec_desc_buf=NULL;
@@ -2236,10 +2226,9 @@ static NTSTATUS cmd_samr_query_sec_obj(struct rpc_pipe_client *cli,
 		sec_info = atoi(argv[2]);
 	}
 
-	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->cli->desthost);
-	strupper_m(server);
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2310,8 +2299,9 @@ static NTSTATUS cmd_samr_get_usrdom_pwinfo(struct rpc_pipe_client *cli,
 
 	sscanf(argv[1], "%i", &rid);
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
@@ -2398,7 +2388,9 @@ static NTSTATUS cmd_samr_lookup_domain(struct rpc_pipe_client *cli,
 
 	init_lsa_String(&domain_name, argv[1]);
 
-	result = try_samr_connects(cli, mem_ctx, access_mask, &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  access_mask,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2451,8 +2443,9 @@ static NTSTATUS cmd_samr_chgpasswd2(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2509,8 +2502,9 @@ static NTSTATUS cmd_samr_chgpasswd3(struct rpc_pipe_client *cli,
 
 	/* Get sam policy handle */
 
-	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
-				   &connect_pol);
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2571,6 +2565,68 @@ static NTSTATUS cmd_samr_chgpasswd3(struct rpc_pipe_client *cli,
 	return result;
 }
 
+static NTSTATUS cmd_samr_get_dispinfo_idx(struct rpc_pipe_client *cli,
+					  TALLOC_CTX *mem_ctx,
+					  int argc, const char **argv)
+{
+	NTSTATUS status;
+	struct policy_handle connect_handle;
+	struct policy_handle domain_handle;
+	uint16_t level = 1;
+	struct lsa_String name;
+	uint32_t idx = 0;
+
+	if (argc < 2 || argc > 3) {
+		printf("Usage: %s name level\n", argv[0]);
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	init_lsa_String(&name, argv[1]);
+
+	if (argc == 3) {
+		level = atoi(argv[2]);
+	}
+
+	status = rpccli_try_samr_connects(cli, mem_ctx,
+					  SEC_RIGHTS_MAXIMUM_ALLOWED,
+					  &connect_handle);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	status = rpccli_samr_OpenDomain(cli, mem_ctx,
+					&connect_handle,
+					SEC_RIGHTS_MAXIMUM_ALLOWED,
+					&domain_sid,
+					&domain_handle);
+
+	if (!NT_STATUS_IS_OK(status))
+		goto done;
+
+
+	status = rpccli_samr_GetDisplayEnumerationIndex(cli, mem_ctx,
+							&domain_handle,
+							level,
+							&name,
+							&idx);
+
+	if (NT_STATUS_IS_OK(status) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_NO_MORE_ENTRIES)) {
+		printf("idx: %d (0x%08x)\n", idx, idx);
+	}
+ done:
+
+	if (is_valid_policy_hnd(&domain_handle)) {
+		rpccli_samr_Close(cli, mem_ctx, &domain_handle);
+	}
+	if (is_valid_policy_hnd(&connect_handle)) {
+		rpccli_samr_Close(cli, mem_ctx, &connect_handle);
+	}
+
+	return status;
+
+}
 /* List of commands exported by this module */
 
 struct cmd_set samr_commands[] = {
@@ -2608,5 +2664,6 @@ struct cmd_set samr_commands[] = {
 	{ "lookupdomain",       RPC_RTYPE_NTSTATUS, cmd_samr_lookup_domain,         NULL, PI_SAMR, NULL, "Lookup Domain Name", "" },
 	{ "chgpasswd2",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd2,            NULL, PI_SAMR, NULL, "Change user password", "" },
 	{ "chgpasswd3",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd3,            NULL, PI_SAMR, NULL, "Change user password", "" },
+	{ "getdispinfoidx",     RPC_RTYPE_NTSTATUS, cmd_samr_get_dispinfo_idx,      NULL, PI_SAMR, NULL, "Get Display Information Index", "" },
 	{ NULL }
 };

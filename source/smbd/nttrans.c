@@ -498,11 +498,10 @@ void reply_ntcreate_and_X(struct smb_request *req)
 			do_ntcreate_pipe_open(conn, req);
 			END_PROFILE(SMBntcreateX);
 			return;
-		} else {
-			reply_doserror(req, ERRDOS, ERRnoaccess);
-			END_PROFILE(SMBntcreateX);
-			return;
 		}
+		reply_doserror(req, ERRDOS, ERRnoaccess);
+		END_PROFILE(SMBntcreateX);
+		return;
 	}
 
 	oplock_request = (flags & REQUEST_OPLOCK) ? EXCLUSIVE_OPLOCK : 0;
@@ -871,10 +870,9 @@ static void call_nt_transact_create(connection_struct *conn,
 				ppparams, parameter_count,
 				ppdata, data_count);
 			return;
-		} else {
-			reply_doserror(req, ERRDOS, ERRnoaccess);
-			return;
 		}
+		reply_doserror(req, ERRDOS, ERRnoaccess);
+		return;
 	}
 
 	/*
@@ -1233,7 +1231,7 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 	close_file(fsp1,NORMAL_CLOSE);
 
 	/* Ensure the modtime is set correctly on the destination file. */
-	fsp_set_pending_modtime(fsp2, get_mtimespec(&sbuf1));
+	set_close_write_time(fsp2, get_mtimespec(&sbuf1));
 
 	status = close_file(fsp2,NORMAL_CLOSE);
 
@@ -1353,7 +1351,7 @@ void reply_ntrename(struct smb_request *req)
 		case RENAME_FLAG_RENAME:
 			status = rename_internals(ctx, conn, req, oldname,
 					newname, attrs, False, src_has_wcard,
-					dest_has_wcard);
+					dest_has_wcard, DELETE_ACCESS);
 			break;
 		case RENAME_FLAG_HARD_LINK:
 			if (src_has_wcard || dest_has_wcard) {
@@ -1518,7 +1516,6 @@ static void call_nt_transact_rename(connection_struct *conn,
 	char *params = *ppparams;
 	char *new_name = NULL;
 	files_struct *fsp = NULL;
-	bool replace_if_exists = False;
 	bool dest_has_wcard = False;
 	NTSTATUS status;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -1529,7 +1526,6 @@ static void call_nt_transact_rename(connection_struct *conn,
 	}
 
 	fsp = file_fsp(SVAL(params, 0));
-	replace_if_exists = (SVAL(params,2) & RENAME_REPLACE_IF_EXISTS) ? True : False;
 	if (!check_fsp(conn, req, fsp, &current_user)) {
 		return;
 	}
@@ -1541,31 +1537,13 @@ static void call_nt_transact_rename(connection_struct *conn,
 		return;
 	}
 
-	status = rename_internals(ctx,
-			conn,
-			req,
-			fsp->fsp_name,
-			new_name,
-			0,
-			replace_if_exists,
-			False,
-			dest_has_wcard);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		if (open_was_deferred(req->mid)) {
-			/* We have re-scheduled this call. */
-			return;
-		}
-		reply_nterror(req, status);
-		return;
-	}
-
 	/*
-	 * Rename was successful.
+	 * W2K3 ignores this request as the RAW-RENAME test
+	 * demonstrates, so we do.
 	 */
 	send_nt_replies(conn, req, NT_STATUS_OK, NULL, 0, NULL, 0);
 
-	DEBUG(3,("nt transact rename from = %s, to = %s succeeded.\n",
+	DEBUG(3,("nt transact rename from = %s, to = %s ignored!\n",
 		 fsp->fsp_name, new_name));
 
 	return;
@@ -2577,14 +2555,15 @@ static void handle_nttrans(connection_struct *conn,
 void reply_nttrans(struct smb_request *req)
 {
 	connection_struct *conn = req->conn;
-	uint32 pscnt;
-	uint32 psoff;
-	uint32 dscnt;
-	uint32 dsoff;
+	uint32_t pscnt;
+	uint32_t psoff;
+	uint32_t dscnt;
+	uint32_t dsoff;
 	uint16 function_code;
 	NTSTATUS result;
 	struct trans_state *state;
-	int size;
+	uint32_t size;
+	uint32_t av_size;
 
 	START_PROFILE(SMBnttrans);
 
@@ -2595,6 +2574,7 @@ void reply_nttrans(struct smb_request *req)
 	}
 
 	size = smb_len(req->inbuf) + 4;
+	av_size = smb_len(req->inbuf);
 	pscnt = IVAL(req->inbuf,smb_nt_ParameterCount);
 	psoff = IVAL(req->inbuf,smb_nt_ParameterOffset);
 	dscnt = IVAL(req->inbuf,smb_nt_DataCount);
@@ -2670,12 +2650,17 @@ void reply_nttrans(struct smb_request *req)
 			END_PROFILE(SMBnttrans);
 			return;
 		}
-		if ((dsoff+dscnt < dsoff) || (dsoff+dscnt < dscnt))
+
+		if (dscnt > state->total_data ||
+				dsoff+dscnt < dsoff) {
 			goto bad_param;
-		if ((smb_base(req->inbuf)+dsoff+dscnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf)+dsoff+dscnt < smb_base(req->inbuf)))
+		}
+
+		if (dsoff > av_size ||
+				dscnt > av_size ||
+				dsoff+dscnt > av_size) {
 			goto bad_param;
+		}
 
 		memcpy(state->data,smb_base(req->inbuf)+dsoff,dscnt);
 	}
@@ -2692,12 +2677,17 @@ void reply_nttrans(struct smb_request *req)
 			END_PROFILE(SMBnttrans);
 			return;
 		}
-		if ((psoff+pscnt < psoff) || (psoff+pscnt < pscnt))
+
+		if (pscnt > state->total_param ||
+				psoff+pscnt < psoff) {
 			goto bad_param;
-		if ((smb_base(req->inbuf)+psoff+pscnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf)+psoff+pscnt < smb_base(req->inbuf)))
+		}
+
+		if (psoff > av_size ||
+				pscnt > av_size ||
+				psoff+pscnt > av_size) {
 			goto bad_param;
+		}
 
 		memcpy(state->param,smb_base(req->inbuf)+psoff,pscnt);
 	}
@@ -2769,10 +2759,10 @@ void reply_nttrans(struct smb_request *req)
 void reply_nttranss(struct smb_request *req)
 {
 	connection_struct *conn = req->conn;
-	unsigned int pcnt,poff,dcnt,doff,pdisp,ddisp;
+	uint32_t pcnt,poff,dcnt,doff,pdisp,ddisp;
 	struct trans_state *state;
-
-	int size;
+	uint32_t av_size;
+	uint32_t size;
 
 	START_PROFILE(SMBnttranss);
 
@@ -2809,6 +2799,7 @@ void reply_nttranss(struct smb_request *req)
 	}
 
 	size = smb_len(req->inbuf) + 4;
+	av_size = smb_len(req->inbuf);
 
 	pcnt = IVAL(req->inbuf,smb_nts_ParameterCount);
 	poff = IVAL(req->inbuf, smb_nts_ParameterOffset);
@@ -2826,38 +2817,38 @@ void reply_nttranss(struct smb_request *req)
 		goto bad_param;
 
 	if (pcnt) {
-		if (pdisp+pcnt > state->total_param)
+		if (pdisp > state->total_param ||
+				pcnt > state->total_param ||
+				pdisp+pcnt > state->total_param ||
+				pdisp+pcnt < pdisp) {
 			goto bad_param;
-		if ((pdisp+pcnt < pdisp) || (pdisp+pcnt < pcnt))
+		}
+
+		if (poff > av_size ||
+				pcnt > av_size ||
+				poff+pcnt > av_size ||
+				poff+pcnt < poff) {
 			goto bad_param;
-		if (pdisp > state->total_param)
-			goto bad_param;
-		if ((smb_base(req->inbuf) + poff + pcnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf) + poff + pcnt
-		     < smb_base(req->inbuf)))
-			goto bad_param;
-		if (state->param + pdisp < state->param)
-			goto bad_param;
+		}
 
 		memcpy(state->param+pdisp, smb_base(req->inbuf)+poff,
 		       pcnt);
 	}
 
 	if (dcnt) {
-		if (ddisp+dcnt > state->total_data)
+		if (ddisp > state->total_data ||
+				dcnt > state->total_data ||
+				ddisp+dcnt > state->total_data ||
+				ddisp+dcnt < ddisp) {
 			goto bad_param;
-		if ((ddisp+dcnt < ddisp) || (ddisp+dcnt < dcnt))
+		}
+
+		if (ddisp > av_size ||
+				dcnt > av_size ||
+				ddisp+dcnt > av_size ||
+				ddisp+dcnt < ddisp) {
 			goto bad_param;
-		if (ddisp > state->total_data)
-			goto bad_param;
-		if ((smb_base(req->inbuf) + doff + dcnt
-		     > (char *)req->inbuf + size) ||
-		    (smb_base(req->inbuf) + doff + dcnt
-		     < smb_base(req->inbuf)))
-			goto bad_param;
-		if (state->data + ddisp < state->data)
-			goto bad_param;
+		}
 
 		memcpy(state->data+ddisp, smb_base(req->inbuf)+doff,
 		       dcnt);

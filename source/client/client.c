@@ -33,7 +33,6 @@ extern int do_smb_browse(void); /* mDNS browsing */
 extern bool AllowDebugChange;
 extern bool override_logfile;
 extern char tar_type;
-extern bool in_client;
 
 static int port = 0;
 static char *service;
@@ -43,7 +42,7 @@ static bool grepable = false;
 static char *cmdstr = NULL;
 static const char *cmd_ptr = NULL;
 
-static int io_bufsize = 64512;
+static int io_bufsize = 524288;
 
 static int name_type = 0x20;
 extern int max_protocol;
@@ -964,22 +963,30 @@ static int cmd_echo(void)
  Get a file from rname to lname
 ****************************************************************************/
 
+static NTSTATUS writefile_sink(char *buf, size_t n, void *priv)
+{
+	int *pfd = (int *)priv;
+	if (writefile(*pfd, buf, n) == -1) {
+		return map_nt_error_from_unix(errno);
+	}
+	return NT_STATUS_OK;
+}
+
 static int do_get(const char *rname, const char *lname_in, bool reget)
 {
 	TALLOC_CTX *ctx = talloc_tos();
 	int handle = 0, fnum;
 	bool newhandle = false;
-	char *data = NULL;
 	struct timeval tp_start;
-	int read_size = io_bufsize;
 	uint16 attr;
 	SMB_OFF_T size;
 	off_t start = 0;
-	off_t nread = 0;
+	SMB_OFF_T nread = 0;
 	int rc = 0;
 	struct cli_state *targetcli = NULL;
 	char *targetname = NULL;
 	char *lname = NULL;
+	NTSTATUS status;
 
 	lname = talloc_strdup(ctx, lname_in);
 	if (!lname) {
@@ -1038,35 +1045,14 @@ static int do_get(const char *rname, const char *lname_in, bool reget)
 	DEBUG(1,("getting file %s of size %.0f as %s ",
 		 rname, (double)size, lname));
 
-	if(!(data = (char *)SMB_MALLOC(read_size))) {
-		d_printf("malloc fail for size %d\n", read_size);
+	status = cli_pull(targetcli, fnum, start, size, io_bufsize,
+			  writefile_sink, (void *)&handle, &nread);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "parallel_read returned %s\n",
+			  nt_errstr(status));
 		cli_close(targetcli, fnum);
 		return 1;
 	}
-
-	while (1) {
-		int n = cli_read(targetcli, fnum, data, nread + start, read_size);
-
-		if (n <= 0)
-			break;
-
-		if (writefile(handle,data, n) != n) {
-			d_printf("Error writing local file\n");
-			rc = 1;
-			break;
-		}
-
-		nread += n;
-	}
-
-	if (nread + start < size) {
-		DEBUG (0, ("Short read when getting file %s. Only got %ld bytes.\n",
-			    rname, (long)nread));
-
-		rc = 1;
-	}
-
-	SAFE_FREE(data);
 
 	if (!cli_close(targetcli, fnum)) {
 		d_printf("Error %s closing remote file\n",cli_errstr(cli));
@@ -3641,12 +3627,12 @@ static bool browse_host_rpc(bool sort)
 	NTSTATUS status;
 	struct rpc_pipe_client *pipe_hnd;
 	TALLOC_CTX *frame = talloc_stackframe();
-	ENUM_HND enum_hnd;
 	WERROR werr;
-	SRV_SHARE_INFO_CTR ctr;
+	struct srvsvc_NetShareInfoCtr info_ctr;
+	struct srvsvc_NetShareCtr1 ctr1;
+	uint32_t resume_handle = 0;
+	uint32_t total_entries = 0;
 	int i;
-
-	init_enum_hnd(&enum_hnd, 0);
 
 	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
 
@@ -3657,23 +3643,29 @@ static bool browse_host_rpc(bool sort)
 		return false;
 	}
 
-	werr = rpccli_srvsvc_net_share_enum(pipe_hnd, frame, 1, &ctr,
-					    0xffffffff, &enum_hnd);
+	ZERO_STRUCT(info_ctr);
+	ZERO_STRUCT(ctr1);
 
-	if (!W_ERROR_IS_OK(werr)) {
+	info_ctr.level = 1;
+	info_ctr.ctr.ctr1 = &ctr1;
+
+	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, frame,
+					      pipe_hnd->cli->desthost,
+					      &info_ctr,
+					      0xffffffff,
+					      &total_entries,
+					      &resume_handle,
+					      &werr);
+
+	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
 		cli_rpc_pipe_close(pipe_hnd);
 		TALLOC_FREE(frame);
 		return false;
 	}
 
-	for (i=0; i<ctr.num_entries; i++) {
-		SRV_SHARE_INFO_1 *info = &ctr.share.info1[i];
-		char *name, *comment;
-		name = rpcstr_pull_unistr2_talloc(
-			frame, &info->info_1_str.uni_netname);
-		comment = rpcstr_pull_unistr2_talloc(
-			frame, &info->info_1_str.uni_remark);
-		browse_fn(name, info->info_1.type, comment, NULL);
+	for (i=0; i < info_ctr.ctr.ctr1->count; i++) {
+		struct srvsvc_NetShareInfo1 info = info_ctr.ctr.ctr1->array[i];
+		browse_fn(info.name, info.type, info.comment, NULL);
 	}
 
 	cli_rpc_pipe_close(pipe_hnd);
@@ -4110,11 +4102,7 @@ static void completion_remote_filter(const char *mnt,
 			TALLOC_CTX *ctx = talloc_stackframe();
 			char *tmp;
 
-			if (info->dirmask && info->dirmask[0] != 0) {
-				tmp = talloc_strdup(ctx,info->dirmask);
-			} else {
-				tmp = talloc_strdup(ctx,"");
-			}
+			tmp = talloc_strdup(ctx,info->dirmask);
 			if (!tmp) {
 				TALLOC_FREE(ctx);
 				return;
@@ -4526,12 +4514,20 @@ static int process(const char *base_directory)
 
 static int do_host_query(const char *query_host)
 {
+	struct sockaddr_storage ss;
+
 	cli = cli_cm_open(talloc_tos(), NULL,
 			query_host, "IPC$", true, smb_encrypt);
 	if (!cli)
 		return 1;
 
 	browse_host(true);
+
+	if (interpret_string_addr(&ss, query_host, 0) && (ss.ss_family != AF_INET)) {
+		d_printf("%s is an IPv6 address -- no workgroup available\n",
+			query_host);
+		return 1;
+	}
 
 	if (port != 139) {
 
@@ -4714,7 +4710,7 @@ static int do_message_op(void)
 	pc = poptGetContext("smbclient", argc, (const char **) argv, long_options, 0);
 	poptSetOtherOptionHelp(pc, "service <password>");
 
-	in_client = true;   /* Make sure that we tell lp_load we are */
+        lp_set_in_client(true); /* Make sure that we tell lp_load we are */
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
 
@@ -4879,6 +4875,11 @@ static int do_message_op(void)
 			argv[0], get_dyn_CONFIGFILE());
 	}
 
+	if (get_cmdline_auth_info_use_machine_account() &&
+	    !set_cmdline_auth_info_machine_account_creds()) {
+		exit(-1);
+	}
+
 	load_interfaces();
 
 	if (service_opt && service) {
@@ -4911,7 +4912,10 @@ static int do_message_op(void)
 	}
 
 	smb_encrypt = get_cmdline_auth_info_smb_encrypt();
-	init_names();
+	if (!init_names()) {
+		fprintf(stderr, "init_names() failed\n");
+		exit(1);
+	}
 
 	if(new_name_resolve_order)
 		lp_set_name_resolve_order(new_name_resolve_order);

@@ -521,7 +521,13 @@ static bool set_printer_hnd_name(Printer_entry *Printer, char *handlename)
 		fstrcpy(sname, lp_servicename(snum));
 
 		printer = NULL;
-		result = get_a_printer( NULL, &printer, 2, sname );
+
+		/* This call doesn't fill in the location or comment from
+		 * a CUPS server for efficiency with large numbers of printers.
+		 * JRA.
+		 */
+
+		result = get_a_printer_search( NULL, &printer, 2, sname );
 		if ( !W_ERROR_IS_OK(result) ) {
 			DEBUG(0,("set_printer_hnd_name: failed to lookup printer [%s] -- result [%s]\n",
 				sname, dos_errstr(result)));
@@ -4355,10 +4361,13 @@ static bool construct_printer_info_7(Printer_entry *print_hnd, PRINTER_INFO_7 *p
 	struct GUID guid;
 
 	if (is_printer_published(print_hnd, snum, &guid)) {
-		asprintf(&guid_str, "{%s}",
-			 smb_uuid_string(talloc_tos(), guid));
+		if (asprintf(&guid_str, "{%s}",
+			     smb_uuid_string(talloc_tos(), guid)) == -1) {
+			return false;
+		}
 		strupper_m(guid_str);
 		init_unistr(&printer->guid, guid_str);
+		SAFE_FREE(guid_str);
 		printer->action = SPOOL_DS_PUBLISH;
 	} else {
 		init_unistr(&printer->guid, "");
@@ -6033,7 +6042,11 @@ static WERROR update_printer_sec(POLICY_HND *handle, uint32 level,
 	/* NT seems to like setting the security descriptor even though
 	   nothing may have actually changed. */
 
-	nt_printing_getsec(p->mem_ctx, Printer->sharename, &old_secdesc_ctr);
+	if ( !nt_printing_getsec(p->mem_ctx, Printer->sharename, &old_secdesc_ctr)) {
+		DEBUG(2,("update_printer_sec: nt_printing_getsec() failed\n"));
+		result = WERR_BADFID;
+		goto done;
+	}
 
 	if (DEBUGLEVEL >= 10) {
 		SEC_ACL *the_acl;
@@ -9620,12 +9633,15 @@ WERROR _spoolss_enumprinterdataex(pipes_struct *p, SPOOL_Q_ENUMPRINTERDATAEX *q_
 
 	/* copy data into the reply */
 
-	r_u->ctr.size        	= r_u->needed;
+	/* mz: Vista x64 returns 0x6f7 (The stub received bad data), if the
+	   response buffer size is != the offered buffer size
+
+		r_u->ctr.size           = r_u->needed;
+	*/
+	r_u->ctr.size           = in_size;
 
 	r_u->ctr.size_of_array 	= r_u->returned;
 	r_u->ctr.values 	= enum_values;
-
-
 
 done:
 	if ( printer )

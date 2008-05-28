@@ -37,6 +37,7 @@ extern bool opt_nocache;
 #ifdef HAVE_ADS
 extern struct winbindd_methods ads_methods;
 #endif
+extern struct winbindd_methods passdb_methods;
 
 /*
  * JRA. KEEP THIS LIST UP TO DATE IF YOU ADD CACHE ENTRIES.
@@ -135,6 +136,10 @@ static struct winbind_cache *get_cache(struct winbindd_domain *domain)
 
 	/* We have to know what type of domain we are dealing with first. */
 
+	if (domain->internal) {
+		domain->backend = &passdb_methods;
+		domain->initialized = True;
+	}
 	if ( !domain->initialized ) {
 		init_dc_connection( domain );
 	}
@@ -2227,7 +2232,9 @@ do_query:
 
 	/* and save it */
 	refresh_sequence_number(domain, false);
-	wcache_save_password_policy(domain, status, policy);
+	if (NT_STATUS_IS_OK(status)) {
+		wcache_save_password_policy(domain, status, policy);
+	}
 
 	return status;
 }
@@ -3204,6 +3211,29 @@ static int validate_de(TALLOC_CTX *mem_ctx, const char *keystr, TDB_DATA dbuf,
 	return 0;
 }
 
+static int validate_pwinfo(TALLOC_CTX *mem_ctx, const char *keystr,
+			   TDB_DATA dbuf, struct tdb_validation_status *state)
+{
+	struct cache_entry *centry = create_centry_validate(keystr, dbuf, state);
+
+	if (!centry) {
+		return 1;
+	}
+
+	(void)centry_string(centry, mem_ctx);
+	(void)centry_string(centry, mem_ctx);
+	(void)centry_string(centry, mem_ctx);
+	(void)centry_uint32(centry);
+
+	centry_free(centry);
+
+	if (!(state->success)) {
+		return 1;
+	}
+	DEBUG(10,("validate_pwinfo: %s ok\n", keystr));
+	return 0;
+}
+
 static int validate_trustdoms(TALLOC_CTX *mem_ctx, const char *keystr, TDB_DATA dbuf,
 			      struct tdb_validation_status *state)
 {
@@ -3302,6 +3332,7 @@ struct key_val_struct {
 	{"GM/", validate_gm},
 	{"DR/", validate_dr},
 	{"DE/", validate_de},
+	{"NSS/PWINFO/", validate_pwinfo},
 	{"TRUSTDOMS/", validate_trustdoms},
 	{"TRUSTDOMCACHE/", validate_trustdomcache},
 	{"WINBINDD_OFFLINE", validate_offline},
@@ -3317,12 +3348,17 @@ struct key_val_struct {
 static int cache_traverse_validate_fn(TDB_CONTEXT *the_tdb, TDB_DATA kbuf, TDB_DATA dbuf, void *state)
 {
 	int i;
+	unsigned int max_key_len = 1024;
 	struct tdb_validation_status *v_state = (struct tdb_validation_status *)state;
 
 	/* Paranoia check. */
-	if (kbuf.dsize > 1024) {
-		DEBUG(0,("cache_traverse_validate_fn: key length too large (%u) > 1024\n\n",
-				(unsigned int)kbuf.dsize ));
+	if (strncmp("UA/", (const char *)kbuf.dptr, 3) == 0) {
+		max_key_len = 1024 * 1024;
+	}
+	if (kbuf.dsize > max_key_len) {
+		DEBUG(0, ("cache_traverse_validate_fn: key length too large: "
+			  "(%u) > (%u)\n\n",
+			  (unsigned int)kbuf.dsize, (unsigned int)max_key_len));
 		return 1;
 	}
 
@@ -3443,6 +3479,20 @@ int winbindd_validate_cache_nobackup(void)
 		   "function\n"));
 	smb_panic_fn = smb_panic;
 	return ret;
+}
+
+bool winbindd_cache_validate_and_initialize(void)
+{
+	close_winbindd_cache();
+
+	if (lp_winbind_offline_logon()) {
+		if (winbindd_validate_cache() < 0) {
+			DEBUG(0, ("winbindd cache tdb corrupt and no backup "
+				  "could be restored.\n"));
+		}
+	}
+
+	return initialize_winbindd_cache();
 }
 
 /*********************************************************************

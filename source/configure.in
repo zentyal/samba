@@ -35,7 +35,7 @@ AC_SUBST(TALLOC_OBJS)
 # but currently this fails: things have to get merged from s4.
 tdbdir="lib/tdb"
 AC_SUBST(tdbdir)
-TDB_CFLAGS="-I$tdbdir/include"
+TDB_CFLAGS="-I${srcdir-.}/$tdbdir/include"
 AC_SUBST(TDB_CFLAGS)
 TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
 TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o"
@@ -73,6 +73,7 @@ AC_SUBST(HOST_OS)
 AC_SUBST(PICFLAG)
 AC_SUBST(PIE_CFLAGS)
 AC_SUBST(PIE_LDFLAGS)
+AC_SUBST(RELRO_LDFLAGS)
 AC_SUBST(SHLIBEXT)
 AC_SUBST(INSTALLLIBCMD_SH)
 AC_SUBST(INSTALLLIBCMD_A)
@@ -85,7 +86,9 @@ AC_SUBST(LIBADDNS)
 
 AC_SUBST(INSTALL_LIBWBCLIENT)
 AC_SUBST(UNINSTALL_LIBWBCLIENT)
+AC_SUBST(LIBWBCLIENT_SHARED_TARGET)
 AC_SUBST(LIBWBCLIENT_SHARED)
+AC_SUBST(LIBWBCLIENT_STATIC_TARGET)
 AC_SUBST(LIBWBCLIENT_STATIC)
 AC_SUBST(LIBWBCLIENT)
 AC_SUBST(WINBIND_LIBS)
@@ -305,6 +308,18 @@ AC_CACHE_CHECK([that the C compiler understands -w2],samba_cv_HAVE_w2, [
   samba_cv_HAVE_w2=yes,samba_cv_HAVE_w2=no,samba_cv_HAVE_w2=cross)])
 if test x"$samba_cv_HAVE_w2" = x"yes"; then
    Werror_FLAGS="-w2"
+else
+dnl Check if the C compiler understands -errwarn
+AC_CACHE_CHECK([that the C compiler understands -errwarn],samba_cv_HAVE_errwarn, [
+  AC_TRY_RUN_STRICT([
+   int main(void)
+   {
+	return 0;
+   }],[-errwarn=%all],[$CPPFLAGS],[$LDFLAGS],
+   samba_cv_HAVE_errwarn=yes,samba_cv_HAVE_errwarn=no,samba_cv_HAVE_errwarn=cross)])
+if test x"$samba_cv_HAVE_errwarn" = x"yes"; then
+   Werror_FLAGS="-errwarn=%all"
+fi
 fi
 fi
 
@@ -398,7 +413,7 @@ AC_SUBST(DYNEXP)
 
 dnl Add modules that have to be built by default here
 dnl These have to be built static:
-default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc2 rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
+default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
 
 dnl These are preferably build shared, and static if dlopen() is not available
 default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr"
@@ -637,6 +652,7 @@ SAVE_CPPFLAGS="${CPPFLAGS}"
 CPPFLAGS="${CPPFLAGS} ${SAMBA_CONFIGURE_CPPFLAGS}"
 
 AC_LIBREPLACE_BROKEN_CHECKS
+AC_LIBREPLACE_NETWORK_CHECKS
 
 CPPFLAGS="${SAVE_CPPFLAGS}"
 
@@ -649,17 +665,16 @@ done
 AC_SUBST(LIBREPLACE_OBJS)
 
 # add -ldl to the global LIBS
-LIBS="${LIBS} ${LIBDL}"
+LIBS="${LIBS} ${LIBDL} ${LIBREPLACE_NETWORK_LIBS}"
 
-AC_CHECK_HEADERS(aio.h arpa/inet.h sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h rpc/nettype.h)
+AC_CHECK_HEADERS(aio.h sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h rpc/nettype.h)
 AC_CHECK_HEADERS(unistd.h utime.h grp.h sys/id.h memory.h alloca.h)
 AC_CHECK_HEADERS(limits.h float.h pthread.h)
 AC_CHECK_HEADERS(rpc/rpc.h rpcsvc/nis.h rpcsvc/ypclnt.h)
 AC_CHECK_HEADERS(sys/param.h ctype.h sys/wait.h sys/resource.h sys/ioctl.h sys/ipc.h sys/prctl.h)
-AC_CHECK_HEADERS(sys/mman.h sys/filio.h sys/priv.h sys/shm.h string.h strings.h stdlib.h sys/socket.h)
-AC_CHECK_HEADERS(sys/un.h ifaddrs.h)
+AC_CHECK_HEADERS(sys/mman.h sys/filio.h sys/priv.h sys/shm.h string.h strings.h stdlib.h)
 AC_CHECK_HEADERS(sys/mount.h sys/vfs.h sys/fs/s5param.h sys/filsys.h termios.h termio.h)
-AC_CHECK_HEADERS(sys/termio.h sys/statfs.h sys/dustat.h sys/statvfs.h stdarg.h sys/sockio.h)
+AC_CHECK_HEADERS(sys/termio.h sys/statfs.h sys/dustat.h sys/statvfs.h stdarg.h)
 AC_CHECK_HEADERS(sys/sysmacros.h)
 AC_CHECK_HEADERS(sys/syslog.h syslog.h)
 AC_CHECK_HEADERS(langinfo.h locale.h)
@@ -789,24 +804,6 @@ AC_CACHE_CHECK([if the compiler will optimize out function calls],samba_cv_optim
 	samba_cv_optimize_out_funcation_calls=yes,samba_cv_optimize_out_funcation_calls=no)])
 if test x"$samba_cv_optimize_out_funcation_calls" = x"yes"; then
    AC_DEFINE(HAVE_COMPILER_WILL_OPTIMIZE_OUT_FNS,1,[Whether the compiler will optimize out function calls])
-fi
-
-############################################
-# check for unix domain sockets
-AC_CACHE_CHECK([for unix domain sockets],samba_cv_unixsocket, [
-    AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <sys/socket.h>
-#include <sys/un.h>],
-[
-  struct sockaddr_un sunaddr;
-  sunaddr.sun_family = AF_UNIX;
-],
-	samba_cv_unixsocket=yes,samba_cv_unixsocket=no)])
-if test x"$samba_cv_unixsocket" = x"yes"; then
-   AC_DEFINE(HAVE_UNIXSOCKET,1,[If we need to build with unixsocket support])
 fi
 
 #############################################
@@ -1002,40 +999,6 @@ AC_CHECK_LIB(readline, history_list,
 	     [],
 	     [$TERMLIBS])
 
-# The following test taken from the cvs sources
-# If we can't find connect, try looking in -lsocket, -lnsl, and -linet.
-# The Irix 5 libc.so has connect and gethostbyname, but Irix 5 also has
-# libsocket.so which has a bad implementation of gethostbyname (it
-# only looks in /etc/hosts), so we only look for -lsocket if we need
-# it.
-AC_CHECK_FUNCS(connect)
-if test x"$ac_cv_func_connect" = x"no"; then
-    case "$LIBS" in
-    *-lnsl*) ;;
-    *) AC_CHECK_LIB(nsl_s, connect) ;;
-    esac
-    case "$LIBS" in
-    *-lnsl*) ;;
-    *) AC_CHECK_LIB(nsl, connect) ;;
-    esac
-    case "$LIBS" in
-    *-lsocket*) ;;
-    *) AC_CHECK_LIB(socket, connect) ;;
-    esac
-    case "$LIBS" in
-    *-linet*) ;;
-    *) AC_CHECK_LIB(inet, connect) ;;
-    esac
-    dnl We can't just call AC_CHECK_FUNCS(connect) here, because the value
-    dnl has been cached.
-    if test x"$ac_cv_lib_socket_connect" = x"yes" ||
-       test x"$ac_cv_lib_inet_connect" = x"yes"; then
-        # ac_cv_func_connect=yes
-        # don't!  it would cause AC_CHECK_FUNC to succeed next time configure is run
-        AC_DEFINE(HAVE_CONNECT,1,[Whether the system has connect()])
-    fi
-fi
-
 ###############################################
 # test for where we get yp_get_default_domain() from
 AC_SEARCH_LIBS(yp_get_default_domain, [nsl])
@@ -1075,7 +1038,7 @@ AC_CHECK_HEADERS(execinfo.h libexc.h libunwind.h)
 AC_CHECK_FUNCS(backtrace_symbols)
 AC_CHECK_LIB(exc, trace_back_stack)
 
-echo -n "checking for GPFS GPL libs... "
+printf "%s" "checking for GPFS GPL libs... "
 save_LIBS="$LIBS"
 LIBS="$LIBS -lgpfs_gpl"
 AC_TRY_LINK([#include <gpfs_gpl.h>],
@@ -1511,6 +1474,53 @@ EOF
 		PIE_LDFLAGS="-pie"
 	fi
 fi
+
+# Set defaults
+RELRO_LDFLAGS=""
+AC_ARG_ENABLE(relro, [AS_HELP_STRING([--enable-relro], [Turn on Relocations Read-Only (relro) support if available (default=yes)])])
+
+if test "x$enable_relro" != xno
+then
+	AC_CACHE_CHECK([for -Wl,-z,relro], samba_cv_relro,
+	[
+		cat > conftest.c <<EOF
+int foo;
+main () { return 0;}
+EOF
+		if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS -Wl,-z,relro -o conftest conftest.c 1>&AS_MESSAGE_LOG_FD])
+		then
+			samba_cv_relro=yes
+		else
+			samba_cv_relro=no
+		fi
+		rm -f conftest*
+	])
+	if test x"${samba_cv_relro}" = x"yes"
+	then
+		RELRO_LDFLAGS="-Wl,-z,relro"
+	fi
+fi
+
+# Set defaults
+SYMSEXT="syms"
+AC_SUBST(SYMSEXT)
+use_symbol_versioning=no
+if test x"$ac_cv_gnu_ld_version_script" = x"yes"; then
+	use_symbol_versioning=yes
+fi
+AC_ARG_ENABLE(symbol-versioning,[
+	AS_HELP_STRING([--enable-symbol-versioning],
+		[Turn on symbol versioning support if available (default=auto)])
+])
+if test x"$enable_symbol_versioning" = x"no"; then
+	use_symbol_versioning=no
+fi
+
+AC_MSG_CHECKING([symbol versioning])
+if test "x$use_symbol_versioning" = x"yes"; then
+	SYMSEXT="version.syms"
+fi
+AC_MSG_RESULT($use_symbol_versioning)
 
 # Assume non-shared by default and override below
 BLDSHARED="false"
@@ -1965,16 +1975,6 @@ main() { char c; c=250; exit((c > 0)?0:1); }],
 samba_cv_HAVE_UNSIGNED_CHAR=yes,samba_cv_HAVE_UNSIGNED_CHAR=no,samba_cv_HAVE_UNSIGNED_CHAR=cross)])
 if test x"$samba_cv_HAVE_UNSIGNED_CHAR" = x"yes"; then
     AC_DEFINE(HAVE_UNSIGNED_CHAR,1,[Whether the 'unsigned char' type is available])
-fi
-
-AC_CACHE_CHECK([for sin_len in sock],samba_cv_HAVE_SOCK_SIN_LEN,[
-AC_TRY_COMPILE([#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>],
-[struct sockaddr_in sock; sock.sin_len = sizeof(sock);],
-samba_cv_HAVE_SOCK_SIN_LEN=yes,samba_cv_HAVE_SOCK_SIN_LEN=no)])
-if test x"$samba_cv_HAVE_SOCK_SIN_LEN" = x"yes"; then
-    AC_DEFINE(HAVE_SOCK_SIN_LEN,1,[Whether the sockaddr_in struct has a sin_len property])
 fi
 
 AC_CACHE_CHECK([whether seekdir returns void],samba_cv_SEEKDIR_RETURNS_VOID,[
@@ -2614,16 +2614,6 @@ if test x"$samba_cv_HAVE_FTRUNCATE_EXTEND" = x"yes"; then
     AC_DEFINE(HAVE_FTRUNCATE_EXTEND,1,[Truncate extend])
 fi
 
-AC_CACHE_CHECK([for AF_LOCAL socket support], samba_cv_HAVE_WORKING_AF_LOCAL, [
-AC_TRY_RUN([#include "${srcdir-.}/tests/unixsock.c"],
-	   samba_cv_HAVE_WORKING_AF_LOCAL=yes,
-	   samba_cv_HAVE_WORKING_AF_LOCAL=no,
-	   samba_cv_HAVE_WORKING_AF_LOCAL=cross)])
-if test x"$samba_cv_HAVE_WORKING_AF_LOCAL" != xno
-then
-    AC_DEFINE(HAVE_WORKING_AF_LOCAL, 1, [Define if you have working AF_LOCAL sockets])
-fi
-
 AC_CACHE_CHECK([for broken getgroups],samba_cv_HAVE_BROKEN_GETGROUPS,[
 AC_TRY_RUN([#include "${srcdir-.}/tests/getgroups.c"],
            samba_cv_HAVE_BROKEN_GETGROUPS=yes,samba_cv_HAVE_BROKEN_GETGROUPS=no,samba_cv_HAVE_BROKEN_GETGROUPS=cross)])
@@ -2636,29 +2626,6 @@ SMB_CHECK_SYSCONF(_SC_NPROC_ONLN)
 SMB_CHECK_SYSCONF(_SC_NPROCESSORS_ONLN)
 SMB_CHECK_SYSCONF(_SC_PAGESIZE)
 AC_CHECK_FUNCS(getpagesize)
-
-dnl test for ipv6
-AC_CACHE_CHECK([for ipv6 support],samba_cv_HAVE_IPV6,[
-AC_TRY_COMPILE([
-#include <stdlib.h> /* for NULL */
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netdb.h>],
-[
-struct sockaddr_storage sa_store;
-struct addrinfo *ai = NULL;
-struct in6_addr in6addr;
-int s = socket(AF_INET6, SOCK_STREAM, 0);
-int ret = getaddrinfo(NULL, NULL, NULL, &ai);
-if (ret != 0) {
-	const char *es = gai_strerror(ret);
-}
-freeaddrinfo(ai);
-],
-samba_cv_HAVE_IPV6=yes,samba_cv_HAVE_IPV6=no)])
-if test x"$samba_cv_HAVE_IPV6" = x"yes"; then
-    AC_DEFINE(HAVE_IPV6,1,[Whether the system has IPv6 support])
-fi
 
 ################################################
 # look for a method of setting the effective uid
@@ -4700,6 +4667,13 @@ AC_ARG_WITH([static-libs],
 		done], [])],
 	[])
 
+#
+# WORKAROUND:
+#   until we have organized other internal subsystems (as util, registry
+#   and smbconf) into shared libraries, we CAN NOT link libnetapi
+#   dynamically to samba programs.
+#
+LINK_LIBNETAPI=STATIC
 
 SMB_LIBRARY(talloc)
 SMB_LIBRARY(tdb)
@@ -5313,6 +5287,13 @@ int main() { struct aiocb a; return aio_suspend64(&a, 1, NULL); }],
   AC_MSG_RESULT(no)
 )
 
+if test x"$samba_cv_HAVE_AIO" = x"yes"; then
+	if test x"$samba_cv_msghdr_msg_control" = x"yes" -o \
+		x"$samba_cv_msghdr_msg_acctright" = x"yes"; then
+		default_shared_modules="$default_shared_modules vfs_aio_fork"
+	fi
+fi
+
 #################################################
 # check for sendfile support
 
@@ -5674,7 +5655,8 @@ case "$host_os" in
 		NSSSONAMEVERSIONSUFFIX=".1"
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_solaris.o \
 		    nsswitch/winbind_nss_linux.o"
-		WINBIND_NSS_EXTRA_LIBS="-lsocket"
+		WINBIND_NSS_EXTRA_LIBS="${LIBREPLACE_NETWORK_LIBS}"
+		PAM_WINBIND_EXTRA_LIBS="${LIBREPLACE_NETWORK_LIBS}"
 		;;
 	*hpux11*)
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_solaris.o"
@@ -5712,7 +5694,7 @@ AC_ARG_WITH(winbind,
 # We need unix domain sockets for winbind
 
 if test x"$HAVE_WINBIND" = x"yes"; then
-	if test x"$samba_cv_unixsocket" = x"no"; then
+	if test x"$libreplace_cv_HAVE_UNIXSOCKET" = x"no"; then
 		winbind_no_reason=", no unix domain socket support on $host_os"
 		HAVE_WINBIND=no
 	fi
@@ -5735,12 +5717,14 @@ if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_S
 	NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 	## Only worry about libwbclient if we have shared library support
 	## and winbindd
+        LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
         LIBWBCLIENT_SHARED=bin/libwbclient.$SHLIBEXT
         LIBWBCLIENT=libwbclient
 	INSTALL_LIBWBCLIENT=installlibwbclient
 	UNINSTALL_LIBWBCLIENT=uninstalllibwbclient
 	WINBIND_LIBS="-lwbclient"
 else
+	LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
 	LIBWBCLIENT_STATIC=bin/libwbclient.a
 fi
 
@@ -5769,6 +5753,7 @@ AC_SUBST(WINBIND_NSS_LDSHFLAGS)
 AC_SUBST(WINBIND_NSS_EXTRA_OBJS)
 AC_SUBST(WINBIND_NSS_EXTRA_LIBS)
 AC_SUBST(NSSSONAMEVERSIONSUFFIX)
+AC_SUBST(PAM_WINBIND_EXTRA_LIBS)
 
 AC_SUBST(WINBIND_KRB5_LOCATOR)
 
@@ -5963,7 +5948,7 @@ done
 
 dnl Always build these modules static
 MODULE_rpc_spoolss=STATIC
-MODULE_rpc_srvsvc2=STATIC
+MODULE_rpc_srvsvc=STATIC
 MODULE_idmap_tdb=STATIC
 MODULE_idmap_passdb=STATIC
 MODULE_idmap_nss=STATIC
@@ -6004,7 +5989,7 @@ SMB_MODULE(rpc_svcctl2, \$(RPC_SVCCTL_OBJ), "bin/librpc_svcctl2.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_ntsvcs2, \$(RPC_NTSVCS_OBJ), "bin/librpc_ntsvcs2.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_netlogon, \$(RPC_NETLOG_OBJ), "bin/librpc_NETLOGON.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_netdfs, \$(RPC_DFS_OBJ), "bin/librpc_netdfs.$SHLIBEXT", RPC)
-SMB_MODULE(rpc_srvsvc2, \$(RPC_SVC_OBJ), "bin/librpc_svcsvc2.$SHLIBEXT", RPC)
+SMB_MODULE(rpc_srvsvc, \$(RPC_SVC_OBJ), "bin/librpc_svcsvc.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_spoolss, \$(RPC_SPOOLSS_OBJ), "bin/librpc_spoolss.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_eventlog2, \$(RPC_EVENTLOG_OBJ), "bin/librpc_eventlog2.$SHLIBEXT", RPC)
 SMB_MODULE(rpc_samr, \$(RPC_SAMR_OBJ), "bin/librpc_samr.$SHLIBEXT", RPC)

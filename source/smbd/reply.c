@@ -1042,6 +1042,7 @@ void reply_getatr(struct smb_request *req)
 
 void reply_setatr(struct smb_request *req)
 {
+	struct timespec ts[2];
 	connection_struct *conn = req->conn;
 	char *fname = NULL;
 	int mode;
@@ -1052,6 +1053,8 @@ void reply_setatr(struct smb_request *req)
 	TALLOC_CTX *ctx = talloc_tos();
 
 	START_PROFILE(SMBsetatr);
+
+	ZERO_STRUCT(ts);
 
 	if (req->wct < 2) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
@@ -1110,7 +1113,10 @@ void reply_setatr(struct smb_request *req)
 	mode = SVAL(req->inbuf,smb_vwv0);
 	mtime = srv_make_unix_date3(req->inbuf+smb_vwv1);
 
-	if (!set_filetime(conn,fname,convert_time_t_to_timespec(mtime))) {
+	ts[1] = convert_time_t_to_timespec(mtime);
+	status = smb_set_file_time(conn, NULL, fname,
+				   &sbuf, ts, true);
+	if (!NT_STATUS_IS_OK(status)) {
 		reply_unixerror(req, ERRDOS, ERRnoaccess);
 		END_PROFILE(SMBsetatr);
 		return;
@@ -1218,6 +1224,7 @@ void reply_search(struct smb_request *req)
 	bool mask_contains_wcard = False;
 	bool allow_long_path_components = (req->flags2 & FLAGS2_LONG_PATH_COMPONENTS) ? True : False;
 	TALLOC_CTX *ctx = talloc_tos();
+	bool ask_sharemode = lp_parm_bool(SNUM(conn), "smbd", "search ask sharemode", true);
 
 	START_PROFILE(SMBsearch);
 
@@ -1403,8 +1410,16 @@ void reply_search(struct smb_request *req)
 		}
 
 		for (i=numentries;(i<maxentries) && !finished;i++) {
-			finished = !get_dir_entry(ctx,conn,mask,dirtype,&fname,
-					&size,&mode,&date,check_descend);
+			finished = !get_dir_entry(ctx,
+						  conn,
+						  mask,
+						  dirtype,
+						  &fname,
+						  &size,
+						  &mode,
+						  &date,
+						  check_descend,
+						  ask_sharemode);
 			if (!finished) {
 				char buf[DIR_STRUCT_SIZE];
 				memcpy(buf,status,21);
@@ -1985,7 +2000,12 @@ void reply_mknew(struct smb_request *req)
 	}
 
 	ts[0] = get_atimespec(&sbuf); /* atime. */
-	file_ntimes(conn, fsp->fsp_name, ts);
+	status = smb_set_file_time(conn, fsp, fname, &sbuf, ts, true);
+	if (!NT_STATUS_IS_OK(status)) {
+		END_PROFILE(SMBcreate);
+		reply_openerror(req, status);
+		return;
+	}
 
 	reply_outbuf(req, 1, 0);
 	SSVAL(req->outbuf,smb_vwv0,fsp->fnum);
@@ -2184,7 +2204,7 @@ static NTSTATUS can_rename(connection_struct *conn, files_struct *fsp,
 		return NT_STATUS_OK;
 	}
 
-	if (fsp->access_mask & DELETE_ACCESS) {
+	if (fsp->access_mask & (DELETE_ACCESS|FILE_WRITE_ATTRIBUTES)) {
 		return NT_STATUS_OK;
 	}
 
@@ -2656,7 +2676,7 @@ void send_file_readbraw(connection_struct *conn,
 	 * reply_readbraw has already checked the length.
 	 */
 
-	if ( (chain_size == 0) && (nread > 0) &&
+	if ( (chain_size == 0) && (nread > 0) && (fsp->base_fsp == NULL) &&
 	    (fsp->wcp == NULL) && lp_use_sendfile(SNUM(conn)) ) {
 		char header[4];
 		DATA_BLOB header_blob;
@@ -3131,7 +3151,7 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 	 */
 
 	if ((chain_size == 0) && (CVAL(req->inbuf,smb_vwv0) == 0xFF) &&
-	    !is_encrypted_packet(req->inbuf) &&
+	    !is_encrypted_packet(req->inbuf) && (fsp->base_fsp == NULL) &&
 	    lp_use_sendfile(SNUM(conn)) && (fsp->wcp == NULL) ) {
 		uint8 headerbuf[smb_size + 12 * 2];
 		DATA_BLOB header;
@@ -4239,6 +4259,7 @@ void reply_close(struct smb_request *req)
 		DEBUG(3,("close directory fnum=%d\n", fsp->fnum));
 		status = close_file(fsp,NORMAL_CLOSE);
 	} else {
+		time_t t;
 		/*
 		 * Close ordinary file.
 		 */
@@ -4251,9 +4272,8 @@ void reply_close(struct smb_request *req)
 		 * Take care of any time sent in the close.
 		 */
 
-		fsp_set_pending_modtime(fsp, convert_time_t_to_timespec(
-						srv_make_unix_date3(
-							req->inbuf+smb_vwv1)));
+		t = srv_make_unix_date3(req->inbuf+smb_vwv1);
+		set_close_write_time(fsp, convert_time_t_to_timespec(t));
 
 		/*
 		 * close_file() returns the unix errno if an error
@@ -4326,8 +4346,8 @@ void reply_writeclose(struct smb_request *req)
   
 	nwritten = write_file(req,fsp,data,startpos,numtowrite);
 
-	set_filetime(conn, fsp->fsp_name, mtime);
-  
+	set_close_write_time(fsp, mtime);
+
 	/*
 	 * More insanity. W2K only closes the file if writelen > 0.
 	 * JRA.
@@ -4622,7 +4642,7 @@ void reply_printclose(struct smb_request *req)
 
 	START_PROFILE(SMBsplclose);
 
-	if (req->wct < 3) {
+	if (req->wct < 1) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		END_PROFILE(SMBsplclose);
 		return;
@@ -5295,7 +5315,7 @@ static void rename_open_files(connection_struct *conn,
 		   sharepaths we need to manipulate relative paths. */
 		/* TODO - create the absolute path and manipulate the newname
 		   relative to the sharepath. */
-		if (fsp->conn != conn) {
+		if (!strequal(fsp->conn->connectpath, conn->connectpath)) {
 			continue;
 		}
 		DEBUG(10,("rename_open_files: renaming file fnum %d (file_id %s) from %s -> %s\n",
@@ -5515,7 +5535,8 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL);
+	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL,
+				  NULL);
 
 	/*
 	 * We have the file open ourselves, so not being able to get the
@@ -5585,7 +5606,8 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 			uint32 attrs,
 			bool replace_if_exists,
 			bool src_has_wild,
-			bool dest_has_wild)
+			bool dest_has_wild,
+			uint32_t access_mask)
 {
 	char *directory = NULL;
 	char *mask = NULL;
@@ -5715,12 +5737,12 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 
 		status = S_ISDIR(sbuf1.st_mode) ?
 			open_directory(conn, req, directory, &sbuf1,
-				       DELETE_ACCESS,
+				       access_mask,
 				       FILE_SHARE_READ|FILE_SHARE_WRITE,
 				       FILE_OPEN, 0, 0, NULL,
 				       &fsp)
 			: open_file_ntcreate(conn, req, directory, &sbuf1,
-					     DELETE_ACCESS,
+					     access_mask,
 					     FILE_SHARE_READ|FILE_SHARE_WRITE,
 					     FILE_OPEN, 0, 0, 0, NULL,
 					     &fsp);
@@ -5819,12 +5841,12 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 
 		status = S_ISDIR(sbuf1.st_mode) ?
 			open_directory(conn, req, fname, &sbuf1,
-				       DELETE_ACCESS,
+				       access_mask,
 				       FILE_SHARE_READ|FILE_SHARE_WRITE,
 				       FILE_OPEN, 0, 0, NULL,
 				       &fsp)
 			: open_file_ntcreate(conn, req, fname, &sbuf1,
-					     DELETE_ACCESS,
+					     access_mask,
 					     FILE_SHARE_READ|FILE_SHARE_WRITE,
 					     FILE_OPEN, 0, 0, 0, NULL,
 					     &fsp);
@@ -5947,7 +5969,7 @@ void reply_mv(struct smb_request *req)
 	DEBUG(3,("reply_mv : %s -> %s\n",name,newname));
 
 	status = rename_internals(ctx, conn, req, name, newname, attrs, False,
-				  src_has_wcard, dest_has_wcard);
+				  src_has_wcard, dest_has_wcard, DELETE_ACCESS);
 	if (!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
 			/* We have re-scheduled this call. */
@@ -6076,7 +6098,7 @@ NTSTATUS copy_file(TALLOC_CTX *ctx,
 	close_file(fsp1,NORMAL_CLOSE);
 
 	/* Ensure the modtime is set correctly on the destination file. */
-	fsp_set_pending_modtime( fsp2, get_mtimespec(&src_sbuf));
+	set_close_write_time(fsp2, get_mtimespec(&src_sbuf));
 
 	/*
 	 * As we are opening fsp1 read-only we only expect
@@ -6959,6 +6981,8 @@ void reply_setattrE(struct smb_request *req)
 	connection_struct *conn = req->conn;
 	struct timespec ts[2];
 	files_struct *fsp;
+	SMB_STRUCT_STAT sbuf;
+	NTSTATUS status;
 
 	START_PROFILE(SMBsetattrE);
 
@@ -6994,22 +7018,26 @@ void reply_setattrE(struct smb_request *req)
 	 * Sometimes times are sent as zero - ignore them.
 	 */
 
-	if (null_timespec(ts[0]) && null_timespec(ts[1])) {
-		/* Ignore request */
-		if( DEBUGLVL( 3 ) ) {
-			dbgtext( "reply_setattrE fnum=%d ", fsp->fnum);
-			dbgtext( "ignoring zero request - not setting timestamps of 0\n" );
+	/* Ensure we have a valid stat struct for the source. */
+	if (fsp->fh->fd != -1) {
+		if (SMB_VFS_FSTAT(fsp, &sbuf) == -1) {
+			status = map_nt_error_from_unix(errno);
+			reply_nterror(req, status);
+			END_PROFILE(SMBsetattrE);
+			return;
 		}
-		END_PROFILE(SMBsetattrE);
-		return;
-	} else if (!null_timespec(ts[0]) && null_timespec(ts[1])) {
-		/* set modify time = to access time if modify time was unset */
-		ts[1] = ts[0];
+	} else {
+		if (SMB_VFS_STAT(conn, fsp->fsp_name, &sbuf) == -1) {
+			status = map_nt_error_from_unix(errno);
+			reply_nterror(req, status);
+			END_PROFILE(SMBsetattrE);
+			return;
+		}
 	}
 
-	/* Set the date on this file */
-	/* Should we set pending modtime here ? JRA */
-	if(file_ntimes(conn, fsp->fsp_name, ts)) {
+	status = smb_set_file_time(conn, fsp, fsp->fsp_name,
+				   &sbuf, ts, true);
+	if (!NT_STATUS_IS_OK(status)) {
 		reply_doserror(req, ERRDOS, ERRnoaccess);
 		END_PROFILE(SMBsetattrE);
 		return;

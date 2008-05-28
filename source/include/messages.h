@@ -102,6 +102,9 @@
 /* event messages */
 #define MSG_DUMP_EVENT_LIST		0x0500
 
+/* dbwrap messages 4001-4999 */
+#define MSG_DBWRAP_TDB2_CHANGES		4001
+
 /*
  * Special flags passed to message_send. Allocated from the top, lets see when
  * it collides with the message types in the lower 16 bits :-)
@@ -122,6 +125,8 @@
 #define FLAG_MSG_NMBD			0x0004
 #define FLAG_MSG_PRINT_NOTIFY		0x0008
 #define FLAG_MSG_PRINT_GENERAL		0x0010
+/* dbwrap messages 4001-4999 */
+#define FLAG_MSG_DBWRAP			0x0020
 
 
 /*

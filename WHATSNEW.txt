@@ -1,9 +1,9 @@
                    =================================
-                   Release Notes for Samba 3.2.0pre2
-                               Mar 04, 2008
+                   Release Notes for Samba 3.2.0rc1
+                               May 23, 2008
                    =================================
 
-This is the second preview release of Samba 3.2.0.  This is *not*
+This is the first release candidate of Samba 3.2.0.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -35,6 +35,8 @@ Major enhancements in Samba 3.2.0 include:
   o Expansion of nested domain groups via NSS calls.
   o Support for Active Directory LDAP Signing policy.
   o New LGPL Winbind client library (libwbclient.so).
+  o Support for establishing interdomain trust relationships with
+    Windows 2008.
 
   Joining:
   o New NetApi library for domain join related queries (libnetapi.so)
@@ -46,6 +48,7 @@ Major enhancements in Samba 3.2.0 include:
   Users & Groups:
   o New ldb backend for local group mapping tables
   o Raised level of security defaults for authentication operations.
+  o New NetApi library for user account related queries.
 
 
   Documentation:
@@ -85,9 +88,18 @@ Registry Configuration Backend
 ==============================
 
 Samba is now able to use a registry based configuration backed to
-supplement smb.conf setting.  This feature may be enabled by setting
-"config backend = registry" and "registry shares = yes" in the [global]
-section of smb.conf and may be managed using the "net conf" command.
+supplement smb.conf settings.  This feature may be enabled by setting
+"config backend = registry" in the [global] section of smb.conf for a
+registry only configuration, or by specifying "include = registry" to
+include global options from registry for a mixed setup.
+
+The new parameter "registry shares = yes" in the [global] section of
+smb.conf can be used to activate share definitions from registry.
+These shares are loaded on demand by the server. Registry shares are
+automatically activated by the global registry options above.
+
+The configuration stored in registry can be conveniently managed using
+the "net conf" command.
 
 More information may be obtained from the smb.conf(5) and net(8) man
 pages.
@@ -172,25 +184,275 @@ smb.conf changes
 
     Parameter Name                      Description     Default
     --------------                      -----------     -------
+    administrative share		New		No
     client lanman auth			Changed Default	No
     client ldap sasl wrapping		New		plain
     client plaintext auth		Changed Default	No
     clustering				New		No
     cluster addresses			New		""
     config backend			New		file
-    ctdb socket				New		""
+    ctdbd socket			New		""
     debug class				New		No
-    administrative share		New		No
     lanman auth				Changed Default	No
     ldap debug level			New		0
     ldap debug threshold		New		10
-    mangle map				Removed
+    mangled map				Removed
     min receive file size		New             0
     open files database hashsize	Removed
     read bmpx				Removed
     registry shares			New		No
+    smb encrypt				New		Auto
     winbind expand groups		New		1
     winbind rpc only			New		No
+
+    New special meaning of "include = registry".
+
+
+Changes since 3.2.0pre3:
+-----------------------
+
+
+o   Michael Adam <obnox@samba.org>
+    * Move the posix pending close functionality down into the VFS layer.
+    * Fix activation of registry globals in loadparm.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5452: Fix smbclient put.
+    * BUG 5095: Fix Manage Documents privilege.
+    * BUG 5434: Ensure the loaded password doesn't contain the '\n' at the end.
+    * BUG 5456: Fix missing echo if we ^C at the prompt. 
+    * BUG 5460: Fix DFS referrals.
+    * BUG 5464: Fix timeout in winbindd.
+    * Fix returning a directory value for a QPATHINFO on a msdfs link
+      with a non-dfs path.
+
+
+o   Alexander Bokovoy <ab@samba.org>
+    * Use more error-prone form of testing dm_destroy_session() return code.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 5453: Fix winbindd and smbd crash when dsgetdcname is used.
+    * BUG 5465: Fix joining with createcomputer=ou1/ou2/ou3.
+    * BUG 5461: Fix issue with Citrix on Samba DCs with more than 900 groups.
+    * Fix wins null pointer crash in nss_wins module.
+    * Fix lm session key length in _netr_LogonSamLogon.
+    * Add -f switch for DsGetDCName() example and be more verbose on output.
+
+
+o   Gerald (Jerry) Carter <jerry@samba.org>
+    * Prevent Winbind cycle in children list when reaping dead child processes.
+    * BUG 5107: Fix handling of large DNS replies on AIX and Solaris.
+    * BUG 5429: Clarify log msgs re: failure to create
+      BUILTIN\{Administrators,Users}
+    * Fix the DNS Update option of "net ads join".
+
+
+o   Eric Cronin <ecronin@gizmolabs.org>
+    * BUG 5184: Add Missing HAVE_UPDWTMPX check before using updwtmpx().
+
+
+o   Steven Danneman <sdanneman@sd-ubuntu.(none)>
+    * Bug 5419: Fix memory leak in ads_do_search_all_args() when enumerating 
+      1000s of entries 
+
+
+o   Holger Hetterich <hhetter@novell.com>
+    * Recognize and allow longer UA keys in winbindd_cache.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * Fix compile warnings.
+    * Increase log level for failed setsockopt call.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 5420: Fix build on IRIX.
+    * BUG 5398: Fix compiler warning.
+    * BUG 5399: Fix compiler warning.
+    * BUG 5400: Fix compiler warning.
+    * BUG 5436: Fix signing problem in the client with transs requests.
+    * Fix a valgrind bug in the new [ug]id2sid cache.
+    * Fix Coverity IDs 565 and 222.
+    * Fix dfs_Enum: In form_junctions, correctly check for malloc failure.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 5443: Fix build on HP-UX.
+    * Add support for symbol versioning in shared libraries (can be
+      disabled with --disable-sysmbol-versioning).
+    * Add new function wbcLibraryDetails() to libwbclient.
+
+
+o   Tim Prouty <tim.prouty@isilon.com>
+    * Cleanup size_t return values in convert_string_allocate.
+
+
+o   Mike Sweet <msweet@apple.com>
+    * Fix Kerberos support for CUPS 1.3 in smbspool.
+
+
+o   Martin Zielinski <mz@seh.de>
+    * Fix printing with Vista.
+    * Fix deletion of files when they're in use by other drivers.
+
+
+Changes since 3.2.0pre2:
+-----------------------
+
+
+o   Michael Adam <obnox@samba.org>
+    * Fix session setup with security = share.
+    * Fix segfault in testparm.
+    * Fix several Makefile issues.
+    * Fix build of bin/net on Solaris.
+    * Reformat the parm table of loadparm to use named initializers.
+    * Fix %I macro expansion for IPv4 mapped IPv6 addresses.
+    * Convert registry.tdb to use dbwrap and fix memleaks.
+    * Several make test fixes and improvements.
+    * Several libreplace extensions and fixes (portet from v4-0-test).
+    * Rename libnet_conf to libsmbconf and introduce backend abstraction layer.
+    * Add text backend to libsmbconf, based on params.c.
+    * Fix handling of includes in registry libsmbconf backend.
+    * Fix net conf import by reading from text backend.
+    * Add a "net registry" command to locally access the registry.
+    * Add getvalue subcommand to "net rpc registry".
+    * Add testsuites for libsmbconf and "net registry".
+    * Fix Coverity IDs 517, 536, 545.
+    * Remove unneeded REGISTRY_HOOKS layer from reghook cache
+      to allow plugging one backend to multiple keys more easily.
+    * Add smbconf_init dispatcher taking source strings like "backend:path"
+    * Fix handling of dangling parameters (without share) in libsmbconf.
+    * Introduce special meaning of "include = registry" to complement
+      the registry-only configuration of "config backend = registry".
+    * Enhance error propagation by making several registry functions
+      return WERROR.
+    * Fix loading of registry shares in smbd by fixing the token.
+    * Fix a segfault in tdb_wrap_log().
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5311: Fix IPv6 issue with hosts allow/deny settings.
+    * BUG 5372: Fix client timeouts in large CUPS installations.
+    * Fix problem with nmbd not waiting until interfaces come up.
+    * Fix S3 to pass the test_raw_oplock_exclusive3 test.
+    * Fix MSDFS bug breaking MS clients in some cases by ensuring 
+      the target host is ourselves.
+    * Rewrite the wrap checks to deal with gcc 4.x optimisations.
+
+
+o   Kai Blin <kai@samba.org>
+    * BUG 4235: Prevent ntlm_auth from sending BH responses without a message.
+    * Fix one BH message.
+
+
+o   Gerald (Jerry) Carter <jerry@samba.org>
+    * Fix libtdb some to move back towards allowing out of tree builds.
+    * Ignore port when pulling IP addr from struct sockaddr_storage..
+
+
+o   Guenther Deschner <gd@samba.org>
+    * Fix build of pam_smbpass.
+    * Fix lp_load with an empty registry and "config backend = registry".
+    * Fix build targets for bin/net.
+    * Fix _dssetup_DsRoleGetPrimaryDomainInformation().
+    * Fix the build of cifs.spnego.
+    * Migration of the SRVSVC client and server DCE/RPC code to IDL
+      based structures and autogenerated code
+    * Fix Kerberos session setup with Vista SP1 (ignore PAC type 12)
+    * Fix support for vampire of lockout policies and
+      for storing dialin/terminal server settings.
+    * Fix remote join/unjoin server implementation.
+    * BUG 5328: Fix netlogon credential chain with Windows 2008
+      (this also fixes joining Windows 2008 with rpc methods).
+    * Various fixes for establishing and validating interdomain trust
+      relationships with Windows 2008.
+    * Use IDL for storing domain controller information in dsgetdcname.
+    * Re-arranged internal structure of libnetapi.
+    * Add support for domain\dcname syntax in libnetjoin.
+    * Add support for browsing/joining OUs in netdomjoin-gui.
+    * Add various new calls to libnetapi.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * Add AC_TRY_RUN_STRICT support for Sun Studio compiler.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * Add support for async SMB requests.
+    * Add transactions to the dbwrap API.
+    * Add "net idmap aclmapset".
+    * Change default bufsize to 512k.
+    * Fix Coverity IDs 473, 481, 506, 507, 525, 526, 527, 528, 529, 530, 537,
+      538, 547, 548, 551, 552, 553, 554, 555, 557, 558, 559, 563, 564, 567.
+      ... and half a ton more
+    * Fix some warnings in the tsmsm module.
+    * Fix warnings.
+    * BUG 4901: Fix "ldap passwd sync = only".
+    * BUG 5334: Fix download of empty files using smbclient.
+    * BUG 5307: Fix notify changes.
+    * BUG 5317: Fix debug output in domain_client_validate.
+    * BUG 5338: Fix format string issue in rpcclient.
+    * Convert account_pol.tdb and share_info.tdb to dbwrap.
+    * Protect group_mapping.tdb ops with transactions.
+    * BUG 5366: "passwd program" should work on Solaris 10 again now.
+    * A level 25 setuserinfo does change the pwdlastset, fixes XP joins.
+    * BUG 5350: A Samba DC trusting NT4 should do an anon session setup.
+    * BUG 5375: Fix a segfault with "security=share" and [in]valid users.
+    * Fix printing from DOS clients -- introduced by inbuf/outbuf rewrite.
+    * Fix wbinfo -a trusted\\user%password on a Samba DC with trusts.
+    * BUG 5341: Fix async smbclient get command on Solaris.
+    * Make winbind use NetSamLogonEx when possible.
+    * Merge fixes in the 3-0-ctdb cluster code.
+    * Fix a segfault in snprintf replacement code.
+    * Fix a regression for wbinfo --group-info if winbind separator is set
+
+
+o   Derrell Lipman <derrell@samba.org>
+    * Check for NULL pointers before dereferencing them.
+    * Fix use of AuthDataWithContext capability.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * Add dbwrap_tdb2 backend, useful for cluster setups.
+    * Add more functions to libwbclient:
+      - wbcGetGroups()
+      - wbcInterfaceDetails()
+      - wbcListUsers()
+      - wbcListGroups()
+      - wbcLookupUserSids()
+      - wbcSetUidMapping()
+      - wbcSetGidMapping()
+      - wbcSetUidHwm()
+      - wbcSetGidHwm()
+      - wbcResolveWinsByName()
+      - wbcResolveWinsByIP()
+      - wbcCheckTrustCredentials()
+    * Let wbinfo use libwbclient where possible.
+    * Let net use only libwbclient to access winbindd.
+    * Make socket wrapper pcap support more portable.
+    * Some libreplace backports from v4-0-test.
+    * Store the write time in the locking.tdb,
+      so that smbd passes the BASE-DELAYWRITE test.
+    * Run RAW-SEARCH and BASE-DELAYWRITE by 'make test'.
+    * Let each process use its own connection to ctdb
+      in cluster mode.
+    * Add a reinit_after_fork() helper function to correct
+      reinitialize the same things in all cases.
+    * Fix a chicken and egg problem with "include = registry".
+
+
+o   Karolin Seeger <kseeger@samba.org>
+    * Fix usage message for "net idmap dump".
+
+
+o   Andrew Tridgell <tridge@samba.org>
+    * Suppress superfluous message.
+
+
+o   Marc VanHeyningen <marc.vanheyningen@isilon.com>
+    * Coverity fixes.
 
 
 Changes since 3.2.0pre1:
@@ -305,6 +567,7 @@ o   Volker Lendecke <vl@samba.org>
     * Add implicit temporary talloc contexts via talloc_stack().
     * Speed up the smbclient "get" command
     * Add the aio_fork module
+    * Fix bug 4901
 
 o   Derrell Lipman <derrell@samba.org>
     * Modified libsmbclient API for more easily maintaining ABI compatibility
@@ -340,6 +603,7 @@ o   Andreas Schneider <anschneider@suse.de>
     * Don't restart winbind if a corrupted tdb is found during
       initialization.
     * Fix Windows 2008 (Longhorn) join.
+    * Fix crashbug in winbindd.
     * Add share parameter "administrative share".
 
 

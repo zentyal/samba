@@ -387,7 +387,13 @@ static void pop_conn_ctx(void)
 
 void become_root(void)
 {
-	push_sec_ctx();
+	 /*
+	  * no good way to handle push_sec_ctx() failing without changing
+	  * the prototype of become_root()
+	  */
+	if (!push_sec_ctx()) {
+		smb_panic("become_root: push_sec_ctx failed");
+	}
 	push_conn_ctx();
 	set_root_sec_ctx();
 }

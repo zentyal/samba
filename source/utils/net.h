@@ -22,6 +22,8 @@
  * include
  */
 
+#include "lib/netapi/netapi.h"
+
 typedef NTSTATUS (*rpc_command_fn)(const DOM_SID *,
 				const char *, 
 				struct cli_state *cli,
@@ -115,6 +117,7 @@ extern int opt_testmode;
 
 extern int opt_have_ip;
 extern struct sockaddr_storage opt_dest_ip;
+extern struct libnetapi_ctx *netapi_ctx;
 
 extern const char *share_type[];
 

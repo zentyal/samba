@@ -132,6 +132,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	struct netr_Credential clnt_chal_send;
 	struct netr_Credential srv_chal_recv;
 	struct dcinfo *dc;
+	bool retried = false;
 
 	SMB_ASSERT(cli->pipe_idx == PI_NETLOGON);
 
@@ -153,6 +154,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 
 	fstr_sprintf( dc->mach_acct, "%s$", machine_account);
 
+ again:
 	/* Create the client challenge. */
 	generate_random_buffer(clnt_chal_send.data, 8);
 
@@ -186,6 +188,15 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 						 &clnt_chal_send, /* input. */
 						 &srv_chal_recv, /* output. */
 						 neg_flags_inout);
+
+	/* we might be talking to NT4, so let's downgrade in that case and retry
+	 * with the returned neg_flags - gd */
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) && !retried) {
+		retried = true;
+		goto again;
+	}
+
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
@@ -226,7 +237,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	struct netr_Authenticator clnt_creds;
 	struct netr_Authenticator ret_creds;
-	union netr_LogonLevel *logon;
+	union netr_LogonInfo *logon;
 	union netr_Validation validation;
 	uint8_t authoritative;
 	int validation_level = 3;
@@ -236,7 +247,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(ret_creds);
 	ZERO_STRUCT(zeros);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonInfo);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -407,7 +418,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 	uint8 zeros[16];
 	struct netr_Authenticator clnt_creds;
 	struct netr_Authenticator ret_creds;
-	union netr_LogonLevel *logon = NULL;
+	union netr_LogonInfo *logon = NULL;
 	struct netr_NetworkInfo *network_info;
 	uint8_t authoritative;
 	union netr_Validation validation;
@@ -424,7 +435,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(lm);
 	ZERO_STRUCT(nt);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonInfo);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -530,7 +541,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	const char *workstation_name_slash;
 	const char *server_name_slash;
 	uint8 zeros[16];
-	union netr_LogonLevel *logon = NULL;
+	union netr_LogonInfo *logon = NULL;
 	struct netr_NetworkInfo *network_info;
 	uint8_t authoritative;
 	union netr_Validation validation;
@@ -547,7 +558,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(lm);
 	ZERO_STRUCT(nt);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonInfo);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -623,6 +634,4 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	*info3 = validation.sam3;
 
 	return result;
-
-        return result;
 }

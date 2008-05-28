@@ -149,7 +149,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 	/* so we fill it in since winbindd_getpwnam() makes use of it */
 
 	if (!info3->base.account_name.string) {
-		info3->base.account_name.string = talloc_strdup(mem_ctx, username);
+		info3->base.account_name.string = talloc_strdup(info3, username);
 	}
 
 	r.timestamp = t;
@@ -213,8 +213,7 @@ struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const DOM_SID *
 		goto done;
 	}
 
-	blob.data = (uint8 *)data.dptr;
-	blob.length = data.dsize;
+	blob = data_blob_const(data.dptr, data.dsize);
 
 	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, &r,
 				      (ndr_pull_flags_fn_t)ndr_pull_netsamlogoncache_entry);

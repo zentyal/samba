@@ -93,10 +93,8 @@ WERROR reg_pull_multi_sz(TALLOC_CTX *mem_ctx, const void *buf, size_t len,
 		size_t dstlen, thislen;
 
 		thislen = strnlen_w(p, len) + 1;
-		dstlen = convert_string_allocate(*values, CH_UTF16LE, CH_UNIX,
-						 p, thislen*2, (void *)&val,
-						 true);
-		if (dstlen == (size_t)-1) {
+		if (!convert_string_allocate(*values, CH_UTF16LE, CH_UNIX,
+			p, thislen*2, (void *)&val, &dstlen, true)) {
 			TALLOC_FREE(*values);
 			return WERR_NOMEM;
 		}
@@ -111,34 +109,4 @@ WERROR reg_pull_multi_sz(TALLOC_CTX *mem_ctx, const void *buf, size_t len,
 	}
 
 	return WERR_OK;
-}
-
-void normalize_dbkey(char *key)
-{
-	size_t len = strlen(key);
-	string_sub(key, "\\", "/", len+1);
-	strupper_m(key);
-}
-
-/*
- * check whether a given value name is forbidden in registry (smbconf)
- */
-bool registry_smbconf_valname_forbidden(const char *valname)
-{
-	/* hard code the list of forbidden names here for now */
-	const char *forbidden_valnames[] = {
-		"include",
-		"lock directory",
-		"lock dir",
-		"config backend",
-		NULL
-	};
-	const char **forbidden = NULL;
-
-	for (forbidden = forbidden_valnames; *forbidden != NULL; forbidden++) {
-		if (strwicmp(valname, *forbidden) == 0) {
-			return true;
-		}
-	}
-	return false;
 }

@@ -339,7 +339,7 @@ static void trustdom_recv(void *private_data, bool success)
 	*/
 
 	if ( state->primary ) {
-		/* If this is our primary domain and we are not the in the
+		/* If this is our primary domain and we are not in the
 		   forest root, we have to scan the root trusts first */
 
 		if ( !state->forest_root )
@@ -349,7 +349,7 @@ static void trustdom_recv(void *private_data, bool success)
 
 	} else if ( state->forest_root ) {
 		/* Once we have done root forest trust search, we can
-		   go on to search thing trusted forests */
+		   go on to search the trusted forests */
 
 		rescan_forest_trusts();
 	}
@@ -419,7 +419,7 @@ static void rescan_forest_root_trusts( void )
 }
 
 /********************************************************************
- scan the transitive forest trists (not our own)
+ scan the transitive forest trusts (not our own)
 ********************************************************************/
 
 
@@ -1274,14 +1274,11 @@ NTSTATUS lookup_usergroups_cached(struct winbindd_domain *domain,
 {
 	struct netr_SamInfo3 *info3 = NULL;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
-	int i;
 	size_t num_groups = 0;
-	DOM_SID group_sid, primary_group;
-	
+
 	DEBUG(3,(": lookup_usergroups_cached\n"));
-	
+
 	*user_sids = NULL;
-	num_groups = 0;
 	*p_num_groups = 0;
 
 	info3 = netsamlogon_cache_get(mem_ctx, user_sid);
@@ -1294,45 +1291,18 @@ NTSTATUS lookup_usergroups_cached(struct winbindd_domain *domain,
 		TALLOC_FREE(info3);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
-	
-	/* always add the primary group to the sid array */
-	sid_compose(&primary_group, info3->base.domain_sid, info3->base.rid);
-	
-	status = add_sid_to_array(mem_ctx, &primary_group, user_sids,
-				  &num_groups);
+
+	/* Skip Domain local groups outside our domain.
+	   We'll get these from the getsidaliases() RPC call. */
+	status = sid_array_from_info3(mem_ctx, info3,
+				      user_sids,
+				      &num_groups,
+				      true, true);
+
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(info3);
 		return status;
 	}
-
-	for (i=0; i < info3->base.groups.count; i++) {
-		sid_copy(&group_sid, info3->base.domain_sid);
-		sid_append_rid(&group_sid, info3->base.groups.rids[i].rid);
-
-		status = add_sid_to_array(mem_ctx, &group_sid, user_sids,
-					  &num_groups);
-		if (!NT_STATUS_IS_OK(status)) {
-			TALLOC_FREE(info3);
-			return status;
-		}
-	}
-
-	/* Add any Universal groups in the other_sids list */
-
-	for (i=0; i < info3->sidcount; i++) {
-		/* Skip Domain local groups outside our domain.
-		   We'll get these from the getsidaliases() RPC call. */
-		if (info3->sids[i].attributes & SE_GROUP_RESOURCE)
-			continue;
-
-		status = add_sid_to_array(mem_ctx, info3->sids[i].sid,
-					  user_sids, &num_groups);
-		if (!NT_STATUS_IS_OK(status)) {
-			TALLOC_FREE(info3);
-			return status;
-		}
-	}
-	
 
 	TALLOC_FREE(info3);
 	*p_num_groups = num_groups;

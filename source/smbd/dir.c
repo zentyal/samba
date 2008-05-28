@@ -803,7 +803,8 @@ bool get_dir_entry(TALLOC_CTX *ctx,
 		SMB_OFF_T *size,
 		uint32 *mode,
 		time_t *date,
-		bool check_descend)
+		bool check_descend,
+		bool ask_sharemode)
 {
 	const char *dname = NULL;
 	bool found = False;
@@ -882,6 +883,17 @@ bool get_dir_entry(TALLOC_CTX *ctx,
 
 			*size = sbuf.st_size;
 			*date = sbuf.st_mtime;
+
+			if (ask_sharemode) {
+				struct timespec write_time_ts;
+				struct file_id fileid;
+
+				fileid = vfs_file_id_from_sbuf(conn, &sbuf);
+				get_file_infos(fileid, NULL, &write_time_ts);
+				if (!null_timespec(write_time_ts)) {
+					*date = convert_timespec_to_time_t(write_time_ts);
+				}
+			}
 
 			DEBUG(3,("get_dir_entry mask=[%s] found %s "
 				"fname=%s (%s)\n",

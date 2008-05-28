@@ -27,7 +27,6 @@
 #include "system/time.h"
 #include "system/passwd.h"
 #include "system/syslog.h"
-#include "system/network.h"
 #include "system/locale.h"
 #include "system/wait.h"
 
@@ -295,20 +294,6 @@ char *rep_strdup(const char *s)
 }
 #endif /* HAVE_STRDUP */
 
-#ifndef WITH_PTHREADS
-/* REWRITE: not thread safe */
-#ifdef REPLACE_INET_NTOA
-char *rep_inet_ntoa(struct in_addr ip)
-{
-	uint8_t *p = (uint8_t *)&ip.s_addr;
-	static char buf[18];
-	slprintf(buf, 17, "%d.%d.%d.%d", 
-		 (int)p[0], (int)p[1], (int)p[2], (int)p[3]);
-	return buf;
-}
-#endif /* REPLACE_INET_NTOA */
-#endif
-
 #ifndef HAVE_SETLINEBUF
 void rep_setlinebuf(FILE *stream)
 {
@@ -473,7 +458,7 @@ char *rep_strcasestr(const char *haystack, const char *needle)
 	for (s=haystack;*s;s++) {
 		if (toupper(*needle) == toupper(*s) &&
 		    strncasecmp(s, needle, nlen) == 0) {
-			return (char *)((intptr_t)s);
+			return (char *)((uintptr_t)s);
 		}
 	}
 	return NULL;
@@ -600,24 +585,29 @@ int rep_unsetenv(const char *name)
 }
 #endif
 
-#ifndef HAVE_SOCKETPAIR
-int rep_socketpair(int d, int type, int protocol, int sv[2])
+#ifndef HAVE_UTIME
+int rep_utime(const char *filename, const struct utimbuf *buf)
 {
-	if (d != AF_UNIX) {
-		errno = EAFNOSUPPORT;
-		return -1;
+	errno = ENOSYS;
+	return -1;
+}
+#endif
+
+#ifndef HAVE_UTIMES
+int rep_utimes(const char *filename, const struct timeval tv[2])
+{
+	struct utimbuf u;
+
+	u.actime = tv[0].tv_sec;
+	if (tv[0].tv_usec > 500000) {
+		u.actime += 1;
 	}
 
-	if (protocol != 0) {
-		errno = EPROTONOSUPPORT;
-		return -1;
+	u.modtime = tv[1].tv_sec;
+	if (tv[1].tv_usec > 500000) {
+		u.modtime += 1;
 	}
 
-	if (type != SOCK_STREAM) {
-		errno = EOPNOTSUPP;
-		return -1;
-	}
-
-	return pipe(sv);
+	return utime(filename, &u);
 }
 #endif

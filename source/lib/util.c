@@ -291,7 +291,8 @@ static struct user_auth_info cmdline_auth_info = {
 	false,	/* got_pass */
 	false,	/* use_kerberos */
 	Undefined, /* signing state */
-	false	/* smb_encrypt */
+	false,	/* smb_encrypt */
+	false   /* use machine account */
 };
 
 const char *get_cmdline_auth_info_username(void)
@@ -370,6 +371,11 @@ void set_cmdline_auth_info_smb_encrypt(void)
 	cmdline_auth_info.smb_encrypt = true;
 }
 
+void set_cmdline_auth_info_use_machine_account(void)
+{
+	cmdline_auth_info.use_machine_account = true;
+}
+
 bool get_cmdline_auth_info_got_pass(void)
 {
 	return cmdline_auth_info.got_pass;
@@ -378,6 +384,11 @@ bool get_cmdline_auth_info_got_pass(void)
 bool get_cmdline_auth_info_smb_encrypt(void)
 {
 	return cmdline_auth_info.smb_encrypt;
+}
+
+bool get_cmdline_auth_info_use_machine_account(void)
+{
+	return cmdline_auth_info.use_machine_account;
 }
 
 bool get_cmdline_auth_info_copy(struct user_auth_info *info)
@@ -389,6 +400,42 @@ bool get_cmdline_auth_info_copy(struct user_auth_info *info)
 	if (!info->username || !info->password) {
 		return false;
 	}
+	return true;
+}
+
+bool set_cmdline_auth_info_machine_account_creds(void)
+{
+	char *pass = NULL;
+	char *account = NULL;
+
+	if (!get_cmdline_auth_info_use_machine_account()) {
+		return false;
+	}
+
+	if (!secrets_init()) {
+		d_printf("ERROR: Unable to open secrets database\n");
+		return false;
+	}
+
+	if (asprintf(&account, "%s$@%s", global_myname(), lp_realm()) < 0) {
+		return false;
+	}
+
+	pass = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
+	if (!pass) {
+		d_printf("ERROR: Unable to fetch machine password for "
+			"%s in domain %s\n",
+			account, lp_workgroup());
+		SAFE_FREE(account);
+		return false;
+	}
+
+	set_cmdline_auth_info_username(account);
+	set_cmdline_auth_info_password(pass);
+
+	SAFE_FREE(account);
+	SAFE_FREE(pass);
+
 	return true;
 }
 
@@ -988,6 +1035,37 @@ void become_daemon(bool Fork, bool no_process_group)
 	/* Close fd's 0,1,2. Needed if started by rsh */
 	close_low_fds(False);  /* Don't close stderr, let the debug system
 				  attach it to the logfile */
+}
+
+bool reinit_after_fork(struct messaging_context *msg_ctx,
+		       bool parent_longlived)
+{
+	NTSTATUS status;
+
+	/* Reset the state of the random
+	 * number generation system, so
+	 * children do not get the same random
+	 * numbers as each other */
+	set_need_random_reseed();
+
+	/* tdb needs special fork handling */
+	if (tdb_reopen_all(parent_longlived ? 1 : 0) == -1) {
+		DEBUG(0,("tdb_reopen_all failed.\n"));
+		return false;
+	}
+
+	/*
+	 * For clustering, we need to re-init our ctdbd connection after the
+	 * fork
+	 */
+	status = messaging_reinit(msg_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("messaging_reinit() failed: %s\n",
+			 nt_errstr(status)));
+		return false;
+	}
+
+	return true;
 }
 
 /****************************************************************************
@@ -2057,7 +2135,7 @@ void ra_lanman_string( const char *native_lanman )
 	if ( strcmp( native_lanman, "Windows 2002 5.1" ) == 0 )
 		set_remote_arch( RA_WINXP );
 	else if ( strcmp( native_lanman, "Windows XP 5.2" ) == 0 )
-		set_remote_arch( RA_WINXP );
+		set_remote_arch( RA_WINXP64 );
 	else if ( strcmp( native_lanman, "Windows Server 2003 5.2" ) == 0 )
 		set_remote_arch( RA_WIN2K3 );
 }
@@ -2097,6 +2175,9 @@ void set_remote_arch(enum remote_arch_types type)
 		break;
 	case RA_WINXP:
 		remote_arch_str = "WinXP";
+		break;
+	case RA_WINXP64:
+		remote_arch_str = "WinXP64";
 		break;
 	case RA_WIN2K3:
 		remote_arch_str = "Win2K3";
@@ -3363,4 +3444,31 @@ NTSTATUS split_ntfs_stream_name(TALLOC_CTX *mem_ctx, const char *fname,
 		*pstream = stream;
 	}
 	return NT_STATUS_OK;
+}
+
+bool is_valid_policy_hnd(const POLICY_HND *hnd)
+{
+	POLICY_HND tmp;
+	ZERO_STRUCT(tmp);
+	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
+}
+
+/****************************************************************
+ strip off leading '\\' from a hostname
+****************************************************************/
+
+const char *strip_hostname(const char *s)
+{
+	if (!s) {
+		return NULL;
+	}
+
+	if (strlen_m(s) < 3) {
+		return s;
+	}
+
+	if (s[0] == '\\') s++;
+	if (s[0] == '\\') s++;
+
+	return s;
 }

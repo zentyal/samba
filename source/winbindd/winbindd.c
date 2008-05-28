@@ -123,19 +123,7 @@ static void flush_caches(void)
 
 	if (!wcache_invalidate_cache()) {
 		DEBUG(0, ("invalidating the cache failed; revalidate the cache\n"));
-		/* Close the cache to be able to valdite the cache */
-		close_winbindd_cache();
-		/*
-		 * Ensure all cache and idmap caches are consistent
-		 * before we initialize the cache again.
-		 */
-		if (winbindd_validate_cache() < 0) {
-			DEBUG(0, ("winbindd cache tdb corrupt and no backup "
-				  "could be restore.\n"));
-		}
-
-		/* Initialize cache again. */
-		if (!initialize_winbindd_cache()) {
+		if (!winbindd_cache_validate_and_initialize()) {
 			exit(1);
 		}
 	}
@@ -807,6 +795,27 @@ static bool remove_idle_client(void)
 	return False;
 }
 
+/* check if HUP has been received and reload files */
+void winbind_check_sighup(void)
+{
+	if (do_sighup) {
+
+		DEBUG(3, ("got SIGHUP\n"));
+
+		flush_caches();
+		reload_services_file();
+
+		do_sighup = False;
+	}
+}
+
+/* check if TERM has been received */
+void winbind_check_sigterm(void)
+{
+	if (do_sigterm)
+		terminate();
+}
+
 /* Process incoming clients on listen_sock.  We use a tricky non-blocking,
    non-forking, non-threaded model which allows us to handle many
    simultaneous connections while remaining impervious to many denial of
@@ -966,18 +975,8 @@ static void process_loop(void)
 
 	/* Check signal handling things */
 
-	if (do_sigterm)
-		terminate();
-
-	if (do_sighup) {
-
-		DEBUG(3, ("got SIGHUP\n"));
-
-		flush_caches();
-		reload_services_file();
-
-		do_sighup = False;
-	}
+	winbind_check_sigterm();
+	winbind_check_sighup();
 
 	if (do_sigusr2) {
 		print_winbindd_status();
@@ -1034,6 +1033,8 @@ int main(int argc, char **argv, char **envp)
 	dump_core_setup("winbindd");
 
 	load_case_tables();
+
+	db_tdb2_setup_messaging(NULL, false);
 
 	/* Initialise for running in non-root mode */
 
@@ -1114,6 +1115,20 @@ int main(int argc, char **argv, char **envp)
 	DEBUG(0,("winbindd version %s started.\n", SAMBA_VERSION_STRING));
 	DEBUGADD(0,("%s\n", COPYRIGHT_STARTUP_MESSAGE));
 
+	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
+		DEBUG(0, ("error opening config file\n"));
+		exit(1);
+	}
+
+	/* Initialise messaging system */
+
+	if (winbind_messaging_context() == NULL) {
+		DEBUG(0, ("unable to initialize messaging system\n"));
+		exit(1);
+	}
+
+	db_tdb2_setup_messaging(winbind_messaging_context(), true);
+
 	if (!reload_services_file()) {
 		DEBUG(0, ("error opening config file\n"));
 		exit(1);
@@ -1185,25 +1200,21 @@ int main(int argc, char **argv, char **envp)
 
 	TimeInit();
 
-	/* Initialise messaging system */
-
-	if (winbind_messaging_context() == NULL) {
-		DEBUG(0, ("unable to initialize messaging system\n"));
+	if (!reinit_after_fork(winbind_messaging_context(), false)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
 
 	/*
 	 * Ensure all cache and idmap caches are consistent
-	 * before we startup.
+	 * and initialized before we startup.
 	 */
-	if (winbindd_validate_cache() < 0) {
-		DEBUG(0, ("corrupted tdb found, trying to restore backup\n"));
-	}
-
-	/* Initialize cache (ensure version is correct). */
-	if (!initialize_winbindd_cache()) {
+	if (!winbindd_cache_validate_and_initialize()) {
 		exit(1);
 	}
+
+	/* get broadcast messages */
+	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
 
 	/* React on 'smbcontrol winbindd reload-config' in the same way
 	   as to SIGHUP signal */
@@ -1238,7 +1249,7 @@ int main(int argc, char **argv, char **envp)
 	wcache_tdc_clear();	
 	
 	if (!init_domain_list()) {
-		DEBUG(0,("unable to initalize domain list\n"));
+		DEBUG(0,("unable to initialize domain list\n"));
 		exit(1);
 	}
 

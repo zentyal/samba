@@ -373,8 +373,7 @@ static bool key_printers_store_keys( const char *key, REGSUBKEY_CTR *subkeys )
 	
 	/* cleanup */
 	
-	if ( printer )
-		free_a_printer( &printer, 2 );
+	free_a_printer( &printer, 2 );
 
 	SAFE_FREE( existing_subkeys );
 
@@ -443,7 +442,8 @@ static void fill_in_printer_values( NT_PRINTER_INFO_LEVEL_2 *info2, REGVAL_CTR *
 	/* use a prs_struct for converting the devmode and security 
 	   descriptor to REG_BINARY */
 	
-	prs_init( &prs, RPC_MAX_PDU_FRAG_LEN, values, MARSHALL);
+	if (!prs_init( &prs, RPC_MAX_PDU_FRAG_LEN, values, MARSHALL))
+		return;
 
 	/* stream the device mode */
 		
@@ -515,8 +515,7 @@ static int key_printers_fetch_values( const char *key, REGVAL_CTR *values )
 	if ( (key_index = lookup_printerkey( p_data, printerdatakey )) == -1  ) {
 		/* failure....should never happen if the client has a valid open handle first */
 		DEBUG(10,("key_printers_fetch_values: Unknown keyname [%s]\n", printerdatakey));
-		if ( printer )
-			free_a_printer( &printer, 2 );
+		free_a_printer( &printer, 2 );
 		return -1;
 	}
 	

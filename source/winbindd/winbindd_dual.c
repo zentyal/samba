@@ -478,6 +478,10 @@ void winbind_child_died(pid_t pid)
 		return;
 	}
 
+	/* This will be re-added in fork_domain_child() */
+
+	DLIST_REMOVE(children, child);
+	
 	remove_fd_event(&child->event);
 	close(child->event.fd);
 	child->event.fd = 0;
@@ -978,9 +982,6 @@ static bool fork_domain_child(struct winbindd_child *child)
 	ZERO_STRUCT(state);
 	state.pid = sys_getpid();
 
-	/* Stop zombies */
-	CatchChild();
-
 	child->pid = sys_fork();
 
 	if (child->pid == -1) {
@@ -1002,12 +1003,14 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 	/* Child */
 
+	/* Stop zombies in children */
+	CatchChild();
+
 	state.sock = fdpair[0];
 	close(fdpair[1]);
 
-	/* tdb needs special fork handling */
-	if (tdb_reopen_all(1) == -1) {
-		DEBUG(0,("tdb_reopen_all failed.\n"));
+	if (!reinit_after_fork(winbind_messaging_context(), true)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
 		_exit(0);
 	}
 
@@ -1089,7 +1092,6 @@ static bool fork_domain_child(struct winbindd_child *child)
 	 * but not the main daemon */
 
 	if (child->domain && child->domain->internal && IS_DC) {
-		child->domain->internal = False;
 		child->domain->methods = &cache_methods;
 		child->domain->online = False;
 	}
@@ -1102,6 +1104,10 @@ static bool fork_domain_child(struct winbindd_child *child)
 		struct timeval *tp;
 		struct timeval now;
 		TALLOC_CTX *frame = talloc_stackframe();
+
+		/* check for signals */
+		winbind_check_sigterm();
+		winbind_check_sighup();
 
 		run_events(winbind_event_context(), 0, NULL, NULL);
 

@@ -72,13 +72,21 @@ static NTSTATUS fd_open(struct connection_struct *conn,
 
 NTSTATUS fd_close(files_struct *fsp)
 {
+	int ret;
+
 	if (fsp->fh->fd == -1) {
 		return NT_STATUS_OK; /* What we used to call a stat open. */
 	}
 	if (fsp->fh->ref_count > 1) {
 		return NT_STATUS_OK; /* Shared handle. Only close last reference. */
 	}
-	return fd_close_posix(fsp);
+
+	ret = SMB_VFS_CLOSE(fsp);
+	fsp->fh->fd = -1;
+	if (ret == -1) {
+		return map_nt_error_from_unix(errno);
+	}
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -1221,7 +1229,8 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		request_time = pml->request_time;
 
 		/* Remove the deferred open entry under lock. */
-		lck = get_share_mode_lock(talloc_tos(), state->id, NULL, NULL);
+		lck = get_share_mode_lock(talloc_tos(), state->id, NULL, NULL,
+					  NULL);
 		if (lck == NULL) {
 			DEBUG(0, ("could not get share mode lock\n"));
 		} else {
@@ -1366,7 +1375,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	se_map_generic(&access_mask, &file_generic_mapping);
 	open_access_mask = access_mask;
 
-	if (flags2 & O_TRUNC) {
+	if ((flags2 & O_TRUNC) || (oplock_request & FORCE_OPLOCK_BREAK_TO_NONE)) {
 		open_access_mask |= FILE_WRITE_DATA; /* This will cause oplock breaks. */
 	}
 
@@ -1378,7 +1387,8 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	 * mean the same thing under DOS and Unix.
 	 */
 
-	if (access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) {
+	if ((access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ||
+			(oplock_request & FORCE_OPLOCK_BREAK_TO_NONE)) {
 		/* DENY_DOS opens are always underlying read-write on the
 		   file handle, no matter what the requested access mask
 		    says. */
@@ -1449,11 +1459,12 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 
 	if (file_existed) {
+		struct timespec old_write_time = get_mtimespec(psbuf);
 		id = vfs_file_id_from_sbuf(conn, psbuf);
 
 		lck = get_share_mode_lock(talloc_tos(), id,
 					  conn->connectpath,
-					  fname);
+					  fname, &old_write_time);
 
 		if (lck == NULL) {
 			file_free(fsp);
@@ -1660,7 +1671,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 
 	if (!file_existed) {
-
+		struct timespec old_write_time = get_mtimespec(psbuf);
 		/*
 		 * Deal with the race condition where two smbd's detect the
 		 * file doesn't exist and do the create at the same time. One
@@ -1680,7 +1691,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 		lck = get_share_mode_lock(talloc_tos(), id,
 					  conn->connectpath,
-					  fname);
+					  fname, &old_write_time);
 
 		if (lck == NULL) {
 			DEBUG(0, ("open_file_ntcreate: Could not get share "
@@ -2094,6 +2105,7 @@ NTSTATUS open_directory(connection_struct *conn,
 	bool dir_existed = VALID_STAT(*psbuf) ? True : False;
 	struct share_mode_lock *lck = NULL;
 	NTSTATUS status;
+	struct timespec mtimespec;
 	int info = 0;
 
 	DEBUG(5,("open_directory: opening directory %s, access_mask = 0x%x, "
@@ -2216,9 +2228,11 @@ NTSTATUS open_directory(connection_struct *conn,
 
 	string_set(&fsp->fsp_name,fname);
 
+	mtimespec = get_mtimespec(psbuf);
+
 	lck = get_share_mode_lock(talloc_tos(), fsp->file_id,
 				  conn->connectpath,
-				  fname);
+				  fname, &mtimespec);
 
 	if (lck == NULL) {
 		DEBUG(0, ("open_directory: Could not get share mode lock for %s\n", fname));

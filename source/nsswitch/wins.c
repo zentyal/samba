@@ -58,9 +58,15 @@ static int wins_lookup_open_socket_in(void)
 	if (res == -1)
 		return -1;
 
-	setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val));
+	if (setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val)) != 0) {
+		close(res);
+		return -1;
+	}
 #ifdef SO_REUSEPORT
-	setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val));
+	if (setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val)) != 0) {
+		close(res);
+		return -1;
+	}
 #endif /* SO_REUSEPORT */
 
 	/* now we've got a socket - we need to bind it */
@@ -110,6 +116,7 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 		}
 		if (address[0].ss.ss_family != AF_INET) {
 			free(address);
+			free(ret);
 			return NULL;
 		}
 		*ret = ((struct sockaddr_in *)&address[0].ss)->sin_addr;
@@ -133,6 +140,9 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 		in_addr_to_sockaddr_storage(&ss, *bcast);
 		pss = name_query(fd,name,0x00,True,True,&ss,count, &flags, NULL);
 		if (pss) {
+			if ((ret = SMB_MALLOC_P(struct in_addr)) == NULL) {
+				return NULL;
+			}
 			*ret = ((struct sockaddr_in *)pss)->sin_addr;
 			break;
 		}

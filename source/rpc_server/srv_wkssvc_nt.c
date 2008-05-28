@@ -4,7 +4,8 @@
  *
  *  Copyright (C) Andrew Tridgell		1992-1997,
  *  Copyright (C) Gerald (Jerry) Carter		2006.
- *  
+ *  Copyright (C) Guenther Deschner		2007-2008.
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 3 of the License, or
@@ -292,11 +293,13 @@ WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p,
 	char *admin_domain = NULL;
 	char *admin_account = NULL;
 	WERROR werr;
-	NTSTATUS status;
 	struct nt_user_token *token = p->pipe_user.nt_user_token;
-	struct netr_DsRGetDCNameInfo *info = NULL;
 
 	if (!r->in.domain_name) {
+		return WERR_INVALID_PARAM;
+	}
+
+	if (!r->in.admin_account || !r->in.encrypted_password) {
 		return WERR_INVALID_PARAM;
 	}
 
@@ -306,6 +309,11 @@ WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p,
 		DEBUG(5,("_wkssvc_NetrJoinDomain2: account doesn't have "
 			"sufficient privileges\n"));
 		return WERR_ACCESS_DENIED;
+	}
+
+	if ((r->in.join_flags & WKSSVC_JOIN_FLAGS_MACHINE_PWD_PASSED) ||
+	    (r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE)) {
+		return WERR_NOT_SUPPORTED;
 	}
 
 	werr = decode_wkssvc_join_password_buffer(p->mem_ctx,
@@ -321,37 +329,26 @@ WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p,
 			  &admin_domain,
 			  &admin_account);
 
-	status = dsgetdcname(p->mem_ctx,
-			     r->in.domain_name,
-			     NULL,
-			     NULL,
-			     DS_DIRECTORY_SERVICE_REQUIRED |
-			     DS_WRITABLE_REQUIRED |
-			     DS_RETURN_DNS_NAME,
-			     &info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return ntstatus_to_werror(status);
-	}
-
 	werr = libnet_init_JoinCtx(p->mem_ctx, &j);
 	if (!W_ERROR_IS_OK(werr)) {
 		return werr;
 	}
 
-	j->in.dc_name		= info->dc_unc;
 	j->in.domain_name	= r->in.domain_name;
 	j->in.account_ou	= r->in.account_ou;
 	j->in.join_flags	= r->in.join_flags;
 	j->in.admin_account	= admin_account;
 	j->in.admin_password	= cleartext_pwd;
 	j->in.debug		= true;
+	j->in.modify_config     = lp_config_backend_is_registry();
+	j->in.msg_ctx		= smbd_messaging_context();
 
 	become_root();
 	werr = libnet_Join(p->mem_ctx, j);
 	unbecome_root();
 
 	if (!W_ERROR_IS_OK(werr)) {
-		DEBUG(5,("_wkssvc_NetrJoinDomain2: libnet_Join gave %s\n",
+		DEBUG(5,("_wkssvc_NetrJoinDomain2: libnet_Join failed with: %s\n",
 			j->out.error_string ? j->out.error_string :
 			dos_errstr(werr)));
 	}
@@ -372,9 +369,11 @@ WERROR _wkssvc_NetrUnjoinDomain2(pipes_struct *p,
 	char *admin_domain = NULL;
 	char *admin_account = NULL;
 	WERROR werr;
-	NTSTATUS status;
 	struct nt_user_token *token = p->pipe_user.nt_user_token;
-	struct netr_DsRGetDCNameInfo *info = NULL;
+
+	if (!r->in.account || !r->in.encrypted_password) {
+		return WERR_INVALID_PARAM;
+	}
 
 	if (!user_has_privileges(token, &se_machine_account) &&
 	    !nt_token_check_domain_rid(token, DOMAIN_GROUP_RID_ADMINS) &&
@@ -397,34 +396,29 @@ WERROR _wkssvc_NetrUnjoinDomain2(pipes_struct *p,
 			  &admin_domain,
 			  &admin_account);
 
-	status = dsgetdcname(p->mem_ctx,
-			     lp_realm(),
-			     NULL,
-			     NULL,
-			     DS_DIRECTORY_SERVICE_REQUIRED |
-			     DS_WRITABLE_REQUIRED |
-			     DS_RETURN_DNS_NAME,
-			     &info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return ntstatus_to_werror(status);
-	}
-
 	werr = libnet_init_UnjoinCtx(p->mem_ctx, &u);
 	if (!W_ERROR_IS_OK(werr)) {
 		return werr;
 	}
 
-	u->in.dc_name		= info->dc_unc;
 	u->in.domain_name	= lp_realm();
 	u->in.unjoin_flags	= r->in.unjoin_flags |
 				  WKSSVC_JOIN_FLAGS_JOIN_TYPE;
 	u->in.admin_account	= admin_account;
 	u->in.admin_password	= cleartext_pwd;
 	u->in.debug		= true;
+	u->in.modify_config     = lp_config_backend_is_registry();
+	u->in.msg_ctx		= smbd_messaging_context();
 
 	become_root();
 	werr = libnet_Unjoin(p->mem_ctx, u);
 	unbecome_root();
+
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(5,("_wkssvc_NetrUnjoinDomain2: libnet_Unjoin failed with: %s\n",
+			u->out.error_string ? u->out.error_string :
+			dos_errstr(werr)));
+	}
 
 	TALLOC_FREE(u);
 	return werr;

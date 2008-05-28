@@ -159,7 +159,12 @@ static int dochild(int master, const char *slavedev, const struct passwd *pass,
 		DEBUG(3, ("More weirdness, could not open %s\n", slavedev));
 		return (False);
 	}
-#if defined(TIOCSCTTY)
+#if defined(TIOCSCTTY) && !defined(SUNOS5)
+	/*
+	 * On patched Solaris 10 TIOCSCTTY is defined but seems not to work,
+	 * see the discussion under
+	 * https://bugzilla.samba.org/show_bug.cgi?id=5366.
+	 */
 	if (ioctl(slave, TIOCSCTTY, 0) < 0)
 	{
 		DEBUG(3, ("Error in ioctl call for slave pty\n"));
@@ -244,6 +249,7 @@ static int expect(int master, char *issue, char *expected)
 	bool match = False;
 
 	for (attempts = 0; attempts < 2; attempts++) {
+		NTSTATUS status;
 		if (!strequal(issue, ".")) {
 			if (lp_passwd_chat_debug())
 				DEBUG(100, ("expect: sending [%s]\n", issue));
@@ -264,7 +270,6 @@ static int expect(int master, char *issue, char *expected)
 		buffer[nread] = 0;
 
 		while (True) {
-			NTSTATUS status;
 			status = read_socket_with_timeout(
 				master, buffer + nread, 1,
 				sizeof(buffer) - nread - 1,
@@ -300,8 +305,8 @@ static int expect(int master, char *issue, char *expected)
 		if (match)
 			break;
 
-		if (len < 0) {
-			DEBUG(2, ("expect: %s\n", strerror(errno)));
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(2, ("expect: %s\n", nt_errstr(status)));
 			return False;
 		}
 	}

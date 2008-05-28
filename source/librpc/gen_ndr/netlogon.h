@@ -5,12 +5,11 @@
 #include "librpc/gen_ndr/lsa.h"
 #include "librpc/gen_ndr/samr.h"
 #include "librpc/gen_ndr/security.h"
+#include "librpc/gen_ndr/nbt.h"
 #ifndef _HEADER_netlogon
 #define _HEADER_netlogon
 
-#define NETLOGON_NEG_ARCFOUR	( 0x00000004 )
-#define NETLOGON_NEG_128BIT	( 0x00004000 )
-#define NETLOGON_NEG_SCHANNEL	( 0x40000000 )
+#define DSGETDC_VALID_FLAGS	( (DS_FORCE_REDISCOVERY|DS_DIRECTORY_SERVICE_REQUIRED|DS_DIRECTORY_SERVICE_PREFERRED|DS_GC_SERVER_REQUIRED|DS_PDC_REQUIRED|DS_BACKGROUND_ONLY|DS_IP_REQUIRED|DS_KDC_REQUIRED|DS_TIMESERV_REQUIRED|DS_WRITABLE_REQUIRED|DS_GOOD_TIMESERV_PREFERRED|DS_AVOID_SELF|DS_ONLY_LDAP_NEEDED|DS_IS_FLAT_NAME|DS_IS_DNS_NAME|DS_RETURN_FLAT_NAME|DS_RETURN_DNS_NAME) )
 #define DS_GFTI_UPDATE_TDO	( 0x1 )
 struct netr_UasInfo {
 	const char *account_name;/* [unique,charset(UTF16)] */
@@ -37,10 +36,11 @@ struct netr_UasLogoffInfo {
 };
 
 struct netr_AcctLockStr {
-	uint16_t size;
-	uint16_t length;
-	uint16_t *bindata;/* [unique,length_is(length/2),size_is(size/2)] */
-};
+	int64_t lockout_duration;
+	uint64_t reset_count;
+	uint32_t bad_attempt_lockout;
+	uint32_t dummy;
+}/* [public] */;
 
 /* bitmap netr_LogonParameterControl */
 #define MSV1_0_CLEARTEXT_PASSWORD_ALLOWED ( 0x00000002 )
@@ -78,7 +78,7 @@ struct netr_NetworkInfo {
 	struct netr_ChallengeResponse lm;
 }/* [flag(LIBNDR_PRINT_ARRAY_HEX)] */;
 
-union netr_LogonLevel {
+union netr_LogonInfo {
 	struct netr_PasswordInfo *password;/* [unique,case] */
 	struct netr_NetworkInfo *network;/* [unique,case(2)] */
 }/* [public,switch_type(uint16)] */;
@@ -188,6 +188,19 @@ struct netr_Authenticator {
 	time_t timestamp;
 }/* [public] */;
 
+enum netr_LogonLevel
+#ifndef USE_UINT_ENUMS
+ {
+	INTERACTIVE_LOGON_TYPE=1,
+	NET_LOGON_TYPE=2
+}
+#else
+ { __donnot_use_enum_netr_LogonLevel=0x7FFFFFFF}
+#define INTERACTIVE_LOGON_TYPE ( 1 )
+#define NET_LOGON_TYPE ( 2 )
+#endif
+;
+
 enum netr_SchannelType;
 
 enum netr_SamDatabaseID;
@@ -295,7 +308,7 @@ struct netr_DELTA_DOMAIN {
 	NTTIME domain_create_time;
 	uint32_t SecurityInformation;
 	struct sec_desc_buf sdbuf;
-	struct netr_AcctLockStr account_lockout;
+	struct lsa_BinaryString account_lockout;
 	struct lsa_String unknown2;
 	struct lsa_String unknown3;
 	struct lsa_String unknown4;
@@ -572,6 +585,11 @@ struct netr_AccountBuffer {
 	DATA_BLOB blob;/* [flag(LIBNDR_FLAG_REMAINING)] */
 };
 
+/* bitmap netr_InfoFlags */
+#define NETLOGON_CTRL_REPL_NEEDED ( 0x0001 )
+#define NETLOGON_CTRL_REPL_IN_PROGRESS ( 0x0002 )
+#define NETLOGON_CTRL_REPL_FULL_SYNC ( 0x0004 )
+
 struct netr_NETLOGON_INFO_1 {
 	uint32_t flags;
 	uint32_t pdc_connection_status;
@@ -580,7 +598,7 @@ struct netr_NETLOGON_INFO_1 {
 struct netr_NETLOGON_INFO_2 {
 	uint32_t flags;
 	uint32_t pdc_connection_status;
-	const char *trusted_dc_name;/* [charset(UTF16)] */
+	const char *trusted_dc_name;/* [unique,charset(UTF16)] */
 	uint32_t tc_connection_status;
 };
 
@@ -624,6 +642,32 @@ union netr_CONTROL_DATA_INFORMATION {
 	uint32_t debug_level;/* [case(NETLOGON_CONTROL_SET_DBFLAG)] */
 };
 
+/* bitmap netr_NegotiateFlags */
+#define NETLOGON_NEG_ACCOUNT_LOCKOUT ( 0x00000001 )
+#define NETLOGON_NEG_PERSISTENT_SAMREPL ( 0x00000002 )
+#define NETLOGON_NEG_ARCFOUR ( 0x00000004 )
+#define NETLOGON_NEG_PROMOTION_COUNT ( 0x00000008 )
+#define NETLOGON_NEG_CHANGELOG_BDC ( 0x00000010 )
+#define NETLOGON_NEG_FULL_SYNC_REPL ( 0x00000020 )
+#define NETLOGON_NEG_MULTIPLE_SIDS ( 0x00000040 )
+#define NETLOGON_NEG_REDO ( 0x00000080 )
+#define NETLOGON_NEG_PASSWORD_CHANGE_REFUSAL ( 0x00000100 )
+#define NETLOGON_NEG_SEND_PASSWORD_INFO_PDC ( 0x00000200 )
+#define NETLOGON_NEG_GENERIC_PASSTHROUGH ( 0x00000400 )
+#define NETLOGON_NEG_CONCURRENT_RPC ( 0x00000800 )
+#define NETLOGON_NEG_AVOID_ACCOUNT_DB_REPL ( 0x00001000 )
+#define NETLOGON_NEG_AVOID_SECURITYAUTH_DB_REPL ( 0x00002000 )
+#define NETLOGON_NEG_128BIT ( 0x00004000 )
+#define NETLOGON_NEG_TRANSITIVE_TRUSTS ( 0x00008000 )
+#define NETLOGON_NEG_DNS_DOMAIN_TRUSTS ( 0x00010000 )
+#define NETLOGON_NEG_PASSWORD_SET2 ( 0x00020000 )
+#define NETLOGON_NEG_GETDOMAININFO ( 0x00040000 )
+#define NETLOGON_NEG_CROSS_FOREST_TRUSTS ( 0x00080000 )
+#define NETLOGON_NEG_NEUTRALIZE_NT4_EMULATION ( 0x00100000 )
+#define NETLOGON_NEG_RODC_PASSTHROUGH ( 0x00200000 )
+#define NETLOGON_NEG_AUTHENTICATED_RPC_LSASS ( 0x20000000 )
+#define NETLOGON_NEG_SCHANNEL ( 0x40000000 )
+
 struct netr_Blob {
 	uint32_t length;
 	uint8_t *data;/* [unique,size_is(length)] */
@@ -664,18 +708,18 @@ enum netr_DsRGetDCNameInfo_AddressType
 ;
 
 /* bitmap netr_DsR_DcFlags */
-#define DS_SERVER_PDC ( 0x00000001 )
-#define DS_SERVER_GC ( 0x00000004 )
-#define DS_SERVER_LDAP ( 0x00000008 )
-#define DS_SERVER_DS ( 0x00000010 )
-#define DS_SERVER_KDC ( 0x00000020 )
-#define DS_SERVER_TIMESERV ( 0x00000040 )
-#define DS_SERVER_CLOSEST ( 0x00000080 )
-#define DS_SERVER_WRITABLE ( 0x00000100 )
-#define DS_SERVER_GOOD_TIMESERV ( 0x00000200 )
-#define DS_SERVER_NDNC ( 0x00000400 )
-#define DS_SERVER_SELECT_SECRET_DOMAIN_6 ( 0x00000800 )
-#define DS_SERVER_FULL_SECRET_DOMAIN_6 ( 0x00001000 )
+#define DS_SERVER_PDC ( NBT_SERVER_PDC )
+#define DS_SERVER_GC ( NBT_SERVER_GC )
+#define DS_SERVER_LDAP ( NBT_SERVER_LDAP )
+#define DS_SERVER_DS ( NBT_SERVER_DS )
+#define DS_SERVER_KDC ( NBT_SERVER_KDC )
+#define DS_SERVER_TIMESERV ( NBT_SERVER_TIMESERV )
+#define DS_SERVER_CLOSEST ( NBT_SERVER_CLOSEST )
+#define DS_SERVER_WRITABLE ( NBT_SERVER_WRITABLE )
+#define DS_SERVER_GOOD_TIMESERV ( NBT_SERVER_GOOD_TIMESERV )
+#define DS_SERVER_NDNC ( NBT_SERVER_NDNC )
+#define DS_SERVER_SELECT_SECRET_DOMAIN_6 ( NBT_SERVER_SELECT_SECRET_DOMAIN_6 )
+#define DS_SERVER_FULL_SECRET_DOMAIN_6 ( NBT_SERVER_FULL_SECRET_DOMAIN_6 )
 #define DS_DNS_CONTROLLER ( 0x20000000 )
 #define DS_DNS_DOMAIN ( 0x40000000 )
 #define DS_DNS_FOREST ( 0x80000000 )
@@ -690,7 +734,7 @@ struct netr_DsRGetDCNameInfo {
 	uint32_t dc_flags;
 	const char *dc_site_name;/* [unique,charset(UTF16)] */
 	const char *client_site_name;/* [unique,charset(UTF16)] */
-};
+}/* [public] */;
 
 struct netr_BinaryString {
 	uint16_t length;
@@ -850,8 +894,8 @@ struct netr_LogonSamLogon {
 		const char *server_name;/* [unique,charset(UTF16)] */
 		const char *computer_name;/* [unique,charset(UTF16)] */
 		struct netr_Authenticator *credential;/* [unique] */
-		uint16_t logon_level;
-		union netr_LogonLevel *logon;/* [ref,switch_is(logon_level)] */
+		enum netr_LogonLevel logon_level;
+		union netr_LogonInfo *logon;/* [ref,switch_is(logon_level)] */
 		uint16_t validation_level;
 		struct netr_Authenticator *return_authenticator;/* [unique] */
 	} in;
@@ -871,8 +915,8 @@ struct netr_LogonSamLogoff {
 		const char *server_name;/* [unique,charset(UTF16)] */
 		const char *computer_name;/* [unique,charset(UTF16)] */
 		struct netr_Authenticator *credential;/* [unique] */
-		uint16_t logon_level;
-		union netr_LogonLevel logon;/* [switch_is(logon_level)] */
+		enum netr_LogonLevel logon_level;
+		union netr_LogonInfo logon;/* [switch_is(logon_level)] */
 		struct netr_Authenticator *return_authenticator;/* [unique] */
 	} in;
 
@@ -1071,7 +1115,7 @@ struct netr_GetAnyDCName {
 struct netr_LogonControl2 {
 	struct {
 		const char *logon_server;/* [unique,charset(UTF16)] */
-		uint32_t function_code;
+		enum netr_LogonControlCode function_code;
 		uint32_t level;
 		union netr_CONTROL_DATA_INFORMATION *data;/* [ref,switch_is(function_code)] */
 	} in;
@@ -1436,8 +1480,8 @@ struct netr_LogonSamLogonEx {
 	struct {
 		const char *server_name;/* [unique,charset(UTF16)] */
 		const char *computer_name;/* [unique,charset(UTF16)] */
-		uint16_t logon_level;
-		union netr_LogonLevel *logon;/* [ref,switch_is(logon_level)] */
+		enum netr_LogonLevel logon_level;
+		union netr_LogonInfo *logon;/* [ref,switch_is(logon_level)] */
 		uint16_t validation_level;
 		uint32_t *flags;/* [ref] */
 	} in;
@@ -1538,8 +1582,8 @@ struct netr_LogonSamLogonWithFlags {
 		const char *server_name;/* [unique,charset(UTF16)] */
 		const char *computer_name;/* [unique,charset(UTF16)] */
 		struct netr_Authenticator *credential;/* [unique] */
-		uint16_t logon_level;
-		union netr_LogonLevel logon;/* [switch_is(logon_level)] */
+		enum netr_LogonLevel logon_level;
+		union netr_LogonInfo logon;/* [switch_is(logon_level)] */
 		uint16_t validation_level;
 		struct netr_Authenticator *return_authenticator;/* [unique] */
 		uint32_t *flags;/* [ref] */

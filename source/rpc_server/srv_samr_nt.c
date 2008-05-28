@@ -627,22 +627,59 @@ NTSTATUS _samr_GetUserPwInfo(pipes_struct *p,
 			     struct samr_GetUserPwInfo *r)
 {
 	struct samr_info *info = NULL;
-
-	/* find the policy handle.  open a policy on it. */
-	if (!find_policy_by_hnd(p, r->in.user_handle, (void **)(void *)&info))
-		return NT_STATUS_INVALID_HANDLE;
-
-	if (!sid_check_is_in_our_domain(&info->sid))
-		return NT_STATUS_OBJECT_TYPE_MISMATCH;
-
-	ZERO_STRUCTP(r->out.info);
+	enum lsa_SidType sid_type;
+	uint32_t min_password_length = 0;
+	uint32_t password_properties = 0;
+	bool ret = false;
+	NTSTATUS status;
 
 	DEBUG(5,("_samr_GetUserPwInfo: %d\n", __LINE__));
 
-	/*
-	 * NT sometimes return NT_STATUS_ACCESS_DENIED
-	 * I don't know yet why.
-	 */
+	/* find the policy handle.  open a policy on it. */
+	if (!find_policy_by_hnd(p, r->in.user_handle, (void **)(void *)&info)) {
+		return NT_STATUS_INVALID_HANDLE;
+	}
+
+	status = access_check_samr_function(info->acc_granted,
+					    SAMR_USER_ACCESS_GET_ATTRIBUTES,
+					    "_samr_GetUserPwInfo" );
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (!sid_check_is_in_our_domain(&info->sid)) {
+		return NT_STATUS_OBJECT_TYPE_MISMATCH;
+	}
+
+	become_root();
+	ret = lookup_sid(p->mem_ctx, &info->sid, NULL, NULL, &sid_type);
+	unbecome_root();
+	if (ret == false) {
+		return NT_STATUS_NO_SUCH_USER;
+	}
+
+	switch (sid_type) {
+		case SID_NAME_USER:
+			become_root();
+			pdb_get_account_policy(AP_MIN_PASSWORD_LEN,
+					       &min_password_length);
+			pdb_get_account_policy(AP_USER_MUST_LOGON_TO_CHG_PASS,
+					       &password_properties);
+			unbecome_root();
+
+			if (lp_check_password_script() && *lp_check_password_script()) {
+				password_properties |= DOMAIN_PASSWORD_COMPLEX;
+			}
+
+			break;
+		default:
+			break;
+	}
+
+	r->out.info->min_password_length = min_password_length;
+	r->out.info->password_properties = password_properties;
+
+	DEBUG(5,("_samr_GetUserPwInfo: %d\n", __LINE__));
 
 	return NT_STATUS_OK;
 }
@@ -1749,8 +1786,8 @@ NTSTATUS _samr_LookupNames(pipes_struct *p,
 			   struct samr_LookupNames *r)
 {
 	NTSTATUS status;
-	uint32 rid[MAX_SAM_ENTRIES];
-	enum lsa_SidType type[MAX_SAM_ENTRIES];
+	uint32 *rid;
+	enum lsa_SidType *type;
 	int i;
 	int num_rids = r->in.num_names;
 	DOM_SID pol_sid;
@@ -1758,9 +1795,6 @@ NTSTATUS _samr_LookupNames(pipes_struct *p,
 	struct samr_Ids rids, types;
 
 	DEBUG(5,("_samr_LookupNames: %d\n", __LINE__));
-
-	ZERO_ARRAY(rid);
-	ZERO_ARRAY(type);
 
 	if (!get_lsa_policy_samr_sid(p, r->in.domain_handle, &pol_sid, &acc_granted, NULL)) {
 		return NT_STATUS_OBJECT_TYPE_MISMATCH;
@@ -1777,6 +1811,12 @@ NTSTATUS _samr_LookupNames(pipes_struct *p,
 		num_rids = MAX_SAM_ENTRIES;
 		DEBUG(5,("_samr_LookupNames: truncating entries to %d\n", num_rids));
 	}
+
+	rid = talloc_array(p->mem_ctx, uint32, num_rids);
+	NT_STATUS_HAVE_NO_MEMORY(rid);
+
+	type = talloc_array(p->mem_ctx, enum lsa_SidType, num_rids);
+	NT_STATUS_HAVE_NO_MEMORY(type);
 
 	DEBUG(5,("_samr_LookupNames: looking name on SID %s\n",
 		 sid_string_dbg(&pol_sid)));
@@ -2155,6 +2195,41 @@ NTSTATUS _samr_OpenUser(pipes_struct *p,
 }
 
 /*************************************************************************
+ *************************************************************************/
+
+static NTSTATUS init_samr_parameters_string(TALLOC_CTX *mem_ctx,
+					    DATA_BLOB *blob,
+					    struct lsa_BinaryString **_r)
+{
+	struct lsa_BinaryString *r;
+
+	if (!blob || !_r) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	r = TALLOC_ZERO_P(mem_ctx, struct lsa_BinaryString);
+	if (!r) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	r->array = TALLOC_ZERO_ARRAY(mem_ctx, uint16_t, blob->length/2);
+	if (!r->array) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	memcpy(r->array, blob->data, blob->length);
+	r->size = blob->length;
+	r->length = blob->length;
+
+	if (!r->array) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	*_r = r;
+
+	return NT_STATUS_OK;
+}
+
+/*************************************************************************
  get_user_info_7. Safe. Only gives out account_name.
  *************************************************************************/
 
@@ -2333,8 +2408,9 @@ static NTSTATUS get_user_info_20(TALLOC_CTX *mem_ctx,
 	struct samu *sampass=NULL;
 	bool ret;
 	const char *munged_dial = NULL;
-	const char *munged_dial_decoded = NULL;
 	DATA_BLOB blob;
+	NTSTATUS status;
+	struct lsa_BinaryString *parameters = NULL;
 
 	ZERO_STRUCTP(r);
 
@@ -2356,28 +2432,23 @@ static NTSTATUS get_user_info_20(TALLOC_CTX *mem_ctx,
 
 	samr_clear_sam_passwd(sampass);
 
-	DEBUG(3,("User:[%s]\n",  pdb_get_username(sampass) ));
+	DEBUG(3,("User:[%s] has [%s] (length: %d)\n", pdb_get_username(sampass),
+		munged_dial, (int)strlen(munged_dial)));
 
 	if (munged_dial) {
 		blob = base64_decode_data_blob(munged_dial);
-		munged_dial_decoded = talloc_strndup(mem_ctx,
-						     (const char *)blob.data,
-						     blob.length);
-		data_blob_free(&blob);
-		if (!munged_dial_decoded) {
-			TALLOC_FREE(sampass);
-			return NT_STATUS_NO_MEMORY;
-		}
+	} else {
+		blob = data_blob_string_const("");
 	}
 
-#if 0
-	init_unistr2_from_datablob(&usr->uni_munged_dial, &blob);
-	init_uni_hdr(&usr->hdr_munged_dial, &usr->uni_munged_dial);
+	status = init_samr_parameters_string(mem_ctx, &blob, &parameters);
 	data_blob_free(&blob);
-#endif
-	init_samr_user_info20(r, munged_dial_decoded);
-
 	TALLOC_FREE(sampass);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	init_samr_user_info20(r, parameters);
 
 	return NT_STATUS_OK;
 }
@@ -2392,6 +2463,7 @@ static NTSTATUS get_user_info_21(TALLOC_CTX *mem_ctx,
 				 DOM_SID *user_sid,
 				 DOM_SID *domain_sid)
 {
+	NTSTATUS status;
 	struct samu *pw = NULL;
 	bool ret;
 	const DOM_SID *sid_user, *sid_group;
@@ -2402,8 +2474,9 @@ static NTSTATUS get_user_info_21(TALLOC_CTX *mem_ctx,
 	uint8_t password_expired;
 	const char *account_name, *full_name, *home_directory, *home_drive,
 		   *logon_script, *profile_path, *description,
-		   *workstations, *comment, *parameters;
+		   *workstations, *comment;
 	struct samr_LogonHours logon_hours;
+	struct lsa_BinaryString *parameters = NULL;
 	const char *munged_dial = NULL;
 	DATA_BLOB blob;
 
@@ -2473,16 +2546,16 @@ static NTSTATUS get_user_info_21(TALLOC_CTX *mem_ctx,
 	munged_dial = pdb_get_munged_dial(pw);
 	if (munged_dial) {
 		blob = base64_decode_data_blob(munged_dial);
-		parameters = talloc_strndup(mem_ctx, (const char *)blob.data, blob.length);
-		data_blob_free(&blob);
-		if (!parameters) {
-			TALLOC_FREE(pw);
-			return NT_STATUS_NO_MEMORY;
-		}
 	} else {
-		parameters = NULL;
+		blob = data_blob_string_const("");
 	}
 
+	status = init_samr_parameters_string(mem_ctx, &blob, &parameters);
+	data_blob_free(&blob);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(pw);
+		return status;
+	}
 
 	account_name = talloc_strdup(mem_ctx, pdb_get_username(pw));
 	full_name = talloc_strdup(mem_ctx, pdb_get_fullname(pw));
@@ -2507,11 +2580,6 @@ static NTSTATUS get_user_info_21(TALLOC_CTX *mem_ctx,
 	  -- Volker
 	*/
 
-#if 0
-	init_unistr2_from_datablob(&usr->uni_munged_dial, &munged_dial_blob);
-	init_uni_hdr(&usr->hdr_munged_dial, &usr->uni_munged_dial);
-	data_blob_free(&munged_dial_blob);
-#endif
 #endif
 
 	init_samr_user_info21(r,
@@ -3863,7 +3931,8 @@ static NTSTATUS set_user_info_23(TALLOC_CTX *mem_ctx,
  set_user_info_pw
  ********************************************************************/
 
-static bool set_user_info_pw(uint8 *pass, struct samu *pwd)
+static bool set_user_info_pw(uint8 *pass, struct samu *pwd,
+			     int level)
 {
 	uint32 len = 0;
 	char *plaintext_buf = NULL;
@@ -3925,8 +3994,20 @@ static bool set_user_info_pw(uint8 *pass, struct samu *pwd)
 
 	memset(plaintext_buf, '\0', strlen(plaintext_buf));
 
-	/* restore last set time as this is an admin change, not a user pw change */
-	pdb_set_pass_last_set_time (pwd, last_set_time, last_set_state);
+	/*
+	 * A level 25 change does reset the pwdlastset field, a level 24
+	 * change does not. I know this is probably not the full story, but
+	 * it is needed to make XP join LDAP correctly, without it the later
+	 * auth2 check can fail with PWD_MUST_CHANGE.
+	 */
+	if (level != 25) {
+		/*
+		 * restore last set time as this is an admin change, not a
+		 * user pw change
+		 */
+		pdb_set_pass_last_set_time (pwd, last_set_time,
+					    last_set_state);
+	}
 
 	DEBUG(5,("set_user_info_pw: pdb_update_pwd()\n"));
 
@@ -4147,7 +4228,8 @@ static NTSTATUS samr_SetUserInfo_internal(const char *fn_name,
 
 			dump_data(100, info->info24.password.data, 516);
 
-			if (!set_user_info_pw(info->info24.password.data, pwd)) {
+			if (!set_user_info_pw(info->info24.password.data, pwd,
+					      switch_value)) {
 				status = NT_STATUS_ACCESS_DENIED;
 			}
 			break;
@@ -4166,7 +4248,8 @@ static NTSTATUS samr_SetUserInfo_internal(const char *fn_name,
 			if (!NT_STATUS_IS_OK(status)) {
 				goto done;
 			}
-			if (!set_user_info_pw(info->info25.password.data, pwd)) {
+			if (!set_user_info_pw(info->info25.password.data, pwd,
+					      switch_value)) {
 				status = NT_STATUS_ACCESS_DENIED;
 			}
 			break;
@@ -4180,7 +4263,8 @@ static NTSTATUS samr_SetUserInfo_internal(const char *fn_name,
 
 			dump_data(100, info->info26.password.data, 516);
 
-			if (!set_user_info_pw(info->info26.password.data, pwd)) {
+			if (!set_user_info_pw(info->info26.password.data, pwd,
+					      switch_value)) {
 				status = NT_STATUS_ACCESS_DENIED;
 			}
 			break;
@@ -5329,6 +5413,9 @@ NTSTATUS _samr_SetAliasInfo(pipes_struct *p,
 NTSTATUS _samr_GetDomPwInfo(pipes_struct *p,
 			    struct samr_GetDomPwInfo *r)
 {
+	uint32_t min_password_length = 0;
+	uint32_t password_properties = 0;
+
 	/* Perform access check.  Since this rpc does not require a
 	   policy handle it will not be caught by the access checks on
 	   SAMR_CONNECT or SAMR_CONNECT_ANON. */
@@ -5338,8 +5425,19 @@ NTSTATUS _samr_GetDomPwInfo(pipes_struct *p,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	/* Actually, returning zeros here works quite well :-). */
-	ZERO_STRUCTP(r->out.info);
+	become_root();
+	pdb_get_account_policy(AP_MIN_PASSWORD_LEN,
+			       &min_password_length);
+	pdb_get_account_policy(AP_USER_MUST_LOGON_TO_CHG_PASS,
+			       &password_properties);
+	unbecome_root();
+
+	if (lp_check_password_script() && *lp_check_password_script()) {
+		password_properties |= DOMAIN_PASSWORD_COMPLEX;
+	}
+
+	r->out.info->min_password_length = min_password_length;
+	r->out.info->password_properties = password_properties;
 
 	return NT_STATUS_OK;
 }
@@ -5557,6 +5655,145 @@ NTSTATUS _samr_SetDomainInfo(pipes_struct *p,
 }
 
 /****************************************************************
+ _samr_GetDisplayEnumerationIndex
+****************************************************************/
+
+NTSTATUS _samr_GetDisplayEnumerationIndex(pipes_struct *p,
+					  struct samr_GetDisplayEnumerationIndex *r)
+{
+	struct samr_info *info = NULL;
+	uint32_t max_entries = (uint32_t) -1;
+	uint32_t enum_context = 0;
+	int i;
+	uint32_t num_account = 0;
+	struct samr_displayentry *entries = NULL;
+
+	DEBUG(5,("_samr_GetDisplayEnumerationIndex: %d\n", __LINE__));
+
+	/* find the policy handle.  open a policy on it. */
+	if (!find_policy_by_hnd(p, r->in.domain_handle, (void **)(void *)&info)) {
+		return NT_STATUS_INVALID_HANDLE;
+	}
+
+	if ((r->in.level < 1) || (r->in.level > 3)) {
+		DEBUG(0,("_samr_GetDisplayEnumerationIndex: "
+			"Unknown info level (%u)\n",
+			r->in.level));
+		return NT_STATUS_INVALID_INFO_CLASS;
+	}
+
+	become_root();
+
+	/* The following done as ROOT. Don't return without unbecome_root(). */
+
+	switch (r->in.level) {
+	case 1:
+		if (info->disp_info->users == NULL) {
+			info->disp_info->users = pdb_search_users(ACB_NORMAL);
+			if (info->disp_info->users == NULL) {
+				unbecome_root();
+				return NT_STATUS_ACCESS_DENIED;
+			}
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"starting user enumeration at index %u\n",
+				(unsigned int)enum_context));
+		} else {
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"using cached user enumeration at index %u\n",
+				(unsigned int)enum_context));
+		}
+		num_account = pdb_search_entries(info->disp_info->users,
+						 enum_context, max_entries,
+						 &entries);
+		break;
+	case 2:
+		if (info->disp_info->machines == NULL) {
+			info->disp_info->machines =
+				pdb_search_users(ACB_WSTRUST|ACB_SVRTRUST);
+			if (info->disp_info->machines == NULL) {
+				unbecome_root();
+				return NT_STATUS_ACCESS_DENIED;
+			}
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"starting machine enumeration at index %u\n",
+				(unsigned int)enum_context));
+		} else {
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"using cached machine enumeration at index %u\n",
+				(unsigned int)enum_context));
+		}
+		num_account = pdb_search_entries(info->disp_info->machines,
+						 enum_context, max_entries,
+						 &entries);
+		break;
+	case 3:
+		if (info->disp_info->groups == NULL) {
+			info->disp_info->groups = pdb_search_groups();
+			if (info->disp_info->groups == NULL) {
+				unbecome_root();
+				return NT_STATUS_ACCESS_DENIED;
+			}
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"starting group enumeration at index %u\n",
+				(unsigned int)enum_context));
+		} else {
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"using cached group enumeration at index %u\n",
+				(unsigned int)enum_context));
+		}
+		num_account = pdb_search_entries(info->disp_info->groups,
+						 enum_context, max_entries,
+						 &entries);
+		break;
+	default:
+		unbecome_root();
+		smb_panic("info class changed");
+		break;
+	}
+
+	unbecome_root();
+
+	/* Ensure we cache this enumeration. */
+	set_disp_info_cache_timeout(info->disp_info, DISP_INFO_CACHE_TIMEOUT);
+
+	DEBUG(10,("_samr_GetDisplayEnumerationIndex: looking for :%s\n",
+		r->in.name->string));
+
+	for (i=0; i<num_account; i++) {
+		if (strequal(entries[i].account_name, r->in.name->string)) {
+			DEBUG(10,("_samr_GetDisplayEnumerationIndex: "
+				"found %s at idx %d\n",
+				r->in.name->string, i));
+			*r->out.idx = i;
+			return NT_STATUS_OK;
+		}
+	}
+
+	/* assuming account_name lives at the very end */
+	*r->out.idx = num_account;
+
+	return NT_STATUS_NO_MORE_ENTRIES;
+}
+
+/****************************************************************
+ _samr_GetDisplayEnumerationIndex2
+****************************************************************/
+
+NTSTATUS _samr_GetDisplayEnumerationIndex2(pipes_struct *p,
+					   struct samr_GetDisplayEnumerationIndex2 *r)
+{
+	struct samr_GetDisplayEnumerationIndex q;
+
+	q.in.domain_handle	= r->in.domain_handle;
+	q.in.level		= r->in.level;
+	q.in.name		= r->in.name;
+
+	q.out.idx		= r->out.idx;
+
+	return _samr_GetDisplayEnumerationIndex(p, &q);
+}
+
+/****************************************************************
 ****************************************************************/
 
 NTSTATUS _samr_Shutdown(pipes_struct *p,
@@ -5599,16 +5836,6 @@ NTSTATUS _samr_ChangePasswordUser(pipes_struct *p,
 /****************************************************************
 ****************************************************************/
 
-NTSTATUS _samr_GetDisplayEnumerationIndex(pipes_struct *p,
-					  struct samr_GetDisplayEnumerationIndex *r)
-{
-	p->rng_fault_state = true;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-/****************************************************************
-****************************************************************/
-
 NTSTATUS _samr_TestPrivateFunctionsDomain(pipes_struct *p,
 					  struct samr_TestPrivateFunctionsDomain *r)
 {
@@ -5631,16 +5858,6 @@ NTSTATUS _samr_TestPrivateFunctionsUser(pipes_struct *p,
 
 NTSTATUS _samr_QueryUserInfo2(pipes_struct *p,
 			      struct samr_QueryUserInfo2 *r)
-{
-	p->rng_fault_state = true;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-/****************************************************************
-****************************************************************/
-
-NTSTATUS _samr_GetDisplayEnumerationIndex2(pipes_struct *p,
-					   struct samr_GetDisplayEnumerationIndex2 *r)
 {
 	p->rng_fault_state = true;
 	return NT_STATUS_NOT_IMPLEMENTED;

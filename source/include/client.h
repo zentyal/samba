@@ -123,6 +123,7 @@ struct cli_state {
 	int privileges;
 
 	fstring desthost;
+	fstring srv_name_slash;
 
 	/* The credentials used to open the cli_state connection. */
 	fstring domain;
@@ -192,6 +193,36 @@ struct cli_state {
 
 	bool force_dos_errors;
 	bool case_sensitive; /* False by default. */
+
+	struct event_context *event_ctx;
+	struct fd_event *fd_event;
+	char *evt_inbuf;
+
+	struct cli_request *outstanding_requests;
+};
+
+struct cli_request {
+	struct cli_request *prev, *next;
+	struct async_req *async;
+
+	struct cli_state *cli;
+
+	struct smb_trans_enc_state *enc_state;
+
+	uint16_t mid;
+
+	char *outbuf;
+	size_t sent;
+	char *inbuf;
+
+	union {
+		struct {
+			off_t ofs;
+			size_t size;
+			ssize_t received;
+			uint8_t *rcvbuf;
+		} read;
+	} data;
 };
 
 typedef struct file_info {
@@ -211,5 +242,6 @@ typedef struct file_info {
 #define CLI_FULL_CONNECTION_DONT_SPNEGO 0x0001
 #define CLI_FULL_CONNECTION_USE_KERBEROS 0x0002
 #define CLI_FULL_CONNECTION_ANONYMOUS_FALLBACK 0x0004
+#define CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS 0x0008
 
 #endif /* _CLIENT_H */

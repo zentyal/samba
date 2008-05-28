@@ -20,7 +20,7 @@
 
 /*
  * This is an interface to Samba's configuration as made available
- * by the libnet_conf interface (source/libnet/libnet_conf.c).
+ * by the libsmbconf interface (source/lib/smbconf/smbconf.c).
  *
  * This currently supports local interaction with the configuration
  * stored in the registry. But other backends and remote access via
@@ -29,7 +29,6 @@
 
 #include "includes.h"
 #include "utils/net.h"
-#include "libnet/libnet.h"
 
 /**********************************************************************
  *
@@ -110,6 +109,24 @@ static int net_conf_delparm_usage(int argc, const char **argv)
 	return -1;
 }
 
+static int net_conf_getincludes_usage(int argc, const char **argv)
+{
+	d_printf("USAGE: net conf getincludes <section>\n");
+	return -1;
+}
+
+static int net_conf_setincludes_usage(int argc, const char **argv)
+{
+	d_printf("USAGE: net conf setincludes <section> [<filename>]*\n");
+	return -1;
+}
+
+static int net_conf_delincludes_usage(int argc, const char **argv)
+{
+	d_printf("USAGE: net conf delincludes <section>\n");
+	return -1;
+}
+
 
 /**********************************************************************
  *
@@ -118,178 +135,77 @@ static int net_conf_delparm_usage(int argc, const char **argv)
  **********************************************************************/
 
 /**
- * This formats an in-memory smbconf parameter to a string.
- * The result string is allocated with talloc.
+ * This functions process a service previously loaded with libsmbconf.
  */
-static char *parm_valstr(TALLOC_CTX *ctx, struct parm_struct *parm,
-			 struct share_params *share)
+static WERROR import_process_service(struct smbconf_ctx *conf_ctx,
+				     struct smbconf_service *service)
 {
-	char *valstr = NULL;
-	int i = 0;
-	void *ptr = parm->ptr;
+	uint32_t idx;
+	WERROR werr = WERR_OK;
+	uint32_t num_includes = 0;
+	char **includes = NULL;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
-	if (parm->p_class == P_LOCAL && share->service >= 0) {
-		ptr = lp_local_ptr(share->service, ptr);
-	}
-
-	switch (parm->type) {
-	case P_CHAR:
-		valstr = talloc_asprintf(ctx, "%c", *(char *)ptr);
-		break;
-	case P_STRING:
-	case P_USTRING:
-		valstr = talloc_asprintf(ctx, "%s", *(char **)ptr);
-		break;
-	case P_BOOL:
-		valstr = talloc_asprintf(ctx, "%s", BOOLSTR(*(bool *)ptr));
-		break;
-	case P_BOOLREV:
-		valstr = talloc_asprintf(ctx, "%s", BOOLSTR(!*(bool *)ptr));
-		break;
-	case P_ENUM:
-		for (i = 0; parm->enum_list[i].name; i++) {
-			if (*(int *)ptr == parm->enum_list[i].value)
-			{
-				valstr = talloc_asprintf(ctx, "%s",
-					parm->enum_list[i].name);
-				break;
-			}
+	if (opt_testmode) {
+		const char *indent = "";
+		if (service->name != NULL) {
+			d_printf("[%s]\n", service->name);
+			indent = "\t";
 		}
-		break;
-	case P_OCTAL: {
-		char *o = octal_string(*(int *)ptr);
-		valstr = talloc_move(ctx, &o);
-		break;
-	}
-	case P_LIST:
-		valstr = talloc_strdup(ctx, "");
-		if ((char ***)ptr && *(char ***)ptr) {
-			char **list = *(char ***)ptr;
-			for (; *list; list++) {
-				/* surround strings with whitespace
-				 * in double quotes */
-				if (strchr_m(*list, ' '))
-				{
-					valstr = talloc_asprintf_append(
-						valstr, "\"%s\"%s",
-						*list,
-						 ((*(list+1))?", ":""));
-				} else {
-					valstr = talloc_asprintf_append(
-						valstr, "%s%s", *list,
-						 ((*(list+1))?", ":""));
-				}
-			}
+		for (idx = 0; idx < service->num_params; idx++) {
+			d_printf("%s%s = %s\n", indent,
+				 service->param_names[idx],
+				 service->param_values[idx]);
 		}
-		break;
-	case P_INTEGER:
-		valstr = talloc_asprintf(ctx, "%d", *(int *)ptr);
-		break;
-	case P_SEP:
-		break;
-	default:
-		valstr = talloc_asprintf(ctx, "<type unimplemented>\n");
-		break;
-	}
-
-	return valstr;
-}
-
-/**
- * This functions imports a configuration that has previously
- * been loaded with lp_load() to registry.
- */
-static int import_process_service(TALLOC_CTX *ctx,
-				  struct libnet_conf_ctx *conf_ctx,
-				  struct share_params *share)
-{
-	int ret = -1;
-	struct parm_struct *parm;
-	int pnum = 0;
-	const char *servicename;
-	WERROR werr;
-	char *valstr = NULL;
-	TALLOC_CTX *tmp_ctx = NULL;
-
-	tmp_ctx = talloc_new(ctx);
-	if (tmp_ctx == NULL) {
-		werr = WERR_NOMEM;
+		d_printf("\n");
 		goto done;
 	}
 
-	servicename = (share->service == GLOBAL_SECTION_SNUM)?
-		GLOBAL_NAME : lp_servicename(share->service);
-
-	if (opt_testmode) {
-		d_printf("[%s]\n", servicename);
-	} else {
-		if (libnet_conf_share_exists(conf_ctx, servicename)) {
-			werr = libnet_conf_delete_share(conf_ctx, servicename);
-			if (!W_ERROR_IS_OK(werr)) {
-				goto done;
-			}
-		}
-		werr = libnet_conf_create_share(conf_ctx, servicename);
+	if (smbconf_share_exists(conf_ctx, service->name)) {
+		werr = smbconf_delete_share(conf_ctx, service->name);
 		if (!W_ERROR_IS_OK(werr)) {
 			goto done;
 		}
 	}
+	werr = smbconf_create_share(conf_ctx, service->name);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
+	}
 
-	while ((parm = lp_next_parameter(share->service, &pnum, 0)))
-	{
-		if ((share->service < 0) && (parm->p_class == P_LOCAL)
-		    && !(parm->flags & FLAG_GLOBAL))
-		{
-			continue;
-		}
-
-		valstr = parm_valstr(tmp_ctx, parm, share);
-
-		if (parm->type != P_SEP) {
-			if (opt_testmode) {
-				d_printf("\t%s = %s\n", parm->label, valstr);
-			} else {
-				werr = libnet_conf_set_parameter(conf_ctx,
-								 servicename,
-								 parm->label,
-								 valstr);
-				if (!W_ERROR_IS_OK(werr)) {
-					d_fprintf(stderr,
-						  "Error setting parameter '%s'"
-						  ": %s\n", parm->label,
-						   dos_errstr(werr));
-					goto done;
-				}
+	for (idx = 0; idx < service->num_params; idx ++) {
+		if (strequal(service->param_names[idx], "include")) {
+			includes = TALLOC_REALLOC_ARRAY(mem_ctx,
+							includes,
+							char *,
+							num_includes+1);
+			if (includes == NULL) {
+				werr = WERR_NOMEM;
+				goto done;
+			}
+			includes[num_includes] = talloc_strdup(includes,
+						service->param_values[idx]);
+			if (includes[num_includes] == NULL) {
+				werr = WERR_NOMEM;
+				goto done;
+			}
+			num_includes++;
+		} else {
+			werr = smbconf_set_parameter(conf_ctx,
+						     service->name,
+						     service->param_names[idx],
+						     service->param_values[idx]);
+			if (!W_ERROR_IS_OK(werr)) {
+				goto done;
 			}
 		}
 	}
 
-	if (opt_testmode) {
-		d_printf("\n");
-	}
-
-	ret = 0;
+	werr = smbconf_set_includes(conf_ctx, service->name, num_includes,
+				    (const char **)includes);
 
 done:
-	TALLOC_FREE(tmp_ctx);
-	return ret;
-}
-
-/**
- * Return true iff there are nondefault globals in the
- * currently loaded configuration.
- */
-static bool globals_exist(void)
-{
-	int i = 0;
-	struct parm_struct *parm;
-
-	while ((parm = lp_next_parameter(GLOBAL_SECTION_SNUM, &i, 0)) != NULL) {
-		if (parm->type != P_SEP) {
-			return true;
-		}
-	}
-	return false;
+	TALLOC_FREE(mem_ctx);
+	return werr;
 }
 
 
@@ -299,28 +215,24 @@ static bool globals_exist(void)
  *
  **********************************************************************/
 
-static int net_conf_list(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_list(struct smbconf_ctx *conf_ctx,
 			 int argc, const char **argv)
 {
 	WERROR werr = WERR_OK;
 	int ret = -1;
-	TALLOC_CTX *ctx;
+	TALLOC_CTX *mem_ctx;
 	uint32_t num_shares;
-	char **share_names;
-	uint32_t *num_params;
-	char ***param_names;
-	char ***param_values;
 	uint32_t share_count, param_count;
+	struct smbconf_service **shares = NULL;
 
-	ctx = talloc_init("list");
+	mem_ctx = talloc_stackframe();
 
 	if (argc != 0) {
 		net_conf_list_usage(argc, argv);
 		goto done;
 	}
 
-	werr = libnet_conf_get_config(ctx, conf_ctx, &num_shares, &share_names,
-				      &num_params, &param_names, &param_values);
+	werr = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &shares);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error getting config: %s\n",
 			  dos_errstr(werr));
@@ -328,13 +240,19 @@ static int net_conf_list(struct libnet_conf_ctx *conf_ctx,
 	}
 
 	for (share_count = 0; share_count < num_shares; share_count++) {
-		d_printf("[%s]\n", share_names[share_count]);
-		for (param_count = 0; param_count < num_params[share_count];
+		const char *indent = "";
+		if (shares[share_count]->name != NULL) {
+			d_printf("[%s]\n", shares[share_count]->name);
+			indent = "\t";
+		}
+		for (param_count = 0;
+		     param_count < shares[share_count]->num_params;
 		     param_count++)
 		{
-			d_printf("\t%s = %s\n",
-				 param_names[share_count][param_count],
-				 param_values[share_count][param_count]);
+			d_printf("%s%s = %s\n",
+				 indent,
+				 shares[share_count]->param_names[param_count],
+				 shares[share_count]->param_values[param_count]);
 		}
 		d_printf("\n");
 	}
@@ -342,23 +260,22 @@ static int net_conf_list(struct libnet_conf_ctx *conf_ctx,
 	ret = 0;
 
 done:
-	TALLOC_FREE(ctx);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_import(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_import(struct smbconf_ctx *conf_ctx,
 			   int argc, const char **argv)
 {
 	int ret = -1;
 	const char *filename = NULL;
 	const char *servicename = NULL;
-	bool service_found = false;
-	TALLOC_CTX *ctx;
-	struct share_iterator *shares;
-	struct share_params *share;
-	struct share_params global_share = { GLOBAL_SECTION_SNUM };
+	char *conf_source = NULL;
+	TALLOC_CTX *mem_ctx;
+	struct smbconf_ctx *txt_ctx;
+	WERROR werr;
 
-	ctx = talloc_init("net_conf_import");
+	mem_ctx = talloc_stackframe();
 
 	switch (argc) {
 		case 0:
@@ -366,7 +283,11 @@ static int net_conf_import(struct libnet_conf_ctx *conf_ctx,
 			net_conf_import_usage(argc, argv);
 			goto done;
 		case 2:
-			servicename = argv[1];
+			servicename = talloc_strdup_lower(mem_ctx, argv[1]);
+			if (servicename == NULL) {
+				d_printf("error: out of memory!\n");
+				goto done;
+			}
 		case 1:
 			filename = argv[0];
 			break;
@@ -375,13 +296,16 @@ static int net_conf_import(struct libnet_conf_ctx *conf_ctx,
 	DEBUG(3,("net_conf_import: reading configuration from file %s.\n",
 		filename));
 
-	if (!lp_load(filename,
-		     false,     /* global_only */
-		     true,      /* save_defaults */
-		     false,     /* add_ipc */
-		     true))     /* initialize_globals */
-	{
-		d_fprintf(stderr, "Error parsing configuration file.\n");
+	conf_source = talloc_asprintf(mem_ctx, "file:%s", filename);
+	if (conf_source == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+
+	werr = smbconf_init(mem_ctx, &txt_ctx, conf_source);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error loading file '%s': %s\n", filename,
+			 dos_errstr(werr));
 		goto done;
 	}
 
@@ -390,67 +314,68 @@ static int net_conf_import(struct libnet_conf_ctx *conf_ctx,
 			 "would import the following configuration:\n\n");
 	}
 
-	if (((servicename == NULL) && globals_exist()) ||
-	    strequal(servicename, GLOBAL_NAME))
-	{
-		service_found = true;
-		if (import_process_service(ctx, conf_ctx, &global_share) != 0) {
+	if (servicename != NULL) {
+		struct smbconf_service *service = NULL;
+
+		werr = smbconf_get_share(txt_ctx, mem_ctx,
+					 servicename,
+					 &service);
+		if (!W_ERROR_IS_OK(werr)) {
 			goto done;
 		}
-	}
+		werr = import_process_service(conf_ctx, service);
+		if (!W_ERROR_IS_OK(werr)) {
+			goto done;
+		}
+	} else {
+		struct smbconf_service **services = NULL;
+		uint32_t num_shares, sidx;
 
-	if (service_found && (servicename != NULL)) {
-		ret = 0;
-		goto done;
-	}
-
-	if (!(shares = share_list_all(ctx))) {
-		d_fprintf(stderr, "Could not list shares...\n");
-		goto done;
-	}
-	while ((share = next_share(shares)) != NULL) {
-		if ((servicename == NULL)
-		    || strequal(servicename, lp_servicename(share->service)))
-		{
-			service_found = true;
-			if (import_process_service(ctx, conf_ctx, share)!= 0) {
+		werr = smbconf_get_config(txt_ctx, mem_ctx,
+					  &num_shares,
+					  &services);
+		if (!W_ERROR_IS_OK(werr)) {
+			goto done;
+		}
+		if (!opt_testmode) {
+			werr = smbconf_drop(conf_ctx);
+			if (!W_ERROR_IS_OK(werr)) {
+				goto done;
+			}
+		}
+		for (sidx = 0; sidx < num_shares; sidx++) {
+			werr = import_process_service(conf_ctx, services[sidx]);
+			if (!W_ERROR_IS_OK(werr)) {
 				goto done;
 			}
 		}
 	}
 
-	if ((servicename != NULL) && !service_found) {
-		d_printf("Share %s not found in file %s\n",
-			 servicename, filename);
-		goto done;
-
-	}
-
 	ret = 0;
 
 done:
-	TALLOC_FREE(ctx);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_listshares(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_listshares(struct smbconf_ctx *conf_ctx,
 			       int argc, const char **argv)
 {
 	WERROR werr = WERR_OK;
 	int ret = -1;
 	uint32_t count, num_shares = 0;
 	char **share_names = NULL;
-	TALLOC_CTX *ctx;
+	TALLOC_CTX *mem_ctx;
 
-	ctx = talloc_init("listshares");
+	mem_ctx = talloc_stackframe();
 
 	if (argc != 0) {
 		net_conf_listshares_usage(argc, argv);
 		goto done;
 	}
 
-	werr = libnet_conf_get_share_names(ctx, conf_ctx, &num_shares,
-					   &share_names);
+	werr = smbconf_get_share_names(conf_ctx, mem_ctx, &num_shares,
+				       &share_names);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -463,11 +388,11 @@ static int net_conf_listshares(struct libnet_conf_ctx *conf_ctx,
 	ret = 0;
 
 done:
-	TALLOC_FREE(ctx);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_drop(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_drop(struct smbconf_ctx *conf_ctx,
 			 int argc, const char **argv)
 {
 	int ret = -1;
@@ -478,7 +403,7 @@ static int net_conf_drop(struct libnet_conf_ctx *conf_ctx,
 		goto done;
 	}
 
-	werr = libnet_conf_drop(conf_ctx);
+	werr = smbconf_drop(conf_ctx);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error deleting configuration: %s\n",
 			  dos_errstr(werr));
@@ -491,29 +416,30 @@ done:
 	return ret;
 }
 
-static int net_conf_showshare(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_showshare(struct smbconf_ctx *conf_ctx,
 			      int argc, const char **argv)
 {
 	int ret = -1;
 	WERROR werr = WERR_OK;
 	const char *sharename = NULL;
-	TALLOC_CTX *ctx;
-	uint32_t num_params;
+	TALLOC_CTX *mem_ctx;
 	uint32_t count;
-	char **param_names;
-	char **param_values;
+	struct smbconf_service *service = NULL;
 
-	ctx = talloc_init("showshare");
+	mem_ctx = talloc_stackframe();
 
 	if (argc != 1) {
 		net_conf_showshare_usage(argc, argv);
 		goto done;
 	}
 
-	sharename = argv[0];
+	sharename = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (sharename == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
 
-	werr = libnet_conf_get_share(ctx, conf_ctx, sharename, &num_params,
-				     &param_names, &param_values);
+	werr = smbconf_get_share(conf_ctx, mem_ctx, sharename, &service);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_printf("error getting share parameters: %s\n",
 			 dos_errstr(werr));
@@ -522,15 +448,15 @@ static int net_conf_showshare(struct libnet_conf_ctx *conf_ctx,
 
 	d_printf("[%s]\n", sharename);
 
-	for (count = 0; count < num_params; count++) {
-		d_printf("\t%s = %s\n", param_names[count],
-			 param_values[count]);
+	for (count = 0; count < service->num_params; count++) {
+		d_printf("\t%s = %s\n", service->param_names[count],
+			 service->param_values[count]);
 	}
 
 	ret = 0;
 
 done:
-	TALLOC_FREE(ctx);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
@@ -538,9 +464,9 @@ done:
  * Add a share, with a couple of standard parameters, partly optional.
  *
  * This is a high level utility function of the net conf utility,
- * not a direct frontend to the libnet_conf API.
+ * not a direct frontend to the smbconf API.
  */
-static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_addshare(struct smbconf_ctx *conf_ctx,
 			     int argc, const char **argv)
 {
 	int ret = -1;
@@ -551,6 +477,7 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 	const char *guest_ok = "no";
 	const char *writeable = "no";
 	SMB_STRUCT_STAT sbuf;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	switch (argc) {
 		case 0:
@@ -598,7 +525,12 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 			}
 		case 2:
 			path = argv[1];
-			sharename = strdup_lower(argv[0]);
+			sharename = talloc_strdup_lower(mem_ctx, argv[0]);
+			if (sharename == NULL) {
+				d_printf("error: out of memory!\n");
+				goto done;
+			}
+
 			break;
 	}
 
@@ -629,7 +561,7 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 		goto done;
 	}
 
-	if (libnet_conf_share_exists(conf_ctx, sharename)) {
+	if (smbconf_share_exists(conf_ctx, sharename)) {
 		d_fprintf(stderr, "ERROR: share %s already exists.\n",
 			  sharename);
 		goto done;
@@ -664,7 +596,7 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 	 * create the share
 	 */
 
-	werr = libnet_conf_create_share(conf_ctx, sharename);
+	werr = smbconf_create_share(conf_ctx, sharename);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error creating share %s: %s\n",
 			  sharename, dos_errstr(werr));
@@ -675,7 +607,7 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 	 * fill the share with parameters
 	 */
 
-	werr = libnet_conf_set_parameter(conf_ctx, sharename, "path", path);
+	werr = smbconf_set_parameter(conf_ctx, sharename, "path", path);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error setting parameter %s: %s\n",
 			  "path", dos_errstr(werr));
@@ -683,8 +615,8 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 	}
 
 	if (comment != NULL) {
-		werr = libnet_conf_set_parameter(conf_ctx, sharename, "comment",
-						 comment);
+		werr = smbconf_set_parameter(conf_ctx, sharename, "comment",
+					     comment);
 		if (!W_ERROR_IS_OK(werr)) {
 			d_fprintf(stderr, "Error setting parameter %s: %s\n",
 				  "comment", dos_errstr(werr));
@@ -692,16 +624,15 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 		}
 	}
 
-	werr = libnet_conf_set_parameter(conf_ctx, sharename, "guest ok",
-					 guest_ok);
+	werr = smbconf_set_parameter(conf_ctx, sharename, "guest ok", guest_ok);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error setting parameter %s: %s\n",
 			  "'guest ok'", dos_errstr(werr));
 		goto done;
 	}
 
-	werr = libnet_conf_set_parameter(conf_ctx, sharename, "writeable",
-					 writeable);
+	werr = smbconf_set_parameter(conf_ctx, sharename, "writeable",
+				     writeable);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error setting parameter %s: %s\n",
 			  "writeable", dos_errstr(werr));
@@ -711,24 +642,29 @@ static int net_conf_addshare(struct libnet_conf_ctx *conf_ctx,
 	ret = 0;
 
 done:
-	SAFE_FREE(sharename);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_delshare(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_delshare(struct smbconf_ctx *conf_ctx,
 			     int argc, const char **argv)
 {
 	int ret = -1;
 	const char *sharename = NULL;
 	WERROR werr = WERR_OK;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	if (argc != 1) {
 		net_conf_delshare_usage(argc, argv);
 		goto done;
 	}
-	sharename = argv[0];
+	sharename = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (sharename == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
 
-	werr = libnet_conf_delete_share(conf_ctx, sharename);
+	werr = smbconf_delete_share(conf_ctx, sharename);
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error deleting share %s: %s\n",
 			  sharename, dos_errstr(werr));
@@ -737,10 +673,11 @@ static int net_conf_delshare(struct libnet_conf_ctx *conf_ctx,
 
 	ret = 0;
 done:
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_setparm(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_setparm(struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
@@ -748,17 +685,26 @@ static int net_conf_setparm(struct libnet_conf_ctx *conf_ctx,
 	char *service = NULL;
 	char *param = NULL;
 	const char *value_str = NULL;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	if (argc != 3) {
 		net_conf_setparm_usage(argc, argv);
 		goto done;
 	}
-	service = strdup_lower(argv[0]);
-	param = strdup_lower(argv[1]);
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	if (param == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
 	value_str = argv[2];
 
-	if (!libnet_conf_share_exists(conf_ctx, service)) {
-		werr = libnet_conf_create_share(conf_ctx, service);
+	if (!smbconf_share_exists(conf_ctx, service)) {
+		werr = smbconf_create_share(conf_ctx, service);
 		if (!W_ERROR_IS_OK(werr)) {
 			d_fprintf(stderr, "Error creating share '%s': %s\n",
 				  service, dos_errstr(werr));
@@ -766,7 +712,7 @@ static int net_conf_setparm(struct libnet_conf_ctx *conf_ctx,
 		}
 	}
 
-	werr = libnet_conf_set_parameter(conf_ctx, service, param, value_str);
+	werr = smbconf_set_parameter(conf_ctx, service, param, value_str);
 
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, "Error setting value '%s': %s\n",
@@ -777,12 +723,11 @@ static int net_conf_setparm(struct libnet_conf_ctx *conf_ctx,
 	ret = 0;
 
 done:
-	SAFE_FREE(service);
-	SAFE_FREE(param);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_getparm(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_getparm(struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
@@ -790,18 +735,26 @@ static int net_conf_getparm(struct libnet_conf_ctx *conf_ctx,
 	char *service = NULL;
 	char *param = NULL;
 	char *valstr = NULL;
-	TALLOC_CTX *ctx;
+	TALLOC_CTX *mem_ctx;
 
-	ctx = talloc_init("getparm");
+	mem_ctx = talloc_stackframe();
 
 	if (argc != 2) {
 		net_conf_getparm_usage(argc, argv);
 		goto done;
 	}
-	service = strdup_lower(argv[0]);
-	param = strdup_lower(argv[1]);
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	if (param == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
 
-	werr = libnet_conf_get_parameter(ctx, conf_ctx, service, param, &valstr);
+	werr = smbconf_get_parameter(conf_ctx, mem_ctx, service, param, &valstr);
 
 	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
@@ -823,28 +776,35 @@ static int net_conf_getparm(struct libnet_conf_ctx *conf_ctx,
 
 	ret = 0;
 done:
-	SAFE_FREE(service);
-	SAFE_FREE(param);
-	TALLOC_FREE(ctx);
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
-static int net_conf_delparm(struct libnet_conf_ctx *conf_ctx,
+static int net_conf_delparm(struct smbconf_ctx *conf_ctx,
 			    int argc, const char **argv)
 {
 	int ret = -1;
 	WERROR werr = WERR_OK;
 	char *service = NULL;
 	char *param = NULL;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
 	if (argc != 2) {
 		net_conf_delparm_usage(argc, argv);
 		goto done;
 	}
-	service = strdup_lower(argv[0]);
-	param = strdup_lower(argv[1]);
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+	param = talloc_strdup_lower(mem_ctx, argv[1]);
+	if (param == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
 
-	werr = libnet_conf_delete_parameter(conf_ctx, service, param);
+	werr = smbconf_delete_parameter(conf_ctx, service, param);
 
 	if (W_ERROR_EQUAL(werr, WERR_NO_SUCH_SERVICE)) {
 		d_fprintf(stderr,
@@ -865,8 +825,120 @@ static int net_conf_delparm(struct libnet_conf_ctx *conf_ctx,
 	ret = 0;
 
 done:
-	SAFE_FREE(service);
-	SAFE_FREE(param);
+	TALLOC_FREE(mem_ctx);
+	return ret;
+}
+
+static int net_conf_getincludes(struct smbconf_ctx *conf_ctx,
+				int argc, const char **argv)
+{
+	WERROR werr;
+	uint32_t num_includes;
+	uint32_t count;
+	char *service;
+	char **includes = NULL;
+	int ret = -1;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+
+	if (argc != 1) {
+		net_conf_getincludes_usage(argc, argv);
+		goto done;
+	}
+
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+
+	werr = smbconf_get_includes(conf_ctx, mem_ctx, service,
+				    &num_includes, &includes);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error getting includes: %s\n", dos_errstr(werr));
+		goto done;
+	}
+
+	for (count = 0; count < num_includes; count++) {
+		d_printf("include = %s\n", includes[count]);
+	}
+
+	ret = 0;
+
+done:
+	TALLOC_FREE(mem_ctx);
+	return ret;
+}
+
+static int net_conf_setincludes(struct smbconf_ctx *conf_ctx,
+				int argc, const char **argv)
+{
+	WERROR werr;
+	char *service;
+	uint32_t num_includes;
+	const char **includes;
+	int ret = -1;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+
+	if (argc < 1) {
+		net_conf_setincludes_usage(argc, argv);
+		goto done;
+	}
+
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+
+	num_includes = argc - 1;
+	if (num_includes == 0) {
+		includes = NULL;
+	} else {
+		includes = argv + 1;
+	}
+
+	werr = smbconf_set_includes(conf_ctx, service, num_includes, includes);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error setting includes: %s\n", dos_errstr(werr));
+		goto done;
+	}
+
+	ret = 0;
+
+done:
+	TALLOC_FREE(mem_ctx);
+	return ret;
+}
+
+static int net_conf_delincludes(struct smbconf_ctx *conf_ctx,
+				int argc, const char **argv)
+{
+	WERROR werr;
+	char *service;
+	int ret = -1;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+
+	if (argc != 1) {
+		net_conf_delincludes_usage(argc, argv);
+		goto done;
+	}
+
+	service = talloc_strdup_lower(mem_ctx, argv[0]);
+	if (service == NULL) {
+		d_printf("error: out of memory!\n");
+		goto done;
+	}
+
+	werr = smbconf_delete_includes(conf_ctx, service);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("error deleting includes: %s\n", dos_errstr(werr));
+		goto done;
+	}
+
+	ret = 0;
+
+done:
+	TALLOC_FREE(mem_ctx);
 	return ret;
 }
 
@@ -882,16 +954,16 @@ done:
  * The wrapper calls handles opening and closing of the
  * configuration.
  */
-static int net_conf_wrap_function(int (*fn)(struct libnet_conf_ctx *,
+static int net_conf_wrap_function(int (*fn)(struct smbconf_ctx *,
 					    int, const char **),
 				  int argc, const char **argv)
 {
 	WERROR werr;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
-	struct libnet_conf_ctx *conf_ctx;
+	struct smbconf_ctx *conf_ctx;
 	int ret = -1;
 
-	werr = libnet_conf_open(mem_ctx, &conf_ctx);
+	werr = smbconf_init(mem_ctx, &conf_ctx, "registry:");
 
 	if (!W_ERROR_IS_OK(werr)) {
 		return -1;
@@ -899,7 +971,7 @@ static int net_conf_wrap_function(int (*fn)(struct libnet_conf_ctx *,
 
 	ret = fn(conf_ctx, argc, argv);
 
-	libnet_conf_close(conf_ctx);
+	smbconf_shutdown(conf_ctx);
 
 	return ret;
 }
@@ -911,7 +983,7 @@ static int net_conf_wrap_function(int (*fn)(struct libnet_conf_ctx *,
  */
 struct conf_functable {
 	const char *funcname;
-	int (*fn)(struct libnet_conf_ctx *ctx, int argc, const char **argv);
+	int (*fn)(struct smbconf_ctx *ctx, int argc, const char **argv);
 	const char *helptext;
 };
 
@@ -970,6 +1042,12 @@ int net_conf(int argc, const char **argv)
 		 "Retrieve the value of a parameter."},
 		{"delparm", net_conf_delparm,
 		 "Delete a parameter."},
+		{"getincludes", net_conf_getincludes,
+		 "Show the includes of a share definition."},
+		{"setincludes", net_conf_setincludes,
+		 "Set includes for a share."},
+		{"delincludes", net_conf_delincludes,
+		 "Delete includes from a share definition."},
 		{NULL, NULL, NULL}
 	};
 

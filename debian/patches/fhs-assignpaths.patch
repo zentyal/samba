@@ -7,10 +7,10 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.2.0pre3/source/param/loadparm.c
+Index: samba-3.2.0rc1/source/param/loadparm.c
 ===================================================================
---- samba-3.2.0pre3.orig/source/param/loadparm.c
-+++ samba-3.2.0pre3/source/param/loadparm.c
+--- samba-3.2.0rc1.orig/source/param/loadparm.c
++++ samba-3.2.0rc1/source/param/loadparm.c
 @@ -121,6 +121,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
@@ -56,10 +56,10 @@ Index: samba-3.2.0pre3/source/param/loadparm.c
  	{
  		.label		= "pid directory",
  		.type		= P_STRING,
-Index: samba-3.2.0pre3/source/m4/check_path.m4
+Index: samba-3.2.0rc1/source/m4/check_path.m4
 ===================================================================
---- samba-3.2.0pre3.orig/source/m4/check_path.m4
-+++ samba-3.2.0pre3/source/m4/check_path.m4
+--- samba-3.2.0rc1.orig/source/m4/check_path.m4
++++ samba-3.2.0rc1/source/m4/check_path.m4
 @@ -33,7 +33,7 @@
  [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
  [ case "$withval" in

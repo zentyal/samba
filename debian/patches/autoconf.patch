@@ -25,11 +25,11 @@ Note: This patch will normally have to be updated by hand after every
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba-3.2.0pre3/source/configure
+Index: samba-3.2.0rc1/source/configure
 ===================================================================
---- samba-3.2.0pre3.orig/source/configure
-+++ samba-3.2.0pre3/source/configure
-@@ -2213,7 +2213,7 @@
+--- samba-3.2.0rc1.orig/source/configure
++++ samba-3.2.0rc1/source/configure
+@@ -2225,7 +2225,7 @@
  if test "${with_fhs+set}" = set; then
    withval=$with_fhs;  case "$withval" in
    yes)
@@ -38,7 +38,7 @@ Index: samba-3.2.0pre3/source/configure
      piddir="\${VARDIR}/run"
      mandir="\${prefix}/share/man"
      logfilebase="\${VARDIR}/log/samba"
-@@ -2221,9 +2221,9 @@
+@@ -2233,9 +2233,9 @@
      test "${libdir}" || libdir="\${prefix}/lib/samba"
      configdir="\${sysconfdir}/samba"
      swatdir="\${DATADIR}/samba/swat"
@@ -50,7 +50,7 @@ Index: samba-3.2.0pre3/source/configure
  
  cat >>confdefs.h <<\_ACEOF
  #define FHS_COMPATIBLE 1
-@@ -12870,6 +12870,27 @@
+@@ -12885,6 +12885,27 @@
        fi
      ;;
  
@@ -78,7 +78,7 @@ Index: samba-3.2.0pre3/source/configure
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -40409,7 +40430,7 @@
+@@ -40329,7 +40350,7 @@
  #
  #
  case "$host_os" in
@@ -87,7 +87,7 @@ Index: samba-3.2.0pre3/source/configure
         # glibc <= 2.3.2 has a broken getgrouplist
         if test "$cross_compiling" = yes; then
    { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-@@ -45365,11 +45386,14 @@
+@@ -45351,11 +45372,14 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -104,7 +104,7 @@ Index: samba-3.2.0pre3/source/configure
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -68819,7 +68843,7 @@
+@@ -68611,7 +68635,7 @@
  echo "${ECHO_T}yes" >&6; };
  
  	case "$host_os" in
@@ -113,7 +113,7 @@ Index: samba-3.2.0pre3/source/configure
  		{ echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
  echo $ECHO_N "checking for linux sendfile64 support... $ECHO_C" >&6; }
  if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
-@@ -69900,11 +69924,11 @@
+@@ -69692,11 +69716,11 @@
  WINBIND_NSS_PTHREAD=""
  
  case "$host_os" in
@@ -127,10 +127,10 @@ Index: samba-3.2.0pre3/source/configure
  		# FreeBSD winbind client is implemented as a wrapper around
  		# the Linux version.
  		NSSSONAMEVERSIONSUFFIX=".1"
-Index: samba-3.2.0pre3/source/include/config.h.in
+Index: samba-3.2.0rc1/source/include/config.h.in
 ===================================================================
---- samba-3.2.0pre3.orig/source/include/config.h.in
-+++ samba-3.2.0pre3/source/include/config.h.in
+--- samba-3.2.0rc1.orig/source/include/config.h.in
++++ samba-3.2.0rc1/source/include/config.h.in
 @@ -66,6 +66,9 @@
  /* Whether to use fully FHS-compatible paths */
  #undef FHS_COMPATIBLE

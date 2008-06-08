@@ -1,3 +1,10 @@
+samba (2:3.0.30-3) UNRELEASED; urgency=low
+
+  * debian/patches/no-unnecessary-cups.patch: don't try to connect to a cups
+    server when we know that no printers are configured.  Closes: #479512.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 07 Jun 2008 19:43:27 -0700
+
 samba (2:3.0.30-2) unstable; urgency=high
 
   * Brown paper bag releae with epoch increased after yet another

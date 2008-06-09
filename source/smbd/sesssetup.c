@@ -248,6 +248,7 @@ static bool make_krb5_skew_error(DATA_BLOB *pblob_out)
 
 static void reply_spnego_kerberos(struct smb_request *req,
 				  DATA_BLOB *secblob,
+				  const char *mechOID,
 				  uint16 vuid,
 				  bool *p_invalidate_vuid)
 {
@@ -539,6 +540,8 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	if ( !server_info->ptok ) {
 		ret = create_local_token( server_info );
 		if ( !NT_STATUS_IS_OK(ret) ) {
+			DEBUG(10,("failed to create local token: %s\n",
+				nt_errstr(ret)));
 			SAFE_FREE(client);
 			data_blob_free(&ap_rep);
 			data_blob_free(&session_key);
@@ -596,7 +599,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		ap_rep_wrapped = data_blob_null;
 	}
 	response = spnego_gen_auth_response(&ap_rep_wrapped, ret,
-			OID_KERBEROS5_OLD);
+			mechOID);
 	reply_sesssetup_blob(req, response, ret);
 
 	data_blob_free(&ap_rep);
@@ -707,13 +710,15 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
  Is this a krb5 mechanism ?
 ****************************************************************************/
 
-NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in, DATA_BLOB *pblob_out,
-		bool *p_is_krb5)
+NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in,
+		DATA_BLOB *pblob_out,
+		char **kerb_mechOID)
 {
 	char *OIDs[ASN1_MAX_OIDS];
 	int i;
+	NTSTATUS ret = NT_STATUS_OK;
 
-	*p_is_krb5 = False;
+	*kerb_mechOID = NULL;
 
 	/* parse out the OIDs and the first sec blob */
 	if (!parse_negTokenTarg(blob_in, OIDs, pblob_out)) {
@@ -733,7 +738,10 @@ NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in, DATA_BLOB *pblob_out,
 #ifdef HAVE_KRB5
 	if (strcmp(OID_KERBEROS5, OIDs[0]) == 0 ||
 	    strcmp(OID_KERBEROS5_OLD, OIDs[0]) == 0) {
-		*p_is_krb5 = True;
+		*kerb_mechOID = SMB_STRDUP(OIDs[0]);
+		if (*kerb_mechOID == NULL) {
+			ret = NT_STATUS_NO_MEMORY;
+		}
 	}
 #endif
 
@@ -741,7 +749,7 @@ NTSTATUS parse_spnego_mechanisms(DATA_BLOB blob_in, DATA_BLOB *pblob_out,
 		DEBUG(5,("parse_spnego_mechanisms: Got OID %s\n", OIDs[i]));
 		free(OIDs[i]);
 	}
-	return NT_STATUS_OK;
+	return ret;
 }
 
 /****************************************************************************
@@ -777,11 +785,10 @@ static void reply_spnego_negotiate(struct smb_request *req,
 {
 	DATA_BLOB secblob;
 	DATA_BLOB chal;
-	bool got_kerberos_mechanism = False;
+	char *kerb_mech = NULL;
 	NTSTATUS status;
 
-	status = parse_spnego_mechanisms(blob1, &secblob,
-			&got_kerberos_mechanism);
+	status = parse_spnego_mechanisms(blob1, &secblob, &kerb_mech);
 	if (!NT_STATUS_IS_OK(status)) {
 		/* Kill the intermediate vuid */
 		invalidate_vuid(vuid);
@@ -793,16 +800,17 @@ static void reply_spnego_negotiate(struct smb_request *req,
 				(unsigned long)secblob.length));
 
 #ifdef HAVE_KRB5
-	if ( got_kerberos_mechanism && ((lp_security()==SEC_ADS) ||
+	if (kerb_mech && ((lp_security()==SEC_ADS) ||
 				lp_use_kerberos_keytab()) ) {
 		bool destroy_vuid = True;
-		reply_spnego_kerberos(req, &secblob, vuid,
-				      &destroy_vuid);
+		reply_spnego_kerberos(req, &secblob, kerb_mech,
+				      vuid, &destroy_vuid);
 		data_blob_free(&secblob);
 		if (destroy_vuid) {
 			/* Kill the intermediate vuid */
 			invalidate_vuid(vuid);
 		}
+		SAFE_FREE(kerb_mech);
 		return;
 	}
 #endif
@@ -811,12 +819,12 @@ static void reply_spnego_negotiate(struct smb_request *req,
 		auth_ntlmssp_end(auth_ntlmssp_state);
 	}
 
-	if (got_kerberos_mechanism) {
+	if (kerb_mech) {
 		data_blob_free(&secblob);
 		/* The mechtoken is a krb5 ticket, but
 		 * we need to fall back to NTLM. */
-		reply_spnego_downgrade_to_ntlmssp(req,
-					vuid);
+		reply_spnego_downgrade_to_ntlmssp(req, vuid);
+		SAFE_FREE(kerb_mech);
 		return;
 	}
 
@@ -870,10 +878,9 @@ static void reply_spnego_auth(struct smb_request *req,
 
 	if (auth.data[0] == ASN1_APPLICATION(0)) {
 		/* Might be a second negTokenTarg packet */
+		char *kerb_mech = NULL;
 
-		bool got_krb5_mechanism = False;
-		status = parse_spnego_mechanisms(auth, &secblob,
-				&got_krb5_mechanism);
+		status = parse_spnego_mechanisms(auth, &secblob, &kerb_mech);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			/* Kill the intermediate vuid */
@@ -885,10 +892,10 @@ static void reply_spnego_auth(struct smb_request *req,
 		DEBUG(3,("reply_spnego_auth: Got secblob of size %lu\n",
 				(unsigned long)secblob.length));
 #ifdef HAVE_KRB5
-		if ( got_krb5_mechanism && ((lp_security()==SEC_ADS) ||
+		if (kerb_mech && ((lp_security()==SEC_ADS) ||
 					lp_use_kerberos_keytab()) ) {
 			bool destroy_vuid = True;
-			reply_spnego_kerberos(req, &secblob,
+			reply_spnego_kerberos(req, &secblob, kerb_mech,
 					      vuid, &destroy_vuid);
 			data_blob_free(&secblob);
 			data_blob_free(&auth);
@@ -896,13 +903,14 @@ static void reply_spnego_auth(struct smb_request *req,
 				/* Kill the intermediate vuid */
 				invalidate_vuid(vuid);
 			}
+			SAFE_FREE(kerb_mech);
 			return;
 		}
 #endif
 		/* Can't blunder into NTLMSSP auth if we have
 		 * a krb5 ticket. */
 
-		if (got_krb5_mechanism) {
+		if (kerb_mech) {
 			/* Kill the intermediate vuid */
 			invalidate_vuid(vuid);
 			DEBUG(3,("reply_spnego_auth: network "
@@ -911,6 +919,7 @@ static void reply_spnego_auth(struct smb_request *req,
 				"not enabled"));
 			reply_nterror(req, nt_status_squash(
 					NT_STATUS_LOGON_FAILURE));
+			SAFE_FREE(kerb_mech);
 		}
 	}
 
@@ -1531,7 +1540,11 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		if (doencrypt) {
 			lm_resp = data_blob(p, passlen1);
 			nt_resp = data_blob(p+passlen1, passlen2);
-		} else {
+		} else if (lp_security() != SEC_SHARE) {
+			/*
+			 * In share level we should ignore any passwords, so
+ 			 * only read them if we're not.
+ 			 */
 			char *pass = NULL;
 			bool unic= smb_flag2 & FLAGS2_UNICODE_STRINGS;
 
@@ -1634,7 +1647,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	reload_services(True);
 
 	if (lp_security() == SEC_SHARE) {
-		/* in share level we should ignore any passwords */
+		/* In share level we should ignore any passwords */
 
 		data_blob_free(&lm_resp);
 		data_blob_free(&nt_resp);

@@ -72,6 +72,15 @@ const struct generic_mapping printserver_std_mapping = {
 	SERVER_ALL_ACCESS
 };
 
+/* Map generic permissions to job object specific permissions */
+
+const struct generic_mapping job_generic_mapping = {
+	JOB_READ,
+	JOB_WRITE,
+	JOB_EXECUTE,
+	JOB_ALL_ACCESS
+};
+
 /* We need one default form to support our default printer. Msoft adds the
 forms it wants and in the ORDER it wants them (note: DEVMODE papersize is an
 array index). Letter is always first, so (for the current code) additions
@@ -344,7 +353,6 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 	int result, i;
 	uint32 sd_size;
 	size_t size_new_sec;
-	DOM_SID sid;
 
 	if (!data.dptr || data.dsize == 0) {
 		return 0;
@@ -358,7 +366,7 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 
 	ZERO_STRUCT( ps );
 
-	prs_init( &ps, 0, ctx, UNMARSHALL );
+	prs_init_empty( &ps, ctx, UNMARSHALL );
 	prs_give_memory( &ps, (char *)data.dptr, data.dsize, False );
 
 	if ( !sec_io_desc_buf( "sec_desc_upg_fn", &sd_orig, &ps, 1 ) ) {
@@ -405,10 +413,10 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 
 	/* create a new SEC_DESC with the appropriate owner and group SIDs */
 
-	string_to_sid(&sid, "S-1-5-32-544" );
 	new_sec = make_sec_desc( ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE,
-		&sid, &sid,
-		NULL, NULL, &size_new_sec );
+				 &global_sid_Builtin_Administrators,
+				 &global_sid_Builtin_Administrators,
+				 NULL, NULL, &size_new_sec );
 	if (!new_sec) {
 		prs_mem_free( &ps );
 		return 0;
@@ -431,7 +439,10 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 	
 	sd_size = ndr_size_security_descriptor(sd_store->sd, 0)
 		+ sizeof(SEC_DESC_BUF);
-	prs_init(&ps, sd_size, ctx, MARSHALL);
+	if ( !prs_init(&ps, sd_size, ctx, MARSHALL) ) {
+		DEBUG(0,("sec_desc_upg_fn: Failed to allocate prs memory for %s\n", key.dptr ));
+		return 0;
+	}
 
 	if ( !sec_io_desc_buf( "sec_desc_upg_fn", &sd_store, &ps, 1 ) ) {
 		DEBUG(0,("sec_desc_upg_fn: Failed to parse new sec_desc for %s\n", key.dptr ));
@@ -3971,7 +3982,11 @@ static void map_to_os2_driver(fstring drivername)
 /****************************************************************************
  Get a default printer info 2 struct.
 ****************************************************************************/
-static WERROR get_a_printer_2_default(NT_PRINTER_INFO_LEVEL_2 *info, const char *servername, const char* sharename)
+
+static WERROR get_a_printer_2_default(NT_PRINTER_INFO_LEVEL_2 *info,
+				const char *servername,
+				const char* sharename,
+				bool get_loc_com)
 {
 	int snum = lp_servicenumber(sharename);
 
@@ -3998,7 +4013,7 @@ static WERROR get_a_printer_2_default(NT_PRINTER_INFO_LEVEL_2 *info, const char 
 	fstrcpy(info->datatype, "RAW");
 
 #ifdef HAVE_CUPS
-	if ( (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {		
+	if (get_loc_com && (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {		
 		/* Pull the location and comment strings from cups if we don't
 		   already have one */
 		if ( !strlen(info->location) || !strlen(info->comment) )
@@ -4047,7 +4062,11 @@ fail:
 
 /****************************************************************************
 ****************************************************************************/
-static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info, const char *servername, const char *sharename)
+
+static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info,
+				const char *servername,
+				const char *sharename,
+				bool get_loc_com)
 {
 	int len = 0;
 	int snum = lp_servicenumber(sharename);
@@ -4060,7 +4079,8 @@ static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info, const char *servern
 
 	dbuf = tdb_fetch(tdb_printers, kbuf);
 	if (!dbuf.dptr) {
-		return get_a_printer_2_default(info, servername, sharename);
+		return get_a_printer_2_default(info, servername,
+					sharename, get_loc_com);
 	}
 
 	len += tdb_unpack(dbuf.dptr+len, dbuf.dsize-len, "dddddddddddfffffPfffff",
@@ -4108,7 +4128,7 @@ static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info, const char *servern
 	fstrcpy(info->printername, printername);
 
 #ifdef HAVE_CUPS
-	if ( (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {		
+	if (get_loc_com && (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {
 		/* Pull the location and comment strings from cups if we don't
 		   already have one */
 		if ( !strlen(info->location) || !strlen(info->comment) )
@@ -4551,7 +4571,7 @@ static bool convert_driver_init( TALLOC_CTX *ctx, NT_DEVICEMODE *nt_devmode, uin
 
 	ZERO_STRUCT(devmode);
 
-	prs_init(&ps, 0, ctx, UNMARSHALL);
+	prs_init_empty(&ps, ctx, UNMARSHALL);
 	ps.data_p      = (char *)data;
 	ps.buffer_size = data_len;
 
@@ -4692,8 +4712,8 @@ WERROR save_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level, uint8 *dat
 
 ****************************************************************************/
 
-WERROR get_a_printer( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_printer, uint32 level, 
-			const char *sharename)
+static WERROR get_a_printer_internal( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_printer, uint32 level, 
+			const char *sharename, bool get_loc_com)
 {
 	WERROR result;
 	fstring servername;
@@ -4721,11 +4741,11 @@ WERROR get_a_printer( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_print
 						    sizeof(servername)-1 );
 			}
 
-			result = get_a_printer_2( (*pp_printer)->info_2, servername, sharename );
-	
-			
+			result = get_a_printer_2( (*pp_printer)->info_2,
+					servername, sharename, get_loc_com);
+
 			/* we have a new printer now.  Save it with this handle */
-			
+
 			if ( !W_ERROR_IS_OK(result) ) {
 				TALLOC_FREE( *pp_printer );
 				DEBUG(10,("get_a_printer: [%s] level %u returning %s\n", 
@@ -4743,6 +4763,24 @@ WERROR get_a_printer( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_print
 	}
 	
 	return WERR_OK;
+}
+
+WERROR get_a_printer( Printer_entry *print_hnd,
+			NT_PRINTER_INFO_LEVEL **pp_printer,
+			uint32 level,
+			const char *sharename)
+{
+	return get_a_printer_internal(print_hnd, pp_printer, level,
+					sharename, true);
+}
+
+WERROR get_a_printer_search( Printer_entry *print_hnd,
+			NT_PRINTER_INFO_LEVEL **pp_printer,
+			uint32 level,
+			const char *sharename)
+{
+	return get_a_printer_internal(print_hnd, pp_printer, level,
+					sharename, false);
 }
 
 /****************************************************************************
@@ -4963,10 +5001,15 @@ bool printer_driver_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3 )
 static bool drv_file_in_use( char* file, NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 {
 	int i = 0;
-	
+
 	if ( !info )
 		return False;
-		
+
+	/* mz: skip files that are in the list but already deleted */
+	if (!file || !file[0]) {
+		return false;
+	}
+
 	if ( strequal(file, info->driverpath) )
 		return True;
 
@@ -5079,6 +5122,12 @@ static bool trim_overlap_drv_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *src,
   
   Upon return, *info has been modified to only contain the driver files
   which are not in use
+
+  Fix from mz:
+
+  This needs to check all drivers to ensure that all files in use
+  have been removed from *info, not just the ones in the first
+  match.
 ****************************************************************************/
 
 bool printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
@@ -5088,7 +5137,8 @@ bool printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 	uint32 				version;
 	fstring 			*list = NULL;
 	NT_PRINTER_DRIVER_INFO_LEVEL 	driver;
-	
+	bool in_use = false;
+
 	if ( !info )
 		return False;
 	
@@ -5123,9 +5173,10 @@ bool printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 			
 		if ( !strequal(info->name, driver.info_3->name) ) {
 			if ( trim_overlap_drv_files(info, driver.info_3) ) {
-				free_a_printer_driver(driver, 3);
-				SAFE_FREE( list );
-				return True;
+				/* mz: Do not instantly return -
+				 * we need to ensure this file isn't
+				 * also in use by other drivers. */
+				in_use = true;
 			}
 		}
 
@@ -5141,7 +5192,7 @@ bool printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 	if ( DEBUGLEVEL >= 20 )
 		dump_a_printer_driver( driver, 3 );
 
-	return False;
+	return in_use;
 }
 
 /****************************************************************************
@@ -5396,9 +5447,13 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 
 	/* Store the security descriptor in a tdb */
 
-	prs_init(&ps,
-		 (uint32)ndr_size_security_descriptor(new_secdesc_ctr->sd, 0)
-		 + sizeof(SEC_DESC_BUF), mem_ctx, MARSHALL);
+	if (!prs_init(&ps,
+		(uint32)ndr_size_security_descriptor(new_secdesc_ctr->sd, 0)
+		+ sizeof(SEC_DESC_BUF), mem_ctx, MARSHALL) ) {
+		status = WERR_NOMEM;
+		goto out;
+	}
+
 
 	prs_init_done = true;
 
@@ -5546,8 +5601,9 @@ bool nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 
 		/* Save default security descriptor for later */
 
-		prs_init(&ps, (uint32)ndr_size_security_descriptor((*secdesc_ctr)->sd, 0) +
-				sizeof(SEC_DESC_BUF), ctx, MARSHALL);
+		if (!prs_init(&ps, (uint32)ndr_size_security_descriptor((*secdesc_ctr)->sd, 0) +
+			sizeof(SEC_DESC_BUF), ctx, MARSHALL))
+			return False;
 
 		if (sec_io_desc_buf("nt_printing_getsec", secdesc_ctr, &ps, 1)) {
 			tdb_prs_store(tdb_printers, kbuf, &ps);
@@ -5672,6 +5728,17 @@ void map_printer_permissions(SEC_DESC *sd)
 	}
 }
 
+void map_job_permissions(SEC_DESC *sd)
+{
+	int i;
+
+	for (i = 0; sd->dacl && i < sd->dacl->num_aces; i++) {
+		se_map_generic(&sd->dacl->aces[i].access_mask,
+			       &job_generic_mapping);
+	}
+}
+
+
 /****************************************************************************
  Check a user has permissions to perform the given operation.  We use the
  permission constants defined in include/rpc_spoolss.h to check the various
@@ -5753,19 +5820,12 @@ bool print_access_check(struct current_user *user, int snum, int access_type)
 			return False;
 		}
 
-		/* Now this is the bit that really confuses me.  The access
-		   type needs to be changed from JOB_ACCESS_ADMINISTER to
-		   PRINTER_ACCESS_ADMINISTER for this to work.  Something
-		   to do with the child (job) object becoming like a
-		   printer??  -tpot */
-
-		access_type = PRINTER_ACCESS_ADMINISTER;
+		map_job_permissions(secdesc->sd);
+	} else {
+		map_printer_permissions(secdesc->sd);
 	}
-	
-	/* Check access */
-	
-	map_printer_permissions(secdesc->sd);
 
+	/* Check access */
 	result = se_access_check(secdesc->sd, user->nt_user_token, access_type,
 				 &access_granted, &status);
 

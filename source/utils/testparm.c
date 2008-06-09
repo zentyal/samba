@@ -109,7 +109,9 @@ to a valid password server.\n", sec_setting );
 		if (!lp_pam_password_change()) {
 #endif
 
-			if(lp_passwd_program() == NULL) {
+			if((lp_passwd_program() == NULL) ||
+			   (strlen(lp_passwd_program()) == 0))
+			{
 				fprintf( stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd program' \
 parameter.\n" );
 				ret = 1;
@@ -120,7 +122,6 @@ parameter.\n" );
 
 				passwd_prog = lp_passwd_program();
 				p = passwd_prog;
-				*truncated_prog = '\0';
 				next_token_talloc(talloc_tos(),
 						&p,
 						&truncated_prog, NULL);
@@ -129,8 +130,7 @@ parameter.\n" );
 cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
 					ret = 1;
 				}
-
-             }
+			}
 
 #ifdef WITH_PAM
 		}
@@ -140,11 +140,16 @@ cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
 			fprintf(stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd chat' \
 parameter.\n");
 			ret = 1;
-		} else 
-		/* check if there's a %u parameter present */
-		if(strstr_m(lp_passwd_program(), "%u") == NULL) {
-			fprintf(stderr, "ERROR: the 'passwd program' (%s) requires a '%%u' parameter.\n", lp_passwd_program());
-			ret = 1;
+		}
+
+		if ((lp_passwd_program() != NULL) &&
+		    (strlen(lp_passwd_program()) > 0))
+		{
+			/* check if there's a %u parameter present */
+			if(strstr_m(lp_passwd_program(), "%u") == NULL) {
+				fprintf(stderr, "ERROR: the 'passwd program' (%s) requires a '%%u' parameter.\n", lp_passwd_program());
+				ret = 1;
+			}
 		}
 
 		/*

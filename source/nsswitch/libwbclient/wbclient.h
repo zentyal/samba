@@ -40,7 +40,7 @@ enum _wbcErrType {
 	WBC_ERR_INVALID_PARAM,  /**< An Invalid parameter was supplied **/
 	WBC_ERR_WINBIND_NOT_AVAILABLE,   /**< Winbind daemon is not available **/
 	WBC_ERR_DOMAIN_NOT_FOUND,        /**< Domain is not trusted or cannot be found **/
-	WBC_INVALID_RESPONSE,        /**< Winbind returned an invalid response **/
+	WBC_ERR_INVALID_RESPONSE,        /**< Winbind returned an invalid response **/
 	WBC_ERR_NSS_ERROR,            /**< NSS_STATUS error **/
 	WBC_ERR_AUTH_ERROR        /**< Authentication failed **/
 };
@@ -51,12 +51,38 @@ typedef enum _wbcErrType wbcErr;
 
 const char *wbcErrorString(wbcErr error);
 
+/**
+ *  @brief Some useful details about the wbclient library
+ *
+ **/
+#define WBCLIENT_MAJOR_VERSION 0
+#define WBCLIENT_MINOR_VERSION 1
+#define WBCLIENT_VENDOR_VERSION "Samba libwbclient"
+struct wbcLibraryDetails {
+	uint16_t major_version;
+	uint16_t minor_version;
+	const char *vendor_version;
+};
+
+/**
+ *  @brief Some useful details about the running winbindd
+ *
+ **/
+struct wbcInterfaceDetails {
+	uint32_t interface_version;
+	const char *winbind_version;
+	char winbind_separator;
+	const char *netbios_name;
+	const char *netbios_domain;
+	const char *dns_domain;
+};
+
 /*
  * Data types used by the Winbind Client API
  */
 
-#ifndef MAXSUBAUTHS
-#define MAXSUBAUTHS 15 /* max sub authorities in a SID */
+#ifndef WBC_MAXSUBAUTHS
+#define WBC_MAXSUBAUTHS 15 /* max sub authorities in a SID */
 #endif
 
 /**
@@ -68,7 +94,7 @@ struct wbcDomainSid {
 	uint8_t   sid_rev_num;
 	uint8_t   num_auths;
 	uint8_t   id_auth[6];
-	uint32_t  sub_auths[MAXSUBAUTHS];
+	uint32_t  sub_auths[WBC_MAXSUBAUTHS];
 };
 
 /**
@@ -115,14 +141,32 @@ struct wbcDomainInfo {
 	char *short_name;
 	char *dns_name;
 	struct wbcDomainSid sid;
-	uint32_t flags;
+	uint32_t domain_flags;
+	uint32_t trust_flags;
+	uint32_t trust_type;
 };
 
-/* wbcDomainInfo->flags */
+/* wbcDomainInfo->domain_flags */
 
-#define WBC_DOMINFO_NATIVE            0x00000001
-#define WBC_DOMINFO_AD                0x00000002
-#define WBC_DOMINFO_PRIMARY           0x00000004
+#define WBC_DOMINFO_DOMAIN_UNKNOWN    0x00000000
+#define WBC_DOMINFO_DOMAIN_NATIVE     0x00000001
+#define WBC_DOMINFO_DOMAIN_AD         0x00000002
+#define WBC_DOMINFO_DOMAIN_PRIMARY    0x00000004
+#define WBC_DOMINFO_DOMAIN_OFFLINE    0x00000008
+
+/* wbcDomainInfo->trust_flags */
+
+#define WBC_DOMINFO_TRUST_TRANSITIVE  0x00000001
+#define WBC_DOMINFO_TRUST_INCOMING    0x00000002
+#define WBC_DOMINFO_TRUST_OUTGOING    0x00000004
+
+/* wbcDomainInfo->trust_type */
+
+#define WBC_DOMINFO_TRUSTTYPE_NONE       0x00000000
+#define WBC_DOMINFO_TRUSTTYPE_FOREST     0x00000001
+#define WBC_DOMINFO_TRUSTTYPE_IN_FOREST  0x00000002
+#define WBC_DOMINFO_TRUSTTYPE_EXTERNAL   0x00000003
+
 
 /**
  * @brief Auth User Parameters
@@ -277,6 +321,10 @@ wbcErr wbcStringToSid(const char *sid_string,
 
 wbcErr wbcPing(void);
 
+wbcErr wbcLibraryDetails(struct wbcLibraryDetails **details);
+
+wbcErr wbcInterfaceDetails(struct wbcInterfaceDetails **details);
+
 /*
  * Name/SID conversion
  */
@@ -298,6 +346,19 @@ wbcErr wbcLookupRids(struct wbcDomainSid *dom_sid,
 		     const char ***names,
 		     enum wbcSidType **types);
 
+wbcErr wbcLookupUserSids(const struct wbcDomainSid *user_sid,
+			 bool domain_groups_only,
+			 uint32_t *num_sids,
+			 struct wbcDomainSid **sids);
+
+wbcErr wbcListUsers(const char *domain_name,
+		    uint32_t *num_users,
+		    const char ***users);
+
+wbcErr wbcListGroups(const char *domain_name,
+		     uint32_t *num_groups,
+		     const char ***groups);
+
 /*
  * SID/uid/gid Mappings
  */
@@ -316,7 +377,15 @@ wbcErr wbcGidToSid(gid_t gid,
 
 wbcErr wbcAllocateUid(uid_t *puid);
 
-wbcErr wbcAllocateGid(uid_t *pgid);
+wbcErr wbcAllocateGid(gid_t *pgid);
+
+wbcErr wbcSetUidMapping(uid_t uid, const struct wbcDomainSid *sid);
+
+wbcErr wbcSetGidMapping(gid_t gid, const struct wbcDomainSid *sid);
+
+wbcErr wbcSetUidHwm(uid_t uid_hwm);
+
+wbcErr wbcSetGidHwm(gid_t gid_hwm);
 
 /*
  * NSS Lookup User/Group details
@@ -342,6 +411,10 @@ wbcErr wbcEndgrent(void);
 
 wbcErr wbcGetgrent(struct group **grp);
 
+wbcErr wbcGetGroups(const char *account,
+		    uint32_t *num_groups,
+		    gid_t **_groups);
+
 
 /*
  * Lookup Domain information
@@ -350,7 +423,9 @@ wbcErr wbcGetgrent(struct group **grp);
 wbcErr wbcDomainInfo(const char *domain,
 		     struct wbcDomainInfo **info);
 
-wbcErr wbcDomainSequenceNumbers(void);
+wbcErr wbcListTrusts(struct wbcDomainInfo **domains, 
+		     size_t *num_domains);
+
 
 /*
  * Athenticate functions
@@ -362,5 +437,17 @@ wbcErr wbcAuthenticateUser(const char *username,
 wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 			     struct wbcAuthUserInfo **info,
 			     struct wbcAuthErrorInfo **error);
+
+/*
+ * Resolve functions
+ */
+wbcErr wbcResolveWinsByName(const char *name, char **ip);
+wbcErr wbcResolveWinsByIP(const char *ip, char **name);
+
+/*
+ * Trusted domain functions
+ */
+wbcErr wbcCheckTrustCredentials(const char *domain,
+				struct wbcAuthErrorInfo **error);
 
 #endif      /* _WBCLIENT_H */

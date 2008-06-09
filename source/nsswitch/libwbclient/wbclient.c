@@ -106,8 +106,8 @@ const char *wbcErrorString(wbcErr error)
 		return "WBC_ERR_WINBIND_NOT_AVAILABLE";
 	case WBC_ERR_DOMAIN_NOT_FOUND:
 		return "WBC_ERR_DOMAIN_NOT_FOUND";
-	case WBC_INVALID_RESPONSE:
-		return "WBC_INVALID_RESPONSE";
+	case WBC_ERR_INVALID_RESPONSE:
+		return "WBC_ERR_INVALID_RESPONSE";
 	case WBC_ERR_NSS_ERROR:
 		return "WBC_ERR_NSS_ERROR";
 	case WBC_ERR_AUTH_ERROR:
@@ -115,7 +115,7 @@ const char *wbcErrorString(wbcErr error)
 	}
 
 	return "unknown wbcErr value";
-};
+}
 
 /** @brief Free library allocated memory
  *
@@ -132,5 +132,28 @@ void wbcFreeMemory(void *p)
 	return;
 }
 
+wbcErr wbcLibraryDetails(struct wbcLibraryDetails **_details)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcLibraryDetails *info;
+
+	info = talloc(NULL, struct wbcLibraryDetails);
+	BAIL_ON_PTR_ERROR(info, wbc_status);
+
+	info->major_version = WBCLIENT_MAJOR_VERSION;
+	info->minor_version = WBCLIENT_MINOR_VERSION;
+	info->vendor_version = talloc_strdup(info,
+					     WBCLIENT_VENDOR_VERSION);
+	BAIL_ON_PTR_ERROR(info->vendor_version, wbc_status);
+
+	*_details = info;
+	info = NULL;
+
+	wbc_status = WBC_ERR_SUCCESS;
+
+done:
+	talloc_free(info);
+	return wbc_status;
+}
 
 

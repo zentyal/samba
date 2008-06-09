@@ -1,52 +1,52 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 34. Advanced Configuration Techniques</title><link rel="stylesheet" href="samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.72.0"><link rel="start" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="largefile.html" title="Chapter 33. Handling Large Directories"><link rel="next" href="migration.html" title="Part IV. Migration and Updating"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 34. Advanced Configuration Techniques</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="largefile.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="migration.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="cfgsmarts"></a>Chapter 34. Advanced Configuration Techniques</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 30, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="cfgsmarts.html#id437826">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="cfgsmarts.html#id437835">Multiple Server Hosting</a></span></dt><dt><span class="sect2"><a href="cfgsmarts.html#id438180">Multiple Virtual Server Personalities</a></span></dt><dt><span class="sect2"><a href="cfgsmarts.html#id439141">Multiple Virtual Server Hosting</a></span></dt></dl></dd></dl></div><p>
-<a class="indexterm" name="id437692"></a>
-<a class="indexterm" name="id437699"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 34. Advanced Configuration Techniques</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"><link rel="start" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="largefile.html" title="Chapter 33. Handling Large Directories"><link rel="next" href="migration.html" title="Part IV. Migration and Updating"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 34. Advanced Configuration Techniques</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="largefile.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="migration.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="cfgsmarts"></a>Chapter 34. Advanced Configuration Techniques</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 30, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="cfgsmarts.html#id2696242">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="cfgsmarts.html#id2696250">Multiple Server Hosting</a></span></dt><dt><span class="sect2"><a href="cfgsmarts.html#id2696648">Multiple Virtual Server Personalities</a></span></dt><dt><span class="sect2"><a href="cfgsmarts.html#id2697662">Multiple Virtual Server Hosting</a></span></dt></dl></dd></dl></div><p>
+<a class="indexterm" name="id2696085"></a>
+<a class="indexterm" name="id2696092"></a>
 Since the release of the first edition of this book there have been repeated requests to better document
 configuration techniques that may help a network administrator to get more out of Samba. Some users have asked
-for documentation regarding the use of the <a class="indexterm" name="id437708"></a>include = file-name parameter.
+for documentation regarding the use of the <a class="link" href="smb.conf.5.html#INCLUDE">include = file-name</a> parameter.
 </p><p>
-<a class="indexterm" name="id437718"></a>
-<a class="indexterm" name="id437725"></a>
+<a class="indexterm" name="id2696120"></a>
+<a class="indexterm" name="id2696127"></a>
 Commencing around mid-2004 there has been increasing interest in the ability to host multiple Samba servers on
 one machine. There has also been an interest in the hosting of multiple Samba server personalities on one
 server.
 </p><p>
-<a class="indexterm" name="id437737"></a>
-<a class="indexterm" name="id437744"></a>
+<a class="indexterm" name="id2696141"></a>
+<a class="indexterm" name="id2696148"></a>
 Feedback from technical reviewers made the inclusion of this chapter a necessity. So, here is an 
 answer the questions that have to date not been adequately addressed. Additional user input is welcome as
 it will help this chapter to mature. What is presented here is just a small beginning.
 </p><p>
-<a class="indexterm" name="id437757"></a>
-<a class="indexterm" name="id437764"></a>
-<a class="indexterm" name="id437770"></a>
+<a class="indexterm" name="id2696163"></a>
+<a class="indexterm" name="id2696170"></a>
+<a class="indexterm" name="id2696177"></a>
 There are a number of ways in which multiple servers can be hosted on a single Samba server. Multiple server
 hosting makes it possible to host multiple domain controllers on one machine. Each such machine is
 independent, and each can be stopped or started without affecting another.
 </p><p>
-<a class="indexterm" name="id437783"></a>
-<a class="indexterm" name="id437790"></a>
-<a class="indexterm" name="id437796"></a>
+<a class="indexterm" name="id2696192"></a>
+<a class="indexterm" name="id2696199"></a>
+<a class="indexterm" name="id2696205"></a>
 Sometimes it is desirable to host multiple servers, each with its own security mode. For example, a single
 UNIX/Linux host may be a domain member server (DMS) as well as a generic anonymous print server. In this case,
 only domain member machines and domain users can access the DMS, but even guest users can access the generic
 print server. Another example of a situation where it may be beneficial to host a generic (anonymous) server
 is to host a CDROM server.
 </p><p>
-<a class="indexterm" name="id437810"></a>
-<a class="indexterm" name="id437817"></a>
+<a class="indexterm" name="id2696223"></a>
+<a class="indexterm" name="id2696230"></a>
 Some environments dictate the need to have separate servers, each with their own resources, each of which are
 accessible only by certain users or groups. This is one of the simple, but highly effective, ways that Samba
 can replace many physical Windows servers in one Samba installation.
-</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id437826"></a>Implementation</h2></div></div></div><p>
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id437835"></a>Multiple Server Hosting</h3></div></div></div><p>
-<a class="indexterm" name="id437843"></a>
-<a class="indexterm" name="id437849"></a>
-<a class="indexterm" name="id437856"></a>
-<a class="indexterm" name="id437863"></a>
-<a class="indexterm" name="id437870"></a>
-<a class="indexterm" name="id437877"></a>
-<a class="indexterm" name="id437883"></a>
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2696242"></a>Implementation</h2></div></div></div><p>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2696250"></a>Multiple Server Hosting</h3></div></div></div><p>
+<a class="indexterm" name="id2696258"></a>
+<a class="indexterm" name="id2696266"></a>
+<a class="indexterm" name="id2696272"></a>
+<a class="indexterm" name="id2696279"></a>
+<a class="indexterm" name="id2696286"></a>
+<a class="indexterm" name="id2696293"></a>
+<a class="indexterm" name="id2696300"></a>
 The use of multiple server hosting involves running multiple separate instances of Samba, each with it's own
 configuration file. This method is complicated by the fact that each instance of <span class="application">nmbd</span>, <span class="application">smbd</span> and <span class="application">winbindd</span>
 must have write access to entirely separate TDB files. The ability to keep separate the TDB files used by
@@ -54,78 +54,78 @@ must have write access to entirely separate TDB files. The ability to keep separ
 own default TDB directories, or by configuring these in the <code class="filename">smb.conf</code> file, in which case each instance of
 <span class="application">nmbd</span>, <span class="application">smbd</span> and <span class="application">winbindd</span> must be told to start up with its own <code class="filename">smb.conf</code> configuration file.
 </p><p>
-<a class="indexterm" name="id437962"></a>
-<a class="indexterm" name="id437969"></a>
-<a class="indexterm" name="id437976"></a>
-<a class="indexterm" name="id437983"></a>
+<a class="indexterm" name="id2696382"></a>
+<a class="indexterm" name="id2696389"></a>
+<a class="indexterm" name="id2696396"></a>
+<a class="indexterm" name="id2696403"></a>
 Each instance should operate on its own IP address (that independent IP address can be an IP Alias).
 Each instance of <span class="application">nmbd</span>, <span class="application">smbd</span> and <span class="application">winbindd</span> should listen only on its own IP socket. This can be secured
-using the <a class="indexterm" name="id438008"></a>socket address parameter. Each instance of the Samba server will have its
+using the <a class="link" href="smb.conf.5.html#SOCKETADDRESS">socket address</a> parameter. Each instance of the Samba server will have its
 own SID also, this means that the servers are discrete and independent of each other.
 </p><p>
-<a class="indexterm" name="id438020"></a>
-<a class="indexterm" name="id438027"></a>
-<a class="indexterm" name="id438034"></a>
-<a class="indexterm" name="id438040"></a>
-<a class="indexterm" name="id438047"></a>
-<a class="indexterm" name="id438054"></a>
-<a class="indexterm" name="id438061"></a>
-<a class="indexterm" name="id438068"></a>
-<a class="indexterm" name="id438074"></a>
+<a class="indexterm" name="id2696449"></a>
+<a class="indexterm" name="id2696456"></a>
+<a class="indexterm" name="id2696462"></a>
+<a class="indexterm" name="id2696469"></a>
+<a class="indexterm" name="id2696476"></a>
+<a class="indexterm" name="id2696483"></a>
+<a class="indexterm" name="id2696490"></a>
+<a class="indexterm" name="id2696497"></a>
+<a class="indexterm" name="id2696504"></a>
 The user of multiple server hosting is non-trivial, and requires careful configuration of each aspect of
 process management and start up. The <code class="filename">smb.conf</code> parameters that must be carefully configured includes:
-<a class="indexterm" name="id438089"></a>private dir, <a class="indexterm" name="id438096"></a>pid directory,<a class="indexterm" name="id438103"></a>lock directory, <a class="indexterm" name="id438110"></a>interfaces, <a class="indexterm" name="id438117"></a>bind interfaces only, <a class="indexterm" name="id438124"></a>netbios name, <a class="indexterm" name="id438131"></a>workgroup, <a class="indexterm" name="id438138"></a>socket address.
+<a class="link" href="smb.conf.5.html#PRIVATEDIR">private dir</a>, <a class="link" href="smb.conf.5.html#PIDDIRECTORY">pid directory</a>,<a class="link" href="smb.conf.5.html#LOCKDIRECTORY">lock directory</a>, <a class="link" href="smb.conf.5.html#INTERFACES">interfaces</a>, <a class="link" href="smb.conf.5.html#BINDINTERFACESONLY">bind interfaces only</a>, <a class="link" href="smb.conf.5.html#NETBIOSNAME">netbios name</a>, <a class="link" href="smb.conf.5.html#WORKGROUP">workgroup</a>, <a class="link" href="smb.conf.5.html#SOCKETADDRESS">socket address</a>.
 </p><p>
-<a class="indexterm" name="id438149"></a>
-<a class="indexterm" name="id438155"></a>
-<a class="indexterm" name="id438162"></a>
+<a class="indexterm" name="id2696616"></a>
+<a class="indexterm" name="id2696623"></a>
+<a class="indexterm" name="id2696629"></a>
 Those who elect to create multiple Samba servers should have the ability to read and follow
 the Samba source code, and to modify it as needed. This mode of deployment is considered beyond the scope of
 this book. However, if someone will contribute more comprehensive documentation we will gladly review it, and
 if it is suitable extend this section of this chapter. Until such documentation becomes available the hosting
 of multiple samba servers on a single host is considered not supported for Samba-3 by the Samba Team.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id438180"></a>Multiple Virtual Server Personalities</h3></div></div></div><p>
-<a class="indexterm" name="id438188"></a>
-<a class="indexterm" name="id438195"></a>
-<a class="indexterm" name="id438202"></a>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2696648"></a>Multiple Virtual Server Personalities</h3></div></div></div><p>
+<a class="indexterm" name="id2696655"></a>
+<a class="indexterm" name="id2696662"></a>
+<a class="indexterm" name="id2696669"></a>
 Samba has the ability to host multiple virtual servers, each of which have their own personality.  This is
 achieved by configuring an <code class="filename">smb.conf</code> file that is common to all personalities hosted.  Each server
-personality is hosted using its own <a class="indexterm" name="id438216"></a>netbios alias name, and each has its own distinct
-<a class="indexterm" name="id438224"></a>[global] section. Each server may have its own stanzas for services and meta-services.
+personality is hosted using its own <a class="link" href="smb.conf.5.html#NETBIOSALIAS">netbios alias</a> name, and each has its own distinct
+<a class="link" href="smb.conf.5.html#%5BGLOBAL%5D">[global]</a> section. Each server may have its own stanzas for services and meta-services.
 </p><p>
-<a class="indexterm" name="id438235"></a>
-<a class="indexterm" name="id438241"></a>
-<a class="indexterm" name="id438248"></a>
+<a class="indexterm" name="id2696717"></a>
+<a class="indexterm" name="id2696723"></a>
+<a class="indexterm" name="id2696730"></a>
 When hosting multiple virtual servers, each with their own personality, each can be in a different workgroup.
 Only the primary server can be a domain member or a domain controller. The personality is defined by the
-combination of the <a class="indexterm" name="id438257"></a>security mode it is operating in, the <a class="indexterm" name="id438264"></a>netbios aliases it has, and the <a class="indexterm" name="id438272"></a>workgroup that is defined for it.
+combination of the <a class="link" href="smb.conf.5.html#SECURITY">security</a> mode it is operating in, the <a class="link" href="smb.conf.5.html#NETBIOSALIASES">netbios aliases</a> it has, and the <a class="link" href="smb.conf.5.html#WORKGROUP">workgroup</a> that is defined for it.
 </p><p>
-<a class="indexterm" name="id438282"></a>
-<a class="indexterm" name="id438289"></a>
-<a class="indexterm" name="id438296"></a>
-<a class="indexterm" name="id438302"></a>
-<a class="indexterm" name="id438309"></a>
-<a class="indexterm" name="id438316"></a>
+<a class="indexterm" name="id2696780"></a>
+<a class="indexterm" name="id2696786"></a>
+<a class="indexterm" name="id2696793"></a>
+<a class="indexterm" name="id2696800"></a>
+<a class="indexterm" name="id2696807"></a>
+<a class="indexterm" name="id2696814"></a>
 This configuration style can be used either with NetBIOS names, or using NetBIOS-less SMB over TCP services.
-If run using NetBIOS mode (the most common method) it is important that the parameter <a class="indexterm" name="id438324"></a>smb ports = 139 should be specified in the primary <code class="filename">smb.conf</code> file. Failure to do this will result
+If run using NetBIOS mode (the most common method) it is important that the parameter <a class="link" href="smb.conf.5.html#SMBPORTS">smb ports = 139</a> should be specified in the primary <code class="filename">smb.conf</code> file. Failure to do this will result
 in Samba operating over TCP port 445 and problematic operation at best, and at worst only being able to obtain
 the functionality that is specified in the primary <code class="filename">smb.conf</code> file. The use of NetBIOS over TCP/IP using only
-TCP port 139 means that the use of the <code class="literal">%L</code> macro is fully enabled. If the <a class="indexterm" name="id438352"></a>smb ports = 139 is not specified (the default is <em class="parameter"><code>445 139</code></em>, or if
+TCP port 139 means that the use of the <code class="literal">%L</code> macro is fully enabled. If the <a class="link" href="smb.conf.5.html#SMBPORTS">smb ports = 139</a> is not specified (the default is <em class="parameter"><code>445 139</code></em>, or if
 the value of this parameter is set at <em class="parameter"><code>139 445</code></em> then the <code class="literal">%L</code> macro
 is not serviceable.
 </p><p>
-<a class="indexterm" name="id438380"></a>
-<a class="indexterm" name="id438387"></a>
-<a class="indexterm" name="id438394"></a>
-<a class="indexterm" name="id438401"></a>
+<a class="indexterm" name="id2696892"></a>
+<a class="indexterm" name="id2696899"></a>
+<a class="indexterm" name="id2696906"></a>
+<a class="indexterm" name="id2696913"></a>
 It is possible to host multiple servers, each with their own personality, using port 445 (the NetBIOS-less SMB
 port), in which case the <code class="literal">%i</code> macro can be used to provide separate server identities (by
-IP Address). Each can have its own <a class="indexterm" name="id438415"></a>security mode. It will be necessary to use the
-<a class="indexterm" name="id438423"></a>interfaces, <a class="indexterm" name="id438430"></a>bind interfaces only and IP aliases in addition to
-the <a class="indexterm" name="id438437"></a>netbios name parameters to create the virtual servers. This method is considerably
+IP Address). Each can have its own <a class="link" href="smb.conf.5.html#SECURITY">security</a> mode. It will be necessary to use the
+<a class="link" href="smb.conf.5.html#INTERFACES">interfaces</a>, <a class="link" href="smb.conf.5.html#BINDINTERFACESONLY">bind interfaces only</a> and IP aliases in addition to
+the <a class="link" href="smb.conf.5.html#NETBIOSNAME">netbios name</a> parameters to create the virtual servers. This method is considerably
 more complex than that using NetBIOS names only using TCP port 139.
 </p><p>
-<a class="indexterm" name="id438448"></a>
+<a class="indexterm" name="id2696981"></a>
 Consider an example environment that consists of a standalone, user-mode security Samba server and a read-only
 Windows 95 file server that has to be replaced. Instead of replacing the Windows 95 machine with a new PC, it
 is possible to add this server as a read-only anonymous file server that is hosted on the Samba server. Here
@@ -135,46 +135,46 @@ The Samba server is called <code class="literal">ELASTIC</code>, its workgroup n
 The CDROM server is called <code class="literal">CDSERVER</code> and its workgroup is <code class="literal">ARTSDEPT</code>. A
 possible implementation is shown here:
 </p><p>
-<a class="indexterm" name="id438490"></a>
-<a class="indexterm" name="id438496"></a>
-<a class="indexterm" name="id438503"></a>
-<a class="indexterm" name="id438510"></a>
-The <code class="filename">smb.conf</code> file for the master server is shown in <a href="cfgsmarts.html#elastic" title="Example 34.1. Elastic smb.conf File">Elastic smb.conf File</a>.
+<a class="indexterm" name="id2697025"></a>
+<a class="indexterm" name="id2697032"></a>
+<a class="indexterm" name="id2697039"></a>
+<a class="indexterm" name="id2697046"></a>
+The <code class="filename">smb.conf</code> file for the master server is shown in <a class="link" href="cfgsmarts.html#elastic" title="Example 34.1. Elastic smb.conf File">Elastic smb.conf File</a>.
 This file is placed in the <code class="filename">/etc/samba</code> directory. Only the <span class="application">nmbd</span> and the <span class="application">smbd</span> daemons
 are needed. When started the server will appear in Windows Network Neighborhood as the machine
 <code class="literal">ELASTIC</code> under the workgroup <code class="literal">ROBINSNEST</code>. It is helpful if the Windows
 clients that must access this server are also in the workgroup <code class="literal">ROBINSNEST</code> as this will make
 browsing much more reliable.
-</p><div class="example"><a name="elastic"></a><p class="title"><b>Example 34.1. Elastic smb.conf File</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id438596"></a><em class="parameter"><code>workgroup = ROBINSNEST</code></em></td></tr><tr><td><a class="indexterm" name="id438609"></a><em class="parameter"><code>netbios name = ELASTIC</code></em></td></tr><tr><td><a class="indexterm" name="id438622"></a><em class="parameter"><code>netbios aliases = CDSERVER</code></em></td></tr><tr><td><a class="indexterm" name="id438634"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id438647"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id438659"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id438672"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id438684"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td><a class="indexterm" name="id438697"></a><em class="parameter"><code>include = /etc/samba/smb-%L.conf</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id438719"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id438731"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id438744"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id438756"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[office]</code></em></td></tr><tr><td><a class="indexterm" name="id438778"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id438790"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id438803"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id438824"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id438837"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id438849"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id438862"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id438874"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id438887"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id438900"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><p>
-<a class="indexterm" name="id438915"></a>
-The configuration file for the CDROM server is listed in <a href="cfgsmarts.html#cdserver" title="Example 34.2. CDROM Server smb-cdserver.conf file">CDROM Server
+</p><div class="example"><a name="elastic"></a><p class="title"><b>Example 34.1. Elastic smb.conf File</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2697136"></a><em class="parameter"><code>workgroup = ROBINSNEST</code></em></td></tr><tr><td><a class="indexterm" name="id2697148"></a><em class="parameter"><code>netbios name = ELASTIC</code></em></td></tr><tr><td><a class="indexterm" name="id2697160"></a><em class="parameter"><code>netbios aliases = CDSERVER</code></em></td></tr><tr><td><a class="indexterm" name="id2697171"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2697183"></a><em class="parameter"><code>printcap name = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2697195"></a><em class="parameter"><code>disable spoolss = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2697207"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2697219"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td><a class="indexterm" name="id2697230"></a><em class="parameter"><code>include = /etc/samba/smb-%L.conf</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2697251"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2697263"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2697275"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2697286"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[office]</code></em></td></tr><tr><td><a class="indexterm" name="id2697307"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2697318"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2697330"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2697350"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2697362"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2697374"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2697386"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2697397"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2697409"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2697421"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><p>
+<a class="indexterm" name="id2697435"></a>
+The configuration file for the CDROM server is listed in <a class="link" href="cfgsmarts.html#cdserver" title="Example 34.2. CDROM Server smb-cdserver.conf file">CDROM Server
 smb-cdserver.conf file</a>. This file is called <code class="filename">smb-cdserver.conf</code> and it should be
 located in the <code class="filename">/etc/samba</code> directory. Machines that are in the workgroup
 <code class="literal">ARTSDEPT</code> will be able to browse this server freely.
-</p><div class="example"><a name="cdserver"></a><p class="title"><b>Example 34.2. CDROM Server smb-cdserver.conf file</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id438978"></a><em class="parameter"><code>workgroup = ARTSDEPT</code></em></td></tr><tr><td><a class="indexterm" name="id438991"></a><em class="parameter"><code>netbios name = CDSERVER</code></em></td></tr><tr><td><a class="indexterm" name="id439003"></a><em class="parameter"><code>map to guest = Bad User</code></em></td></tr><tr><td><a class="indexterm" name="id439016"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[carousel]</code></em></td></tr><tr><td><a class="indexterm" name="id439037"></a><em class="parameter"><code>comment = CDROM Share</code></em></td></tr><tr><td><a class="indexterm" name="id439050"></a><em class="parameter"><code>path = /export/cddata</code></em></td></tr><tr><td><a class="indexterm" name="id439062"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439075"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
-<a class="indexterm" name="id439090"></a>
-<a class="indexterm" name="id439097"></a>
-<a class="indexterm" name="id439104"></a>
-<a class="indexterm" name="id439111"></a>
+</p><div class="example"><a name="cdserver"></a><p class="title"><b>Example 34.2. CDROM Server smb-cdserver.conf file</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2697501"></a><em class="parameter"><code>workgroup = ARTSDEPT</code></em></td></tr><tr><td><a class="indexterm" name="id2697513"></a><em class="parameter"><code>netbios name = CDSERVER</code></em></td></tr><tr><td><a class="indexterm" name="id2697525"></a><em class="parameter"><code>map to guest = Bad User</code></em></td></tr><tr><td><a class="indexterm" name="id2697536"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[carousel]</code></em></td></tr><tr><td><a class="indexterm" name="id2697557"></a><em class="parameter"><code>comment = CDROM Share</code></em></td></tr><tr><td><a class="indexterm" name="id2697569"></a><em class="parameter"><code>path = /export/cddata</code></em></td></tr><tr><td><a class="indexterm" name="id2697580"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2697592"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+<a class="indexterm" name="id2697607"></a>
+<a class="indexterm" name="id2697614"></a>
+<a class="indexterm" name="id2697621"></a>
+<a class="indexterm" name="id2697628"></a>
 The two servers have different resources and are in separate workgroups. The server <code class="literal">ELASTIC</code>
 can only be accessed by uses who have an appropriate account on the host server. All users will be able to
 access the CDROM data that is stored in the <code class="filename">/export/cddata</code> directory. File system
 permissions should set so that the <code class="literal">others</code> user has read-only access to the directory and its
 contents. The files can be owned by root (any user other than the nobody account).
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id439141"></a>Multiple Virtual Server Hosting</h3></div></div></div><p>
-<a class="indexterm" name="id439149"></a>
-<a class="indexterm" name="id439156"></a>
-<a class="indexterm" name="id439163"></a>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2697662"></a>Multiple Virtual Server Hosting</h3></div></div></div><p>
+<a class="indexterm" name="id2697670"></a>
+<a class="indexterm" name="id2697677"></a>
+<a class="indexterm" name="id2697684"></a>
 In this example, the requirement is for a primary domain controller for the domain called
 <code class="literal">MIDEARTH</code>. The PDC will be called <code class="literal">MERLIN</code>. An extra machine called
 <code class="literal">SAURON</code> is required. Each machine will have only its own shares. Both machines belong to the
 same domain/workgroup.
 </p><p>
-<a class="indexterm" name="id439193"></a>
-<a class="indexterm" name="id439200"></a>
-<a class="indexterm" name="id439206"></a>
-The master <code class="filename">smb.conf</code> file is shown in <a href="cfgsmarts.html#mastersmbc" title="Example 34.3. Master smb.conf File Global Section">the Master smb.conf File Global Section</a>.
-The two files that specify the share information for each server are shown in <a href="cfgsmarts.html#merlinsmbc" title="Example 34.4. MERLIN smb-merlin.conf File Share Section">the
-smb-merlin.conf File Share Section</a>, and <a href="cfgsmarts.html#sauronsmbc" title="Example 34.5. SAURON smb-sauron.conf File Share Section">the smb-sauron.conf File Share
+<a class="indexterm" name="id2697716"></a>
+<a class="indexterm" name="id2697723"></a>
+<a class="indexterm" name="id2697730"></a>
+The master <code class="filename">smb.conf</code> file is shown in <a class="link" href="cfgsmarts.html#mastersmbc" title="Example 34.3. Master smb.conf File Global Section">the Master smb.conf File Global Section</a>.
+The two files that specify the share information for each server are shown in <a class="link" href="cfgsmarts.html#merlinsmbc" title="Example 34.4. MERLIN smb-merlin.conf File Share Section">the
+smb-merlin.conf File Share Section</a>, and <a class="link" href="cfgsmarts.html#sauronsmbc" title="Example 34.5. SAURON smb-sauron.conf File Share Section">the smb-sauron.conf File Share
 Section</a>. All three files are locate in the <code class="filename">/etc/samba</code> directory.
-</p><div class="example"><a name="mastersmbc"></a><p class="title"><b>Example 34.3. Master smb.conf File Global Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id439277"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id439290"></a><em class="parameter"><code>netbios name = MERLIN</code></em></td></tr><tr><td><a class="indexterm" name="id439302"></a><em class="parameter"><code>netbios aliases = SAURON</code></em></td></tr><tr><td><a class="indexterm" name="id439315"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id439327"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id439340"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id439352"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id439365"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id439378"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id439390"></a><em class="parameter"><code>delete user script = /usr/sbin/userdel -r '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id439403"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id439416"></a><em class="parameter"><code>delete group script = /usr/sbin/groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id439429"></a><em class="parameter"><code>add user to group script = /usr/sbin/usermod -G '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id439442"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -s /bin/false -d /var/lib/nobody '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id439455"></a><em class="parameter"><code>logon script = scripts\login.bat</code></em></td></tr><tr><td><a class="indexterm" name="id439468"></a><em class="parameter"><code>logon path =  </code></em></td></tr><tr><td><a class="indexterm" name="id439480"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id439493"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439505"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439518"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439530"></a><em class="parameter"><code>printing = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id439543"></a><em class="parameter"><code>include = /etc/samba/smb-%L.conf</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="merlinsmbc"></a><p class="title"><b>Example 34.4. MERLIN smb-merlin.conf File Share Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id439584"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id439596"></a><em class="parameter"><code>netbios name = MERLIN</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id439618"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id439631"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id439643"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id439656"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[office]</code></em></td></tr><tr><td><a class="indexterm" name="id439677"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id439690"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id439702"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id439724"></a><em class="parameter"><code>comment = NETLOGON</code></em></td></tr><tr><td><a class="indexterm" name="id439736"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id439749"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439761"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id439783"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id439795"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id439808"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439820"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id439833"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="sauronsmbc"></a><p class="title"><b>Example 34.5. SAURON smb-sauron.conf File Share Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id439874"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id439886"></a><em class="parameter"><code>netbios name = SAURON</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[www]</code></em></td></tr><tr><td><a class="indexterm" name="id439908"></a><em class="parameter"><code>comment = Web Pages</code></em></td></tr><tr><td><a class="indexterm" name="id439920"></a><em class="parameter"><code>path = /srv/www/htdocs</code></em></td></tr><tr><td><a class="indexterm" name="id439933"></a><em class="parameter"><code>read only = No</code></em></td></tr></table></div></div><br class="example-break"></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="largefile.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="optional.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="migration.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 33. Handling Large Directories </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Part IV. Migration and Updating</td></tr></table></div></body></html>
+</p><div class="example"><a name="mastersmbc"></a><p class="title"><b>Example 34.3. Master smb.conf File Global Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2697805"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2697817"></a><em class="parameter"><code>netbios name = MERLIN</code></em></td></tr><tr><td><a class="indexterm" name="id2697829"></a><em class="parameter"><code>netbios aliases = SAURON</code></em></td></tr><tr><td><a class="indexterm" name="id2697841"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id2697852"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2697864"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2697876"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2697887"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2697900"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2697912"></a><em class="parameter"><code>delete user script = /usr/sbin/userdel -r '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2697924"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2697936"></a><em class="parameter"><code>delete group script = /usr/sbin/groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2697948"></a><em class="parameter"><code>add user to group script = /usr/sbin/usermod -G '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2697961"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -s /bin/false -d /var/lib/nobody '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2697974"></a><em class="parameter"><code>logon script = scripts\login.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2697986"></a><em class="parameter"><code>logon path =  </code></em></td></tr><tr><td><a class="indexterm" name="id2697997"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id2698009"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698021"></a><em class="parameter"><code>preferred master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698032"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698044"></a><em class="parameter"><code>printing = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2698056"></a><em class="parameter"><code>include = /etc/samba/smb-%L.conf</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="merlinsmbc"></a><p class="title"><b>Example 34.4. MERLIN smb-merlin.conf File Share Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2698096"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2698108"></a><em class="parameter"><code>netbios name = MERLIN</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2698129"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2698141"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2698152"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2698164"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[office]</code></em></td></tr><tr><td><a class="indexterm" name="id2698184"></a><em class="parameter"><code>comment = Data</code></em></td></tr><tr><td><a class="indexterm" name="id2698196"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2698208"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2698228"></a><em class="parameter"><code>comment = NETLOGON</code></em></td></tr><tr><td><a class="indexterm" name="id2698240"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2698252"></a><em class="parameter"><code>read only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698263"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2698284"></a><em class="parameter"><code>comment = All Printers</code></em></td></tr><tr><td><a class="indexterm" name="id2698296"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2698307"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698319"></a><em class="parameter"><code>use client driver = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2698331"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="sauronsmbc"></a><p class="title"><b>Example 34.5. SAURON smb-sauron.conf File Share Section</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2698371"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2698383"></a><em class="parameter"><code>netbios name = SAURON</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[www]</code></em></td></tr><tr><td><a class="indexterm" name="id2698404"></a><em class="parameter"><code>comment = Web Pages</code></em></td></tr><tr><td><a class="indexterm" name="id2698415"></a><em class="parameter"><code>path = /srv/www/htdocs</code></em></td></tr><tr><td><a class="indexterm" name="id2698427"></a><em class="parameter"><code>read only = No</code></em></td></tr></table></div></div><br class="example-break"></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="largefile.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="optional.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="migration.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 33. Handling Large Directories </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Part IV. Migration and Updating</td></tr></table></div></body></html>

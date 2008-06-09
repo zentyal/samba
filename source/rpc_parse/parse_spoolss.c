@@ -2129,7 +2129,12 @@ static bool smb_io_reldevmode(const char *desc, RPC_BUFFER *buffer, int depth, D
 		}
 		
 		buffer->string_at_end -= ((*devmode)->size + (*devmode)->driverextra);
-		
+
+		/* mz:  we have to align the device mode for VISTA */
+		if (buffer->string_at_end % 4) {
+			buffer->string_at_end += 4 - (buffer->string_at_end % 4);
+		}
+
 		if(!prs_set_offset(ps, buffer->string_at_end))
 			return False;
 		
@@ -4785,7 +4790,7 @@ bool spoolss_io_q_addprinterex(const char *desc, SPOOL_Q_ADDPRINTEREX *q_u, prs_
 		if (!sec_io_desc_buf(desc, &q_u->secdesc_ctr, ps, depth))
 			return False;
 	} else {
-		uint32 dummy;
+		uint32 dummy = 0;
 
 		/* Parse a NULL security descriptor.  This should really
 			happen inside the sec_io_desc_buf() function. */
@@ -7205,7 +7210,7 @@ bool make_spoolss_q_getprintprocessordirectory(SPOOL_Q_GETPRINTPROCESSORDIRECTOR
 
 bool spoolss_io_q_getprintprocessordirectory(const char *desc, SPOOL_Q_GETPRINTPROCESSORDIRECTORY *q_u, prs_struct *ps, int depth)
 {
-	uint32 ptr;
+	uint32 ptr = 0;
 
 	prs_debug(ps, depth, desc, "spoolss_io_q_getprintprocessordirectory");
 	depth++;

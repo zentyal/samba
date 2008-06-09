@@ -673,7 +673,6 @@ typedef char fstring[FSTRING_LEN];
 #include "messages.h"
 #include "locking.h"
 #include "smb.h"
-#include "ads_cldap.h"
 #include "nameserv.h"
 #include "secrets.h"
 #include "byteorder.h"
@@ -695,10 +694,8 @@ typedef char fstring[FSTRING_LEN];
 #include "rpc_svcctl.h"
 #include "rpc_ntsvcs.h"
 #include "rpc_lsa.h"
-#include "rpc_netlogon.h"
 #include "reg_objects.h"
 #include "reg_db.h"
-#include "rpc_srvsvc.h"
 #include "rpc_spoolss.h"
 #include "rpc_eventlog.h"
 #include "rpc_perfcount.h"
@@ -723,6 +720,10 @@ typedef char fstring[FSTRING_LEN];
 #include "ctdbd_conn.h"
 #include "talloc_stack.h"
 #include "memcache.h"
+#include "async_req.h"
+#include "async_smb.h"
+
+#include "lib/smbconf/smbconf.h"
 
 /* used in net.c */
 struct functable {
@@ -1285,6 +1286,11 @@ void exit_server_fault(void) NORETURN_ATTRIBUTE ;
 
 #ifdef HAVE_LIBNSCD
 #include "libnscd.h"
+#endif
+
+#if defined(HAVE_IPV6)
+void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
+				  struct in6_addr ip);
 #endif
 
 #endif /* _INCLUDES_H */

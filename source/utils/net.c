@@ -89,6 +89,7 @@ int opt_testmode = False;
 int opt_have_ip = False;
 struct sockaddr_storage opt_dest_ip;
 bool smb_encrypt;
+struct libnetapi_ctx *netapi_ctx = NULL;
 
 extern bool AllowDebugChange;
 
@@ -503,7 +504,7 @@ bool net_find_server(const char *domain,
 		*server_name = SMB_STRDUP("127.0.0.1");
 	}
 
-	if (!server_name || !*server_name) {
+	if (!*server_name) {
 		DEBUG(1,("no server to connect to\n"));
 		return False;
 	}
@@ -1001,6 +1002,7 @@ static struct functable net_func[] = {
 	{"USERSHARE", net_usershare},
 	{"USERSIDLIST", net_usersidlist},
 	{"CONF", net_conf},
+	{"REGISTRY", net_registry},
 #ifdef WITH_FAKE_KASERVER
 	{"AFS", net_afs},
 #endif
@@ -1168,6 +1170,9 @@ static struct functable net_func[] = {
 	rc = net_run_function(argc_new-1, argv_new+1, net_func, net_help);
 	
 	DEBUG(2,("return code = %d\n", rc));
+
+	libnetapi_free(netapi_ctx);
+
 	TALLOC_FREE(frame);
 	return rc;
 }

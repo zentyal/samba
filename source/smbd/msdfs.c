@@ -36,19 +36,24 @@ extern uint32 global_client_caps;
  SVAL(inbuf,smb_flg2) & FLAGS2_DFS_PATHNAMES bit and then
  send a local path, we have to cope with that too....
 
+ If conn != NULL then ensure the provided service is
+ the one pointed to by the connection.
+
  This version does everything using pointers within one copy of the
  pathname string, talloced on the struct dfs_path pointer (which
  must be talloced). This may be too clever to live....
  JRA.
 **********************************************************************/
 
-static NTSTATUS parse_dfs_path(const char *pathname,
+static NTSTATUS parse_dfs_path(connection_struct *conn,
+				const char *pathname,
 				bool allow_wcards,
 				struct dfs_path *pdp, /* MUST BE TALLOCED */
 				bool *ppath_contains_wcard)
 {
 	char *pathname_local;
 	char *p,*temp;
+	char *servicename;
 	char *eos_ptr;
 	NTSTATUS status = NT_STATUS_OK;
 	char sepchar;
@@ -127,13 +132,21 @@ static NTSTATUS parse_dfs_path(const char *pathname,
 
 	DEBUG(10,("parse_dfs_path: hostname: %s\n",pdp->hostname));
 
-	/* If we got a hostname, is it ours (or an IP address) ? */
-	if (!is_myname_or_ipaddr(pdp->hostname)) {
-		/* Repair path. */
-		*p = sepchar;
-		DEBUG(10,("parse_dfs_path: hostname %s isn't ours. "
-			"Try local path from path %s\n",
-			pdp->hostname, temp));
+	/* Parse out servicename. */
+	servicename = p+1;
+	p = strchr_m(servicename,sepchar);
+	if (p) {
+		*p = '\0';
+	}
+
+	/* Is this really our servicename ? */
+	if (conn && !( strequal(servicename, lp_servicename(SNUM(conn)))
+			|| (strequal(servicename, HOMES_NAME)
+			&& strequal(lp_servicename(SNUM(conn)),
+				get_current_username()) )) ) {
+		DEBUG(10,("parse_dfs_path: %s is not our servicename\n",
+			servicename));
+
 		/*
 		 * Possibly client sent a local path by mistake.
 		 * Try and convert to a local path.
@@ -142,6 +155,14 @@ static NTSTATUS parse_dfs_path(const char *pathname,
 		pdp->hostname = eos_ptr; /* "" */
 		pdp->servicename = eos_ptr; /* "" */
 
+		/* Repair the path - replace the sepchar's
+		   we nulled out */
+		servicename--;
+		*servicename = sepchar;
+		if (p) {
+			*p = sepchar;
+		}
+
 		p = temp;
 		DEBUG(10,("parse_dfs_path: trying to convert %s "
 			"to a local path\n",
@@ -149,17 +170,15 @@ static NTSTATUS parse_dfs_path(const char *pathname,
 		goto local_path;
 	}
 
-	/* Parse out servicename. */
-	temp = p+1;
-	p = strchr_m(temp,sepchar);
+	pdp->servicename = servicename;
+
+	DEBUG(10,("parse_dfs_path: servicename: %s\n",pdp->servicename));
+
 	if(p == NULL) {
-		pdp->servicename = temp;
+		/* Client sent self referral \server\share. */
 		pdp->reqpath = eos_ptr; /* "" */
 		return NT_STATUS_OK;
 	}
-	*p = '\0';
-	pdp->servicename = temp;
-	DEBUG(10,("parse_dfs_path: servicename: %s\n",pdp->servicename));
 
 	p++;
 
@@ -609,7 +628,7 @@ static NTSTATUS dfs_redirect(TALLOC_CTX *ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = parse_dfs_path(path_in, search_wcard_flag, pdp,
+	status = parse_dfs_path(conn, path_in, search_wcard_flag, pdp,
 			ppath_contains_wcard);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(pdp);
@@ -648,17 +667,6 @@ static NTSTATUS dfs_redirect(TALLOC_CTX *ctx,
 			return NT_STATUS_NO_MEMORY;
 		}
 		return NT_STATUS_OK;
-	}
-
-	if (!( strequal(pdp->servicename, lp_servicename(SNUM(conn)))
-			|| (strequal(pdp->servicename, HOMES_NAME)
-			&& strequal(lp_servicename(SNUM(conn)),
-				get_current_username()) )) ) {
-
-		/* The given sharename doesn't match this connection. */
-		TALLOC_FREE(pdp);
-
-		return NT_STATUS_OBJECT_PATH_NOT_FOUND;
 	}
 
 	status = dfs_path_lookup(ctx, conn, path_in, pdp,
@@ -746,17 +754,9 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 	ZERO_STRUCT(conns);
 	*self_referralp = False;
 
-	status = parse_dfs_path(dfs_path, False, pdp, &dummy);
+	status = parse_dfs_path(NULL, dfs_path, False, pdp, &dummy);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	/* Verify hostname in path */
-	if (!is_myname_or_ipaddr(pdp->hostname)) {
-		DEBUG(3, ("get_referred_path: Invalid hostname %s in path %s\n",
-			pdp->hostname, dfs_path));
-		TALLOC_FREE(pdp);
-		return NT_STATUS_NOT_FOUND;
 	}
 
 	jucn->service_name = talloc_strdup(ctx, pdp->servicename);
@@ -1240,7 +1240,7 @@ bool create_junction(TALLOC_CTX *ctx,
 	if (!pdp) {
 		return False;
 	}
-	status = parse_dfs_path(dfs_path, False, pdp, &dummy);
+	status = parse_dfs_path(NULL, dfs_path, False, pdp, &dummy);
 	if (!NT_STATUS_IS_OK(status)) {
 		return False;
 	}
@@ -1498,7 +1498,7 @@ static int form_junctions(TALLOC_CTX *ctx,
 	*/
 	jucn[cnt].service_name = talloc_strdup(ctx,service_name);
 	jucn[cnt].volume_name = talloc_strdup(ctx, "");
-	if (!jucn[cnt].service_name || jucn[cnt].volume_name) {
+	if (!jucn[cnt].service_name || !jucn[cnt].volume_name) {
 		goto out;
 	}
 	jucn[cnt].referral_count = 1;

@@ -188,7 +188,7 @@ static SERVICE_INFO *find_service_info_by_hnd(pipes_struct *p, POLICY_HND *hnd)
 	SERVICE_INFO *service_info = NULL;
 
 	if( !find_policy_by_hnd( p, hnd, (void **)(void *)&service_info) ) {
-		DEBUG(2,("find_service_info_by_hnd: handle not found"));
+		DEBUG(2,("find_service_info_by_hnd: handle not found\n"));
 		return NULL;
 	}
 
@@ -327,6 +327,8 @@ WERROR _svcctl_CloseServiceHandle(pipes_struct *p, struct svcctl_CloseServiceHan
 {
 	if ( !close_policy_hnd( p, r->in.handle ) )
 		return  WERR_BADFID;
+
+	ZERO_STRUCTP(r->out.handle);
 
 	return WERR_OK;
 }

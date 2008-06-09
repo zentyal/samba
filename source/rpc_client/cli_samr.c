@@ -42,17 +42,11 @@ NTSTATUS rpccli_samr_chgpasswd_user(struct rpc_pipe_client *cli,
 	uchar new_nt_hash[16];
 	uchar new_lanman_hash[16];
 	struct lsa_String server, account;
-	char *srv_name_slash = NULL;
 
 	DEBUG(10,("rpccli_samr_chgpasswd_user\n"));
 
-	init_lsa_String(&server, srv_name_slash);
+	init_lsa_String(&server, cli->cli->srv_name_slash);
 	init_lsa_String(&account, username);
-
-	srv_name_slash = talloc_asprintf(mem_ctx, "\\\\%s", cli->cli->desthost);
-	if (!srv_name_slash) {
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	/* Calculate the MD4 hash (NT compatible) of the password */
 	E_md4hash(oldpassword, old_nt_hash);
@@ -108,16 +102,10 @@ NTSTATUS rpccli_samr_chng_pswd_auth_crap(struct rpc_pipe_client *cli,
 	struct samr_Password old_nt_hash_enc;
 	struct samr_Password old_lm_hash_enc;
 	struct lsa_String server, account;
-	char *srv_name_slash = NULL;
 
 	DEBUG(10,("rpccli_samr_chng_pswd_auth_crap\n"));
 
-	srv_name_slash = talloc_asprintf(mem_ctx, "\\\\%s", cli->cli->desthost);
-	if (!srv_name_slash) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	init_lsa_String(&server, srv_name_slash);
+	init_lsa_String(&server, cli->cli->srv_name_slash);
 	init_lsa_String(&account, username);
 
 	memcpy(&new_nt_password.data, new_nt_password_blob.data, 516);
@@ -160,16 +148,10 @@ NTSTATUS rpccli_samr_chgpasswd3(struct rpc_pipe_client *cli,
 	uchar new_lanman_hash[16];
 
 	struct lsa_String server, account;
-	char *srv_name_slash = NULL;
 
 	DEBUG(10,("rpccli_samr_chgpasswd_user3\n"));
 
-	srv_name_slash = talloc_asprintf(mem_ctx, "\\\\%s", cli->cli->desthost);
-	if (!srv_name_slash) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	init_lsa_String(&server, srv_name_slash);
+	init_lsa_String(&server, cli->cli->srv_name_slash);
 	init_lsa_String(&account, username);
 
 	/* Calculate the MD4 hash (NT compatible) of the password */
@@ -243,3 +225,47 @@ void get_query_dispinfo_params(int loop_count, uint32 *max_entries,
 		break;
 	}
 }
+
+NTSTATUS rpccli_try_samr_connects(struct rpc_pipe_client *cli,
+				  TALLOC_CTX *mem_ctx,
+				  uint32_t access_mask,
+				  POLICY_HND *connect_pol)
+{
+	NTSTATUS status;
+	union samr_ConnectInfo info_in, info_out;
+	struct samr_ConnectInfo1 info1;
+	uint32_t lvl_out = 0;
+
+	ZERO_STRUCT(info1);
+
+	info1.client_version = SAMR_CONNECT_W2K;
+	info_in.info1 = info1;
+
+	status = rpccli_samr_Connect5(cli, mem_ctx,
+				      cli->cli->srv_name_slash,
+				      access_mask,
+				      1,
+				      &info_in,
+				      &lvl_out,
+				      &info_out,
+				      connect_pol);
+	if (NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = rpccli_samr_Connect4(cli, mem_ctx,
+				      cli->cli->srv_name_slash,
+				      SAMR_CONNECT_W2K,
+				      access_mask,
+				      connect_pol);
+	if (NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = rpccli_samr_Connect2(cli, mem_ctx,
+				      cli->cli->srv_name_slash,
+				      access_mask,
+				      connect_pol);
+	return status;
+}
+

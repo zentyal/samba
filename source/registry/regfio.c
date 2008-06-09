@@ -123,7 +123,10 @@ static int read_block( REGF_FILE *file, prs_struct *ps, uint32 file_offset, uint
 		return -1;
 	}
 	
-	prs_init( ps, block_size, file->mem_ctx, UNMARSHALL );
+	if (!prs_init( ps, block_size, file->mem_ctx, UNMARSHALL )) {
+		DEBUG(0,("read_block: prs_init() failed! (%s)\n", strerror(errno) ));
+		return -1;
+	}
 	buffer = prs_data_p( ps );
 	bytes_read = returned = 0;
 
@@ -1274,7 +1277,7 @@ static void regfio_mem_free( REGF_FILE *file )
 
 	/* nothing tdo do if there is no open file */
 
-	if ( !file || (file->fd == -1) )
+	if (file->fd == -1)
 		return 0;
 		
 	fd = file->fd;

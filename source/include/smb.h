@@ -310,6 +310,7 @@ extern const DATA_BLOB data_blob_null;
 #include "librpc/gen_ndr/libnet_join.h"
 #include "librpc/gen_ndr/krb5pac.h"
 #include "librpc/gen_ndr/ntsvcs.h"
+#include "librpc/gen_ndr/nbt.h"
 
 struct lsa_dom_info {
 	bool valid;
@@ -420,6 +421,7 @@ struct timed_event;
 struct idle_event;
 struct share_mode_entry;
 struct uuid;
+struct named_mutex;
 
 struct vfs_fsp_data {
     struct vfs_fsp_data *next;
@@ -484,9 +486,13 @@ typedef struct files_struct {
 	struct timeval open_time;
 	uint32 access_mask;		/* NTCreateX access bits (FILE_READ_DATA etc.) */
 	uint32 share_access;		/* NTCreateX share constants (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE). */
-	bool pending_modtime_owner;
-	struct timespec pending_modtime;
-	struct timespec last_write_time;
+
+	bool update_write_time_triggered;
+	struct timed_event *update_write_time_event;
+	bool update_write_time_on_close;
+	struct timespec close_write_time;
+	bool write_time_forced;
+
 	int oplock_type;
 	int sent_oplock_break;
 	struct timed_event *oplock_timeout;
@@ -810,6 +816,8 @@ struct share_mode_lock {
 	struct share_mode_entry *share_modes;
 	UNIX_USER_TOKEN *delete_token;
 	bool delete_on_close;
+	struct timespec old_write_time;
+	struct timespec changed_write_time;
 	bool fresh;
 	bool modified;
 	struct db_record *record;
@@ -825,6 +833,8 @@ struct locking_data {
 		struct {
 			int num_share_mode_entries;
 			bool delete_on_close;
+			struct timespec old_write_time;
+			struct timespec changed_write_time;
 			uint32 delete_token_size; /* Only valid if either of
 						     the two previous fields
 						     are True. */
@@ -1570,7 +1580,7 @@ enum ldap_passwd_sync_types {LDAP_PASSWD_SYNC_ON, LDAP_PASSWD_SYNC_OFF, LDAP_PAS
 /* Remote architectures we know about. */
 enum remote_arch_types {RA_UNKNOWN, RA_WFWG, RA_OS2, RA_WIN95, RA_WINNT,
 			RA_WIN2K, RA_WINXP, RA_WIN2K3, RA_VISTA,
-			RA_SAMBA, RA_CIFSFS};
+			RA_SAMBA, RA_CIFSFS, RA_WINXP64};
 
 /* case handling */
 enum case_handling {CASE_LOWER,CASE_UPPER};

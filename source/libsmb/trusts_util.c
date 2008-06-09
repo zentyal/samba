@@ -40,7 +40,7 @@ static NTSTATUS just_change_the_password(struct rpc_pipe_client *cli, TALLOC_CTX
 	   already have valid creds. If not we must set them up. */
 
 	if (cli->auth.auth_type != PIPE_AUTH_TYPE_SCHANNEL) {
-		uint32 neg_flags = NETLOGON_NEG_SELECT_AUTH2_FLAGS;
+		uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 
 		result = rpccli_netlogon_setup_creds(cli, 
 					cli->cli->desthost, /* server name */
@@ -123,7 +123,7 @@ NTSTATUS trust_pw_change_and_store_it(struct rpc_pipe_client *cli, TALLOC_CTX *m
 	
 	if (NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("%s : trust_pw_change_and_store_it: Changed password.\n", 
-			 current_timestring(False)));
+			 current_timestring(debug_ctx(), False)));
 		/*
 		 * Return the result of trying to write the new password
 		 * back into the trust account file.

@@ -111,7 +111,7 @@ static int smb_full_audit_closedir(vfs_handle_struct *handle,
 			  SMB_STRUCT_DIR *dirp);
 static int smb_full_audit_open(vfs_handle_struct *handle,
 		      const char *fname, files_struct *fsp, int flags, mode_t mode);
-static int smb_full_audit_close(vfs_handle_struct *handle, files_struct *fsp, int fd);
+static int smb_full_audit_close(vfs_handle_struct *handle, files_struct *fsp);
 static ssize_t smb_full_audit_read(vfs_handle_struct *handle, files_struct *fsp,
 			  void *data, size_t n);
 static ssize_t smb_full_audit_pread(vfs_handle_struct *handle, files_struct *fsp,
@@ -546,6 +546,7 @@ static struct {
 	{ SMB_VFS_OP_SET_QUOTA,	"set_quota" },
 	{ SMB_VFS_OP_GET_SHADOW_COPY_DATA,	"get_shadow_copy_data" },
 	{ SMB_VFS_OP_STATVFS,	"statvfs" },
+	{ SMB_VFS_OP_FS_CAPABILITIES,	"fs_capabilities" },
 	{ SMB_VFS_OP_OPENDIR,	"opendir" },
 	{ SMB_VFS_OP_READDIR,	"readdir" },
 	{ SMB_VFS_OP_SEEKDIR,   "seekdir" },
@@ -636,6 +637,9 @@ static struct {
 	{ SMB_VFS_OP_AIO_ERROR,	"aio_error" },
 	{ SMB_VFS_OP_AIO_FSYNC,	"aio_fsync" },
 	{ SMB_VFS_OP_AIO_SUSPEND,"aio_suspend" },
+	{ SMB_VFS_OP_AIO_FORCE, "aio_force" },
+	{ SMB_VFS_OP_IS_OFFLINE, "aio_is_offline" },
+	{ SMB_VFS_OP_SET_OFFLINE, "aio_set_offline" },
 	{ SMB_VFS_OP_LAST, NULL }
 };	
 
@@ -675,7 +679,11 @@ static int audit_syslog_priority(vfs_handle_struct *handle)
 
 	int priority;
 
-	priority = lp_parm_enum(SNUM(handle->conn), "full_audit", "priority", enum_log_priorities, LOG_NOTICE);
+	priority = lp_parm_enum(SNUM(handle->conn), "full_audit", "priority",
+				enum_log_priorities, LOG_NOTICE);
+	if (priority == -1) {
+		priority = LOG_WARNING;
+	}
 
 	return priority;
 }
@@ -1075,11 +1083,11 @@ static int smb_full_audit_open(vfs_handle_struct *handle,
 	return result;
 }
 
-static int smb_full_audit_close(vfs_handle_struct *handle, files_struct *fsp, int fd)
+static int smb_full_audit_close(vfs_handle_struct *handle, files_struct *fsp)
 {
 	int result;
 	
-	result = SMB_VFS_NEXT_CLOSE(handle, fsp, fd);
+	result = SMB_VFS_NEXT_CLOSE(handle, fsp);
 
 	do_log(SMB_VFS_OP_CLOSE, (result >= 0), handle, "%s", fsp->fsp_name);
 

@@ -27,6 +27,8 @@
 #include "libsmb_internal.h"
 
 
+extern bool in_client;
+
 /*
  * Is the logging working / configfile read ? 
  */
@@ -410,7 +412,6 @@ smbc_init_context(SMBCCTX *context)
         int pid;
         char *user = NULL;
         char *home = NULL;
-        extern bool in_client;
         
         if (!context) {
                 errno = EBADF;
@@ -422,7 +423,8 @@ smbc_init_context(SMBCCTX *context)
                 return NULL;
         }
         
-        if (!smbc_getFunctionAuthData(context) ||
+        if ((!smbc_getFunctionAuthData(context) &&
+             !smbc_getFunctionAuthDataWithContext(context)) ||
             smbc_getDebug(context) < 0 ||
             smbc_getDebug(context) > 100) {
                 
@@ -449,7 +451,7 @@ smbc_init_context(SMBCCTX *context)
                 
                 /* Here we would open the smb.conf file if needed ... */
                 
-                in_client = True; /* FIXME, make a param */
+                lp_set_in_client(True);
                 
                 home = getenv("HOME");
                 if (home) {

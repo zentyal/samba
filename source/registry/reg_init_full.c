@@ -61,26 +61,32 @@ REGISTRY_HOOK reg_hooks[] = {
  Open the registry database and initialize the REGISTRY_HOOK cache
  with all available backens.
  ***********************************************************************/
- 
-bool init_registry( void )
+
+WERROR registry_init_full(void)
 {
 	int i;
-	bool ret = false;
-	TALLOC_CTX *frame = talloc_stackframe();
-	
-	
-	if ( !regdb_init() ) {
-		DEBUG(0,("init_registry: failed to initialize the registry tdb!\n"));
+	WERROR werr;
+
+	werr = registry_init_common();
+	if (!W_ERROR_IS_OK(werr)) {
+		goto fail;
+	}
+
+	/* setup the necessary keys and values */
+
+	werr = init_registry_data();
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(0, ("Failed to initialize data in registry!\n"));
 		goto fail;
 	}
 
 	/* build the cache tree of registry hooks */
-	
-	reghook_cache_init();
-	
+
 	for ( i=0; reg_hooks[i].keyname; i++ ) {
-		if ( !reghook_cache_add(&reg_hooks[i]) )
+		werr = reghook_cache_add(reg_hooks[i].keyname, reg_hooks[i].ops);
+		if (!W_ERROR_IS_OK(werr)) {
 			goto fail;
+		}
 	}
 
 	if ( DEBUGLEVEL >= 20 )
@@ -92,12 +98,8 @@ bool init_registry( void )
 	eventlog_init_keys();
 	perfcount_init_keys();
 
+fail:
 	/* close and let each smbd open up as necessary */
-
 	regdb_close();
-
-	ret = true;
- fail:
-	TALLOC_FREE(frame);
-	return ret;
+	return werr;
 }

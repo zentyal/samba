@@ -23,4 +23,7 @@ testit "replacetort" $VALGRIND $BINDIR/replacetort || \
 testit "tdbtorture" $VALGRIND $BINDIR/tdbtorture || \
     failed=`expr $failed + 1`
 
+testit "smbconftort" $VALGRIND $BINDIR/smbconftort $CONFIGURATION || \
+	failed=`expr $failed + 1`
+
 testok $0 $failed

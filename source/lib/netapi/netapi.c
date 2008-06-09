@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "lib/netapi/netapi.h"
+#include "lib/netapi/netapi_private.h"
 
 extern bool AllowDebugChange;
 
@@ -39,7 +40,7 @@ NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 		return NET_API_STATUS_SUCCESS;
 	}
 
-#ifdef DEVELOPER
+#if 0
 	talloc_enable_leak_report();
 #endif
 	frame = talloc_stackframe();
@@ -53,6 +54,9 @@ NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 	if (!DEBUGLEVEL) {
 		DEBUGLEVEL = 0;
 	}
+
+	/* prevent setup_logging() from closing x_stderr... */
+	dbf = 0;
 	setup_logging("libnetapi", true);
 
 	dbf = x_stderr;
@@ -63,6 +67,7 @@ NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 
 	if (!lp_load(get_dyn_CONFIGFILE(), true, false, false, false)) {
 		TALLOC_FREE(frame);
+		fprintf(stderr, "lp_load failed\n");
 		return W_ERROR_V(WERR_GENERAL_FAILURE);
 	}
 
@@ -78,6 +83,13 @@ NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 	if (!krb5_cc_env || (strlen(krb5_cc_env) == 0)) {
 		ctx->krb5_cc_env = talloc_strdup(frame, "MEMORY:libnetapi");
 		setenv(KRB5_ENV_CCNAME, ctx->krb5_cc_env, 1);
+	}
+
+	ctx->username = talloc_strdup(frame, getenv("USER"));
+	if (!ctx->username) {
+		TALLOC_FREE(frame);
+		fprintf(stderr, "out of memory\n");
+		return W_ERROR_V(WERR_NOMEM);
 	}
 
 	libnetapi_initialized = true;
@@ -105,6 +117,11 @@ NET_API_STATUS libnetapi_getctx(struct libnetapi_ctx **ctx)
 
 NET_API_STATUS libnetapi_free(struct libnetapi_ctx *ctx)
 {
+	if (!ctx) {
+		return NET_API_STATUS_SUCCESS;
+	}
+
+	libnetapi_shutdown_cm(ctx);
 
 	if (ctx->krb5_cc_env) {
 		char *env = getenv(KRB5_ENV_CCNAME);
@@ -161,7 +178,8 @@ NET_API_STATUS libnetapi_set_username(struct libnetapi_ctx *ctx,
 				      const char *username)
 {
 	TALLOC_FREE(ctx->username);
-	ctx->username = talloc_strdup(ctx, username);
+	ctx->username = talloc_strdup(ctx, username ? username : "");
+
 	if (!ctx->username) {
 		return W_ERROR_V(WERR_NOMEM);
 	}
@@ -187,6 +205,15 @@ NET_API_STATUS libnetapi_set_workgroup(struct libnetapi_ctx *ctx,
 	if (!ctx->workgroup) {
 		return W_ERROR_V(WERR_NOMEM);
 	}
+	return NET_API_STATUS_SUCCESS;
+}
+
+/****************************************************************
+****************************************************************/
+
+NET_API_STATUS libnetapi_set_use_kerberos(struct libnetapi_ctx *ctx)
+{
+	ctx->use_kerberos = true;
 	return NET_API_STATUS_SUCCESS;
 }
 
@@ -226,8 +253,9 @@ NET_API_STATUS libnetapi_set_error_string(struct libnetapi_ctx *ctx,
 ****************************************************************/
 
 const char *libnetapi_get_error_string(struct libnetapi_ctx *ctx,
-				       NET_API_STATUS status)
+				       NET_API_STATUS status_in)
 {
+	NET_API_STATUS status;
 	struct libnetapi_ctx *tmp_ctx = ctx;
 
 	if (!tmp_ctx) {
@@ -241,7 +269,7 @@ const char *libnetapi_get_error_string(struct libnetapi_ctx *ctx,
 		return tmp_ctx->error_string;
 	}
 
-	return libnetapi_errstr(status);
+	return libnetapi_errstr(status_in);
 }
 
 /****************************************************************

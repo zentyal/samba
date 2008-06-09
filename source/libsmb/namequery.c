@@ -1051,6 +1051,7 @@ NTSTATUS resolve_wins(const char *name,
 		DEBUG(3,("resolve_wins: cannot receive WINS replies "
 			"on IPv6 address %s\n",
 			addr));
+		wins_srv_tags_free(wins_tags);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -1269,7 +1270,7 @@ static NTSTATUS resolve_hosts(const char *name, int name_type,
 			continue;
 		}
 
-		memset(&ss, '\0', sizeof(ss));
+		ZERO_STRUCT(ss);
 		memcpy(&ss, res->ai_addr, res->ai_addrlen);
 
 		*return_count += 1;
@@ -1422,8 +1423,8 @@ static NTSTATUS resolve_ads(const char *name,
  resolve_hosts() when looking up DC's via SRV RR entries in DNS
 **********************************************************************/
 
-static NTSTATUS internal_resolve_name(const char *name,
-				int name_type,
+NTSTATUS internal_resolve_name(const char *name,
+			        int name_type,
 				const char *sitename,
 				struct ip_service **return_iplist,
 				int *return_count,

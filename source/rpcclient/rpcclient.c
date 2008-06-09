@@ -607,7 +607,7 @@ static NTSTATUS do_cmd(struct cli_state *cli,
 		}
 
 		if (cmd_entry->pipe_idx == PI_NETLOGON) {
-			uint32 neg_flags = NETLOGON_NEG_SELECT_AUTH2_FLAGS;
+			uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 			uint32 sec_channel_type;
 			uchar trust_password[16];
 	
@@ -734,6 +734,7 @@ out_free:
 	fstring new_workgroup;
 	int result = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
+	uint32_t flags = 0;
 
 	/* make sure the vars that get altered (4th field) are in
 	   a fixed location or certain compilers complain */
@@ -825,6 +826,12 @@ out_free:
 	 * from stdin if necessary
 	 */
 
+	if (get_cmdline_auth_info_use_machine_account() &&
+	    !set_cmdline_auth_info_machine_account_creds()) {
+		result = 1;
+		goto done;
+	}
+
 	if (!get_cmdline_auth_info_got_pass()) {
 		char *pass = getpass("Password:");
 		if (pass) {
@@ -837,13 +844,19 @@ out_free:
 		server += 2;
 	}
 
+	if (get_cmdline_auth_info_use_kerberos()) {
+		flags |= CLI_FULL_CONNECTION_USE_KERBEROS |
+			 CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS;
+	}
+
+
 	nt_status = cli_full_connection(&cli, global_myname(), server,
 					opt_ipaddr ? &server_ss : NULL, opt_port,
 					"IPC$", "IPC",
 					get_cmdline_auth_info_username(),
 					lp_workgroup(),
 					get_cmdline_auth_info_password(),
-					get_cmdline_auth_info_use_kerberos() ? CLI_FULL_CONNECTION_USE_KERBEROS : 0,
+					flags,
 					get_cmdline_auth_info_signing_state(),NULL);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {

@@ -3,6 +3,7 @@
    tdb utility functions
    Copyright (C) Andrew Tridgell   1992-1998
    Copyright (C) Rafal Szczesniak  2002
+   Copyright (C) Michael Adam      2007
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -418,7 +419,7 @@ bool tdb_change_uint32_atomic(TDB_CONTEXT *tdb, const char *keystr, uint32 *oldv
  integers and strings.
 ****************************************************************************/
 
-size_t tdb_pack_va(uint8 *buf, int bufsize, const char *fmt, va_list ap)
+static size_t tdb_pack_va(uint8 *buf, int bufsize, const char *fmt, va_list ap)
 {
 	uint8 bt;
 	uint16 w;
@@ -718,17 +719,6 @@ TDB_CONTEXT *tdb_open_log(const char *name, int hash_size, int tdb_flags,
 	return tdb;
 }
 
-/****************************************************************************
- Allow tdb_delete to be used as a tdb_traversal_fn.
-****************************************************************************/
-
-int tdb_traverse_delete_fn(TDB_CONTEXT *the_tdb, TDB_DATA key, TDB_DATA dbuf,
-                     void *state)
-{
-    return tdb_delete(the_tdb, key);
-}
-
-
 
 /**
  * Search across the whole tdb for keys that match the given pattern
@@ -872,7 +862,7 @@ static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level,
 
 	switch (level) {
 	case TDB_DEBUG_FATAL:
-		debug_level = 0;
+		debuglevel = 0;
 		break;
 	case TDB_DEBUG_ERROR:
 		debuglevel = 1;

@@ -199,9 +199,8 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 
 	/* Leave messages blocked - we will never process one. */
 
-	/* tdb needs special fork handling */
-	if (tdb_reopen_all(1) == -1) {
-		DEBUG(0,("tdb_reopen_all failed.\n"));
+	if (!reinit_after_fork(winbind_messaging_context(), true)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
 		_exit(0);
 	}
 
@@ -656,13 +655,7 @@ static bool get_dc_name_via_netlogon(struct winbindd_domain *domain,
 	}
 
 	/* rpccli_netr_GetAnyDCName gives us a name with \\ */
-	p = tmp;
-	if (*p == '\\') {
-		p+=1;
-	}
-	if (*p == '\\') {
-		p+=1;
-	}
+	p = strip_hostname(tmp);
 
 	fstrcpy(dcname, p);
 
@@ -747,7 +740,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 	char *ipc_domain = NULL;
 	char *ipc_password = NULL;
 
-	bool got_mutex;
+	struct named_mutex *mutex;
 
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 
@@ -761,10 +754,9 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	*retry = True;
 
-	got_mutex = secrets_named_mutex(controller,
-					WINBIND_SERVER_MUTEX_WAIT_TIME);
-
-	if (!got_mutex) {
+	mutex = grab_named_mutex(talloc_tos(), controller,
+				 WINBIND_SERVER_MUTEX_WAIT_TIME);
+	if (mutex == NULL) {
 		DEBUG(0,("cm_prepare_connection: mutex grab failed for %s\n",
 			 controller));
 		result = NT_STATUS_POSSIBLE_DEADLOCK;
@@ -826,7 +818,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 					 &machine_account,
 					 &machine_krb5_principal);
 		if (!NT_STATUS_IS_OK(result)) {
-			goto done;
+			goto anon_fallback;
 		}
 
 		if (lp_security() == SEC_ADS) {
@@ -911,6 +903,8 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 		}
 	}
 
+ anon_fallback:
+
 	/* Fall back to anonymous connection, this might fail later */
 
 	if (NT_STATUS_IS_OK(cli_session_setup(*cli, "", NULL, 0,
@@ -952,8 +946,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 		goto done;
 	}
 
-	secrets_named_mutex_release(controller);
-	got_mutex = False;
+	TALLOC_FREE(mutex);
 	*retry = False;
 
 	/* set the domain if empty; needed for schannel connections */
@@ -964,10 +957,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 	result = NT_STATUS_OK;
 
  done:
-	if (got_mutex) {
-		secrets_named_mutex_release(controller);
-	}
-
+	TALLOC_FREE(mutex);
 	SAFE_FREE(machine_account);
 	SAFE_FREE(machine_password);
 	SAFE_FREE(machine_krb5_principal);
@@ -1024,173 +1014,17 @@ static bool add_sockaddr_to_array(TALLOC_CTX *mem_ctx,
 	return True;
 }
 
-static void mailslot_name(struct in_addr dc_ip, fstring name)
-{
-	fstr_sprintf(name, "\\MAILSLOT\\NET\\GETDC%X", dc_ip.s_addr);
-}
-
-static bool send_getdc_request(struct sockaddr_storage *dc_ss,
-			       const char *domain_name,
-			       const DOM_SID *sid)
-{
-	char outbuf[1024];
-	struct in_addr dc_ip;
-	char *p;
-	fstring my_acct_name;
-	fstring my_mailslot;
-	size_t sid_size;
-
-	if (dc_ss->ss_family != AF_INET) {
-		return false;
-	}
-
-	dc_ip = ((struct sockaddr_in *)dc_ss)->sin_addr;
-	mailslot_name(dc_ip, my_mailslot);
-
-	memset(outbuf, '\0', sizeof(outbuf));
-
-	p = outbuf;
-
-	SCVAL(p, 0, SAMLOGON);
-	p++;
-
-	SCVAL(p, 0, 0); /* Count pointer ... */
-	p++;
-
-	SIVAL(p, 0, 0); /* The sender's token ... */
-	p += 2;
-
-	p += dos_PutUniCode(p, global_myname(),
-			sizeof(outbuf) - PTR_DIFF(p, outbuf), True);
-	fstr_sprintf(my_acct_name, "%s$", global_myname());
-	p += dos_PutUniCode(p, my_acct_name,
-			sizeof(outbuf) - PTR_DIFF(p, outbuf), True);
-
-	if (strlen(my_mailslot)+1 > sizeof(outbuf) - PTR_DIFF(p, outbuf)) {
-		return false;
-	}
-
-	memcpy(p, my_mailslot, strlen(my_mailslot)+1);
-	p += strlen(my_mailslot)+1;
-
-	if (sizeof(outbuf) - PTR_DIFF(p, outbuf) < 8) {
-		return false;
-	}
-
-	SIVAL(p, 0, 0x80);
-	p+=4;
-
-	sid_size = ndr_size_dom_sid(sid, 0);
-
-	SIVAL(p, 0, sid_size);
-	p+=4;
-
-	p = ALIGN4(p, outbuf);
-	if (PTR_DIFF(p, outbuf) > sizeof(outbuf)) {
-		return false;
-	}
-
-	if (sid_size + 8 > sizeof(outbuf) - PTR_DIFF(p, outbuf)) {
-		return false;
-	}
-	sid_linearize(p, sizeof(outbuf) - PTR_DIFF(p, outbuf), sid);
-
-	p += sid_size;
-
-	SIVAL(p, 0, 1);
-	SSVAL(p, 4, 0xffff);
-	SSVAL(p, 6, 0xffff);
-	p+=8;
-
-	return cli_send_mailslot(winbind_messaging_context(),
-				 False, "\\MAILSLOT\\NET\\NTLOGON", 0,
-				 outbuf, PTR_DIFF(p, outbuf),
-				 global_myname(), 0, domain_name, 0x1c,
-				 dc_ss);
-}
-
-static bool receive_getdc_response(struct sockaddr_storage *dc_ss,
-				   const char *domain_name,
-				   fstring dc_name)
-{
-	struct packet_struct *packet;
-	fstring my_mailslot;
-	char *buf, *p;
-	fstring dcname, user, domain;
-	int len;
-	struct in_addr dc_ip;
-
-	if (dc_ss->ss_family != AF_INET) {
-		return false;
-	}
-	dc_ip = ((struct sockaddr_in *)dc_ss)->sin_addr;
-	mailslot_name(dc_ip, my_mailslot);
-
-	packet = receive_unexpected(DGRAM_PACKET, 0, my_mailslot);
-
-	if (packet == NULL) {
-		DEBUG(5, ("Did not receive packet for %s\n", my_mailslot));
-		return False;
-	}
-
-	DEBUG(5, ("Received packet for %s\n", my_mailslot));
-
-	buf = packet->packet.dgram.data;
-	len = packet->packet.dgram.datasize;
-
-	if (len < 70) {
-		/* 70 is a completely arbitrary value to make sure
-		   the SVAL below does not read uninitialized memory */
-		DEBUG(3, ("GetDC got short response\n"));
-		return False;
-	}
-
-	/* This should be (buf-4)+SVAL(buf-4, smb_vwv12)... */
-	p = buf+SVAL(buf, smb_vwv10);
-
-	if (CVAL(p,0) != SAMLOGON_R) {
-		DEBUG(8, ("GetDC got invalid response type %d\n", CVAL(p, 0)));
-		return False;
-	}
-
-	p+=2;
-	pull_ucs2(buf, dcname, p, sizeof(dcname), PTR_DIFF(buf+len, p),
-		  STR_TERMINATE|STR_NOALIGN);
-	p = skip_unibuf(p, PTR_DIFF(buf+len, p));
-	pull_ucs2(buf, user, p, sizeof(dcname), PTR_DIFF(buf+len, p),
-		  STR_TERMINATE|STR_NOALIGN);
-	p = skip_unibuf(p, PTR_DIFF(buf+len, p));
-	pull_ucs2(buf, domain, p, sizeof(dcname), PTR_DIFF(buf+len, p),
-		  STR_TERMINATE|STR_NOALIGN);
-	p = skip_unibuf(p, PTR_DIFF(buf+len, p));
-
-	if (!strequal(domain, domain_name)) {
-		DEBUG(3, ("GetDC: Expected domain %s, got %s\n",
-			  domain_name, domain));
-		return False;
-	}
-
-	p = dcname;
-	if (*p == '\\')	p += 1;
-	if (*p == '\\')	p += 1;
-
-	fstrcpy(dc_name, p);
-
-	DEBUG(10, ("GetDC gave name %s for domain %s\n",
-		   dc_name, domain));
-
-	return True;
-}
-
 /*******************************************************************
  convert an ip to a name
 *******************************************************************/
 
-static bool dcip_to_name(const struct winbindd_domain *domain,
+static bool dcip_to_name(TALLOC_CTX *mem_ctx,
+		const struct winbindd_domain *domain,
 		struct sockaddr_storage *pss,
 		fstring name )
 {
 	struct ip_service ip_list;
+	uint32_t nt_version = NETLOGON_VERSION_1;
 
 	ip_list.ss = *pss;
 	ip_list.port = 0;
@@ -1215,7 +1049,7 @@ static bool dcip_to_name(const struct winbindd_domain *domain,
 
 			DEBUG(10,("dcip_to_name: flags = 0x%x\n", (unsigned int)ads->config.flags));
 
-			if (domain->primary && (ads->config.flags & ADS_KDC)) {
+			if (domain->primary && (ads->config.flags & NBT_SERVER_KDC)) {
 				if (ads_closest_dc(ads)) {
 					char *sitename = sitename_fetch(ads->config.realm);
 
@@ -1253,11 +1087,17 @@ static bool dcip_to_name(const struct winbindd_domain *domain,
 
 	/* try GETDC requests next */
 
-	if (send_getdc_request(pss, domain->name, &domain->sid)) {
+	if (send_getdc_request(mem_ctx, winbind_messaging_context(),
+			       pss, domain->name, &domain->sid,
+			       nt_version)) {
+		const char *dc_name = NULL;
 		int i;
 		smb_msleep(100);
 		for (i=0; i<5; i++) {
-			if (receive_getdc_response(pss, domain->name, name)) {
+			if (receive_getdc_response(mem_ctx, pss, domain->name,
+						   &nt_version,
+						   &dc_name, NULL)) {
+				fstrcpy(name, dc_name);
 				namecache_store(name, 0x20, 1, &ip_list);
 				return True;
 			}
@@ -1450,7 +1290,7 @@ static bool find_new_dc(TALLOC_CTX *mem_ctx,
 	}
 
 	/* Try to figure out the name */
-	if (dcip_to_name(domain, pss, dcname)) {
+	if (dcip_to_name(mem_ctx, domain, pss, dcname)) {
 		return True;
 	}
 
@@ -1495,7 +1335,7 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 						AI_NUMERICHOST)) {
 				return NT_STATUS_UNSUCCESSFUL;
 			}
-			if (dcip_to_name( domain, &ss, saf_name )) {
+			if (dcip_to_name(mem_ctx, domain, &ss, saf_name )) {
 				fstrcpy( domain->dcname, saf_name );
 			} else {
 				winbind_add_failed_connection_entry(
@@ -1943,7 +1783,7 @@ no_dssetup:
 				lsa_info->dns.dns_forest.string);
 
 			if (strequal(domain->forest_name, domain->alt_name)) {
-				domain->domain_flags = NETR_TRUST_FLAG_TREEROOT;
+				domain->domain_flags |= NETR_TRUST_FLAG_TREEROOT;
 			}
 		}
 
@@ -2340,7 +2180,7 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	struct winbindd_cm_conn *conn;
 	NTSTATUS result;
 
-	uint32 neg_flags = NETLOGON_NEG_SELECT_AUTH2_FLAGS;
+	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	uint8  mach_pwd[16];
 	uint32  sec_chan_type;
 	const char *account_name;
@@ -2408,6 +2248,11 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
  no_schannel:
 	if ((lp_client_schannel() == False) ||
 			((neg_flags & NETLOGON_NEG_SCHANNEL) == 0)) {
+		/*
+		 * NetSamLogonEx only works for schannel
+		 */
+		domain->can_do_samlogon_ex = False;
+
 		/* We're done - just keep the existing connection to NETLOGON
 		 * open */
 		conn->netlogon_pipe = netlogon_pipe;
@@ -2438,6 +2283,11 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 		/* make sure we return something besides OK */
 		return !NT_STATUS_IS_OK(result) ? result : NT_STATUS_PIPE_NOT_AVAILABLE;
 	}
+
+	/*
+	 * Try NetSamLogonEx for AD domains
+	 */
+	domain->can_do_samlogon_ex = domain->active_directory;
 
 	*cli = conn->netlogon_pipe;
 	return NT_STATUS_OK;

@@ -27,103 +27,121 @@
 
 static SORTED_TREE *cache_tree = NULL;
 extern REGISTRY_OPS regdb_ops;		/* these are the default */
-static REGISTRY_HOOK default_hook = { KEY_TREE_ROOT, &regdb_ops };
+
+static WERROR keyname_to_path(TALLOC_CTX *mem_ctx, const char *keyname,
+			      char **path)
+{
+	char *tmp_path = NULL;
+
+	if ((keyname == NULL) || (path == NULL)) {
+		return WERR_INVALID_PARAM;
+	}
+
+	tmp_path = talloc_asprintf(mem_ctx, "\\%s", keyname);
+	if (tmp_path == NULL) {
+		DEBUG(0, ("talloc_asprintf failed!\n"));
+		return WERR_NOMEM;
+	}
+
+	tmp_path = talloc_string_sub(mem_ctx, tmp_path, "\\", "/");
+	if (tmp_path == NULL) {
+		DEBUG(0, ("talloc_string_sub_failed!\n"));
+		return WERR_NOMEM;
+	}
+
+	*path = tmp_path;
+
+	return WERR_OK;
+}
 
 /**********************************************************************
  Initialize the cache tree if it has not been initialized yet.
  *********************************************************************/
 
-bool reghook_cache_init( void )
+WERROR reghook_cache_init(void)
 {
-	if (cache_tree == NULL) {
-		cache_tree = pathtree_init(&default_hook, NULL);
-		if (cache_tree !=0) {
-			DEBUG(10, ("reghook_cache_init: new tree with default "
-				   "ops %p for key [%s]\n", (void *)&regdb_ops,
-				   KEY_TREE_ROOT));
-		}
+	if (cache_tree != NULL) {
+		return WERR_OK;
 	}
 
-	return (cache_tree != NULL);
+	cache_tree = pathtree_init(&regdb_ops, NULL);
+	if (cache_tree == NULL) {
+		return WERR_NOMEM;
+	}
+	DEBUG(10, ("reghook_cache_init: new tree with default "
+		   "ops %p for key [%s]\n", (void *)&regdb_ops,
+		   KEY_TREE_ROOT));
+	return WERR_OK;
 }
 
 /**********************************************************************
- Add a new REGISTRY_HOOK to the cache.  Note that the keyname
+ Add a new registry hook to the cache.  Note that the keyname
  is not in the exact format that a SORTED_TREE expects.
  *********************************************************************/
 
-bool reghook_cache_add( REGISTRY_HOOK *hook )
+WERROR reghook_cache_add(const char *keyname, REGISTRY_OPS *ops)
 {
-	TALLOC_CTX *ctx = talloc_tos();
+	WERROR werr;
 	char *key = NULL;
 
-	if (!hook) {
-		return false;
+	if ((keyname == NULL) || (ops == NULL)) {
+		return WERR_INVALID_PARAM;
 	}
 
-	key = talloc_asprintf(ctx, "\\%s", hook->keyname);
-	if (!key) {
-		return false;
-	}
-	key = talloc_string_sub(ctx, key, "\\", "/");
-	if (!key) {
-		return false;
+	werr = keyname_to_path(talloc_tos(), keyname, &key);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
 	}
 
 	DEBUG(10, ("reghook_cache_add: Adding ops %p for key [%s]\n",
-		   (void *)hook->ops, key));
+		   (void *)ops, key));
 
-	return pathtree_add( cache_tree, key, hook );
+	werr = pathtree_add(cache_tree, key, ops);
+
+done:
+	TALLOC_FREE(key);
+	return werr;
 }
 
 /**********************************************************************
- Initialize the cache tree
+ Find a key in the cache.
  *********************************************************************/
 
-REGISTRY_HOOK* reghook_cache_find( const char *keyname )
+REGISTRY_OPS *reghook_cache_find(const char *keyname)
 {
-	char *key;
-	int len;
-	REGISTRY_HOOK *hook;
-	
-	if ( !keyname )
-		return NULL;
-	
-	/* prepend the string with a '\' character */
-	
-	len = strlen( keyname );
-	if ( !(key = (char *)SMB_MALLOC( len + 2 )) ) {
-		DEBUG(0,("reghook_cache_find: malloc failed for string [%s] !?!?!\n",
-			keyname));
+	WERROR werr;
+	char *key = NULL;
+	REGISTRY_OPS *ops = NULL;
+
+	if (keyname == NULL) {
 		return NULL;
 	}
 
-	*key = '\\';
-	strncpy( key+1, keyname, len+1);
-	
-	/* swap to a form understood by the SORTED_TREE */
+	werr = keyname_to_path(talloc_tos(), keyname, &key);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
+	}
 
-	string_sub( key, "\\", "/", 0 );
-		
 	DEBUG(10,("reghook_cache_find: Searching for keyname [%s]\n", key));
-	
-	hook = (REGISTRY_HOOK *)pathtree_find( cache_tree, key ) ;
+
+	ops = (REGISTRY_OPS *)pathtree_find(cache_tree, key);
 
 	DEBUG(10, ("reghook_cache_find: found ops %p for key [%s]\n",
-		   hook ? (void *)hook->ops : 0, key));
-	
-	SAFE_FREE( key );
-	
-	return hook;
+		   ops ? (void *)ops : 0, key));
+
+done:
+	TALLOC_FREE(key);
+
+	return ops;
 }
 
 /**********************************************************************
- Initialize the cache tree
+ Print out the cache tree structure for debugging.
  *********************************************************************/
 
 void reghook_dump_cache( int debuglevel )
 {
 	DEBUG(debuglevel,("reghook_dump_cache: Starting cache dump now...\n"));
-	
+
 	pathtree_print_keys( cache_tree, debuglevel );
 }

@@ -22,6 +22,7 @@
 */
 
 #include "includes.h"
+#include "lib/ldb/include/includes.h"
 
 #ifdef HAVE_LDAP
 
@@ -150,14 +151,14 @@ bool ads_sitename_match(ADS_STRUCT *ads)
 
 bool ads_closest_dc(ADS_STRUCT *ads)
 {
-	if (ads->config.flags & ADS_CLOSEST) {
-		DEBUG(10,("ads_closest_dc: ADS_CLOSEST flag set\n"));
+	if (ads->config.flags & NBT_SERVER_CLOSEST) {
+		DEBUG(10,("ads_closest_dc: NBT_SERVER_CLOSEST flag set\n"));
 		return True;
 	}
 
 	/* not sure if this can ever happen */
 	if (ads_sitename_match(ads)) {
-		DEBUG(10,("ads_closest_dc: ADS_CLOSEST flag not set but sites match\n"));
+		DEBUG(10,("ads_closest_dc: NBT_SERVER_CLOSEST flag not set but sites match\n"));
 		return True;
 	}
 
@@ -175,7 +176,9 @@ bool ads_closest_dc(ADS_STRUCT *ads)
 bool ads_try_connect(ADS_STRUCT *ads, const char *server )
 {
 	char *srv;
-	struct cldap_netlogon_reply cldap_reply;
+	struct nbt_cldap_netlogon_5 cldap_reply;
+	TALLOC_CTX *mem_ctx = NULL;
+	bool ret = false;
 
 	if (!server || !*server) {
 		return False;
@@ -184,25 +187,31 @@ bool ads_try_connect(ADS_STRUCT *ads, const char *server )
 	DEBUG(5,("ads_try_connect: sending CLDAP request to %s (realm: %s)\n", 
 		server, ads->server.realm));
 
+	mem_ctx = talloc_init("ads_try_connect");
+	if (!mem_ctx) {
+		DEBUG(0,("out of memory\n"));
+		return false;
+	}
+
 	/* this copes with inet_ntoa brokenness */
 	
 	srv = SMB_STRDUP(server);
 
 	ZERO_STRUCT( cldap_reply );
 
-	if ( !ads_cldap_netlogon( srv, ads->server.realm, &cldap_reply ) ) {
+	if ( !ads_cldap_netlogon_5(mem_ctx, srv, ads->server.realm, &cldap_reply ) ) {
 		DEBUG(3,("ads_try_connect: CLDAP request %s failed.\n", srv));
-		SAFE_FREE( srv );
-		return False;
+		ret = false;
+		goto out;
 	}
 
 	/* Check the CLDAP reply flags */
 
-	if ( !(cldap_reply.flags & ADS_LDAP) ) {
+	if ( !(cldap_reply.server_type & NBT_SERVER_LDAP) ) {
 		DEBUG(1,("ads_try_connect: %s's CLDAP reply says it is not an LDAP server!\n",
 			srv));
-		SAFE_FREE( srv );
-		return False;
+		ret = false;
+		goto out;
 	}
 
 	/* Fill in the ads->config values */
@@ -214,36 +223,40 @@ bool ads_try_connect(ADS_STRUCT *ads, const char *server )
 	SAFE_FREE(ads->config.client_site_name);
 	SAFE_FREE(ads->server.workgroup);
 
-	ads->config.flags	       = cldap_reply.flags;
-	ads->config.ldap_server_name   = SMB_STRDUP(cldap_reply.hostname);
-	strupper_m(cldap_reply.domain);
-	ads->config.realm              = SMB_STRDUP(cldap_reply.domain);
+	ads->config.flags	       = cldap_reply.server_type;
+	ads->config.ldap_server_name   = SMB_STRDUP(cldap_reply.pdc_dns_name);
+	ads->config.realm              = SMB_STRDUP(cldap_reply.dns_domain);
+	strupper_m(ads->config.realm);
 	ads->config.bind_path          = ads_build_dn(ads->config.realm);
-	if (*cldap_reply.server_site_name) {
+	if (*cldap_reply.server_site) {
 		ads->config.server_site_name =
-			SMB_STRDUP(cldap_reply.server_site_name);
+			SMB_STRDUP(cldap_reply.server_site);
 	}
-	if (*cldap_reply.client_site_name) {
+	if (*cldap_reply.client_site) {
 		ads->config.client_site_name =
-			SMB_STRDUP(cldap_reply.client_site_name);
+			SMB_STRDUP(cldap_reply.client_site);
 	}
-	ads->server.workgroup          = SMB_STRDUP(cldap_reply.netbios_domain);
+	ads->server.workgroup          = SMB_STRDUP(cldap_reply.domain);
 
 	ads->ldap.port = LDAP_PORT;
 	if (!interpret_string_addr(&ads->ldap.ss, srv, 0)) {
 		DEBUG(1,("ads_try_connect: unable to convert %s "
 			"to an address\n",
 			srv));
-		SAFE_FREE( srv );
-		return False;
+		ret = false;
+		goto out;
 	}
 
-	SAFE_FREE(srv);
-
 	/* Store our site name. */
-	sitename_store( cldap_reply.domain, cldap_reply.client_site_name );
+	sitename_store( cldap_reply.domain, cldap_reply.client_site);
+	sitename_store( cldap_reply.dns_domain, cldap_reply.client_site);
 
-	return True;
+	ret = true;
+ out:
+	SAFE_FREE(srv);
+	TALLOC_FREE(mem_ctx);
+
+	return ret;
 }
 
 /**********************************************************************
@@ -588,7 +601,10 @@ static char **ads_push_strvals(TALLOC_CTX *ctx, const char **in_vals)
 	if (!values) return NULL;
 
 	for (i=0; in_vals[i]; i++) {
-		push_utf8_talloc(ctx, &values[i], in_vals[i]);
+		if (push_utf8_talloc(ctx, &values[i], in_vals[i]) == (size_t) -1) {
+			TALLOC_FREE(values);
+			return NULL;
+		}
 	}
 	return values;
 }
@@ -855,8 +871,8 @@ static ADS_STATUS ads_do_paged_search(ADS_STRUCT *ads, const char *bind_path,
 
 		/* this relies on the way that ldap_add_result_entry() works internally. I hope
 		   that this works on all ldap libs, but I have only tested with openldap */
-		for (msg = ads_first_entry(ads, res2); msg; msg = next) {
-			next = ads_next_entry(ads, msg);
+		for (msg = ads_first_message(ads, res2); msg; msg = next) {
+			next = ads_next_message(ads, msg);
 			ldap_add_result_entry((LDAPMessage **)res, msg);
 		}
 		/* note that we do not free res2, as the memory is now
@@ -2073,6 +2089,28 @@ int ads_count_replies(ADS_STRUCT *ads, void *res)
  LDAPMessage *ads_next_entry(ADS_STRUCT *ads, LDAPMessage *res)
 {
 	return ldap_next_entry(ads->ldap.ld, res);
+}
+
+/**
+ * pull the first message from a ADS result
+ * @param ads connection to ads server
+ * @param res Results of search
+ * @return first message from result
+ **/
+ LDAPMessage *ads_first_message(ADS_STRUCT *ads, LDAPMessage *res)
+{
+	return ldap_first_message(ads->ldap.ld, res);
+}
+
+/**
+ * pull the next message from a ADS result
+ * @param ads connection to ads server
+ * @param res Results of search
+ * @return next message from result
+ **/
+ LDAPMessage *ads_next_message(ADS_STRUCT *ads, LDAPMessage *res)
+{
+	return ldap_next_message(ads->ldap.ld, res);
 }
 
 /**
@@ -3410,6 +3448,7 @@ ADS_STATUS ads_find_samaccount(ADS_STRUCT *ads,
 	filter = talloc_asprintf(mem_ctx, "(&(objectclass=user)(sAMAccountName=%s))",
 		samaccountname);
 	if (filter == NULL) {
+		status = ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 		goto out;
 	}
 
@@ -3545,6 +3584,52 @@ const char *ads_get_extended_right_name_by_guid(ADS_STRUCT *ads,
 	ads_msgfree(ads, res);
 	return result;
 	
+}
+
+/**
+ * verify or build and verify an account ou
+ * @param mem_ctx Pointer to talloc context
+ * @param ads connection to ads server
+ * @param account_ou
+ * @return status of search
+ **/
+
+ADS_STATUS ads_check_ou_dn(TALLOC_CTX *mem_ctx,
+			   ADS_STRUCT *ads,
+			   const char **account_ou)
+{
+	struct ldb_dn *name_dn = NULL;
+	const char *name = NULL;
+	char *ou_string = NULL;
+
+	name_dn = ldb_dn_explode(mem_ctx, *account_ou);
+	if (name_dn) {
+		return ADS_SUCCESS;
+	}
+
+	ou_string = ads_ou_string(ads, *account_ou);
+	if (!ou_string) {
+		return ADS_ERROR_LDAP(LDAP_INVALID_DN_SYNTAX);
+	}
+
+	name = talloc_asprintf(mem_ctx, "%s,%s", ou_string,
+			       ads->config.bind_path);
+	SAFE_FREE(ou_string);
+	if (!name) {
+		return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+	}
+
+	name_dn = ldb_dn_explode(mem_ctx, name);
+	if (!name_dn) {
+		return ADS_ERROR_LDAP(LDAP_INVALID_DN_SYNTAX);
+	}
+
+	*account_ou = talloc_strdup(mem_ctx, name);
+	if (!*account_ou) {
+		return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+	}
+
+	return ADS_SUCCESS;
 }
 
 #endif

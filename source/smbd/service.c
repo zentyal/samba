@@ -235,6 +235,10 @@ static int load_registry_service(const char *servicename)
 		return -1;
 	}
 
+	if (strequal(servicename, GLOBAL_NAME)) {
+		return -2;
+	}
+
 	if (asprintf(&path, "%s\\%s", KEY_SMBCONF, servicename) == -1) {
 		return -1;
 	}
@@ -291,6 +295,7 @@ void load_registry_shares(void)
 	WERROR err;
 	int i;
 
+	DEBUG(8, ("load_registry_shares()\n"));
 	if (!lp_registry_shares()) {
 		return;
 	}

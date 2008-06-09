@@ -327,6 +327,11 @@ static void get_password_file(void)
 		close_it = True;
 	}
 
+	if (fd < 0) {
+		fprintf(stderr, "fd = %d, < 0\n", fd);
+		exit(1);
+	}
+
 	for(p = pass, *p = '\0'; /* ensure that pass is null-terminated */
 		p && p - pass < sizeof(pass);) {
 		switch (read(fd, p, 1)) {
@@ -509,35 +514,7 @@ static void popt_common_credentials_callback(poptContext con,
 		}
 		break;
 	case 'P':
-	        {
-			char *opt_password = NULL;
-			char *pwd = NULL;
-
-			/* it is very useful to be able to make ads queries as the
-			   machine account for testing purposes and for domain leave */
-
-			if (!secrets_init()) {
-				d_printf("ERROR: Unable to open secrets database\n");
-				exit(1);
-			}
-
-			opt_password = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
-
-			if (!opt_password) {
-				d_printf("ERROR: Unable to fetch machine password\n");
-				exit(1);
-			}
-			if (asprintf(&pwd, "%s$", global_myname()) < 0) {
-				exit(ENOMEM);
-			}
-			set_cmdline_auth_info_username(pwd);
-			set_cmdline_auth_info_password(opt_password);
-			SAFE_FREE(pwd);
-			SAFE_FREE(opt_password);
-
-			/* machine accounts only work with kerberos */
-			set_cmdline_auth_info_use_krb5_ticket();
-		}
+		set_cmdline_auth_info_use_machine_account();
 		break;
 	case 'N':
 		set_cmdline_auth_info_password("");

@@ -202,7 +202,7 @@ bool print_backend_init(struct messaging_context *msg_ctx)
 			return False;
 		}
 		if (tdb_fetch_int32(pdb->tdb, sversion) != PRINT_DATABASE_VERSION) {
-			tdb_traverse(pdb->tdb, tdb_traverse_delete_fn, NULL);
+			tdb_wipe_all(pdb->tdb);
 			tdb_store_int32(pdb->tdb, sversion, PRINT_DATABASE_VERSION);
 		}
 		tdb_unlock_bystring(pdb->tdb, sversion);
@@ -1406,6 +1406,11 @@ void start_background_queue(void)
 		/* Child. */
 		DEBUG(5,("start_background_queue: background LPQ thread started\n"));
 
+		if (!reinit_after_fork(smbd_messaging_context(), true)) {
+			DEBUG(0,("reinit_after_fork() failed\n"));
+			smb_panic("reinit_after_fork() failed");
+		}
+
 		claim_connection( NULL, "smbd lpq backend",
 			FLAG_MSG_GENERAL|FLAG_MSG_SMBD|FLAG_MSG_PRINT_GENERAL);
 
@@ -2561,7 +2566,7 @@ bool print_job_end(int snum, uint32 jobid, enum file_close_type close_type)
 	if (ret)
 		goto fail;
 
-	/* The print job has been sucessfully handed over to the back-end */
+	/* The print job has been successfully handed over to the back-end */
 	
 	pjob->spooled = True;
 	pjob->status = LPQ_QUEUED;

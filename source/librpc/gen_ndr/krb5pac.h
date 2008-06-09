@@ -27,9 +27,9 @@ struct PAC_LOGON_INFO {
 
 struct PAC_UNKNOWN_12 {
 	uint16_t upn_size;/* [value(2*strlen_m(upn_name))] */
-	uint16_t unknown1;
+	uint16_t upn_offset;
 	uint16_t domain_size;/* [value(2*strlen_m(domain_name))] */
-	uint16_t unknown2;
+	uint16_t domain_offset;
 	uint16_t unknown3;
 	uint16_t unknown4;
 	uint32_t unknown5;
@@ -67,12 +67,16 @@ enum PAC_TYPE
 #endif
 ;
 
+struct DATA_BLOB_REM {
+	DATA_BLOB remaining;/* [flag(LIBNDR_FLAG_REMAINING)] */
+};
+
 union PAC_INFO {
 	struct PAC_LOGON_INFO_CTR logon_info;/* [case(PAC_TYPE_LOGON_INFO)] */
 	struct PAC_SIGNATURE_DATA srv_cksum;/* [case(PAC_TYPE_SRV_CHECKSUM)] */
 	struct PAC_SIGNATURE_DATA kdc_cksum;/* [case(PAC_TYPE_KDC_CHECKSUM)] */
 	struct PAC_LOGON_NAME logon_name;/* [case(PAC_TYPE_LOGON_NAME)] */
-	struct PAC_UNKNOWN_12 unknown;/* [case(PAC_TYPE_UNKNOWN_12)] */
+	struct DATA_BLOB_REM unknown;/* [subcontext(0),case(PAC_TYPE_UNKNOWN_12)] */
 }/* [gensize,nodiscriminant,public] */;
 
 struct PAC_BUFFER {
@@ -87,10 +91,6 @@ struct PAC_DATA {
 	uint32_t version;
 	struct PAC_BUFFER *buffers;
 }/* [public] */;
-
-struct DATA_BLOB_REM {
-	DATA_BLOB remaining;/* [flag(LIBNDR_FLAG_REMAINING)] */
-};
 
 struct PAC_BUFFER_RAW {
 	enum PAC_TYPE type;

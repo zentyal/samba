@@ -163,18 +163,27 @@ static void expire_names_and_servers(time_t t)
 
 /************************************************************************** **
  Reload the list of network interfaces.
+ Doesn't return until a network interface is up.
  ************************************************************************** */
 
-static bool reload_interfaces(time_t t)
+static void reload_interfaces(time_t t)
 {
 	static time_t lastt;
 	int n;
+	bool print_waiting_msg = true;
 	struct subnet_record *subrec;
 
-	if (t && ((t - lastt) < NMBD_INTERFACES_RELOAD)) return False;
+	if (t && ((t - lastt) < NMBD_INTERFACES_RELOAD)) {
+		return;
+	}
+
 	lastt = t;
 
-	if (!interfaces_changed()) return False;
+	if (!interfaces_changed()) {
+		return;
+	}
+
+  try_again:
 
 	/* the list of probed interfaces has changed, we may need to add/remove
 	   some subnets */
@@ -268,12 +277,44 @@ static bool reload_interfaces(time_t t)
 
 	rescan_listen_set = True;
 
-	/* We need to shutdown if there are no subnets... */
+	/* We need to wait if there are no subnets... */
 	if (FIRST_SUBNET == NULL) {
-		DEBUG(0,("reload_interfaces: No subnets to listen to. Shutting down...\n"));
-		return True;
+
+		if (print_waiting_msg) {
+			DEBUG(0,("reload_interfaces: "
+				"No subnets to listen to. Waiting..\n"));
+			print_waiting_msg = false;
+		}
+
+		/*
+		 * Whilst we're waiting for an interface, allow SIGTERM to
+		 * cause us to exit.
+		 */
+
+		BlockSignals(false, SIGTERM);
+
+		/* We only count IPv4 interfaces here. */
+		while (iface_count_v4() == 0 && !got_sig_term) {
+			sleep(5);
+			load_interfaces();
+		}
+
+		/*
+		 * Handle termination inband.
+		 */
+
+		if (got_sig_term) {
+			got_sig_term = 0;
+			terminate();
+		}
+
+		/*
+		 * We got an interface, go back to blocking term.
+		 */
+
+		BlockSignals(true, SIGTERM);
+		goto try_again;
 	}
-	return False;
 }
 
 /**************************************************************************** **
@@ -310,8 +351,6 @@ static bool reload_nmbd_services(bool test)
 
 /**************************************************************************** **
  * React on 'smbcontrol nmbd reload-config' in the same way as to SIGHUP
- * We use buf here to return bool result to process() when reload_interfaces()
- * detects that there are no subnets.
  **************************************************************************** */
 
 static void msg_reload_nmbd_services(struct messaging_context *msg,
@@ -324,14 +363,7 @@ static void msg_reload_nmbd_services(struct messaging_context *msg,
 	dump_all_namelists();
 	reload_nmbd_services( True );
 	reopen_logs();
-	
-	if (data->data) {
-		/* We were called from process() */
-		/* If reload_interfaces() returned True */
-		/* we need to shutdown if there are no subnets... */
-		/* pass this info back to process() */
-		*((bool *)data->data) = reload_interfaces(0);  
-	}
+	reload_interfaces(0);
 }
 
 static void msg_nmbd_send_packet(struct messaging_context *msg,
@@ -401,7 +433,6 @@ static void msg_nmbd_send_packet(struct messaging_context *msg,
 static void process(void)
 {
 	bool run_election;
-	bool no_subnets;
 
 	while( True ) {
 		time_t t = time(NULL);
@@ -612,26 +643,17 @@ static void process(void)
 		 */
 
 		if(reload_after_sighup) {
-			DATA_BLOB blob = data_blob_const(&no_subnets,
-							 sizeof(no_subnets));
 			DEBUG( 0, ( "Got SIGHUP dumping debug info.\n" ) );
 			msg_reload_nmbd_services(nmbd_messaging_context(),
 						 NULL, MSG_SMB_CONF_UPDATED,
-						 procid_self(), &blob);
+						 procid_self(), NULL);
 
-			if(no_subnets) {
-				TALLOC_FREE(frame);
-				return;
-			}
 			reload_after_sighup = 0;
 		}
 
 		/* check for new network interfaces */
 
-		if(reload_interfaces(t)) {
-			TALLOC_FREE(frame);
-			return;
-		}
+		reload_interfaces(t);
 
 		/* free up temp memory */
 		TALLOC_FREE(frame);
@@ -740,6 +762,8 @@ static bool open_sockets(bool isdaemon, int port)
 	};
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
+	db_tdb2_setup_messaging(NULL, false);
+
 	load_case_tables();
 
 	global_nmb_port = NMB_PORT;
@@ -825,6 +849,17 @@ static bool open_sockets(bool isdaemon, int port)
 	DEBUG(0,("nmbd version %s started.\n", SAMBA_VERSION_STRING));
 	DEBUGADD(0,("%s\n", COPYRIGHT_STARTUP_MESSAGE));
 
+	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
+		DEBUG(0, ("error opening config file\n"));
+		exit(1);
+	}
+
+	if (nmbd_messaging_context() == NULL) {
+		return 1;
+	}
+
+	db_tdb2_setup_messaging(nmbd_messaging_context(), true);
+
 	if ( !reload_nmbd_services(False) )
 		return(-1);
 
@@ -876,6 +911,15 @@ static bool open_sockets(bool isdaemon, int port)
 	}
 
 	pidfile_create("nmbd");
+
+	if (!reinit_after_fork(nmbd_messaging_context(), false)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
+		exit(1);
+	}
+
+	/* get broadcast messages */
+	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
+
 	messaging_register(nmbd_messaging_context(), NULL,
 			   MSG_FORCE_ELECTION, nmbd_message_election);
 #if 0

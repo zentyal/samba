@@ -151,7 +151,7 @@ static bool create_next_pdu_ntlmssp(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -358,7 +358,7 @@ static bool create_next_pdu_schannel(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -531,7 +531,7 @@ static bool create_next_pdu_noauth(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -812,7 +812,7 @@ static bool setup_bind_nak(pipes_struct *p)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_rpc, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -875,7 +875,7 @@ bool setup_fault_pdu(pipes_struct *p, NTSTATUS status)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -944,7 +944,7 @@ bool setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -1522,7 +1522,7 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 		return setup_bind_nak(p);
 	}
 
-	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
 
 	/* 
 	 * Marshall directly into the outgoing PDU space. We
@@ -1592,6 +1592,8 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 			goto err_exit;
 		}
 	}
+
+	ZERO_STRUCT(hdr_rb);
 
 	/* decode the bind request */
 	if(!smb_io_rpc_hdr_rb("", &hdr_rb, rpc_in_p, 0))  {
@@ -1794,7 +1796,7 @@ bool api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
 	prs_struct outgoing_rpc;
 	int auth_len = 0;
 
-	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
+	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
 
 	/* 
 	 * Marshall directly into the outgoing PDU space. We
@@ -2388,7 +2390,7 @@ void get_pipe_fns( int idx, struct api_struct **fns, int *n_fns )
 			netlogon_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_SRVSVC:
-			srvsvc2_get_pipe_fns( &cmds, &n_cmds );
+			srvsvc_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_WKSSVC:
 			wkssvc_get_pipe_fns( &cmds, &n_cmds );

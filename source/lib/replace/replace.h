@@ -101,6 +101,16 @@ void *rep_memmove(void *dest,const void *src,int size);
 /* prototype is in "system/time.h" */
 #endif
 
+#ifndef HAVE_UTIME
+#define utime rep_utime
+/* prototype is in "system/time.h" */
+#endif
+
+#ifndef HAVE_UTIMES
+#define utimes rep_utimes
+/* prototype is in "system/time.h" */
+#endif
+
 #ifndef HAVE_STRLCPY
 #define strlcpy rep_strlcpy
 size_t rep_strlcpy(char *d, const char *s, size_t bufsize);
@@ -212,7 +222,7 @@ int rep_dlclose(void *handle);
 
 #ifndef HAVE_SOCKETPAIR
 #define socketpair rep_socketpair
-int rep_socketpair(int d, int type, int protocol, int sv[2]);
+/* prototype is in system/network.h */
 #endif
 
 #ifndef PRINTF_ATTRIBUTE
@@ -325,7 +335,7 @@ ssize_t rep_pread(int __fd, void *__buf, size_t __nbytes, off_t __offset);
 ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset);
 #endif
 
-#ifdef REPLACE_INET_NTOA
+#if !defined(HAVE_INET_NTOA) || defined(REPLACE_INET_NTOA)
 #define inet_ntoa rep_inet_ntoa
 /* prototype is in "system/network.h" */
 #endif
@@ -337,6 +347,11 @@ ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset)
 
 #ifndef HAVE_INET_NTOP
 #define inet_ntop rep_inet_ntop
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_INET_ATON
+#define inet_aton rep_inet_aton
 /* prototype is in "system/network.h" */
 #endif
 
@@ -494,7 +509,7 @@ typedef int bool;
   Also, please call this via the discard_const_p() macro interface, as that
   makes the return type safe.
 */
-#define discard_const(ptr) ((void *)((intptr_t)(ptr)))
+#define discard_const(ptr) ((void *)((uintptr_t)(ptr)))
 
 /** Type-safe version of discard_const */
 #define discard_const_p(type, ptr) ((type *)discard_const(ptr))

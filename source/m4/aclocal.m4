@@ -78,8 +78,8 @@ AC_SUBST(LIBUC[_LIBS])
 
 AC_MSG_CHECKING([whether to build the LIBNAME shared library])
 AC_ARG_WITH(LIBNAME,
-[AS_HELP_STRING([--with-LIBNAME],
-	[Build the LIBNAME shared library (default=yes if shared libs supported)])],
+AS_HELP_STRING([--with-]LIBNAME,
+	[Build the LIBNAME shared library (default=yes if shared libs supported)]),
 [
 case "$withval" in
 	*)
@@ -100,7 +100,7 @@ build_lib=yes
 if eval test x"$build_lib" = "xyes" -a $BLDSHARED = true; then
 	LIBUC[_SHARED]=$LIBUC[_SHARED_TARGET]
 	AC_MSG_RESULT(yes)
-	if test x"$USESHARED" != x"true" -o x"$LINK_LIBUC" = "xSTATIC" ; then
+	if test x"$USESHARED" != x"true" -o x"$[LINK_]LIBUC" = "xSTATIC" ; then
 		LIBUC[_STATIC]=$LIBUC[_STATIC_TARGET]
 	else
 		LIBUC[_LIBS]=LIBLIBS

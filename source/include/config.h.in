@@ -745,8 +745,17 @@
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #undef HAVE_IFADDRS_H
 
+/* Whether the system has if_nametoindex() */
+#undef HAVE_IF_NAMETOINDEX
+
 /* Whether the compiler supports immediate structures */
 #undef HAVE_IMMEDIATE_STRUCTURES
+
+/* Define to 1 if you have the `inet_aton' function. */
+#undef HAVE_INET_ATON
+
+/* Define to 1 if you have the `inet_ntoa' function. */
+#undef HAVE_INET_NTOA
 
 /* Define to 1 if you have the `inet_ntop' function. */
 #undef HAVE_INET_NTOP
@@ -1067,6 +1076,9 @@
 
 /* Define to 1 if you have the `inet' library (-linet). */
 #undef HAVE_LIBINET
+
+/* Define to 1 if you have the `ipv6' library (-lipv6). */
+#undef HAVE_LIBIPV6
 
 /* Define to 1 if you have the `k5crypto' library (-lk5crypto). */
 #undef HAVE_LIBK5CRYPTO
@@ -2022,7 +2034,7 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* If we need to build with unixsocket support */
+/* If we need to build with unixscoket support */
 #undef HAVE_UNIXSOCKET
 
 /* Whether UnixWare ACLs are available */
@@ -2138,9 +2150,6 @@
 
 /* Define to 1 if you have the <winsock2.h> header file. */
 #undef HAVE_WINSOCK2_H
-
-/* Define if you have working AF_LOCAL sockets */
-#undef HAVE_WORKING_AF_LOCAL
 
 /* Whether the WRFILE:-keytab is supported */
 #undef HAVE_WRFILE_KEYTAB
@@ -2421,6 +2430,9 @@
 /* Number of arguments to ldap_set_rebind_proc */
 #undef LDAP_SET_REBIND_PROC_ARGS
 
+/* LIBREPLACE_NETWORK_CHECKS were used */
+#undef LIBREPLACE_NETWORK_CHECKS
+
 /* Whether the host os is linux */
 #undef LINUX
 
@@ -2511,7 +2523,7 @@
 /* Shared library extension */
 #undef SHLIBEXT
 
-/* The size of a `char', as computed by sizeof. */
+/* The size of `char', as computed by sizeof. */
 #undef SIZEOF_CHAR
 
 /* The size of the 'dev_t' type */
@@ -2520,31 +2532,31 @@
 /* The size of the 'ino_t' type */
 #undef SIZEOF_INO_T
 
-/* The size of a `int', as computed by sizeof. */
+/* The size of `int', as computed by sizeof. */
 #undef SIZEOF_INT
 
-/* The size of a `long', as computed by sizeof. */
+/* The size of `long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
-/* The size of a `long long', as computed by sizeof. */
+/* The size of `long long', as computed by sizeof. */
 #undef SIZEOF_LONG_LONG
 
 /* The size of the 'off_t' type */
 #undef SIZEOF_OFF_T
 
-/* The size of a `short', as computed by sizeof. */
+/* The size of `short', as computed by sizeof. */
 #undef SIZEOF_SHORT
 
-/* The size of a `size_t', as computed by sizeof. */
+/* The size of `size_t', as computed by sizeof. */
 #undef SIZEOF_SIZE_T
 
-/* The size of a `ssize_t', as computed by sizeof. */
+/* The size of `ssize_t', as computed by sizeof. */
 #undef SIZEOF_SSIZE_T
 
 /* The size of the 'time_t' type */
 #undef SIZEOF_TIME_T
 
-/* The size of a `void *', as computed by sizeof. */
+/* The size of `void *', as computed by sizeof. */
 #undef SIZEOF_VOID_P
 
 /* Use socket wrapper library */
@@ -2861,7 +2873,7 @@
 /* Whether to build nss_info_template as shared module */
 #undef nss_info_template_init
 
-/* Define to `long' if <sys/types.h> does not define. */
+/* Define to `long int' if <sys/types.h> does not define. */
 #undef off_t
 
 /* Define to `loff_t' if <sys/types.h> does not define. */
@@ -2912,8 +2924,8 @@
 /* Whether to build rpc_spoolss as shared module */
 #undef rpc_spoolss_init
 
-/* Whether to build rpc_srvsvc2 as shared module */
-#undef rpc_srvsvc2_init
+/* Whether to build rpc_srvsvc as shared module */
+#undef rpc_srvsvc_init
 
 /* Whether to build rpc_svcctl2 as shared module */
 #undef rpc_svcctl2_init
@@ -2924,7 +2936,7 @@
 /* Whether to build rpc_wkssvc as shared module */
 #undef rpc_wkssvc_init
 
-/* Define to `unsigned' if <sys/types.h> does not define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
 
 /* Define to `int' if <sys/types.h> does not define. */
@@ -2989,6 +3001,9 @@
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef uint_t
+
+/* Define to `unsigned long long' if <sys/types.h> does not define. */
+#undef uintptr_t
 
 /* Whether to build vfs_afsacl as shared module */
 #undef vfs_afsacl_init

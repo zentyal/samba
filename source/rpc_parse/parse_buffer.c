@@ -34,8 +34,10 @@ void rpcbuf_init(RPC_BUFFER *buffer, uint32 size, TALLOC_CTX *ctx)
 {
 	buffer->size = size;
 	buffer->string_at_end = size;
-	prs_init(&buffer->prs, size, ctx, MARSHALL);
-	buffer->struct_start = prs_offset(&buffer->prs);
+	if (prs_init(&buffer->prs, size, ctx, MARSHALL))
+		buffer->struct_start = prs_offset(&buffer->prs);
+	else
+		buffer->struct_start = 0;
 }
 
 /*******************************************************************
@@ -372,8 +374,10 @@ bool smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 
 			return False;
 	
 		do {
-			if (!smb_io_unistr(desc, &chaine, ps, depth))
+			if (!smb_io_unistr(desc, &chaine, ps, depth)) {
+				SAFE_FREE(chaine2);
 				return False;
+			}
 			
 			l_chaine=str_len_uni(&chaine);
 			
@@ -400,10 +404,10 @@ bool smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 
 		{
 			chaine2[l_chaine2] = '\0';
 			*string=(uint16 *)TALLOC_MEMDUP(prs_get_mem_context(ps),chaine2,realloc_size);
+			SAFE_FREE(chaine2);
 			if (!*string) {
 				return False;
 			}
-			SAFE_FREE(chaine2);
 		}
 
 		if(!prs_set_offset(ps, old_offset))

@@ -19,48 +19,60 @@
  
 #include "includes.h"
 #include "utils/net.h"
+#include "utils/net_registry_util.h"
 #include "regfio.h"
 #include "reg_objects.h"
 
-static bool reg_hive_key(const char *fullname, uint32 *reg_type,
-			 const char **key_name)
+static bool reg_hive_key(TALLOC_CTX *ctx, const char *fullname,
+			 uint32 *reg_type, const char **key_name)
 {
-	const char *sep;
-	ptrdiff_t len;
+	WERROR werr;
+	char *hivename = NULL;
+	char *tmp_keyname = NULL;
+	bool ret = false;
+	TALLOC_CTX *tmp_ctx = talloc_stackframe();
 
-	sep = strchr_m(fullname, '\\');
-
-	if (sep != NULL) {
-		len = sep - fullname;
-		*key_name = sep+1;
-	}
-	else {
-		len = strlen(fullname);
-		*key_name = "";
+	werr = split_hive_key(tmp_ctx, fullname, &hivename, &tmp_keyname);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
 	}
 
-	if (strnequal(fullname, "HKLM", len) ||
-	    strnequal(fullname, "HKEY_LOCAL_MACHINE", len))
+	*key_name = talloc_strdup(ctx, tmp_keyname);
+	if (*key_name == NULL) {
+		goto done;
+	}
+
+	if (strequal(hivename, "HKLM") ||
+	    strequal(hivename, "HKEY_LOCAL_MACHINE"))
+	{
 		(*reg_type) = HKEY_LOCAL_MACHINE;
-	else if (strnequal(fullname, "HKCR", len) ||
-		 strnequal(fullname, "HKEY_CLASSES_ROOT", len))
+	} else if (strequal(hivename, "HKCR") ||
+		   strequal(hivename, "HKEY_CLASSES_ROOT")) 
+	{
 		(*reg_type) = HKEY_CLASSES_ROOT;
-	else if (strnequal(fullname, "HKU", len) ||
-		 strnequal(fullname, "HKEY_USERS", len))
+	} else if (strequal(hivename, "HKU") ||
+		   strequal(hivename, "HKEY_USERS"))
+	{
 		(*reg_type) = HKEY_USERS;
-	else if (strnequal(fullname, "HKCU", len) ||
-		 strnequal(fullname, "HKEY_CURRENT_USER", len))
+	} else if (strequal(hivename, "HKCU") ||
+		   strequal(hivename, "HKEY_CURRENT_USER"))
+	{
 		(*reg_type) = HKEY_CURRENT_USER;
-	else if (strnequal(fullname, "HKPD", len) ||
-		 strnequal(fullname, "HKEY_PERFORMANCE_DATA", len))
+	} else if (strequal(hivename, "HKPD") ||
+		   strequal(hivename, "HKEY_PERFORMANCE_DATA"))
+	{
 		(*reg_type) = HKEY_PERFORMANCE_DATA;
-	else {
+	} else {
 		DEBUG(10,("reg_hive_key: unrecognised hive key %s\n",
 			  fullname));
-		return False;
+		goto done;
 	}
 
-	return True;
+	ret = true;
+
+done:
+	TALLOC_FREE(tmp_ctx);
+	return ret;
 }
 
 static NTSTATUS registry_openkey(TALLOC_CTX *mem_ctx,
@@ -75,7 +87,7 @@ static NTSTATUS registry_openkey(TALLOC_CTX *mem_ctx,
 
 	ZERO_STRUCT(key);
 
-	if (!reg_hive_key(name, &hive, &key.name)) {
+	if (!reg_hive_key(mem_ctx, name, &hive, &key.name)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -461,7 +473,7 @@ static NTSTATUS rpc_registry_deletevalue_internal(const DOM_SID *domain_sid,
 	rpccli_winreg_CloseKey(pipe_hnd, mem_ctx, &key_hnd, NULL);
 	rpccli_winreg_CloseKey(pipe_hnd, mem_ctx, &hive_hnd, NULL);
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 static int rpc_registry_deletevalue( int argc, const char **argv )
@@ -474,6 +486,104 @@ static int rpc_registry_deletevalue( int argc, const char **argv )
 
 	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_deletevalue_internal, argc, argv );
+}
+
+static NTSTATUS rpc_registry_getvalue_internal(const DOM_SID *domain_sid,
+					       const char *domain_name,
+					       struct cli_state *cli,
+					       struct rpc_pipe_client *pipe_hnd,
+					       TALLOC_CTX *mem_ctx,
+					       int argc,
+					       const char **argv)
+{
+	struct policy_handle hive_hnd, key_hnd;
+	NTSTATUS status;
+	WERROR werr;
+	struct winreg_String valuename;
+	struct registry_value *value = NULL;
+	enum winreg_Type type = REG_NONE;
+	uint8_t *data = NULL;
+	uint32_t data_size = 0;
+	uint32_t value_length = 0;
+	TALLOC_CTX *tmp_ctx = talloc_stackframe();
+
+	ZERO_STRUCT(valuename);
+
+	status = registry_openkey(tmp_ctx, pipe_hnd, argv[0],
+				  SEC_RIGHTS_MAXIMUM_ALLOWED,
+				  &hive_hnd, &key_hnd);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "registry_openkey failed: %s\n",
+			  nt_errstr(status));
+		return status;
+	}
+
+	valuename.name = argv[1];
+
+	/*
+	 * call QueryValue once with data == NULL to get the
+	 * needed memory size to be allocated, then allocate
+	 * data buffer and call again.
+	 */
+	status = rpccli_winreg_QueryValue(pipe_hnd, tmp_ctx, &key_hnd,
+					  &valuename,
+					  &type,
+					  data,
+					  &data_size,
+					  &value_length,
+					  NULL);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "registry_queryvalue failed: %s\n",
+			  nt_errstr(status));
+		goto done;
+	}
+
+	data = (uint8 *)TALLOC(tmp_ctx, data_size);
+	value_length = 0;
+
+	status = rpccli_winreg_QueryValue(pipe_hnd, tmp_ctx, &key_hnd,
+					  &valuename,
+					  &type,
+					  data,
+					  &data_size,
+					  &value_length,
+					  NULL);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "registry_queryvalue failed: %s\n",
+			  nt_errstr(status));
+		goto done;
+	}
+
+	werr = registry_pull_value(tmp_ctx, &value, type, data,
+				   data_size, value_length);
+	if (!W_ERROR_IS_OK(werr)) {
+		status = werror_to_ntstatus(werr);
+		goto done;
+	}
+
+	print_registry_value(value);
+
+done:
+	rpccli_winreg_CloseKey(pipe_hnd, tmp_ctx, &key_hnd, NULL);
+	rpccli_winreg_CloseKey(pipe_hnd, tmp_ctx, &hive_hnd, NULL);
+
+	TALLOC_FREE(tmp_ctx);
+
+	return status;
+}
+
+static int rpc_registry_getvalue(int argc, const char **argv)
+{
+	if (argc != 2) {
+		d_fprintf(stderr, "usage: net rpc registry deletevalue <key> "
+			  "<valuename>\n");
+		return -1;
+	}
+
+	return run_rpc_command(NULL, PI_WINREG, 0,
+		rpc_registry_getvalue_internal, argc, argv);
 }
 
 static NTSTATUS rpc_registry_createkey_internal(const DOM_SID *domain_sid,
@@ -493,7 +603,7 @@ static NTSTATUS rpc_registry_createkey_internal(const DOM_SID *domain_sid,
 	ZERO_STRUCT(key);
 	ZERO_STRUCT(keyclass);
 
-	if (!reg_hive_key(argv[0], &hive, &key.name)) {
+	if (!reg_hive_key(mem_ctx, argv[0], &hive, &key.name)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -561,7 +671,7 @@ static NTSTATUS rpc_registry_deletekey_internal(const DOM_SID *domain_sid,
 
 	ZERO_STRUCT(key);
 
-	if (!reg_hive_key(argv[0], &hive, &key.name)) {
+	if (!reg_hive_key(mem_ctx, argv[0], &hive, &key.name)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
@@ -617,7 +727,7 @@ static NTSTATUS rpc_registry_enumerate_internal(const DOM_SID *domain_sid,
 	if (argc != 1 ) {
 		d_printf("Usage:    net rpc registry enumerate <path> [recurse]\n");
 		d_printf("Example:  net rpc registry enumerate 'HKLM\\Software\\Samba'\n");
-		return NT_STATUS_OK;
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	status = registry_openkey(mem_ctx, pipe_hnd, argv[0], REG_KEY_READ,
@@ -637,11 +747,7 @@ static NTSTATUS rpc_registry_enumerate_internal(const DOM_SID *domain_sid,
 	}
 
 	for (i=0; i<num_subkeys; i++) {
-		d_printf("Keyname   = %s\n", names[i]);
-		d_printf("Modtime   = %s\n", modtimes[i]
-			 ? http_timestring(nt_time_to_unix(*modtimes[i]))
-			 : "None");
-		d_printf("\n" );
+		print_registry_key(names[i], modtimes[i]);
 	}
 
 	status = registry_enumvalues(mem_ctx, pipe_hnd, &pol_key, &num_values,
@@ -653,36 +759,7 @@ static NTSTATUS rpc_registry_enumerate_internal(const DOM_SID *domain_sid,
 	}
 
 	for (i=0; i<num_values; i++) {
-		struct registry_value *v = values[i];
-		d_printf("Valuename  = %s\n", names[i]);
-		d_printf("Type       = %s\n",
-			 reg_type_lookup(v->type));
-		switch(v->type) {
-		case REG_DWORD:
-			d_printf("Value      = %d\n", v->v.dword);
-			break;
-		case REG_SZ:
-		case REG_EXPAND_SZ:
-			d_printf("Value      = \"%s\"\n", v->v.sz.str);
-			break;
-		case REG_MULTI_SZ: {
-			uint32 j;
-			for (j = 0; j < v->v.multi_sz.num_strings; j++) {
-				d_printf("Value[%3.3d] = \"%s\"\n", j,
-					 v->v.multi_sz.strings[j]);
-			}
-			break;
-		}
-		case REG_BINARY:
-			d_printf("Value      = %d bytes\n",
-				 (int)v->v.binary.length);
-			break;
-		default:
-			d_printf("Value      = <unprintable>\n");
-			break;
-		}
-			
-		d_printf("\n");
+		print_registry_value_with_name(names[i], values[i]);
 	}
 
 	rpccli_winreg_CloseKey(pipe_hnd, mem_ctx, &pol_key, NULL);
@@ -718,7 +795,7 @@ static NTSTATUS rpc_registry_save_internal(const DOM_SID *domain_sid,
 	
 	if (argc != 2 ) {
 		d_printf("Usage:    net rpc registry backup <path> <file> \n");
-		return NT_STATUS_OK;
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 	
 	status = registry_openkey(mem_ctx, pipe_hnd, argv[0], REG_KEY_ALL,
@@ -903,7 +980,7 @@ static int rpc_registry_dump( int argc, const char **argv )
 	
 	if (argc != 1 ) {
 		d_printf("Usage:    net rpc registry dump <file> \n");
-		return 0;
+		return -1;
 	}
 	
 	d_printf("Opening %s....", argv[0]);
@@ -947,7 +1024,7 @@ static int rpc_registry_copy( int argc, const char **argv )
 	
 	if (argc != 2 ) {
 		d_printf("Usage:    net rpc registry copy <srcfile> <newfile>\n");
-		return 0;
+		return -1;
 	}
 	
 	d_printf("Opening %s....", argv[0]);
@@ -1018,7 +1095,7 @@ static NTSTATUS rpc_registry_getsd_internal(const DOM_SID *domain_sid,
 	if (argc <1 || argc > 2) {
 		d_printf("Usage:    net rpc registry getsd <path> <secinfo>\n");
 		d_printf("Example:  net rpc registry getsd 'HKLM\\Software\\Samba'\n");
-		return NT_STATUS_OK;
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	status = registry_openkey(mem_ctx, pipe_hnd, argv[0],
@@ -1090,6 +1167,8 @@ int net_rpc_registry(int argc, const char **argv)
 		  "Create a new registry key" },
 		{ "deletekey",  rpc_registry_deletekey,
 		  "Delete a registry key" },
+		{ "getvalue", rpc_registry_getvalue,
+		  "Print a registry value" },
 		{ "setvalue",  rpc_registry_setvalue,
 		  "Set a new registry value" },
 		{ "deletevalue",  rpc_registry_deletevalue,

@@ -59,6 +59,23 @@ int get_client_fd(void)
 	return server_fd;
 }
 
+int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client)
+{
+	socklen_t length;
+	if (server_fd == -1) {
+		return -1;
+	}
+	length = sizeof(*server);
+	if (getsockname(server_fd, (struct sockaddr *)server, &length) != 0) {
+		return -1;
+	}
+	length = sizeof(*client);
+	if (getpeername(server_fd, (struct sockaddr *)client, &length) != 0) {
+		return -1;
+	}
+	return 0;
+}
+
 struct event_context *smbd_event_context(void)
 {
 	static struct event_context *ctx;
@@ -536,7 +553,8 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 	   clustered mode, ctdb won't allow us to start doing database
 	   operations until it has gone thru a full startup, which
 	   includes checking to see that smbd is listening. */
-	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_SMBD);
+	claim_connection(NULL,"",
+			 FLAG_MSG_GENERAL|FLAG_MSG_SMBD|FLAG_MSG_DBWRAP);
 
         /* Listen to messages */
 
@@ -676,7 +694,7 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 				continue;
 
 			if (smbd_server_fd() == -1) {
-				DEBUG(0,("open_sockets_smbd: accept: %s\n",
+				DEBUG(2,("open_sockets_smbd: accept: %s\n",
 					 strerror(errno)));
 				continue;
 			}
@@ -721,17 +739,10 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 								sizeof(remaddr)),
 								false);
 
-				/* Reset the state of the random
-				 * number generation system, so
-				 * children do not get the same random
-				 * numbers as each other */
-
-				set_need_random_reseed();
-				/* tdb needs special fork handling - remove
-				 * CLEAR_IF_FIRST flags */
-				if (tdb_reopen_all(1) == -1) {
-					DEBUG(0,("tdb_reopen_all failed.\n"));
-					smb_panic("tdb_reopen_all failed");
+				if (!reinit_after_fork(
+					    smbd_messaging_context(), true)) {
+					DEBUG(0,("reinit_after_fork() failed\n"));
+					smb_panic("reinit_after_fork() failed");
 				}
 
 				return True;
@@ -901,6 +912,15 @@ static void exit_server_common(enum server_exit_reason how,
 	}
 #endif
 
+#ifdef USE_DMAPI
+	/* Destroy Samba DMAPI session only if we are master smbd process */
+	if (am_parent) {
+		if (!dmapi_destroy_session()) {
+			DEBUG(0,("Unable to close Samba DMAPI session\n"));
+		}
+	}
+#endif
+
 	locking_end();
 	printing_end();
 
@@ -946,10 +966,8 @@ void exit_server_fault(void)
 /****************************************************************************
 received when we should release a specific IP
 ****************************************************************************/
-static void msg_release_ip(struct messaging_context *msg_ctx, void *private_data, 
-                    	   uint32_t msg_type, struct server_id server_id, DATA_BLOB *data)
+static void release_ip(const char *ip, void *priv)
 {
-	const char *ip = (const char *)data->data;
 	char addr[INET6_ADDRSTRLEN];
 
 	if (strcmp(client_socket_addr(get_client_fd(),addr,sizeof(addr)), ip) == 0) {
@@ -964,6 +982,11 @@ static void msg_release_ip(struct messaging_context *msg_ctx, void *private_data
 	}
 }
 
+static void msg_release_ip(struct messaging_context *msg_ctx, void *private_data,
+			   uint32_t msg_type, struct server_id server_id, DATA_BLOB *data)
+{
+	release_ip((char *)data->data, NULL);
+}
 
 /****************************************************************************
  Initialise connect, service and file structs.
@@ -1070,6 +1093,8 @@ extern void build_options(bool screen);
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
 	TimeInit();
+
+	db_tdb2_setup_messaging(NULL, false);
 
 #ifdef HAVE_SET_AUTH_PARAMETERS
 	set_auth_parameters(argc,argv);
@@ -1194,9 +1219,18 @@ extern void build_options(bool screen);
 		exit(1);
 	}
 
+	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
+		DEBUG(0, ("error opening config file\n"));
+		exit(1);
+	}
+
+	if (smbd_messaging_context() == NULL)
+		exit(1);
+
 	/*
 	 * Do this before reload_services.
 	 */
+	db_tdb2_setup_messaging(smbd_messaging_context(), true);
 
 	if (!reload_services(False))
 		return(-1);	
@@ -1252,10 +1286,12 @@ extern void build_options(bool screen);
 	if (is_daemon)
 		pidfile_create("smbd");
 
-	/* Setup all the TDB's - including CLEAR_IF_FIRST tdb's. */
-
-	if (smbd_messaging_context() == NULL)
+	if (!reinit_after_fork(smbd_messaging_context(), false)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
+	}
+
+	/* Setup all the TDB's - including CLEAR_IF_FIRST tdb's. */
 
 	if (smbd_memcache() == NULL) {
 		exit(1);
@@ -1290,7 +1326,7 @@ extern void build_options(bool screen);
 
 	namecache_enable();
 
-	if (!init_registry())
+	if (!W_ERROR_IS_OK(registry_init_full()))
 		exit(1);
 
 #if 0
@@ -1311,8 +1347,10 @@ extern void build_options(bool screen);
 	   smbd is launched via inetd and we fork a copy of 
 	   ourselves here */
 
-	if ( is_daemon && !interactive )
-		start_background_queue(); 
+	if (is_daemon && !interactive
+	    && lp_parm_bool(-1, "smbd", "backgroundqueue", true)) {
+		start_background_queue();
+	}
 
 	if (!open_sockets_smbd(is_daemon, interactive, ports))
 		exit(1);
@@ -1349,13 +1387,6 @@ extern void build_options(bool screen);
 	/* Setup aio signal handler. */
 	initialize_async_io_handler();
 
-	/*
-	 * For clustering, we need to re-init our ctdbd connection after the
-	 * fork
-	 */
-	if (!NT_STATUS_IS_OK(messaging_reinit(smbd_messaging_context())))
-		exit(1);
-
 	/* register our message handlers */
 	messaging_register(smbd_messaging_context(), NULL,
 			   MSG_SMB_FORCE_TDIS, msg_force_tdis);
@@ -1377,6 +1408,40 @@ extern void build_options(bool screen);
 		DEBUG(0, ("Could not add deadtime event\n"));
 		exit(1);
 	}
+
+#ifdef CLUSTER_SUPPORT
+
+	if (lp_clustering()) {
+		/*
+		 * We need to tell ctdb about our client's TCP
+		 * connection, so that for failover ctdbd can send
+		 * tickle acks, triggering a reconnection by the
+		 * client.
+		 */
+
+		struct sockaddr_in srv, clnt;
+
+		if (client_get_tcp_info(&srv, &clnt) == 0) {
+
+			NTSTATUS status;
+
+			status = ctdbd_register_ips(
+				messaging_ctdbd_connection(),
+				&srv, &clnt, release_ip, NULL);
+
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(0, ("ctdbd_register_ips failed: %s\n",
+					  nt_errstr(status)));
+			}
+		} else
+		{
+			DEBUG(0,("Unable to get tcp info for "
+				 "CTDB_CONTROL_TCP_CLIENT: %s\n",
+				 strerror(errno)));
+		}
+	}
+
+#endif
 
 	TALLOC_FREE(frame);
 

@@ -238,38 +238,40 @@ WERROR _winreg_QueryValue(pipes_struct *p, struct winreg_QueryValue *r)
 	/* Handle QueryValue calls on HKEY_PERFORMANCE_DATA */
 	if(regkey->key->type == REG_KEY_HKPD) 
 	{
-		if(strequal(r->in.value_name.name, "Global"))	{
-			prs_init(&prs_hkpd, *r->in.data_size, p->mem_ctx, MARSHALL);
+		if (strequal(r->in.value_name->name, "Global"))	{
+			if (!prs_init(&prs_hkpd, *r->in.data_size, p->mem_ctx, MARSHALL))
+				return WERR_NOMEM;
 			status = reg_perfcount_get_hkpd(
 				&prs_hkpd, *r->in.data_size, &outbuf_size, NULL);
 			outbuf = (uint8_t *)prs_hkpd.data_p;
 			free_prs = True;
 		}
-		else if(strequal(r->in.value_name.name, "Counter 009")) {
+		else if (strequal(r->in.value_name->name, "Counter 009")) {
 			outbuf_size = reg_perfcount_get_counter_names(
 				reg_perfcount_get_base_index(),
 				(char **)(void *)&outbuf);
 			free_buf = True;
 		}
-		else if(strequal(r->in.value_name.name, "Explain 009")) {
+		else if (strequal(r->in.value_name->name, "Explain 009")) {
 			outbuf_size = reg_perfcount_get_counter_help(
 				reg_perfcount_get_base_index(),
 				(char **)(void *)&outbuf);
 			free_buf = True;
 		}
-		else if(isdigit(r->in.value_name.name[0])) {
+		else if (isdigit(r->in.value_name->name[0])) {
 			/* we probably have a request for a specific object
 			 * here */
-			prs_init(&prs_hkpd, *r->in.data_size, p->mem_ctx, MARSHALL);
+			if (!prs_init(&prs_hkpd, *r->in.data_size, p->mem_ctx, MARSHALL))
+				return WERR_NOMEM;
 			status = reg_perfcount_get_hkpd(
 				&prs_hkpd, *r->in.data_size, &outbuf_size,
-				r->in.value_name.name);
+				r->in.value_name->name);
 			outbuf = (uint8_t *)prs_hkpd.data_p;
 			free_prs = True;
 		}
 		else {
 			DEBUG(3,("Unsupported key name [%s] for HKPD.\n",
-				 r->in.value_name.name));
+				 r->in.value_name->name));
 			return WERR_BADFILE;
 		}
 
@@ -278,7 +280,7 @@ WERROR _winreg_QueryValue(pipes_struct *p, struct winreg_QueryValue *r)
 	else {
 		struct registry_value *val;
 
-		status = reg_queryvalue(p->mem_ctx, regkey, r->in.value_name.name,
+		status = reg_queryvalue(p->mem_ctx, regkey, r->in.value_name->name,
 					&val);
 		if (!W_ERROR_IS_OK(status)) {
 			if (r->out.data_size) {
@@ -507,8 +509,6 @@ WERROR _winreg_InitiateSystemShutdownEx(pipes_struct *p, struct winreg_InitiateS
 	}
 
 	/* pull the message string and perform necessary sanity checks on it */
-
-	chkmsg[0] = '\0';
 
 	if ( r->in.message && r->in.message->name && r->in.message->name->name ) {
 		if ( (msg = talloc_strdup(p->mem_ctx, r->in.message->name->name )) == NULL ) {
@@ -739,6 +739,9 @@ WERROR _winreg_CreateKey( pipes_struct *p, struct winreg_CreateKey *r)
 
 	if ( !parent )
 		return WERR_BADFID;
+
+	DEBUG(10, ("_winreg_CreateKey called with parent key '%s' and "
+		   "subkey name '%s'\n", parent->key->name, r->in.name.name));
 
 	result = reg_createkey(NULL, parent, r->in.name.name, r->in.access_mask,
 			       &new_key, r->out.action_taken);

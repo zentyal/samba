@@ -137,12 +137,14 @@ void ndr_print_srvsvc_NetConnCtr0(struct ndr_print *ndr, const char *name, const
 void ndr_print_srvsvc_NetConnInfo1(struct ndr_print *ndr, const char *name, const struct srvsvc_NetConnInfo1 *r);
 void ndr_print_srvsvc_NetConnCtr1(struct ndr_print *ndr, const char *name, const struct srvsvc_NetConnCtr1 *r);
 void ndr_print_srvsvc_NetConnCtr(struct ndr_print *ndr, const char *name, const union srvsvc_NetConnCtr *r);
+void ndr_print_srvsvc_NetConnInfoCtr(struct ndr_print *ndr, const char *name, const struct srvsvc_NetConnInfoCtr *r);
 void ndr_print_srvsvc_NetFileInfo2(struct ndr_print *ndr, const char *name, const struct srvsvc_NetFileInfo2 *r);
 void ndr_print_srvsvc_NetFileCtr2(struct ndr_print *ndr, const char *name, const struct srvsvc_NetFileCtr2 *r);
 void ndr_print_srvsvc_NetFileInfo3(struct ndr_print *ndr, const char *name, const struct srvsvc_NetFileInfo3 *r);
 void ndr_print_srvsvc_NetFileCtr3(struct ndr_print *ndr, const char *name, const struct srvsvc_NetFileCtr3 *r);
 void ndr_print_srvsvc_NetFileInfo(struct ndr_print *ndr, const char *name, const union srvsvc_NetFileInfo *r);
 void ndr_print_srvsvc_NetFileCtr(struct ndr_print *ndr, const char *name, const union srvsvc_NetFileCtr *r);
+void ndr_print_srvsvc_NetFileInfoCtr(struct ndr_print *ndr, const char *name, const struct srvsvc_NetFileInfoCtr *r);
 void ndr_print_srvsvc_NetSessInfo0(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessInfo0 *r);
 void ndr_print_srvsvc_NetSessCtr0(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessCtr0 *r);
 void ndr_print_srvsvc_NetSessInfo1(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessInfo1 *r);
@@ -154,6 +156,7 @@ void ndr_print_srvsvc_NetSessCtr10(struct ndr_print *ndr, const char *name, cons
 void ndr_print_srvsvc_NetSessInfo502(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessInfo502 *r);
 void ndr_print_srvsvc_NetSessCtr502(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessCtr502 *r);
 void ndr_print_srvsvc_NetSessCtr(struct ndr_print *ndr, const char *name, const union srvsvc_NetSessCtr *r);
+void ndr_print_srvsvc_NetSessInfoCtr(struct ndr_print *ndr, const char *name, const struct srvsvc_NetSessInfoCtr *r);
 void ndr_print_srvsvc_ShareType(struct ndr_print *ndr, const char *name, enum srvsvc_ShareType r);
 void ndr_print_srvsvc_NetShareInfo0(struct ndr_print *ndr, const char *name, const struct srvsvc_NetShareInfo0 *r);
 void ndr_print_srvsvc_NetShareCtr0(struct ndr_print *ndr, const char *name, const struct srvsvc_NetShareCtr0 *r);
@@ -177,6 +180,7 @@ void ndr_print_srvsvc_NetShareCtr1007(struct ndr_print *ndr, const char *name, c
 void ndr_print_srvsvc_NetShareCtr1501(struct ndr_print *ndr, const char *name, const struct srvsvc_NetShareCtr1501 *r);
 void ndr_print_srvsvc_NetShareInfo(struct ndr_print *ndr, const char *name, const union srvsvc_NetShareInfo *r);
 void ndr_print_srvsvc_NetShareCtr(struct ndr_print *ndr, const char *name, const union srvsvc_NetShareCtr *r);
+void ndr_print_srvsvc_NetShareInfoCtr(struct ndr_print *ndr, const char *name, const struct srvsvc_NetShareInfoCtr *r);
 enum ndr_err_code ndr_push_srvsvc_PlatformId(struct ndr_push *ndr, int ndr_flags, enum srvsvc_PlatformId r);
 enum ndr_err_code ndr_pull_srvsvc_PlatformId(struct ndr_pull *ndr, int ndr_flags, enum srvsvc_PlatformId *r);
 void ndr_print_srvsvc_PlatformId(struct ndr_print *ndr, const char *name, enum srvsvc_PlatformId r);

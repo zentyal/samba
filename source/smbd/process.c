@@ -252,6 +252,8 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 			timeout, toread);
 
 		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("receive_smb_raw_talloc_partial_read: %s\n",
+				   nt_errstr(status)));
 			return status;
 		}
 	}
@@ -282,14 +284,8 @@ static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
 			smb_len_large(lenbuf) > min_recv_size && /* Could be a UNIX large writeX. */
 			!srv_is_signing_active()) {
 
-		status = receive_smb_raw_talloc_partial_read(
-			mem_ctx, lenbuf, fd, buffer, timeout, p_unread, &len);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(10, ("receive_smb_raw: %s\n",
-				   nt_errstr(status)));
-			return status;
-		}
+		return receive_smb_raw_talloc_partial_read(
+			mem_ctx, lenbuf, fd, buffer, timeout, p_unread, plen);
 	}
 
 	if (!valid_packet_size(len)) {
@@ -871,8 +867,8 @@ static NTSTATUS receive_message_or_smb(TALLOC_CTX *mem_ctx, char **buffer,
 	if (selrtn == -1) {
 		/* something is wrong. Maybe the socket is dead? */
 		return map_nt_error_from_unix(errno);
-	} 
-    
+	}
+
 	/* Did we timeout ? */
 	if (selrtn == 0) {
 		return NT_STATUS_IO_TIMEOUT;
@@ -893,6 +889,15 @@ static NTSTATUS receive_message_or_smb(TALLOC_CTX *mem_ctx, char **buffer,
 		 */
 		goto again;
 	}
+
+	/*
+	 * We've just woken up from a protentially long select sleep.
+	 * Ensure we process local messages as we need to synchronously
+	 * process any messages from other smbd's to avoid file rename race
+	 * conditions. This call is cheap if there are no messages waiting.
+	 * JRA.
+	 */
+	message_dispatch(smbd_messaging_context());
 
 	status = receive_smb_talloc(mem_ctx, smbd_server_fd(), buffer, 0,
 				    p_unread, p_encrypted, &len);
@@ -1250,8 +1255,10 @@ void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
 	if ((num_bytes > 0xffffff)
 	    || ((num_bytes + smb_size + num_words*2) > 0xffffff)) {
 		char *msg;
-		asprintf(&msg, "num_bytes too large: %u",
-			 (unsigned)num_bytes);
+		if (asprintf(&msg, "num_bytes too large: %u",
+			     (unsigned)num_bytes) == -1) {
+			msg = CONST_DISCARD(char *, "num_bytes too large");
+		}
 		smb_panic(msg);
 	}
 
@@ -1289,9 +1296,8 @@ static void smb_dump(const char *name, int type, const char *data, ssize_t len)
 
 	if (len < 4) len = smb_len(data)+4;
 	for (i=1;i<100;i++) {
-		asprintf(&fname, "/tmp/%s.%d.%s", name, i,
-				type ? "req" : "resp");
-		if (!fname) {
+		if (asprintf(&fname, "/tmp/%s.%d.%s", name, i,
+			     type ? "req" : "resp") == -1) {
 			return;
 		}
 		fd = open(fname, O_WRONLY|O_CREAT|O_EXCL, 0644);
@@ -1901,6 +1907,7 @@ static void timeout_processing(int *select_timeout,
 
 		unsigned char trust_passwd_hash[16];
 		time_t lct;
+		void *lock;
 
 		/*
 		 * We're in domain level security, and the code that
@@ -1912,7 +1919,9 @@ static void timeout_processing(int *select_timeout,
 		 * First, open the machine password file with an exclusive lock.
 		 */
 
-		if (secrets_lock_trust_account_password(lp_workgroup(), True) == False) {
+		lock = secrets_get_trust_account_lock(NULL, lp_workgroup());
+
+		if (lock == NULL) {
 			DEBUG(0,("process: unable to lock the machine account password for \
 machine %s in domain %s.\n", global_myname(), lp_workgroup() ));
 			return;
@@ -1921,7 +1930,7 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup() ));
 		if(!secrets_fetch_trust_account_password(lp_workgroup(), trust_passwd_hash, &lct, NULL)) {
 			DEBUG(0,("process: unable to read the machine account password for \
 machine %s in domain %s.\n", global_myname(), lp_workgroup()));
-			secrets_lock_trust_account_password(lp_workgroup(), False);
+			TALLOC_FREE(lock);
 			return;
 		}
 
@@ -1931,7 +1940,7 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup()));
 
 		if(t < lct + lp_machine_password_timeout()) {
 			global_machine_password_needs_changing = False;
-			secrets_lock_trust_account_password(lp_workgroup(), False);
+			TALLOC_FREE(lock);
 			return;
 		}
 
@@ -1939,7 +1948,7 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup()));
     
 		change_trust_account_password( lp_workgroup(), NULL);
 		global_machine_password_needs_changing = False;
-		secrets_lock_trust_account_password(lp_workgroup(), False);
+		TALLOC_FREE(lock);
 	}
 
 	/* update printer queue caches if necessary */

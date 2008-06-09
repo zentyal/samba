@@ -1,0 +1,171 @@
+/*
+  libnetapi interface definition
+*/
+
+cpp_quote("#define LIBNETAPI_LOCAL_SERVER(x) (!x || is_myname_or_ipaddr(x))")
+
+[
+	pointer_default(unique)
+]
+interface libnetapi
+{
+	const int ERROR_MORE_DATA = 234L;
+
+	[public] typedef [v1_enum] enum {
+		NERR_Success=0
+	} NET_API_STATUS;
+
+	[nopush,nopull] NET_API_STATUS NetJoinDomain(
+		[in,unique] string *server,
+		[in,ref] string *domain,
+		[in,unique] string *account_ou,
+		[in,unique] string *account,
+		[in,unique] string *password,
+		[in] uint32 join_flags
+		);
+
+	[nopush,nopull] NET_API_STATUS NetUnjoinDomain(
+		[in,unique] string *server_name,
+		[in,unique] string *account,
+		[in,unique] string *password,
+		[in] uint32 unjoin_flags
+		);
+
+	[nopush,nopull] NET_API_STATUS NetGetJoinInformation(
+		[in,unique] string *server_name,
+		[out] string **name_buffer,
+		[out] uint16 *name_type
+		);
+
+	[nopush,nopull] NET_API_STATUS NetGetJoinableOUs(
+		[in,unique] string *server_name,
+		[in,ref] string *domain,
+		[in,unique] string *account,
+		[in,unique] string *password,
+		[out] uint32 *ou_count,
+		[out] string ***ous
+		);
+
+	[public] typedef struct {
+		string sv1005_comment;
+	} SERVER_INFO_1005;
+
+	[nopush,nopull] NET_API_STATUS NetServerGetInfo(
+		[in,unique] string *server_name,
+		[in] uint32 level,
+		[out] uint8 **buffer
+		);
+
+	[nopush,nopull] NET_API_STATUS NetServerSetInfo(
+		[in,unique] string *server_name,
+		[in] uint32 level,
+		[in] uint8 *buffer,
+		[out] uint32 *parm_error
+		);
+
+	[nopush,nopull] NET_API_STATUS NetGetDCName(
+		[in,unique] string *server_name,
+		[in,unique] string *domain_name,
+		[out] uint8 **buffer
+		);
+
+	[nopush,nopull] NET_API_STATUS NetGetAnyDCName(
+		[in,unique] string *server_name,
+		[in,unique] string *domain_name,
+		[out] uint8 **buffer
+		);
+
+	[public] typedef struct {
+		string domain_controller_name;
+		string domain_controller_address;
+		uint32 domain_controller_address_type;
+		GUID domain_guid;
+		string domain_name;
+		string dns_forest_name;
+		uint32 flags;
+		string dc_site_name;
+		string client_site_name;
+	} DOMAIN_CONTROLLER_INFO;
+
+	[nopush,nopull] NET_API_STATUS DsGetDcName(
+		[in,unique] string *server_name,
+		[in,ref] string *domain_name,
+		[in,unique] GUID *domain_guid,
+		[in,unique] string *site_name,
+		[in] uint32 flags,
+		[out,ref] DOMAIN_CONTROLLER_INFO **dc_info
+		);
+
+	[public] typedef struct {
+		string usri0_name;
+	} USER_INFO_0;
+
+	[public] typedef struct {
+		string usri1_name;
+		string usri1_password;
+		uint32 usri1_password_age;
+		uint32 usri1_priv;
+		string usri1_home_dir;
+		string usri1_comment;
+		uint32 usri1_flags;
+		string usri1_script_path;
+	} USER_INFO_1;
+
+	[nopush,nopull] NET_API_STATUS NetUserAdd(
+		[in,unique] string *server_name,
+		[in] uint32 level,
+		[in,ref] uint8 *buffer,
+		[out,ref] uint32 *parm_error
+		);
+
+	[nopush,nopull] NET_API_STATUS NetUserDel(
+		[in,unique] string *server_name,
+		[in,ref] string *user_name
+		);
+
+	[nopush,nopull] NET_API_STATUS NetUserEnum(
+		[in,unique] string *server_name,
+		[in] uint32 level,
+		[in] uint32 filter,
+		[out,ref] uint8 **buffer,
+		[in] uint32 prefmaxlen,
+		[out,ref] uint32 *entries_read,
+		[out,ref] uint32 *total_entries,
+		[in,out,ref] uint32 *resume_handle
+		);
+
+	[public] typedef struct {
+		string usri1_name;
+		string usri1_comment;
+		uint32 usri1_flags;
+		string usri1_full_name;
+		uint32 usri1_user_id;
+		uint32 usri1_next_index;
+	} NET_DISPLAY_USER;
+
+	[public] typedef struct {
+		string usri2_name;
+		string usri2_comment;
+		uint32 usri2_flags;
+		uint32 usri2_user_id;
+		uint32 usri2_next_index;
+	} NET_DISPLAY_MACHINE;
+
+	[public] typedef struct {
+		string grpi3_name;
+		string grpi3_comment;
+		uint32 grpi3_group_id;
+		uint32 grpi3_attributes;
+		uint32 grpi3_next_index;
+	} NET_DISPLAY_GROUP;
+
+	[nopush,nopull] NET_API_STATUS NetQueryDisplayInformation(
+		[in,unique] string *server_name,
+		[in] uint32 level,
+		[in] uint32 idx,
+		[in] uint32 entries_requested,
+		[in] uint32 prefmaxlen,
+		[out,ref] uint32 *entries_read,
+		[out,ref,noprint] void **buffer
+		);
+}

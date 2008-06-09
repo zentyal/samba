@@ -567,7 +567,7 @@ static bool fill_grent_mem(struct winbindd_domain *domain,
 		/* If we have no more groups to expand, break out
 		   early */
 
-		if ( !&new_glist )
+		if (new_glist == NULL)
 			break;
 
 		/* One more round */
@@ -806,8 +806,10 @@ static void getgrsid_lookupsid_recv( void *private_data, bool success,
 }
 
 	if ( (s->group_name = talloc_asprintf( s->state->mem_ctx, 
-					       "%s\\%s", 
-					       dom_name, name )) == NULL )
+                                               "%s%c%s",
+                                               dom_name,
+					       *lp_winbind_separator(),
+                                               name)) == NULL )
 {
 		DEBUG(1, ("getgrsid_lookupsid_recv: talloc_asprintf() Failed!\n"));
 		request_error(s->state);
@@ -1595,9 +1597,11 @@ static void getgroups_sid2gid_recv(void *private_data, bool success, gid_t gid)
 	}
 
 	s->state->response.data.num_entries = s->num_token_gids;
-	/* s->token_gids are talloced */
-	s->state->response.extra_data.data = smb_xmemdup(s->token_gids, s->num_token_gids * sizeof(gid_t));
-	s->state->response.length += s->num_token_gids * sizeof(gid_t);
+	if (s->num_token_gids) {
+		/* s->token_gids are talloced */
+		s->state->response.extra_data.data = smb_xmemdup(s->token_gids, s->num_token_gids * sizeof(gid_t));
+		s->state->response.length += s->num_token_gids * sizeof(gid_t);
+	}
 	request_ok(s->state);
 }
 

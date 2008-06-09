@@ -19,18 +19,21 @@
 
 #include "includes.h"
 
+#include "librpc/gen_ndr/libnetapi.h"
 #include "lib/netapi/netapi.h"
+#include "lib/netapi/netapi_private.h"
+#include "lib/netapi/libnetapi.h"
 #include "libnet/libnet.h"
 
 /****************************************************************
 ****************************************************************/
 
-static WERROR NetServerGetInfoLocal_1005(struct libnetapi_ctx *ctx,
-					 uint8_t **buffer)
+static WERROR NetServerGetInfo_l_1005(struct libnetapi_ctx *ctx,
+				      uint8_t **buffer)
 {
-	struct srvsvc_NetSrvInfo1005 info1005;
+	struct SERVER_INFO_1005 info1005;
 
-	info1005.comment = lp_serverstring();
+	info1005.sv1005_comment = lp_serverstring();
 	*buffer = (uint8_t *)talloc_memdup(ctx, &info1005, sizeof(info1005));
 	if (!*buffer) {
 		return WERR_NOMEM;
@@ -42,14 +45,12 @@ static WERROR NetServerGetInfoLocal_1005(struct libnetapi_ctx *ctx,
 /****************************************************************
 ****************************************************************/
 
-static WERROR NetServerGetInfoLocal(struct libnetapi_ctx *ctx,
-				    const char *server_name,
-				    uint32_t level,
-				    uint8_t **buffer)
+WERROR NetServerGetInfo_l(struct libnetapi_ctx *ctx,
+			  struct NetServerGetInfo *r)
 {
-	switch (level) {
+	switch (r->in.level) {
 		case 1005:
-			return NetServerGetInfoLocal_1005(ctx, buffer);
+			return NetServerGetInfo_l_1005(ctx, r->out.buffer);
 		default:
 			return WERR_UNKNOWN_LEVEL;
 	}
@@ -60,10 +61,8 @@ static WERROR NetServerGetInfoLocal(struct libnetapi_ctx *ctx,
 /****************************************************************
 ****************************************************************/
 
-static WERROR NetServerGetInfoRemote(struct libnetapi_ctx *ctx,
-				     const char *server_name,
-				     uint32_t level,
-				     uint8_t **buffer)
+WERROR NetServerGetInfo_r(struct libnetapi_ctx *ctx,
+			  struct NetServerGetInfo *r)
 {
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *pipe_cli = NULL;
@@ -71,29 +70,19 @@ static WERROR NetServerGetInfoRemote(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	union srvsvc_NetSrvInfo info;
 
-	status = cli_full_connection(&cli, NULL, server_name,
-				     NULL, 0,
-				     "IPC$", "IPC",
-				     ctx->username,
-				     ctx->workgroup,
-				     ctx->password,
-				     0, Undefined, NULL);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
+	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	pipe_cli = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC,
-					    &status);
-	if (!pipe_cli) {
-		werr = ntstatus_to_werror(status);
+	werr = libnetapi_open_pipe(ctx, cli, PI_SRVSVC, &pipe_cli);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
-	};
+	}
 
 	status = rpccli_srvsvc_NetSrvGetInfo(pipe_cli, ctx,
-					     server_name,
-					     level,
+					     r->in.server_name,
+					     r->in.level,
 					     &info,
 					     &werr);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -101,119 +90,67 @@ static WERROR NetServerGetInfoRemote(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	*buffer = (uint8_t *)&info;
-
- done:
-	if (cli) {
-		cli_shutdown(cli);
+	*r->out.buffer = (uint8_t *)talloc_memdup(ctx, &info, sizeof(info));
+	if (!*r->out.buffer) {
+		werr = WERR_NOMEM;
+		goto done;
 	}
 
+ done:
 	return werr;
 }
 
 /****************************************************************
 ****************************************************************/
 
-static WERROR libnetapi_NetServerGetInfo(struct libnetapi_ctx *ctx,
-					 const char *server_name,
-					 uint32_t level,
-					 uint8_t **buffer)
-{
-	if (!server_name || is_myname_or_ipaddr(server_name)) {
-		return NetServerGetInfoLocal(ctx,
-					     server_name,
-					     level,
-					     buffer);
-	}
-
-	return NetServerGetInfoRemote(ctx,
-				      server_name,
-				      level,
-				      buffer);
-
-}
-
-/****************************************************************
- NetServerGetInfo
-****************************************************************/
-
-NET_API_STATUS NetServerGetInfo(const char *server_name,
-				uint32_t level,
-				uint8_t **buffer)
-{
-	struct libnetapi_ctx *ctx = NULL;
-	NET_API_STATUS status;
-	WERROR werr;
-
-	status = libnetapi_getctx(&ctx);
-	if (status != 0) {
-		return status;
-	}
-
-	werr = libnetapi_NetServerGetInfo(ctx,
-					  server_name,
-					  level,
-					  buffer);
-	if (!W_ERROR_IS_OK(werr)) {
-		return W_ERROR_V(werr);
-	}
-
-	return NET_API_STATUS_SUCCESS;
-}
-
-/****************************************************************
-****************************************************************/
-
-static WERROR NetServerSetInfoLocal_1005(struct libnetapi_ctx *ctx,
-					 uint8_t *buffer,
-					 uint32_t *parm_error)
+static WERROR NetServerSetInfo_l_1005(struct libnetapi_ctx *ctx,
+				      struct NetServerSetInfo *r)
 {
 	WERROR werr;
-	struct libnet_conf_ctx *conf_ctx;
+	struct smbconf_ctx *conf_ctx;
 	struct srvsvc_NetSrvInfo1005 *info1005;
 
-	if (!buffer) {
-		*parm_error = 1005; /* sure here ? */
+	if (!r->in.buffer) {
+		*r->out.parm_error = 1005; /* sure here ? */
 		return WERR_INVALID_PARAM;
 	}
 
-	info1005 = (struct srvsvc_NetSrvInfo1005 *)buffer;
+	info1005 = (struct srvsvc_NetSrvInfo1005 *)r->in.buffer;
 
 	if (!info1005->comment) {
-		*parm_error = 1005;
+		*r->out.parm_error = 1005;
 		return WERR_INVALID_PARAM;
 	}
 
 	if (!lp_config_backend_is_registry()) {
+		libnetapi_set_error_string(ctx,
+			"Configuration manipulation requested but not "
+			"supported by backend");
 		return WERR_NOT_SUPPORTED;
 	}
 
-	werr = libnet_conf_open(ctx, &conf_ctx);
+	werr = smbconf_init_reg(ctx, &conf_ctx, NULL);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	werr = libnet_conf_set_global_parameter(conf_ctx,
-						"server string",
-						info1005->comment);
+	werr = smbconf_set_global_parameter(conf_ctx, "server string",
+					    info1005->comment);
 
  done:
-	libnet_conf_close(conf_ctx);
+	smbconf_shutdown(conf_ctx);
 	return werr;
 }
 
 /****************************************************************
 ****************************************************************/
 
-static WERROR NetServerSetInfoLocal(struct libnetapi_ctx *ctx,
-				    const char *server_name,
-				    uint32_t level,
-				    uint8_t *buffer,
-				    uint32_t *parm_error)
+WERROR NetServerSetInfo_l(struct libnetapi_ctx *ctx,
+			  struct NetServerSetInfo *r)
 {
-	switch (level) {
+	switch (r->in.level) {
 		case 1005:
-			return NetServerSetInfoLocal_1005(ctx, buffer, parm_error);
+			return NetServerSetInfo_l_1005(ctx, r);
 		default:
 			return WERR_UNKNOWN_LEVEL;
 	}
@@ -224,11 +161,8 @@ static WERROR NetServerSetInfoLocal(struct libnetapi_ctx *ctx,
 /****************************************************************
 ****************************************************************/
 
-static WERROR NetServerSetInfoRemote(struct libnetapi_ctx *ctx,
-				     const char *server_name,
-				     uint32_t level,
-				     uint8_t *buffer,
-				     uint32_t *parm_error)
+WERROR NetServerSetInfo_r(struct libnetapi_ctx *ctx,
+			  struct NetServerSetInfo *r)
 {
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *pipe_cli = NULL;
@@ -236,29 +170,19 @@ static WERROR NetServerSetInfoRemote(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	union srvsvc_NetSrvInfo info;
 
-	status = cli_full_connection(&cli, NULL, server_name,
-				     NULL, 0,
-				     "IPC$", "IPC",
-				     ctx->username,
-				     ctx->workgroup,
-				     ctx->password,
-				     0, Undefined, NULL);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		werr = ntstatus_to_werror(status);
+	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
 
-	pipe_cli = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC,
-					    &status);
-	if (!pipe_cli) {
-		werr = ntstatus_to_werror(status);
+	werr = libnetapi_open_pipe(ctx, cli, PI_SRVSVC, &pipe_cli);
+	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
-	};
+	}
 
-	switch (level) {
+	switch (r->in.level) {
 		case 1005:
-			info.info1005 = (struct srvsvc_NetSrvInfo1005 *)buffer;
+			info.info1005 = (struct srvsvc_NetSrvInfo1005 *)r->in.buffer;
 			break;
 		default:
 			werr = WERR_NOT_SUPPORTED;
@@ -266,10 +190,10 @@ static WERROR NetServerSetInfoRemote(struct libnetapi_ctx *ctx,
 	}
 
 	status = rpccli_srvsvc_NetSrvSetInfo(pipe_cli, ctx,
-					     server_name,
-					     level,
-					     info,
-					     parm_error,
+					     r->in.server_name,
+					     r->in.level,
+					     &info,
+					     r->out.parm_error,
 					     &werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		werr = ntstatus_to_werror(status);
@@ -277,63 +201,5 @@ static WERROR NetServerSetInfoRemote(struct libnetapi_ctx *ctx,
 	}
 
  done:
-	if (cli) {
-		cli_shutdown(cli);
-	}
-
 	return werr;
-}
-
-/****************************************************************
-****************************************************************/
-
-static WERROR libnetapi_NetServerSetInfo(struct libnetapi_ctx *ctx,
-					 const char *server_name,
-					 uint32_t level,
-					 uint8_t *buffer,
-					 uint32_t *parm_error)
-{
-	if (!server_name || is_myname_or_ipaddr(server_name)) {
-		return NetServerSetInfoLocal(ctx,
-					     server_name,
-					     level,
-					     buffer,
-					     parm_error);
-	}
-
-	return NetServerSetInfoRemote(ctx,
-				      server_name,
-				      level,
-				      buffer,
-				      parm_error);
-}
-
-/****************************************************************
- NetServerSetInfo
-****************************************************************/
-
-NET_API_STATUS NetServerSetInfo(const char *server_name,
-				uint32_t level,
-				uint8_t *buffer,
-				uint32_t *parm_error)
-{
-	struct libnetapi_ctx *ctx = NULL;
-	NET_API_STATUS status;
-	WERROR werr;
-
-	status = libnetapi_getctx(&ctx);
-	if (status != 0) {
-		return status;
-	}
-
-	werr = libnetapi_NetServerSetInfo(ctx,
-					  server_name,
-					  level,
-					  buffer,
-					  parm_error);
-	if (!W_ERROR_IS_OK(werr)) {
-		return W_ERROR_V(werr);
-	}
-
-	return NET_API_STATUS_SUCCESS;
 }

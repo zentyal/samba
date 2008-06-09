@@ -81,11 +81,10 @@ static const char *assume_own_realm(void)
 static int net_ads_cldap_netlogon(ADS_STRUCT *ads)
 {
 	char addr[INET6_ADDRSTRLEN];
-	struct cldap_netlogon_reply reply;
-	struct GUID tmp_guid;
+	struct nbt_cldap_netlogon_5 reply;
 
 	print_sockaddr(addr, sizeof(addr), &ads->ldap.ss);
-	if ( !ads_cldap_netlogon(addr, ads->server.realm, &reply ) ) {
+	if ( !ads_cldap_netlogon_5(talloc_tos(), addr, ads->server.realm, &reply ) ) {
 		d_fprintf(stderr, "CLDAP query failed!\n");
 		return -1;
 	}
@@ -106,8 +105,7 @@ static int net_ads_cldap_netlogon(ADS_STRUCT *ads)
 		break;
 	}
 
-	smb_uuid_unpack(reply.guid, &tmp_guid);
-	d_printf("GUID: %s\n", smb_uuid_string(talloc_tos(), tmp_guid));
+	d_printf("GUID: %s\n", smb_uuid_string(talloc_tos(), reply.domain_uuid));
 
 	d_printf("Flags:\n"
 		 "\tIs a PDC:                                   %s\n"
@@ -120,31 +118,30 @@ static int net_ads_cldap_netlogon(ADS_STRUCT *ads)
 		 "\tIs writable:                                %s\n"
 		 "\tHas a hardware clock:                       %s\n"
 		 "\tIs a non-domain NC serviced by LDAP server: %s\n",
-		 (reply.flags & ADS_PDC) ? "yes" : "no",
-		 (reply.flags & ADS_GC) ? "yes" : "no",
-		 (reply.flags & ADS_LDAP) ? "yes" : "no",
-		 (reply.flags & ADS_DS) ? "yes" : "no",
-		 (reply.flags & ADS_KDC) ? "yes" : "no",
-		 (reply.flags & ADS_TIMESERV) ? "yes" : "no",
-		 (reply.flags & ADS_CLOSEST) ? "yes" : "no",
-		 (reply.flags & ADS_WRITABLE) ? "yes" : "no",
-		 (reply.flags & ADS_GOOD_TIMESERV) ? "yes" : "no",
-		 (reply.flags & ADS_NDNC) ? "yes" : "no");
+		 (reply.server_type & NBT_SERVER_PDC) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_GC) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_LDAP) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_DS) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_KDC) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_TIMESERV) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_CLOSEST) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_WRITABLE) ? "yes" : "no",
+		 (reply.server_type & NBT_SERVER_GOOD_TIMESERV) ? "yes" : "no",
+		 (reply.server_type & DS_SERVER_NDNC) ? "yes" : "no");
 
 	printf("Forest:\t\t\t%s\n", reply.forest);
-	printf("Domain:\t\t\t%s\n", reply.domain);
-	printf("Domain Controller:\t%s\n", reply.hostname);
+	printf("Domain:\t\t\t%s\n", reply.dns_domain);
+	printf("Domain Controller:\t%s\n", reply.pdc_dns_name);
 
-	printf("Pre-Win2k Domain:\t%s\n", reply.netbios_domain);
-	printf("Pre-Win2k Hostname:\t%s\n", reply.netbios_hostname);
+	printf("Pre-Win2k Domain:\t%s\n", reply.domain);
+	printf("Pre-Win2k Hostname:\t%s\n", reply.pdc_name);
 
-	if (*reply.unk) printf("Unk:\t\t\t%s\n", reply.unk);
 	if (*reply.user_name) printf("User name:\t%s\n", reply.user_name);
 
-	printf("Server Site Name :\t\t%s\n", reply.server_site_name);
-	printf("Client Site Name :\t\t%s\n", reply.client_site_name);
+	printf("Server Site Name :\t\t%s\n", reply.server_site);
+	printf("Client Site Name :\t\t%s\n", reply.client_site);
 
-	d_printf("NT Version: %d\n", reply.version);
+	d_printf("NT Version: %d\n", reply.nt_version);
 	d_printf("LMNT Token: %.2x\n", reply.lmnt_token);
 	d_printf("LM20 Token: %.2x\n", reply.lm20_token);
 
@@ -379,7 +376,7 @@ static int net_ads_workgroup(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	char addr[INET6_ADDRSTRLEN];
-	struct cldap_netlogon_reply reply;
+	struct nbt_cldap_netlogon_5 reply;
 
 	if (!ADS_ERR_OK(ads_startup_nobind(False, &ads))) {
 		d_fprintf(stderr, "Didn't find the cldap server!\n");
@@ -392,12 +389,12 @@ static int net_ads_workgroup(int argc, const char **argv)
 	}
 
 	print_sockaddr(addr, sizeof(addr), &ads->ldap.ss);
-	if ( !ads_cldap_netlogon(addr, ads->server.realm, &reply ) ) {
+	if ( !ads_cldap_netlogon_5(talloc_tos(), addr, ads->server.realm, &reply ) ) {
 		d_fprintf(stderr, "CLDAP query failed!\n");
 		return -1;
 	}
 
-	d_printf("Workgroup: %s\n", reply.netbios_domain);
+	d_printf("Workgroup: %s\n", reply.domain);
 
 	ads_destroy(&ads);
 
@@ -816,6 +813,11 @@ static int net_ads_leave(int argc, const char **argv)
 	struct libnet_UnjoinCtx *r = NULL;
 	WERROR werr;
 
+	if (!*lp_realm()) {
+		d_fprintf(stderr, "No realm set, are we joined ?\n");
+		return -1;
+	}
+
 	if (!(ctx = talloc_init("net_ads_leave"))) {
 		d_fprintf(stderr, "Could not initialise talloc context.\n");
 		return -1;
@@ -829,11 +831,12 @@ static int net_ads_leave(int argc, const char **argv)
 		return -1;
 	}
 
-	r->in.debug		= opt_verbose;
+	r->in.debug		= true;
 	r->in.dc_name		= opt_host;
 	r->in.domain_name	= lp_realm();
 	r->in.admin_account	= opt_user_name;
 	r->in.admin_password	= net_prompt_pass(opt_user_name);
+	r->in.modify_config	= lp_config_backend_is_registry();
 	r->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 
@@ -918,33 +921,27 @@ int net_ads_testjoin(int argc, const char **argv)
   Simple configu checks before beginning the join
  ********************************************************************/
 
-static NTSTATUS check_ads_config( void )
+static WERROR check_ads_config( void )
 {
 	if (lp_server_role() != ROLE_DOMAIN_MEMBER ) {
 		d_printf("Host is not configured as a member server.\n");
-		return NT_STATUS_INVALID_DOMAIN_ROLE;
+		return WERR_INVALID_DOMAIN_ROLE;
 	}
 
 	if (strlen(global_myname()) > 15) {
 		d_printf("Our netbios name can be at most 15 chars long, "
 			 "\"%s\" is %u chars long\n", global_myname(),
 			 (unsigned int)strlen(global_myname()));
-		return NT_STATUS_NAME_TOO_LONG;
+		return WERR_INVALID_COMPUTER_NAME;
 	}
 
 	if ( lp_security() == SEC_ADS && !*lp_realm()) {
 		d_fprintf(stderr, "realm must be set in in %s for ADS "
 			"join to succeed.\n", get_dyn_CONFIGFILE());
-		return NT_STATUS_INVALID_PARAMETER;
+		return WERR_INVALID_PARAM;
 	}
 
-	if (!secrets_init()) {
-		DEBUG(1,("Failed to initialise secrets database\n"));
-		/* This is a good bet for failure of secrets_init ... */
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	return NT_STATUS_OK;
+	return WERR_OK;
 }
 
 /*******************************************************************
@@ -1102,7 +1099,6 @@ static int net_ads_join_usage(int argc, const char **argv)
 
 int net_ads_join(int argc, const char **argv)
 {
-	NTSTATUS nt_status;
 	TALLOC_CTX *ctx = NULL;
 	struct libnet_JoinCtx *r = NULL;
 	const char *domain = lp_realm();
@@ -1113,11 +1109,20 @@ int net_ads_join(int argc, const char **argv)
 	int i;
 	const char *os_name = NULL;
 	const char *os_version = NULL;
+	bool modify_config = lp_config_backend_is_registry();
 
-	nt_status = check_ads_config();
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		d_fprintf(stderr, "Invalid configuration.  Exiting....\n");
-		werr = ntstatus_to_werror(nt_status);
+	if (!modify_config) {
+
+		werr = check_ads_config();
+		if (!W_ERROR_IS_OK(werr)) {
+			d_fprintf(stderr, "Invalid configuration.  Exiting....\n");
+			goto fail;
+		}
+	}
+
+	if (!(ctx = talloc_init("net_ads_join"))) {
+		d_fprintf(stderr, "Could not initialise talloc context.\n");
+		werr = WERR_NOMEM;
 		goto fail;
 	}
 
@@ -1125,12 +1130,6 @@ int net_ads_join(int argc, const char **argv)
 
 	werr = libnet_init_JoinCtx(ctx, &r);
 	if (!W_ERROR_IS_OK(werr)) {
-		goto fail;
-	}
-
-	if (!(ctx = talloc_init("net_ads_join"))) {
-		d_fprintf(stderr, "Could not initialise talloc context.\n");
-		werr = WERR_NOMEM;
 		goto fail;
 	}
 
@@ -1167,6 +1166,12 @@ int net_ads_join(int argc, const char **argv)
 		}
 	}
 
+	if (!*domain) {
+		d_fprintf(stderr, "Please supply a valid domain name\n");
+		werr = WERR_INVALID_PARAM;
+		goto fail;
+	}
+
 	/* Do the domain join here */
 
 	r->in.domain_name	= domain;
@@ -1178,7 +1183,8 @@ int net_ads_join(int argc, const char **argv)
 	r->in.dc_name		= opt_host;
 	r->in.admin_account	= opt_user_name;
 	r->in.admin_password	= net_prompt_pass(opt_user_name);
-	r->in.debug		= opt_verbose;
+	r->in.debug		= true;
+	r->in.modify_config	= modify_config;
 	r->in.join_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
 				  WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED;
@@ -1190,7 +1196,7 @@ int net_ads_join(int argc, const char **argv)
 
 	/* Check the short name of the domain */
 
-	if (!strequal(lp_workgroup(), r->out.netbios_domain_name)) {
+	if (!modify_config && !strequal(lp_workgroup(), r->out.netbios_domain_name)) {
 		d_printf("The workgroup in %s does not match the short\n", get_dyn_CONFIGFILE());
 		d_printf("domain name obtained from the server.\n");
 		d_printf("Using the name [%s] from the server.\n", r->out.netbios_domain_name);
@@ -1200,11 +1206,16 @@ int net_ads_join(int argc, const char **argv)
 
 	d_printf("Using short domain name -- %s\n", r->out.netbios_domain_name);
 
-	d_printf("Joined '%s' to realm '%s'\n", r->in.machine_name,
-		r->out.dns_domain_name);
+	if (r->out.dns_domain_name) {
+		d_printf("Joined '%s' to realm '%s'\n", r->in.machine_name,
+			r->out.dns_domain_name);
+	} else {
+		d_printf("Joined '%s' to domain '%s'\n", r->in.machine_name,
+			r->out.netbios_domain_name);
+	}
 
 #if defined(WITH_DNS_UPDATES)
-	{
+	if (r->out.domain_is_ad) {
 		/* We enter this block with user creds */
 		ADS_STRUCT *ads_dns = NULL;
 
@@ -1214,8 +1225,9 @@ int net_ads_join(int argc, const char **argv)
 			use_in_memory_ccache();
 			asprintf( &ads_dns->auth.user_name, "%s$", global_myname() );
 			ads_dns->auth.password = secrets_fetch_machine_password(
-				lp_workgroup(), NULL, NULL );
-			ads_dns->auth.realm = SMB_STRDUP( lp_realm() );
+				r->out.netbios_domain_name, NULL, NULL );
+			ads_dns->auth.realm = SMB_STRDUP( r->out.dns_domain_name );
+			strupper_m(ads_dns->auth.realm );
 			ads_kinit_password( ads_dns );
 		}
 
@@ -1679,7 +1691,7 @@ static int net_ads_password(int argc, const char **argv)
 		fill in the KDC's addresss */
 	ads_connect(ads);
 
-	if (!ads || !ads->config.realm) {
+	if (!ads->config.realm) {
 		d_fprintf(stderr, "Didn't find the kerberos server!\n");
 		return -1;
 	}

@@ -2057,7 +2057,7 @@ static bool api_lsa_QueryTrustedDomainInfo(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo);
+	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo *);
 	if (r->out.info == NULL) {
 		talloc_free(r);
 		return false;
@@ -2521,7 +2521,7 @@ static bool api_lsa_LookupPrivName(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.name = talloc_zero(r, struct lsa_StringLarge);
+	r->out.name = talloc_zero(r, struct lsa_StringLarge *);
 	if (r->out.name == NULL) {
 		talloc_free(r);
 		return false;
@@ -3068,7 +3068,7 @@ static bool api_lsa_QueryTrustedDomainInfoBySid(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo);
+	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo *);
 	if (r->out.info == NULL) {
 		talloc_free(r);
 		return false;
@@ -3749,7 +3749,7 @@ static bool api_lsa_QueryTrustedDomainInfoByName(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo);
+	r->out.info = talloc_zero(r, union lsa_TrustedDomainInfo *);
 	if (r->out.info == NULL) {
 		talloc_free(r);
 		return false;
@@ -4131,7 +4131,7 @@ static bool api_lsa_QueryDomainInformationPolicy(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(r, union lsa_DomainInformationPolicy);
+	r->out.info = talloc_zero(r, union lsa_DomainInformationPolicy *);
 	if (r->out.info == NULL) {
 		talloc_free(r);
 		return false;

@@ -40,6 +40,12 @@ struct lsa_AsciiStringLarge {
 	const char *string;/* [unique,charset(DOS),length_is(length),size_is(size)] */
 }/* [public] */;
 
+struct lsa_BinaryString {
+	uint16_t length;
+	uint16_t size;
+	uint16_t *array;/* [unique,length_is(length/2),size_is(size/2)] */
+}/* [public] */;
+
 struct lsa_LUID {
 	uint32_t low;
 	uint32_t high;
@@ -958,7 +964,7 @@ struct lsa_QueryTrustedDomainInfo {
 	} in;
 
 	struct {
-		union lsa_TrustedDomainInfo *info;/* [unique,switch_is(level)] */
+		union lsa_TrustedDomainInfo **info;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 
@@ -1043,7 +1049,7 @@ struct lsa_LookupPrivName {
 	} in;
 
 	struct {
-		struct lsa_StringLarge *name;/* [unique] */
+		struct lsa_StringLarge **name;/* [ref] */
 		NTSTATUS result;
 	} out;
 
@@ -1145,7 +1151,7 @@ struct lsa_QueryTrustedDomainInfoBySid {
 	} in;
 
 	struct {
-		union lsa_TrustedDomainInfo *info;/* [unique,switch_is(level)] */
+		union lsa_TrustedDomainInfo **info;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 
@@ -1256,7 +1262,7 @@ struct lsa_QueryTrustedDomainInfoByName {
 	} in;
 
 	struct {
-		union lsa_TrustedDomainInfo *info;/* [ref,switch_is(level)] */
+		union lsa_TrustedDomainInfo **info;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 
@@ -1322,7 +1328,7 @@ struct lsa_QueryDomainInformationPolicy {
 	} in;
 
 	struct {
-		union lsa_DomainInformationPolicy *info;/* [unique,switch_is(level)] */
+		union lsa_DomainInformationPolicy **info;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 

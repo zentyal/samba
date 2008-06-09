@@ -34,14 +34,17 @@ struct db_context {
 	int (*fetch)(struct db_context *db, TALLOC_CTX *mem_ctx,
 		     TDB_DATA key, TDB_DATA *data);
 	int (*traverse)(struct db_context *db,
-			int (*f)(struct db_record *db,
+			int (*f)(struct db_record *rec,
 				 void *private_data),
 			void *private_data);
 	int (*traverse_read)(struct db_context *db,
-			     int (*f)(struct db_record *db,
+			     int (*f)(struct db_record *rec,
 				      void *private_data),
 			     void *private_data);
 	int (*get_seqnum)(struct db_context *db);
+	int (*transaction_start)(struct db_context *db);
+	int (*transaction_commit)(struct db_context *db);
+	int (*transaction_cancel)(struct db_context *db);
 	void *private_data;
 	bool persistent;
 };
@@ -50,6 +53,40 @@ struct db_context *db_open(TALLOC_CTX *mem_ctx,
 			   const char *name,
 			   int hash_size, int tdb_flags,
 			   int open_flags, mode_t mode);
+
+struct db_context *db_open_trans(TALLOC_CTX *mem_ctx,
+				 const char *name,
+				 int hash_size, int tdb_flags,
+				 int open_flags, mode_t mode);
+
+struct db_context *db_open_rbt(TALLOC_CTX *mem_ctx);
+
+struct db_context *db_open_tdb(TALLOC_CTX *mem_ctx,
+			       const char *name,
+			       int hash_size, int tdb_flags,
+			       int open_flags, mode_t mode);
+
+struct db_context *db_open_tdb2(TALLOC_CTX *mem_ctx,
+			        const char *name,
+			        int hash_size, int tdb_flags,
+			        int open_flags, mode_t mode);
+
+struct messaging_context;
+void db_tdb2_setup_messaging(struct messaging_context *msg_ctx, bool server);
+
+#ifdef CLUSTER_SUPPORT
+struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
+				const char *name,
+				int hash_size, int tdb_flags,
+				int open_flags, mode_t mode);
+#endif
+
+struct db_context *db_open_file(TALLOC_CTX *mem_ctx,
+				struct messaging_context *msg_ctx,
+				const char *name,
+				int hash_size, int tdb_flags,
+				int open_flags, mode_t mode);
+
 
 NTSTATUS dbwrap_delete_bystring(struct db_context *db, const char *key);
 NTSTATUS dbwrap_store_bystring(struct db_context *db, const char *key,

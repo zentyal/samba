@@ -46,15 +46,16 @@ unix="UNIX-INFO2"
 
 tests="$base $raw $rpc $unix"
 
-skipped="BASE-CHARSET BASE-DELAYWRITE BASE-TCONDEV"
+skipped="BASE-CHARSET BASE-TCONDEV"
 skipped="$skipped RAW-ACLS RAW-COMPOSITE RAW-CONTEXT"
 skipped="$skipped RAW-IOCTL"
-skipped="$skipped RAW-QFILEINFO RAW-QFSINFO RAW-SEARCH"
+skipped="$skipped RAW-QFILEINFO RAW-QFSINFO"
 skipped="$skipped RAW-SFILEINFO"
 
 echo "WARNING: Skipping tests $skipped"
 
 ADDARGS="$ADDARGS --option=torture:sharedelay=100000"
+ADDARGS="$ADDARGS --option=torture:writetimeupdatedelay=500000"
 
 failed=0
 for t in $tests; do

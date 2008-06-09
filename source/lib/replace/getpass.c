@@ -187,7 +187,6 @@ char *rep_getpass(const char *prompt)
 		in_fd = fileno(in);
 		if (fgets(buf, bufsize, in) == NULL) {
 			buf[0] = 0;
-			return buf;
 		}
 	}
 	nread = strlen(buf);
@@ -198,8 +197,9 @@ char *rep_getpass(const char *prompt)
 
 	/* Restore echoing.  */
 	if (echo_off) {
-		if (gotintr && in_fd == -1)
+		if (gotintr && in_fd == -1) {
 			in = fopen ("/dev/tty", "w+");
+		}
 		if (in != NULL)
 			tcsetattr (fileno (in), TCSANOW, &t);
 	}

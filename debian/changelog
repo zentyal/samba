@@ -1,3 +1,11 @@
+samba (2:3.2.0~rc1-3) UNRELEASED; urgency=low
+
+  * Enable building of cifs.spnego for the smbfs package, adding a
+    build-dependency on keyutils-dev, to allow kerberos-based authentication
+    of cifs mounts.  Closes: #480663, LP: #236830.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 09 Jun 2008 14:40:19 -0700
+
 samba (2:3.2.0~rc1-2) experimental; urgency=low
 
   * Reupload to experimental. Sigh.

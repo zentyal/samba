@@ -5,7 +5,7 @@
       
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,18 +14,17 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-BOOL sid_check_is_unix_users(const DOM_SID *sid)
+bool sid_check_is_unix_users(const DOM_SID *sid)
 {
 	return sid_equal(sid, &global_sid_Unix_Users);
 }
 
-BOOL sid_check_is_in_unix_users(const DOM_SID *sid)
+bool sid_check_is_in_unix_users(const DOM_SID *sid)
 {
 	DOM_SID dom_sid;
 	uint32 rid;
@@ -36,13 +35,13 @@ BOOL sid_check_is_in_unix_users(const DOM_SID *sid)
 	return sid_check_is_unix_users(&dom_sid);
 }
 
-BOOL uid_to_unix_users_sid(uid_t uid, DOM_SID *sid)
+bool uid_to_unix_users_sid(uid_t uid, DOM_SID *sid)
 {
 	sid_copy(sid, &global_sid_Unix_Users);
 	return sid_append_rid(sid, uid);
 }
 
-BOOL gid_to_unix_groups_sid(gid_t gid, DOM_SID *sid)
+bool gid_to_unix_groups_sid(gid_t gid, DOM_SID *sid)
 {
 	sid_copy(sid, &global_sid_Unix_Groups);
 	return sid_append_rid(sid, gid);
@@ -53,7 +52,7 @@ const char *unix_users_domain_name(void)
 	return "Unix User";
 }
 
-BOOL lookup_unix_user_name(const char *name, DOM_SID *sid)
+bool lookup_unix_user_name(const char *name, DOM_SID *sid)
 {
 	struct passwd *pwd;
 
@@ -69,12 +68,12 @@ BOOL lookup_unix_user_name(const char *name, DOM_SID *sid)
 	return True;
 }
 
-BOOL sid_check_is_unix_groups(const DOM_SID *sid)
+bool sid_check_is_unix_groups(const DOM_SID *sid)
 {
 	return sid_equal(sid, &global_sid_Unix_Groups);
 }
 
-BOOL sid_check_is_in_unix_groups(const DOM_SID *sid)
+bool sid_check_is_in_unix_groups(const DOM_SID *sid)
 {
 	DOM_SID dom_sid;
 	uint32 rid;
@@ -90,7 +89,7 @@ const char *unix_groups_domain_name(void)
 	return "Unix Group";
 }
 
-BOOL lookup_unix_group_name(const char *name, DOM_SID *sid)
+bool lookup_unix_group_name(const char *name, DOM_SID *sid)
 {
 	struct group *grp;
 

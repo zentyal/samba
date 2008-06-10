@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -25,51 +24,7 @@ extern struct unix_error_map unix_dos_nt_errmap[];
 
 extern uint32 global_client_caps;
 
-/****************************************************************************
- Create an error packet from a cached error.
-****************************************************************************/
- 
-int cached_error_packet(char *outbuf,files_struct *fsp,int line,const char *file)
-{
-	write_bmpx_struct *wbmpx = fsp->wbmpx_ptr;
-	int32 eclass = wbmpx->wr_errclass;
-	int32 err = wbmpx->wr_error;
-	NTSTATUS ntstatus = wbmpx->wr_status;
- 
-	/* We can now delete the auxiliary struct */
-	SAFE_FREE(fsp->wbmpx_ptr);
-	return error_packet(outbuf,eclass,err,ntstatus,line,file);
-}
-
-/****************************************************************************
- Create an error packet from errno.
-****************************************************************************/
-
-int unix_error_packet(char *outbuf,int def_class,uint32 def_code, NTSTATUS def_status, int line, const char *file)
-{
-	int eclass=def_class;
-	int ecode=def_code;
-	NTSTATUS ntstatus = def_status;
-	int i=0;
-
-	if (errno != 0) {
-		DEBUG(3,("unix_error_packet: error string = %s\n",strerror(errno)));
-  
-		while (unix_dos_nt_errmap[i].dos_class != 0) {
-			if (unix_dos_nt_errmap[i].unix_error == errno) {
-				eclass = unix_dos_nt_errmap[i].dos_class;
-				ecode = unix_dos_nt_errmap[i].dos_code;
-				ntstatus = unix_dos_nt_errmap[i].nt_error;
-				break;
-			}
-			i++;
-		}
-	}
-
-	return error_packet(outbuf,eclass,ecode,ntstatus,line,file);
-}
-
-BOOL use_nt_status(void)
+bool use_nt_status(void)
 {
 	return lp_nt_status_support() && (global_client_caps & CAP_STATUS32);
 }
@@ -83,8 +38,8 @@ BOOL use_nt_status(void)
 
 void error_packet_set(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatus, int line, const char *file)
 {
-	BOOL force_nt_status = False;
-	BOOL force_dos_status = False;
+	bool force_nt_status = False;
+	bool force_dos_status = False;
 
 	if (eclass == (uint8)-1) {
 		force_nt_status = True;
@@ -128,16 +83,46 @@ void error_packet_set(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatu
 
 int error_packet(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatus, int line, const char *file)
 {
-	int outsize = set_message(outbuf,0,0,True);
+	int outsize = srv_set_message(outbuf,0,0,True);
 	error_packet_set(outbuf, eclass, ecode, ntstatus, line, file);
 	return outsize;
 }
 
-/*******************************************************************************
- Special error map processing needed for returning DOS errors on open calls.
-*******************************************************************************/
+void reply_nt_error(struct smb_request *req, NTSTATUS ntstatus,
+		    int line, const char *file)
+{
+	TALLOC_FREE(req->outbuf);
+	reply_outbuf(req, 0, 0);
+	error_packet_set((char *)req->outbuf, 0, 0, ntstatus, line, file);
+}
 
-int error_open(char *outbuf, NTSTATUS status, int line, const char *file)
+void reply_force_nt_error(struct smb_request *req, NTSTATUS ntstatus,
+			  int line, const char *file)
+{
+	TALLOC_FREE(req->outbuf);
+	reply_outbuf(req, 0, 0);
+	error_packet_set((char *)req->outbuf, -1, -1, ntstatus, line, file);
+}
+
+void reply_dos_error(struct smb_request *req, uint8 eclass, uint32 ecode,
+		    int line, const char *file)
+{
+	TALLOC_FREE(req->outbuf);
+	reply_outbuf(req, 0, 0);
+	error_packet_set((char *)req->outbuf, eclass, ecode, NT_STATUS_OK, line,
+			 file);
+}
+
+void reply_both_error(struct smb_request *req, uint8 eclass, uint32 ecode,
+		      NTSTATUS status, int line, const char *file)
+{
+	TALLOC_FREE(req->outbuf);
+	reply_outbuf(req, 0, 0);
+	error_packet_set((char *)req->outbuf, eclass, ecode, status,
+			 line, file);
+}
+
+void reply_openerror(struct smb_request *req, NTSTATUS status)
 {
 	if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
 		/*
@@ -146,8 +131,39 @@ int error_open(char *outbuf, NTSTATUS status, int line, const char *file)
 		 * ERRDOS/183, we need to return ERRDOS/80, see bug
 		 * 4852.
 		 */
-		return error_packet(outbuf, ERRDOS, ERRfilexists,
-				NT_STATUS_OBJECT_NAME_COLLISION, line, file);
+		reply_botherror(req, NT_STATUS_OBJECT_NAME_COLLISION,
+			ERRDOS, ERRfilexists);
+	} else {
+		reply_nterror(req, status);
 	}
-	return error_packet(outbuf,0,0,status,line,file);
+}
+
+void reply_unix_error(struct smb_request *req, uint8 defclass, uint32 defcode,
+			NTSTATUS defstatus, int line, const char *file)
+{
+	int eclass=defclass;
+	int ecode=defcode;
+	NTSTATUS ntstatus = defstatus;
+	int i=0;
+
+	TALLOC_FREE(req->outbuf);
+	reply_outbuf(req, 0, 0);
+
+	if (errno != 0) {
+		DEBUG(3,("unix_error_packet: error string = %s\n",
+			strerror(errno)));
+
+		while (unix_dos_nt_errmap[i].dos_class != 0) {
+			if (unix_dos_nt_errmap[i].unix_error == errno) {
+				eclass = unix_dos_nt_errmap[i].dos_class;
+				ecode = unix_dos_nt_errmap[i].dos_code;
+				ntstatus = unix_dos_nt_errmap[i].nt_error;
+				break;
+			}
+			i++;
+		}
+	}
+
+	error_packet_set((char *)req->outbuf, eclass, ecode, ntstatus,
+		line, file);
 }

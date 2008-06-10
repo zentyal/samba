@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,11 +17,11 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+#undef realloc
 
 static int
 process_block (smb_iconv_t cd, const char *addr, size_t len, FILE *output)
@@ -86,7 +86,7 @@ incomplete character or shift sequence at end of buffer"));
 
 
 static int
-process_fd (iconv_t cd, int fd, FILE *output)
+process_fd (smb_iconv_t cd, int fd, FILE *output)
 {
   /* we have a problem with reading from a descriptor since we must not
      provide the iconv() function an incomplete character or shift
@@ -168,8 +168,8 @@ process_fd (iconv_t cd, int fd, FILE *output)
 int main(int argc, char *argv[])
 {
 	const char *file = NULL;
-	char *from = "";
-	char *to = "";
+	const char *from = "";
+	const char *to = "";
 	char *output = NULL;
 	const char *preload_modules[] = {NULL, NULL};
 	FILE *out = stdout;
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
 	}
 
 	cd = smb_iconv_open(to, from);
-	if((int)cd == -1) {
+	if (cd == (smb_iconv_t)-1) {
 		DEBUG(0,("unable to find from or to encoding, exiting...\n"));
 		return 1;
 	}

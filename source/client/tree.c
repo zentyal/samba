@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /* example-gtk+ application, ripped off from the gtk+ tree.c sample */
@@ -69,9 +68,9 @@ static void tree_error_message(gchar *message) {
  * workgroup type and return a path from there
  */
 
-static pstring path_string;
+static char *path_string;
 
-char *get_path(GtkWidget *item)
+char *get_path(TALLOC_CTX *ctx, GtkWidget *item)
 {
   GtkWidget *p = item;
   struct tree_data *pd;
@@ -93,7 +92,7 @@ char *get_path(GtkWidget *item)
 
     /* Find the parent and extract the data etc ... */
 
-    p = GTK_WIDGET(p->parent);    
+    p = GTK_WIDGET(p->parent);
     p = GTK_WIDGET(GTK_TREE(p)->tree_owner);
 
     pd = (struct tree_data *)gtk_object_get_user_data(GTK_OBJECT(p));
@@ -105,23 +104,25 @@ char *get_path(GtkWidget *item)
 
   }
 
-  /* 
+  /*
    * Got a list of comps now, should check that we did not hit a workgroup
    * when we got other things as well ... Later
    *
    * Now, build the path
    */
 
-  pstrcpy( path_string, "smb:/" );
+  TALLOC_FREE(path_string);
+  path_string = talloc_strdup(ctx, "smb:/");
 
-  for (j = i - 1; j >= 0; j--) {
-
-    strncat(path_string, "/", sizeof(path_string) - strlen(path_string));
-    strncat(path_string, comps[j], sizeof(path_string) - strlen(path_string));
-
+  if (path_string) {
+    for (j = i - 1; j >= 0; j--) {
+      path_string = talloc_asprintf_append(path_string, "/%s", comps[j]);
+    }
   }
-  
-  fprintf(stdout, "Path string = %s\n", path_string);
+
+  if (path_string) {
+    fprintf(stdout, "Path string = %s\n", path_string);
+  }
 
   return path_string;
 
@@ -151,7 +152,8 @@ static void cb_select_child (GtkWidget *root_tree, GtkWidget *child,
   char dirbuf[512];
   struct smbc_dirent *dirp;
   struct stat st1;
-  pstring path, path1;
+  char *path;
+  TALLOC_CTX *ctx = talloc_stackframe();
 
   g_print ("select_child called for root tree %p, subtree %p, child %p\n",
 	   root_tree, subtree, child);
@@ -162,31 +164,29 @@ static void cb_select_child (GtkWidget *root_tree, GtkWidget *child,
 
   /* Now, get the private data for the subtree */
 
-  strncpy(path, get_path(child), 1024);
+  path = get_path(ctx, child);
+  if (!path) {
+    gtk_main_quit();
+    TALLOC_FREE(ctx);
+    return;
+  }
 
   if ((dh = smbc_opendir(path)) < 0) { /* Handle error */
-
     g_print("cb_select_child: Could not open dir %s, %s\n", path,
 	    strerror(errno));
-
     gtk_main_quit();
-
+    TALLOC_FREE(ctx);
     return;
-
   }
 
   while ((err = smbc_getdents(dh, (struct smbc_dirent *)dirbuf,
 			      sizeof(dirbuf))) != 0) {
-
     if (err < 0) {
-
       g_print("cb_select_child: Could not read dir %s, %s\n", path,
 	      strerror(errno));
-
       gtk_main_quit();
-
+      TALLOC_FREE(ctx);
       return;
-
     }
 
     dirp = (struct smbc_dirent *)dirbuf;
@@ -241,27 +241,27 @@ static void cb_select_child (GtkWidget *root_tree, GtkWidget *child,
 
 	if ((strcmp(dirp->name, ".") != 0) &&
 	    (strcmp(dirp->name, "..") != 0)) {
+          char *path1;
 
-	  strncpy(path1, path, sizeof(path1));
-	  strncat(path1, "/", sizeof(path) - strlen(path));
-	  strncat(path1, dirp->name, sizeof(path) - strlen(path));
+	  path1 = talloc_asprintf(ctx,
+                             "%s/%s",
+			     path,
+			     dirp->name);
+          if (!path1) {
+	      gtk_main_quit();
+              TALLOC_FREE(ctx);
+	      return;
+	  }
 
 	  if (smbc_stat(path1, &st1) < 0) {
-	    
 	    if (errno != EBUSY) {
-	      
-	      g_print("cb_select_child: Could not stat file %s, %s\n", path1, 
+	      g_print("cb_select_child: Could not stat file %s, %s\n", path1,
 		      strerror(errno));
-	    
 	      gtk_main_quit();
-
+              TALLOC_FREE(ctx);
 	      return;
-
-	    }
-	    else {
-
+	    } else {
 	      strncpy(col2, "Device or resource busy", sizeof(col2));
-
 	    }
 	  }
 	  else {
@@ -277,7 +277,7 @@ static void cb_select_child (GtkWidget *root_tree, GtkWidget *child,
 		     (st1.st_mode&S_IROTH?'r':'-'),
 		     (st1.st_mode&S_IWOTH?'w':'-'),
 		     (st1.st_mode&S_IXOTH?'x':'-'),
-		     st1.st_mode); 
+		     st1.st_mode);
 	    snprintf(col3, sizeof(col3), "%u", st1.st_size);
 	    snprintf(col4, sizeof(col4), "%s", ctime(&st1.st_mtime));
 	  }
@@ -296,9 +296,8 @@ static void cb_select_child (GtkWidget *root_tree, GtkWidget *child,
       err -= dirlen;
 
     }
-
   }
-
+  TALLOC_FREE(ctx);
 }
 
 /* Note that this is never called */
@@ -615,6 +614,7 @@ int main( int   argc,
   gint i;
   char dirbuf[512];
   struct smbc_dirent *dirp;
+  TALLOC_CTX *frame = talloc_stackframe();
 
   gtk_init (&argc, &argv);
 
@@ -806,6 +806,7 @@ int main( int   argc,
 
   /* Show the window and loop endlessly */
   gtk_main();
+  TALLOC_FREE(frame);
   return 0;
 }
 /* example-end */

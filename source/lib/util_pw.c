@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -38,75 +37,37 @@ struct passwd *tcopy_passwd(TALLOC_CTX *mem_ctx, const struct passwd *from)
 	return ret;
 }
 
-#define PWNAMCACHE_SIZE 4
-static struct passwd **pwnam_cache = NULL;
-
-static void init_pwnam_cache(void)
-{
-	if (pwnam_cache != NULL)
-		return;
-
-	pwnam_cache = TALLOC_ZERO_ARRAY(NULL, struct passwd *,
-					PWNAMCACHE_SIZE);
-	if (pwnam_cache == NULL) {
-		smb_panic("Could not init pwnam_cache\n");
-	}
-
-	return;
-}
-
 void flush_pwnam_cache(void)
 {
-	TALLOC_FREE(pwnam_cache);
-	pwnam_cache = NULL;
-	init_pwnam_cache();
+	memcache_flush(NULL, GETPWNAM_CACHE);
 }
 
 struct passwd *getpwnam_alloc(TALLOC_CTX *mem_ctx, const char *name)
 {
-	int i;
+	struct passwd *temp, *cached;
 
-	struct passwd *temp;
-
-	init_pwnam_cache();
-
-	for (i=0; i<PWNAMCACHE_SIZE; i++) {
-		if ((pwnam_cache[i] != NULL) && 
-		    (strcmp(name, pwnam_cache[i]->pw_name) == 0)) {
-			DEBUG(10, ("Got %s from pwnam_cache\n", name));
-			return (struct passwd *)talloc_reference(mem_ctx, pwnam_cache[i]);
-		}
+	temp = (struct passwd *)memcache_lookup_talloc(
+		NULL, GETPWNAM_CACHE, data_blob_string_const(name));
+	if (temp != NULL) {
+		return tcopy_passwd(mem_ctx, temp);
 	}
 
 	temp = sys_getpwnam(name);
-	
-	if (!temp) {
-#if 0
-		if (errno == ENOMEM) {
-			/* what now? */
-		}
-#endif
+	if (temp == NULL) {
 		return NULL;
 	}
 
-	for (i=0; i<PWNAMCACHE_SIZE; i++) {
-		if (pwnam_cache[i] == NULL)
-			break;
+	cached = tcopy_passwd(NULL, temp);
+	if (cached == NULL) {
+		/*
+		 * Just don't add this into the cache, ignore the failure
+		 */
+		return temp;
 	}
 
-	if (i == PWNAMCACHE_SIZE)
-		i = rand() % PWNAMCACHE_SIZE;
-
-	if (pwnam_cache[i] != NULL) {
-		TALLOC_FREE(pwnam_cache[i]);
-	}
-
-	pwnam_cache[i] = tcopy_passwd(pwnam_cache, temp);
-	if (pwnam_cache[i]!= NULL && mem_ctx != NULL) {
-		return (struct passwd *)talloc_reference(mem_ctx, pwnam_cache[i]);
-	}
-
-	return tcopy_passwd(NULL, pwnam_cache[i]);
+	memcache_add_talloc(NULL, GETPWNAM_CACHE, data_blob_string_const(name),
+			    cached);
+	return tcopy_passwd(mem_ctx, temp);
 }
 
 struct passwd *getpwuid_alloc(TALLOC_CTX *mem_ctx, uid_t uid) 

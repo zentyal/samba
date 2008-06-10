@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -30,7 +29,7 @@
 
 extern userdom_struct current_user_info;
 
-static BOOL do_group_checks(const char **name, const char **pattern)
+static bool do_group_checks(const char **name, const char **pattern)
 {
 	if ((*name)[0] == '@') {
 		*pattern = "&+";
@@ -65,7 +64,7 @@ static BOOL do_group_checks(const char **name, const char **pattern)
 	return False;
 }
 
-static BOOL token_contains_name(TALLOC_CTX *mem_ctx,
+static bool token_contains_name(TALLOC_CTX *mem_ctx,
 				const char *username,
 				const char *sharename,
 				const struct nt_user_token *token,
@@ -86,7 +85,7 @@ static BOOL token_contains_name(TALLOC_CTX *mem_ctx,
 	if (name == NULL) {
 		/* This is too security sensitive, better panic than return a
 		 * result that might be interpreted in a wrong way. */
-		smb_panic("substitutions failed\n");
+		smb_panic("substitutions failed");
 	}
 	
 	/* check to see is we already have a SID */
@@ -136,7 +135,7 @@ static BOOL token_contains_name(TALLOC_CTX *mem_ctx,
 			}
 			continue;
 		}
-		smb_panic("got invalid prefix from do_groups_check\n");
+		smb_panic("got invalid prefix from do_groups_check");
 	}
 	return False;
 }
@@ -152,7 +151,7 @@ static BOOL token_contains_name(TALLOC_CTX *mem_ctx,
  * The other use is the netgroup check when using @group or &group.
  */
 
-BOOL token_contains_name_in_list(const char *username,
+bool token_contains_name_in_list(const char *username,
 				 const char *sharename,
 				 const struct nt_user_token *token,
 				 const char **list)
@@ -164,7 +163,7 @@ BOOL token_contains_name_in_list(const char *username,
 	}
 
 	if ( (mem_ctx = talloc_new(NULL)) == NULL ) {
-		smb_panic("talloc_new failed\n");
+		smb_panic("talloc_new failed");
 	}
 
 	while (*list != NULL) {
@@ -192,7 +191,7 @@ BOOL token_contains_name_in_list(const char *username,
  * The other use is the netgroup check when using @group or &group.
  */
 
-BOOL user_ok_token(const char *username, struct nt_user_token *token, int snum)
+bool user_ok_token(const char *username, struct nt_user_token *token, int snum)
 {
 	if (lp_invalid_users(snum) != NULL) {
 		if (token_contains_name_in_list(username, lp_servicename(snum),
@@ -248,10 +247,10 @@ BOOL user_ok_token(const char *username, struct nt_user_token *token, int snum)
  * The other use is the netgroup check when using @group or &group.
  */
 
-BOOL is_share_read_only_for_token(const char *username,
+bool is_share_read_only_for_token(const char *username,
 				  struct nt_user_token *token, int snum)
 {
-	BOOL result = lp_readonly(snum);
+	bool result = lp_readonly(snum);
 
 	if (lp_readlist(snum) != NULL) {
 		if (token_contains_name_in_list(username,

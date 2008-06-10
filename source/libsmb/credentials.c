@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -27,11 +26,13 @@
 
 char *credstr(const unsigned char *cred)
 {
-	static fstring buf;
-	slprintf(buf, sizeof(buf) - 1, "%02X%02X%02X%02X%02X%02X%02X%02X",
-		cred[0], cred[1], cred[2], cred[3], 
-		cred[4], cred[5], cred[6], cred[7]);
-	return buf;
+	char *result;
+	result = talloc_asprintf(talloc_tos(),
+				 "%02X%02X%02X%02X%02X%02X%02X%02X",
+				 cred[0], cred[1], cred[2], cred[3],
+				 cred[4], cred[5], cred[6], cred[7]);
+	SMB_ASSERT(result != NULL);
+	return result;
 }
 
 /****************************************************************************
@@ -41,9 +42,9 @@ char *credstr(const unsigned char *cred)
 ****************************************************************************/
 
 static void creds_init_128(struct dcinfo *dc,
-				const DOM_CHAL *clnt_chal_in,
-				const DOM_CHAL *srv_chal_in,
-				const unsigned char mach_pw[16])
+			   const struct netr_Credential *clnt_chal_in,
+			   const struct netr_Credential *srv_chal_in,
+			   const unsigned char mach_pw[16])
 {
 	unsigned char zero[4], tmp[16];
 	HMACMD5Context ctx;
@@ -93,9 +94,9 @@ static void creds_init_128(struct dcinfo *dc,
 ****************************************************************************/
 
 static void creds_init_64(struct dcinfo *dc,
-			const DOM_CHAL *clnt_chal_in,
-			const DOM_CHAL *srv_chal_in,
-			const unsigned char mach_pw[16])
+			  const struct netr_Credential *clnt_chal_in,
+			  const struct netr_Credential *srv_chal_in,
+			  const unsigned char mach_pw[16])
 {
 	uint32 sum[2];
 	unsigned char sum2[8];
@@ -176,10 +177,10 @@ static void creds_step(struct dcinfo *dc)
 
 void creds_server_init(uint32 neg_flags,
 			struct dcinfo *dc,
-			DOM_CHAL *clnt_chal,
-			DOM_CHAL *srv_chal,
+			struct netr_Credential *clnt_chal,
+			struct netr_Credential *srv_chal,
 			const unsigned char mach_pw[16],
-			DOM_CHAL *init_chal_out)
+			struct netr_Credential *init_chal_out)
 {
 	DEBUG(10,("creds_server_init: neg_flags : %x\n", (unsigned int)neg_flags));
 	DEBUG(10,("creds_server_init: client chal : %s\n", credstr(clnt_chal->data) ));
@@ -212,25 +213,28 @@ void creds_server_init(uint32 neg_flags,
  Check a credential sent by the client.
 ****************************************************************************/
 
-BOOL creds_server_check(const struct dcinfo *dc, const DOM_CHAL *rcv_cli_chal_in)
+bool netlogon_creds_server_check(const struct dcinfo *dc,
+				 const struct netr_Credential *rcv_cli_chal_in)
 {
 	if (memcmp(dc->clnt_chal.data, rcv_cli_chal_in->data, 8)) {
-		DEBUG(5,("creds_server_check: challenge : %s\n", credstr(rcv_cli_chal_in->data)));
+		DEBUG(5,("netlogon_creds_server_check: challenge : %s\n",
+			credstr(rcv_cli_chal_in->data)));
 		DEBUG(5,("calculated: %s\n", credstr(dc->clnt_chal.data)));
-		DEBUG(2,("creds_server_check: credentials check failed.\n"));
-		return False;
+		DEBUG(2,("netlogon_creds_server_check: credentials check failed.\n"));
+		return false;
 	}
-	DEBUG(10,("creds_server_check: credentials check OK.\n"));
-	return True;
-}
 
+	DEBUG(10,("netlogon_creds_server_check: credentials check OK.\n"));
+
+	return true;
+}
 /****************************************************************************
  Replace current seed chal. Internal function - due to split server step below.
 ****************************************************************************/
 
 static void creds_reseed(struct dcinfo *dc)
 {
-	DOM_CHAL time_chal;
+	struct netr_Credential time_chal;
 
 	SIVAL(time_chal.data, 0, IVAL(dc->seed_chal.data, 0) + dc->sequence + 1);
 	SIVAL(time_chal.data, 4, IVAL(dc->seed_chal.data, 4));
@@ -244,32 +248,34 @@ static void creds_reseed(struct dcinfo *dc)
  Step the server credential chain one forward. 
 ****************************************************************************/
 
-BOOL creds_server_step(struct dcinfo *dc, const DOM_CRED *received_cred, DOM_CRED *cred_out)
+bool netlogon_creds_server_step(struct dcinfo *dc,
+				const struct netr_Authenticator *received_cred,
+				struct netr_Authenticator *cred_out)
 {
-	BOOL ret;
+	bool ret;
 	struct dcinfo tmp_dc = *dc;
 
 	/* Do all operations on a temporary copy of the dc,
 	   which we throw away if the checks fail. */
 
-	tmp_dc.sequence = received_cred->timestamp.time;
+	tmp_dc.sequence = received_cred->timestamp;
 
 	creds_step(&tmp_dc);
 
 	/* Create the outgoing credentials */
-	cred_out->timestamp.time = tmp_dc.sequence + 1;
-	cred_out->challenge = tmp_dc.srv_chal;
+	cred_out->timestamp = tmp_dc.sequence + 1;
+	memcpy(&cred_out->cred, &tmp_dc.srv_chal, sizeof(cred_out->cred));
 
 	creds_reseed(&tmp_dc);
 
-	ret = creds_server_check(&tmp_dc, &received_cred->challenge);
+	ret = netlogon_creds_server_check(&tmp_dc, &received_cred->cred);
 	if (!ret) {
-		return False;
+		return false;
 	}
 
 	/* creds step succeeded - replace the current creds. */
 	*dc = tmp_dc;
-	return True;
+	return true;
 }
 
 /****************************************************************************
@@ -278,10 +284,10 @@ BOOL creds_server_step(struct dcinfo *dc, const DOM_CRED *received_cred, DOM_CRE
 
 void creds_client_init(uint32 neg_flags,
 			struct dcinfo *dc,
-			DOM_CHAL *clnt_chal,
-			DOM_CHAL *srv_chal,
+			struct netr_Credential *clnt_chal,
+			struct netr_Credential *srv_chal,
 			const unsigned char mach_pw[16],
-			DOM_CHAL *init_chal_out)
+			struct netr_Credential *init_chal_out)
 {
 	dc->sequence = time(NULL);
 
@@ -316,17 +322,24 @@ void creds_client_init(uint32 neg_flags,
  Check a credential returned by the server.
 ****************************************************************************/
 
-BOOL creds_client_check(const struct dcinfo *dc, const DOM_CHAL *rcv_srv_chal_in)
+bool netlogon_creds_client_check(const struct dcinfo *dc,
+				 const struct netr_Credential *rcv_srv_chal_in)
 {
-	if (memcmp(dc->srv_chal.data, rcv_srv_chal_in->data, 8)) {
-		DEBUG(5,("creds_client_check: challenge : %s\n", credstr(rcv_srv_chal_in->data)));
-		DEBUG(5,("calculated: %s\n", credstr(dc->srv_chal.data)));
-		DEBUG(0,("creds_client_check: credentials check failed.\n"));
-		return False;
+	if (memcmp(dc->srv_chal.data, rcv_srv_chal_in->data,
+		   sizeof(dc->srv_chal.data))) {
+
+		DEBUG(0,("netlogon_creds_client_check: credentials check failed.\n"));
+		DEBUGADD(5,("netlogon_creds_client_check: challenge : %s\n",
+			credstr(rcv_srv_chal_in->data)));
+		DEBUGADD(5,("calculated: %s\n", credstr(dc->srv_chal.data)));
+		return false;
 	}
-	DEBUG(10,("creds_client_check: credentials check OK.\n"));
-	return True;
+
+	DEBUG(10,("netlogon_creds_client_check: credentials check OK.\n"));
+
+	return true;
 }
+
 
 /****************************************************************************
   Step the client credentials to the next element in the chain, updating the
@@ -335,12 +348,14 @@ BOOL creds_client_check(const struct dcinfo *dc, const DOM_CHAL *rcv_srv_chal_in
   the server
 ****************************************************************************/
 
-void creds_client_step(struct dcinfo *dc, DOM_CRED *next_cred_out)
+void netlogon_creds_client_step(struct dcinfo *dc,
+				struct netr_Authenticator *next_cred_out)
 {
-        dc->sequence += 2;
+	dc->sequence += 2;
 	creds_step(dc);
 	creds_reseed(dc);
 
-	next_cred_out->challenge = dc->clnt_chal;
-	next_cred_out->timestamp.time = dc->sequence;
+	memcpy(&next_cred_out->cred.data, &dc->clnt_chal.data,
+		sizeof(next_cred_out->cred.data));
+	next_cred_out->timestamp = dc->sequence;
 }

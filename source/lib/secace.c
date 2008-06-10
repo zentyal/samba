@@ -8,7 +8,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -27,7 +26,7 @@
  Check if ACE has OBJECT type.
 ********************************************************************/
 
-BOOL sec_ace_object(uint8 type)
+bool sec_ace_object(uint8 type)
 {
 	if (type == SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT ||
             type == SEC_ACE_TYPE_ACCESS_DENIED_OBJECT ||
@@ -47,9 +46,7 @@ void sec_ace_copy(SEC_ACE *ace_dest, SEC_ACE *ace_src)
 	ace_dest->flags = ace_src->flags;
 	ace_dest->size  = ace_src->size;
 	ace_dest->access_mask = ace_src->access_mask;
-	ace_dest->obj_flags = ace_src->obj_flags;
-	memcpy(&ace_dest->obj_guid, &ace_src->obj_guid, sizeof(struct GUID));
-	memcpy(&ace_dest->inh_guid, &ace_src->inh_guid, sizeof(struct GUID));
+	ace_dest->object = ace_src->object;
 	sid_copy(&ace_dest->trustee, &ace_src->trustee);
 }
 
@@ -57,11 +54,12 @@ void sec_ace_copy(SEC_ACE *ace_dest, SEC_ACE *ace_src)
  Sets up a SEC_ACE structure.
 ********************************************************************/
 
-void init_sec_ace(SEC_ACE *t, const DOM_SID *sid, uint8 type, SEC_ACCESS mask, uint8 flag)
+void init_sec_ace(SEC_ACE *t, const DOM_SID *sid, enum security_ace_type type,
+		  uint32 mask, uint8 flag)
 {
 	t->type = type;
 	t->flags = flag;
-	t->size = sid_size(sid) + 8;
+	t->size = ndr_size_dom_sid(sid, 0) + 8;
 	t->access_mask = mask;
 
 	ZERO_STRUCTP(&t->trustee);
@@ -86,9 +84,9 @@ NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, SEC_ACE **pp_new, SEC_ACE *old, unsign
 	for (i = 0; i < *num - 1; i ++)
 		sec_ace_copy(&(*pp_new)[i], &old[i]);
 
-	(*pp_new)[i].type  = 0;
+	(*pp_new)[i].type  = SEC_ACE_TYPE_ACCESS_ALLOWED;
 	(*pp_new)[i].flags = 0;
-	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + sid_size(sid);
+	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, 0);
 	(*pp_new)[i].access_mask = mask;
 	sid_copy(&(*pp_new)[i].trustee, sid);
 	return NT_STATUS_OK;
@@ -149,7 +147,7 @@ NTSTATUS sec_ace_del_sid(TALLOC_CTX *ctx, SEC_ACE **pp_new, SEC_ACE *old, uint32
  Compares two SEC_ACE structures
 ********************************************************************/
 
-BOOL sec_ace_equal(SEC_ACE *s1, SEC_ACE *s2)
+bool sec_ace_equal(SEC_ACE *s1, SEC_ACE *s2)
 {
 	/* Trivial case */
 
@@ -282,7 +280,7 @@ void dacl_sort_into_canonical_order(SEC_ACE *srclist, unsigned int num_aces)
  Check if this ACE has a SID in common with the token.
 ********************************************************************/
 
-BOOL token_sid_in_ace(const NT_USER_TOKEN *token, const SEC_ACE *ace)
+bool token_sid_in_ace(const NT_USER_TOKEN *token, const SEC_ACE *ace)
 {
 	size_t i;
 

@@ -7,7 +7,7 @@ BEGIN {
 	print "   ";
 	print "   This program is free software; you can redistribute it and/or modify";
 	print "   it under the terms of the GNU General Public License as published by";
-	print "   the Free Software Foundation; either version 2 of the License, or";
+	print "   the Free Software Foundation; either version 3 of the License, or";
 	print "   (at your option) any later version.";
 	print "   ";
 	print "   This program is distributed in the hope that it will be useful,";
@@ -16,22 +16,21 @@ BEGIN {
 	print "   GNU General Public License for more details.";
 	print "   ";
 	print "   You should have received a copy of the GNU General Public License";
-	print "   along with this program; if not, write to the Free Software";
-	print "   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.";
+	print "   along with this program; if not, see <http://www.gnu.org/licenses/>."
 	print "*/";
 	print "";
 	print "#include \"includes.h\"";
 	print "#include \"build_env.h\"";
 	print "#include \"dynconfig.h\"";
 	print "";
-	print "static void output(BOOL screen, const char *format, ...) PRINTF_ATTRIBUTE(2,3);";
-	print "void build_options(BOOL screen);";
+	print "static void output(bool screen, const char *format, ...) PRINTF_ATTRIBUTE(2,3);";
+	print "void build_options(bool screen);";
 	print "";
 	print "";
 	print "/****************************************************************************";
 	print "helper function for build_options";
 	print "****************************************************************************/";
-	print "static void output(BOOL screen, const char *format, ...)";
+	print "static void output(bool screen, const char *format, ...)";
 	print "{";
 	print "       char *ptr;";
 	print "       va_list ap;";
@@ -52,7 +51,7 @@ BEGIN {
 	print "/****************************************************************************";
 	print "options set at build time for the samba suite";
 	print "****************************************************************************/";
-	print "void build_options(BOOL screen)";
+	print "void build_options(bool screen)";
 	print "{";
 	print "       if ((DEBUGLEVEL < 4) && (!screen)) {";
 	print "	       return;";
@@ -76,22 +75,22 @@ BEGIN {
 	print "       /* Output various paths to files and directories */";
 	print "       output(screen,\"\\nPaths:\\n\");";
 
-	print "       output(screen,\"   SBINDIR: %s\\n\", dyn_SBINDIR);";
-	print "       output(screen,\"   BINDIR: %s\\n\", dyn_BINDIR);";
-	print "       output(screen,\"   SWATDIR: %s\\n\", dyn_SWATDIR);";
+	print "       output(screen,\"   SBINDIR: %s\\n\", get_dyn_SBINDIR());";
+	print "       output(screen,\"   BINDIR: %s\\n\", get_dyn_BINDIR());";
+	print "       output(screen,\"   SWATDIR: %s\\n\", get_dyn_SWATDIR());";
 
-	print "       output(screen,\"   CONFIGFILE: %s\\n\", dyn_CONFIGFILE);";
-	print "       output(screen,\"   LOGFILEBASE: %s\\n\", dyn_LOGFILEBASE);";
-	print "       output(screen,\"   LMHOSTSFILE: %s\\n\",dyn_LMHOSTSFILE);";
+	print "       output(screen,\"   CONFIGFILE: %s\\n\", get_dyn_CONFIGFILE());";
+	print "       output(screen,\"   LOGFILEBASE: %s\\n\", get_dyn_LOGFILEBASE());";
+	print "       output(screen,\"   LMHOSTSFILE: %s\\n\",get_dyn_LMHOSTSFILE());";
 
-	print "       output(screen,\"   LIBDIR: %s\\n\",dyn_LIBDIR);";
-	print "       output(screen,\"   SHLIBEXT: %s\\n\",dyn_SHLIBEXT);";
+	print "       output(screen,\"   LIBDIR: %s\\n\",get_dyn_LIBDIR());";
+	print "       output(screen,\"   SHLIBEXT: %s\\n\",get_dyn_SHLIBEXT());";
 
-	print "       output(screen,\"   LOCKDIR: %s\\n\",dyn_LOCKDIR);";
-	print "       output(screen,\"   PIDDIR: %s\\n\", dyn_PIDDIR);";
+	print "       output(screen,\"   LOCKDIR: %s\\n\",get_dyn_LOCKDIR());";
+	print "       output(screen,\"   PIDDIR: %s\\n\", get_dyn_PIDDIR());";
 
-	print "       output(screen,\"   SMB_PASSWD_FILE: %s\\n\",dyn_SMB_PASSWD_FILE);";
-	print "       output(screen,\"   PRIVATE_DIR: %s\\n\",dyn_PRIVATE_DIR);";
+	print "       output(screen,\"   SMB_PASSWD_FILE: %s\\n\",get_dyn_SMB_PASSWD_FILE());";
+	print "       output(screen,\"   PRIVATE_DIR: %s\\n\",get_dyn_PRIVATE_DIR());";
 	print "";
 
 

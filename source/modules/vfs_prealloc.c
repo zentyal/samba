@@ -5,7 +5,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -48,11 +47,16 @@
 #define lock_type struct flock64
 #endif
 
+#ifdef HAVE_GPFS
+#include "gpfs_gpl.h"
+#endif
+
 #define MODULE "prealloc"
 static int module_debug;
 
 static int preallocate_space(int fd, SMB_OFF_T size)
 {
+#ifndef HAVE_GPFS
 	lock_type fl = {0};
 	int err;
 
@@ -78,6 +82,9 @@ static int preallocate_space(int fd, SMB_OFF_T size)
 #else
 	err = -1;
 	errno = ENOSYS;
+#endif
+#else /* GPFS uses completely different interface */
+       err = gpfs_prealloc(fd, (gpfs_off64_t)0, (gpfs_off64_t)size);
 #endif
 
 	if (err) {
@@ -185,15 +192,14 @@ normal_open:
 
 static int prealloc_ftruncate(vfs_handle_struct * handle,
 			files_struct *	fsp,
-			int		fd,
 			SMB_OFF_T	offset)
 {
 	SMB_OFF_T *psize;
-	int ret = SMB_VFS_NEXT_FTRUNCATE(handle, fsp, fd, offset);
+	int ret = SMB_VFS_NEXT_FTRUNCATE(handle, fsp, offset);
 
 	/* Maintain the allocated space even in the face of truncates. */
 	if ((psize = VFS_FETCH_FSP_EXTENSION(handle, fsp))) {
-		preallocate_space(fd, *psize);
+		preallocate_space(fsp->fh->fd, *psize);
 	}
 
 	return ret;
@@ -212,4 +218,3 @@ NTSTATUS vfs_prealloc_init(void)
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
 		MODULE, prealloc_op_tuples);
 }
-

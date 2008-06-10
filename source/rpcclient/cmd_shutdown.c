@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -36,8 +35,8 @@ static NTSTATUS cmd_shutdown_init(struct cli_state *cli, TALLOC_CTX *mem_ctx,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	fstring msg;
 	uint32 timeout = 20;
-	BOOL force = False;
-	BOOL reboot = False;
+	bool force = False;
+	bool reboot = False;
 	int opt;
 
 	*msg = 0;
@@ -108,10 +107,10 @@ struct cmd_set shutdown_commands[] = {
 	{ "SHUTDOWN"  },
 
 #if 0
-	{ "shutdowninit", RPC_RTYPE_NTSTATUS, cmd_shutdown_init, NULL, PI_SHUTDOWN, "Remote Shutdown (over shutdown pipe)",
+	{ "shutdowninit", RPC_RTYPE_NTSTATUS, cmd_shutdown_init, NULL, PI_INITSHUTDOWN, "Remote Shutdown (over shutdown pipe)",
 				"syntax: shutdown [-m message] [-t timeout] [-r] [-h] [-f] (-r == reboot, -h == halt, -f == force)" },
 				
-	{ "shutdownabort", RPC_RTYPE_NTSTATUS, cmd_shutdown_abort, NULL, PI_SHUTDOWN, "Abort Shutdown (over shutdown pipe)",
+	{ "shutdownabort", RPC_RTYPE_NTSTATUS, cmd_shutdown_abort, NULL, PI_INITSHUTDOWN, "Abort Shutdown (over shutdown pipe)",
 				"syntax: shutdownabort" },
 #endif
 	{ NULL }

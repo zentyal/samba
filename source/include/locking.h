@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _LOCKING_H
@@ -39,38 +38,28 @@ enum brl_flavour {WINDOWS_LOCK = 0, POSIX_LOCK = 1};
 struct lock_context {
 	uint32 smbpid;
 	uint16 tid;
-	struct process_id pid;
-};
-
-/* The key used in the brlock database. */
-
-struct lock_key {
-	SMB_DEV_T device;
-	SMB_INO_T inode;
+	struct server_id pid;
 };
 
 struct files_struct;
 
+struct file_id {
+	/* we don't use SMB_DEV_T and SMB_INO_T as we want a fixed size here,
+	   and we may be using file system specific code to fill in something
+	   other than a dev_t for the device */
+	uint64_t devid;
+	uint64_t inode;
+};
+
 struct byte_range_lock {
 	struct files_struct *fsp;
 	unsigned int num_locks;
-	BOOL modified;
-	BOOL read_only;
-	struct lock_key key;
-	void *lock_data;
+	bool modified;
+	bool read_only;
+	struct file_id key;
+	struct lock_struct *lock_data;
+	struct db_record *record;
 };
-
-#define BRLOCK_FN_CAST() \
-	void (*)(SMB_DEV_T dev, SMB_INO_T ino, struct process_id pid, \
-				 enum brl_type lock_type, \
-				 enum brl_flavour lock_flav, \
-				 br_off start, br_off size)
-
-#define BRLOCK_FN(fn) \
-	void (*fn)(SMB_DEV_T dev, SMB_INO_T ino, struct process_id pid, \
-				 enum brl_type lock_type, \
-				 enum brl_flavour lock_flav, \
-				 br_off start, br_off size)
 
 /* Internal structure in brlock.tdb. 
    The data in brlock records is an unsorted linear array of these

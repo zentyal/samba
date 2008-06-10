@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -108,7 +107,7 @@ returned for name %s.\n", nmb_namestr(nmbname) ));
 
 	if(namerec && original_packet->packet.nmb.header.nm_flags.bcast) {
 		for( i = 0; i < namerec->data.num_ips; i++) {
-			if( same_net( namerec->data.ip[i], orig_broadcast_subnet->myip,
+			if( same_net_v4( namerec->data.ip[i], orig_broadcast_subnet->myip,
 					orig_broadcast_subnet->mask_ip ) ) {
 				DEBUG( 5, ( "wins_proxy_name_query_request_success: name %s is a WINS \
 proxy name and is also on the same subnet (%s) as the requestor. \

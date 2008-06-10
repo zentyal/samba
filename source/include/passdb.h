@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _PASSDB_H
@@ -26,40 +25,13 @@
 
 
 /*
- * fields_present flags meanings
- * same names as found in samba4 idl files
+ * in samba4 idl
+ * ACCT_NT_PWD_SET == SAMR_FIELD_PASSWORD and
+ * ACCT_LM_PWD_SET == SAMR_FIELD_PASSWORD2
  */
 
-#define ACCT_USERNAME		0x00000001
-#define ACCT_FULL_NAME		0x00000002
-#define ACCT_RID		0x00000004
-#define ACCT_PRIMARY_GID	0x00000008
-#define ACCT_DESCRIPTION	0x00000010
-#define ACCT_COMMENT		0x00000020
-#define ACCT_HOME_DIR		0x00000040
-#define ACCT_HOME_DRIVE		0x00000080
-#define ACCT_LOGON_SCRIPT	0x00000100
-#define ACCT_PROFILE		0x00000200
-#define ACCT_WORKSTATIONS	0x00000400
-#define ACCT_LAST_LOGON		0x00000800
-#define ACCT_LAST_LOGOFF	0x00001000
-#define ACCT_LOGON_HOURS	0x00002000
-#define ACCT_BAD_PWD_COUNT	0x00004000
-#define ACCT_NUM_LOGONS		0x00008000
-#define ACCT_ALLOW_PWD_CHANGE	0x00010000
-#define ACCT_FORCE_PWD_CHANGE	0x00020000
-#define ACCT_LAST_PWD_CHANGE	0x00040000
-#define ACCT_EXPIRY		0x00080000
-#define ACCT_FLAGS		0x00100000
-#define ACCT_CALLBACK		0x00200000
-#define ACCT_COUNTRY_CODE	0x00400000
-#define ACCT_CODE_PAGE		0x00800000
 #define ACCT_NT_PWD_SET		0x01000000
 #define ACCT_LM_PWD_SET		0x02000000
-#define ACCT_PRIVATEDATA	0x04000000
-#define ACCT_EXPIRED_FLAG	0x08000000
-#define ACCT_SEC_DESC		0x10000000
-#define ACCT_OWF_PWD		0x20000000
 
 /*
  * bit flags representing initialized fields in struct samu
@@ -222,9 +194,9 @@ struct pdb_search {
 	struct samr_displayentry *cache;
 	uint32 num_entries;
 	ssize_t cache_size;
-	BOOL search_ended;
+	bool search_ended;
 	void *private_data;
-	BOOL (*next_entry)(struct pdb_search *search,
+	bool (*next_entry)(struct pdb_search *search,
 			   struct samr_displayentry *entry);
 	void (*search_end)(struct pdb_search *search);
 };
@@ -242,20 +214,16 @@ struct pdb_search {
  * the pdb module. Remove the latter, this might happen more often. VL.
  * changed to version 14 to move lookup_rids and lookup_names to return
  * enum lsa_SidType rather than uint32.
+ * Changed to 16 for access to the trusted domain passwords (obnox).
+ * Changed to 17, the sampwent interface is gone.
  */
 
-#define PASSDB_INTERFACE_VERSION 15
+#define PASSDB_INTERFACE_VERSION 17
 
 struct pdb_methods 
 {
 	const char *name; /* What name got this module */
 
-	NTSTATUS (*setsampwent)(struct pdb_methods *, BOOL update, uint32 acb_mask);
-	
-	void (*endsampwent)(struct pdb_methods *);
-	
-	NTSTATUS (*getsampwent)(struct pdb_methods *, struct samu *user);
-	
 	NTSTATUS (*getsampwnam)(struct pdb_methods *, struct samu *sam_acct, const char *username);
 	
 	NTSTATUS (*getsampwsid)(struct pdb_methods *, struct samu *sam_acct, const DOM_SID *sid);
@@ -275,7 +243,7 @@ struct pdb_methods
 	
 	NTSTATUS (*rename_sam_account)(struct pdb_methods *, struct samu *oldname, const char *newname);
 	
-	NTSTATUS (*update_login_attempts)(struct pdb_methods *methods, struct samu *sam_acct, BOOL success);
+	NTSTATUS (*update_login_attempts)(struct pdb_methods *methods, struct samu *sam_acct, bool success);
 
 	NTSTATUS (*getgrsid)(struct pdb_methods *methods, GROUP_MAP *map, DOM_SID sid);
 
@@ -302,7 +270,7 @@ struct pdb_methods
 	NTSTATUS (*enum_group_mapping)(struct pdb_methods *methods,
 				       const DOM_SID *sid, enum lsa_SidType sid_name_use,
 				       GROUP_MAP **pp_rmap, size_t *p_num_entries,
-				       BOOL unix_only);
+				       bool unix_only);
 
 	NTSTATUS (*enum_group_members)(struct pdb_methods *methods,
 				       TALLOC_CTX *mem_ctx,
@@ -327,9 +295,6 @@ struct pdb_methods
 	NTSTATUS (*del_groupmem)(struct pdb_methods *methods,
 				 TALLOC_CTX *mem_ctx,
 				 uint32 group_rid, uint32 member_rid);
-
-	NTSTATUS (*find_alias)(struct pdb_methods *methods,
-			       const char *name, DOM_SID *sid);
 
 	NTSTATUS (*create_alias)(struct pdb_methods *methods,
 				 const char *name, uint32 *rid);
@@ -382,26 +347,39 @@ struct pdb_methods
 
 	NTSTATUS (*get_seq_num)(struct pdb_methods *methods, time_t *seq_num);
 
-	BOOL (*search_users)(struct pdb_methods *methods,
+	bool (*search_users)(struct pdb_methods *methods,
 			     struct pdb_search *search,
 			     uint32 acct_flags);
-	BOOL (*search_groups)(struct pdb_methods *methods,
+	bool (*search_groups)(struct pdb_methods *methods,
 			      struct pdb_search *search);
-	BOOL (*search_aliases)(struct pdb_methods *methods,
+	bool (*search_aliases)(struct pdb_methods *methods,
 			       struct pdb_search *search,
 			       const DOM_SID *sid);
 
-	BOOL (*uid_to_rid)(struct pdb_methods *methods, uid_t uid,
+	bool (*uid_to_rid)(struct pdb_methods *methods, uid_t uid,
 			   uint32 *rid);
-	BOOL (*uid_to_sid)(struct pdb_methods *methods, uid_t uid,
+	bool (*uid_to_sid)(struct pdb_methods *methods, uid_t uid,
 			   DOM_SID *sid);
-	BOOL (*gid_to_sid)(struct pdb_methods *methods, gid_t gid,
+	bool (*gid_to_sid)(struct pdb_methods *methods, gid_t gid,
 			   DOM_SID *sid);
-	BOOL (*sid_to_id)(struct pdb_methods *methods, const DOM_SID *sid,
+	bool (*sid_to_id)(struct pdb_methods *methods, const DOM_SID *sid,
 			  union unid_t *id, enum lsa_SidType *type);
 
-	BOOL (*rid_algorithm)(struct pdb_methods *methods);
-	BOOL (*new_rid)(struct pdb_methods *methods, uint32 *rid);
+	bool (*rid_algorithm)(struct pdb_methods *methods);
+	bool (*new_rid)(struct pdb_methods *methods, uint32 *rid);
+
+
+	bool (*get_trusteddom_pw)(struct pdb_methods *methods,
+				  const char *domain, char** pwd, 
+				  DOM_SID *sid, time_t *pass_last_set_time);
+	bool (*set_trusteddom_pw)(struct pdb_methods *methods, 
+				  const char* domain, const char* pwd,
+	        	  	  const DOM_SID *sid);
+	bool (*del_trusteddom_pw)(struct pdb_methods *methods, 
+				  const char *domain);
+	NTSTATUS (*enum_trusteddoms)(struct pdb_methods *methods,
+				     TALLOC_CTX *mem_ctx, uint32 *num_domains,
+				     struct trustdom_info ***domains);
 
 	void *private_data;  /* Private data of some kind */
 	

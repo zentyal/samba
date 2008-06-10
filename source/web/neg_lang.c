@@ -4,7 +4,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
    Created by Ryo Kawahara <rkawa@lbe.co.jp> 
 */
@@ -75,7 +74,7 @@ void web_set_lang(const char *lang_string)
 	int lang_num, i;
 
 	/* build the lang list */
-	lang_list = str_list_make(lang_string, ", \t\r\n");
+	lang_list = str_list_make(talloc_tos(), lang_string, ", \t\r\n");
 	if (!lang_list) return;
 	
 	/* sort the list by priority */
@@ -101,7 +100,7 @@ void web_set_lang(const char *lang_string)
 		}
 		pl[i].string = SMB_STRDUP(lang_list[i]);
 	}
-	str_list_free(&lang_list);
+	TALLOC_FREE(lang_list);
 
 	qsort(pl, lang_num, sizeof(struct pri_list), &qsort_cmp_list);
 

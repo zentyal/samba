@@ -12,7 +12,7 @@
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
-   version 2 of the License, or (at your option) any later version.
+   version 3 of the License, or (at your option) any later version.
 
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,8 +20,7 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with this library; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "replace.h"
@@ -38,7 +37,6 @@
 #include "system/locale.h"
 #include "system/network.h"
 #include "system/passwd.h"
-#include "system/printing.h"
 #include "system/readline.h"
 #include "system/select.h"
 #include "system/shmem.h"
@@ -520,7 +518,7 @@ static int test_strtoll(void)
 {
 	printf("test: strtoll\n");
 
-#define TEST_STRTOLL(str,base,res,diff,errnoo) TEST_STRTO_X(int64_t, "%lld", strtoll,str,base,res,diff,errnoo)
+#define TEST_STRTOLL(str,base,res,diff,errnoo) TEST_STRTO_X(long long int, "%lld", strtoll,str,base,res,diff,errnoo)
 
 	TEST_STRTOLL("15",	10,	15LL,	2, 0);
 	TEST_STRTOLL("  15",	10,	15LL,	4, 0);
@@ -619,7 +617,7 @@ static int test_strtoull(void)
 {
 	printf("test: strtoull\n");
 
-#define TEST_STRTOULL(str,base,res,diff,errnoo) TEST_STRTO_X(uint64_t,"%llu",strtoull,str,base,res,diff,errnoo)
+#define TEST_STRTOULL(str,base,res,diff,errnoo) TEST_STRTO_X(long long unsigned int,"%llu",strtoull,str,base,res,diff,errnoo)
 
 	TEST_STRTOULL("15",	10,	15LLU,	2, 0);
 	TEST_STRTOULL("  15",	10,	15LLU,	4, 0);
@@ -744,7 +742,7 @@ static int test_strtoull(void)
 	TEST_STRTOULL("-02000000000000000000000",8,	18446744073709551615LLU,	24, ERANGE);
 	TEST_STRTOULL("-2000000000000000000000",8,	18446744073709551615LLU,	23, ERANGE);
 
-	printf("success: strtuoll\n");
+	printf("success: strtoull\n");
 	return true;
 }
 
@@ -858,6 +856,165 @@ static int test_strptime(void)
 	return libreplace_test_strptime();
 }
 
+extern int getifaddrs_test(void);
+
+static int test_getifaddrs(void)
+{
+
+	printf("test: getifaddrs\n");
+
+	if (getifaddrs_test() != 0) {
+		printf("failure: getifaddrs\n");
+		return false;
+	}
+
+	printf("success: getifaddrs\n");
+	return true;
+}
+
+static int test_utime(void)
+{
+	struct utimbuf u;
+	struct stat st1, st2, st3;
+	int fd;
+
+	printf("test: utime\n");
+	unlink(TESTFILE);
+
+	fd = open(TESTFILE, O_RDWR|O_CREAT, 0600);
+	if (fd == -1) {
+		printf("failure: utime [\n"
+		       "creating '%s' failed - %s\n]\n",
+		       TESTFILE, strerror(errno));
+		return false;
+	}
+
+	if (fstat(fd, &st1) != 0) {
+		printf("failure: utime [\n"
+		       "fstat (1) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	u.actime = st1.st_atime + 300;
+	u.modtime = st1.st_mtime - 300;
+	if (utime(TESTFILE, &u) != 0) {
+		printf("failure: utime [\n"
+		       "utime(&u) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	if (fstat(fd, &st2) != 0) {
+		printf("failure: utime [\n"
+		       "fstat (2) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	if (utime(TESTFILE, NULL) != 0) {
+		printf("failure: utime [\n"
+		       "utime(NULL) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	if (fstat(fd, &st3) != 0) {
+		printf("failure: utime [\n"
+		       "fstat (3) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+#define CMP_VAL(a,c,b) do { \
+	if (a c b) { \
+		printf("failure: utime [\n" \
+		       "%s: %s(%d) %s %s(%d)\n]\n", \
+		       __location__, \
+		       #a, (int)a, #c, #b, (int)b); \
+		return false; \
+	} \
+} while(0)
+#define EQUAL_VAL(a,b) CMP_VAL(a,!=,b)
+#define GREATER_VAL(a,b) CMP_VAL(a,<=,b)
+#define LESSER_VAL(a,b) CMP_VAL(a,>=,b)
+
+	EQUAL_VAL(st2.st_atime, st1.st_atime + 300);
+	EQUAL_VAL(st2.st_mtime, st1.st_mtime - 300);
+	LESSER_VAL(st3.st_atime, st2.st_atime);
+	GREATER_VAL(st3.st_mtime, st2.st_mtime);
+
+#undef CMP_VAL
+#undef EQUAL_VAL
+#undef GREATER_VAL
+#undef LESSER_VAL
+
+	unlink(TESTFILE);
+	printf("success: utime\n");
+	return true;
+}
+
+static int test_utimes(void)
+{
+	struct timeval tv[2];
+	struct stat st1, st2;
+	int fd;
+
+	printf("test: utimes\n");
+	unlink(TESTFILE);
+
+	fd = open(TESTFILE, O_RDWR|O_CREAT, 0600);
+	if (fd == -1) {
+		printf("failure: utimes [\n"
+		       "creating '%s' failed - %s\n]\n",
+		       TESTFILE, strerror(errno));
+		return false;
+	}
+
+	if (fstat(fd, &st1) != 0) {
+		printf("failure: utimes [\n"
+		       "fstat (1) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	ZERO_STRUCT(tv);
+	tv[0].tv_sec = st1.st_atime + 300;
+	tv[1].tv_sec = st1.st_mtime - 300;
+	if (utimes(TESTFILE, tv) != 0) {
+		printf("failure: utimes [\n"
+		       "utimes(tv) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+	if (fstat(fd, &st2) != 0) {
+		printf("failure: utimes [\n"
+		       "fstat (2) failed - %s\n]\n",
+		       strerror(errno));
+		return false;
+	}
+
+#define EQUAL_VAL(a,b) do { \
+	if (a != b) { \
+		printf("failure: utimes [\n" \
+		       "%s: %s(%d) != %s(%d)\n]\n", \
+		       __location__, \
+		       #a, (int)a, #b, (int)b); \
+		return false; \
+	} \
+} while(0)
+
+	EQUAL_VAL(st2.st_atime, st1.st_atime + 300);
+	EQUAL_VAL(st2.st_mtime, st1.st_mtime - 300);
+
+#undef EQUAL_VAL
+
+	unlink(TESTFILE);
+	printf("success: utimes\n");
+	return true;
+}
+
 struct torture_context;
 bool torture_local_replace(struct torture_context *ctx)
 {
@@ -905,6 +1062,9 @@ bool torture_local_replace(struct torture_context *ctx)
 	ret &= test_MAX();
 	ret &= test_socketpair();
 	ret &= test_strptime();
+	ret &= test_getifaddrs();
+	ret &= test_utime();
+	ret &= test_utimes();
 
 	return ret;
 }

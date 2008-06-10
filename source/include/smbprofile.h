@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -104,6 +103,10 @@ enum profile_stats_values
 #define syscall_sendfile_count __profile_stats_value(PR_VALUE_SYSCALL_SENDFILE, count)
 #define syscall_sendfile_time __profile_stats_value(PR_VALUE_SYSCALL_SENDFILE, time)
 
+	PR_VALUE_SYSCALL_RECVFILE,
+#define syscall_recvfile_count __profile_stats_value(PR_VALUE_SYSCALL_RECVFILE, count)
+#define syscall_recvfile_time __profile_stats_value(PR_VALUE_SYSCALL_RECVFILE, time)
+
 	PR_VALUE_SYSCALL_RENAME,
 #define syscall_rename_count __profile_stats_value(PR_VALUE_SYSCALL_RENAME, count)
 #define syscall_rename_time __profile_stats_value(PR_VALUE_SYSCALL_RENAME, time)
@@ -143,6 +146,10 @@ enum profile_stats_values
 	PR_VALUE_SYSCALL_FCHOWN,
 #define syscall_fchown_count __profile_stats_value(PR_VALUE_SYSCALL_FCHOWN, count)
 #define syscall_fchown_time __profile_stats_value(PR_VALUE_SYSCALL_FCHOWN, time)
+
+	PR_VALUE_SYSCALL_LCHOWN,
+#define syscall_lchown_count __profile_stats_value(PR_VALUE_SYSCALL_LCHOWN, count)
+#define syscall_lchown_time __profile_stats_value(PR_VALUE_SYSCALL_LCHOWN, time)
 
 	PR_VALUE_SYSCALL_CHDIR,
 #define syscall_chdir_count __profile_stats_value(PR_VALUE_SYSCALL_CHDIR, count)
@@ -734,6 +741,7 @@ struct profile_stats {
 	unsigned syscall_read_bytes;
 	unsigned syscall_write_bytes;
 	unsigned syscall_sendfile_bytes;
+	unsigned syscall_recvfile_bytes;
 
 /* stat cache counters */
 	unsigned statcache_lookups;
@@ -761,8 +769,8 @@ struct profile_header {
 
 extern struct profile_header *profile_h;
 extern struct profile_stats *profile_p;
-extern BOOL do_profile_flag;
-extern BOOL do_profile_times;
+extern bool do_profile_flag;
+extern bool do_profile_times;
 
 #ifdef WITH_PROFILE
 

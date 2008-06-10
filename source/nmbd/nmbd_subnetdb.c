@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
    Revision History:
 
@@ -25,7 +24,6 @@
 
 #include "includes.h"
 
-extern struct in_addr loopback_ip;
 extern int global_nmb_port;
 
 /* This is the broadcast subnets database. */
@@ -87,13 +85,17 @@ static struct subnet_record *make_subnet(const char *name, enum subnet_type type
 		nmb_sock = -1;
 		dgram_sock = -1;
 	} else {
+		struct sockaddr_storage ss;
+
+		in_addr_to_sockaddr_storage(&ss, myip);
+
 		/*
 		 * Attempt to open the sockets on port 137/138 for this interface
 		 * and bind them.
 		 * Fail the subnet creation if this fails.
 		 */
 
-		if((nmb_sock = open_socket_in(SOCK_DGRAM, global_nmb_port,0, myip.s_addr,True)) == -1) {
+		if((nmb_sock = open_socket_in(SOCK_DGRAM, global_nmb_port,0, &ss,true)) == -1) {
 			if( DEBUGLVL( 0 ) ) {
 				Debug1( "nmbd_subnetdb:make_subnet()\n" );
 				Debug1( "  Failed to open nmb socket on interface %s ", inet_ntoa(myip) );
@@ -103,7 +105,7 @@ static struct subnet_record *make_subnet(const char *name, enum subnet_type type
 			return NULL;
 		}
 
-		if((dgram_sock = open_socket_in(SOCK_DGRAM,DGRAM_PORT,3, myip.s_addr,True)) == -1) {
+		if((dgram_sock = open_socket_in(SOCK_DGRAM,DGRAM_PORT,3, &ss, true)) == -1) {
 			if( DEBUGLVL( 0 ) ) {
 				Debug1( "nmbd_subnetdb:make_subnet()\n" );
 				Debug1( "  Failed to open dgram socket on interface %s ", inet_ntoa(myip) );
@@ -125,8 +127,12 @@ static struct subnet_record *make_subnet(const char *name, enum subnet_type type
 	subrec = SMB_MALLOC_P(struct subnet_record);
 	if (!subrec) {
 		DEBUG(0,("make_subnet: malloc fail !\n"));
-		close(nmb_sock);
-		close(dgram_sock);
+		if (nmb_sock != -1) {
+			close(nmb_sock);
+		}
+		if (dgram_sock != -1) {
+			close(dgram_sock);
+		}
 		return(NULL);
 	}
   
@@ -134,8 +140,12 @@ static struct subnet_record *make_subnet(const char *name, enum subnet_type type
 
 	if((subrec->subnet_name = SMB_STRDUP(name)) == NULL) {
 		DEBUG(0,("make_subnet: malloc fail for subnet name !\n"));
-		close(nmb_sock);
-		close(dgram_sock);
+		if (nmb_sock != -1) {
+			close(nmb_sock);
+		}
+		if (dgram_sock != -1) {
+			close(dgram_sock);
+		}
 		ZERO_STRUCTP(subrec);
 		SAFE_FREE(subrec);
 		return(NULL);
@@ -162,12 +172,16 @@ static struct subnet_record *make_subnet(const char *name, enum subnet_type type
   Create a normal subnet
 **************************************************************************/
 
-struct subnet_record *make_normal_subnet(struct interface *iface)
+struct subnet_record *make_normal_subnet(const struct interface *iface)
 {
-	struct subnet_record *subrec;
 
-	subrec = make_subnet(inet_ntoa(iface->ip), NORMAL_SUBNET,
-			     iface->ip, iface->bcast, iface->nmask);
+	struct subnet_record *subrec;
+	const struct in_addr *pip = &((const struct sockaddr_in *)&iface->ip)->sin_addr;
+	const struct in_addr *pbcast = &((const struct sockaddr_in *)&iface->bcast)->sin_addr;
+	const struct in_addr *pnmask = &((const struct sockaddr_in *)&iface->netmask)->sin_addr;
+
+	subrec = make_subnet(inet_ntoa(*pip), NORMAL_SUBNET,
+			     *pip, *pbcast, *pnmask);
 	if (subrec) {
 		add_subnet(subrec);
 	}
@@ -178,23 +192,25 @@ struct subnet_record *make_normal_subnet(struct interface *iface)
   Create subnet entries.
 **************************************************************************/
 
-BOOL create_subnets(void)
-{    
-	int num_interfaces;
+bool create_subnets(void)
+{
+	/* We only count IPv4 interfaces whilst we're waiting. */
+	int num_interfaces = iface_count_v4();
 	int i;
 	struct in_addr unicast_ip, ipzero;
 
   try_interfaces_again:
 
-	if (iface_count() == 0) {
+	if (iface_count_v4() == 0) {
 		DEBUG(0,("create_subnets: No local interfaces !\n"));
 		DEBUG(0,("create_subnets: Waiting for an interface to appear ...\n"));
 	}
 
-	while (iface_count() == 0) {
+	/* We only count IPv4 interfaces here. */
+	while (iface_count_v4() == 0) {
 		void (*saved_handler)(int);
 
-		/* 
+		/*
 		 * Whilst we're waiting for an interface, allow SIGTERM to
 		 * cause us to exit.
 		 */
@@ -204,25 +220,36 @@ BOOL create_subnets(void)
 		sleep(5);
 		load_interfaces();
 
-		/* 
+		/*
 		 * We got an interface, restore our normal term handler.
 		 */
 
 		CatchSignal( SIGTERM, SIGNAL_CAST saved_handler );
 	}
 
+	/*
+	 * Here we count v4 and v6 - we know there's at least one
+	 * IPv4 interface and we filter on it below.
+	 */
 	num_interfaces = iface_count();
 
-	/* 
+	/*
 	 * Create subnets from all the local interfaces and thread them onto
-	 * the linked list. 
+	 * the linked list.
 	 */
 
 	for (i = 0 ; i < num_interfaces; i++) {
-		struct interface *iface = get_interface(i);
+		const struct interface *iface = get_interface(i);
 
 		if (!iface) {
 			DEBUG(2,("create_subnets: can't get interface %d.\n", i ));
+			continue;
+		}
+
+		/* Ensure we're only dealing with IPv4 here. */
+		if (iface->ip.ss_family != AF_INET) {
+			DEBUG(2,("create_subnets: "
+				"ignoring non IPv4 interface.\n"));
 			continue;
 		}
 
@@ -232,7 +259,7 @@ BOOL create_subnets(void)
 		 * ignore it here. JRA.
 		 */
 
-		if (ip_equal(iface->ip, loopback_ip)) {
+		if (is_loopback_addr(&iface->ip)) {
 			DEBUG(2,("create_subnets: Ignoring loopback interface.\n" ));
 			continue;
 		}
@@ -259,8 +286,8 @@ BOOL create_subnets(void)
 	}
 
 	if (lp_we_are_a_wins_server()) {
-		/* Pick the first interface ip address as the WINS server ip. */
-		struct in_addr *nip = iface_n_ip(0);
+		/* Pick the first interface IPv4 address as the WINS server ip. */
+		const struct in_addr *nip = first_ipv4_iface();
 
 		if (!nip) {
 			return False;
@@ -271,7 +298,7 @@ BOOL create_subnets(void)
 		/* note that we do not set the wins server IP here. We just
 			set it at zero and let the wins registration code cope
 			with getting the IPs right for each packet */
-		zero_ip(&unicast_ip);
+		zero_ip_v4(&unicast_ip);
 	}
 
 	/*
@@ -284,7 +311,7 @@ BOOL create_subnets(void)
 	unicast_subnet = make_subnet( "UNICAST_SUBNET", UNICAST_SUBNET, 
 				unicast_ip, unicast_ip, unicast_ip);
 
-	zero_ip(&ipzero);
+	zero_ip_v4(&ipzero);
 
 	remote_broadcast_subnet = make_subnet( "REMOTE_BROADCAST_SUBNET",
 				REMOTE_BROADCAST_SUBNET,
@@ -312,7 +339,7 @@ BOOL create_subnets(void)
 Function to tell us if we can use the unicast subnet.
 ******************************************************************/
 
-BOOL we_are_a_wins_client(void)
+bool we_are_a_wins_client(void)
 {
 	if (wins_srv_count() > 0) {
 		return True;

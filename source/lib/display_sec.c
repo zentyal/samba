@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful, 
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -24,34 +23,92 @@
 /****************************************************************************
 convert a security permissions into a string
 ****************************************************************************/
-char *get_sec_mask_str(uint32 type)
+
+char *get_sec_mask_str(TALLOC_CTX *ctx, uint32 type)
 {
-	static fstring typestr="";
+	char *typestr = talloc_strdup(ctx, "");
 
-	typestr[0] = 0;
+	if (!typestr) {
+		return NULL;
+	}
 
-	if (type & GENERIC_ALL_ACCESS)
-		fstrcat(typestr, "Generic all access ");
-	if (type & GENERIC_EXECUTE_ACCESS)
-		fstrcat(typestr, "Generic execute access ");
-	if (type & GENERIC_WRITE_ACCESS)
-		fstrcat(typestr, "Generic write access ");
-	if (type & GENERIC_READ_ACCESS)
-		fstrcat(typestr, "Generic read access ");
-	if (type & MAXIMUM_ALLOWED_ACCESS)
-		fstrcat(typestr, "MAXIMUM_ALLOWED_ACCESS ");
-	if (type & SYSTEM_SECURITY_ACCESS)
-		fstrcat(typestr, "SYSTEM_SECURITY_ACCESS ");
-	if (type & SYNCHRONIZE_ACCESS)
-		fstrcat(typestr, "SYNCHRONIZE_ACCESS ");
-	if (type & WRITE_OWNER_ACCESS)
-		fstrcat(typestr, "WRITE_OWNER_ACCESS ");
-	if (type & WRITE_DAC_ACCESS)
-		fstrcat(typestr, "WRITE_DAC_ACCESS ");
-	if (type & READ_CONTROL_ACCESS)
-		fstrcat(typestr, "READ_CONTROL_ACCESS ");
-	if (type & DELETE_ACCESS)
-		fstrcat(typestr, "DELETE_ACCESS ");
+	if (type & GENERIC_ALL_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"Generic all access ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & GENERIC_EXECUTE_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"Generic execute access");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & GENERIC_WRITE_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"Generic write access ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & GENERIC_READ_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"Generic read access ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & MAXIMUM_ALLOWED_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"MAXIMUM_ALLOWED_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & SYSTEM_SECURITY_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"SYSTEM_SECURITY_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & SYNCHRONIZE_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"SYNCHRONIZE_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & WRITE_OWNER_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"WRITE_OWNER_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & WRITE_DAC_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"WRITE_DAC_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & READ_CONTROL_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"READ_CONTROL_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
+	if (type & DELETE_ACCESS) {
+		typestr = talloc_asprintf_append(typestr,
+				"DELETE_ACCESS ");
+		if (!typestr) {
+			return NULL;
+		}
+	}
 
 	printf("\t\tSpecific bits: 0x%lx\n", (unsigned long)type&SPECIFIC_RIGHTS_MASK);
 
@@ -63,7 +120,51 @@ char *get_sec_mask_str(uint32 type)
  ****************************************************************************/
 void display_sec_access(SEC_ACCESS *info)
 {
-	printf("\t\tPermissions: 0x%x: %s\n", *info, get_sec_mask_str(*info));
+	char *mask_str = get_sec_mask_str(NULL, *info);
+	printf("\t\tPermissions: 0x%x: %s\n", *info, mask_str ? mask_str : "");
+	TALLOC_FREE(mask_str);
+}
+
+/****************************************************************************
+ display sec_ace flags
+ ****************************************************************************/
+void display_sec_ace_flags(uint8_t flags)
+{
+	if (flags & SEC_ACE_FLAG_OBJECT_INHERIT)
+		printf("SEC_ACE_FLAG_OBJECT_INHERIT ");
+	if (flags & SEC_ACE_FLAG_CONTAINER_INHERIT)
+		printf(" SEC_ACE_FLAG_CONTAINER_INHERIT ");
+	if (flags & SEC_ACE_FLAG_NO_PROPAGATE_INHERIT)
+		printf("SEC_ACE_FLAG_NO_PROPAGATE_INHERIT ");
+	if (flags & SEC_ACE_FLAG_INHERIT_ONLY)
+		printf("SEC_ACE_FLAG_INHERIT_ONLY ");
+	if (flags & SEC_ACE_FLAG_INHERITED_ACE)
+		printf("SEC_ACE_FLAG_INHERITED_ACE ");
+/*	if (flags & SEC_ACE_FLAG_VALID_INHERIT)
+		printf("SEC_ACE_FLAG_VALID_INHERIT "); */
+	if (flags & SEC_ACE_FLAG_SUCCESSFUL_ACCESS)
+		printf("SEC_ACE_FLAG_SUCCESSFUL_ACCESS ");
+	if (flags & SEC_ACE_FLAG_FAILED_ACCESS)
+		printf("SEC_ACE_FLAG_FAILED_ACCESS ");
+
+	printf("\n");
+}
+
+/****************************************************************************
+ display sec_ace object
+ ****************************************************************************/
+static void disp_sec_ace_object(struct security_ace_object *object)
+{
+	if (object->flags & SEC_ACE_OBJECT_PRESENT) {
+		printf("Object type: SEC_ACE_OBJECT_PRESENT\n");
+		printf("Object GUID: %s\n", smb_uuid_string(talloc_tos(),
+			object->type.type));
+	}
+	if (object->flags & SEC_ACE_OBJECT_INHERITED_PRESENT) {
+		printf("Object type: SEC_ACE_OBJECT_INHERITED_PRESENT\n");
+		printf("Object GUID: %s\n", smb_uuid_string(talloc_tos(), 
+			object->inherited_type.inherited_type));
+	}
 }
 
 /****************************************************************************
@@ -87,14 +188,36 @@ void display_sec_ace(SEC_ACE *ace)
 		case SEC_ACE_TYPE_SYSTEM_ALARM:
 			printf("SYSTEM ALARM");
 			break;
+		case SEC_ACE_TYPE_ALLOWED_COMPOUND:
+			printf("SEC_ACE_TYPE_ALLOWED_COMPOUND");
+			break;
+		case SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT:
+			printf("SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT");
+			break;
+		case SEC_ACE_TYPE_ACCESS_DENIED_OBJECT:
+			printf("SEC_ACE_TYPE_ACCESS_DENIED_OBJECT");
+			break;
+		case SEC_ACE_TYPE_SYSTEM_AUDIT_OBJECT:
+			printf("SEC_ACE_TYPE_SYSTEM_AUDIT_OBJECT");
+			break;
+		case SEC_ACE_TYPE_SYSTEM_ALARM_OBJECT:
+			printf("SEC_ACE_TYPE_SYSTEM_ALARM_OBJECT");
+			break;
 		default:
 			printf("????");
 			break;
 	}
-	printf(" (%d) flags: %d\n", ace->type, ace->flags);
+
+	printf(" (%d) flags: 0x%02x ", ace->type, ace->flags);
+	display_sec_ace_flags(ace->flags);
 	display_sec_access(&ace->access_mask);
-	sid_to_string(sid_str, &ace->trustee);
+	sid_to_fstring(sid_str, &ace->trustee);
 	printf("\t\tSID: %s\n\n", sid_str);
+
+	if (sec_ace_object(ace->type)) {
+		disp_sec_ace_object(&ace->object.object);
+	}
+
 }
 
 /****************************************************************************
@@ -108,10 +231,11 @@ void display_sec_acl(SEC_ACL *sec_acl)
 			 sec_acl->num_aces, sec_acl->revision); 
 	printf("\t---\n");
 
-	if (sec_acl->size != 0 && sec_acl->num_aces != 0)
-		for (i = 0; i < sec_acl->num_aces; i++)
+	if (sec_acl->size != 0 && sec_acl->num_aces != 0) {
+		for (i = 0; i < sec_acl->num_aces; i++) {
 			display_sec_ace(&sec_acl->aces[i]);
-				
+		}
+	}
 }
 
 void display_acl_type(uint16 type)
@@ -136,13 +260,20 @@ void display_acl_type(uint16 type)
 		fstrcat(typestr, "SEC_DESC_DACL_TRUSTED ");
 	if (type & SEC_DESC_SERVER_SECURITY)	/* 0x0080 */
 		fstrcat(typestr, "SEC_DESC_SERVER_SECURITY ");
-	if (type & 0x0100) fstrcat(typestr, "0x0100 ");
-	if (type & 0x0200) fstrcat(typestr, "0x0200 ");
-	if (type & 0x0400) fstrcat(typestr, "0x0400 ");
-	if (type & 0x0800) fstrcat(typestr, "0x0800 ");
-	if (type & 0x1000) fstrcat(typestr, "0x1000 ");
-	if (type & 0x2000) fstrcat(typestr, "0x2000 ");
-	if (type & 0x4000) fstrcat(typestr, "0x4000 ");
+	if (type & SEC_DESC_DACL_AUTO_INHERIT_REQ) /* 0x0100 */
+		fstrcat(typestr, "SEC_DESC_DACL_AUTO_INHERIT_REQ ");
+	if (type & SEC_DESC_SACL_AUTO_INHERIT_REQ) /* 0x0200 */
+		fstrcat(typestr, "SEC_DESC_SACL_AUTO_INHERIT_REQ ");
+	if (type & SEC_DESC_DACL_AUTO_INHERITED) /* 0x0400 */
+		fstrcat(typestr, "SEC_DESC_DACL_AUTO_INHERITED ");
+	if (type & SEC_DESC_SACL_AUTO_INHERITED) /* 0x0800 */
+		fstrcat(typestr, "SEC_DESC_SACL_AUTO_INHERITED ");
+	if (type & SEC_DESC_DACL_PROTECTED)	/* 0x1000 */
+		fstrcat(typestr, "SEC_DESC_DACL_PROTECTED ");
+	if (type & SEC_DESC_SACL_PROTECTED)	/* 0x2000 */
+		fstrcat(typestr, "SEC_DESC_SACL_PROTECTED ");
+	if (type & SEC_DESC_RM_CONTROL_VALID)	/* 0x4000 */
+		fstrcat(typestr, "SEC_DESC_RM_CONTROL_VALID ");
 	if (type & SEC_DESC_SELF_RELATIVE)	/* 0x8000 */
 		fstrcat(typestr, "SEC_DESC_SELF_RELATIVE ");
 	
@@ -175,12 +306,12 @@ void display_sec_desc(SEC_DESC *sec)
 	}
 
 	if (sec->owner_sid) {
-		sid_to_string(sid_str, sec->owner_sid);
+		sid_to_fstring(sid_str, sec->owner_sid);
 		printf("\tOwner SID:\t%s\n", sid_str);
 	}
 
 	if (sec->group_sid) {
-		sid_to_string(sid_str, sec->group_sid);
-		printf("\tParent SID:\t%s\n", sid_str);
+		sid_to_fstring(sid_str, sec->group_sid);
+		printf("\tGroup SID:\t%s\n", sid_str);
 	}
 }

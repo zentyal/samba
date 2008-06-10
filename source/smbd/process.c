@@ -2,11 +2,11 @@
    Unix SMB/CIFS implementation.
    process incoming packets - main loop
    Copyright (C) Andrew Tridgell 1992-1998
-   Copyright (C) Volker Lendecke 2005
+   Copyright (C) Volker Lendecke 2005-2007
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,22 +15,14 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-uint16 global_smbpid;
-extern int keepalive;
-extern struct auth_context *negprot_global_auth_context;
 extern int smb_echo_count;
 
-static char *InBuffer = NULL;
-static char *OutBuffer = NULL;
-static char *current_inbuf = NULL;
-
-/* 
+/*
  * Size of data we can send to client. Set
  *  by the client for all protocols above CORE.
  *  Set by us for CORE protocol.
@@ -42,20 +34,367 @@ int max_send = BUFFER_SIZE;
  */
 int max_recv = BUFFER_SIZE;
 
-extern int last_message;
-extern int smb_read_error;
 SIG_ATOMIC_T reload_after_sighup = 0;
 SIG_ATOMIC_T got_sig_term = 0;
-extern BOOL global_machine_password_needs_changing;
+extern bool global_machine_password_needs_changing;
 extern int max_send;
 
+/* Accessor function for smb_read_error for smbd functions. */
+
 /****************************************************************************
- Function to return the current request mid from Inbuffer.
+ Send an smb to a fd.
 ****************************************************************************/
 
-uint16 get_current_mid(void)
+bool srv_send_smb(int fd, char *buffer, bool do_encrypt)
 {
-	return SVAL(InBuffer,smb_mid);
+	size_t len;
+	size_t nwritten=0;
+	ssize_t ret;
+	char *buf_out = buffer;
+
+	/* Sign the outgoing packet if required. */
+	srv_calculate_sign_mac(buf_out);
+
+	if (do_encrypt) {
+		NTSTATUS status = srv_encrypt_buffer(buffer, &buf_out);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("send_smb: SMB encryption failed "
+				"on outgoing packet! Error %s\n",
+				nt_errstr(status) ));
+			return false;
+		}
+	}
+
+	len = smb_len(buf_out) + 4;
+
+	while (nwritten < len) {
+		ret = write_data(fd,buf_out+nwritten,len - nwritten);
+		if (ret <= 0) {
+			DEBUG(0,("Error writing %d bytes to client. %d. (%s)\n",
+				(int)len,(int)ret, strerror(errno) ));
+			srv_free_enc_buffer(buf_out);
+			return false;
+		}
+		nwritten += ret;
+	}
+
+	srv_free_enc_buffer(buf_out);
+	return true;
+}
+
+/*******************************************************************
+ Setup the word count and byte count for a smb message.
+********************************************************************/
+
+int srv_set_message(char *buf,
+                        int num_words,
+                        int num_bytes,
+                        bool zero)
+{
+	if (zero && (num_words || num_bytes)) {
+		memset(buf + smb_size,'\0',num_words*2 + num_bytes);
+	}
+	SCVAL(buf,smb_wct,num_words);
+	SSVAL(buf,smb_vwv + num_words*SIZEOFWORD,num_bytes);
+	smb_setlen(buf,(smb_size + num_words*2 + num_bytes - 4));
+	return (smb_size + num_words*2 + num_bytes);
+}
+
+static bool valid_smb_header(const uint8_t *inbuf)
+{
+	if (is_encrypted_packet(inbuf)) {
+		return true;
+	}
+	return (strncmp(smb_base(inbuf),"\377SMB",4) == 0);
+}
+
+/* Socket functions for smbd packet processing. */
+
+static bool valid_packet_size(size_t len)
+{
+	/*
+	 * A WRITEX with CAP_LARGE_WRITEX can be 64k worth of data plus 65 bytes
+	 * of header. Don't print the error if this fits.... JRA.
+	 */
+
+	if (len > (BUFFER_SIZE + LARGE_WRITEX_HDR_SIZE)) {
+		DEBUG(0,("Invalid packet length! (%lu bytes).\n",
+					(unsigned long)len));
+		return false;
+	}
+	return true;
+}
+
+static NTSTATUS read_packet_remainder(int fd, char *buffer,
+				      unsigned int timeout, ssize_t len)
+{
+	if (len <= 0) {
+		return NT_STATUS_OK;
+	}
+
+	return read_socket_with_timeout(fd, buffer, len, len, timeout, NULL);
+}
+
+/****************************************************************************
+ Attempt a zerocopy writeX read. We know here that len > smb_size-4
+****************************************************************************/
+
+/*
+ * Unfortunately, earlier versions of smbclient/libsmbclient
+ * don't send this "standard" writeX header. I've fixed this
+ * for 3.2 but we'll use the old method with earlier versions.
+ * Windows and CIFSFS at least use this standard size. Not
+ * sure about MacOSX.
+ */
+
+#define STANDARD_WRITE_AND_X_HEADER_SIZE (smb_size - 4 + /* basic header */ \
+				(2*14) + /* word count (including bcc) */ \
+				1 /* pad byte */)
+
+static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
+						    const char lenbuf[4],
+						    int fd, char **buffer,
+						    unsigned int timeout,
+						    size_t *p_unread,
+						    size_t *len_ret)
+{
+	/* Size of a WRITEX call (+4 byte len). */
+	char writeX_header[4 + STANDARD_WRITE_AND_X_HEADER_SIZE];
+	ssize_t len = smb_len_large(lenbuf); /* Could be a UNIX large writeX. */
+	ssize_t toread;
+	NTSTATUS status;
+
+	memcpy(writeX_header, lenbuf, sizeof(lenbuf));
+
+	status = read_socket_with_timeout(
+		fd, writeX_header + 4,
+		STANDARD_WRITE_AND_X_HEADER_SIZE,
+		STANDARD_WRITE_AND_X_HEADER_SIZE,
+		timeout, NULL);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	/*
+	 * Ok - now try and see if this is a possible
+	 * valid writeX call.
+	 */
+
+	if (is_valid_writeX_buffer((uint8_t *)writeX_header)) {
+		/*
+		 * If the data offset is beyond what
+		 * we've read, drain the extra bytes.
+		 */
+		uint16_t doff = SVAL(writeX_header,smb_vwv11);
+		ssize_t newlen;
+
+		if (doff > STANDARD_WRITE_AND_X_HEADER_SIZE) {
+			size_t drain = doff - STANDARD_WRITE_AND_X_HEADER_SIZE;
+			if (drain_socket(smbd_server_fd(), drain) != drain) {
+	                        smb_panic("receive_smb_raw_talloc_partial_read:"
+					" failed to drain pending bytes");
+	                }
+		} else {
+			doff = STANDARD_WRITE_AND_X_HEADER_SIZE;
+		}
+
+		/* Spoof down the length and null out the bcc. */
+		set_message_bcc(writeX_header, 0);
+		newlen = smb_len(writeX_header);
+
+		/* Copy the header we've written. */
+
+		*buffer = (char *)TALLOC_MEMDUP(mem_ctx,
+				writeX_header,
+				sizeof(writeX_header));
+
+		if (*buffer == NULL) {
+			DEBUG(0, ("Could not allocate inbuf of length %d\n",
+				  (int)sizeof(writeX_header)));
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		/* Work out the remaining bytes. */
+		*p_unread = len - STANDARD_WRITE_AND_X_HEADER_SIZE;
+		*len_ret = newlen + 4;
+		return NT_STATUS_OK;
+	}
+
+	if (!valid_packet_size(len)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/*
+	 * Not a valid writeX call. Just do the standard
+	 * talloc and return.
+	 */
+
+	*buffer = TALLOC_ARRAY(mem_ctx, char, len+4);
+
+	if (*buffer == NULL) {
+		DEBUG(0, ("Could not allocate inbuf of length %d\n",
+			  (int)len+4));
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	/* Copy in what we already read. */
+	memcpy(*buffer,
+		writeX_header,
+		4 + STANDARD_WRITE_AND_X_HEADER_SIZE);
+	toread = len - STANDARD_WRITE_AND_X_HEADER_SIZE;
+
+	if(toread > 0) {
+		status = read_packet_remainder(
+			fd, (*buffer) + 4 + STANDARD_WRITE_AND_X_HEADER_SIZE,
+			timeout, toread);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("receive_smb_raw_talloc_partial_read: %s\n",
+				   nt_errstr(status)));
+			return status;
+		}
+	}
+
+	*len_ret = len + 4;
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS receive_smb_raw_talloc(TALLOC_CTX *mem_ctx, int fd,
+				       char **buffer, unsigned int timeout,
+				       size_t *p_unread, size_t *plen)
+{
+	char lenbuf[4];
+	size_t len;
+	int min_recv_size = lp_min_receive_file_size();
+	NTSTATUS status;
+
+	*p_unread = 0;
+
+	status = read_smb_length_return_keepalive(fd, lenbuf, timeout, &len);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("receive_smb_raw: %s\n", nt_errstr(status)));
+		return status;
+	}
+
+	if (CVAL(lenbuf,0) == 0 &&
+			min_recv_size &&
+			smb_len_large(lenbuf) > min_recv_size && /* Could be a UNIX large writeX. */
+			!srv_is_signing_active()) {
+
+		return receive_smb_raw_talloc_partial_read(
+			mem_ctx, lenbuf, fd, buffer, timeout, p_unread, plen);
+	}
+
+	if (!valid_packet_size(len)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/*
+	 * The +4 here can't wrap, we've checked the length above already.
+	 */
+
+	*buffer = TALLOC_ARRAY(mem_ctx, char, len+4);
+
+	if (*buffer == NULL) {
+		DEBUG(0, ("Could not allocate inbuf of length %d\n",
+			  (int)len+4));
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	memcpy(*buffer, lenbuf, sizeof(lenbuf));
+
+	status = read_packet_remainder(fd, (*buffer)+4, timeout, len);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	*plen = len + 4;
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS receive_smb_talloc(TALLOC_CTX *mem_ctx,	int fd,
+				   char **buffer, unsigned int timeout,
+				   size_t *p_unread, bool *p_encrypted,
+				   size_t *p_len)
+{
+	size_t len = 0;
+	NTSTATUS status;
+
+	*p_encrypted = false;
+
+	status = receive_smb_raw_talloc(mem_ctx, fd, buffer, timeout,
+					p_unread, &len);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (is_encrypted_packet((uint8_t *)*buffer)) {
+		status = srv_decrypt_buffer(*buffer);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("receive_smb_talloc: SMB decryption failed on "
+				"incoming packet! Error %s\n",
+				nt_errstr(status) ));
+			return status;
+		}
+		*p_encrypted = true;
+	}
+
+	/* Check the incoming SMB signature. */
+	if (!srv_check_sign_mac(*buffer, true)) {
+		DEBUG(0, ("receive_smb: SMB Signature verification failed on "
+			  "incoming packet!\n"));
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
+	}
+
+	*p_len = len;
+	return NT_STATUS_OK;
+}
+
+/*
+ * Initialize a struct smb_request from an inbuf
+ */
+
+void init_smb_request(struct smb_request *req,
+			const uint8 *inbuf,
+			size_t unread_bytes,
+			bool encrypted)
+{
+	size_t req_size = smb_len(inbuf) + 4;
+	/* Ensure we have at least smb_size bytes. */
+	if (req_size < smb_size) {
+		DEBUG(0,("init_smb_request: invalid request size %u\n",
+			(unsigned int)req_size ));
+		exit_server_cleanly("Invalid SMB request");
+	}
+	req->flags2 = SVAL(inbuf, smb_flg2);
+	req->smbpid = SVAL(inbuf, smb_pid);
+	req->mid    = SVAL(inbuf, smb_mid);
+	req->vuid   = SVAL(inbuf, smb_uid);
+	req->tid    = SVAL(inbuf, smb_tid);
+	req->wct    = CVAL(inbuf, smb_wct);
+	req->unread_bytes = unread_bytes;
+	req->encrypted = encrypted;
+	req->conn = conn_find(req->tid);
+
+	/* Ensure we have at least wct words and 2 bytes of bcc. */
+	if (smb_size + req->wct*2 > req_size) {
+		DEBUG(0,("init_smb_request: invalid wct number %u (size %u)\n",
+			(unsigned int)req->wct,
+			(unsigned int)req_size));
+		exit_server_cleanly("Invalid SMB request");
+	}
+	/* Ensure bcc is correct. */
+	if (((uint8 *)smb_buf(inbuf)) + smb_buflen(inbuf) > inbuf + req_size) {
+		DEBUG(0,("init_smb_request: invalid bcc number %u "
+			"(wct = %u, size %u)\n",
+			(unsigned int)smb_buflen(inbuf),
+			(unsigned int)req->wct,
+			(unsigned int)req_size));
+		exit_server_cleanly("Invalid SMB request");
+	}
+	req->inbuf  = inbuf;
+	req->outbuf = NULL;
 }
 
 /****************************************************************************
@@ -70,11 +409,12 @@ static struct pending_message_list *deferred_open_queue;
  for processing.
 ****************************************************************************/
 
-static BOOL push_queued_message(char *buf, int msg_len,
+static bool push_queued_message(struct smb_request *req,
 				struct timeval request_time,
 				struct timeval end_time,
 				char *private_data, size_t private_len)
 {
+	int msg_len = smb_len(req->inbuf) + 4;
 	struct pending_message_list *msg;
 
 	msg = TALLOC_ZERO_P(NULL, struct pending_message_list);
@@ -84,7 +424,7 @@ static BOOL push_queued_message(char *buf, int msg_len,
 		return False;
 	}
 
-	msg->buf = data_blob_talloc(msg, buf, msg_len);
+	msg->buf = data_blob_talloc(msg, req->inbuf, msg_len);
 	if(msg->buf.data == NULL) {
 		DEBUG(0,("push_message: malloc fail (2)\n"));
 		TALLOC_FREE(msg);
@@ -93,6 +433,7 @@ static BOOL push_queued_message(char *buf, int msg_len,
 
 	msg->request_time = request_time;
 	msg->end_time = end_time;
+	msg->encrypted = req->encrypted;
 
 	if (private_data) {
 		msg->private_data = data_blob_talloc(msg, private_data,
@@ -165,7 +506,7 @@ void schedule_deferred_open_smb_message(uint16 mid)
  Return true if this mid is on the deferred queue.
 ****************************************************************************/
 
-BOOL open_was_deferred(uint16 mid)
+bool open_was_deferred(uint16 mid)
 {
 	struct pending_message_list *pml;
 
@@ -198,30 +539,38 @@ struct pending_message_list *get_open_deferred_message(uint16 mid)
  messages ready for processing.
 ****************************************************************************/
 
-BOOL push_deferred_smb_message(uint16 mid,
+bool push_deferred_smb_message(struct smb_request *req,
 			       struct timeval request_time,
 			       struct timeval timeout,
 			       char *private_data, size_t priv_len)
 {
 	struct timeval end_time;
 
+	if (req->unread_bytes) {
+		DEBUG(0,("push_deferred_smb_message: logic error ! "
+			"unread_bytes = %u\n",
+			(unsigned int)req->unread_bytes ));
+		smb_panic("push_deferred_smb_message: "
+			"logic error unread_bytes != 0" );
+	}
+
 	end_time = timeval_sum(&request_time, &timeout);
 
 	DEBUG(10,("push_deferred_open_smb_message: pushing message len %u mid %u "
 		  "timeout time [%u.%06u]\n",
-		  (unsigned int) smb_len(current_inbuf)+4, (unsigned int)mid,
+		  (unsigned int) smb_len(req->inbuf)+4, (unsigned int)req->mid,
 		  (unsigned int)end_time.tv_sec,
 		  (unsigned int)end_time.tv_usec));
 
-	return push_queued_message(current_inbuf, smb_len(current_inbuf)+4,
-				   request_time, end_time,
+	return push_queued_message(req, request_time, end_time,
 				   private_data, priv_len);
 }
 
 struct idle_event {
 	struct timed_event *te;
 	struct timeval interval;
-	BOOL (*handler)(const struct timeval *now, void *private_data);
+	char *name;
+	bool (*handler)(const struct timeval *now, void *private_data);
 	void *private_data;
 };
 
@@ -241,18 +590,20 @@ static void idle_event_handler(struct event_context *ctx,
 		return;
 	}
 
-	event->te = event_add_timed(smbd_event_context(), event,
+	event->te = event_add_timed(ctx, event,
 				    timeval_sum(now, &event->interval),
-				    "idle_event_handler",
+				    event->name,
 				    idle_event_handler, event);
 
 	/* We can't do much but fail here. */
 	SMB_ASSERT(event->te != NULL);
 }
 
-struct idle_event *add_idle_event(TALLOC_CTX *mem_ctx,
+struct idle_event *event_add_idle(struct event_context *event_ctx,
+				  TALLOC_CTX *mem_ctx,
 				  struct timeval interval,
-				  BOOL (*handler)(const struct timeval *now,
+				  const char *name,
+				  bool (*handler)(const struct timeval *now,
 						  void *private_data),
 				  void *private_data)
 {
@@ -269,9 +620,15 @@ struct idle_event *add_idle_event(TALLOC_CTX *mem_ctx,
 	result->handler = handler;
 	result->private_data = private_data;
 
-	result->te = event_add_timed(smbd_event_context(), result,
+	if (!(result->name = talloc_asprintf(result, "idle_evt(%s)", name))) {
+		DEBUG(0, ("talloc failed\n"));
+		TALLOC_FREE(result);
+		return NULL;
+	}
+
+	result->te = event_add_timed(event_ctx, result,
 				     timeval_sum(&now, &interval),
-				     "idle_event_handler",
+				     result->name,
 				     idle_event_handler, result);
 	if (result->te == NULL) {
 		DEBUG(0, ("event_add_timed failed\n"));
@@ -293,7 +650,7 @@ static void async_processing(fd_set *pfds)
 
 	process_aio_queue();
 
-	process_kernel_oplocks(pfds);
+	process_kernel_oplocks(smbd_messaging_context(), pfds);
 
 	/* Do the aio check again after receive_local_message as it does a
 	   select and may have eaten our signal. */
@@ -348,14 +705,18 @@ static int select_on_fd(int fd, int maxfd, fd_set *fds)
 The timeout is in milliseconds
 ****************************************************************************/
 
-static BOOL receive_message_or_smb(char *buffer, int buffer_len, int timeout)
+static NTSTATUS receive_message_or_smb(TALLOC_CTX *mem_ctx, char **buffer,
+				       size_t *buffer_len, int timeout,
+				       size_t *p_unread, bool *p_encrypted)
 {
 	fd_set r_fds, w_fds;
 	int selrtn;
 	struct timeval to;
 	int maxfd = 0;
+	size_t len = 0;
+	NTSTATUS status;
 
-	smb_read_error = 0;
+	*p_unread = 0;
 
  again:
 
@@ -372,14 +733,14 @@ static BOOL receive_message_or_smb(char *buffer, int buffer_len, int timeout)
 	 * messages as we need to synchronously process any messages
 	 * we may have sent to ourselves from the previous SMB.
 	 */
-	message_dispatch();
+	message_dispatch(smbd_messaging_context());
 
 	/*
 	 * Check to see if we already have a message on the deferred open queue
 	 * and it's time to schedule.
 	 */
   	if(deferred_open_queue != NULL) {
-		BOOL pop_message = False;
+		bool pop_message = False;
 		struct pending_message_list *msg = deferred_open_queue;
 
 		if (timeval_is_zero(&msg->end_time)) {
@@ -404,12 +765,20 @@ static BOOL receive_message_or_smb(char *buffer, int buffer_len, int timeout)
 		}
 
 		if (pop_message) {
-			memcpy(buffer, msg->buf.data, MIN(buffer_len, msg->buf.length));
-  
+
+			*buffer = (char *)talloc_memdup(mem_ctx, msg->buf.data,
+							msg->buf.length);
+			if (*buffer == NULL) {
+				DEBUG(0, ("talloc failed\n"));
+				return NT_STATUS_NO_MEMORY;
+			}
+			*buffer_len = msg->buf.length;
+			*p_encrypted = msg->encrypted;
+
 			/* We leave this message on the queue so the open code can
 			   know this is a retry. */
 			DEBUG(5,("receive_message_or_smb: returning deferred open smb message.\n"));
-			return True;
+			return NT_STATUS_OK;
 		}
 	}
 
@@ -495,14 +864,12 @@ static BOOL receive_message_or_smb(char *buffer, int buffer_len, int timeout)
 	/* Check if error */
 	if (selrtn == -1) {
 		/* something is wrong. Maybe the socket is dead? */
-		smb_read_error = READ_ERROR;
-		return False;
-	} 
-    
+		return map_nt_error_from_unix(errno);
+	}
+
 	/* Did we timeout ? */
 	if (selrtn == 0) {
-		smb_read_error = READ_TIMEOUT;
-		return False;
+		return NT_STATUS_IO_TIMEOUT;
 	}
 
 	/*
@@ -521,8 +888,25 @@ static BOOL receive_message_or_smb(char *buffer, int buffer_len, int timeout)
 		goto again;
 	}
 
-	return receive_smb(smbd_server_fd(), buffer,
-			BUFFER_SIZE + LARGE_WRITEX_HDR_SIZE, 0);
+	/*
+	 * We've just woken up from a protentially long select sleep.
+	 * Ensure we process local messages as we need to synchronously
+	 * process any messages from other smbd's to avoid file rename race
+	 * conditions. This call is cheap if there are no messages waiting.
+	 * JRA.
+	 */
+	message_dispatch(smbd_messaging_context());
+
+	status = receive_smb_talloc(mem_ctx, smbd_server_fd(), buffer, 0,
+				    p_unread, p_encrypted, &len);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	*buffer_len = len;
+
+	return NT_STATUS_OK;
 }
 
 /*
@@ -567,7 +951,7 @@ void respond_to_all_remaining_local_messages(void)
 		return;
 	}
 
-	process_kernel_oplocks(NULL);
+	process_kernel_oplocks(smbd_messaging_context(), NULL);
 
 	return;
 }
@@ -594,7 +978,7 @@ force write permissions on print services.
 */
 static const struct smb_message_struct {
 	const char *name;
-	int (*fn)(connection_struct *conn, char *, char *, int, int);
+	void (*fn_new)(struct smb_request *req);
 	int flags;
 } smb_messages[256] = {
 
@@ -604,7 +988,7 @@ static const struct smb_message_struct {
 /* 0x03 */ { "SMBcreate",reply_mknew,AS_USER},
 /* 0x04 */ { "SMBclose",reply_close,AS_USER | CAN_IPC },
 /* 0x05 */ { "SMBflush",reply_flush,AS_USER},
-/* 0x06 */ { "SMBunlink",reply_unlink,AS_USER | NEED_WRITE }, 
+/* 0x06 */ { "SMBunlink",reply_unlink,AS_USER | NEED_WRITE },
 /* 0x07 */ { "SMBmv",reply_mv,AS_USER | NEED_WRITE },
 /* 0x08 */ { "SMBgetatr",reply_getatr,AS_USER},
 /* 0x09 */ { "SMBsetatr",reply_setatr,AS_USER | NEED_WRITE},
@@ -613,7 +997,7 @@ static const struct smb_message_struct {
 /* 0x0c */ { "SMBlock",reply_lock,AS_USER},
 /* 0x0d */ { "SMBunlock",reply_unlock,AS_USER},
 /* 0x0e */ { "SMBctemp",reply_ctemp,AS_USER },
-/* 0x0f */ { "SMBmknew",reply_mknew,AS_USER}, 
+/* 0x0f */ { "SMBmknew",reply_mknew,AS_USER},
 /* 0x10 */ { "SMBcheckpath",reply_checkpath,AS_USER},
 /* 0x11 */ { "SMBexit",reply_exit,DO_CHDIR},
 /* 0x12 */ { "SMBlseek",reply_lseek,AS_USER},
@@ -626,11 +1010,11 @@ static const struct smb_message_struct {
 /* 0x19 */ { NULL, NULL, 0 },
 /* 0x1a */ { "SMBreadbraw",reply_readbraw,AS_USER},
 /* 0x1b */ { "SMBreadBmpx",reply_readbmpx,AS_USER},
-/* 0x1c */ { "SMBreadBs",NULL,0 },
+/* 0x1c */ { "SMBreadBs",reply_readbs,AS_USER },
 /* 0x1d */ { "SMBwritebraw",reply_writebraw,AS_USER},
 /* 0x1e */ { "SMBwriteBmpx",reply_writebmpx,AS_USER},
 /* 0x1f */ { "SMBwriteBs",reply_writebs,AS_USER},
-/* 0x20 */ { "SMBwritec",NULL,0},
+/* 0x20 */ { "SMBwritec", NULL,0},
 /* 0x21 */ { NULL, NULL, 0 },
 /* 0x22 */ { "SMBsetattrE",reply_setattrE,AS_USER | NEED_WRITE },
 /* 0x23 */ { "SMBgetattrE",reply_getattrE,AS_USER },
@@ -638,9 +1022,9 @@ static const struct smb_message_struct {
 /* 0x25 */ { "SMBtrans",reply_trans,AS_USER | CAN_IPC },
 /* 0x26 */ { "SMBtranss",reply_transs,AS_USER | CAN_IPC},
 /* 0x27 */ { "SMBioctl",reply_ioctl,0},
-/* 0x28 */ { "SMBioctls",NULL,AS_USER},
+/* 0x28 */ { "SMBioctls", NULL,AS_USER},
 /* 0x29 */ { "SMBcopy",reply_copy,AS_USER | NEED_WRITE },
-/* 0x2a */ { "SMBmove",NULL,AS_USER | NEED_WRITE },
+/* 0x2a */ { "SMBmove", NULL,AS_USER | NEED_WRITE },
 /* 0x2b */ { "SMBecho",reply_echo,0},
 /* 0x2c */ { "SMBwriteclose",reply_writeclose,AS_USER},
 /* 0x2d */ { "SMBopenX",reply_open_and_X,AS_USER | CAN_IPC },
@@ -648,10 +1032,10 @@ static const struct smb_message_struct {
 /* 0x2f */ { "SMBwriteX",reply_write_and_X,AS_USER | CAN_IPC },
 /* 0x30 */ { NULL, NULL, 0 },
 /* 0x31 */ { NULL, NULL, 0 },
-/* 0x32 */ { "SMBtrans2", reply_trans2, AS_USER | CAN_IPC },
-/* 0x33 */ { "SMBtranss2", reply_transs2, AS_USER},
-/* 0x34 */ { "SMBfindclose", reply_findclose,AS_USER},
-/* 0x35 */ { "SMBfindnclose", reply_findnclose, AS_USER},
+/* 0x32 */ { "SMBtrans2",reply_trans2, AS_USER | CAN_IPC },
+/* 0x33 */ { "SMBtranss2",reply_transs2, AS_USER},
+/* 0x34 */ { "SMBfindclose",reply_findclose,AS_USER},
+/* 0x35 */ { "SMBfindnclose",reply_findnclose,AS_USER},
 /* 0x36 */ { NULL, NULL, 0 },
 /* 0x37 */ { NULL, NULL, 0 },
 /* 0x38 */ { NULL, NULL, 0 },
@@ -714,7 +1098,7 @@ static const struct smb_message_struct {
 /* 0x71 */ { "SMBtdis",reply_tdis,DO_CHDIR},
 /* 0x72 */ { "SMBnegprot",reply_negprot,0},
 /* 0x73 */ { "SMBsesssetupX",reply_sesssetup_and_X,0},
-/* 0x74 */ { "SMBulogoffX", reply_ulogoffX, 0}, /* ulogoff doesn't give a valid TID */
+/* 0x74 */ { "SMBulogoffX",reply_ulogoffX, 0}, /* ulogoff doesn't give a valid TID */
 /* 0x75 */ { "SMBtconX",reply_tcon_and_X,0},
 /* 0x76 */ { NULL, NULL, 0 },
 /* 0x77 */ { NULL, NULL, 0 },
@@ -758,12 +1142,12 @@ static const struct smb_message_struct {
 /* 0x9d */ { NULL, NULL, 0 },
 /* 0x9e */ { NULL, NULL, 0 },
 /* 0x9f */ { NULL, NULL, 0 },
-/* 0xa0 */ { "SMBnttrans", reply_nttrans, AS_USER | CAN_IPC },
-/* 0xa1 */ { "SMBnttranss", reply_nttranss, AS_USER | CAN_IPC },
-/* 0xa2 */ { "SMBntcreateX", reply_ntcreate_and_X, AS_USER | CAN_IPC },
+/* 0xa0 */ { "SMBnttrans",reply_nttrans, AS_USER | CAN_IPC },
+/* 0xa1 */ { "SMBnttranss",reply_nttranss, AS_USER | CAN_IPC },
+/* 0xa2 */ { "SMBntcreateX",reply_ntcreate_and_X, AS_USER | CAN_IPC },
 /* 0xa3 */ { NULL, NULL, 0 },
-/* 0xa4 */ { "SMBntcancel", reply_ntcancel, 0 },
-/* 0xa5 */ { "SMBntrename", reply_ntrename, AS_USER | NEED_WRITE },
+/* 0xa4 */ { "SMBntcancel",reply_ntcancel, 0 },
+/* 0xa5 */ { "SMBntrename",reply_ntrename, AS_USER | NEED_WRITE },
 /* 0xa6 */ { NULL, NULL, 0 },
 /* 0xa7 */ { NULL, NULL, 0 },
 /* 0xa8 */ { NULL, NULL, 0 },
@@ -807,10 +1191,10 @@ static const struct smb_message_struct {
 /* 0xce */ { NULL, NULL, 0 },
 /* 0xcf */ { NULL, NULL, 0 },
 /* 0xd0 */ { "SMBsends",reply_sends,AS_GUEST},
-/* 0xd1 */ { "SMBsendb",NULL,AS_GUEST},
-/* 0xd2 */ { "SMBfwdname",NULL,AS_GUEST},
-/* 0xd3 */ { "SMBcancelf",NULL,AS_GUEST},
-/* 0xd4 */ { "SMBgetmac",NULL,AS_GUEST},
+/* 0xd1 */ { "SMBsendb", NULL,AS_GUEST},
+/* 0xd2 */ { "SMBfwdname", NULL,AS_GUEST},
+/* 0xd3 */ { "SMBcancelf", NULL,AS_GUEST},
+/* 0xd4 */ { "SMBgetmac", NULL,AS_GUEST},
 /* 0xd5 */ { "SMBsendstrt",reply_sendstrt,AS_GUEST},
 /* 0xd6 */ { "SMBsendend",reply_sendend,AS_GUEST},
 /* 0xd7 */ { "SMBsendtxt",reply_sendtxt,AS_GUEST},
@@ -858,19 +1242,62 @@ static const struct smb_message_struct {
 };
 
 /*******************************************************************
+ allocate and initialize a reply packet
+********************************************************************/
+
+void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
+{
+	/*
+         * Protect against integer wrap
+         */
+	if ((num_bytes > 0xffffff)
+	    || ((num_bytes + smb_size + num_words*2) > 0xffffff)) {
+		char *msg;
+		if (asprintf(&msg, "num_bytes too large: %u",
+			     (unsigned)num_bytes) == -1) {
+			msg = CONST_DISCARD(char *, "num_bytes too large");
+		}
+		smb_panic(msg);
+	}
+
+	if (!(req->outbuf = TALLOC_ARRAY(
+		      req, uint8,
+		      smb_size + num_words*2 + num_bytes))) {
+		smb_panic("could not allocate output buffer\n");
+	}
+
+	construct_reply_common((char *)req->inbuf, (char *)req->outbuf);
+	srv_set_message((char *)req->outbuf, num_words, num_bytes, false);
+	/*
+	 * Zero out the word area, the caller has to take care of the bcc area
+	 * himself
+	 */
+	if (num_words != 0) {
+		memset(req->outbuf + smb_vwv0, 0, num_words*2);
+	}
+
+	return;
+}
+
+
+/*******************************************************************
  Dump a packet to a file.
 ********************************************************************/
 
-static void smb_dump(const char *name, int type, char *data, ssize_t len)
+static void smb_dump(const char *name, int type, const char *data, ssize_t len)
 {
 	int fd, i;
-	pstring fname;
-	if (DEBUGLEVEL < 50) return;
+	char *fname = NULL;
+	if (DEBUGLEVEL < 50) {
+		return;
+	}
 
 	if (len < 4) len = smb_len(data)+4;
 	for (i=1;i<100;i++) {
-		slprintf(fname,sizeof(fname)-1, "/tmp/%s.%d.%s", name, i,
-				type ? "req" : "resp");
+		if (asprintf(&fname, "/tmp/%s.%d.%s", name, i,
+			     type ? "req" : "resp") == -1) {
+			return;
+		}
 		fd = open(fname, O_WRONLY|O_CREAT|O_EXCL, 0644);
 		if (fd != -1 || errno != EEXIST) break;
 	}
@@ -881,211 +1308,258 @@ static void smb_dump(const char *name, int type, char *data, ssize_t len)
 		close(fd);
 		DEBUG(0,("created %s len %lu\n", fname, (unsigned long)len));
 	}
+	SAFE_FREE(fname);
 }
 
-
 /****************************************************************************
- Do a switch on the message type, and return the response size
+ Prepare everything for calling the actual request function, and potentially
+ call the request function via the "new" interface.
+
+ Return False if the "legacy" function needs to be called, everything is
+ prepared.
+
+ Return True if we're done.
+
+ I know this API sucks, but it is the one with the least code change I could
+ find.
 ****************************************************************************/
 
-static int switch_message(int type,char *inbuf,char *outbuf,int size,int bufsize)
+static connection_struct *switch_message(uint8 type, struct smb_request *req, int size)
 {
-	static pid_t pid= (pid_t)-1;
-	int outsize = 0;
+	int flags;
+	uint16 session_tag;
+	connection_struct *conn = NULL;
 
-	type &= 0xff;
-
-	if (pid == (pid_t)-1)
-		pid = sys_getpid();
+	static uint16 last_session_tag = UID_FIELD_INVALID;
 
 	errno = 0;
 
-	last_message = type;
-
-	/* Make sure this is an SMB packet. smb_size contains NetBIOS header so subtract 4 from it. */
-	if ((strncmp(smb_base(inbuf),"\377SMB",4) != 0) || (size < (smb_size - 4))) {
-		DEBUG(2,("Non-SMB packet of length %d. Terminating server\n",smb_len(inbuf)));
+	/* Make sure this is an SMB packet. smb_size contains NetBIOS header
+	 * so subtract 4 from it. */
+	if (!valid_smb_header(req->inbuf)
+	    || (size < (smb_size - 4))) {
+		DEBUG(2,("Non-SMB packet of length %d. Terminating server\n",
+			 smb_len(req->inbuf)));
 		exit_server_cleanly("Non-SMB packet");
-		return(-1);
 	}
 
-	/* yuck! this is an interim measure before we get rid of our
-		current inbuf/outbuf system */
-	global_smbpid = SVAL(inbuf,smb_pid);
-
-	if (smb_messages[type].fn == NULL) {
+	if (smb_messages[type].fn_new == NULL) {
 		DEBUG(0,("Unknown message type %d!\n",type));
-		smb_dump("Unknown", 1, inbuf, size);
-		outsize = reply_unknown(inbuf,outbuf);
-	} else {
-		int flags = smb_messages[type].flags;
-		static uint16 last_session_tag = UID_FIELD_INVALID;
-		/* In share mode security we must ignore the vuid. */
-		uint16 session_tag = (lp_security() == SEC_SHARE) ? UID_FIELD_INVALID : SVAL(inbuf,smb_uid);
-		connection_struct *conn = conn_find(SVAL(inbuf,smb_tid));
-
-		DEBUG(3,("switch message %s (pid %d) conn 0x%lx\n",smb_fn_name(type),(int)pid,(unsigned long)conn));
-
-		smb_dump(smb_fn_name(type), 1, inbuf, size);
-
-		/* Ensure this value is replaced in the incoming packet. */
-		SSVAL(inbuf,smb_uid,session_tag);
-
-		/*
-		 * Ensure the correct username is in current_user_info.
-		 * This is a really ugly bugfix for problems with
-		 * multiple session_setup_and_X's being done and
-		 * allowing %U and %G substitutions to work correctly.
-		 * There is a reason this code is done here, don't
-		 * move it unless you know what you're doing... :-).
-		 * JRA.
-		 */
-
-		if (session_tag != last_session_tag) {
-			user_struct *vuser = NULL;
-
-			last_session_tag = session_tag;
-			if(session_tag != UID_FIELD_INVALID) {
-				vuser = get_valid_user_struct(session_tag);           
-				if (vuser) {
-					set_current_user_info(&vuser->user);
-				}
-			}
-		}
-
-		/* Does this call need to be run as the connected user? */
-		if (flags & AS_USER) {
-
-			/* Does this call need a valid tree connection? */
-			if (!conn) {
-				/* Amazingly, the error code depends on the command (from Samba4). */
-				if (type == SMBntcreateX) {
-					return ERROR_NT(NT_STATUS_INVALID_HANDLE);
-				} else {
-					return ERROR_DOS(ERRSRV, ERRinvnid);
-				}
-			}
-
-			if (!change_to_user(conn,session_tag)) {
-				return(ERROR_NT(NT_STATUS_DOS(ERRSRV,ERRbaduid)));
-			}
-
-			/* All NEED_WRITE and CAN_IPC flags must also have AS_USER. */
-
-			/* Does it need write permission? */
-			if ((flags & NEED_WRITE) && !CAN_WRITE(conn)) {
-				return ERROR_NT(NT_STATUS_MEDIA_WRITE_PROTECTED);
-			}
-
-			/* IPC services are limited */
-			if (IS_IPC(conn) && !(flags & CAN_IPC)) {
-				return(ERROR_DOS(ERRSRV,ERRaccess));
-			}
-		} else {
-			/* This call needs to be run as root */
-			change_to_root_user();
-		}
-
-		/* load service specific parameters */
-		if (conn) {
-			if (!set_current_service(conn,SVAL(inbuf,smb_flg),(flags & (AS_USER|DO_CHDIR)?True:False))) {
-				return(ERROR_DOS(ERRSRV,ERRaccess));
-			}
-			conn->num_smb_operations++;
-		}
-
-		/* does this protocol need to be run as guest? */
-		if ((flags & AS_GUEST) && (!change_to_guest() || 
-				!check_access(smbd_server_fd(), lp_hostsallow(-1), lp_hostsdeny(-1)))) {
-			return(ERROR_DOS(ERRSRV,ERRaccess));
-		}
-
-		current_inbuf = inbuf; /* In case we need to defer this message in open... */
-		outsize = smb_messages[type].fn(conn, inbuf,outbuf,size,bufsize);
+		smb_dump("Unknown", 1, (char *)req->inbuf, size);
+		reply_unknown_new(req, type);
+		return NULL;
 	}
 
-	smb_dump(smb_fn_name(type), 0, outbuf, outsize);
+	flags = smb_messages[type].flags;
 
-	return(outsize);
+	/* In share mode security we must ignore the vuid. */
+	session_tag = (lp_security() == SEC_SHARE)
+		? UID_FIELD_INVALID : req->vuid;
+	conn = req->conn;
+
+	DEBUG(3,("switch message %s (pid %d) conn 0x%lx\n", smb_fn_name(type),
+		 (int)sys_getpid(), (unsigned long)conn));
+
+	smb_dump(smb_fn_name(type), 1, (char *)req->inbuf, size);
+
+	/* Ensure this value is replaced in the incoming packet. */
+	SSVAL(req->inbuf,smb_uid,session_tag);
+
+	/*
+	 * Ensure the correct username is in current_user_info.  This is a
+	 * really ugly bugfix for problems with multiple session_setup_and_X's
+	 * being done and allowing %U and %G substitutions to work correctly.
+	 * There is a reason this code is done here, don't move it unless you
+	 * know what you're doing... :-).
+	 * JRA.
+	 */
+
+	if (session_tag != last_session_tag) {
+		user_struct *vuser = NULL;
+
+		last_session_tag = session_tag;
+		if(session_tag != UID_FIELD_INVALID) {
+			vuser = get_valid_user_struct(session_tag);
+			if (vuser) {
+				set_current_user_info(&vuser->user);
+			}
+		}
+	}
+
+	/* Does this call need to be run as the connected user? */
+	if (flags & AS_USER) {
+
+		/* Does this call need a valid tree connection? */
+		if (!conn) {
+			/*
+			 * Amazingly, the error code depends on the command
+			 * (from Samba4).
+			 */
+			if (type == SMBntcreateX) {
+				reply_nterror(req, NT_STATUS_INVALID_HANDLE);
+			} else {
+				reply_doserror(req, ERRSRV, ERRinvnid);
+			}
+			return NULL;
+		}
+
+		if (!change_to_user(conn,session_tag)) {
+			reply_nterror(req, NT_STATUS_DOS(ERRSRV, ERRbaduid));
+			return conn;
+		}
+
+		/* All NEED_WRITE and CAN_IPC flags must also have AS_USER. */
+
+		/* Does it need write permission? */
+		if ((flags & NEED_WRITE) && !CAN_WRITE(conn)) {
+			reply_nterror(req, NT_STATUS_MEDIA_WRITE_PROTECTED);
+			return conn;
+		}
+
+		/* IPC services are limited */
+		if (IS_IPC(conn) && !(flags & CAN_IPC)) {
+			reply_doserror(req, ERRSRV,ERRaccess);
+			return conn;
+		}
+	} else {
+		/* This call needs to be run as root */
+		change_to_root_user();
+	}
+
+	/* load service specific parameters */
+	if (conn) {
+		if (req->encrypted) {
+			conn->encrypted_tid = true;
+			/* encrypted required from now on. */
+			conn->encrypt_level = Required;
+		} else if (ENCRYPTION_REQUIRED(conn)) {
+			uint8 com = CVAL(req->inbuf,smb_com);
+			if (com != SMBtrans2 && com != SMBtranss2) {
+				exit_server_cleanly("encryption required "
+					"on connection");
+				return conn;
+			}
+		}
+
+		if (!set_current_service(conn,SVAL(req->inbuf,smb_flg),
+					 (flags & (AS_USER|DO_CHDIR)
+					  ?True:False))) {
+			reply_doserror(req, ERRSRV, ERRaccess);
+			return conn;
+		}
+		conn->num_smb_operations++;
+	}
+
+	/* does this protocol need to be run as guest? */
+	if ((flags & AS_GUEST)
+	    && (!change_to_guest() ||
+		!check_access(smbd_server_fd(), lp_hostsallow(-1),
+			      lp_hostsdeny(-1)))) {
+		reply_doserror(req, ERRSRV, ERRaccess);
+		return conn;
+	}
+
+	smb_messages[type].fn_new(req);
+	return req->conn;
 }
 
 /****************************************************************************
  Construct a reply to the incoming packet.
 ****************************************************************************/
 
-static int construct_reply(char *inbuf,char *outbuf,int size,int bufsize)
+static void construct_reply(char *inbuf, int size, size_t unread_bytes, bool encrypted)
 {
-	int type = CVAL(inbuf,smb_com);
-	int outsize = 0;
-	int msg_type = CVAL(inbuf,0);
+	uint8 type = CVAL(inbuf,smb_com);
+	connection_struct *conn;
+	struct smb_request *req;
 
 	chain_size = 0;
 	file_chain_reset();
 	reset_chain_p();
 
-	if (msg_type != 0)
-		return(reply_special(inbuf,outbuf));  
+	if (!(req = talloc(talloc_tos(), struct smb_request))) {
+		smb_panic("could not allocate smb_request");
+	}
+	init_smb_request(req, (uint8 *)inbuf, unread_bytes, encrypted);
 
-	construct_reply_common(inbuf, outbuf);
+	conn = switch_message(type, req, size);
 
-	outsize = switch_message(type,inbuf,outbuf,size,bufsize);
+	if (req->unread_bytes) {
+		/* writeX failed. drain socket. */
+		if (drain_socket(smbd_server_fd(), req->unread_bytes) !=
+				req->unread_bytes) {
+			smb_panic("failed to drain pending bytes");
+		}
+		req->unread_bytes = 0;
+	}
 
-	outsize += chain_size;
+	if (req->outbuf == NULL) {
+		return;
+	}
 
-	if(outsize > 4)
-		smb_setlen(outbuf,outsize - 4);
-	return(outsize);
+	if (CVAL(req->outbuf,0) == 0) {
+		show_msg((char *)req->outbuf);
+	}
+
+	if (!srv_send_smb(smbd_server_fd(),
+			(char *)req->outbuf,
+			IS_CONN_ENCRYPTED(conn)||req->encrypted)) {
+		exit_server_cleanly("construct_reply: srv_send_smb failed.");
+	}
+
+	TALLOC_FREE(req);
+
+	return;
 }
 
 /****************************************************************************
  Process an smb from the client
 ****************************************************************************/
 
-static void process_smb(char *inbuf, char *outbuf)
+static void process_smb(char *inbuf, size_t nread, size_t unread_bytes, bool encrypted)
 {
 	static int trans_num;
 	int msg_type = CVAL(inbuf,0);
-	int32 len = smb_len(inbuf);
-	int nread = len + 4;
 
 	DO_PROFILE_INC(smb_count);
 
 	if (trans_num == 0) {
+		char addr[INET6_ADDRSTRLEN];
+
 		/* on the first packet, check the global hosts allow/ hosts
 		deny parameters before doing any parsing of the packet
 		passed to us by the client.  This prevents attacks on our
 		parsing code from hosts not in the hosts allow list */
+
 		if (!check_access(smbd_server_fd(), lp_hostsallow(-1),
 				  lp_hostsdeny(-1))) {
 			/* send a negative session response "not listening on calling name" */
 			static unsigned char buf[5] = {0x83, 0, 0, 1, 0x81};
-			DEBUG( 1, ( "Connection denied from %s\n", client_addr() ) );
-			(void)send_smb(smbd_server_fd(),(char *)buf);
+			DEBUG( 1, ( "Connection denied from %s\n",
+				client_addr(get_client_fd(),addr,sizeof(addr)) ) );
+			(void)srv_send_smb(smbd_server_fd(),(char *)buf,false);
 			exit_server_cleanly("connection denied");
 		}
 	}
 
-	DEBUG( 6, ( "got message type 0x%x of len 0x%x\n", msg_type, len ) );
-	DEBUG( 3, ( "Transaction %d of length %d\n", trans_num, nread ) );
+	DEBUG( 6, ( "got message type 0x%x of len 0x%x\n", msg_type,
+		    smb_len(inbuf) ) );
+	DEBUG( 3, ( "Transaction %d of length %d (%u toread)\n", trans_num,
+				(int)nread,
+				(unsigned int)unread_bytes ));
 
-	if (msg_type == 0)
-		show_msg(inbuf);
-	else if(msg_type == SMBkeepalive)
-		return; /* Keepalive packet. */
-
-	nread = construct_reply(inbuf,outbuf,nread,max_send);
-      
-	if(nread > 0) {
-		if (CVAL(outbuf,0) == 0)
-			show_msg(outbuf);
-	
-		if (nread != smb_len(outbuf) + 4) {
-			DEBUG(0,("ERROR: Invalid message response size! %d %d\n",
-				nread, smb_len(outbuf)));
-		} else if (!send_smb(smbd_server_fd(),outbuf)) {
-			exit_server_cleanly("process_smb: send_smb failed.");
-		}
+	if (msg_type != 0) {
+		/*
+		 * NetBIOS session request, keepalive, etc.
+		 */
+		reply_special(inbuf);
+		return;
 	}
+
+	show_msg(inbuf);
+
+	construct_reply(inbuf,nread,unread_bytes,encrypted);
+
 	trans_num++;
 }
 
@@ -1121,7 +1595,7 @@ void remove_from_common_flags2(uint32 v)
 
 void construct_reply_common(const char *inbuf, char *outbuf)
 {
-	set_message(outbuf,0,0,False);
+	srv_set_message(outbuf,0,0,false);
 	
 	SCVAL(outbuf,smb_com,CVAL(inbuf,smb_com));
 	SIVAL(outbuf,smb_rcls,0);
@@ -1141,29 +1615,56 @@ void construct_reply_common(const char *inbuf, char *outbuf)
  Construct a chained reply and add it to the already made reply
 ****************************************************************************/
 
-int chain_reply(char *inbuf,char *outbuf,int size,int bufsize)
+void chain_reply(struct smb_request *req)
 {
 	static char *orig_inbuf;
-	static char *orig_outbuf;
+
+	/*
+	 * Dirty little const_discard: We mess with req->inbuf, which is
+	 * declared as const. If maybe at some point this routine gets
+	 * rewritten, this const_discard could go away.
+	 */
+	char *inbuf = CONST_DISCARD(char *, req->inbuf);
+	int size = smb_len(req->inbuf)+4;
+
 	int smb_com1, smb_com2 = CVAL(inbuf,smb_vwv0);
 	unsigned smb_off2 = SVAL(inbuf,smb_vwv1);
-	char *inbuf2, *outbuf2;
+	char *inbuf2;
 	int outsize2;
 	int new_size;
 	char inbuf_saved[smb_wct];
-	char outbuf_saved[smb_wct];
-	int outsize = smb_len(outbuf) + 4;
+	char *outbuf = (char *)req->outbuf;
+	size_t outsize = smb_len(outbuf) + 4;
+	size_t outsize_padded;
+	size_t ofs, to_move;
+
+	struct smb_request *req2;
+	size_t caller_outputlen;
+	char *caller_output;
 
 	/* Maybe its not chained, or it's an error packet. */
 	if (smb_com2 == 0xFF || SVAL(outbuf,smb_rcls) != 0) {
 		SCVAL(outbuf,smb_vwv0,0xFF);
-		return outsize;
+		return;
 	}
 
 	if (chain_size == 0) {
 		/* this is the first part of the chain */
 		orig_inbuf = inbuf;
-		orig_outbuf = outbuf;
+	}
+
+	/*
+	 * We need to save the output the caller added to the chain so that we
+	 * can splice it into the final output buffer later.
+	 */
+
+	caller_outputlen = outsize - smb_wct;
+
+	caller_output = (char *)memdup(outbuf + smb_wct, caller_outputlen);
+
+	if (caller_output == NULL) {
+		/* TODO: NT_STATUS_NO_MEMORY */
+		smb_panic("could not dup outbuf");
 	}
 
 	/*
@@ -1172,27 +1673,25 @@ int chain_reply(char *inbuf,char *outbuf,int size,int bufsize)
 	 * 4 byte aligned. JRA.
 	 */
 
-	outsize = (outsize + 3) & ~3;
+	outsize_padded = (outsize + 3) & ~3;
 
-	/* we need to tell the client where the next part of the reply will be */
-	SSVAL(outbuf,smb_vwv1,smb_offset(outbuf+outsize,outbuf));
-	SCVAL(outbuf,smb_vwv0,smb_com2);
+	/*
+	 * remember how much the caller added to the chain, only counting
+	 * stuff after the parameter words
+	 */
+	chain_size += outsize_padded - smb_wct;
 
-	/* remember how much the caller added to the chain, only counting stuff
-		after the parameter words */
-	chain_size += outsize - smb_wct;
-
-	/* work out pointers into the original packets. The
-		headers on these need to be filled in */
+	/*
+	 * work out pointers into the original packets. The
+	 * headers on these need to be filled in
+	 */
 	inbuf2 = orig_inbuf + smb_off2 + 4 - smb_wct;
-	outbuf2 = orig_outbuf + SVAL(outbuf,smb_vwv1) + 4 - smb_wct;
 
 	/* remember the original command type */
 	smb_com1 = CVAL(orig_inbuf,smb_com);
 
 	/* save the data which will be overwritten by the new headers */
 	memcpy(inbuf_saved,inbuf2,smb_wct);
-	memcpy(outbuf_saved,outbuf2,smb_wct);
 
 	/* give the new packet the same header as the last part of the SMB */
 	memmove(inbuf2,inbuf,smb_wct);
@@ -1203,45 +1702,113 @@ int chain_reply(char *inbuf,char *outbuf,int size,int bufsize)
 	/* work out the new size for the in buffer. */
 	new_size = size - (inbuf2 - inbuf);
 	if (new_size < 0) {
-		DEBUG(0,("chain_reply: chain packet size incorrect (orig size = %d, "
-			"offset = %d)\n",
-			size,
-			(inbuf2 - inbuf) ));
+		DEBUG(0,("chain_reply: chain packet size incorrect "
+			 "(orig size = %d, offset = %d)\n",
+			 size, (int)(inbuf2 - inbuf) ));
 		exit_server_cleanly("Bad chained packet");
-		return(-1);
+		return;
 	}
 
 	/* And set it in the header. */
-	smb_setlen(inbuf2, new_size);
-
-	/* create the out buffer */
-	construct_reply_common(inbuf2, outbuf2);
+	smb_setlen(inbuf2, new_size - 4);
 
 	DEBUG(3,("Chained message\n"));
 	show_msg(inbuf2);
 
+	if (!(req2 = talloc(talloc_tos(), struct smb_request))) {
+		smb_panic("could not allocate smb_request");
+	}
+	init_smb_request(req2, (uint8 *)inbuf2,0, req->encrypted);
+
 	/* process the request */
-	outsize2 = switch_message(smb_com2,inbuf2,outbuf2,new_size,
-				bufsize-chain_size);
+	switch_message(smb_com2, req2, new_size);
 
-	/* copy the new reply and request headers over the old ones, but
-		preserve the smb_com field */
-	memmove(orig_outbuf,outbuf2,smb_wct);
-	SCVAL(orig_outbuf,smb_com,smb_com1);
+	/*
+	 * We don't accept deferred operations in chained requests.
+	 */
+	SMB_ASSERT(req2->outbuf != NULL);
+	outsize2 = smb_len(req2->outbuf)+4;
 
-	/* restore the saved data, being careful not to overwrite any
-		data from the reply header */
-	memcpy(inbuf2,inbuf_saved,smb_wct);
+	/*
+	 * Move away the new command output so that caller_output fits in,
+	 * copy in the caller_output saved above.
+	 */
 
-	{
-		int ofs = smb_wct - PTR_DIFF(outbuf2,orig_outbuf);
-		if (ofs < 0) {
-			ofs = 0;
-		}
-		memmove(outbuf2+ofs,outbuf_saved+ofs,smb_wct-ofs);
+	SMB_ASSERT(outsize_padded >= smb_wct);
+
+	/*
+	 * "ofs" is the space we need for caller_output. Equal to
+	 * caller_outputlen plus the padding.
+	 */
+
+	ofs = outsize_padded - smb_wct;
+
+	/*
+	 * "to_move" is the amount of bytes the secondary routine gave us
+	 */
+
+	to_move = outsize2 - smb_wct;
+
+	if (to_move + ofs + smb_wct + chain_size > max_send) {
+		smb_panic("replies too large -- would have to cut");
 	}
 
-	return outsize2;
+	/*
+	 * In the "new" API "outbuf" is allocated via reply_outbuf, just for
+	 * the first request in the chain. So we have to re-allocate it. In
+	 * the "old" API the only outbuf ever used is the global OutBuffer
+	 * which is always large enough.
+	 */
+
+	outbuf = TALLOC_REALLOC_ARRAY(NULL, outbuf, char,
+				      to_move + ofs + smb_wct);
+	if (outbuf == NULL) {
+		smb_panic("could not realloc outbuf");
+	}
+
+	req->outbuf = (uint8 *)outbuf;
+
+	memmove(outbuf + smb_wct + ofs, req2->outbuf + smb_wct, to_move);
+	memcpy(outbuf + smb_wct, caller_output, caller_outputlen);
+
+	/*
+	 * copy the new reply header over the old one but preserve the smb_com
+	 * field
+	 */
+	memmove(outbuf, req2->outbuf, smb_wct);
+	SCVAL(outbuf, smb_com, smb_com1);
+
+	/*
+	 * We've just copied in the whole "wct" area from the secondary
+	 * function. Fix up the chaining: com2 and the offset need to be
+	 * readjusted.
+	 */
+
+	SCVAL(outbuf, smb_vwv0, smb_com2);
+	SSVAL(outbuf, smb_vwv1, chain_size + smb_wct - 4);
+
+	if (outsize_padded > outsize) {
+
+		/*
+		 * Due to padding we have some uninitialized bytes after the
+		 * caller's output
+		 */
+
+		memset(outbuf + outsize, 0, outsize_padded - outsize);
+	}
+
+	smb_setlen(outbuf, outsize2 + chain_size - 4);
+
+	/*
+	 * restore the saved data, being careful not to overwrite any data
+	 * from the reply header
+	 */
+	memcpy(inbuf2,inbuf_saved,smb_wct);
+
+	SAFE_FREE(caller_output);
+	TALLOC_FREE(req2);
+
+	return;
 }
 
 /****************************************************************************
@@ -1252,7 +1819,7 @@ static int setup_select_timeout(void)
 {
 	int select_timeout;
 
-	select_timeout = blocking_locks_timeout_ms(SMBD_SELECT_TIMEOUT*1000);
+	select_timeout = SMBD_SELECT_TIMEOUT*1000;
 
 	if (print_notify_messages_pending()) {
 		select_timeout = MIN(select_timeout, 1000);
@@ -1318,80 +1885,18 @@ void check_reload(time_t t)
  Process any timeout housekeeping. Return False if the caller should exit.
 ****************************************************************************/
 
-static BOOL timeout_processing(int deadtime, int *select_timeout, time_t *last_timeout_processing_time)
+static void timeout_processing(int *select_timeout,
+			       time_t *last_timeout_processing_time)
 {
-	static time_t last_keepalive_sent_time = 0;
-	static time_t last_idle_closed_check = 0;
 	time_t t;
-	BOOL allidle = True;
-
-	if (smb_read_error == READ_EOF) {
-		DEBUG(3,("timeout_processing: End of file from client (client has disconnected).\n"));
-		return False;
-	}
-
-	if (smb_read_error == READ_ERROR) {
-		DEBUG(3,("timeout_processing: receive_smb error (%s) Exiting\n",
-			strerror(errno)));
-		return False;
-	}
-
-	if (smb_read_error == READ_BAD_SIG) {
-		DEBUG(3,("timeout_processing: receive_smb error bad smb signature. Exiting\n"));
-		return False;
-	}
 
 	*last_timeout_processing_time = t = time(NULL);
-
-	if(last_keepalive_sent_time == 0)
-		last_keepalive_sent_time = t;
-
-	if(last_idle_closed_check == 0)
-		last_idle_closed_check = t;
 
 	/* become root again if waiting */
 	change_to_root_user();
 
-	/* run all registered idle events */
-	smb_run_idle_events(t);
-
 	/* check if we need to reload services */
 	check_reload(t);
-
-	/* automatic timeout if all connections are closed */      
-	if (conn_num_open()==0 && (t - last_idle_closed_check) >= IDLE_CLOSED_TIMEOUT) {
-		DEBUG( 2, ( "Closing idle connection\n" ) );
-		return False;
-	} else {
-		last_idle_closed_check = t;
-	}
-
-	if (keepalive && (t - last_keepalive_sent_time)>keepalive) {
-		if (!send_keepalive(smbd_server_fd())) {
-			DEBUG( 2, ( "Keepalive failed - exiting.\n" ) );
-			return False;
-		}
-
-		/* send a keepalive for a password server or the like.
-			This is attached to the auth_info created in the
-		negprot */
-		if (negprot_global_auth_context && negprot_global_auth_context->challenge_set_method 
-				&& negprot_global_auth_context->challenge_set_method->send_keepalive) {
-
-			negprot_global_auth_context->challenge_set_method->send_keepalive
-			(&negprot_global_auth_context->challenge_set_method->private_data);
-		}
-
-		last_keepalive_sent_time = t;
-	}
-
-	/* check for connection timeouts */
-	allidle = conn_idle_all(t, deadtime);
-
-	if (allidle && conn_num_open()>0) {
-		DEBUG(2,("Closing idle connection 2.\n"));
-		return False;
-	}
 
 	if(global_machine_password_needs_changing && 
 			/* for ADS we need to do a regular ADS password change, not a domain
@@ -1400,6 +1905,7 @@ static BOOL timeout_processing(int deadtime, int *select_timeout, time_t *last_t
 
 		unsigned char trust_passwd_hash[16];
 		time_t lct;
+		void *lock;
 
 		/*
 		 * We're in domain level security, and the code that
@@ -1411,17 +1917,19 @@ static BOOL timeout_processing(int deadtime, int *select_timeout, time_t *last_t
 		 * First, open the machine password file with an exclusive lock.
 		 */
 
-		if (secrets_lock_trust_account_password(lp_workgroup(), True) == False) {
+		lock = secrets_get_trust_account_lock(NULL, lp_workgroup());
+
+		if (lock == NULL) {
 			DEBUG(0,("process: unable to lock the machine account password for \
 machine %s in domain %s.\n", global_myname(), lp_workgroup() ));
-			return True;
+			return;
 		}
 
 		if(!secrets_fetch_trust_account_password(lp_workgroup(), trust_passwd_hash, &lct, NULL)) {
 			DEBUG(0,("process: unable to read the machine account password for \
 machine %s in domain %s.\n", global_myname(), lp_workgroup()));
-			secrets_lock_trust_account_password(lp_workgroup(), False);
-			return True;
+			TALLOC_FREE(lock);
+			return;
 		}
 
 		/*
@@ -1430,22 +1938,16 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup()));
 
 		if(t < lct + lp_machine_password_timeout()) {
 			global_machine_password_needs_changing = False;
-			secrets_lock_trust_account_password(lp_workgroup(), False);
-			return True;
+			TALLOC_FREE(lock);
+			return;
 		}
 
 		/* always just contact the PDC here */
     
 		change_trust_account_password( lp_workgroup(), NULL);
 		global_machine_password_needs_changing = False;
-		secrets_lock_trust_account_password(lp_workgroup(), False);
+		TALLOC_FREE(lock);
 	}
-
-	/*
-	 * Check to see if we have any blocking locks
-	 * outstanding on the queue.
-	 */
-	process_blocking_lock_queue();
 
 	/* update printer queue caches if necessary */
   
@@ -1460,7 +1962,7 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup()));
 
 	/* Send any queued printer notify message to interested smbd's. */
 
-	print_notify_send_messages(0);
+	print_notify_send_messages(smbd_messaging_context(), 0);
 
 	/*
 	 * Modify the select timeout depending upon
@@ -1469,63 +1971,7 @@ machine %s in domain %s.\n", global_myname(), lp_workgroup()));
 
 	*select_timeout = setup_select_timeout();
 
-	return True;
-}
-
-/****************************************************************************
- Accessor functions for InBuffer, OutBuffer.
-****************************************************************************/
-
-char *get_InBuffer(void)
-{
-	return InBuffer;
-}
-
-char *get_OutBuffer(void)
-{
-	return OutBuffer;
-}
-
-const int total_buffer_size = (BUFFER_SIZE + LARGE_WRITEX_HDR_SIZE + SAFETY_MARGIN);
-
-/****************************************************************************
- Allocate a new InBuffer. Returns the new and old ones.
-****************************************************************************/
-
-static char *NewInBuffer(char **old_inbuf)
-{
-	char *new_inbuf = (char *)SMB_MALLOC(total_buffer_size);
-	if (!new_inbuf) {
-		return NULL;
-	}
-	if (old_inbuf) {
-		*old_inbuf = InBuffer;
-	}
-	InBuffer = new_inbuf;
-#if defined(DEVELOPER)
-	clobber_region(SAFE_STRING_FUNCTION_NAME, SAFE_STRING_LINE, InBuffer, total_buffer_size);
-#endif
-	return InBuffer;
-}
-
-/****************************************************************************
- Allocate a new OutBuffer. Returns the new and old ones.
-****************************************************************************/
-
-static char *NewOutBuffer(char **old_outbuf)
-{
-	char *new_outbuf = (char *)SMB_MALLOC(total_buffer_size);
-	if (!new_outbuf) {
-		return NULL;
-	}
-	if (old_outbuf) {
-		*old_outbuf = OutBuffer;
-	}
-	OutBuffer = new_outbuf;
-#if defined(DEVELOPER)
-	clobber_region(SAFE_STRING_FUNCTION_NAME, SAFE_STRING_LINE, OutBuffer, total_buffer_size);
-#endif
-	return OutBuffer;
+	return;
 }
 
 /****************************************************************************
@@ -1536,46 +1982,54 @@ void smbd_process(void)
 {
 	time_t last_timeout_processing_time = time(NULL);
 	unsigned int num_smbs = 0;
-
-	/* Allocate the primary Inbut/Output buffers. */
-
-	if ((NewInBuffer(NULL) == NULL) || (NewOutBuffer(NULL) == NULL)) 
-		return;
+	size_t unread_bytes = 0;
 
 	max_recv = MIN(lp_maxxmit(),BUFFER_SIZE);
 
 	while (True) {
-		int deadtime = lp_deadtime()*60;
 		int select_timeout = setup_select_timeout();
 		int num_echos;
+		char *inbuf = NULL;
+		size_t inbuf_len = 0;
+		bool encrypted = false;
+		TALLOC_CTX *frame = talloc_stackframe_pool(8192);
 
-		if (deadtime <= 0)
-			deadtime = DEFAULT_SMBD_TIMEOUT;
-
-		errno = 0;      
-		
-		/* free up temporary memory */
-		lp_TALLOC_FREE();
-		main_loop_TALLOC_FREE();
+		errno = 0;
 
 		/* Did someone ask for immediate checks on things like blocking locks ? */
 		if (select_timeout == 0) {
-			if(!timeout_processing( deadtime, &select_timeout, &last_timeout_processing_time))
-				return;
+			timeout_processing(&select_timeout,
+					   &last_timeout_processing_time);
 			num_smbs = 0; /* Reset smb counter. */
 		}
 
 		run_events(smbd_event_context(), 0, NULL, NULL);
 
-#if defined(DEVELOPER)
-		clobber_region(SAFE_STRING_FUNCTION_NAME, SAFE_STRING_LINE, InBuffer, total_buffer_size);
-#endif
+		while (True) {
+			NTSTATUS status;
 
-		while (!receive_message_or_smb(InBuffer,BUFFER_SIZE+LARGE_WRITEX_HDR_SIZE,select_timeout)) {
-			if(!timeout_processing( deadtime, &select_timeout, &last_timeout_processing_time))
-				return;
+			status = receive_message_or_smb(
+				talloc_tos(), &inbuf, &inbuf_len,
+				select_timeout,	&unread_bytes, &encrypted);
+
+			if (NT_STATUS_IS_OK(status)) {
+				break;
+			}
+
+			if (NT_STATUS_EQUAL(status, NT_STATUS_IO_TIMEOUT)) {
+				timeout_processing(
+					&select_timeout,
+					&last_timeout_processing_time);
+				continue;
+			}
+
+			DEBUG(3, ("receive_message_or_smb failed: %s, "
+				  "exiting\n", nt_errstr(status)));
+			return;
+
 			num_smbs = 0; /* Reset smb counter. */
 		}
+
 
 		/*
 		 * Ensure we do timeout processing if the SMB we just got was
@@ -1585,16 +2039,16 @@ void smbd_process(void)
 		 * faster than the select timeout, thus starving out the
 		 * essential processing (change notify, blocking locks) that
 		 * the timeout code does. JRA.
-		 */ 
+		 */
 		num_echos = smb_echo_count;
 
-		clobber_region(SAFE_STRING_FUNCTION_NAME, SAFE_STRING_LINE, OutBuffer, total_buffer_size);
+		process_smb(inbuf, inbuf_len, unread_bytes, encrypted);
 
-		process_smb(InBuffer, OutBuffer);
+		TALLOC_FREE(inbuf);
 
 		if (smb_echo_count != num_echos) {
-			if(!timeout_processing( deadtime, &select_timeout, &last_timeout_processing_time))
-				return;
+			timeout_processing(&select_timeout,
+					   &last_timeout_processing_time);
 			num_smbs = 0; /* Reset smb counter. */
 		}
 
@@ -1610,8 +2064,9 @@ void smbd_process(void)
 		if ((num_smbs % 200) == 0) {
 			time_t new_check_time = time(NULL);
 			if(new_check_time - last_timeout_processing_time >= (select_timeout/1000)) {
-				if(!timeout_processing( deadtime, &select_timeout, &last_timeout_processing_time))
-					return;
+				timeout_processing(
+					&select_timeout,
+					&last_timeout_processing_time);
 				num_smbs = 0; /* Reset smb counter. */
 				last_timeout_processing_time = new_check_time; /* Reset time. */
 			}
@@ -1628,5 +2083,6 @@ void smbd_process(void)
 			change_to_root_user();
 			check_log_size();
 		}
+		TALLOC_FREE(frame);
 	}
 }

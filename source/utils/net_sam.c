@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -27,7 +26,7 @@
  */
 
 static int net_sam_userset(int argc, const char **argv, const char *field,
-			   BOOL (*fn)(struct samu *, const char *,
+			   bool (*fn)(struct samu *, const char *,
 				      enum pdb_value_state))
 {
 	struct samu *sam_acct = NULL;
@@ -42,7 +41,7 @@ static int net_sam_userset(int argc, const char **argv, const char *field,
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &dom, &name, &sid, &type)) {
 		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
 		return -1;
@@ -139,7 +138,7 @@ static int net_sam_set_userflag(int argc, const char **argv, const char *field,
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &dom, &name, &sid, &type)) {
 		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
 		return -1;
@@ -223,7 +222,7 @@ static int net_sam_set_pwdmustchangenow(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &dom, &name, &sid, &type)) {
 		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
 		return -1;
@@ -284,7 +283,7 @@ static int net_sam_set_comment(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &dom, &name, &sid, &type)) {
 		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
 		return -1;
@@ -363,7 +362,8 @@ static int net_sam_set(int argc, const char **argv)
 static int net_sam_policy_set(int argc, const char **argv)
 {
 	const char *account_policy = NULL;
-	uint32 value, old_value;
+	uint32 value = 0;
+	uint32 old_value = 0;
 	int field;
 	char *endptr;
 
@@ -410,19 +410,20 @@ static int net_sam_policy_set(int argc, const char **argv)
 	if (!pdb_get_account_policy(field, &old_value)) {
 		d_fprintf(stderr, "Valid account policy, but unable to fetch "
 			  "value!\n");
+	} else {
+		d_printf("Account policy \"%s\" value was: %d\n", account_policy,
+			old_value);
 	}
 
 	if (!pdb_set_account_policy(field, value)) {
 		d_fprintf(stderr, "Valid account policy, but unable to "
 			  "set value!\n");
 		return -1;
+	} else {
+		d_printf("Account policy \"%s\" value is now: %d\n", account_policy,
+			value);
 	}
 
-	d_printf("Account policy \"%s\" value was: %d\n", account_policy,
-		 old_value);
-
-	d_printf("Account policy \"%s\" value is now: %d\n", account_policy,
-		 value);
 	return 0;
 }
 
@@ -503,9 +504,196 @@ static int net_sam_policy(int argc, const char **argv)
         return net_run_function2(argc, argv, "net sam policy", func);
 }
 
+extern PRIVS privs[];
+
+static int net_sam_rights_list(int argc, const char **argv)
+{
+	SE_PRIV mask;
+
+	if (argc > 1) {
+		d_fprintf(stderr, "usage: net sam rights list [privilege name]\n");
+		return -1;
+	}
+
+	if (argc == 0) {
+		int i;
+		int num = count_all_privileges();
+
+		for (i=0; i<num; i++) {
+			d_printf("%s\n", privs[i].name);
+		}
+		return 0;
+	}
+
+	if (se_priv_from_name(argv[0], &mask)) {
+		DOM_SID *sids;
+		int i, num_sids;
+		NTSTATUS status;
+
+		status = privilege_enum_sids(&mask, talloc_tos(),
+					     &sids, &num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_fprintf(stderr, "Could not list rights: %s\n",
+				  nt_errstr(status));
+			return -1;
+		}
+
+		for (i=0; i<num_sids; i++) {
+			const char *dom, *name;
+			enum lsa_SidType type;
+
+			if (lookup_sid(talloc_tos(), &sids[i], &dom, &name,
+				       &type)) {
+				d_printf("%s\\%s\n", dom, name);
+			}
+			else {
+				d_printf("%s\n", sid_string_tos(&sids[i]));
+			}
+		}
+		return 0;
+	}
+
+	return -1;
+}
+
+static int net_sam_rights_grant(int argc, const char **argv)
+{
+	DOM_SID sid;
+	enum lsa_SidType type;
+	const char *dom, *name;
+	SE_PRIV mask;
+
+	if (argc != 2) {
+		d_fprintf(stderr, "usage: net sam rights grant <name> "
+			  "<right>\n");
+		return -1;
+	}
+
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
+			 &dom, &name, &sid, &type)) {
+		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
+		return -1;
+	}
+
+	if (!se_priv_from_name(argv[1], &mask)) {
+		d_fprintf(stderr, "%s unknown\n", argv[1]);
+		return -1;
+	}
+
+	if (!grant_privilege(&sid, &mask)) {
+		d_fprintf(stderr, "Could not grant privilege\n");
+		return -1;
+	}
+
+	d_printf("Granted %s to %s\\%s\n", argv[1], dom, name);
+	return 0;
+}
+
+static int net_sam_rights_revoke(int argc, const char **argv)
+{
+	DOM_SID sid;
+	enum lsa_SidType type;
+	const char *dom, *name;
+	SE_PRIV mask;
+
+	if (argc != 2) {
+		d_fprintf(stderr, "usage: net sam rights revoke <name> "
+			  "<right>\n");
+		return -1;
+	}
+
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
+			 &dom, &name, &sid, &type)) {
+		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
+		return -1;
+	}
+
+	if (!se_priv_from_name(argv[1], &mask)) {
+		d_fprintf(stderr, "%s unknown\n", argv[1]);
+		return -1;
+	}
+
+	if (!revoke_privilege(&sid, &mask)) {
+		d_fprintf(stderr, "Could not revoke privilege\n");
+		return -1;
+	}
+
+	d_printf("Revoked %s from %s\\%s\n", argv[1], dom, name);
+	return 0;
+}
+
+static int net_sam_rights(int argc, const char **argv)
+{
+	struct functable2 func[] = {
+		{ "list", net_sam_rights_list,
+		  "List possible user rights" },
+		{ "grant", net_sam_rights_grant,
+		  "Grant a right" },
+		{ "revoke", net_sam_rights_revoke,
+		  "Revoke a right" },
+		{ NULL }
+	};
+        return net_run_function2(argc, argv, "net sam rights", func);
+}
+
 /*
  * Map a unix group to a domain group
  */
+
+static NTSTATUS map_unix_group(const struct group *grp, GROUP_MAP *pmap)
+{
+	NTSTATUS status;
+	GROUP_MAP map;
+	const char *grpname, *dom, *name;
+	uint32 rid;
+
+	if (pdb_getgrgid(&map, grp->gr_gid)) {
+		return NT_STATUS_GROUP_EXISTS;
+	}
+
+	map.gid = grp->gr_gid;
+	grpname = grp->gr_name;
+
+	if (lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+			&dom, &name, NULL, NULL)) {
+
+		const char *tmp = talloc_asprintf(
+			talloc_tos(), "Unix Group %s", grp->gr_name);
+
+		DEBUG(5, ("%s exists as %s\\%s, retrying as \"%s\"\n",
+			  grpname, dom, name, tmp));
+		grpname = tmp;
+	}
+
+	if (lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+			NULL, NULL, NULL, NULL)) {
+		DEBUG(3, ("\"%s\" exists, can't map it\n", grp->gr_name));
+		return NT_STATUS_GROUP_EXISTS;
+	}
+
+	fstrcpy(map.nt_name, grpname);
+
+	if (pdb_rid_algorithm()) {
+		rid = algorithmic_pdb_gid_to_group_rid( grp->gr_gid );
+	} else {
+		if (!pdb_new_rid(&rid)) {
+			DEBUG(3, ("Could not get a new RID for %s\n",
+				  grp->gr_name));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+	}
+
+	sid_compose(&map.sid, get_global_sam_sid(), rid);
+	map.sid_name_use = SID_NAME_DOM_GRP;
+	fstrcpy(map.comment, talloc_asprintf(talloc_tos(), "Unix Group %s",
+					     grp->gr_name));
+
+	status = pdb_add_group_mapping_entry(&map);
+	if (NT_STATUS_IS_OK(status)) {
+		*pmap = map;
+	}
+	return status;
+}
 
 static int net_sam_mapunixgroup(int argc, const char **argv)
 {
@@ -533,7 +721,68 @@ static int net_sam_mapunixgroup(int argc, const char **argv)
 	}
 
 	d_printf("Mapped unix group %s to SID %s\n", argv[0],
-		 sid_string_static(&map.sid));
+		 sid_string_tos(&map.sid));
+
+	return 0;
+}
+
+/*
+ * Remove a group mapping
+ */
+
+static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
+{
+        NTSTATUS status;
+        GROUP_MAP map;
+        const char *grpname;
+        DOM_SID dom_sid;
+
+        map.gid = grp->gr_gid;
+        grpname = grp->gr_name;
+
+        if (!lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+                        NULL, NULL, NULL, NULL)) {
+                DEBUG(3, ("\"%s\" does not exist, can't unmap it\n", grp->gr_name));
+                return NT_STATUS_NO_SUCH_GROUP;
+        }
+
+        fstrcpy(map.nt_name, grpname);
+
+        if (!pdb_gid_to_sid(map.gid, &dom_sid)) {
+                return NT_STATUS_UNSUCCESSFUL;
+        }
+
+        status = pdb_delete_group_mapping_entry(dom_sid);
+
+        return status;
+}
+
+static int net_sam_unmapunixgroup(int argc, const char **argv)
+{
+	NTSTATUS status;
+	GROUP_MAP map;
+	struct group *grp;
+
+	if (argc != 1) {
+		d_fprintf(stderr, "usage: net sam unmapunixgroup <name>\n");
+		return -1;
+	}
+
+	grp = getgrnam(argv[0]);
+	if (grp == NULL) {
+		d_fprintf(stderr, "Could not find mapping for group %s.\n", argv[0]);
+		return -1;
+	}
+
+	status = unmap_unix_group(grp, &map);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "Unmapping group %s failed with %s.\n",
+			  argv[0], nt_errstr(status));
+		return -1;
+	}
+
+	d_printf("Unmapped unix group %s.\n", argv[0]);
 
 	return 0;
 }
@@ -572,6 +821,47 @@ static int net_sam_createlocalgroup(int argc, const char **argv)
 }
 
 /*
+ * Delete a local group
+ */
+
+static int net_sam_deletelocalgroup(int argc, const char **argv)
+{
+	DOM_SID sid;
+        enum lsa_SidType type;
+        const char *dom, *name;
+	NTSTATUS status;
+
+	if (argc != 1) {
+		d_fprintf(stderr, "usage: net sam deletelocalgroup <name>\n");
+		return -1;
+	}
+
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
+			 &dom, &name, &sid, &type)) {
+		d_fprintf(stderr, "Could not find %s.\n", argv[0]);
+		return -1;
+	}
+
+	if (type != SID_NAME_ALIAS) {
+		d_fprintf(stderr, "%s is a %s, not a local group.\n", argv[0],
+			  sid_type_lookup(type));
+		return -1;
+	}
+
+	status = pdb_delete_alias(&sid);
+
+	if (!NT_STATUS_IS_OK(status)) {
+                d_fprintf(stderr, "Deleting local group %s failed with %s\n",
+                          argv[0], nt_errstr(status));
+                return -1;
+        }
+
+	d_printf("Deleted local group %s.\n", argv[0]);
+
+	return 0;
+}
+
+/*
  * Create a local group
  */
 
@@ -599,7 +889,7 @@ static int net_sam_createbuiltingroup(int argc, const char **argv)
 	fstrcpy( groupname, "BUILTIN\\" );
 	fstrcat( groupname, argv[0] );
 	
-	if ( !lookup_name(tmp_talloc_ctx(), groupname, LOOKUP_NAME_ALL, NULL,
+	if ( !lookup_name(talloc_tos(), groupname, LOOKUP_NAME_ALL, NULL,
 			  NULL, &sid, &type)) {
 		d_fprintf(stderr, "%s is not a BUILTIN group\n", argv[0]);
 		return -1;
@@ -639,7 +929,7 @@ static int net_sam_addmem(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &groupdomain, &groupname, &group, &grouptype)) {
 		d_fprintf(stderr, "Could not find group %s\n", argv[0]);
 		return -1;
@@ -647,7 +937,7 @@ static int net_sam_addmem(int argc, const char **argv)
 
 	/* check to see if the member to be added is a name or a SID */
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[1], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[1], LOOKUP_NAME_LOCAL,
 			 &memberdomain, &membername, &member, &membertype))
 	{
 		/* try it as a SID */
@@ -657,7 +947,7 @@ static int net_sam_addmem(int argc, const char **argv)
 			return -1;
 		}
 
-		if ( !lookup_sid(tmp_talloc_ctx(), &member, &memberdomain, 
+		if ( !lookup_sid(talloc_tos(), &member, &memberdomain,
 			&membername, &membertype) ) 
 		{
 			d_fprintf(stderr, "Could not resolve SID %s\n", argv[1]);
@@ -712,13 +1002,13 @@ static int net_sam_delmem(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &groupdomain, &groupname, &group, &grouptype)) {
 		d_fprintf(stderr, "Could not find group %s\n", argv[0]);
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[1], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[1], LOOKUP_NAME_LOCAL,
 			 &memberdomain, &membername, &member, NULL)) {
 		if (!string_to_sid(&member, argv[1])) {
 			d_fprintf(stderr, "Could not find member %s\n",
@@ -748,7 +1038,7 @@ static int net_sam_delmem(int argc, const char **argv)
 			 memberdomain, membername, groupdomain, groupname);
 	} else {
 		d_printf("Deleted %s from %s\\%s\n",
-			 sid_string_static(&member), groupdomain, groupname);
+			 sid_string_tos(&member), groupdomain, groupname);
 	}
 
 	return 0;
@@ -770,7 +1060,7 @@ static int net_sam_listmem(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &groupdomain, &groupname, &group, &grouptype)) {
 		d_fprintf(stderr, "Could not find group %s\n", argv[0]);
 		return -1;
@@ -793,14 +1083,15 @@ static int net_sam_listmem(int argc, const char **argv)
 			 (unsigned int)num_members);
 		for (i=0; i<num_members; i++) {
 			const char *dom, *name;
-			if (lookup_sid(tmp_talloc_ctx(), &members[i],
+			if (lookup_sid(talloc_tos(), &members[i],
 				       &dom, &name, NULL)) {
 				d_printf(" %s\\%s\n", dom, name);
 			} else {
-				d_printf(" %s\n",
-					 sid_string_static(&members[i]));
+				d_printf(" %s\n", sid_string_tos(&members[i]));
 			}
 		}
+
+		TALLOC_FREE(members);
 	} else {
 		d_fprintf(stderr, "Can only list local group members so far.\n"
 			  "%s is a %s\n", argv[0], sid_type_lookup(grouptype));
@@ -816,7 +1107,7 @@ static int net_sam_listmem(int argc, const char **argv)
 static int net_sam_do_list(int argc, const char **argv,
 			   struct pdb_search *search, const char *what)
 {
-	BOOL verbose = (argc == 1);
+	bool verbose = (argc == 1);
 
 	if ((argc > 1) ||
 	    ((argc == 1) && !strequal(argv[0], "verbose"))) {
@@ -844,7 +1135,7 @@ static int net_sam_do_list(int argc, const char **argv,
 		}
 	}
 
-	search->search_end(search);
+	pdb_search_destroy(search);
 	return 0;
 }
 
@@ -918,14 +1209,14 @@ static int net_sam_show(int argc, const char **argv)
 		return -1;
 	}
 
-	if (!lookup_name(tmp_talloc_ctx(), argv[0], LOOKUP_NAME_LOCAL,
+	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_LOCAL,
 			 &dom, &name, &sid, &type)) {
 		d_fprintf(stderr, "Could not find name %s\n", argv[0]);
 		return -1;
 	}
 
 	d_printf("%s\\%s is a %s with SID %s\n", dom, name,
-		 sid_type_lookup(type), sid_string_static(&sid));
+		 sid_type_lookup(type), sid_string_tos(&sid));
 
 	return 0;
 }
@@ -990,7 +1281,7 @@ static int net_sam_provision(int argc, const char **argv)
 		goto failed;
 	}
 
-	if (!NT_STATUS_IS_OK(smbldap_init(tc, ldap_uri, &ls))) {
+	if (!NT_STATUS_IS_OK(smbldap_init(tc, NULL, ldap_uri, &ls))) {
 		d_fprintf(stderr, "Unable to connect to the LDAP server.\n");
 		goto failed;
 	}
@@ -1032,7 +1323,8 @@ static int net_sam_provision(int argc, const char **argv)
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
-		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid", sid_string_static(&gsid));
+		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid",
+				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
 		talloc_autofree_ldapmod(tc, mods);
@@ -1086,7 +1378,8 @@ domu_done:
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
-		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid", sid_string_static(&gsid));
+		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid",
+				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
 		talloc_autofree_ldapmod(tc, mods);
@@ -1163,7 +1456,8 @@ doma_done:
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "homeDirectory", dir);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "loginShell", shell);
-		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSID", sid_string_static(&sid));
+		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSID",
+				sid_string_talloc(tc, &sid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaAcctFlags",
 				pdb_encode_acct_ctrl(ACB_NORMAL|ACB_DISABLED,
 				NEW_PW_FORMAT_SPACE_PADDED_LEN));
@@ -1246,7 +1540,8 @@ doma_done:
 		if ((pwd->pw_shell != NULL) && (pwd->pw_shell[0] != '\0')) {
 			smbldap_set_mod(&mods, LDAP_MOD_ADD, "loginShell", pwd->pw_shell);
 		}
-		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSID", sid_string_static(&sid));
+		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSID",
+				sid_string_talloc(tc, &sid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaAcctFlags",
 				pdb_encode_acct_ctrl(ACB_NORMAL|ACB_DISABLED,
 				NEW_PW_FORMAT_SPACE_PADDED_LEN));
@@ -1305,7 +1600,8 @@ doma_done:
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "cn", uname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "displayName", wname);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "gidNumber", gidstr);
-		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid", sid_string_static(&gsid));
+		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaSid",
+				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
 		talloc_autofree_ldapmod(tc, mods);
@@ -1341,8 +1637,12 @@ int net_sam(int argc, const char **argv)
 		  "Create a new BUILTIN group" },
 		{ "createlocalgroup", net_sam_createlocalgroup,
 		  "Create a new local group" },
+		{ "deletelocalgroup", net_sam_deletelocalgroup,
+		  "Delete an existing local group" },
 		{ "mapunixgroup", net_sam_mapunixgroup,
 		  "Map a unix group to a domain group" },
+		{ "unmapunixgroup", net_sam_unmapunixgroup,
+		  "Remove a group mapping of an unix group to a domain group" },
 		{ "addmem", net_sam_addmem,
 		  "Add a member to a group" },
 		{ "delmem", net_sam_delmem,
@@ -1357,6 +1657,8 @@ int net_sam(int argc, const char **argv)
 		  "Set details of a SAM account" },
 		{ "policy", net_sam_policy,
 		  "Set account policies" },
+		{ "rights", net_sam_rights,
+		  "Manipulate user privileges" },
 #ifdef HAVE_LDAP
 		{ "provision", net_sam_provision,
 		  "Provision a clean User Database" },
@@ -1364,11 +1666,9 @@ int net_sam(int argc, const char **argv)
 		{ NULL, NULL, NULL }
 	};
 
-	/* we shouldn't have silly checks like this */
 	if (getuid() != 0) {
-		d_fprintf(stderr, "You must be root to edit the SAM "
-			  "directly.\n");
-		return -1;
+		d_fprintf(stderr, "You are not root, most things won't "
+			  "work\n");
 	}
 	
 	return net_run_function2(argc, argv, "net sam", func);

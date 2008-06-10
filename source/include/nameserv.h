@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -272,14 +271,14 @@ struct work_record {
 	/* Announce info. */
 	time_t lastannounce_time;
 	int announce_interval;
-	BOOL    needannounce;
+	bool    needannounce;
 
 	/* Timeout time for this workgroup. 0 means permanent. */
 	time_t death_time;  
 
 	/* Election info */
-	BOOL    RunningElection;
-	BOOL    needelection;
+	bool    RunningElection;
+	bool    needelection;
 	int     ElectionCount;
 	uint32  ElectionCriterion;
 
@@ -399,7 +398,7 @@ struct response_record {
 	int    repeat_count;
 
 	/* Recursion protection. */
-	BOOL in_expiration_processing;
+	bool in_expiration_processing;
 };
 
 /* A subnet structure. It contains a list of workgroups and netbios names. */
@@ -428,8 +427,8 @@ struct subnet_record {
 	struct name_record     *namelist;   /* List of netbios names. */
 	struct response_record *responselist;  /* List of responses expected. */
 
-	BOOL namelist_changed;
-	BOOL work_changed;
+	bool namelist_changed;
+	bool work_changed;
 
 	struct in_addr bcast_ip;
 	struct in_addr mask_ip;
@@ -461,13 +460,13 @@ struct nmb_packet {
 	struct {
 		int name_trn_id;
 		int opcode;
-		BOOL response;
+		bool response;
 		struct {
-			BOOL bcast;
-			BOOL recursion_available;
-			BOOL recursion_desired;
-			BOOL trunc;
-			BOOL authoritative;
+			bool bcast;
+			bool recursion_available;
+			bool recursion_desired;
+			bool trunc;
+			bool authoritative;
 		} nm_flags;
 		int rcode;
 		int qdcount;
@@ -492,7 +491,9 @@ struct nmb_packet {
 #define DGRAM_UNIQUE 0x10
 #define DGRAM_GROUP 0x11
 #define DGRAM_BROADCAST 0x12
+/* defined in IDL
 #define DGRAM_ERROR 0x13
+*/
 #define DGRAM_QUERY_REQUEST 0x14
 #define DGRAM_POSITIVE_QUERY_RESPONSE 0x15
 #define DGRAM_NEGATIVE_QUERT_RESPONSE 0x16
@@ -504,8 +505,8 @@ struct dgram_packet {
 		int msg_type;
 		struct {
 			enum node_type node_type;
-			BOOL first;
-			BOOL more;
+			bool first;
+			bool more;
 		} flags;
 		int dgm_id;
 		struct in_addr source_ip;
@@ -526,7 +527,7 @@ struct packet_struct
 {
 	struct packet_struct *next;
 	struct packet_struct *prev;
-	BOOL locked;
+	bool locked;
 	struct in_addr ip;
 	int port;
 	int fd;

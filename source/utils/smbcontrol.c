@@ -11,7 +11,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -20,8 +20,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -47,78 +46,88 @@ static int num_replies;		/* Used by message callback fns */
 
 /* Send a message to a destination pid.  Zero means broadcast smbd. */
 
-static BOOL send_message(struct process_id pid, int msg_type,
-			 const void *buf, int len,
-			 BOOL duplicates)
+static bool send_message(struct messaging_context *msg_ctx,
+			 struct server_id pid, int msg_type,
+			 const void *buf, int len)
 {
-	TDB_CONTEXT *tdb;
-	BOOL ret;
+	bool ret;
 	int n_sent = 0;
 
-	if (!message_init())
-		return False;
-
 	if (procid_to_pid(&pid) != 0)
-		return NT_STATUS_IS_OK(message_send_pid(pid, msg_type, buf, len,
-							duplicates));
+		return NT_STATUS_IS_OK(
+			messaging_send_buf(msg_ctx, pid, msg_type,
+					   (uint8 *)buf, len));
 
-	tdb = tdb_open_log(lock_path("connections.tdb"), 0, 
-			   TDB_DEFAULT, O_RDWR, 0);
-	if (!tdb) {
-		fprintf(stderr,"Failed to open connections database"
-			": %s\n", strerror(errno));
-		return False;
-	}
-	
-	ret = message_send_all(tdb,msg_type, buf, len, duplicates,
-			       &n_sent);
+	ret = message_send_all(msg_ctx, msg_type, buf, len, &n_sent);
 	DEBUG(10,("smbcontrol/send_message: broadcast message to "
 		  "%d processes\n", n_sent));
-	
-	tdb_close(tdb);
 	
 	return ret;
 }
 
+static void timeout_handler(struct event_context *event_ctx,
+			    struct timed_event *te,
+			    const struct timeval *now,
+			    void *private_data)
+{
+	bool *timed_out = (bool *)private_data;
+	TALLOC_FREE(te);
+	*timed_out = True;
+}
+
 /* Wait for one or more reply messages */
 
-static void wait_replies(BOOL multiple_replies)
+static void wait_replies(struct messaging_context *msg_ctx,
+			 bool multiple_replies)
 {
-	time_t start_time = time(NULL);
+	struct timed_event *te;
+	bool timed_out = False;
 
-	/* Wait around a bit.  This is pretty disgusting - we have to
-           busy-wait here as there is no nicer way to do it. */
+	if (!(te = event_add_timed(messaging_event_context(msg_ctx), NULL,
+				   timeval_current_ofs(timeout, 0),
+				   "smbcontrol_timeout",
+				   timeout_handler, (void *)&timed_out))) {
+		DEBUG(0, ("event_add_timed failed\n"));
+		return;
+	}
 
-	do {
-		message_dispatch();
+	while (!timed_out) {
+		message_dispatch(msg_ctx);
 		if (num_replies > 0 && !multiple_replies)
 			break;
-		sleep(1);
-	} while (timeout - (time(NULL) - start_time) > 0);
+		event_loop_once(messaging_event_context(msg_ctx));
+	}
 }
 
 /* Message handler callback that displays the PID and a string on stdout */
 
-static void print_pid_string_cb(int msg_type, struct process_id pid, void *buf,
-				size_t len, void *private_data)
+static void print_pid_string_cb(struct messaging_context *msg,
+				void *private_data, 
+				uint32_t msg_type, 
+				struct server_id pid,
+				DATA_BLOB *data)
 {
 	printf("PID %u: %.*s", (unsigned int)procid_to_pid(&pid),
-	       (int)len, (const char *)buf);
+	       (int)data->length, (const char *)data->data);
 	num_replies++;
 }
 
 /* Message handler callback that displays a string on stdout */
 
-static void print_string_cb(int msg_type, struct process_id pid,
-			    void *buf, size_t len, void *private_data)
+static void print_string_cb(struct messaging_context *msg,
+			    void *private_data, 
+			    uint32_t msg_type, 
+			    struct server_id pid,
+			    DATA_BLOB *data)
 {
-	printf("%.*s", (int)len, (const char *)buf);
+	printf("%.*s", (int)data->length, (const char *)data->data);
 	num_replies++;
 }
 
 /* Send no message.  Useful for testing. */
 
-static BOOL do_noop(const struct process_id pid,
+static bool do_noop(struct messaging_context *msg_ctx,
+		    const struct server_id pid,
 		    const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -133,7 +142,8 @@ static BOOL do_noop(const struct process_id pid,
 
 /* Send a debug string */
 
-static BOOL do_debug(const struct process_id pid,
+static bool do_debug(struct messaging_context *msg_ctx,
+		     const struct server_id pid,
 		     const int argc, const char **argv)
 {
 	if (argc != 2) {
@@ -142,8 +152,8 @@ static BOOL do_debug(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_DEBUG, argv[1], strlen(argv[1]) + 1, False);
+	return send_message(msg_ctx, pid, MSG_DEBUG, argv[1],
+			    strlen(argv[1]) + 1);
 }
 
 #if defined(HAVE_LIBUNWIND_PTRACE) && defined(HAVE_LINUX_PTRACE)
@@ -247,27 +257,20 @@ cleanup:
 	ptrace(PTRACE_DETACH, pid, NULL, NULL);
 }
 
-static int stack_trace_connection(TDB_CONTEXT * tdb, TDB_DATA key,
-	TDB_DATA data, void * priv)
+static int stack_trace_connection(struct db_record *rec,
+				  const struct connections_key *key,
+				  const struct connections_data *crec,
+				  void *priv)
 {
-	struct connections_data conn;
-
-	if (data.dsize != sizeof(conn))
-		return 0;
-
-	memcpy(&conn, data.dptr, sizeof(conn));
-	print_stack_trace(procid_to_pid(&conn.pid), (int *)priv);
+	print_stack_trace(procid_to_pid(&crec->pid), (int *)priv);
 
 	return 0;
 }
 
-static BOOL do_daemon_stack_trace(const struct process_id pid,
+static bool do_daemon_stack_trace(struct messaging_context *msg_ctx,
+				  const struct server_id pid,
 		       const int argc, const char **argv)
 {
-	fprintf(stderr,
-		"Daemon stack tracing is not supported on this platform\n");
-	return False;
-
 	pid_t	dest;
 	int	count = 0;
 
@@ -286,19 +289,7 @@ static BOOL do_daemon_stack_trace(const struct process_id pid,
 		 */
 		print_stack_trace(dest, &count);
 	} else {
-		TDB_CONTEXT * tdb;
-
-		tdb = tdb_open_log(lock_path("connections.tdb"), 0, 
-				   TDB_DEFAULT, O_RDONLY, 0);
-		if (!tdb) {
-			fprintf(stderr,
-				"Failed to open connections database: %s\n",
-				strerror(errno));
-			return False;
-		}
-
-		tdb_traverse(tdb, stack_trace_connection, &count);
-		tdb_close(tdb);
+		connections_forall(stack_trace_connection, &count);
 	}
 
 	return True;
@@ -306,7 +297,8 @@ static BOOL do_daemon_stack_trace(const struct process_id pid,
 
 #else /* defined(HAVE_LIBUNWIND_PTRACE) && defined(HAVE_LINUX_PTRACE) */
 
-static BOOL do_daemon_stack_trace(const struct process_id pid,
+static bool do_daemon_stack_trace(struct messaging_context *msg_ctx,
+				  const struct server_id pid,
 		       const int argc, const char **argv)
 {
 	fprintf(stderr,
@@ -318,7 +310,8 @@ static BOOL do_daemon_stack_trace(const struct process_id pid,
 
 /* Inject a fault (fatal signal) into a running smbd */
 
-static BOOL do_inject_fault(const struct process_id pid,
+static bool do_inject_fault(struct messaging_context *msg_ctx,
+			    const struct server_id pid,
 		       const int argc, const char **argv)
 {
 	if (argc != 2) {
@@ -351,15 +344,16 @@ static BOOL do_inject_fault(const struct process_id pid,
 			return False;
 		}
 
-		return send_message(pid, MSG_SMB_INJECT_FAULT,
-				    &sig, sizeof(int), False);
+		return send_message(msg_ctx, pid, MSG_SMB_INJECT_FAULT,
+				    &sig, sizeof(int));
 	}
 #endif /* DEVELOPER */
 }
 
 /* Force a browser election */
 
-static BOOL do_election(const struct process_id pid,
+static bool do_election(struct messaging_context *msg_ctx,
+			const struct server_id pid,
 			const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -367,14 +361,16 @@ static BOOL do_election(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_FORCE_ELECTION, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_FORCE_ELECTION, NULL, 0);
 }
 
 /* Ping a samba daemon process */
 
-static void pong_cb(int msg_type, struct process_id pid, void *buf,
-		    size_t len, void *private_data)
+static void pong_cb(struct messaging_context *msg,
+		    void *private_data, 
+		    uint32_t msg_type, 
+		    struct server_id pid,
+		    DATA_BLOB *data)
 {
 	char *src_string = procid_str(NULL, &pid);
 	printf("PONG from pid %s\n", src_string);
@@ -382,7 +378,9 @@ static void pong_cb(int msg_type, struct process_id pid, void *buf,
 	num_replies++;
 }
 
-static BOOL do_ping(const struct process_id pid, const int argc, const char **argv)
+static bool do_ping(struct messaging_context *msg_ctx,
+		    const struct server_id pid,
+		    const int argc, const char **argv)
 {
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol <dest> ping\n");
@@ -391,26 +389,27 @@ static BOOL do_ping(const struct process_id pid, const int argc, const char **ar
 
 	/* Send a message and register our interest in a reply */
 
-	if (!send_message(pid, MSG_PING, NULL, 0, False))
+	if (!send_message(msg_ctx, pid, MSG_PING, NULL, 0))
 		return False;
 
-	message_register(MSG_PONG, pong_cb, NULL);
+	messaging_register(msg_ctx, NULL, MSG_PONG, pong_cb);
 
-	wait_replies(procid_to_pid(&pid) == 0);
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
 
 	/* No replies were received within the timeout period */
 
 	if (num_replies == 0)
 		printf("No replies received\n");
 
-	message_deregister(MSG_PONG);
+	messaging_deregister(msg_ctx, MSG_PONG, NULL);
 
 	return num_replies;
 }
 
 /* Set profiling options */
 
-static BOOL do_profile(const struct process_id pid,
+static bool do_profile(struct messaging_context *msg_ctx,
+		       const struct server_id pid,
 		       const int argc, const char **argv)
 {
 	int v;
@@ -434,26 +433,29 @@ static BOOL do_profile(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(pid, MSG_PROFILE, &v, sizeof(int), False);
+	return send_message(msg_ctx, pid, MSG_PROFILE, &v, sizeof(int));
 }
 
 /* Return the profiling level */
 
-static void profilelevel_cb(int msg_type, struct process_id pid, void *buf,
-			    size_t len, void *private_data)
+static void profilelevel_cb(struct messaging_context *msg_ctx,
+			    void *private_data, 
+			    uint32_t msg_type, 
+			    struct server_id pid,
+			    DATA_BLOB *data)
 {
 	int level;
 	const char *s;
 
 	num_replies++;
 
-	if (len != sizeof(int)) {
+	if (data->length != sizeof(int)) {
 		fprintf(stderr, "invalid message length %ld returned\n", 
-			(unsigned long)len);
+			(unsigned long)data->length);
 		return;
 	}
 
-	memcpy(&level, buf, sizeof(int));
+	memcpy(&level, data->data, sizeof(int));
 
 	switch (level) {
 	case 0:
@@ -476,17 +478,21 @@ static void profilelevel_cb(int msg_type, struct process_id pid, void *buf,
 	printf("Profiling %s on pid %u\n",s,(unsigned int)procid_to_pid(&pid));
 }
 
-static void profilelevel_rqst(int msg_type, struct process_id pid,
-			      void *buf, size_t len, void *private_data)
+static void profilelevel_rqst(struct messaging_context *msg_ctx,
+			      void *private_data, 
+			      uint32_t msg_type, 
+			      struct server_id pid,
+			      DATA_BLOB *data)
 {
 	int v = 0;
 
 	/* Send back a dummy reply */
 
-	send_message(pid, MSG_PROFILELEVEL, &v, sizeof(int), False);
+	send_message(msg_ctx, pid, MSG_PROFILELEVEL, &v, sizeof(int));
 }
 
-static BOOL do_profilelevel(const struct process_id pid,
+static bool do_profilelevel(struct messaging_context *msg_ctx,
+			    const struct server_id pid,
 			    const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -496,27 +502,29 @@ static BOOL do_profilelevel(const struct process_id pid,
 
 	/* Send a message and register our interest in a reply */
 
-	if (!send_message(pid, MSG_REQ_PROFILELEVEL, NULL, 0, False))
+	if (!send_message(msg_ctx, pid, MSG_REQ_PROFILELEVEL, NULL, 0))
 		return False;
 
-	message_register(MSG_PROFILELEVEL, profilelevel_cb, NULL);
-	message_register(MSG_REQ_PROFILELEVEL, profilelevel_rqst, NULL);
+	messaging_register(msg_ctx, NULL, MSG_PROFILELEVEL, profilelevel_cb);
+	messaging_register(msg_ctx, NULL, MSG_REQ_PROFILELEVEL,
+			   profilelevel_rqst);
 
-	wait_replies(procid_to_pid(&pid) == 0);
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
 
 	/* No replies were received within the timeout period */
 
 	if (num_replies == 0)
 		printf("No replies received\n");
 
-	message_deregister(MSG_PROFILE);
+	messaging_deregister(msg_ctx, MSG_PROFILE, NULL);
 
 	return num_replies;
 }
 
 /* Display debug level settings */
 
-static BOOL do_debuglevel(const struct process_id pid,
+static bool do_debuglevel(struct messaging_context *msg_ctx,
+			  const struct server_id pid,
 			  const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -526,26 +534,27 @@ static BOOL do_debuglevel(const struct process_id pid,
 
 	/* Send a message and register our interest in a reply */
 
-	if (!send_message(pid, MSG_REQ_DEBUGLEVEL, NULL, 0, False))
+	if (!send_message(msg_ctx, pid, MSG_REQ_DEBUGLEVEL, NULL, 0))
 		return False;
 
-	message_register(MSG_DEBUGLEVEL, print_pid_string_cb, NULL);
+	messaging_register(msg_ctx, NULL, MSG_DEBUGLEVEL, print_pid_string_cb);
 
-	wait_replies(procid_to_pid(&pid) == 0);
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
 
 	/* No replies were received within the timeout period */
 
 	if (num_replies == 0)
 		printf("No replies received\n");
 
-	message_deregister(MSG_DEBUGLEVEL);
+	messaging_deregister(msg_ctx, MSG_DEBUGLEVEL, NULL);
 
 	return num_replies;
 }
 
 /* Send a print notify message */
 
-static BOOL do_printnotify(const struct process_id pid,
+static bool do_printnotify(struct messaging_context *msg_ctx,
+			   const struct server_id pid,
 			   const int argc, const char **argv)
 {
 	const char *cmd;
@@ -679,13 +688,14 @@ static BOOL do_printnotify(const struct process_id pid,
 	return False;
 
 send:
-	print_notify_send_messages(0);
+	print_notify_send_messages(msg_ctx, 0);
 	return True;
 }
 
 /* Close a share */
 
-static BOOL do_closeshare(const struct process_id pid,
+static bool do_closeshare(struct messaging_context *msg_ctx,
+			  const struct server_id pid,
 			  const int argc, const char **argv)
 {
 	if (argc != 2) {
@@ -694,13 +704,42 @@ static BOOL do_closeshare(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_SMB_FORCE_TDIS, argv[1], strlen(argv[1]) + 1, False);
+	return send_message(msg_ctx, pid, MSG_SMB_FORCE_TDIS, argv[1],
+			    strlen(argv[1]) + 1);
+}
+
+/* force a blocking lock retry */
+
+static bool do_lockretry(struct messaging_context *msg_ctx,
+			 const struct server_id pid,
+			 const int argc, const char **argv)
+{
+	if (argc != 1) {
+		fprintf(stderr, "Usage: smbcontrol <dest> lockretry\n");
+		return False;
+	}
+
+	return send_message(msg_ctx, pid, MSG_SMB_UNLOCK, NULL, 0);
+}
+
+/* force a validation of all brl entries, including re-sends. */
+
+static bool do_brl_revalidate(struct messaging_context *msg_ctx,
+			      const struct server_id pid,
+			      const int argc, const char **argv)
+{
+	if (argc != 1) {
+		fprintf(stderr, "Usage: smbcontrol <dest> brl-revalidate\n");
+		return False;
+	}
+
+	return send_message(msg_ctx, pid, MSG_SMB_BRL_VALIDATE, NULL, 0);
 }
 
 /* Force a SAM synchronisation */
 
-static BOOL do_samsync(const struct process_id pid,
+static bool do_samsync(struct messaging_context *msg_ctx,
+		       const struct server_id pid,
 		       const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -708,13 +747,13 @@ static BOOL do_samsync(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_SMB_SAM_SYNC, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_SMB_SAM_SYNC, NULL, 0);
 }
 
 /* Force a SAM replication */
 
-static BOOL do_samrepl(const struct process_id pid,
+static bool do_samrepl(struct messaging_context *msg_ctx,
+		       const struct server_id pid,
 		       const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -722,13 +761,13 @@ static BOOL do_samrepl(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_SMB_SAM_REPL, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_SMB_SAM_REPL, NULL, 0);
 }
 
 /* Display talloc pool usage */
 
-static BOOL do_poolusage(const struct process_id pid,
+static bool do_poolusage(struct messaging_context *msg_ctx,
+			 const struct server_id pid,
 			 const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -736,28 +775,29 @@ static BOOL do_poolusage(const struct process_id pid,
 		return False;
 	}
 
-	message_register(MSG_POOL_USAGE, print_string_cb, NULL);
+	messaging_register(msg_ctx, NULL, MSG_POOL_USAGE, print_string_cb);
 
 	/* Send a message and register our interest in a reply */
 
-	if (!send_message(pid, MSG_REQ_POOL_USAGE, NULL, 0, False))
+	if (!send_message(msg_ctx, pid, MSG_REQ_POOL_USAGE, NULL, 0))
 		return False;
 
-	wait_replies(procid_to_pid(&pid) == 0);
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
 
 	/* No replies were received within the timeout period */
 
 	if (num_replies == 0)
 		printf("No replies received\n");
 
-	message_deregister(MSG_POOL_USAGE);
+	messaging_deregister(msg_ctx, MSG_POOL_USAGE, NULL);
 
 	return num_replies;
 }
 
 /* Perform a dmalloc mark */
 
-static BOOL do_dmalloc_mark(const struct process_id pid,
+static bool do_dmalloc_mark(struct messaging_context *msg_ctx,
+			    const struct server_id pid,
 			    const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -765,13 +805,13 @@ static BOOL do_dmalloc_mark(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_REQ_DMALLOC_MARK, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_REQ_DMALLOC_MARK, NULL, 0);
 }
 
 /* Perform a dmalloc changed */
 
-static BOOL do_dmalloc_changed(const struct process_id pid,
+static bool do_dmalloc_changed(struct messaging_context *msg_ctx,
+			       const struct server_id pid,
 			       const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -780,13 +820,14 @@ static BOOL do_dmalloc_changed(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_REQ_DMALLOC_LOG_CHANGED, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_REQ_DMALLOC_LOG_CHANGED,
+			    NULL, 0);
 }
 
 /* Shutdown a server process */
 
-static BOOL do_shutdown(const struct process_id pid,
+static bool do_shutdown(struct messaging_context *msg_ctx,
+			const struct server_id pid,
 			const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -794,12 +835,13 @@ static BOOL do_shutdown(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(pid, MSG_SHUTDOWN, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_SHUTDOWN, NULL, 0);
 }
 
 /* Notify a driver upgrade */
 
-static BOOL do_drvupgrade(const struct process_id pid,
+static bool do_drvupgrade(struct messaging_context *msg_ctx,
+			  const struct server_id pid,
 			  const int argc, const char **argv)
 {
 	if (argc != 2) {
@@ -808,11 +850,12 @@ static BOOL do_drvupgrade(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(
-		pid, MSG_DEBUG, argv[1], strlen(argv[1]) + 1, False);
+	return send_message(msg_ctx, pid, MSG_DEBUG, argv[1],
+			    strlen(argv[1]) + 1);
 }
 
-static BOOL do_winbind_online(const struct process_id pid,
+static bool do_winbind_online(struct messaging_context *msg_ctx,
+			      const struct server_id pid,
 			     const int argc, const char **argv)
 {
 	TDB_CONTEXT *tdb;
@@ -842,14 +885,15 @@ static BOOL do_winbind_online(const struct process_id pid,
 	tdb_delete_bystring(tdb, "WINBINDD_OFFLINE");
 	tdb_close(tdb);
 
-	return send_message(pid, MSG_WINBIND_ONLINE, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_WINBIND_ONLINE, NULL, 0);
 }
 
-static BOOL do_winbind_offline(const struct process_id pid,
+static bool do_winbind_offline(struct messaging_context *msg_ctx,
+			       const struct server_id pid,
 			     const int argc, const char **argv)
 {
 	TDB_CONTEXT *tdb;
-	BOOL ret = False;
+	bool ret = False;
 	int retry = 0;
 
 	if (argc != 1) {
@@ -887,7 +931,7 @@ static BOOL do_winbind_offline(const struct process_id pid,
 
 	for (retry = 0; retry < 5; retry++) {
 		TDB_DATA d;
-		char buf[4];
+		uint8 buf[4];
 
 		ZERO_STRUCT(d);
 
@@ -897,7 +941,8 @@ static BOOL do_winbind_offline(const struct process_id pid,
 
 		tdb_store_bystring(tdb, "WINBINDD_OFFLINE", d, TDB_INSERT);
 
-		ret = send_message(pid, MSG_WINBIND_OFFLINE, NULL, 0, False);
+		ret = send_message(msg_ctx, pid, MSG_WINBIND_OFFLINE,
+				   NULL, 0);
 
 		/* Check that the entry "WINBINDD_OFFLINE" still exists. */
 		d = tdb_fetch_bystring( tdb, "WINBINDD_OFFLINE" );
@@ -915,10 +960,11 @@ static BOOL do_winbind_offline(const struct process_id pid,
 	return ret;
 }
 
-static BOOL do_winbind_onlinestatus(const struct process_id pid,
+static bool do_winbind_onlinestatus(struct messaging_context *msg_ctx,
+				    const struct server_id pid,
 				    const int argc, const char **argv)
 {
-	struct process_id myid;
+	struct server_id myid;
 
 	myid = pid_to_procid(sys_getpid());
 
@@ -927,25 +973,142 @@ static BOOL do_winbind_onlinestatus(const struct process_id pid,
 		return False;
 	}
 
-	message_register(MSG_WINBIND_ONLINESTATUS, print_pid_string_cb, NULL);
+	messaging_register(msg_ctx, NULL, MSG_WINBIND_ONLINESTATUS,
+			   print_pid_string_cb);
 
-	if (!send_message(pid, MSG_WINBIND_ONLINESTATUS, &myid, sizeof(myid), False))
+	if (!send_message(msg_ctx, pid, MSG_WINBIND_ONLINESTATUS, &myid,
+			  sizeof(myid)))
 		return False;
 
-	wait_replies(procid_to_pid(&pid) == 0);
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
 
 	/* No replies were received within the timeout period */
 
 	if (num_replies == 0)
 		printf("No replies received\n");
 
-	message_deregister(MSG_WINBIND_ONLINESTATUS);
+	messaging_deregister(msg_ctx, MSG_WINBIND_ONLINESTATUS, NULL);
 
 	return num_replies;
 }
 
+static bool do_dump_event_list(struct messaging_context *msg_ctx,
+			       const struct server_id pid,
+			       const int argc, const char **argv)
+{
+	struct server_id myid;
 
-static BOOL do_reload_config(const struct process_id pid,
+	myid = pid_to_procid(sys_getpid());
+
+	if (argc != 1) {
+		fprintf(stderr, "Usage: smbcontrol <dest> dump-event-list\n");
+		return False;
+	}
+
+	return send_message(msg_ctx, pid, MSG_DUMP_EVENT_LIST, NULL, 0);
+}
+
+static bool do_winbind_dump_domain_list(struct messaging_context *msg_ctx,
+					const struct server_id pid,
+					const int argc, const char **argv)
+{
+	const char *domain = NULL;
+	int domain_len = 0;
+	struct server_id myid;
+	uint8_t *buf = NULL;
+	int buf_len = 0;
+
+	myid = pid_to_procid(sys_getpid());
+
+	if (argc < 1 || argc > 2) {
+		fprintf(stderr, "Usage: smbcontrol <dest> dump_domain_list "
+			"<domain>\n");
+		return false;
+	}
+
+	if (argc == 2) {
+		domain = argv[1];
+		domain_len = strlen(argv[1]) + 1;
+	}
+
+	messaging_register(msg_ctx, NULL, MSG_WINBIND_DUMP_DOMAIN_LIST,
+			   print_pid_string_cb);
+
+	buf_len = sizeof(myid)+domain_len;
+	buf = SMB_MALLOC_ARRAY(uint8_t, buf_len);
+	if (!buf) {
+		return false;
+	}
+
+	memcpy(buf, &myid, sizeof(myid));
+	memcpy(&buf[sizeof(myid)], domain, domain_len);
+
+	if (!send_message(msg_ctx, pid, MSG_WINBIND_DUMP_DOMAIN_LIST,
+			  buf, buf_len))
+	{
+		SAFE_FREE(buf);
+		return false;
+	}
+
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
+
+	/* No replies were received within the timeout period */
+
+	SAFE_FREE(buf);
+	if (num_replies == 0) {
+		printf("No replies received\n");
+	}
+
+	messaging_deregister(msg_ctx, MSG_WINBIND_DUMP_DOMAIN_LIST, NULL);
+
+	return num_replies;
+}
+
+static void winbind_validate_cache_cb(struct messaging_context *msg,
+				      void *private_data,
+				      uint32_t msg_type,
+				      struct server_id pid,
+				      DATA_BLOB *data)
+{
+	char *src_string = procid_str(NULL, &pid);
+	printf("Winbindd cache is %svalid. (answer from pid %s)\n",
+	       (*(data->data) == 0 ? "" : "NOT "), src_string);
+	TALLOC_FREE(src_string);
+	num_replies++;
+}
+
+static bool do_winbind_validate_cache(struct messaging_context *msg_ctx,
+				      const struct server_id pid,
+				      const int argc, const char **argv)
+{
+	struct server_id myid = pid_to_procid(sys_getpid());
+
+	if (argc != 1) {
+		fprintf(stderr, "Usage: smbcontrol winbindd validate-cache\n");
+		return False;
+	}
+
+	messaging_register(msg_ctx, NULL, MSG_WINBIND_VALIDATE_CACHE,
+			   winbind_validate_cache_cb);
+
+	if (!send_message(msg_ctx, pid, MSG_WINBIND_VALIDATE_CACHE, &myid,
+			  sizeof(myid))) {
+		return False;
+	}
+
+	wait_replies(msg_ctx, procid_to_pid(&pid) == 0);
+
+	if (num_replies == 0) {
+		printf("No replies received\n");
+	}
+
+	messaging_deregister(msg_ctx, MSG_WINBIND_VALIDATE_CACHE, NULL);
+
+	return num_replies;
+}
+
+static bool do_reload_config(struct messaging_context *msg_ctx,
+			     const struct server_id pid,
 			     const int argc, const char **argv)
 {
 	if (argc != 1) {
@@ -953,7 +1116,7 @@ static BOOL do_reload_config(const struct process_id pid,
 		return False;
 	}
 
-	return send_message(pid, MSG_SMB_CONF_UPDATED, NULL, 0, False);
+	return send_message(msg_ctx, pid, MSG_SMB_CONF_UPDATED, NULL, 0);
 }
 
 static void my_make_nmb_name( struct nmb_name *n, const char *name, int type)
@@ -967,7 +1130,8 @@ static void my_make_nmb_name( struct nmb_name *n, const char *name, int type)
 	push_ascii(n->scope,  global_scope(), 64, STR_TERMINATE);
 }
 
-static BOOL do_nodestatus(const struct process_id pid,
+static bool do_nodestatus(struct messaging_context *msg_ctx,
+			  const struct server_id pid,
 			  const int argc, const char **argv)
 {
 	struct packet_struct p;
@@ -979,7 +1143,7 @@ static BOOL do_nodestatus(const struct process_id pid,
 
 	ZERO_STRUCT(p);
 
-	p.ip = *interpret_addr2(argv[1]);
+	(void)interpret_addr2(&p.ip, argv[1]);
 	p.port = 137;
 	p.packet_type = NMB_PACKET;
 
@@ -1000,14 +1164,15 @@ static BOOL do_nodestatus(const struct process_id pid,
 	p.packet.nmb.question.question_type = 0x21;
 	p.packet.nmb.question.question_class = 0x1;
 
-	return send_message(pid, MSG_SEND_PACKET, &p, sizeof(p), False);
+	return send_message(msg_ctx, pid, MSG_SEND_PACKET, &p, sizeof(p));
 }
 
 /* A list of message type supported */
 
 static const struct {
 	const char *name;	/* Option name */
-	BOOL (*fn)(const struct process_id pid,
+	bool (*fn)(struct messaging_context *msg_ctx,
+		   const struct server_id pid,
 		   const int argc, const char **argv);
 	const char *help;	/* Short help text */
 } msg_types[] = {
@@ -1024,6 +1189,8 @@ static const struct {
 	{ "debuglevel", do_debuglevel, "Display current debuglevels" },
 	{ "printnotify", do_printnotify, "Send a print notify message" },
 	{ "close-share", do_closeshare, "Forcibly disconnect a share" },
+	{ "lockretry", do_lockretry, "Force a blocking lock retry" },
+	{ "brl-revalidate", do_brl_revalidate, "Revalidate all brl entries" },
         { "samsync", do_samsync, "Initiate SAM synchronisation" },
         { "samrepl", do_samrepl, "Initiate SAM replication" },
 	{ "pool-usage", do_poolusage, "Display talloc memory usage" },
@@ -1036,17 +1203,21 @@ static const struct {
 	{ "online", do_winbind_online, "Ask winbind to go into online state"},
 	{ "offline", do_winbind_offline, "Ask winbind to go into offline state"},
 	{ "onlinestatus", do_winbind_onlinestatus, "Request winbind online status"},
+	{ "dump-event-list", do_dump_event_list, "Dump event list"},
+	{ "validate-cache" , do_winbind_validate_cache,
+	  "Validate winbind's credential cache" },
+	{ "dump-domain-list", do_winbind_dump_domain_list, "Dump winbind domain list"},
 	{ "noop", do_noop, "Do nothing" },
 	{ NULL }
 };
 
 /* Display usage information */
 
-static void usage(poptContext *pc)
+static void usage(poptContext pc)
 {
 	int i;
 
-	poptPrintHelp(*pc, stderr, 0);
+	poptPrintHelp(pc, stderr, 0);
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, "<destination> is one of \"nmbd\", \"smbd\", \"winbindd\" or a "
@@ -1066,15 +1237,15 @@ static void usage(poptContext *pc)
 
 /* Return the pid number for a string destination */
 
-static struct process_id parse_dest(const char *dest)
+static struct server_id parse_dest(const char *dest)
 {
-	struct process_id result = {-1};
+	struct server_id result = {-1};
 	pid_t pid;
 
 	/* Zero is a special return value for broadcast smbd */
 
 	if (strequal(dest, "smbd")) {
-		return interpret_pid("0");
+		return interpret_pid(MSG_BROADCAST_PID_STR);
 	}
 
 	/* Try self - useful for testing */
@@ -1113,10 +1284,11 @@ static struct process_id parse_dest(const char *dest)
 
 /* Execute smbcontrol command */
 
-static BOOL do_command(int argc, const char **argv)
+static bool do_command(struct messaging_context *msg_ctx,
+		       int argc, const char **argv)
 {
 	const char *dest = argv[0], *command = argv[1];
-	struct process_id pid;
+	struct server_id pid;
 	int i;
 
 	/* Check destination */
@@ -1130,7 +1302,8 @@ static BOOL do_command(int argc, const char **argv)
 
 	for (i = 0; msg_types[i].name; i++) {
 		if (strequal(command, msg_types[i].name))
-			return msg_types[i].fn(pid, argc - 1, argv + 1);
+			return msg_types[i].fn(msg_ctx, pid,
+					       argc - 1, argv + 1);
 	}
 
 	fprintf(stderr, "smbcontrol: unknown command '%s'\n", command);
@@ -1138,21 +1311,50 @@ static BOOL do_command(int argc, const char **argv)
 	return False;
 }
 
+static void smbcontrol_help(poptContext pc,
+		    enum poptCallbackReason preason,
+		    struct poptOption * poption,
+		    const char * parg,
+		    void * pdata)
+{
+	if (poption->shortName != '?') {
+		poptPrintUsage(pc, stdout, 0);
+	} else {
+		usage(pc);
+	}
+
+	exit(0);
+}
+
+struct poptOption help_options[] = {
+	{ NULL, '\0', POPT_ARG_CALLBACK, (void *)&smbcontrol_help, '\0',
+	  NULL, NULL },
+	{ "help", '?', 0, NULL, '?', "Show this help message", NULL },
+	{ "usage", '\0', 0, NULL, 'u', "Display brief usage message", NULL },
+	{ NULL }
+} ;
+
 /* Main program */
 
 int main(int argc, const char **argv)
 {
 	poptContext pc;
 	int opt;
+	struct event_context *evt_ctx;
+	struct messaging_context *msg_ctx;
 
 	static struct poptOption long_options[] = {
-		POPT_AUTOHELP
+		/* POPT_AUTOHELP */
+		{ NULL, '\0', POPT_ARG_INCLUDE_TABLE, help_options,
+		                        0, "Help options:", NULL },
 		{ "timeout", 't', POPT_ARG_INT, &timeout, 't', 
 		  "Set timeout value in seconds", "TIMEOUT" },
 
 		POPT_COMMON_SAMBA
 		POPT_TABLEEND
 	};
+	TALLOC_CTX *frame = talloc_stackframe();
+	int ret = 0;
 
 	load_case_tables();
 
@@ -1167,7 +1369,7 @@ int main(int argc, const char **argv)
 			       "<parameters>");
 
 	if (argc == 1)
-		usage(&pc);
+		usage(pc);
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
 		switch(opt) {
@@ -1186,18 +1388,29 @@ int main(int argc, const char **argv)
 
 	argv = (const char **)poptGetArgs(pc);
 	argc = 0;
-	while (argv[argc] != NULL) {
-		argc++;
+	if (argv != NULL) {
+		while (argv[argc] != NULL) {
+			argc++;
+		}
 	}
 
-	if (argc == 1)
-		usage(&pc);
+	if (argc <= 1)
+		usage(pc);
 
-	lp_load(dyn_CONFIGFILE,False,False,False,True);
+	lp_load(get_dyn_CONFIGFILE(),False,False,False,True);
 
 	/* Need to invert sense of return code -- samba
          * routines mostly return True==1 for success, but
          * shell needs 0. */ 
 	
-	return !do_command(argc, argv);
+	if (!(evt_ctx = event_context_init(NULL)) ||
+	    !(msg_ctx = messaging_init(NULL, server_id_self(), evt_ctx))) {
+		fprintf(stderr, "could not init messaging context\n");
+		TALLOC_FREE(frame);
+		exit(1);
+	}
+	
+	ret = !do_command(msg_ctx, argc, argv);
+	TALLOC_FREE(frame);
+	return ret;
 }

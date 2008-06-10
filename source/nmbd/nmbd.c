@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -27,27 +26,38 @@ int ClientNMB       = -1;
 int ClientDGRAM     = -1;
 int global_nmb_port = -1;
 
-extern BOOL rescan_listen_set;
-extern struct in_addr loopback_ip;
-extern BOOL global_in_nmbd;
+extern bool rescan_listen_set;
+extern bool global_in_nmbd;
 
-extern BOOL override_logfile;
-
-/* are we running as a daemon ? */
-static BOOL is_daemon;
-
-/* fork or run in foreground ? */
-static BOOL Fork = True;
-
-/* log to standard output ? */
-static BOOL log_stdout;
+extern bool override_logfile;
 
 /* have we found LanMan clients yet? */
-BOOL found_lm_clients = False;
+bool found_lm_clients = False;
 
 /* what server type are we currently */
 
 time_t StartupTime = 0;
+
+struct event_context *nmbd_event_context(void)
+{
+	static struct event_context *ctx;
+
+	if (!ctx && !(ctx = event_context_init(NULL))) {
+		smb_panic("Could not init nmbd event context");
+	}
+	return ctx;
+}
+
+struct messaging_context *nmbd_messaging_context(void)
+{
+	static struct messaging_context *ctx;
+
+	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
+					   nmbd_event_context()))) {
+		smb_panic("Could not init nmbd messaging context");
+	}
+	return ctx;
+}
 
 /**************************************************************************** **
  Handle a SIGTERM in band.
@@ -76,8 +86,11 @@ static void terminate(void)
  Handle a SHUTDOWN message from smbcontrol.
  **************************************************************************** */
 
-static void nmbd_terminate(int msg_type, struct process_id src,
-			   void *buf, size_t len, void *private_data)
+static void nmbd_terminate(struct messaging_context *msg,
+			   void *private_data,
+			   uint32_t msg_type,
+			   struct server_id server_id,
+			   DATA_BLOB *data)
 {
 	terminate();
 }
@@ -163,6 +176,7 @@ static void reload_interfaces(time_t t)
 	if (t && ((t - lastt) < NMBD_INTERFACES_RELOAD)) {
 		return;
 	}
+
 	lastt = t;
 
 	if (!interfaces_changed()) {
@@ -177,12 +191,24 @@ static void reload_interfaces(time_t t)
 
 	/* find any interfaces that need adding */
 	for (n=iface_count() - 1; n >= 0; n--) {
-		struct interface *iface = get_interface(n);
+		char str[INET6_ADDRSTRLEN];
+		const struct interface *iface = get_interface(n);
+		struct in_addr ip, nmask;
 
 		if (!iface) {
 			DEBUG(2,("reload_interfaces: failed to get interface %d\n", n));
 			continue;
 		}
+
+		/* Ensure we're only dealing with IPv4 here. */
+		if (iface->ip.ss_family != AF_INET) {
+			DEBUG(2,("reload_interfaces: "
+				"ignoring non IPv4 interface.\n"));
+			continue;
+		}
+
+		ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
+		nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
 
 		/*
 		 * We don't want to add a loopback interface, in case
@@ -190,20 +216,25 @@ static void reload_interfaces(time_t t)
 		 * ignore it here. JRA.
 		 */
 
-		if (ip_equal(iface->ip, loopback_ip)) {
-			DEBUG(2,("reload_interfaces: Ignoring loopback interface %s\n", inet_ntoa(iface->ip)));
+		if (is_loopback_addr(&iface->ip)) {
+			DEBUG(2,("reload_interfaces: Ignoring loopback "
+				"interface %s\n",
+				print_sockaddr(str, sizeof(str), &iface->ip) ));
 			continue;
 		}
 
 		for (subrec=subnetlist; subrec; subrec=subrec->next) {
-			if (ip_equal(iface->ip, subrec->myip) &&
-			    ip_equal(iface->nmask, subrec->mask_ip)) break;
+			if (ip_equal_v4(ip, subrec->myip) &&
+			    ip_equal_v4(nmask, subrec->mask_ip)) {
+				break;
+			}
 		}
 
 		if (!subrec) {
 			/* it wasn't found! add it */
-			DEBUG(2,("Found new interface %s\n", 
-				 inet_ntoa(iface->ip)));
+			DEBUG(2,("Found new interface %s\n",
+				 print_sockaddr(str,
+					 sizeof(str), &iface->ip) ));
 			subrec = make_normal_subnet(iface);
 			if (subrec)
 				register_my_workgroup_one_subnet(subrec);
@@ -214,8 +245,22 @@ static void reload_interfaces(time_t t)
 	for (subrec=subnetlist; subrec; subrec=subrec->next) {
 		for (n=iface_count() - 1; n >= 0; n--) {
 			struct interface *iface = get_interface(n);
-			if (ip_equal(iface->ip, subrec->myip) &&
-			    ip_equal(iface->nmask, subrec->mask_ip)) break;
+			struct in_addr ip, nmask;
+			if (!iface) {
+				continue;
+			}
+			/* Ensure we're only dealing with IPv4 here. */
+			if (iface->ip.ss_family != AF_INET) {
+				DEBUG(2,("reload_interfaces: "
+					"ignoring non IPv4 interface.\n"));
+				continue;
+			}
+			ip = ((struct sockaddr_in *)&iface->ip)->sin_addr;
+			nmask = ((struct sockaddr_in *)&iface->netmask)->sin_addr;
+			if (ip_equal_v4(ip, subrec->myip) &&
+			    ip_equal_v4(nmask, subrec->mask_ip)) {
+				break;
+			}
 		}
 		if (n == -1) {
 			/* oops, an interface has disapeared. This is
@@ -224,7 +269,7 @@ static void reload_interfaces(time_t t)
 			 instead we just wear the memory leak and
 			 remove it from the list of interfaces without
 			 freeing it */
-			DEBUG(2,("Deleting dead interface %s\n", 
+			DEBUG(2,("Deleting dead interface %s\n",
 				 inet_ntoa(subrec->myip)));
 			close_subnet(subrec);
 		}
@@ -248,7 +293,8 @@ static void reload_interfaces(time_t t)
 
 		BlockSignals(false, SIGTERM);
 
-                while (iface_count() == 0 && !got_sig_term) {
+		/* We only count IPv4 interfaces here. */
+		while (iface_count_v4() == 0 && !got_sig_term) {
 			sleep(5);
 			load_interfaces();
 		}
@@ -275,17 +321,16 @@ static void reload_interfaces(time_t t)
  Reload the services file.
  **************************************************************************** */
 
-static BOOL reload_nmbd_services(BOOL test)
+static bool reload_nmbd_services(bool test)
 {
-	BOOL ret;
+	bool ret;
 
 	set_remote_machine_name("nmbd", False);
 
 	if ( lp_loaded() ) {
-		pstring fname;
-		pstrcpy( fname,lp_configfile());
-		if (file_exist(fname,NULL) && !strcsequal(fname,dyn_CONFIGFILE)) {
-			pstrcpy(dyn_CONFIGFILE,fname);
+		const char *fname = lp_configfile();
+		if (file_exist(fname,NULL) && !strcsequal(fname,get_dyn_CONFIGFILE())) {
+			set_dyn_CONFIGFILE(fname);
 			test = False;
 		}
 	}
@@ -293,7 +338,7 @@ static BOOL reload_nmbd_services(BOOL test)
 	if ( test && !lp_file_list_changed() )
 		return(True);
 
-	ret = lp_load( dyn_CONFIGFILE, True , False, False, True);
+	ret = lp_load(get_dyn_CONFIGFILE(), True , False, False, True);
 
 	/* perhaps the config filename is now set */
 	if ( !test ) {
@@ -308,8 +353,11 @@ static BOOL reload_nmbd_services(BOOL test)
  * React on 'smbcontrol nmbd reload-config' in the same way as to SIGHUP
  **************************************************************************** */
 
-static void msg_reload_nmbd_services(int msg_type, struct process_id src,
-				     void *buf, size_t len, void *private_data)
+static void msg_reload_nmbd_services(struct messaging_context *msg,
+				     void *private_data,
+				     uint32_t msg_type,
+				     struct server_id server_id,
+				     DATA_BLOB *data)
 {
 	write_browse_list( 0, True );
 	dump_all_namelists();
@@ -318,16 +366,21 @@ static void msg_reload_nmbd_services(int msg_type, struct process_id src,
 	reload_interfaces(0);
 }
 
-static void msg_nmbd_send_packet(int msg_type, struct process_id src,
-				 void *buf, size_t len, void *private_data)
+static void msg_nmbd_send_packet(struct messaging_context *msg,
+				 void *private_data,
+				 uint32_t msg_type,
+				 struct server_id src,
+				 DATA_BLOB *data)
 {
-	struct packet_struct *p = (struct packet_struct *)buf;
+	struct packet_struct *p = (struct packet_struct *)data->data;
 	struct subnet_record *subrec;
-	struct in_addr *local_ip;
+	struct sockaddr_storage ss;
+	const struct sockaddr_storage *pss;
+	const struct in_addr *local_ip;
 
 	DEBUG(10, ("Received send_packet from %d\n", procid_to_pid(&src)));
 
-	if (len != sizeof(struct packet_struct)) {
+	if (data->length != sizeof(struct packet_struct)) {
 		DEBUG(2, ("Discarding invalid packet length from %d\n",
 			  procid_to_pid(&src)));
 		return;
@@ -340,14 +393,16 @@ static void msg_nmbd_send_packet(int msg_type, struct process_id src,
 		return;
 	}
 
-	local_ip = iface_ip(p->ip);
+	in_addr_to_sockaddr_storage(&ss, p->ip);
+	pss = iface_ip(&ss);
 
-	if (local_ip == NULL) {
+	if (pss == NULL) {
 		DEBUG(2, ("Could not find ip for packet from %d\n",
 			  procid_to_pid(&src)));
 		return;
 	}
 
+	local_ip = &((const struct sockaddr_in *)pss)->sin_addr;
 	subrec = FIRST_SUBNET;
 
 	p->fd = (p->packet_type == NMB_PACKET) ?
@@ -355,7 +410,7 @@ static void msg_nmbd_send_packet(int msg_type, struct process_id src,
 
 	for (subrec = FIRST_SUBNET; subrec != NULL;
 	     subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
-		if (ip_equal(*local_ip, subrec->myip)) {
+		if (ip_equal_v4(*local_ip, subrec->myip)) {
 			p->fd = (p->packet_type == NMB_PACKET) ?
 				subrec->nmb_sock : subrec->dgram_sock;
 			break;
@@ -377,14 +432,15 @@ static void msg_nmbd_send_packet(int msg_type, struct process_id src,
 
 static void process(void)
 {
-	BOOL run_election;
+	bool run_election;
 
 	while( True ) {
 		time_t t = time(NULL);
+		TALLOC_CTX *frame = talloc_stackframe();
 
 		/* Check for internal messages */
 
-		message_dispatch();
+		message_dispatch(nmbd_messaging_context());
 
 		/*
 		 * Check all broadcast subnets to see if
@@ -399,8 +455,10 @@ static void process(void)
 		 * (nmbd_packets.c)
 		 */
 
-		if(listen_for_packets(run_election))
+		if(listen_for_packets(run_election)) {
+			TALLOC_FREE(frame);
 			return;
+		}
 
 		/*
 		 * Handle termination inband.
@@ -586,8 +644,10 @@ static void process(void)
 
 		if(reload_after_sighup) {
 			DEBUG( 0, ( "Got SIGHUP dumping debug info.\n" ) );
-			msg_reload_nmbd_services(MSG_SMB_CONF_UPDATED,
-						 pid_to_procid(0), NULL, 0, NULL);
+			msg_reload_nmbd_services(nmbd_messaging_context(),
+						 NULL, MSG_SMB_CONF_UPDATED,
+						 procid_self(), NULL);
+
 			reload_after_sighup = 0;
 		}
 
@@ -596,7 +656,7 @@ static void process(void)
 		reload_interfaces(t);
 
 		/* free up temp memory */
-		lp_TALLOC_FREE();
+		TALLOC_FREE(frame);
 	}
 }
 
@@ -604,8 +664,11 @@ static void process(void)
  Open the socket communication.
  **************************************************************************** */
 
-static BOOL open_sockets(BOOL isdaemon, int port)
+static bool open_sockets(bool isdaemon, int port)
 {
+	struct sockaddr_storage ss;
+	const char *sock_addr = lp_socket_address();
+
 	/*
 	 * The sockets opened here will be used to receive broadcast
 	 * packets *only*. Interface specific sockets are opened in
@@ -614,19 +677,41 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 	 * now deprecated.
 	 */
 
-	if ( isdaemon )
-		ClientNMB = open_socket_in(SOCK_DGRAM, port,
-					   0, interpret_addr(lp_socket_address()),
-					   True);
-	else
-		ClientNMB = 0;
-  
-	ClientDGRAM = open_socket_in(SOCK_DGRAM, DGRAM_PORT,
-					   3, interpret_addr(lp_socket_address()),
-					   True);
+	if (!interpret_string_addr(&ss, sock_addr,
+				AI_NUMERICHOST|AI_PASSIVE)) {
+		DEBUG(0,("open_sockets: unable to get socket address "
+			"from string %s", sock_addr));
+		return false;
+	}
+	if (ss.ss_family != AF_INET) {
+		DEBUG(0,("open_sockets: unable to use IPv6 socket"
+			"%s in nmbd\n",
+			sock_addr));
+		return false;
+	}
 
-	if ( ClientNMB == -1 )
-		return( False );
+	if (isdaemon) {
+		ClientNMB = open_socket_in(SOCK_DGRAM, port,
+					   0, &ss,
+					   true);
+	} else {
+		ClientNMB = 0;
+	}
+
+	if (ClientNMB == -1) {
+		return false;
+	}
+
+	ClientDGRAM = open_socket_in(SOCK_DGRAM, DGRAM_PORT,
+					   3, &ss,
+					   true);
+
+	if (ClientDGRAM == -1) {
+		if (ClientNMB != 0) {
+			close(ClientNMB);
+		}
+		return false;
+	}
 
 	/* we are never interested in SIGPIPE */
 	BlockSignals(True,SIGPIPE);
@@ -645,43 +730,84 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 /**************************************************************************** **
  main program
  **************************************************************************** */
+
  int main(int argc, const char *argv[])
 {
-	pstring logfile;
-	static BOOL opt_interactive;
+	static bool is_daemon;
+	static bool opt_interactive;
+	static bool Fork = true;
+	static bool no_process_group;
+	static bool log_stdout;
 	poptContext pc;
-	static char *p_lmhosts = dyn_LMHOSTSFILE;
-	static BOOL no_process_group = False;
+	char *p_lmhosts = NULL;
+	int opt;
+	enum {
+		OPT_DAEMON = 1000,
+		OPT_INTERACTIVE,
+		OPT_FORK,
+		OPT_NO_PROCESS_GROUP,
+		OPT_LOG_STDOUT
+	};
 	struct poptOption long_options[] = {
 	POPT_AUTOHELP
-	{"daemon", 'D', POPT_ARG_VAL, &is_daemon, True, "Become a daemon(default)" },
-	{"interactive", 'i', POPT_ARG_VAL, &opt_interactive, True, "Run interactive (not a daemon)" },
-	{"foreground", 'F', POPT_ARG_VAL, &Fork, False, "Run daemon in foreground (for daemontools & etc)" },
-	{"no-process-group", 0, POPT_ARG_VAL, &no_process_group, True, "Don't create a new process group" },
-	{"log-stdout", 'S', POPT_ARG_VAL, &log_stdout, True, "Log to stdout" },
+	{"daemon", 'D', POPT_ARG_NONE, NULL, OPT_DAEMON, "Become a daemon(default)" },
+	{"interactive", 'i', POPT_ARG_NONE, NULL, OPT_INTERACTIVE, "Run interactive (not a daemon)" },
+	{"foreground", 'F', POPT_ARG_NONE, NULL, OPT_FORK, "Run daemon in foreground (for daemontools & etc)" },
+	{"no-process-group", 0, POPT_ARG_NONE, NULL, OPT_NO_PROCESS_GROUP, "Don't create a new process group" },
+	{"log-stdout", 'S', POPT_ARG_NONE, NULL, OPT_LOG_STDOUT, "Log to stdout" },
 	{"hosts", 'H', POPT_ARG_STRING, &p_lmhosts, 'H', "Load a netbios hosts file"},
 	{"port", 'p', POPT_ARG_INT, &global_nmb_port, NMB_PORT, "Listen on the specified port" },
 	POPT_COMMON_SAMBA
 	{ NULL }
 	};
+	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
+
+	db_tdb2_setup_messaging(NULL, false);
 
 	load_case_tables();
 
 	global_nmb_port = NMB_PORT;
 
 	pc = poptGetContext("nmbd", argc, argv, long_options, 0);
-	while (poptGetNextOpt(pc) != -1) {};
+	while ((opt = poptGetNextOpt(pc)) != -1) {
+		switch (opt) {
+		case OPT_DAEMON:
+			is_daemon = true;
+			break;
+		case OPT_INTERACTIVE:
+			opt_interactive = true;
+			break;
+		case OPT_FORK:
+			Fork = false;
+			break;
+		case OPT_NO_PROCESS_GROUP:
+			no_process_group = true;
+			break;
+		case OPT_LOG_STDOUT:
+			log_stdout = true;
+			break;
+		default:
+			d_fprintf(stderr, "\nInvalid option %s: %s\n\n",
+				  poptBadOption(pc, 0), poptStrerror(opt));
+			poptPrintUsage(pc, stderr, 0);
+			exit(1);
+		}
+	};
 	poptFreeContext(pc);
 
-	global_in_nmbd = True;
+	global_in_nmbd = true;
 	
 	StartupTime = time(NULL);
 	
 	sys_srandom(time(NULL) ^ sys_getpid());
 	
 	if (!override_logfile) {
-		slprintf(logfile, sizeof(logfile)-1, "%s/log.nmbd", dyn_LOGFILEBASE);
+		char *logfile = NULL;
+		if (asprintf(&logfile, "%s/log.nmbd", get_dyn_LOGFILEBASE()) < 0) {
+			exit(1);
+		}
 		lp_set_logfile(logfile);
+		SAFE_FREE(logfile);
 	}
 	
 	fault_setup((void (*)(void *))fault_continue );
@@ -720,8 +846,19 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 
 	reopen_logs();
 
-	DEBUG( 0, ( "Netbios nameserver version %s started.\n", SAMBA_VERSION_STRING) );
-	DEBUGADD( 0, ( "%s\n", COPYRIGHT_STARTUP_MESSAGE ) );
+	DEBUG(0,("nmbd version %s started.\n", SAMBA_VERSION_STRING));
+	DEBUGADD(0,("%s\n", COPYRIGHT_STARTUP_MESSAGE));
+
+	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
+		DEBUG(0, ("error opening config file\n"));
+		exit(1);
+	}
+
+	if (nmbd_messaging_context() == NULL) {
+		return 1;
+	}
+
+	db_tdb2_setup_messaging(nmbd_messaging_context(), true);
 
 	if ( !reload_nmbd_services(False) )
 		return(-1);
@@ -757,6 +894,10 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 		setpgid( (pid_t)0, (pid_t)0 );
 #endif
 
+	if (nmbd_messaging_context() == NULL) {
+		return 1;
+	}
+
 #ifndef SYNC_DNS
 	/* Setup the async dns. We do it here so it doesn't have all the other
 		stuff initialised and thus chewing memory and sockets */
@@ -770,15 +911,28 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 	}
 
 	pidfile_create("nmbd");
-	message_init();
-	message_register(MSG_FORCE_ELECTION, nmbd_message_election, NULL);
+
+	if (!reinit_after_fork(nmbd_messaging_context(), false)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
+		exit(1);
+	}
+
+	/* get broadcast messages */
+	claim_connection(NULL,"",FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP);
+
+	messaging_register(nmbd_messaging_context(), NULL,
+			   MSG_FORCE_ELECTION, nmbd_message_election);
 #if 0
 	/* Until winsrepl is done. */
-	message_register(MSG_WINS_NEW_ENTRY, nmbd_wins_new_entry, NULL);
+	messaging_register(nmbd_messaging_context(), NULL,
+			   MSG_WINS_NEW_ENTRY, nmbd_wins_new_entry);
 #endif
-	message_register(MSG_SHUTDOWN, nmbd_terminate, NULL);
-	message_register(MSG_SMB_CONF_UPDATED, msg_reload_nmbd_services, NULL);
-	message_register(MSG_SEND_PACKET, msg_nmbd_send_packet, NULL);
+	messaging_register(nmbd_messaging_context(), NULL,
+			   MSG_SHUTDOWN, nmbd_terminate);
+	messaging_register(nmbd_messaging_context(), NULL,
+			   MSG_SMB_CONF_UPDATED, msg_reload_nmbd_services);
+	messaging_register(nmbd_messaging_context(), NULL,
+			   MSG_SEND_PACKET, msg_nmbd_send_packet);
 
 	TimeInit();
 
@@ -800,8 +954,11 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 	}
 
 	/* Load in any static local names. */ 
-	load_lmhosts_file(p_lmhosts);
-	DEBUG(3,("Loaded hosts file %s\n", p_lmhosts));
+	if (p_lmhosts) {
+		set_dyn_LMHOSTSFILE(p_lmhosts);
+	}
+	load_lmhosts_file(get_dyn_LMHOSTSFILE());
+	DEBUG(3,("Loaded hosts file %s\n", get_dyn_LMHOSTSFILE()));
 
 	/* If we are acting as a WINS server, initialise data structures. */
 	if( !initialise_wins() ) {
@@ -827,6 +984,7 @@ static BOOL open_sockets(BOOL isdaemon, int port)
 	/* We can only take signals in the select. */
 	BlockSignals( True, SIGTERM );
 
+	TALLOC_FREE(frame);
 	process();
 
 	if (dbf)

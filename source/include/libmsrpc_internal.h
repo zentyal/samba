@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LIBMSRPC_INTERNAL_H
@@ -30,19 +29,19 @@ struct CacServerHandleInternal {
    uint16 srv_level;
 
    /*stores the initialized/active pipes*/
-   BOOL pipes[PI_MAX_PIPES];
+   bool pipes[PI_MAX_PIPES];
 
    /*underlying smbc context*/
    SMBCCTX *ctx;
 
    /*did the user supply this SMBCCTX?*/
-   BOOL user_supplied_ctx;
+   bool user_supplied_ctx;
 };
 
 /*used to get a struct rpc_pipe_client* to be passed into rpccli* calls*/
 
 /*nessecary prototypes*/
-BOOL rid_in_list(uint32 rid, uint32 *list, uint32 list_len);
+bool rid_in_list(uint32 rid, uint32 *list, uint32 list_len);
 
 int cac_ParseRegPath(char *path, uint32 *reg_type, char **key_name);
 

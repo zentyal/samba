@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
    Revision History:
 
@@ -35,21 +34,21 @@
 
 #define SMB_MAXPIDS		2048
 static uid_t 		Ucrit_uid = 0;               /* added by OH */
-static pid_t		Ucrit_pid[SMB_MAXPIDS];  /* Ugly !!! */   /* added by OH */
+static struct server_id	Ucrit_pid[SMB_MAXPIDS];  /* Ugly !!! */   /* added by OH */
 static int		Ucrit_MaxPid=0;                    /* added by OH */
 static unsigned int	Ucrit_IsActive = 0;                /* added by OH */
 
-static int verbose, brief;
-static int            shares_only = 0;            /* Added by RJS */
-static int            locks_only  = 0;            /* Added by RJS */
-static BOOL processes_only=False;
-static int show_brl;
-static BOOL numeric_only = False;
+static bool verbose, brief;
+static bool shares_only;            /* Added by RJS */
+static bool locks_only;            /* Added by RJS */
+static bool processes_only;
+static bool show_brl;
+static bool numeric_only;
 
 const char *username = NULL;
 
-extern BOOL status_profile_dump(BOOL be_verbose);
-extern BOOL status_profile_rates(BOOL be_verbose);
+extern bool status_profile_dump(bool be_verbose);
+extern bool status_profile_rates(bool be_verbose);
 
 /* added by OH */
 static void Ucrit_addUid(uid_t uid)
@@ -69,7 +68,7 @@ static unsigned int Ucrit_checkUid(uid_t uid)
 	return 0;
 }
 
-static unsigned int Ucrit_checkPid(pid_t pid)
+static unsigned int Ucrit_checkPid(struct server_id pid)
 {
 	int i;
 	
@@ -77,14 +76,14 @@ static unsigned int Ucrit_checkPid(pid_t pid)
 		return 1;
 	
 	for (i=0;i<Ucrit_MaxPid;i++) {
-		if( pid == Ucrit_pid[i] ) 
+		if (cluster_id_equal(&pid, &Ucrit_pid[i])) 
 			return 1;
 	}
 	
 	return 0;
 }
 
-static BOOL Ucrit_addPid( pid_t pid )
+static bool Ucrit_addPid( struct server_id pid )
 {
 	if ( !Ucrit_IsActive )
 		return True;
@@ -112,6 +111,10 @@ static void print_share_mode(const struct share_mode_entry *e,
 		return;
 	}
 
+	if (!process_exists(e->pid)) {
+		return;
+	}
+
 	if (count==0) {
 		d_printf("Locked files:\n");
 		d_printf("Pid          Uid        DenyMode   Access      R/W        Oplock           SharePath   Name   Time\n");
@@ -119,7 +122,7 @@ static void print_share_mode(const struct share_mode_entry *e,
 	}
 	count++;
 
-	if (Ucrit_checkPid(procid_to_pid(&e->pid))) {
+	if (Ucrit_checkPid(e->pid)) {
 		d_printf("%-11s  ",procid_str_static(&e->pid));
 		d_printf("%-9u  ", (unsigned int)e->uid);
 		switch (map_share_mode_to_deny_mode(e->share_access,
@@ -166,63 +169,90 @@ static void print_share_mode(const struct share_mode_entry *e,
 	}
 }
 
-static void print_brl(SMB_DEV_T dev,
-			SMB_INO_T ino,
-			struct process_id pid, 
+static void print_brl(struct file_id id,
+			struct server_id pid, 
 			enum brl_type lock_type,
 			enum brl_flavour lock_flav,
 			br_off start,
-			br_off size)
+			br_off size,
+			void *private_data)
 {
 	static int count;
+	int i;
+	static const struct {
+		enum brl_type lock_type;
+		const char *desc;
+	} lock_types[] = {
+		{ READ_LOCK, "R" },
+		{ WRITE_LOCK, "W" },
+		{ PENDING_READ_LOCK, "PR" },
+		{ PENDING_WRITE_LOCK, "PW" },
+		{ UNLOCK_LOCK, "U" }
+	};
+	const char *desc="X";
+	const char *sharepath = "";
+	const char *fname = "";
+	struct share_mode_lock *share_mode;
+
 	if (count==0) {
 		d_printf("Byte range locks:\n");
-		d_printf("   Pid     dev:inode  R/W      start        size\n");
-		d_printf("------------------------------------------------\n");
+		d_printf("Pid        dev:inode       R/W  start     size      SharePath               Name\n");
+		d_printf("--------------------------------------------------------------------------------\n");
 	}
 	count++;
 
-	d_printf("%8s   %05x:%05x    %s  %9.0f   %9.0f\n", 
-	       procid_str_static(&pid), (int)dev, (int)ino, 
-	       lock_type==READ_LOCK?"R":"W",
-	       (double)start, (double)size);
+	share_mode = fetch_share_mode_unlocked(NULL, id, "__unspecified__", "__unspecified__");
+	if (share_mode) {
+		sharepath = share_mode->servicepath;
+		fname = share_mode->filename;
+	}
+
+	for (i=0;i<ARRAY_SIZE(lock_types);i++) {
+		if (lock_type == lock_types[i].lock_type) {
+			desc = lock_types[i].desc;
+		}
+	}
+
+	d_printf("%-10s %-15s %-4s %-9.0f %-9.0f %-24s %-24s\n", 
+		 procid_str_static(&pid), file_id_string_tos(&id),
+		 desc,
+		 (double)start, (double)size,
+		 sharepath, fname);
+
+	TALLOC_FREE(share_mode);
 }
 
-static int traverse_fn1(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, void *state)
+static int traverse_fn1(struct db_record *rec,
+			const struct connections_key *key,
+			const struct connections_data *crec,
+			void *state)
 {
-	struct connections_data crec;
-
-	if (dbuf.dsize != sizeof(crec))
+	if (crec->cnum == -1)
 		return 0;
 
-	memcpy(&crec, dbuf.dptr, sizeof(crec));
-
-	if (crec.cnum == -1)
-		return 0;
-
-	if (!process_exists(crec.pid) || !Ucrit_checkUid(crec.uid)) {
+	if (!process_exists(crec->pid) || !Ucrit_checkUid(crec->uid)) {
 		return 0;
 	}
 
 	d_printf("%-10s   %s   %-12s  %s",
-	       crec.servicename,procid_str_static(&crec.pid),
-	       crec.machine,
-	       time_to_asc(crec.start));
+		 crec->servicename,procid_str_static(&crec->pid),
+		 crec->machine,
+		 time_to_asc(crec->start));
 
 	return 0;
 }
 
-static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, void *state)
+static int traverse_sessionid(struct db_record *db, void *state)
 {
 	struct sessionid sessionid;
 	fstring uid_str, gid_str;
 
-	if (dbuf.dsize != sizeof(sessionid))
+	if (db->value.dsize != sizeof(sessionid))
 		return 0;
 
-	memcpy(&sessionid, dbuf.dptr, sizeof(sessionid));
+	memcpy(&sessionid, db->value.dptr, sizeof(sessionid));
 
-	if (!process_exists_by_pid(sessionid.pid) || !Ucrit_checkUid(sessionid.uid)) {
+	if (!process_exists(sessionid.pid) || !Ucrit_checkUid(sessionid.uid)) {
 		return 0;
 	}
 
@@ -231,8 +261,8 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 	fstr_sprintf(uid_str, "%d", sessionid.uid);
 	fstr_sprintf(gid_str, "%d", sessionid.gid);
 
-	d_printf("%5d   %-12s  %-12s  %-12s (%s)\n",
-		 (int)sessionid.pid,
+	d_printf("%-7s   %-12s  %-12s  %-12s (%s)\n",
+		 procid_str_static(&sessionid.pid),
 		 numeric_only ? uid_str : uidtoname(sessionid.uid),
 		 numeric_only ? gid_str : gidtoname(sessionid.gid), 
 		 sessionid.remote_machine, sessionid.hostname);
@@ -247,24 +277,26 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 {
 	int c;
 	int profile_only = 0;
-	TDB_CONTEXT *tdb;
-	BOOL show_processes, show_locks, show_shares;
+	bool show_processes, show_locks, show_shares;
 	poptContext pc;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
-		{"processes",	'p', POPT_ARG_NONE,	&processes_only, 'p', "Show processes only" },
-		{"verbose",	'v', POPT_ARG_NONE, &verbose, 'v', "Be verbose" },
-		{"locks",	'L', POPT_ARG_NONE,	&locks_only, 'L', "Show locks only" },
-		{"shares",	'S', POPT_ARG_NONE,	&shares_only, 'S', "Show shares only" },
+		{"processes",	'p', POPT_ARG_NONE,	NULL, 'p', "Show processes only" },
+		{"verbose",	'v', POPT_ARG_NONE, 	NULL, 'v', "Be verbose" },
+		{"locks",	'L', POPT_ARG_NONE,	NULL, 'L', "Show locks only" },
+		{"shares",	'S', POPT_ARG_NONE,	NULL, 'S', "Show shares only" },
 		{"user", 	'u', POPT_ARG_STRING,	&username, 'u', "Switch to user" },
-		{"brief",	'b', POPT_ARG_NONE, 	&brief, 'b', "Be brief" },
+		{"brief",	'b', POPT_ARG_NONE, 	NULL, 'b', "Be brief" },
 		{"profile",     'P', POPT_ARG_NONE, NULL, 'P', "Do profiling" },
 		{"profile-rates", 'R', POPT_ARG_NONE, NULL, 'R', "Show call rates" },
-		{"byterange",	'B', POPT_ARG_NONE,	&show_brl, 'B', "Include byte range locks"},
-		{"numeric",	'n', POPT_ARG_NONE,	&numeric_only, 'n', "Numeric uid/gid"},
+		{"byterange",	'B', POPT_ARG_NONE,	NULL, 'B', "Include byte range locks"},
+		{"numeric",	'n', POPT_ARG_NONE,	NULL, 'n', "Numeric uid/gid"},
 		POPT_COMMON_SAMBA
 		POPT_TABLEEND
 	};
+	TALLOC_CTX *frame = talloc_stackframe();
+	int ret = 0;
+	struct messaging_context *msg_ctx;
 
 	sec_init();
 	load_case_tables();
@@ -275,7 +307,8 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 	
 	if (getuid() != geteuid()) {
 		d_printf("smbstatus should not be run setuid\n");
-		return(1);
+		ret = 1;
+		goto done;
 	}
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options, 
@@ -283,12 +316,34 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 	
 	while ((c = poptGetNextOpt(pc)) != -1) {
 		switch (c) {
-		case 'u':                                      
+		case 'p':
+			processes_only = true;
+			break;
+		case 'v':
+			verbose = true;
+			break;
+		case 'L':
+			locks_only = true;
+			break;
+		case 'S':
+			shares_only = true;
+			break;
+		case 'b':
+			brief = true;
+			break;
+		case 'u':
 			Ucrit_addUid(nametouid(poptGetOptArg(pc)));
 			break;
 		case 'P':
 		case 'R':
 			profile_only = c;
+			break;
+		case 'B':
+			show_brl = true;
+			break;
+		case 'n':
+			numeric_only = true;
+			break;
 		}
 	}
 
@@ -302,12 +357,31 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 		Ucrit_addUid( nametouid(username) );
 
 	if (verbose) {
-		d_printf("using configfile = %s\n", dyn_CONFIGFILE);
+		d_printf("using configfile = %s\n", get_dyn_CONFIGFILE());
 	}
 
-	if (!lp_load(dyn_CONFIGFILE,False,False,False,True)) {
-		fprintf(stderr, "Can't load %s - run testparm to debug it\n", dyn_CONFIGFILE);
-		return (-1);
+	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
+		fprintf(stderr, "Can't load %s - run testparm to debug it\n",
+			get_dyn_CONFIGFILE());
+		ret = -1;
+		goto done;
+	}
+
+	/*
+	 * This implicitly initializes the global ctdbd connection, usable by
+	 * the db_open() calls further down.
+	 */
+
+	msg_ctx = messaging_init(NULL, procid_self(),
+				 event_context_init(NULL));
+
+	db_tdb2_setup_messaging(msg_ctx, true);
+
+	if (!lp_load(get_dyn_CONFIGFILE(),False,False,False,True)) {
+		fprintf(stderr, "Can't load %s - run testparm to debug it\n",
+			get_dyn_CONFIGFILE());
+		ret = -1;
+		goto done;
 	}
 
 	switch (profile_only) {
@@ -322,82 +396,86 @@ static int traverse_sessionid(TDB_CONTEXT *tdb, TDB_DATA kbuf, TDB_DATA dbuf, vo
 	}
 
 	if ( show_processes ) {
-		tdb = tdb_open_log(lock_path("sessionid.tdb"), 0, TDB_DEFAULT, O_RDONLY, 0);
-		if (!tdb) {
+		struct db_context *db;
+		db = db_open(NULL, lock_path("sessionid.tdb"), 0,
+			     TDB_CLEAR_IF_FIRST, O_RDONLY, 0644);
+		if (!db) {
 			d_printf("sessionid.tdb not initialised\n");
 		} else {
 			d_printf("\nSamba version %s\n",SAMBA_VERSION_STRING);
 			d_printf("PID     Username      Group         Machine                        \n");
 			d_printf("-------------------------------------------------------------------\n");
 
-			tdb_traverse(tdb, traverse_sessionid, NULL);
-			tdb_close(tdb);
+			db->traverse_read(db, traverse_sessionid, NULL);
+			TALLOC_FREE(db);
 		}
 
-		if (processes_only) 
-			exit(0);	
+		if (processes_only) {
+			goto done;
+		}
 	}
   
 	if ( show_shares ) {
-		tdb = tdb_open_log(lock_path("connections.tdb"), 0, TDB_DEFAULT, O_RDONLY, 0);
-		if (!tdb) {
-			d_printf("%s not initialised\n", lock_path("connections.tdb"));
-			d_printf("This is normal if an SMB client has never connected to your server.\n");
-		}  else  {
-			if (verbose) {
-				d_printf("Opened %s\n", lock_path("connections.tdb"));
-			}
-
-			if (brief) 
-				exit(0);
-		
-			d_printf("\nService      pid     machine       Connected at\n");
-			d_printf("-------------------------------------------------------\n");
-	
-			tdb_traverse(tdb, traverse_fn1, NULL);
-			tdb_close(tdb);
-
-			d_printf("\n");
+		if (verbose) {
+			d_printf("Opened %s\n", lock_path("connections.tdb"));
 		}
 
-		if ( shares_only )
-			exit(0);
+		if (brief) {
+			goto done;
+		}
+		
+		d_printf("\nService      pid     machine       Connected at\n");
+		d_printf("-------------------------------------------------------\n");
+	
+		connections_forall(traverse_fn1, NULL);
+
+		d_printf("\n");
+
+		if ( shares_only ) {
+			goto done;
+		}
 	}
 
 	if ( show_locks ) {
-		int ret;
+		int result;
+		struct db_context *db;
+		db = db_open(NULL, lock_path("locking.tdb"), 0,
+			     TDB_CLEAR_IF_FIRST, O_RDONLY, 0);
 
-		tdb = tdb_open_log(lock_path("locking.tdb"), 0, TDB_DEFAULT, O_RDONLY, 0);
-
-		if (!tdb) {
-			d_printf("%s not initialised\n", lock_path("locking.tdb"));
-			d_printf("This is normal if an SMB client has never connected to your server.\n");
+		if (!db) {
+			d_printf("%s not initialised\n",
+				 lock_path("locking.tdb"));
+			d_printf("This is normal if an SMB client has never "
+				 "connected to your server.\n");
 			exit(0);
 		} else {
-			tdb_close(tdb);
+			TALLOC_FREE(db);
 		}
 
-		if (!locking_init(1)) {
+		if (!locking_init_readonly()) {
 			d_printf("Can't initialise locking module - exiting\n");
-			exit(1);
+			ret = 1;
+			goto done;
 		}
 		
-		ret = share_mode_forall(print_share_mode, NULL);
+		result = share_mode_forall(print_share_mode, NULL);
 
-		if (ret == 0) {
+		if (result == 0) {
 			d_printf("No locked files\n");
-		} else if (ret == -1) {
+		} else if (result == -1) {
 			d_printf("locked file list truncated\n");
 		}
 		
 		d_printf("\n");
 
 		if (show_brl) {
-			brl_forall(print_brl);
+			brl_forall(print_brl, NULL);
 		}
 		
 		locking_end();
 	}
 
-	return (0);
+done:
+	TALLOC_FREE(frame);
+	return ret;
 }

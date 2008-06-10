@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -41,7 +40,7 @@ static void vfswrap_disconnect(vfs_handle_struct *handle)
 
 /* Disk operations */
 
-static SMB_BIG_UINT vfswrap_disk_free(vfs_handle_struct *handle,  const char *path, BOOL small_query, SMB_BIG_UINT *bsize,
+static SMB_BIG_UINT vfswrap_disk_free(vfs_handle_struct *handle,  const char *path, bool small_query, SMB_BIG_UINT *bsize,
 			       SMB_BIG_UINT *dfree, SMB_BIG_UINT *dsize)
 {
 	SMB_BIG_UINT result;
@@ -80,7 +79,7 @@ static int vfswrap_set_quota(struct vfs_handle_struct *handle,  enum SMB_QUOTA_T
 #endif
 }
 
-static int vfswrap_get_shadow_copy_data(struct vfs_handle_struct *handle, struct files_struct *fsp, SHADOW_COPY_DATA *shadow_copy_data, BOOL labels)
+static int vfswrap_get_shadow_copy_data(struct vfs_handle_struct *handle, struct files_struct *fsp, SHADOW_COPY_DATA *shadow_copy_data, bool labels)
 {
 	errno = ENOSYS;
 	return -1;  /* Not implemented. */
@@ -89,6 +88,17 @@ static int vfswrap_get_shadow_copy_data(struct vfs_handle_struct *handle, struct
 static int vfswrap_statvfs(struct vfs_handle_struct *handle,  const char *path, vfs_statvfs_struct *statbuf)
 {
 	return sys_statvfs(path, statbuf);
+}
+
+static uint32_t vfswrap_fs_capabilities(struct vfs_handle_struct *handle)
+{
+#if defined(DARWINOS)
+	struct vfs_statvfs_struct statbuf;
+	ZERO_STRUCT(statbuf);
+	sys_statvfs(handle->conn->connectpath, &statbuf);
+	return statbuf.FsCapabilities;
+#endif
+	return FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES;
 }
 
 /* Directory operations */
@@ -139,7 +149,7 @@ static void vfswrap_rewinddir(vfs_handle_struct *handle,  SMB_STRUCT_DIR *dirp)
 static int vfswrap_mkdir(vfs_handle_struct *handle,  const char *path, mode_t mode)
 {
 	int result;
-	BOOL has_dacl = False;
+	bool has_dacl = False;
 
 	START_PROFILE(syscall_mkdir);
 
@@ -198,40 +208,39 @@ static int vfswrap_open(vfs_handle_struct *handle,  const char *fname,
 	return result;
 }
 
-static int vfswrap_close(vfs_handle_struct *handle, files_struct *fsp, int fd)
+static int vfswrap_close(vfs_handle_struct *handle, files_struct *fsp)
 {
 	int result;
 
 	START_PROFILE(syscall_close);
-
-	result = close(fd);
+	result = fd_close_posix(fsp);
 	END_PROFILE(syscall_close);
 	return result;
 }
 
-static ssize_t vfswrap_read(vfs_handle_struct *handle, files_struct *fsp, int fd, void *data, size_t n)
+static ssize_t vfswrap_read(vfs_handle_struct *handle, files_struct *fsp, void *data, size_t n)
 {
 	ssize_t result;
 
 	START_PROFILE_BYTES(syscall_read, n);
-	result = sys_read(fd, data, n);
+	result = sys_read(fsp->fh->fd, data, n);
 	END_PROFILE(syscall_read);
 	return result;
 }
 
-static ssize_t vfswrap_pread(vfs_handle_struct *handle, files_struct *fsp, int fd, void *data,
+static ssize_t vfswrap_pread(vfs_handle_struct *handle, files_struct *fsp, void *data,
 			size_t n, SMB_OFF_T offset)
 {
 	ssize_t result;
 
 #if defined(HAVE_PREAD) || defined(HAVE_PREAD64)
 	START_PROFILE_BYTES(syscall_pread, n);
-	result = sys_pread(fd, data, n, offset);
+	result = sys_pread(fsp->fh->fd, data, n, offset);
 	END_PROFILE(syscall_pread);
 
 	if (result == -1 && errno == ESPIPE) {
 		/* Maintain the fiction that pipes can be seeked (sought?) on. */
-		result = SMB_VFS_READ(fsp, fd, data, n);
+		result = SMB_VFS_READ(fsp, data, n);
 		fsp->fh->pos = 0;
 	}
 
@@ -239,23 +248,23 @@ static ssize_t vfswrap_pread(vfs_handle_struct *handle, files_struct *fsp, int f
 	SMB_OFF_T   curr;
 	int lerrno;
 
-	curr = SMB_VFS_LSEEK(fsp, fd, 0, SEEK_CUR);
+	curr = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
 	if (curr == -1 && errno == ESPIPE) {
 		/* Maintain the fiction that pipes can be seeked (sought?) on. */
-		result = SMB_VFS_READ(fsp, fd, data, n);
+		result = SMB_VFS_READ(fsp, data, n);
 		fsp->fh->pos = 0;
 		return result;
 	}
 
-	if (SMB_VFS_LSEEK(fsp, fd, offset, SEEK_SET) == -1) {
+	if (SMB_VFS_LSEEK(fsp, offset, SEEK_SET) == -1) {
 		return -1;
 	}
 
 	errno = 0;
-	result = SMB_VFS_READ(fsp, fd, data, n);
+	result = SMB_VFS_READ(fsp, data, n);
 	lerrno = errno;
 
-	SMB_VFS_LSEEK(fsp, fd, curr, SEEK_SET);
+	SMB_VFS_LSEEK(fsp, curr, SEEK_SET);
 	errno = lerrno;
 
 #endif /* HAVE_PREAD */
@@ -263,48 +272,48 @@ static ssize_t vfswrap_pread(vfs_handle_struct *handle, files_struct *fsp, int f
 	return result;
 }
 
-static ssize_t vfswrap_write(vfs_handle_struct *handle, files_struct *fsp, int fd, const void *data, size_t n)
+static ssize_t vfswrap_write(vfs_handle_struct *handle, files_struct *fsp, const void *data, size_t n)
 {
 	ssize_t result;
 
 	START_PROFILE_BYTES(syscall_write, n);
-	result = sys_write(fd, data, n);
+	result = sys_write(fsp->fh->fd, data, n);
 	END_PROFILE(syscall_write);
 	return result;
 }
 
-static ssize_t vfswrap_pwrite(vfs_handle_struct *handle, files_struct *fsp, int fd, const void *data,
+static ssize_t vfswrap_pwrite(vfs_handle_struct *handle, files_struct *fsp, const void *data,
 			size_t n, SMB_OFF_T offset)
 {
 	ssize_t result;
 
 #if defined(HAVE_PWRITE) || defined(HAVE_PRWITE64)
 	START_PROFILE_BYTES(syscall_pwrite, n);
-	result = sys_pwrite(fd, data, n, offset);
+	result = sys_pwrite(fsp->fh->fd, data, n, offset);
 	END_PROFILE(syscall_pwrite);
 
 	if (result == -1 && errno == ESPIPE) {
 		/* Maintain the fiction that pipes can be sought on. */
-		result = SMB_VFS_WRITE(fsp, fd, data, n);
+		result = SMB_VFS_WRITE(fsp, data, n);
 	}
 
 #else /* HAVE_PWRITE */
 	SMB_OFF_T   curr;
 	int         lerrno;
 
-	curr = SMB_VFS_LSEEK(fsp, fd, 0, SEEK_CUR);
+	curr = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
 	if (curr == -1) {
 		return -1;
 	}
 
-	if (SMB_VFS_LSEEK(fsp, fd, offset, SEEK_SET) == -1) {
+	if (SMB_VFS_LSEEK(fsp, offset, SEEK_SET) == -1) {
 		return -1;
 	}
 
-	result = SMB_VFS_WRITE(fsp, fd, data, n);
+	result = SMB_VFS_WRITE(fsp, data, n);
 	lerrno = errno;
 
-	SMB_VFS_LSEEK(fsp, fd, curr, SEEK_SET);
+	SMB_VFS_LSEEK(fsp, curr, SEEK_SET);
 	errno = lerrno;
 
 #endif /* HAVE_PWRITE */
@@ -312,15 +321,15 @@ static ssize_t vfswrap_pwrite(vfs_handle_struct *handle, files_struct *fsp, int 
 	return result;
 }
 
-static SMB_OFF_T vfswrap_lseek(vfs_handle_struct *handle, files_struct *fsp, int filedes, SMB_OFF_T offset, int whence)
+static SMB_OFF_T vfswrap_lseek(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T offset, int whence)
 {
 	SMB_OFF_T result = 0;
 
 	START_PROFILE(syscall_lseek);
 
 	/* Cope with 'stat' file opens. */
-	if (filedes != -1)
-		result = sys_lseek(filedes, offset, whence);
+	if (fsp->fh->fd != -1)
+		result = sys_lseek(fsp->fh->fd, offset, whence);
 
 	/*
 	 * We want to maintain the fiction that we can seek
@@ -338,14 +347,28 @@ static SMB_OFF_T vfswrap_lseek(vfs_handle_struct *handle, files_struct *fsp, int
 	return result;
 }
 
-static ssize_t vfswrap_sendfile(vfs_handle_struct *handle, int tofd, files_struct *fsp, int fromfd, const DATA_BLOB *hdr,
+static ssize_t vfswrap_sendfile(vfs_handle_struct *handle, int tofd, files_struct *fromfsp, const DATA_BLOB *hdr,
 			SMB_OFF_T offset, size_t n)
 {
 	ssize_t result;
 
 	START_PROFILE_BYTES(syscall_sendfile, n);
-	result = sys_sendfile(tofd, fromfd, hdr, offset, n);
+	result = sys_sendfile(tofd, fromfsp->fh->fd, hdr, offset, n);
 	END_PROFILE(syscall_sendfile);
+	return result;
+}
+
+static ssize_t vfswrap_recvfile(vfs_handle_struct *handle,
+			int fromfd,
+			files_struct *tofsp,
+			SMB_OFF_T offset,
+			size_t n)
+{
+	ssize_t result;
+
+	START_PROFILE_BYTES(syscall_recvfile, n);
+	result = sys_recvfile(fromfd, tofsp->fh->fd, offset, n);
+	END_PROFILE(syscall_recvfile);
 	return result;
 }
 
@@ -453,13 +476,13 @@ static int vfswrap_rename(vfs_handle_struct *handle,  const char *oldname, const
 	return result;
 }
 
-static int vfswrap_fsync(vfs_handle_struct *handle, files_struct *fsp, int fd)
+static int vfswrap_fsync(vfs_handle_struct *handle, files_struct *fsp)
 {
 #ifdef HAVE_FSYNC
 	int result;
 
 	START_PROFILE(syscall_fsync);
-	result = fsync(fd);
+	result = fsync(fsp->fh->fd);
 	END_PROFILE(syscall_fsync);
 	return result;
 #else
@@ -477,12 +500,12 @@ static int vfswrap_stat(vfs_handle_struct *handle,  const char *fname, SMB_STRUC
 	return result;
 }
 
-static int vfswrap_fstat(vfs_handle_struct *handle, files_struct *fsp, int fd, SMB_STRUCT_STAT *sbuf)
+static int vfswrap_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_STRUCT_STAT *sbuf)
 {
 	int result;
 
 	START_PROFILE(syscall_fstat);
-	result = sys_fstat(fd, sbuf);
+	result = sys_fstat(fsp->fh->fd, sbuf);
 	END_PROFILE(syscall_fstat);
 	return result;
 }
@@ -535,7 +558,7 @@ static int vfswrap_chmod(vfs_handle_struct *handle,  const char *path, mode_t mo
 	return result;
 }
 
-static int vfswrap_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode)
+static int vfswrap_fchmod(vfs_handle_struct *handle, files_struct *fsp, mode_t mode)
 {
 	int result;
 
@@ -549,7 +572,7 @@ static int vfswrap_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, 
 
 	{
 		int saved_errno = errno; /* We might get ENOSYS */
-		if ((result = SMB_VFS_FCHMOD_ACL(fsp, fd, mode)) == 0) {
+		if ((result = SMB_VFS_FCHMOD_ACL(fsp, mode)) == 0) {
 			END_PROFILE(syscall_fchmod);
 			return result;
 		}
@@ -558,7 +581,7 @@ static int vfswrap_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, 
 	}
 
 #if defined(HAVE_FCHMOD)
-	result = fchmod(fd, mode);
+	result = fchmod(fsp->fh->fd, mode);
 #else
 	result = -1;
 	errno = ENOSYS;
@@ -568,7 +591,7 @@ static int vfswrap_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, 
 	return result;
 }
 
-static int vfswrap_chown(vfs_handle_struct *handle,  const char *path, uid_t uid, gid_t gid)
+static int vfswrap_chown(vfs_handle_struct *handle, const char *path, uid_t uid, gid_t gid)
 {
 	int result;
 
@@ -578,19 +601,29 @@ static int vfswrap_chown(vfs_handle_struct *handle,  const char *path, uid_t uid
 	return result;
 }
 
-static int vfswrap_fchown(vfs_handle_struct *handle, files_struct *fsp, int fd, uid_t uid, gid_t gid)
+static int vfswrap_fchown(vfs_handle_struct *handle, files_struct *fsp, uid_t uid, gid_t gid)
 {
 #ifdef HAVE_FCHOWN
 	int result;
 
 	START_PROFILE(syscall_fchown);
-	result = fchown(fd, uid, gid);
+	result = fchown(fsp->fh->fd, uid, gid);
 	END_PROFILE(syscall_fchown);
 	return result;
 #else
 	errno = ENOSYS;
 	return -1;
 #endif
+}
+
+static int vfswrap_lchown(vfs_handle_struct *handle, const char *path, uid_t uid, gid_t gid)
+{
+	int result;
+
+	START_PROFILE(syscall_lchown);
+	result = sys_lchown(path, uid, gid);
+	END_PROFILE(syscall_lchown);
+	return result;
 }
 
 static int vfswrap_chdir(vfs_handle_struct *handle,  const char *path)
@@ -650,17 +683,17 @@ static int vfswrap_ntimes(vfs_handle_struct *handle, const char *path, const str
  allocate is set.
 **********************************************************************/
 
-static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int fd, SMB_OFF_T len)
+static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T len)
 {
 	SMB_STRUCT_STAT st;
-	SMB_OFF_T currpos = SMB_VFS_LSEEK(fsp, fd, 0, SEEK_CUR);
+	SMB_OFF_T currpos = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
 	unsigned char zero_space[4096];
 	SMB_OFF_T space_to_write;
 
 	if (currpos == -1)
 		return -1;
 
-	if (SMB_VFS_FSTAT(fsp, fd, &st) == -1)
+	if (SMB_VFS_FSTAT(fsp, &st) == -1)
 		return -1;
 
 	space_to_write = len - st.st_size;
@@ -675,10 +708,10 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 
 	/* Shrink - just ftruncate. */
 	if (st.st_size > len)
-		return sys_ftruncate(fd, len);
+		return sys_ftruncate(fsp->fh->fd, len);
 
 	/* Write out the real space on disk. */
-	if (SMB_VFS_LSEEK(fsp, fd, st.st_size, SEEK_SET) != st.st_size)
+	if (SMB_VFS_LSEEK(fsp, st.st_size, SEEK_SET) != st.st_size)
 		return -1;
 
 	space_to_write = len - st.st_size;
@@ -688,7 +721,7 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 		SMB_OFF_T retlen;
 		SMB_OFF_T current_len_to_write = MIN(sizeof(zero_space),space_to_write);
 
-		retlen = SMB_VFS_WRITE(fsp,fsp->fh->fd,(char *)zero_space,current_len_to_write);
+		retlen = SMB_VFS_WRITE(fsp,(char *)zero_space,current_len_to_write);
 		if (retlen <= 0)
 			return -1;
 
@@ -696,13 +729,13 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	}
 
 	/* Seek to where we were */
-	if (SMB_VFS_LSEEK(fsp, fd, currpos, SEEK_SET) != currpos)
+	if (SMB_VFS_LSEEK(fsp, currpos, SEEK_SET) != currpos)
 		return -1;
 
 	return 0;
 }
 
-static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int fd, SMB_OFF_T len)
+static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T len)
 {
 	int result = -1;
 	SMB_STRUCT_STAT st;
@@ -712,7 +745,7 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int f
 	START_PROFILE(syscall_ftruncate);
 
 	if (lp_strict_allocate(SNUM(fsp->conn))) {
-		result = strict_allocate_ftruncate(handle, fsp, fd, len);
+		result = strict_allocate_ftruncate(handle, fsp, len);
 		END_PROFILE(syscall_ftruncate);
 		return result;
 	}
@@ -723,14 +756,14 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int f
 	   expansion and some that don't! On Linux fat can't do
 	   ftruncate extend but ext2 can. */
 
-	result = sys_ftruncate(fd, len);
+	result = sys_ftruncate(fsp->fh->fd, len);
 	if (result == 0)
 		goto done;
 
 	/* According to W. R. Stevens advanced UNIX prog. Pure 4.3 BSD cannot
 	   extend a file with ftruncate. Provide alternate implementation
 	   for this */
-	currpos = SMB_VFS_LSEEK(fsp, fd, 0, SEEK_CUR);
+	currpos = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
 	if (currpos == -1) {
 		goto done;
 	}
@@ -739,7 +772,7 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int f
 	   size in which case the ftruncate above should have
 	   succeeded or shorter, in which case seek to len - 1 and
 	   write 1 byte of zero */
-	if (SMB_VFS_FSTAT(fsp, fd, &st) == -1) {
+	if (SMB_VFS_FSTAT(fsp, &st) == -1) {
 		goto done;
 	}
 
@@ -760,14 +793,14 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int f
 		goto done;
 	}
 
-	if (SMB_VFS_LSEEK(fsp, fd, len-1, SEEK_SET) != len -1)
+	if (SMB_VFS_LSEEK(fsp, len-1, SEEK_SET) != len -1)
 		goto done;
 
-	if (SMB_VFS_WRITE(fsp, fd, &c, 1)!=1)
+	if (SMB_VFS_WRITE(fsp, &c, 1)!=1)
 		goto done;
 
 	/* Seek to where we were */
-	if (SMB_VFS_LSEEK(fsp, fd, currpos, SEEK_SET) != currpos)
+	if (SMB_VFS_LSEEK(fsp, currpos, SEEK_SET) != currpos)
 		goto done;
 	result = 0;
 
@@ -777,48 +810,49 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, int f
 	return result;
 }
 
-static BOOL vfswrap_lock(vfs_handle_struct *handle, files_struct *fsp, int fd, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
+static bool vfswrap_lock(vfs_handle_struct *handle, files_struct *fsp, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
 {
-	BOOL result;
+	bool result;
 
 	START_PROFILE(syscall_fcntl_lock);
-	result =  fcntl_lock(fd, op, offset, count, type);
+	result =  fcntl_lock(fsp->fh->fd, op, offset, count, type);
 	END_PROFILE(syscall_fcntl_lock);
 	return result;
 }
 
-static int vfswrap_kernel_flock(vfs_handle_struct *handle, files_struct *fsp, int fd,
+static int vfswrap_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 				uint32 share_mode)
 {
 	START_PROFILE(syscall_kernel_flock);
-	kernel_flock(fd, share_mode);
+	kernel_flock(fsp->fh->fd, share_mode);
 	END_PROFILE(syscall_kernel_flock);
 	return 0;
 }
 
-static BOOL vfswrap_getlock(vfs_handle_struct *handle, files_struct *fsp, int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pid_t *ppid)
+static bool vfswrap_getlock(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pid_t *ppid)
 {
-	BOOL result;
+	bool result;
 
 	START_PROFILE(syscall_fcntl_getlock);
-	result =  fcntl_getlock(fd, poffset, pcount, ptype, ppid);
+	result =  fcntl_getlock(fsp->fh->fd, poffset, pcount, ptype, ppid);
 	END_PROFILE(syscall_fcntl_getlock);
 	return result;
 }
 
-static int vfswrap_linux_setlease(vfs_handle_struct *handle, files_struct *fsp, int fd,
+static int vfswrap_linux_setlease(vfs_handle_struct *handle, files_struct *fsp,
 				int leasetype)
 {
 	int result = -1;
 
 	START_PROFILE(syscall_linux_setlease);
 
-#ifdef LINUX
+#ifdef HAVE_KERNEL_OPLOCKS_LINUX
 	/* first set the signal handler */
-	if(linux_set_lease_sighandler(fd) == -1)
+	if(linux_set_lease_sighandler(fsp->fh->fd) == -1) {
 		return -1;
+	}
 
-	result = linux_setlease(fd, leasetype);
+	result = linux_setlease(fsp->fh->fd, leasetype);
 #else
 	errno = ENOSYS;
 #endif
@@ -913,29 +947,94 @@ static int vfswrap_chflags(vfs_handle_struct *handle, const char *path, int flag
 #endif
 }
 
-static size_t vfswrap_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp, int fd, uint32 security_info, SEC_DESC **ppdesc)
+static struct file_id vfswrap_file_id_create(struct vfs_handle_struct *handle, SMB_DEV_T dev, SMB_INO_T inode)
 {
-	size_t result;
+	return file_id_create_dev(dev, inode);
+}
+
+static NTSTATUS vfswrap_streaminfo(vfs_handle_struct *handle,
+				   struct files_struct *fsp,
+				   const char *fname,
+				   TALLOC_CTX *mem_ctx,
+				   unsigned int *pnum_streams,
+				   struct stream_struct **pstreams)
+{
+	SMB_STRUCT_STAT sbuf;
+	unsigned int num_streams = 0;
+	struct stream_struct *streams = NULL;
+	int ret;
+
+	if ((fsp != NULL) && (fsp->is_directory)) {
+		/*
+		 * No default streams on directories
+		 */
+		goto done;
+	}
+
+	if ((fsp != NULL) && (fsp->fh->fd != -1)) {
+		ret = SMB_VFS_FSTAT(fsp, &sbuf);
+	}
+	else {
+		ret = SMB_VFS_STAT(handle->conn, fname, &sbuf);
+	}
+
+	if (ret == -1) {
+		return map_nt_error_from_unix(errno);
+	}
+
+	if (S_ISDIR(sbuf.st_mode)) {
+		goto done;
+	}
+
+	streams = talloc(mem_ctx, struct stream_struct);
+
+	if (streams == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	streams->size = sbuf.st_size;
+	streams->alloc_size = get_allocation_size(handle->conn, fsp, &sbuf);
+
+	streams->name = talloc_strdup(streams, "::$DATA");
+	if (streams->name == NULL) {
+		TALLOC_FREE(streams);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	num_streams = 1;
+ done:
+	*pnum_streams = num_streams;
+	*pstreams = streams;
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS vfswrap_fget_nt_acl(vfs_handle_struct *handle,
+				    files_struct *fsp,
+				    uint32 security_info, SEC_DESC **ppdesc)
+{
+	NTSTATUS result;
 
 	START_PROFILE(fget_nt_acl);
-	result = get_nt_acl(fsp, security_info, ppdesc);
+	result = posix_fget_nt_acl(fsp, security_info, ppdesc);
 	END_PROFILE(fget_nt_acl);
 	return result;
 }
 
-static size_t vfswrap_get_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info, SEC_DESC **ppdesc)
+static NTSTATUS vfswrap_get_nt_acl(vfs_handle_struct *handle,
+				   const char *name,
+				   uint32 security_info, SEC_DESC **ppdesc)
 {
-	size_t result;
+	NTSTATUS result;
 
 	START_PROFILE(get_nt_acl);
-	result = get_nt_acl(fsp, security_info, ppdesc);
+	result = posix_get_nt_acl(handle->conn, name, security_info, ppdesc);
 	END_PROFILE(get_nt_acl);
 	return result;
 }
 
-static BOOL vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, int fd, uint32 security_info_sent, SEC_DESC *psd)
+static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 {
-	BOOL result;
+	NTSTATUS result;
 
 	START_PROFILE(fset_nt_acl);
 	result = set_nt_acl(fsp, security_info_sent, psd);
@@ -943,9 +1042,9 @@ static BOOL vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, in
 	return result;
 }
 
-static BOOL vfswrap_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, SEC_DESC *psd)
+static NTSTATUS vfswrap_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, SEC_DESC *psd)
 {
-	BOOL result;
+	NTSTATUS result;
 
 	START_PROFILE(set_nt_acl);
 	result = set_nt_acl(fsp, security_info_sent, psd);
@@ -968,7 +1067,7 @@ static int vfswrap_chmod_acl(vfs_handle_struct *handle,  const char *name, mode_
 #endif
 }
 
-static int vfswrap_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode)
+static int vfswrap_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, mode_t mode)
 {
 #ifdef HAVE_NO_ACL
 	errno = ENOSYS;
@@ -977,7 +1076,7 @@ static int vfswrap_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, int 
 	int result;
 
 	START_PROFILE(fchmod_acl);
-	result = fchmod_acl(fsp, fd, mode);
+	result = fchmod_acl(fsp, mode);
 	END_PROFILE(fchmod_acl);
 	return result;
 #endif
@@ -1008,9 +1107,9 @@ static SMB_ACL_T vfswrap_sys_acl_get_file(vfs_handle_struct *handle,  const char
 	return sys_acl_get_file(handle, path_p, type);
 }
 
-static SMB_ACL_T vfswrap_sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp, int fd)
+static SMB_ACL_T vfswrap_sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
 {
-	return sys_acl_get_fd(handle, fsp, fd);
+	return sys_acl_get_fd(handle, fsp);
 }
 
 static int vfswrap_sys_acl_clear_perms(vfs_handle_struct *handle,  SMB_ACL_PERMSET_T permset)
@@ -1063,9 +1162,9 @@ static int vfswrap_sys_acl_set_file(vfs_handle_struct *handle,  const char *name
 	return sys_acl_set_file(handle, name, acltype, theacl);
 }
 
-static int vfswrap_sys_acl_set_fd(vfs_handle_struct *handle, files_struct *fsp, int fd, SMB_ACL_T theacl)
+static int vfswrap_sys_acl_set_fd(vfs_handle_struct *handle, files_struct *fsp, SMB_ACL_T theacl)
 {
-	return sys_acl_set_fd(handle, fsp, fd, theacl);
+	return sys_acl_set_fd(handle, fsp, theacl);
 }
 
 static int vfswrap_sys_acl_delete_def_file(vfs_handle_struct *handle,  const char *path)
@@ -1107,9 +1206,9 @@ static ssize_t vfswrap_lgetxattr(struct vfs_handle_struct *handle,const char *pa
 	return sys_lgetxattr(path, name, value, size);
 }
 
-static ssize_t vfswrap_fgetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name, void *value, size_t size)
+static ssize_t vfswrap_fgetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name, void *value, size_t size)
 {
-	return sys_fgetxattr(fd, name, value, size);
+	return sys_fgetxattr(fsp->fh->fd, name, value, size);
 }
 
 static ssize_t vfswrap_listxattr(struct vfs_handle_struct *handle, const char *path, char *list, size_t size)
@@ -1122,9 +1221,9 @@ ssize_t vfswrap_llistxattr(struct vfs_handle_struct *handle, const char *path, c
 	return sys_llistxattr(path, list, size);
 }
 
-ssize_t vfswrap_flistxattr(struct vfs_handle_struct *handle, struct files_struct *fsp,int fd, char *list, size_t size)
+ssize_t vfswrap_flistxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, char *list, size_t size)
 {
-	return sys_flistxattr(fd, list, size);
+	return sys_flistxattr(fsp->fh->fd, list, size);
 }
 
 static int vfswrap_removexattr(struct vfs_handle_struct *handle, const char *path, const char *name)
@@ -1137,9 +1236,9 @@ static int vfswrap_lremovexattr(struct vfs_handle_struct *handle, const char *pa
 	return sys_lremovexattr(path, name);
 }
 
-static int vfswrap_fremovexattr(struct vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name)
+static int vfswrap_fremovexattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name)
 {
-	return sys_fremovexattr(fd, name);
+	return sys_fremovexattr(fsp->fh->fd, name);
 }
 
 static int vfswrap_setxattr(struct vfs_handle_struct *handle, const char *path, const char *name, const void *value, size_t size, int flags)
@@ -1152,9 +1251,9 @@ static int vfswrap_lsetxattr(struct vfs_handle_struct *handle, const char *path,
 	return sys_lsetxattr(path, name, value, size, flags);
 }
 
-static int vfswrap_fsetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name, const void *value, size_t size, int flags)
+static int vfswrap_fsetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name, const void *value, size_t size, int flags)
 {
-	return sys_fsetxattr(fd, name, value, size, flags);
+	return sys_fsetxattr(fsp->fh->fd, name, value, size, flags);
 }
 
 static int vfswrap_aio_read(struct vfs_handle_struct *handle, struct files_struct *fsp, SMB_STRUCT_AIOCB *aiocb)
@@ -1172,9 +1271,9 @@ static ssize_t vfswrap_aio_return(struct vfs_handle_struct *handle, struct files
 	return sys_aio_return(aiocb);
 }
 
-static int vfswrap_aio_cancel(struct vfs_handle_struct *handle, struct files_struct *fsp, int fd, SMB_STRUCT_AIOCB *aiocb)
+static int vfswrap_aio_cancel(struct vfs_handle_struct *handle, struct files_struct *fsp, SMB_STRUCT_AIOCB *aiocb)
 {
-	return sys_aio_cancel(fd, aiocb);
+	return sys_aio_cancel(fsp->fh->fd, aiocb);
 }
 
 static int vfswrap_aio_error(struct vfs_handle_struct *handle, struct files_struct *fsp, SMB_STRUCT_AIOCB *aiocb)
@@ -1190,6 +1289,36 @@ static int vfswrap_aio_fsync(struct vfs_handle_struct *handle, struct files_stru
 static int vfswrap_aio_suspend(struct vfs_handle_struct *handle, struct files_struct *fsp, const SMB_STRUCT_AIOCB * const aiocb[], int n, const struct timespec *timeout)
 {
 	return sys_aio_suspend(aiocb, n, timeout);
+}
+
+static bool vfswrap_aio_force(struct vfs_handle_struct *handle, struct files_struct *fsp)
+{
+	return false;
+}
+
+static bool vfswrap_is_offline(struct vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf)
+{
+	if (ISDOT(path) || ISDOTDOT(path)) {
+		return false;
+	}
+
+	if (!lp_dmapi_support(SNUM(handle->conn)) || !dmapi_have_session()) {
+#if defined(ENOTSUP)
+		errno = ENOTSUP;
+#endif
+		return false;
+	}
+
+	return (dmapi_file_flags(path) & FILE_ATTRIBUTE_OFFLINE) != 0;
+}
+
+static int vfswrap_set_offline(struct vfs_handle_struct *handle, const char *path)
+{
+	/* We don't know how to set offline bit by default, needs to be overriden in the vfs modules */
+#if defined(ENOTSUP)
+	errno = ENOTSUP;
+#endif
+	return -1;
 }
 
 static vfs_op_tuple vfs_default_ops[] = {
@@ -1209,6 +1338,8 @@ static vfs_op_tuple vfs_default_ops[] = {
 	{SMB_VFS_OP(vfswrap_get_shadow_copy_data), SMB_VFS_OP_GET_SHADOW_COPY_DATA,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_statvfs),	SMB_VFS_OP_STATVFS,
+	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_fs_capabilities), SMB_VFS_OP_FS_CAPABILITIES,
 	 SMB_VFS_LAYER_OPAQUE},
 
 	/* Directory operations */
@@ -1248,6 +1379,8 @@ static vfs_op_tuple vfs_default_ops[] = {
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_sendfile),	SMB_VFS_OP_SENDFILE,
 	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_recvfile),	SMB_VFS_OP_RECVFILE,
+	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_rename),	SMB_VFS_OP_RENAME,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_fsync),	SMB_VFS_OP_FSYNC,
@@ -1267,6 +1400,8 @@ static vfs_op_tuple vfs_default_ops[] = {
 	{SMB_VFS_OP(vfswrap_chown),	SMB_VFS_OP_CHOWN,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_fchown),	SMB_VFS_OP_FCHOWN,
+	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_lchown),	SMB_VFS_OP_LCHOWN,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_chdir),	SMB_VFS_OP_CHDIR,
 	 SMB_VFS_LAYER_OPAQUE},
@@ -1297,6 +1432,10 @@ static vfs_op_tuple vfs_default_ops[] = {
 	{SMB_VFS_OP(vfswrap_notify_watch),	SMB_VFS_OP_NOTIFY_WATCH,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_chflags),	SMB_VFS_OP_CHFLAGS,
+	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_file_id_create),	SMB_VFS_OP_FILE_ID_CREATE,
+	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_streaminfo),	SMB_VFS_OP_STREAMINFO,
 	 SMB_VFS_LAYER_OPAQUE},
 
 	/* NT ACL operations. */
@@ -1401,6 +1540,14 @@ static vfs_op_tuple vfs_default_ops[] = {
 	{SMB_VFS_OP(vfswrap_aio_fsync),	SMB_VFS_OP_AIO_FSYNC,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_aio_suspend),SMB_VFS_OP_AIO_SUSPEND,
+	 SMB_VFS_LAYER_OPAQUE},
+
+	{SMB_VFS_OP(vfswrap_aio_force), SMB_VFS_OP_AIO_FORCE,
+	 SMB_VFS_LAYER_OPAQUE},
+
+	{SMB_VFS_OP(vfswrap_is_offline),SMB_VFS_OP_IS_OFFLINE,
+	 SMB_VFS_LAYER_OPAQUE},
+	{SMB_VFS_OP(vfswrap_set_offline),SMB_VFS_OP_SET_OFFLINE,
 	 SMB_VFS_LAYER_OPAQUE},
 
 	/* Finish VFS operations definition */

@@ -11,7 +11,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -20,8 +20,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -38,7 +37,7 @@ const krb5_data *krb5_princ_component(krb5_context, krb5_principal, int );
  ads_keytab_add_entry function for details.
 ***********************************************************************************/
 
-static BOOL ads_keytab_verify_ticket(krb5_context context,
+static bool ads_keytab_verify_ticket(krb5_context context,
 					krb5_auth_context auth_context,
 					const DATA_BLOB *ticket,
 					krb5_ticket **pp_tkt,
@@ -46,7 +45,7 @@ static BOOL ads_keytab_verify_ticket(krb5_context context,
 					krb5_error_code *perr)
 {
 	krb5_error_code ret = 0;
-	BOOL auth_ok = False;
+	bool auth_ok = False;
 	krb5_keytab keytab = NULL;
 	krb5_kt_cursor kt_cursor;
 	krb5_keytab_entry kt_entry;
@@ -81,9 +80,9 @@ static BOOL ads_keytab_verify_ticket(krb5_context context,
 	ZERO_STRUCT(kt_entry);
 	ZERO_STRUCT(kt_cursor);
 
-	ret = krb5_kt_default(context, &keytab);
+	ret = smb_krb5_open_keytab(context, NULL, False, &keytab);
 	if (ret) {
-		DEBUG(1, ("ads_keytab_verify_ticket: krb5_kt_default failed (%s)\n", error_message(ret)));
+		DEBUG(1, ("ads_keytab_verify_ticket: smb_krb5_open_keytab failed (%s)\n", error_message(ret)));
 		goto out;
 	}
 
@@ -211,10 +210,17 @@ static krb5_error_code ads_secrets_verify_ticket(krb5_context context,
 						krb5_error_code *perr)
 {
 	krb5_error_code ret = 0;
-	BOOL auth_ok = False;
+	bool auth_ok = False;
 	char *password_s = NULL;
 	krb5_data password;
-	krb5_enctype enctypes[4] = { ENCTYPE_DES_CBC_CRC, ENCTYPE_DES_CBC_MD5, 0, 0 };
+	krb5_enctype enctypes[] = { 
+#if defined(ENCTYPE_ARCFOUR_HMAC)
+		ENCTYPE_ARCFOUR_HMAC,
+#endif
+		ENCTYPE_DES_CBC_CRC, 
+		ENCTYPE_DES_CBC_MD5, 
+		ENCTYPE_NULL
+	};
 	krb5_data packet;
 	int i;
 
@@ -222,9 +228,6 @@ static krb5_error_code ads_secrets_verify_ticket(krb5_context context,
 	*keyblock = NULL;
 	*perr = 0;
 
-#if defined(ENCTYPE_ARCFOUR_HMAC)
-	enctypes[2] = ENCTYPE_ARCFOUR_HMAC;
-#endif
 
 	if (!secrets_init()) {
 		DEBUG(1,("ads_secrets_verify_ticket: secrets_init failed\n"));
@@ -282,6 +285,7 @@ static krb5_error_code ads_secrets_verify_ticket(krb5_context context,
 		if (ret == KRB5KRB_AP_ERR_TKT_NYV || 
 		    ret == KRB5KRB_AP_ERR_TKT_EXPIRED ||
 		    ret == KRB5KRB_AP_ERR_SKEW) {
+			krb5_free_keyblock(context, key);
 			break;
 		}
 
@@ -305,9 +309,10 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 			   time_t time_offset,
 			   const DATA_BLOB *ticket,
 			   char **principal,
-			   PAC_DATA **pac_data,
+			   struct PAC_DATA **pac_data,
 			   DATA_BLOB *ap_rep,
-			   DATA_BLOB *session_key)
+			   DATA_BLOB *session_key,
+			   bool use_replay_cache)
 {
 	NTSTATUS sret = NT_STATUS_LOGON_FAILURE;
 	NTSTATUS pac_ret;
@@ -320,21 +325,21 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 	krb5_keyblock *keyblock = NULL;
 	time_t authtime;
 	krb5_error_code ret = 0;
-	
+	int flags = 0;	
 	krb5_principal host_princ = NULL;
 	krb5_const_principal client_principal = NULL;
 	char *host_princ_s = NULL;
-	BOOL auth_ok = False;
-	BOOL got_replay_mutex = False;
-	BOOL got_auth_data = False;
+	bool auth_ok = False;
+	bool got_auth_data = False;
+	struct named_mutex *mutex = NULL;
 
 	ZERO_STRUCT(packet);
 	ZERO_STRUCT(auth_data);
 
 	*principal = NULL;
 	*pac_data = NULL;
-	*ap_rep = data_blob(NULL,0);
-	*session_key = data_blob(NULL,0);
+	*ap_rep = data_blob_null;
+	*session_key = data_blob_null;
 
 	initialize_krb5_error_table();
 	ret = krb5_init_context(&context);
@@ -363,6 +368,13 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
+	krb5_auth_con_getflags( context, auth_context, &flags );
+	if ( !use_replay_cache ) {
+		/* Disable default use of a replay cache */
+		flags &= ~KRB5_AUTH_CONTEXT_DO_TIME;
+		krb5_auth_con_setflags( context, auth_context, flags );
+	}
+
 	asprintf(&host_princ_s, "%s$", global_myname());
 	if (!host_princ_s) {
 		goto out;
@@ -377,51 +389,70 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 	}
 
 
-	/* Lock a mutex surrounding the replay as there is no locking in the MIT krb5
-	 * code surrounding the replay cache... */
+	if ( use_replay_cache ) {
+		
+		/* Lock a mutex surrounding the replay as there is no 
+		   locking in the MIT krb5 code surrounding the replay 
+		   cache... */
 
-	if (!grab_server_mutex("replay cache mutex")) {
-		DEBUG(1,("ads_verify_ticket: unable to protect replay cache with mutex.\n"));
-		ret = KRB5_CC_IO;
-		goto out;
+		mutex = grab_named_mutex(talloc_tos(), "replay cache mutex",
+					 10);
+		if (mutex == NULL) {
+			DEBUG(1,("ads_verify_ticket: unable to protect "
+				 "replay cache with mutex.\n"));
+			ret = KRB5_CC_IO;
+			goto out;
+		}
+
+		/* JRA. We must set the rcache here. This will prevent 
+		   replay attacks. */
+		
+		ret = krb5_get_server_rcache(context, 
+					     krb5_princ_component(context, host_princ, 0), 
+					     &rcache);
+		if (ret) {
+			DEBUG(1,("ads_verify_ticket: krb5_get_server_rcache "
+				 "failed (%s)\n", error_message(ret)));
+			goto out;
+		}
+
+		ret = krb5_auth_con_setrcache(context, auth_context, rcache);
+		if (ret) {
+			DEBUG(1,("ads_verify_ticket: krb5_auth_con_setrcache "
+				 "failed (%s)\n", error_message(ret)));
+			goto out;
+		}
 	}
 
-	got_replay_mutex = True;
+	/* Try secrets.tdb first and fallback to the krb5.keytab if
+	   necessary */
 
-	/*
-	 * JRA. We must set the rcache here. This will prevent replay attacks.
-	 */
+	auth_ok = ads_secrets_verify_ticket(context, auth_context, host_princ,
+					    ticket, &tkt, &keyblock, &ret);
 
-	ret = krb5_get_server_rcache(context, krb5_princ_component(context, host_princ, 0), &rcache);
-	if (ret) {
-		DEBUG(1,("ads_verify_ticket: krb5_get_server_rcache failed (%s)\n", error_message(ret)));
-		goto out;
+	if (!auth_ok &&
+	    (ret == KRB5KRB_AP_ERR_TKT_NYV ||
+	     ret == KRB5KRB_AP_ERR_TKT_EXPIRED ||
+	     ret == KRB5KRB_AP_ERR_SKEW)) {
+		goto auth_failed;
 	}
 
-	ret = krb5_auth_con_setrcache(context, auth_context, rcache);
-	if (ret) {
-		DEBUG(1,("ads_verify_ticket: krb5_auth_con_setrcache failed (%s)\n", error_message(ret)));
-		goto out;
+	if (!auth_ok && lp_use_kerberos_keytab()) {
+		auth_ok = ads_keytab_verify_ticket(context, auth_context, 
+						   ticket, &tkt, &keyblock, &ret);
 	}
 
-	if (lp_use_kerberos_keytab()) {
-		auth_ok = ads_keytab_verify_ticket(context, auth_context, ticket, &tkt, &keyblock, &ret);
-	}
-	if (!auth_ok) {
-		auth_ok = ads_secrets_verify_ticket(context, auth_context, host_princ,
-						    ticket, &tkt, &keyblock, &ret);
-	}
-
-	release_server_mutex();
-	got_replay_mutex = False;
-
+	if ( use_replay_cache ) {		
+		TALLOC_FREE(mutex);
 #if 0
-	/* Heimdal leaks here, if we fix the leak, MIT crashes */
-	if (rcache) {
-		krb5_rc_close(context, rcache);
-	}
+		/* Heimdal leaks here, if we fix the leak, MIT crashes */
+		if (rcache) {
+			krb5_rc_close(context, rcache);
+		}
 #endif
+	}	
 
+ auth_failed:
 	if (!auth_ok) {
 		DEBUG(3,("ads_verify_ticket: krb5_rd_req with auth failed (%s)\n", 
 			 error_message(ret)));
@@ -469,8 +500,7 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 		DEBUG(3,("ads_verify_ticket: did not retrieve auth data. continuing without PAC\n"));
 	}
 
-	if (got_auth_data && pac_data != NULL) {
-
+	if (got_auth_data) {
 		pac_ret = decode_pac_data(mem_ctx, &auth_data, context, keyblock, client_principal, authtime, pac_data);
 		if (!NT_STATUS_IS_OK(pac_ret)) {
 			DEBUG(3,("ads_verify_ticket: failed to decode PAC_DATA: %s\n", nt_errstr(pac_ret)));
@@ -508,9 +538,7 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 
  out:
 
-	if (got_replay_mutex) {
-		release_server_mutex();
-	}
+	TALLOC_FREE(mutex);
 
 	if (!NT_STATUS_IS_OK(sret)) {
 		data_blob_free(&auth_data);

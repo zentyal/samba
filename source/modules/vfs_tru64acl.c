@@ -1,11 +1,11 @@
 /*
    Unix SMB/Netbios implementation.
    VFS module to get and set Tru64 acls
-   Copyright (C) Michael Adam 2006
+   Copyright (C) Michael Adam 2006,2008
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -23,7 +22,7 @@
 /* prototypes for private functions first - for clarity */
 
 static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl);
-static BOOL tru64_ace_to_smb_ace(acl_entry_t tru64_ace, 
+static bool tru64_ace_to_smb_ace(acl_entry_t tru64_ace, 
 				struct smb_acl_entry *smb_ace);
 static acl_t smb_acl_to_tru64_acl(const SMB_ACL_T smb_acl);
 static acl_tag_t smb_tag_to_tru64(SMB_ACL_TAG_T smb_tag);
@@ -68,11 +67,10 @@ SMB_ACL_T tru64acl_sys_acl_get_file(vfs_handle_struct *handle,
 }
 
 SMB_ACL_T tru64acl_sys_acl_get_fd(vfs_handle_struct *handle,
-				  files_struct *fsp,
-				  int fd)
+				  files_struct *fsp)
 {
 	struct smb_acl_t *result;
-	acl_t tru64_acl = acl_get_fd(fd, ACL_TYPE_ACCESS);
+	acl_t tru64_acl = acl_get_fd(fsp->fh->fd, ACL_TYPE_ACCESS);
 
 	if (tru64_acl == NULL) {
 		return NULL;
@@ -130,14 +128,14 @@ fail:
 
 int tru64acl_sys_acl_set_fd(vfs_handle_struct *handle,
 			    files_struct *fsp,
-			    int fd, SMB_ACL_T theacl)
+			    SMB_ACL_T theacl)
 {
         int res;
         acl_t tru64_acl = smb_acl_to_tru64_acl(theacl);
         if (tru64_acl == NULL) {
                 return -1;
         }
-        res =  acl_set_fd(fd, ACL_TYPE_ACCESS, tru64_acl);
+        res =  acl_set_fd(fsp->fh->fd, ACL_TYPE_ACCESS, tru64_acl);
         acl_free(tru64_acl);
         return res;
 
@@ -195,7 +193,7 @@ fail:
 	return NULL;
 }
 
-static BOOL tru64_ace_to_smb_ace(acl_entry_t tru64_ace, 
+static bool tru64_ace_to_smb_ace(acl_entry_t tru64_ace, 
 				struct smb_acl_entry *smb_ace) 
 {
 	acl_tag_t tru64_tag;

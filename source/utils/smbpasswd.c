@@ -5,7 +5,7 @@
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
+ * Free Software Foundation; either version 3 of the License, or (at your
  * option) any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -14,12 +14,11 @@
  * more details.
  * 
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.  */
+ * this program; if not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
 
-extern BOOL AllowDebugChange;
+extern bool AllowDebugChange;
 
 /*
  * Next two lines needed for SunOS and don't
@@ -29,8 +28,8 @@ extern char *optarg;
 extern int optind;
 
 /* forced running in root-mode */
-static BOOL got_username = False;
-static BOOL stdin_passwd_get = False;
+static bool got_username = False;
+static bool stdin_passwd_get = False;
 static fstring user_name;
 static char *new_passwd = NULL;
 static const char *remote_machine = NULL;
@@ -84,8 +83,7 @@ static void set_line_buffering(FILE *f)
 static int process_options(int argc, char **argv, int local_flags)
 {
 	int ch;
-	pstring configfile;
-	pstrcpy(configfile, dyn_CONFIGFILE);
+	const char *configfile = get_dyn_CONFIGFILE();
 
 	local_flags |= LOCAL_SET_PASSWORD;
 
@@ -96,7 +94,7 @@ static int process_options(int argc, char **argv, int local_flags)
 	while ((ch = getopt(argc, argv, "c:axdehminjr:sw:R:D:U:LW")) != EOF) {
 		switch(ch) {
 		case 'L':
-#if !defined(DEVELOPER)
+#if !defined(NSS_WRAPPER)
 			if (getuid() != 0) {
 				fprintf(stderr, "smbpasswd -L can only be used by root.\n");
 				exit(1);
@@ -105,7 +103,7 @@ static int process_options(int argc, char **argv, int local_flags)
 			local_flags |= LOCAL_AM_ROOT;
 			break;
 		case 'c':
-			pstrcpy(configfile,optarg);
+			configfile = optarg;
 			break;
 		case 'a':
 			local_flags |= LOCAL_ADD_USER;
@@ -170,7 +168,7 @@ static int process_options(int argc, char **argv, int local_flags)
 			usage();
 		}
 	}
-	
+
 	argc -= optind;
 	argv += optind;
 
@@ -206,7 +204,7 @@ static int process_options(int argc, char **argv, int local_flags)
 /*************************************************************
  Utility function to prompt for new password.
 *************************************************************/
-static char *prompt_for_new_password(BOOL stdin_get)
+static char *prompt_for_new_password(bool stdin_get)
 {
 	char *p;
 	fstring new_pw;
@@ -240,8 +238,8 @@ static NTSTATUS password_change(const char *remote_mach, char *username,
 				int local_flags)
 {
 	NTSTATUS ret;
-	pstring err_str;
-	pstring msg_str;
+	char *err_str = NULL;
+	char *msg_str = NULL;
 
 	if (remote_mach != NULL) {
 		if (local_flags & (LOCAL_ADD_USER|LOCAL_DELETE_USER|LOCAL_DISABLE_USER|LOCAL_ENABLE_USER|
@@ -250,27 +248,30 @@ static NTSTATUS password_change(const char *remote_mach, char *username,
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 		ret = remote_password_change(remote_mach, username, 
-					     old_passwd, new_pw, err_str, sizeof(err_str));
-		if(*err_str)
+					     old_passwd, new_pw, &err_str);
+		if (err_str != NULL)
 			fprintf(stderr, "%s", err_str);
+		SAFE_FREE(err_str);
 		return ret;
 	}
 	
 	ret = local_password_change(username, local_flags, new_pw, 
-				     err_str, sizeof(err_str), msg_str, sizeof(msg_str));
+				     &err_str, &msg_str);
 
-	if(*msg_str)
+	if(msg_str)
 		printf("%s", msg_str);
-	if(*err_str)
+	if(err_str)
 		fprintf(stderr, "%s", err_str);
 
+	SAFE_FREE(msg_str);
+	SAFE_FREE(err_str);
 	return ret;
 }
 
 /*******************************************************************
  Store the LDAP admin password in secrets.tdb
  ******************************************************************/
-static BOOL store_ldap_admin_pw (char* pw)
+static bool store_ldap_admin_pw (char* pw)
 {	
 	if (!pw) 
 		return False;
@@ -311,7 +312,7 @@ static int process_root(int local_flags)
 	}
 
 	/* Ensure passdb startup(). */
-	if(!initialize_password_db(False)) {
+	if(!initialize_password_db(False, NULL)) {
 		DEBUG(0, ("Failed to open passdb!\n"));
 		exit(1);
 	}
@@ -557,7 +558,9 @@ static int process_nonroot(int local_flags)
 **********************************************************/
 int main(int argc, char **argv)
 {	
+	TALLOC_CTX *frame = talloc_stackframe();
 	int local_flags = 0;
+	int ret;
 	
 	AllowDebugChange = False;
 
@@ -594,5 +597,7 @@ int main(int argc, char **argv)
 		return process_root(local_flags);
 	} 
 
-	return process_nonroot(local_flags);
+	ret = process_nonroot(local_flags);
+	TALLOC_FREE(frame);
+	return ret;
 }

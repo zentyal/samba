@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -40,7 +39,7 @@ static const uint8 *auth_ntlmssp_get_challenge(const struct ntlmssp_state *ntlms
  *
  * @return If the effective challenge used by the auth subsystem may be modified
  */
-static BOOL auth_ntlmssp_may_set_challenge(const struct ntlmssp_state *ntlmssp_state)
+static bool auth_ntlmssp_may_set_challenge(const struct ntlmssp_state *ntlmssp_state)
 {
 	AUTH_NTLMSSP_STATE *auth_ntlmssp_state =
 		(AUTH_NTLMSSP_STATE *)ntlmssp_state->auth_context;
@@ -68,7 +67,7 @@ static NTSTATUS auth_ntlmssp_set_challenge(struct ntlmssp_state *ntlmssp_state, 
 
 	DEBUG(5, ("auth_context challenge set by %s\n", auth_context->challenge_set_by));
 	DEBUG(5, ("challenge is: \n"));
-	dump_data(5, (const char *)auth_context->challenge.data, auth_context->challenge.length);
+	dump_data(5, auth_context->challenge.data, auth_context->challenge.length);
 	return NT_STATUS_OK;
 }
 
@@ -84,7 +83,7 @@ static NTSTATUS auth_ntlmssp_check_password(struct ntlmssp_state *ntlmssp_state,
 		(AUTH_NTLMSSP_STATE *)ntlmssp_state->auth_context;
 	auth_usersupplied_info *user_info = NULL;
 	NTSTATUS nt_status;
-	BOOL username_was_mapped;
+	bool username_was_mapped;
 
 	/* the client has given us its machine name (which we otherwise would not get on port 445).
 	   we need to possibly reload smb.conf if smb.conf includes depend on the machine name */
@@ -128,7 +127,8 @@ static NTSTATUS auth_ntlmssp_check_password(struct ntlmssp_state *ntlmssp_state,
 	nt_status = create_local_token(auth_ntlmssp_state->server_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(10, ("create_local_token failed\n"));
+		DEBUG(10, ("create_local_token failed: %s\n",
+			nt_errstr(nt_status)));
 		return nt_status;
 	}
 
@@ -194,7 +194,6 @@ void auth_ntlmssp_end(AUTH_NTLMSSP_STATE **auth_ntlmssp_state)
 	}
 
 	mem_ctx = (*auth_ntlmssp_state)->mem_ctx;
-
 	if ((*auth_ntlmssp_state)->ntlmssp_state) {
 		ntlmssp_end(&(*auth_ntlmssp_state)->ntlmssp_state);
 	}

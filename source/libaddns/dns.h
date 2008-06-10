@@ -19,15 +19,22 @@
   Lesser General Public License for more details.
 
   You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
-  02110-1301  USA
+  License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _DNS_H
 #define _DNS_H
 
-#include "config.h"
+#include "lib/replace/replace.h"
+#include "system/network.h"
+
+/* make sure we have included the correct config.h */
+#ifndef NO_CONFIG_H /* for some tests */
+#ifndef CONFIG_H_IS_FROM_SAMBA
+#error "make sure you have removed all config.h files from standalone builds!"
+#error "the included config.h isn't from samba!"
+#endif
+#endif /* NO_CONFIG_H */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,6 +95,11 @@
 
 #include <talloc.h>
 
+#if 0
+
+Disable these now we have checked all code paths and ensured
+NULL returns on zero request. JRA.
+
 void *_talloc_zero_zeronull(const void *ctx, size_t size, const char *name);
 void *_talloc_memdup_zeronull(const void *t, const void *p, size_t size, const char *name);
 void *_talloc_array_zeronull(const void *ctx, size_t el_size, unsigned count, const char *name);
@@ -101,12 +113,27 @@ void *talloc_zeronull(const void *context, size_t size, const char *name);
 #define TALLOC_ZERO(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
 #define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero_zeronull(ctx, sizeof(type), #type)
 #define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array_zeronull(ctx, sizeof(type), count, #type)
+#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
+#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
+
+#else
+
+#define TALLOC(ctx, size) talloc_named_const(ctx, size, __location__)
+#define TALLOC_P(ctx, type) (type *)talloc_named_const(ctx, sizeof(type), #type)
+#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, #type)
+#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup(ctx, ptr, size, __location__)
+#define TALLOC_ZERO(ctx, size) _talloc_zero(ctx, size, __location__)
+#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero(ctx, sizeof(type), #type)
+#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array(ctx, sizeof(type), count, #type)
+#define TALLOC_SIZE(ctx, size) talloc_named_const(ctx, size, __location__)
+#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero(ctx, size, __location__)
+
+#endif
+
 #define TALLOC_REALLOC(ctx, ptr, count) _talloc_realloc(ctx, ptr, count, __location__)
 #define TALLOC_REALLOC_ARRAY(ctx, ptr, type, count) (type *)_talloc_realloc_array(ctx, ptr, sizeof(type), count, #type)
 #define talloc_destroy(ctx) talloc_free(ctx)
 #define TALLOC_FREE(ctx) do { if ((ctx) != NULL) {talloc_free(ctx); ctx=NULL;} } while(0)
-#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
 
 /*******************************************************************
    Type definitions for int16, int32, uint16 and uint32.  Needed
@@ -283,12 +310,6 @@ TXT             16 text strings
 
 typedef long HANDLE;
 
-#ifndef _UPPER_BOOL
-typedef int BOOL;
-#define _UPPER_BOOL
-#endif
-
-
 enum dns_ServerType { DNS_SRV_ANY, DNS_SRV_WIN2000, DNS_SRV_WIN2003 };
 
 struct dns_domain_label {
@@ -399,7 +420,7 @@ DNS_ERROR dns_create_update( TALLOC_CTX *mem_ctx, const char *name,
 			     struct dns_update_request **preq );
 DNS_ERROR dns_create_probe(TALLOC_CTX *mem_ctx, const char *zone,
 			   const char *host, int num_ips,
-			   const struct in_addr *iplist,
+			   const struct sockaddr_storage *sslist,
 			   struct dns_update_request **preq);
 DNS_ERROR dns_create_rrec(TALLOC_CTX *mem_ctx, const char *name,
 			  uint16 type, uint16 r_class, uint32 ttl,
@@ -414,7 +435,7 @@ DNS_ERROR dns_create_tkey_record(TALLOC_CTX *mem_ctx, const char *keyname,
 				 struct dns_rrec **prec);
 DNS_ERROR dns_create_name_in_use_record(TALLOC_CTX *mem_ctx,
 					const char *name,
-					const struct in_addr *ip,
+					const struct sockaddr_storage *ip,
 					struct dns_rrec **prec);
 DNS_ERROR dns_create_delete_record(TALLOC_CTX *mem_ctx, const char *name,
 				   uint16 type, uint16 r_class,
@@ -423,7 +444,7 @@ DNS_ERROR dns_create_name_not_in_use_record(TALLOC_CTX *mem_ctx,
 					    const char *name, uint32 type,
 					    struct dns_rrec **prec);
 DNS_ERROR dns_create_a_record(TALLOC_CTX *mem_ctx, const char *host,
-			      uint32 ttl, struct in_addr ip,
+			      uint32 ttl, const struct sockaddr_storage *pss,
 			      struct dns_rrec **prec);
 DNS_ERROR dns_unmarshall_tkey_record(TALLOC_CTX *mem_ctx, struct dns_rrec *rec,
 				     struct dns_tkey_record **ptkey);
@@ -505,7 +526,7 @@ DNS_ERROR dns_sign_update(struct dns_update_request *req,
 DNS_ERROR dns_create_update_request(TALLOC_CTX *mem_ctx,
 				    const char *domainname,
 				    const char *hostname,
-				    const struct in_addr *ip_addr,
+				    const struct sockaddr_storage *ip_addr,
 				    size_t num_adds,
 				    struct dns_update_request **preq);
 

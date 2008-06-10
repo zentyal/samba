@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _RPC_NTSVCS_H /* _RPC_NTSVCS_H */
@@ -37,32 +36,6 @@
 /**************************/
 
 typedef struct {
-	/* nothing in the request */
-	uint32 dummy;
-} NTSVCS_Q_GET_VERSION;
-
-typedef struct {
-	uint32 version;
-	WERROR status;
-} NTSVCS_R_GET_VERSION;
-
-
-/**************************/
-
-typedef struct {
-	UNISTR2 *devicename;
-	uint32 flags;
-} NTSVCS_Q_GET_DEVICE_LIST_SIZE;
-
-typedef struct {
-	uint32 size;
-	WERROR status;
-} NTSVCS_R_GET_DEVICE_LIST_SIZE;
-
-
-/**************************/
-
-typedef struct {
 	UNISTR2 *devicename;
 	uint32 buffer_size;
 	uint32 flags;
@@ -73,17 +46,6 @@ typedef struct {
 	uint32 needed;
 	WERROR status;
 } NTSVCS_R_GET_DEVICE_LIST;
-
-/**************************/
-
-typedef struct {
-	UNISTR2 devicepath;
-	uint32 flags;
-} NTSVCS_Q_VALIDATE_DEVICE_INSTANCE;
-
-typedef struct {
-	WERROR status;
-} NTSVCS_R_VALIDATE_DEVICE_INSTANCE;
 
 /**************************/
 
@@ -105,43 +67,5 @@ typedef struct {
 	uint32 needed;
 	WERROR status;
 } NTSVCS_R_GET_DEVICE_REG_PROPERTY;
-
-
-/**************************/
-
-typedef struct {
-	uint32 index;
-	uint8 *buffer;
-	uint32 buffer_size;
-	uint32 unknown1;
-} NTSVCS_Q_GET_HW_PROFILE_INFO;
-
-typedef struct {
-	uint32 buffer_size;	/* the size (not included in the reply) 
-				   if just matched from the request */
-	uint8 *buffer;
-	WERROR status;
-} NTSVCS_R_GET_HW_PROFILE_INFO;
-
-
-/**************************/
-
-typedef struct {
-	uint32 unknown1;
-	UNISTR2 devicepath;
-	uint32 unknown2;
-	uint32 unknown3;
-	uint32 unknown4;
-	uint32 unknown5;
-	uint32 unknown6;
-	uint32 unknown7;
-} NTSVCS_Q_HW_PROFILE_FLAGS;
-
-typedef struct {
-	uint32 unknown1;
-	uint32 unknown2;
-	uint32 unknown3;
-	WERROR status;
-} NTSVCS_R_HW_PROFILE_FLAGS;
 
 #endif /* _RPC_NTSVCS_H */

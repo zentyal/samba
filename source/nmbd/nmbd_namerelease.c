@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -35,8 +34,8 @@ static void release_name_response(struct subnet_record *subrec,
 	 * error. If we are releasing unicast, then we expect to get a response.
 	 */
 	struct nmb_packet *nmb = &p->packet.nmb;
-	BOOL bcast = nmb->header.nm_flags.bcast;
-	BOOL success = True;
+	bool bcast = nmb->header.nm_flags.bcast;
+	bool success = True;
 	struct nmb_name *question_name = &rrec->packet->packet.nmb.question.question_name;
 	struct nmb_name *answer_name = &nmb->answers->rr_name;
 	struct in_addr released_ip;
@@ -108,7 +107,7 @@ static void release_name_timeout_response(struct subnet_record *subrec,
 	   doesn't respond and someone else wants the name then the
 	   normal WACK/name query from the WINS server will cope */
 	struct nmb_packet *sent_nmb = &rrec->packet->packet.nmb;
-	BOOL bcast = sent_nmb->header.nm_flags.bcast;
+	bool bcast = sent_nmb->header.nm_flags.bcast;
 	struct nmb_name *question_name = &sent_nmb->question.question_name;
 	struct in_addr released_ip;
 
@@ -151,7 +150,7 @@ static void wins_release_name(struct name_record *namerec,
 		for (i = 0; i < namerec->data.num_ips; i++) {
 			struct in_addr wins_ip = wins_srv_ip_tag(wins_tags[t], namerec->data.ip[i]);
 
-			BOOL last_one = ((i==namerec->data.num_ips - 1) && !wins_tags[t+1]);
+			bool last_one = ((i==namerec->data.num_ips - 1) && !wins_tags[t+1]);
 			if (queue_release_name(unicast_subnet,
 					       release_name_response,
 					       release_name_timeout_response,

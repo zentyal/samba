@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 typedef struct auth_usersupplied_info {
@@ -27,9 +26,9 @@ typedef struct auth_usersupplied_info {
 	DATA_BLOB nt_interactive_pwd;
  	DATA_BLOB plaintext_password;
 	
-	BOOL encrypted;
+	bool encrypted;
 	
-	BOOL was_mapped;	      /* Did the username map actually match? */
+	bool was_mapped;	      /* Did the username map actually match? */
 	char *client_domain;          /* domain name string */
 	char *domain;                 /* domain name after mapping */
 	char *internal_username;      /* username after mapping */
@@ -42,7 +41,7 @@ typedef struct auth_usersupplied_info {
 } auth_usersupplied_info;
 
 typedef struct auth_serversupplied_info {
-	BOOL guest;
+	bool guest;
 
 	DOM_SID *sids; 	/* These SIDs are preliminary between
 			   check_ntlm_password and the token creation. */
@@ -68,7 +67,7 @@ typedef struct auth_serversupplied_info {
 	
 	void *pam_handle;
 
-	BOOL was_mapped;	/* Did the username map match? */
+	bool was_mapped;	/* Did the username map match? */
 	char *unix_name;
 	
 } auth_serversupplied_info;
@@ -79,7 +78,7 @@ struct auth_context {
 	/* Who set this up in the first place? */ 
 	const char *challenge_set_by; 
 
-	BOOL challenge_may_be_modified;
+	bool challenge_may_be_modified;
 
 	struct auth_methods *challenge_set_method; 
 	/* What order are the various methods in?   Try to stop it changing under us */ 
@@ -115,12 +114,6 @@ typedef struct auth_methods
 	
 	/* Used to keep tabs on things like the cli for SMB server authentication */
 	void *private_data;
-	
-	/* Function to clean up the above arbitary structure */
-	void (*free_private_data)(void **private_data);
-
-	/* Function to send a keepalive message on the above structure */
-	void (*send_keepalive)(void **private_data);
 
 } auth_methods;
 

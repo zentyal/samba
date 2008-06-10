@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -24,10 +23,10 @@ static fstring password;
 static fstring username;
 static int got_pass;
 static int numops = 1000;
-static BOOL showall;
-static BOOL analyze;
-static BOOL hide_unlock_fails;
-static BOOL use_oplocks;
+static bool showall;
+static bool analyze;
+static bool hide_unlock_fails;
+static bool use_oplocks;
 
 extern char *optarg;
 extern int optind;
@@ -65,22 +64,27 @@ static struct record *recorded;
 
 static int try_open(struct cli_state *c, char *nfs, int fstype, const char *fname, int flags)
 {
-	pstring path;
+	char *path;
 
 	switch (fstype) {
 	case FSTYPE_SMB:
 		return cli_open(c, fname, flags, DENY_NONE);
 
 	case FSTYPE_NFS:
-		slprintf(path, sizeof(path), "%s%s", nfs, fname);
-		pstring_sub(path,"\\", "/");
-		return open(path, flags, 0666);
+		if (asprintf(&path, "%s%s", nfs, fname) > 0) {
+			int ret;
+			string_replace(path,'\\', '/');
+			ret = open(path, flags, 0666);
+			SAFE_FREE(path);
+			return ret;
+		}
+		break;
 	}
 
 	return -1;
 }
 
-static BOOL try_close(struct cli_state *c, int fstype, int fd)
+static bool try_close(struct cli_state *c, int fstype, int fd)
 {
 	switch (fstype) {
 	case FSTYPE_SMB:
@@ -93,7 +97,7 @@ static BOOL try_close(struct cli_state *c, int fstype, int fd)
 	return False;
 }
 
-static BOOL try_lock(struct cli_state *c, int fstype, 
+static bool try_lock(struct cli_state *c, int fstype, 
 		     int fd, unsigned start, unsigned len,
 		     enum brl_type op)
 {
@@ -115,7 +119,7 @@ static BOOL try_lock(struct cli_state *c, int fstype,
 	return False;
 }
 
-static BOOL try_unlock(struct cli_state *c, int fstype, 
+static bool try_unlock(struct cli_state *c, int fstype, 
 		       int fd, unsigned start, unsigned len)
 {
 	struct flock lock;
@@ -136,13 +140,14 @@ static BOOL try_unlock(struct cli_state *c, int fstype,
 	return False;
 }	
 
-static void print_brl(SMB_DEV_T dev, SMB_INO_T ino, struct process_id pid, 
+static void print_brl(struct file_id id, struct server_id pid, 
 		      enum brl_type lock_type,
 		      enum brl_flavour lock_flav,
-		      br_off start, br_off size)
+		      br_off start, br_off size,
+		      void *private_data)
 {
-	printf("%6d   %05x:%05x    %s  %.0f:%.0f(%.0f)\n", 
-	       (int)procid_to_pid(&pid), (int)dev, (int)ino, 
+	printf("%6d   %s    %s  %.0f:%.0f(%.0f)\n", 
+	       (int)procid_to_pid(&pid), file_id_string_tos(&id),
 	       lock_type==READ_LOCK?"R":"W",
 	       (double)start, (double)start+size-1,(double)size);
 
@@ -223,7 +228,7 @@ static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 
 
 
-static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
+static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
 		     char *nfs[NSERVERS],
 		     int fnum[NSERVERS][NUMFSTYPES][NCONNECTIONS][NFILES],
 		     struct record *rec)
@@ -237,7 +242,7 @@ static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 	unsigned r2 = rec->r2;
 	enum brl_type op;
 	int server;
-	BOOL ret[NSERVERS];
+	bool ret[NSERVERS];
 
 	if (r1 < READ_PCT) {
 		op = READ_LOCK; 
@@ -259,7 +264,7 @@ static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 			       op==READ_LOCK?"READ_LOCK":"WRITE_LOCK",
 			       ret[0], ret[1]);
 		}
-		if (showall) brl_forall(print_brl);
+		if (showall) brl_forall(print_brl, NULL);
 		if (ret[0] != ret[1]) return False;
 	} else if (r2 < LOCK_PCT+UNLOCK_PCT) {
 		/* unset a lock */
@@ -274,7 +279,7 @@ static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 			       start, start+len-1, len,
 			       ret[0], ret[1]);
 		}
-		if (showall) brl_forall(print_brl);
+		if (showall) brl_forall(print_brl, NULL);
 		if (!hide_unlock_fails && ret[0] != ret[1]) return False;
 	} else {
 		/* reopen the file */
@@ -290,7 +295,7 @@ static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 		if (showall) {
 			printf("reopen conn=%u fstype=%u f=%u\n",
 			       conn, fstype, f);
-			brl_forall(print_brl);
+			brl_forall(print_brl, NULL);
 		}
 	}
 	return True;
@@ -500,7 +505,7 @@ static void usage(void)
 	argc -= 4;
 	argv += 4;
 
-	lp_load(dyn_CONFIGFILE,True,False,False,True);
+	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 
 	if (getenv("USER")) {
@@ -553,7 +558,7 @@ static void usage(void)
 	DEBUG(0,("seed=%u\n", seed));
 	srandom(seed);
 
-	locking_init(1);
+	locking_init_readonly();
 	test_locks(share1, share2, nfspath1, nfspath2);
 
 	return(0);

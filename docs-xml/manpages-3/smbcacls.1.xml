@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.0</refmiscinfo>
+	<refmiscinfo class="version">3.2</refmiscinfo>
 </refmeta>
 
 
@@ -182,10 +182,9 @@ ACL:&lt;sid or name&gt;:&lt;type&gt;/&lt;flags&gt;/&lt;mask&gt;
 	resides.  The type, flags and mask values determine the type of 
 	access granted to the SID. </para>
 
-	<para>The type can be either 0 or 1 corresponding to ALLOWED or 
-	DENIED access to the SID.  The flags values are generally
-	zero for file ACLs and either 9 or 2 for directory ACLs.  Some 
-	common flags are: </para>
+	<para>The type can be either ALLOWED or	DENIED to allow/deny access 
+	to the SID. The flags values are generally zero for file ACLs and 
+	either 9 or 2 for directory ACLs.  Some common flags are: </para>
 
 	<itemizedlist> 
 		<listitem><para><constant>#define SEC_ACE_FLAG_OBJECT_INHERIT     	0x1</constant></para></listitem>
@@ -242,7 +241,7 @@ ACL:&lt;sid or name&gt;:&lt;type&gt;/&lt;flags&gt;/&lt;mask&gt;
 <refsect1>
 	<title>VERSION</title>
 
-	<para>This man page is correct for version 3.0 of the Samba suite.</para>
+	<para>This man page is correct for version 3 of the Samba suite.</para>
 </refsect1>
 
 <refsect1>

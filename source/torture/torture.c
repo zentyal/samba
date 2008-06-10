@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -32,16 +31,17 @@ int torture_numops=100;
 static int procnum; /* records process count number when forking */
 static struct cli_state *current_cli;
 static fstring randomfname;
-static BOOL use_oplocks;
-static BOOL use_level_II_oplocks;
+static bool use_oplocks;
+static bool use_level_II_oplocks;
 static const char *client_txt = "client_oplocks.txt";
-static BOOL use_kerberos;
+static bool use_kerberos;
 static fstring multishare_conn_fname;
-static BOOL use_multishare_conn = False;
+static bool use_multishare_conn = False;
+static bool do_encrypt;
 
-BOOL torture_showall = False;
+bool torture_showall = False;
 
-static double create_procs(BOOL (*fn)(int), BOOL *result);
+static double create_procs(bool (*fn)(int), bool *result);
 
 
 static struct timeval tp1,tp2;
@@ -96,18 +96,69 @@ void *shm_setup(int size)
 	return ret;
 }
 
+/********************************************************************
+ Ensure a connection is encrypted.
+********************************************************************/
+
+static bool force_cli_encryption(struct cli_state *c,
+			const char *sharename)
+{
+	uint16 major, minor;
+	uint32 caplow, caphigh;
+	NTSTATUS status;
+
+	if (!SERVER_HAS_UNIX_CIFS(c)) {
+		d_printf("Encryption required and "
+			"server that doesn't support "
+			"UNIX extensions - failing connect\n");
+			return false;
+	}
+
+	if (!cli_unix_extensions_version(c, &major, &minor, &caplow, &caphigh)) {
+		d_printf("Encryption required and "
+			"can't get UNIX CIFS extensions "
+			"version from server.\n");
+		return false;
+	}
+
+	if (!(caplow & CIFS_UNIX_TRANSPORT_ENCRYPTION_CAP)) {
+		d_printf("Encryption required and "
+			"share %s doesn't support "
+			"encryption.\n", sharename);
+		return false;
+	}
+
+	if (c->use_kerberos) {
+		status = cli_gss_smb_encryption_start(c);
+	} else {
+		status = cli_raw_ntlm_smb_encryption_start(c,
+						username,
+						password,
+						workgroup);
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Encryption required and "
+			"setup failed with error %s.\n",
+			nt_errstr(status));
+		return false;
+	}
+
+	return true;
+}
+
 
 static struct cli_state *open_nbt_connection(void)
 {
 	struct nmb_name called, calling;
-	struct in_addr ip;
+	struct sockaddr_storage ss;
 	struct cli_state *c;
 	NTSTATUS status;
 
 	make_nmb_name(&calling, myname, 0x0);
 	make_nmb_name(&called , host, 0x20);
 
-        zero_ip(&ip);
+        zero_addr(&ss);
 
 	if (!(c = cli_initialise())) {
 		printf("Failed initialize cli_struct to connect with %s\n", host);
@@ -116,7 +167,7 @@ static struct cli_state *open_nbt_connection(void)
 
 	c->port = port_to_use;
 
-	status = cli_connect(c, host, &ip);
+	status = cli_connect(c, host, &ss);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Failed to connect with %s. Error %s\n", host, nt_errstr(status) );
 		return NULL;
@@ -130,10 +181,10 @@ static struct cli_state *open_nbt_connection(void)
 
 	if (!cli_session_request(c, &calling, &called)) {
 		/*
-		 * Well, that failed, try *SMBSERVER ... 
+		 * Well, that failed, try *SMBSERVER ...
 		 * However, we must reconnect as well ...
 		 */
-		status = cli_connect(c, host, &ip);
+		status = cli_connect(c, host, &ss);
 		if (!NT_STATUS_IS_OK(status)) {
 			printf("Failed to connect with %s. Error %s\n", host, nt_errstr(status) );
 			return NULL;
@@ -181,7 +232,7 @@ terminate_path_at_separator(char * path)
 /*
   parse a //server/share type UNC name
 */
-BOOL smbcli_parse_unc(const char *unc_name, TALLOC_CTX *mem_ctx,
+bool smbcli_parse_unc(const char *unc_name, TALLOC_CTX *mem_ctx,
 		      char **hostname, char **sharename)
 {
 	char *p;
@@ -210,11 +261,11 @@ BOOL smbcli_parse_unc(const char *unc_name, TALLOC_CTX *mem_ctx,
 	return False;
 }
 
-static BOOL torture_open_connection_share(struct cli_state **c,
+static bool torture_open_connection_share(struct cli_state **c,
 				   const char *hostname, 
 				   const char *sharename)
 {
-	BOOL retry;
+	bool retry;
 	int flags = 0;
 	NTSTATUS status;
 
@@ -236,6 +287,10 @@ static BOOL torture_open_connection_share(struct cli_state **c,
 	if (use_level_II_oplocks) (*c)->use_level_II_oplocks = True;
 	(*c)->timeout = 120000; /* set a really long timeout (2 minutes) */
 
+	if (do_encrypt) {
+		return force_cli_encryption(*c,
+					sharename);
+	}
 	return True;
 }
 
@@ -248,11 +303,11 @@ void torture_open_connection_free_unclist(char **unc_list)
 	}
 }
 
-BOOL torture_open_connection(struct cli_state **c, int conn_index)
+bool torture_open_connection(struct cli_state **c, int conn_index)
 {
 	char **unc_list = NULL;
 	int num_unc_names = 0;
-	BOOL result;
+	bool result;
 
 	if (use_multishare_conn==True) {
 		char *h, *s;
@@ -280,12 +335,12 @@ BOOL torture_open_connection(struct cli_state **c, int conn_index)
 	return torture_open_connection_share(c, host, share);
 }
 
-BOOL torture_cli_session_setup2(struct cli_state *cli, uint16 *new_vuid)
+bool torture_cli_session_setup2(struct cli_state *cli, uint16 *new_vuid)
 {
 	uint16 old_vuid = cli->vuid;
 	fstring old_user_name;
 	size_t passlen = strlen(password);
-	BOOL ret;
+	bool ret;
 
 	fstrcpy(old_user_name, cli->user_name);
 	cli->vuid = 0;
@@ -300,9 +355,9 @@ BOOL torture_cli_session_setup2(struct cli_state *cli, uint16 *new_vuid)
 }
 
 
-BOOL torture_close_connection(struct cli_state *c)
+bool torture_close_connection(struct cli_state *c)
 {
-	BOOL ret = True;
+	bool ret = True;
 	if (!cli_tdis(c)) {
 		printf("tdis failed (%s)\n", cli_errstr(c));
 		ret = False;
@@ -315,7 +370,7 @@ BOOL torture_close_connection(struct cli_state *c)
 
 
 /* check if the server produced the expected error code */
-static BOOL check_error(int line, struct cli_state *c, 
+static bool check_error(int line, struct cli_state *c, 
 			uint8 eclass, uint32 ecode, NTSTATUS nterr)
 {
         if (cli_is_dos_error(c)) {
@@ -352,7 +407,7 @@ static BOOL check_error(int line, struct cli_state *c,
 }
 
 
-static BOOL wait_lock(struct cli_state *c, int fnum, uint32 offset, uint32 len)
+static bool wait_lock(struct cli_state *c, int fnum, uint32 offset, uint32 len)
 {
 	while (!cli_lock(c, fnum, offset, len, -1, WRITE_LOCK)) {
 		if (!check_error(__LINE__, c, ERRDOS, ERRlock, NT_STATUS_LOCK_NOT_GRANTED)) return False;
@@ -361,7 +416,7 @@ static BOOL wait_lock(struct cli_state *c, int fnum, uint32 offset, uint32 len)
 }
 
 
-static BOOL rw_torture(struct cli_state *c)
+static bool rw_torture(struct cli_state *c)
 {
 	const char *lockfname = "\\torture.lck";
 	fstring fname;
@@ -370,7 +425,7 @@ static BOOL rw_torture(struct cli_state *c)
 	pid_t pid2, pid = getpid();
 	int i, j;
 	char buf[1024];
-	BOOL correct = True;
+	bool correct = True;
 
 	memset(buf, '\0', sizeof(buf));
 
@@ -452,10 +507,10 @@ static BOOL rw_torture(struct cli_state *c)
 	return correct;
 }
 
-static BOOL run_torture(int dummy)
+static bool run_torture(int dummy)
 {
 	struct cli_state *cli;
-        BOOL ret;
+        bool ret;
 
 	cli = current_cli;
 
@@ -470,7 +525,7 @@ static BOOL run_torture(int dummy)
 	return ret;
 }
 
-static BOOL rw_torture3(struct cli_state *c, char *lockfname)
+static bool rw_torture3(struct cli_state *c, char *lockfname)
 {
 	int fnum = -1;
 	unsigned int i = 0;
@@ -479,7 +534,7 @@ static BOOL rw_torture3(struct cli_state *c, char *lockfname)
 	unsigned count;
 	unsigned countprev = 0;
 	ssize_t sent = 0;
-	BOOL correct = True;
+	bool correct = True;
 
 	srandom(1);
 	for (i = 0; i < sizeof(buf); i += sizeof(uint32))
@@ -569,7 +624,7 @@ static BOOL rw_torture3(struct cli_state *c, char *lockfname)
 	return correct;
 }
 
-static BOOL rw_torture2(struct cli_state *c1, struct cli_state *c2)
+static bool rw_torture2(struct cli_state *c1, struct cli_state *c2)
 {
 	const char *lockfname = "\\torture2.lck";
 	int fnum1;
@@ -577,7 +632,7 @@ static BOOL rw_torture2(struct cli_state *c1, struct cli_state *c2)
 	int i;
 	char buf[131072];
 	char buf_rd[131072];
-	BOOL correct = True;
+	bool correct = True;
 	ssize_t bytes_read;
 
 	if (!cli_unlink(c1, lockfname)) {
@@ -648,10 +703,10 @@ static BOOL rw_torture2(struct cli_state *c1, struct cli_state *c2)
 	return correct;
 }
 
-static BOOL run_readwritetest(int dummy)
+static bool run_readwritetest(int dummy)
 {
 	static struct cli_state *cli1, *cli2;
-	BOOL test1, test2 = False;
+	bool test1, test2 = False;
 
 	if (!torture_open_connection(&cli1, 0) || !torture_open_connection(&cli2, 1)) {
 		return False;
@@ -680,10 +735,10 @@ static BOOL run_readwritetest(int dummy)
 	return (test1 && test2);
 }
 
-static BOOL run_readwritemulti(int dummy)
+static bool run_readwritemulti(int dummy)
 {
 	struct cli_state *cli;
-	BOOL test;
+	bool test;
 
 	cli = current_cli;
 
@@ -699,14 +754,14 @@ static BOOL run_readwritemulti(int dummy)
 	return test;
 }
 
-static BOOL run_readwritelarge(int dummy)
+static bool run_readwritelarge(int dummy)
 {
 	static struct cli_state *cli1;
 	int fnum1;
 	const char *lockfname = "\\large.dat";
 	SMB_OFF_T fsize;
 	char buf[126*1024];
-	BOOL correct = True;
+	bool correct = True;
  
 	if (!torture_open_connection(&cli1, 0)) {
 		return False;
@@ -807,15 +862,15 @@ int nbio_id;
 #define ival(s) strtol(s, NULL, 0)
 
 /* run a test that simulates an approximate netbench client load */
-static BOOL run_netbench(int client)
+static bool run_netbench(int client)
 {
 	struct cli_state *cli;
 	int i;
-	pstring line;
+	char line[1024];
 	char cname[20];
 	FILE *f;
 	const char *params[20];
-	BOOL correct = True;
+	bool correct = True;
 
 	cli = current_cli;
 
@@ -835,6 +890,7 @@ static BOOL run_netbench(int client)
 	}
 
 	while (fgets(line, sizeof(line)-1, f)) {
+		char *saveptr;
 		line_count++;
 
 		line[strlen(line)-1] = 0;
@@ -842,11 +898,11 @@ static BOOL run_netbench(int client)
 		/* printf("[%d] %s\n", line_count, line); */
 
 		all_string_sub(line,"client1", cname, sizeof(line));
-		
+
 		/* parse the command parameters */
-		params[0] = strtok(line," ");
+		params[0] = strtok_r(line, " ", &saveptr);
 		i = 0;
-		while (params[i]) params[++i] = strtok(NULL," ");
+		while (params[i]) params[++i] = strtok_r(NULL, " ", &saveptr);
 
 		params[i] = "";
 
@@ -904,10 +960,10 @@ static BOOL run_netbench(int client)
 
 
 /* run a test that simulates an approximate netbench client load */
-static BOOL run_nbench(int dummy)
+static bool run_nbench(int dummy)
 {
 	double t;
-	BOOL correct = True;
+	bool correct = True;
 
 	nbio_shmem(nprocs);
 
@@ -931,7 +987,7 @@ static BOOL run_nbench(int dummy)
      must not use posix semantics)
   2) support for lock timeouts
  */
-static BOOL run_locktest1(int dummy)
+static bool run_locktest1(int dummy)
 {
 	struct cli_state *cli1, *cli2;
 	const char *fname = "\\lockt1.lck";
@@ -1044,7 +1100,7 @@ static BOOL run_locktest1(int dummy)
   this checks to see if a secondary tconx can use open files from an
   earlier tconx
  */
-static BOOL run_tcon_test(int dummy)
+static bool run_tcon_test(int dummy)
 {
 	static struct cli_state *cli;
 	const char *fname = "\\tcontest.tmp";
@@ -1052,7 +1108,7 @@ static BOOL run_tcon_test(int dummy)
 	uint16 cnum1, cnum2, cnum3;
 	uint16 vuid1, vuid2;
 	char buf[4];
-	BOOL ret = True;
+	bool ret = True;
 
 	memset(buf, '\0', sizeof(buf));
 
@@ -1151,7 +1207,7 @@ static BOOL run_tcon_test(int dummy)
 /*
  checks for old style tcon support
  */
-static BOOL run_tcon2_test(int dummy)
+static bool run_tcon2_test(int dummy)
 {
 	static struct cli_state *cli;
 	uint16 cnum, max_xmit;
@@ -1184,13 +1240,13 @@ static BOOL run_tcon2_test(int dummy)
 	return True;
 }
 
-static BOOL tcon_devtest(struct cli_state *cli,
+static bool tcon_devtest(struct cli_state *cli,
 			 const char *myshare, const char *devtype,
 			 const char *return_devtype,
 			 NTSTATUS expected_error)
 {
-	BOOL status;
-	BOOL ret;
+	bool status;
+	bool ret;
 
 	status = cli_send_tconX(cli, myshare, devtype,
 				password, strlen(password)+1);
@@ -1235,13 +1291,13 @@ static BOOL tcon_devtest(struct cli_state *cli,
 /*
  checks for correct tconX support
  */
-static BOOL run_tcon_devtype_test(int dummy)
+static bool run_tcon_devtype_test(int dummy)
 {
 	static struct cli_state *cli1 = NULL;
-	BOOL retry;
+	bool retry;
 	int flags = 0;
 	NTSTATUS status;
-	BOOL ret = True;
+	bool ret = True;
 
 	status = cli_full_connection(&cli1, myname,
 				     host, NULL, port_to_use,
@@ -1304,12 +1360,12 @@ static BOOL run_tcon_devtype_test(int dummy)
 
   3) the server denies unlock requests by an incorrect client PID
 */
-static BOOL run_locktest2(int dummy)
+static bool run_locktest2(int dummy)
 {
 	static struct cli_state *cli;
 	const char *fname = "\\lockt2.lck";
 	int fnum1, fnum2, fnum3;
-	BOOL correct = True;
+	bool correct = True;
 
 	if (!torture_open_connection(&cli, 0)) {
 		return False;
@@ -1440,13 +1496,13 @@ static BOOL run_locktest2(int dummy)
 
   1) the server supports the full offset range in lock requests
 */
-static BOOL run_locktest3(int dummy)
+static bool run_locktest3(int dummy)
 {
 	static struct cli_state *cli1, *cli2;
 	const char *fname = "\\lockt3.lck";
 	int fnum1, fnum2, i;
 	uint32 offset;
-	BOOL correct = True;
+	bool correct = True;
 
 #define NEXT_OFFSET offset += (~(uint32)0) / torture_numops
 
@@ -1565,14 +1621,14 @@ static BOOL run_locktest3(int dummy)
 /*
   looks at overlapping locks
 */
-static BOOL run_locktest4(int dummy)
+static bool run_locktest4(int dummy)
 {
 	static struct cli_state *cli1, *cli2;
 	const char *fname = "\\lockt4.lck";
 	int fnum1, fnum2, f;
-	BOOL ret;
+	bool ret;
 	char buf[1000];
-	BOOL correct = True;
+	bool correct = True;
 
 	if (!torture_open_connection(&cli1, 0) || !torture_open_connection(&cli2, 1)) {
 		return False;
@@ -1736,14 +1792,14 @@ static BOOL run_locktest4(int dummy)
 /*
   looks at lock upgrade/downgrade.
 */
-static BOOL run_locktest5(int dummy)
+static bool run_locktest5(int dummy)
 {
 	static struct cli_state *cli1, *cli2;
 	const char *fname = "\\lockt5.lck";
 	int fnum1, fnum2, fnum3;
-	BOOL ret;
+	bool ret;
 	char buf[1000];
-	BOOL correct = True;
+	bool correct = True;
 
 	if (!torture_open_connection(&cli1, 0) || !torture_open_connection(&cli2, 1)) {
 		return False;
@@ -1860,7 +1916,7 @@ static BOOL run_locktest5(int dummy)
 /*
   tries the unusual lockingX locktype bits
 */
-static BOOL run_locktest6(int dummy)
+static bool run_locktest6(int dummy)
 {
 	static struct cli_state *cli;
 	const char *fname[1] = { "\\lock6.txt" };
@@ -1900,13 +1956,13 @@ static BOOL run_locktest6(int dummy)
 	return True;
 }
 
-static BOOL run_locktest7(int dummy)
+static bool run_locktest7(int dummy)
 {
 	struct cli_state *cli1;
 	const char *fname = "\\lockt7.lck";
 	int fnum1;
 	char buf[200];
-	BOOL correct = False;
+	bool correct = False;
 
 	if (!torture_open_connection(&cli1, 0)) {
 		return False;
@@ -2037,12 +2093,12 @@ fail:
 test whether fnums and tids open on one VC are available on another (a major
 security hole)
 */
-static BOOL run_fdpasstest(int dummy)
+static bool run_fdpasstest(int dummy)
 {
 	struct cli_state *cli1, *cli2;
 	const char *fname = "\\fdpass.tst";
 	int fnum1;
-	pstring buf;
+	char buf[1024];
 
 	if (!torture_open_connection(&cli1, 0) || !torture_open_connection(&cli2, 1)) {
 		return False;
@@ -2085,7 +2141,7 @@ static BOOL run_fdpasstest(int dummy)
 	return True;
 }
 
-static BOOL run_fdsesstest(int dummy)
+static bool run_fdsesstest(int dummy)
 {
 	struct cli_state *cli;
 	uint16 new_vuid;
@@ -2096,8 +2152,8 @@ static BOOL run_fdsesstest(int dummy)
 	const char *fname1 = "\\fdsess1.tst";
 	int fnum1;
 	int fnum2;
-	pstring buf;
-	BOOL ret = True;
+	char buf[1024];
+	bool ret = True;
 
 	if (!torture_open_connection(&cli, 0))
 		return False;
@@ -2174,12 +2230,12 @@ static BOOL run_fdsesstest(int dummy)
 
   1) the server does not allow an unlink on a file that is open
 */
-static BOOL run_unlinktest(int dummy)
+static bool run_unlinktest(int dummy)
 {
 	struct cli_state *cli;
 	const char *fname = "\\unlink.tst";
 	int fnum;
-	BOOL correct = True;
+	bool correct = True;
 
 	if (!torture_open_connection(&cli, 0)) {
 		return False;
@@ -2223,14 +2279,14 @@ static BOOL run_unlinktest(int dummy)
 /*
 test how many open files this server supports on the one socket
 */
-static BOOL run_maxfidtest(int dummy)
+static bool run_maxfidtest(int dummy)
 {
 	struct cli_state *cli;
 	const char *ftemplate = "\\maxfid.%d.%d";
 	fstring fname;
 	int fnums[0x11000], i;
 	int retries=4;
-	BOOL correct = True;
+	bool correct = True;
 
 	cli = current_cli;
 
@@ -2286,11 +2342,11 @@ static void rand_buf(char *buf, int len)
 }
 
 /* send smb negprot commands, not reading the response */
-static BOOL run_negprot_nowait(int dummy)
+static bool run_negprot_nowait(int dummy)
 {
 	int i;
 	static struct cli_state *cli;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting negprot nowait test\n");
 
@@ -2313,15 +2369,15 @@ static BOOL run_negprot_nowait(int dummy)
 
 
 /* send random IPC commands */
-static BOOL run_randomipc(int dummy)
+static bool run_randomipc(int dummy)
 {
 	char *rparam = NULL;
 	char *rdata = NULL;
 	unsigned int rdrcnt,rprcnt;
-	pstring param;
+	char param[1024];
 	int api, param_len, i;
 	struct cli_state *cli;
-	BOOL correct = True;
+	bool correct = True;
 	int count = 50000;
 
 	printf("starting random ipc test\n");
@@ -2372,10 +2428,10 @@ static void browse_callback(const char *sname, uint32 stype,
   This test checks the browse list code
 
 */
-static BOOL run_browsetest(int dummy)
+static bool run_browsetest(int dummy)
 {
 	static struct cli_state *cli;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting browse test\n");
 
@@ -2407,13 +2463,13 @@ static BOOL run_browsetest(int dummy)
 /*
   This checks how the getatr calls works
 */
-static BOOL run_attrtest(int dummy)
+static bool run_attrtest(int dummy)
 {
 	struct cli_state *cli;
 	int fnum;
 	time_t t, t2;
 	const char *fname = "\\attrib123456789.tst";
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting attrib test\n");
 
@@ -2471,7 +2527,7 @@ static BOOL run_attrtest(int dummy)
 /*
   This checks a couple of trans2 calls
 */
-static BOOL run_trans2test(int dummy)
+static bool run_trans2test(int dummy)
 {
 	struct cli_state *cli;
 	int fnum;
@@ -2481,8 +2537,8 @@ static BOOL run_trans2test(int dummy)
 	const char *fname = "\\trans2.tst";
 	const char *dname = "\\trans2";
 	const char *fname2 = "\\trans2\\trans2.tst";
-	pstring pname;
-	BOOL correct = True;
+	char pname[1024];
+	bool correct = True;
 
 	printf("starting trans2 test\n");
 
@@ -2499,7 +2555,7 @@ static BOOL run_trans2test(int dummy)
 		correct = False;
 	}
 
-	if (!cli_qfilename(cli, fnum, pname)) {
+	if (!cli_qfilename(cli, fnum, pname, sizeof(pname))) {
 		printf("ERROR: qfilename failed (%s)\n", cli_errstr(cli));
 		correct = False;
 	}
@@ -2608,31 +2664,31 @@ static BOOL run_trans2test(int dummy)
   This checks new W2K calls.
 */
 
-static BOOL new_trans(struct cli_state *pcli, int fnum, int level)
+static bool new_trans(struct cli_state *pcli, int fnum, int level)
 {
 	char *buf = NULL;
 	uint32 len;
-	BOOL correct = True;
+	bool correct = True;
 
 	if (!cli_qfileinfo_test(pcli, fnum, level, &buf, &len)) {
 		printf("ERROR: qfileinfo (%d) failed (%s)\n", level, cli_errstr(pcli));
 		correct = False;
 	} else {
 		printf("qfileinfo: level %d, len = %u\n", level, len);
-		dump_data(0, buf, len);
+		dump_data(0, (uint8 *)buf, len);
 		printf("\n");
 	}
 	SAFE_FREE(buf);
 	return correct;
 }
 
-static BOOL run_w2ktest(int dummy)
+static bool run_w2ktest(int dummy)
 {
 	struct cli_state *cli;
 	int fnum;
 	const char *fname = "\\w2ktest\\w2k.tst";
 	int level;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting w2k test\n");
 
@@ -2662,12 +2718,12 @@ static BOOL run_w2ktest(int dummy)
 /*
   this is a harness for some oplock tests
  */
-static BOOL run_oplock1(int dummy)
+static bool run_oplock1(int dummy)
 {
 	struct cli_state *cli1;
 	const char *fname = "\\lockt1.lck";
 	int fnum1;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting oplock test 1\n");
 
@@ -2711,17 +2767,17 @@ static BOOL run_oplock1(int dummy)
 	return correct;
 }
 
-static BOOL run_oplock2(int dummy)
+static bool run_oplock2(int dummy)
 {
 	struct cli_state *cli1, *cli2;
 	const char *fname = "\\lockt2.lck";
 	int fnum1, fnum2;
 	int saved_use_oplocks = use_oplocks;
 	char buf[4];
-	BOOL correct = True;
-	volatile BOOL *shared_correct;
+	bool correct = True;
+	volatile bool *shared_correct;
 
-	shared_correct = (volatile BOOL *)shm_setup(sizeof(BOOL));
+	shared_correct = (volatile bool *)shm_setup(sizeof(bool));
 	*shared_correct = True;
 
 	use_level_II_oplocks = True;
@@ -2847,23 +2903,23 @@ static BOOL run_oplock2(int dummy)
 }
 
 /* handler for oplock 3 tests */
-static BOOL oplock3_handler(struct cli_state *cli, int fnum, unsigned char level)
+static bool oplock3_handler(struct cli_state *cli, int fnum, unsigned char level)
 {
 	printf("got oplock break fnum=%d level=%d\n",
 	       fnum, level);
 	return cli_oplock_ack(cli, fnum, level);
 }
 
-static BOOL run_oplock3(int dummy)
+static bool run_oplock3(int dummy)
 {
 	struct cli_state *cli;
 	const char *fname = "\\oplockt3.dat";
 	int fnum;
 	char buf[4] = "abcd";
-	BOOL correct = True;
-	volatile BOOL *shared_correct;
+	bool correct = True;
+	volatile bool *shared_correct;
 
-	shared_correct = (volatile BOOL *)shm_setup(sizeof(BOOL));
+	shared_correct = (volatile bool *)shm_setup(sizeof(bool));
 	*shared_correct = True;
 
 	printf("starting oplock test 3\n");
@@ -2908,14 +2964,14 @@ static BOOL run_oplock3(int dummy)
 /*
   Test delete on close semantics.
  */
-static BOOL run_deletetest(int dummy)
+static bool run_deletetest(int dummy)
 {
 	struct cli_state *cli1 = NULL;
 	struct cli_state *cli2 = NULL;
 	const char *fname = "\\delete.file";
 	int fnum1 = -1;
 	int fnum2 = -1;
-	BOOL correct = True;
+	bool correct = True;
 	
 	printf("starting delete test\n");
 	
@@ -3391,10 +3447,10 @@ static BOOL run_deletetest(int dummy)
 /*
   print out server properties
  */
-static BOOL run_properties(int dummy)
+static bool run_properties(int dummy)
 {
 	static struct cli_state *cli;
-	BOOL correct = True;
+	bool correct = True;
 	
 	printf("starting properties test\n");
 	
@@ -3439,11 +3495,11 @@ static BOOL run_properties(int dummy)
 /*
   Test ntcreate calls made by xcopy
  */
-static BOOL run_xcopy(int dummy)
+static bool run_xcopy(int dummy)
 {
 	static struct cli_state *cli1;
 	const char *fname = "\\test.txt";
-	BOOL correct = True;
+	bool correct = True;
 	int fnum1, fnum2;
 
 	printf("starting xcopy test\n");
@@ -3481,12 +3537,12 @@ static BOOL run_xcopy(int dummy)
 /*
   Test rename on files open with share delete and no share delete.
  */
-static BOOL run_rename(int dummy)
+static bool run_rename(int dummy)
 {
 	static struct cli_state *cli1;
 	const char *fname = "\\test.txt";
 	const char *fname1 = "\\test1.txt";
-	BOOL correct = True;
+	bool correct = True;
 	int fnum1;
 
 	printf("starting rename test\n");
@@ -3669,7 +3725,7 @@ static BOOL run_rename(int dummy)
 	return correct;
 }
 
-static BOOL run_pipe_number(int dummy)
+static bool run_pipe_number(int dummy)
 {
 	struct cli_state *cli1;
 	const char *pipe_name = "\\SPOOLSS";
@@ -3702,7 +3758,7 @@ static BOOL run_pipe_number(int dummy)
 /*
   Test open mode returns on read-only files.
  */
-static BOOL run_opentest(int dummy)
+static bool run_opentest(int dummy)
 {
 	static struct cli_state *cli1;
 	static struct cli_state *cli2;
@@ -3710,7 +3766,7 @@ static BOOL run_opentest(int dummy)
 	int fnum1, fnum2;
 	char buf[20];
 	SMB_OFF_T fsize;
-	BOOL correct = True;
+	bool correct = True;
 	char *tmp_path;
 
 	printf("starting open test\n");
@@ -4152,12 +4208,12 @@ static struct trunc_open_results attr_results[] = {
 	{ 249, FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_SYSTEM }
 };
 
-static BOOL run_openattrtest(int dummy)
+static bool run_openattrtest(int dummy)
 {
 	static struct cli_state *cli1;
 	const char *fname = "\\openattr.file";
 	int fnum1;
-	BOOL correct = True;
+	bool correct = True;
 	uint16 attr;
 	unsigned int i, j, k, l;
 
@@ -4265,13 +4321,13 @@ static void list_fn(const char *mnt, file_info *finfo, const char *name, void *s
 /*
   test directory listing speed
  */
-static BOOL run_dirtest(int dummy)
+static bool run_dirtest(int dummy)
 {
 	int i;
 	static struct cli_state *cli;
 	int fnum;
 	double t1;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting directory test\n");
 
@@ -4339,7 +4395,7 @@ static void del_fn(const char *mnt, file_info *finfo, const char *mask, void *st
 /*
   sees what IOCTLs are supported
  */
-BOOL torture_ioctl_test(int dummy)
+bool torture_ioctl_test(int dummy)
 {
 	static struct cli_state *cli;
 	uint16 device, function;
@@ -4394,11 +4450,11 @@ BOOL torture_ioctl_test(int dummy)
 /*
   tries varients of chkpath
  */
-BOOL torture_chkpath_test(int dummy)
+bool torture_chkpath_test(int dummy)
 {
 	static struct cli_state *cli;
 	int fnum;
-	BOOL ret;
+	bool ret;
 
 	if (!torture_open_connection(&cli, 0)) {
 		return False;
@@ -4473,11 +4529,11 @@ BOOL torture_chkpath_test(int dummy)
 	return ret;
 }
 
-static BOOL run_eatest(int dummy)
+static bool run_eatest(int dummy)
 {
 	static struct cli_state *cli;
 	const char *fname = "\\eatest.txt";
-	BOOL correct = True;
+	bool correct = True;
 	int fnum, i;
 	size_t num_eas;
 	struct ea_struct *ea_list = NULL;
@@ -4541,7 +4597,7 @@ static BOOL run_eatest(int dummy)
 
 	for (i = 0; i < num_eas; i++) {
 		printf("%d: ea_name = %s. Val = ", i, ea_list[i].name);
-		dump_data(0, (char *)ea_list[i].value.data,
+		dump_data(0, ea_list[i].value.data,
 			  ea_list[i].value.length);
 	}
 
@@ -4570,7 +4626,7 @@ static BOOL run_eatest(int dummy)
 	printf("num_eas = %d\n", (int)num_eas);
 	for (i = 0; i < num_eas; i++) {
 		printf("%d: ea_name = %s. Val = ", i, ea_list[i].name);
-		dump_data(0, (char *)ea_list[i].value.data,
+		dump_data(0, ea_list[i].value.data,
 			  ea_list[i].value.length);
 	}
 
@@ -4593,12 +4649,12 @@ static BOOL run_eatest(int dummy)
 	return correct;
 }
 
-static BOOL run_dirtest1(int dummy)
+static bool run_dirtest1(int dummy)
 {
 	int i;
 	static struct cli_state *cli;
 	int fnum, num_seen;
-	BOOL correct = True;
+	bool correct = True;
 
 	printf("starting directory test\n");
 
@@ -4674,7 +4730,7 @@ static BOOL run_dirtest1(int dummy)
 	return correct;
 }
 
-static BOOL run_error_map_extract(int dummy) {
+static bool run_error_map_extract(int dummy) {
 	
 	static struct cli_state *c_dos;
 	static struct cli_state *c_nt;
@@ -4781,7 +4837,7 @@ static BOOL run_error_map_extract(int dummy) {
 	return True;
 }
 
-static BOOL run_sesssetup_bench(int dummy)
+static bool run_sesssetup_bench(int dummy)
 {
 	static struct cli_state *c;
 	NTSTATUS status;
@@ -4815,53 +4871,57 @@ static BOOL run_sesssetup_bench(int dummy)
 				 __location__, cli_errstr(c));
 			return false;
 		}
-
 		c->vuid = 0;
 	}
 
-	return True;
+	return true;
 }
 
-static BOOL run_local_substitute(int dummy)
+static bool subst_test(const char *str, const char *user, const char *domain,
+		       uid_t uid, gid_t gid, const char *expected)
 {
-	TALLOC_CTX *mem_ctx;
-	int diff = 0;
+	char *subst;
+	bool result = true;
 
-	if ((mem_ctx = talloc_init("run_local_subst")) == NULL) {
-		printf("talloc_init failed\n");
-		return False;
+	subst = talloc_sub_specified(talloc_tos(), str, user, domain, uid, gid);
+
+	if (strcmp(subst, expected) != 0) {
+		printf("sub_specified(%s, %s, %s, %d, %d) returned [%s], expected "
+		       "[%s]\n", str, user, domain, (int)uid, (int)gid, subst,
+		       expected);
+		result = false;
 	}
 
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%U", "bla", "", -1, -1),
-		       "bla");
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%u%U", "bla", "", -1, -1),
-		       "blabla");
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%g", "", "", -1, -1),
-		       "NO_GROUP");
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%G", "", "", -1, -1),
-		       "NO_GROUP");
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%g", "", "", -1, 0),
-		       gidtoname(0));
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%G", "", "", -1, 0),
-		       gidtoname(0));
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%D%u", "u", "dom", -1, 0),
-		       "domu");
-	diff |= strcmp(talloc_sub_specified(mem_ctx, "%i %I", "", "", -1, -1),
-		       "0.0.0.0 0.0.0.0");
+	TALLOC_FREE(subst);
+	return result;
+}
+
+static bool run_local_substitute(int dummy)
+{
+	bool ok = true;
+
+	ok &= subst_test("%U", "bla", "", -1, -1, "bla");
+	ok &= subst_test("%u%U", "bla", "", -1, -1, "blabla");
+	ok &= subst_test("%g", "", "", -1, -1, "NO_GROUP");
+	ok &= subst_test("%G", "", "", -1, -1, "NO_GROUP");
+	ok &= subst_test("%g", "", "", -1, 0, gidtoname(0));
+	ok &= subst_test("%G", "", "", -1, 0, gidtoname(0));
+	ok &= subst_test("%D%u", "u", "dom", -1, 0, "domu");
+	ok &= subst_test("%i %I", "", "", -1, -1, "0.0.0.0 0.0.0.0");
 
 	/* Different captialization rules in sub_basic... */
 
-	diff |= strcmp(talloc_sub_basic(mem_ctx, "BLA", "dom", "%U%D"),
-		       "blaDOM");
+	ok &=  (strcmp(talloc_sub_basic(talloc_tos(), "BLA", "dom", "%U%D"),
+		       "blaDOM") == 0);
 
-	TALLOC_FREE(mem_ctx);
-	return (diff == 0);
+	return ok;
 }
 
-static BOOL run_local_gencache(int dummy)
+static bool run_local_gencache(int dummy)
 {
 	char *val;
 	time_t tm;
+	DATA_BLOB blob;
 
 	if (!gencache_init()) {
 		d_printf("%s: gencache_init() failed\n", __location__);
@@ -4903,6 +4963,46 @@ static BOOL run_local_gencache(int dummy)
 		return False;
 	}
 
+	blob = data_blob_string_const("bar");
+	tm = time(NULL);
+
+	if (!gencache_set_data_blob("foo", &blob, tm)) {
+		d_printf("%s: gencache_set_data_blob() failed\n", __location__);
+		return False;
+	}
+
+	data_blob_free(&blob);
+
+	if (!gencache_get_data_blob("foo", &blob, NULL)) {
+		d_printf("%s: gencache_get_data_blob() failed\n", __location__);
+		return False;
+	}
+
+	if (strcmp((const char *)blob.data, "bar") != 0) {
+		d_printf("%s: gencache_get_data_blob() returned %s, expected %s\n",
+			 __location__, (const char *)blob.data, "bar");
+		data_blob_free(&blob);
+		return False;
+	}
+
+	data_blob_free(&blob);
+
+	if (!gencache_del("foo")) {
+		d_printf("%s: gencache_del() failed\n", __location__);
+		return False;
+	}
+	if (gencache_del("foo")) {
+		d_printf("%s: second gencache_del() succeeded\n",
+			 __location__);
+		return False;
+	}
+
+	if (gencache_get_data_blob("foo", &blob, NULL)) {
+		d_printf("%s: gencache_get_data_blob() on deleted entry "
+			 "succeeded\n", __location__);
+		return False;
+	}
+
 	if (!gencache_shutdown()) {
 		d_printf("%s: gencache_shutdown() failed\n", __location__);
 		return False;
@@ -4917,11 +5017,236 @@ static BOOL run_local_gencache(int dummy)
 	return True;
 }
 
-static double create_procs(BOOL (*fn)(int), BOOL *result)
+static bool rbt_testval(struct db_context *db, const char *key,
+			const char *value)
+{
+	struct db_record *rec;
+	TDB_DATA data = string_tdb_data(value);
+	bool ret = false;
+	NTSTATUS status;
+
+	rec = db->fetch_locked(db, db, string_tdb_data(key));
+	if (rec == NULL) {
+		d_fprintf(stderr, "fetch_locked failed\n");
+		goto done;
+	}
+	status = rec->store(rec, data, 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "store failed: %s\n", nt_errstr(status));
+		goto done;
+	}
+	TALLOC_FREE(rec);
+
+	rec = db->fetch_locked(db, db, string_tdb_data(key));
+	if (rec == NULL) {
+		d_fprintf(stderr, "second fetch_locked failed\n");
+		goto done;
+	}
+	if ((rec->value.dsize != data.dsize)
+	    || (memcmp(rec->value.dptr, data.dptr, data.dsize) != 0)) {
+		d_fprintf(stderr, "Got wrong data back\n");
+		goto done;
+	}
+
+	ret = true;
+ done:
+	TALLOC_FREE(rec);
+	return ret;
+}
+
+static bool run_local_rbtree(int dummy)
+{
+	struct db_context *db;
+	bool ret = false;
+	int i;
+
+	db = db_open_rbt(NULL);
+
+	if (db == NULL) {
+		d_fprintf(stderr, "db_open_rbt failed\n");
+		return false;
+	}
+
+	for (i=0; i<1000; i++) {
+		char *key, *value;
+
+		asprintf(&key, "key%ld", random());
+		asprintf(&value, "value%ld", random());
+
+		if (!rbt_testval(db, key, value)) {
+			SAFE_FREE(key);
+			SAFE_FREE(value);
+			goto done;
+		}
+
+		SAFE_FREE(value);
+		asprintf(&value, "value%ld", random());
+
+		if (!rbt_testval(db, key, value)) {
+			SAFE_FREE(key);
+			SAFE_FREE(value);
+			goto done;
+		}
+
+		SAFE_FREE(key);
+		SAFE_FREE(value);
+	}
+
+	ret = true;
+
+ done:
+	TALLOC_FREE(db);
+	return ret;
+}
+
+static bool test_stream_name(const char *fname, const char *expected_base,
+			     const char *expected_stream,
+			     NTSTATUS expected_status)
+{
+	NTSTATUS status;
+	char *base = NULL;
+	char *stream = NULL;
+
+	status = split_ntfs_stream_name(talloc_tos(), fname, &base, &stream);
+	if (!NT_STATUS_EQUAL(status, expected_status)) {
+		goto error;
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return true;
+	}
+
+	if (base == NULL) goto error;
+
+	if (strcmp(expected_base, base) != 0) goto error;
+
+	if ((expected_stream != NULL) && (stream == NULL)) goto error;
+	if ((expected_stream == NULL) && (stream != NULL)) goto error;
+
+	if ((stream != NULL) && (strcmp(expected_stream, stream) != 0))
+		goto error;
+
+	TALLOC_FREE(base);
+	TALLOC_FREE(stream);
+	return true;
+
+ error:
+	d_fprintf(stderr, "test_stream(%s, %s, %s, %s)\n",
+		  fname, expected_base ? expected_base : "<NULL>",
+		  expected_stream ? expected_stream : "<NULL>",
+		  nt_errstr(expected_status));
+	d_fprintf(stderr, "-> base=%s, stream=%s, status=%s\n",
+		  base ? base : "<NULL>", stream ? stream : "<NULL>",
+		  nt_errstr(status));
+	TALLOC_FREE(base);
+	TALLOC_FREE(stream);
+	return false;
+}
+
+static bool run_local_stream_name(int dummy)
+{
+	bool ret = true;
+
+	ret &= test_stream_name(
+		"bla", "bla", NULL, NT_STATUS_OK);
+	ret &= test_stream_name(
+		"bla::$DATA", "bla", NULL, NT_STATUS_OK);
+	ret &= test_stream_name(
+		"bla:blub:", "bla", NULL, NT_STATUS_OBJECT_NAME_INVALID);
+	ret &= test_stream_name(
+		"bla::", NULL, NULL, NT_STATUS_OBJECT_NAME_INVALID);
+	ret &= test_stream_name(
+		"bla::123", "bla", NULL, NT_STATUS_OBJECT_NAME_INVALID);
+	ret &= test_stream_name(
+		"bla:$DATA", "bla", "$DATA:$DATA", NT_STATUS_OK);
+	ret &= test_stream_name(
+		"bla:x:$DATA", "bla", "x:$DATA", NT_STATUS_OK);
+	ret &= test_stream_name(
+		"bla:x", "bla", "x:$DATA", NT_STATUS_OK);
+
+	return ret;
+}
+
+static bool data_blob_equal(DATA_BLOB a, DATA_BLOB b)
+{
+	if (a.length != b.length) {
+		printf("a.length=%d != b.length=%d\n",
+		       (int)a.length, (int)b.length);
+		return false;
+	}
+	if (memcmp(a.data, b.data, a.length) != 0) {
+		printf("a.data and b.data differ\n");
+		return false;
+	}
+	return true;
+}
+
+static bool run_local_memcache(int dummy)
+{
+	struct memcache *cache;
+	DATA_BLOB k1, k2;
+	DATA_BLOB d1, d2, d3;
+	DATA_BLOB v1, v2, v3;
+
+	cache = memcache_init(NULL, 100);
+
+	if (cache == NULL) {
+		printf("memcache_init failed\n");
+		return false;
+	}
+
+	d1 = data_blob_const("d1", 2);
+	d2 = data_blob_const("d2", 2);
+	d3 = data_blob_const("d3", 2);
+
+	k1 = data_blob_const("d1", 2);
+	k2 = data_blob_const("d2", 2);
+
+	memcache_add(cache, STAT_CACHE, k1, d1);
+	memcache_add(cache, GETWD_CACHE, k2, d2);
+
+	if (!memcache_lookup(cache, STAT_CACHE, k1, &v1)) {
+		printf("could not find k1\n");
+		return false;
+	}
+	if (!data_blob_equal(d1, v1)) {
+		return false;
+	}
+
+	if (!memcache_lookup(cache, GETWD_CACHE, k2, &v2)) {
+		printf("could not find k2\n");
+		return false;
+	}
+	if (!data_blob_equal(d2, v2)) {
+		return false;
+	}
+
+	memcache_add(cache, STAT_CACHE, k1, d3);
+
+	if (!memcache_lookup(cache, STAT_CACHE, k1, &v3)) {
+		printf("could not find replaced k1\n");
+		return false;
+	}
+	if (!data_blob_equal(d3, v3)) {
+		return false;
+	}
+
+	memcache_add(cache, GETWD_CACHE, k1, d1);
+
+	if (memcache_lookup(cache, GETWD_CACHE, k2, &v2)) {
+		printf("Did find k2, should have been purged\n");
+		return false;
+	}
+
+	TALLOC_FREE(cache);
+	return true;
+}
+
+static double create_procs(bool (*fn)(int), bool *result)
 {
 	int i, status;
 	volatile pid_t *child_status;
-	volatile BOOL *child_status_out;
+	volatile bool *child_status_out;
 	int synccount;
 	int tries = 8;
 
@@ -4933,7 +5258,7 @@ static double create_procs(BOOL (*fn)(int), BOOL *result)
 		return -1;
 	}
 
-	child_status_out = (volatile BOOL *)shm_setup(sizeof(BOOL)*nprocs);
+	child_status_out = (volatile bool *)shm_setup(sizeof(bool)*nprocs);
 	if (!child_status_out) {
 		printf("Failed to setup result status shared memory\n");
 		return -1;
@@ -5014,7 +5339,7 @@ static double create_procs(BOOL (*fn)(int), BOOL *result)
 
 static struct {
 	const char *name;
-	BOOL (*fn)(int);
+	bool (*fn)(int);
 	unsigned flags;
 } torture_ops[] = {
 	{"FDPASS", run_fdpasstest, 0},
@@ -5070,6 +5395,9 @@ static struct {
 	{ "SESSSETUP_BENCH", run_sesssetup_bench, 0},
 	{ "LOCAL-SUBSTITUTE", run_local_substitute, 0},
 	{ "LOCAL-GENCACHE", run_local_gencache, 0},
+	{ "LOCAL-RBTREE", run_local_rbtree, 0},
+	{ "LOCAL-MEMCACHE", run_local_memcache, 0},
+	{ "LOCAL-STREAM-NAME", run_local_stream_name, 0},
 	{NULL, NULL, 0}};
 
 
@@ -5077,11 +5405,11 @@ static struct {
 /****************************************************************************
 run a specified test or "ALL"
 ****************************************************************************/
-static BOOL run_test(const char *name)
+static bool run_test(const char *name)
 {
-	BOOL ret = True;
-	BOOL result = True;
-	BOOL found = False;
+	bool ret = True;
+	bool result = True;
+	bool found = False;
 	int i;
 	double t;
 	if (strequal(name,"ALL")) {
@@ -5172,7 +5500,9 @@ static void usage(void)
 	char *p;
 	int gotuser = 0;
 	int gotpass = 0;
-	BOOL correct = True;
+	bool correct = True;
+	TALLOC_CTX *frame = talloc_stackframe();
+	int seed = time(NULL);
 
 	dbf = x_stdout;
 
@@ -5182,7 +5512,7 @@ static void usage(void)
 
 	load_case_tables();
 
-	lp_load(dyn_CONFIGFILE,True,False,False,True);
+	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 
 	if (argc < 2) {
@@ -5205,7 +5535,11 @@ static void usage(void)
 	*p = 0;
 	fstrcpy(share, p+1);
 
-	get_myname(myname);
+	fstrcpy(myname, get_myname(talloc_tos()));
+	if (!*myname) {
+		fprintf(stderr, "Failed to get my hostname.\n");
+		return 1;
+	}
 
 	if (*username == 0 && getenv("LOGNAME")) {
 	  fstrcpy(username,getenv("LOGNAME"));
@@ -5214,17 +5548,15 @@ static void usage(void)
 	argc--;
 	argv++;
 
-	srandom(time(NULL));
-
 	fstrcpy(workgroup, lp_workgroup());
 
-	while ((opt = getopt(argc, argv, "p:hW:U:n:N:O:o:m:Ld:Ac:ks:b:")) != EOF) {
+	while ((opt = getopt(argc, argv, "p:hW:U:n:N:O:o:m:Ld:Aec:ks:b:")) != EOF) {
 		switch (opt) {
 		case 'p':
 			port_to_use = atoi(optarg);
 			break;
 		case 's':
-			srandom(atoi(optarg));
+			seed = atoi(optarg);
 			break;
 		case 'W':
 			fstrcpy(workgroup,optarg);
@@ -5256,6 +5588,9 @@ static void usage(void)
 		case 'c':
 			client_txt = optarg;
 			break;
+		case 'e':
+			do_encrypt = true;
+			break;
 		case 'k':
 #ifdef HAVE_KRB5
 			use_kerberos = True;
@@ -5284,6 +5619,10 @@ static void usage(void)
 		}
 	}
 
+	d_printf("using seed %d\n", seed);
+
+	srandom(seed);
+
 	if(use_kerberos && !gotuser) gotpass = True;
 
 	while (!gotpass) {
@@ -5306,6 +5645,8 @@ static void usage(void)
 			}
 		}
 	}
+
+	TALLOC_FREE(frame);
 
 	if (correct) {
 		return(0);

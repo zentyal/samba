@@ -1,21 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    Name mangling interface
    Copyright (C) Andrew Tridgell 2002
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -81,7 +80,7 @@ void mangle_change_to_posix(void)
 /*
   see if a filename has come out of our mangling code
 */
-BOOL mangle_is_mangled(const char *s, const struct share_params *p)
+bool mangle_is_mangled(const char *s, const struct share_params *p)
 {
 	return mangle_fns->is_mangled(s, p);
 }
@@ -89,47 +88,65 @@ BOOL mangle_is_mangled(const char *s, const struct share_params *p)
 /*
   see if a filename matches the rules of a 8.3 filename
 */
-BOOL mangle_is_8_3(const char *fname, BOOL check_case,
+bool mangle_is_8_3(const char *fname, bool check_case,
 		   const struct share_params *p)
 {
 	return mangle_fns->is_8_3(fname, check_case, False, p);
 }
 
-BOOL mangle_is_8_3_wildcards(const char *fname, BOOL check_case,
+bool mangle_is_8_3_wildcards(const char *fname, bool check_case,
 			     const struct share_params *p)
 {
 	return mangle_fns->is_8_3(fname, check_case, True, p);
 }
 
+bool mangle_must_mangle(const char *fname,
+		   const struct share_params *p)
+{
+	if (!lp_manglednames(p)) {
+		return False;
+	}
+	return mangle_fns->must_mangle(fname, p);
+}
+
 /*
-  try to reverse map a 8.3 name to the original filename. This doesn't have to 
+  try to reverse map a 8.3 name to the original filename. This doesn't have to
   always succeed, as the directory handling code in smbd will scan the directory
   looking for a matching name if it doesn't. It should succeed most of the time
   or there will be a huge performance penalty
 */
-BOOL mangle_check_cache(char *s, size_t maxlen,
+bool mangle_lookup_name_from_8_3(TALLOC_CTX *ctx,
+			const char *in,
+			char **out, /* talloced on the given context. */
 			const struct share_params *p)
 {
-	return mangle_fns->check_cache(s, maxlen, p);
+	return mangle_fns->lookup_name_from_8_3(ctx, in, out, p);
 }
 
-/* 
-   map a long filename to a 8.3 name. 
+/*
+   mangle a long filename to a 8.3 name.
+   Return True if we did mangle the name (ie. out is filled in).
+   False on error.
+   JRA.
  */
 
-void mangle_map(pstring OutName, BOOL need83, BOOL cache83,
+bool name_to_8_3(const char *in,
+		char out[13],
+		bool cache83,
 		const struct share_params *p)
 {
+	memset(out,'\0',13);
+
 	/* name mangling can be disabled for speed, in which case
 	   we just truncate the string */
 	if (!lp_manglednames(p)) {
-		if (need83) {
-			string_truncate(OutName, 12);
-		}
-		return;
+		safe_strcpy(out,in,12);
+		return True;
 	}
 
-	/* invoke the inane "mangled map" code */
-	mangle_map_filename(OutName, p);
-	mangle_fns->name_map(OutName, need83, cache83, lp_defaultcase(p->service), p);
+	return mangle_fns->name_to_8_3(in,
+				out,
+				cache83,
+				lp_defaultcase(p->service),
+				p);
 }

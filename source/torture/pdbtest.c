@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,16 +16,15 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 #include "includes.h"
 
-static BOOL samu_correct(struct samu *s1, struct samu *s2)
+static bool samu_correct(struct samu *s1, struct samu *s2)
 {
-	BOOL ret = True;
+	bool ret = True;
 	uint32 s1_len, s2_len;
 	const char *s1_buf, *s2_buf;
 	const uint8 *d1_buf, *d2_buf;
@@ -230,7 +229,7 @@ int main(int argc, char **argv)
 	NTSTATUS rv;
 	int i;
 	struct timeval tv;
-	BOOL error = False;
+	bool error = False;
 	struct passwd *pwd;
 	uint8 *buf;
 	uint32 expire, min_age, history;
@@ -258,7 +257,7 @@ int main(int argc, char **argv)
 	poptFreeContext(pc);
 
 	/* Load configuration */
-	lp_load(dyn_CONFIGFILE, False, False, True, True);
+	lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
 	setup_logging("pdbtest", True);
 
 	if (backend == NULL) {
@@ -365,24 +364,6 @@ int main(int argc, char **argv)
 					get_friendly_nt_error_msg(rv));
 	}
 
-	pdb->setsampwent(pdb, False, 0);
-	while (NT_STATUS_IS_OK(pdb->getsampwent(pdb, out))) {
-		if (pdb_get_username(out) == NULL) {
-			fprintf(stderr, "Got bad username through getsampwent()\n");
-			error = True;
-			break;
-		}
-		if (NT_STATUS_IS_ERR(pdb->getsampwnam(pdb, in, pdb_get_username(out)))) {
-			fprintf(stderr, "Error getting samu through getsampwnam() of an account we got through getsampwent!\n");
-			error = True;
-			continue;
-		}
-		if (!samu_correct(out, in)) {
-			printf("Record gotten through getsampwnam() differs from same record through getsampwent()\n");
-		}
-	}
-	pdb->endsampwent(pdb);
-	
 	TALLOC_FREE(ctx);
 
 	if (error) {

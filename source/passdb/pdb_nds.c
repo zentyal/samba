@@ -5,7 +5,7 @@
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -741,7 +740,7 @@ int pdb_nds_set_password(
 *********************************************************************/
 
 static NTSTATUS pdb_nds_update_login_attempts(struct pdb_methods *methods,
-					struct samu *sam_acct, BOOL success)
+					struct samu *sam_acct, bool success)
 {
 	struct ldapsam_privates *ldap_state;
 
@@ -764,7 +763,7 @@ static NTSTATUS pdb_nds_update_login_attempts(struct pdb_methods *methods,
 		char clear_text_pw[512];
 		LDAP *ld = NULL;
 		const char *username = pdb_get_username(sam_acct);
-		BOOL got_clear_text_pw = False;
+		bool got_clear_text_pw = False;
 
 		DEBUG(5,("pdb_nds_update_login_attempts: %s login for %s\n",
 				success ? "Successful" : "Failed", username));

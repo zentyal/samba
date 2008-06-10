@@ -6,7 +6,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -45,14 +44,6 @@ void smb_uuid_unpack(const UUID_FLAT in, struct GUID *uu)
 	memcpy(uu->node, in.info+10, 6);
 }
 
-struct GUID smb_uuid_unpack_static(const UUID_FLAT in)
-{
-	static struct GUID uu;
-
-	smb_uuid_unpack(in, &uu);
-	return uu;
-}
-
 void smb_uuid_generate_random(struct GUID *uu)
 {
 	UUID_FLAT tmp;
@@ -64,35 +55,25 @@ void smb_uuid_generate_random(struct GUID *uu)
 	uu->time_hi_and_version = (uu->time_hi_and_version & 0x0FFF) | 0x4000;
 }
 
-char *smb_uuid_to_string(const struct GUID uu)
+const char *smb_uuid_string(TALLOC_CTX *mem_ctx, const struct GUID uu)
 {
-	char *out;
+	char *result;
 
-	asprintf(&out, "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-		 uu.time_low, uu.time_mid, uu.time_hi_and_version,
-		 uu.clock_seq[0], uu.clock_seq[1],
-		 uu.node[0], uu.node[1], uu.node[2], 
-		 uu.node[3], uu.node[4], uu.node[5]);
+	result = talloc_asprintf(
+		mem_ctx,
+		"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+		uu.time_low, uu.time_mid, uu.time_hi_and_version,
+		uu.clock_seq[0], uu.clock_seq[1],
+		uu.node[0], uu.node[1], uu.node[2], 
+		uu.node[3], uu.node[4], uu.node[5]);
 
-	return out;
+	SMB_ASSERT(result != NULL);
+	return result;
 }
 
-const char *smb_uuid_string_static(const struct GUID uu)
+bool smb_string_to_uuid(const char *in, struct GUID* uu)
 {
-	static char out[37];
-
-	slprintf(out, sizeof(out), 
-		 "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-		 uu.time_low, uu.time_mid, uu.time_hi_and_version,
-		 uu.clock_seq[0], uu.clock_seq[1],
-		 uu.node[0], uu.node[1], uu.node[2], 
-		 uu.node[3], uu.node[4], uu.node[5]);
-	return out;
-}
-
-BOOL smb_string_to_uuid(const char *in, struct GUID* uu)
-{
-	BOOL ret = False;
+	bool ret = False;
 	const char *ptr = in;
 	char *end = (char *)in;
 	int i;
@@ -134,3 +115,19 @@ BOOL smb_string_to_uuid(const char *in, struct GUID* uu)
 out:
         return ret;
 }
+
+/*****************************************************************
+ Return the binary string representation of a GUID.
+ Caller must free.
+*****************************************************************/
+
+char *guid_binstring(const struct GUID *guid)
+{
+	UUID_FLAT guid_flat;
+
+	smb_uuid_pack(*guid, &guid_flat);
+
+	return binary_string_rfc2254((char *)guid_flat.info, UUID_FLAT_SIZE);
+}
+
+

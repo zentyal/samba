@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -28,13 +27,14 @@
 #include "librpc/gen_ndr/ndr_notify.h"
 
 struct notify_context {
-	struct tdb_wrap *w;
+	struct db_context *db;
 	struct server_id server;
 	struct messaging_context *messaging_ctx;
 	struct notify_list *list;
 	struct notify_array *array;
 	int seqnum;
 	struct sys_notify_context *sys_notify_ctx;
+	TDB_DATA key;
 };
 
 
@@ -91,10 +91,10 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 		return NULL;
 	}
 
-	notify->w = tdb_wrap_open(notify, lock_path("notify.tdb"),
+	notify->db = db_open(notify, lock_path("notify.tdb"),
 				  0, TDB_SEQNUM|TDB_CLEAR_IF_FIRST,
 				  O_RDWR|O_CREAT, 0644);
-	if (notify->w == NULL) {
+	if (notify->db == NULL) {
 		talloc_free(notify);
 		return NULL;
 	}
@@ -103,7 +103,8 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 	notify->messaging_ctx = messaging_ctx;
 	notify->list = NULL;
 	notify->array = NULL;
-	notify->seqnum = tdb_get_seqnum(notify->w->tdb);
+	notify->seqnum = notify->db->get_seqnum(notify->db);
+	notify->key = string_term_tdb_data(NOTIFY_KEY);
 
 	talloc_set_destructor(notify, notify_destructor);
 
@@ -117,37 +118,29 @@ struct notify_context *notify_init(TALLOC_CTX *mem_ctx, struct server_id server,
 	return notify;
 }
 
-
 /*
-  lock the notify db
+  lock and fetch the record
 */
-static NTSTATUS notify_lock(struct notify_context *notify)
+static NTSTATUS notify_fetch_locked(struct notify_context *notify, struct db_record **rec)
 {
-	if (tdb_lock_bystring(notify->w->tdb, NOTIFY_KEY) != 0) {
+	*rec = notify->db->fetch_locked(notify->db, notify, notify->key);
+	if (*rec == NULL) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 	return NT_STATUS_OK;
 }
 
 /*
-  unlock the notify db
-*/
-static void notify_unlock(struct notify_context *notify)
-{
-	tdb_unlock_bystring(notify->w->tdb, NOTIFY_KEY);
-}
-
-/*
   load the notify array
 */
-static NTSTATUS notify_load(struct notify_context *notify)
+static NTSTATUS notify_load(struct notify_context *notify, struct db_record *rec)
 {
 	TDB_DATA dbuf;
 	DATA_BLOB blob;
 	NTSTATUS status;
 	int seqnum;
 
-	seqnum = tdb_get_seqnum(notify->w->tdb);
+	seqnum = notify->db->get_seqnum(notify->db);
 
 	if (seqnum == notify->seqnum && notify->array != NULL) {
 		return NT_STATUS_OK;
@@ -159,23 +152,35 @@ static NTSTATUS notify_load(struct notify_context *notify)
 	notify->array = TALLOC_ZERO_P(notify, struct notify_array);
 	NT_STATUS_HAVE_NO_MEMORY(notify->array);
 
-	dbuf = tdb_fetch_bystring(notify->w->tdb, NOTIFY_KEY);
-	if (dbuf.dptr == NULL) {
-		return NT_STATUS_OK;
+	if (!rec) {
+		if (notify->db->fetch(notify->db, notify, notify->key, &dbuf) != 0) {
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+	} else {
+		dbuf = rec->value;
 	}
 
 	blob.data = (uint8 *)dbuf.dptr;
 	blob.length = dbuf.dsize;
 
-	status = ndr_pull_struct_blob(&blob, notify->array, notify->array, 
-				      (ndr_pull_flags_fn_t)ndr_pull_notify_array);
+	status = NT_STATUS_OK;
+	if (blob.length > 0) {
+		enum ndr_err_code ndr_err;
+		ndr_err = ndr_pull_struct_blob(&blob, notify->array, notify->array,
+					       (ndr_pull_flags_fn_t)ndr_pull_notify_array);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			status = ndr_map_error2ntstatus(ndr_err);
+		}
+	}
 
 	if (DEBUGLEVEL >= 10) {
 		DEBUG(10, ("notify_load:\n"));
 		NDR_PRINT_DEBUG(notify_array, notify->array);
 	}
 
-	free(dbuf.dptr);
+	if (!rec) {
+		talloc_free(dbuf.dptr);
+	}
 
 	return status;
 }
@@ -193,12 +198,12 @@ static int notify_compare(const void *p1, const void *p2)
 /*
   save the notify array
 */
-static NTSTATUS notify_save(struct notify_context *notify)
+static NTSTATUS notify_save(struct notify_context *notify, struct db_record *rec)
 {
 	TDB_DATA dbuf;
 	DATA_BLOB blob;
 	NTSTATUS status;
-	int ret;
+	enum ndr_err_code ndr_err;
 	TALLOC_CTX *tmp_ctx;
 
 	/* if possible, remove some depth arrays */
@@ -209,21 +214,17 @@ static NTSTATUS notify_save(struct notify_context *notify)
 
 	/* we might just be able to delete the record */
 	if (notify->array->num_depths == 0) {
-		ret = tdb_delete_bystring(notify->w->tdb, NOTIFY_KEY);
-		if (ret != 0) {
-			return NT_STATUS_INTERNAL_DB_CORRUPTION;
-		}
-		return NT_STATUS_OK;
+		return rec->delete_rec(rec);
 	}
 
 	tmp_ctx = talloc_new(notify);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
-	status = ndr_push_struct_blob(&blob, tmp_ctx, notify->array, 
+	ndr_err = ndr_push_struct_blob(&blob, tmp_ctx, notify->array,
 				      (ndr_push_flags_fn_t)ndr_push_notify_array);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
-		return status;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	if (DEBUGLEVEL >= 10) {
@@ -231,16 +232,13 @@ static NTSTATUS notify_save(struct notify_context *notify)
 		NDR_PRINT_DEBUG(notify_array, notify->array);
 	}
 
-	dbuf.dptr = (char *)blob.data;
+	dbuf.dptr = blob.data;
 	dbuf.dsize = blob.length;
-		
-	ret = tdb_store_bystring(notify->w->tdb, NOTIFY_KEY, dbuf, TDB_REPLACE);
-	talloc_free(tmp_ctx);
-	if (ret != 0) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
 
-	return NT_STATUS_OK;
+	status = rec->store(rec, dbuf, TDB_REPLACE);
+	talloc_free(tmp_ctx);
+
+	return status;
 }
 
 
@@ -251,7 +249,7 @@ static void notify_handler(struct messaging_context *msg_ctx, void *private_data
 			   uint32_t msg_type, struct server_id server_id, DATA_BLOB *data)
 {
 	struct notify_context *notify = talloc_get_type(private_data, struct notify_context);
-	NTSTATUS status;
+	enum ndr_err_code ndr_err;
 	struct notify_event ev;
 	TALLOC_CTX *tmp_ctx = talloc_new(notify);
 	struct notify_list *listel;
@@ -260,9 +258,9 @@ static void notify_handler(struct messaging_context *msg_ctx, void *private_data
 		return;
 	}
 
-	status = ndr_pull_struct_blob(data, tmp_ctx, &ev, 
-				      (ndr_pull_flags_fn_t)ndr_pull_notify_event);
-	if (!NT_STATUS_IS_OK(status)) {
+	ndr_err = ndr_pull_struct_blob(data, tmp_ctx, &ev,
+				       (ndr_pull_flags_fn_t)ndr_pull_notify_event);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
 		return;
 	}
@@ -293,7 +291,8 @@ static void sys_notify_callback(struct sys_notify_context *ctx,
 /*
   add an entry to the notify array
 */
-static NTSTATUS notify_add_array(struct notify_context *notify, struct notify_entry *e,
+static NTSTATUS notify_add_array(struct notify_context *notify, struct db_record *rec,
+				 struct notify_entry *e,
 				 void *private_data, int depth)
 {
 	int i;
@@ -341,7 +340,7 @@ static NTSTATUS notify_add_array(struct notify_context *notify, struct notify_en
 		d->max_mask_subdir |= d->entries[i].subdir_filter;
 	}
 
-	return notify_save(notify);
+	return notify_save(notify, rec);
 }
 
 /*
@@ -358,18 +357,20 @@ NTSTATUS notify_add(struct notify_context *notify, struct notify_entry *e0,
 	struct notify_list *listel;
 	size_t len;
 	int depth;
+	struct db_record *rec;
 
 	/* see if change notify is enabled at all */
 	if (notify == NULL) {
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
 
-	status = notify_lock(notify);
+	status = notify_fetch_locked(notify, &rec);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	status = notify_load(notify);
+	status = notify_load(notify, rec);
 	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
+		talloc_free(rec);
+		return status;
 	}
 
 	/* cope with /. on the end of the path */
@@ -415,11 +416,11 @@ NTSTATUS notify_add(struct notify_context *notify, struct notify_entry *e0,
 	   then we need to install it in the array used for the
 	   intra-samba notify handling */
 	if (e.filter != 0 || e.subdir_filter != 0) {
-		status = notify_add_array(notify, &e, private_data, depth);
+		status = notify_add_array(notify, rec, &e, private_data, depth);
 	}
 
 done:
-	notify_unlock(notify);
+	talloc_free(rec);
 	talloc_free(tmp_path);
 
 	return status;
@@ -434,6 +435,7 @@ NTSTATUS notify_remove(struct notify_context *notify, void *private_data)
 	struct notify_list *listel;
 	int i, depth;
 	struct notify_depth *d;
+	struct db_record *rec;
 
 	/* see if change notify is enabled at all */
 	if (notify == NULL) {
@@ -454,17 +456,17 @@ NTSTATUS notify_remove(struct notify_context *notify, void *private_data)
 
 	talloc_free(listel);
 
-	status = notify_lock(notify);
+	status = notify_fetch_locked(notify, &rec);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	status = notify_load(notify);
+	status = notify_load(notify, rec);
 	if (!NT_STATUS_IS_OK(status)) {
-		notify_unlock(notify);
+		talloc_free(rec);
 		return status;
 	}
 
 	if (depth >= notify->array->num_depths) {
-		notify_unlock(notify);
+		talloc_free(rec);
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
@@ -478,7 +480,7 @@ NTSTATUS notify_remove(struct notify_context *notify, void *private_data)
 		}
 	}
 	if (i == d->num_entries) {
-		notify_unlock(notify);
+		talloc_free(rec);
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
@@ -488,9 +490,9 @@ NTSTATUS notify_remove(struct notify_context *notify, void *private_data)
 	}
 	d->num_entries--;
 
-	status = notify_save(notify);
+	status = notify_save(notify, rec);
 
-	notify_unlock(notify);
+	talloc_free(rec);
 
 	return status;
 }
@@ -503,13 +505,14 @@ static NTSTATUS notify_remove_all(struct notify_context *notify,
 {
 	NTSTATUS status;
 	int i, depth, del_count=0;
+	struct db_record *rec;
 
-	status = notify_lock(notify);
+	status = notify_fetch_locked(notify, &rec);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	status = notify_load(notify);
+	status = notify_load(notify, rec);
 	if (!NT_STATUS_IS_OK(status)) {
-		notify_unlock(notify);
+		talloc_free(rec);
 		return status;
 	}
 
@@ -531,10 +534,10 @@ static NTSTATUS notify_remove_all(struct notify_context *notify,
 	}
 
 	if (del_count > 0) {
-		status = notify_save(notify);
+		status = notify_save(notify, rec);
 	}
 
-	notify_unlock(notify);
+	talloc_free(rec);
 
 	return status;
 }
@@ -549,6 +552,7 @@ static NTSTATUS notify_send(struct notify_context *notify, struct notify_entry *
 	struct notify_event ev;
 	DATA_BLOB data;
 	NTSTATUS status;
+	enum ndr_err_code ndr_err;
 	TALLOC_CTX *tmp_ctx;
 
 	ev.action = action;
@@ -557,11 +561,11 @@ static NTSTATUS notify_send(struct notify_context *notify, struct notify_entry *
 
 	tmp_ctx = talloc_new(notify);
 
-	status = ndr_push_struct_blob(&data, tmp_ctx, &ev, 
-				      (ndr_push_flags_fn_t)ndr_push_notify_event);
-	if (!NT_STATUS_IS_OK(status)) {
+	ndr_err = ndr_push_struct_blob(&data, tmp_ctx, &ev,
+				       (ndr_push_flags_fn_t)ndr_push_notify_event);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		talloc_free(tmp_ctx);
-		return status;
+		return ndr_map_error2ntstatus(ndr_err);
 	}
 
 	status = messaging_send(notify->messaging_ctx, e->server, 
@@ -594,7 +598,7 @@ void notify_trigger(struct notify_context *notify,
 	}
 
  again:
-	status = notify_load(notify);
+	status = notify_load(notify, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		return;
 	}
@@ -677,7 +681,7 @@ void notify_trigger(struct notify_context *notify,
 
 				DEBUG(10, ("Deleting notify entries for "
 					   "process %s because it's gone\n",
-					   procid_str_static(&e->server.id)));
+					   procid_str_static(&e->server)));
 				notify_remove_all(notify, &server);
 				goto again;
 			}

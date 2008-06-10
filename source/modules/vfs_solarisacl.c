@@ -1,11 +1,11 @@
 /*
    Unix SMB/Netbios implementation.
    VFS module to get and set Solaris ACLs
-   Copyright (C) Michael Adam 2006
+   Copyright (C) Michael Adam 2006,2008
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
@@ -40,22 +39,22 @@ typedef o_mode_t SOLARIS_PERM_T;
 /* prototypes for private functions */
 
 static SOLARIS_ACL_T solaris_acl_init(int count);
-static BOOL smb_acl_to_solaris_acl(SMB_ACL_T smb_acl, 
+static bool smb_acl_to_solaris_acl(SMB_ACL_T smb_acl, 
 		SOLARIS_ACL_T *solariacl, int *count, 
 		SMB_ACL_TYPE_T type);
 static SMB_ACL_T solaris_acl_to_smb_acl(SOLARIS_ACL_T solarisacl, int count,
 		SMB_ACL_TYPE_T type);
 static SOLARIS_ACL_TAG_T smb_tag_to_solaris_tag(SMB_ACL_TAG_T smb_tag);
 static SMB_ACL_TAG_T solaris_tag_to_smb_tag(SOLARIS_ACL_TAG_T solaris_tag);
-static BOOL solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
+static bool solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
 		SOLARIS_ACL_T add_acl, int add_count, SMB_ACL_TYPE_T type);
-static BOOL solaris_acl_get_file(const char *name, SOLARIS_ACL_T *solarisacl, 
+static bool solaris_acl_get_file(const char *name, SOLARIS_ACL_T *solarisacl, 
 		int *count);
-static BOOL solaris_acl_get_fd(int fd, SOLARIS_ACL_T *solarisacl, int *count);
-static BOOL solaris_acl_sort(SOLARIS_ACL_T acl, int count);
+static bool solaris_acl_get_fd(int fd, SOLARIS_ACL_T *solarisacl, int *count);
+static bool solaris_acl_sort(SOLARIS_ACL_T acl, int count);
 static SMB_ACL_PERM_T solaris_perm_to_smb_perm(const SOLARIS_PERM_T perm);
 static SOLARIS_PERM_T smb_perm_to_solaris_perm(const SMB_ACL_PERM_T perm);
-static BOOL solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count);
+static bool solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count);
 
 
 /* public functions - the api */
@@ -101,8 +100,7 @@ SMB_ACL_T solarisacl_sys_acl_get_file(vfs_handle_struct *handle,
  * get the access ACL of a file referred to by a fd
  */
 SMB_ACL_T solarisacl_sys_acl_get_fd(vfs_handle_struct *handle,
-				    files_struct *fsp,
-				    int fd)
+				    files_struct *fsp)
 {
 	SMB_ACL_T result = NULL;
 	int count;
@@ -110,7 +108,7 @@ SMB_ACL_T solarisacl_sys_acl_get_fd(vfs_handle_struct *handle,
 
 	DEBUG(10, ("entering solarisacl_sys_acl_get_fd.\n"));
 
-	if (!solaris_acl_get_fd(fd, &solaris_acl, &count)) {
+	if (!solaris_acl_get_fd(fsp->fh->fd, &solaris_acl, &count)) {
 		goto done;
 	}
 	/* 
@@ -220,7 +218,7 @@ int solarisacl_sys_acl_set_file(vfs_handle_struct *handle,
  */
 int solarisacl_sys_acl_set_fd(vfs_handle_struct *handle,
 			      files_struct *fsp,
-			      int fd, SMB_ACL_T theacl)
+			      SMB_ACL_T theacl)
 {
 	SOLARIS_ACL_T solaris_acl = NULL;
 	SOLARIS_ACL_T default_acl = NULL;
@@ -243,7 +241,7 @@ int solarisacl_sys_acl_set_fd(vfs_handle_struct *handle,
 			   strerror(errno)));
 		goto done;
 	}
-	if (!solaris_acl_get_fd(fd, &default_acl, &default_count)) {
+	if (!solaris_acl_get_fd(fsp->fh->fd, &default_acl, &default_count)) {
 		DEBUG(10, ("error getting (default) acl from fd\n"));
 		goto done;
 	}
@@ -259,14 +257,14 @@ int solarisacl_sys_acl_set_fd(vfs_handle_struct *handle,
 		goto done;
 	}
 
-	ret = facl(fd, SETACL, count, solaris_acl);
+	ret = facl(fsp->fh->fd, SETACL, count, solaris_acl);
 	if (ret != 0) {
 		DEBUG(10, ("call of facl failed (%s).\n", strerror(errno)));
 	}
 
  done:
-	DEBUG(10, ("solarisacl_sys_acl_st_fd %s.\n",
-		   ((ret == 0) ? "succeded" : "failed" )));
+	DEBUG(10, ("solarisacl_sys_acl_set_fd %s.\n",
+		   ((ret == 0) ? "succeeded" : "failed" )));
 	SAFE_FREE(solaris_acl);
 	SAFE_FREE(default_acl);
 	return ret;
@@ -343,11 +341,11 @@ static SOLARIS_ACL_T solaris_acl_init(int count)
  * Convert the SMB acl to the ACCESS or DEFAULT part of a 
  * solaris ACL, as desired.
  */
-static BOOL smb_acl_to_solaris_acl(SMB_ACL_T smb_acl, 
+static bool smb_acl_to_solaris_acl(SMB_ACL_T smb_acl, 
 				   SOLARIS_ACL_T *solaris_acl, int *count, 
 				   SMB_ACL_TYPE_T type)
 {
-	BOOL ret = False;
+	bool ret = False;
 	int i;
 	int check_which, check_rc;
 
@@ -574,10 +572,10 @@ static SOLARIS_PERM_T smb_perm_to_solaris_perm(const SMB_ACL_PERM_T perm)
 }
 
 
-static BOOL solaris_acl_get_file(const char *name, SOLARIS_ACL_T *solaris_acl, 
+static bool solaris_acl_get_file(const char *name, SOLARIS_ACL_T *solaris_acl, 
 				 int *count)
 {
-	BOOL result = False;
+	bool result = False;
 
 	DEBUG(10, ("solaris_acl_get_file called for file '%s'\n", name));
 	
@@ -611,9 +609,9 @@ static BOOL solaris_acl_get_file(const char *name, SOLARIS_ACL_T *solaris_acl,
 }
 
 
-static BOOL solaris_acl_get_fd(int fd, SOLARIS_ACL_T *solaris_acl, int *count)
+static bool solaris_acl_get_fd(int fd, SOLARIS_ACL_T *solaris_acl, int *count)
 {
-	BOOL ret = False;
+	bool ret = False;
 
 	DEBUG(10, ("entering solaris_acl_get_fd\n"));
 
@@ -662,7 +660,7 @@ static BOOL solaris_acl_get_fd(int fd, SOLARIS_ACL_T *solaris_acl, int *count)
  * should become necessary to add all of an ACL, one would have
  * to replace this parameter by another type.
  */
-static BOOL solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
+static bool solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
 			       SOLARIS_ACL_T add_acl, int add_count, 
 			       SMB_ACL_TYPE_T type)
 {
@@ -708,7 +706,7 @@ static BOOL solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
  * happen aclsort() will fail and return an error and someone will
  * have to fix it...)
  */
-static BOOL solaris_acl_sort(SOLARIS_ACL_T solaris_acl, int count)
+static bool solaris_acl_sort(SOLARIS_ACL_T solaris_acl, int count)
 {
 	int fixmask = (count <= 4);
 
@@ -725,7 +723,7 @@ static BOOL solaris_acl_sort(SOLARIS_ACL_T solaris_acl, int count)
  *   concrete error messages for debugging...
  *   (acl sort just says that the acl is invalid...)
  */
-static BOOL solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count)
+static bool solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count)
 {
 	int check_rc;
 	int check_which;

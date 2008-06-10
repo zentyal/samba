@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -27,12 +26,12 @@ static char *current_lang;
 
 
 /* load a msg file into the tdb */
-static BOOL load_msg(const char *msg_file)
+static bool load_msg(const char *msg_file)
 {
 	char **lines;
 	int num_lines, i;
 	char *msgid, *msgstr;
-	TDB_DATA key, data;
+	TDB_DATA data;
 
 	lines = file_lines_load(msg_file, &num_lines,0);
 
@@ -46,7 +45,7 @@ static BOOL load_msg(const char *msg_file)
 	}
 
 	/* wipe the db */
-	tdb_traverse(tdb, tdb_traverse_delete_fn, NULL);
+	tdb_wipe_all(tdb);
 
 	msgid = NULL;
 	
@@ -63,11 +62,8 @@ static BOOL load_msg(const char *msg_file)
 			}
 			all_string_sub(msgid, "\\n", "\n", 0);
 			all_string_sub(msgstr, "\\n", "\n", 0);
-			key.dptr = msgid;
-			key.dsize = strlen(msgid)+1;
-			data.dptr = msgstr;
-			data.dsize = strlen(msgstr)+1;
-			tdb_store(tdb, key, data, 0);
+			data = string_term_tdb_data(msgstr);
+			tdb_store_bystring(tdb, msgid, data, 0);
 			msgid = NULL;
 		}
 	}
@@ -97,14 +93,14 @@ static const char *get_lang(void)
 
 /* initialise the message translation subsystem. If the "lang" argument
    is NULL then get the language from the normal environment variables */
-BOOL lang_tdb_init(const char *lang)
+bool lang_tdb_init(const char *lang)
 {
 	char *path = NULL;
 	char *msg_path = NULL;
 	struct stat st;
 	static int initialised;
 	time_t loadtime;
-	BOOL result = False;
+	bool result = False;
 
 	/* we only want to init once per process, unless given
 	   an override */
@@ -131,7 +127,11 @@ BOOL lang_tdb_init(const char *lang)
 	if (!lang) 
 		return True;
 
-	asprintf(&msg_path, "%s.msg", lib_path((const char *)lang));
+	if (asprintf(&msg_path, "%s.msg",
+		     data_path((const char *)lang)) == -1) {
+		DEBUG(0, ("asprintf failed\n"));
+		goto done;
+	}
 	if (stat(msg_path, &st) != 0) {
 		/* the msg file isn't available */
 		DEBUG(10, ("lang_tdb_init: %s: %s\n", msg_path, 
@@ -139,7 +139,10 @@ BOOL lang_tdb_init(const char *lang)
 		goto done;
 	}
 	
-	asprintf(&path, "%s%s.tdb", lock_path("lang_"), lang);
+	if (asprintf(&path, "%s%s.tdb", lock_path("lang_"), lang) == -1) {
+		DEBUG(0, ("asprintf failed\n"));
+		goto done;
+	}
 
 	DEBUG(10, ("lang_tdb_init: loading %s\n", path));
 
@@ -178,7 +181,7 @@ BOOL lang_tdb_init(const char *lang)
 */
 const char *lang_msg(const char *msgid)
 {
-	TDB_DATA key, data;
+	TDB_DATA data;
 	const char *p;
 	char *q, *msgid_quoted;
 	int count;
@@ -214,10 +217,7 @@ const char *lang_msg(const char *msgid)
 
 	*q = 0;
 
-	key.dptr = (char *)msgid_quoted;
-	key.dsize = strlen(msgid_quoted)+1;
-	
-	data = tdb_fetch(tdb, key);
+	data = tdb_fetch_bystring(tdb, msgid_quoted);
 
 	free(msgid_quoted);
 
@@ -236,32 +236,6 @@ void lang_msg_free(const char *msgstr)
 	if (!tdb) return;
 	free((void *)msgstr);
 }
-
-
-/*
-  when the _() translation macro is used there is no obvious place to free
-  the resulting string and there is no easy way to give a static pointer.
-  All we can do is rotate between some static buffers and hope a single d_printf() 
-  doesn't have more calls to _() than the number of buffers 
-*/
-const char *lang_msg_rotate(const char *msgid)
-{
-#define NUM_LANG_BUFS 16
-	char *msgstr;
-	static pstring bufs[NUM_LANG_BUFS];
-	static int next;
-
-	msgstr = (char *)lang_msg(msgid);
-	if (!msgstr) return msgid;
-
-	pstrcpy(bufs[next], msgstr);
-	msgstr = bufs[next];
-
-	next = (next+1) % NUM_LANG_BUFS;
-	
-	return msgstr;
-}
-
 
 /* 
    return the current language - needed for language file mappings 

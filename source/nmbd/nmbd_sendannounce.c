@@ -10,7 +10,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -19,15 +19,14 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
 #include "includes.h"
 
 extern int  updatecount;
-extern BOOL found_lm_clients;
+extern bool found_lm_clients;
 
 /****************************************************************************
  Send a browser reset packet.
@@ -35,7 +34,7 @@ extern BOOL found_lm_clients;
 
 void send_browser_reset(int reset_type, const char *to_name, int to_type, struct in_addr to_ip)
 {
-	char outbuf[PSTRING_LEN];
+	char outbuf[1024];
 	char *p;
 
 	DEBUG(3,("send_browser_reset: sending reset request type %d to %s<%02x> IP %s.\n",
@@ -60,7 +59,7 @@ void send_browser_reset(int reset_type, const char *to_name, int to_type, struct
 
 void broadcast_announce_request(struct subnet_record *subrec, struct work_record *work)
 {
-	char outbuf[PSTRING_LEN];
+	char outbuf[1024];
 	char *p;
 
 	work->needannounce = True;
@@ -91,7 +90,7 @@ static void send_announcement(struct subnet_record *subrec, int announce_type,
                               time_t announce_interval,
                               const char *server_name, int server_type, const char *server_comment)
 {
-	char outbuf[PSTRING_LEN];
+	char outbuf[1024];
 	unstring upper_server_name;
 	char *p;
 
@@ -132,7 +131,7 @@ static void send_lm_announcement(struct subnet_record *subrec, int announce_type
                               time_t announce_interval,
                               char *server_name, int server_type, char *server_comment)
 {
-	char outbuf[PSTRING_LEN];
+	char outbuf[1024];
 	char *p=outbuf;
 
 	memset(outbuf,'\0',sizeof(outbuf));
@@ -458,10 +457,11 @@ void announce_remote(time_t t)
 	char *s;
 	const char *ptr;
 	static time_t last_time = 0;
-	pstring s2;
+	char *s2;
 	struct in_addr addr;
 	char *comment;
 	int stype = lp_default_server_announce();
+	TALLOC_CTX *frame = NULL;
 
 	if (last_time && (t < (last_time + REMOTE_ANNOUNCE_INTERVAL)))
 		return;
@@ -474,8 +474,9 @@ void announce_remote(time_t t)
 
 	comment = string_truncate(lp_serverstring(), MAX_SERVER_STRING_LENGTH);
 
-	for (ptr=s; next_token(&ptr,s2,NULL,sizeof(s2)); ) {
-		/* The entries are of the form a.b.c.d/WORKGROUP with 
+	frame = talloc_stackframe();
+	for (ptr=s; next_token_talloc(frame,&ptr,&s2,NULL); ) {
+		/* The entries are of the form a.b.c.d/WORKGROUP with
 				WORKGROUP being optional */
 		const char *wgroup;
 		char *pwgroup;
@@ -489,8 +490,8 @@ void announce_remote(time_t t)
 		else
 			wgroup = pwgroup;
 
-		addr = *interpret_addr2(s2);
-    
+		(void)interpret_addr2(&addr,s2);
+
 		/* Announce all our names including aliases */
 		/* Give the ip address as the address of our first
 				broadcast subnet. */
@@ -511,6 +512,7 @@ void announce_remote(time_t t)
 						comment);
 		}
 	}
+	TALLOC_FREE(frame);
 }
 
 /****************************************************************************
@@ -519,20 +521,21 @@ void announce_remote(time_t t)
 **************************************************************************/
 
 void browse_sync_remote(time_t t)
-{  
+{
 	char *s;
 	const char *ptr;
-	static time_t last_time = 0; 
-	pstring s2;
+	static time_t last_time = 0;
+	char *s2;
 	struct in_addr addr;
 	struct work_record *work;
-	pstring outbuf;
+	char outbuf[1024];
 	char *p;
 	unstring myname;
- 
+	TALLOC_CTX *frame = NULL;
+
 	if (last_time && (t < (last_time + REMOTE_ANNOUNCE_INTERVAL)))
 		return;
-   
+
 	last_time = t;
 
 	s = lp_remote_browse_sync();
@@ -549,12 +552,12 @@ void browse_sync_remote(time_t t)
 			lp_workgroup(), FIRST_SUBNET->subnet_name ));
 		return;
 	}
-         
+
 	if(!AM_LOCAL_MASTER_BROWSER(work)) {
 		DEBUG(5,("browse_sync_remote: We can only do this if we are a local master browser \
 for workgroup %s on subnet %s.\n", lp_workgroup(), FIRST_SUBNET->subnet_name ));
 		return;
-	} 
+	}
 
 	memset(outbuf,'\0',sizeof(outbuf));
 	p = outbuf;
@@ -564,13 +567,14 @@ for workgroup %s on subnet %s.\n", lp_workgroup(), FIRST_SUBNET->subnet_name ));
 	unstrcpy(myname, global_myname());
 	strupper_m(myname);
 	myname[15]='\0';
-	push_pstring_base(p, myname, outbuf);
+	push_ascii(p, myname, sizeof(outbuf)-PTR_DIFF(p,outbuf)-1, STR_TERMINATE);
 
 	p = skip_string(outbuf,sizeof(outbuf),p);
 
-	for (ptr=s; next_token(&ptr,s2,NULL,sizeof(s2)); ) {
+	frame = talloc_stackframe();
+	for (ptr=s; next_token_talloc(frame,&ptr,&s2,NULL); ) {
 		/* The entries are of the form a.b.c.d */
-		addr = *interpret_addr2(s2);
+		(void)interpret_addr2(&addr,s2);
 
 		DEBUG(5,("announce_remote: Doing remote browse sync announce for server %s to IP %s.\n",
 			global_myname(), inet_ntoa(addr) ));
@@ -578,4 +582,5 @@ for workgroup %s on subnet %s.\n", lp_workgroup(), FIRST_SUBNET->subnet_name ));
 		send_mailslot(True, BROWSE_MAILSLOT, outbuf,PTR_DIFF(p,outbuf),
 			global_myname(), 0x0, "*", 0x0, addr, FIRST_SUBNET->myip, DGRAM_PORT);
 	}
+	TALLOC_FREE(frame);
 }

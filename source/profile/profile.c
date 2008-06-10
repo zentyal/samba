@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -28,23 +27,23 @@
 
 #ifdef WITH_PROFILE
 static int shm_id;
-static BOOL read_only;
+static bool read_only;
 #if defined(HAVE_CLOCK_GETTIME)
 clockid_t __profile_clock;
-BOOL have_profiling_clock = False;
+bool have_profiling_clock = False;
 #endif
 #endif
 
 struct profile_header *profile_h;
 struct profile_stats *profile_p;
 
-BOOL do_profile_flag = False;
-BOOL do_profile_times = False;
+bool do_profile_flag = False;
+bool do_profile_times = False;
 
 /****************************************************************************
 Set a profiling level.
 ****************************************************************************/
-void set_profile_level(int level, struct process_id src)
+void set_profile_level(int level, struct server_id src)
 {
 #ifdef WITH_PROFILE
 	switch (level) {
@@ -90,22 +89,36 @@ void set_profile_level(int level, struct process_id src)
 #endif /* WITH_PROFILE */
 }
 
+#ifdef WITH_PROFILE
+
 /****************************************************************************
 receive a set profile level message
 ****************************************************************************/
-void profile_message(int msg_type, struct process_id src, void *buf, size_t len, void *private_data)
+static void profile_message(struct messaging_context *msg_ctx,
+			    void *private_data,
+			    uint32_t msg_type,
+			    struct server_id src,
+			    DATA_BLOB *data)
 {
         int level;
 
-	memcpy(&level, buf, sizeof(int));
+	if (data->length != sizeof(level)) {
+		DEBUG(0, ("got invalid profile message\n"));
+		return;
+	}
+
+	memcpy(&level, data->data, sizeof(level));
 	set_profile_level(level, src);
 }
 
 /****************************************************************************
 receive a request profile level message
 ****************************************************************************/
-void reqprofile_message(int msg_type, struct process_id src,
-			void *buf, size_t len, void *private_data)
+static void reqprofile_message(struct messaging_context *msg_ctx,
+			       void *private_data, 
+			       uint32_t msg_type, 
+			       struct server_id src,
+			       DATA_BLOB *data)
 {
         int level;
 
@@ -116,13 +129,13 @@ void reqprofile_message(int msg_type, struct process_id src,
 #endif
 	DEBUG(1,("INFO: Received REQ_PROFILELEVEL message from PID %u\n",
 		 (unsigned int)procid_to_pid(&src)));
-	message_send_pid(src, MSG_PROFILELEVEL, &level, sizeof(int), True);
+	messaging_send_buf(msg_ctx, src, MSG_PROFILELEVEL,
+			   (uint8 *)&level, sizeof(level));
 }
 
 /*******************************************************************
   open the profiling shared memory area
   ******************************************************************/
-#ifdef WITH_PROFILE
 
 #ifdef HAVE_CLOCK_GETTIME
 
@@ -183,7 +196,7 @@ static void init_clock_gettime(void)
 }
 #endif
 
-BOOL profile_setup(BOOL rdonly)
+bool profile_setup(struct messaging_context *msg_ctx, bool rdonly)
 {
 	struct shmid_ds shm_ds;
 
@@ -237,8 +250,8 @@ BOOL profile_setup(BOOL rdonly)
 	}
 
 	if (shm_ds.shm_segsz != sizeof(*profile_h)) {
-		DEBUG(0,("WARNING: profile size is %d (expected %lu). Deleting\n",
-			 (int)shm_ds.shm_segsz, sizeof(*profile_h)));
+		DEBUG(0,("WARNING: profile size is %d (expected %d). Deleting\n",
+			 (int)shm_ds.shm_segsz, (int)sizeof(*profile_h)));
 		if (shmctl(shm_id, IPC_RMID, &shm_ds) == 0) {
 			goto again;
 		} else {
@@ -254,8 +267,12 @@ BOOL profile_setup(BOOL rdonly)
 	}
 
 	profile_p = &profile_h->stats;
-	message_register(MSG_PROFILE, profile_message, NULL);
-	message_register(MSG_REQ_PROFILELEVEL, reqprofile_message, NULL);
+	if (msg_ctx != NULL) {
+		messaging_register(msg_ctx, NULL, MSG_PROFILE,
+				   profile_message);
+		messaging_register(msg_ctx, NULL, MSG_REQ_PROFILELEVEL,
+				   reqprofile_message);
+	}
 	return True;
 }
 
@@ -280,6 +297,7 @@ BOOL profile_setup(BOOL rdonly)
 	    "syscall_pwrite",		/* PR_VALUE_SYSCALL_PWRITE */
 	    "syscall_lseek",		/* PR_VALUE_SYSCALL_LSEEK */
 	    "syscall_sendfile",		/* PR_VALUE_SYSCALL_SENDFILE */
+	    "syscall_recvfile",		/* PR_VALUE_SYSCALL_RECVFILE */
 	    "syscall_rename",		/* PR_VALUE_SYSCALL_RENAME */
 	    "syscall_fsync",		/* PR_VALUE_SYSCALL_FSYNC */
 	    "syscall_stat",		/* PR_VALUE_SYSCALL_STAT */

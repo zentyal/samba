@@ -6,7 +6,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -59,7 +58,32 @@ static NTSTATUS just_change_the_password(struct rpc_pipe_client *cli, TALLOC_CTX
 		}
 	}
 
-	result = rpccli_net_srv_pwset(cli, mem_ctx, global_myname(), new_trust_passwd_hash);
+	{
+		struct netr_Authenticator clnt_creds, srv_cred;
+		struct samr_Password new_password;
+
+		netlogon_creds_client_step(cli->dc, &clnt_creds);
+
+		cred_hash3(new_password.hash,
+			   new_trust_passwd_hash,
+			   cli->dc->sess_key, 1);
+
+		result = rpccli_netr_ServerPasswordSet(cli, mem_ctx,
+						       cli->dc->remote_machine,
+						       cli->dc->mach_acct,
+						       sec_channel_type,
+						       global_myname(),
+						       &clnt_creds,
+						       &srv_cred,
+						       &new_password);
+
+		/* Always check returned credentials. */
+		if (!netlogon_creds_client_check(cli->dc, &srv_cred.cred)) {
+			DEBUG(0,("rpccli_netr_ServerPasswordSet: "
+				"credentials chain check failed\n"));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+	}
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0,("just_change_the_password: unable to change password (%s)!\n",
@@ -99,7 +123,7 @@ NTSTATUS trust_pw_change_and_store_it(struct rpc_pipe_client *cli, TALLOC_CTX *m
 	
 	if (NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("%s : trust_pw_change_and_store_it: Changed password.\n", 
-			 current_timestring(False)));
+			 current_timestring(debug_ctx(), False)));
 		/*
 		 * Return the result of trying to write the new password
 		 * back into the trust account file.
@@ -141,18 +165,20 @@ NTSTATUS trust_pw_find_change_and_store_it(struct rpc_pipe_client *cli,
  Enumerate the list of trusted domains from a DC
 *********************************************************************/
 
-BOOL enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
+bool enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
                                      char ***domain_names, uint32 *num_domains,
 				     DOM_SID **sids )
 {
 	POLICY_HND 	pol;
 	NTSTATUS 	result = NT_STATUS_UNSUCCESSFUL;
 	fstring 	dc_name;
-	struct in_addr 	dc_ip;
+	struct sockaddr_storage	dc_ss;
 	uint32 		enum_ctx = 0;
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *lsa_pipe;
-	BOOL 		retry;
+	bool 		retry;
+	struct lsa_DomainList dom_list;
+	int i;
 
 	*domain_names = NULL;
 	*num_domains = 0;
@@ -160,7 +186,7 @@ BOOL enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
 
 	/* lookup a DC first */
 
-	if ( !get_dc_name(domain, NULL, dc_name, &dc_ip) ) {
+	if ( !get_dc_name(domain, NULL, dc_name, &dc_ss) ) {
 		DEBUG(3,("enumerate_domain_trusts: can't locate a DC for domain %s\n",
 			domain));
 		return False;
@@ -168,7 +194,7 @@ BOOL enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
 
 	/* setup the anonymous connection */
 
-	result = cli_full_connection( &cli, global_myname(), dc_name, &dc_ip, 0, "IPC$", "IPC",
+	result = cli_full_connection( &cli, global_myname(), dc_name, &dc_ss, 0, "IPC$", "IPC",
 		"", "", "", 0, Undefined, &retry);
 	if ( !NT_STATUS_IS_OK(result) )
 		goto done;
@@ -183,16 +209,38 @@ BOOL enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
 	/* get a handle */
 
 	result = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, True,
-		POLICY_VIEW_LOCAL_INFORMATION, &pol);
+		LSA_POLICY_VIEW_LOCAL_INFORMATION, &pol);
 	if ( !NT_STATUS_IS_OK(result) )
 		goto done;
 
 	/* Lookup list of trusted domains */
 
-	result = rpccli_lsa_enum_trust_dom(lsa_pipe, mem_ctx, &pol, &enum_ctx,
-		num_domains, domain_names, sids);
+	result = rpccli_lsa_EnumTrustDom(lsa_pipe, mem_ctx,
+					 &pol,
+					 &enum_ctx,
+					 &dom_list,
+					 (uint32_t)-1);
 	if ( !NT_STATUS_IS_OK(result) )
 		goto done;
+
+	*num_domains = dom_list.count;
+
+	*domain_names = TALLOC_ZERO_ARRAY(mem_ctx, char *, *num_domains);
+	if (!*domain_names) {
+		result = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	*sids = TALLOC_ZERO_ARRAY(mem_ctx, DOM_SID, *num_domains);
+	if (!*sids) {
+		result = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	for (i=0; i< *num_domains; i++) {
+		(*domain_names)[i] = CONST_DISCARD(char *, dom_list.domains[i].name.string);
+		(*sids)[i] = *dom_list.domains[i].sid;
+	}
 
 done:
 	/* cleanup */

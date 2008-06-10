@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -30,7 +29,7 @@
  Core of smb password checking routine.
 ****************************************************************************/
 
-static BOOL smb_pwd_check_ntlmv1(const DATA_BLOB *nt_response,
+static bool smb_pwd_check_ntlmv1(const DATA_BLOB *nt_response,
 				 const uchar *part_passwd,
 				 const DATA_BLOB *sec_blob,
 				 DATA_BLOB *user_sess_key)
@@ -65,13 +64,13 @@ static BOOL smb_pwd_check_ntlmv1(const DATA_BLOB *nt_response,
 	
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("Part password (P16) was |\n"));
-	dump_data(100, (const char *)part_passwd, 16);
+	dump_data(100, part_passwd, 16);
 	DEBUGADD(100,("Password from client was |\n"));
-	dump_data(100, (const char *)nt_response->data, nt_response->length);
+	dump_data(100, nt_response->data, nt_response->length);
 	DEBUGADD(100,("Given challenge was |\n"));
-	dump_data(100, (const char *)sec_blob->data, sec_blob->length);
+	dump_data(100, sec_blob->data, sec_blob->length);
 	DEBUGADD(100,("Value from encryption was |\n"));
-	dump_data(100, (const char *)p24, 24);
+	dump_data(100, p24, 24);
 #endif
 	return (memcmp(p24, nt_response->data, 24) == 0);
 }
@@ -81,11 +80,11 @@ static BOOL smb_pwd_check_ntlmv1(const DATA_BLOB *nt_response,
  Note:  The same code works with both NTLMv2 and LMv2.
 ****************************************************************************/
 
-static BOOL smb_pwd_check_ntlmv2(const DATA_BLOB *ntv2_response,
+static bool smb_pwd_check_ntlmv2(const DATA_BLOB *ntv2_response,
 				 const uchar *part_passwd,
 				 const DATA_BLOB *sec_blob,
 				 const char *user, const char *domain,
-				 BOOL upper_case_domain, /* should the domain be transformed into upper case? */
+				 bool upper_case_domain, /* should the domain be transformed into upper case? */
 				 DATA_BLOB *user_sess_key)
 {
 	/* Finish the encryption of part_passwd. */
@@ -93,7 +92,7 @@ static BOOL smb_pwd_check_ntlmv2(const DATA_BLOB *ntv2_response,
 	uchar value_from_encryption[16];
 	uchar client_response[16];
 	DATA_BLOB client_key_data;
-	BOOL res;
+	bool res;
 
 	if (part_passwd == NULL) {
 		DEBUG(10,("No password set - DISALLOWING access\n"));
@@ -136,15 +135,15 @@ static BOOL smb_pwd_check_ntlmv2(const DATA_BLOB *ntv2_response,
 
 #if DEBUG_PASSWORD
 	DEBUG(100,("Part password (P16) was |\n"));
-	dump_data(100, (const char *)part_passwd, 16);
+	dump_data(100, part_passwd, 16);
 	DEBUGADD(100,("Password from client was |\n"));
-	dump_data(100, (const char *)ntv2_response->data, ntv2_response->length);
+	dump_data(100, ntv2_response->data, ntv2_response->length);
 	DEBUGADD(100,("Variable data from client was |\n"));
-	dump_data(100, (const char *)client_key_data.data, client_key_data.length);
+	dump_data(100, client_key_data.data, client_key_data.length);
 	DEBUGADD(100,("Given challenge was |\n"));
-	dump_data(100, (const char *)sec_blob->data, sec_blob->length);
+	dump_data(100, sec_blob->data, sec_blob->length);
 	DEBUGADD(100,("Value from encryption was |\n"));
-	dump_data(100, (const char *)value_from_encryption, 16);
+	dump_data(100, value_from_encryption, 16);
 #endif
 	data_blob_clear_free(&client_key_data);
 	res = (memcmp(value_from_encryption, client_response, 16) == 0);
@@ -183,7 +182,10 @@ NTSTATUS ntlm_password_check(TALLOC_CTX *mem_ctx,
 			     DATA_BLOB *user_sess_key, 
 			     DATA_BLOB *lm_sess_key)
 {
-	static const unsigned char zeros[8] = { 0, };
+	unsigned char zeros[8];
+
+	ZERO_STRUCT(zeros);
+
 	if (nt_pw == NULL) {
 		DEBUG(3,("ntlm_password_check: NO NT password stored for user %s.\n", 
 			 username));

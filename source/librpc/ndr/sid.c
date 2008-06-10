@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,13 +16,12 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-NTSTATUS ndr_push_dom_sid(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *r)
+enum ndr_err_code ndr_push_dom_sid(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *r)
 {
 	uint32_t cntr_sub_auths_0;
 	if (ndr_flags & NDR_SCALARS) {
@@ -36,10 +35,10 @@ NTSTATUS ndr_push_dom_sid(struct ndr_push *ndr, int ndr_flags, const struct dom_
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
-	return NT_STATUS_OK;
+	return NDR_ERR_SUCCESS;
 }
 
-NTSTATUS ndr_pull_dom_sid(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *r)
+enum ndr_err_code ndr_pull_dom_sid(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *r)
 {
 	uint32_t cntr_sub_auths_0;
 	if (ndr_flags & NDR_SCALARS) {
@@ -56,7 +55,7 @@ NTSTATUS ndr_pull_dom_sid(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *r
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
-	return NT_STATUS_OK;
+	return NDR_ERR_SUCCESS;
 }
 
 /*
@@ -76,6 +75,11 @@ char *dom_sid_string(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
 	ret = (char *)talloc_size(mem_ctx, maxlen);
 	if (!ret) return talloc_strdup(mem_ctx, "(SID ERR)");
 
+	/*
+	 * BIG NOTE: this function only does SIDS where the identauth is not
+	 * >= ^32 in a range of 2^48.
+	 */
+
 	ia = (sid->id_auth[5]) +
 		(sid->id_auth[4] << 8 ) +
 		(sid->id_auth[3] << 16) +
@@ -94,11 +98,11 @@ char *dom_sid_string(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
 /*
   parse a dom_sid2 - this is a dom_sid but with an extra copy of the num_auths field
 */
-NTSTATUS ndr_pull_dom_sid2(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *sid)
+enum ndr_err_code ndr_pull_dom_sid2(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *sid)
 {
 	uint32_t num_auths;
 	if (!(ndr_flags & NDR_SCALARS)) {
-		return NT_STATUS_OK;
+		return NDR_ERR_SUCCESS;
 	}
 	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &num_auths));
 	NDR_CHECK(ndr_pull_dom_sid(ndr, ndr_flags, sid));
@@ -107,16 +111,16 @@ NTSTATUS ndr_pull_dom_sid2(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *
 				      "Bad array size %u should exceed %u", 
 				      num_auths, sid->num_auths);
 	}
-	return NT_STATUS_OK;
+	return NDR_ERR_SUCCESS;
 }
 
 /*
   parse a dom_sid2 - this is a dom_sid but with an extra copy of the num_auths field
 */
-NTSTATUS ndr_push_dom_sid2(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *sid)
+enum ndr_err_code ndr_push_dom_sid2(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *sid)
 {
 	if (!(ndr_flags & NDR_SCALARS)) {
-		return NT_STATUS_OK;
+		return NDR_ERR_SUCCESS;
 	}
 	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, sid->num_auths));
 	return ndr_push_dom_sid(ndr, ndr_flags, sid);
@@ -125,17 +129,17 @@ NTSTATUS ndr_push_dom_sid2(struct ndr_push *ndr, int ndr_flags, const struct dom
 /*
   parse a dom_sid28 - this is a dom_sid in a fixed 28 byte buffer, so we need to ensure there are only upto 5 sub_auth
 */
-NTSTATUS ndr_pull_dom_sid28(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *sid)
+enum ndr_err_code ndr_pull_dom_sid28(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *sid)
 {
-	NTSTATUS status;
+	enum ndr_err_code status;
 	struct ndr_pull *subndr;
 
 	if (!(ndr_flags & NDR_SCALARS)) {
-		return NT_STATUS_OK;
+		return NDR_ERR_SUCCESS;
 	}
 
 	subndr = talloc_zero(ndr, struct ndr_pull);
-	NT_STATUS_HAVE_NO_MEMORY(subndr);
+	NDR_ERR_HAVE_NO_MEMORY(subndr);
 	subndr->flags		= ndr->flags;
 	subndr->current_mem_ctx	= ndr->current_mem_ctx;
 
@@ -146,24 +150,24 @@ NTSTATUS ndr_pull_dom_sid28(struct ndr_pull *ndr, int ndr_flags, struct dom_sid 
 	NDR_CHECK(ndr_pull_advance(ndr, 28));
 
 	status = ndr_pull_dom_sid(subndr, ndr_flags, sid);
-	if (!NT_STATUS_IS_OK(status)) {
+	if (!NDR_ERR_CODE_IS_SUCCESS(status)) {
 		/* handle a w2k bug which send random data in the buffer */
 		ZERO_STRUCTP(sid);
 	}
 
-	return NT_STATUS_OK;
+	return NDR_ERR_SUCCESS;
 }
 
 /*
   push a dom_sid28 - this is a dom_sid in a 28 byte fixed buffer
 */
-NTSTATUS ndr_push_dom_sid28(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *sid)
+enum ndr_err_code ndr_push_dom_sid28(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *sid)
 {
 	uint32_t old_offset;
 	uint32_t padding;
 
 	if (!(ndr_flags & NDR_SCALARS)) {
-		return NT_STATUS_OK;
+		return NDR_ERR_SUCCESS;
 	}
 
 	if (sid->num_auths > 5) {
@@ -181,72 +185,46 @@ NTSTATUS ndr_push_dom_sid28(struct ndr_push *ndr, int ndr_flags, const struct do
 		NDR_CHECK(ndr_push_zero(ndr, padding));
 	}
 
-	return NT_STATUS_OK;
+	return NDR_ERR_SUCCESS;
 }
 
-NTSTATUS ndr_push_sec_desc_buf(struct ndr_push *ndr, int ndr_flags, const struct sec_desc_buf *r)
+/*
+  parse a dom_sid0 - this is a dom_sid in a variable byte buffer, which is maybe empty
+*/
+enum ndr_err_code ndr_pull_dom_sid0(struct ndr_pull *ndr, int ndr_flags, struct dom_sid *sid)
 {
-	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_push_align(ndr, 4));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_size_security_descriptor(r->sd,ndr->flags)));
-		NDR_CHECK(ndr_push_unique_ptr(ndr, r->sd));
+	if (!(ndr_flags & NDR_SCALARS)) {
+		return NDR_ERR_SUCCESS;
 	}
-	if (ndr_flags & NDR_BUFFERS) {
-		if (r->sd) {
-			{
-				struct ndr_push *_ndr_sd;
-				NDR_CHECK(ndr_push_subcontext_start(ndr, &_ndr_sd, 4, -1));
-				NDR_CHECK(ndr_push_security_descriptor(_ndr_sd, NDR_SCALARS|NDR_BUFFERS, r->sd));
-				NDR_CHECK(ndr_push_subcontext_end(ndr, _ndr_sd, 4, -1));
-			}
-		}
+
+	if (ndr->data_size == ndr->offset) {
+		ZERO_STRUCTP(sid);
+		return NDR_ERR_SUCCESS;
 	}
-	return NT_STATUS_OK;
+
+	return ndr_pull_dom_sid(ndr, ndr_flags, sid);
 }
 
-NTSTATUS ndr_pull_sec_desc_buf(struct ndr_pull *ndr, int ndr_flags, struct sec_desc_buf *r)
+/*
+  push a dom_sid0 - this is a dom_sid in a variable byte buffer, which is maybe empty
+*/
+enum ndr_err_code ndr_push_dom_sid0(struct ndr_push *ndr, int ndr_flags, const struct dom_sid *sid)
 {
-	uint32_t _ptr_sd;
-	TALLOC_CTX *_mem_save_sd_0;
-	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_pull_align(ndr, 4));
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->sd_size));
-		if (r->sd_size > 0x40000) { /* sd_size is unsigned */
-			return ndr_pull_error(ndr, NDR_ERR_RANGE, "value out of range");
-		}
-		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_sd));
-		if (_ptr_sd) {
-			NDR_PULL_ALLOC(ndr, r->sd);
-		} else {
-			r->sd = NULL;
-		}
-	}
-	if (ndr_flags & NDR_BUFFERS) {
-		if (r->sd) {
-			_mem_save_sd_0 = NDR_PULL_GET_MEM_CTX(ndr);
-			NDR_PULL_SET_MEM_CTX(ndr, r->sd, 0);
-			{
-				struct ndr_pull *_ndr_sd;
-				NDR_CHECK(ndr_pull_subcontext_start(ndr, &_ndr_sd, 4, -1));
-				NDR_CHECK(ndr_pull_security_descriptor(_ndr_sd, NDR_SCALARS|NDR_BUFFERS, r->sd));
-				NDR_CHECK(ndr_pull_subcontext_end(ndr, _ndr_sd, 4, -1));
-			}
-			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_sd_0, 0);
-		}
-	}
-	return NT_STATUS_OK;
-}
+	struct dom_sid zero_sid;
 
-void ndr_print_sec_desc_buf(struct ndr_print *ndr, const char *name, const struct sec_desc_buf *r)
-{
-	ndr_print_struct(ndr, name, "sec_desc_buf");
-	ndr->depth++;
-	ndr_print_uint32(ndr, "sd_size", (ndr->flags & LIBNDR_PRINT_SET_VALUES)?ndr_size_security_descriptor(r->sd,ndr->flags):r->sd_size);
-	ndr_print_ptr(ndr, "sd", r->sd);
-	ndr->depth++;
-	if (r->sd) {
-		ndr_print_security_descriptor(ndr, "sd", r->sd);
+	if (!(ndr_flags & NDR_SCALARS)) {
+		return NDR_ERR_SUCCESS;
 	}
-	ndr->depth--;
-	ndr->depth--;
+
+	if (!sid) {
+		return NDR_ERR_SUCCESS;
+	}
+
+	ZERO_STRUCT(zero_sid);
+
+	if (memcmp(&zero_sid, sid, sizeof(zero_sid)) == 0) {
+		return NDR_ERR_SUCCESS;
+	}
+
+	return ndr_push_dom_sid(ndr, ndr_flags, sid);
 }

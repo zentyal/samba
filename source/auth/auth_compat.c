@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,14 +14,13 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
 extern struct auth_context *negprot_global_auth_context;
-extern BOOL global_encrypted_passwords_negotiated;
+extern bool global_encrypted_passwords_negotiated;
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -67,7 +66,7 @@ static NTSTATUS pass_check_smb(const char *smb_name,
 			       DATA_BLOB lm_pwd,
 			       DATA_BLOB nt_pwd,
 			       DATA_BLOB plaintext_password,
-			       BOOL encrypted)
+			       bool encrypted)
 
 {
 	NTSTATUS nt_status;
@@ -93,11 +92,11 @@ check if a username/password pair is ok via the auth subsystem.
 return True if the password is correct, False otherwise
 ****************************************************************************/
 
-BOOL password_ok(char *smb_name, DATA_BLOB password_blob)
+bool password_ok(const char *smb_name, DATA_BLOB password_blob)
 {
 
-	DATA_BLOB null_password = data_blob(NULL, 0);
-	BOOL encrypted = (global_encrypted_passwords_negotiated && (password_blob.length == 24 || password_blob.length > 46));
+	DATA_BLOB null_password = data_blob_null;
+	bool encrypted = (global_encrypted_passwords_negotiated && (password_blob.length == 24 || password_blob.length > 46));
 	
 	if (encrypted) {
 		/* 

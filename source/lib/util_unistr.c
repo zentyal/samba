@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -31,17 +30,9 @@
 static smb_ucs2_t *upcase_table;
 static smb_ucs2_t *lowcase_table;
 static uint8 *valid_table;
-static BOOL upcase_table_use_unmap;
-static BOOL lowcase_table_use_unmap;
-static BOOL valid_table_use_unmap;
-
-/**
- * This table says which Unicode characters are valid dos
- * characters.
- *
- * Each value is just a single bit.
- **/
-static uint8 doschar_table[8192]; /* 65536 characters / 8 bits/byte */
+static bool upcase_table_use_unmap;
+static bool lowcase_table_use_unmap;
+static bool valid_table_use_unmap;
 
 /**
  * Destroy global objects allocated by load_case_tables()
@@ -82,17 +73,20 @@ void load_case_tables(void)
 	static int initialised;
 	char *old_locale = NULL, *saved_locale = NULL;
 	int i;
+	TALLOC_CTX *frame = NULL;
 
 	if (initialised) {
 		return;
 	}
 	initialised = 1;
 
-	upcase_table = (smb_ucs2_t *)map_file(lib_path("upcase.dat"),
+	frame = talloc_stackframe();
+
+	upcase_table = (smb_ucs2_t *)map_file(data_path("upcase.dat"),
 					      0x20000);
 	upcase_table_use_unmap = ( upcase_table != NULL );
 
-	lowcase_table = (smb_ucs2_t *)map_file(lib_path("lowcase.dat"),
+	lowcase_table = (smb_ucs2_t *)map_file(data_path("lowcase.dat"),
 					       0x20000);
 	lowcase_table_use_unmap = ( lowcase_table != NULL );
 
@@ -148,22 +142,8 @@ void load_case_tables(void)
 		SAFE_FREE(saved_locale);
 	}
 #endif
+	TALLOC_FREE(frame);
 }
-
-/*
-  see if a ucs2 character can be mapped correctly to a dos character
-  and mapped back to the same character in ucs2
-*/
-
-int check_dos_char(smb_ucs2_t c)
-{
-	lazy_initialize_conv();
-	
-	/* Find the right byte, and right bit within the byte; return
-	 * 1 or 0 */
-	return (doschar_table[(c & 0xffff) / 8] & (1 << (c & 7))) != 0;
-}
-
 
 static int check_dos_char_slowly(smb_ucs2_t c)
 {
@@ -181,33 +161,6 @@ static int check_dos_char_slowly(smb_ucs2_t c)
 	}
 	return (c == c2);
 }
-
-
-/**
- * Fill out doschar table the hard way, by examining each character
- **/
-
-void init_doschar_table(void)
-{
-	int i, j, byteval;
-
-	/* For each byte of packed table */
-	
-	for (i = 0; i <= 0xffff; i += 8) {
-		byteval = 0;
-		for (j = 0; j <= 7; j++) {
-			smb_ucs2_t c;
-
-			c = i + j;
-			
-			if (check_dos_char_slowly(c)) {
-				byteval |= 1 << j;
-			}
-		}
-		doschar_table[i/8] = byteval;
-	}
-}
-
 
 /**
  * Load the valid character map table from <tt>valid.dat</tt> or
@@ -230,7 +183,7 @@ void init_valid_table(void)
 		return;
 	}
 
-	valid_file = (uint8 *)map_file(lib_path("valid.dat"), 0x10000);
+	valid_file = (uint8 *)map_file(data_path("valid.dat"), 0x10000);
 	if (valid_file) {
 		valid_table = valid_file;
 		mapped_file = 1;
@@ -242,22 +195,24 @@ void init_valid_table(void)
 	 * It might need to be regenerated if the code page changed.
 	 * We know that we're not using a mapped file, so we can
 	 * free() the old one. */
-	if (valid_table) 
-		SAFE_FREE(valid_table);
+	SAFE_FREE(valid_table);
 
 	/* use free rather than unmap */
 	valid_table_use_unmap = False;
 
 	DEBUG(2,("creating default valid table\n"));
 	valid_table = (uint8 *)SMB_MALLOC(0x10000);
+	SMB_ASSERT(valid_table != NULL);
 	for (i=0;i<128;i++) {
 		valid_table[i] = isalnum(i) || strchr(allowed,i);
 	}
-	
+
+	lazy_initialize_conv();
+
 	for (;i<0x10000;i++) {
 		smb_ucs2_t c;
 		SSVAL(&c, 0, i);
-		valid_table[i] = check_dos_char(c);
+		valid_table[i] = check_dos_char_slowly(c);
 	}
 }
 
@@ -272,7 +227,7 @@ void init_valid_table(void)
  null termination if applied
 ********************************************************************/
 
-size_t dos_PutUniCode(char *dst,const char *src, size_t len, BOOL null_terminate)
+size_t dos_PutUniCode(char *dst,const char *src, size_t len, bool null_terminate)
 {
 	int flags = null_terminate ? STR_UNICODE|STR_NOALIGN|STR_TERMINATE
 				   : STR_UNICODE|STR_NOALIGN;
@@ -316,6 +271,25 @@ int rpcstr_pull(char* dest, void *src, int dest_len, int src_len, int flags)
 	return pull_ucs2(NULL, dest, src, dest_len, src_len, flags|STR_UNICODE|STR_NOALIGN);
 }
 
+/* Copy a string from little-endian or big-endian unicode source (depending
+ * on flags) to internal samba format destination. Allocates on talloc ctx.
+ */
+
+int rpcstr_pull_talloc(TALLOC_CTX *ctx,
+			char **dest,
+			void *src,
+			int src_len,
+			int flags)
+{
+	return pull_ucs2_base_talloc(ctx,
+			NULL,
+			dest,
+			src,
+			src_len,
+			flags|STR_UNICODE|STR_NOALIGN);
+
+}
+
 /* Copy a string from a unistr2 source to internal samba format
    destination.  Use this instead of direct calls to rpcstr_pull() to avoid
    having to determine whether the source string is null terminated. */
@@ -330,30 +304,67 @@ int rpcstr_pull_unistr2_fstring(char *dest, UNISTR2 *src)
  * copy because I don't really know how pull_ucs2 and friends calculate the
  * target size. If this turns out to be a major bottleneck someone with deeper
  * multi-byte knowledge needs to revisit this.
+ * I just did (JRA :-). No longer uses copy.
  * My (VL) use is dsr_getdcname, which returns 6 strings, the alternative would
  * have been to manually talloc_strdup them in rpc_client/cli_netlogon.c.
  */
 
-char *rpcstr_pull_unistr2_talloc(TALLOC_CTX *mem_ctx, const UNISTR2 *src)
+char *rpcstr_pull_unistr2_talloc(TALLOC_CTX *ctx, const UNISTR2 *src)
 {
-	pstring tmp;
-	size_t result;
-
-	result = pull_ucs2(NULL, tmp, src->buffer, sizeof(tmp),
-			   src->uni_str_len * 2, 0);
-	if (result == (size_t)-1) {
+	char *dest = NULL;
+	size_t dest_len = convert_string_talloc(ctx,
+				CH_UTF16LE,
+				CH_UNIX,
+				src->buffer,
+				src->uni_str_len * 2,
+				(void *)&dest,
+				true);
+	if (dest_len == (size_t)-1) {
 		return NULL;
 	}
 
-	return talloc_strdup(mem_ctx, tmp);
+	/* Ensure we're returning a null terminated string. */
+	if (dest_len) {
+		/* Did we already process the terminating zero ? */
+		if (dest[dest_len-1] != 0) {
+			size_t size = talloc_get_size(dest);
+			/* Have we got space to append the '\0' ? */
+			if (size <= dest_len) {
+				/* No, realloc. */
+				dest = TALLOC_REALLOC_ARRAY(ctx, dest, char,
+						dest_len+1);
+				if (!dest) {
+					/* talloc fail. */
+					dest_len = (size_t)-1;
+					return NULL;
+				}
+			}
+			/* Yay - space ! */
+			dest[dest_len] = '\0';
+			dest_len++;
+		}
+	} else if (dest) {
+		dest[0] = 0;
+	}
+
+	return dest;
 }
 
 /* Converts a string from internal samba format to unicode
- */ 
+ */
 
-int rpcstr_push(void* dest, const char *src, size_t dest_len, int flags)
+int rpcstr_push(void *dest, const char *src, size_t dest_len, int flags)
 {
 	return push_ucs2(NULL, dest, src, dest_len, flags|STR_UNICODE|STR_NOALIGN);
+}
+
+/* Converts a string from internal samba format to unicode. Always terminates.
+ * Actually just a wrapper round push_ucs2_talloc().
+ */
+
+int rpcstr_push_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src)
+{
+	return push_ucs2_talloc(ctx, dest, src);
 }
 
 /*******************************************************************
@@ -362,56 +373,72 @@ int rpcstr_push(void* dest, const char *src, size_t dest_len, int flags)
 
 void unistr2_to_ascii(char *dest, const UNISTR2 *str, size_t maxlen)
 {
-	if (str == NULL) {
+	if ((str == NULL) || (str->uni_str_len == 0)) {
 		*dest='\0';
 		return;
 	}
 	pull_ucs2(NULL, dest, str->buffer, maxlen, str->uni_str_len*2, STR_NOALIGN);
 }
 
+#if 0
 /*******************************************************************
  Convert a (little-endian) UNISTR3 structure to an ASCII string.
 ********************************************************************/
 
 void unistr3_to_ascii(char *dest, const UNISTR3 *str, size_t maxlen)
 {
-	if (str == NULL) {
+	if ((str == NULL) || (str->uni_str_len == 0)) {
 		*dest='\0';
 		return;
 	}
 	pull_ucs2(NULL, dest, str->str.buffer, maxlen, str->uni_str_len*2,
 	          STR_NOALIGN);
 }
-	
-/*******************************************************************
- Give a static string for displaying a UNISTR2.
-********************************************************************/
-
-const char *unistr2_static(const UNISTR2 *str)
-{
-	static pstring ret;
-	unistr2_to_ascii(ret, str, sizeof(ret));
-	return ret;
-}
+#endif
 
 /*******************************************************************
  Duplicate a UNISTR2 string into a null terminated char*
  using a talloc context.
 ********************************************************************/
 
-char *unistr2_tdup(TALLOC_CTX *ctx, const UNISTR2 *str)
+char *unistr2_to_ascii_talloc(TALLOC_CTX *ctx, const UNISTR2 *str)
 {
-	char *s;
-	int maxlen = (str->uni_str_len+1)*4;
-	if (!str->buffer) {
+	char *s = NULL;
+
+	if (!str || !str->buffer) {
 		return NULL;
 	}
-	s = (char *)TALLOC(ctx, maxlen); /* convervative */
-	if (!s) {
+	if (pull_ucs2_base_talloc(ctx,
+				NULL,
+				&s,
+				str->buffer,
+				str->uni_str_len*2,
+				STR_NOALIGN) == (size_t)-1) {
 		return NULL;
 	}
-	pull_ucs2(NULL, s, str->buffer, maxlen, str->uni_str_len*2, STR_NOALIGN);
 	return s;
+}
+
+/*******************************************************************
+ Return a string for displaying a UNISTR2. Guarentees to return a
+ valid string - "" if nothing else.
+ Changed to use talloc_tos() under the covers.... JRA.
+********************************************************************/
+
+const char *unistr2_static(const UNISTR2 *str)
+{
+	char *dest = NULL;
+
+	if ((str == NULL) || (str->uni_str_len == 0)) {
+		return "";
+	}
+
+	dest = unistr2_to_ascii_talloc(talloc_tos(), str);
+	if (!dest) {
+		return "";
+	}
+
+	return dest;
 }
 
 /*******************************************************************
@@ -436,7 +463,7 @@ smb_ucs2_t tolower_w( smb_ucs2_t val )
  Determine if a character is lowercase.
 ********************************************************************/
 
-BOOL islower_w(smb_ucs2_t c)
+bool islower_w(smb_ucs2_t c)
 {
 	return upcase_table[SVAL(&c,0)] != c;
 }
@@ -445,7 +472,7 @@ BOOL islower_w(smb_ucs2_t c)
  Determine if a character is uppercase.
 ********************************************************************/
 
-BOOL isupper_w(smb_ucs2_t c)
+bool isupper_w(smb_ucs2_t c)
 {
 	return lowcase_table[SVAL(&c,0)] != c;
 }
@@ -454,7 +481,7 @@ BOOL isupper_w(smb_ucs2_t c)
  Determine if a character is valid in a 8.3 name.
 ********************************************************************/
 
-BOOL isvalid83_w(smb_ucs2_t c)
+bool isvalid83_w(smb_ucs2_t c)
 {
 	return valid_table[SVAL(&c,0)] != 0;
 }
@@ -595,10 +622,10 @@ smb_ucs2_t *strstr_w(const smb_ucs2_t *s, const smb_ucs2_t *ins)
  return True if any char is converted
 ********************************************************************/
 
-BOOL strlower_w(smb_ucs2_t *s)
+bool strlower_w(smb_ucs2_t *s)
 {
 	smb_ucs2_t cp;
-	BOOL ret = False;
+	bool ret = False;
 
 	while (*(COPY_UCS2_CHAR(&cp,s))) {
 		smb_ucs2_t v = tolower_w(cp);
@@ -616,10 +643,10 @@ BOOL strlower_w(smb_ucs2_t *s)
  return True if any char is converted
 ********************************************************************/
 
-BOOL strupper_w(smb_ucs2_t *s)
+bool strupper_w(smb_ucs2_t *s)
 {
 	smb_ucs2_t cp;
-	BOOL ret = False;
+	bool ret = False;
 	while (*(COPY_UCS2_CHAR(&cp,s))) {
 		smb_ucs2_t v = toupper_w(cp);
 		if (v != cp) {
@@ -707,7 +734,7 @@ int strncasecmp_w(const smb_ucs2_t *a, const smb_ucs2_t *b, size_t len)
  Compare 2 strings.
 ********************************************************************/
 
-BOOL strequal_w(const smb_ucs2_t *s1, const smb_ucs2_t *s2)
+bool strequal_w(const smb_ucs2_t *s1, const smb_ucs2_t *s2)
 {
 	if (s1 == s2) {
 		return(True);
@@ -723,7 +750,7 @@ BOOL strequal_w(const smb_ucs2_t *s1, const smb_ucs2_t *s2)
  Compare 2 strings up to and including the nth char.
 ******************************************************************/
 
-BOOL strnequal_w(const smb_ucs2_t *s1,const smb_ucs2_t *s2,size_t n)
+bool strnequal_w(const smb_ucs2_t *s1,const smb_ucs2_t *s2,size_t n)
 {
 	if (s1 == s2) {
 		return(True);
@@ -850,10 +877,10 @@ void string_replace_w(smb_ucs2_t *s, smb_ucs2_t oldc, smb_ucs2_t newc)
  Trim unicode string.
 ********************************************************************/
 
-BOOL trim_string_w(smb_ucs2_t *s, const smb_ucs2_t *front,
+bool trim_string_w(smb_ucs2_t *s, const smb_ucs2_t *front,
 				  const smb_ucs2_t *back)
 {
-	BOOL ret = False;
+	bool ret = False;
 	size_t len, front_len, back_len;
 
 	if (!s) {
@@ -950,24 +977,6 @@ smb_ucs2_t *strstr_wa(const smb_ucs2_t *s, const char *ins)
 	}
 
 	return NULL;
-}
-
-BOOL trim_string_wa(smb_ucs2_t *s, const char *front,
-				  const char *back)
-{
-	wpstring f, b;
-
-	if (front) {
-		push_ucs2(NULL, f, front, sizeof(wpstring) - 1, STR_TERMINATE);
-	} else {
-		*f = 0;
-	}
-	if (back) {
-		push_ucs2(NULL, b, back, sizeof(wpstring) - 1, STR_TERMINATE);
-	} else {
-		*b = 0;
-	}
-	return trim_string_w(s, f, b);
 }
 
 /*******************************************************************

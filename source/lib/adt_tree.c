@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -25,7 +24,7 @@
 /**************************************************************************
  *************************************************************************/
 
-static BOOL trim_tree_keypath( char *path, char **base, char **new_path )
+static bool trim_tree_keypath( char *path, char **base, char **new_path )
 {
 	char *p;
 	
@@ -192,23 +191,23 @@ static TREE_NODE* pathtree_find_child( TREE_NODE *node, char* key )
  Add a new node into the tree given a key path and a blob of data
  *************************************************************************/
 
- BOOL pathtree_add( SORTED_TREE *tree, const char *path, void *data_p )
+ WERROR pathtree_add( SORTED_TREE *tree, const char *path, void *data_p )
 {
 	char *str, *base, *path2;
 	TREE_NODE *current, *next;
-	BOOL ret = True;
+	WERROR ret = WERR_OK;
 	
 	DEBUG(8,("pathtree_add: Enter\n"));
 		
 	if ( !path || *path != '/' ) {
 		DEBUG(0,("pathtree_add: Attempt to add a node with a bad path [%s]\n",
 			path ? path : "NULL" ));
-		return False;
+		return WERR_INVALID_PARAM;
 	}
 	
 	if ( !tree ) {
 		DEBUG(0,("pathtree_add: Attempt to add a node to an uninitialized tree!\n"));
-		return False;
+		return WERR_INVALID_PARAM;
 	}
 	
 	/* move past the first '/' */
@@ -217,7 +216,7 @@ static TREE_NODE* pathtree_find_child( TREE_NODE *node, char* key )
 	path2 = SMB_STRDUP( path );
 	if ( !path2 ) {
 		DEBUG(0,("pathtree_add: strdup() failed on string [%s]!?!?!\n", path));
-		return False;
+		return WERR_NOMEM;
 	}
 	
 
@@ -245,7 +244,7 @@ static TREE_NODE* pathtree_find_child( TREE_NODE *node, char* key )
 			next = pathtree_birth_child( current, base );
 			if ( !next ) {
 				DEBUG(0,("pathtree_add: Failed to create new child!\n"));
-				ret =  False;
+				ret = WERR_NOMEM;
 				goto done;
 			}
 		}
@@ -279,31 +278,41 @@ done:
  Recursive routine to print out all children of a TREE_NODE
  *************************************************************************/
 
-static void pathtree_print_children( TREE_NODE *node, int debug, const char *path )
+static void pathtree_print_children(TALLOC_CTX *ctx,
+				TREE_NODE *node,
+				int debug,
+				const char *path )
 {
 	int i;
 	int num_children;
-	pstring path2;
-	
+	char *path2 = NULL;
+
 	if ( !node )
 		return;
-	
-	
+
 	if ( node->key )
 		DEBUG(debug,("%s: [%s] (%s)\n", path ? path : "NULL", node->key,
 			node->data_p ? "data" : "NULL" ));
 
-	*path2 = '\0';
-	if ( path )
-		pstrcpy( path2, path );
-	pstrcat( path2, node->key ? node->key : "NULL" );
-	pstrcat( path2, "/" );
-		
-	num_children = node->num_children;
-	for ( i=0; i<num_children; i++ )
-		pathtree_print_children( node->children[i], debug, path2 );
-	
+	if ( path ) {
+		path2 = talloc_strdup(ctx, path);
+		if (!path2) {
+			return;
+		}
+	}
 
+	path2 = talloc_asprintf(ctx,
+			"%s%s/",
+			path ? path : "",
+			node->key ? node->key : "NULL");
+	if (!path2) {
+		return;
+	}
+
+	num_children = node->num_children;
+	for ( i=0; i<num_children; i++ ) {
+		pathtree_print_children(ctx, node->children[i], debug, path2 );
+	}
 }
 
 /**************************************************************************
@@ -314,21 +323,23 @@ static void pathtree_print_children( TREE_NODE *node, int debug, const char *pat
 {
 	int i;
 	int num_children = tree->root->num_children;
-	
+
 	if ( tree->root->key )
 		DEBUG(debug,("ROOT/: [%s] (%s)\n", tree->root->key,
 			tree->root->data_p ? "data" : "NULL" ));
-	
+
 	for ( i=0; i<num_children; i++ ) {
-		pathtree_print_children( tree->root->children[i], debug, 
+		TALLOC_CTX *ctx = talloc_stackframe();
+		pathtree_print_children(ctx, tree->root->children[i], debug,
 			tree->root->key ? tree->root->key : "ROOT/" );
+		TALLOC_FREE(ctx);
 	}
-	
+
 }
 
 /**************************************************************************
  return the data_p for for the node in tree matching the key string
- The key string is the full path.  We must break it apart and walk 
+ The key string is the full path.  We must break it apart and walk
  the tree
  *************************************************************************/
 

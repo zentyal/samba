@@ -3,10 +3,11 @@
    net ads cldap functions 
    Copyright (C) 2001 Andrew Tridgell (tridge@samba.org)
    Copyright (C) 2003 Jim McDonough (jmcd@us.ibm.com)
+   Copyright (C) 2008 Guenther Deschner (gd@samba.org)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,77 +16,10 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  
 */
 
 #include "includes.h"
-
-/*
-  These seem to be strings as described in RFC1035 4.1.4 and can be:
-
-   - a sequence of labels ending in a zero octet
-   - a pointer
-   - a sequence of labels ending with a pointer
-
-  A label is a byte where the first two bits must be zero and the remaining
-  bits represent the length of the label followed by the label itself.
-  Therefore, the length of a label is at max 64 bytes.  Under RFC1035, a
-  sequence of labels cannot exceed 255 bytes.
-
-  A pointer consists of a 14 bit offset from the beginning of the data.
-
-  struct ptr {
-    unsigned ident:2; // must be 11
-    unsigned offset:14; // from the beginning of data
-  };
-
-  This is used as a method to compress the packet by eliminated duplicate
-  domain components.  Since a UDP packet should probably be < 512 bytes and a
-  DNS name can be up to 255 bytes, this actually makes a lot of sense.
-*/
-static unsigned pull_netlogon_string(char *ret, const char *ptr,
-				     const char *data)
-{
-	char *pret = ret;
-	int followed_ptr = 0;
-	unsigned ret_len = 0;
-
-	memset(pret, 0, MAX_DNS_LABEL);
-	do {
-		if ((*ptr & 0xc0) == 0xc0) {
-			uint16 len;
-
-			if (!followed_ptr) {
-				ret_len += 2;
-				followed_ptr = 1;
-			}
-			len = ((ptr[0] & 0x3f) << 8) | ptr[1];
-			ptr = data + len;
-		} else if (*ptr) {
-			uint8 len = (uint8)*(ptr++);
-
-			if ((pret - ret + len + 1) >= MAX_DNS_LABEL) {
-				DEBUG(1,("DC returning too long DNS name\n"));
-				return 0;
-			}
-
-			if (pret != ret) {
-				*pret = '.';
-				pret++;
-			}
-			memcpy(pret, ptr, len);
-			pret += len;
-			ptr += len;
-
-			if (!followed_ptr) {
-				ret_len += (len + 1);
-			}
-		}
-	} while (*ptr);
-
-	return followed_ptr ? ret_len : ret_len + 1;
-}
 
 /*
   do a cldap netlogon query
@@ -183,18 +117,21 @@ static void gotalarm_sig(void)
 /*
   receive a cldap netlogon reply
 */
-static int recv_cldap_netlogon(int sock, struct cldap_netlogon_reply *reply)
+static int recv_cldap_netlogon(TALLOC_CTX *mem_ctx,
+			       int sock,
+			       uint32_t *nt_version,
+			       union nbt_cldap_netlogon **reply)
 {
 	int ret;
 	ASN1_DATA data;
-	DATA_BLOB blob = data_blob(NULL, 0);
-	DATA_BLOB os1 = data_blob(NULL, 0);
-	DATA_BLOB os2 = data_blob(NULL, 0);
-	DATA_BLOB os3 = data_blob(NULL, 0);
+	DATA_BLOB blob = data_blob_null;
+	DATA_BLOB os1 = data_blob_null;
+	DATA_BLOB os2 = data_blob_null;
+	DATA_BLOB os3 = data_blob_null;
 	int i1;
 	/* half the time of a regular ldap timeout, not less than 3 seconds. */
 	unsigned int al_secs = MAX(3,lp_ldap_timeout()/2);
-	char *p;
+	union nbt_cldap_netlogon *r = NULL;
 
 	blob = data_blob(NULL, 8192);
 	if (blob.data == NULL) {
@@ -248,33 +185,24 @@ static int recv_cldap_netlogon(int sock, struct cldap_netlogon_reply *reply)
 		return -1;
 	}
 
-	p = (char *)os3.data;
-
-	reply->type = IVAL(p, 0); p += 4;
-	reply->flags = IVAL(p, 0); p += 4;
-
-	memcpy(&reply->guid.info, p, UUID_FLAT_SIZE);
-	p += UUID_FLAT_SIZE;
-
-	p += pull_netlogon_string(reply->forest, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->domain, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->hostname, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->netbios_domain, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->netbios_hostname, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->unk, p, (const char *)os3.data);
-
-	if (reply->type == SAMLOGON_AD_R) {
-		p += pull_netlogon_string(reply->user_name, p, (const char *)os3.data);
-	} else {
-		*reply->user_name = 0;
+	r = TALLOC_ZERO_P(mem_ctx, union nbt_cldap_netlogon);
+	if (!r) {
+		errno = ENOMEM;
+		data_blob_free(&os1);
+		data_blob_free(&os2);
+		data_blob_free(&os3);
+		data_blob_free(&blob);
+		return -1;
 	}
 
-	p += pull_netlogon_string(reply->server_site_name, p, (const char *)os3.data);
-	p += pull_netlogon_string(reply->client_site_name, p, (const char *)os3.data);
-
-	reply->version = IVAL(p, 0);
-	reply->lmnt_token = SVAL(p, 4);
-	reply->lm20_token = SVAL(p, 6);
+	if (!pull_mailslot_cldap_reply(mem_ctx, &os3, r, nt_version)) {
+		data_blob_free(&os1);
+		data_blob_free(&os2);
+		data_blob_free(&os3);
+		data_blob_free(&blob);
+		TALLOC_FREE(r);
+		return -1;
+	}
 
 	data_blob_free(&os1);
 	data_blob_free(&os2);
@@ -283,6 +211,12 @@ static int recv_cldap_netlogon(int sock, struct cldap_netlogon_reply *reply)
 	
 	asn1_free(&data);
 
+	if (reply) {
+		*reply = r;
+	} else {
+		TALLOC_FREE(r);
+	}
+
 	return 0;
 }
 
@@ -290,7 +224,11 @@ static int recv_cldap_netlogon(int sock, struct cldap_netlogon_reply *reply)
   do a cldap netlogon query.  Always 389/udp
 *******************************************************************/
 
-BOOL ads_cldap_netlogon(const char *server, const char *realm,  struct cldap_netlogon_reply *reply)
+bool ads_cldap_netlogon(TALLOC_CTX *mem_ctx,
+			const char *server,
+			const char *realm,
+			uint32_t *nt_version,
+			union nbt_cldap_netlogon **reply)
 {
 	int sock;
 	int ret;
@@ -302,12 +240,12 @@ BOOL ads_cldap_netlogon(const char *server, const char *realm,  struct cldap_net
 		return False;
 	}
 
-	ret = send_cldap_netlogon(sock, realm, global_myname(), 6);
+	ret = send_cldap_netlogon(sock, realm, global_myname(), *nt_version);
 	if (ret != 0) {
 		close(sock);
 		return False;
 	}
-	ret = recv_cldap_netlogon(sock, reply);
+	ret = recv_cldap_netlogon(mem_ctx, sock, nt_version, reply);
 	close(sock);
 
 	if (ret == -1) {
@@ -315,4 +253,116 @@ BOOL ads_cldap_netlogon(const char *server, const char *realm,  struct cldap_net
 	}
 
 	return True;
+}
+
+/*******************************************************************
+  do a cldap netlogon query.  Always 389/udp
+*******************************************************************/
+
+bool ads_cldap_netlogon_5(TALLOC_CTX *mem_ctx,
+			  const char *server,
+			  const char *realm,
+			  struct nbt_cldap_netlogon_5 *reply5)
+{
+	uint32_t nt_version = NETLOGON_VERSION_5 | NETLOGON_VERSION_5EX;
+	union nbt_cldap_netlogon *reply = NULL;
+	bool ret;
+
+	ret = ads_cldap_netlogon(mem_ctx, server, realm, &nt_version, &reply);
+	if (!ret) {
+		return false;
+	}
+
+	if (nt_version != (NETLOGON_VERSION_5 | NETLOGON_VERSION_5EX)) {
+		return false;
+	}
+
+	*reply5 = reply->logon5;
+
+	return true;
+}
+
+/****************************************************************
+****************************************************************/
+
+bool pull_mailslot_cldap_reply(TALLOC_CTX *mem_ctx,
+			       const DATA_BLOB *blob,
+			       union nbt_cldap_netlogon *r,
+			       uint32_t *nt_version)
+{
+	enum ndr_err_code ndr_err;
+	uint32_t nt_version_query = ((*nt_version) & 0x0000001f);
+	uint16_t command = 0;
+
+	ndr_err = ndr_pull_struct_blob(blob, mem_ctx, &command,
+			(ndr_pull_flags_fn_t)ndr_pull_uint16);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return false;
+	}
+
+	switch (command) {
+		case 0x13: /* 19 */
+		case 0x15: /* 21 */
+		case 0x17: /* 23 */
+		case 0x19: /* 25 */
+			 break;
+		default:
+			DEBUG(1,("got unexpected command: %d (0x%08x)\n",
+				command, command));
+			return false;
+	}
+
+	ndr_err = ndr_pull_union_blob_all(blob, mem_ctx, r, nt_version_query,
+		       (ndr_pull_flags_fn_t)ndr_pull_nbt_cldap_netlogon);
+	if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+
+	/* when the caller requested just those nt_version bits that the server
+	 * was able to reply to, we are fine and all done. otherwise we need to
+	 * assume downgraded replies which are painfully parsed here - gd */
+
+	if (nt_version_query & NETLOGON_VERSION_WITH_CLOSEST_SITE) {
+		nt_version_query &= ~NETLOGON_VERSION_WITH_CLOSEST_SITE;
+	}
+	ndr_err = ndr_pull_union_blob_all(blob, mem_ctx, r, nt_version_query,
+		       (ndr_pull_flags_fn_t)ndr_pull_nbt_cldap_netlogon);
+	if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+	if (nt_version_query & NETLOGON_VERSION_5EX_WITH_IP) {
+		nt_version_query &= ~NETLOGON_VERSION_5EX_WITH_IP;
+	}
+	ndr_err = ndr_pull_union_blob_all(blob, mem_ctx, r, nt_version_query,
+		       (ndr_pull_flags_fn_t)ndr_pull_nbt_cldap_netlogon);
+	if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+	if (nt_version_query & NETLOGON_VERSION_5EX) {
+		nt_version_query &= ~NETLOGON_VERSION_5EX;
+	}
+	ndr_err = ndr_pull_union_blob_all(blob, mem_ctx, r, nt_version_query,
+		       (ndr_pull_flags_fn_t)ndr_pull_nbt_cldap_netlogon);
+	if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+	if (nt_version_query & NETLOGON_VERSION_5) {
+		nt_version_query &= ~NETLOGON_VERSION_5;
+	}
+	ndr_err = ndr_pull_union_blob_all(blob, mem_ctx, r, nt_version_query,
+		       (ndr_pull_flags_fn_t)ndr_pull_nbt_cldap_netlogon);
+	if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+
+	return false;
+
+ done:
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_UNION_DEBUG(nbt_cldap_netlogon, nt_version_query, r);
+	}
+
+	*nt_version = nt_version_query;
+
+	return true;
 }

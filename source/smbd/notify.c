@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -25,7 +24,7 @@
 struct notify_change_request {
 	struct notify_change_request *prev, *next;
 	struct files_struct *fsp;	/* backpointer for cancel by mid */
-	char request_buf[smb_size];
+	uint8 request_buf[smb_size];
 	uint32 filter;
 	uint32 max_param;
 	struct notify_mid_map *mid_map;
@@ -47,7 +46,7 @@ struct notify_mid_map {
 	uint16 mid;
 };
 
-static BOOL notify_change_record_identical(struct notify_change *c1,
+static bool notify_change_record_identical(struct notify_change *c1,
 					struct notify_change *c2)
 {
 	/* Note this is deliberately case sensitive. */
@@ -58,7 +57,7 @@ static BOOL notify_change_record_identical(struct notify_change *c1,
 	return False;
 }
 
-static BOOL notify_marshall_changes(int num_changes,
+static bool notify_marshall_changes(int num_changes,
 				uint32 max_offset,
 				struct notify_change *changes,
 				prs_struct *ps)
@@ -83,10 +82,9 @@ static BOOL notify_marshall_changes(int num_changes,
 
 		c = &changes[i];
 
-		namelen = convert_string_allocate(
-			NULL, CH_UNIX, CH_UTF16LE, c->name, strlen(c->name)+1,
-			&uni_name.buffer, True);
-		if ((namelen == -1) || (uni_name.buffer == NULL)) {
+		if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE,
+			c->name, strlen(c->name)+1, &uni_name.buffer,
+			&namelen, True) || (uni_name.buffer == NULL)) {
 			goto fail;
 		}
 
@@ -131,13 +129,14 @@ static BOOL notify_marshall_changes(int num_changes,
  Setup the common parts of the return packet and send it.
 *****************************************************************************/
 
-static void change_notify_reply_packet(const char *request_buf,
+static void change_notify_reply_packet(connection_struct *conn,
+				const uint8 *request_buf,
 				       NTSTATUS error_code)
 {
 	char outbuf[smb_size+38];
 
 	memset(outbuf, '\0', sizeof(outbuf));
-	construct_reply_common(request_buf, outbuf);
+	construct_reply_common((char *)request_buf, outbuf);
 
 	ERROR_NT(error_code);
 
@@ -145,28 +144,31 @@ static void change_notify_reply_packet(const char *request_buf,
 	 * Seems NT needs a transact command with an error code
 	 * in it. This is a longer packet than a simple error.
 	 */
-	set_message(outbuf,18,0,False);
+	srv_set_message(outbuf,18,0,False);
 
 	show_msg(outbuf);
-	if (!send_smb(smbd_server_fd(),outbuf))
-		exit_server_cleanly("change_notify_reply_packet: send_smb "
+	if (!srv_send_smb(smbd_server_fd(),
+			outbuf,
+			IS_CONN_ENCRYPTED(conn)))
+		exit_server_cleanly("change_notify_reply_packet: srv_send_smb "
 				    "failed.");
 }
 
-void change_notify_reply(const char *request_buf, uint32 max_param,
+void change_notify_reply(connection_struct *conn,
+			const uint8 *request_buf, uint32 max_param,
 			 struct notify_change_buf *notify_buf)
 {
-	char *outbuf = NULL;
 	prs_struct ps;
-	size_t buflen;
+	struct smb_request *req = NULL;
+	uint8 tmp_request[smb_size];
 
 	if (notify_buf->num_changes == -1) {
-		change_notify_reply_packet(request_buf, NT_STATUS_OK);
+		change_notify_reply_packet(conn, request_buf, NT_STATUS_OK);
 		notify_buf->num_changes = 0;
 		return;
 	}
 
-	prs_init(&ps, 0, NULL, MARSHALL);
+	prs_init_empty(&ps, NULL, MARSHALL);
 
 	if (!notify_marshall_changes(notify_buf->num_changes, max_param,
 					notify_buf->changes, &ps)) {
@@ -174,26 +176,31 @@ void change_notify_reply(const char *request_buf, uint32 max_param,
 		 * We exceed what the client is willing to accept. Send
 		 * nothing.
 		 */
-		change_notify_reply_packet(request_buf, NT_STATUS_OK);
+		change_notify_reply_packet(conn, request_buf, NT_STATUS_OK);
 		goto done;
 	}
 
-	buflen = smb_size+38+prs_offset(&ps) + 4 /* padding */;
-
-	if (!(outbuf = SMB_MALLOC_ARRAY(char, buflen))) {
-		change_notify_reply_packet(request_buf, NT_STATUS_NO_MEMORY);
+	if (!(req = talloc(talloc_tos(), struct smb_request))) {
+		change_notify_reply_packet(conn, request_buf, NT_STATUS_NO_MEMORY);
 		goto done;
 	}
 
-	construct_reply_common(request_buf, outbuf);
+	memcpy(tmp_request, request_buf, smb_size);
 
-	if (send_nt_replies(outbuf, buflen, NT_STATUS_OK, prs_data_p(&ps),
-			    prs_offset(&ps), NULL, 0) == -1) {
-		exit_server("change_notify_reply_packet: send_smb failed.");
-	}
+	/*
+	 * We're only interested in the header fields here
+	 */
+
+	smb_setlen((char *)tmp_request, smb_size);
+	SCVAL(tmp_request, smb_wct, 0);
+
+	init_smb_request(req, tmp_request,0, conn->encrypted_tid);
+
+	send_nt_replies(conn, req, NT_STATUS_OK, prs_data_p(&ps),
+			prs_offset(&ps), NULL, 0);
 
  done:
-	SAFE_FREE(outbuf);
+	TALLOC_FREE(req);
 	prs_mem_free(&ps);
 
 	TALLOC_FREE(notify_buf->changes);
@@ -208,7 +215,7 @@ static void notify_callback(void *private_data, const struct notify_event *e)
 }
 
 NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
-			      BOOL recursive)
+			      bool recursive)
 {
 	char *fullpath;
 	struct notify_entry e;
@@ -227,6 +234,7 @@ NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	ZERO_STRUCT(e);
 	e.path = fullpath;
 	e.filter = filter;
 	e.subdir_filter = 0;
@@ -240,9 +248,10 @@ NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
 	return status;
 }
 
-NTSTATUS change_notify_add_request(const char *inbuf, uint32 max_param,
-				   uint32 filter, BOOL recursive,
-				   struct files_struct *fsp)
+NTSTATUS change_notify_add_request(const struct smb_request *req,
+				uint32 max_param,
+				uint32 filter, bool recursive,
+				struct files_struct *fsp)
 {
 	struct notify_change_request *request = NULL;
 	struct notify_mid_map *map = NULL;
@@ -256,7 +265,7 @@ NTSTATUS change_notify_add_request(const char *inbuf, uint32 max_param,
 	request->mid_map = map;
 	map->req = request;
 
-	memcpy(request->request_buf, inbuf, sizeof(request->request_buf));
+	memcpy(request->request_buf, req->inbuf, sizeof(request->request_buf));
 	request->max_param = max_param;
 	request->filter = filter;
 	request->fsp = fsp;
@@ -265,11 +274,11 @@ NTSTATUS change_notify_add_request(const char *inbuf, uint32 max_param,
 	DLIST_ADD_END(fsp->notify->requests, request,
 		      struct notify_change_request *);
 
-	map->mid = SVAL(inbuf, smb_mid);
+	map->mid = SVAL(req->inbuf, smb_mid);
 	DLIST_ADD(notify_changes_by_mid, map);
 
 	/* Push the MID of this packet on the signing queue. */
-	srv_defer_sign_response(SVAL(inbuf,smb_mid));
+	srv_defer_sign_response(SVAL(req->inbuf,smb_mid));
 
 	return NT_STATUS_OK;
 }
@@ -294,7 +303,7 @@ static void change_notify_remove_request(struct notify_change_request *remove_re
 	}
 
 	if (req == NULL) {
-		smb_panic("notify_req not found in fsp's requests\n");
+		smb_panic("notify_req not found in fsp's requests");
 	}
 
 	DLIST_REMOVE(fsp->notify->requests, req);
@@ -322,7 +331,8 @@ void remove_pending_change_notify_requests_by_mid(uint16 mid)
 		return;
 	}
 
-	change_notify_reply_packet(map->req->request_buf, NT_STATUS_CANCELLED);
+	change_notify_reply_packet(map->req->fsp->conn,
+			map->req->request_buf, NT_STATUS_CANCELLED);
 	change_notify_remove_request(map->req);
 }
 
@@ -338,7 +348,7 @@ void remove_pending_change_notify_requests_by_fid(files_struct *fsp,
 	}
 
 	while (fsp->notify->requests != NULL) {
-		change_notify_reply_packet(
+		change_notify_reply_packet(fsp->conn,
 			fsp->notify->requests->request_buf, status);
 		change_notify_remove_request(fsp->notify->requests);
 	}
@@ -361,7 +371,7 @@ void notify_fname(connection_struct *conn, uint32 action, uint32 filter,
 static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 {
 	struct notify_change *change, *changes;
-	pstring name2;
+	char *tmp;
 
 	if (fsp->notify == NULL) {
 		/*
@@ -369,9 +379,6 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 		 */
 		return;
 	}
-
-	pstrcpy(name2, name);
-	string_replace(name2, '/', '\\');
 
 	/*
 	 * Someone has triggered a notify previously, queue the change for
@@ -403,10 +410,13 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 
 	change = &(fsp->notify->changes[fsp->notify->num_changes]);
 
-	if (!(change->name = talloc_strdup(changes, name2))) {
+	if (!(tmp = talloc_strdup(changes, name))) {
 		DEBUG(0, ("talloc_strdup failed\n"));
 		return;
 	}
+
+	string_replace(tmp, '/', '\\');
+	change->name = tmp;	
 
 	change->action = action;
 	fsp->notify->num_changes += 1;
@@ -432,7 +442,8 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 	 * TODO: do we have to walk the lists of requests pending?
 	 */
 
-	change_notify_reply(fsp->notify->requests->request_buf,
+	change_notify_reply(fsp->conn,
+			fsp->notify->requests->request_buf,
 			    fsp->notify->requests->max_param,
 			    fsp->notify);
 

@@ -7,7 +7,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -43,14 +42,14 @@ static TDB_CONTEXT *tdb_printers; /* used for printers files */
 
 /* Map generic permissions to printer object specific permissions */
 
-GENERIC_MAPPING printer_generic_mapping = {
+const struct generic_mapping printer_generic_mapping = {
 	PRINTER_READ,
 	PRINTER_WRITE,
 	PRINTER_EXECUTE,
 	PRINTER_ALL_ACCESS
 };
 
-STANDARD_MAPPING printer_std_mapping = {
+const struct standard_mapping printer_std_mapping = {
 	PRINTER_READ,
 	PRINTER_WRITE,
 	PRINTER_EXECUTE,
@@ -59,14 +58,14 @@ STANDARD_MAPPING printer_std_mapping = {
 
 /* Map generic permissions to print server object specific permissions */
 
-GENERIC_MAPPING printserver_generic_mapping = {
+const struct generic_mapping printserver_generic_mapping = {
 	SERVER_READ,
 	SERVER_WRITE,
 	SERVER_EXECUTE,
 	SERVER_ALL_ACCESS
 };
 
-STANDARD_MAPPING printserver_std_mapping = {
+const struct generic_mapping printserver_std_mapping = {
 	SERVER_READ,
 	SERVER_WRITE,
 	SERVER_EXECUTE,
@@ -75,7 +74,7 @@ STANDARD_MAPPING printserver_std_mapping = {
 
 /* Map generic permissions to job object specific permissions */
 
-GENERIC_MAPPING job_generic_mapping = {
+const struct generic_mapping job_generic_mapping = {
 	JOB_READ,
 	JOB_WRITE,
 	JOB_EXECUTE,
@@ -238,19 +237,17 @@ static const struct table_node archi_table[]= {
  generate a new TDB_DATA key for storing a printer
 ****************************************************************************/
 
-static TDB_DATA make_printer_tdbkey( const char *sharename )
+static TDB_DATA make_printer_tdbkey(TALLOC_CTX *ctx, const char *sharename )
 {
 	fstring share;
-	static pstring keystr;
+	char *keystr = NULL;
 	TDB_DATA key;
-	
-	fstrcpy( share, sharename );
-	strlower_m( share );
-	
-	pstr_sprintf( keystr, "%s%s", PRINTERS_PREFIX, share );
-	
-	key.dptr = keystr;
-	key.dsize = strlen(keystr)+1;
+
+	fstrcpy(share, sharename);
+	strlower_m(share);
+
+	keystr = talloc_asprintf(ctx, "%s%s", PRINTERS_PREFIX, share);
+	key = string_term_tdb_data(keystr ? keystr : "");
 
 	return key;
 }
@@ -259,23 +256,26 @@ static TDB_DATA make_printer_tdbkey( const char *sharename )
  generate a new TDB_DATA key for storing a printer security descriptor
 ****************************************************************************/
 
-static char *make_printers_secdesc_tdbkey( const char* sharename  )
+static TDB_DATA make_printers_secdesc_tdbkey(TALLOC_CTX *ctx,
+					const char* sharename  )
 {
 	fstring share;
-	static pstring keystr;
-	
-	fstrcpy( share, sharename );
-	strlower_m( share );
-	
-	pstr_sprintf( keystr, "%s%s", SECDESC_PREFIX, share );
+	char *keystr = NULL;
+	TDB_DATA key;
 
-	return keystr;
+	fstrcpy(share, sharename );
+	strlower_m(share);
+
+	keystr = talloc_asprintf(ctx, "%s%s", SECDESC_PREFIX, share);
+	key = string_term_tdb_data(keystr ? keystr : "");
+
+	return key;
 }
 
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL upgrade_to_version_3(void)
+static bool upgrade_to_version_3(void)
 {
 	TDB_DATA kbuf, newkey, dbuf;
  
@@ -286,7 +286,7 @@ static BOOL upgrade_to_version_3(void)
 
 		dbuf = tdb_fetch(tdb_drivers, kbuf);
 
-		if (strncmp(kbuf.dptr, FORMS_PREFIX, strlen(FORMS_PREFIX)) == 0) {
+		if (strncmp((const char *)kbuf.dptr, FORMS_PREFIX, strlen(FORMS_PREFIX)) == 0) {
 			DEBUG(0,("upgrade_to_version_3:moving form\n"));
 			if (tdb_store(tdb_forms, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
@@ -300,7 +300,7 @@ static BOOL upgrade_to_version_3(void)
 			}
 		}
  
-		if (strncmp(kbuf.dptr, PRINTERS_PREFIX, strlen(PRINTERS_PREFIX)) == 0) {
+		if (strncmp((const char *)kbuf.dptr, PRINTERS_PREFIX, strlen(PRINTERS_PREFIX)) == 0) {
 			DEBUG(0,("upgrade_to_version_3:moving printer\n"));
 			if (tdb_store(tdb_printers, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
@@ -314,7 +314,7 @@ static BOOL upgrade_to_version_3(void)
 			}
 		}
  
-		if (strncmp(kbuf.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX)) == 0) {
+		if (strncmp((const char *)kbuf.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX)) == 0) {
 			DEBUG(0,("upgrade_to_version_3:moving secdesc\n"));
 			if (tdb_store(tdb_printers, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
@@ -353,13 +353,12 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 	int result, i;
 	uint32 sd_size;
 	size_t size_new_sec;
-	DOM_SID sid;
 
 	if (!data.dptr || data.dsize == 0) {
 		return 0;
 	}
 
-	if ( strncmp( key.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX) ) != 0 ) {
+	if ( strncmp((const char *) key.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX) ) != 0 ) {
 		return 0;
 	}
 
@@ -367,12 +366,13 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 
 	ZERO_STRUCT( ps );
 
-	prs_init( &ps, 0, ctx, UNMARSHALL );
-	prs_give_memory( &ps, data.dptr, data.dsize, False );
+	prs_init_empty( &ps, ctx, UNMARSHALL );
+	prs_give_memory( &ps, (char *)data.dptr, data.dsize, False );
 
 	if ( !sec_io_desc_buf( "sec_desc_upg_fn", &sd_orig, &ps, 1 ) ) {
 		/* delete bad entries */
-		DEBUG(0,("sec_desc_upg_fn: Failed to parse original sec_desc for %si.  Deleting....\n", key.dptr ));
+		DEBUG(0,("sec_desc_upg_fn: Failed to parse original sec_desc for %si.  Deleting....\n",
+			(const char *)key.dptr ));
 		tdb_delete( tdb_printers, key );
 		prs_mem_free( &ps );
 		return 0;
@@ -382,7 +382,7 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 		prs_mem_free( &ps );
 		return 0;
 	}
-	sec = sd_orig->sec;
+	sec = sd_orig->sd;
 		
 	/* is this even valid? */
 	
@@ -413,10 +413,10 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 
 	/* create a new SEC_DESC with the appropriate owner and group SIDs */
 
-	string_to_sid(&sid, "S-1-5-32-544" );
 	new_sec = make_sec_desc( ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE,
-		&sid, &sid,
-		NULL, NULL, &size_new_sec );
+				 &global_sid_Builtin_Administrators,
+				 &global_sid_Builtin_Administrators,
+				 NULL, NULL, &size_new_sec );
 	if (!new_sec) {
 		prs_mem_free( &ps );
 		return 0;
@@ -437,8 +437,12 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 
 	/* store it back */
 	
-	sd_size = sec_desc_size(sd_store->sec) + sizeof(SEC_DESC_BUF);
-	prs_init(&ps, sd_size, ctx, MARSHALL);
+	sd_size = ndr_size_security_descriptor(sd_store->sd, 0)
+		+ sizeof(SEC_DESC_BUF);
+	if ( !prs_init(&ps, sd_size, ctx, MARSHALL) ) {
+		DEBUG(0,("sec_desc_upg_fn: Failed to allocate prs memory for %s\n", key.dptr ));
+		return 0;
+	}
 
 	if ( !sec_io_desc_buf( "sec_desc_upg_fn", &sd_store, &ps, 1 ) ) {
 		DEBUG(0,("sec_desc_upg_fn: Failed to parse new sec_desc for %s\n", key.dptr ));
@@ -446,7 +450,7 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 		return 0;
 	}
 
-	data.dptr = prs_data_p( &ps );
+	data.dptr = (uint8 *)prs_data_p( &ps );
 	data.dsize = sd_size;
 	
 	result = tdb_store( tdb_printers, key, data, TDB_REPLACE );
@@ -461,7 +465,7 @@ static int sec_desc_upg_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
 /*******************************************************************
 *******************************************************************/
 
-static BOOL upgrade_to_version_4(void)
+static bool upgrade_to_version_4(void)
 {
 	TALLOC_CTX *ctx;
 	int result;
@@ -489,46 +493,46 @@ static BOOL upgrade_to_version_4(void)
 static int normalize_printers_fn( TDB_CONTEXT *the_tdb, TDB_DATA key,
                                   TDB_DATA data, void *state )
 {
+	TALLOC_CTX *ctx = talloc_tos();
 	TDB_DATA new_key;
-	
+
 	if (!data.dptr || data.dsize == 0)
 		return 0;
 
 	/* upgrade printer records and security descriptors */
-	
-	if ( strncmp( key.dptr, PRINTERS_PREFIX, strlen(PRINTERS_PREFIX) ) == 0 ) {
-		new_key = make_printer_tdbkey( key.dptr+strlen(PRINTERS_PREFIX) );
+
+	if ( strncmp((const char *) key.dptr, PRINTERS_PREFIX, strlen(PRINTERS_PREFIX) ) == 0 ) {
+		new_key = make_printer_tdbkey(ctx, (const char *)key.dptr+strlen(PRINTERS_PREFIX) );
 	}
-	else if ( strncmp( key.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX) ) == 0 ) {
-		new_key.dptr = make_printers_secdesc_tdbkey( key.dptr+strlen(SECDESC_PREFIX) );
-		new_key.dsize = strlen( new_key.dptr ) + 1;
+	else if ( strncmp((const char *) key.dptr, SECDESC_PREFIX, strlen(SECDESC_PREFIX) ) == 0 ) {
+		new_key = make_printers_secdesc_tdbkey(ctx, (const char *)key.dptr+strlen(SECDESC_PREFIX) );
 	}
 	else {
 		/* ignore this record */
 		return 0;
 	}
-		
+
 	/* delete the original record and store under the normalized key */
-	
+
 	if ( tdb_delete( the_tdb, key ) != 0 ) {
 		DEBUG(0,("normalize_printers_fn: tdb_delete for [%s] failed!\n", 
 			key.dptr));
 		return 1;
 	}
-	
+
 	if ( tdb_store( the_tdb, new_key, data, TDB_REPLACE) != 0 ) {
 		DEBUG(0,("normalize_printers_fn: failed to store new record for [%s]!\n",
 			key.dptr));
 		return 1;
 	}
-	
+
 	return 0;
 }
 
 /*******************************************************************
 *******************************************************************/
 
-static BOOL upgrade_to_version_5(void)
+static bool upgrade_to_version_5(void)
 {
 	TALLOC_CTX *ctx;
 	int result;
@@ -549,7 +553,7 @@ static BOOL upgrade_to_version_5(void)
  Open the NT printing tdbs. Done once before fork().
 ****************************************************************************/
 
-BOOL nt_printing_init(void)
+bool nt_printing_init(struct messaging_context *msg_ctx)
 {
 	const char *vstring = "INFO/version";
 	WERROR win_rc;
@@ -560,28 +564,28 @@ BOOL nt_printing_init(void)
  
 	if (tdb_drivers)
 		tdb_close(tdb_drivers);
-	tdb_drivers = tdb_open_log(lock_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_drivers = tdb_open_log(state_path("ntdrivers.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_drivers) {
 		DEBUG(0,("nt_printing_init: Failed to open nt drivers database %s (%s)\n",
-			lock_path("ntdrivers.tdb"), strerror(errno) ));
+			state_path("ntdrivers.tdb"), strerror(errno) ));
 		return False;
 	}
  
 	if (tdb_printers)
 		tdb_close(tdb_printers);
-	tdb_printers = tdb_open_log(lock_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_printers = tdb_open_log(state_path("ntprinters.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_printers) {
 		DEBUG(0,("nt_printing_init: Failed to open nt printers database %s (%s)\n",
-			lock_path("ntprinters.tdb"), strerror(errno) ));
+			state_path("ntprinters.tdb"), strerror(errno) ));
 		return False;
 	}
  
 	if (tdb_forms)
 		tdb_close(tdb_forms);
-	tdb_forms = tdb_open_log(lock_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	tdb_forms = tdb_open_log(state_path("ntforms.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (!tdb_forms) {
 		DEBUG(0,("nt_printing_init: Failed to open nt forms database %s (%s)\n",
-			lock_path("ntforms.tdb"), strerror(errno) ));
+			state_path("ntforms.tdb"), strerror(errno) ));
 		return False;
 	}
  
@@ -638,15 +642,16 @@ BOOL nt_printing_init(void)
 	 * drivers are installed
 	 */
 
-	message_register(MSG_PRINTER_DRVUPGRADE, do_drv_upgrade_printer, NULL);
+	messaging_register(msg_ctx, NULL, MSG_PRINTER_DRVUPGRADE,
+			   do_drv_upgrade_printer);
 
 	/*
 	 * register callback to handle updating printer data
 	 * when a driver is initialized
 	 */
 
-	message_register(MSG_PRINTERDATA_INIT_RESET, reset_all_printerdata,
-			 NULL);
+	messaging_register(msg_ctx, NULL, MSG_PRINTERDATA_INIT_RESET,
+			   reset_all_printerdata);
 
 	/* of course, none of the message callbacks matter if you don't
 	   tell messages.c that you interested in receiving PRINT_GENERAL 
@@ -666,13 +671,25 @@ BOOL nt_printing_init(void)
  Function to allow filename parsing "the old way".
 ********************************************************************/
 
-static void driver_unix_convert(char *name,connection_struct *conn,
-		char *saved_last_component, SMB_STRUCT_STAT *pst)
+static char *driver_unix_convert(connection_struct *conn,
+		const char *old_name,
+		SMB_STRUCT_STAT *pst)
 {
+	TALLOC_CTX *ctx = talloc_tos();
+	char *name = talloc_strdup(ctx, old_name);
+	char *new_name = NULL;
+
+	if (!name) {
+		return NULL;
+	}
 	unix_format(name);
-	unix_clean_name(name);
+	name = unix_clean_name(ctx, name);
+	if (!name) {
+		return NULL;
+	}
 	trim_string(name,"/","/");
-	unix_convert(conn, name, False, saved_last_component, pst);
+	unix_convert(ctx,conn, name, false, &new_name, NULL, pst);
+	return new_name;
 }
 
 /*******************************************************************
@@ -699,7 +716,7 @@ static int traverse_counting_printers(TDB_CONTEXT *t, TDB_DATA key,
  each add or delete printer RPC. Only Microsoft knows why... JRR020119
 ********************************************************************/
 
-uint32 update_c_setprinter(BOOL initialize)
+uint32 update_c_setprinter(bool initialize)
 {
 	int32 c_setprinter;
 	int32 printer_count = 0;
@@ -758,11 +775,11 @@ int get_builtin_ntforms(nt_forms_struct **list)
  get a builtin form struct
 ****************************************************************************/
 
-BOOL get_a_builtin_ntform(UNISTR2 *uni_formname,nt_forms_struct *form)
+bool get_a_builtin_ntform(UNISTR2 *uni_formname,nt_forms_struct *form)
 {
 	int i,count;
 	fstring form_name;
-	unistr2_to_ascii(form_name, uni_formname, sizeof(form_name)-1);
+	unistr2_to_ascii(form_name, uni_formname, sizeof(form_name));
 	DEBUGADD(6,("Looking for builtin form %s \n", form_name));
 	count = sizeof(default_forms) / sizeof(default_forms[0]);
 	for (i=0;i<count;i++) {
@@ -794,14 +811,14 @@ int get_ntforms(nt_forms_struct **list)
 	     kbuf.dptr;
 	     newkey = tdb_nextkey(tdb_forms, kbuf), safe_free(kbuf.dptr), kbuf=newkey) 
 	{
-		if (strncmp(kbuf.dptr, FORMS_PREFIX, strlen(FORMS_PREFIX)) != 0) 
+		if (strncmp((const char *)kbuf.dptr, FORMS_PREFIX, strlen(FORMS_PREFIX)) != 0) 
 			continue;
 		
 		dbuf = tdb_fetch(tdb_forms, kbuf);
 		if (!dbuf.dptr) 
 			continue;
 
-		fstrcpy(form.name, kbuf.dptr+strlen(FORMS_PREFIX));
+		fstrcpy(form.name, (const char *)kbuf.dptr+strlen(FORMS_PREFIX));
 		ret = tdb_unpack(dbuf.dptr, dbuf.dsize, "dddddddd",
 				 &i, &form.flag, &form.width, &form.length, &form.left,
 				 &form.top, &form.right, &form.bottom);
@@ -825,26 +842,46 @@ int get_ntforms(nt_forms_struct **list)
 /****************************************************************************
 write a form struct list
 ****************************************************************************/
+
 int write_ntforms(nt_forms_struct **list, int number)
 {
-	pstring buf, key;
+	TALLOC_CTX *ctx = talloc_tos();
+	char *buf = NULL;
+	char *key = NULL;
 	int len;
-	TDB_DATA kbuf,dbuf;
+	TDB_DATA dbuf;
 	int i;
 
 	for (i=0;i<number;i++) {
 		/* save index, so list is rebuilt in correct order */
-		len = tdb_pack(buf, sizeof(buf), "dddddddd",
+		len = tdb_pack(NULL, 0, "dddddddd",
 			       i, (*list)[i].flag, (*list)[i].width, (*list)[i].length,
 			       (*list)[i].left, (*list)[i].top, (*list)[i].right,
 			       (*list)[i].bottom);
-		if (len > sizeof(buf)) break;
-		slprintf(key, sizeof(key)-1, "%s%s", FORMS_PREFIX, (*list)[i].name);
-		kbuf.dsize = strlen(key)+1;
-		kbuf.dptr = key;
+		if (!len) {
+			continue;
+		}
+		buf = TALLOC_ARRAY(ctx, char, len);
+		if (!buf) {
+			return 0;
+		}
+		len = tdb_pack((uint8 *)buf, len, "dddddddd",
+			       i, (*list)[i].flag, (*list)[i].width, (*list)[i].length,
+			       (*list)[i].left, (*list)[i].top, (*list)[i].right,
+			       (*list)[i].bottom);
+		key = talloc_asprintf(ctx, "%s%s", FORMS_PREFIX, (*list)[i].name);
+		if (!key) {
+			return 0;
+		}
 		dbuf.dsize = len;
-		dbuf.dptr = buf;
-		if (tdb_store(tdb_forms, kbuf, dbuf, TDB_REPLACE) != 0) break;
+		dbuf.dptr = (uint8 *)buf;
+		if (tdb_store_bystring(tdb_forms, key, dbuf, TDB_REPLACE) != 0) {
+			TALLOC_FREE(key);
+			TALLOC_FREE(buf);
+			break;
+		}
+		TALLOC_FREE(key);
+		TALLOC_FREE(buf);
        }
 
        return i;
@@ -853,10 +890,10 @@ int write_ntforms(nt_forms_struct **list, int number)
 /****************************************************************************
 add a form struct at the end of the list
 ****************************************************************************/
-BOOL add_a_form(nt_forms_struct **list, const FORM *form, int *count)
+bool add_a_form(nt_forms_struct **list, const FORM *form, int *count)
 {
 	int n=0;
-	BOOL update;
+	bool update;
 	fstring form_name;
 
 	/*
@@ -867,7 +904,7 @@ BOOL add_a_form(nt_forms_struct **list, const FORM *form, int *count)
 
 	update=False;
 	
-	unistr2_to_ascii(form_name, &form->name, sizeof(form_name)-1);
+	unistr2_to_ascii(form_name, &form->name, sizeof(form_name));
 	for (n=0; n<*count; n++) {
 		if ( strequal((*list)[n].name, form_name) ) {
 			update=True;
@@ -880,7 +917,7 @@ BOOL add_a_form(nt_forms_struct **list, const FORM *form, int *count)
 			DEBUG(0,("add_a_form: failed to enlarge forms list!\n"));
 			return False;
 		}
-		unistr2_to_ascii((*list)[n].name, &form->name, sizeof((*list)[n].name)-1);
+		unistr2_to_ascii((*list)[n].name, &form->name, sizeof((*list)[n].name));
 		(*count)++;
 	}
 	
@@ -902,16 +939,15 @@ BOOL add_a_form(nt_forms_struct **list, const FORM *form, int *count)
  Delete a named form struct.
 ****************************************************************************/
 
-BOOL delete_a_form(nt_forms_struct **list, UNISTR2 *del_name, int *count, WERROR *ret)
+bool delete_a_form(nt_forms_struct **list, UNISTR2 *del_name, int *count, WERROR *ret)
 {
-	pstring key;
-	TDB_DATA kbuf;
+	char *key = NULL;
 	int n=0;
 	fstring form_name;
 
 	*ret = WERR_OK;
 
-	unistr2_to_ascii(form_name, del_name, sizeof(form_name)-1);
+	unistr2_to_ascii(form_name, del_name, sizeof(form_name));
 
 	for (n=0; n<*count; n++) {
 		if (!strncmp((*list)[n].name, form_name, strlen(form_name))) {
@@ -926,15 +962,17 @@ BOOL delete_a_form(nt_forms_struct **list, UNISTR2 *del_name, int *count, WERROR
 		return False;
 	}
 
-	slprintf(key, sizeof(key)-1, "%s%s", FORMS_PREFIX, (*list)[n].name);
-	kbuf.dsize = strlen(key)+1;
-	kbuf.dptr = key;
-	if (tdb_delete(tdb_forms, kbuf) != 0) {
+	if (asprintf(&key, "%s%s", FORMS_PREFIX, (*list)[n].name) < 0) {
+		*ret = WERR_NOMEM;
+		return false;
+	}
+	if (tdb_delete_bystring(tdb_forms, key) != 0) {
+		SAFE_FREE(key);
 		*ret = WERR_NOMEM;
 		return False;
 	}
-
-	return True;
+	SAFE_FREE(key);
+	return true;
 }
 
 /****************************************************************************
@@ -945,7 +983,7 @@ void update_a_form(nt_forms_struct **list, const FORM *form, int count)
 {
 	int n=0;
 	fstring form_name;
-	unistr2_to_ascii(form_name, &(form->name), sizeof(form_name)-1);
+	unistr2_to_ascii(form_name, &(form->name), sizeof(form_name));
 
 	DEBUG(106, ("[%s]\n", form_name));
 	for (n=0; n<count; n++) {
@@ -973,7 +1011,7 @@ int get_ntdrivers(fstring **list, const char *architecture, uint32 version)
 {
 	int total=0;
 	const char *short_archi;
-	pstring key;
+	char *key = NULL;
 	TDB_DATA kbuf, newkey;
 
 	short_archi = get_short_archi(architecture);
@@ -981,24 +1019,29 @@ int get_ntdrivers(fstring **list, const char *architecture, uint32 version)
 		return 0;
 	}
 
-	slprintf(key, sizeof(key)-1, "%s%s/%d/", DRIVERS_PREFIX, short_archi, version);
+	if (asprintf(&key, "%s%s/%d/", DRIVERS_PREFIX,
+				short_archi, version) < 0) {
+		return 0;
+	}
 
 	for (kbuf = tdb_firstkey(tdb_drivers);
 	     kbuf.dptr;
 	     newkey = tdb_nextkey(tdb_drivers, kbuf), safe_free(kbuf.dptr), kbuf=newkey) {
 
-		if (strncmp(kbuf.dptr, key, strlen(key)) != 0)
+		if (strncmp((const char *)kbuf.dptr, key, strlen(key)) != 0)
 			continue;
-		
+
 		if((*list = SMB_REALLOC_ARRAY(*list, fstring, total+1)) == NULL) {
 			DEBUG(0,("get_ntdrivers: failed to enlarge list!\n"));
+			SAFE_FREE(key);
 			return -1;
 		}
 
-		fstrcpy((*list)[total], kbuf.dptr+strlen(key));
+		fstrcpy((*list)[total], (const char *)kbuf.dptr+strlen(key));
 		total++;
 	}
 
+	SAFE_FREE(key);
 	return(total);
 }
 
@@ -1065,7 +1108,7 @@ static int get_file_version(files_struct *fsp, char *fname,uint32 *major, uint32
 	}
 
 	/* Skip OEM header (if any) and the DOS stub to start of Windows header */
-	if (SMB_VFS_LSEEK(fsp, fsp->fh->fd, SVAL(buf,DOS_HEADER_LFANEW_OFFSET), SEEK_SET) == (SMB_OFF_T)-1) {
+	if (SMB_VFS_LSEEK(fsp, SVAL(buf,DOS_HEADER_LFANEW_OFFSET), SEEK_SET) == (SMB_OFF_T)-1) {
 		DEBUG(3,("get_file_version: File [%s] too short, errno = %d\n",
 				fname, errno));
 		/* Assume this isn't an error... the file just looks sort of like a PE/NE file */
@@ -1086,7 +1129,7 @@ static int get_file_version(files_struct *fsp, char *fname,uint32 *major, uint32
 		unsigned int section_table_bytes;
 
 		/* Just skip over optional header to get to section table */
-		if (SMB_VFS_LSEEK(fsp, fsp->fh->fd,
+		if (SMB_VFS_LSEEK(fsp,
 				SVAL(buf,PE_HEADER_OPTIONAL_HEADER_SIZE)-(NE_HEADER_SIZE-PE_HEADER_SIZE),
 				SEEK_CUR) == (SMB_OFF_T)-1) {
 			DEBUG(3,("get_file_version: File [%s] Windows optional header too short, errno = %d\n",
@@ -1132,7 +1175,7 @@ static int get_file_version(files_struct *fsp, char *fname,uint32 *major, uint32
 				}
 
 				/* Seek to the start of the .rsrc section info */
-				if (SMB_VFS_LSEEK(fsp, fsp->fh->fd, section_pos, SEEK_SET) == (SMB_OFF_T)-1) {
+				if (SMB_VFS_LSEEK(fsp, section_pos, SEEK_SET) == (SMB_OFF_T)-1) {
 					DEBUG(3,("get_file_version: PE file [%s] too short for section info, errno = %d\n",
 							fname, errno));
 					goto error_exit;
@@ -1156,7 +1199,7 @@ static int get_file_version(files_struct *fsp, char *fname,uint32 *major, uint32
 						if (IVAL(buf,pos) == VS_MAGIC_VALUE) {
 							*major = IVAL(buf,pos+VS_MAJOR_OFFSET);
 							*minor = IVAL(buf,pos+VS_MINOR_OFFSET);
-							
+
 							DEBUG(6,("get_file_version: PE file [%s] Version = %08x:%08x (%d.%d.%d.%d)\n",
 									  fname, *major, *minor,
 									  (*major>>16)&0xffff, *major&0xffff,
@@ -1228,7 +1271,7 @@ static int get_file_version(files_struct *fsp, char *fname,uint32 *major, uint32
 				 * twice, as it is simpler to read the code. */
 				if (strcmp(&buf[i], VS_SIGNATURE) == 0) {
 					/* Compute skip alignment to next long address */
-					int skip = -(SMB_VFS_LSEEK(fsp, fsp->fh->fd, 0, SEEK_CUR) - (byte_count - i) +
+					int skip = -(SMB_VFS_LSEEK(fsp, 0, SEEK_CUR) - (byte_count - i) +
 								 sizeof(VS_SIGNATURE)) & 3;
 					if (IVAL(buf,i+sizeof(VS_SIGNATURE)+skip) != 0xfeef04bd) continue;
 
@@ -1275,8 +1318,8 @@ the modification date). Otherwise chose the numerically larger version number.
 
 static int file_version_is_newer(connection_struct *conn, fstring new_file, fstring old_file)
 {
-	BOOL   use_version = True;
-	pstring filepath;
+	bool use_version = true;
+	char *filepath = NULL;
 
 	uint32 new_major;
 	uint32 new_minor;
@@ -1298,11 +1341,12 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 	old_create_time = (time_t)0;
 
 	/* Get file version info (if available) for previous file (if it exists) */
-	pstrcpy(filepath, old_file);
+	filepath = driver_unix_convert(conn,old_file,&stat_buf);
+	if (!filepath) {
+		goto error_exit;
+	}
 
-	driver_unix_convert(filepath,conn,NULL,&stat_buf);
-
-	status = open_file_ntcreate(conn, filepath, &stat_buf,
+	status = open_file_ntcreate(conn, NULL, filepath, &stat_buf,
 				FILE_GENERIC_READ,
 				FILE_SHARE_READ|FILE_SHARE_WRITE,
 				FILE_OPEN,
@@ -1315,7 +1359,7 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		/* Old file not found, so by definition new file is in fact newer */
 		DEBUG(10,("file_version_is_newer: Can't open old file [%s], errno = %d\n",
 				filepath, errno));
-		return True;
+		return 1;
 
 	} else {
 		int ret = get_file_version(fsp, old_file, &old_major, &old_minor);
@@ -1326,8 +1370,10 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		if (!ret) {
 			DEBUG(6,("file_version_is_newer: Version info not found [%s], use mod time\n",
 					 old_file));
-			use_version = False;
-			if (SMB_VFS_FSTAT(fsp, fsp->fh->fd, &st) == -1) goto error_exit;
+			use_version = false;
+			if (SMB_VFS_FSTAT(fsp, &st) == -1) {
+				 goto error_exit;
+			}
 			old_create_time = st.st_mtime;
 			DEBUGADD(6,("file_version_is_newer: mod time = %ld sec\n", old_create_time));
 		}
@@ -1335,10 +1381,12 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 	close_file(fsp, NORMAL_CLOSE);
 
 	/* Get file version info (if available) for new file */
-	pstrcpy(filepath, new_file);
-	driver_unix_convert(filepath,conn,NULL,&stat_buf);
+	filepath = driver_unix_convert(conn,new_file,&stat_buf);
+	if (!filepath) {
+		goto error_exit;
+	}
 
-	status = open_file_ntcreate(conn, filepath, &stat_buf,
+	status = open_file_ntcreate(conn, NULL, filepath, &stat_buf,
 				FILE_GENERIC_READ,
 				FILE_SHARE_READ|FILE_SHARE_WRITE,
 				FILE_OPEN,
@@ -1362,8 +1410,10 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		if (!ret) {
 			DEBUG(6,("file_version_is_newer: Version info not found [%s], use mod time\n",
 					 new_file));
-			use_version = False;
-			if (SMB_VFS_FSTAT(fsp, fsp->fh->fd, &st) == -1) goto error_exit;
+			use_version = false;
+			if (SMB_VFS_FSTAT(fsp, &st) == -1) {
+				goto error_exit;
+			}
 			new_create_time = st.st_mtime;
 			DEBUGADD(6,("file_version_is_newer: mod time = %ld sec\n", new_create_time));
 		}
@@ -1374,24 +1424,24 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		/* Compare versions and choose the larger version number */
 		if (new_major > old_major ||
 			(new_major == old_major && new_minor > old_minor)) {
-			
+
 			DEBUG(6,("file_version_is_newer: Replacing [%s] with [%s]\n", old_file, new_file));
-			return True;
+			return 1;
 		}
 		else {
 			DEBUG(6,("file_version_is_newer: Leaving [%s] unchanged\n", old_file));
-			return False;
+			return 0;
 		}
 
 	} else {
 		/* Compare modification time/dates and choose the newest time/date */
 		if (new_create_time > old_create_time) {
 			DEBUG(6,("file_version_is_newer: Replacing [%s] with [%s]\n", old_file, new_file));
-			return True;
+			return 1;
 		}
 		else {
 			DEBUG(6,("file_version_is_newer: Leaving [%s] unchanged\n", old_file));
-			return False;
+			return 0;
 		}
 	}
 
@@ -1409,7 +1459,7 @@ static uint32 get_correct_cversion(const char *architecture, fstring driverpath_
 {
 	int               cversion;
 	NTSTATUS          nt_status;
- 	pstring           driverpath;
+ 	char *driverpath = NULL;
 	DATA_BLOB         null_pw;
 	fstring           res_type;
 	files_struct      *fsp = NULL;
@@ -1441,7 +1491,7 @@ static uint32 get_correct_cversion(const char *architecture, fstring driverpath_
 	 */
 
 	/* Null password is ok - we are already an authenticated user... */
-	null_pw = data_blob(NULL, 0);
+	null_pw = data_blob_null;
 	fstrcpy(res_type, "A:");
  	become_root();
 	conn = make_connection_with_chdir("print$", null_pw, res_type, user->vuid, &nt_status);
@@ -1462,16 +1512,27 @@ static uint32 get_correct_cversion(const char *architecture, fstring driverpath_
 
 	/* Open the driver file (Portable Executable format) and determine the
 	 * deriver the cversion. */
-	slprintf(driverpath, sizeof(driverpath)-1, "%s/%s", architecture, driverpath_in);
+	driverpath = talloc_asprintf(talloc_tos(),
+					"%s/%s",
+					architecture,
+					driverpath_in);
+	if (!driverpath) {
+		*perr = WERR_NOMEM;
+		goto error_exit;
+	}
 
-	driver_unix_convert(driverpath,conn,NULL,&st);
+	driverpath = driver_unix_convert(conn,driverpath,&st);
+	if (!driverpath) {
+		*perr = WERR_NOMEM;
+		goto error_exit;
+	}
 
-	if ( !vfs_file_exist( conn, driverpath, &st ) ) {
+	if (!vfs_file_exist(conn, driverpath, &st)) {
 		*perr = WERR_BADFILE;
 		goto error_exit;
 	}
 
-	status = open_file_ntcreate(conn, driverpath, &st,
+	status = open_file_ntcreate(conn, NULL, driverpath, &st,
 				FILE_GENERIC_READ,
 				FILE_SHARE_READ|FILE_SHARE_WRITE,
 				FILE_OPEN,
@@ -1741,21 +1802,18 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 	NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver;
 	NT_PRINTER_DRIVER_INFO_LEVEL_3 converted_driver;
 	const char *architecture;
-	pstring new_dir;
-	pstring old_name;
-	pstring new_name;
+	char *new_dir = NULL;
+	char *old_name = NULL;
+	char *new_name = NULL;
 	DATA_BLOB null_pw;
 	connection_struct *conn;
 	NTSTATUS nt_status;
-	pstring inbuf;
-	pstring outbuf;
 	fstring res_type;
 	SMB_STRUCT_STAT st;
-	int ver = 0;
 	int i;
+	TALLOC_CTX *ctx = talloc_tos();
+	int ver = 0;
 
-	memset(inbuf, '\0', sizeof(inbuf));
-	memset(outbuf, '\0', sizeof(outbuf));
 	*perr = WERR_OK;
 
 	if (level==3)
@@ -1778,7 +1836,7 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 	 * Note we must be root to do this.
 	 */
 
-	null_pw = data_blob(NULL, 0);
+	null_pw = data_blob_null;
 	fstrcpy(res_type, "A:");
 	become_root();
 	conn = make_connection_with_chdir("print$", null_pw, res_type, user->vuid, &nt_status);
@@ -1799,14 +1857,28 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 		return WERR_ACCESS_DENIED;
 	}
 
+	/* WE ARE NOW RUNNING AS USER conn->vuid !!!!! */
+
 	/*
 	 * make the directories version and version\driver_name
 	 * under the architecture directory.
 	 */
 	DEBUG(5,("Creating first directory\n"));
-	slprintf(new_dir, sizeof(new_dir)-1, "%s/%d", architecture, driver->cversion);
-	driver_unix_convert(new_dir, conn, NULL, &st);
-	create_directory(conn, new_dir);
+	new_dir = talloc_asprintf(ctx,
+				"%s/%d",
+				architecture,
+				driver->cversion);
+	if (!new_dir) {
+		*perr = WERR_NOMEM;
+		goto err_exit;
+	}
+	new_dir = driver_unix_convert(conn,new_dir,&st);
+	if (!new_dir) {
+		*perr = WERR_NOMEM;
+		goto err_exit;
+	}
+
+	create_directory(conn, NULL, new_dir);
 
 	/* For each driver file, archi\filexxx.yyy, if there is a duplicate file
 	 * listed for this driver which has already been moved, skip it (note:
@@ -1828,27 +1900,64 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 	DEBUG(5,("Moving files now !\n"));
 
 	if (driver->driverpath && strlen(driver->driverpath)) {
-		slprintf(new_name, sizeof(new_name)-1, "%s/%s", architecture, driver->driverpath);	
-		slprintf(old_name, sizeof(old_name)-1, "%s/%s", new_dir, driver->driverpath);	
+		new_name = talloc_asprintf(ctx,
+					"%s/%s",
+					architecture,
+					driver->driverpath);
+		if (!new_name) {
+			*perr = WERR_NOMEM;
+			goto err_exit;
+		}
+		old_name = talloc_asprintf(ctx,
+					"%s/%s",
+					new_dir,
+					driver->driverpath);
+		if (!old_name) {
+			*perr = WERR_NOMEM;
+			goto err_exit;
+		}
+
 		if (ver != -1 && (ver=file_version_is_newer(conn, new_name, old_name)) > 0) {
-			driver_unix_convert(new_name, conn, NULL, &st);
-			if ( !NT_STATUS_IS_OK(copy_file(conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
+			new_name = driver_unix_convert(conn,new_name,&st);
+			if (!new_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
+			if ( !NT_STATUS_IS_OK(copy_file(ctx,conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
 						OPENX_FILE_CREATE_IF_NOT_EXIST, 0, False))) {
 				DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
 						new_name, old_name));
 				*perr = WERR_ACCESS_DENIED;
 				ver = -1;
 			}
-		} 
+		}
 	}
 
 	if (driver->datafile && strlen(driver->datafile)) {
 		if (!strequal(driver->datafile, driver->driverpath)) {
-			slprintf(new_name, sizeof(new_name)-1, "%s/%s", architecture, driver->datafile);	
-			slprintf(old_name, sizeof(old_name)-1, "%s/%s", new_dir, driver->datafile);	
+			new_name = talloc_asprintf(ctx,
+					"%s/%s",
+					architecture,
+					driver->datafile);
+			if (!new_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
+			old_name = talloc_asprintf(ctx,
+					"%s/%s",
+					new_dir,
+					driver->datafile);
+			if (!old_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
 			if (ver != -1 && (ver=file_version_is_newer(conn, new_name, old_name)) > 0) {
-				driver_unix_convert(new_name, conn, NULL, &st);
-				if ( !NT_STATUS_IS_OK(copy_file(conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
+				new_name = driver_unix_convert(conn,new_name,&st);
+				if (!new_name) {
+					*perr = WERR_NOMEM;
+					goto err_exit;
+				}
+				if ( !NT_STATUS_IS_OK(copy_file(ctx,conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
 						OPENX_FILE_CREATE_IF_NOT_EXIST, 0, False))) {
 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
 							new_name, old_name));
@@ -1862,11 +1971,29 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 	if (driver->configfile && strlen(driver->configfile)) {
 		if (!strequal(driver->configfile, driver->driverpath) &&
 			!strequal(driver->configfile, driver->datafile)) {
-			slprintf(new_name, sizeof(new_name)-1, "%s/%s", architecture, driver->configfile);	
-			slprintf(old_name, sizeof(old_name)-1, "%s/%s", new_dir, driver->configfile);	
+			new_name = talloc_asprintf(ctx,
+						"%s/%s",
+						architecture,
+						driver->configfile);
+			if (!new_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
+			old_name = talloc_asprintf(ctx,
+						"%s/%s",
+						new_dir,
+						driver->configfile);
+			if (!old_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
 			if (ver != -1 && (ver=file_version_is_newer(conn, new_name, old_name)) > 0) {
-				driver_unix_convert(new_name, conn, NULL, &st);
-				if ( !NT_STATUS_IS_OK(copy_file(conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
+				new_name = driver_unix_convert(conn,new_name,&st);
+				if (!new_name) {
+					*perr = WERR_NOMEM;
+					goto err_exit;
+				}
+				if ( !NT_STATUS_IS_OK(copy_file(ctx,conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
 						OPENX_FILE_CREATE_IF_NOT_EXIST, 0, False))) {
 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
 							new_name, old_name));
@@ -1881,11 +2008,29 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 		if (!strequal(driver->helpfile, driver->driverpath) &&
 			!strequal(driver->helpfile, driver->datafile) &&
 			!strequal(driver->helpfile, driver->configfile)) {
-			slprintf(new_name, sizeof(new_name)-1, "%s/%s", architecture, driver->helpfile);	
-			slprintf(old_name, sizeof(old_name)-1, "%s/%s", new_dir, driver->helpfile);	
+			new_name = talloc_asprintf(ctx,
+					"%s/%s",
+					architecture,
+					driver->helpfile);
+			if (!new_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
+			old_name = talloc_asprintf(ctx,
+					"%s/%s",
+					new_dir,
+					driver->helpfile);
+			if (!old_name) {
+				*perr = WERR_NOMEM;
+				goto err_exit;
+			}
 			if (ver != -1 && (ver=file_version_is_newer(conn, new_name, old_name)) > 0) {
-				driver_unix_convert(new_name, conn, NULL, &st);
-				if ( !NT_STATUS_IS_OK(copy_file(conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
+				new_name = driver_unix_convert(conn,new_name,&st);
+				if (!new_name) {
+					*perr = WERR_NOMEM;
+					goto err_exit;
+				}
+				if ( !NT_STATUS_IS_OK(copy_file(ctx,conn, new_name, old_name, OPENX_FILE_EXISTS_TRUNCATE|
 						OPENX_FILE_CREATE_IF_NOT_EXIST, 0, False))) {
 					DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
 							new_name, old_name));
@@ -1909,11 +2054,29 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 					}
 				}
 
-				slprintf(new_name, sizeof(new_name)-1, "%s/%s", architecture, driver->dependentfiles[i]);	
-				slprintf(old_name, sizeof(old_name)-1, "%s/%s", new_dir, driver->dependentfiles[i]);	
+				new_name = talloc_asprintf(ctx,
+						"%s/%s",
+						architecture,
+						driver->dependentfiles[i]);
+				if (!new_name) {
+					*perr = WERR_NOMEM;
+					goto err_exit;
+				}
+				old_name = talloc_asprintf(ctx,
+						"%s/%s",
+						new_dir,
+						driver->dependentfiles[i]);
+				if (!old_name) {
+					*perr = WERR_NOMEM;
+					goto err_exit;
+				}
 				if (ver != -1 && (ver=file_version_is_newer(conn, new_name, old_name)) > 0) {
-					driver_unix_convert(new_name, conn, NULL, &st);
-					if ( !NT_STATUS_IS_OK(copy_file(conn, new_name, old_name,
+					new_name = driver_unix_convert(conn,new_name,&st);
+					if (!new_name) {
+						*perr = WERR_NOMEM;
+						goto err_exit;
+					}
+					if ( !NT_STATUS_IS_OK(copy_file(ctx,conn, new_name, old_name,
 							OPENX_FILE_EXISTS_TRUNCATE|
 							OPENX_FILE_CREATE_IF_NOT_EXIST, 0, False))) {
 						DEBUG(0,("move_driver_to_download_area: Unable to rename [%s] to [%s]\n",
@@ -1927,24 +2090,34 @@ WERROR move_driver_to_download_area(NT_PRINTER_DRIVER_INFO_LEVEL driver_abstract
 		}
 	}
 
+  err_exit:
+
 	close_cnum(conn, user->vuid);
 	unbecome_user();
 
-	return ver != -1 ? WERR_OK : WERR_UNKNOWN_PRINTER_DRIVER;
+	if (W_ERROR_EQUAL(*perr, WERR_OK)) {
+		return WERR_OK;
+	}
+	if (ver == -1) {
+		return WERR_UNKNOWN_PRINTER_DRIVER;
+	}
+	return (*perr);
 }
 
 /****************************************************************************
 ****************************************************************************/
+
 static uint32 add_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver)
 {
+	TALLOC_CTX *ctx = talloc_tos();
 	int len, buflen;
 	const char *architecture;
-	pstring directory;
+	char *directory = NULL;
 	fstring temp_name;
-	pstring key;
-	char *buf;
+	char *key = NULL;
+	uint8 *buf;
 	int i, ret;
-	TDB_DATA kbuf, dbuf;
+	TDB_DATA dbuf;
 
 	architecture = get_short_archi(driver->environment);
 	if (!architecture) {
@@ -1956,7 +2129,11 @@ static uint32 add_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver)
 	 * It does make sense to NOT store the server's name in the printer TDB.
 	 */
 
-	slprintf(directory, sizeof(directory)-1, "\\print$\\%s\\%d\\", architecture, driver->cversion);
+	directory = talloc_asprintf(ctx, "\\print$\\%s\\%d\\",
+			architecture, driver->cversion);
+	if (!directory) {
+		return (uint32)-1;
+	}
 
 	/* .inf files do not always list a file for each of the four standard files. 
 	 * Don't prepend a path to a null filename, or client claims:
@@ -1991,7 +2168,11 @@ static uint32 add_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver)
 		}
 	}
 
-	slprintf(key, sizeof(key)-1, "%s%s/%d/%s", DRIVERS_PREFIX, architecture, driver->cversion, driver->name);
+	key = talloc_asprintf(ctx, "%s%s/%d/%s", DRIVERS_PREFIX,
+			architecture, driver->cversion, driver->name);
+	if (!key) {
+		return (uint32)-1;
+	}
 
 	DEBUG(5,("add_a_printer_driver_3: Adding driver with key %s\n", key ));
 
@@ -2019,7 +2200,7 @@ static uint32 add_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver)
 	}
 
 	if (len != buflen) {
-		buf = (char *)SMB_REALLOC(buf, len);
+		buf = (uint8 *)SMB_REALLOC(buf, len);
 		if (!buf) {
 			DEBUG(0,("add_a_printer_driver_3: failed to enlarge buffer\n!"));
 			ret = -1;
@@ -2029,13 +2210,10 @@ static uint32 add_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 *driver)
 		goto again;
 	}
 
-
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
 	dbuf.dptr = buf;
 	dbuf.dsize = len;
-	
-	ret = tdb_store(tdb_drivers, kbuf, dbuf, TDB_REPLACE);
+
+	ret = tdb_store_bystring(tdb_drivers, key, dbuf, TDB_REPLACE);
 
 done:
 	if (ret)
@@ -2103,11 +2281,11 @@ static WERROR get_a_printer_driver_3_default(NT_PRINTER_DRIVER_INFO_LEVEL_3 **in
 static WERROR get_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 **info_ptr, fstring drivername, const char *arch, uint32 version)
 {
 	NT_PRINTER_DRIVER_INFO_LEVEL_3 driver;
-	TDB_DATA kbuf, dbuf;
+	TDB_DATA dbuf;
 	const char *architecture;
 	int len = 0;
 	int i;
-	pstring key;
+	char *key = NULL;
 
 	ZERO_STRUCT(driver);
 
@@ -2115,22 +2293,24 @@ static WERROR get_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 **info_ptr, 
 	if ( !architecture ) {
 		return WERR_UNKNOWN_PRINTER_DRIVER;
 	}
-	
+
 	/* Windows 4.0 (i.e. win9x) should always use a version of 0 */
-	
+
 	if ( strcmp( architecture, SPL_ARCH_WIN40 ) == 0 )
 		version = 0;
 
 	DEBUG(8,("get_a_printer_driver_3: [%s%s/%d/%s]\n", DRIVERS_PREFIX, architecture, version, drivername));
 
-	slprintf(key, sizeof(key)-1, "%s%s/%d/%s", DRIVERS_PREFIX, architecture, version, drivername);
+	if (asprintf(&key, "%s%s/%d/%s", DRIVERS_PREFIX,
+				architecture, version, drivername) < 0) {
+		return WERR_NOMEM;
+	}
 
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
-	
-	dbuf = tdb_fetch(tdb_drivers, kbuf);
-	if (!dbuf.dptr) 
+	dbuf = tdb_fetch_bystring(tdb_drivers, key);
+	if (!dbuf.dptr) {
+		SAFE_FREE(key);
 		return WERR_UNKNOWN_PRINTER_DRIVER;
+	}
 
 	len += tdb_unpack(dbuf.dptr, dbuf.dsize, "dffffffff",
 			  &driver.cversion,
@@ -2155,11 +2335,12 @@ static WERROR get_a_printer_driver_3(NT_PRINTER_DRIVER_INFO_LEVEL_3 **info_ptr, 
 				  &driver.dependentfiles[i]);
 		i++;
 	}
-	
+
 	if ( driver.dependentfiles )
 		fstrcpy( driver.dependentfiles[i], "" );
 
 	SAFE_FREE(dbuf.dptr);
+	SAFE_FREE(key);
 
 	if (len != dbuf.dsize) {
 		SAFE_FREE(driver.dependentfiles);
@@ -2227,7 +2408,7 @@ static uint32 dump_a_printer_driver(NT_PRINTER_DRIVER_INFO_LEVEL driver, uint32 
 
 /****************************************************************************
 ****************************************************************************/
-int pack_devicemode(NT_DEVICEMODE *nt_devmode, char *buf, int buflen)
+int pack_devicemode(NT_DEVICEMODE *nt_devmode, uint8 *buf, int buflen)
 {
 	int len = 0;
 
@@ -2275,7 +2456,6 @@ int pack_devicemode(NT_DEVICEMODE *nt_devmode, char *buf, int buflen)
 			nt_devmode->panningheight,
 			nt_devmode->nt_dev_private);
 
-	
 	if (nt_devmode->nt_dev_private) {
 		len += tdb_pack(buf+len, buflen-len, "B",
 				nt_devmode->driverextra,
@@ -2290,44 +2470,46 @@ int pack_devicemode(NT_DEVICEMODE *nt_devmode, char *buf, int buflen)
 /****************************************************************************
  Pack all values in all printer keys
  ***************************************************************************/
- 
-static int pack_values(NT_PRINTER_DATA *data, char *buf, int buflen)
+
+static int pack_values(NT_PRINTER_DATA *data, uint8 *buf, int buflen)
 {
 	int 		len = 0;
 	int 		i, j;
 	REGISTRY_VALUE	*val;
 	REGVAL_CTR	*val_ctr;
-	pstring		path;
+	char *path = NULL;
 	int		num_values;
 
 	if ( !data )
 		return 0;
 
 	/* loop over all keys */
-		
-	for ( i=0; i<data->num_keys; i++ ) {	
+
+	for ( i=0; i<data->num_keys; i++ ) {
 		val_ctr = data->keys[i].values;
 		num_values = regval_ctr_numvals( val_ctr );
 
 		/* pack the keyname followed by a empty value */
 
-		len += tdb_pack(buf+len, buflen-len, "pPdB", 
+		len += tdb_pack(buf+len, buflen-len, "pPdB",
 				&data->keys[i].name,
-				data->keys[i].name, 
+				data->keys[i].name,
 				REG_NONE,
 				0,
 				NULL);
-		
+
 		/* now loop over all values */
-		
+
 		for ( j=0; j<num_values; j++ ) {
 			/* pathname should be stored as <key>\<value> */
-			
+
 			val = regval_ctr_specific_value( val_ctr, j );
-			pstrcpy( path, data->keys[i].name );
-			pstrcat( path, "\\" );
-			pstrcat( path, regval_name(val) );
-			
+			if (asprintf(&path, "%s\\%s",
+					data->keys[i].name,
+					regval_name(val)) < 0) {
+				return -1;
+			}
+
 			len += tdb_pack(buf+len, buflen-len, "pPdB",
 					val,
 					path,
@@ -2336,12 +2518,13 @@ static int pack_values(NT_PRINTER_DATA *data, char *buf, int buflen)
 					regval_data_p(val) );
 
 			DEBUG(8,("specific: [%s], len: %d\n", regval_name(val), regval_size(val)));
+			SAFE_FREE(path);
 		}
-	
+
 	}
 
 	/* terminator */
-	
+
 	len += tdb_pack(buf+len, buflen-len, "p", NULL);
 
 	return len;
@@ -2356,23 +2539,25 @@ static int pack_values(NT_PRINTER_DATA *data, char *buf, int buflen)
 uint32 del_a_printer(const char *sharename)
 {
 	TDB_DATA kbuf;
-	pstring printdb_path;
+	char *printdb_path = NULL;
+	TALLOC_CTX *ctx = talloc_tos();
 
-	kbuf = make_printer_tdbkey( sharename );
+	kbuf = make_printer_tdbkey(ctx, sharename);
 	tdb_delete(tdb_printers, kbuf);
 
-	kbuf.dptr = make_printers_secdesc_tdbkey( sharename );
-	kbuf.dsize = strlen(kbuf.dptr) + 1;
+	kbuf= make_printers_secdesc_tdbkey(ctx, sharename);
 	tdb_delete(tdb_printers, kbuf);
 
 	close_all_print_db();
 
 	if (geteuid() == 0) {
-		pstrcpy(printdb_path, lock_path("printing/"));
-		pstrcat(printdb_path, sharename);
-		pstrcat(printdb_path, ".tdb");
-
+		if (asprintf(&printdb_path, "%s%s.tdb",
+				lock_path("printing/"),
+				sharename) < 0) {
+			return (uint32)-1;
+		}
 		unlink(printdb_path);
+		SAFE_FREE(printdb_path);
 	}
 
 	return 0;
@@ -2382,8 +2567,9 @@ uint32 del_a_printer(const char *sharename)
 ****************************************************************************/
 static WERROR update_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info)
 {
-	char *buf;
+	uint8 *buf;
 	int buflen, len;
+	int retlen;
 	WERROR ret;
 	TDB_DATA kbuf, dbuf;
 	
@@ -2418,7 +2604,7 @@ static WERROR update_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info)
 	buf = NULL;
 	buflen = 0;
 
- again:	
+ again:
 	len = 0;
 	len += tdb_pack(buf+len, buflen-len, "dddddddddddfffffPfffff",
 			info->attributes,
@@ -2445,11 +2631,15 @@ static WERROR update_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info)
 			info->parameters);
 
 	len += pack_devicemode(info->devmode, buf+len, buflen-len);
-	
-	len += pack_values( info->data, buf+len, buflen-len );
+	retlen = pack_values( info->data, buf+len, buflen-len );
+	if (retlen == -1) {
+		ret = WERR_NOMEM;
+		goto done;
+	}
+	len += retlen;
 
 	if (buflen != len) {
-		buf = (char *)SMB_REALLOC(buf, len);
+		buf = (uint8 *)SMB_REALLOC(buf, len);
 		if (!buf) {
 			DEBUG(0,("update_a_printer_2: failed to enlarge buffer!\n"));
 			ret = WERR_NOMEM;
@@ -2458,9 +2648,8 @@ static WERROR update_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info)
 		buflen = len;
 		goto again;
 	}
-	
 
-	kbuf = make_printer_tdbkey( info->sharename );
+	kbuf = make_printer_tdbkey(talloc_tos(), info->sharename );
 
 	dbuf.dptr = buf;
 	dbuf.dsize = len;
@@ -2607,7 +2796,7 @@ static void free_nt_printer_info_level_2(NT_PRINTER_INFO_LEVEL_2 **info_ptr)
 
 /****************************************************************************
 ****************************************************************************/
-int unpack_devicemode(NT_DEVICEMODE **nt_devmode, char *buf, int buflen)
+int unpack_devicemode(NT_DEVICEMODE **nt_devmode, const uint8 *buf, int buflen)
 {
 	int len = 0;
 	int extra_len = 0;
@@ -2904,7 +3093,7 @@ static void map_dword_into_ctr(REGVAL_CTR *ctr, const char *val_name,
 }
 
 static void map_bool_into_ctr(REGVAL_CTR *ctr, const char *val_name,
-			      BOOL b)
+			      bool b)
 {
 	uint8 bin_bool = (b ? 1 : 0);
 	regval_ctr_delvalue(ctr, val_name);
@@ -2942,14 +3131,14 @@ static void map_single_multi_sz_into_ctr(REGVAL_CTR *ctr, const char *val_name,
  * Map the NT_PRINTER_INFO_LEVEL_2 data into DsSpooler keys for publishing.
  *
  * @param info2 NT_PRINTER_INFO_LEVEL_2 describing printer - gets modified
- * @return BOOL indicating success or failure
+ * @return bool indicating success or failure
  ***************************************************************************/
 
-static BOOL map_nt_printer_info2_to_dsspooler(NT_PRINTER_INFO_LEVEL_2 *info2)
+static bool map_nt_printer_info2_to_dsspooler(NT_PRINTER_INFO_LEVEL_2 *info2)
 {
 	REGVAL_CTR *ctr = NULL;
 	fstring longname;
-	fstring dnssuffix;
+	const char *dnssuffix;
 	char *allocated_string = NULL;
         const char *ascii_str;
 	int i;
@@ -2961,15 +3150,17 @@ static BOOL map_nt_printer_info2_to_dsspooler(NT_PRINTER_INFO_LEVEL_2 *info2)
 	map_sz_into_ctr(ctr, SPOOL_REG_PRINTERNAME, info2->sharename);
 	map_sz_into_ctr(ctr, SPOOL_REG_SHORTSERVERNAME, global_myname());
 
-	/* we make the assumption that the netbios name is the same 
-	   as the DNS name sinc ethe former will be what we used to 
+	/* we make the assumption that the netbios name is the same
+	   as the DNS name sinc ethe former will be what we used to
 	   join the domain */
 
-	if ( get_mydnsdomname( dnssuffix ) )
+	dnssuffix = get_mydnsdomname(talloc_tos());
+	if (dnssuffix && *dnssuffix) {
 		fstr_sprintf( longname, "%s.%s", global_myname(), dnssuffix );
-	else
+	} else {
 		fstrcpy( longname, global_myname() );
-		
+	}
+
 	map_sz_into_ctr(ctr, SPOOL_REG_SERVERNAME, longname);
 
 	asprintf(&allocated_string, "\\\\%s\\%s", longname, info2->sharename);
@@ -3029,7 +3220,8 @@ static void store_printer_guid(NT_PRINTER_INFO_LEVEL_2 *info2,
 	   Vista to whine */
 
 	ZERO_STRUCT( unistr_guid );	
-	init_unistr2( &unistr_guid, smb_uuid_string_static(guid),
+	
+	init_unistr2( &unistr_guid, smb_uuid_string(talloc_tos(), guid),
 		      UNI_STR_TERMINATE );
 
 	regval_ctr_addvalue(ctr, "objectGUID", REG_SZ, 
@@ -3059,7 +3251,7 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 	/* We use ldap_get_dn here as we need the answer
 	 * in utf8 to call ldap_explode_dn(). JRA. */
 
-	srv_dn_utf8 = ldap_get_dn((LDAP *)ads->ld, (LDAPMessage *)res);
+	srv_dn_utf8 = ldap_get_dn((LDAP *)ads->ldap.ld, (LDAPMessage *)res);
 	if (!srv_dn_utf8) {
 		ads_destroy(&ads);
 		return WERR_SERVER_UNAVAILABLE;
@@ -3134,8 +3326,13 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 
 	/* publish it */
 	ads_rc = ads_mod_printer_entry(ads, prt_dn, ctx, &mods);
-	if (ads_rc.err.rc == LDAP_NO_SUCH_OBJECT)
+	if (ads_rc.err.rc == LDAP_NO_SUCH_OBJECT) {
+		int i;
+		for (i=0; mods[i] != 0; i++)
+			;
+		mods[i] = (LDAPMod *)-1;
 		ads_rc = ads_add_printer_entry(ads, prt_dn, ctx, &mods);
+	}
 
 	if (!ADS_ERR_OK(ads_rc))
 		DEBUG(3, ("error publishing %s: %s\n", printer->info_2->sharename, ads_errstr(ads_rc)));
@@ -3304,7 +3501,7 @@ WERROR check_published_printers(void)
 	return WERR_OK;
 }
 
-BOOL is_printer_published(Printer_entry *print_hnd, int snum, 
+bool is_printer_published(Printer_entry *print_hnd, int snum, 
 			  struct GUID *guid)
 {
 	NT_PRINTER_INFO_LEVEL *printer = NULL;
@@ -3312,7 +3509,7 @@ BOOL is_printer_published(Printer_entry *print_hnd, int snum,
 	REGISTRY_VALUE *guid_val;
 	WERROR win_rc;
 	int i;
-	BOOL ret = False;
+	bool ret = False;
 
 	win_rc = get_a_printer(print_hnd, &printer, 2, lp_servicename(snum));
 
@@ -3368,7 +3565,7 @@ WERROR check_published_printers(void)
 	return WERR_OK;
 }
 
-BOOL is_printer_published(Printer_entry *print_hnd, int snum, 
+bool is_printer_published(Printer_entry *print_hnd, int snum, 
 			  struct GUID *guid)
 {
 	return False;
@@ -3522,13 +3719,13 @@ WERROR add_printer_data( NT_PRINTER_INFO_LEVEL_2 *p2, const char *key, const cha
 	
 	DEBUG(8,("add_printer_data: Added key => [%s], value => [%s], type=> [%d], size => [%d]\n",
 		key, value, type, real_len  ));
-	
+
 	return result;
 }
 
 /****************************************************************************
  ***************************************************************************/
- 
+
 REGISTRY_VALUE* get_printer_data( NT_PRINTER_INFO_LEVEL_2 *p2, const char *key, const char *value )
 {
 	int		key_index;
@@ -3545,12 +3742,14 @@ REGISTRY_VALUE* get_printer_data( NT_PRINTER_INFO_LEVEL_2 *p2, const char *key, 
 /****************************************************************************
  Unpack a list of registry values frem the TDB
  ***************************************************************************/
- 
-static int unpack_values(NT_PRINTER_DATA *printer_data, char *buf, int buflen)
+
+static int unpack_values(NT_PRINTER_DATA *printer_data, const uint8 *buf, int buflen)
 {
 	int 		len = 0;
 	uint32		type;
-	pstring		string, valuename, keyname;
+	fstring string;
+	const char *valuename = NULL;
+	const char *keyname = NULL;
 	char		*str;
 	int		size;
 	uint8		*data_p;
@@ -3558,22 +3757,22 @@ static int unpack_values(NT_PRINTER_DATA *printer_data, char *buf, int buflen)
 	int		key_index;
 
 	/* add the "PrinterDriverData" key first for performance reasons */
-	
+
 	add_new_printer_key( printer_data, SPOOL_PRINTERDATA_KEY );
 
 	/* loop and unpack the rest of the registry values */
-	
+
 	while ( True ) {
-	
+
 		/* check to see if there are any more registry values */
-		
+
 		regval_p = NULL;
-		len += tdb_unpack(buf+len, buflen-len, "p", &regval_p);		
-		if ( !regval_p ) 
+		len += tdb_unpack(buf+len, buflen-len, "p", &regval_p);
+		if ( !regval_p )
 			break;
 
 		/* unpack the next regval */
-		
+
 		len += tdb_unpack(buf+len, buflen-len, "fdB",
 				  string,
 				  &type,
@@ -3588,64 +3787,65 @@ static int unpack_values(NT_PRINTER_DATA *printer_data, char *buf, int buflen)
 				add_new_printer_key( printer_data, string );
 			continue;
 		}
-	
+
 		/*
-		 * break of the keyname from the value name.  
+		 * break of the keyname from the value name.
 		 * Valuenames can have embedded '\'s so be careful.
-		 * only support one level of keys.  See the 
+		 * only support one level of keys.  See the
 		 * "Konica Fiery S300 50C-K v1.1. enu" 2k driver.
 		 * -- jerry
-		 */	
-		 
+		 */
+
 		str = strchr_m( string, '\\');
-		
+
 		/* Put in "PrinterDriverData" is no key specified */
-		
+
 		if ( !str ) {
-			pstrcpy( keyname, SPOOL_PRINTERDATA_KEY );
-			pstrcpy( valuename, string );
+			keyname = SPOOL_PRINTERDATA_KEY;
+			valuename = string;
 		}
 		else {
 			*str = '\0';
-			pstrcpy( keyname, string );
-			pstrcpy( valuename, str+1 );
+			keyname = string;
+			valuename = str+1;
 		}
-			
+
 		/* see if we need a new key */
-		
+
 		if ( (key_index=lookup_printerkey( printer_data, keyname )) == -1 )
 			key_index = add_new_printer_key( printer_data, keyname );
-			
+
 		if ( key_index == -1 ) {
 			DEBUG(0,("unpack_values: Failed to allocate a new key [%s]!\n",
 				keyname));
 			break;
 		}
-		
+
 		DEBUG(8,("specific: [%s:%s], len: %d\n", keyname, valuename, size));
 
-		/* Vista doesn't like unknown REG_BINARY values in DsSpooler.  
+		/* Vista doesn't like unknown REG_BINARY values in DsSpooler.
 		   Thanks to Martin Zielinski for the hint. */
 
-		if ( type == REG_BINARY && 
-		     strequal( keyname, SPOOL_DSSPOOLER_KEY ) && 
-		     strequal( valuename, "objectGUID" ) ) 
+		if ( type == REG_BINARY &&
+		     strequal( keyname, SPOOL_DSSPOOLER_KEY ) &&
+		     strequal( valuename, "objectGUID" ) )
 		{
 			struct GUID guid;
 			UNISTR2 unistr_guid;
 
 			ZERO_STRUCT( unistr_guid );
-			
+
 			/* convert the GUID to a UNICODE string */
-			
+
 			memcpy( &guid, data_p, sizeof(struct GUID) );
-			
-			init_unistr2( &unistr_guid, smb_uuid_string_static(guid), 
+
+			init_unistr2( &unistr_guid,
+				      smb_uuid_string(talloc_tos(), guid), 
 				      UNI_STR_TERMINATE );
-			
+
 			regval_ctr_addvalue( printer_data->keys[key_index].values, 
-					     valuename, REG_SZ, 
-					     (const char *)unistr_guid.buffer, 
+					     valuename, REG_SZ,
+					     (const char *)unistr_guid.buffer,
 					     unistr_guid.uni_str_len*2 );
 
 		} else {
@@ -3655,7 +3855,6 @@ static int unpack_values(NT_PRINTER_DATA *printer_data, char *buf, int buflen)
 					     valuename, type, (const char *)data_p, 
 					     size );
 		}
-		
 
 		SAFE_FREE(data_p); /* 'B' option to tdbpack does a malloc() */
 
@@ -3667,10 +3866,46 @@ static int unpack_values(NT_PRINTER_DATA *printer_data, char *buf, int buflen)
 /****************************************************************************
  ***************************************************************************/
 
+static char *last_from;
+static char *last_to;
+
+static const char *get_last_from(void)
+{
+	if (!last_from) {
+		return "";
+	}
+	return last_from;
+}
+
+static const char *get_last_to(void)
+{
+	if (!last_to) {
+		return "";
+	}
+	return last_to;
+}
+
+static bool set_last_from_to(const char *from, const char *to)
+{
+	char *orig_from = last_from;
+	char *orig_to = last_to;
+
+	last_from = SMB_STRDUP(from);
+	last_to = SMB_STRDUP(to);
+
+	SAFE_FREE(orig_from);
+	SAFE_FREE(orig_to);
+
+	if (!last_from || !last_to) {
+		SAFE_FREE(last_from);
+		SAFE_FREE(last_to);
+		return false;
+	}
+	return true;
+}
+
 static void map_to_os2_driver(fstring drivername)
 {
-	static BOOL initialised=False;
-	static fstring last_from,last_to;
 	char *mapfile = lp_os2_driver_map();
 	char **lines = NULL;
 	int numlines = 0;
@@ -3682,14 +3917,10 @@ static void map_to_os2_driver(fstring drivername)
 	if (!*mapfile)
 		return;
 
-	if (!initialised) {
-		*last_from = *last_to = 0;
-		initialised = True;
-	}
-
-	if (strequal(drivername,last_from)) {
-		DEBUG(3,("Mapped Windows driver %s to OS/2 driver %s\n",drivername,last_to));
-		fstrcpy(drivername,last_to);
+	if (strequal(drivername,get_last_from())) {
+		DEBUG(3,("Mapped Windows driver %s to OS/2 driver %s\n",
+			drivername,get_last_to()));
+		fstrcpy(drivername,get_last_to());
 		return;
 	}
 
@@ -3738,8 +3969,7 @@ static void map_to_os2_driver(fstring drivername)
 
 		if (strequal(nt_name,drivername)) {
 			DEBUG(3,("Mapped windows driver %s to os2 driver%s\n",drivername,os2_name));
-			fstrcpy(last_from,drivername);
-			fstrcpy(last_to,os2_name);
+			set_last_from_to(drivername,os2_name);
 			fstrcpy(drivername,os2_name);
 			file_lines_free(lines);
 			return;
@@ -3754,9 +3984,9 @@ static void map_to_os2_driver(fstring drivername)
 ****************************************************************************/
 
 static WERROR get_a_printer_2_default(NT_PRINTER_INFO_LEVEL_2 *info,
-					const char *servername,
-					const char* sharename,
-					BOOL get_loc_com)
+				const char *servername,
+				const char* sharename,
+				bool get_loc_com)
 {
 	int snum = lp_servicenumber(sharename);
 
@@ -3778,7 +4008,7 @@ static WERROR get_a_printer_2_default(NT_PRINTER_INFO_LEVEL_2 *info,
 
 	DEBUG(10,("get_a_printer_2_default: driver name set to [%s]\n", info->drivername));
 
-	pstrcpy(info->comment, "");
+	strlcpy(info->comment, "", sizeof(info->comment));
 	fstrcpy(info->printprocessor, "winprint");
 	fstrcpy(info->datatype, "RAW");
 
@@ -3836,20 +4066,21 @@ fail:
 static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info,
 				const char *servername,
 				const char *sharename,
-				BOOL get_loc_com)
+				bool get_loc_com)
 {
 	int len = 0;
 	int snum = lp_servicenumber(sharename);
 	TDB_DATA kbuf, dbuf;
 	fstring printername;
 	char adevice[MAXDEVICENAME];
-		
-	kbuf = make_printer_tdbkey( sharename );
+	char *comment = NULL;
+
+	kbuf = make_printer_tdbkey(talloc_tos(), sharename);
 
 	dbuf = tdb_fetch(tdb_printers, kbuf);
 	if (!dbuf.dptr) {
 		return get_a_printer_2_default(info, servername,
-				sharename, get_loc_com);
+					sharename, get_loc_com);
 	}
 
 	len += tdb_unpack(dbuf.dptr+len, dbuf.dsize-len, "dddddddddddfffffPfffff",
@@ -3869,12 +4100,17 @@ static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info,
 			info->sharename,
 			info->portname,
 			info->drivername,
-			info->comment,
+			&comment,
 			info->location,
 			info->sepfile,
 			info->printprocessor,
 			info->datatype,
 			info->parameters);
+
+	if (comment) {
+		strlcpy(info->comment, comment, sizeof(info->comment));
+		SAFE_FREE(comment);
+	}
 
 	/* Samba has to have shared raw drivers. */
 	info->attributes |= PRINTER_ATTRIBUTE_SAMBA;
@@ -3892,7 +4128,7 @@ static WERROR get_a_printer_2(NT_PRINTER_INFO_LEVEL_2 *info,
 	fstrcpy(info->printername, printername);
 
 #ifdef HAVE_CUPS
-	if (get_loc_com && (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {		
+	if (get_loc_com && (enum printing_types)lp_printing(snum) == PRINT_CUPS ) {
 		/* Pull the location and comment strings from cups if we don't
 		   already have one */
 		if ( !strlen(info->location) || !strlen(info->comment) )
@@ -4084,14 +4320,13 @@ WERROR mod_a_printer(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
 			 */
 
 			result=update_a_printer_2(printer->info_2);
-			
 			break;
 		}
 		default:
 			result=WERR_UNKNOWN_LEVEL;
 			break;
 	}
-	
+
 	return result;
 }
 
@@ -4099,11 +4334,11 @@ WERROR mod_a_printer(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
  Initialize printer devmode & data with previously saved driver init values.
 ****************************************************************************/
 
-static BOOL set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
+static bool set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
 {
 	int                     len = 0;
-	pstring                 key;
-	TDB_DATA                kbuf, dbuf;
+	char *key = NULL;
+	TDB_DATA                dbuf;
 	NT_PRINTER_INFO_LEVEL_2 info;
 
 
@@ -4114,36 +4349,38 @@ static BOOL set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
 	 * replace, there will generally be some, but during an add printer, there
 	 * should not be any (if there are delete them).
 	 */
-	 
+
 	if ( info_ptr->data )
 		delete_all_printer_data( info_ptr, "" );
-	
-	slprintf(key, sizeof(key)-1, "%s%s", DRIVER_INIT_PREFIX, info_ptr->drivername);
 
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
+	if (asprintf(&key, "%s%s", DRIVER_INIT_PREFIX,
+				info_ptr->drivername) < 0) {
+		return false;
+	}
 
-	dbuf = tdb_fetch(tdb_drivers, kbuf);
+	dbuf = tdb_fetch_bystring(tdb_drivers, key);
 	if (!dbuf.dptr) {
 		/*
 		 * When changing to a driver that has no init info in the tdb, remove
 		 * the previous drivers init info and leave the new on blank.
 		 */
 		free_nt_devicemode(&info_ptr->devmode);
-		return False;
+		SAFE_FREE(key);
+		return false;
 	}
-	
+
+	SAFE_FREE(key);
 	/*
 	 * Get the saved DEVMODE..
 	 */
-	 
+
 	len += unpack_devicemode(&info.devmode,dbuf.dptr+len, dbuf.dsize-len);
 
 	/*
 	 * The saved DEVMODE contains the devicename from the printer used during
 	 * the initialization save. Change it to reflect the new printer.
 	 */
-	 
+
 	if ( info.devmode ) {
 		ZERO_STRUCT(info.devmode->devicename);
 		fstrcpy(info.devmode->devicename, info_ptr->printername);
@@ -4151,18 +4388,18 @@ static BOOL set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
 
 	/*
 	 * NT/2k does not change out the entire DeviceMode of a printer
-	 * when changing the driver.  Only the driverextra, private, & 
+	 * when changing the driver.  Only the driverextra, private, &
 	 * driverversion fields.   --jerry  (Thu Mar 14 08:58:43 CST 2002)
 	 *
 	 * Later examination revealed that Windows NT/2k does reset the
-	 * the printer's device mode, bit **only** when you change a 
+	 * the printer's device mode, bit **only** when you change a
 	 * property of the device mode such as the page orientation.
 	 * --jerry
 	 */
 
 
 	/* Bind the saved DEVMODE to the new the printer */
-	 
+
 	free_nt_devicemode(&info_ptr->devmode);
 	info_ptr->devmode = info.devmode;
 
@@ -4175,13 +4412,12 @@ static BOOL set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
 		DEBUG(0,("set_driver_init_2: talloc() failed!\n"));
 		return False;
 	}
-	 
+
 	len += unpack_values( info_ptr->data, dbuf.dptr+len, dbuf.dsize-len );
-	
 
 	SAFE_FREE(dbuf.dptr);
 
-	return True;	
+	return true;
 }
 
 /****************************************************************************
@@ -4191,21 +4427,21 @@ static BOOL set_driver_init_2( NT_PRINTER_INFO_LEVEL_2 *info_ptr )
  is bound to the new printer.
 ****************************************************************************/
 
-BOOL set_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
+bool set_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
 {
-	BOOL result = False;
-	
+	bool result = False;
+
 	switch (level) {
 		case 2:
 			result = set_driver_init_2(printer->info_2);
 			break;
-			
+
 		default:
 			DEBUG(0,("set_driver_init: Programmer's error!  Unknown driver_init level [%d]\n",
 				level));
 			break;
 	}
-	
+
 	return result;
 }
 
@@ -4213,24 +4449,26 @@ BOOL set_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
  Delete driver init data stored for a specified driver
 ****************************************************************************/
 
-BOOL del_driver_init(char *drivername)
+bool del_driver_init(char *drivername)
 {
-	pstring key;
-	TDB_DATA kbuf;
+	char *key;
+	bool ret;
 
 	if (!drivername || !*drivername) {
 		DEBUG(3,("del_driver_init: No drivername specified!\n"));
-		return False;
+		return false;
 	}
 
-	slprintf(key, sizeof(key)-1, "%s%s", DRIVER_INIT_PREFIX, drivername);
+	if (asprintf(&key, "%s%s", DRIVER_INIT_PREFIX, drivername) < 0) {
+		return false;
+	}
 
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
+	DEBUG(6,("del_driver_init: Removing driver init data for [%s]\n",
+				drivername));
 
-	DEBUG(6,("del_driver_init: Removing driver init data for [%s]\n", drivername));
-
-	return (tdb_delete(tdb_drivers, kbuf) == 0);
+	ret = (tdb_delete_bystring(tdb_drivers, key) == 0);
+	SAFE_FREE(key);
+	return ret;
 }
 
 /****************************************************************************
@@ -4243,22 +4481,28 @@ BOOL del_driver_init(char *drivername)
 
 static uint32 update_driver_init_2(NT_PRINTER_INFO_LEVEL_2 *info)
 {
-	pstring key;
-	char *buf;
+	char *key = NULL;
+	uint8 *buf;
 	int buflen, len, ret;
-	TDB_DATA kbuf, dbuf;
+	int retlen;
+	TDB_DATA dbuf;
 
 	buf = NULL;
 	buflen = 0;
 
- again:	
+ again:
 	len = 0;
 	len += pack_devicemode(info->devmode, buf+len, buflen-len);
 
-	len += pack_values( info->data, buf+len, buflen-len );
+	retlen = pack_values( info->data, buf+len, buflen-len );
+	if (retlen == -1) {
+		ret = -1;
+		goto done;
+	}
+	len += retlen;
 
 	if (buflen < len) {
-		buf = (char *)SMB_REALLOC(buf, len);
+		buf = (uint8 *)SMB_REALLOC(buf, len);
 		if (!buf) {
 			DEBUG(0, ("update_driver_init_2: failed to enlarge buffer!\n"));
 			ret = -1;
@@ -4268,14 +4512,16 @@ static uint32 update_driver_init_2(NT_PRINTER_INFO_LEVEL_2 *info)
 		goto again;
 	}
 
-	slprintf(key, sizeof(key)-1, "%s%s", DRIVER_INIT_PREFIX, info->drivername);
+	SAFE_FREE(key);
+	if (asprintf(&key, "%s%s", DRIVER_INIT_PREFIX, info->drivername) < 0) {
+		ret = (uint32)-1;
+		goto done;
+	}
 
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
 	dbuf.dptr = buf;
 	dbuf.dsize = len;
 
-	ret = tdb_store(tdb_drivers, kbuf, dbuf, TDB_REPLACE);
+	ret = tdb_store_bystring(tdb_drivers, key, dbuf, TDB_REPLACE);
 
 done:
 	if (ret == -1)
@@ -4317,15 +4563,15 @@ static uint32 update_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level)
  got to keep the endians happy :).
 ****************************************************************************/
 
-static BOOL convert_driver_init( TALLOC_CTX *ctx, NT_DEVICEMODE *nt_devmode, uint8 *data, uint32 data_len )
+static bool convert_driver_init( TALLOC_CTX *ctx, NT_DEVICEMODE *nt_devmode, uint8 *data, uint32 data_len )
 {
-	BOOL       result = False;
+	bool       result = False;
 	prs_struct ps;
 	DEVICEMODE devmode;
 
 	ZERO_STRUCT(devmode);
 
-	prs_init(&ps, 0, ctx, UNMARSHALL);
+	prs_init_empty(&ps, ctx, UNMARSHALL);
 	ps.data_p      = (char *)data;
 	ps.buffer_size = data_len;
 
@@ -4467,7 +4713,7 @@ WERROR save_driver_init(NT_PRINTER_INFO_LEVEL *printer, uint32 level, uint8 *dat
 ****************************************************************************/
 
 static WERROR get_a_printer_internal( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_printer, uint32 level, 
-			const char *sharename, BOOL get_loc_com)
+			const char *sharename, bool get_loc_com)
 {
 	WERROR result;
 	fstring servername;
@@ -4496,13 +4742,10 @@ static WERROR get_a_printer_internal( Printer_entry *print_hnd, NT_PRINTER_INFO_
 			}
 
 			result = get_a_printer_2( (*pp_printer)->info_2,
-					servername,
-					sharename,
-					get_loc_com);
-	
-			
+					servername, sharename, get_loc_com);
+
 			/* we have a new printer now.  Save it with this handle */
-			
+
 			if ( !W_ERROR_IS_OK(result) ) {
 				TALLOC_FREE( *pp_printer );
 				DEBUG(10,("get_a_printer: [%s] level %u returning %s\n", 
@@ -4522,18 +4765,22 @@ static WERROR get_a_printer_internal( Printer_entry *print_hnd, NT_PRINTER_INFO_
 	return WERR_OK;
 }
 
-WERROR get_a_printer( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_printer, uint32 level, 
+WERROR get_a_printer( Printer_entry *print_hnd,
+			NT_PRINTER_INFO_LEVEL **pp_printer,
+			uint32 level,
 			const char *sharename)
 {
 	return get_a_printer_internal(print_hnd, pp_printer, level,
-					sharename, True);
+					sharename, true);
 }
 
-WERROR get_a_printer_search( Printer_entry *print_hnd, NT_PRINTER_INFO_LEVEL **pp_printer, uint32 level, 
+WERROR get_a_printer_search( Printer_entry *print_hnd,
+			NT_PRINTER_INFO_LEVEL **pp_printer,
+			uint32 level,
 			const char *sharename)
 {
 	return get_a_printer_internal(print_hnd, pp_printer, level,
-					sharename, False);
+					sharename, false);
 }
 
 /****************************************************************************
@@ -4675,12 +4922,12 @@ uint32 free_a_printer_driver(NT_PRINTER_DRIVER_INFO_LEVEL driver, uint32 level)
   to a printer
 ****************************************************************************/
 
-BOOL printer_driver_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3 )
+bool printer_driver_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3 )
 {
 	int snum;
 	int n_services = lp_numservices();
 	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	BOOL in_use = False;
+	bool in_use = False;
 
 	if ( !info_3 ) 
 		return False;
@@ -4751,7 +4998,7 @@ BOOL printer_driver_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3 )
  Check to see if a ogiven file is in use by *info
  *********************************************************************/
  
-static BOOL drv_file_in_use( char* file, NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
+static bool drv_file_in_use( char* file, NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 {
 	int i = 0;
 
@@ -4814,10 +5061,10 @@ static void trim_dependent_file( fstring files[], int idx )
  Check if any of the files used by src are also used by drv 
  *********************************************************************/
 
-static BOOL trim_overlap_drv_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *src, 
+static bool trim_overlap_drv_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *src, 
 				       NT_PRINTER_DRIVER_INFO_LEVEL_3 *drv )
 {
-	BOOL 	in_use = False;
+	bool 	in_use = False;
 	int 	i = 0;
 	
 	if ( !src || !drv )
@@ -4883,14 +5130,14 @@ static BOOL trim_overlap_drv_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *src,
   match.
 ****************************************************************************/
 
-BOOL printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
+bool printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 {
 	int 				i;
 	int 				ndrivers;
 	uint32 				version;
 	fstring 			*list = NULL;
 	NT_PRINTER_DRIVER_INFO_LEVEL 	driver;
-	BOOL in_use = False;
+	bool in_use = false;
 
 	if ( !info )
 		return False;
@@ -4929,36 +5176,36 @@ BOOL printer_driver_files_in_use ( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info )
 				/* mz: Do not instantly return -
 				 * we need to ensure this file isn't
 				 * also in use by other drivers. */
-				in_use = True;
+				in_use = true;
 			}
 		}
-	
+
 		free_a_printer_driver(driver, 3);
-	}	
-	
+	}
+
 	SAFE_FREE(list);
-	
+
 	DEBUG(5,("printer_driver_files_in_use: Completed search through ntdrivers.tdb...\n"));
-	
+
 	driver.info_3 = info;
-	
+
 	if ( DEBUGLEVEL >= 20 )
 		dump_a_printer_driver( driver, 3 );
-	
+
 	return in_use;
 }
 
 /****************************************************************************
-  Actually delete the driver files.  Make sure that 
-  printer_driver_files_in_use() return False before calling 
+  Actually delete the driver files.  Make sure that
+  printer_driver_files_in_use() return False before calling
   this.
 ****************************************************************************/
 
-static BOOL delete_driver_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct current_user *user )
+static bool delete_driver_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct current_user *user )
 {
 	int i = 0;
 	char *s;
-	pstring file;
+	const char *file;
 	connection_struct *conn;
 	DATA_BLOB null_pw;
 	NTSTATUS nt_status;
@@ -4967,21 +5214,21 @@ static BOOL delete_driver_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct 
 
 	if ( !info_3 )
 		return False;
-		
+
 	DEBUG(6,("delete_driver_files: deleting driver [%s] - version [%d]\n", info_3->name, info_3->cversion));
-	
+
 	/*
-	 * Connect to the print$ share under the same account as the 
-	 * user connected to the rpc pipe. Note we must be root to 
+	 * Connect to the print$ share under the same account as the
+	 * user connected to the rpc pipe. Note we must be root to
 	 * do this.
 	 */
-	 
-	null_pw = data_blob( NULL, 0 );
+
+	null_pw = data_blob_null;
 	fstrcpy(res_type, "A:");
 	become_root();
         conn = make_connection_with_chdir( "print$", null_pw, res_type, user->vuid, &nt_status );
 	unbecome_root();
-	
+
 	if ( !conn ) {
 		DEBUG(0,("delete_driver_files: Unable to connect\n"));
 		return False;
@@ -4999,67 +5246,67 @@ static BOOL delete_driver_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct 
 		return False;
 	}
 
-	/* now delete the files; must strip the '\print$' string from 
+	/* now delete the files; must strip the '\print$' string from
 	   fron of path                                                */
-	
+
 	if ( *info_3->driverpath ) {
 		if ( (s = strchr( &info_3->driverpath[1], '\\' )) != NULL ) {
-			pstrcpy( file, s );
-			driver_unix_convert(file, conn, NULL, &st);
+			file = s;
+			driver_unix_convert(conn,file,&st);
 			DEBUG(10,("deleting driverfile [%s]\n", s));
-			unlink_internals(conn, 0, file, False, False);
+			unlink_internals(conn, NULL, 0, file, False);
 		}
 	}
-		
+
 	if ( *info_3->configfile ) {
 		if ( (s = strchr( &info_3->configfile[1], '\\' )) != NULL ) {
-			pstrcpy( file, s );
-			driver_unix_convert(file, conn, NULL, &st);
+			file = s;
+			driver_unix_convert(conn,file,&st);
 			DEBUG(10,("deleting configfile [%s]\n", s));
-			unlink_internals(conn, 0, file, False, False);
+			unlink_internals(conn, NULL, 0, file, False);
 		}
 	}
-	
+
 	if ( *info_3->datafile ) {
 		if ( (s = strchr( &info_3->datafile[1], '\\' )) != NULL ) {
-			pstrcpy( file, s );
-			driver_unix_convert(file, conn, NULL, &st);
+			file = s;
+			driver_unix_convert(conn,file,&st);
 			DEBUG(10,("deleting datafile [%s]\n", s));
-			unlink_internals(conn, 0, file, False, False);
+			unlink_internals(conn, NULL, 0, file, False);
 		}
 	}
-	
+
 	if ( *info_3->helpfile ) {
 		if ( (s = strchr( &info_3->helpfile[1], '\\' )) != NULL ) {
-			pstrcpy( file, s );
-			driver_unix_convert(file, conn, NULL, &st);
+			file = s;
+			driver_unix_convert(conn,file,&st);
 			DEBUG(10,("deleting helpfile [%s]\n", s));
-			unlink_internals(conn, 0, file, False, False);
+			unlink_internals(conn, NULL, 0, file, False);
 		}
 	}
-	
+
 	/* check if we are done removing files */
-	
+
 	if ( info_3->dependentfiles ) {
 		while ( info_3->dependentfiles[i][0] ) {
 			char *p;
 
 			/* bypass the "\print$" portion of the path */
-			
+
 			if ( (p = strchr( info_3->dependentfiles[i]+1, '\\' )) != NULL ) {
-				pstrcpy( file, p );
-				driver_unix_convert(file, conn, NULL, &st);
+				file = p;
+				driver_unix_convert(conn,file,&st);
 				DEBUG(10,("deleting dependent file [%s]\n", file));
-				unlink_internals(conn, 0, file, False, False);
+				unlink_internals(conn, NULL, 0, file, False);
 			}
-			
+
 			i++;
 		}
 	}
 
 	unbecome_user();
-	
-	return True;
+
+	return true;
 }
 
 /****************************************************************************
@@ -5068,11 +5315,11 @@ static BOOL delete_driver_files( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct 
  ***************************************************************************/
 
 WERROR delete_printer_driver( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct current_user *user,
-                              uint32 version, BOOL delete_files )
+                              uint32 version, bool delete_files )
 {
-	pstring 	key;
+	char *key = NULL;
 	const char     *arch;
-	TDB_DATA 	kbuf, dbuf;
+	TDB_DATA 	dbuf;
 	NT_PRINTER_DRIVER_INFO_LEVEL	ctr;
 
 	/* delete the tdb data first */
@@ -5081,8 +5328,10 @@ WERROR delete_printer_driver( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct cur
 	if (!arch) {
 		return WERR_UNKNOWN_PRINTER_DRIVER;
 	}
-	slprintf(key, sizeof(key)-1, "%s%s/%d/%s", DRIVERS_PREFIX,
-		arch, version, info_3->name);
+	if (asprintf(&key, "%s%s/%d/%s", DRIVERS_PREFIX,
+			arch, version, info_3->name) < 0) {
+		return WERR_NOMEM;
+	}
 
 	DEBUG(5,("delete_printer_driver: key = [%s] delete_files = %s\n",
 		key, delete_files ? "TRUE" : "FALSE" ));
@@ -5090,23 +5339,22 @@ WERROR delete_printer_driver( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct cur
 	ctr.info_3 = info_3;
 	dump_a_printer_driver( ctr, 3 );
 
-	kbuf.dptr=key;
-	kbuf.dsize=strlen(key)+1;
-
 	/* check if the driver actually exists for this environment */
-	
-	dbuf = tdb_fetch( tdb_drivers, kbuf );
+
+	dbuf = tdb_fetch_bystring( tdb_drivers, key );
 	if ( !dbuf.dptr ) {
 		DEBUG(8,("delete_printer_driver: Driver unknown [%s]\n", key));
+		SAFE_FREE(key);
 		return WERR_UNKNOWN_PRINTER_DRIVER;
 	}
-		
+
 	SAFE_FREE( dbuf.dptr );
-	
+
 	/* ok... the driver exists so the delete should return success */
-		
-	if (tdb_delete(tdb_drivers, kbuf) == -1) {
+
+	if (tdb_delete_bystring(tdb_drivers, key) == -1) {
 		DEBUG (0,("delete_printer_driver: fail to delete %s!\n", key));
+		SAFE_FREE(key);
 		return WERR_ACCESS_DENIED;
 	}
 
@@ -5118,13 +5366,13 @@ WERROR delete_printer_driver( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info_3, struct cur
 
 	if ( delete_files )
 		delete_driver_files( info_3, user );
-			
-		
+
 	DEBUG(5,("delete_printer_driver: driver delete successful [%s]\n", key));
+	SAFE_FREE(key);
 
 	return WERR_OK;
-	}
-	
+}
+
 /****************************************************************************
  Store a security desc for a printer.
 ****************************************************************************/
@@ -5134,8 +5382,9 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 	SEC_DESC_BUF *new_secdesc_ctr = NULL;
 	SEC_DESC_BUF *old_secdesc_ctr = NULL;
 	prs_struct ps;
+	bool prs_init_done = false;
 	TALLOC_CTX *mem_ctx = NULL;
-	char *key;
+	TDB_DATA kbuf;
 	WERROR status;
 
 	mem_ctx = talloc_init("nt_printing_setsec");
@@ -5147,7 +5396,7 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 	   permissions through NT.  If they are NULL in the new security
 	   descriptor then copy them over from the old one. */
 
-	if (!secdesc_ctr->sec->owner_sid || !secdesc_ctr->sec->group_sid) {
+	if (!secdesc_ctr->sd->owner_sid || !secdesc_ctr->sd->group_sid) {
 		DOM_SID *owner_sid, *group_sid;
 		SEC_ACL *dacl, *sacl;
 		SEC_DESC *psd = NULL;
@@ -5160,25 +5409,25 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 
 		/* Pick out correct owner and group sids */
 
-		owner_sid = secdesc_ctr->sec->owner_sid ?
-			secdesc_ctr->sec->owner_sid :
-			old_secdesc_ctr->sec->owner_sid;
+		owner_sid = secdesc_ctr->sd->owner_sid ?
+			secdesc_ctr->sd->owner_sid :
+			old_secdesc_ctr->sd->owner_sid;
 
-		group_sid = secdesc_ctr->sec->group_sid ?
-			secdesc_ctr->sec->group_sid :
-			old_secdesc_ctr->sec->group_sid;
+		group_sid = secdesc_ctr->sd->group_sid ?
+			secdesc_ctr->sd->group_sid :
+			old_secdesc_ctr->sd->group_sid;
 
-		dacl = secdesc_ctr->sec->dacl ?
-			secdesc_ctr->sec->dacl :
-			old_secdesc_ctr->sec->dacl;
+		dacl = secdesc_ctr->sd->dacl ?
+			secdesc_ctr->sd->dacl :
+			old_secdesc_ctr->sd->dacl;
 
-		sacl = secdesc_ctr->sec->sacl ?
-			secdesc_ctr->sec->sacl :
-			old_secdesc_ctr->sec->sacl;
+		sacl = secdesc_ctr->sd->sacl ?
+			secdesc_ctr->sd->sacl :
+			old_secdesc_ctr->sd->sacl;
 
 		/* Make a deep copy of the security descriptor */
 
-		psd = make_sec_desc(mem_ctx, secdesc_ctr->sec->revision, secdesc_ctr->sec->type,
+		psd = make_sec_desc(mem_ctx, secdesc_ctr->sd->revision, secdesc_ctr->sd->type,
 				    owner_sid, group_sid,
 				    sacl,
 				    dacl,
@@ -5198,8 +5447,15 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 
 	/* Store the security descriptor in a tdb */
 
-	prs_init(&ps, (uint32)sec_desc_size(new_secdesc_ctr->sec) +
-		 sizeof(SEC_DESC_BUF), mem_ctx, MARSHALL);
+	if (!prs_init(&ps,
+		(uint32)ndr_size_security_descriptor(new_secdesc_ctr->sd, 0)
+		+ sizeof(SEC_DESC_BUF), mem_ctx, MARSHALL) ) {
+		status = WERR_NOMEM;
+		goto out;
+	}
+
+
+	prs_init_done = true;
 
 	if (!sec_io_desc_buf("nt_printing_setsec", &new_secdesc_ctr,
 			     &ps, 1)) {
@@ -5207,9 +5463,9 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 		goto out;
 	}
 
-	key = make_printers_secdesc_tdbkey( sharename );
+	kbuf = make_printers_secdesc_tdbkey(mem_ctx, sharename );
 
-	if (tdb_prs_store(tdb_printers, key, &ps)==0) {
+	if (tdb_prs_store(tdb_printers, kbuf, &ps)==0) {
 		status = WERR_OK;
 	} else {
 		DEBUG(1,("Failed to store secdesc for %s\n", sharename));
@@ -5220,7 +5476,9 @@ WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr)
 
  out:
 
-	prs_mem_free(&ps);
+	if (prs_init_done) {
+		prs_mem_free(&ps);
+	}
 	if (mem_ctx)
 		talloc_destroy(mem_ctx);
 	return status;
@@ -5314,10 +5572,10 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
  Get a security desc for a printer.
 ****************************************************************************/
 
-BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **secdesc_ctr)
+bool nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **secdesc_ctr)
 {
 	prs_struct ps;
-	char *key;
+	TDB_DATA kbuf;
 	char *temp;
 
 	if (strlen(sharename) > 2 && (temp = strchr(sharename + 2, '\\'))) {
@@ -5328,9 +5586,9 @@ BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 
 	/* Fetch security descriptor from tdb */
 
-	key = make_printers_secdesc_tdbkey( sharename  );
+	kbuf = make_printers_secdesc_tdbkey(ctx, sharename  );
 
-	if (tdb_prs_fetch(tdb_printers, key, &ps, ctx)!=0 ||
+	if (tdb_prs_fetch(tdb_printers, kbuf, &ps, ctx)!=0 ||
 	    !sec_io_desc_buf("nt_printing_getsec", secdesc_ctr, &ps, 1)) {
 
 		prs_mem_free(&ps);
@@ -5343,11 +5601,12 @@ BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 
 		/* Save default security descriptor for later */
 
-		prs_init(&ps, (uint32)sec_desc_size((*secdesc_ctr)->sec) +
-				sizeof(SEC_DESC_BUF), ctx, MARSHALL);
+		if (!prs_init(&ps, (uint32)ndr_size_security_descriptor((*secdesc_ctr)->sd, 0) +
+			sizeof(SEC_DESC_BUF), ctx, MARSHALL))
+			return False;
 
 		if (sec_io_desc_buf("nt_printing_getsec", secdesc_ctr, &ps, 1)) {
-			tdb_prs_store(tdb_printers, key, &ps);
+			tdb_prs_store(tdb_printers, kbuf, &ps);
 		}
 
 		prs_mem_free(&ps);
@@ -5361,7 +5620,7 @@ BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 	   this security descriptor has been created when winbindd was
 	   down.  Take ownership of security descriptor. */
 
-	if (sid_equal((*secdesc_ctr)->sec->owner_sid, &global_sid_World)) {
+	if (sid_equal((*secdesc_ctr)->sd->owner_sid, &global_sid_World)) {
 		DOM_SID owner_sid;
 
 		/* Change sd owner to workgroup administrator */
@@ -5375,11 +5634,11 @@ BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 
 			sid_append_rid(&owner_sid, DOMAIN_USER_RID_ADMIN);
 
-			psd = make_sec_desc(ctx, (*secdesc_ctr)->sec->revision, (*secdesc_ctr)->sec->type,
+			psd = make_sec_desc(ctx, (*secdesc_ctr)->sd->revision, (*secdesc_ctr)->sd->type,
 					    &owner_sid,
-					    (*secdesc_ctr)->sec->group_sid,
-					    (*secdesc_ctr)->sec->sacl,
-					    (*secdesc_ctr)->sec->dacl,
+					    (*secdesc_ctr)->sd->group_sid,
+					    (*secdesc_ctr)->sd->sacl,
+					    (*secdesc_ctr)->sd->dacl,
 					    &size);
 
 			if (!psd) {
@@ -5402,18 +5661,15 @@ BOOL nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **s
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		SEC_ACL *the_acl = (*secdesc_ctr)->sec->dacl;
+		SEC_ACL *the_acl = (*secdesc_ctr)->sd->dacl;
 		int i;
 
 		DEBUG(10, ("secdesc_ctr for %s has %d aces:\n", 
 			   sharename, the_acl->num_aces));
 
 		for (i = 0; i < the_acl->num_aces; i++) {
-			fstring sid_str;
-
-			sid_to_string(sid_str, &the_acl->aces[i].trustee);
-
-			DEBUG(10, ("%s %d %d 0x%08x\n", sid_str,
+			DEBUG(10, ("%s %d %d 0x%08x\n",
+				   sid_string_dbg(&the_acl->aces[i].trustee),
 				   the_acl->aces[i].type, the_acl->aces[i].flags, 
 				   the_acl->aces[i].access_mask)); 
 		}
@@ -5506,12 +5762,12 @@ void map_job_permissions(SEC_DESC *sd)
     3)  "printer admins" (may result in numerous calls to winbind)
 
  ****************************************************************************/
-BOOL print_access_check(struct current_user *user, int snum, int access_type)
+bool print_access_check(struct current_user *user, int snum, int access_type)
 {
 	SEC_DESC_BUF *secdesc = NULL;
 	uint32 access_granted;
 	NTSTATUS status;
-	BOOL result;
+	bool result;
 	const char *pname;
 	TALLOC_CTX *mem_ctx = NULL;
 	SE_PRIV se_printop = SE_PRINT_OPERATOR;
@@ -5556,7 +5812,7 @@ BOOL print_access_check(struct current_user *user, int snum, int access_type)
 		   against.  This is because print jobs are child objects
 		   objects of a printer. */
 
-		secdesc = se_create_child_secdesc(mem_ctx, parent_secdesc->sec, False);
+		secdesc = se_create_child_secdesc(mem_ctx, parent_secdesc->sd, False);
 
 		if (!secdesc) {
 			talloc_destroy(mem_ctx);
@@ -5564,13 +5820,13 @@ BOOL print_access_check(struct current_user *user, int snum, int access_type)
 			return False;
 		}
 
-		map_job_permissions(secdesc->sec);
+		map_job_permissions(secdesc->sd);
 	} else {
-		map_printer_permissions(secdesc->sec);
+		map_printer_permissions(secdesc->sd);
 	}
 
 	/* Check access */
-	result = se_access_check(secdesc->sec, user->nt_user_token, access_type,
+	result = se_access_check(secdesc->sd, user->nt_user_token, access_type,
 				 &access_granted, &status);
 
 	DEBUG(4, ("access check was %s\n", result ? "SUCCESS" : "FAILURE"));
@@ -5598,10 +5854,10 @@ BOOL print_access_check(struct current_user *user, int snum, int access_type)
  Check the time parameters allow a print operation.
 *****************************************************************************/
 
-BOOL print_time_access_check(const char *servicename)
+bool print_time_access_check(const char *servicename)
 {
 	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	BOOL ok = False;
+	bool ok = False;
 	time_t now = time(NULL);
 	struct tm *t;
 	uint32 mins;

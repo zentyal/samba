@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -29,28 +28,51 @@
    This locking allows smbd's mutlithread architecture to look
    like the single-connection that NT makes. */
 
-static char *mutex_server_name;
+struct named_mutex {
+	struct tdb_wrap *tdb;
+	char *name;
+};
 
-BOOL grab_server_mutex(const char *name)
+static int unlock_named_mutex(struct named_mutex *mutex)
 {
-	mutex_server_name = SMB_STRDUP(name);
-	if (!mutex_server_name) {
-		DEBUG(0,("grab_server_mutex: malloc failed for %s\n", name));
-		return False;
-	}
-	if (!secrets_named_mutex(mutex_server_name, 10)) {
-		DEBUG(10,("grab_server_mutex: failed for %s\n", name));
-		SAFE_FREE(mutex_server_name);
-		return False;
-	}
-
-	return True;
+	tdb_unlock_bystring(mutex->tdb->tdb, mutex->name);
+	return 0;
 }
 
-void release_server_mutex(void)
+struct named_mutex *grab_named_mutex(TALLOC_CTX *mem_ctx, const char *name,
+				     int timeout)
 {
-	if (mutex_server_name) {
-		secrets_named_mutex_release(mutex_server_name);
-		SAFE_FREE(mutex_server_name);
+	struct named_mutex *result;
+
+	result = talloc(mem_ctx, struct named_mutex);
+	if (result == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		return NULL;
 	}
+
+	result->name = talloc_strdup(result, name);
+	if (result->name == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		TALLOC_FREE(result);
+		return NULL;
+	}
+
+	result->tdb = tdb_wrap_open(result, lock_path("mutex.tdb"), 0,
+				    TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	if (result->tdb == NULL) {
+		DEBUG(1, ("Could not open mutex.tdb: %s\n",
+			  strerror(errno)));
+		TALLOC_FREE(result);
+		return NULL;
+	}
+
+	if (tdb_lock_bystring_with_timeout(result->tdb->tdb, name,
+					   timeout) == -1) {
+		DEBUG(1, ("Could not get the lock for %s\n", name));
+		TALLOC_FREE(result);
+		return NULL;
+	}
+
+	talloc_set_destructor(result, unlock_named_mutex);
+	return result;
 }

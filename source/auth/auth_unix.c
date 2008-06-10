@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -28,10 +27,10 @@
  *  
  *  this ugly hack needs to die, but not quite yet, I think people still use it...
  **/
-static BOOL update_smbpassword_file(const char *user, const char *password)
+static bool update_smbpassword_file(const char *user, const char *password)
 {
 	struct samu 	*sampass;
-	BOOL            ret;
+	bool            ret;
 	
 	if ( !(sampass = samu_new( NULL )) ) {
 		return False;
@@ -93,7 +92,7 @@ static NTSTATUS check_unix_security(const struct auth_context *auth_context,
 	struct passwd *pass = NULL;
 
 	become_root();
-	pass = Get_Pwnam(user_info->internal_username);
+	pass = Get_Pwnam_alloc(talloc_tos(), user_info->internal_username);
 
 	
 	/** @todo This call assumes a ASCII password, no charset transformation is 
@@ -124,6 +123,7 @@ static NTSTATUS check_unix_security(const struct auth_context *auth_context,
 		}
 	}
 
+	TALLOC_FREE(pass);
 	return nt_status;
 }
 

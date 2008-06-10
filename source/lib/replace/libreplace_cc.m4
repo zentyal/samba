@@ -48,8 +48,7 @@ LIBREPLACE_C99_STRUCT_INIT([],[AC_MSG_WARN([c99 structure initializer are not su
 AC_PROG_INSTALL
 
 AC_ISC_POSIX
-AC_EXTENSION_FLAG(_XOPEN_SOURCE_EXTENDED)
-AC_EXTENSION_FLAG(_OSF_SOURCE)
+AC_N_DEFINE(_XOPEN_SOURCE_EXTENDED)
 
 AC_SYS_LARGEFILE
 
@@ -60,9 +59,9 @@ case "$host_os" in
 	*hpux*)
 		# mmap on HPUX is completely broken...
 		AC_DEFINE(MMAP_BLACKLIST, 1, [Whether MMAP is broken])
-		if test "`uname -r`" = "B.11.11"; then
-			AC_MSG_WARN([Enabling HPUX 11.11 header bug workaround])
-			CFLAGS="$CFLAGS -D_LARGEFILE64_SUPPORT -D__LP64__ -DO_LARGEFILE=04000"
+		if test "`uname -r`" = "B.11.00" -o "`uname -r`" = "B.11.11"; then
+			AC_MSG_WARN([Enabling HPUX 11.00/11.11 header bug workaround])
+			CFLAGS="$CFLAGS -Dpread=pread64 -Dpwrite=pwrite64"
 		fi
 		if test "`uname -r`" = "B.11.23"; then
 			AC_MSG_WARN([Enabling HPUX 11.23 machine/sys/getppdp.h bug workaround])
@@ -76,6 +75,11 @@ case "$host_os" in
 			## for funky AIX compiler using strncpy()
 			CFLAGS="$CFLAGS -D_LINUX_SOURCE_COMPAT -qmaxmem=32000"
 		fi
+		;;
+	*osf*)
+		# this brings in socklen_t
+		AC_N_DEFINE(_XOPEN_SOURCE,600)
+		AC_N_DEFINE(_OSF_SOURCE)
 		;;
 	#
 	# VOS may need to have POSIX support and System V compatibility enabled.
@@ -128,7 +132,8 @@ AC_CHECK_SIZEOF(off_t)
 AC_CHECK_SIZEOF(size_t)
 AC_CHECK_SIZEOF(ssize_t)
 
-AC_CHECK_TYPE(intptr_t, unsigned long long)
+AC_CHECK_TYPE(intptr_t, long long)
+AC_CHECK_TYPE(uintptr_t, unsigned long long)
 AC_CHECK_TYPE(ptrdiff_t, unsigned long long)
 
 if test x"$ac_cv_type_long_long" != x"yes";then

@@ -10,7 +10,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -19,8 +19,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -32,7 +31,7 @@
  * api_spoolss_open_printer_ex (rarely seen - older call)
  ********************************************************************/
 
-static BOOL api_spoolss_open_printer(pipes_struct *p)
+static bool api_spoolss_open_printer(pipes_struct *p)
 {
 	SPOOL_Q_OPEN_PRINTER q_u;
 	SPOOL_R_OPEN_PRINTER r_u;
@@ -62,7 +61,7 @@ static BOOL api_spoolss_open_printer(pipes_struct *p)
  * api_spoolss_open_printer_ex
  ********************************************************************/
 
-static BOOL api_spoolss_open_printer_ex(pipes_struct *p)
+static bool api_spoolss_open_printer_ex(pipes_struct *p)
 {
 	SPOOL_Q_OPEN_PRINTER_EX q_u;
 	SPOOL_R_OPEN_PRINTER_EX r_u;
@@ -93,7 +92,7 @@ static BOOL api_spoolss_open_printer_ex(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_getprinterdata(pipes_struct *p)
+static bool api_spoolss_getprinterdata(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTERDATA q_u;
 	SPOOL_R_GETPRINTERDATA r_u;
@@ -125,7 +124,7 @@ static BOOL api_spoolss_getprinterdata(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_deleteprinterdata(pipes_struct *p)
+static bool api_spoolss_deleteprinterdata(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTERDATA q_u;
 	SPOOL_R_DELETEPRINTERDATA r_u;
@@ -157,7 +156,7 @@ static BOOL api_spoolss_deleteprinterdata(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_closeprinter(pipes_struct *p)
+static bool api_spoolss_closeprinter(pipes_struct *p)
 {
 	SPOOL_Q_CLOSEPRINTER q_u;
 	SPOOL_R_CLOSEPRINTER r_u;
@@ -188,7 +187,7 @@ static BOOL api_spoolss_closeprinter(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_abortprinter(pipes_struct *p)
+static bool api_spoolss_abortprinter(pipes_struct *p)
 {
 	SPOOL_Q_ABORTPRINTER q_u;
 	SPOOL_R_ABORTPRINTER r_u;
@@ -219,7 +218,7 @@ static BOOL api_spoolss_abortprinter(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_deleteprinter(pipes_struct *p)
+static bool api_spoolss_deleteprinter(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTER q_u;
 	SPOOL_R_DELETEPRINTER r_u;
@@ -251,7 +250,7 @@ static BOOL api_spoolss_deleteprinter(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_deleteprinterdriver(pipes_struct *p)
+static bool api_spoolss_deleteprinterdriver(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTERDRIVER q_u;
 	SPOOL_R_DELETEPRINTERDRIVER r_u;
@@ -282,7 +281,7 @@ static BOOL api_spoolss_deleteprinterdriver(pipes_struct *p)
  * ReplyFindFirstPrinterChangeNotifyEx
  ********************************************************************/
 
-static BOOL api_spoolss_rffpcnex(pipes_struct *p)
+static bool api_spoolss_rffpcnex(pipes_struct *p)
 {
 	SPOOL_Q_RFFPCNEX q_u;
 	SPOOL_R_RFFPCNEX r_u;
@@ -319,7 +318,7 @@ static BOOL api_spoolss_rffpcnex(pipes_struct *p)
  * JRA.
  ********************************************************************/
 
-static BOOL api_spoolss_rfnpcnex(pipes_struct *p)
+static bool api_spoolss_rfnpcnex(pipes_struct *p)
 {
 	SPOOL_Q_RFNPCNEX q_u;
 	SPOOL_R_RFNPCNEX r_u;
@@ -354,7 +353,7 @@ static BOOL api_spoolss_rfnpcnex(pipes_struct *p)
  *
  ********************************************************************/
 
-static BOOL api_spoolss_enumprinters(pipes_struct *p)
+static bool api_spoolss_enumprinters(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTERS q_u;
 	SPOOL_R_ENUMPRINTERS r_u;
@@ -385,7 +384,7 @@ static BOOL api_spoolss_enumprinters(pipes_struct *p)
  *
  ********************************************************************/
 
-static BOOL api_spoolss_getprinter(pipes_struct *p)
+static bool api_spoolss_getprinter(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTER q_u;
 	SPOOL_R_GETPRINTER r_u;
@@ -416,7 +415,7 @@ static BOOL api_spoolss_getprinter(pipes_struct *p)
  *
  ********************************************************************/
 
-static BOOL api_spoolss_getprinterdriver2(pipes_struct *p)
+static bool api_spoolss_getprinterdriver2(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTERDRIVER2 q_u;
 	SPOOL_R_GETPRINTERDRIVER2 r_u;
@@ -447,7 +446,7 @@ static BOOL api_spoolss_getprinterdriver2(pipes_struct *p)
  *
  ********************************************************************/
 
-static BOOL api_spoolss_startpageprinter(pipes_struct *p)
+static bool api_spoolss_startpageprinter(pipes_struct *p)
 {
 	SPOOL_Q_STARTPAGEPRINTER q_u;
 	SPOOL_R_STARTPAGEPRINTER r_u;
@@ -478,7 +477,7 @@ static BOOL api_spoolss_startpageprinter(pipes_struct *p)
  *
  ********************************************************************/
 
-static BOOL api_spoolss_endpageprinter(pipes_struct *p)
+static bool api_spoolss_endpageprinter(pipes_struct *p)
 {
 	SPOOL_Q_ENDPAGEPRINTER q_u;
 	SPOOL_R_ENDPAGEPRINTER r_u;
@@ -506,7 +505,7 @@ static BOOL api_spoolss_endpageprinter(pipes_struct *p)
 /********************************************************************
 ********************************************************************/
 
-static BOOL api_spoolss_startdocprinter(pipes_struct *p)
+static bool api_spoolss_startdocprinter(pipes_struct *p)
 {
 	SPOOL_Q_STARTDOCPRINTER q_u;
 	SPOOL_R_STARTDOCPRINTER r_u;
@@ -534,7 +533,7 @@ static BOOL api_spoolss_startdocprinter(pipes_struct *p)
 /********************************************************************
 ********************************************************************/
 
-static BOOL api_spoolss_enddocprinter(pipes_struct *p)
+static bool api_spoolss_enddocprinter(pipes_struct *p)
 {
 	SPOOL_Q_ENDDOCPRINTER q_u;
 	SPOOL_R_ENDDOCPRINTER r_u;
@@ -562,7 +561,7 @@ static BOOL api_spoolss_enddocprinter(pipes_struct *p)
 /********************************************************************
 ********************************************************************/
 
-static BOOL api_spoolss_writeprinter(pipes_struct *p)
+static bool api_spoolss_writeprinter(pipes_struct *p)
 {
 	SPOOL_Q_WRITEPRINTER q_u;
 	SPOOL_R_WRITEPRINTER r_u;
@@ -591,7 +590,7 @@ static BOOL api_spoolss_writeprinter(pipes_struct *p)
 
 ****************************************************************************/
 
-static BOOL api_spoolss_setprinter(pipes_struct *p)
+static bool api_spoolss_setprinter(pipes_struct *p)
 {
 	SPOOL_Q_SETPRINTER q_u;
 	SPOOL_R_SETPRINTER r_u;
@@ -619,7 +618,7 @@ static BOOL api_spoolss_setprinter(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_fcpn(pipes_struct *p)
+static bool api_spoolss_fcpn(pipes_struct *p)
 {
 	SPOOL_Q_FCPN q_u;
 	SPOOL_R_FCPN r_u;
@@ -647,7 +646,7 @@ static BOOL api_spoolss_fcpn(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_addjob(pipes_struct *p)
+static bool api_spoolss_addjob(pipes_struct *p)
 {
 	SPOOL_Q_ADDJOB q_u;
 	SPOOL_R_ADDJOB r_u;
@@ -675,7 +674,7 @@ static BOOL api_spoolss_addjob(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumjobs(pipes_struct *p)
+static bool api_spoolss_enumjobs(pipes_struct *p)
 {
 	SPOOL_Q_ENUMJOBS q_u;
 	SPOOL_R_ENUMJOBS r_u;
@@ -703,7 +702,7 @@ static BOOL api_spoolss_enumjobs(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_schedulejob(pipes_struct *p)
+static bool api_spoolss_schedulejob(pipes_struct *p)
 {
 	SPOOL_Q_SCHEDULEJOB q_u;
 	SPOOL_R_SCHEDULEJOB r_u;
@@ -731,7 +730,7 @@ static BOOL api_spoolss_schedulejob(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_setjob(pipes_struct *p)
+static bool api_spoolss_setjob(pipes_struct *p)
 {
 	SPOOL_Q_SETJOB q_u;
 	SPOOL_R_SETJOB r_u;
@@ -759,7 +758,7 @@ static BOOL api_spoolss_setjob(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprinterdrivers(pipes_struct *p)
+static bool api_spoolss_enumprinterdrivers(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTERDRIVERS q_u;
 	SPOOL_R_ENUMPRINTERDRIVERS r_u;
@@ -787,7 +786,7 @@ static BOOL api_spoolss_enumprinterdrivers(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_getform(pipes_struct *p)
+static bool api_spoolss_getform(pipes_struct *p)
 {
 	SPOOL_Q_GETFORM q_u;
 	SPOOL_R_GETFORM r_u;
@@ -815,7 +814,7 @@ static BOOL api_spoolss_getform(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumforms(pipes_struct *p)
+static bool api_spoolss_enumforms(pipes_struct *p)
 {
 	SPOOL_Q_ENUMFORMS q_u;
 	SPOOL_R_ENUMFORMS r_u;
@@ -843,7 +842,7 @@ static BOOL api_spoolss_enumforms(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumports(pipes_struct *p)
+static bool api_spoolss_enumports(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPORTS q_u;
 	SPOOL_R_ENUMPORTS r_u;
@@ -871,7 +870,7 @@ static BOOL api_spoolss_enumports(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_addprinterex(pipes_struct *p)
+static bool api_spoolss_addprinterex(pipes_struct *p)
 {
 	SPOOL_Q_ADDPRINTEREX q_u;
 	SPOOL_R_ADDPRINTEREX r_u;
@@ -899,7 +898,7 @@ static BOOL api_spoolss_addprinterex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_addprinterdriver(pipes_struct *p)
+static bool api_spoolss_addprinterdriver(pipes_struct *p)
 {
 	SPOOL_Q_ADDPRINTERDRIVER q_u;
 	SPOOL_R_ADDPRINTERDRIVER r_u;
@@ -936,7 +935,7 @@ static BOOL api_spoolss_addprinterdriver(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_getprinterdriverdirectory(pipes_struct *p)
+static bool api_spoolss_getprinterdriverdirectory(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTERDRIVERDIR q_u;
 	SPOOL_R_GETPRINTERDRIVERDIR r_u;
@@ -964,7 +963,7 @@ static BOOL api_spoolss_getprinterdriverdirectory(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprinterdata(pipes_struct *p)
+static bool api_spoolss_enumprinterdata(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTERDATA q_u;
 	SPOOL_R_ENUMPRINTERDATA r_u;
@@ -992,7 +991,7 @@ static BOOL api_spoolss_enumprinterdata(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_setprinterdata(pipes_struct *p)
+static bool api_spoolss_setprinterdata(pipes_struct *p)
 {
 	SPOOL_Q_SETPRINTERDATA q_u;
 	SPOOL_R_SETPRINTERDATA r_u;
@@ -1019,7 +1018,7 @@ static BOOL api_spoolss_setprinterdata(pipes_struct *p)
 
 /****************************************************************************
 ****************************************************************************/
-static BOOL api_spoolss_reset_printer(pipes_struct *p)
+static bool api_spoolss_reset_printer(pipes_struct *p)
 {
 	SPOOL_Q_RESETPRINTER q_u;
 	SPOOL_R_RESETPRINTER r_u;
@@ -1046,7 +1045,7 @@ static BOOL api_spoolss_reset_printer(pipes_struct *p)
 
 /****************************************************************************
 ****************************************************************************/
-static BOOL api_spoolss_addform(pipes_struct *p)
+static bool api_spoolss_addform(pipes_struct *p)
 {
 	SPOOL_Q_ADDFORM q_u;
 	SPOOL_R_ADDFORM r_u;
@@ -1074,7 +1073,7 @@ static BOOL api_spoolss_addform(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_deleteform(pipes_struct *p)
+static bool api_spoolss_deleteform(pipes_struct *p)
 {
 	SPOOL_Q_DELETEFORM q_u;
 	SPOOL_R_DELETEFORM r_u;
@@ -1102,7 +1101,7 @@ static BOOL api_spoolss_deleteform(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_setform(pipes_struct *p)
+static bool api_spoolss_setform(pipes_struct *p)
 {
 	SPOOL_Q_SETFORM q_u;
 	SPOOL_R_SETFORM r_u;
@@ -1130,7 +1129,7 @@ static BOOL api_spoolss_setform(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprintprocessors(pipes_struct *p)
+static bool api_spoolss_enumprintprocessors(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTPROCESSORS q_u;
 	SPOOL_R_ENUMPRINTPROCESSORS r_u;
@@ -1158,7 +1157,7 @@ static BOOL api_spoolss_enumprintprocessors(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_addprintprocessor(pipes_struct *p)
+static bool api_spoolss_addprintprocessor(pipes_struct *p)
 {
 	SPOOL_Q_ADDPRINTPROCESSOR q_u;
 	SPOOL_R_ADDPRINTPROCESSOR r_u;
@@ -1190,7 +1189,7 @@ static BOOL api_spoolss_addprintprocessor(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprintprocdatatypes(pipes_struct *p)
+static bool api_spoolss_enumprintprocdatatypes(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTPROCDATATYPES q_u;
 	SPOOL_R_ENUMPRINTPROCDATATYPES r_u;
@@ -1218,7 +1217,7 @@ static BOOL api_spoolss_enumprintprocdatatypes(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprintmonitors(pipes_struct *p)
+static bool api_spoolss_enumprintmonitors(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTMONITORS q_u;
 	SPOOL_R_ENUMPRINTMONITORS r_u;
@@ -1246,7 +1245,7 @@ static BOOL api_spoolss_enumprintmonitors(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_getjob(pipes_struct *p)
+static bool api_spoolss_getjob(pipes_struct *p)
 {
 	SPOOL_Q_GETJOB q_u;
 	SPOOL_R_GETJOB r_u;
@@ -1277,7 +1276,7 @@ static BOOL api_spoolss_getjob(pipes_struct *p)
  * called from the spoolss dispatcher
  ********************************************************************/
 
-static BOOL api_spoolss_getprinterdataex(pipes_struct *p)
+static bool api_spoolss_getprinterdataex(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTERDATAEX q_u;
 	SPOOL_R_GETPRINTERDATAEX r_u;
@@ -1306,7 +1305,7 @@ static BOOL api_spoolss_getprinterdataex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_setprinterdataex(pipes_struct *p)
+static bool api_spoolss_setprinterdataex(pipes_struct *p)
 {
 	SPOOL_Q_SETPRINTERDATAEX q_u;
 	SPOOL_R_SETPRINTERDATAEX r_u;
@@ -1335,7 +1334,7 @@ static BOOL api_spoolss_setprinterdataex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprinterkey(pipes_struct *p)
+static bool api_spoolss_enumprinterkey(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTERKEY q_u;
 	SPOOL_R_ENUMPRINTERKEY r_u;
@@ -1363,7 +1362,7 @@ static BOOL api_spoolss_enumprinterkey(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_enumprinterdataex(pipes_struct *p)
+static bool api_spoolss_enumprinterdataex(pipes_struct *p)
 {
 	SPOOL_Q_ENUMPRINTERDATAEX q_u;
 	SPOOL_R_ENUMPRINTERDATAEX r_u;
@@ -1391,7 +1390,7 @@ static BOOL api_spoolss_enumprinterdataex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_getprintprocessordirectory(pipes_struct *p)
+static bool api_spoolss_getprintprocessordirectory(pipes_struct *p)
 {
 	SPOOL_Q_GETPRINTPROCESSORDIRECTORY q_u;
 	SPOOL_R_GETPRINTPROCESSORDIRECTORY r_u;
@@ -1419,7 +1418,7 @@ static BOOL api_spoolss_getprintprocessordirectory(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_deleteprinterdataex(pipes_struct *p)
+static bool api_spoolss_deleteprinterdataex(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTERDATAEX q_u;
 	SPOOL_R_DELETEPRINTERDATAEX r_u;
@@ -1447,7 +1446,7 @@ static BOOL api_spoolss_deleteprinterdataex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_deleteprinterkey(pipes_struct *p)
+static bool api_spoolss_deleteprinterkey(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTERKEY q_u;
 	SPOOL_R_DELETEPRINTERKEY r_u;
@@ -1475,7 +1474,7 @@ static BOOL api_spoolss_deleteprinterkey(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_addprinterdriverex(pipes_struct *p)
+static bool api_spoolss_addprinterdriverex(pipes_struct *p)
 {
 	SPOOL_Q_ADDPRINTERDRIVEREX q_u;
 	SPOOL_R_ADDPRINTERDRIVEREX r_u;
@@ -1512,7 +1511,7 @@ static BOOL api_spoolss_addprinterdriverex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_deleteprinterdriverex(pipes_struct *p)
+static bool api_spoolss_deleteprinterdriverex(pipes_struct *p)
 {
 	SPOOL_Q_DELETEPRINTERDRIVEREX q_u;
 	SPOOL_R_DELETEPRINTERDRIVEREX r_u;
@@ -1540,7 +1539,7 @@ static BOOL api_spoolss_deleteprinterdriverex(pipes_struct *p)
 /****************************************************************************
 ****************************************************************************/
 
-static BOOL api_spoolss_xcvdataport(pipes_struct *p)
+static bool api_spoolss_xcvdataport(pipes_struct *p)
 {
 	SPOOL_Q_XCVDATAPORT q_u;
 	SPOOL_R_XCVDATAPORT r_u;

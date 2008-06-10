@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -111,10 +110,11 @@ static void insert_refresh_name_into_unicast( struct subnet_record *subrec,
   Also add the magic Samba names.
 **************************************************************************/
 
-BOOL register_my_workgroup_and_names(void)
+bool register_my_workgroup_and_names(void)
 {
 	struct subnet_record *subrec;
 	int i;
+	const char **cluster_addresses = NULL;
 
 	for(subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_INCLUDING_UNICAST(subrec)) {
 		register_my_workgroup_one_subnet(subrec);
@@ -142,6 +142,36 @@ BOOL register_my_workgroup_and_names(void)
 
 			make_nmb_name(&nmbname, my_netbios_names(i),0x0);
 			insert_refresh_name_into_unicast(subrec, &nmbname, samba_nb_type);
+		}
+	}
+
+	/*
+	 * add in any cluster addresses. We need to response to these,
+	 * but not listen on them. This allows us to run nmbd on every
+	 * node in the cluster, and have all of them register with a
+	 * WINS server correctly
+	 */
+	if (lp_clustering()) {
+		cluster_addresses = lp_cluster_addresses();
+	}
+	if (cluster_addresses) {
+		int a, n;
+		unsigned name_types[] = {0x20, 0x3, 0x0};
+		
+		for (i=0; my_netbios_names(i); i++) {
+			for(subrec = FIRST_SUBNET; subrec; subrec = subrec->next) {
+				for (n=0;n<ARRAY_SIZE(name_types);n++) {
+					struct name_record *namerec;
+					struct nmb_name nmbname;
+					struct in_addr ip;
+					make_nmb_name(&nmbname, my_netbios_names(i), name_types[n]);
+					namerec = find_name_on_subnet(unicast_subnet, &nmbname, FIND_SELF_NAME);
+					if (namerec == NULL) continue;
+					for (a=0;cluster_addresses[a];a++) {
+						add_ip_to_name_record(namerec, *interpret_addr2(&ip, cluster_addresses[a]));
+					}
+				}
+			}
 		}
 	}
 

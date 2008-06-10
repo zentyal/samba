@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  
 */
                                   
 #include "includes.h"
@@ -27,7 +26,7 @@
 
 DOM_SID old_sid, new_sid;
 int change = 0, new_val = 0;
-BOOL opt_verbose = False;
+int opt_verbose = False;
 
 /********************************************************************
 ********************************************************************/
@@ -56,39 +55,39 @@ static void verbose_output(const char *format, ...)
 /********************************************************************
 ********************************************************************/
 
-static BOOL swap_sid_in_acl( SEC_DESC *sd, DOM_SID *s1, DOM_SID *s2 )
+static bool swap_sid_in_acl( SEC_DESC *sd, DOM_SID *s1, DOM_SID *s2 )
 {
 	SEC_ACL *acl;
 	int i;
-	BOOL update = False;
+	bool update = False;
 
-	verbose_output("  Owner SID: %s\n", sid_string_static(sd->owner_sid));
+	verbose_output("  Owner SID: %s\n", sid_string_tos(sd->owner_sid));
 	if ( sid_equal( sd->owner_sid, s1 ) ) {
 		sid_copy( sd->owner_sid, s2 );
 		update = True;
 		verbose_output("  New Owner SID: %s\n", 
-			sid_string_static(sd->owner_sid));
+			sid_string_tos(sd->owner_sid));
 
 	}
 
-	verbose_output("  Group SID: %s\n", sid_string_static(sd->group_sid));
+	verbose_output("  Group SID: %s\n", sid_string_tos(sd->group_sid));
 	if ( sid_equal( sd->group_sid, s1 ) ) {
 		sid_copy( sd->group_sid, s2 );
 		update = True;
 		verbose_output("  New Group SID: %s\n", 
-			sid_string_static(sd->group_sid));
+			sid_string_tos(sd->group_sid));
 	}
 
 	acl = sd->dacl;
 	verbose_output("  DACL: %d entries:\n", acl->num_aces);
 	for ( i=0; i<acl->num_aces; i++ ) {
 		verbose_output("    Trustee SID: %s\n", 
-			sid_string_static(&acl->aces[i].trustee));
+			sid_string_tos(&acl->aces[i].trustee));
 		if ( sid_equal( &acl->aces[i].trustee, s1 ) ) {
 			sid_copy( &acl->aces[i].trustee, s2 );
 			update = True;
 			verbose_output("    New Trustee SID: %s\n", 
-				sid_string_static(&acl->aces[i].trustee));
+				sid_string_tos(&acl->aces[i].trustee));
 		}
 	}
 
@@ -97,12 +96,12 @@ static BOOL swap_sid_in_acl( SEC_DESC *sd, DOM_SID *s1, DOM_SID *s2 )
 	verbose_output("  SACL: %d entries: \n", acl->num_aces);
 	for ( i=0; i<acl->num_aces; i++ ) {
 		verbose_output("    Trustee SID: %s\n", 
-			sid_string_static(&acl->aces[i].trustee));
+			sid_string_tos(&acl->aces[i].trustee));
 		if ( sid_equal( &acl->aces[i].trustee, s1 ) ) {
 			sid_copy( &acl->aces[i].trustee, s2 );
 			update = True;
 			verbose_output("    New Trustee SID: %s\n", 
-				sid_string_static(&acl->aces[i].trustee));
+				sid_string_tos(&acl->aces[i].trustee));
 		}
 	}
 #endif
@@ -112,7 +111,7 @@ static BOOL swap_sid_in_acl( SEC_DESC *sd, DOM_SID *s1, DOM_SID *s2 )
 /********************************************************************
 ********************************************************************/
 
-static BOOL copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
+static bool copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
                                 REGF_NK_REC *parent, REGF_FILE *outfile,
                                 const char *parentpath  )
 {
@@ -121,7 +120,7 @@ static BOOL copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 	REGVAL_CTR *values;
 	REGSUBKEY_CTR *subkeys;
 	int i;
-	pstring path;
+	char *path;
 
 	/* swap out the SIDs in the security descriptor */
 
@@ -139,6 +138,7 @@ static BOOL copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 	}
 
 	if ( !(values = TALLOC_ZERO_P( subkeys, REGVAL_CTR )) ) {
+		TALLOC_FREE( subkeys );
 		DEBUG(0,("copy_registry_tree: talloc() failure!\n"));
 		return False;
 	}
@@ -160,12 +160,19 @@ static BOOL copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 
 	/* write each one of the subkeys out */
 
-	pstr_sprintf( path, "%s%s%s", parentpath, parent ? "\\" : "", nk->keyname );
-	
+	path = talloc_asprintf(subkeys, "%s%s%s",
+			parentpath, parent ? "\\" : "",nk->keyname);
+	if (!path) {
+		TALLOC_FREE( subkeys );
+		return false;
+	}
+
 	nk->subkey_index = 0;
-	while ( (subkey = regfio_fetch_subkey( infile, nk )) ) {
-		if ( !copy_registry_tree( infile, subkey, key, outfile, path ) )
-			return False;
+	while ((subkey = regfio_fetch_subkey(infile, nk))) {
+		if (!copy_registry_tree( infile, subkey, key, outfile, path)) {
+			TALLOC_FREE(subkeys);
+			return false;
+		}
 	}
 
 	/* values is a talloc()'d child of subkeys here so just throw it all away */
@@ -182,10 +189,11 @@ static BOOL copy_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 
 int main( int argc, char *argv[] )
 {
+	TALLOC_CTX *frame = talloc_stackframe();
 	int opt;
 	REGF_FILE *infile, *outfile;
 	REGF_NK_REC *nk;
-	pstring orig_filename, new_filename;
+	char *orig_filename, *new_filename;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 		{ "change-sid", 'c', POPT_ARG_STRING, NULL, 'c', "Provides SID to change" },
@@ -205,7 +213,7 @@ int main( int argc, char *argv[] )
 	dbf = x_stderr;
 	x_setbuf( x_stderr, NULL );
 
-	pc = poptGetContext("profiles", argc, (const char **)argv, long_options, 
+	pc = poptGetContext("profiles", argc, (const char **)argv, long_options,
 		POPT_CONTEXT_KEEP_FIRST);
 
 	poptSetOtherOptionHelp(pc, "<profilefile>");
@@ -235,7 +243,7 @@ int main( int argc, char *argv[] )
 		}
 	}
 
-	poptGetArg(pc); 
+	poptGetArg(pc);
 
 	if (!poptPeekArg(pc)) {
 		poptPrintUsage(pc, stderr, 0);
@@ -248,39 +256,48 @@ int main( int argc, char *argv[] )
 		exit(252);
 	}
 
-	pstrcpy( orig_filename, poptPeekArg(pc) );
-	pstr_sprintf( new_filename, "%s.new", orig_filename );
-	
-	if ( !(infile = regfio_open( orig_filename, O_RDONLY, 0 )) ) {
+	orig_filename = talloc_strdup(frame, poptPeekArg(pc));
+	if (!orig_filename) {
+		exit(ENOMEM);
+	}
+	new_filename = talloc_asprintf(frame,
+					"%s.new",
+					orig_filename);
+	if (!new_filename) {
+		exit(ENOMEM);
+	}
+
+	if (!(infile = regfio_open( orig_filename, O_RDONLY, 0))) {
 		fprintf( stderr, "Failed to open %s!\n", orig_filename );
 		fprintf( stderr, "Error was (%s)\n", strerror(errno) );
 		exit (1);
 	}
-	
+
 	if ( !(outfile = regfio_open( new_filename, (O_RDWR|O_CREAT|O_TRUNC), (S_IREAD|S_IWRITE) )) ) {
 		fprintf( stderr, "Failed to open new file %s!\n", new_filename );
 		fprintf( stderr, "Error was (%s)\n", strerror(errno) );
 		exit (1);
 	}
-	
+
 	/* actually do the update now */
-	
+
 	if ((nk = regfio_rootkey( infile )) == NULL) {
 		fprintf(stderr, "Could not get rootkey\n");
 		exit(3);
 	}
-	
-	if ( !copy_registry_tree( infile, nk, NULL, outfile, "" ) ) {
+
+	if (!copy_registry_tree( infile, nk, NULL, outfile, "")) {
 		fprintf(stderr, "Failed to write updated registry file!\n");
 		exit(2);
 	}
-	
+
 	/* cleanup */
-	
-	regfio_close( infile );
-	regfio_close( outfile );
+
+	regfio_close(infile);
+	regfio_close(outfile);
 
 	poptFreeContext(pc);
 
-	return( 0 );
+	TALLOC_FREE(frame);
+	return 0;
 }

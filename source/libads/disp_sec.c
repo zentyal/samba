@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful, 
@@ -14,11 +14,12 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+
+#ifdef HAVE_LDAP
 
 static struct perm_mask_str {
 	uint32  mask;
@@ -46,6 +47,7 @@ static struct perm_mask_str {
 
 	{SEC_RIGHTS_CHANGE_PASSWD,	"[Change Password]"},	
 	{SEC_RIGHTS_RESET_PASSWD,	"[Reset Password]"},
+
 	{0,				0}
 };
 
@@ -66,7 +68,7 @@ static void ads_disp_perms(uint32 type)
 		if (type & (1 << i)) {
 			for (j = 1; perms[j].str; j ++) {
 				if (perms[j].mask == (((unsigned) 1) << i)) {
-					printf("\n\t%s", perms[j].str);
+					printf("\n\t%s (0x%08x)", perms[j].str, perms[j].mask);
 				}	
 			}
 			type &= ~(1 << i);
@@ -80,8 +82,54 @@ static void ads_disp_perms(uint32 type)
 	puts("");
 }
 
+static const char *ads_interprete_guid_from_object(ADS_STRUCT *ads, 
+						   TALLOC_CTX *mem_ctx, 
+						   const struct GUID *guid)
+{
+	const char *ret = NULL;
+
+	if (!ads || !mem_ctx) {
+		return NULL;
+	}
+
+	ret = ads_get_attrname_by_guid(ads, ads->config.schema_path, 
+				       mem_ctx, guid);
+	if (ret) {
+		return talloc_asprintf(mem_ctx, "LDAP attribute: \"%s\"", ret);
+	}
+
+	ret = ads_get_extended_right_name_by_guid(ads, ads->config.config_path,
+						  mem_ctx, guid);
+
+	if (ret) {
+		return talloc_asprintf(mem_ctx, "Extended right: \"%s\"", ret);
+	}
+
+	return ret;
+}
+
+static void ads_disp_sec_ace_object(ADS_STRUCT *ads, 
+				    TALLOC_CTX *mem_ctx, 
+				    struct security_ace_object *object)
+{
+	if (object->flags & SEC_ACE_OBJECT_PRESENT) {
+		printf("Object type: SEC_ACE_OBJECT_PRESENT\n");
+		printf("Object GUID: %s (%s)\n", smb_uuid_string(mem_ctx, 
+			object->type.type), 
+			ads_interprete_guid_from_object(ads, mem_ctx, 
+				&object->type.type));
+	}
+	if (object->flags & SEC_ACE_OBJECT_INHERITED_PRESENT) {
+		printf("Object type: SEC_ACE_OBJECT_INHERITED_PRESENT\n");
+		printf("Object GUID: %s (%s)\n", smb_uuid_string(mem_ctx,
+			object->inherited_type.inherited_type),
+			ads_interprete_guid_from_object(ads, mem_ctx, 
+				&object->inherited_type.inherited_type));
+	}
+}
+
 /* display ACE */
-static void ads_disp_ace(SEC_ACE *sec_ace)
+static void ads_disp_ace(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, SEC_ACE *sec_ace)
 {
 	const char *access_type = "UNKNOWN";
 
@@ -97,7 +145,7 @@ static void ads_disp_ace(SEC_ACE *sec_ace)
 		  sec_ace->flags,
 		  sec_ace->size,
 		  sec_ace->access_mask,
-		  sec_ace->obj_flags);
+		  sec_ace->object.object.flags);
 	}
 	
 	if (sec_ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED) {
@@ -115,7 +163,11 @@ static void ads_disp_ace(SEC_ACE *sec_ace)
 	}
 
 	printf("access SID:  %s\naccess type: %s\n", 
-               sid_string_static(&sec_ace->trustee), access_type);
+               sid_string_talloc(mem_ctx, &sec_ace->trustee), access_type);
+
+	if (sec_ace_object(sec_ace->type)) {
+		ads_disp_sec_ace_object(ads, mem_ctx, &sec_ace->object.object);
+	}
 
 	ads_disp_perms(sec_ace->access_mask);
 }
@@ -135,25 +187,51 @@ static void ads_disp_acl(SEC_ACL *sec_acl, const char *type)
 }
 
 /* display SD */
-void ads_disp_sd(SEC_DESC *sd)
+void ads_disp_sd(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, SEC_DESC *sd)
 {
 	int i;
-	
+	char *tmp_path = NULL;
+
+	if (!sd) {
+		return;
+	}
+
+	if (ads && !ads->config.schema_path) {
+		if (ADS_ERR_OK(ads_schema_path(ads, mem_ctx, &tmp_path))) {
+			ads->config.schema_path = SMB_STRDUP(tmp_path);
+		}
+	}
+
+	if (ads && !ads->config.config_path) {
+		if (ADS_ERR_OK(ads_config_path(ads, mem_ctx, &tmp_path))) {
+			ads->config.config_path = SMB_STRDUP(tmp_path);
+		}
+	}
+
 	printf("-------------- Security Descriptor (revision: %d, type: 0x%02x)\n", 
                sd->revision,
                sd->type);
-	printf("owner SID: %s\n", sid_string_static(sd->owner_sid));
-	printf("group SID: %s\n", sid_string_static(sd->group_sid));
+
+	printf("owner SID: %s\n", sd->owner_sid ? 
+		sid_string_talloc(mem_ctx, sd->owner_sid) : "(null)");
+	printf("group SID: %s\n", sd->group_sid ?
+		sid_string_talloc(mem_ctx, sd->group_sid) : "(null)");
 
 	ads_disp_acl(sd->sacl, "system");
-	for (i = 0; i < sd->sacl->num_aces; i ++)
-		ads_disp_ace(&sd->sacl->aces[i]);
+	if (sd->sacl) {
+		for (i = 0; i < sd->sacl->num_aces; i ++) {
+			ads_disp_ace(ads, mem_ctx, &sd->sacl->aces[i]);
+		}
+	}
 	
 	ads_disp_acl(sd->dacl, "user");
-	for (i = 0; i < sd->dacl->num_aces; i ++)
-		ads_disp_ace(&sd->dacl->aces[i]);
+	if (sd->dacl) {
+		for (i = 0; i < sd->dacl->num_aces; i ++) {
+			ads_disp_ace(ads, mem_ctx, &sd->dacl->aces[i]);
+		}
+	}
 
 	printf("-------------- End Of Security Descriptor\n");
 }
 
-
+#endif

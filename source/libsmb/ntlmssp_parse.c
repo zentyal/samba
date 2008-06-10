@@ -1,23 +1,22 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    simple kerberos5/SPNEGO routines
    Copyright (C) Andrew Tridgell 2001
    Copyright (C) Jim McDonough <jmcd@us.ibm.com> 2002
    Copyright (C) Andrew Bartlett 2002-2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -40,7 +39,7 @@
   d = word (4 bytes)
   C = constant ascii string
  */
-BOOL msrpc_gen(DATA_BLOB *blob,
+bool msrpc_gen(DATA_BLOB *blob,
 	       const char *format, ...)
 {
 	int i, n;
@@ -90,7 +89,9 @@ BOOL msrpc_gen(DATA_BLOB *blob,
 	}
 	va_end(ap);
 
-	/* allocate the space, then scan the format again to fill in the values */
+	/* allocate the space, then scan the format
+	 * again to fill in the values */
+
 	*blob = data_blob(NULL, head_size + data_size);
 
 	head_ofs = 0;
@@ -105,7 +106,8 @@ BOOL msrpc_gen(DATA_BLOB *blob,
 			SSVAL(blob->data, head_ofs, n*2); head_ofs += 2;
 			SSVAL(blob->data, head_ofs, n*2); head_ofs += 2;
 			SIVAL(blob->data, head_ofs, data_ofs); head_ofs += 4;
-			push_string(NULL, blob->data+data_ofs, s, n*2, STR_UNICODE|STR_NOALIGN);
+			push_string(NULL, blob->data+data_ofs,
+					s, n*2, STR_UNICODE|STR_NOALIGN);
 			data_ofs += n*2;
 			break;
 		case 'A':
@@ -114,7 +116,8 @@ BOOL msrpc_gen(DATA_BLOB *blob,
 			SSVAL(blob->data, head_ofs, n); head_ofs += 2;
 			SSVAL(blob->data, head_ofs, n); head_ofs += 2;
 			SIVAL(blob->data, head_ofs, data_ofs); head_ofs += 4;
-			push_string(NULL, blob->data+data_ofs, s, n, STR_ASCII|STR_NOALIGN);
+			push_string(NULL, blob->data+data_ofs,
+					s, n, STR_ASCII|STR_NOALIGN);
 			data_ofs += n;
 			break;
 		case 'a':
@@ -160,13 +163,14 @@ BOOL msrpc_gen(DATA_BLOB *blob,
 	}
 	va_end(ap);
 
-	return True;
+	return true;
 }
 
 
 /* a helpful macro to avoid running over the end of our blob */
 #define NEED_DATA(amount) \
 if ((head_ofs + amount) > blob->length) { \
+        va_end(ap); \
         return False; \
 }
 
@@ -183,7 +187,7 @@ if ((head_ofs + amount) > blob->length) { \
   C = constant ascii string
  */
 
-BOOL msrpc_parse(const DATA_BLOB *blob,
+bool msrpc_parse(const DATA_BLOB *blob,
 		 const char *format, ...)
 {
 	int i;
@@ -194,7 +198,6 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 	uint16 len1, len2;
 	uint32 ptr;
 	uint32 *v;
-	pstring p;
 
 	va_start(ap, format);
 	for (i=0; format[i]; i++) {
@@ -209,22 +212,41 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 			if (len1 == 0 && len2 == 0) {
 				*ps = smb_xstrdup("");
 			} else {
-				/* make sure its in the right format - be strict */
-				if ((len1 != len2) || (ptr + len1 < ptr) || (ptr + len1 < len1) || (ptr + len1 > blob->length)) {
-					return False;
+				/* make sure its in the right format
+				 * be strict */
+				if ((len1 != len2) || (ptr + len1 < ptr) ||
+						(ptr + len1 < len1) ||
+						(ptr + len1 > blob->length)) {
+					va_end(ap);
+					return false;
 				}
 				if (len1 & 1) {
 					/* if odd length and unicode */
-					return False;
+					va_end(ap);
+					return false;
 				}
-				if (blob->data + ptr < (uint8 *)(unsigned long)ptr || blob->data + ptr < blob->data)
-					return False;
+				if (blob->data + ptr <
+						(uint8 *)(unsigned long)ptr ||
+				    blob->data + ptr < blob->data) {
+					va_end(ap);
+					return false;
+				}
 
 				if (0 < len1) {
-					pull_string(NULL, p, blob->data + ptr, sizeof(p), 
-						    len1, 
-						    STR_UNICODE|STR_NOALIGN);
-					(*ps) = smb_xstrdup(p);
+					char *p = NULL;
+					pull_string_talloc(talloc_tos(),
+						NULL,
+						0,
+						&p,
+						blob->data + ptr,
+						len1,
+						STR_UNICODE|STR_NOALIGN);
+					if (p) {
+						(*ps) = smb_xstrdup(p);
+						TALLOC_FREE(p);
+					} else {
+						(*ps) = smb_xstrdup("");
+					}
 				} else {
 					(*ps) = smb_xstrdup("");
 				}
@@ -241,18 +263,35 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 			if (len1 == 0 && len2 == 0) {
 				*ps = smb_xstrdup("");
 			} else {
-				if ((len1 != len2) || (ptr + len1 < ptr) || (ptr + len1 < len1) || (ptr + len1 > blob->length)) {
-					return False;
+				if ((len1 != len2) || (ptr + len1 < ptr) ||
+						(ptr + len1 < len1) ||
+						(ptr + len1 > blob->length)) {
+					va_end(ap);
+					return false;
 				}
 
-				if (blob->data + ptr < (uint8 *)(unsigned long)ptr || blob->data + ptr < blob->data)
-					return False;	
+				if (blob->data + ptr <
+						(uint8 *)(unsigned long)ptr ||
+				    blob->data + ptr < blob->data) {
+					va_end(ap);
+					return false;
+				}
 
 				if (0 < len1) {
-					pull_string(NULL, p, blob->data + ptr, sizeof(p), 
-						    len1, 
-						    STR_ASCII|STR_NOALIGN);
-					(*ps) = smb_xstrdup(p);
+					char *p = NULL;
+					pull_string_talloc(talloc_tos(),
+						NULL,
+						0,
+						&p,
+						blob->data + ptr,
+						len1,
+						STR_ASCII|STR_NOALIGN);
+					if (p) {
+						(*ps) = smb_xstrdup(p);
+						TALLOC_FREE(p);
+					} else {
+						(*ps) = smb_xstrdup("");
+					}
 				} else {
 					(*ps) = smb_xstrdup("");
 				}
@@ -266,16 +305,24 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 
 			b = (DATA_BLOB *)va_arg(ap, void *);
 			if (len1 == 0 && len2 == 0) {
-				*b = data_blob(NULL, 0);
+				*b = data_blob_null;
 			} else {
-				/* make sure its in the right format - be strict */
-				if ((len1 != len2) || (ptr + len1 < ptr) || (ptr + len1 < len1) || (ptr + len1 > blob->length)) {
-					return False;
+				/* make sure its in the right format
+				 * be strict */
+				if ((len1 != len2) || (ptr + len1 < ptr) ||
+						(ptr + len1 < len1) ||
+						(ptr + len1 > blob->length)) {
+					va_end(ap);
+					return false;
 				}
 
-				if (blob->data + ptr < (uint8 *)(unsigned long)ptr || blob->data + ptr < blob->data)
-					return False;	
-			
+				if (blob->data + ptr <
+						(uint8 *)(unsigned long)ptr ||
+				    blob->data + ptr < blob->data) {
+					va_end(ap);
+					return false;
+				}
+
 				*b = data_blob(blob->data + ptr, len1);
 			}
 			break;
@@ -284,9 +331,12 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 			len1 = va_arg(ap, unsigned);
 			/* make sure its in the right format - be strict */
 			NEED_DATA(len1);
-			if (blob->data + head_ofs < (uint8 *)head_ofs || blob->data + head_ofs < blob->data)
-				return False;	
-			
+			if (blob->data + head_ofs < (uint8 *)head_ofs ||
+					blob->data + head_ofs < blob->data) {
+				va_end(ap);
+				return false;
+			}
+
 			*b = data_blob(blob->data + head_ofs, len1);
 			head_ofs += len1;
 			break;
@@ -298,14 +348,32 @@ BOOL msrpc_parse(const DATA_BLOB *blob,
 		case 'C':
 			s = va_arg(ap, char *);
 
-			if (blob->data + head_ofs < (uint8 *)head_ofs || blob->data + head_ofs < blob->data)
-				return False;	
-	
-			head_ofs += pull_string(NULL, p, blob->data+head_ofs, sizeof(p), 
-						blob->length - head_ofs, 
+			if (blob->data + head_ofs < (uint8 *)head_ofs ||
+			    blob->data + head_ofs < blob->data) {
+				va_end(ap);
+				return false;
+			}
+
+			{
+				char *p = NULL;
+				size_t ret = pull_string_talloc(talloc_tos(),
+						NULL,
+						0,
+						&p,
+						blob->data+head_ofs,
+						blob->length - head_ofs,
 						STR_ASCII|STR_TERMINATE);
-			if (strcmp(s, p) != 0) {
-				return False;
+				if (ret == (size_t)-1 || p == NULL) {
+					va_end(ap);
+					return false;
+				}
+				head_ofs += ret;
+				if (strcmp(s, p) != 0) {
+					TALLOC_FREE(p);
+					va_end(ap);
+					return false;
+				}
+				TALLOC_FREE(p);
 			}
 			break;
 		}

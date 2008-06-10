@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
  
 #include "includes.h"
@@ -26,194 +25,7 @@
 /********************************************************************
 ********************************************************************/
 
-BOOL prs_ev_open_unknown0( const char *desc, prs_struct *ps, int depth, EVENTLOG_OPEN_UNKNOWN0 *u )
-{
-	if ( !u )
-		return False;
-	
-	if ( !prs_uint16("", ps, depth, &u->unknown1) )
-		return False;
-	if ( !prs_uint16("", ps, depth, &u->unknown2) )
-		return False;
-
-	return True;
-}
-
-/********************************************************************
-********************************************************************/
-
-BOOL eventlog_io_q_open_eventlog(const char *desc, EVENTLOG_Q_OPEN_EVENTLOG *q_u,
-				 prs_struct *ps, int depth)
-{
-	if(q_u == NULL)
-		return False;
-    
-	prs_debug(ps, depth, desc, "eventlog_io_q_open_eventlog");
-	depth++;
-
-	if(!prs_align(ps))
-		return False;
-
-	if ( !prs_pointer("", ps, depth, (void*)&q_u->unknown0, sizeof(EVENTLOG_OPEN_UNKNOWN0), (PRS_POINTER_CAST)prs_ev_open_unknown0))
-		return False;
-
-	if ( !prs_unistr4("logname", ps, depth, &q_u->logname) )
-		return False;
-	if ( !prs_align(ps) )
-		return False;
-
-	if ( !prs_unistr4("servername", ps, depth, &q_u->servername) )
-		return False;
-	if ( !prs_align(ps) )
-		return False;
-
-	if ( !prs_uint32("unknown1", ps, depth, &q_u->unknown1) )
-		return False;
-	if ( !prs_uint32("unknown2", ps, depth, &q_u->unknown2) )
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_r_open_eventlog(const char *desc, EVENTLOG_R_OPEN_EVENTLOG *r_u,
-				 prs_struct *ps, int depth)
-{
-	if(r_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_r_open_eventlog");
-	depth++;
-
-	if(!prs_align(ps))
-		return False;
-
-	if(!(smb_io_pol_hnd("log handle", &(r_u->handle), ps, depth)))
-		return False;
-
-	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_q_get_num_records(const char *desc, EVENTLOG_Q_GET_NUM_RECORDS *q_u,
-				   prs_struct *ps, int depth)
-{
-	if(q_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_q_get_num_records");
-	depth++;
-
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(smb_io_pol_hnd("log handle", &(q_u->handle), ps, depth)))
-		return False;
-    
-	return True;
-}
-
-BOOL eventlog_io_r_get_num_records(const char *desc, EVENTLOG_R_GET_NUM_RECORDS *r_u,
-				   prs_struct *ps, int depth)
-{
-	if(r_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_r_get_num_records");
-	depth++;
-
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(prs_uint32("num records", ps, depth, &(r_u->num_records))))
-		return False;
-
-	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_q_get_oldest_entry(const char *desc, EVENTLOG_Q_GET_OLDEST_ENTRY *q_u,
-				    prs_struct *ps, int depth)
-{
-	if(q_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_q_get_oldest_entry");
-	depth++;
-    
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(smb_io_pol_hnd("log handle", &(q_u->handle), ps, depth)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_r_get_oldest_entry(const char *desc, EVENTLOG_R_GET_OLDEST_ENTRY *r_u,
-				    prs_struct *ps, int depth)
-{
-	if(r_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_r_get_oldest_entry");
-	depth++;
-
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(prs_uint32("oldest entry", ps, depth, &(r_u->oldest_entry))))
-		return False;
-
-	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_q_close_eventlog(const char *desc, EVENTLOG_Q_CLOSE_EVENTLOG *q_u,
-				  prs_struct *ps, int depth)
-{
-	if(q_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_q_close_eventlog");
-	depth++;
-    
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(smb_io_pol_hnd("log handle", &(q_u->handle), ps, depth)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_r_close_eventlog(const char *desc, EVENTLOG_R_CLOSE_EVENTLOG *r_u,
-				  prs_struct *ps, int depth)
-{
-	if(r_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_r_close_eventlog");
-	depth++;
-
-	if(!(prs_align(ps)))
-		return False;
-
-	if(!(smb_io_pol_hnd("log handle", &(r_u->handle), ps, depth)))
-		return False;
-
-	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
-		return False;
-
-	return True;
-}
-
-BOOL eventlog_io_q_read_eventlog(const char *desc, EVENTLOG_Q_READ_EVENTLOG *q_u,
+bool eventlog_io_q_read_eventlog(const char *desc, EVENTLOG_Q_READ_EVENTLOG *q_u,
 				 prs_struct *ps, int depth)
 {
 	if(q_u == NULL)
@@ -246,7 +58,7 @@ BOOL eventlog_io_q_read_eventlog(const char *desc, EVENTLOG_Q_READ_EVENTLOG *q_u
    DWORD sent_size -- sum of EVENTLOGRECORD lengths if records returned, 0 otherwise
    DWORD real_size -- 0 if records returned, otherwise length of next record to be returned
    WERROR status */
-BOOL eventlog_io_r_read_eventlog(const char *desc,
+bool eventlog_io_r_read_eventlog(const char *desc,
 				 EVENTLOG_Q_READ_EVENTLOG *q_u,
 				 EVENTLOG_R_READ_EVENTLOG *r_u,
 				 prs_struct *ps,
@@ -373,58 +185,6 @@ BOOL eventlog_io_r_read_eventlog(const char *desc,
 	if(!(prs_uint32("sent size", ps, depth, &(r_u->sent_size))))
 		return False;
 	if(!(prs_uint32("real size", ps, depth, &(r_u->real_size))))
-		return False;
-	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
-		return False;
-
-	return True;
-}
-
-/** The windows client seems to be doing something funny with the file name
-   A call like
-      ClearEventLog(handle, "backup_file")
-   on the client side will result in the backup file name looking like this on the
-   server side:
-      \??\${CWD of client}\backup_file
-   If an absolute path gets specified, such as
-      ClearEventLog(handle, "C:\\temp\\backup_file")
-   then it is still mangled by the client into this:
-      \??\C:\temp\backup_file
-   when it is on the wire.
-   I'm not sure where the \?? is coming from, or why the ${CWD} of the client process
-   would be added in given that the backup file gets written on the server side. */
-
-BOOL eventlog_io_q_clear_eventlog(const char *desc, EVENTLOG_Q_CLEAR_EVENTLOG *q_u,
-				  prs_struct *ps, int depth)
-{
-	if(q_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_q_clear_eventlog");
-	depth++;
-
-	if(!prs_align(ps))
-		return False;
-	if(!(smb_io_pol_hnd("log handle", &(q_u->handle), ps, depth)))
-		return False;
-
-	if ( !prs_unistr4("backupfile", ps, depth, &q_u->backupfile) )
-		return False;
-
-	return True;
-
-}
-
-BOOL eventlog_io_r_clear_eventlog(const char *desc, EVENTLOG_R_CLEAR_EVENTLOG *r_u,
-				  prs_struct *ps, int depth)
-{
-	if(r_u == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "eventlog_io_r_clear_eventlog");
-	depth++;
-
-	if(!prs_align(ps))
 		return False;
 	if(!(prs_ntstatus("status code", ps, depth, &r_u->status)))
 		return False;

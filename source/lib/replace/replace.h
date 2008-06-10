@@ -1,19 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    macros to go along with the lib/replace/ portability layer code
 
    Copyright (C) Andrew Tridgell 2005
    Copyright (C) Jelmer Vernooij 2006
+   Copyright (C) Jeremy Allison 2007.
 
      ** NOTE! The following LGPL license applies to the replace
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
-   version 2 of the License, or (at your option) any later version.
+   version 3 of the License, or (at your option) any later version.
 
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -21,8 +22,7 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with this library; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _LIBREPLACE_REPLACE_H
@@ -45,13 +45,6 @@
 #include "win32_replace.h"
 #endif
 
-#ifdef __COMPAR_FN_T
-#define QSORT_CAST (__compar_fn_t)
-#endif
-
-#ifndef QSORT_CAST
-#define QSORT_CAST (int (*)(const void *, const void *))
-#endif
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -79,33 +72,6 @@
 #include <stddef.h>
 #endif
 
-#if !defined(HAVE_VOLATILE)
-#define volatile
-#endif
-
-/**
-  this is a warning hack. The idea is to use this everywhere that we
-  get the "discarding const" warning from gcc. That doesn't actually
-  fix the problem of course, but it means that when we do get to
-  cleaning them up we can do it by searching the code for
-  discard_const.
-
-  It also means that other error types aren't as swamped by the noise
-  of hundreds of const warnings, so we are more likely to notice when
-  we get new errors.
-
-  Please only add more uses of this macro when you find it
-  _really_ hard to fix const warnings. Our aim is to eventually use
-  this function in only a very few places.
-
-  Also, please call this via the discard_const_p() macro interface, as that
-  makes the return type safe.
-*/
-#define discard_const(ptr) ((void *)((intptr_t)(ptr)))
-
-/** Type-safe version of discard_const */
-#define discard_const_p(type, ptr) ((type *)discard_const(ptr))
-
 #ifndef HAVE_STRERROR
 extern char *sys_errlist[];
 #define strerror(i) sys_errlist[i]
@@ -125,19 +91,24 @@ char *rep_strdup(const char *s);
 void *rep_memmove(void *dest,const void *src,int size);
 #endif
 
-#if !defined(HAVE_MKTIME) || !defined(HAVE_TIMEGM)
-#include "system/time.h"
-#endif
-
 #ifndef HAVE_MKTIME
 #define mktime rep_mktime
-time_t rep_mktime(struct tm *t);
+/* prototype is in "system/time.h" */
 #endif
 
 #ifndef HAVE_TIMEGM
-struct tm;
 #define timegm rep_timegm
-time_t rep_timegm(struct tm *tm);
+/* prototype is in "system/time.h" */
+#endif
+
+#ifndef HAVE_UTIME
+#define utime rep_utime
+/* prototype is in "system/time.h" */
+#endif
+
+#ifndef HAVE_UTIMES
+#define utimes rep_utimes
+/* prototype is in "system/time.h" */
 #endif
 
 #ifndef HAVE_STRLCPY
@@ -173,7 +144,7 @@ int setenv(const char *name, const char *value, int overwrite);
 
 #ifndef HAVE_UNSETENV
 #define unsetenv rep_unsetenv
-int rep_unsetenv(const char *name); 
+int rep_unsetenv(const char *name);
 #endif
 
 #ifndef HAVE_SETEUID
@@ -197,7 +168,7 @@ char *rep_strcasestr(const char *haystack, const char *needle);
 #endif
 
 #ifndef HAVE_STRTOK_R
-#define strtok_r rep_strtok_r 
+#define strtok_r rep_strtok_r
 char *rep_strtok_r(char *s, const char *delim, char **save_ptr);
 #endif
 
@@ -232,7 +203,11 @@ char *rep_dlerror(void);
 
 #ifndef HAVE_DLOPEN
 #define dlopen rep_dlopen
+#ifdef DLOPEN_TAKES_UNSIGNED_FLAGS
+void *rep_dlopen(const char *name, unsigned int flags);
+#else
 void *rep_dlopen(const char *name, int flags);
+#endif
 #endif
 
 #ifndef HAVE_DLSYM
@@ -247,7 +222,7 @@ int rep_dlclose(void *handle);
 
 #ifndef HAVE_SOCKETPAIR
 #define socketpair rep_socketpair
-int rep_socketpair(int d, int type, int protocol, int sv[2]);
+/* prototype is in system/network.h */
 #endif
 
 #ifndef PRINTF_ATTRIBUTE
@@ -259,6 +234,14 @@ int rep_socketpair(int d, int type, int protocol, int sv[2]);
 #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format (__printf__, a1, a2)))
 #else
 #define PRINTF_ATTRIBUTE(a1, a2)
+#endif
+#endif
+
+#ifndef _DEPRECATED_
+#if (__GNUC__ >= 3) && (__GNUC_MINOR__ >= 1 )
+#define _DEPRECATED_ __attribute__ ((deprecated))
+#else
+#define _DEPRECATED_
 #endif
 #endif
 
@@ -325,6 +308,12 @@ char *rep_strptime(const char *buf, const char *format, struct tm *tm);
 #ifndef RTLD_LAZY
 #define RTLD_LAZY 0
 #endif
+#ifndef RTLD_NOW
+#define RTLD_NOW 0
+#endif
+#ifndef RTLD_GLOBAL
+#define RTLD_GLOBAL 0
+#endif
 
 #ifndef HAVE_SECURE_MKSTEMP
 #define mkstemp(path) rep_mkstemp(path)
@@ -336,8 +325,62 @@ int rep_mkstemp(char *temp);
 char *rep_mkdtemp(char *template);
 #endif
 
+#ifndef HAVE_PREAD
+#define pread rep_pread
+ssize_t rep_pread(int __fd, void *__buf, size_t __nbytes, off_t __offset);
+#endif
+
+#ifndef HAVE_PWRITE
+#define pwrite rep_pwrite
+ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset);
+#endif
+
+#if !defined(HAVE_INET_NTOA) || defined(REPLACE_INET_NTOA)
+#define inet_ntoa rep_inet_ntoa
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_INET_PTON
+#define inet_pton rep_inet_pton
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_INET_NTOP
+#define inet_ntop rep_inet_ntop
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_INET_ATON
+#define inet_aton rep_inet_aton
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_CONNECT
+#define connect rep_connect
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_GETHOSTBYNAME
+#define gethostbyname rep_gethostbyname
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_GETIFADDRS
+#define getifaddrs rep_getifaddrs
+/* prototype is in "system/network.h" */
+#endif
+
+#ifndef HAVE_FREEIFADDRS
+#define freeifaddrs rep_freeifaddrs
+/* prototype is in "system/network.h" */
+#endif
+
 #ifdef HAVE_LIMITS_H
 #include <limits.h>
+#endif
+
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
 #endif
 
 /* The extra casts work around common compiler bugs.  */
@@ -349,7 +392,15 @@ char *rep_mkdtemp(char *template);
 #define _TYPE_MAXIMUM(t) ((t) (~ (t) 0 - _TYPE_MINIMUM (t)))
 
 #ifndef HOST_NAME_MAX
-#define HOST_NAME_MAX 64
+#define HOST_NAME_MAX 255
+#endif
+
+/*
+ * Some older systems seem not to have MAXHOSTNAMELEN
+ * defined.
+ */
+#ifndef MAXHOSTNAMELEN
+#define MAXHOSTNAMELEN HOST_NAME_MAX
 #endif
 
 #ifndef UINT16_MAX
@@ -427,9 +478,6 @@ typedef int bool;
 #endif
 #endif
 
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
 
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -439,11 +487,38 @@ typedef int bool;
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #endif
 
+#if !defined(HAVE_VOLATILE)
+#define volatile
+#endif
+
+/**
+  this is a warning hack. The idea is to use this everywhere that we
+  get the "discarding const" warning from gcc. That doesn't actually
+  fix the problem of course, but it means that when we do get to
+  cleaning them up we can do it by searching the code for
+  discard_const.
+
+  It also means that other error types aren't as swamped by the noise
+  of hundreds of const warnings, so we are more likely to notice when
+  we get new errors.
+
+  Please only add more uses of this macro when you find it
+  _really_ hard to fix const warnings. Our aim is to eventually use
+  this function in only a very few places.
+
+  Also, please call this via the discard_const_p() macro interface, as that
+  makes the return type safe.
+*/
+#define discard_const(ptr) ((void *)((uintptr_t)(ptr)))
+
+/** Type-safe version of discard_const */
+#define discard_const_p(type, ptr) ((type *)discard_const(ptr))
+
 #ifndef __STRING
 #define __STRING(x)    #x
 #endif
 
-#ifndef _STRINGSTRING
+#ifndef __STRINGSTRING
 #define __STRINGSTRING(x) __STRING(x)
 #endif
 
@@ -486,6 +561,22 @@ typedef int bool;
 
 #if MMAP_BLACKLIST
 #undef HAVE_MMAP
+#endif
+
+#ifdef __COMPAR_FN_T
+#define QSORT_CAST (__compar_fn_t)
+#endif
+
+#ifndef QSORT_CAST
+#define QSORT_CAST (int (*)(const void *, const void *))
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
+
+#ifndef MAX_DNS_NAME_LENGTH
+#define MAX_DNS_NAME_LENGTH 256 /* Actually 255 but +1 for terminating null. */
 #endif
 
 #endif /* _LIBREPLACE_REPLACE_H */

@@ -8,7 +8,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *  
  * This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
  * GNU General Public License for more details.
  *  
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -35,13 +34,13 @@ static SMB_STRUCT_DIR *audit_opendir(vfs_handle_struct *handle, const char *fnam
 static int audit_mkdir(vfs_handle_struct *handle, const char *path, mode_t mode);
 static int audit_rmdir(vfs_handle_struct *handle, const char *path);
 static int audit_open(vfs_handle_struct *handle, const char *fname, files_struct *fsp, int flags, mode_t mode);
-static int audit_close(vfs_handle_struct *handle, files_struct *fsp, int fd);
+static int audit_close(vfs_handle_struct *handle, files_struct *fsp);
 static int audit_rename(vfs_handle_struct *handle, const char *oldname, const char *newname);
 static int audit_unlink(vfs_handle_struct *handle, const char *path);
 static int audit_chmod(vfs_handle_struct *handle, const char *path, mode_t mode);
 static int audit_chmod_acl(vfs_handle_struct *handle, const char *name, mode_t mode);
-static int audit_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode);
-static int audit_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode);
+static int audit_fchmod(vfs_handle_struct *handle, files_struct *fsp, mode_t mode);
+static int audit_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, mode_t mode);
 
 /* VFS operations */
 
@@ -112,7 +111,11 @@ static int audit_syslog_priority(vfs_handle_struct *handle)
 
 	int priority;
 
-	priority = lp_parm_enum(SNUM(handle->conn), "audit", "priority", enum_log_priorities, LOG_NOTICE);
+	priority = lp_parm_enum(SNUM(handle->conn), "audit", "priority",
+				enum_log_priorities, LOG_NOTICE);
+	if (priority == -1) {
+		priority = LOG_WARNING;
+	}
 
 	return priority;
 }
@@ -199,14 +202,14 @@ static int audit_open(vfs_handle_struct *handle, const char *fname, files_struct
 	return result;
 }
 
-static int audit_close(vfs_handle_struct *handle, files_struct *fsp, int fd)
+static int audit_close(vfs_handle_struct *handle, files_struct *fsp)
 {
 	int result;
 
-	result = SMB_VFS_NEXT_CLOSE(handle, fsp, fd);
+	result = SMB_VFS_NEXT_CLOSE(handle, fsp);
 
 	syslog(audit_syslog_priority(handle), "close fd %d %s%s\n",
-	       fd,
+	       fsp->fh->fd,
 	       (result < 0) ? "failed: " : "",
 	       (result < 0) ? strerror(errno) : "");
 
@@ -269,11 +272,11 @@ static int audit_chmod_acl(vfs_handle_struct *handle, const char *path, mode_t m
 	return result;
 }
 
-static int audit_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode)
+static int audit_fchmod(vfs_handle_struct *handle, files_struct *fsp, mode_t mode)
 {
 	int result;
 
-	result = SMB_VFS_NEXT_FCHMOD(handle, fsp, fd, mode);
+	result = SMB_VFS_NEXT_FCHMOD(handle, fsp, mode);
 
 	syslog(audit_syslog_priority(handle), "fchmod %s mode 0x%x %s%s\n",
 	       fsp->fsp_name, mode,
@@ -283,11 +286,11 @@ static int audit_fchmod(vfs_handle_struct *handle, files_struct *fsp, int fd, mo
 	return result;
 }
 
-static int audit_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, int fd, mode_t mode)
+static int audit_fchmod_acl(vfs_handle_struct *handle, files_struct *fsp, mode_t mode)
 {
 	int result;
 
-	result = SMB_VFS_NEXT_FCHMOD_ACL(handle, fsp, fd, mode);
+	result = SMB_VFS_NEXT_FCHMOD_ACL(handle, fsp, mode);
 
 	syslog(audit_syslog_priority(handle), "fchmod_acl %s mode 0x%x %s%s\n",
 	       fsp->fsp_name, mode,

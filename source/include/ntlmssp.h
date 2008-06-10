@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /* NTLMSSP mode */
@@ -84,8 +83,8 @@ typedef struct ntlmssp_state
 	enum server_types server_role;
 	uint32 expected_state;
 
-	BOOL unicode;
-	BOOL use_ntlmv2;
+	bool unicode;
+	bool use_ntlmv2;
 	char *user;
 	char *domain;
 	char *workstation;
@@ -123,7 +122,7 @@ typedef struct ntlmssp_state
 	 * @return Can the challenge be set to arbitary values?
 	 *
 	 */
-	BOOL (*may_set_challenge)(const struct ntlmssp_state *ntlmssp_state);
+	bool (*may_set_challenge)(const struct ntlmssp_state *ntlmssp_state);
 
 	/**
 	 * Callback to set the 'challenge' used for NTLM authentication.  

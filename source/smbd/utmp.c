@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -113,14 +112,14 @@ Notes:
  * Not WITH_UTMP?  Simply supply dummy routines.
  */
 
-void sys_utmp_claim(const char *username, const char *hostname, 
-		    struct in_addr *ipaddr,
-		    const char *id_str, int id_num)
+void sys_utmp_claim(const char *username, const char *hostname,
+			const char *ip_addr_str,
+			const char *id_str, int id_num)
 {}
 
-void sys_utmp_yield(const char *username, const char *hostname, 
-		    struct in_addr *ipaddr,
-		    const char *id_str, int id_num)
+void sys_utmp_yield(const char *username, const char *hostname,
+			const char *ip_addr_str,
+			const char *id_str, int id_num)
 {}
 
 #else /* WITH_UTMP */
@@ -208,30 +207,36 @@ static const char *ll_pathname =
  * utmp{,x}:  try "utmp dir", then default (a define)
  * wtmp{,x}:  try "wtmp dir", then "utmp dir", then default (a define)
  */
-static void uw_pathname(pstring fname, const char *uw_name, const char *uw_default)
+static char *uw_pathname(TALLOC_CTX *ctx,
+		const char *uw_name,
+		const char *uw_default)
 {
-	pstring dirname;
-
-	pstrcpy(dirname, "");
+	char *dirname = NULL;
 
 	/* For w-files, first look for explicit "wtmp dir" */
 	if (uw_name[0] == 'w') {
-		pstrcpy(dirname,lp_wtmpdir());
+		dirname = talloc_strdup(ctx, lp_wtmpdir());
+		if (!dirname) {
+			return NULL;
+		}
 		trim_char(dirname,'\0','/');
 	}
 
 	/* For u-files and non-explicit w-dir, look for "utmp dir" */
-	if (strlen(dirname) == 0) {
-		pstrcpy(dirname,lp_utmpdir());
+	if ((dirname == NULL) || (strlen(dirname) == 0)) {
+		dirname = talloc_strdup(ctx, lp_utmpdir());
+		if (!dirname) {
+			return NULL;
+		}
 		trim_char(dirname,'\0','/');
 	}
 
 	/* If explicit directory above, use it */
-	if (strlen(dirname) != 0) {
-		pstrcpy(fname, dirname);
-		pstrcat(fname, "/");
-		pstrcat(fname, uw_name);
-		return;
+	if (dirname && strlen(dirname) != 0) {
+		return talloc_asprintf(ctx,
+				"%s/%s",
+				dirname,
+				uw_name);
 	}
 
 	/* No explicit directory: attempt to use default paths */
@@ -241,16 +246,15 @@ static void uw_pathname(pstring fname, const char *uw_name, const char *uw_defau
 		 */
 		DEBUG(2,("uw_pathname: unable to determine pathname\n"));
 	}
-	pstrcpy(fname, uw_default);
+	return talloc_strdup(ctx, uw_default);
 }
 
 #ifndef HAVE_PUTUTLINE
-
 /****************************************************************************
  Update utmp file directly.  No subroutine interface: probably a BSD system.
 ****************************************************************************/
 
-static void pututline_my(pstring uname, struct utmp *u, BOOL claim)
+static void pututline_my(const char *uname, struct utmp *u, bool claim)
 {
 	DEBUG(1,("pututline_my: not yet implemented\n"));
 	/* BSD implementor: may want to consider (or not) adjusting "lastlog" */
@@ -264,7 +268,7 @@ static void pututline_my(pstring uname, struct utmp *u, BOOL claim)
  Credit: Michail Vidiassov <master@iaas.msu.ru>
 ****************************************************************************/
 
-static void updwtmp_my(pstring wname, struct utmp *u, BOOL claim)
+static void updwtmp_my(const char *wname, struct utmp *u, bool claim)
 {
 	int fd;
 	struct stat buf;
@@ -307,14 +311,18 @@ static void updwtmp_my(pstring wname, struct utmp *u, BOOL claim)
  Update via utmp/wtmp (not utmpx/wtmpx).
 ****************************************************************************/
 
-static void utmp_nox_update(struct utmp *u, BOOL claim)
+static void utmp_nox_update(struct utmp *u, bool claim)
 {
-	pstring uname, wname;
+	char *uname = NULL;
+	char *wname = NULL;
 #if defined(PUTUTLINE_RETURNS_UTMP)
 	struct utmp *urc;
 #endif /* PUTUTLINE_RETURNS_UTMP */
 
-	uw_pathname(uname, "utmp", ut_pathname);
+	uname = uw_pathname(talloc_tos(), "utmp", ut_pathname);
+	if (!uname) {
+		return;
+	}
 	DEBUG(2,("utmp_nox_update: uname:%s\n", uname));
 
 #ifdef HAVE_PUTUTLINE
@@ -342,7 +350,10 @@ static void utmp_nox_update(struct utmp *u, BOOL claim)
 	}
 #endif /* HAVE_PUTUTLINE */
 
-	uw_pathname(wname, "wtmp", wt_pathname);
+	wname = uw_pathname(talloc_tos(), "wtmp", wt_pathname);
+	if (!wname) {
+		return;
+	}
 	DEBUG(2,("utmp_nox_update: wname:%s\n", wname));
 	if (strlen(wname) != 0) {
 #ifdef HAVE_UPDWTMP
@@ -385,7 +396,7 @@ static void utmp_strcpy(char *dest, const char *src, size_t n)
  Update via utmpx/wtmpx (preferred) or via utmp/wtmp.
 ****************************************************************************/
 
-static void sys_utmp_update(struct utmp *u, const char *hostname, BOOL claim)
+static void sys_utmp_update(struct utmp *u, const char *hostname, bool claim)
 {
 #if !defined(HAVE_UTMPX_H)
 	/* No utmpx stuff.  Drop to non-x stuff */
@@ -398,8 +409,13 @@ static void sys_utmp_update(struct utmp *u, const char *hostname, BOOL claim)
 	/* Odd.  Have utmpx.h but no "getutmpx()".  Drop to non-x stuff */
 	DEBUG(1,("utmp_update: have utmpx.h but no getutmpx() function\n"));
 	utmp_nox_update(u, claim);
+#elif !defined(HAVE_UPDWTMPX)
+	/* Have utmpx.h but no "updwtmpx()".  Drop to non-x stuff */
+	DEBUG(1,("utmp_update: have utmpx.h but no updwtmpx() function\n"));
+	utmp_nox_update(u, claim);
 #else
-	pstring uname, wname;
+	char *uname = NULL;
+	char *wname = NULL;
 	struct utmpx ux, *uxrc;
 
 	getutmpx(u, &ux);
@@ -414,9 +430,12 @@ static void sys_utmp_update(struct utmp *u, const char *hostname, BOOL claim)
 	utmp_strcpy(ux.ut_host, hostname, sizeof(ux.ut_host));
 #endif
 
-	uw_pathname(uname, "utmpx", ux_pathname);
-	uw_pathname(wname, "wtmpx", wx_pathname);
-	DEBUG(2,("utmp_update: uname:%s wname:%s\n", uname, wname));
+	uname = uw_pathname(talloc_tos(), "utmpx", ux_pathname);
+	wname = uw_pathname(talloc_tos(), "wtmpx", wx_pathname);
+	if (uname && wname) {
+		DEBUG(2,("utmp_update: uname:%s wname:%s\n", uname, wname));
+	}
+
 	/*
 	 * Check for either uname or wname being empty.
 	 * Some systems, such as Redhat 6, have a "utmpx.h" which doesn't
@@ -424,7 +443,7 @@ static void sys_utmp_update(struct utmp *u, const char *hostname, BOOL claim)
 	 * Also, our local installation has not provided an override.
 	 * Drop to non-x method.  (E.g. RH6 has good defaults in "utmp.h".)
 	 */
-	if ((strlen(uname) == 0) || (strlen(wname) == 0)) {
+	if (!uname || !wname || (strlen(uname) == 0) || (strlen(wname) == 0)) {
 		utmp_nox_update(u, claim);
 	} else {
 		utmpxname(uname);
@@ -449,7 +468,7 @@ static int ut_id_encode(int i, char *fourbyte)
 {
 	int nbase;
 	const char *ut_id_encstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	
+
 	fourbyte[0] = 'S';
 	fourbyte[1] = 'M';
 
@@ -471,13 +490,13 @@ static int ut_id_encode(int i, char *fourbyte)
 
 
 /*
-  fill a system utmp structure given all the info we can gather 
+  fill a system utmp structure given all the info we can gather
 */
-static BOOL sys_utmp_fill(struct utmp *u,
-			  const char *username, const char *hostname,
-			  struct in_addr *ipaddr,
-			  const char *id_str, int id_num)
-{			  
+static bool sys_utmp_fill(struct utmp *u,
+			const char *username, const char *hostname,
+			const char *ip_addr_str,
+			const char *id_str, int id_num)
+{
 	struct timeval timeval;
 
 	/*
@@ -508,7 +527,7 @@ static BOOL sys_utmp_fill(struct utmp *u,
 #endif
 
 /*
- * ut_time, ut_tv: 
+ * ut_time, ut_tv:
  *	Some have one, some the other.  Many have both, but defined (aliased).
  *	It is easier and clearer simply to let the following take its course.
  *	But note that we do the more precise ut_tv as the final assignment.
@@ -526,9 +545,22 @@ static BOOL sys_utmp_fill(struct utmp *u,
 #if defined(HAVE_UT_UT_HOST)
 	utmp_strcpy(u->ut_host, hostname, sizeof(u->ut_host));
 #endif
-#if defined(HAVE_UT_UT_ADDR)
-	if (ipaddr)
-		u->ut_addr = ipaddr->s_addr;
+#if defined(HAVE_IPV6) && defined(HAVE_UT_UT_ADDR_V6)
+	memset(&u->ut_addr_v6, '\0', sizeof(u->ut_addr_v6));
+	if (ip_addr_str) {
+		struct in6_addr addr;
+		if (inet_pton(AF_INET6, ip_addr_str, &addr) > 0) {
+			memcpy(&u->ut_addr_v6, &addr, sizeof(addr));
+		}
+	}
+#elif defined(HAVE_UT_UT_ADDR)
+	memset(&u->ut_addr, '\0', sizeof(u->ut_addr));
+	if (ip_addr_str) {
+		struct in_addr addr;
+		if (inet_pton(AF_INET, ip_addr_str, &addr) > 0) {
+			memcpy(&u->ut_addr, &addr, sizeof(addr));
+		}
+	}
 	/*
 	 * "(unsigned long) ut_addr" apparently exists on at least HP-UX 10.20.
 	 * Volunteer to implement, please ...
@@ -549,9 +581,9 @@ static BOOL sys_utmp_fill(struct utmp *u,
  Close a connection.
 ****************************************************************************/
 
-void sys_utmp_yield(const char *username, const char *hostname, 
-		    struct in_addr *ipaddr,
-		    const char *id_str, int id_num)
+void sys_utmp_yield(const char *username, const char *hostname,
+			const char *ip_addr_str,
+			const char *id_str, int id_num)
 {
 	struct utmp u;
 
@@ -566,7 +598,8 @@ void sys_utmp_yield(const char *username, const char *hostname,
 	u.ut_type = DEAD_PROCESS;
 #endif
 
-	if (!sys_utmp_fill(&u, username, hostname, ipaddr, id_str, id_num)) return;
+	if (!sys_utmp_fill(&u, username, hostname, ip_addr_str, id_str, id_num))
+		return;
 
 	sys_utmp_update(&u, NULL, False);
 }
@@ -575,9 +608,9 @@ void sys_utmp_yield(const char *username, const char *hostname,
  Claim a entry in whatever utmp system the OS uses.
 ****************************************************************************/
 
-void sys_utmp_claim(const char *username, const char *hostname, 
-		    struct in_addr *ipaddr,
-		    const char *id_str, int id_num)
+void sys_utmp_claim(const char *username, const char *hostname,
+			const char *ip_addr_str,
+			const char *id_str, int id_num)
 {
 	struct utmp u;
 
@@ -587,7 +620,8 @@ void sys_utmp_claim(const char *username, const char *hostname,
 	u.ut_type = USER_PROCESS;
 #endif
 
-	if (!sys_utmp_fill(&u, username, hostname, ipaddr, id_str, id_num)) return;
+	if (!sys_utmp_fill(&u, username, hostname, ip_addr_str, id_str, id_num))
+		return;
 
 	sys_utmp_update(&u, hostname, True);
 }

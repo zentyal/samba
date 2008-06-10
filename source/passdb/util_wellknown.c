@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -70,7 +69,7 @@ static struct sid_name_map_info special_domains[] = {
 	{ &global_sid_NT_Authority, "NT Authority", nt_authority_users },
 	{ NULL, NULL, NULL }};
 
-BOOL sid_check_is_wellknown_domain(const DOM_SID *sid, const char **name)
+bool sid_check_is_wellknown_domain(const DOM_SID *sid, const char **name)
 {
 	int i;
 
@@ -85,7 +84,7 @@ BOOL sid_check_is_wellknown_domain(const DOM_SID *sid, const char **name)
 	return False;
 }
 
-BOOL sid_check_is_in_wellknown_domain(const DOM_SID *sid)
+bool sid_check_is_in_wellknown_domain(const DOM_SID *sid)
 {
 	DOM_SID dom_sid;
 	uint32 rid;
@@ -100,7 +99,7 @@ BOOL sid_check_is_in_wellknown_domain(const DOM_SID *sid)
  Looks up a known username from one of the known domains.
 ***************************************************************************/
 
-BOOL lookup_wellknown_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
+bool lookup_wellknown_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
 			  const char **domain, const char **name)
 {
 	int i;
@@ -124,8 +123,7 @@ BOOL lookup_wellknown_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
 	}
 
 	if (users == NULL) {
-		DEBUG(10, ("SID %s is no special sid\n",
-			   sid_string_static(sid)));
+		DEBUG(10, ("SID %s is no special sid\n", sid_string_dbg(sid)));
 		return False;
 	}
 
@@ -136,8 +134,7 @@ BOOL lookup_wellknown_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
 		}
 	}
 
-	DEBUG(10, ("RID of special SID %s not found\n",
-		   sid_string_static(sid)));
+	DEBUG(10, ("RID of special SID %s not found\n", sid_string_dbg(sid)));
 
 	return False;
 }
@@ -146,7 +143,7 @@ BOOL lookup_wellknown_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
  Try and map a name to one of the well known SIDs.
 ***************************************************************************/
 
-BOOL lookup_wellknown_name(TALLOC_CTX *mem_ctx, const char *name,
+bool lookup_wellknown_name(TALLOC_CTX *mem_ctx, const char *name,
 			   DOM_SID *sid, const char **domain)
 {
 	int i, j;

@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "includes.h"
 #include "utils/net.h"
@@ -24,7 +23,7 @@
 /*
   return the time on a server. This does not require any authentication
 */
-static time_t cli_servertime(const char *host, struct in_addr *ip, int *zone)
+static time_t cli_servertime(const char *host, struct sockaddr_storage *pss, int *zone)
 {
 	struct nmb_name calling, called;
 	time_t ret = 0;
@@ -36,7 +35,7 @@ static time_t cli_servertime(const char *host, struct in_addr *ip, int *zone)
 		goto done;
 	}
 
-	status = cli_connect(cli, host, ip);
+	status = cli_connect(cli, host, pss);
 	if (!NT_STATUS_IS_OK(status)) {
 		fprintf(stderr,"Can't contact server %s. Error %s\n", host, nt_errstr(status));
 		goto done;
@@ -84,9 +83,9 @@ static const char *systime(time_t t)
 	if (!tm) {
 		return "unknown";
 	}
-	
-	fstr_sprintf(s, "%02d%02d%02d%02d%04d.%02d", 
-		 tm->tm_mon+1, tm->tm_mday, tm->tm_hour, 
+
+	fstr_sprintf(s, "%02d%02d%02d%02d%04d.%02d",
+		 tm->tm_mon+1, tm->tm_mday, tm->tm_hour,
 		 tm->tm_min, tm->tm_year + 1900, tm->tm_sec);
 	return s;
 }
@@ -111,8 +110,8 @@ static int net_time_set(int argc, const char **argv)
 	int result;
 
 	if (t == 0) return -1;
-	
-	/* yes, I know this is cheesy. Use "net time system" if you want to 
+
+	/* yes, I know this is cheesy. Use "net time system" if you want to
 	   roll your own. I'm putting this in as it works on a large number
 	   of systems and the user has a choice in whether its used or not */
 	asprintf(&cmd, "/bin/date %s", systime(t));

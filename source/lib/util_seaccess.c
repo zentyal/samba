@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -88,7 +87,7 @@ static uint32 check_ace(SEC_ACE *ace, const NT_USER_TOKEN *token, uint32 acc_des
  include other bits requested.
 **********************************************************************************/ 
 
-static BOOL get_max_access( SEC_ACL *the_acl, const NT_USER_TOKEN *token, uint32 *granted, 
+static bool get_max_access( SEC_ACL *the_acl, const NT_USER_TOKEN *token, uint32 *granted, 
 			    uint32 desired, 
 			    NTSTATUS *status)
 {
@@ -147,7 +146,7 @@ static BOOL get_max_access( SEC_ACL *the_acl, const NT_USER_TOKEN *token, uint32
    objects.  Each type of object has its own mapping of generic to object
    specific access rights. */
 
-void se_map_generic(uint32 *access_mask, struct generic_mapping *mapping)
+void se_map_generic(uint32 *access_mask, const struct generic_mapping *mapping)
 {
 	uint32 old_mask = *access_mask;
 
@@ -210,13 +209,12 @@ void se_map_standard(uint32 *access_mask, struct standard_mapping *mapping)
  "Access-Checking" document in MSDN.
 *****************************************************************************/ 
 
-BOOL se_access_check(const SEC_DESC *sd, const NT_USER_TOKEN *token,
+bool se_access_check(const SEC_DESC *sd, const NT_USER_TOKEN *token,
 		     uint32 acc_desired, uint32 *acc_granted, 
 		     NTSTATUS *status)
 {
 	size_t i;
 	SEC_ACL *the_acl;
-	fstring sid_str;
 	uint32 tmp_acc_desired = acc_desired;
 
 	if (!status || !acc_granted)
@@ -228,9 +226,10 @@ BOOL se_access_check(const SEC_DESC *sd, const NT_USER_TOKEN *token,
 	*status = NT_STATUS_OK;
 	*acc_granted = 0;
 
-	DEBUG(10,("se_access_check: requested access 0x%08x, for NT token with %u entries and first sid %s.\n",
-		 (unsigned int)acc_desired, (unsigned int)token->num_sids,
-		sid_to_string(sid_str, &token->user_sids[0])));
+	DEBUG(10,("se_access_check: requested access 0x%08x, for NT token "
+		  "with %u entries and first sid %s.\n",
+		  (unsigned int)acc_desired, (unsigned int)token->num_sids,
+		  sid_string_dbg(&token->user_sids[0])));
 
 	/*
 	 * No security descriptor or security descriptor with no DACL
@@ -248,11 +247,13 @@ BOOL se_access_check(const SEC_DESC *sd, const NT_USER_TOKEN *token,
 
 	/* The user sid is the first in the token */
 	if (DEBUGLVL(3)) {
-		DEBUG(3, ("se_access_check: user sid is %s\n", sid_to_string(sid_str, &token->user_sids[PRIMARY_USER_SID_INDEX]) ));
+		DEBUG(3, ("se_access_check: user sid is %s\n",
+			  sid_string_dbg(
+				  &token->user_sids[PRIMARY_USER_SID_INDEX])));
 		
 		for (i = 1; i < token->num_sids; i++) {
 			DEBUGADD(3, ("se_access_check: also %s\n",
-				  sid_to_string(sid_str, &token->user_sids[i])));
+				     sid_string_dbg(&token->user_sids[i])));
 		}
 	}
 
@@ -283,11 +284,12 @@ BOOL se_access_check(const SEC_DESC *sd, const NT_USER_TOKEN *token,
 	for ( i = 0 ; i < the_acl->num_aces && tmp_acc_desired != 0; i++) {
 		SEC_ACE *ace = &the_acl->aces[i];
 
-		DEBUGADD(10,("se_access_check: ACE %u: type %d, flags = 0x%02x, SID = %s mask = %x, current desired = %x\n",
-			  (unsigned int)i, ace->type, ace->flags,
-			  sid_to_string(sid_str, &ace->trustee),
-			  (unsigned int) ace->access_mask, 
-			  (unsigned int)tmp_acc_desired ));
+		DEBUGADD(10,("se_access_check: ACE %u: type %d, flags = "
+			     "0x%02x, SID = %s mask = %x, current desired "
+			     "= %x\n", (unsigned int)i, ace->type, ace->flags,
+			     sid_string_dbg(&ace->trustee),
+			     (unsigned int) ace->access_mask,
+			     (unsigned int)tmp_acc_desired ));
 
 		tmp_acc_desired = check_ace( ace, token, tmp_acc_desired, status);
 		if (NT_STATUS_V(*status)) {
@@ -348,7 +350,9 @@ NTSTATUS samr_make_sam_obj_sd(TALLOC_CTX *ctx, SEC_DESC **psd, size_t *sd_size)
 	if ((psa = make_sec_acl(ctx, NT4_ACL_REVISION, 3, ace)) == NULL)
 		return NT_STATUS_NO_MEMORY;
 
-	if ((*psd = make_sec_desc(ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL, psa, sd_size)) == NULL)
+	if ((*psd = make_sec_desc(ctx, SECURITY_DESCRIPTOR_REVISION_1,
+				  SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL,
+				  psa, sd_size)) == NULL)
 		return NT_STATUS_NO_MEMORY;
 
 	return NT_STATUS_OK;

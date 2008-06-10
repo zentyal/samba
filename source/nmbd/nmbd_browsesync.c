@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -99,12 +98,12 @@ As a local master browser, send an announce packet to the domain master browser.
 
 static void announce_local_master_browser_to_domain_master_browser( struct work_record *work)
 {
-	pstring outbuf;
+	char outbuf[1024];
 	unstring myname;
 	unstring dmb_name;
 	char *p;
 
-	if(ismyip(work->dmb_addr)) {
+	if(ismyip_v4(work->dmb_addr)) {
 		if( DEBUGLVL( 2 ) ) {
 			dbgtext( "announce_local_master_browser_to_domain_master_browser:\n" );
 			dbgtext( "We are both a domain and a local master browser for " );
@@ -123,7 +122,7 @@ static void announce_local_master_browser_to_domain_master_browser( struct work_
 	strupper_m(myname);
 	myname[15]='\0';
 	/* The call below does CH_UNIX -> CH_DOS conversion. JRA */
-	push_pstring_base(p, myname, outbuf);
+	push_ascii(p, myname, sizeof(outbuf)-PTR_DIFF(p,outbuf)-1, STR_TERMINATE);
 
 	p = skip_string(outbuf,sizeof(outbuf),p);
 
@@ -137,7 +136,7 @@ static void announce_local_master_browser_to_domain_master_browser( struct work_
 	/* Target name for send_mailslot must be in UNIX charset. */
 	pull_ascii_nstring(dmb_name, sizeof(dmb_name), work->dmb_name.name);
 	send_mailslot(True, BROWSE_MAILSLOT, outbuf,PTR_DIFF(p,outbuf),
-		global_myname(), 0x0, dmb_name, 0x0, 
+		global_myname(), 0x0, dmb_name, 0x0,
 		work->dmb_addr, FIRST_SUBNET->myip, DGRAM_PORT);
 }
 
@@ -292,7 +291,7 @@ static void find_domain_master_name_query_success(struct subnet_record *subrec,
 
   /* First check if we already have a dmb for this workgroup. */
 
-	if(!is_zero_ip(work->dmb_addr) && ip_equal(work->dmb_addr, answer_ip)) {
+	if(!is_zero_ip_v4(work->dmb_addr) && ip_equal_v4(work->dmb_addr, answer_ip)) {
 		/* Do the local master browser announcement to the domain
 			master browser name and IP. */
 		announce_local_master_browser_to_domain_master_browser( work );
@@ -301,7 +300,7 @@ static void find_domain_master_name_query_success(struct subnet_record *subrec,
 		sync_with_dmb(work);
 		return;
 	} else {
-		zero_ip(&work->dmb_addr);
+		zero_ip_v4(&work->dmb_addr);
 	}
 
 	/* Now initiate the node status request. */
@@ -527,7 +526,7 @@ static void find_all_domain_master_names_query_success(struct subnet_record *sub
 		 * Don't send node status requests to ourself.
 		 */
 
-		if(ismyip( send_ip )) {
+		if(ismyip_v4( send_ip )) {
 			if( DEBUGLVL( 5 ) ) {
 				dbgtext( "find_all_domain_master_names_query_succes:\n" );
 				dbgtext( "Not sending node status to our own IP " );

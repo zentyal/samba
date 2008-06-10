@@ -15,7 +15,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -24,8 +24,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -36,8 +35,8 @@
 
 #include <assert.h>
 
-int quiet = 0;
-int hexformat = 0;
+bool quiet = 0;
+bool hexformat = 0;
 
 #define itoa(a) ((a) < 0xa?'0'+(a):'A' + (a-0xa))
 
@@ -229,13 +228,13 @@ int main (int argc, char **argv)
 	int opt;
 	poptContext pc;
 	char buffer[4096];
-	long data_offset, data_length;
+	long data_offset = 0, data_length;
 	long data_bytes_read = 0;
 	int in_packet = 0;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
-		{ "quiet", 'q', POPT_ARG_NONE, &quiet, 0, "Be quiet, don't output warnings" },
-		{ "hex", 'h', POPT_ARG_NONE, &hexformat, 0, "Output format readable by text2pcap" },
+		{ "quiet", 'q', POPT_ARG_NONE, NULL, 'q', "Be quiet, don't output warnings" },
+		{ "hex", 'h', POPT_ARG_NONE, NULL, 'h', "Output format readable by text2pcap" },
 		POPT_TABLEEND
 	};
 	
@@ -246,6 +245,12 @@ int main (int argc, char **argv)
 	
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
+		case 'q':
+			quiet = true;
+			break;
+		case 'h':
+			hexformat = true;
+			break;
 		}
 	}
 

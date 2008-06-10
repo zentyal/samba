@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -44,7 +43,7 @@
 	if (ads_count_replies(ads, *res) != 1) {
 		return ADS_ERROR(LDAP_NO_SUCH_OBJECT);
 	}
-	srv_dn = ldap_get_dn(ads->ld, *res);
+	srv_dn = ldap_get_dn(ads->ldap.ld, *res);
 	if (srv_dn == NULL) {
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
@@ -100,7 +99,7 @@ ADS_STATUS ads_add_printer_entry(ADS_STRUCT *ads, char *prt_dn,
 /*
   map a REG_SZ to an ldap mod
 */
-static BOOL map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
+static bool map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
 			    const REGISTRY_VALUE *value)
 {
 	char *str_value = NULL;
@@ -121,7 +120,7 @@ static BOOL map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 /*
   map a REG_DWORD to an ldap mod
 */
-static BOOL map_dword(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
+static bool map_dword(TALLOC_CTX *ctx, ADS_MODLIST *mods, 
 		      const REGISTRY_VALUE *value)
 {
 	char *str_value = NULL;
@@ -140,7 +139,7 @@ static BOOL map_dword(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 /*
   map a boolean REG_BINARY to an ldap mod
 */
-static BOOL map_bool(TALLOC_CTX *ctx, ADS_MODLIST *mods,
+static bool map_bool(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 		     const REGISTRY_VALUE *value)
 {
 	char *str_value;
@@ -160,7 +159,7 @@ static BOOL map_bool(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 /*
   map a REG_MULTI_SZ to an ldap mod
 */
-static BOOL map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
+static bool map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 			 const REGISTRY_VALUE *value)
 {
 	char **str_values = NULL;
@@ -199,7 +198,7 @@ static BOOL map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 
 struct valmap_to_ads {
 	const char *valname;
-	BOOL (*fn)(TALLOC_CTX *, ADS_MODLIST *, const REGISTRY_VALUE *);
+	bool (*fn)(TALLOC_CTX *, ADS_MODLIST *, const REGISTRY_VALUE *);
 };
 
 /*
@@ -348,7 +347,7 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 	return result;
 }
 
-BOOL get_local_printer_publishing_data(TALLOC_CTX *mem_ctx,
+bool get_local_printer_publishing_data(TALLOC_CTX *mem_ctx,
 				       ADS_MODLIST *mods,
 				       NT_PRINTER_DATA *data)
 {

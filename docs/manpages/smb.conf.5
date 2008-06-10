@@ -1,11 +1,11 @@
 .\"     Title: smb.conf
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/28/2008
+.\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
+.\"      Date: 06/10/2008
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 3.0
+.\"    Source: Samba 3.2
 .\"
-.TH "SMB\.CONF" "5" "05/28/2008" "Samba 3\.0" "File Formats and Conventions"
+.TH "SMB\.CONF" "5" "06/10/2008" "Samba 3\.2" "File Formats and Conventions"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -576,6 +576,63 @@ list begins with a
 guest account =
 for the service, irrespective of the supplied password\.
 .RE
+.SH "REGISTRY-BASED CONFIGURATION"
+.PP
+Starting with Samba version 3\.2\.0, the capability to store Samba configuration in the registry is available\. The configuration is stored in the registry key
+\fIHKLM\eSoftware\eSamba\esmbconf\fR\. There are two levels of registry configuration:
+.sp
+.RS 4
+\h'-04' 1.\h'+02'Share definitions stored in registry are used\. This is triggered by setting the global parameter
+\fIregistry shares\fR
+to
+\(lqyes\(rq
+in
+\fIsmb\.conf\fR\.
+.sp
+The registry shares are loaded not at startup but on demand at runtime by
+\fIsmbd\fR\. Shares defined in
+\fIsmb\.conf\fR
+take priority over shares of the same name defined in registry\.
+.RE
+.sp
+.RS 4
+\h'-04' 2.\h'+02'Global
+\fIsmb\.conf\fR
+options stored in registry are used\. This can be activated in two different ways:
+.sp
+Firstly, a registry only configuration is triggered by setting
+\fIconfig backend = registry\fR
+in the [global] section of
+\fIsmb\.conf\fR\. This resets everything that has been read from config files to this point and reads the content of the global configuration section from the registry\. This is the recommended method of using registry based configuration\.
+.sp
+Secondly, a mixed configuration can be activated by a special new meaning of the parameter
+\fIinclude = registry\fR
+in the [global] section of
+\fIsmb\.conf\fR\. This reads the global options from registry with the same priorities as for an include of a text file\. This may be especially useful in cases where an initial configuration is needed to access the registry\.
+.sp
+Activation of global registry options automatically activates registry shares\. So in the registry only case, shares are loaded on demand only\.
+.RE
+.sp
+.RE
+.PP
+Note: To make registry\-based configurations foolproof at least to a certain extent, the use of
+\fIlock directory\fR
+and
+\fIconfig backend\fR
+inside the registry configuration has been disabled: Especially by changing the
+\fIlock directory\fR
+inside the registry configuration, one would create a broken setup where the daemons do not see the configuration they loaded once it is active\.
+.PP
+The registry configuration can be accessed with tools like
+\fIregedit\fR
+or
+\fInet (rpc) registry\fR
+in the key
+\fIHKLM\eSoftware\eSamba\esmbconf\fR\. More conveniently, the
+\fIconf\fR
+subcommand of the
+\fBnet\fR(8)
+utility offers a dedicated interface to read and write the registry based configuration locally, i\.e\. directly accessing the database file, circumventing the server\.
 .SH "EXPLANATION OF EACH PARAMETER"
 
 
@@ -1007,6 +1064,21 @@ Example:
 \fI\fIadd user to group script\fR\fR\fI = \fR\fI/usr/sbin/adduser %u %g\fR\fI \fR
 .RE
 
+administrative share (S)
+.PP
+.RS 4
+If this parameter is set to
+\fByes\fR
+for a share, then the share will be an administrative share\. The Administrative Shares are the default network shares created by all Windows NT\-based operating systems\. These are shares like C$, D$ or ADMIN$\. The type of these shares is STYPE_DISKTREE_HIDDEN\.
+.sp
+See the section below on
+\fIsecurity\fR
+for more information about this option\.
+.sp
+Default:
+\fI\fIadministrative share\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 admin users (S)
 .PP
 .RS 4
@@ -1333,7 +1405,9 @@ Default:
 Example:
 \fI\fIblock size\fR\fR\fI = \fR\fI4096\fR\fI \fR
 .RE
-browsable.PP
+
+browsable
+.PP
 .RS 4
 This parameter is a synonym for
 browseable\.
@@ -1361,7 +1435,9 @@ call\. Normally set to
 Default:
 \fI\fIbrowse list\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-casesignames.PP
+
+casesignames
+.PP
 .RS 4
 This parameter is a synonym for
 case sensitive\.
@@ -1515,7 +1591,43 @@ client ntlmv2 auth
 parameter is enabled, then only NTLMv2 logins will be attempted\.
 .sp
 Default:
-\fI\fIclient lanman auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIclient lanman auth\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+client ldap sasl wrapping (G)
+.PP
+.RS 4
+The
+\fIclient ldap sasl wrapping\fR
+defines whether ldap traffic will be signed or signed and encrypted (sealed)\. Possible values are
+\fIplain\fR,
+\fIsign\fR
+and
+\fIseal\fR\.
+.sp
+The values
+\fIsign\fR
+and
+\fIseal\fR
+are only available if Samba has been compiled against a modern OpenLDAP version (2\.3\.x or higher)\.
+.sp
+This option is needed in the case of Domain Controllers enforcing the usage of signed LDAP connections (e\.g\. Windows 2000 SP3 or higher)\. LDAP sign and seal can be controlled with the registry key "HKLM\eSystem\eCurrentControlSet\eServices\e
+NTDS\eParameters\eLDAPServerIntegrity" on the Windows server side\.
+.sp
+Depending on the used KRB5 library (MIT and older Heimdal versions) it is possible that the message "integrity only" is not supported\. In this case,
+\fIsign\fR
+is just an alias for
+\fIseal\fR\.
+.sp
+The default value is
+\fIplain\fR
+which is not irritable to KRB5 clock skew errors\. That implies synchronizing the time with the KDC in the case of using
+\fIsign\fR
+or
+\fIseal\fR\.
+.sp
+Default:
+\fI\fIclient ldap sasl wrapping\fR\fR\fI = \fR\fIplain\fR\fI \fR
 .RE
 
 client ntlmv2 auth (G)
@@ -1548,7 +1660,7 @@ client plaintext auth (G)
 Specifies whether a client should send a plaintext password if the server does not support encrypted passwords\.
 .sp
 Default:
-\fI\fIclient plaintext auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIclient plaintext auth\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 client schannel (G)
@@ -1593,6 +1705,31 @@ Default:
 \fI\fIclient use spnego\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
+cluster addresses (G)
+.PP
+.RS 4
+With this parameter you can add additional addresses nmbd will register with a WINS server\. These addresses are not necessarily present on all nodes simultaneously, but they will be registered with the WINS server so that clients can contact any of the nodes\.
+.sp
+Default:
+\fI\fIcluster addresses\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIcluster addresses\fR\fR\fI = \fR\fI10\.0\.0\.1 10\.0\.0\.2 10\.0\.0\.3\fR\fI \fR
+.RE
+
+clustering (G)
+.PP
+.RS 4
+This parameter specifies whether Samba should contact ctdb for accessing its tdb files and use ctdb as a backend for its messaging backend\.
+.sp
+Set this parameter to
+yes
+only if you have a cluster setup with ctdb running\.
+.sp
+Default:
+\fI\fIclustering\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 comment (S)
 .PP
 .RS 4
@@ -1609,6 +1746,29 @@ Default:
 .sp
 Example:
 \fI\fIcomment\fR\fR\fI = \fR\fIFred\'s Files\fR\fI \fR
+.RE
+
+config backend (G)
+.PP
+.RS 4
+This controls the backend for storing the configuration\. Possible values are
+\fIfile\fR
+(the default) and
+\fIregistry\fR\. When
+\fIconfig backend = registry\fR
+is encountered while loading
+\fIsmb\.conf\fR, the configuration read so far is dropped and the global options are read from registry instead\. So this triggers a registry only configuration\. Share definitions are not read immediately but instead
+\fIregistry shares\fR
+is set to
+\fIyes\fR\.
+.sp
+Note: This option can not be set inside the registry configuration itself\.
+.sp
+Default:
+\fI\fIconfig backend\fR\fR\fI = \fR\fIfile\fR\fI \fR
+.sp
+Example:
+\fI\fIconfig backend\fR\fR\fI = \fR\fIregistry\fR\fI \fR
 .RE
 
 config file (G)
@@ -1642,7 +1802,9 @@ Default:
 Example:
 \fI\fIcopy\fR\fR\fI = \fR\fIotherservice\fR\fI \fR
 .RE
-create mode.PP
+
+create mode
+.PP
 .RS 4
 This parameter is a synonym for
 create mask\.
@@ -1695,6 +1857,19 @@ Default:
 .sp
 Example:
 \fI\fIcsc policy\fR\fR\fI = \fR\fIprograms\fR\fI \fR
+.RE
+
+ctdbd socket (G)
+.PP
+.RS 4
+If you set
+clustering=yes, you need to tell Samba where ctdbd listens on its unix domain socket\. The default path as of ctdb 1\.0 is /tmp/ctdb\.socket which you have to explicitly set for Samba in smb\.conf\.
+.sp
+Default:
+\fI\fIctdbd socket\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIctdbd socket\fR\fR\fI = \fR\fI/tmp/ctdb\.socket\fR\fI \fR
 .RE
 
 cups options (S)
@@ -1764,6 +1939,18 @@ Example:
 \fI\fIdeadtime\fR\fR\fI = \fR\fI15\fR\fI \fR
 .RE
 
+debug class (G)
+.PP
+.RS 4
+With this boolean parameter enabled, the debug class (DBGC_CLASS) will be displayed in the debug header\.
+.sp
+For more information about currently available debug classes, see section about
+\fIlog level\fR\.
+.sp
+Default:
+\fI\fIdebug class\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 debug hires timestamp (G)
 .PP
 .RS 4
@@ -1805,7 +1992,9 @@ parameter\.
 Default:
 \fI\fIdebug prefix timestamp\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-timestamp logs.PP
+
+timestamp logs
+.PP
 .RS 4
 This parameter is a synonym for
 debug timestamp\.
@@ -1866,7 +2055,9 @@ MSDN documentation\.
 Default:
 \fI\fIdefault devmode\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-default.PP
+
+default
+.PP
 .RS 4
 This parameter is a synonym for
 default service\.
@@ -2153,7 +2344,9 @@ By default internal routines for determining the disk capacity and remaining spa
 Example:
 \fI\fIdfree command\fR\fR\fI = \fR\fI/usr/local/samba/bin/dfree\fR\fI \fR
 .RE
-directory mode.PP
+
+directory mode
+.PP
 .RS 4
 This parameter is a synonym for
 directory mask\.
@@ -2620,7 +2813,9 @@ Default:
 Example:
 \fI\fIforce directory security mode\fR\fR\fI = \fR\fI700\fR\fI \fR
 .RE
-group.PP
+
+group
+.PP
 .RS 4
 This parameter is a synonym for
 force group\.
@@ -2747,10 +2942,11 @@ The
 get quota command
 should only be used whenever there is no operating system API available from the OS that samba can use\.
 .sp
-This option is only available with
-\./configure \-\-with\-sys\-quotas\. Or on linux when
-\./configure \-\-with\-quotas
-was used and a working quota api was found in the system\.
+This option is only available you have compiled Samba with the
+\-\-with\-sys\-quotas
+option or on Linux with
+\-\-with\-quotas
+and a working quota api was found in the system\.
 .sp
 This parameter should specify the path to a script that queries the quota information for the specified user/group for the partition that the specified directory is on\.
 .sp
@@ -2966,7 +3162,9 @@ Default:
 Example:
 \fI\fIguest account\fR\fR\fI = \fR\fIftp\fR\fI \fR
 .RE
-public.PP
+
+public
+.PP
 .RS 4
 This parameter is a synonym for
 guest ok\.
@@ -2990,7 +3188,9 @@ for more information about this option\.
 Default:
 \fI\fIguest ok\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-only guest.PP
+
+only guest
+.PP
 .RS 4
 This parameter is a synonym for
 guest only\.
@@ -3141,7 +3341,9 @@ Default:
 Example:
 \fI\fIhostname lookups\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-allow hosts.PP
+
+allow hosts
+.PP
 .RS 4
 This parameter is a synonym for
 hosts allow\.
@@ -3204,7 +3406,9 @@ Default:
 Example:
 \fI\fIhosts allow\fR\fR\fI = \fR\fI150\.203\.5\. myhost\.mynet\.edu\.au\fR\fI \fR
 .RE
-deny hosts.PP
+
+deny hosts
+.PP
 .RS 4
 This parameter is a synonym for
 hosts deny\.
@@ -3345,7 +3549,9 @@ for details about managing the SID/uid/gid backend for each domain\.
 Example:
 \fI\fIidmap domains\fR\fR\fI = \fR\fIdefault AD CORP\fR\fI \fR
 .RE
-winbind gid.PP
+
+winbind gid
+.PP
 .RS 4
 This parameter is a synonym for
 idmap gid\.
@@ -3377,7 +3583,9 @@ This parameter specifies the number of seconds that Winbind\'s idmap interface w
 Default:
 \fI\fIidmap negative cache time\fR\fR\fI = \fR\fI120\fR\fI \fR
 .RE
-winbind uid.PP
+
+winbind uid
+.PP
 .RS 4
 This parameter is a synonym for
 idmap uid\.
@@ -3411,6 +3619,14 @@ It takes the standard substitutions, except
 \fI%P\fR
 and
 \fI%S\fR\.
+.sp
+The parameter
+\fIinclude = registry\fR
+has a special meaning: It does
+\fInot\fR
+include a file named
+\fIregistry\fR
+from the current working directory, but instead reads the global configuration options from the registry\. See the section on registry\-based configuration for details\. Note that this option automatically activates registry shares\.
 .sp
 Default:
 \fI\fIinclude\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -3648,7 +3864,7 @@ ntlm auth
 are both disabled, then only NTLMv2 logins will be permited\. Not all clients support NTLMv2, and most will require special configuration to use it\.
 .sp
 Default:
-\fI\fIlanman auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIlanman auth\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 large readwrite (G)
@@ -3683,6 +3899,52 @@ is not appended to the
 \fIldap admin dn\fR\.
 .sp
 \fINo default\fR
+.RE
+
+ldap connection timeout (G)
+.PP
+.RS 4
+This parameter tells the LDAP library calls which timeout in seconds they should honor during initial connection establishments to LDAP servers\. It is very useful in failover scenarios in particular\. If one or more LDAP servers are not reachable at all, we do not have to wait until TCP timeouts are over\. This feature must be supported by your LDAP library\.
+.sp
+This parameter is different from
+\fIldap timeout\fR
+which affects operations on LDAP servers using an existing connection and not establishing an initial connection\.
+.sp
+Default:
+\fI\fIldap connection timeout\fR\fR\fI = \fR\fI2\fR\fI \fR
+.RE
+
+ldap debug level (G)
+.PP
+.RS 4
+This parameter controls the debug level of the LDAP library calls\. In the case of OpenLDAP, it is the same bit\-field as understood by the server and documented in the
+\fBslapd.conf\fR(5)
+manpage\. A typical useful value will be
+\fI1\fR
+for tracing function calls\.
+.sp
+The debug ouput from the LDAP libraries appears with the prefix [LDAP] in Samba\'s logging output\. The level at which LDAP logging is printed is controlled by the parameter
+\fIldap debug threshold\fR\.
+.sp
+Default:
+\fI\fIldap debug level\fR\fR\fI = \fR\fI0\fR\fI \fR
+.sp
+Example:
+\fI\fIldap debug level\fR\fR\fI = \fR\fI1\fR\fI \fR
+.RE
+
+ldap debug threshold (G)
+.PP
+.RS 4
+This parameter controls the Samba debug level at which the ldap library debug output is printed in the Samba logs\. See the description of
+\fIldap debug level\fR
+for details\.
+.sp
+Default:
+\fI\fIldap debug threshold\fR\fR\fI = \fR\fI10\fR\fI \fR
+.sp
+Example:
+\fI\fIldap debug threshold\fR\fR\fI = \fR\fI5\fR\fI \fR
 .RE
 
 ldap delete dn (G)
@@ -3985,7 +4247,7 @@ Example:
 ldap timeout (G)
 .PP
 .RS 4
-When Samba connects to an ldap server that servermay be down or unreachable\. To prevent Samba from hanging whilst waiting for the connection this parameter specifies in seconds how long Samba should wait before failing the connect\. The default is to only wait fifteen seconds for the ldap server to respond to the connect request\.
+When Samba connects to an ldap server that server may be down or unreachable\. To prevent Samba from hanging whilst waiting for the connection this parameter specifies in seconds how long Samba should wait before failing the connect\. The default is to only wait fifteen seconds for the ldap server to respond to the connect request\.
 .sp
 Default:
 \fI\fIldap timeout\fR\fR\fI = \fR\fI15\fR\fI \fR
@@ -4116,7 +4378,9 @@ to become a local master browser\.
 Default:
 \fI\fIlocal master\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-lock dir.PP
+
+lock dir
+.PP
 .RS 4
 This parameter is a synonym for
 lock directory\.
@@ -4128,6 +4392,8 @@ lock directory (G)
 This option specifies the directory where lock files will be placed\. The lock files are used to implement the
 \fImax connections\fR
 option\.
+.sp
+Note: This option can not be set inside registry configurations\.
 .sp
 Default:
 \fI\fIlock directory\fR\fR\fI = \fR\fI${prefix}/var/locks\fR\fI \fR
@@ -4193,7 +4459,9 @@ This option takes the standard substitutions, allowing you to have separate log 
 Example:
 \fI\fIlog file\fR\fR\fI = \fR\fI/usr/local/samba/var/log\.%m\fR\fI \fR
 .RE
-debuglevel.PP
+
+debuglevel
+.PP
 .RS 4
 This parameter is a synonym for
 log level\.
@@ -4820,35 +5088,6 @@ Example:
 \fI\fImagic script\fR\fR\fI = \fR\fIuser\.csh\fR\fI \fR
 .RE
 
-mangled map (S)
-.PP
-.RS 4
-This is for those who want to directly map UNIX file names which cannot be represented on Windows/DOS\. The mangling of names is not always what is needed\. In particular you may have documents with file extensions that differ between DOS and UNIX\. For example, under UNIX it is common to use
-\fI\.html\fR
-for HTML files, whereas under Windows/DOS
-\fI\.htm\fR
-is more commonly used\.
-.sp
-So to map
-\fIhtml\fR
-to
-\fIhtm\fR
-you would use:
-.sp
-
-\fImangled map = (*\.html *\.htm)\fR\.
-.sp
-One very useful case is to remove the annoying
-\fI;1\fR
-off the ends of filenames on some CDROMs (only visible under some UNIXes)\. To do this use a map of (*;1 *;)\.
-.sp
-Default:
-\fI\fImangled map\fR\fR\fI = \fR\fI # no mangled map\fR\fI \fR
-.sp
-Example:
-\fI\fImangled map\fR\fR\fI = \fR\fI(*;1 *;)\fR\fI \fR
-.RE
-
 mangled names (S)
 .PP
 .RS 4
@@ -5251,7 +5490,9 @@ Default:
 Example:
 \fI\fImax print jobs\fR\fR\fI = \fR\fI5000\fR\fI \fR
 .RE
-protocol.PP
+
+protocol
+.PP
 .RS 4
 This parameter is a synonym for
 max protocol\.
@@ -5532,6 +5773,21 @@ Default:
 .sp
 Example:
 \fI\fImin protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
+.RE
+
+min receivefile size (G)
+.PP
+.RS 4
+This option changes the behavior of
+\fBsmbd\fR(8)
+when processing SMBwriteX calls\. Any incoming SMBwriteX call on a non\-signed SMB/CIFS connection greater than this value will not be processed in the normal way but will be passed to any underlying kernel recvfile or splice system call (if there is no such call Samba will emulate in user space)\. This allows zero\-copy writes directly from network socket buffers into the filesystem buffer cache, if available\. It may improve performance but user testing is recommended\. If set to zero Samba processes SMBwriteX calls in the normal way\. To enable POSIX large write support (SMB/CIFS writes up to 16Mb) this option must be nonzero\. The maximum value is 128k\. Values greater than 128k will be silently set to 128k\.
+.sp
+Note this option will have NO EFFECT if set on a SMB signed connection\.
+.sp
+The default is zero, which diables this option\.
+.sp
+Default:
+\fI\fImin receivefile size\fR\fR\fI = \fR\fI0\fR\fI \fR
 .RE
 
 min wins ttl (G)
@@ -5817,18 +6073,6 @@ list will be just the service name, which for home directories is the name of th
 .sp
 Default:
 \fI\fIonly user\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
-open files database hash size (G)
-.PP
-.RS 4
-This parameter was added in Samba 3\.0\.23\. This is an internal tuning parameter that sets the hash size of the tdb used for the open file databases\. The presence of this parameter allows tuning of the system for very large (thousands of concurrent users) Samba setups\. The default setting of this parameter should be sufficient for most normal environments\. It is advised not to change this parameter unless advised to by a Samba Team member\.
-.sp
-Default:
-\fI\fIopen files database hash size\fR\fR\fI = \fR\fI10007\fR\fI \fR
-.sp
-Example:
-\fI\fIopen files database hash size\fR\fR\fI = \fR\fI1338457\fR\fI \fR
 .RE
 
 oplock break wait time (G)
@@ -6303,7 +6547,9 @@ Example:
 Example:
 \fI\fIpassword server\fR\fR\fI = \fR\fI*\fR\fI \fR
 .RE
-directory.PP
+
+directory
+.PP
 .RS 4
 This parameter is a synonym for
 path\.
@@ -6382,7 +6628,9 @@ should close the service being connected to\.
 Default:
 \fI\fIpreexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-exec.PP
+
+exec
+.PP
 .RS 4
 This parameter is a synonym for
 preexec\.
@@ -6411,7 +6659,9 @@ Default:
 Example:
 \fI\fIpreexec\fR\fR\fI = \fR\fIecho \e"%u connected to %S from %m (%I)\e" >> /tmp/log\fR\fI \fR
 .RE
-prefered master.PP
+
+prefered master
+.PP
 .RS 4
 This parameter is a synonym for
 preferred master\.
@@ -6449,7 +6699,9 @@ Default:
 Example:
 \fI\fIpreload modules\fR\fR\fI = \fR\fI/usr/lib/samba/passdb/mysql\.so\fR\fI \fR
 .RE
-auto services.PP
+
+auto services
+.PP
 .RS 4
 This parameter is a synonym for
 preload\.
@@ -6484,7 +6736,9 @@ for a fuller discussion\.
 Default:
 \fI\fIpreserve case\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-print ok.PP
+
+print ok
+.PP
 .RS 4
 This parameter is a synonym for
 printable\.
@@ -6517,7 +6771,9 @@ Default:
 Example:
 \fI\fIprintcap cache time\fR\fR\fI = \fR\fI600\fR\fI \fR
 .RE
-printcap.PP
+
+printcap
+.PP
 .RS 4
 This parameter is a synonym for
 printcap name\.
@@ -6672,7 +6928,9 @@ Default:
 Example:
 \fI\fIprinter admin\fR\fR\fI = \fR\fIadmin, @staff\fR\fI \fR
 .RE
-printer.PP
+
+printer
+.PP
 .RS 4
 This parameter is a synonym for
 printer name\.
@@ -6815,18 +7073,6 @@ Example:
 \fI\fIqueueresume command\fR\fR\fI = \fR\fIenable %p\fR\fI \fR
 .RE
 
-read bmpx (G)
-.PP
-.RS 4
-This boolean parameter controls whether
-\fBsmbd\fR(8)
-will support the "Read Block Multiplex" SMB\. This is now rarely used and defaults to
-\fBno\fR\. You should never need to set this parameter\.
-.sp
-Default:
-\fI\fIread bmpx\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
 read list (S)
 .PP
 .RS 4
@@ -6890,6 +7136,28 @@ Default:
 .sp
 Example:
 \fI\fIrealm\fR\fR\fI = \fR\fImysambabox\.mycompany\.com\fR\fI \fR
+.RE
+
+registry shares (G)
+.PP
+.RS 4
+This turns on or off support for share definitions read from registry\. Shares defined in
+\fIsmb\.conf\fR
+take precedence over shares with the same name defined in registry\. See the section on registry\-based configuration for details\.
+.sp
+Note that this parameter defaults to
+\fIno\fR, but it is set to
+\fIyes\fR
+when
+\fIconfig backend\fR
+is set to
+\fIregistry\fR\.
+.sp
+Default:
+\fI\fIregistry shares\fR\fR\fI = \fR\fIno\fR\fI \fR
+.sp
+Example:
+\fI\fIregistry shares\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 remote announce (G)
@@ -7013,12 +7281,16 @@ on any share\.
 Default:
 \fI\fIrestrict anonymous\fR\fR\fI = \fR\fI0\fR\fI \fR
 .RE
-root.PP
+
+root
+.PP
 .RS 4
 This parameter is a synonym for
 root directory\.
 .RE
-root dir.PP
+
+root dir
+.PP
 .RS 4
 This parameter is a synonym for
 root directory\.
@@ -7784,6 +8056,29 @@ Example:
 \fI\fIshutdown script\fR\fR\fI = \fR\fI/usr/local/samba/sbin/shutdown %m %t %r %f\fR\fI \fR
 .RE
 
+smb encrypt (S)
+.PP
+.RS 4
+This is a new feature introduced with Samba 3\.2 and above\. It is an extension to the SMB/CIFS protocol negotiated as part of the UNIX extensions\. SMB encryption uses the GSSAPI (SSPI on Windows) ability to encrypt and sign every request/response in a SMB protocol stream\. When enabled it provides a secure method of SMB/CIFS communication, similar to an ssh protected session, but using SMB/CIFS authentication to negotiate encryption and signing keys\. Currently this is only supported by Samba 3\.2 smbclient, and hopefully soon Linux CIFSFS and MacOS/X clients\. Windows clients do not support this feature\.
+.sp
+This controls whether the server offers or requires the client it talks to to use SMB encryption\. Possible values are
+\fIauto\fR,
+\fImandatory\fR
+and
+\fIdisabled\fR\. This may be set on a per\-share basis, but clients may chose to encrypt the entire session, not just traffic to a specific share\. If this is set to mandatory then all traffic to a share
+\fImust\fR
+must be encrypted once the connection has been made to the share\. The server would return "access denied" to all non\-encrypted requests on such a share\. Selecting encrypted traffic reduces throughput as smaller packet sizes must be used (no huge UNIX style read/writes allowed) as well as the overhead of encrypting and signing all the data\.
+.sp
+If SMB encryption is selected, Windows style SMB signing (see the
+\fIserver signing\fR
+option) is no longer necessary, as the GSSAPI flags use select both signing and sealing of the data\.
+.sp
+When set to auto, SMB encryption is offered, but not enforced\. When set to mandatory, SMB encryption is required and if set to disabled, SMB encryption can not be negotiated\.
+.sp
+Default:
+\fI\fIsmb encrypt\fR\fR\fI = \fR\fIauto\fR\fI \fR
+.RE
+
 smb passwd file (G)
 .PP
 .RS 4
@@ -8418,12 +8713,16 @@ username map = /usr/local/samba/lib/users\.map
 Default:
 \fI\fIusername map\fR\fR\fI = \fR\fI # no username map\fR\fI \fR
 .RE
-user.PP
+
+user
+.PP
 .RS 4
 This parameter is a synonym for
 username\.
 .RE
-users.PP
+
+users
+.PP
 .RS 4
 This parameter is a synonym for
 username\.
@@ -8714,7 +9013,9 @@ veto oplock files = /\.*SEM/
 Default:
 \fI\fIveto oplock files\fR\fR\fI = \fR\fI # No files are vetoed for oplock grants\fR\fI \fR
 .RE
-vfs object.PP
+
+vfs object
+.PP
 .RS 4
 This parameter is a synonym for
 vfs objects\.
@@ -8823,6 +9124,19 @@ Default:
 \fI\fIwinbind enum users\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+winbind expand groups (G)
+.PP
+.RS 4
+This option controls the maximum depth that winbindd will traverse when flattening nested group memberships of Windows domain groups\. This is different from the
+\fIwinbind nested groups\fR
+option which implements the Windows NT4 model of local group nesting\. The "winbind expand groups" parameter specifically applies to the membership of domain groups\.
+.sp
+Be aware that a high value for this parameter can result in system slowdown as the main parent winbindd daemon must perform the group unrolling and will be unable to answer incoming NSS or authentication requests during this time\.
+.sp
+Default:
+\fI\fIwinbind expand groups\fR\fR\fI = \fR\fI1\fR\fI \fR
+.RE
+
 winbind nested groups (G)
 .PP
 .RS 4
@@ -8914,6 +9228,17 @@ Default:
 .sp
 Example:
 \fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fItrue\fR\fI \fR
+.RE
+
+winbind rpc only (G)
+.PP
+.RS 4
+Setting this parameter to
+yes
+forces winbindd to use RPC instead of LDAP to retrieve information from Domain Controllers\.
+.sp
+Default:
+\fI\fIwinbind rpc only\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 winbind separator (G)
@@ -9112,7 +9437,9 @@ Default:
 Example:
 \fI\fIworkgroup\fR\fR\fI = \fR\fIMYGROUP\fR\fI \fR
 .RE
-writable.PP
+
+writable
+.PP
 .RS 4
 This parameter is a synonym for
 writeable\.
@@ -9205,7 +9532,7 @@ and
 special sections make life for an administrator easy, but the various combinations of default attributes can be tricky\. Take extreme care when designing these sections\. In particular, ensure that the permissions on spool directories are correct\.
 .SH "VERSION"
 .PP
-This man page is correct for version 3\.0 of the Samba suite\.
+This man page is correct for version 3 of the Samba suite\.
 .SH "SEE ALSO"
 .PP
 

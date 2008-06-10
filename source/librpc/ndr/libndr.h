@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef __LIBNDR_H__
@@ -23,13 +22,8 @@
 
 #define _PRINTF_ATTRIBUTE(a,b) 
 
-#include "librpc/ndr/misc.h"
-#include "librpc/ndr/security.h"
-
-struct dcerpc_syntax_id {
-	struct GUID uuid;
-	uint32_t if_version;
-}/* [public] */;
+#include "librpc/gen_ndr/misc.h"
+#include "librpc/gen_ndr/security.h"
 
 /*
   this provides definitions for the libcli/rpc/ MSRPC library
@@ -93,6 +87,7 @@ struct ndr_push {
 	struct ndr_token_list *switch_list;
 	struct ndr_token_list *relative_list;
 	struct ndr_token_list *nbt_string_list;
+	struct ndr_token_list *full_ptr_list;
 
 	/* this is used to ensure we generate unique reference IDs */
 	uint32_t ptr_count;
@@ -109,7 +104,7 @@ struct ndr_print {
 	uint32_t flags; /* LIBNDR_FLAG_* */
 	uint32_t depth;
 	struct ndr_token_list *switch_list;
-	void (*print)(struct ndr_print *, const char *, ...);
+	void (*print)(struct ndr_print *, const char *, ...) PRINTF_ATTRIBUTE(2,3);
 	void *private_data;
 };
 
@@ -154,7 +149,7 @@ struct ndr_print {
 /* set to avoid recursion in ndr_size_*() calculation */
 #define LIBNDR_FLAG_NO_NDR_SIZE		(1<<31)
 
-/* useful macro for debugging */
+/* useful macro for debugging with DEBUG */
 #define NDR_PRINT_DEBUG(type, p) ndr_print_debug((ndr_print_fn_t)ndr_print_ ##type, #p, p)
 #define NDR_PRINT_UNION_DEBUG(type, level, p) ndr_print_union_debug((ndr_print_fn_t)ndr_print_ ##type, #p, level, p)
 #define NDR_PRINT_FUNCTION_DEBUG(type, flags, p) ndr_print_function_debug((ndr_print_function_t)ndr_print_ ##type, #type, flags, p)
@@ -162,9 +157,18 @@ struct ndr_print {
 #define NDR_PRINT_OUT_DEBUG(type, p) NDR_PRINT_FUNCTION_DEBUG(type, NDR_OUT, p)
 #define NDR_PRINT_IN_DEBUG(type, p) NDR_PRINT_FUNCTION_DEBUG(type, NDR_IN | NDR_SET_VALUES, p)
 
+/* useful macro for debugging in strings */
+#define NDR_PRINT_STRUCT_STRING(ctx, type, p) ndr_print_struct_string(ctx, (ndr_print_fn_t)ndr_print_ ##type, #p, p)
+#define NDR_PRINT_UNION_STRING(ctx, type, level, p) ndr_print_union_string(ctx, (ndr_print_fn_t)ndr_print_ ##type, #p, level, p)
+#define NDR_PRINT_FUNCTION_STRING(ctx, type, flags, p) ndr_print_function_string(ctx, (ndr_print_function_t)ndr_print_ ##type, #type, flags, p)
+#define NDR_PRINT_BOTH_STRING(ctx, type, p) NDR_PRINT_FUNCTION_STRING(ctx, type, NDR_BOTH, p)
+#define NDR_PRINT_OUT_STRING(ctx, type, p) NDR_PRINT_FUNCTION_STRING(ctx, type, NDR_OUT, p)
+#define NDR_PRINT_IN_STRING(ctx, type, p) NDR_PRINT_FUNCTION_STRING(ctx, type, NDR_IN | NDR_SET_VALUES, p)
+
 #define NDR_BE(ndr) (((ndr)->flags & (LIBNDR_FLAG_BIGENDIAN|LIBNDR_FLAG_LITTLE_ENDIAN)) == LIBNDR_FLAG_BIGENDIAN)
 
 enum ndr_err_code {
+	NDR_ERR_SUCCESS = 0,
 	NDR_ERR_ARRAY_SIZE,
 	NDR_ERR_BAD_SWITCH,
 	NDR_ERR_OFFSET,
@@ -179,8 +183,18 @@ enum ndr_err_code {
 	NDR_ERR_ALLOC,
 	NDR_ERR_RANGE,
 	NDR_ERR_TOKEN,
-	NDR_ERR_IPV4ADDRESS
+	NDR_ERR_IPV4ADDRESS,
+	NDR_ERR_INVALID_POINTER,
+	NDR_ERR_UNREAD_BYTES
 };
+
+#define NDR_ERR_CODE_IS_SUCCESS(x) (x == NDR_ERR_SUCCESS)
+
+#define NDR_ERR_HAVE_NO_MEMORY(x) do { \
+	if (NULL == (x)) { \
+		return NDR_ERR_ALLOC; \
+	} \
+} while (0)
 
 enum ndr_compression_alg {
 	NDR_COMPRESSION_MSZIP	= 2,
@@ -234,11 +248,13 @@ enum ndr_compression_alg {
 
 /* these are used to make the error checking on each element in libndr
    less tedious, hopefully making the code more readable */
-#define NDR_CHECK(call) do { NTSTATUS _status; \
-                             _status = call; \
-                             if (!NT_STATUS_IS_OK(_status)) \
-                                return _status; \
-                        } while (0)
+#define NDR_CHECK(call) do { \
+	enum ndr_err_code _status; \
+	_status = call; \
+	if (!NDR_ERR_CODE_IS_SUCCESS(_status)) { \
+		return _status; \
+	} \
+} while (0)
 
 #define NDR_PULL_GET_MEM_CTX(ndr) (ndr->current_mem_ctx)
 
@@ -247,7 +263,7 @@ enum ndr_compression_alg {
 		if (!(mem_ctx)) {\
 			return ndr_pull_error(ndr, NDR_ERR_ALLOC, "NDR_PULL_SET_MEM_CTX(NULL): %s\n", __location__); \
 		}\
-		ndr->current_mem_ctx = CONST_DISCARD(TALLOC_CTX *, mem_ctx);\
+		ndr->current_mem_ctx = discard_const(mem_ctx);\
 	}\
 } while(0)
 
@@ -274,7 +290,7 @@ enum ndr_compression_alg {
 
 
 #define NDR_PUSH_ALLOC_SIZE(ndr, s, size) do { \
-       (s) = talloc_array(ndr, uint8, size); \
+       (s) = talloc_array(ndr, uint8_t, size); \
        if (!(s)) return ndr_push_error(ndr, NDR_ERR_ALLOC, "push alloc %u failed: %s\n", (unsigned)size, __location__); \
 } while (0)
 
@@ -284,14 +300,52 @@ enum ndr_compression_alg {
 } while (0)
 
 /* these are used when generic fn pointers are needed for ndr push/pull fns */
-typedef NTSTATUS (*ndr_push_flags_fn_t)(struct ndr_push *, int ndr_flags, const void *);
-typedef NTSTATUS (*ndr_pull_flags_fn_t)(struct ndr_pull *, int ndr_flags, void *);
+typedef enum ndr_err_code (*ndr_push_flags_fn_t)(struct ndr_push *, int ndr_flags, const void *);
+typedef enum ndr_err_code (*ndr_pull_flags_fn_t)(struct ndr_pull *, int ndr_flags, void *);
 typedef void (*ndr_print_fn_t)(struct ndr_print *, const char *, const void *);
 typedef void (*ndr_print_function_t)(struct ndr_print *, const char *, int, const void *);
 
-extern const struct dcerpc_syntax_id ndr_transfer_syntax;
-extern const struct dcerpc_syntax_id ndr64_transfer_syntax;
+extern const struct ndr_syntax_id ndr_transfer_syntax;
+extern const struct ndr_syntax_id ndr64_transfer_syntax;
 
-#include "dcerpc.h"
+struct ndr_interface_call {
+	const char *name;
+	size_t struct_size;
+	ndr_push_flags_fn_t ndr_push;
+	ndr_pull_flags_fn_t ndr_pull;
+	ndr_print_function_t ndr_print;
+	bool async;
+};
+
+struct ndr_interface_string_array {
+	uint32_t count;
+	const char * const *names;
+};
+
+struct ndr_interface_table {
+	const char *name;
+	struct ndr_syntax_id syntax_id;
+	const char *helpstring;
+	uint32_t num_calls;
+	const struct ndr_interface_call *calls;
+	const struct ndr_interface_string_array *endpoints;
+	const struct ndr_interface_string_array *authservices;
+};
+
+struct ndr_interface_list {
+	struct ndr_interface_list *prev, *next;
+	const struct ndr_interface_table *table;
+};
+
+#define NDR_SCALAR_PROTO(name, type) \
+enum ndr_err_code ndr_push_ ## name(struct ndr_push *ndr, int ndr_flags, type v); \
+enum ndr_err_code ndr_pull_ ## name(struct ndr_pull *ndr, int ndr_flags, type *v); \
+void ndr_print_ ## name(struct ndr_print *ndr, const char *var_name, type v);
+
+#define NDR_BUFFER_PROTO(name, type) \
+enum ndr_err_code ndr_push_ ## name(struct ndr_push *ndr, int ndr_flags, const type *v); \
+enum ndr_err_code ndr_pull_ ## name(struct ndr_pull *ndr, int ndr_flags, type *v); \
+void ndr_print_ ## name(struct ndr_print *ndr, const char *var_name, const type *v);
+
 
 #endif /* __LIBNDR_H__ */

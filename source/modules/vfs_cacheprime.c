@@ -3,7 +3,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -12,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -46,17 +45,16 @@ static void * g_readbuf = NULL;
  * per-fsp data to make sure we only ever do this once. If pread is being
  * emulated by seek/read/seek, when this will suck quite a lot.
  */
-static BOOL prime_cache(
+static bool prime_cache(
             struct vfs_handle_struct *  handle,
 			files_struct *		        fsp,
-			int			                fd,
 			SMB_OFF_T		            offset,
 			size_t			            count)
 {
         SMB_OFF_T * last;
         ssize_t nread;
 
-        last = VFS_ADD_FSP_EXTENSION(handle, fsp, SMB_OFF_T);
+        last = (SMB_OFF_T *)VFS_ADD_FSP_EXTENSION(handle, fsp, SMB_OFF_T);
         if (!last) {
                 return False;
         }
@@ -76,7 +74,7 @@ static BOOL prime_cache(
             MODULE, (long long)g_readsz, (long long)*last,
             fsp->fsp_name));
 
-        nread = sys_pread(fd, g_readbuf, g_readsz, *last);
+        nread = sys_pread(fsp->fh->fd, g_readbuf, g_readsz, *last);
         if (nread < 0) {
             *last = -1;
             return False;
@@ -126,51 +124,48 @@ static int cprime_connect(
 static ssize_t cprime_sendfile(
                 struct vfs_handle_struct *  handle,
                 int                         tofd,
-                files_struct *              fsp,
-                int                         fromfd,
+                files_struct *              fromfsp,
                 const DATA_BLOB *           header,
                 SMB_OFF_T                   offset,
                 size_t                      count)
 {
         if (g_readbuf && offset == 0) {
-                prime_cache(handle, fsp, fromfd, offset, count);
+                prime_cache(handle, fromfsp, offset, count);
         }
 
-        return SMB_VFS_NEXT_SENDFILE(handle, tofd, fsp, fromfd,
+        return SMB_VFS_NEXT_SENDFILE(handle, tofd, fromfsp,
                                      header, offset, count);
 }
 
 static ssize_t cprime_read(
                 vfs_handle_struct * handle,
                 files_struct *      fsp,
-                int                 fd,
                 void *              data,
                 size_t              count)
 {
         SMB_OFF_T offset;
 
-        offset = SMB_VFS_LSEEK(fsp, fd, 0, SEEK_CUR);
+        offset = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
         if (offset >= 0 && g_readbuf)  {
-                prime_cache(handle, fsp, fd, offset, count);
-                SMB_VFS_LSEEK(fsp, fd, offset, SEEK_SET);
+                prime_cache(handle, fsp, offset, count);
+                SMB_VFS_LSEEK(fsp, offset, SEEK_SET);
         }
 
-        return SMB_VFS_NEXT_READ(handle, fsp, fd, data, count);
+        return SMB_VFS_NEXT_READ(handle, fsp, data, count);
 }
 
 static ssize_t cprime_pread(
                 vfs_handle_struct * handle,
                 files_struct *      fsp,
-                int                 fd,
                 void *              data,
 		        size_t              count,
                 SMB_OFF_T           offset)
 {
         if (g_readbuf) {
-                prime_cache(handle, fsp, fd, offset, count);
+                prime_cache(handle, fsp, offset, count);
         }
 
-        return SMB_VFS_NEXT_PREAD(handle, fsp, fd, data, count, offset);
+        return SMB_VFS_NEXT_PREAD(handle, fsp, data, count, offset);
 }
 
 static vfs_op_tuple cprime_ops [] =

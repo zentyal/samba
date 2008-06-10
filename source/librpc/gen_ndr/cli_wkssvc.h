@@ -1,35 +1,230 @@
 #include "librpc/gen_ndr/ndr_wkssvc.h"
 #ifndef __CLI_WKSSVC__
 #define __CLI_WKSSVC__
-NTSTATUS rpccli_wkssvc_NetWkstaGetInfo(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, uint32_t level, union wkssvc_NetWkstaInfo *info);
-NTSTATUS rpccli_wkssvc_NetWkstaSetInfo(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, uint32_t level, union wkssvc_NetWkstaInfo *info, uint32_t *parm_error);
-NTSTATUS rpccli_wkssvc_NetWkstaEnumUsers(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, uint32_t level, union WKS_USER_ENUM_UNION *users, uint32_t prefmaxlen, uint32_t *entriesread, uint32_t *totalentries, uint32_t *resumehandle);
-NTSTATUS rpccli_WKSSVC_NETRWKSTAUSERGETINFO(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRWKSTAUSERSETINFO(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_wkssvc_NetWkstaTransportEnum(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, uint32_t *level, union wkssvc_NetWkstaTransportCtr *ctr, uint32_t max_buffer, uint32_t *totalentries, uint32_t *resume_handle);
-NTSTATUS rpccli_WKSSVC_NETRWKSTATRANSPORTADD(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRWKSTATRANSPORTDEL(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRUSEADD(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRUSEGETINFO(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRUSEDEL(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRUSEENUM(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRMESSAGEBUFFERSEND(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRWORKSTATIONSTATISTICSGET(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRLOGONDOMAINNAMEADD(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRLOGONDOMAINNAMEDEL(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRJOINDOMAIN(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRUNJOINDOMAIN(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRRENAMEMACHINEINDOMAIN(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRVALIDATENAME(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRGETJOININFORMATION(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRGETJOINABLEOUS(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_wkssvc_NetrJoinDomain2(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, const char *domain_name, const char *account_name, const char *admin_account, struct wkssvc_PasswordBuffer *encrypted_password, uint32_t join_flags);
-NTSTATUS rpccli_wkssvc_NetrUnjoinDomain2(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, const char *account, struct wkssvc_PasswordBuffer *encrypted_password, uint32_t unjoin_flags);
-NTSTATUS rpccli_wkssvc_NetrRenameMachineInDomain2(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, const char *NewMachineName, const char *Account, struct wkssvc_PasswordBuffer *EncryptedPassword, uint32_t RenameOptions);
-NTSTATUS rpccli_WKSSVC_NETRVALIDATENAME2(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRGETJOINABLEOUS2(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_wkssvc_NetrAddAlternateComputerName(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, const char *NewAlternateMachineName, const char *Account, struct wkssvc_PasswordBuffer *EncryptedPassword, uint32_t Reserved);
-NTSTATUS rpccli_wkssvc_NetrRemoveAlternateComputerName(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, const char *server_name, const char *AlternateMachineNameToRemove, const char *Account, struct wkssvc_PasswordBuffer *EncryptedPassword, uint32_t Reserved);
-NTSTATUS rpccli_WKSSVC_NETRSETPRIMARYCOMPUTERNAME(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
-NTSTATUS rpccli_WKSSVC_NETRENUMERATECOMPUTERNAMES(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx);
+NTSTATUS rpccli_wkssvc_NetWkstaGetInfo(struct rpc_pipe_client *cli,
+				       TALLOC_CTX *mem_ctx,
+				       const char *server_name /* [in] [unique,charset(UTF16)] */,
+				       uint32_t level /* [in]  */,
+				       union wkssvc_NetWkstaInfo *info /* [out] [ref,switch_is(level)] */,
+				       WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetWkstaSetInfo(struct rpc_pipe_client *cli,
+				       TALLOC_CTX *mem_ctx,
+				       const char *server_name /* [in] [unique,charset(UTF16)] */,
+				       uint32_t level /* [in]  */,
+				       union wkssvc_NetWkstaInfo *info /* [in] [ref,switch_is(level)] */,
+				       uint32_t *parm_error /* [in,out] [ref] */,
+				       WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetWkstaEnumUsers(struct rpc_pipe_client *cli,
+					 TALLOC_CTX *mem_ctx,
+					 const char *server_name /* [in] [unique,charset(UTF16)] */,
+					 struct wkssvc_NetWkstaEnumUsersInfo *info /* [in,out] [ref] */,
+					 uint32_t prefmaxlen /* [in]  */,
+					 uint32_t *entries_read /* [out] [ref] */,
+					 uint32_t *resume_handle /* [in,out] [unique] */,
+					 WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrWkstaUserGetInfo(struct rpc_pipe_client *cli,
+					    TALLOC_CTX *mem_ctx,
+					    const char *unknown /* [in] [unique,charset(UTF16)] */,
+					    uint32_t level /* [in]  */,
+					    union wkssvc_NetrWkstaUserInfo *info /* [out] [ref,switch_is(level)] */,
+					    WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrWkstaUserSetInfo(struct rpc_pipe_client *cli,
+					    TALLOC_CTX *mem_ctx,
+					    const char *unknown /* [in] [unique,charset(UTF16)] */,
+					    uint32_t level /* [in]  */,
+					    union wkssvc_NetrWkstaUserInfo *info /* [in] [ref,switch_is(level)] */,
+					    uint32_t *parm_err /* [in,out] [unique] */,
+					    WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetWkstaTransportEnum(struct rpc_pipe_client *cli,
+					     TALLOC_CTX *mem_ctx,
+					     const char *server_name /* [in] [unique,charset(UTF16)] */,
+					     struct wkssvc_NetWkstaTransportInfo *info /* [in,out] [ref] */,
+					     uint32_t max_buffer /* [in]  */,
+					     uint32_t *total_entries /* [out] [ref] */,
+					     uint32_t *resume_handle /* [in,out] [unique] */,
+					     WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrWkstaTransportAdd(struct rpc_pipe_client *cli,
+					     TALLOC_CTX *mem_ctx,
+					     const char *server_name /* [in] [unique,charset(UTF16)] */,
+					     uint32_t level /* [in]  */,
+					     struct wkssvc_NetWkstaTransportInfo0 *info0 /* [in] [ref] */,
+					     uint32_t *parm_err /* [in,out] [unique] */,
+					     WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrWkstaTransportDel(struct rpc_pipe_client *cli,
+					     TALLOC_CTX *mem_ctx,
+					     const char *server_name /* [in] [unique,charset(UTF16)] */,
+					     const char *transport_name /* [in] [unique,charset(UTF16)] */,
+					     uint32_t unknown3 /* [in]  */,
+					     WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUseAdd(struct rpc_pipe_client *cli,
+				  TALLOC_CTX *mem_ctx,
+				  const char *server_name /* [in] [unique,charset(UTF16)] */,
+				  uint32_t level /* [in]  */,
+				  union wkssvc_NetrUseGetInfoCtr *ctr /* [in] [ref,switch_is(level)] */,
+				  uint32_t *parm_err /* [in,out] [unique] */,
+				  WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUseGetInfo(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx,
+				      const char *server_name /* [in] [unique,charset(UTF16)] */,
+				      const char *use_name /* [in] [ref,charset(UTF16)] */,
+				      uint32_t level /* [in]  */,
+				      union wkssvc_NetrUseGetInfoCtr *ctr /* [out] [ref,switch_is(level)] */,
+				      WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUseDel(struct rpc_pipe_client *cli,
+				  TALLOC_CTX *mem_ctx,
+				  const char *server_name /* [in] [unique,charset(UTF16)] */,
+				  const char *use_name /* [in] [ref,charset(UTF16)] */,
+				  uint32_t force_cond /* [in]  */,
+				  WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUseEnum(struct rpc_pipe_client *cli,
+				   TALLOC_CTX *mem_ctx,
+				   const char *server_name /* [in] [unique,charset(UTF16)] */,
+				   struct wkssvc_NetrUseEnumInfo *info /* [in,out] [ref] */,
+				   uint32_t prefmaxlen /* [in]  */,
+				   uint32_t *entries_read /* [out] [ref] */,
+				   uint32_t *resume_handle /* [in,out] [unique] */,
+				   WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrMessageBufferSend(struct rpc_pipe_client *cli,
+					     TALLOC_CTX *mem_ctx,
+					     const char *server_name /* [in] [unique,charset(UTF16)] */,
+					     const char *message_name /* [in] [ref,charset(UTF16)] */,
+					     const char *message_sender_name /* [in] [unique,charset(UTF16)] */,
+					     uint8_t *message_buffer /* [in] [ref,size_is(message_size)] */,
+					     uint32_t message_size /* [in]  */,
+					     WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrWorkstationStatisticsGet(struct rpc_pipe_client *cli,
+						    TALLOC_CTX *mem_ctx,
+						    const char *server_name /* [in] [unique,charset(UTF16)] */,
+						    const char *unknown2 /* [in] [unique,charset(UTF16)] */,
+						    uint32_t unknown3 /* [in]  */,
+						    uint32_t unknown4 /* [in]  */,
+						    struct wkssvc_NetrWorkstationStatistics **info /* [out] [ref] */,
+						    WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrLogonDomainNameAdd(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx,
+					      const char *domain_name /* [in] [ref,charset(UTF16)] */,
+					      WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrLogonDomainNameDel(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx,
+					      const char *domain_name /* [in] [ref,charset(UTF16)] */,
+					      WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrJoinDomain(struct rpc_pipe_client *cli,
+				      TALLOC_CTX *mem_ctx,
+				      const char *server_name /* [in] [unique,charset(UTF16)] */,
+				      const char *domain_name /* [in] [ref,charset(UTF16)] */,
+				      const char *account_ou /* [in] [unique,charset(UTF16)] */,
+				      const char *Account /* [in] [unique,charset(UTF16)] */,
+				      const char *password /* [in] [unique,charset(UTF16)] */,
+				      uint32_t join_flags /* [in]  */,
+				      WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUnjoinDomain(struct rpc_pipe_client *cli,
+					TALLOC_CTX *mem_ctx,
+					const char *server_name /* [in] [unique,charset(UTF16)] */,
+					const char *Account /* [in] [unique,charset(UTF16)] */,
+					const char *password /* [in] [unique,charset(UTF16)] */,
+					uint32_t unjoin_flags /* [in]  */,
+					WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrRenameMachineInDomain(struct rpc_pipe_client *cli,
+						 TALLOC_CTX *mem_ctx,
+						 const char *server_name /* [in] [unique,charset(UTF16)] */,
+						 const char *NewMachineName /* [in] [unique,charset(UTF16)] */,
+						 const char *Account /* [in] [unique,charset(UTF16)] */,
+						 const char *password /* [in] [unique,charset(UTF16)] */,
+						 uint32_t RenameOptions /* [in]  */,
+						 WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrValidateName(struct rpc_pipe_client *cli,
+					TALLOC_CTX *mem_ctx,
+					const char *server_name /* [in] [unique,charset(UTF16)] */,
+					const char *name /* [in] [ref,charset(UTF16)] */,
+					const char *Account /* [in] [unique,charset(UTF16)] */,
+					const char *Password /* [in] [unique,charset(UTF16)] */,
+					enum wkssvc_NetValidateNameType name_type /* [in]  */,
+					WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrGetJoinInformation(struct rpc_pipe_client *cli,
+					      TALLOC_CTX *mem_ctx,
+					      const char *server_name /* [in] [unique,charset(UTF16)] */,
+					      const char **name_buffer /* [in,out] [ref,charset(UTF16)] */,
+					      enum wkssvc_NetJoinStatus *name_type /* [out] [ref] */,
+					      WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrGetJoinableOus(struct rpc_pipe_client *cli,
+					  TALLOC_CTX *mem_ctx,
+					  const char *server_name /* [in] [unique,charset(UTF16)] */,
+					  const char *domain_name /* [in] [ref,charset(UTF16)] */,
+					  const char *Account /* [in] [unique,charset(UTF16)] */,
+					  const char *unknown /* [in] [unique,charset(UTF16)] */,
+					  uint32_t *num_ous /* [in,out] [ref] */,
+					  const char ***ous /* [out] [ref,charset(UTF16),size_is(,*num_ous)] */,
+					  WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrJoinDomain2(struct rpc_pipe_client *cli,
+				       TALLOC_CTX *mem_ctx,
+				       const char *server_name /* [in] [unique,charset(UTF16)] */,
+				       const char *domain_name /* [in] [ref,charset(UTF16)] */,
+				       const char *account_ou /* [in] [unique,charset(UTF16)] */,
+				       const char *admin_account /* [in] [unique,charset(UTF16)] */,
+				       struct wkssvc_PasswordBuffer *encrypted_password /* [in] [unique] */,
+				       uint32_t join_flags /* [in]  */,
+				       WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrUnjoinDomain2(struct rpc_pipe_client *cli,
+					 TALLOC_CTX *mem_ctx,
+					 const char *server_name /* [in] [unique,charset(UTF16)] */,
+					 const char *account /* [in] [unique,charset(UTF16)] */,
+					 struct wkssvc_PasswordBuffer *encrypted_password /* [in] [unique] */,
+					 uint32_t unjoin_flags /* [in]  */,
+					 WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrRenameMachineInDomain2(struct rpc_pipe_client *cli,
+						  TALLOC_CTX *mem_ctx,
+						  const char *server_name /* [in] [unique,charset(UTF16)] */,
+						  const char *NewMachineName /* [in] [unique,charset(UTF16)] */,
+						  const char *Account /* [in] [unique,charset(UTF16)] */,
+						  struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+						  uint32_t RenameOptions /* [in]  */,
+						  WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrValidateName2(struct rpc_pipe_client *cli,
+					 TALLOC_CTX *mem_ctx,
+					 const char *server_name /* [in] [unique,charset(UTF16)] */,
+					 const char *name /* [in] [ref,charset(UTF16)] */,
+					 const char *Account /* [in] [unique,charset(UTF16)] */,
+					 struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+					 enum wkssvc_NetValidateNameType name_type /* [in]  */,
+					 WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrGetJoinableOus2(struct rpc_pipe_client *cli,
+					   TALLOC_CTX *mem_ctx,
+					   const char *server_name /* [in] [unique,charset(UTF16)] */,
+					   const char *domain_name /* [in] [ref,charset(UTF16)] */,
+					   const char *Account /* [in] [unique,charset(UTF16)] */,
+					   struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+					   uint32_t *num_ous /* [in,out] [ref] */,
+					   const char ***ous /* [out] [ref,charset(UTF16),size_is(,*num_ous)] */,
+					   WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrAddAlternateComputerName(struct rpc_pipe_client *cli,
+						    TALLOC_CTX *mem_ctx,
+						    const char *server_name /* [in] [unique,charset(UTF16)] */,
+						    const char *NewAlternateMachineName /* [in] [unique,charset(UTF16)] */,
+						    const char *Account /* [in] [unique,charset(UTF16)] */,
+						    struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+						    uint32_t Reserved /* [in]  */,
+						    WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrRemoveAlternateComputerName(struct rpc_pipe_client *cli,
+						       TALLOC_CTX *mem_ctx,
+						       const char *server_name /* [in] [unique,charset(UTF16)] */,
+						       const char *AlternateMachineNameToRemove /* [in] [unique,charset(UTF16)] */,
+						       const char *Account /* [in] [unique,charset(UTF16)] */,
+						       struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+						       uint32_t Reserved /* [in]  */,
+						       WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrSetPrimaryComputername(struct rpc_pipe_client *cli,
+						  TALLOC_CTX *mem_ctx,
+						  const char *server_name /* [in] [unique,charset(UTF16)] */,
+						  const char *primary_name /* [in] [unique,charset(UTF16)] */,
+						  const char *Account /* [in] [unique,charset(UTF16)] */,
+						  struct wkssvc_PasswordBuffer *EncryptedPassword /* [in] [unique] */,
+						  uint32_t Reserved /* [in]  */,
+						  WERROR *werror);
+NTSTATUS rpccli_wkssvc_NetrEnumerateComputerNames(struct rpc_pipe_client *cli,
+						  TALLOC_CTX *mem_ctx,
+						  const char *server_name /* [in] [unique,charset(UTF16)] */,
+						  enum wkssvc_ComputerNameType name_type /* [in]  */,
+						  uint32_t Reserved /* [in]  */,
+						  struct wkssvc_ComputerNamesCtr **ctr /* [out] [ref] */,
+						  WERROR *werror);
 #endif /* __CLI_WKSSVC__ */

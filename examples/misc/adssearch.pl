@@ -3,7 +3,7 @@
 # adssearch.pl 	- query an Active Directory server and
 #		  display objects in a human readable format
 #
-# Copyright (C) Guenther Deschner <gd@samba.org> 2003-2007
+# Copyright (C) Guenther Deschner <gd@samba.org> 2003-2008
 #
 # TODO: add range retrieval
 #	write sddl-converter, decode userParameters
@@ -77,6 +77,7 @@ my (
 	$opt_port,
 	$opt_realm,
 	$opt_saslmech,
+	$opt_search_opt,
 	$opt_scope, 
 	$opt_simpleauth,
 	$opt_starttls,
@@ -108,6 +109,7 @@ GetOptions(
 	'saslmech|Y=s'	=> \$opt_saslmech,
 	'schema|c'	=> \$opt_dump_schema,
 	'scope|s=s'	=> \$opt_scope,
+	'searchopt:i'	=> \$opt_search_opt,
 	'simpleauth|x'	=> \$opt_simpleauth,
 	'tls|Z'		=> \$opt_starttls,
 	'user|U=s'	=> \$opt_user,
@@ -228,6 +230,7 @@ my %ads_mixed_domain = (
 my %ads_ds_func = (
 "DS_BEHAVIOR_WIN2000"			=> 0,	# untested
 "DS_BEHAVIOR_WIN2003"			=> 2,
+"DS_BEHAVIOR_WIN2008"			=> 3,
 );
 
 my %ads_instance_type = (
@@ -240,6 +243,14 @@ my %ads_uacc = (
 	"ACCOUNT_NEVER_EXPIRES"		=> 0x000000, # 0 
 	"ACCOUNT_OK"			=> 0x800000, # 8388608
 	"ACCOUNT_LOCKED_OUT"		=> 0x800010, # 8388624
+);
+
+my %ads_enctypes = (
+	"DES-CBC-CRC"				=> 0x01,
+	"DES-CBC-MD5"				=> 0x02,
+	"RC4_HMAC_MD5"				=> 0x04,
+	"AES128_CTS_HMAC_SHA1_96"		=> 0x08,
+	"AES128_CTS_HMAC_SHA1_128"		=> 0x10,
 );
 
 my %ads_gpoptions = (
@@ -408,6 +419,7 @@ my %ads_gtype = (
 	"GTYPE_SECURITY_BUILTIN_LOCAL_GROUP"	=> 0x80000005,
 	"GTYPE_SECURITY_DOMAIN_LOCAL_GROUP"	=> 0x80000004,
 	"GTYPE_SECURITY_GLOBAL_GROUP"		=> 0x80000002,
+	"GTYPE_SECURITY_UNIVERSAL_GROUP"	=> 0x80000008,
 	"GTYPE_DISTRIBUTION_GLOBAL_GROUP"	=> 0x00000002,
 	"GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP"	=> 0x00000004,
 	"GTYPE_DISTRIBUTION_UNIVERSAL_GROUP"	=> 0x00000008,
@@ -486,6 +498,7 @@ if (!$password) {
 my %attr_handler = (
 	"Token-Groups-No-GC-Acceptable" => \&dump_sid,	#wrong name
 	"accountExpires"		=> \&dump_nttime,
+	"attributeSecurityGUID"		=> \&dump_guid,
 	"badPasswordTime"		=> \&dump_nttime,			
 	"creationTime"			=> \&dump_nttime,
 	"currentTime"			=> \&dump_timestr,
@@ -514,6 +527,7 @@ my %attr_handler = (
 	"modifyTimeStamp"		=> \&dump_timestr,
 	"msDS-Behavior-Version"		=> \&dump_ds_func,	#unsure
 	"msDS-User-Account-Control-Computed" => \&dump_uacc,
+	"msDS-SupportedEncryptionTypes"	=> \&dump_enctypes,
 	"mS-DS-CreatorSID"		=> \&dump_sid,
 #	"msRADIUSFramedIPAddress"	=> \&dump_ipaddr,
 #	"msRASSavedFramedIPAddress" 	=> \&dump_ipaddr,
@@ -527,6 +541,7 @@ my %attr_handler = (
 	"pwdLastSet"			=> \&dump_nttime,
 	"pwdProperties"			=> \&dump_pwdproperties,
 	"sAMAccountType"		=> \&dump_atype,
+	"schemaIDGUID"			=> \&dump_guid,
 	"sDRightsEffective"		=> \&dump_sdeffective,
 	"securityIdentifier"		=> \&dump_sid,
 	"serverState"			=> \&dump_serverstate,
@@ -832,7 +847,8 @@ sub get_base_from_rootdse {
 
 	my $server = shift || "";
 	$dse = shift || get_dse($server,$async_ldap_hd) || return -1;
-	return $dse->get_value('defaultNamingContext');
+	return $dse->get_value($opt_dump_schema ? 'schemaNamingContext':
+						  'defaultNamingContext');
 }
 
 sub get_realm_from_rootdse {
@@ -1203,6 +1219,10 @@ sub dump_uacc {
 	return dump_bitmask_equal(@_,%ads_uacc); 
 }
 
+sub dump_enctypes {
+	return dump_bitmask_and(@_,%ads_enctypes);
+}
+
 sub dump_uf {
 	return dump_bitmask_and(@_,%ads_uf);
 }
@@ -1461,6 +1481,21 @@ sub gen_controls {
 			critical => 'true',
 			value => $opt_display_extendeddn ? $ctl_extended_dn_val : "");
 
+	# setup search options
+	my $search_opt = Convert::ASN1->new;
+	$search_opt->prepare(
+		q<	searchopt ::= SEQUENCE {
+				flags     INTEGER
+			}
+		>
+	);
+
+	my $tmp = $search_opt->encode( flags => $opt_search_opt);
+	my $ctl_search_opt = Net::LDAP::Control->new( 
+		type => $ads_controls{'LDAP_SERVER_SEARCH_OPTIONS_OID'},
+		critical => 'true',
+		value => $tmp);
+
 	# setup notify control
 	my $ctl_notification = Net::LDAP::Control->new( 
 		type => $ads_controls{'LDAP_SERVER_NOTIFICATION_OID'},
@@ -1479,7 +1514,7 @@ sub gen_controls {
 		critical => 'true',
 		value => "");
 
-	if (defined($opt_paging)) {
+	if (defined($opt_paging) || $opt_dump_schema) {
 		push(@ctrls, $ctl_paged);
 		push(@ctrls_s, "LDAP_PAGED_RESULT_OID_STRING" );
 	}
@@ -1501,6 +1536,11 @@ sub gen_controls {
 	if ($opt_domain_scope) {
 		push(@ctrls, $ctl_domscope);
 		push(@ctrls_s, "LDAP_SERVER_DOMAIN_SCOPE_OID");
+	}
+
+	if ($opt_search_opt) {
+		push(@ctrls, $ctl_search_opt);
+		push(@ctrls_s, "LDAP_SERVER_SEARCH_OPTIONS_OID");
 	}
 
 	return @ctrls;
@@ -1762,9 +1802,9 @@ sub main () {
 
 	if ($opt_dump_schema) {
 		print "Dumping Schema:\n";
-		my $ads_schema = $async_ldap_hd->schema;
-		$ads_schema->dump;
-		exit 0;
+#		my $ads_schema = $async_ldap_hd->schema;
+#		$ads_schema->dump;
+#		exit 0;
 	}
 
 	while (1) {
@@ -1781,8 +1821,9 @@ sub main () {
 		if (!$opt_notify && ($async_search->code == LDAP_REFERRAL)) {
 			foreach my $ref ($async_search->referrals) {
 				print "\ngot Referral: [$ref]\n";
+				my ($prot, $host, $base) = split(/\/+/, $ref);
 				$async_ldap_hd->unbind();
-				$async_ldap_hd = get_ldap_hd($ref, 1);
+				$async_ldap_hd = get_ldap_hd($host, 1);
 				if (do_bind($async_ldap_hd, $sasl_bind) == -1) {
 					$async_ldap_hd->unbind();
 					next;

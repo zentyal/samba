@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,11 +15,12 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
+
+const DATA_BLOB data_blob_null = { NULL, 0, NULL };
 
 /*******************************************************************
  Free() a data blob.
@@ -72,11 +73,11 @@ DATA_BLOB data_blob_talloc(TALLOC_CTX *mem_ctx, const void *p, size_t length)
 	if (p) {
 		ret.data = (uint8 *)TALLOC_MEMDUP(mem_ctx, p, length);
 		if (ret.data == NULL)
-			smb_panic("data_blob_talloc: TALLOC_MEMDUP failed.\n");
+			smb_panic("data_blob_talloc: TALLOC_MEMDUP failed");
 	} else {
 		ret.data = (uint8 *)TALLOC(mem_ctx, length);
 		if (ret.data == NULL)
-			smb_panic("data_blob_talloc: talloc failed.\n");
+			smb_panic("data_blob_talloc: TALLOC failed");
 	}
 
 	ret.length = length;
@@ -127,7 +128,7 @@ DATA_BLOB data_blob_string_const(const char *str)
 {
 	DATA_BLOB blob;
 	blob.data = CONST_DISCARD(uint8 *, str);
-	blob.length = strlen(str);
+	blob.length = strlen(str) + 1;
 	blob.free = NULL;
 	return blob;
 }
@@ -141,5 +142,17 @@ DATA_BLOB data_blob_const(const void *p, size_t length)
 	blob.data = CONST_DISCARD(uint8 *, p);
 	blob.length = length;
 	blob.free = NULL;
+	return blob;
+}
+
+/**
+ construct a zero data blob, using supplied TALLOC_CTX.
+ use this sparingly as it initialises data - better to initialise
+ yourself if you want specific data in the blob
+**/
+DATA_BLOB data_blob_talloc_zero(TALLOC_CTX *mem_ctx, size_t length)
+{
+	DATA_BLOB blob = data_blob_talloc(mem_ctx, NULL, length);
+	data_blob_clear(&blob);
 	return blob;
 }

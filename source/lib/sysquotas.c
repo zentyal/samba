@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
@@ -178,19 +177,19 @@ static struct {
 #ifdef HAVE_XFS_QUOTAS
 	{"xfs", sys_get_xfs_quota, 	sys_set_xfs_quota},
 #endif /* HAVE_XFS_QUOTAS */
-	{NULL, 	NULL, 			NULL}	
+	{NULL, 	NULL, 			NULL}
 };
 
 static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *dp)
 {
 	const char *get_quota_command;
 	char **lines = NULL;
-	
+
 	get_quota_command = lp_get_quota_command();
 	if (get_quota_command && *get_quota_command) {
 		const char *p;
 		char *p2;
-		pstring syscmd;
+		char *syscmd = NULL;
 		int _id = -1;
 
 		switch(qtype) {
@@ -207,13 +206,16 @@ static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 				return -1;
 		}
 
-		slprintf(syscmd, sizeof(syscmd)-1, 
-			"%s \"%s\" %d %d", 
-			get_quota_command, path, qtype, _id);
+		if (asprintf(&syscmd, "%s \"%s\" %d %d",
+			get_quota_command, path, qtype, _id) < 0) {
+			return -1;
+		}
 
 		DEBUG (3, ("get_quota: Running command %s\n", syscmd));
 
 		lines = file_lines_pload(syscmd, NULL);
+		SAFE_FREE(syscmd);
+
 		if (lines) {
 			char *line = lines[0];
 
@@ -326,7 +328,7 @@ static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 
 	errno = ENOSYS;
 	return -1;
-	
+
 invalid_param:
 
 	file_lines_free(lines);
@@ -337,11 +339,11 @@ invalid_param:
 static int command_set_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *dp)
 {
 	const char *set_quota_command;
-	
+
 	set_quota_command = lp_set_quota_command();
 	if (set_quota_command && *set_quota_command) {
-		char **lines;
-		pstring syscmd;
+		char **lines = NULL;
+		char *syscmd = NULL;
 		int _id = -1;
 
 		switch(qtype) {
@@ -358,37 +360,40 @@ static int command_set_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 		}
 
 #ifdef LARGE_SMB_OFF_T
-		slprintf(syscmd, sizeof(syscmd)-1, 
+		if (asprintf(&syscmd,
 			"%s \"%s\" %d %d "
 			"%u %llu %llu "
-			"%llu %llu %llu ", 
+			"%llu %llu %llu ",
 			set_quota_command, path, qtype, _id, dp->qflags,
 			(long long unsigned)dp->softlimit,(long long unsigned)dp->hardlimit,
 			(long long unsigned)dp->isoftlimit,(long long unsigned)dp->ihardlimit,
-			(long long unsigned)dp->bsize);
+			(long long unsigned)dp->bsize) < 0) {
+			return -1;
+		}
 #else /* LARGE_SMB_OFF_T */
-		slprintf(syscmd, sizeof(syscmd)-1, 
+		if (asprintf(&syscmd,
 			"%s \"%s\" %d %d "
 			"%u %lu %lu "
-			"%lu %lu %lu ", 
+			"%lu %lu %lu ",
 			set_quota_command, path, qtype, _id, dp->qflags,
 			(long unsigned)dp->softlimit,(long unsigned)dp->hardlimit,
 			(long unsigned)dp->isoftlimit,(long unsigned)dp->ihardlimit,
-			(long unsigned)dp->bsize);
+			(long unsigned)dp->bsize) < 0) {
+			return -1;
+		}
 #endif /* LARGE_SMB_OFF_T */
-
-
 
 		DEBUG (3, ("get_quota: Running command %s\n", syscmd));
 
 		lines = file_lines_pload(syscmd, NULL);
+		SAFE_FREE(syscmd);
 		if (lines) {
 			char *line = lines[0];
 
 			DEBUG (3, ("Read output from set_quota, \"%s\"\n", line));
 
 			file_lines_free(lines);
-			
+
 			return 0;
 		}
 		DEBUG (0, ("set_quota_command failed!\n"));
@@ -403,7 +408,7 @@ int sys_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DI
 {
 	int ret = -1;
 	int i;
-	BOOL ready = False;
+	bool ready = False;
 	char *mntpath = NULL;
 	char *bdev = NULL;
 	char *fs = NULL;
@@ -468,7 +473,7 @@ int sys_set_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DI
 {
 	int ret = -1;
 	int i;
-	BOOL ready = False;
+	bool ready = False;
 	char *mntpath = NULL;
 	char *bdev = NULL;
 	char *fs = NULL;

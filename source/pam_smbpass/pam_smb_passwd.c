@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -29,10 +28,18 @@
    and others (including FreeBSD). */
 
 #ifndef LINUX
+#if defined(HAVE_SECURITY_PAM_APPL_H)
 #include <security/pam_appl.h>
+#elif defined(HAVE_PAM_PAM_APPL_H)
+#include <pam/pam_appl.h>
+#endif
 #endif
 
+#if defined(HAVE_SECURITY_PAM_MODULES_H)
 #include <security/pam_modules.h>
+#elif defined(HAVE_PAM_PAM_MODULES_H)
+#include <pam/pam_modules.h>
+#endif
 
 #include "general.h" 
 
@@ -41,32 +48,29 @@
 int smb_update_db( pam_handle_t *pamh, int ctrl, const char *user,  const char *pass_new )
 {
 	int retval;
-	pstring err_str;
-	pstring msg_str;
+	char *err_str = NULL;
+	char *msg_str = NULL;
 
-	err_str[0] = '\0';
-	msg_str[0] = '\0';
-
-	retval = NT_STATUS_IS_OK(local_password_change( user, LOCAL_SET_PASSWORD, pass_new,
-	                                err_str, sizeof(err_str),
-	                                msg_str, sizeof(msg_str) ));
+	retval = NT_STATUS_IS_OK(local_password_change(user, LOCAL_SET_PASSWORD, pass_new,
+	                                &err_str,
+	                                &msg_str));
 
 	if (!retval) {
-		if (*err_str) {
-			err_str[PSTRING_LEN-1] = '\0';
-			make_remark( pamh, ctrl, PAM_ERROR_MSG, err_str );
+		if (err_str) {
+			make_remark(pamh, ctrl, PAM_ERROR_MSG, err_str );
 		}
 
 		/* FIXME: what value is appropriate here? */
 		retval = PAM_AUTHTOK_ERR;
 	} else {
-		if (*msg_str) {
-			msg_str[PSTRING_LEN-1] = '\0';
-			make_remark( pamh, ctrl, PAM_TEXT_INFO, msg_str );
+		if (msg_str) {
+			make_remark(pamh, ctrl, PAM_TEXT_INFO, msg_str );
 		}
 		retval = PAM_SUCCESS;
 	}
 
+	SAFE_FREE(err_str);
+	SAFE_FREE(msg_str);
 	return retval;      
 }
 
@@ -94,8 +98,6 @@ int pam_sm_chauthtok(pam_handle_t *pamh, int flags,
     unsigned int ctrl;
     int retval;
 
-    extern BOOL in_client;
-
     struct samu *sampass = NULL;
     void (*oldsig_handler)(int);
     const char *user;
@@ -105,7 +107,7 @@ int pam_sm_chauthtok(pam_handle_t *pamh, int flags,
     /* Samba initialization. */
     load_case_tables();
     setup_logging( "pam_smbpass", False );
-    in_client = True;
+    lp_set_in_client(True);
 
     ctrl = set_ctrl(flags, argc, argv);
 
@@ -134,7 +136,7 @@ int pam_sm_chauthtok(pam_handle_t *pamh, int flags,
        from a SIGPIPE it's not expecting */
     oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
 
-    if (!initialize_password_db(False)) {
+    if (!initialize_password_db(False, NULL)) {
         _log_err( LOG_ALERT, "Cannot access samba password database" );
         CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
         return PAM_AUTHINFO_UNAVAIL;

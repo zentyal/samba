@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,14 +16,13 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
 #include "includes.h"
 
-extern BOOL found_lm_clients;
+extern bool found_lm_clients;
 
 #if 0
 
@@ -258,7 +257,7 @@ void process_local_master_announce(struct subnet_record *subrec, struct packet_s
 	uint32 servertype = IVAL(buf,23);
 	fstring comment;
 	unstring work_name;
-	struct work_record *work;
+	struct work_record *work = NULL;
 	struct server_record *servrec;
 	unstring source_name;
 
@@ -345,7 +344,7 @@ a local master browser for workgroup %s and we think we are master. Forcing elec
 		 * This server is announcing it is going down. Remove it from the
 		 * workgroup.
 		 */
-		if(!is_myname(server_name) && (work != NULL) &&
+		if(!is_myname(server_name) &&
 				((servrec = find_server_in_workgroup( work, server_name))!=NULL)) {
 			remove_server_from_workgroup( work, servrec);
 		}
@@ -535,13 +534,13 @@ done:
   Send a backup list response.
 *****************************************************************************/
 
-static void send_backup_list_response(struct subnet_record *subrec, 
+static void send_backup_list_response(struct subnet_record *subrec,
 				      struct work_record *work,
 				      struct nmb_name *send_to_name,
 				      unsigned char max_number_requested,
 				      uint32 token, struct in_addr sendto_ip,
 				      int port)
-{                     
+{
 	char outbuf[1024];
 	char *p, *countptr;
 	unsigned int count = 0;
@@ -555,9 +554,9 @@ static void send_backup_list_response(struct subnet_record *subrec,
 
 	DEBUG(3,("send_backup_list_response: sending backup list for workgroup %s to %s IP %s\n",
 		work->work_group, nmb_namestr(send_to_name), inet_ntoa(sendto_ip)));
-  
+
 	p = outbuf;
-  
+
 	SCVAL(p,0,ANN_GetBackupListResp); /* Backup list response opcode. */
 	p++;
 
@@ -566,13 +565,13 @@ static void send_backup_list_response(struct subnet_record *subrec,
 
 	SIVAL(p,0,token); /* The sender's unique info. */
 	p += 4;
-  
+
 	/* We always return at least one name - our own. */
 	count = 1;
 	unstrcpy(myname, global_myname());
 	strupper_m(myname);
 	myname[15]='\0';
-	push_pstring_base(p, myname, outbuf);
+	push_ascii(p, myname, sizeof(outbuf)-PTR_DIFF(p,outbuf)-1, STR_TERMINATE);
 
 	p = skip_string(outbuf,sizeof(outbuf),p);
 

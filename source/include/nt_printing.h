@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef NT_PRINTING_H_
@@ -313,7 +312,7 @@ typedef struct nt_printer_info_level_2
 	fstring sharename;
 	fstring portname;
 	fstring drivername;
-	pstring comment;
+	char comment[1024];
 	fstring location;
 	NT_DEVICEMODE *devmode;
 	fstring sepfile;
@@ -366,7 +365,7 @@ typedef struct {
 	uint32 dblspool;
 	fstring ipaddr;
 	uint32 port;
-	BOOL enable_snmp;
+	bool enable_snmp;
 	uint32 snmp_index;
 } NT_PORT_DATA_1;
 
@@ -449,10 +448,10 @@ typedef struct {
 /* that's the central struct */
 typedef struct _Printer{
 	struct _Printer *prev, *next;
-	BOOL document_started;
-	BOOL page_started;
+	bool document_started;
+	bool page_started;
 	uint32 jobid; /* jobid in printing backend */
-	BOOL printer_type;
+	int printer_type;
 	TALLOC_CTX *ctx;
 	fstring servername;
 	fstring sharename;
@@ -465,10 +464,10 @@ typedef struct _Printer{
 		uint32 printerlocal;
 		SPOOL_NOTIFY_OPTION *option;
 		POLICY_HND client_hnd;
-		BOOL client_connected;
+		bool client_connected;
 		uint32 change;
 		/* are we in a FindNextPrinterChangeNotify() call? */
-		BOOL fnpcn;
+		bool fnpcn;
 	} notify;
 	struct {
 		fstring machine;

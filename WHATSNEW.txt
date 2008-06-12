@@ -1,9 +1,9 @@
                    =================================
-                   Release Notes for Samba 3.2.0rc1
-                               May 23, 2008
+                   Release Notes for Samba 3.2.0rc2
+                             June 10, 2008
                    =================================
 
-This is the first release candidate of Samba 3.2.0.  This is *not*
+This is the second release candidate of Samba 3.2.0.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -194,6 +194,7 @@ smb.conf changes
     ctdbd socket			New		""
     debug class				New		No
     lanman auth				Changed Default	No
+    ldap connection timeout		New		2
     ldap debug level			New		0
     ldap debug threshold		New		10
     mangled map				Removed
@@ -206,6 +207,76 @@ smb.conf changes
     winbind rpc only			New		No
 
     New special meaning of "include = registry".
+
+
+Changes since 3.2.0rc1:
+-----------------------
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5504: Fix behaviour of winbindd children receiving a SIGTERM.
+    * BUG 5489: Split the winbindd_passdb backend into a 'builtin' and a 'sam'.
+    * Security fix for CVE-2008-1105.
+    * Fix valgrind bug in debug statement.
+    * Make sure we take account of the large read/write SMB headers as
+      well as the buffer space when allocating cli buffers for large
+      read/write.
+    * Fix tag as a goto target we were not reinitializing the array counts.
+
+
+o   Steven Danneman <sdanneman@isilon.com>
+    * BUG 5451: Fix for using the correct machine domain when looking up trust
+      credentials in our tdb.
+    * Fix spnego SPN when contacting trusted domains.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 5285: Fix libcap header mismatch.
+    * Fix pam_sm_chauthtok for storing modified cached creds.
+    * Fix joining issue in setups with "config backend = registry".
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 4544: Add new parameter 'ldap connection timeout' to prevent
+      waiting for TCP connection timeouts if no LDAP server is available.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 5502: Fix security=server.
+    * Fix coverity IDs 552, 553, 570, 571, 572.
+    * Fix the compile on NetBSD.
+    * Shrink ldbtools.
+
+
+o   Jim McDonough <jmcd@samba.org>
+    * Fix reset of password last set time just because the expired flag
+      is set to 0.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * Remove support for symbol versioning in shared libraries.
+      For more information, please have a look at the disussion on
+      samba-technical starting with
+      http://lists.samba.org/archive/samba-technical/2008-June/059511.html.
+    * Fix autogen for autoconf 2.62.
+
+
+o   Marc VanHeyningen <marc.vanheyningen@isilon.com>
+    * Fix memory leak.
+
+
+o   Andreas Schneider <anschneider@suse.de>
+    * BUG 5515: Fix empty input fields in SWAT.
+    * BUG 5516: Fix saving of the config file in SWAT.
+
+
+o   Bo Yang <boyang@novell.com>
+    * Fix winbindd trusted domain child not keeping primary domain
+      online status up to date.
+
+
+o   Chere Zhou <chere.zhou@isilon.com>
+    * Fix memory leaks. 
 
 
 Changes since 3.2.0pre3:

@@ -1149,6 +1149,9 @@
 /* Whether Linux readahead is available */
 #undef HAVE_LINUX_READAHEAD
 
+/* Whether Linux splice is available */
+#undef HAVE_LINUX_SPLICE
+
 /* Whether Linux xfs quota support is available */
 #undef HAVE_LINUX_XFS_QUOTAS
 
@@ -1661,6 +1664,9 @@
 
 /* Whether solaris ACLs are available */
 #undef HAVE_SOLARIS_ACLS
+
+/* Whether splice() is available */
+#undef HAVE_SPLICE_DECL
 
 /* Define to 1 if you have the `srand' function. */
 #undef HAVE_SRAND
@@ -2778,6 +2784,9 @@
 #endif
 #ifndef _POSIX_PTHREAD_SEMANTICS
 # undef _POSIX_PTHREAD_SEMANTICS
+#endif
+#ifndef _TANDEM_SOURCE
+# undef _TANDEM_SOURCE
 #endif
 
 /* Whether to build auth_builtin as shared module */

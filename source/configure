@@ -1443,11 +1443,6 @@ Optional Features:
   --enable-pie            Turn on pie support if available (default=yes)
   --enable-relro          Turn on Relocations Read-Only (relro) support if
                           available (default=yes)
-
-	  --enable-symbol-versioning
-                          Turn on symbol versioning support if available
-                          (default=auto)
-
   --enable-fam            Turn on FAM support (default=auto)
   --enable-shared-libs    Use shared libraries internally (default=yes)
   --enable-dnssd          Enable DNS service discovery support (default=auto)
@@ -3529,6 +3524,35 @@ cat >>conftest.$ac_ext <<_ACEOF
 #include <wchar.h>
 #include <stdio.h>
 
+// Check varargs macros.  These examples are taken from C99 6.10.3.5.
+#define debug(...) fprintf (stderr, __VA_ARGS__)
+#define showlist(...) puts (#__VA_ARGS__)
+#define report(test,...) ((test) ? puts (#test) : printf (__VA_ARGS__))
+static void
+test_varargs_macros (void)
+{
+  int x = 1234;
+  int y = 5678;
+  debug ("Flag");
+  debug ("X = %d\n", x);
+  showlist (The first, second, and third items.);
+  report (x>y, "x is %d but y is %d", x, y);
+}
+
+// Check long long types.
+#define BIG64 18446744073709551615ull
+#define BIG32 4294967295ul
+#define BIG_OK (BIG64 / BIG32 == 4294967297ull && BIG64 % BIG32 == 0)
+#if !BIG_OK
+  your preprocessor is broken;
+#endif
+#if BIG_OK
+#else
+  your preprocessor is broken;
+#endif
+static long long int bignum = -9223372036854775807LL;
+static unsigned long long int ubignum = BIG64;
+
 struct incomplete_array
 {
   int datasize;
@@ -3544,7 +3568,7 @@ struct named_init {
 typedef const char *ccp;
 
 static inline int
-test_restrict(ccp restrict text)
+test_restrict (ccp restrict text)
 {
   // See if C++-style comments work.
   // Iterate through items via the restricted pointer.
@@ -3554,14 +3578,14 @@ test_restrict(ccp restrict text)
   return 0;
 }
 
-// Check varargs and va_copy work.
+// Check varargs and va_copy.
 static void
-test_varargs(const char *format, ...)
+test_varargs (const char *format, ...)
 {
   va_list args;
-  va_start(args, format);
+  va_start (args, format);
   va_list args_copy;
-  va_copy(args_copy, args);
+  va_copy (args_copy, args);
 
   const char *str;
   int number;
@@ -3572,47 +3596,46 @@ test_varargs(const char *format, ...)
       switch (*format++)
 	{
 	case 's': // string
-	  str = va_arg(args_copy, const char *);
+	  str = va_arg (args_copy, const char *);
 	  break;
 	case 'd': // int
-	  number = va_arg(args_copy, int);
+	  number = va_arg (args_copy, int);
 	  break;
 	case 'f': // float
-	  fnumber = (float) va_arg(args_copy, double);
+	  fnumber = va_arg (args_copy, double);
 	  break;
 	default:
 	  break;
 	}
     }
-  va_end(args_copy);
-  va_end(args);
+  va_end (args_copy);
+  va_end (args);
 }
 
 int
 main ()
 {
 
-  // Check bool and long long datatypes.
+  // Check bool.
   _Bool success = false;
-  long long int bignum = -1234567890LL;
-  unsigned long long int ubignum = 1234567890uLL;
 
   // Check restrict.
-  if (test_restrict("String literal") != 0)
+  if (test_restrict ("String literal") == 0)
     success = true;
   char *restrict newvar = "Another string";
 
   // Check varargs.
-  test_varargs("s, d' f .", "string", 65, 34.234);
+  test_varargs ("s, d' f .", "string", 65, 34.234);
+  test_varargs_macros ();
 
-  // Check incomplete arrays work.
+  // Check flexible array members.
   struct incomplete_array *ia =
-    malloc(sizeof(struct incomplete_array) + (sizeof(double) * 10));
+    malloc (sizeof (struct incomplete_array) + (sizeof (double) * 10));
   ia->datasize = 10;
   for (int i = 0; i < ia->datasize; ++i)
-    ia->data[i] = (double) i * 1.234;
+    ia->data[i] = i * 1.234;
 
-  // Check named initialisers.
+  // Check named initializers.
   struct named_init ni = {
     .number = 34,
     .name = L"Test wide string",
@@ -3622,10 +3645,11 @@ main ()
   ni.number = 58;
 
   int dynamic_array[ni.number];
-  dynamic_array[43] = 543;
+  dynamic_array[ni.number - 1] = 543;
 
   // work around unused variable warnings
-  return  bignum == 0LL || ubignum == 0uLL || newvar[0] == 'x';
+  return (!success || bignum == 0LL || ubignum == 0uLL || newvar[0] == 'x'
+	  || dynamic_array[ni.number - 1] != 543);
 
   ;
   return 0;
@@ -4586,6 +4610,10 @@ _ACEOF
 
   cat >>confdefs.h <<\_ACEOF
 #define _POSIX_PTHREAD_SEMANTICS 1
+_ACEOF
+
+  cat >>confdefs.h <<\_ACEOF
+#define _TANDEM_SOURCE 1
 _ACEOF
 
 
@@ -12240,7 +12268,7 @@ fi
 
 { echo "$as_me:$LINENO: checking that the C compiler understands negative enum values" >&5
 echo $ECHO_N "checking that the C compiler understands negative enum values... $ECHO_C" >&6; }
-if test "${SMB_BUILD_CC_NEGATIVE_ENUM_VALUES+set}" = set; then
+if test "${samba_cv_CC_NEGATIVE_ENUM_VALUES+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -12297,23 +12325,23 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; }; then
-  SMB_BUILD_CC_NEGATIVE_ENUM_VALUES=yes
+  samba_cv_CC_NEGATIVE_ENUM_VALUES=yes
 else
   echo "$as_me: program exited with status $ac_status" >&5
 echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
 ( exit $ac_status )
-SMB_BUILD_CC_NEGATIVE_ENUM_VALUES=no
+samba_cv__CC_NEGATIVE_ENUM_VALUES=no
 fi
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
 
 
 fi
-{ echo "$as_me:$LINENO: result: $SMB_BUILD_CC_NEGATIVE_ENUM_VALUES" >&5
-echo "${ECHO_T}$SMB_BUILD_CC_NEGATIVE_ENUM_VALUES" >&6; }
-if test x"$SMB_BUILD_CC_NEGATIVE_ENUM_VALUES" != x"yes"; then
+{ echo "$as_me:$LINENO: result: $samba_cv_CC_NEGATIVE_ENUM_VALUES" >&5
+echo "${ECHO_T}$samba_cv_CC_NEGATIVE_ENUM_VALUES" >&6; }
+if test x"$samba_cv_CC_NEGATIVE_ENUM_VALUES" != x"yes"; then
 	{ echo "$as_me:$LINENO: WARNING: using --unit-enums for pidl" >&5
 echo "$as_me: WARNING: using --unit-enums for pidl" >&2;}
 	PIDL_ARGS="$PIDL_ARGS --uint-enums"
@@ -21736,7 +21764,7 @@ done
 # Check for mkdir mode
 { echo "$as_me:$LINENO: checking whether mkdir supports mode" >&5
 echo $ECHO_N "checking whether mkdir supports mode... $ECHO_C" >&6; }
-if test "${ac_mkdir_has_mode+set}" = set; then
+if test "${libreplace_cv_mkdir_has_mode+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
   cat >conftest.$ac_ext <<_ACEOF
@@ -21778,20 +21806,20 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  ac_mkdir_has_mode="yes"
+  libreplace_cv_mkdir_has_mode="yes"
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	ac_mkdir_has_mode="no"
+	libreplace_cv_mkdir_has_mode="no"
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
-{ echo "$as_me:$LINENO: result: $ac_mkdir_has_mode" >&5
-echo "${ECHO_T}$ac_mkdir_has_mode" >&6; }
+{ echo "$as_me:$LINENO: result: $libreplace_cv_mkdir_has_mode" >&5
+echo "${ECHO_T}$libreplace_cv_mkdir_has_mode" >&6; }
 
-if test "$ac_mkdir_has_mode" = "yes"
+if test "$libreplace_cv_mkdir_has_mode" = "yes"
 then
 
 cat >>confdefs.h <<\_ACEOF
@@ -40704,7 +40732,7 @@ fi
 
 { echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps" >&5
 echo $ECHO_N "checking whether struct stat has sub-second timestamps... $ECHO_C" >&6; }
-if test "${samba_stat_hires+set}" = set; then
+if test "${samba_cv_stat_hires+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -40763,21 +40791,21 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  samba_stat_hires=yes
+  samba_cv_stat_hires=yes
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_stat_hires=no
+	samba_cv_stat_hires=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ echo "$as_me:$LINENO: result: $samba_stat_hires" >&5
-echo "${ECHO_T}$samba_stat_hires" >&6; }
+{ echo "$as_me:$LINENO: result: $samba_cv_stat_hires" >&5
+echo "${ECHO_T}$samba_cv_stat_hires" >&6; }
 
-if test x"$samba_stat_hires" = x"yes" ; then
+if test x"$samba_cv_stat_hires" = x"yes" ; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_STAT_ST_MTIM 1
@@ -40802,7 +40830,7 @@ fi
 
 { echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps without struct timespec" >&5
 echo $ECHO_N "checking whether struct stat has sub-second timestamps without struct timespec... $ECHO_C" >&6; }
-if test "${samba_stat_hires_notimespec+set}" = set; then
+if test "${samba_cv_stat_hires_notimespec+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -40861,21 +40889,21 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  samba_stat_hires=yes
+  samba_cv_stat_hires=yes
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_stat_hires=no
+	samba_cv_stat_hires=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ echo "$as_me:$LINENO: result: $samba_stat_hires_notimespec" >&5
-echo "${ECHO_T}$samba_stat_hires_notimespec" >&6; }
+{ echo "$as_me:$LINENO: result: $samba_cv_stat_hires_notimespec" >&5
+echo "${ECHO_T}$samba_cv_stat_hires_notimespec" >&6; }
 
-if test x"$samba_stat_hires_notimespec" = x"yes" ; then
+if test x"$samba_cv_stat_hires_notimespec" = x"yes" ; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_STAT_ST_MTIMENSEC 1
@@ -45308,26 +45336,6 @@ fi
 # Set defaults
 SYMSEXT="syms"
 
-use_symbol_versioning=no
-if test x"$ac_cv_gnu_ld_version_script" = x"yes"; then
-	use_symbol_versioning=yes
-fi
-# Check whether --enable-symbol-versioning was given.
-if test "${enable_symbol_versioning+set}" = set; then
-  enableval=$enable_symbol_versioning;
-fi
-
-if test x"$enable_symbol_versioning" = x"no"; then
-	use_symbol_versioning=no
-fi
-
-{ echo "$as_me:$LINENO: checking symbol versioning" >&5
-echo $ECHO_N "checking symbol versioning... $ECHO_C" >&6; }
-if test "x$use_symbol_versioning" = x"yes"; then
-	SYMSEXT="version.syms"
-fi
-{ echo "$as_me:$LINENO: result: $use_symbol_versioning" >&5
-echo "${ECHO_T}$use_symbol_versioning" >&6; }
 
 # Assume non-shared by default and override below
 BLDSHARED="false"
@@ -60183,7 +60191,7 @@ fi
 
   { echo "$as_me:$LINENO: checking whether krb5_ticket contains kvno and enctype" >&5
 echo $ECHO_N "checking whether krb5_ticket contains kvno and enctype... $ECHO_C" >&6; }
-if test "${smb_krb5_ticket_has_keyinfo+set}" = set; then
+if test "${smb_krb5_cv_ticket_has_keyinfo+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -60228,21 +60236,21 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-   smb_krb5_ticket_has_keyinfo=yes
+   smb_krb5_cv_ticket_has_keyinfo=yes
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	 smb_krb5_ticket_has_keyinfo=no
+	 smb_krb5_cv_ticket_has_keyinfo=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ echo "$as_me:$LINENO: result: $smb_krb5_ticket_has_keyinfo" >&5
-echo "${ECHO_T}$smb_krb5_ticket_has_keyinfo" >&6; }
+{ echo "$as_me:$LINENO: result: $smb_krb5_cv_ticket_has_keyinfo" >&5
+echo "${ECHO_T}$smb_krb5_cv_ticket_has_keyinfo" >&6; }
 
-  if test x"$smb_krb5_ticket_has_keyinfo" = x"yes" ; then
+  if test x"$smb_krb5_cv_ticket_has_keyinfo" = x"yes" ; then
 
 cat >>confdefs.h <<\_ACEOF
 #define KRB5_TICKET_HAS_KEYINFO 1
@@ -60252,7 +60260,7 @@ _ACEOF
 
   { echo "$as_me:$LINENO: checking whether krb5_get_init_creds_opt_free takes a context argument" >&5
 echo $ECHO_N "checking whether krb5_get_init_creds_opt_free takes a context argument... $ECHO_C" >&6; }
-if test "${smb_krb5_creds_opt_free_context+set}" = set; then
+if test "${smb_krb5_cv_creds_opt_free_context+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -60293,22 +60301,22 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  smb_krb5_creds_opt_free_context=yes
+  smb_krb5_cv_creds_opt_free_context=yes
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	smb_krb5_creds_opt_free_context=no
+	smb_krb5_cv_creds_opt_free_context=no
 
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ echo "$as_me:$LINENO: result: $smb_krb5_creds_opt_free_context" >&5
-echo "${ECHO_T}$smb_krb5_creds_opt_free_context" >&6; }
+{ echo "$as_me:$LINENO: result: $smb_krb5_cv_creds_opt_free_context" >&5
+echo "${ECHO_T}$smb_krb5_cv_creds_opt_free_context" >&6; }
 
-  if test x"$smb_krb5_creds_opt_free_context" = x"yes" ; then
+  if test x"$smb_krb5_cv_creds_opt_free_context" = x"yes" ; then
 
 cat >>confdefs.h <<\_ACEOF
 #define KRB5_CREDS_OPT_FREE_REQUIRES_CONTEXT 1
@@ -60318,7 +60326,7 @@ _ACEOF
 
   { echo "$as_me:$LINENO: checking whether krb5_verify_checksum takes 7 arguments" >&5
 echo $ECHO_N "checking whether krb5_verify_checksum takes 7 arguments... $ECHO_C" >&6; }
-if test "${smb_krb5_verify_checksum+set}" = set; then
+if test "${smb_krb5_cv_verify_checksum+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -60355,22 +60363,22 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  smb_krb5_verify_checksum=7
+  smb_krb5_cv_verify_checksum=7
 else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	smb_krb5_verify_checksum=6
+	smb_krb5_cv_verify_checksum=6
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 fi
-{ echo "$as_me:$LINENO: result: $smb_krb5_verify_checksum" >&5
-echo "${ECHO_T}$smb_krb5_verify_checksum" >&6; }
+{ echo "$as_me:$LINENO: result: $smb_krb5_cv_verify_checksum" >&5
+echo "${ECHO_T}$smb_krb5_cv_verify_checksum" >&6; }
 
 cat >>confdefs.h <<_ACEOF
-#define KRB5_VERIFY_CHECKSUM_ARGS $smb_krb5_verify_checksum
+#define KRB5_VERIFY_CHECKSUM_ARGS $smb_krb5_cv_verify_checksum
 _ACEOF
 
 
@@ -61925,7 +61933,7 @@ _ACEOF
   if test x"$ac_cv_func_ext_krb5_enctype_to_string" = x"yes"; then
     { echo "$as_me:$LINENO: checking for krb5_error_code krb5_enctype_to_string(krb5_context context, krb5_enctype enctype, char **str)" >&5
 echo $ECHO_N "checking for krb5_error_code krb5_enctype_to_string(krb5_context context, krb5_enctype enctype, char **str)... $ECHO_C" >&6; }
-if test "${smb_krb5_enctype_to_string_takes_krb5_context_arg+set}" = set; then
+if test "${smb_krb5_cv_enctype_to_string_takes_krb5_context_arg+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -61983,14 +61991,14 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; }; then
-  smb_krb5_enctype_to_string_takes_krb5_context_arg=yes
+  smb_krb5_cv_enctype_to_string_takes_krb5_context_arg=yes
 else
   echo "$as_me: program exited with status $ac_status" >&5
 echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
 ( exit $ac_status )
-smb_krb5_enctype_to_string_takes_krb5_context_arg=no
+smb_krb5_cv_enctype_to_string_takes_krb5_context_arg=no
 fi
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
@@ -62007,10 +62015,10 @@ fi
 	export LDFLAGS;
 
 fi
-{ echo "$as_me:$LINENO: result: $smb_krb5_enctype_to_string_takes_krb5_context_arg" >&5
-echo "${ECHO_T}$smb_krb5_enctype_to_string_takes_krb5_context_arg" >&6; }
+{ echo "$as_me:$LINENO: result: $smb_krb5_cv_enctype_to_string_takes_krb5_context_arg" >&5
+echo "${ECHO_T}$smb_krb5_cv_enctype_to_string_takes_krb5_context_arg" >&6; }
 
-    if test x"$smb_krb5_enctype_to_string_takes_krb5_context_arg" = x"yes"; then
+    if test x"$smb_krb5_cv_enctype_to_string_takes_krb5_context_arg" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_KRB5_ENCTYPE_TO_STRING_WITH_KRB5_CONTEXT_ARG 1
@@ -62020,7 +62028,7 @@ _ACEOF
 
     { echo "$as_me:$LINENO: checking for krb5_error_code krb5_enctype_to_string(krb5_enctype enctype, char *str, size_t len)" >&5
 echo $ECHO_N "checking for krb5_error_code krb5_enctype_to_string(krb5_enctype enctype, char *str, size_t len)... $ECHO_C" >&6; }
-if test "${smb_krb5_enctype_to_string_takes_size_t_arg+set}" = set; then
+if test "${smb_krb5_cv_enctype_to_string_takes_size_t_arg+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
 
@@ -62076,14 +62084,14 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; }; then
-  smb_krb5_enctype_to_string_takes_size_t_arg=yes
+  smb_krb5_cv_enctype_to_string_takes_size_t_arg=yes
 else
   echo "$as_me: program exited with status $ac_status" >&5
 echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
 ( exit $ac_status )
-smb_krb5_enctype_to_string_takes_size_t_arg=no
+smb_krb5_cv_enctype_to_string_takes_size_t_arg=no
 fi
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
@@ -62100,10 +62108,10 @@ fi
 	export LDFLAGS;
 
 fi
-{ echo "$as_me:$LINENO: result: $smb_krb5_enctype_to_string_takes_size_t_arg" >&5
-echo "${ECHO_T}$smb_krb5_enctype_to_string_takes_size_t_arg" >&6; }
+{ echo "$as_me:$LINENO: result: $smb_krb5_cv_enctype_to_string_takes_size_t_arg" >&5
+echo "${ECHO_T}$smb_krb5_cv_enctype_to_string_takes_size_t_arg" >&6; }
 
-    if test x"$smb_krb5_enctype_to_string_takes_size_t_arg" = x"yes"; then
+    if test x"$smb_krb5_cv_enctype_to_string_takes_size_t_arg" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_KRB5_ENCTYPE_TO_STRING_WITH_SIZE_T_ARG 1
@@ -62279,7 +62287,7 @@ echo "$as_me: WARNING: no KRB5_VERIFY_CHECKSUM_FUNCTION detected" >&2;}
     use_ads=no
   fi
 
-  if test x"$smb_krb5_ticket_has_keyinfo" != x"yes" ; then
+  if test x"$smb_krb5_cv_ticket_has_keyinfo" != x"yes" ; then
 
       # We only need the following functions if we can't get the enctype
       # and kvno out of the ticket directly (ie. on Heimdal).
@@ -69669,6 +69677,133 @@ _ACEOF
 
 fi
 
+############################################
+# See if we have the Linux splice syscall.
+
+{ echo "$as_me:$LINENO: checking for Linux splice" >&5
+echo $ECHO_N "checking for Linux splice... $ECHO_C" >&6; }
+if test "${samba_cv_HAVE_LINUX_SPLICE+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <fcntl.h>
+int
+main ()
+{
+long ret = splice(0,0,1,0,400,0);
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  samba_cv_HAVE_LINUX_SPLICE=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_HAVE_LINUX_SPLICE=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_HAVE_LINUX_SPLICE" >&5
+echo "${ECHO_T}$samba_cv_HAVE_LINUX_SPLICE" >&6; }
+
+if test x"$samba_cv_HAVE_LINUX_SPLICE" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LINUX_SPLICE 1
+_ACEOF
+
+fi
+
+
+ { echo "$as_me:$LINENO: checking for splice declaration" >&5
+echo $ECHO_N "checking for splice declaration... $ECHO_C" >&6; }
+if test "${ac_cv_have_splice_decl+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <fcntl.h>
+int
+main ()
+{
+int i = (int)splice
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_have_splice_decl=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_have_splice_decl=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_have_splice_decl" >&5
+echo "${ECHO_T}$ac_cv_have_splice_decl" >&6; }
+ if test x"$ac_cv_have_splice_decl" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SPLICE_DECL 1
+_ACEOF
+
+ fi
+
 
 
 #################################################
@@ -69794,19 +69929,19 @@ else
 	BUILD_LIBWBCLIENT_SHARED=yes
 fi
 
+LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
+LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
 if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_SHARED" = x"yes"; then
 	NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 	## Only worry about libwbclient if we have shared library support
 	## and winbindd
-        LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
-        LIBWBCLIENT_SHARED=bin/libwbclient.$SHLIBEXT
+        LIBWBCLIENT_SHARED=$LIBWBCLIENT_SHARED_TARGET
         LIBWBCLIENT=libwbclient
 	INSTALL_LIBWBCLIENT=installlibwbclient
 	UNINSTALL_LIBWBCLIENT=uninstalllibwbclient
 	WINBIND_LIBS="-lwbclient"
 else
-	LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
-	LIBWBCLIENT_STATIC=bin/libwbclient.a
+	LIBWBCLIENT_STATIC=$LIBWBCLIENT_STATIC_TARGET
 fi
 
 if test x"$HAVE_WINBIND" = x"yes"; then

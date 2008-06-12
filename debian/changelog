@@ -1,4 +1,4 @@
-samba (2:3.0.30-3) UNRELEASED; urgency=low
+samba (2:3.0.30-3) unstable; urgency=low
 
   [ Christian Perrier ]
   * add a soft dependency on slapd in init script to allow
@@ -10,7 +10,7 @@ samba (2:3.0.30-3) UNRELEASED; urgency=low
   * debian/patches/no-unnecessary-cups.patch: don't try to connect to a cups
     server when we know that no printers are configured.  Closes: #479512.
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 10 Jun 2008 20:28:51 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 10 Jun 2008 21:03:51 +0200
 
 samba (2:3.0.30-2) unstable; urgency=high
 

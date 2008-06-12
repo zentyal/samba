@@ -689,7 +689,8 @@ static NTSTATUS libnet_join_lookup_dc_rpc(TALLOC_CTX *mem_ctx,
 		r->out.domain_is_ad = true;
 		r->out.netbios_domain_name = info->dns.name.string;
 		r->out.dns_domain_name = info->dns.dns_domain.string;
-		r->out.domain_sid = info->dns.sid;
+		r->out.domain_sid = sid_dup_talloc(mem_ctx, info->dns.sid);
+		NT_STATUS_HAVE_NO_MEMORY(r->out.domain_sid);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -702,7 +703,8 @@ static NTSTATUS libnet_join_lookup_dc_rpc(TALLOC_CTX *mem_ctx,
 		}
 
 		r->out.netbios_domain_name = info->account_domain.name.string;
-		r->out.domain_sid = info->account_domain.sid;
+		r->out.domain_sid = sid_dup_talloc(mem_ctx, info->account_domain.sid);
+		NT_STATUS_HAVE_NO_MEMORY(r->out.domain_sid);
 	}
 
 	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
@@ -1114,6 +1116,10 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 	struct samr_Ids name_types;
 	union samr_UserInfo *info = NULL;
 
+	ZERO_STRUCT(sam_pol);
+	ZERO_STRUCT(domain_pol);
+	ZERO_STRUCT(user_pol);
+
 	status = cli_full_connection(&cli, NULL,
 				     r->in.dc_name,
 				     NULL, 0,
@@ -1215,8 +1221,12 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 
 done:
 	if (pipe_hnd) {
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
-		rpccli_samr_Close(pipe_hnd, mem_ctx, &sam_pol);
+		if (is_valid_policy_hnd(&domain_pol)) {
+			rpccli_samr_Close(pipe_hnd, mem_ctx, &domain_pol);
+		}
+		if (is_valid_policy_hnd(&sam_pol)) {
+			rpccli_samr_Close(pipe_hnd, mem_ctx, &sam_pol);
+		}
 		cli_rpc_pipe_close(pipe_hnd);
 	}
 
@@ -1247,6 +1257,8 @@ static WERROR do_join_modify_vals_config(struct libnet_JoinCtx *r)
 
 		werr = smbconf_set_global_parameter(ctx, "workgroup",
 						    r->in.domain_name);
+
+		smbconf_delete_global_parameter(ctx, "realm");
 		goto done;
 	}
 
@@ -1320,6 +1332,8 @@ static WERROR do_JoinConfig(struct libnet_JoinCtx *r)
 		return werr;
 	}
 
+	lp_load(get_dyn_CONFIGFILE(),true,false,false,true);
+
 	r->out.modified_config = true;
 	r->out.result = werr;
 
@@ -1345,6 +1359,8 @@ static WERROR libnet_unjoin_config(struct libnet_UnjoinCtx *r)
 	if (!W_ERROR_IS_OK(werr)) {
 		return werr;
 	}
+
+	lp_load(get_dyn_CONFIGFILE(),true,false,false,true);
 
 	r->out.modified_config = true;
 	r->out.result = werr;
@@ -1716,6 +1732,35 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 /****************************************************************
 ****************************************************************/
 
+WERROR libnet_join_rollback(TALLOC_CTX *mem_ctx,
+			    struct libnet_JoinCtx *r)
+{
+	WERROR werr;
+	struct libnet_UnjoinCtx *u = NULL;
+
+	werr = libnet_init_UnjoinCtx(mem_ctx, &u);
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
+
+	u->in.debug		= r->in.debug;
+	u->in.dc_name		= r->in.dc_name;
+	u->in.domain_name	= r->in.domain_name;
+	u->in.admin_account	= r->in.admin_account;
+	u->in.admin_password	= r->in.admin_password;
+	u->in.modify_config	= r->in.modify_config;
+	u->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
+				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
+
+	werr = libnet_Unjoin(mem_ctx, u);
+	TALLOC_FREE(u);
+
+	return werr;
+}
+
+/****************************************************************
+****************************************************************/
+
 WERROR libnet_Join(TALLOC_CTX *mem_ctx,
 		   struct libnet_JoinCtx *r)
 {
@@ -1735,17 +1780,20 @@ WERROR libnet_Join(TALLOC_CTX *mem_ctx,
 		if (!W_ERROR_IS_OK(werr)) {
 			goto done;
 		}
-
-		werr = libnet_join_post_verify(mem_ctx, r);
-		if (!W_ERROR_IS_OK(werr)) {
-			goto done;
-		}
 	}
 
 	werr = libnet_join_post_processing(mem_ctx, r);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
+
+	if (r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_TYPE) {
+		werr = libnet_join_post_verify(mem_ctx, r);
+		if (!W_ERROR_IS_OK(werr)) {
+			libnet_join_rollback(mem_ctx, r);
+		}
+	}
+
  done:
 	r->out.result = werr;
 

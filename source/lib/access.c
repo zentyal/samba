@@ -1,4 +1,4 @@
-/*
+/* 
    This module is an adaption of code from the tcpd-1.4 package written
    by Wietse Venema, Eindhoven University of Technology, The Netherlands.
 
@@ -6,219 +6,165 @@
 
    The code has been considerably changed from the original. Bug reports
    should be sent to samba@samba.org
-
-   Updated for IPv6 by Jeremy Allison (C) 2007.
 */
 
 #include "includes.h"
 
-#define NAME_INDEX 0
-#define ADDR_INDEX 1
+#define	FAIL		(-1)
+
+#define ALLONES  ((uint32)0xFFFFFFFF)
 
 /* masked_match - match address against netnumber/netmask */
-static bool masked_match(const char *tok, const char *slash, const char *s)
+static BOOL masked_match(const char *tok, const char *slash, const char *s)
 {
-	struct sockaddr_storage ss_mask;
-	struct sockaddr_storage ss_tok;
-	struct sockaddr_storage ss_host;
-	char *tok_copy = NULL;
+	uint32 net;
+	uint32 mask;
+	uint32 addr;
+	fstring tok_cpy;
 
-	if (!interpret_string_addr(&ss_host, s, 0)) {
-		return false;
-	}
+	if ((addr = interpret_addr(s)) == INADDR_NONE)
+		return (False);
 
-	if (*tok == '[') {
-		/* IPv6 address - remove braces. */
-		tok_copy = SMB_STRDUP(tok+1);
-		if (!tok_copy) {
-			return false;
-		}
-		/* Remove the terminating ']' */
-		tok_copy[PTR_DIFF(slash,tok)-1] = '\0';
-	} else {
-		tok_copy = SMB_STRDUP(tok);
-		if (!tok_copy) {
-			return false;
-		}
-		/* Remove the terminating '/' */
-		tok_copy[PTR_DIFF(slash,tok)] = '\0';
-	}
-
-	if (!interpret_string_addr(&ss_tok, tok_copy, 0)) {
-		SAFE_FREE(tok_copy);
-		return false;
-	}
-
-	SAFE_FREE(tok_copy);
+	fstrcpy(tok_cpy, tok);
+	tok_cpy[PTR_DIFF(slash,tok)] = '\0';
+	net = interpret_addr(tok_cpy);
+	tok_cpy[PTR_DIFF(slash,tok)] = '/';
 
         if (strlen(slash + 1) > 2) {
-		if (!interpret_string_addr(&ss_mask, slash+1, 0)) {
-			return false;
-		}
+                mask = interpret_addr(slash + 1);
         } else {
-		char *endp = NULL;
-		unsigned long val = strtoul(slash+1, &endp, 0);
-		if (slash+1 == endp || (endp && *endp != '\0')) {
-			return false;
-		}
-		if (!make_netmask(&ss_mask, &ss_tok, val)) {
-			return false;
-		}
+		mask = (uint32)((ALLONES >> atoi(slash + 1)) ^ ALLONES);
+		/* convert to network byte order */
+		mask = htonl(mask);
         }
 
-	return same_net(&ss_host, &ss_tok, &ss_mask);
+	if (net == INADDR_NONE || mask == INADDR_NONE) {
+		DEBUG(0,("access: bad net/mask access control: %s\n", tok));
+		return (False);
+	}
+	
+	return ((addr & mask) == (net & mask));
 }
 
-/* string_match - match string s against token tok */
-static bool string_match(const char *tok,const char *s)
+/* string_match - match string against token */
+static BOOL string_match(const char *tok,const char *s, char *invalid_char)
 {
 	size_t     tok_len;
 	size_t     str_len;
 	const char   *cut;
 
-	/* Return true if a token has the magic value "ALL". Return
-	 * true if the token is "FAIL". If the token starts with a "."
-	 * (domain name), return true if it matches the last fields of
+	*invalid_char = '\0';
+
+	/* Return True if a token has the magic value "ALL". Return
+	 * FAIL if the token is "FAIL". If the token starts with a "."
+	 * (domain name), return True if it matches the last fields of
 	 * the string. If the token has the magic value "LOCAL",
-	 * return true if the string does not contain a "."
+	 * return True if the string does not contain a "."
 	 * character. If the token ends on a "." (network number),
-	 * return true if it matches the first fields of the
+	 * return True if it matches the first fields of the
 	 * string. If the token begins with a "@" (netgroup name),
-	 * return true if the string is a (host) member of the
-	 * netgroup. Return true if the token fully matches the
+	 * return True if the string is a (host) member of the
+	 * netgroup. Return True if the token fully matches the
 	 * string. If the token is a netnumber/netmask pair, return
-	 * true if the address is a member of the specified subnet.
+	 * True if the address is a member of the specified subnet.  
 	 */
 
 	if (tok[0] == '.') {			/* domain: match last fields */
 		if ((str_len = strlen(s)) > (tok_len = strlen(tok))
-		    && strequal(tok, s + str_len - tok_len)) {
-			return true;
-		}
+		    && strequal(tok, s + str_len - tok_len))
+			return (True);
 	} else if (tok[0] == '@') { /* netgroup: look it up */
 #ifdef	HAVE_NETGROUP
-		DATA_BLOB tmp;
-		char *mydomain = NULL;
+		static char *mydomain = NULL;
 		char *hostname = NULL;
-		bool netgroup_ok = false;
+		BOOL netgroup_ok = False;
 
-		if (memcache_lookup(
-			    NULL, SINGLETON_CACHE,
-			    data_blob_string_const("yp_default_domain"),
-			    &tmp)) {
-
-			SMB_ASSERT(tmp.length > 0);
-			mydomain = (tmp.data[0] == '\0')
-				? NULL : (char *)tmp.data;
-		}
-		else {
+		if (!mydomain)
 			yp_get_default_domain(&mydomain);
 
-			memcache_add(
-				NULL, SINGLETON_CACHE,
-				data_blob_string_const("yp_default_domain"),
-				data_blob_string_const(mydomain?mydomain:""));
-		}
-
 		if (!mydomain) {
-			DEBUG(0,("Unable to get default yp domain. "
-				"Try without it.\n"));
+			DEBUG(0,("Unable to get default yp domain. Try without it.\n"));
 		}
 		if (!(hostname = SMB_STRDUP(s))) {
 			DEBUG(1,("out of memory for strdup!\n"));
-			return false;
+			return False;
 		}
-
+		
 		netgroup_ok = innetgr(tok + 1, hostname, (char *) 0, mydomain);
-
-		DEBUG(5,("looking for %s of domain %s in netgroup %s gave %s\n",
+		
+		DEBUG(5,("looking for %s of domain %s in netgroup %s gave %s\n", 
 			 hostname,
-			 mydomain?mydomain:"(ANY)",
+			 mydomain?mydomain:"(ANY)", 
 			 tok+1,
 			 BOOLSTR(netgroup_ok)));
 
 		SAFE_FREE(hostname);
-
+      
 		if (netgroup_ok)
-			return true;
+			return(True);
 #else
 		DEBUG(0,("access: netgroup support is not configured\n"));
-		return false;
+		return (False);
 #endif
 	} else if (strequal(tok, "ALL")) {	/* all: match any */
-		return true;
+		return (True);
 	} else if (strequal(tok, "FAIL")) {	/* fail: match any */
-		return true;
+		return (FAIL);
 	} else if (strequal(tok, "LOCAL")) {	/* local: no dots */
-		if (strchr_m(s, '.') == 0 && !strequal(s, "unknown")) {
-			return true;
-		}
+		if (strchr_m(s, '.') == 0 && !strequal(s, "unknown"))
+			return (True);
 	} else if (strequal(tok, s)) {   /* match host name or address */
-		return true;
+		return (True);
 	} else if (tok[(tok_len = strlen(tok)) - 1] == '.') {	/* network */
-		if (strncmp(tok, s, tok_len) == 0) {
-			return true;
-		}
+		if (strncmp(tok, s, tok_len) == 0)
+			return (True);
 	} else if ((cut = strchr_m(tok, '/')) != 0) {	/* netnumber/netmask */
-		if ((isdigit(s[0]) && strchr_m(tok, '.') != NULL) ||
-			(tok[0] == '[' && cut > tok && cut[-1] == ']') ||
-			((isxdigit(s[0]) || s[0] == ':') &&
-				strchr_m(tok, ':') != NULL)) {
-			/* IPv4/netmask or
-			 * [IPv6:addr]/netmask or IPv6:addr/netmask */
-			return masked_match(tok, cut, s);
-		}
-	} else if (strchr_m(tok, '*') != 0 || strchr_m(tok, '?')) {
-		return unix_wild_match(tok, s);
+		if (isdigit((int)s[0]) && masked_match(tok, cut, s))
+			return (True);
+	} else if (strchr_m(tok, '*') != 0) {
+		*invalid_char = '*';
+	} else if (strchr_m(tok, '?') != 0) {
+		*invalid_char = '?';
 	}
-	return false;
+	return (False);
 }
 
 /* client_match - match host name and address against token */
-static bool client_match(const char *tok, const void *item)
+static BOOL client_match(const char *tok, const char *item)
 {
 	const char **client = (const char **)item;
+	BOOL match;
+	char invalid_char = '\0';
 
 	/*
 	 * Try to match the address first. If that fails, try to match the host
 	 * name if available.
 	 */
 
-	if (string_match(tok, client[ADDR_INDEX])) {
-		return true;
+	if ((match = string_match(tok, client[1], &invalid_char)) == 0) {
+		if(invalid_char)
+			DEBUG(0,("client_match: address match failing due to invalid character '%c' found in \
+token '%s' in an allow/deny hosts line.\n", invalid_char, tok ));
+
+		if (client[0][0] != 0)
+			match = string_match(tok, client[0], &invalid_char);
+
+		if(invalid_char)
+			DEBUG(0,("client_match: address match failing due to invalid character '%c' found in \
+token '%s' in an allow/deny hosts line.\n", invalid_char, tok ));
 	}
 
-	if (strnequal(client[ADDR_INDEX],"::ffff:",7) &&
-			!strnequal(tok, "::ffff:",7)) {
-		/* client[ADDR_INDEX] is an IPv4 mapped to IPv6, but
- 		 * the list item is not. Try and match the IPv4 part of
- 		 * address only. This will happen a lot on IPv6 enabled
- 		 * systems with IPv4 allow/deny lists in smb.conf.
- 		 * Bug #5311. JRA.
- 		 */
-		if (string_match(tok, (client[ADDR_INDEX])+7)) {
-			return true;
-		}
-	}
-
-	if (client[NAME_INDEX][0] != 0) {
-		if (string_match(tok, client[NAME_INDEX])) {
-			return true;
-		}
-	}
-
-	return false;
+	return (match);
 }
 
 /* list_match - match an item against a list of tokens with exceptions */
-static bool list_match(const char **list,const void *item,
-		bool (*match_fn)(const char *, const void *))
+static BOOL list_match(const char **list,const char *item,
+		BOOL (*match_fn)(const char *, const char *))
 {
-	bool match = false;
+	BOOL match = False;
 
-	if (!list) {
-		return false;
-	}
+	if (!list)
+		return False;
 
 	/*
 	 * Process tokens one at a time. We have exhausted all possible matches
@@ -228,102 +174,87 @@ static bool list_match(const char **list,const void *item,
 	 */
 
 	for (; *list ; list++) {
-		if (strequal(*list, "EXCEPT")) {
-			/* EXCEPT: give up */
+		if (strequal(*list, "EXCEPT"))	/* EXCEPT: give up */
 			break;
-		}
-		if ((match = (*match_fn) (*list, item))) {
-			/* true or FAIL */
+		if ((match = (*match_fn) (*list, item)))	/* True or FAIL */
 			break;
-		}
 	}
-	/* Process exceptions to true or FAIL matches. */
+	/* Process exceptions to True or FAIL matches. */
 
-	if (match != false) {
-		while (*list  && !strequal(*list, "EXCEPT")) {
+	if (match != False) {
+		while (*list  && !strequal(*list, "EXCEPT"))
 			list++;
-		}
 
 		for (; *list; list++) {
-			if ((*match_fn) (*list, item)) {
-				/* Exception Found */
-				return false;
-			}
+			if ((*match_fn) (*list, item)) /* Exception Found */
+				return False;
 		}
 	}
 
-	return match;
+	return (match);
 }
 
 /* return true if access should be allowed */
-static bool allow_access_internal(const char **deny_list,
-				const char **allow_list,
-				const char *cname,
-				const char *caddr)
+static BOOL allow_access_internal(const char **deny_list,const char **allow_list,
+			const char *cname, const char *caddr)
 {
 	const char *client[2];
 
-	client[NAME_INDEX] = cname;
-	client[ADDR_INDEX] = caddr;
+	client[0] = cname;
+	client[1] = caddr;  
 
 	/* if it is loopback then always allow unless specifically denied */
-	if (strcmp(caddr, "127.0.0.1") == 0 || strcmp(caddr, "::1") == 0) {
+	if (strcmp(caddr, "127.0.0.1") == 0) {
 		/*
 		 * If 127.0.0.1 matches both allow and deny then allow.
 		 * Patch from Steve Langasek vorlon@netexpress.net.
 		 */
-		if (deny_list &&
-			list_match(deny_list,client,client_match) &&
+		if (deny_list && 
+			list_match(deny_list,(const char *)client,client_match) &&
 				(!allow_list ||
-				!list_match(allow_list,client, client_match))) {
-			return false;
+				!list_match(allow_list,(const char *)client, client_match))) {
+			return False;
 		}
-		return true;
+		return True;
 	}
 
 	/* if theres no deny list and no allow list then allow access */
-	if ((!deny_list || *deny_list == 0) &&
+	if ((!deny_list || *deny_list == 0) && 
 	    (!allow_list || *allow_list == 0)) {
-		return true;
+		return(True);  
 	}
 
 	/* if there is an allow list but no deny list then allow only hosts
 	   on the allow list */
-	if (!deny_list || *deny_list == 0) {
-		return(list_match(allow_list,client,client_match));
-	}
+	if (!deny_list || *deny_list == 0)
+		return(list_match(allow_list,(const char *)client,client_match));
 
 	/* if theres a deny list but no allow list then allow
 	   all hosts not on the deny list */
-	if (!allow_list || *allow_list == 0) {
-		return(!list_match(deny_list,client,client_match));
-	}
+	if (!allow_list || *allow_list == 0)
+		return(!list_match(deny_list,(const char *)client,client_match));
 
 	/* if there are both types of list then allow all hosts on the
            allow list */
-	if (list_match(allow_list,(const char *)client,client_match)) {
-		return true;
-	}
+	if (list_match(allow_list,(const char *)client,client_match))
+		return (True);
 
 	/* if there are both types of list and it's not on the allow then
 	   allow it if its not on the deny */
-	if (list_match(deny_list,(const char *)client,client_match)) {
-		return false;
-	}
-
-	return true;
+	if (list_match(deny_list,(const char *)client,client_match))
+		return (False);
+	
+	return (True);
 }
 
 /* return true if access should be allowed */
-bool allow_access(const char **deny_list,
-		const char **allow_list,
-		const char *cname,
-		const char *caddr)
+BOOL allow_access(const char **deny_list, const char **allow_list,
+		  const char *cname, const char *caddr)
 {
-	bool ret;
+	BOOL ret;
 	char *nc_cname = smb_xstrdup(cname);
 	char *nc_caddr = smb_xstrdup(caddr);
-
+	
 	ret = allow_access_internal(deny_list, allow_list, nc_cname, nc_caddr);
 
 	SAFE_FREE(nc_cname);
@@ -331,83 +262,69 @@ bool allow_access(const char **deny_list,
 	return ret;
 }
 
-/* return true if the char* contains ip addrs only.  Used to avoid
-name lookup calls */
+/* return true if the char* contains ip addrs only.  Used to avoid 
+gethostbyaddr() calls */
 
-static bool only_ipaddrs_in_list(const char **list)
+static BOOL only_ipaddrs_in_list(const char** list)
 {
-	bool only_ip = true;
-
-	if (!list) {
-		return true;
-	}
-
+	BOOL only_ip = True;
+	
+	if (!list)
+		return True;
+			
 	for (; *list ; list++) {
 		/* factor out the special strings */
-		if (strequal(*list, "ALL") || strequal(*list, "FAIL") ||
+		if (strequal(*list, "ALL") || strequal(*list, "FAIL") || 
 		    strequal(*list, "EXCEPT")) {
 			continue;
 		}
-
+		
 		if (!is_ipaddress(*list)) {
-			/*
-			 * If we failed, make sure that it was not because
-			 * the token was a network/netmask pair. Only
-			 * network/netmask pairs have a '/' in them.
+			/* 
+			 * if we failed, make sure that it was not because the token
+			 * was a network/netmask pair.  Only network/netmask pairs
+			 * have a '/' in them
 			 */
 			if ((strchr_m(*list, '/')) == NULL) {
-				only_ip = false;
-				DEBUG(3,("only_ipaddrs_in_list: list has "
-					"non-ip address (%s)\n",
-					*list));
+				only_ip = False;
+				DEBUG(3,("only_ipaddrs_in_list: list has non-ip address (%s)\n", *list));
 				break;
 			}
 		}
 	}
-
+	
 	return only_ip;
 }
 
 /* return true if access should be allowed to a service for a socket */
-bool check_access(int sock, const char **allow_list, const char **deny_list)
+BOOL check_access(int sock, const char **allow_list, const char **deny_list)
 {
-	bool ret = false;
-	bool only_ip = false;
-
+	BOOL ret = False;
+	BOOL only_ip = False;
+	
 	if ((!deny_list || *deny_list==0) && (!allow_list || *allow_list==0))
-		ret = true;
+		ret = True;
 
 	if (!ret) {
-		char addr[INET6_ADDRSTRLEN];
-
-		/* Bypass name resolution calls if the lists
-		 * only contain IP addrs */
-		if (only_ipaddrs_in_list(allow_list) &&
-				only_ipaddrs_in_list(deny_list)) {
-			only_ip = true;
-			DEBUG (3, ("check_access: no hostnames "
-				"in host allow/deny list.\n"));
-			ret = allow_access(deny_list,
-					allow_list,
-					"",
-					get_peer_addr(sock,addr,sizeof(addr)));
+		/* bypass gethostbyaddr() calls if the lists only contain IP addrs */
+		if (only_ipaddrs_in_list(allow_list) && only_ipaddrs_in_list(deny_list)) {
+			only_ip = True;
+			DEBUG (3, ("check_access: no hostnames in host allow/deny list.\n"));
+			ret = allow_access(deny_list,allow_list, "", get_peer_addr(sock));
 		} else {
-			DEBUG (3, ("check_access: hostnames in "
-				"host allow/deny list.\n"));
-			ret = allow_access(deny_list,
-					allow_list,
-					get_peer_name(sock,true),
-					get_peer_addr(sock,addr,sizeof(addr)));
+			DEBUG (3, ("check_access: hostnames in host allow/deny list.\n"));
+			ret = allow_access(deny_list,allow_list, get_peer_name(sock,True),
+					   get_peer_addr(sock));
 		}
-
+		
 		if (ret) {
 			DEBUG(2,("Allowed connection from %s (%s)\n",
-				 only_ip ? "" : get_peer_name(sock,true),
-				 get_peer_addr(sock,addr,sizeof(addr))));
+				 only_ip ? "" : get_peer_name(sock,True),
+				 get_peer_addr(sock)));
 		} else {
 			DEBUG(0,("Denied connection from %s (%s)\n",
-				 only_ip ? "" : get_peer_name(sock,true),
-				 get_peer_addr(sock,addr,sizeof(addr))));
+				 only_ip ? "" : get_peer_name(sock,True),
+				 get_peer_addr(sock)));
 		}
 	}
 

@@ -19,7 +19,9 @@
   Lesser General Public License for more details.
 
   You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  
+  02110-1301  USA
 */
 
 #include "dns.h"
@@ -118,7 +120,6 @@ static DNS_ERROR dns_udp_open( const char *nameserver,
 	   the receiver (in this example case "123.456.789.1")
 	   and the specified port number. */
 
-	ZERO_STRUCT(RecvAddr);
 	RecvAddr.sin_family = AF_INET;
 	RecvAddr.sin_port = htons( DNS_UDP_PORT );
 	RecvAddr.sin_addr.s_addr = ulAddress;

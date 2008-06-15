@@ -4,7 +4,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -13,7 +13,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 
@@ -42,8 +43,8 @@ static char *query_string;
 static const char *baseurl;
 static char *pathinfo;
 static char *C_user;
-static bool inetd_server;
-static bool got_request;
+static BOOL inetd_server;
+static BOOL got_request;
 
 static char *grab_line(FILE *f, int *cl)
 {
@@ -164,9 +165,7 @@ void cgi_load_variables(void)
 	open("/dev/null", O_RDWR);
 
 	if ((s=query_string) || (s=getenv("QUERY_STRING"))) {
-		char *saveptr;
-		for (tok=strtok_r(s, "&;", &saveptr); tok;
-		     tok=strtok_r(NULL, "&;", &saveptr)) {
+		for (tok=strtok(s,"&;");tok;tok=strtok(NULL,"&;")) {
 			p = strchr_m(tok,'=');
 			if (!p) continue;
 			
@@ -175,7 +174,7 @@ void cgi_load_variables(void)
 			variables[num_variables].name = SMB_STRDUP(tok);
 			variables[num_variables].value = SMB_STRDUP(p+1);
 
-			if (!variables[num_variables].name ||
+			if (!variables[num_variables].name || 
 			    !variables[num_variables].value)
 				continue;
 
@@ -188,36 +187,32 @@ void cgi_load_variables(void)
                         printf("<!== Commandline var %s has value \"%s\"  ==>\n",
                                variables[num_variables].name,
                                variables[num_variables].value);
-#endif
+#endif						
 			num_variables++;
 			if (num_variables == MAX_VARIABLES) break;
 		}
 
 	}
 #ifdef DEBUG_COMMENTS
-        printf("<!== End dump in cgi_load_variables() ==>\n");
+        printf("<!== End dump in cgi_load_variables() ==>\n");   
 #endif
 
 	/* variables from the client are in UTF-8 - convert them
 	   to our internal unix charset before use */
 	for (i=0;i<num_variables;i++) {
-		TALLOC_CTX *frame = talloc_stackframe();
-		char *dest = NULL;
-		size_t dest_len;
+		pstring dest;
 
-		convert_string_allocate(frame, CH_UTF8, CH_UNIX,
-			       variables[i].name, strlen(variables[i].name),
-			       &dest, &dest_len, True);
-		SAFE_FREE(variables[i].name);
-		variables[i].name = SMB_STRDUP(dest ? dest : "");
+		convert_string(CH_UTF8, CH_UNIX, 
+			       variables[i].name, -1, 
+			       dest, sizeof(dest), True);
+		free(variables[i].name);
+		variables[i].name = SMB_STRDUP(dest);
 
-		dest = NULL;
-		convert_string_allocate(frame, CH_UTF8, CH_UNIX,
-			       variables[i].value, strlen(variables[i].value),
-			       &dest, &dest_len, True);
-		SAFE_FREE(variables[i].value);
-		variables[i].value = SMB_STRDUP(dest ? dest : "");
-		TALLOC_FREE(frame);
+		convert_string(CH_UTF8, CH_UNIX, 
+			       variables[i].value, -1,
+			       dest, sizeof(dest), True);
+		free(variables[i].value);
+		variables[i].value = SMB_STRDUP(dest);
 	}
 }
 
@@ -225,7 +220,7 @@ void cgi_load_variables(void)
 /***************************************************************************
   find a variable passed via CGI
   Doesn't quite do what you think in the case of POST text variables, because
-  if they exist they might have a value of "" or even " ", depending on the
+  if they exist they might have a value of "" or even " ", depending on the 
   browser. Also doesn't allow for variables[] containing multiple variables
   with the same name and the same or different values.
   ***************************************************************************/
@@ -334,7 +329,7 @@ static void cgi_web_auth(void)
 /***************************************************************************
 handle a http authentication line
   ***************************************************************************/
-static bool cgi_handle_authorization(char *line)
+static BOOL cgi_handle_authorization(char *line)
 {
 	char *p;
 	fstring user, user_pass;
@@ -405,7 +400,7 @@ err:
 /***************************************************************************
 is this root?
   ***************************************************************************/
-bool am_root(void)
+BOOL am_root(void)
 {
 	if (geteuid() == 0) {
 		return( True);
@@ -515,7 +510,7 @@ static void cgi_download(char *file)
  **/
 void cgi_setup(const char *rootdir, int auth_required)
 {
-	bool authenticated = False;
+	BOOL authenticated = False;
 	char line[1024];
 	char *url=NULL;
 	char *p;
@@ -639,7 +634,7 @@ const char *cgi_pathinfo(void)
 /***************************************************************************
 return the hostname of the client
   ***************************************************************************/
-const char *cgi_remote_host(void)
+char *cgi_remote_host(void)
 {
 	if (inetd_server) {
 		return get_peer_name(1,False);
@@ -650,11 +645,10 @@ const char *cgi_remote_host(void)
 /***************************************************************************
 return the hostname of the client
   ***************************************************************************/
-const char *cgi_remote_addr(void)
+char *cgi_remote_addr(void)
 {
 	if (inetd_server) {
-		char addr[INET6_ADDRSTRLEN];
-		return get_peer_addr(1,addr,sizeof(addr));
+		return get_peer_addr(1);
 	}
 	return getenv("REMOTE_ADDR");
 }
@@ -663,7 +657,7 @@ const char *cgi_remote_addr(void)
 /***************************************************************************
 return True if the request was a POST
   ***************************************************************************/
-bool cgi_waspost(void)
+BOOL cgi_waspost(void)
 {
 	if (inetd_server) {
 		return request_post;

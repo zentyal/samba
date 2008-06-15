@@ -11,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -20,7 +20,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -32,10 +33,7 @@ static struct cmd_list {
 	struct cmd_set *cmd_set;
 } *cmd_list;
 
-int get_client_fd(void)
-{
-	return -1;
-}
+extern pstring user_socket_options;
 
 /****************************************************************************
 handle completion of commands for readline
@@ -89,20 +87,20 @@ static char **completion_fn(const char *text, int start, int end)
 	return matches;
 }
 
-static char *next_command(TALLOC_CTX *ctx, char **cmdstr)
+static char* next_command(char** cmdstr)
 {
-	char *command;
-	char *p;
-
+	static pstring 		command;
+	char			*p;
+	
 	if (!cmdstr || !(*cmdstr))
 		return NULL;
-
+	
 	p = strchr_m(*cmdstr, ';');
 	if (p)
 		*p = '\0';
-	command = talloc_strdup(ctx, *cmdstr);
+	pstrcpy(command, *cmdstr);
 	*cmdstr = p;
-
+	
 	return command;
 }
 
@@ -266,22 +264,24 @@ static NTSTATUS do_cmd(struct vfs_state *vfs, struct cmd_set *cmd_entry, char *c
 	const char *p = cmd;
 	char **argv = NULL;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	char *buf;
-	TALLOC_CTX *mem_ctx = talloc_stackframe();
+	pstring buf;
+	TALLOC_CTX *mem_ctx = NULL;
 	int argc = 0, i;
 
 	/* Count number of arguments first time through the loop then
 	   allocate memory and strdup them. */
 
  again:
-	while(next_token_talloc(mem_ctx, &p, &buf, " ")) {
+	while(next_token(&p, buf, " ", sizeof(buf))) {
 		if (argv) {
 			argv[argc] = SMB_STRDUP(buf);
 		}
+		
 		argc++;
 	}
-
+				
 	if (!argv) {
+
 		/* Create argument list */
 
 		argv = SMB_MALLOC_ARRAY(char *, argc);
@@ -292,35 +292,44 @@ static NTSTATUS do_cmd(struct vfs_state *vfs, struct cmd_set *cmd_entry, char *c
 			result = NT_STATUS_NO_MEMORY;
 			goto done;
 		}
-
+					
 		p = cmd;
 		argc = 0;
-
+					
 		goto again;
 	}
 
 	/* Call the function */
 
 	if (cmd_entry->fn) {
+
+		if (mem_ctx == NULL) {
+			/* Create mem_ctx */
+			if (!(mem_ctx = talloc_init("do_cmd"))) {
+		       		DEBUG(0, ("talloc_init() failed\n"));
+				goto done;
+			}
+		}
+
 		/* Run command */
 		result = cmd_entry->fn(vfs, mem_ctx, argc, (const char **)argv);
+
 	} else {
 		fprintf (stderr, "Invalid command\n");
 		goto done;
 	}
 
  done:
-
+						
 	/* Cleanup */
 
 	if (argv) {
 		for (i = 0; i < argc; i++)
 			SAFE_FREE(argv[i]);
-
+	
 		SAFE_FREE(argv);
 	}
-
-	TALLOC_FREE(mem_ctx);
+	
 	return result;
 }
 
@@ -328,22 +337,20 @@ static NTSTATUS do_cmd(struct vfs_state *vfs, struct cmd_set *cmd_entry, char *c
 static NTSTATUS process_cmd(struct vfs_state *vfs, char *cmd)
 {
 	struct cmd_list *temp_list;
-	bool found = False;
-	char *buf;
+	BOOL found = False;
+	pstring buf;
 	const char *p = cmd;
 	NTSTATUS result = NT_STATUS_OK;
-	TALLOC_CTX *mem_ctx = talloc_stackframe();
 	int len = 0;
 
 	if (cmd[strlen(cmd) - 1] == '\n')
 		cmd[strlen(cmd) - 1] = '\0';
 
-	if (!next_token_talloc(mem_ctx, &p, &buf, " ")) {
-		TALLOC_FREE(mem_ctx);
+	if (!next_token(&p, buf, " ", sizeof(buf))) {
 		return NT_STATUS_OK;
 	}
 
-	/* Strip the trailing \n if it exists */
+	/* strip the trainly \n if it exsists */
 	len = strlen(buf);
 	if (buf[len-1] == '\n')
 		buf[len-1] = '\0';
@@ -367,7 +374,6 @@ static NTSTATUS process_cmd(struct vfs_state *vfs, char *cmd)
  done:
 	if (!found && buf[0]) {
 		printf("command not found: %s\n", buf);
-		TALLOC_FREE(mem_ctx);
 		return NT_STATUS_OK;
 	}
 
@@ -375,7 +381,6 @@ static NTSTATUS process_cmd(struct vfs_state *vfs, char *cmd)
 		printf("result was %s\n", nt_errstr(result));
 	}
 
-	TALLOC_FREE(mem_ctx);
 	return result;
 }
 
@@ -427,15 +432,16 @@ void reload_printers(void)
  Reload the services file.
 **************************************************************************/
 
-bool reload_services(bool test)
+BOOL reload_services(BOOL test)
 {
-	bool ret;
-
+	BOOL ret;
+	
 	if (lp_loaded()) {
-		const char *fname = lp_configfile();
+		pstring fname;
+		pstrcpy(fname,lp_configfile());
 		if (file_exist(fname, NULL) &&
-		    !strcsequal(fname, get_dyn_CONFIGFILE())) {
-			set_dyn_CONFIGFILE(fname);
+		    !strcsequal(fname, dyn_CONFIGFILE)) {
+			pstrcpy(dyn_CONFIGFILE, fname);
 			test = False;
 		}
 	}
@@ -446,8 +452,8 @@ bool reload_services(bool test)
 		return(True);
 
 	lp_killunused(conn_snum_used);
-
-	ret = lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
+	
+	ret = lp_load(dyn_CONFIGFILE, False, False, True, True);
 
 	/* perhaps the config filename is now set */
 	if (!test)
@@ -460,8 +466,7 @@ bool reload_services(bool test)
 	{
 		if (smbd_server_fd() != -1) {      
 			set_socket_options(smbd_server_fd(),"SO_KEEPALIVE");
-			set_socket_options(smbd_server_fd(),
-					   lp_socket_options());
+			set_socket_options(smbd_server_fd(), user_socket_options);
 		}
 	}
 
@@ -495,19 +500,6 @@ struct messaging_context *smbd_messaging_context(void)
 	return ctx;
 }
 
-struct memcache *smbd_memcache(void)
-{
-	static struct memcache *cache;
-
-	if (!cache
-	    && !(cache = memcache_init(NULL,
-				       lp_max_stat_cache_size()*1024))) {
-
-		smb_panic("Could not init smbd memcache");
-	}
-	return cache;
-}
-
 /* Main function */
 
 int main(int argc, char *argv[])
@@ -517,7 +509,6 @@ int main(int argc, char *argv[])
 	static struct vfs_state vfs;
 	int i;
 	static char		*filename = NULL;
-	TALLOC_CTX *frame = talloc_stackframe();
 
 	/* make sure the vars that get altered (4th field) are in
 	   a fixed location or certain compilers complain */
@@ -580,33 +571,31 @@ int main(int argc, char *argv[])
 	if (cmdstr && cmdstr[0]) {
 		char    *cmd;
 		char    *p = cmdstr;
-
-		while((cmd=next_command(frame, &p)) != NULL) {
+ 
+		while((cmd=next_command(&p)) != NULL) {
 			process_cmd(&vfs, cmd);
 		}
-
-		TALLOC_FREE(cmd);
+		
 		return 0;
 	}
 
 	/* Loop around accepting commands */
 
 	while(1) {
-		char *line = NULL;
+		pstring prompt;
+		char *line;
 
-		line = smb_readline("vfstest $> ", NULL, completion_fn);
+		slprintf(prompt, sizeof(prompt) - 1, "vfstest $> ");
 
-		if (line == NULL) {
+		line = smb_readline(prompt, NULL, completion_fn);
+
+		if (line == NULL)
 			break;
-		}
 
-		if (line[0] != '\n') {
+		if (line[0] != '\n')
 			process_cmd(&vfs, line);
-		}
-		SAFE_FREE(line);
 	}
-
+	
 	conn_free(vfs.conn);
-	TALLOC_FREE(frame);
 	return 0;
 }

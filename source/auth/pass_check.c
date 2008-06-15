@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /* this module is for checking a username/password against a system
@@ -26,61 +27,10 @@
 #define DBGC_CLASS DBGC_AUTH
 
 /* these are kept here to keep the string_combinations function simple */
-static char *ths_user;
-
-static const char *get_this_user(void)
-{
-	if (!ths_user) {
-		return "";
-	}
-	return ths_user;
-}
-
-#if defined(WITH_PAM) || defined(OSF1_ENH_SEC)
-static const char *set_this_user(const char *newuser)
-{
-	char *orig_user = ths_user;
-	ths_user = SMB_STRDUP(newuser);
-	SAFE_FREE(orig_user);
-	return ths_user;
-}
-#endif
-
-#if !defined(WITH_PAM)
-static char *ths_salt;
-/* This must be writable. */
-static char *get_this_salt(void)
-{
-	return ths_salt;
-}
-
-/* We may be setting a modified version of the same
- * string, so don't free before use. */
-
-static const char *set_this_salt(const char *newsalt)
-{
-	char *orig_salt = ths_salt;
-	ths_salt = SMB_STRDUP(newsalt);
-	SAFE_FREE(orig_salt);
-	return ths_salt;
-}
-
-static char *ths_crypted;
-static const char *get_this_crypted(void)
-{
-	if (!ths_crypted) {
-		return "";
-	}
-	return ths_crypted;
-}
-
-static const char *set_this_crypted(const char *newcrypted)
-{
-	char *orig_crypted = ths_crypted;
-	ths_crypted = SMB_STRDUP(newcrypted);
-	SAFE_FREE(orig_crypted);
-	return ths_crypted;
-}
+static fstring this_user;
+#if !defined(WITH_PAM) 
+static fstring this_salt;
+static fstring this_crypted;
 #endif
 
 #ifdef WITH_AFS
@@ -91,7 +41,7 @@ static const char *set_this_crypted(const char *newcrypted)
 /*******************************************************************
 check on AFS authentication
 ********************************************************************/
-static bool afs_auth(char *user, char *password)
+static BOOL afs_auth(char *user, char *password)
 {
 	long password_expires = 0;
 	char *reason;
@@ -140,7 +90,7 @@ int dcelogin_atmost_once = 0;
 /*******************************************************************
 check on a DCE/DFS authentication
 ********************************************************************/
-static bool dfs_auth(char *user, char *password)
+static BOOL dfs_auth(char *user, char *password)
 {
 	struct tm *t;
 	error_status_t err;
@@ -164,7 +114,7 @@ static bool dfs_auth(char *user, char *password)
 	 * Assumes local passwd file is kept in sync w/ DCE RGY!
 	 */
 
-	if (strcmp((char *)crypt(password, get_this_salt()), get_this_crypted()))
+	if (strcmp((char *)crypt(password, this_salt), this_crypted))
 	{
 		return (False);
 	}
@@ -543,29 +493,29 @@ core of password checking routine
 static NTSTATUS password_check(const char *password)
 {
 #ifdef WITH_PAM
-	return smb_pam_passcheck(get_this_user(), password);
+	return smb_pam_passcheck(this_user, password);
 #else
 
-	bool ret;
+	BOOL ret;
 
 #ifdef WITH_AFS
-	if (afs_auth(get_this_user(), password))
+	if (afs_auth(this_user, password))
 		return NT_STATUS_OK;
 #endif /* WITH_AFS */
 
 #ifdef WITH_DFS
-	if (dfs_auth(get_this_user(), password))
+	if (dfs_auth(this_user, password))
 		return NT_STATUS_OK;
 #endif /* WITH_DFS */
 
 #ifdef OSF1_ENH_SEC
 	
-	ret = (strcmp(osf1_bigcrypt(password, get_this_salt()),
-		      get_this_crypted()) == 0);
+	ret = (strcmp(osf1_bigcrypt(password, this_salt),
+		      this_crypted) == 0);
 	if (!ret) {
 		DEBUG(2,
 		      ("OSF1_ENH_SEC failed. Trying normal crypt.\n"));
-		ret = (strcmp((char *)crypt(password, get_this_salt()), get_this_crypted()) == 0);
+		ret = (strcmp((char *)crypt(password, this_salt), this_crypted) == 0);
 	}
 	if (ret) {
 		return NT_STATUS_OK;
@@ -576,7 +526,7 @@ static NTSTATUS password_check(const char *password)
 #endif /* OSF1_ENH_SEC */
 	
 #ifdef ULTRIX_AUTH
-	ret = (strcmp((char *)crypt16(password, get_this_salt()), get_this_crypted()) == 0);
+	ret = (strcmp((char *)crypt16(password, this_salt), this_crypted) == 0);
 	if (ret) {
 		return NT_STATUS_OK;
         } else {
@@ -586,7 +536,7 @@ static NTSTATUS password_check(const char *password)
 #endif /* ULTRIX_AUTH */
 	
 #ifdef LINUX_BIGCRYPT
-	ret = (linux_bigcrypt(password, get_this_salt(), get_this_crypted()));
+	ret = (linux_bigcrypt(password, this_salt, this_crypted));
         if (ret) {
 		return NT_STATUS_OK;
 	} else {
@@ -603,10 +553,10 @@ static NTSTATUS password_check(const char *password)
 	 * by crypt.
 	 */
 
-	if (strcmp(bigcrypt(password, get_this_salt()), get_this_crypted()) == 0)
+	if (strcmp(bigcrypt(password, this_salt), this_crypted) == 0)
 		return NT_STATUS_OK;
 	else
-		ret = (strcmp((char *)crypt(password, get_this_salt()), get_this_crypted()) == 0);
+		ret = (strcmp((char *)crypt(password, this_salt), this_crypted) == 0);
 	if (ret) {
 		return NT_STATUS_OK;
 	} else {
@@ -615,7 +565,7 @@ static NTSTATUS password_check(const char *password)
 #else /* HAVE_BIGCRYPT && HAVE_CRYPT && USE_BOTH_CRYPT_CALLS */
 	
 #ifdef HAVE_BIGCRYPT
-	ret = (strcmp(bigcrypt(password, get_this_salt()), get_this_crypted()) == 0);
+	ret = (strcmp(bigcrypt(password, this_salt), this_crypted) == 0);
         if (ret) {
 		return NT_STATUS_OK;
 	} else {
@@ -627,7 +577,7 @@ static NTSTATUS password_check(const char *password)
 	DEBUG(1, ("Warning - no crypt available\n"));
 	return NT_STATUS_LOGON_FAILURE;
 #else /* HAVE_CRYPT */
-	ret = (strcmp((char *)crypt(password, get_this_salt()), get_this_crypted()) == 0);
+	ret = (strcmp((char *)crypt(password, this_salt), this_crypted) == 0);
         if (ret) {
 		return NT_STATUS_OK;
 	} else {
@@ -648,9 +598,9 @@ return NT_STATUS_OK on correct match, appropriate error otherwise
 ****************************************************************************/
 
 NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *password, 
-		    int pwlen, bool (*fn) (const char *, const char *), bool run_cracker)
+		    int pwlen, BOOL (*fn) (const char *, const char *), BOOL run_cracker)
 {
-	char *pass2 = NULL;
+	pstring pass2;
 	int level = lp_passwordlevel();
 
 	NTSTATUS nt_status;
@@ -672,9 +622,7 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 	 * checks below and dive straight into the PAM code.
 	 */
 
-	if (set_this_user(user) == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	fstrcpy(this_user, user);
 
 	DEBUG(4, ("pass_check: Checking (PAM) password for user %s (l=%d)\n", user, pwlen));
 
@@ -691,12 +639,8 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 	/* Copy into global for the convenience of looping code */
 	/* Also the place to keep the 'password' no matter what
 	   crazy struct it started in... */
-	if (set_this_crypted(pass->pw_passwd) == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	if (set_this_salt(pass->pw_passwd) == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	fstrcpy(this_crypted, pass->pw_passwd);
+	fstrcpy(this_salt, pass->pw_passwd);
 
 #ifdef HAVE_GETSPNAM
 	{
@@ -709,12 +653,8 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 
 		spass = getspnam(pass->pw_name);
 		if (spass && spass->sp_pwdp) {
-			if (set_this_crypted(spass->sp_pwdp) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-			if (set_this_salt(spass->sp_pwdp) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
+			fstrcpy(this_crypted, spass->sp_pwdp);
+			fstrcpy(this_salt, spass->sp_pwdp);
 		}
 	}
 #elif defined(IA_UINFO)
@@ -732,11 +672,8 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 #ifdef HAVE_GETPRPWNAM
 	{
 		struct pr_passwd *pr_pw = getprpwnam(pass->pw_name);
-		if (pr_pw && pr_pw->ufld.fd_encrypt) {
-			if (set_this_crypted(pr_pw->ufld.fd_encrypt) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-		}
+		if (pr_pw && pr_pw->ufld.fd_encrypt)
+			fstrcpy(this_crypted, pr_pw->ufld.fd_encrypt);
 	}
 #endif
 
@@ -744,11 +681,8 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 	{
 		struct passwd_adjunct *pwret;
 		pwret = getpwanam(s);
-		if (pwret && pwret->pwa_passwd) {
-			if (set_this_crypted(pwret->pwa_passwd) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-		}
+		if (pwret && pwret->pwa_passwd)
+			fstrcpy(this_crypted, pwret->pwa_passwd);
 	}
 #endif
 
@@ -759,12 +693,8 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 			  user));
 		mypasswd = getprpwnam(user);
 		if (mypasswd) {
-			if (set_this_user(mypasswd->ufld.fd_name) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-			if (set_this_crypted(mypasswd->ufld.fd_encrypt) == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
+			fstrcpy(this_user, mypasswd->ufld.fd_name);
+			fstrcpy(this_crypted, mypasswd->ufld.fd_encrypt);
 		} else {
 			DEBUG(5,
 			      ("OSF1_ENH_SEC: No entry for user %s in protected database !\n",
@@ -777,10 +707,7 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 	{
 		AUTHORIZATION *ap = getauthuid(pass->pw_uid);
 		if (ap) {
-			if (set_this_crypted(ap->a_password) == NULL) {
-				endauthent();
-				return NT_STATUS_NO_MEMORY;
-			}
+			fstrcpy(this_crypted, ap->a_password);
 			endauthent();
 		}
 	}
@@ -789,28 +716,19 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 #if defined(HAVE_TRUNCATED_SALT)
 	/* crypt on some platforms (HPUX in particular)
 	   won't work with more than 2 salt characters. */
-	{
-		char *trunc_salt = get_this_salt();
-		if (!trunc_salt || strlen(trunc_salt) < 2) {
-			return NT_STATUS_LOGON_FAILURE;
-		}
-		trunc_salt[2] = 0;
-		if (set_this_salt(trunc_salt) == NULL) {
-			return NT_STATUS_NO_MEMORY;
-		}
-	}
+	this_salt[2] = 0;
 #endif
 
-	if (!get_this_crypted() || !*get_this_crypted()) {
+	if (!*this_crypted) {
 		if (!lp_null_passwords()) {
 			DEBUG(2, ("Disallowing %s with null password\n",
-				  get_this_user()));
+				  this_user));
 			return NT_STATUS_LOGON_FAILURE;
 		}
 		if (!*password) {
 			DEBUG(3,
 			      ("Allowing access to %s with null password\n",
-			       get_this_user()));
+			       this_user));
 			return NT_STATUS_OK;
 		}
 	}
@@ -841,10 +759,7 @@ NTSTATUS pass_check(const struct passwd *pass, const char *user, const char *pas
 	}
 
 	/* make a copy of it */
-	pass2 = talloc_strdup(talloc_tos(), password);
-	if (!pass2) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	pstrcpy(pass2, password);
 
 	/* try all lowercase if it's currently all uppercase */
 	if (strhasupper(pass2)) {

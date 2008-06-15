@@ -8,7 +8,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -17,74 +17,65 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
 
-#undef DBGC_CLASS
-#define DBGC_CLASS DBGC_REGISTRY
 
 /**********************************************************************
  for an eventlog, add in the default values
 *********************************************************************/
 
-bool eventlog_init_keys(void)
+BOOL eventlog_init_keys( void )
 {
 	/* Find all of the eventlogs, add keys for each of them */
-	const char **elogs = lp_eventlog_list();
-	char *evtlogpath = NULL;
-	char *evtfilepath = NULL;
+	const char **elogs = lp_eventlog_list(  );
+	pstring evtlogpath;
+	pstring evtfilepath;
 	REGSUBKEY_CTR *subkeys;
 	REGVAL_CTR *values;
 	uint32 uiMaxSize;
 	uint32 uiRetention;
 	uint32 uiCategoryCount;
 	UNISTR2 data;
-	TALLOC_CTX *ctx = talloc_tos();
 
-	while (elogs && *elogs) {
-		if (!(subkeys = TALLOC_ZERO_P(ctx, REGSUBKEY_CTR ) ) ) {
+	while ( elogs && *elogs ) {
+		if ( !( subkeys = TALLOC_ZERO_P( NULL, REGSUBKEY_CTR ) ) ) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
-		regdb_fetch_keys(KEY_EVENTLOG, subkeys);
+		regdb_fetch_keys( KEY_EVENTLOG, subkeys );
 		regsubkey_ctr_addkey( subkeys, *elogs );
-		if ( !regdb_store_keys( KEY_EVENTLOG, subkeys ) ) {
-			TALLOC_FREE(subkeys);
+		if ( !regdb_store_keys( KEY_EVENTLOG, subkeys ) )
 			return False;
-		}
-		TALLOC_FREE(subkeys);
+		TALLOC_FREE( subkeys );
 
 		/* add in the key of form KEY_EVENTLOG/Application */
 		DEBUG( 5,
 		       ( "Adding key of [%s] to path of [%s]\n", *elogs,
 			 KEY_EVENTLOG ) );
 
-		evtlogpath = talloc_asprintf(ctx, "%s\\%s",
-			  KEY_EVENTLOG, *elogs);
-		if (!evtlogpath) {
-			return false;
-		}
+		slprintf( evtlogpath, sizeof( evtlogpath ) - 1, "%s\\%s",
+			  KEY_EVENTLOG, *elogs );
 		/* add in the key of form KEY_EVENTLOG/Application/Application */
 		DEBUG( 5,
 		       ( "Adding key of [%s] to path of [%s]\n", *elogs,
 			 evtlogpath ) );
-		if (!(subkeys = TALLOC_ZERO_P(ctx, REGSUBKEY_CTR))) {
+		if ( !( subkeys = TALLOC_ZERO_P( NULL, REGSUBKEY_CTR ) ) ) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
 		regdb_fetch_keys( evtlogpath, subkeys );
 		regsubkey_ctr_addkey( subkeys, *elogs );
 
-		if ( !regdb_store_keys( evtlogpath, subkeys ) ) {
-			TALLOC_FREE(subkeys);
+		if ( !regdb_store_keys( evtlogpath, subkeys ) )
 			return False;
-		}
 		TALLOC_FREE( subkeys );
 
 		/* now add the values to the KEY_EVENTLOG/Application form key */
-		if (!(values = TALLOC_ZERO_P(ctx, REGVAL_CTR))) {
+		if ( !( values = TALLOC_ZERO_P( NULL, REGVAL_CTR ) ) ) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
@@ -94,7 +85,7 @@ bool eventlog_init_keys(void)
 		regdb_fetch_values( evtlogpath, values );
 
 
-		if (!regval_ctr_key_exists(values, "MaxSize")) {
+		if ( !regval_ctr_key_exists( values, "MaxSize" ) ) {
 
 			/* assume we have none, add them all */
 
@@ -104,57 +95,48 @@ bool eventlog_init_keys(void)
 			uiMaxSize = 0x00080000;
 			uiRetention = 0x93A80;
 
-			regval_ctr_addvalue(values, "MaxSize", REG_DWORD,
-					     (char *)&uiMaxSize,
-					     sizeof(uint32));
+			regval_ctr_addvalue( values, "MaxSize", REG_DWORD,
+					     ( char * ) &uiMaxSize,
+					     sizeof( uint32 ) );
 
-			regval_ctr_addvalue(values, "Retention", REG_DWORD,
-					     (char *)&uiRetention,
-					     sizeof(uint32));
-			init_unistr2(&data, *elogs, UNI_STR_TERMINATE);
+			regval_ctr_addvalue( values, "Retention", REG_DWORD,
+					     ( char * ) &uiRetention,
+					     sizeof( uint32 ) );
+			init_unistr2( &data, *elogs, UNI_STR_TERMINATE );
 
-			regval_ctr_addvalue(values, "PrimaryModule", REG_SZ,
-					     (char *)data.buffer,
+			regval_ctr_addvalue( values, "PrimaryModule", REG_SZ,
+					     ( char * ) data.buffer,
 					     data.uni_str_len *
-					     sizeof(uint16));
-			init_unistr2(&data, *elogs, UNI_STR_TERMINATE);
+					     sizeof( uint16 ) );
+			init_unistr2( &data, *elogs, UNI_STR_TERMINATE );
 
-			regval_ctr_addvalue(values, "Sources", REG_MULTI_SZ,
-					     (char *)data.buffer,
+			regval_ctr_addvalue( values, "Sources", REG_MULTI_SZ,
+					     ( char * ) data.buffer,
 					     data.uni_str_len *
-					     sizeof(uint16));
+					     sizeof( uint16 ) );
 
-			evtfilepath = talloc_asprintf(ctx,
-					"%%SystemRoot%%\\system32\\config\\%s.tdb",
-					*elogs);
-			if (!evtfilepath) {
-				TALLOC_FREE(values);
-			}
-			init_unistr2(&data, evtfilepath, UNI_STR_TERMINATE);
-			regval_ctr_addvalue(values, "File", REG_EXPAND_SZ, (char *)data.buffer,
-					     data.uni_str_len * sizeof(uint16));
-			regdb_store_values(evtlogpath, values);
+			pstr_sprintf( evtfilepath, "%%SystemRoot%%\\system32\\config\\%s.tdb", *elogs );
+			init_unistr2( &data, evtfilepath, UNI_STR_TERMINATE );
+			regval_ctr_addvalue( values, "File", REG_EXPAND_SZ, ( char * ) data.buffer,
+					     data.uni_str_len * sizeof( uint16 ) );
+			regdb_store_values( evtlogpath, values );
 
 		}
 
-		TALLOC_FREE(values);
+		TALLOC_FREE( values );
 
 		/* now do the values under KEY_EVENTLOG/Application/Application */
-		TALLOC_FREE(evtlogpath);
-		evtlogpath = talloc_asprintf(ctx, "%s\\%s\\%s",
-			  KEY_EVENTLOG, *elogs, *elogs);
-		if (!evtlogpath) {
-			return false;
-		}
-		if (!(values = TALLOC_ZERO_P(ctx, REGVAL_CTR))) {
+		slprintf( evtlogpath, sizeof( evtlogpath ) - 1, "%s\\%s\\%s",
+			  KEY_EVENTLOG, *elogs, *elogs );
+		if ( !( values = TALLOC_ZERO_P( NULL, REGVAL_CTR ) ) ) {
 			DEBUG( 0, ( "talloc() failure!\n" ) );
 			return False;
 		}
 		DEBUG( 5,
 		       ( "Storing values to eventlog path of [%s]\n",
-			 evtlogpath));
-		regdb_fetch_values(evtlogpath, values);
-		if (!regval_ctr_key_exists( values, "CategoryCount")) {
+			 evtlogpath ) );
+		regdb_fetch_values( evtlogpath, values );
+		if ( !regval_ctr_key_exists( values, "CategoryCount" ) ) {
 
 			/* hard code some initial values */
 
@@ -174,20 +156,21 @@ bool eventlog_init_keys(void)
 					     sizeof( uint16 ) );
 			regdb_store_values( evtlogpath, values );
 		}
-		TALLOC_FREE(values);
+		TALLOC_FREE( values );
 		elogs++;
 	}
 
-	return true;
+	return True;
+
 }
 
 /*********************************************************************
- for an eventlog, add in a source name. If the eventlog doesn't
- exist (not in the list) do nothing.   If a source for the log
+ for an eventlog, add in a source name. If the eventlog doesn't 
+ exist (not in the list) do nothing.   If a source for the log 
  already exists, change the information (remove, replace)
 *********************************************************************/
 
-bool eventlog_add_source( const char *eventlog, const char *sourcename,
+BOOL eventlog_add_source( const char *eventlog, const char *sourcename,
 			  const char *messagefile )
 {
 	/* Find all of the eventlogs, add keys for each of them */
@@ -196,17 +179,16 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	const char **elogs = lp_eventlog_list(  );
 	char **wrklist, **wp;
-	char *evtlogpath = NULL;
+	pstring evtlogpath;
 	REGSUBKEY_CTR *subkeys;
 	REGVAL_CTR *values;
 	REGISTRY_VALUE *rval;
 	UNISTR2 data;
 	uint16 *msz_wp;
 	int mbytes, ii;
-	bool already_in;
+	BOOL already_in;
 	int i;
 	int numsources;
-	TALLOC_CTX *ctx = talloc_tos();
 
 	if (!elogs) {
 		return False;
@@ -221,7 +203,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 		DEBUG( 0,
 		       ( "Eventlog [%s] not found in list of valid event logs\n",
 			 eventlog ) );
-		return false;	/* invalid named passed in */
+		return False;	/* invalid named passed in */
 	}
 
 	/* have to assume that the evenlog key itself exists at this point */
@@ -229,16 +211,12 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	/* todo add to Sources */
 
-	if (!( values = TALLOC_ZERO_P(ctx, REGVAL_CTR))) {
-		DEBUG( 0, ( "talloc() failure!\n" ));
-		return false;
+	if ( !( values = TALLOC_ZERO_P( NULL, REGVAL_CTR ) ) ) {
+		DEBUG( 0, ( "talloc() failure!\n" ) );
+		return False;
 	}
 
-	evtlogpath = talloc_asprintf(ctx, "%s\\%s", KEY_EVENTLOG, eventlog);
-	if (!evtlogpath) {
-		TALLOC_FREE(values);
-		return false;
-	}
+	pstr_sprintf( evtlogpath, "%s\\%s", KEY_EVENTLOG, eventlog );
 
 	regdb_fetch_values( evtlogpath, values );
 
@@ -259,7 +237,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	already_in = False;
 	wrklist = NULL;
-	dump_data( 1, rval->data_p, rval->size );
+	dump_data( 1, (const char *)rval->data_p, rval->size );
 	if ( ( numsources =
 	       regval_convert_multi_sz( ( uint16 * ) rval->data_p, rval->size,
 					&wrklist ) ) > 0 ) {
@@ -292,7 +270,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 
 	if ( !already_in ) {
 		/* make a new list with an additional entry; copy values, add another */
-		wp = TALLOC_ARRAY(ctx, char *, numsources + 2 );
+		wp = TALLOC_ARRAY( NULL, char *, numsources + 2 );
 
 		if ( !wp ) {
 			DEBUG( 0, ( "talloc() failed \n" ) );
@@ -302,29 +280,25 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 		*( wp + numsources ) = ( char * ) sourcename;
 		*( wp + numsources + 1 ) = NULL;
 		mbytes = regval_build_multi_sz( wp, &msz_wp );
-		dump_data( 1, ( uint8 * ) msz_wp, mbytes );
+		dump_data( 1, ( char * ) msz_wp, mbytes );
 		regval_ctr_addvalue( values, "Sources", REG_MULTI_SZ,
 				     ( char * ) msz_wp, mbytes );
 		regdb_store_values( evtlogpath, values );
-		TALLOC_FREE(msz_wp);
+		TALLOC_FREE( msz_wp );
 	} else {
 		DEBUG( 3,
 		       ( "Source name [%s] found in existing list of sources\n",
 			 sourcename ) );
 	}
-	TALLOC_FREE(values);
-	TALLOC_FREE(wrklist);	/*  */
+	TALLOC_FREE( values );
+	if ( wrklist )
+		TALLOC_FREE( wrklist );	/*  */
 
-	if ( !( subkeys = TALLOC_ZERO_P(ctx, REGSUBKEY_CTR ) ) ) {
+	if ( !( subkeys = TALLOC_ZERO_P( NULL, REGSUBKEY_CTR ) ) ) {
 		DEBUG( 0, ( "talloc() failure!\n" ) );
 		return False;
 	}
-	TALLOC_FREE(evtlogpath);
-	evtlogpath = talloc_asprintf(ctx, "%s\\%s", KEY_EVENTLOG, eventlog );
-	if (!evtlogpath) {
-		TALLOC_FREE(subkeys);
-		return false;
-	}
+	pstr_sprintf( evtlogpath, "%s\\%s", KEY_EVENTLOG, eventlog );
 
 	regdb_fetch_keys( evtlogpath, subkeys );
 
@@ -336,28 +310,23 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 		if ( !regdb_store_keys( evtlogpath, subkeys ) )
 			return False;
 	}
-	TALLOC_FREE(subkeys);
+	TALLOC_FREE( subkeys );
 
 	/* at this point KEY_EVENTLOG/<eventlog>/<sourcename> key is in there. Now need to add EventMessageFile */
 
 	/* now allocate room for the source's subkeys */
 
-	if ( !( subkeys = TALLOC_ZERO_P(ctx, REGSUBKEY_CTR ) ) ) {
+	if ( !( subkeys = TALLOC_ZERO_P( NULL, REGSUBKEY_CTR ) ) ) {
 		DEBUG( 0, ( "talloc() failure!\n" ) );
 		return False;
 	}
-	TALLOC_FREE(evtlogpath);
-	evtlogpath = talloc_asprintf(ctx, "%s\\%s\\%s",
-		  KEY_EVENTLOG, eventlog, sourcename);
-	if (!evtlogpath) {
-		TALLOC_FREE(subkeys);
-		return false;
-	}
+	slprintf( evtlogpath, sizeof( evtlogpath ) - 1, "%s\\%s\\%s",
+		  KEY_EVENTLOG, eventlog, sourcename );
 
 	regdb_fetch_keys( evtlogpath, subkeys );
 
 	/* now add the values to the KEY_EVENTLOG/Application form key */
-	if ( !( values = TALLOC_ZERO_P(ctx, REGVAL_CTR ) ) ) {
+	if ( !( values = TALLOC_ZERO_P( NULL, REGVAL_CTR ) ) ) {
 		DEBUG( 0, ( "talloc() failure!\n" ) );
 		return False;
 	}
@@ -374,7 +343,7 @@ bool eventlog_add_source( const char *eventlog, const char *sourcename,
 			     data.uni_str_len * sizeof( uint16 ) );
 	regdb_store_values( evtlogpath, values );
 
-	TALLOC_FREE(values);
+	TALLOC_FREE( values );
 
 	return True;
 }

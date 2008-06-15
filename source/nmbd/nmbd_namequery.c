@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
    
 */
 
@@ -31,11 +32,11 @@ static void query_name_response( struct subnet_record   *subrec,
                                  struct packet_struct   *p)
 {
 	struct nmb_packet *nmb = &p->packet.nmb;
-	bool success = False;
+	BOOL success = False;
 	struct nmb_name *question_name = &rrec->packet->packet.nmb.question.question_name;
 	struct in_addr answer_ip;
 
-	zero_ip_v4(&answer_ip);
+	zero_ip(&answer_ip);
 
 	/* Ensure we don't retry the query but leave the response record cleanup
 		to the timeout code. We may get more answer responses in which case
@@ -139,7 +140,7 @@ static void query_name_timeout_response(struct subnet_record *subrec,
 {
 	struct nmb_packet *sent_nmb = &rrec->packet->packet.nmb;
 	/* We can only fail here, never succeed. */
-	bool failed = True;
+	BOOL failed = True;
 	struct nmb_name *question_name = &sent_nmb->question.question_name;
 
 	if(rrec->num_msgs != 0) {
@@ -168,7 +169,7 @@ static void query_name_timeout_response(struct subnet_record *subrec,
  name is not there we look for the name on the given subnet.
 ****************************************************************************/
 
-static bool query_local_namelists(struct subnet_record *subrec, struct nmb_name *nmbname,
+static BOOL query_local_namelists(struct subnet_record *subrec, struct nmb_name *nmbname,
                                   struct name_record **namerecp) 
 {
 	struct name_record *namerec;
@@ -192,7 +193,7 @@ static bool query_local_namelists(struct subnet_record *subrec, struct nmb_name 
  Try and query for a name.
 ****************************************************************************/
 
-bool query_name(struct subnet_record *subrec, const char *name, int type,
+BOOL query_name(struct subnet_record *subrec, const char *name, int type,
                    query_name_success_function success_fn,
                    query_name_fail_function fail_fn, 
                    struct userdata_struct *userdata)
@@ -254,7 +255,7 @@ bool query_name(struct subnet_record *subrec, const char *name, int type,
  Try and query for a name from nmbd acting as a WINS server.
 ****************************************************************************/
 
-bool query_name_from_wins_server(struct in_addr ip_to, 
+BOOL query_name_from_wins_server(struct in_addr ip_to, 
                    const char *name, int type,
                    query_name_success_function success_fn,
                    query_name_fail_function fail_fn, 

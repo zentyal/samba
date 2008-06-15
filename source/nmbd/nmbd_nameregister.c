@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
    
 */
 
@@ -40,8 +41,8 @@ static void register_name_response(struct subnet_record *subrec,
 	 */
 
 	struct nmb_packet *nmb = &p->packet.nmb;
-	bool bcast = nmb->header.nm_flags.bcast;
-	bool success = True;
+	BOOL bcast = nmb->header.nm_flags.bcast;
+	BOOL success = True;
 	struct nmb_name *question_name = &rrec->packet->packet.nmb.question.question_name;
 	struct nmb_name *answer_name = &nmb->answers->rr_name;
 	struct nmb_packet *sent_nmb = &rrec->packet->packet.nmb;
@@ -249,8 +250,8 @@ static void register_name_timeout_response(struct subnet_record *subrec,
 	 */
 
 	struct nmb_packet *sent_nmb = &rrec->packet->packet.nmb;
-	bool bcast = sent_nmb->header.nm_flags.bcast;
-	bool success = False;
+	BOOL bcast = sent_nmb->header.nm_flags.bcast;
+	BOOL success = False;
 	struct nmb_name *question_name = &sent_nmb->question.question_name;
 	uint16 nb_flags = 0;
 	int ttl = 0;
@@ -363,7 +364,7 @@ static void wins_next_registration(struct response_record *rrec)
 	tag = (const char *)userdata->data;
 
 	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
-		if (ip_equal_v4(last_ip, subrec->myip)) {
+		if (ip_equal(last_ip, subrec->myip)) {
 			subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec);
 			break;
 		}

@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -23,17 +24,17 @@ static fstring password[2];
 static fstring username[2];
 static int got_user;
 static int got_pass;
-static bool use_kerberos;
+static BOOL use_kerberos;
 static int numops = 1000;
-static bool showall;
-static bool analyze;
-static bool hide_unlock_fails;
-static bool use_oplocks;
+static BOOL showall;
+static BOOL analyze;
+static BOOL hide_unlock_fails;
+static BOOL use_oplocks;
 static unsigned lock_range = 100;
 static unsigned lock_base = 0;
 static unsigned min_length = 0;
-static bool exact_error_codes;
-static bool zero_zero;
+static BOOL exact_error_codes;
+static BOOL zero_zero;
 
 extern char *optarg;
 extern int optind;
@@ -115,32 +116,30 @@ static struct record preset[] = {
 
 static struct record *recorded;
 
-static void print_brl(struct file_id id,
-			struct server_id pid, 
+static void print_brl(SMB_DEV_T dev,
+			SMB_INO_T ino,
+			struct process_id pid, 
 			enum brl_type lock_type,
 			enum brl_flavour lock_flav,
 			br_off start,
-			br_off size,
-			void *private_data)
+			br_off size)
 {
 #if NASTY_POSIX_LOCK_HACK
 	{
+		pstring cmd;
 		static SMB_INO_T lastino;
 
 		if (lastino != ino) {
-			char *cmd;
-			if (asprintf(&cmd,
-				 "egrep POSIX.*%u /proc/locks", (int)ino) > 0) {
-				system(cmd);
-				SAFE_FREE(cmd);
-			}
+			slprintf(cmd, sizeof(cmd), 
+				 "egrep POSIX.*%u /proc/locks", (int)ino);
+			system(cmd);
 		}
 		lastino = ino;
 	}
 #endif
 
-	printf("%s   %s    %s  %.0f:%.0f(%.0f)\n", 
-	       procid_str_static(&pid), file_id_string_tos(&id),
+	printf("%s   %05x:%05x    %s  %.0f:%.0f(%.0f)\n", 
+	       procid_str_static(&pid), (int)dev, (int)ino, 
 	       lock_type==READ_LOCK?"R":"W",
 	       (double)start, (double)start+size-1,(double)size);
 
@@ -149,7 +148,7 @@ static void print_brl(struct file_id id,
 
 static void show_locks(void)
 {
-	brl_forall(print_brl, NULL);
+	brl_forall(print_brl);
 	/* system("cat /proc/locks"); */
 }
 
@@ -163,7 +162,7 @@ static struct cli_state *connect_one(char *share, int snum)
 	struct nmb_name called, calling;
 	char *server_n;
 	fstring server;
-	struct sockaddr_storage ss;
+	struct in_addr ip;
 	fstring myname;
 	static int count;
 	NTSTATUS status;
@@ -175,8 +174,8 @@ static struct cli_state *connect_one(char *share, int snum)
 	share++;
 
 	server_n = server;
-
-	zero_addr(&ss);
+	
+        zero_ip(&ip);
 
 	slprintf(myname,sizeof(myname), "lock-%lu-%u", (unsigned long)getpid(), count++);
 
@@ -184,7 +183,7 @@ static struct cli_state *connect_one(char *share, int snum)
 	make_nmb_name(&called , server, 0x20);
 
  again:
-        zero_addr(&ss);
+        zero_ip(&ip);
 
 	/* have to open a new connection */
 	if (!(c=cli_initialise())) {
@@ -192,7 +191,7 @@ static struct cli_state *connect_one(char *share, int snum)
 		return NULL;
 	}
 
-	status = cli_connect(c, server_n, &ss);
+	status = cli_connect(c, server_n, &ip);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("Connection to %s failed. Error %s\n", server_n, nt_errstr(status) ));
 		return NULL;
@@ -297,7 +296,7 @@ static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS], int fnum[NS
 
 
 
-static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
+static BOOL test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
 		     int fnum[NSERVERS][NCONNECTIONS][NFILES],
 		     struct record *rec)
 {
@@ -307,7 +306,7 @@ static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 	SMB_BIG_UINT len = rec->len;
 	enum brl_type op = rec->lock_type;
 	int server;
-	bool ret[NSERVERS];
+	BOOL ret[NSERVERS];
 	NTSTATUS status[NSERVERS];
 
 	switch (rec->lock_op) {
@@ -617,7 +616,7 @@ static void usage(void)
 	argc -= NSERVERS;
 	argv += NSERVERS;
 
-	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
+	lp_load(dyn_CONFIGFILE,True,False,False,True);
 	load_interfaces();
 
 	if (getenv("USER")) {

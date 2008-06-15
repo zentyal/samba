@@ -5,7 +5,7 @@
       
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -28,7 +29,7 @@
 
 static TDB_CONTEXT *cache;
 
-bool login_cache_init(void)
+BOOL login_cache_init(void)
 {
 	char* cache_fname = NULL;
 	
@@ -54,7 +55,7 @@ bool login_cache_init(void)
 	return (cache ? True : False);
 }
 
-bool login_cache_shutdown(void)
+BOOL login_cache_shutdown(void)
 {
 	/* tdb_close routine returns -1 on error */
 	if (!cache) return False;
@@ -65,8 +66,7 @@ bool login_cache_shutdown(void)
 /* if we can't read the cache, oh well, no need to return anything */
 LOGIN_CACHE * login_cache_read(struct samu *sampass)
 {
-	char *keystr;
-	TDB_DATA databuf;
+	TDB_DATA keybuf, databuf;
 	LOGIN_CACHE *entry;
 
 	if (!login_cache_init())
@@ -76,16 +76,17 @@ LOGIN_CACHE * login_cache_read(struct samu *sampass)
 		return NULL;
 	}
 
-	keystr = SMB_STRDUP(pdb_get_nt_username(sampass));
-	if (!keystr || !keystr[0]) {
-		SAFE_FREE(keystr);
+	keybuf.dptr = SMB_STRDUP(pdb_get_nt_username(sampass));
+	if (!keybuf.dptr || !strlen(keybuf.dptr)) {
+		SAFE_FREE(keybuf.dptr);
 		return NULL;
 	}
+	keybuf.dsize = strlen(keybuf.dptr) + 1;
 
 	DEBUG(7, ("Looking up login cache for user %s\n",
-		  keystr));
-	databuf = tdb_fetch_bystring(cache, keystr);
-	SAFE_FREE(keystr);
+		  keybuf.dptr));
+	databuf = tdb_fetch(cache, keybuf);
+	SAFE_FREE(keybuf.dptr);
 
 	if (!(entry = SMB_MALLOC_P(LOGIN_CACHE))) {
 		DEBUG(1, ("Unable to allocate cache entry buffer!\n"));
@@ -111,11 +112,11 @@ LOGIN_CACHE * login_cache_read(struct samu *sampass)
 	return entry;
 }
 
-bool login_cache_write(const struct samu *sampass, LOGIN_CACHE entry)
+BOOL login_cache_write(const struct samu *sampass, LOGIN_CACHE entry)
 {
-	char *keystr;
-	TDB_DATA databuf;
-	bool ret;
+
+	TDB_DATA keybuf, databuf;
+	BOOL ret;
 
 	if (!login_cache_init())
 		return False;
@@ -124,11 +125,12 @@ bool login_cache_write(const struct samu *sampass, LOGIN_CACHE entry)
 		return False;
 	}
 
-	keystr = SMB_STRDUP(pdb_get_nt_username(sampass));
-	if (!keystr || !keystr[0]) {
-		SAFE_FREE(keystr);
+	keybuf.dptr = SMB_STRDUP(pdb_get_nt_username(sampass));
+	if (!keybuf.dptr || !strlen(keybuf.dptr)) {
+		SAFE_FREE(keybuf.dptr);
 		return False;
 	}
+	keybuf.dsize = strlen(keybuf.dptr) + 1;
 
 	entry.entry_timestamp = time(NULL);
 
@@ -138,9 +140,9 @@ bool login_cache_write(const struct samu *sampass, LOGIN_CACHE entry)
 			 entry.acct_ctrl,
 			 entry.bad_password_count,
 			 entry.bad_password_time);
-	databuf.dptr = SMB_MALLOC_ARRAY(uint8, databuf.dsize);
+	databuf.dptr = SMB_MALLOC_ARRAY(char, databuf.dsize);
 	if (!databuf.dptr) {
-		SAFE_FREE(keystr);
+		SAFE_FREE(keybuf.dptr);
 		return False;
 	}
 			 
@@ -150,21 +152,21 @@ bool login_cache_write(const struct samu *sampass, LOGIN_CACHE entry)
 			 entry.bad_password_count,
 			 entry.bad_password_time)
 	    != databuf.dsize) {
-		SAFE_FREE(keystr);
+		SAFE_FREE(keybuf.dptr);
 		SAFE_FREE(databuf.dptr);
 		return False;
 	}
 
-	ret = tdb_store_bystring(cache, keystr, databuf, 0);
-	SAFE_FREE(keystr);
+	ret = tdb_store(cache, keybuf, databuf, 0);
+	SAFE_FREE(keybuf.dptr);
 	SAFE_FREE(databuf.dptr);
 	return ret == 0;
 }
 
-bool login_cache_delentry(const struct samu *sampass)
+BOOL login_cache_delentry(const struct samu *sampass)
 {
 	int ret;
-	char *keystr;
+	TDB_DATA keybuf;
 	
 	if (!login_cache_init()) 
 		return False;	
@@ -173,16 +175,17 @@ bool login_cache_delentry(const struct samu *sampass)
 		return False;
 	}
 
-	keystr = SMB_STRDUP(pdb_get_nt_username(sampass));
-	if (!keystr || !keystr[0]) {
-		SAFE_FREE(keystr);
+	keybuf.dptr = SMB_STRDUP(pdb_get_nt_username(sampass));
+	if (!keybuf.dptr || !strlen(keybuf.dptr)) {
+		SAFE_FREE(keybuf.dptr);
 		return False;
 	}
-
-	DEBUG(9, ("About to delete entry for %s\n", keystr));
-	ret = tdb_delete_bystring(cache, keystr);
+	keybuf.dsize = strlen(keybuf.dptr) + 1;
+	DEBUG(9, ("About to delete entry for %s\n", keybuf.dptr));
+	ret = tdb_delete(cache, keybuf);
 	DEBUG(9, ("tdb_delete returned %d\n", ret));
 	
-	SAFE_FREE(keystr);
+	SAFE_FREE(keybuf.dptr);
 	return ret == 0;
 }
+

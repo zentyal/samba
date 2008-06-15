@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /* a "session" is claimed when we do a SessionSetupX operation
@@ -28,25 +29,19 @@
 
 #include "includes.h"
 
+static TDB_CONTEXT *tdb;
+
 /********************************************************************
 ********************************************************************/
 
-static struct db_context *session_db_ctx(void)
+BOOL session_init(void)
 {
-	static struct db_context *ctx;
+	if (tdb)
+		return True;
 
-	if (ctx)
-		return ctx;
-
-	ctx = db_open(NULL, lock_path("sessionid.tdb"), 0,
-		      TDB_CLEAR_IF_FIRST|TDB_DEFAULT, 
-		      O_RDWR | O_CREAT, 0644);
-	return ctx;
-}
-
-bool session_init(void)
-{
-	if (session_db_ctx() == NULL) {
+	tdb = tdb_open_log(lock_path("sessionid.tdb"), 0, TDB_CLEAR_IF_FIRST|TDB_DEFAULT, 
+		       O_RDWR | O_CREAT, 0644);
+	if (!tdb) {
 		DEBUG(1,("session_init: failed to open sessionid tdb\n"));
 		return False;
 	}
@@ -58,18 +53,20 @@ bool session_init(void)
  called when a session is created
 ********************************************************************/
 
-bool session_claim(user_struct *vuser)
+BOOL session_claim(user_struct *vuser)
 {
-	TDB_DATA key, data;
 	int i = 0;
+	TDB_DATA data;
+	struct sockaddr sa;
+	struct in_addr *client_ip;
 	struct sessionid sessionid;
-	struct server_id pid = procid_self();
+	uint32 pid = (uint32)sys_getpid();
+	TDB_DATA key;		
 	fstring keystr;
-	const char * hostname;
-	struct db_context *ctx;
-	struct db_record *rec;
-	NTSTATUS status;
-	char addr[INET6_ADDRSTRLEN];
+	char * hostname;
+	int tdb_store_flag;  /* If using utmp, we do an inital 'lock hold' store,
+				but we don't need this if we are just using the 
+				(unique) pid/vuid combination */
 
 	vuser->session_keystr = NULL;
 
@@ -79,9 +76,8 @@ bool session_claim(user_struct *vuser)
 		return True;
 	}
 
-	if (!(ctx = session_db_ctx())) {
+	if (!session_init())
 		return False;
-	}
 
 	ZERO_STRUCT(sessionid);
 
@@ -89,79 +85,45 @@ bool session_claim(user_struct *vuser)
 	data.dsize = 0;
 
 	if (lp_utmp()) {
-
 		for (i=1;i<MAX_SESSION_ID;i++) {
-
-			/*
-			 * This is very inefficient and needs fixing -- vl
-			 */
-
-			struct server_id sess_pid;
-
-			snprintf(keystr, sizeof(keystr), "ID/%d", i);
-			key = string_term_tdb_data(keystr);
-
-			rec = ctx->fetch_locked(ctx, NULL, key);
-
-			if (rec == NULL) {
-				DEBUG(1, ("Could not lock \"%s\"\n", keystr));
-				return False;
-			}
-
-			if (rec->value.dsize != sizeof(sessionid)) {
-				DEBUG(1, ("Re-using invalid record\n"));
-				break;
-			}
-
-			sess_pid = ((struct sessionid *)rec->value.dptr)->pid;
-
-			if (!process_exists(sess_pid)) {
-				DEBUG(5, ("%s has died -- re-using session\n",
-					  procid_str_static(&sess_pid)));
-				break;
-			}
-
-			TALLOC_FREE(rec);
+			slprintf(keystr, sizeof(keystr)-1, "ID/%d", i);
+			key.dptr = keystr;
+			key.dsize = strlen(keystr)+1;
+			
+			if (tdb_store(tdb, key, data, TDB_INSERT) == 0) break;
 		}
-
+		
 		if (i == MAX_SESSION_ID) {
-			SMB_ASSERT(rec == NULL);
-			DEBUG(1,("session_claim: out of session IDs "
-				 "(max is %d)\n", MAX_SESSION_ID));
+			DEBUG(1,("session_claim: out of session IDs (max is %d)\n", 
+				 MAX_SESSION_ID));
 			return False;
 		}
-
-		snprintf(sessionid.id_str, sizeof(sessionid.id_str),
-			 SESSION_UTMP_TEMPLATE, i);
+		slprintf(sessionid.id_str, sizeof(sessionid.id_str)-1, SESSION_UTMP_TEMPLATE, i);
+		tdb_store_flag = TDB_MODIFY;
 	} else
 	{
-		snprintf(keystr, sizeof(keystr), "ID/%s/%u",
-			 procid_str_static(&pid), vuser->vuid);
-		key = string_term_tdb_data(keystr);
-
-		rec = ctx->fetch_locked(ctx, NULL, key);
-
-		if (rec == NULL) {
-			DEBUG(1, ("Could not lock \"%s\"\n", keystr));
-			return False;
-		}
-
-		snprintf(sessionid.id_str, sizeof(sessionid.id_str),
-			 SESSION_TEMPLATE, (long unsigned int)sys_getpid(),
+		slprintf(keystr, sizeof(keystr)-1, "ID/%lu/%u", 
+			 (long unsigned int)sys_getpid(), 
 			 vuser->vuid);
+		slprintf(sessionid.id_str, sizeof(sessionid.id_str)-1, 
+			 SESSION_TEMPLATE, (long unsigned int)sys_getpid(), 
+			 vuser->vuid);
+
+		key.dptr = keystr;
+		key.dsize = strlen(keystr)+1;
+			
+		tdb_store_flag = TDB_REPLACE;
 	}
 
-	SMB_ASSERT(rec != NULL);
-
 	/* If 'hostname lookup' == yes, then do the DNS lookup.  This is
-           needed because utmp and PAM both expect DNS names
-
+           needed because utmp and PAM both expect DNS names 
+	   
 	   client_name() handles this case internally.
 	*/
 
-	hostname = client_name(get_client_fd());
+	hostname = client_name();
 	if (strcmp(hostname, "UNKNOWN") == 0) {
-		hostname = client_addr(get_client_fd(),addr,sizeof(addr));
+		hostname = client_addr();
 	}
 
 	fstrcpy(sessionid.username, vuser->user.unix_name);
@@ -171,41 +133,36 @@ bool session_claim(user_struct *vuser)
 	sessionid.uid = vuser->uid;
 	sessionid.gid = vuser->gid;
 	fstrcpy(sessionid.remote_machine, get_remote_machine_name());
-	fstrcpy(sessionid.ip_addr_str,
-		client_addr(get_client_fd(),addr,sizeof(addr)));
+	fstrcpy(sessionid.ip_addr, client_addr());
 	sessionid.connect_start = time(NULL);
 
-	if (!smb_pam_claim_session(sessionid.username, sessionid.id_str,
-				   sessionid.hostname)) {
+	client_ip = client_inaddr(&sa);
+
+	if (!smb_pam_claim_session(sessionid.username, sessionid.id_str, sessionid.hostname)) {
 		DEBUG(1,("pam_session rejected the session for %s [%s]\n",
 				sessionid.username, sessionid.id_str));
-
-		TALLOC_FREE(rec);
+		if (tdb_store_flag == TDB_MODIFY) {
+			tdb_delete(tdb, key);
+		}
 		return False;
 	}
 
-	data.dptr = (uint8 *)&sessionid;
+	data.dptr = (char *)&sessionid;
 	data.dsize = sizeof(sessionid);
-
-	status = rec->store(rec, data, TDB_REPLACE);
-
-	TALLOC_FREE(rec);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1,("session_claim: unable to create session id "
-			 "record: %s\n", nt_errstr(status)));
+	if (tdb_store(tdb, key, data, tdb_store_flag) != 0) {
+		DEBUG(1,("session_claim: unable to create session id record\n"));
 		return False;
 	}
 
 	if (lp_utmp()) {
-		sys_utmp_claim(sessionid.username, sessionid.hostname,
-			       sessionid.ip_addr_str,
+		sys_utmp_claim(sessionid.username, sessionid.hostname, 
+			       client_ip,
 			       sessionid.id_str, sessionid.id_num);
 	}
 
-	vuser->session_keystr = talloc_strdup(vuser, keystr);
+	vuser->session_keystr = SMB_STRDUP(keystr);
 	if (!vuser->session_keystr) {
-		DEBUG(0, ("session_claim:  talloc_strdup() failed for session_keystr\n"));
+		DEBUG(0, ("session_claim:  strdup() failed for session_keystr\n"));
 		return False;
 	}
 	return True;
@@ -217,57 +174,54 @@ bool session_claim(user_struct *vuser)
 
 void session_yield(user_struct *vuser)
 {
-	TDB_DATA key;
+	TDB_DATA dbuf;
 	struct sessionid sessionid;
-	struct db_context *ctx;
-	struct db_record *rec;
+	struct in_addr *client_ip;
+	TDB_DATA key;
 
-	if (!(ctx = session_db_ctx())) return;
+	if (!tdb) return;
 
 	if (!vuser->session_keystr) {
 		return;
 	}
 
-	key = string_term_tdb_data(vuser->session_keystr);
+	key.dptr = vuser->session_keystr;
+	key.dsize = strlen(vuser->session_keystr)+1;
 
-	if (!(rec = ctx->fetch_locked(ctx, NULL, key))) {
+	dbuf = tdb_fetch(tdb, key);
+
+	if (dbuf.dsize != sizeof(sessionid))
 		return;
-	}
 
-	if (rec->value.dsize != sizeof(sessionid))
-		return;
+	memcpy(&sessionid, dbuf.dptr, sizeof(sessionid));
 
-	memcpy(&sessionid, rec->value.dptr, sizeof(sessionid));
+	client_ip = interpret_addr2(sessionid.ip_addr);
+
+	SAFE_FREE(dbuf.dptr);
 
 	if (lp_utmp()) {
 		sys_utmp_yield(sessionid.username, sessionid.hostname, 
-			       sessionid.ip_addr_str,
+			       client_ip,
 			       sessionid.id_str, sessionid.id_num);
 	}
 
-	smb_pam_close_session(sessionid.username, sessionid.id_str,
-			      sessionid.hostname);
+	smb_pam_close_session(sessionid.username, sessionid.id_str, sessionid.hostname);
 
-	rec->delete_rec(rec);
-
-	TALLOC_FREE(rec);
+	tdb_delete(tdb, key);
 }
 
 /********************************************************************
 ********************************************************************/
 
-static bool session_traverse(int (*fn)(struct db_record *db,
-				       void *private_data),
-			     void *private_data)
+BOOL session_traverse(int (*fn)(TDB_CONTEXT *, TDB_DATA, TDB_DATA, void *),
+		      void *state)
 {
-	struct db_context *ctx;
-
-	if (!(ctx = session_db_ctx())) {
+	if (!session_init()) {
 		DEBUG(3, ("No tdb opened\n"));
 		return False;
 	}
 
-	ctx->traverse_read(ctx, fn, private_data);
+	tdb_traverse(tdb, fn, state);
 	return True;
 }
 
@@ -275,29 +229,25 @@ static bool session_traverse(int (*fn)(struct db_record *db,
 ********************************************************************/
 
 struct session_list {
-	TALLOC_CTX *mem_ctx;
 	int count;
 	struct sessionid *sessions;
 };
 
-static int gather_sessioninfo(struct db_record *rec, void *state)
+static int gather_sessioninfo(TDB_CONTEXT *stdb, TDB_DATA kbuf, TDB_DATA dbuf, void *state)
 {
+	uint32 i;	
 	struct session_list *sesslist = (struct session_list *) state;
-	const struct sessionid *current =
-		(const struct sessionid *) rec->value.dptr;
+	const struct sessionid *current = (const struct sessionid *) dbuf.dptr;
 
-	sesslist->sessions = TALLOC_REALLOC_ARRAY(
-		sesslist->mem_ctx, sesslist->sessions, struct sessionid,
-		sesslist->count+1);
-
+	i = sesslist->count;
+	
+	sesslist->sessions = SMB_REALLOC_ARRAY(sesslist->sessions, struct sessionid, i+1);
 	if (!sesslist->sessions) {
 		sesslist->count = 0;
 		return -1;
 	}
 
-	memcpy(&sesslist->sessions[sesslist->count], current,
-	       sizeof(struct sessionid));
-
+	memcpy(&sesslist->sessions[i], current, sizeof(struct sessionid));
 	sesslist->count++;
 
 	DEBUG(7,("gather_sessioninfo session from %s@%s\n", 
@@ -309,11 +259,10 @@ static int gather_sessioninfo(struct db_record *rec, void *state)
 /********************************************************************
 ********************************************************************/
 
-int list_sessions(TALLOC_CTX *mem_ctx, struct sessionid **session_list)
+int list_sessions(struct sessionid **session_list)
 {
 	struct session_list sesslist;
 
-	sesslist.mem_ctx = mem_ctx;
 	sesslist.count = 0;
 	sesslist.sessions = NULL;
 	

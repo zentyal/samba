@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -122,12 +123,12 @@ DATA_BLOB gen_negTokenInit(const char *OID, DATA_BLOB blob)
   parse a negTokenInit packet giving a GUID, a list of supported
   OIDs (the mechanisms) and a principal name string 
 */
-bool spnego_parse_negTokenInit(DATA_BLOB blob,
+BOOL spnego_parse_negTokenInit(DATA_BLOB blob,
 			       char *OIDs[ASN1_MAX_OIDS], 
 			       char **principal)
 {
 	int i;
-	bool ret;
+	BOOL ret;
 	ASN1_DATA data;
 
 	asn1_load(&data, blob);
@@ -224,7 +225,7 @@ DATA_BLOB gen_negTokenTarg(const char *OIDs[], DATA_BLOB blob)
 /*
   parse a negTokenTarg packet giving a list of OIDs and a security blob
 */
-bool parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *secblob)
+BOOL parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *secblob)
 {
 	int i;
 	ASN1_DATA data;
@@ -245,18 +246,6 @@ bool parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *se
 	OIDs[i] = NULL;
 	asn1_end_tag(&data);
 	asn1_end_tag(&data);
-
-	/* Skip any optional req_flags that are sent per RFC 4178 */
-	if (asn1_check_tag(&data, ASN1_CONTEXT(1))) {
-		uint8 flags;
-
-		asn1_start_tag(&data, ASN1_CONTEXT(1));
-		asn1_start_tag(&data, ASN1_BITFIELD);
-		while (asn1_tag_remaining(&data) > 0)
-			asn1_read_uint8(&data, &flags);
-		asn1_end_tag(&data);
-		asn1_end_tag(&data);
-	}
 
 	asn1_start_tag(&data, ASN1_CONTEXT(2));
 	asn1_read_OctetString(&data,secblob);
@@ -313,9 +302,9 @@ DATA_BLOB spnego_gen_krb5_wrap(const DATA_BLOB ticket, const uint8 tok_id[2])
 /*
   parse a krb5 GSS-API wrapper packet giving a ticket
 */
-bool spnego_parse_krb5_wrap(DATA_BLOB blob, DATA_BLOB *ticket, uint8 tok_id[2])
+BOOL spnego_parse_krb5_wrap(DATA_BLOB blob, DATA_BLOB *ticket, uint8 tok_id[2])
 {
-	bool ret;
+	BOOL ret;
 	ASN1_DATA data;
 	int data_remaining;
 
@@ -359,7 +348,7 @@ int spnego_gen_negTokenTarg(const char *principal, int time_offset,
 {
 	int retval;
 	DATA_BLOB tkt, tkt_wrapped;
-	const char *krb_mechs[] = {OID_KERBEROS5_OLD, OID_KERBEROS5, OID_NTLMSSP, NULL};
+	const char *krb_mechs[] = {OID_KERBEROS5_OLD, OID_NTLMSSP, NULL};
 
 	/* get a kerberos ticket for the service and extract the session key */
 	retval = cli_krb5_get_ticket(principal, time_offset,
@@ -385,10 +374,10 @@ int spnego_gen_negTokenTarg(const char *principal, int time_offset,
 /*
   parse a spnego NTLMSSP challenge packet giving two security blobs
 */
-bool spnego_parse_challenge(const DATA_BLOB blob,
+BOOL spnego_parse_challenge(const DATA_BLOB blob,
 			    DATA_BLOB *chal1, DATA_BLOB *chal2)
 {
-	bool ret;
+	BOOL ret;
 	ASN1_DATA data;
 
 	ZERO_STRUCTP(chal1);
@@ -460,7 +449,7 @@ DATA_BLOB spnego_gen_auth(DATA_BLOB blob)
 /*
  parse a SPNEGO auth packet. This contains the encrypted passwords
 */
-bool spnego_parse_auth(DATA_BLOB blob, DATA_BLOB *auth)
+BOOL spnego_parse_auth(DATA_BLOB blob, DATA_BLOB *auth)
 {
 	ASN1_DATA data;
 
@@ -510,13 +499,11 @@ DATA_BLOB spnego_gen_auth_response(DATA_BLOB *reply, NTSTATUS nt_status,
 	asn1_write_enumerated(&data, negResult);
 	asn1_pop_tag(&data);
 
-	if (mechOID) {
+	if (reply->data != NULL) {
 		asn1_push_tag(&data,ASN1_CONTEXT(1));
 		asn1_write_OID(&data, mechOID);
 		asn1_pop_tag(&data);
-	}
-
-	if (reply && reply->data != NULL) {
+		
 		asn1_push_tag(&data,ASN1_CONTEXT(2));
 		asn1_write_OctetString(&data, reply->data, reply->length);
 		asn1_pop_tag(&data);
@@ -531,10 +518,9 @@ DATA_BLOB spnego_gen_auth_response(DATA_BLOB *reply, NTSTATUS nt_status,
 }
 
 /*
- parse a SPNEGO auth packet. This contains the encrypted passwords
+ parse a SPNEGO NTLMSSP auth packet. This contains the encrypted passwords
 */
-bool spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status,
-				const char *mechOID,
+BOOL spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status, 
 				DATA_BLOB *auth)
 {
 	ASN1_DATA data;
@@ -555,34 +541,14 @@ bool spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status,
 	asn1_check_enumerated(&data, negResult);
 	asn1_end_tag(&data);
 
-	*auth = data_blob_null;
-
-	if (asn1_tag_remaining(&data)) {
+	if (negResult == SPNEGO_NEG_RESULT_INCOMPLETE) {
 		asn1_start_tag(&data,ASN1_CONTEXT(1));
-		asn1_check_OID(&data, mechOID);
+		asn1_check_OID(&data, OID_NTLMSSP);
 		asn1_end_tag(&data);
-
-		if (asn1_tag_remaining(&data)) {
-			asn1_start_tag(&data,ASN1_CONTEXT(2));
-			asn1_read_OctetString(&data, auth);
-			asn1_end_tag(&data);
-		}
-	} else if (negResult == SPNEGO_NEG_RESULT_INCOMPLETE) {
-		data.has_error = 1;
-	}
-
-	/* Binding against Win2K DC returns a duplicate of the responseToken in
-	 * the optional mechListMIC field. This is a bug in Win2K. We ignore
-	 * this field if it exists. Win2K8 may return a proper mechListMIC at
-	 * which point we need to implement the integrity checking. */
-	if (asn1_tag_remaining(&data)) {
-		DATA_BLOB mechList = data_blob_null;
-		asn1_start_tag(&data, ASN1_CONTEXT(3));
-		asn1_read_OctetString(&data, &mechList);
+		
+		asn1_start_tag(&data,ASN1_CONTEXT(2));
+		asn1_read_OctetString(&data, auth);
 		asn1_end_tag(&data);
-		data_blob_free(&mechList);
-		DEBUG(5,("spnego_parse_auth_response received mechListMIC, "
-		    "ignoring.\n"));
 	}
 
 	asn1_end_tag(&data);

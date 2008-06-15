@@ -6,7 +6,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #ifndef LIBMSRPC_H
@@ -184,7 +185,7 @@ typedef struct _CACLOOKUPRIDSRECORD {
    uint32 type;
    
    /*if the name or RID was looked up, then found = True*/
-   bool found;
+   BOOL found;
 } CacLookupRidsRecord;
 
 typedef struct _CACUSERINFO {
@@ -228,7 +229,7 @@ typedef struct _CACUSERINFO {
    uint16 logon_count;
 
    /**Change password at next logon?*/
-   bool pass_must_change;
+   BOOL pass_must_change;
 
    /**Username*/
    char *username;
@@ -464,7 +465,7 @@ void cac_Init(int debug);
  * @return - un-initialized server handle
  *         - NULL if no memory could be allocated
  */
-CacServerHandle * cac_NewServerHandle(bool allocate_fields);
+CacServerHandle * cac_NewServerHandle(BOOL allocate_fields);
 
 /**
  * Specifies the smbc_get_auth_data_fn to use if you do not want to use the default.
@@ -553,7 +554,7 @@ struct LsaOpenPolicy {
       uint32 access;
 
       /**Use security quality of service? (True/False)*/
-      bool security_qos;
+      BOOL security_qos;
    } in;
 
    /**Outputs*/
@@ -1238,7 +1239,7 @@ struct RegDeleteKey {
       char *name;
 
       /**delete recursively. WARNING: this might not always work as planned*/
-      bool recursive;
+      BOOL recursive;
    } in;
 
 };
@@ -1576,10 +1577,10 @@ struct Shutdown {
       uint32 timeout;
 
       /**False = shutdown, True = reboot*/
-      bool reboot;
+      BOOL reboot;
       
       /**force the*/
-      bool force;
+      BOOL force;
 
       /*FIXME: make this useful*/
       uint32 reason;
@@ -1776,7 +1777,7 @@ struct SamEnumUsers {
       /**Array storing the names of all the users returned*/
       char **names;
 
-      bool done;
+      BOOL done;
    } out;
 };
 
@@ -2068,7 +2069,7 @@ struct SamEnumGroups {
       /**Array storing the descriptions of all the groups returned*/
       char **descriptions;
 
-      bool done;
+      BOOL done;
    } out;
 };
 
@@ -2104,7 +2105,7 @@ struct SamEnumAliases {
       /**Array storing the descriptions of all the groups returned*/
       char **descriptions;
 
-      bool done;
+      BOOL done;
    } out;
 };
 
@@ -2634,7 +2635,7 @@ struct SamGetDisplayInfo {
       /**Internal value. Do not modify.*/
       uint32 loop_count;
 
-      bool done;
+      BOOL done;
    } out;
 };
 

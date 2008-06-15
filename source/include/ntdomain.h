@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #ifndef _NT_DOMAIN_H /* _NT_DOMAIN_H */
@@ -29,14 +30,14 @@
  */
  
 typedef struct _prs_struct {
-	bool io; /* parsing in or out of data stream */
+	BOOL io; /* parsing in or out of data stream */
 	/* 
 	 * If the (incoming) data is big-endian. On output we are
 	 * always little-endian.
 	 */ 
-	bool bigendian_data;
+	BOOL bigendian_data;
 	uint8 align; /* data alignment */
-	bool is_dynamic; /* Do we own this memory or not ? */
+	BOOL is_dynamic; /* Do we own this memory or not ? */
 	uint32 data_offset; /* Current working offset into data. */
 	uint32 buffer_size; /* Current allocated size of the buffer. */
 	uint32 grow_size; /* size requested via prs_grow() calls */
@@ -135,9 +136,9 @@ struct handle_list {
 /* Domain controller authentication protocol info */
 struct dcinfo {
 	uint32 sequence; /* "timestamp" from client. */
-	struct netr_Credential seed_chal;
-	struct netr_Credential clnt_chal; /* Client credential */
-	struct netr_Credential srv_chal;  /* Server credential */
+	DOM_CHAL seed_chal; 
+	DOM_CHAL clnt_chal; /* Client credential */
+	DOM_CHAL srv_chal;  /* Server credential */
  
 	unsigned char  sess_key[16]; /* Session key - 8 bytes followed by 8 zero bytes */
 	unsigned char  mach_pw[16];   /* md4(machine password) */
@@ -147,8 +148,8 @@ struct dcinfo {
 	fstring remote_machine;  /* Machine name we've authenticated. */
 	fstring domain;
 
-	bool challenge_sent;
-	bool authenticated;
+	BOOL challenge_sent;
+	BOOL authenticated;
 };
 
 typedef struct pipe_rpc_fns {
@@ -251,31 +252,31 @@ typedef struct pipes_struct {
 	 * Set to true when an RPC bind has been done on this pipe.
 	 */
 	
-	bool pipe_bound;
+	BOOL pipe_bound;
 	
 	/*
 	 * Set to true when we should return fault PDU's for everything.
 	 */
 	
-	bool fault_state;
+	BOOL fault_state;
 
 	/*
 	 * Set to true when we should return fault PDU's for a bad handle.
 	 */
 
-	bool bad_handle_fault_state;
-
+	BOOL bad_handle_fault_state;
+	
 	/*
 	 * Set to true when the backend does not support a call.
 	 */
 
-	bool rng_fault_state;
+	BOOL rng_fault_state;
 	
 	/*
 	 * Set to RPC_BIG_ENDIAN when dealing with big-endian PDU's
 	 */
 	
-	bool endian;
+	BOOL endian;
 	
 	/*
 	 * Struct to deal with multiple pdu inputs.
@@ -303,10 +304,10 @@ typedef struct smb_np_struct {
 	int pnum;
 	connection_struct *conn;
 	uint16 vuid; /* points to the unauthenticated user that opened this pipe. */
-	bool open; /* open connection */
+	BOOL open; /* open connection */
 	uint16 device_state;
 	uint16 priority;
-	char *name;
+	fstring name;
 
 	/* When replying to an SMBtrans, this is the maximum amount of
            data that can be sent in the initial reply. */
@@ -329,7 +330,7 @@ typedef struct smb_np_struct {
 	 * returns: state information representing the connection.
 	 *          is stored in np_state, above.
 	 */
-	void *   (*namedpipe_create)(const char *pipe_name, 
+	void *   (*namedpipe_create)(char *pipe_name, 
 					  connection_struct *conn, uint16 vuid);
 
 	/* call to perform a write / read namedpipe transaction.
@@ -341,7 +342,7 @@ typedef struct smb_np_struct {
 	ssize_t  (*namedpipe_transact)(void *np_state,
 	                               char *data, int len,
 	                               char *rdata, int rlen,
-	                               bool *pipe_outstanding);
+	                               BOOL *pipe_outstanding);
 
 	/* call to perform a write namedpipe operation
 	 */
@@ -361,7 +362,7 @@ typedef struct smb_np_struct {
 	 */
 	ssize_t  (*namedpipe_read)(void * np_state,
 	                           char *data, size_t max_len,
-	                           bool *pipe_outstanding);
+	                           BOOL *pipe_outstanding);
 
 	/* call to close a namedpipe.
 	 * function is expected to perform all cleanups
@@ -370,14 +371,14 @@ typedef struct smb_np_struct {
 	 * returns True if cleanup was successful (not that
 	 * we particularly care).
 	 */
-	bool     (*namedpipe_close)(void * np_state);
+	BOOL     (*namedpipe_close)(void * np_state);
 
 } smb_np_struct;
 
 struct api_struct {  
 	const char *name;
 	uint8 opnum;
-	bool (*fn) (pipes_struct *);
+	BOOL (*fn) (pipes_struct *);
 };
 
 typedef struct {  

@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,12 +16,13 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
 
-static int use_bcast;
+static BOOL use_bcast;
 
 /* How low can we go? */
 
@@ -32,7 +33,7 @@ static enum tree_level level = LEV_SHARE;
 
 struct name_list {
         struct name_list *prev, *next;
-        char *name, *comment;
+        pstring name, comment;
         uint32 server_type;
 };
 
@@ -57,16 +58,9 @@ static void add_name(const char *machine_name, uint32 server_type,
 
         ZERO_STRUCTP(new_name);
 
-	new_name->name = SMB_STRDUP(machine_name);
-	new_name->comment = SMB_STRDUP(comment);
+        pstrcpy(new_name->name, machine_name);
+        pstrcpy(new_name->comment, comment);
         new_name->server_type = server_type;
-
-	if (!new_name->name || !new_name->comment) {
-		SAFE_FREE(new_name->name);
-		SAFE_FREE(new_name->comment);
-		SAFE_FREE(new_name);
-		return;
-	}
 
         DLIST_ADD(*name_list, new_name);
 }
@@ -74,42 +68,34 @@ static void add_name(const char *machine_name, uint32 server_type,
 /****************************************************************************
   display tree of smb workgroups, servers and shares
 ****************************************************************************/
-static bool get_workgroups(struct user_auth_info *user_info)
+static BOOL get_workgroups(struct user_auth_info *user_info)
 {
         struct cli_state *cli;
-        struct sockaddr_storage server_ss;
-	TALLOC_CTX *ctx = talloc_tos();
-	char *master_workgroup = NULL;
+        struct in_addr server_ip;
+	pstring master_workgroup;
 
         /* Try to connect to a #1d name of our current workgroup.  If that
            doesn't work broadcast for a master browser and then jump off
            that workgroup. */
 
-	master_workgroup = talloc_strdup(ctx, lp_workgroup());
-	if (!master_workgroup) {
-		return false;
-	}
+	pstrcpy(master_workgroup, lp_workgroup());
 
-        if (!use_bcast && !find_master_ip(lp_workgroup(), &server_ss)) {
+        if (!use_bcast && !find_master_ip(lp_workgroup(), &server_ip)) {
                 DEBUG(4, ("Unable to find master browser for workgroup %s, falling back to broadcast\n", 
 			  master_workgroup));
 				use_bcast = True;
 		} else if(!use_bcast) {
-			char addr[INET6_ADDRSTRLEN];
-			print_sockaddr(addr, sizeof(addr), &server_ss);
-			if (!(cli = get_ipc_connect(addr, &server_ss, user_info)))
+        	if (!(cli = get_ipc_connect(inet_ntoa(server_ip), &server_ip, user_info)))
 				return False;
 		}
-
-		if (!(cli = get_ipc_connect_master_ip_bcast(talloc_tos(),
-							user_info,
-							&master_workgroup))) {
+		
+		if (!(cli = get_ipc_connect_master_ip_bcast(master_workgroup, user_info))) {
 			DEBUG(4, ("Unable to find master browser by "
 				  "broadcast\n"));
 			return False;
         }
 
-        if (!cli_NetServerEnum(cli, master_workgroup,
+        if (!cli_NetServerEnum(cli, master_workgroup, 
                                SV_TYPE_DOMAIN_ENUM, add_name, &workgroups))
                 return False;
 
@@ -118,50 +104,48 @@ static bool get_workgroups(struct user_auth_info *user_info)
 
 /* Retrieve the list of servers for a given workgroup */
 
-static bool get_servers(char *workgroup, struct user_auth_info *user_info)
+static BOOL get_servers(char *workgroup, struct user_auth_info *user_info)
 {
         struct cli_state *cli;
-        struct sockaddr_storage server_ss;
-	char addr[INET6_ADDRSTRLEN];
+        struct in_addr server_ip;
 
         /* Open an IPC$ connection to the master browser for the workgroup */
 
-        if (!find_master_ip(workgroup, &server_ss)) {
+        if (!find_master_ip(workgroup, &server_ip)) {
                 DEBUG(4, ("Cannot find master browser for workgroup %s\n",
                           workgroup));
                 return False;
         }
 
-	print_sockaddr(addr, sizeof(addr), &server_ss);
-        if (!(cli = get_ipc_connect(addr, &server_ss, user_info)))
+        if (!(cli = get_ipc_connect(inet_ntoa(server_ip), &server_ip, user_info)))
                 return False;
 
-        if (!cli_NetServerEnum(cli, workgroup, SV_TYPE_ALL, add_name,
+        if (!cli_NetServerEnum(cli, workgroup, SV_TYPE_ALL, add_name, 
                                &servers))
                 return False;
 
         return True;
 }
 
-static bool get_rpc_shares(struct cli_state *cli,
+static BOOL get_rpc_shares(struct cli_state *cli, 
 			   void (*fn)(const char *, uint32, const char *, void *),
 			   void *state)
 {
 	NTSTATUS status;
 	struct rpc_pipe_client *pipe_hnd;
 	TALLOC_CTX *mem_ctx;
+	ENUM_HND enum_hnd;
 	WERROR werr;
-	struct srvsvc_NetShareInfoCtr info_ctr;
-	struct srvsvc_NetShareCtr1 ctr1;
+	SRV_SHARE_INFO_CTR ctr;
 	int i;
-	uint32_t resume_handle = 0;
-	uint32_t total_entries = 0;
 
 	mem_ctx = talloc_new(NULL);
 	if (mem_ctx == NULL) {
 		DEBUG(0, ("talloc_new failed\n"));
 		return False;
 	}
+
+	init_enum_hnd(&enum_hnd, 0);
 
 	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
 
@@ -172,29 +156,23 @@ static bool get_rpc_shares(struct cli_state *cli,
 		return False;
 	}
 
-	ZERO_STRUCT(info_ctr);
-	ZERO_STRUCT(ctr1);
+	werr = rpccli_srvsvc_net_share_enum(pipe_hnd, mem_ctx, 1, &ctr,
+					    0xffffffff, &enum_hnd);
 
-	info_ctr.level = 1;
-	info_ctr.ctr.ctr1 = &ctr1;
-
-	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, mem_ctx,
-					       pipe_hnd->cli->desthost,
-					       &info_ctr,
-					       0xffffffff,
-					       &total_entries,
-					       &resume_handle,
-					       &werr);
-
-	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
+	if (!W_ERROR_IS_OK(werr)) {
 		TALLOC_FREE(mem_ctx);
 		cli_rpc_pipe_close(pipe_hnd);
 		return False;
 	}
 
-	for (i=0; i<total_entries; i++) {
-		struct srvsvc_NetShareInfo1 info = info_ctr.ctr.ctr1->array[i];
-		fn(info.name, info.type, info.comment, state);
+	for (i=0; i<ctr.num_entries; i++) {
+		SRV_SHARE_INFO_1 *info = &ctr.share.info1[i];
+		char *name, *comment;
+		name = rpcstr_pull_unistr2_talloc(
+			mem_ctx, &info->info_1_str.uni_netname);
+		comment = rpcstr_pull_unistr2_talloc(
+			mem_ctx, &info->info_1_str.uni_remark);
+		fn(name, info->info_1.type, comment, state);
 	}
 
 	TALLOC_FREE(mem_ctx);
@@ -203,7 +181,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 }
 
 
-static bool get_shares(char *server_name, struct user_auth_info *user_info)
+static BOOL get_shares(char *server_name, struct user_auth_info *user_info)
 {
         struct cli_state *cli;
 
@@ -212,14 +190,14 @@ static bool get_shares(char *server_name, struct user_auth_info *user_info)
 
 	if (get_rpc_shares(cli, add_name, &shares))
 		return True;
-
+	
         if (!cli_RNetShareEnum(cli, add_name, &shares))
                 return False;
 
         return True;
 }
 
-static bool print_tree(struct user_auth_info *user_info)
+static BOOL print_tree(struct user_auth_info *user_info)
 {
         struct name_list *wg, *sv, *sh;
 
@@ -270,8 +248,6 @@ static bool print_tree(struct user_auth_info *user_info)
 ****************************************************************************/
  int main(int argc,char *argv[])
 {
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct user_auth_info local_auth_info;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 		{ "broadcast", 'b', POPT_ARG_VAL, &use_bcast, True, "Use broadcast instead of using the master browser" },
@@ -282,7 +258,7 @@ static bool print_tree(struct user_auth_info *user_info)
 		POPT_TABLEEND
 	};
 	poptContext pc;
-
+	
 	/* Initialise samba stuff */
 	load_case_tables();
 
@@ -292,40 +268,28 @@ static bool print_tree(struct user_auth_info *user_info)
 
 	setup_logging(argv[0],True);
 
-	pc = poptGetContext("smbtree", argc, (const char **)argv, long_options,
+	pc = poptGetContext("smbtree", argc, (const char **)argv, long_options, 
 						POPT_CONTEXT_KEEP_FIRST);
 	while(poptGetNextOpt(pc) != -1);
 	poptFreeContext(pc);
 
-	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
+	lp_load(dyn_CONFIGFILE,True,False,False,True);
 	load_interfaces();
 
 	/* Parse command line args */
 
-	if (get_cmdline_auth_info_use_machine_account() &&
-	    !set_cmdline_auth_info_machine_account_creds()) {
-		TALLOC_FREE(frame);
-		return 1;
-	}
-
-	if (!get_cmdline_auth_info_got_pass()) {
+	if (!cmdline_auth_info.got_pass) {
 		char *pass = getpass("Password: ");
 		if (pass) {
-			set_cmdline_auth_info_password(pass);
+			pstrcpy(cmdline_auth_info.password, pass);
 		}
+        cmdline_auth_info.got_pass = True;
 	}
 
 	/* Now do our stuff */
 
-	if (!get_cmdline_auth_info_copy(&local_auth_info)) {
-		return 1;
-	}
-
-        if (!print_tree(&local_auth_info)) {
-		TALLOC_FREE(frame);
+        if (!print_tree(&cmdline_auth_info))
                 return 1;
-	}
 
-	TALLOC_FREE(frame);
 	return 0;
 }

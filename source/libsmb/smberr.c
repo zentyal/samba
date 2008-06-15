@@ -4,7 +4,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -13,7 +13,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -160,7 +161,7 @@ return a SMB error name from a class and code
 ****************************************************************************/
 const char *smb_dos_err_name(uint8 e_class, uint16 num)
 {
-	char *result;
+	static pstring ret;
 	int i,j;
 	
 	for (i=0;err_classes[i].e_class;i++)
@@ -172,15 +173,12 @@ const char *smb_dos_err_name(uint8 e_class, uint16 num)
 						return err[j].name;
 					}
 			}
-			result = talloc_asprintf(talloc_tos(), "%d", num);
-			SMB_ASSERT(result != NULL);
-			return result;
+			slprintf(ret, sizeof(ret) - 1, "%d",num);
+			return ret;
 		}
 	
-	result = talloc_asprintf(talloc_tos(), "Error: Unknown error class "
-				 "(%d,%d)", e_class,num);
-	SMB_ASSERT(result != NULL);
-	return result;
+	slprintf(ret, sizeof(ret) - 1, "Error: Unknown error class (%d,%d)",e_class,num);
+	return(ret);
 }
 
 /* Return a string for a DOS error */
@@ -199,19 +197,17 @@ return a SMB error class name as a string.
 ****************************************************************************/
 const char *smb_dos_err_class(uint8 e_class)
 {
-	char *result;
+	static pstring ret;
 	int i;
-
+	
 	for (i=0;err_classes[i].e_class;i++) {
 		if (err_classes[i].code == e_class) {
 			return err_classes[i].e_class;
 		}
 	}
-
-	result = talloc_asprintf(talloc_tos(), "Error: Unknown class (%d)",
-				 e_class);
-	SMB_ASSERT(result != NULL);
-	return result;
+		
+	slprintf(ret, sizeof(ret) - 1, "Error: Unknown class (%d)",e_class);
+	return(ret);
 }
 
 /****************************************************************************
@@ -219,11 +215,11 @@ return a SMB string from an SMB buffer
 ****************************************************************************/
 char *smb_dos_errstr(char *inbuf)
 {
-	char *result;
+	static pstring ret;
 	int e_class = CVAL(inbuf,smb_rcls);
 	int num = SVAL(inbuf,smb_err);
 	int i,j;
-
+	
 	for (i=0;err_classes[i].e_class;i++)
 		if (err_classes[i].code == e_class) {
 			if (err_classes[i].err_msgs) {
@@ -231,29 +227,22 @@ char *smb_dos_errstr(char *inbuf)
 				for (j=0;err[j].name;j++)
 					if (num == err[j].code) {
 						if (DEBUGLEVEL > 0)
-							result = talloc_asprintf(
-								talloc_tos(), "%s - %s (%s)",
-								err_classes[i].e_class,
-								err[j].name,err[j].message);
+							slprintf(ret, sizeof(ret) - 1, "%s - %s (%s)",
+								 err_classes[i].e_class,
+								 err[j].name,err[j].message);
 						else
-							result = talloc_asprintf(
-								talloc_tos(), "%s - %s",
-								err_classes[i].e_class,
-								err[j].name);
-						goto done;
+							slprintf(ret, sizeof(ret) - 1, "%s - %s",
+								 err_classes[i].e_class,err[j].name);
+						return ret;
 					}
 			}
-
-			result = talloc_asprintf(talloc_tos(), "%s - %d",
-						 err_classes[i].e_class, num);
-			goto done;
+			
+			slprintf(ret, sizeof(ret) - 1, "%s - %d",err_classes[i].e_class,num);
+			return ret;
 		}
-
-	result = talloc_asprintf(talloc_tos(), "Error: Unknown error (%d,%d)",
-				 e_class, num);
- done:
-	SMB_ASSERT(result != NULL);
-	return result;
+	
+	slprintf(ret, sizeof(ret) - 1, "Error: Unknown error (%d,%d)",e_class,num);
+	return(ret);
 }
 
 /*****************************************************************************

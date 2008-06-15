@@ -108,21 +108,24 @@ main(int argc, char * argv[])
     }
 
     /* Set mandatory options (is that a contradiction in terms?) */
-    smbc_setDebug(context, debug);
+    context->debug = debug;
     if (context_auth) {
-        smbc_setFunctionAuthDataWithContext(context,
-                                            get_auth_data_with_context_fn);
-        smbc_setOptionUserData(context, "hello world");
+        context->callbacks.auth_fn = NULL;
+        smbc_option_set(context,
+                        "auth_function",
+                        (void *) get_auth_data_with_context_fn);
+        smbc_option_set(context, "user_data", "hello world");
     } else {
-        smbc_setFunctionAuthData(context, get_auth_data_fn);
+        context->callbacks.auth_fn =
+            (no_auth ? no_auth_data_fn : get_auth_data_fn);
     }
 
     /* If we've been asked to log to stderr instead of stdout, ... */
     if (debug_stderr) {
         /* ... then set the option to do so */
-        smbc_setOptionDebugToStderr(context, 1);
+        smbc_option_set(context, "debug_to_stderr", 1);
     }
-
+	
     /* Initialize the context using the previously specified options */
     if (!smbc_init_context(context)) {
         smbc_free_context(context, 0);
@@ -196,7 +199,7 @@ get_auth_data_with_context_fn(SMBCCTX * context,
 {
     printf("Authenticating with context 0x%lx", context);
     if (context != NULL) {
-        char *user_data = smbc_getOptionUserData(context);
+        char *user_data = smbc_option_get(context, "user_data");
         printf(" with user data %s", user_data);
     }
     printf("\n");

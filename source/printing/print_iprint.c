@@ -7,7 +7,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  * 
  * This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
@@ -305,7 +306,7 @@ static int iprint_cache_add_printer(http_t *http,
 	return(0);
 }
 
-bool iprint_cache_reload(void)
+BOOL iprint_cache_reload(void)
 {
 	http_t		*http = NULL;		/* HTTP connection to server */
 	ipp_t		*request = NULL,	/* IPP Request */
@@ -313,7 +314,7 @@ bool iprint_cache_reload(void)
 	ipp_attribute_t	*attr;			/* Current attribute */
 	cups_lang_t	*language = NULL;	/* Default language */
 	int		i;
-	bool ret = False;
+	BOOL ret = False;
 
 	DEBUG(5, ("reloading iprint printcap cache\n"));
 
@@ -726,8 +727,7 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	ipp_attribute_t	*attr;		/* Current attribute */
 	cups_lang_t	*language = NULL;	/* Default language */
 	char		uri[HTTP_MAX_URI]; /* printer-uri attribute */
-	const char	*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
-	char addr[INET6_ADDRSTRLEN];
+	char 		*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
 
 	DEBUG(5,("iprint_job_submit(%d, %p (%d))\n", snum, pjob, pjob->sysjob));
 
@@ -779,11 +779,11 @@ static int iprint_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",
 	             NULL, pjob->user);
 
-	clientname = client_name(get_client_fd());
+	clientname = client_name();
 	if (strcmp(clientname, "UNKNOWN") == 0) {
-		clientname = client_addr(get_client_fd(),addr,sizeof(addr));
+		clientname = client_addr();
 	}
-	
+
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
 	             "job-originating-host-name", NULL,
 	             clientname);

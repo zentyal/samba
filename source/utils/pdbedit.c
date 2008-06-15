@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -61,85 +62,69 @@ static int export_database (struct pdb_methods *in,
                             struct pdb_methods *out, 
                             const char *username) 
 {
+	struct samu *user = NULL;
 	NTSTATUS status;
-	struct pdb_search *u_search;
-	struct samr_displayentry userentry;
 
 	DEBUG(3, ("export_database: username=\"%s\"\n", username ? username : "(NULL)"));
 
-	u_search = pdb_search_init(PDB_USER_SEARCH);
-	if (u_search == NULL) {
-		DEBUG(0, ("pdb_search_init failed\n"));
+	status = in->setsampwent(in, 0, 0);
+	if ( NT_STATUS_IS_ERR(status) ) {
+		fprintf(stderr, "Unable to set account database iterator for %s!\n", 
+			in->name);
 		return 1;
 	}
 
-	if (!in->search_users(in, u_search, 0)) {
-		DEBUG(0, ("Could not start searching users\n"));
-		pdb_search_destroy(u_search);
+	if ( ( user = samu_new( NULL ) ) == NULL ) {
+		fprintf(stderr, "export_database: Memory allocation failure!\n");
 		return 1;
 	}
 
-	while (u_search->next_entry(u_search, &userentry)) {
-		struct samu *user;
-		struct samu *account;
-		DOM_SID user_sid;
+	while ( NT_STATUS_IS_OK(in->getsampwent(in, user)) ) 
+	{
+		DEBUG(4, ("Processing account %s\n", user->username));
 
-		DEBUG(4, ("Processing account %s\n", userentry.account_name));
+		/* If we don't have a specific user or if we do and 
+		   the login name matches */
 
-		if ((username != NULL)
-		    && (strcmp(username, userentry.account_name) != 0)) {
-			/*
-			 * ignore unwanted users
-			 */
-			continue;
+		if ( !username || (strcmp(username, user->username) == 0)) {
+			struct samu *account;
+
+			if ( (account = samu_new( NULL )) == NULL ) {
+				fprintf(stderr, "export_database: Memory allocation failure!\n");
+				TALLOC_FREE( user );
+				in->endsampwent( in );
+				return 1;
+			}
+
+			printf("Importing account for %s...", user->username);
+			if ( !NT_STATUS_IS_OK(out->getsampwnam( out, account, user->username )) ) {
+				status = out->add_sam_account(out, user);
+			} else {
+				status = out->update_sam_account( out, user );
+			}
+
+			if ( NT_STATUS_IS_OK(status) ) {
+				printf( "ok\n");
+			} else {
+				printf( "failed\n");
+			}
+
+			TALLOC_FREE( account );
 		}
 
-		user = samu_new(talloc_tos());
-		if (user == NULL) {
-			DEBUG(0, ("talloc failed\n"));
-			break;
-		}
+		/* clean up and get ready for another run */
 
-		sid_compose(&user_sid, get_global_sam_sid(), userentry.rid);
+		TALLOC_FREE( user );
 
-		status = in->getsampwsid(in, user, &user_sid);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(2, ("getsampwsid failed: %s\n",
-				  nt_errstr(status)));
-			TALLOC_FREE(user);
-			continue;
-		}
-
-		account = samu_new(NULL);
-		if (account == NULL) {
-			fprintf(stderr, "export_database: Memory allocation "
-				"failure!\n");
-			TALLOC_FREE( user );
-			pdb_search_destroy(u_search);
+		if ( ( user = samu_new( NULL ) ) == NULL ) {
+			fprintf(stderr, "export_database: Memory allocation failure!\n");
 			return 1;
 		}
-
-		printf("Importing account for %s...", user->username);
-		status = out->getsampwnam(out, account, user->username);
-
-		if (NT_STATUS_IS_OK(status)) {
-			status = out->update_sam_account( out, user );
-		} else {
-			status = out->add_sam_account(out, user);
-		}
-
-		if ( NT_STATUS_IS_OK(status) ) {
-			printf( "ok\n");
-		} else {
-			printf( "failed\n");
-		}
-
-		TALLOC_FREE( account );
-		TALLOC_FREE( user );
 	}
 
-	pdb_search_destroy(u_search);
+	TALLOC_FREE( user );
+
+	in->endsampwent(in);
 
 	return 0;
 }
@@ -230,25 +215,25 @@ static int export_account_policies (struct pdb_methods *in, struct pdb_methods *
  Print info from sam structure
 **********************************************************/
 
-static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdstyle)
+static int print_sam_info (struct samu *sam_pwent, BOOL verbosity, BOOL smbpwdstyle)
 {
 	uid_t uid;
 	time_t tmp;
 
 	/* TODO: chaeck if entry is a user or a workstation */
 	if (!sam_pwent) return -1;
-
+	
 	if (verbosity) {
-		char temp[44];
+		pstring temp;
 		const uint8 *hours;
-
+		
 		printf ("Unix username:        %s\n", pdb_get_username(sam_pwent));
 		printf ("NT username:          %s\n", pdb_get_nt_username(sam_pwent));
 		printf ("Account Flags:        %s\n", pdb_encode_acct_ctrl(pdb_get_acct_ctrl(sam_pwent), NEW_PW_FORMAT_SPACE_PADDED_LEN));
 		printf ("User SID:             %s\n",
-			sid_string_tos(pdb_get_user_sid(sam_pwent)));
+			sid_string_static(pdb_get_user_sid(sam_pwent)));
 		printf ("Primary Group SID:    %s\n",
-			sid_string_tos(pdb_get_group_sid(sam_pwent)));
+			sid_string_static(pdb_get_group_sid(sam_pwent)));
 		printf ("Full Name:            %s\n", pdb_get_fullname(sam_pwent));
 		printf ("Home Directory:       %s\n", pdb_get_homedir(sam_pwent));
 		printf ("HomeDir Drive:        %s\n", pdb_get_dir_drive(sam_pwent));
@@ -258,34 +243,34 @@ static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdst
 		printf ("Account desc:         %s\n", pdb_get_acct_desc(sam_pwent));
 		printf ("Workstations:         %s\n", pdb_get_workstations(sam_pwent));
 		printf ("Munged dial:          %s\n", pdb_get_munged_dial(sam_pwent));
-
+		
 		tmp = pdb_get_logon_time(sam_pwent);
 		printf ("Logon time:           %s\n", tmp ? http_timestring(tmp) : "0");
-
+		
 		tmp = pdb_get_logoff_time(sam_pwent);
 		printf ("Logoff time:          %s\n", tmp ? http_timestring(tmp) : "0");
-
+		
 		tmp = pdb_get_kickoff_time(sam_pwent);
 		printf ("Kickoff time:         %s\n", tmp ? http_timestring(tmp) : "0");
-
+		
 		tmp = pdb_get_pass_last_set_time(sam_pwent);
 		printf ("Password last set:    %s\n", tmp ? http_timestring(tmp) : "0");
-
+		
 		tmp = pdb_get_pass_can_change_time(sam_pwent);
 		printf ("Password can change:  %s\n", tmp ? http_timestring(tmp) : "0");
-
+		
 		tmp = pdb_get_pass_must_change_time(sam_pwent);
 		printf ("Password must change: %s\n", tmp ? http_timestring(tmp) : "0");
 
 		tmp = pdb_get_bad_password_time(sam_pwent);
 		printf ("Last bad password   : %s\n", tmp ? http_timestring(tmp) : "0");
-		printf ("Bad password count  : %d\n",
+		printf ("Bad password count  : %d\n", 
 			pdb_get_bad_password_count(sam_pwent));
-
+		
 		hours = pdb_get_hours(sam_pwent);
 		pdb_sethexhours(temp, hours);
 		printf ("Logon hours         : %s\n", temp);
-
+		
 	} else if (smbpwdstyle) {
 		char lm_passwd[33];
 		char nt_passwd[33];
@@ -293,7 +278,7 @@ static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdst
 		uid = nametouid(pdb_get_username(sam_pwent));
 		pdb_sethexpwd(lm_passwd, pdb_get_lanman_passwd(sam_pwent), pdb_get_acct_ctrl(sam_pwent));
 		pdb_sethexpwd(nt_passwd, pdb_get_nt_passwd(sam_pwent), pdb_get_acct_ctrl(sam_pwent));
-
+			
 		printf("%s:%lu:%s:%s:%s:LCT-%08X:\n",
 		       pdb_get_username(sam_pwent),
 		       (unsigned long)uid,
@@ -314,10 +299,10 @@ static int print_sam_info (struct samu *sam_pwent, bool verbosity, bool smbpwdst
  Get an Print User Info
 **********************************************************/
 
-static int print_user_info (struct pdb_methods *in, const char *username, bool verbosity, bool smbpwdstyle)
+static int print_user_info (struct pdb_methods *in, const char *username, BOOL verbosity, BOOL smbpwdstyle)
 {
 	struct samu *sam_pwent=NULL;
-	bool ret;
+	BOOL ret;
 
 	if ( (sam_pwent = samu_new( NULL )) == NULL ) {
 		return -1;
@@ -340,52 +325,35 @@ static int print_user_info (struct pdb_methods *in, const char *username, bool v
 /*********************************************************
  List Users
 **********************************************************/
-static int print_users_list (struct pdb_methods *in, bool verbosity, bool smbpwdstyle)
+static int print_users_list (struct pdb_methods *in, BOOL verbosity, BOOL smbpwdstyle)
 {
-	struct pdb_search *u_search;
-	struct samr_displayentry userentry;
-
-	u_search = pdb_search_init(PDB_USER_SEARCH);
-	if (u_search == NULL) {
-		DEBUG(0, ("pdb_search_init failed\n"));
+	struct samu *sam_pwent=NULL;
+	BOOL check;
+	
+	check = NT_STATUS_IS_OK(in->setsampwent(in, False, 0));
+	if (!check) {
 		return 1;
 	}
 
-	if (!in->search_users(in, u_search, 0)) {
-		DEBUG(0, ("Could not start searching users\n"));
-		pdb_search_destroy(u_search);
+	check = True;
+	if ( (sam_pwent = samu_new( NULL )) == NULL ) {
 		return 1;
 	}
 
-	while (u_search->next_entry(u_search, &userentry)) {
-		struct samu *sam_pwent;
-		DOM_SID user_sid;
-		NTSTATUS status;
-
-		sam_pwent = samu_new(talloc_tos());
-		if (sam_pwent == NULL) {
-			DEBUG(0, ("talloc failed\n"));
-			break;
-		}
-
-		sid_compose(&user_sid, get_global_sam_sid(), userentry.rid);
-
-		status = in->getsampwsid(in, sam_pwent, &user_sid);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(2, ("getsampwsid failed: %s\n",
-				  nt_errstr(status)));
-			TALLOC_FREE(sam_pwent);
-			continue;
-		}
-
+	while (check && NT_STATUS_IS_OK(in->getsampwent (in, sam_pwent))) {
 		if (verbosity)
 			printf ("---------------\n");
 		print_sam_info (sam_pwent, verbosity, smbpwdstyle);
 		TALLOC_FREE(sam_pwent);
+		
+		if ( (sam_pwent = samu_new( NULL )) == NULL ) {
+			check = False;
+		}
 	}
-	pdb_search_destroy(u_search);
-
+	if (check) 
+		TALLOC_FREE(sam_pwent);
+	
+	in->endsampwent(in);
 	return 0;
 }
 
@@ -394,50 +362,38 @@ static int print_users_list (struct pdb_methods *in, bool verbosity, bool smbpwd
 **********************************************************/
 static int fix_users_list (struct pdb_methods *in)
 {
-	struct pdb_search *u_search;
-	struct samr_displayentry userentry;
-
-	u_search = pdb_search_init(PDB_USER_SEARCH);
-	if (u_search == NULL) {
-		DEBUG(0, ("pdb_search_init failed\n"));
+	struct samu *sam_pwent=NULL;
+	BOOL check;
+	
+	check = NT_STATUS_IS_OK(in->setsampwent(in, False, 0));
+	if (!check) {
 		return 1;
 	}
 
-	if (!in->search_users(in, u_search, 0)) {
-		DEBUG(0, ("Could not start searching users\n"));
-		pdb_search_destroy(u_search);
+	check = True;
+	if ( (sam_pwent = samu_new( NULL )) == NULL ) {
 		return 1;
 	}
 
-	while (u_search->next_entry(u_search, &userentry)) {
-		struct samu *sam_pwent;
-		DOM_SID user_sid;
-		NTSTATUS status;
-
-		sam_pwent = samu_new(talloc_tos());
-		if (sam_pwent == NULL) {
-			DEBUG(0, ("talloc failed\n"));
-			break;
-		}
-
-		sid_compose(&user_sid, get_global_sam_sid(), userentry.rid);
-
-		status = in->getsampwsid(in, sam_pwent, &user_sid);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(2, ("getsampwsid failed: %s\n",
-				  nt_errstr(status)));
-			TALLOC_FREE(sam_pwent);
-			continue;
-		}
-
+	while (check && NT_STATUS_IS_OK(in->getsampwent (in, sam_pwent))) {
+		printf("Updating record for user %s\n", pdb_get_username(sam_pwent));
+	
 		if (!NT_STATUS_IS_OK(pdb_update_sam_account(sam_pwent))) {
-			printf("Update of user %s failed!\n",
-			       pdb_get_username(sam_pwent));
+			printf("Update of user %s failed!\n", pdb_get_username(sam_pwent));
 		}
 		TALLOC_FREE(sam_pwent);
+		if ( (sam_pwent = samu_new( NULL )) == NULL ) {
+			check = False;
+		}
+		if (!check) {
+			fprintf(stderr, "Failed to initialise new struct samu structure (out of memory?)\n");
+		}
+			
 	}
-	pdb_search_destroy(u_search);
+	if (check) 
+		TALLOC_FREE(sam_pwent);
+	
+	in->endsampwent(in);
 	return 0;
 }
 
@@ -451,11 +407,11 @@ static int set_user_info (struct pdb_methods *in, const char *username,
 			  const char *drive, const char *script, 
 			  const char *profile, const char *account_control,
 			  const char *user_sid, const char *user_domain,
-			  const bool badpw, const bool hours)
+			  const BOOL badpw, const BOOL hours)
 {
-	bool updated_autolock = False, updated_badpw = False;
+	BOOL updated_autolock = False, updated_badpw = False;
 	struct samu *sam_pwent=NULL;
-	bool ret;
+	BOOL ret;
 	
 	if ( (sam_pwent = samu_new( NULL )) == NULL ) {
 		return 1;
@@ -555,7 +511,7 @@ static int set_user_info (struct pdb_methods *in, const char *username,
 static int new_user (struct pdb_methods *in, const char *username,
 			const char *fullname, const char *homedir,
 			const char *drive, const char *script,
-			const char *profile, char *user_sid, bool stdin_get)
+			const char *profile, char *user_sid, BOOL stdin_get)
 {
 	struct samu *sam_pwent;
 	char *password1, *password2;
@@ -768,13 +724,13 @@ static int delete_machine_entry (struct pdb_methods *in, const char *machinename
 
 int main (int argc, char **argv)
 {
-	static int list_users = False;
-	static int verbose = False;
-	static int spstyle = False;
-	static int machine = False;
-	static int add_user = False;
-	static int delete_user = False;
-	static int modify_user = False;
+	static BOOL list_users = False;
+	static BOOL verbose = False;
+	static BOOL spstyle = False;
+	static BOOL machine = False;
+	static BOOL add_user = False;
+	static BOOL delete_user = False;
+	static BOOL modify_user = False;
 	uint32	setparms, checkparms;
 	int opt;
 	static char *full_name = NULL;
@@ -785,10 +741,10 @@ int main (int argc, char **argv)
 	static char *backend = NULL;
 	static char *backend_in = NULL;
 	static char *backend_out = NULL;
-	static int transfer_groups = False;
-	static int transfer_account_policies = False;
-	static int reset_account_policies = False;
-	static int  force_initialised_password = False;
+	static BOOL transfer_groups = False;
+	static BOOL transfer_account_policies = False;
+	static BOOL reset_account_policies = False;
+	static BOOL  force_initialised_password = False;
 	static char *logon_script = NULL;
 	static char *profile_path = NULL;
 	static char *user_domain = NULL;
@@ -796,14 +752,12 @@ int main (int argc, char **argv)
 	static char *account_policy = NULL;
 	static char *user_sid = NULL;
 	static long int account_policy_value = 0;
-	bool account_policy_value_set = False;
-	static int badpw_reset = False;
-	static int hours_reset = False;
+	BOOL account_policy_value_set = False;
+	static BOOL badpw_reset = False;
+	static BOOL hours_reset = False;
 	static char *pwd_time_format = NULL;
-	static int pw_from_stdin = False;
+	static BOOL pw_from_stdin = False;
 	struct pdb_methods *bin, *bout, *bdef;
-	char *configfile = NULL;
-	TALLOC_CTX *frame = talloc_stackframe();
 	poptContext pc;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -844,7 +798,6 @@ int main (int argc, char **argv)
 	/* we shouldn't have silly checks like this */
 	if (getuid() != 0) {
 		d_fprintf(stderr, "You must be root to use pdbedit\n");
-		TALLOC_FREE(frame);
 		return -1;
 	}
 	
@@ -862,9 +815,6 @@ int main (int argc, char **argv)
 		case 'C':
 			account_policy_value_set = True;
 			break;
-		case 's':
-			configfile = optarg;
-			break;
 		}
 	}
 
@@ -873,12 +823,12 @@ int main (int argc, char **argv)
 	if (user_name == NULL)
 		user_name = poptGetArg(pc);
 
-	if (!lp_load(get_dyn_CONFIGFILE(),True,False,False,True)) {
-		fprintf(stderr, "Can't load %s - run testparm to debug it\n", get_dyn_CONFIGFILE());
+	if (!lp_load(dyn_CONFIGFILE,True,False,False,True)) {
+		fprintf(stderr, "Can't load %s - run testparm to debug it\n", dyn_CONFIGFILE);
 		exit(1);
 	}
 
-	if(!initialize_password_db(False, NULL))
+	if(!initialize_password_db(False))
 		exit(1);
 
 	if (!init_names())
@@ -1096,6 +1046,5 @@ int main (int argc, char **argv)
 	}
 	poptPrintHelp(pc, stderr, 0);
 
-	TALLOC_FREE(frame);
 	return 1;
 }

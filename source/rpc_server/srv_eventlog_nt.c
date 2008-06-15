@@ -7,7 +7,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
@@ -67,11 +68,11 @@ static EVENTLOG_INFO *find_eventlog_info_by_hnd( pipes_struct * p,
 /********************************************************************
 ********************************************************************/
 
-static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
+static BOOL elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 {
-	char *tdbname = elog_tdbname(talloc_tos(), info->logname );
+	char *tdbname = elog_tdbname( info->logname );
 	SEC_DESC *sec_desc;
-	bool ret;
+	BOOL ret;
 	NTSTATUS ntstatus;
 	
 	if ( !tdbname ) 
@@ -117,7 +118,7 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 /********************************************************************
  ********************************************************************/
 
-static bool elog_validate_logname( const char *name )
+static BOOL elog_validate_logname( const char *name )
 {
 	int i;
 	const char **elogs = lp_eventlog_list();
@@ -137,7 +138,7 @@ static bool elog_validate_logname( const char *name )
 /********************************************************************
 ********************************************************************/
 
-static bool get_num_records_hook( EVENTLOG_INFO * info )
+static BOOL get_num_records_hook( EVENTLOG_INFO * info )
 {
 	int next_record;
 	int oldest_record;
@@ -167,7 +168,7 @@ static bool get_num_records_hook( EVENTLOG_INFO * info )
 /********************************************************************
  ********************************************************************/
 
-static bool get_oldest_entry_hook( EVENTLOG_INFO * info )
+static BOOL get_oldest_entry_hook( EVENTLOG_INFO * info )
 {
 	/* it's the same thing */
 	return get_num_records_hook( info );
@@ -280,31 +281,25 @@ static int elog_size( EVENTLOG_INFO *info )
 }
 
 /********************************************************************
-  For the given tdb, get the next eventlog record into the passed
+  For the given tdb, get the next eventlog record into the passed 
   Eventlog_entry.  returns NULL if it can't get the record for some reason.
  ********************************************************************/
 
-static Eventlog_entry *get_eventlog_record(prs_struct *ps,
-				TDB_CONTEXT *tdb,
-				int recno)
+static Eventlog_entry *get_eventlog_record( prs_struct * ps, TDB_CONTEXT * tdb,
+				     int recno, Eventlog_entry * ee )
 {
-	Eventlog_entry *ee = NULL;
 	TDB_DATA ret, key;
 
 	int srecno;
 	int reclen;
 	int len;
 
-	char *wpsource = NULL;
-	char *wpcomputer = NULL;
-	char *wpsid = NULL;
-	char *wpstrs = NULL;
-	char *puserdata = NULL;
+	pstring *wpsource, *wpcomputer, *wpsid, *wpstrs, *puserdata;
 
-	key.dsize = sizeof(int32);
+	key.dsize = sizeof( int32 );
 
 	srecno = recno;
-	key.dptr = ( uint8 * ) &srecno;
+	key.dptr = ( char * ) &srecno;
 
 	ret = tdb_fetch( tdb, key );
 
@@ -322,11 +317,10 @@ static Eventlog_entry *get_eventlog_record(prs_struct *ps,
 	if ( !len )
 		return NULL;
 
-	ee = TALLOC_ARRAY(ps->mem_ctx, Eventlog_entry, 1);
-	if (!ee) {
+	/* ee = PRS_ALLOC_MEM(ps, Eventlog_entry, 1); */
+
+	if ( !ee )
 		return NULL;
-	}
-	ZERO_STRUCTP(ee);
 
 	len = tdb_unpack( ret.dptr, ret.dsize, "ddddddwwwwddddddBBdBBBd",
 			  &ee->record.length, &ee->record.reserved1,
@@ -354,62 +348,36 @@ static Eventlog_entry *get_eventlog_record(prs_struct *ps,
 	/* have to do the following because the tdb_unpack allocs a buff, stuffs a pointer to the buff
 	   into it's 2nd argment for 'B' */
 
-	if (wpcomputer) {
-		ee->data_record.computer_name = (smb_ucs2_t *)TALLOC_MEMDUP(
-			ee, wpcomputer, ee->data_record.computer_name_len);
-		if (!ee->data_record.computer_name) {
-			TALLOC_FREE(ee);
-			goto out;
-		}
-	}
-	if (wpsource) {
-		ee->data_record.source_name = (smb_ucs2_t *)TALLOC_MEMDUP(
-			ee, wpsource, ee->data_record.source_name_len);
-		if (!ee->data_record.source_name) {
-			TALLOC_FREE(ee);
-			goto out;
-		}
-	}
+	if ( wpcomputer )
+		memcpy( ee->data_record.computer_name, wpcomputer,
+			ee->data_record.computer_name_len );
+	if ( wpsource )
+		memcpy( ee->data_record.source_name, wpsource,
+			ee->data_record.source_name_len );
 
-	if (wpsid) {
-		ee->data_record.sid = (smb_ucs2_t *)TALLOC_MEMDUP(
-			ee, wpsid, ee->record.user_sid_length);
-		if (!ee->data_record.sid) {
-			TALLOC_FREE(ee);
-			goto out;
-		}
-	}
-	if (wpstrs) {
-		ee->data_record.strings = (smb_ucs2_t *)TALLOC_MEMDUP(
-			ee, wpstrs, ee->data_record.strings_len);
-		if (!ee->data_record.strings) {
-			TALLOC_FREE(ee);
-			goto out;
-		}
-	}
+	if ( wpsid )
+		memcpy( ee->data_record.sid, wpsid,
+			ee->record.user_sid_length );
+	if ( wpstrs )
+		memcpy( ee->data_record.strings, wpstrs,
+			ee->data_record.strings_len );
 
-	if (puserdata) {
-		ee->data_record.user_data = (char *)TALLOC_MEMDUP(
-			ee, puserdata, ee->data_record.user_data_len);
-		if (!ee->data_record.user_data) {
-			TALLOC_FREE(ee);
-			goto out;
-		}
-	}
+	/* note that userdata is a pstring */
+	if ( puserdata )
+		memcpy( ee->data_record.user_data, puserdata,
+			ee->data_record.user_data_len );
 
-  out:
-
-	SAFE_FREE(wpcomputer);
-	SAFE_FREE(wpsource);
-	SAFE_FREE(wpsid);
-	SAFE_FREE(wpstrs);
-	SAFE_FREE(puserdata);
+	SAFE_FREE( wpcomputer );
+	SAFE_FREE( wpsource );
+	SAFE_FREE( wpsid );
+	SAFE_FREE( wpstrs );
+	SAFE_FREE( puserdata );
 
 	DEBUG( 10, ( "get_eventlog_record: read back %d\n", len ) );
 	DEBUG( 10,
 	       ( "get_eventlog_record: computer_name %d is ",
 		 ee->data_record.computer_name_len ) );
-	SAFE_FREE(ret.dptr);
+	SAFE_FREE( ret.dptr );
 	return ee;
 }
 
@@ -418,17 +386,16 @@ static Eventlog_entry *get_eventlog_record(prs_struct *ps,
  since it uses the table to find the tdb handle
  ********************************************************************/
 
-static bool sync_eventlog_params( EVENTLOG_INFO *info )
+static BOOL sync_eventlog_params( EVENTLOG_INFO *info )
 {
-	char *path = NULL;
+	pstring path;
 	uint32 uiMaxSize;
 	uint32 uiRetention;
-	struct registry_key *key;
-	struct registry_value *value;
+	REGISTRY_KEY *keyinfo;
+	REGISTRY_VALUE *val;
+	REGVAL_CTR *values;
 	WERROR wresult;
 	char *elogname = info->logname;
-	TALLOC_CTX *ctx = talloc_tos();
-	bool ret = false;
 
 	DEBUG( 4, ( "sync_eventlog_params with %s\n", elogname ) );
 
@@ -442,57 +409,51 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 	uiRetention = 604800;
 
 	/* the general idea is to internally open the registry 
-	   key and retrieve the values.  That way we can continue 
+	   key and retreive the values.  That way we can continue 
 	   to use the same fetch/store api that we use in 
 	   srv_reg_nt.c */
 
-	path = talloc_asprintf(ctx, "%s/%s", KEY_EVENTLOG, elogname );
-	if (!path) {
-		return false;
-	}
+	pstr_sprintf( path, "%s/%s", KEY_EVENTLOG, elogname );
 
-	wresult = reg_open_path(ctx, path, REG_KEY_READ, get_root_nt_token(),
-				&key);
+	wresult =
+		regkey_open_internal( &keyinfo, path, get_root_nt_token(  ),
+				      REG_KEY_READ );
 
 	if ( !W_ERROR_IS_OK( wresult ) ) {
 		DEBUG( 4,
 		       ( "sync_eventlog_params: Failed to open key [%s] (%s)\n",
 			 path, dos_errstr( wresult ) ) );
-		return false;
+		return False;
 	}
 
-	wresult = reg_queryvalue(key, key, "Retention", &value);
-	if (!W_ERROR_IS_OK(wresult)) {
-		DEBUG(4, ("Failed to query value \"Retention\": %s\n",
-			  dos_errstr(wresult)));
-		ret = false;
-		goto done;
-	}
-	uiRetention = value->v.dword;
+	if ( !( values = TALLOC_ZERO_P( keyinfo, REGVAL_CTR ) ) ) {
+		TALLOC_FREE( keyinfo );
+		DEBUG( 0, ( "control_eventlog_hook: talloc() failed!\n" ) );
 
-	wresult = reg_queryvalue(key, key, "MaxSize", &value);
-	if (!W_ERROR_IS_OK(wresult)) {
-		DEBUG(4, ("Failed to query value \"MaxSize\": %s\n",
-			  dos_errstr(wresult)));
-		ret = false;
-		goto done;
+		return False;
 	}
-	uiMaxSize = value->v.dword;
+	fetch_reg_values( keyinfo, values );
+
+	if ( ( val = regval_ctr_getvalue( values, "Retention" ) ) != NULL )
+		uiRetention = IVAL( regval_data_p( val ), 0 );
+
+	if ( ( val = regval_ctr_getvalue( values, "MaxSize" ) ) != NULL )
+		uiMaxSize = IVAL( regval_data_p( val ), 0 );
+
+	regkey_close_internal( keyinfo );
 
 	tdb_store_int32( ELOG_TDB_CTX(info->etdb), EVT_MAXSIZE, uiMaxSize );
 	tdb_store_int32( ELOG_TDB_CTX(info->etdb), EVT_RETENTION, uiRetention );
 
-	ret = true;
-
-done:
-	TALLOC_FREE(ctx);
-	return ret;
+	return True;
 }
 
 /********************************************************************
  ********************************************************************/
 
 static Eventlog_entry *read_package_entry( prs_struct * ps,
+					   EVENTLOG_Q_READ_EVENTLOG * q_u,
+					   EVENTLOG_R_READ_EVENTLOG * r_u,
 					   Eventlog_entry * entry )
 {
 	uint8 *offset;
@@ -584,7 +545,7 @@ static Eventlog_entry *read_package_entry( prs_struct * ps,
 /********************************************************************
  ********************************************************************/
 
-static bool add_record_to_resp( EVENTLOG_R_READ_EVENTLOG * r_u,
+static BOOL add_record_to_resp( EVENTLOG_R_READ_EVENTLOG * r_u,
 				Eventlog_entry * ee_new )
 {
 	Eventlog_entry *insert_point;
@@ -608,23 +569,28 @@ static bool add_record_to_resp( EVENTLOG_R_READ_EVENTLOG * r_u,
 }
 
 /********************************************************************
- _eventlog_OpenEventLogW
  ********************************************************************/
 
-NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
-				 struct eventlog_OpenEventLogW *r)
+NTSTATUS _eventlog_open_eventlog( pipes_struct * p,
+				EVENTLOG_Q_OPEN_EVENTLOG * q_u,
+				EVENTLOG_R_OPEN_EVENTLOG * r_u )
 {
-	const char *servername = "";
-	const char *logname = "";
+	fstring servername, logname;
 	EVENTLOG_INFO *info;
 	NTSTATUS result;
 
-	if (r->in.servername->string) {
-		servername = r->in.servername->string;
+	fstrcpy( servername, "" );
+	if ( q_u->servername.string ) {
+		rpcstr_pull( servername, q_u->servername.string->buffer,
+			     sizeof( servername ),
+			     q_u->servername.string->uni_str_len * 2, 0 );
 	}
 
-	if (r->in.logname->string) {
-		logname = r->in.logname->string;
+	fstrcpy( logname, "" );
+	if ( q_u->logname.string ) {
+		rpcstr_pull( logname, q_u->logname.string->buffer,
+			     sizeof( logname ),
+			     q_u->logname.string->uni_str_len * 2, 0 );
 	}
 	
 	DEBUG( 10,("_eventlog_open_eventlog: Server [%s], Log [%s]\n",
@@ -633,13 +599,13 @@ NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
 	/* according to MSDN, if the logfile cannot be found, we should
 	  default to the "Application" log */
 	  
-	if ( !NT_STATUS_IS_OK( result = elog_open( p, logname, r->out.handle )) )
+	if ( !NT_STATUS_IS_OK( result = elog_open( p, logname, &r_u->handle )) )
 		return result;
 
-	if ( !(info = find_eventlog_info_by_hnd( p, r->out.handle )) ) {
+	if ( !(info = find_eventlog_info_by_hnd( p, &r_u->handle )) ) {
 		DEBUG(0,("_eventlog_open_eventlog: eventlog (%s) opened but unable to find handle!\n",
 			logname ));
-		elog_close( p, r->out.handle );
+		elog_close( p, &r_u->handle );
 		return NT_STATUS_INVALID_HANDLE;
 	}
 
@@ -652,35 +618,24 @@ NTSTATUS _eventlog_OpenEventLogW(pipes_struct *p,
 }
 
 /********************************************************************
- _eventlog_ClearEventLogW
  This call still needs some work
  ********************************************************************/
-/** The windows client seems to be doing something funny with the file name
-   A call like
-      ClearEventLog(handle, "backup_file")
-   on the client side will result in the backup file name looking like this on the
-   server side:
-      \??\${CWD of client}\backup_file
-   If an absolute path gets specified, such as
-      ClearEventLog(handle, "C:\\temp\\backup_file")
-   then it is still mangled by the client into this:
-      \??\C:\temp\backup_file
-   when it is on the wire.
-   I'm not sure where the \?? is coming from, or why the ${CWD} of the client process
-   would be added in given that the backup file gets written on the server side. */
 
-NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
-				  struct eventlog_ClearEventLogW *r)
+NTSTATUS _eventlog_clear_eventlog( pipes_struct * p,
+				 EVENTLOG_Q_CLEAR_EVENTLOG * q_u,
+				 EVENTLOG_R_CLEAR_EVENTLOG * r_u )
 {
-	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
-	const char *backup_file_name = NULL;
+	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, &q_u->handle );
+	pstring backup_file_name;
 
 	if ( !info )
 		return NT_STATUS_INVALID_HANDLE;
 
-	if (r->in.backupfile && r->in.backupfile->string) {
-
-		backup_file_name = r->in.backupfile->string;
+	pstrcpy( backup_file_name, "" );
+	if ( q_u->backupfile.string ) {
+		rpcstr_pull( backup_file_name, q_u->backupfile.string->buffer,
+			     sizeof( backup_file_name ),
+			     q_u->backupfile.string->uni_str_len * 2, 0 );
 
 		DEBUG(8,( "_eventlog_clear_eventlog: Using [%s] as the backup "
 			"file name for log [%s].",
@@ -694,7 +649,7 @@ NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
 
 	/* Force a close and reopen */
 
-	elog_close_tdb( info->etdb, True );
+	elog_close_tdb( info->etdb, True ); 
 	become_root();
 	info->etdb = elog_open_tdb( info->logname, True );
 	unbecome_root();
@@ -708,9 +663,11 @@ NTSTATUS _eventlog_ClearEventLogW(pipes_struct *p,
 /********************************************************************
  ********************************************************************/
 
-NTSTATUS _eventlog_CloseEventLog( pipes_struct * p, struct eventlog_CloseEventLog *r )
+NTSTATUS _eventlog_close_eventlog( pipes_struct * p,
+				 EVENTLOG_Q_CLOSE_EVENTLOG * q_u,
+				 EVENTLOG_R_CLOSE_EVENTLOG * r_u )
 {
-	return elog_close( p, r->in.handle );
+	return elog_close( p, &q_u->handle );
 }
 
 /********************************************************************
@@ -721,7 +678,7 @@ NTSTATUS _eventlog_read_eventlog( pipes_struct * p,
 				EVENTLOG_R_READ_EVENTLOG * r_u )
 {
 	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, &q_u->handle );
-	Eventlog_entry *entry = NULL, *ee_new = NULL;
+	Eventlog_entry entry, *ee_new;
 	uint32 num_records_read = 0;
 	prs_struct *ps;
 	int bytes_left, record_number;
@@ -736,9 +693,9 @@ NTSTATUS _eventlog_read_eventlog( pipes_struct * p,
 
 	bytes_left = q_u->max_read_size;
 
-	if ( !info->etdb )
+	if ( !info->etdb ) 
 		return NT_STATUS_ACCESS_DENIED;
-
+		
 	/* check for valid flags.  Can't use the sequential and seek flags together */
 
 	elog_read_type = q_u->flags & (EVENTLOG_SEQUENTIAL_READ|EVENTLOG_SEEK_READ);
@@ -755,39 +712,37 @@ NTSTATUS _eventlog_read_eventlog( pipes_struct * p,
 
 	if ( elog_read_type & EVENTLOG_SEQUENTIAL_READ )
 		record_number = info->current_record;
-	else
+	else 
 		record_number = q_u->offset;
 
 	while ( bytes_left > 0 ) {
 
 		/* assume that when the record fetch fails, that we are done */
 
-		entry = get_eventlog_record (ps, ELOG_TDB_CTX(info->etdb), record_number);
-		if (!entry) {
+		if ( !get_eventlog_record ( ps, ELOG_TDB_CTX(info->etdb), record_number, &entry ) ) 
 			break;
-		}
 
 		DEBUG( 8, ( "Retrieved record %d\n", record_number ) );
-
+			       
 		/* Now see if there is enough room to add */
 
-		if ( !(ee_new = read_package_entry( ps, entry )) )
+		if ( !(ee_new = read_package_entry( ps, q_u, r_u,&entry )) )
 			return NT_STATUS_NO_MEMORY;
 
 		if ( r_u->num_bytes_in_resp + ee_new->record.length > q_u->max_read_size ) {
 			r_u->bytes_in_next_record = ee_new->record.length;
 
 			/* response would be too big to fit in client-size buffer */
-
+				
 			bytes_left = 0;
 			break;
 		}
-
+			
 		add_record_to_resp( r_u, ee_new );
 		bytes_left -= ee_new->record.length;
-		TALLOC_FREE(entry);
+		ZERO_STRUCT( entry );
 		num_records_read = r_u->num_records - num_records_read;
-
+				
 		DEBUG( 10, ( "_eventlog_read_eventlog: read [%d] records for a total "
 			"of [%d] records using [%d] bytes out of a max of [%d].\n",
 			 num_records_read, r_u->num_records,
@@ -798,26 +753,26 @@ NTSTATUS _eventlog_read_eventlog( pipes_struct * p,
 			record_number++;
 		else
 			record_number--;
-
+		
 		/* update the eventlog record pointer */
-
+		
 		info->current_record = record_number;
 	}
 
-	/* crazy by WinXP uses NT_STATUS_BUFFER_TOO_SMALL to
+	/* crazy by WinXP uses NT_STATUS_BUFFER_TOO_SMALL to 
 	   say when there are no more records */
 
 	return (num_records_read ? NT_STATUS_OK : NT_STATUS_BUFFER_TOO_SMALL);
 }
 
 /********************************************************************
- _eventlog_GetOldestRecord
  ********************************************************************/
 
-NTSTATUS _eventlog_GetOldestRecord(pipes_struct *p,
-				   struct eventlog_GetOldestRecord *r)
+NTSTATUS _eventlog_get_oldest_entry( pipes_struct * p,
+				   EVENTLOG_Q_GET_OLDEST_ENTRY * q_u,
+				   EVENTLOG_R_GET_OLDEST_ENTRY * r_u )
 {
-	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
+	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, &q_u->handle );
 
 	if (info == NULL) {
 		return NT_STATUS_INVALID_HANDLE;
@@ -826,19 +781,19 @@ NTSTATUS _eventlog_GetOldestRecord(pipes_struct *p,
 	if ( !( get_oldest_entry_hook( info ) ) )
 		return NT_STATUS_ACCESS_DENIED;
 
-	*r->out.oldest_entry = info->oldest_entry;
+	r_u->oldest_entry = info->oldest_entry;
 
 	return NT_STATUS_OK;
 }
 
 /********************************************************************
-_eventlog_GetNumRecords
  ********************************************************************/
 
-NTSTATUS _eventlog_GetNumRecords(pipes_struct *p,
-				 struct eventlog_GetNumRecords *r)
+NTSTATUS _eventlog_get_num_records( pipes_struct * p,
+				  EVENTLOG_Q_GET_NUM_RECORDS * q_u,
+				  EVENTLOG_R_GET_NUM_RECORDS * r_u )
 {
-	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, r->in.handle );
+	EVENTLOG_INFO *info = find_eventlog_info_by_hnd( p, &q_u->handle );
 
 	if (info == NULL) {
 		return NT_STATUS_INVALID_HANDLE;
@@ -847,122 +802,7 @@ NTSTATUS _eventlog_GetNumRecords(pipes_struct *p,
 	if ( !( get_num_records_hook( info ) ) )
 		return NT_STATUS_ACCESS_DENIED;
 
-	*r->out.number = info->num_records;
+	r_u->num_records = info->num_records;
 
 	return NT_STATUS_OK;
 }
-
-NTSTATUS _eventlog_BackupEventLogW(pipes_struct *p, struct eventlog_BackupEventLogW *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_DeregisterEventSource(pipes_struct *p, struct eventlog_DeregisterEventSource *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ChangeNotify(pipes_struct *p, struct eventlog_ChangeNotify *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_RegisterEventSourceW(pipes_struct *p, struct eventlog_RegisterEventSourceW *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_OpenBackupEventLogW(pipes_struct *p, struct eventlog_OpenBackupEventLogW *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ReadEventLogW(pipes_struct *p, struct eventlog_ReadEventLogW *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ReportEventW(pipes_struct *p, struct eventlog_ReportEventW *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ClearEventLogA(pipes_struct *p, struct eventlog_ClearEventLogA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_BackupEventLogA(pipes_struct *p, struct eventlog_BackupEventLogA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_OpenEventLogA(pipes_struct *p, struct eventlog_OpenEventLogA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_RegisterEventSourceA(pipes_struct *p, struct eventlog_RegisterEventSourceA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_OpenBackupEventLogA(pipes_struct *p, struct eventlog_OpenBackupEventLogA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ReadEventLogA(pipes_struct *p, struct eventlog_ReadEventLogA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_ReportEventA(pipes_struct *p, struct eventlog_ReportEventA *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_RegisterClusterSvc(pipes_struct *p, struct eventlog_RegisterClusterSvc *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_DeregisterClusterSvc(pipes_struct *p, struct eventlog_DeregisterClusterSvc *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_WriteClusterEvents(pipes_struct *p, struct eventlog_WriteClusterEvents *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_GetLogIntormation(pipes_struct *p, struct eventlog_GetLogIntormation *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS _eventlog_FlushEventLog(pipes_struct *p, struct eventlog_FlushEventLog *r)
-{
-	p->rng_fault_state = True;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-

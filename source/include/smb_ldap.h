@@ -5,7 +5,7 @@
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
    
 */
 
@@ -114,7 +115,7 @@ struct ldap_SearchRequest {
 	enum ldap_deref deref;
 	uint32 timelimit;
 	uint32 sizelimit;
-	bool attributesonly;
+	BOOL attributesonly;
 	char *filter;
 	int num_attributes;
 	const char **attributes;
@@ -162,7 +163,7 @@ struct ldap_DelRequest {
 struct ldap_ModifyDNRequest {
 	const char *dn;
 	const char *newrdn;
-	bool deleteolddn;
+	BOOL deleteolddn;
 	const char *newsuperior;
 };
 
@@ -212,7 +213,7 @@ union ldap_Request {
 
 struct ldap_Control {
 	const char *oid;
-	bool        critical;
+	BOOL        critical;
 	DATA_BLOB   value;
 };
 
@@ -237,7 +238,7 @@ struct ldap_connection {
 	int next_msgid;
 	char *host;
 	uint16 port;
-	bool ldaps;
+	BOOL ldaps;
 
 	const char *auth_dn;
 	const char *simple_pw;

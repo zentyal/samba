@@ -10,8 +10,8 @@
   This file is part of the nss_ldap library.
 
   The nss_ldap library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public License as
-  published by the Free Software Foundation; either version 3 of the
+  modify it under the terms of the GNU Library General Public License as
+  published by the Free Software Foundation; either version 2 of the
   License, or (at your option) any later version.
 
   The nss_ldap library is distributed in the hope that it will be useful,
@@ -19,14 +19,14 @@
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   Library General Public License for more details.
 
-  You should have received a copy of the GNU Lesser General Public
+  You should have received a copy of the GNU Library General Public
   License along with the nss_ldap library; see the file COPYING.LIB.  If not,
-  see <http://www.gnu.org/licenses/>.
+  write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+  Boston, MA 02111-1307, USA.
 */
 
 #undef DEVELOPER
 
-#include "winbind_client.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/param.h>
@@ -37,6 +37,7 @@
 #if !defined(HPUX)
 #include <sys/syslog.h>
 #endif /*hpux*/
+#include "winbind_nss_config.h"
 
 #if defined(HAVE_NSS_COMMON_H) || defined(HPUX) 
 
@@ -500,7 +501,7 @@ _nss_winbind_ipnodes_getbyname(nss_backend_t* be, void *args)
 	  ret = parse_response(af, argp, &response);
 	}
 
-	winbindd_free_response(&response);
+	free_response(&response);
 	return ret;
 }
 
@@ -523,7 +524,7 @@ _nss_winbind_hosts_getbyname(nss_backend_t* be, void *args)
 	  ret = parse_response(AF_INET, argp, &response);
 	}
 
-	winbindd_free_response(&response);
+	free_response(&response);
 	return ret;
 }
 
@@ -553,7 +554,7 @@ _nss_winbind_hosts_getbyaddr(nss_backend_t* be, void *args)
 	if( ret == NSS_STATUS_SUCCESS) {
 	  parse_response(argp->key.hostaddr.type, argp, &response);
 	}
-	winbindd_free_response(&response);
+	free_response(&response);
         return ret;
 }
 

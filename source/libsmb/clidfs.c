@@ -1,22 +1,23 @@
-/*
+/* 
    Unix SMB/CIFS implementation.
    client connect/disconnect routines
    Copyright (C) Andrew Tridgell                  1994-1998
    Copyright (C) Gerald (Jerry) Carter            2004
    Copyright (C) Jeremy Allison                   2007
-
+      
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -35,150 +36,83 @@
 struct client_connection {
 	struct client_connection *prev, *next;
 	struct cli_state *cli;
-	char *mount;
+	pstring mount;
 };
 
 /* global state....globals reek! */
+
+static pstring username;
+static pstring password;
+static BOOL use_kerberos;
+static BOOL got_pass;
+static int signing_state;
 int max_protocol = PROTOCOL_NT1;
-
-static struct cm_cred_struct {
-	char *username;
-	char *password;
-	bool got_pass;
-	bool use_kerberos;
-	bool fallback_after_kerberos;
-	int signing_state;
-} cm_creds;
-
-static void cm_set_password(const char *newpass);
 
 static int port;
 static int name_type = 0x20;
-static bool have_ip;
-static struct sockaddr_storage dest_ss;
+static BOOL have_ip;
+static struct in_addr dest_ip;
 
 static struct client_connection *connections;
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
-				struct cli_state *cli,
-				const char *sharename,
-				char **pp_newserver,
-				char **pp_newshare,
-				bool force_encrypt,
-				const char *username,
-				const char *password,
-				const char *domain);
-
-/********************************************************************
- Ensure a connection is encrypted.
-********************************************************************/
-
-NTSTATUS cli_cm_force_encryption(struct cli_state *c,
-			const char *username,
-			const char *password,
-			const char *domain,
-			const char *sharename)
-{
-	NTSTATUS status = cli_force_encryption(c,
-					username,
-					password,
-					domain);
-
-	if (NT_STATUS_EQUAL(status,NT_STATUS_NOT_SUPPORTED)) {
-		d_printf("Encryption required and "
-			"server that doesn't support "
-			"UNIX extensions - failing connect\n");
-	} else if (NT_STATUS_EQUAL(status,NT_STATUS_UNKNOWN_REVISION)) {
-		d_printf("Encryption required and "
-			"can't get UNIX CIFS extensions "
-			"version from server.\n");
-	} else if (NT_STATUS_EQUAL(status,NT_STATUS_UNSUPPORTED_COMPRESSION)) {
-		d_printf("Encryption required and "
-			"share %s doesn't support "
-			"encryption.\n", sharename);
-	} else if (!NT_STATUS_IS_OK(status)) {
-		d_printf("Encryption required and "
-			"setup failed with error %s.\n",
-			nt_errstr(status));
-	}
-
-	return status;
-}
-	
 /********************************************************************
  Return a connection to a server.
 ********************************************************************/
 
-static struct cli_state *do_connect(TALLOC_CTX *ctx,
-					const char *server,
-					const char *share,
-					bool show_sessetup,
-					bool force_encrypt)
+static struct cli_state *do_connect( const char *server, const char *share,
+                                     BOOL show_sessetup )
 {
 	struct cli_state *c = NULL;
 	struct nmb_name called, calling;
 	const char *server_n;
-	struct sockaddr_storage ss;
-	char *servicename;
+	struct in_addr ip;
+	pstring servicename;
 	char *sharename;
-	char *newserver, *newshare;
-	const char *username;
-	const char *password;
+	fstring newserver, newshare;
 	NTSTATUS status;
-
+	
 	/* make a copy so we don't modify the global string 'service' */
-	servicename = talloc_strdup(ctx,share);
-	if (!servicename) {
-		return NULL;
-	}
+	pstrcpy(servicename, share);
 	sharename = servicename;
 	if (*sharename == '\\') {
 		server = sharename+2;
 		sharename = strchr_m(server,'\\');
-		if (!sharename) {
-			return NULL;
-		}
+		if (!sharename) return NULL;
 		*sharename = 0;
 		sharename++;
 	}
 
 	server_n = server;
-
-	zero_addr(&ss);
+	
+	zero_ip(&ip);
 
 	make_nmb_name(&calling, global_myname(), 0x0);
 	make_nmb_name(&called , server, name_type);
 
  again:
-	zero_addr(&ss);
-	if (have_ip)
-		ss = dest_ss;
+	zero_ip(&ip);
+	if (have_ip) 
+		ip = dest_ip;
 
 	/* have to open a new connection */
 	if (!(c=cli_initialise()) || (cli_set_port(c, port) != port)) {
 		d_printf("Connection to %s failed\n", server_n);
-		if (c) {
-			cli_shutdown(c);
-		}
 		return NULL;
 	}
-	status = cli_connect(c, server_n, &ss);
+	status = cli_connect(c, server_n, &ip);
 	if (!NT_STATUS_IS_OK(status)) {
-		d_printf("Connection to %s failed (Error %s)\n",
-				server_n,
-				nt_errstr(status));
-		cli_shutdown(c);
+		d_printf("Connection to %s failed (Error %s)\n", server_n, nt_errstr(status));
 		return NULL;
 	}
 
 	c->protocol = max_protocol;
-	c->use_kerberos = cm_creds.use_kerberos;
-	c->fallback_after_kerberos = cm_creds.fallback_after_kerberos;
-	cli_setup_signing_state(c, cm_creds.signing_state);
+	c->use_kerberos = use_kerberos;
+	cli_setup_signing_state(c, signing_state);
+		
 
 	if (!cli_session_request(c, &calling, &called)) {
 		char *p;
-		d_printf("session request to %s failed (%s)\n",
+		d_printf("session request to %s failed (%s)\n", 
 			 called.name, cli_errstr(c));
 		cli_shutdown(c);
 		c = NULL;
@@ -201,34 +135,24 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 		return NULL;
 	}
 
-	if (!cm_creds.got_pass && !cm_creds.use_kerberos) {
-		char *label = NULL;
-		char *pass;
-		label = talloc_asprintf(ctx, "Enter %s's password: ",
-			cm_creds.username);
-		pass = getpass(label);
+	if (!got_pass) {
+		char *pass = getpass("Password: ");
 		if (pass) {
-			cm_set_password(pass);
+			pstrcpy(password, pass);
+			got_pass = 1;
 		}
-		TALLOC_FREE(label);
 	}
 
-	username = cm_creds.username ? cm_creds.username : "";
-	password = cm_creds.password ? cm_creds.password : "";
-
-	if (!NT_STATUS_IS_OK(cli_session_setup(c, username,
+	if (!NT_STATUS_IS_OK(cli_session_setup(c, username, 
 					       password, strlen(password),
 					       password, strlen(password),
 					       lp_workgroup()))) {
-		/* If a password was not supplied then
-		 * try again with a null username. */
-		if (password[0] || !username[0] || cm_creds.use_kerberos ||
-		    !NT_STATUS_IS_OK(cli_session_setup(c, "",
-				    		"", 0,
-						"", 0,
-					       lp_workgroup()))) {
+		/* if a password was not supplied then try again with a null username */
+		if (password[0] || !username[0] || use_kerberos ||
+		    !NT_STATUS_IS_OK(cli_session_setup(c, "", "", 0, "", 0,
+						       lp_workgroup()))) { 
 			d_printf("session setup failed: %s\n", cli_errstr(c));
-			if (NT_STATUS_V(cli_nt_error(c)) ==
+			if (NT_STATUS_V(cli_nt_error(c)) == 
 			    NT_STATUS_V(NT_STATUS_MORE_PROCESSING_REQUIRED))
 				d_printf("did you forget to run kinit?\n");
 			cli_shutdown(c);
@@ -241,98 +165,71 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 		if (*c->server_domain) {
 			DEBUG(0,("Domain=[%s] OS=[%s] Server=[%s]\n",
 				c->server_domain,c->server_os,c->server_type));
-		} else if (*c->server_os || *c->server_type) {
+		} else if (*c->server_os || *c->server_type){
 			DEBUG(0,("OS=[%s] Server=[%s]\n",
 				 c->server_os,c->server_type));
-		}
+		}		
 	}
 	DEBUG(4,(" session setup ok\n"));
 
 	/* here's the fun part....to support 'msdfs proxy' shares
-	   (on Samba or windows) we have to issues a TRANS_GET_DFS_REFERRAL
+	   (on Samba or windows) we have to issues a TRANS_GET_DFS_REFERRAL 
 	   here before trying to connect to the original share.
 	   check_dfs_proxy() will fail if it is a normal share. */
 
-	if ((c->capabilities & CAP_DFS) &&
-			cli_check_msdfs_proxy(ctx, c, sharename,
-				&newserver, &newshare,
-				force_encrypt,
-				username,
-				password,
-				lp_workgroup())) {
+	if ( (c->capabilities & CAP_DFS) && cli_check_msdfs_proxy( c, sharename, newserver, newshare ) ) {
 		cli_shutdown(c);
-		return do_connect(ctx, newserver,
-				newshare, false, force_encrypt);
+		return do_connect( newserver, newshare, False );
 	}
 
 	/* must be a normal share */
 
-	if (!cli_send_tconX(c, sharename, "?????",
-				password, strlen(password)+1)) {
+	if (!cli_send_tconX(c, sharename, "?????", password, strlen(password)+1)) {
 		d_printf("tree connect failed: %s\n", cli_errstr(c));
 		cli_shutdown(c);
 		return NULL;
 	}
 
-	if (force_encrypt) {
-		status = cli_cm_force_encryption(c,
-					username,
-					password,
-					lp_workgroup(),
-					sharename);
-		if (!NT_STATUS_IS_OK(status)) {
-			cli_shutdown(c);
-			return NULL;
-		}
-	}
-
 	DEBUG(4,(" tconx ok\n"));
+
 	return c;
 }
 
 /****************************************************************************
 ****************************************************************************/
 
-static void cli_cm_set_mntpoint(struct cli_state *c, const char *mnt)
+static void cli_cm_set_mntpoint( struct cli_state *c, const char *mnt )
 {
 	struct client_connection *p;
 	int i;
 
-	for (p=connections,i=0; p; p=p->next,i++) {
-		if (strequal(p->cli->desthost, c->desthost) &&
-				strequal(p->cli->share, c->share)) {
+	for ( p=connections,i=0; p; p=p->next,i++ ) {
+		if ( strequal(p->cli->desthost, c->desthost) && strequal(p->cli->share, c->share) )
 			break;
-		}
 	}
-
-	if (p) {
-		char *name = clean_name(NULL, p->mount);
-		if (!name) {
-			return;
-		}
-		p->mount = talloc_strdup(p, name);
-		TALLOC_FREE(name);
+	
+	if ( p ) {
+		pstrcpy( p->mount, mnt );
+		clean_name(p->mount);
 	}
 }
 
 /****************************************************************************
 ****************************************************************************/
 
-const char *cli_cm_get_mntpoint(struct cli_state *c)
+const char *cli_cm_get_mntpoint( struct cli_state *c )
 {
 	struct client_connection *p;
 	int i;
 
-	for (p=connections,i=0; p; p=p->next,i++) {
-		if (strequal(p->cli->desthost, c->desthost) &&
-				strequal(p->cli->share, c->share)) {
+	for ( p=connections,i=0; p; p=p->next,i++ ) {
+		if ( strequal(p->cli->desthost, c->desthost) && strequal(p->cli->share, c->share) )
 			break;
-		}
 	}
-
-	if (p) {
+	
+	if ( p )
 		return p->mount;
-	}
+		
 	return NULL;
 }
 
@@ -340,84 +237,62 @@ const char *cli_cm_get_mntpoint(struct cli_state *c)
  Add a new connection to the list
 ********************************************************************/
 
-static struct cli_state *cli_cm_connect(TALLOC_CTX *ctx,
-					struct cli_state *referring_cli,
-	 				const char *server,
+static struct cli_state *cli_cm_connect( const char *server,
 					const char *share,
-					bool show_hdr,
-					bool force_encrypt)
+					BOOL show_hdr)
 {
 	struct client_connection *node;
-
-	/* NB This must be the null context here... JRA. */
-	node = TALLOC_ZERO_ARRAY(NULL, struct client_connection, 1);
-	if (!node) {
-		return NULL;
-	}
-
-	node->cli = do_connect(ctx, server, share, show_hdr, force_encrypt);
+	
+	node = SMB_XMALLOC_P( struct client_connection );
+	
+	node->cli = do_connect( server, share, show_hdr );
 
 	if ( !node->cli ) {
-		TALLOC_FREE( node );
+		SAFE_FREE( node );
 		return NULL;
 	}
 
 	DLIST_ADD( connections, node );
 
-	cli_cm_set_mntpoint(node->cli, "");
-
-	if (referring_cli && referring_cli->posix_capabilities) {
-		uint16 major, minor;
-		uint32 caplow, caphigh;
-		if (cli_unix_extensions_version(node->cli, &major,
-					&minor, &caplow, &caphigh)) {
-			cli_set_unix_extensions_capabilities(node->cli,
-					major, minor,
-					caplow, caphigh);
-		}
-	}
+	cli_cm_set_mntpoint( node->cli, "" );
 
 	return node->cli;
+
 }
 
 /********************************************************************
  Return a connection to a server.
 ********************************************************************/
 
-static struct cli_state *cli_cm_find(const char *server, const char *share)
+static struct cli_state *cli_cm_find( const char *server, const char *share )
 {
 	struct client_connection *p;
 
-	for (p=connections; p; p=p->next) {
-		if ( strequal(server, p->cli->desthost) &&
-				strequal(share,p->cli->share)) {
+	for ( p=connections; p; p=p->next ) {
+		if ( strequal(server, p->cli->desthost) && strequal(share,p->cli->share) )
 			return p->cli;
-		}
 	}
 
 	return NULL;
 }
 
 /****************************************************************************
- Open a client connection to a \\server\share.  Set's the current *cli
+ open a client connection to a \\server\share.  Set's the current *cli 
  global variable as a side-effect (but only if the connection is successful).
 ****************************************************************************/
 
-struct cli_state *cli_cm_open(TALLOC_CTX *ctx,
-				struct cli_state *referring_cli,
-				const char *server,
+struct cli_state *cli_cm_open(const char *server,
 				const char *share,
-				bool show_hdr,
-				bool force_encrypt)
+				BOOL show_hdr)
 {
 	struct cli_state *c;
-
+	
 	/* try to reuse an existing connection */
 
-	c = cli_cm_find(server, share);
-	if (!c) {
-		c = cli_cm_connect(ctx, referring_cli,
-				server, share, show_hdr, force_encrypt);
+	c = cli_cm_find( server, share );
+	
+	if ( !c ) {
+		c = cli_cm_connect(server, share, show_hdr);
 	}
 
 	return c;
@@ -426,16 +301,17 @@ struct cli_state *cli_cm_open(TALLOC_CTX *ctx,
 /****************************************************************************
 ****************************************************************************/
 
-void cli_cm_shutdown(void)
+void cli_cm_shutdown( void )
 {
+
 	struct client_connection *p, *x;
 
-	for (p=connections; p;) {
-		cli_shutdown(p->cli);
+	for ( p=connections; p; ) {
+		cli_shutdown( p->cli );
 		x = p;
 		p = p->next;
 
-		TALLOC_FREE(x);
+		SAFE_FREE( x );
 	}
 
 	connections = NULL;
@@ -451,7 +327,7 @@ void cli_cm_display(void)
 	int i;
 
 	for ( p=connections,i=0; p; p=p->next,i++ ) {
-		d_printf("%d:\tserver=%s, share=%s\n",
+		d_printf("%d:\tserver=%s, share=%s\n", 
 			i, p->cli->desthost, p->cli->share );
 	}
 }
@@ -459,36 +335,23 @@ void cli_cm_display(void)
 /****************************************************************************
 ****************************************************************************/
 
-static void cm_set_password(const char *newpass)
+void cli_cm_set_credentials( struct user_auth_info *user )
 {
-	SAFE_FREE(cm_creds.password);
-	cm_creds.password = SMB_STRDUP(newpass);
-	if (cm_creds.password) {
-		cm_creds.got_pass = true;
+	pstrcpy( username, user->username );
+	
+	if ( user->got_pass ) {
+		pstrcpy( password, user->password );
+		got_pass = True;
 	}
+	
+	use_kerberos = user->use_kerberos;	
+	signing_state = user->signing_state;
 }
 
 /****************************************************************************
 ****************************************************************************/
 
-void cli_cm_set_credentials(void)
-{
-	SAFE_FREE(cm_creds.username);
-	cm_creds.username = SMB_STRDUP(get_cmdline_auth_info_username());
-
-	if (get_cmdline_auth_info_got_pass()) {
-		cm_set_password(get_cmdline_auth_info_password());
-	}
-
-	cm_creds.use_kerberos = get_cmdline_auth_info_use_kerberos();
-	cm_creds.fallback_after_kerberos = false;
-	cm_creds.signing_state = get_cmdline_auth_info_signing_state();
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_port(int port_number)
+void cli_cm_set_port( int port_number )
 {
 	port = port_number;
 }
@@ -496,7 +359,7 @@ void cli_cm_set_port(int port_number)
 /****************************************************************************
 ****************************************************************************/
 
-void cli_cm_set_dest_name_type(int type)
+void cli_cm_set_dest_name_type( int type )
 {
 	name_type = type;
 }
@@ -504,78 +367,22 @@ void cli_cm_set_dest_name_type(int type)
 /****************************************************************************
 ****************************************************************************/
 
-void cli_cm_set_signing_state(int state)
+void cli_cm_set_dest_ip(struct in_addr ip )
 {
-	cm_creds.signing_state = state;
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_username(const char *username)
-{
-	SAFE_FREE(cm_creds.username);
-	cm_creds.username = SMB_STRDUP(username);
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_password(const char *newpass)
-{
-	SAFE_FREE(cm_creds.password);
-	cm_creds.password = SMB_STRDUP(newpass);
-	if (cm_creds.password) {
-		cm_creds.got_pass = true;
-	}
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_use_kerberos(void)
-{
-	cm_creds.use_kerberos = true;
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_fallback_after_kerberos(void)
-{
-	cm_creds.fallback_after_kerberos = true;
-}
-
-/****************************************************************************
-****************************************************************************/
-
-void cli_cm_set_dest_ss(struct sockaddr_storage *pss)
-{
-	dest_ss = *pss;
-	have_ip = true;
+	dest_ip = ip;
+	have_ip = True;
 }
 
 /**********************************************************************
  split a dfs path into the server, share name, and extrapath components
 **********************************************************************/
 
-static void split_dfs_path(TALLOC_CTX *ctx,
-				const char *nodepath,
-				char **pp_server,
-				char **pp_share,
-				char **pp_extrapath)
+static void split_dfs_path( const char *nodepath, fstring server, fstring share, pstring extrapath )
 {
 	char *p, *q;
-	char *path;
+	pstring path;
 
-	*pp_server = NULL;
-	*pp_share = NULL;
-	*pp_extrapath = NULL;
-
-	path = talloc_strdup(ctx, nodepath);
-	if (!path) {
-		return;
-	}
+	pstrcpy( path, nodepath );
 
 	if ( path[0] != '\\' ) {
 		return;
@@ -594,36 +401,32 @@ static void split_dfs_path(TALLOC_CTX *ctx,
 	if (q != NULL) {
 		*q = '\0';
 		q++;
-		*pp_extrapath = talloc_strdup(ctx, q);
+		pstrcpy( extrapath, q );
 	} else {
-		*pp_extrapath = talloc_strdup(ctx, "");
+		pstrcpy( extrapath, '\0' );
 	}
-
-	*pp_share = talloc_strdup(ctx, p);
-	*pp_server = talloc_strdup(ctx, &path[1]);
+	
+	fstrcpy( share, p );
+	fstrcpy( server, &path[1] );
 }
 
 /****************************************************************************
  Return the original path truncated at the directory component before
- the first wildcard character. Trust the caller to provide a NULL
+ the first wildcard character. Trust the caller to provide a NULL 
  terminated string
 ****************************************************************************/
 
-static char *clean_path(TALLOC_CTX *ctx, const char *path)
+static void clean_path(const char *path, pstring path_out)
 {
 	size_t len;
 	char *p1, *p2, *p;
-	char *path_out;
-
+		
 	/* No absolute paths. */
 	while (IS_DIRECTORY_SEP(*path)) {
 		path++;
 	}
 
-	path_out = talloc_strdup(ctx, path);
-	if (!path_out) {
-		return NULL;
-	}
+	pstrcpy(path_out, path);
 
 	p1 = strchr_m(path_out, '*');
 	p2 = strchr_m(path_out, '?');
@@ -653,53 +456,48 @@ static char *clean_path(TALLOC_CTX *ctx, const char *path)
 	if ( (len > 0) && IS_DIRECTORY_SEP(path_out[len-1])) {
 		path_out[len-1] = '\0';
 	}
-
-	return path_out;
 }
 
 /****************************************************************************
 ****************************************************************************/
 
-static char *cli_dfs_make_full_path(TALLOC_CTX *ctx,
-					struct cli_state *cli,
-					const char *dir)
+static void cli_dfs_make_full_path( struct cli_state *cli,
+					const char *dir,
+					pstring path_out)
 {
 	/* Ensure the extrapath doesn't start with a separator. */
 	while (IS_DIRECTORY_SEP(*dir)) {
 		dir++;
 	}
 
-	return talloc_asprintf(ctx, "\\%s\\%s\\%s",
-			cli->desthost, cli->share, dir);
+	pstr_sprintf( path_out, "\\%s\\%s\\%s", cli->desthost, cli->share, dir);
 }
 
 /********************************************************************
  check for dfs referral
 ********************************************************************/
 
-static bool cli_dfs_check_error( struct cli_state *cli, NTSTATUS status )
+static BOOL cli_dfs_check_error( struct cli_state *cli, NTSTATUS status )
 {
 	uint32 flgs2 = SVAL(cli->inbuf,smb_flg2);
 
 	/* only deal with DS when we negotiated NT_STATUS codes and UNICODE */
 
-	if (!((flgs2&FLAGS2_32_BIT_ERROR_CODES) &&
-				(flgs2&FLAGS2_UNICODE_STRINGS)))
-		return false;
+	if ( !( (flgs2&FLAGS2_32_BIT_ERROR_CODES) && (flgs2&FLAGS2_UNICODE_STRINGS) ) )
+		return False;
 
-	if (NT_STATUS_EQUAL(status, NT_STATUS(IVAL(cli->inbuf,smb_rcls))))
-		return true;
+	if ( NT_STATUS_EQUAL( status, NT_STATUS(IVAL(cli->inbuf,smb_rcls)) ) )
+		return True;
 
-	return false;
+	return False;
 }
 
 /********************************************************************
- Get the dfs referral link.
+ get the dfs referral link
 ********************************************************************/
 
-bool cli_dfs_get_referral(TALLOC_CTX *ctx,
-			struct cli_state *cli,
-			const char *path,
+BOOL cli_dfs_get_referral( struct cli_state *cli,
+			const char *path, 
 			CLIENT_DFS_REFERRAL**refs,
 			size_t *num_refs,
 			uint16 *consumed)
@@ -707,419 +505,303 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 	unsigned int data_len = 0;
 	unsigned int param_len = 0;
 	uint16 setup = TRANSACT2_GET_DFS_REFERRAL;
-	char *param;
+	char param[sizeof(pstring)+2];
+	pstring data;
 	char *rparam=NULL, *rdata=NULL;
 	char *p;
-	char *endp;
 	size_t pathlen = 2*(strlen(path)+1);
 	uint16 num_referrals;
 	CLIENT_DFS_REFERRAL *referrals = NULL;
-	bool ret = false;
-
-	*num_refs = 0;
-	*refs = NULL;
-
-	param = SMB_MALLOC_ARRAY(char, 2+pathlen+2);
-	if (!param) {
-		return false;
-	}
+	
+	memset(param, 0, sizeof(param));
 	SSVAL(param, 0, 0x03);	/* max referral level */
 	p = &param[2];
 
-	p += clistr_push(cli, p, path, pathlen, STR_TERMINATE);
+	p += clistr_push(cli, p, path, MIN(pathlen, sizeof(param)-2), STR_TERMINATE);
 	param_len = PTR_DIFF(p, param);
 
 	if (!cli_send_trans(cli, SMBtrans2,
-			NULL,                        /* name */
-			-1, 0,                          /* fid, flags */
-			&setup, 1, 0,                   /* setup, length, max */
-			param, param_len, 2,            /* param, length, max */
-			NULL, 0, cli->max_xmit /* data, length, max */
-			)) {
-		SAFE_FREE(param);
-		return false;
+		NULL,                        /* name */
+		-1, 0,                          /* fid, flags */
+		&setup, 1, 0,                   /* setup, length, max */
+		param, param_len, 2,            /* param, length, max */
+		(char *)&data,  data_len, cli->max_xmit /* data, length, max */
+		)) {
+			return False;
 	}
-
-	SAFE_FREE(param);
 
 	if (!cli_receive_trans(cli, SMBtrans2,
 		&rparam, &param_len,
 		&rdata, &data_len)) {
-			return false;
+			return False;
 	}
-
-	if (data_len < 4) {
-		goto out;
-	}
-
-	endp = rdata + data_len;
-
-	*consumed     = SVAL(rdata, 0);
-	num_referrals = SVAL(rdata, 2);
-
-	if (num_referrals != 0) {
+	
+	*consumed     = SVAL( rdata, 0 );
+	num_referrals = SVAL( rdata, 2 );
+	
+	if ( num_referrals != 0 ) {
 		uint16 ref_version;
 		uint16 ref_size;
 		int i;
 		uint16 node_offset;
 
-		referrals = TALLOC_ARRAY(ctx, CLIENT_DFS_REFERRAL,
-				num_referrals);
+		referrals = SMB_XMALLOC_ARRAY( CLIENT_DFS_REFERRAL, num_referrals );
 
-		if (!referrals) {
-			goto out;
-		}
 		/* start at the referrals array */
-
+	
 		p = rdata+8;
-		for (i=0; i<num_referrals && p < endp; i++) {
-			if (p + 18 > endp) {
-				goto out;
-			}
-			ref_version = SVAL(p, 0);
-			ref_size    = SVAL(p, 2);
-			node_offset = SVAL(p, 16);
-
-			if (ref_version != 3) {
+		for ( i=0; i<num_referrals; i++ ) {
+			ref_version = SVAL( p, 0 );
+			ref_size    = SVAL( p, 2 );
+			node_offset = SVAL( p, 16 );
+			
+			if ( ref_version != 3 ) {
 				p += ref_size;
 				continue;
 			}
+			
+			referrals[i].proximity = SVAL( p, 8 );
+			referrals[i].ttl       = SVAL( p, 10 );
 
-			referrals[i].proximity = SVAL(p, 8);
-			referrals[i].ttl       = SVAL(p, 10);
+			clistr_pull( cli, referrals[i].dfspath, p+node_offset, 
+				sizeof(referrals[i].dfspath), -1, STR_TERMINATE|STR_UNICODE );
 
-			if (p + node_offset > endp) {
-				goto out;
-			}
-			clistr_pull_talloc(ctx, cli, &referrals[i].dfspath,
-				p+node_offset, -1,
-				STR_TERMINATE|STR_UNICODE );
-
-			if (!referrals[i].dfspath) {
-				goto out;
-			}
 			p += ref_size;
 		}
-		if (i < num_referrals) {
-			goto out;
-		}
 	}
-
-	ret = true;
-
+	
 	*num_refs = num_referrals;
 	*refs = referrals;
 
-  out:
-
 	SAFE_FREE(rdata);
 	SAFE_FREE(rparam);
-	return ret;
+
+	return True;
 }
+
 
 /********************************************************************
 ********************************************************************/
 
-bool cli_resolve_path(TALLOC_CTX *ctx,
-			const char *mountpt,
+BOOL cli_resolve_path( const char *mountpt,
 			struct cli_state *rootcli,
 			const char *path,
 			struct cli_state **targetcli,
-			char **pp_targetpath)
+			pstring targetpath)
 {
 	CLIENT_DFS_REFERRAL *refs = NULL;
-	size_t num_refs = 0;
+	size_t num_refs;
 	uint16 consumed;
-	struct cli_state *cli_ipc = NULL;
-	char *dfs_path = NULL;
-	char *cleanpath = NULL;
-	char *extrapath = NULL;
+	struct cli_state *cli_ipc;
+	pstring dfs_path, cleanpath, extrapath;
 	int pathlen;
-	char *server = NULL;
-	char *share = NULL;
-	struct cli_state *newcli = NULL;
-	char *newpath = NULL;
-	char *newmount = NULL;
-	char *ppath = NULL;
+	fstring server, share;
+	struct cli_state *newcli;
+	pstring newpath;
+	pstring newmount;
+	char *ppath, *temppath = NULL;
+	
 	SMB_STRUCT_STAT sbuf;
 	uint32 attributes;
-
+	
 	if ( !rootcli || !path || !targetcli ) {
-		return false;
+		return False;
 	}
-
+		
 	/* Don't do anything if this is not a DFS root. */
 
 	if ( !rootcli->dfsroot) {
 		*targetcli = rootcli;
-		*pp_targetpath = talloc_strdup(ctx, path);
-		if (!*pp_targetpath) {
-			return false;
-		}
-		return true;
+		pstrcpy( targetpath, path );
+		return True;
 	}
 
 	*targetcli = NULL;
 
 	/* Send a trans2_query_path_info to check for a referral. */
 
-	cleanpath = clean_path(ctx, path);
-	if (!cleanpath) {
-		return false;
-	}
+	clean_path(path, cleanpath);
+	cli_dfs_make_full_path(rootcli, cleanpath, dfs_path );
 
-	dfs_path = cli_dfs_make_full_path(ctx, rootcli, cleanpath);
-	if (!dfs_path) {
-		return false;
-	}
-
-	if (cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes)) {
+	if (cli_qpathinfo_basic( rootcli, dfs_path, &sbuf, &attributes ) ) {
 		/* This is an ordinary path, just return it. */
 		*targetcli = rootcli;
-		*pp_targetpath = talloc_strdup(ctx, path);
-		if (!*pp_targetpath) {
-			return false;
-		}
+		pstrcpy( targetpath, path );
 		goto done;
 	}
 
 	/* Special case where client asked for a path that does not exist */
 
-	if (cli_dfs_check_error(rootcli, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
+	if ( cli_dfs_check_error(rootcli, NT_STATUS_OBJECT_NAME_NOT_FOUND) ) {
 		*targetcli = rootcli;
-		*pp_targetpath = talloc_strdup(ctx, path);
-		if (!*pp_targetpath) {
-			return false;
-		}
+		pstrcpy( targetpath, path );
 		goto done;
 	}
 
 	/* We got an error, check for DFS referral. */
 
-	if (!cli_dfs_check_error(rootcli, NT_STATUS_PATH_NOT_COVERED)) {
-		return false;
+	if ( !cli_dfs_check_error(rootcli, NT_STATUS_PATH_NOT_COVERED))  {
+		return False;
 	}
 
 	/* Check for the referral. */
 
-	if (!(cli_ipc = cli_cm_open(ctx, rootcli,
-					rootcli->desthost,
-					"IPC$", false,
-					(rootcli->trans_enc_state != NULL)))) {
-		return false;
+	if ( !(cli_ipc = cli_cm_open( rootcli->desthost, "IPC$", False )) ) {
+		return False;
 	}
-
-	if (!cli_dfs_get_referral(ctx, cli_ipc, dfs_path, &refs,
-			&num_refs, &consumed) || !num_refs) {
-		return false;
+	
+	if ( !cli_dfs_get_referral(cli_ipc, dfs_path, &refs, &num_refs, &consumed) 
+			|| !num_refs ) {
+		return False;
 	}
-
+	
 	/* Just store the first referral for now. */
 
-	if (!refs[0].dfspath) {
-		return false;
-	}
-	split_dfs_path(ctx, refs[0].dfspath, &server, &share, &extrapath );
-
-	if (!server || !share) {
-		return false;
-	}
+	split_dfs_path( refs[0].dfspath, server, share, extrapath );
+	SAFE_FREE(refs);
 
 	/* Make sure to recreate the original string including any wildcards. */
-
-	dfs_path = cli_dfs_make_full_path(ctx, rootcli, path);
-	if (!dfs_path) {
-		return false;
-	}
-	pathlen = strlen(dfs_path)*2;
-	consumed = MIN(pathlen, consumed);
-	*pp_targetpath = talloc_strdup(ctx, &dfs_path[consumed/2]);
-	if (!*pp_targetpath) {
-		return false;
-	}
+	
+	cli_dfs_make_full_path( rootcli, path, dfs_path);
+	pathlen = strlen( dfs_path )*2;
+	consumed = MIN(pathlen, consumed );
+	pstrcpy( targetpath, &dfs_path[consumed/2] );
 	dfs_path[consumed/2] = '\0';
 
 	/*
- 	 * *pp_targetpath is now the unconsumed part of the path.
- 	 * dfs_path is now the consumed part of the path
-	 * (in \server\share\path format).
+ 	 * targetpath is now the unconsumed part of the path.
+ 	 * dfs_path is now the consumed part of the path (in \server\share\path format).
  	 */
 
 	/* Open the connection to the target server & share */
-	if ((*targetcli = cli_cm_open(ctx, rootcli,
-					server,
-					share,
-					false,
-					(rootcli->trans_enc_state != NULL))) == NULL) {
+	
+	if ( (*targetcli = cli_cm_open(server, share, False)) == NULL ) {
 		d_printf("Unable to follow dfs referral [\\%s\\%s]\n",
 			server, share );
-		return false;
+		return False;
 	}
-
-	if (extrapath && strlen(extrapath) > 0) {
-		*pp_targetpath = talloc_asprintf(ctx,
-						"%s%s",
-						extrapath,
-						*pp_targetpath);
-		if (!*pp_targetpath) {
-			return false;
-		}
+	
+	if (strlen(extrapath) > 0) {
+		string_append(&temppath, extrapath);
+		string_append(&temppath, targetpath);
+		pstrcpy( targetpath, temppath );
 	}
-
+	
 	/* parse out the consumed mount path */
 	/* trim off the \server\share\ */
 
 	ppath = dfs_path;
 
 	if (*ppath != '\\') {
-		d_printf("cli_resolve_path: "
-			"dfs_path (%s) not in correct format.\n",
+		d_printf("cli_resolve_path: dfs_path (%s) not in correct format.\n",
 			dfs_path );
-		return false;
+		return False;
 	}
 
 	ppath++; /* Now pointing at start of server name. */
-
+	
 	if ((ppath = strchr_m( dfs_path, '\\' )) == NULL) {
-		return false;
+		return False;
 	}
 
 	ppath++; /* Now pointing at start of share name. */
 
 	if ((ppath = strchr_m( ppath+1, '\\' )) == NULL) {
-		return false;
+		return False;
 	}
 
 	ppath++; /* Now pointing at path component. */
 
-	newmount = talloc_asprintf(ctx, "%s\\%s", mountpt, ppath );
-	if (!newmount) {
-		return false;
-	}
+	pstr_sprintf( newmount, "%s\\%s", mountpt, ppath );
 
-	cli_cm_set_mntpoint(*targetcli, newmount);
+	cli_cm_set_mntpoint( *targetcli, newmount );
 
-	/* Check for another dfs referral, note that we are not
+	/* Check for another dfs referral, note that we are not 
 	   checking for loops here. */
 
-	if (!strequal(*pp_targetpath, "\\") && !strequal(*pp_targetpath, "/")) {
-		if (cli_resolve_path(ctx,
-					newmount,
-					*targetcli,
-					*pp_targetpath,
-					&newcli,
-					&newpath)) {
+	if ( !strequal( targetpath, "\\" ) &&  !strequal( targetpath, "/")) {
+		if ( cli_resolve_path( newmount, *targetcli, targetpath, &newcli, newpath ) ) {
 			/*
 			 * When cli_resolve_path returns true here it's always
  			 * returning the complete path in newpath, so we're done
  			 * here.
  			 */
 			*targetcli = newcli;
-			*pp_targetpath = newpath;
-			return true;
+			pstrcpy( targetpath, newpath );
+			return True;
 		}
 	}
 
   done:
 
-	/* If returning true ensure we return a dfs root full path. */
-	if ((*targetcli)->dfsroot) {
-		dfs_path = talloc_strdup(ctx, *pp_targetpath);
-		if (!dfs_path) {
-			return false;
-		}
-		*pp_targetpath = cli_dfs_make_full_path(ctx, *targetcli, dfs_path);
+	/* If returning True ensure we return a dfs root full path. */
+	if ( (*targetcli)->dfsroot ) {
+		pstrcpy(dfs_path, targetpath );
+		cli_dfs_make_full_path( *targetcli, dfs_path, targetpath); 
 	}
 
-	return true;
+	return True;
 }
 
 /********************************************************************
 ********************************************************************/
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
-				struct cli_state *cli,
-				const char *sharename,
-				char **pp_newserver,
-				char **pp_newshare,
-				bool force_encrypt,
-				const char *username,
-				const char *password,
-				const char *domain)
+BOOL cli_check_msdfs_proxy( struct cli_state *cli, const char *sharename,
+                            fstring newserver, fstring newshare )
 {
 	CLIENT_DFS_REFERRAL *refs = NULL;
-	size_t num_refs = 0;
+	size_t num_refs;
 	uint16 consumed;
-	char *fullpath = NULL;
-	bool res;
+	pstring fullpath;
+	BOOL res;
 	uint16 cnum;
-	char *newextrapath = NULL;
-
-	if (!cli || !sharename) {
-		return false;
-	}
+	pstring newextrapath;
+	
+	if ( !cli || !sharename )
+		return False;
 
 	cnum = cli->cnum;
 
 	/* special case.  never check for a referral on the IPC$ share */
 
-	if (strequal(sharename, "IPC$")) {
-		return false;
+	if ( strequal( sharename, "IPC$" ) ) {
+		return False;
 	}
-
+		
 	/* send a trans2_query_path_info to check for a referral */
-
-	fullpath = talloc_asprintf(ctx, "\\%s\\%s", cli->desthost, sharename );
-	if (!fullpath) {
-		return false;
-	}
+	
+	pstr_sprintf( fullpath, "\\%s\\%s", cli->desthost, sharename );
 
 	/* check for the referral */
 
 	if (!cli_send_tconX(cli, "IPC$", "IPC", NULL, 0)) {
-		return false;
+		return False;
 	}
 
-	if (force_encrypt) {
-		NTSTATUS status = cli_cm_force_encryption(cli,
-					username,
-					password,
-					lp_workgroup(),
-					"IPC$");
-		if (!NT_STATUS_IS_OK(status)) {
-			return false;
-		}
-	}
-
-	res = cli_dfs_get_referral(ctx, cli, fullpath, &refs, &num_refs, &consumed);
+	res = cli_dfs_get_referral(cli, fullpath, &refs, &num_refs, &consumed);
 
 	if (!cli_tdis(cli)) {
-		return false;
+		SAFE_FREE( refs );
+		return False;
 	}
 
 	cli->cnum = cnum;
 
-	if (!res || !num_refs) {
-		return false;
+	if (!res || !num_refs ) {
+		SAFE_FREE( refs );
+		return False;
 	}
-
-	if (!refs[0].dfspath) {
-		return false;
-	}
-
-	split_dfs_path(ctx, refs[0].dfspath, pp_newserver,
-			pp_newshare, &newextrapath );
-
-	if ((*pp_newserver == NULL) || (*pp_newshare == NULL)) {
-		return false;
-	}
+	
+	split_dfs_path( refs[0].dfspath, newserver, newshare, newextrapath );
 
 	/* check that this is not a self-referral */
 
-	if (strequal(cli->desthost, *pp_newserver) &&
-			strequal(sharename, *pp_newshare)) {
-		return false;
+	if ( strequal( cli->desthost, newserver ) && strequal( sharename, newshare ) ) {
+		SAFE_FREE( refs );
+		return False;
 	}
-
-	return true;
+	
+	SAFE_FREE( refs );
+	
+	return True;
 }

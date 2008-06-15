@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /* work around broken krb5.h on sles9 */
@@ -171,7 +172,7 @@
 
 #if HAVE_LBER_H
 #include <lber.h>
-#if defined(HPUX) && !defined(_LBER_TYPES_H)
+#ifdef HPUX
 /* Define ber_tag_t and ber_int_t for using
  * HP LDAP-UX Integration products' LDAP libraries.
 */
@@ -179,7 +180,7 @@
 typedef unsigned long ber_tag_t;
 typedef int ber_int_t;
 #endif
-#endif /* defined(HPUX) && !defined(_LBER_TYPES_H) */
+#endif /* HPUX */
 #ifndef LBER_USE_DER
 #define LBER_USE_DER 0x01
 #endif
@@ -250,10 +251,6 @@ typedef int ber_int_t;
 #include <langinfo.h>
 #endif
 
-#if HAVE_NETGROUP_H
-#include <netgroup.h>
-#endif
-
 #if defined(HAVE_AIO_H) && defined(WITH_AIO)
 #include <aio.h>
 #endif
@@ -305,6 +302,12 @@ typedef sig_atomic_t VOLATILE SIG_ATOMIC_T;
 #else
 typedef int VOLATILE SIG_ATOMIC_T;
 #endif
+
+#ifndef HAVE_SOCKLEN_T_TYPE
+#define HAVE_SOCKLEN_T_TYPE
+typedef int socklen_t;
+#endif
+
 
 #ifndef uchar
 #define uchar unsigned char
@@ -611,6 +614,11 @@ struct timespec {
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #endif
 
+#ifndef _UPPER_BOOL
+typedef int BOOL;
+#define _UPPER_BOOL
+#endif
+
 #ifdef HAVE_BROKEN_GETGROUPS
 #define GID_T int
 #else
@@ -621,29 +629,8 @@ struct timespec {
 #define NGROUPS_MAX 32 /* Guess... */
 #endif
 
-/* Our own fstrings */
-
-/*
-                  --------------
-                 /              \
-                /      REST      \
-               /        IN        \
-              /       PEACE        \
-             /                      \
-             | The infamous pstring |
-             |                      |
-             |                      |
-             |      7 December      |
-             |                      |
-             |         2007         |
-            *|     *  *  *          | *
-   _________)/\\_//(\/(/\)/\//\/\///|_)_______
-*/
-
-#ifndef FSTRING_LEN
-#define FSTRING_LEN 256
-typedef char fstring[FSTRING_LEN];
-#endif
+/* Our own pstrings and fstrings */
+#include "pstring.h"
 
 /* Lists, trees, caching, database... */
 #include "xfile.h"
@@ -651,6 +638,7 @@ typedef char fstring[FSTRING_LEN];
 #include "dlinklist.h"
 #include "tdb.h"
 #include "util_tdb.h"
+#include "tdbback.h"
 
 #include "lib/talloc/talloc.h"
 /* And a little extension. Abort on type mismatch */
@@ -659,20 +647,22 @@ typedef char fstring[FSTRING_LEN];
 
 #include "nt_status.h"
 #include "ads.h"
+#include "gpo.h"
 #include "ads_dns.h"
 #include "interfaces.h"
 #include "trans2.h"
 #include "nterr.h"
 #include "ntioctl.h"
+#include "messages.h"
 #include "charset.h"
 #include "dynconfig.h"
 #include "util_getent.h"
 #include "debugparse.h"
 #include "version.h"
 #include "privileges.h"
-#include "messages.h"
 #include "locking.h"
 #include "smb.h"
+#include "ads_cldap.h"
 #include "nameserv.h"
 #include "secrets.h"
 #include "byteorder.h"
@@ -682,7 +672,6 @@ typedef char fstring[FSTRING_LEN];
 #include "mapping.h"
 #include "passdb.h"
 #include "rpc_secdes.h"
-#include "gpo.h"
 #include "authdata.h"
 #include "msdfs.h"
 #include "rap.h"
@@ -694,14 +683,20 @@ typedef char fstring[FSTRING_LEN];
 #include "rpc_svcctl.h"
 #include "rpc_ntsvcs.h"
 #include "rpc_lsa.h"
+#include "rpc_netlogon.h"
 #include "reg_objects.h"
-#include "reg_db.h"
+#include "rpc_reg.h"
+#include "rpc_samr.h"
+#include "rpc_srvsvc.h"
 #include "rpc_spoolss.h"
 #include "rpc_eventlog.h"
+#include "rpc_dfs.h"
+#include "rpc_ds.h"
+#include "rpc_echo.h"
+#include "rpc_shutdown.h"
 #include "rpc_perfcount.h"
 #include "rpc_perfcount_defs.h"
 #include "librpc/gen_ndr/notify.h"
-#include "librpc/gen_ndr/xattr.h"
 #include "nt_printing.h"
 #include "idmap.h"
 #include "client.h"
@@ -715,15 +710,29 @@ typedef char fstring[FSTRING_LEN];
 #include "spnego.h"
 #include "rpc_client.h"
 #include "event.h"
-#include "dbwrap.h"
-#include "packet.h"
-#include "ctdbd_conn.h"
-#include "talloc_stack.h"
-#include "memcache.h"
-#include "async_req.h"
-#include "async_smb.h"
 
-#include "lib/smbconf/smbconf.h"
+/*
+ * Type for wide character dirent structure.
+ * Only d_name is defined by POSIX.
+ */
+
+typedef struct smb_wdirent {
+	wpstring        d_name;
+} SMB_STRUCT_WDIRENT;
+
+/*
+ * Type for wide character passwd structure.
+ */
+
+typedef struct smb_wpasswd {
+	wfstring       pw_name;
+	char           *pw_passwd;
+	uid_t          pw_uid;
+	gid_t          pw_gid;
+	wpstring       pw_gecos;
+	wpstring       pw_dir;
+	wpstring       pw_shell;
+} SMB_STRUCT_WPASSWD;
 
 /* used in net.c */
 struct functable {
@@ -757,20 +766,6 @@ struct printjob;
 
 #include "smb_ldap.h"
 
-struct dns_reg_state;
-
-void dns_register_smbd(struct dns_reg_state ** dns_state_ptr,
-		unsigned port,
-		int *maxfd,
-		fd_set *listen_set,
-		struct timeval *timeout);
-
-void dns_register_close(struct dns_reg_state ** dns_state_ptr);
-
-
-bool dns_register_smbd_reply(struct dns_reg_state *dns_state,
-		fd_set *lfds, struct timeval *timeout);
-
 /*
  * Reasons for cache flush.
  */
@@ -788,15 +783,6 @@ enum flush_reason_enum {
     NUM_FLUSH_REASONS};
 
 #include "nss_info.h"
-#include "nsswitch/libwbclient/wbclient.h"
-
-/* generated rpc server implementation functions */
-#include "librpc/gen_ndr/srv_echo.h"
-#include "librpc/gen_ndr/srv_svcctl.h"
-#include "librpc/gen_ndr/srv_lsa.h"
-#include "librpc/gen_ndr/srv_eventlog.h"
-#include "librpc/gen_ndr/srv_winreg.h"
-#include "librpc/gen_ndr/srv_initshutdown.h"
 
 /***** automatically generated prototypes *****/
 #ifndef NO_PROTO_H
@@ -814,9 +800,6 @@ enum flush_reason_enum {
 
 #include "srvstr.h"
 #include "safe_string.h"
-
-/* prototypes from lib/util_transfer_file.c */
-#include "transfer_file.h"
 
 #ifdef __COMPAR_FN_T
 #define QSORT_CAST (__compar_fn_t)
@@ -912,7 +895,7 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
  * defined.
  */
 #ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 255
+#define MAXHOSTNAMELEN 254
 #endif
 
 /* yuck, I'd like a better way of doing this */
@@ -1078,14 +1061,13 @@ int d_fprintf(FILE *f, const char *, ...) PRINTF_ATTRIBUTE(2,3);
 void sys_adminlog(int priority, const char *format_str, ...) PRINTF_ATTRIBUTE(2,3);
 
 /* PRINTFLIKE2 */
+int pstr_sprintf(pstring s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
+/* PRINTFLIKE2 */
 int fstr_sprintf(fstring s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
 
 int d_vfprintf(FILE *f, const char *format, va_list ap) PRINTF_ATTRIBUTE(2,0);
 
 int smb_xvasprintf(char **ptr, const char *format, va_list ap) PRINTF_ATTRIBUTE(2,0);
-
-int asprintf_strupper_m(char **strp, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
-char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
 
 /* we used to use these fns, but now we have good replacements
    for snprintf and vsnprintf */
@@ -1111,14 +1093,6 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATT
 #define VXFS_QUOTA
 #endif
 
-#ifndef XATTR_CREATE
-#define XATTR_CREATE  0x1       /* set value, fail if attr already exists */
-#endif
-
-#ifndef XATTR_REPLACE
-#define XATTR_REPLACE 0x2       /* set value, fail if attr does not exist */
-#endif
-
 #if defined(HAVE_KRB5)
 
 krb5_error_code smb_krb5_parse_name(krb5_context context,
@@ -1133,7 +1107,9 @@ krb5_error_code smb_krb5_unparse_name(krb5_context context,
 krb5_error_code krb5_set_real_time(krb5_context context, int32_t seconds, int32_t microseconds);
 #endif
 
+#ifndef HAVE_KRB5_SET_DEFAULT_TGS_KTYPES
 krb5_error_code krb5_set_default_tgs_ktypes(krb5_context ctx, const krb5_enctype *enc);
+#endif
 
 #if defined(HAVE_KRB5_AUTH_CON_SETKEY) && !defined(HAVE_KRB5_AUTH_CON_SETUSERUSERKEY)
 krb5_error_code krb5_auth_con_setuseruserkey(krb5_context context, krb5_auth_context auth_context, krb5_keyblock *keyblock);
@@ -1152,33 +1128,33 @@ void krb5_free_unparsed_name(krb5_context ctx, char *val);
 #endif
 
 /* Samba wrapper function for krb5 functionality. */
-bool setup_kaddr( krb5_address *pkaddr, struct sockaddr_storage *paddr);
+void setup_kaddr( krb5_address *pkaddr, struct sockaddr *paddr);
 int create_kerberos_key_from_string(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype);
 int create_kerberos_key_from_string_direct(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype);
-bool get_auth_data_from_tkt(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, krb5_ticket *tkt);
+BOOL get_auth_data_from_tkt(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, krb5_ticket *tkt);
 krb5_const_principal get_principal_from_tkt(krb5_ticket *tkt);
 krb5_error_code smb_krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, struct sockaddr **addr_pp, int *naddrs, int get_masters);
 #if defined(HAVE_KRB5_LOCATE_KDC)
 krb5_error_code krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, struct sockaddr **addr_pp, int *naddrs, int get_masters);
 #endif
 krb5_error_code get_kerberos_allowed_etypes(krb5_context context, krb5_enctype **enctypes);
-bool get_krb5_smb_session_key(krb5_context context, krb5_auth_context auth_context, DATA_BLOB *session_key, bool remote);
+BOOL get_krb5_smb_session_key(krb5_context context, krb5_auth_context auth_context, DATA_BLOB *session_key, BOOL remote);
 krb5_error_code smb_krb5_kt_free_entry(krb5_context context, krb5_keytab_entry *kt_entry);
 krb5_principal kerberos_fetch_salt_princ_for_host_princ(krb5_context context, krb5_principal host_princ, int enctype);
 void kerberos_set_creds_enctype(krb5_creds *pcreds, int enctype);
-bool kerberos_compatible_enctypes(krb5_context context, krb5_enctype enctype1, krb5_enctype enctype2);
+BOOL kerberos_compatible_enctypes(krb5_context context, krb5_enctype enctype1, krb5_enctype enctype2);
 void kerberos_free_data_contents(krb5_context context, krb5_data *pdata);
 NTSTATUS decode_pac_data(TALLOC_CTX *mem_ctx,
 			 DATA_BLOB *pac_data_blob,
-			 krb5_context context,
+			 krb5_context context, 
 			 krb5_keyblock *service_keyblock,
 			 krb5_const_principal client_principal,
 			 time_t tgs_authtime,
-			 struct PAC_DATA **pac_data_out);
+			 PAC_DATA **pac_data);
 void smb_krb5_checksum_from_pac_sig(krb5_checksum *cksum, 
-				    struct PAC_SIGNATURE_DATA *sig);
+				    PAC_SIGNATURE_DATA *sig);
 krb5_error_code smb_krb5_verify_checksum(krb5_context context,
-					 const krb5_keyblock *keyblock,
+					 krb5_keyblock *keyblock,
 					 krb5_keyusage usage,
 					 krb5_checksum *cksum,
 					 uint8 *data,
@@ -1201,11 +1177,12 @@ krb5_error_code krb5_rd_req_return_keyblock_from_keytab(krb5_context context,
 krb5_error_code smb_krb5_parse_name_norealm(krb5_context context, 
 					    const char *name, 
 					    krb5_principal *principal);
-bool smb_krb5_principal_compare_any_realm(krb5_context context, 
+BOOL smb_krb5_principal_compare_any_realm(krb5_context context, 
 					  krb5_const_principal princ1, 
 					  krb5_const_principal princ2);
 int cli_krb5_get_ticket(const char *principal, time_t time_offset, 
 			DATA_BLOB *ticket, DATA_BLOB *session_key_krb5, uint32 extra_ap_opts, const char *ccname, time_t *tgs_expire);
+PAC_LOGON_INFO *get_logon_info_from_pac(PAC_DATA *pac_data);
 krb5_error_code smb_krb5_renew_ticket(const char *ccache_string, const char *client_string, const char *service_string, time_t *expire_time);
 krb5_error_code kpasswd_err_to_krb5_err(krb5_error_code res_code);
 krb5_error_code smb_krb5_gen_netbios_krb5_address(smb_krb5_addresses **kerb_addr);
@@ -1224,14 +1201,6 @@ krb5_error_code smb_krb5_mk_error(krb5_context context,
 					krb5_error_code error_code,
 					const krb5_principal server,
 					krb5_data *reply);
-krb5_enctype smb_get_enctype_from_kt_entry(const krb5_keytab_entry *kt_entry);
-krb5_error_code smb_krb5_enctype_to_string(krb5_context context, 
- 					    krb5_enctype enctype, 
-					    char **etype_s);
-krb5_error_code smb_krb5_open_keytab(krb5_context context, 
- 				      const char *keytab_name, 
-				      bool write_access, 
-				      krb5_keytab *keytab);
 #endif /* HAVE_KRB5 */
 
 
@@ -1242,9 +1211,6 @@ LDAP *ldap_open_with_timeout(const char *server, int port, unsigned int to);
 
 #endif	/* HAVE_LDAP */
 
-#if defined(HAVE_LINUX_READAHEAD) && ! defined(HAVE_READAHEAD_DECL)
-ssize_t readahead(int fd, off64_t offset, size_t count);
-#endif
 
 /* TRUE and FALSE are part of the C99 standard and gcc, but
    unfortunately many vendor compilers don't support them.  Use True
@@ -1286,11 +1252,6 @@ void exit_server_fault(void) NORETURN_ATTRIBUTE ;
 
 #ifdef HAVE_LIBNSCD
 #include "libnscd.h"
-#endif
-
-#if defined(HAVE_IPV6)
-void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
-				  struct in6_addr ip);
 #endif
 
 #endif /* _INCLUDES_H */

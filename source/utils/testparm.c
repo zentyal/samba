@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -33,7 +34,7 @@
 
 #include "includes.h"
 
-extern bool AllowDebugChange;
+extern BOOL AllowDebugChange;
 
 /***********************************************
  Here we do a set of 'hard coded' checks for bad
@@ -82,19 +83,18 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 	 */
 
 	if((lp_security() == SEC_SERVER || lp_security() >= SEC_DOMAIN) && !lp_passwordserver()) {
-		const char *sec_setting;
+		pstring sec_setting;
 		if(lp_security() == SEC_SERVER)
-			sec_setting = "server";
+			pstrcpy(sec_setting, "server");
 		else if(lp_security() == SEC_DOMAIN)
-			sec_setting = "domain";
-		else
-			sec_setting = "";
+			pstrcpy(sec_setting, "domain");
 
 		fprintf(stderr, "ERROR: The setting 'security=%s' requires the 'password server' parameter be set \
 to a valid password server.\n", sec_setting );
 		ret = 1;
 	}
 
+	
 	/*
 	 * Password chat sanity checks.
 	 */
@@ -109,28 +109,27 @@ to a valid password server.\n", sec_setting );
 		if (!lp_pam_password_change()) {
 #endif
 
-			if((lp_passwd_program() == NULL) ||
-			   (strlen(lp_passwd_program()) == 0))
-			{
+			if(lp_passwd_program() == NULL) {
 				fprintf( stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd program' \
 parameter.\n" );
 				ret = 1;
 			} else {
-				const char *passwd_prog;
-				char *truncated_prog = NULL;
+				pstring passwd_prog;
+				pstring truncated_prog;
 				const char *p;
 
-				passwd_prog = lp_passwd_program();
+				pstrcpy( passwd_prog, lp_passwd_program());
 				p = passwd_prog;
-				next_token_talloc(talloc_tos(),
-						&p,
-						&truncated_prog, NULL);
-				if (truncated_prog && access(truncated_prog, F_OK) == -1) {
+				*truncated_prog = '\0';
+				next_token(&p, truncated_prog, NULL, sizeof(pstring));
+
+				if(access(truncated_prog, F_OK) == -1) {
 					fprintf(stderr, "ERROR: the 'unix password sync' parameter is set and the 'passwd program' (%s) \
 cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
 					ret = 1;
 				}
-			}
+
+             }
 
 #ifdef WITH_PAM
 		}
@@ -140,16 +139,11 @@ cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
 			fprintf(stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd chat' \
 parameter.\n");
 			ret = 1;
-		}
-
-		if ((lp_passwd_program() != NULL) &&
-		    (strlen(lp_passwd_program()) > 0))
-		{
-			/* check if there's a %u parameter present */
-			if(strstr_m(lp_passwd_program(), "%u") == NULL) {
-				fprintf(stderr, "ERROR: the 'passwd program' (%s) requires a '%%u' parameter.\n", lp_passwd_program());
-				ret = 1;
-			}
+		} else 
+		/* check if there's a %u parameter present */
+		if(strstr_m(lp_passwd_program(), "%u") == NULL) {
+			fprintf(stderr, "ERROR: the 'passwd program' (%s) requires a '%%u' parameter.\n", lp_passwd_program());
+			ret = 1;
 		}
 
 		/*
@@ -194,20 +188,16 @@ via the %%o substitution. With encrypted passwords this is not possible.\n", lp_
 	if (!lp_passdb_backend()) {
 		fprintf(stderr,"ERROR: passdb backend must have a value or be left out\n");
 	}
-	
-	if (lp_os_level() > 255) {
-		fprintf(stderr,"WARNING: Maximum value for 'os level' is 255!\n");	
-	}
 
 	return ret;
 }   
 
  int main(int argc, const char *argv[])
 {
-	const char *config_file = get_dyn_CONFIGFILE();
+	const char *config_file = dyn_CONFIGFILE;
 	int s;
-	static int silent_mode = False;
-	static int show_all_parameters = False;
+	static BOOL silent_mode = False;
+	static BOOL show_all_parameters = False;
 	int ret = 0;
 	poptContext pc;
 	static const char *term_code = "";
@@ -230,8 +220,6 @@ via the %%o substitution. With encrypted passwords this is not possible.\n", lp_
 		POPT_COMMON_VERSION
 		POPT_TABLEEND
 	};
-
-	TALLOC_CTX *frame = talloc_stackframe();
 
 	load_case_tables();
 
@@ -363,7 +351,7 @@ print command parameter is ignored when using CUPS libraries.\n",
 			getc(stdin);
 		}
 		if (parameter_name || section_name) {
-			bool isGlobal = False;
+			BOOL isGlobal = False;
 			s = GLOBAL_SECTION_SNUM;
 
 			if (!section_name) {
@@ -408,7 +396,6 @@ print command parameter is ignored when using CUPS libraries.\n",
 			}
 		}
 	}
-	TALLOC_FREE(frame);
 	return(ret);
 }
 

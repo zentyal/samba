@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -29,8 +30,7 @@
  *                    for a terminating null byte.
  */
 
-#define FORMAT_BUFR_SIZE 1024
-#define FORMAT_BUFR_MAX (FORMAT_BUFR_SIZE - 1)
+#define FORMAT_BUFR_MAX ( sizeof( format_bufr ) - 1 )
 
 /* -------------------------------------------------------------------------- **
  * This module implements Samba's debugging utility.
@@ -79,29 +79,28 @@
  */
 
 XFILE   *dbf        = NULL;
-static char *debugf = NULL;
-bool    debug_warn_unknown_class = True;
-bool    debug_auto_add_unknown_class = True;
-bool    AllowDebugChange = True;
+pstring debugf     = "";
+BOOL    debug_warn_unknown_class = True;
+BOOL    debug_auto_add_unknown_class = True;
+BOOL    AllowDebugChange = True;
 
-/*
-   used to check if the user specified a
-   logfile on the command line
+/* 
+   used to check if the user specified a 
+   logfile on the command line 
 */
-bool    override_logfile;
+BOOL    override_logfile;		
 
-static TALLOC_CTX *tmp_debug_ctx;
 
 /*
  * This is to allow assignment to DEBUGLEVEL before the debug
  * system has been initialised.
  */
 static int debug_all_class_hack = 1;
-static bool debug_all_class_isset_hack = True;
+static BOOL debug_all_class_isset_hack = True;
 
 static int debug_num_classes = 0;
 int     *DEBUGLEVEL_CLASS = &debug_all_class_hack;
-bool    *DEBUGLEVEL_CLASS_ISSET = &debug_all_class_isset_hack;
+BOOL    *DEBUGLEVEL_CLASS_ISSET = &debug_all_class_isset_hack;
 
 /* DEBUGLEVEL is #defined to *debug_level */
 int     DEBUGLEVEL = &debug_all_class_hack;
@@ -134,14 +133,14 @@ int     DEBUGLEVEL = &debug_all_class_hack;
  *                    are unable to open a new log file for some reason.
  */
 
-static bool    stdout_logging = False;
+static BOOL    stdout_logging = False;
 static int     debug_count    = 0;
 #ifdef WITH_SYSLOG
 static int     syslog_level   = 0;
 #endif
-static char *format_bufr = NULL;
+static pstring format_bufr    = { '\0' };
 static size_t     format_pos     = 0;
-static bool    log_overflow   = False;
+static BOOL    log_overflow   = False;
 
 /*
  * Define all the debug class selection names here. Names *MUST NOT* contain 
@@ -168,7 +167,6 @@ static const char *default_classname_table[] = {
 	"locking",	     /* DBGC_LOCKING	  */
 	"msdfs",	     /* DBGC_MSDFS	  */
 	"dmapi",	     /* DBGC_DMAPI	  */
-	"registry",          /* DBGC_REGISTRY     */
 	NULL
 };
 
@@ -199,8 +197,6 @@ void gfree_debugsyms(void)
 
 	if ( DEBUGLEVEL_CLASS_ISSET != &debug_all_class_isset_hack )
 		SAFE_FREE( DEBUGLEVEL_CLASS_ISSET );
-
-	SAFE_FREE(format_bufr);
 }
 
 /****************************************************************************
@@ -215,7 +211,7 @@ static char *debug_list_class_names_and_levels(void)
 	char **list;
 	char *buf = NULL;
 	char *b;
-	bool err = False;
+	BOOL err = False;
 
 	if (DEBUGLEVEL_CLASS == &debug_all_class_hack) {
 		return NULL;
@@ -338,10 +334,10 @@ int debug_add_class(const char *classname)
 	if (new_ptr == &debug_all_class_isset_hack) {
 		new_ptr = NULL;
 	}
-	new_ptr = SMB_REALLOC_ARRAY(new_ptr, bool, debug_num_classes + 1);
+	new_ptr = SMB_REALLOC_ARRAY(new_ptr, BOOL, debug_num_classes + 1);
 	if (!new_ptr)
 		return -1;
-	DEBUGLEVEL_CLASS_ISSET = (bool *)new_ptr;
+	DEBUGLEVEL_CLASS_ISSET = (int *)new_ptr;
 	DEBUGLEVEL_CLASS_ISSET[ndx] = False;
 
 	new_ptr = SMB_REALLOC_ARRAY(classname_table, char *, debug_num_classes + 1);
@@ -407,7 +403,7 @@ static void debug_dump_status(int level)
  printdrivers:7
 ****************************************************************************/
 
-static bool debug_parse_params(char **params)
+static BOOL debug_parse_params(char **params)
 {
 	int   i, ndx;
 	char *class_name;
@@ -429,9 +425,8 @@ static bool debug_parse_params(char **params)
 
 	/* Fill in new debug class levels */
 	for (; i < debug_num_classes && params[i]; i++) {
-		char *saveptr;
-		if ((class_name = strtok_r(params[i],":", &saveptr)) &&
-			(class_level = strtok_r(NULL, "\0", &saveptr)) &&
+		if ((class_name=strtok(params[i],":")) &&
+			(class_level=strtok(NULL, "\0")) &&
             ((ndx = debug_lookup_classname(class_name)) != -1)) {
 				DEBUGLEVEL_CLASS[ndx] = atoi(class_level);
 				DEBUGLEVEL_CLASS_ISSET[ndx] = True;
@@ -450,7 +445,7 @@ static bool debug_parse_params(char **params)
  Note: the 1st param has no "name:" preceeding it.
 ****************************************************************************/
 
-bool debug_parse_levels(const char *params_str)
+BOOL debug_parse_levels(const char *params_str)
 {
 	char **params;
 
@@ -460,14 +455,14 @@ bool debug_parse_levels(const char *params_str)
 	if (AllowDebugChange == False)
 		return True;
 
-	params = str_list_make(talloc_tos(), params_str, NULL);
+	params = str_list_make(params_str, NULL);
 
 	if (debug_parse_params(params)) {
 		debug_dump_status(5);
-		TALLOC_FREE(params);
+		str_list_free(&params);
 		return True;
 	} else {
-		TALLOC_FREE(params);
+		str_list_free(&params);
 		return False;
 	}
 }
@@ -476,16 +471,13 @@ bool debug_parse_levels(const char *params_str)
  Receive a "set debug level" message.
 ****************************************************************************/
 
-static void debug_message(struct messaging_context *msg_ctx,
-			  void *private_data, 
-			  uint32_t msg_type, 
-			  struct server_id src,
-			  DATA_BLOB *data)
+static void debug_message(int msg_type, struct process_id src,
+			  void *buf, size_t len, void *private_data)
 {
-	const char *params_str = (const char *)data->data;
+	const char *params_str = (const char *)buf;
 
 	/* Check, it's a proper string! */
-	if (params_str[(data->length)-1] != '\0') {
+	if (params_str[len-1] != '\0') {
 		DEBUG(1, ("Invalid debug message from pid %u to pid %u\n",
 			  (unsigned int)procid_to_pid(&src),
 			  (unsigned int)getpid()));
@@ -500,14 +492,24 @@ static void debug_message(struct messaging_context *msg_ctx,
 }
 
 /****************************************************************************
+ Send a "set debug level" message.
+****************************************************************************/
+
+void debug_message_send(pid_t pid, const char *params_str)
+{
+	if (!params_str)
+		return;
+	message_send_pid(pid_to_procid(pid), MSG_DEBUG,
+			 params_str, strlen(params_str) + 1,
+			 False);
+}
+
+/****************************************************************************
  Return current debug level.
 ****************************************************************************/
 
-static void debuglevel_message(struct messaging_context *msg_ctx,
-			       void *private_data, 
-			       uint32_t msg_type, 
-			       struct server_id src,
-			       DATA_BLOB *data)
+static void debuglevel_message(int msg_type, struct process_id src,
+			       void *buf, size_t len, void *private_data)
 {
 	char *message = debug_list_class_names_and_levels();
 
@@ -516,10 +518,9 @@ static void debuglevel_message(struct messaging_context *msg_ctx,
 		return;
 	}
 
-	DEBUG(1,("INFO: Received REQ_DEBUGLEVEL message from PID %s\n",
-		 procid_str_static(&src)));
-	messaging_send_buf(msg_ctx, src, MSG_DEBUGLEVEL,
-			   (uint8 *)message, strlen(message) + 1);
+	DEBUG(1,("INFO: Received REQ_DEBUGLEVEL message from PID %u\n",
+		 (unsigned int)procid_to_pid(&src)));
+	message_send_pid(src, MSG_DEBUGLEVEL, message, strlen(message) + 1, True);
 
 	SAFE_FREE(message);
 }
@@ -530,7 +531,7 @@ Init debugging (one time stuff)
 
 void debug_init(void)
 {
-	static bool initialised = False;
+	static BOOL initialised = False;
 	const char **p;
 
 	if (initialised)
@@ -538,27 +539,19 @@ void debug_init(void)
 
 	initialised = True;
 
+	message_register(MSG_DEBUG, debug_message, NULL);
+	message_register(MSG_REQ_DEBUGLEVEL, debuglevel_message, NULL);
+
 	for(p = default_classname_table; *p; p++) {
 		debug_add_class(*p);
 	}
-	format_bufr = (char *)SMB_MALLOC(FORMAT_BUFR_SIZE);
-	if (!format_bufr) {
-		smb_panic("debug_init: unable to create buffer");
-	}
-}
-
-void debug_register_msgs(struct messaging_context *msg_ctx)
-{
-	messaging_register(msg_ctx, NULL, MSG_DEBUG, debug_message);
-	messaging_register(msg_ctx, NULL, MSG_REQ_DEBUGLEVEL,
-			   debuglevel_message);
 }
 
 /***************************************************************************
  Get ready for syslog stuff
 **************************************************************************/
 
-void setup_logging(const char *pname, bool interactive)
+void setup_logging(const char *pname, BOOL interactive)
 {
 	debug_init();
 
@@ -592,16 +585,6 @@ void setup_logging(const char *pname, bool interactive)
 #endif
 }
 
-/***************************************************************************
- Set the logfile name.
-**************************************************************************/
-
-void debug_set_logfile(const char *name)
-{
-	SAFE_FREE(debugf);
-	debugf = SMB_STRDUP(name);
-}
-
 /**************************************************************************
  reopen the log files
  note that we now do this unconditionally
@@ -610,39 +593,31 @@ void debug_set_logfile(const char *name)
  Fix from dgibson@linuxcare.com.
 **************************************************************************/
 
-bool reopen_logs( void )
+BOOL reopen_logs( void )
 {
-	char *fname = NULL;
+	pstring fname;
 	mode_t oldumask;
 	XFILE *new_dbf = NULL;
 	XFILE *old_dbf = NULL;
-	bool ret = True;
+	BOOL ret = True;
 
 	if (stdout_logging)
 		return True;
 
 	oldumask = umask( 022 );
-
-	fname = debugf;
-	if (!fname) {
-		return false;
-	}
-	debugf = NULL;
+  
+	pstrcpy(fname, debugf );
+	debugf[0] = '\0';
 
 	if (lp_loaded()) {
 		char *logfname;
 
 		logfname = lp_logfile();
-		if (*logfname) {
-			SAFE_FREE(fname);
-			fname = SMB_STRDUP(logfname);
-			if (!fname) {
-				return false;
-			}
-		}
+		if (*logfname)
+			pstrcpy(fname, logfname);
 	}
 
-	debugf = fname;
+	pstrcpy( debugf, fname );
 	new_dbf = x_fopen( debugf, O_WRONLY|O_APPEND|O_CREAT, 0644);
 
 	if (!new_dbf) {
@@ -689,7 +664,7 @@ void force_check_log_size( void )
  Check to see if there is any need to check if the logfile has grown too big.
 **************************************************************************/
 
-bool need_to_check_log_size( void )
+BOOL need_to_check_log_size( void )
 {
 	int maxlog;
 
@@ -729,18 +704,15 @@ void check_log_size( void )
 	if( sys_fstat( x_fileno( dbf ), &st ) == 0 && st.st_size > maxlog ) {
 		(void)reopen_logs();
 		if( dbf && get_file_size( debugf ) > maxlog ) {
-			char *name = NULL;
+			pstring name;
 
-			if (asprintf(&name, "%s.old", debugf ) < 0) {
-				return;
-			}
-			(void)rename(debugf, name);
-
+			slprintf( name, sizeof(name)-1, "%s.old", debugf );
+			(void)rename( debugf, name );
+      
 			if (!reopen_logs()) {
 				/* We failed to reopen a log - continue using the old name. */
 				(void)rename(name, debugf);
 			}
-			SAFE_FREE(name);
 		}
 	}
 
@@ -777,7 +749,7 @@ void check_log_size( void )
 
  int Debug1( const char *format_str, ... )
 {
-	va_list ap;
+	va_list ap;  
 	int old_errno = errno;
 
 	debug_count++;
@@ -788,13 +760,13 @@ void check_log_size( void )
 			(void)x_vfprintf( dbf, format_str, ap );
 		va_end( ap );
 		errno = old_errno;
-		goto done;
+		return( 0 );
 	}
 
 	/* prevent recursion by checking if reopen_logs() has temporaily
-	   set the debugf string to NULL */
-	if( debugf == NULL)
-		goto done;
+	   set the debugf string to "" */
+	if( debugf[0] == '\0')
+		return( 0 );
 
 #ifdef WITH_SYSLOG
 	if( !lp_syslog_only() )
@@ -809,7 +781,7 @@ void check_log_size( void )
 				x_setbuf( dbf, NULL );
 			} else {
 				errno = old_errno;
-				goto done;
+				return(0);
 			}
 		}
 	}
@@ -819,32 +791,29 @@ void check_log_size( void )
 		/* map debug levels to syslog() priorities
 		 * note that not all DEBUG(0, ...) calls are
 		 * necessarily errors */
-		static int priority_map[] = {
+		static int priority_map[] = { 
 			LOG_ERR,     /* 0 */
 			LOG_WARNING, /* 1 */
 			LOG_NOTICE,  /* 2 */
 			LOG_INFO,    /* 3 */
 		};
 		int     priority;
-		char *msgbuf = NULL;
-		int ret;
+		pstring msgbuf;
 
 		if( syslog_level >= ( sizeof(priority_map) / sizeof(priority_map[0]) ) || syslog_level < 0)
 			priority = LOG_DEBUG;
 		else
 			priority = priority_map[syslog_level];
 
-		va_start(ap, format_str);
-		ret = vasprintf(&msgbuf, format_str, ap);
-		va_end(ap);
+		va_start( ap, format_str );
+		vslprintf( msgbuf, sizeof(msgbuf)-1, format_str, ap );
+		va_end( ap );
 
-		if (ret == -1) {
-			syslog(priority, "%s", msgbuf);
-		}
-		SAFE_FREE(msgbuf);
+		msgbuf[255] = '\0';
+		syslog( priority, "%s", msgbuf );
 	}
 #endif
-
+  
 	check_log_size();
 
 #ifdef WITH_SYSLOG
@@ -858,9 +827,6 @@ void check_log_size( void )
 		if(dbf)
 			(void)x_fflush( dbf );
 	}
-
- done:
-	TALLOC_FREE(tmp_debug_ctx);
 
 	errno = old_errno;
 
@@ -900,11 +866,7 @@ static void bufr_print( void )
 static void format_debug_text( const char *msg )
 {
 	size_t i;
-	bool timestamp = (!stdout_logging && (lp_timestamp_logs() || !(lp_loaded())));
-
-	if (!format_bufr) {
-		debug_init();
-	}
+	BOOL timestamp = (!stdout_logging && (lp_timestamp_logs() || !(lp_loaded())));
 
 	for( i = 0; msg[i]; i++ ) {
 		/* Indent two spaces at each new line. */
@@ -953,7 +915,6 @@ void dbgflush( void )
 
  Input:  level - Debug level of the message (not the system-wide debug
                   level. )
-	  cls   - Debuglevel class of the calling module.
           file  - Pointer to a string containing the name of the file
                   from which this function was called, or an empty string
                   if the __FILE__ macro is not implemented.
@@ -971,7 +932,7 @@ void dbgflush( void )
 
 ****************************************************************************/
 
-bool dbghdr(int level, int cls, const char *file, const char *func, int line)
+BOOL dbghdr( int level, const char *file, const char *func, int line )
 {
 	/* Ensure we don't lose any real errno value. */
 	int old_errno = errno;
@@ -1017,26 +978,16 @@ bool dbghdr(int level, int cls, const char *file, const char *func, int line)
 				(unsigned int)geteuid(), (unsigned int)getegid(),
 				(unsigned int)getuid(), (unsigned int)getgid()); 
 		}
-
-		if (lp_debug_class() && (cls != DBGC_ALL)) {
-			size_t hs_len = strlen(header_str);
-			slprintf(header_str + hs_len,
-				 sizeof(header_str) -1 - hs_len,
-				 ", class=%s",
-				 default_classname_table[cls]);
-		}
   
 		/* Print it all out at once to prevent split syslog output. */
 		if( lp_debug_prefix_timestamp() ) {
-		    (void)Debug1( "[%s, %2d%s] ",
-			current_timestring(debug_ctx(),
-					   lp_debug_hires_timestamp()),
-			level, header_str);
+		    (void)Debug1( "[%s, %d%s] ",
+			current_timestring(lp_debug_hires_timestamp()), level,
+			header_str);
 		} else {
-		    (void)Debug1( "[%s, %2d%s] %s:%s(%d)\n",
-			current_timestring(debug_ctx(),
-					   lp_debug_hires_timestamp()),
-			level, header_str, file, func, line );
+		    (void)Debug1( "[%s, %d%s] %s:%s(%d)\n",
+			current_timestring(lp_debug_hires_timestamp()), level,
+			header_str, file, func, line );
 		}
 	}
 
@@ -1057,33 +1008,16 @@ bool dbghdr(int level, int cls, const char *file, const char *func, int line)
 
 ***************************************************************************/
 
- bool dbgtext( const char *format_str, ... )
+ BOOL dbgtext( const char *format_str, ... )
 {
 	va_list ap;
-	char *msgbuf = NULL;
-	bool ret = true;
-	int res;
+	pstring msgbuf;
 
-	va_start(ap, format_str);
-	res = vasprintf(&msgbuf, format_str, ap);
-	va_end(ap);
+	va_start( ap, format_str ); 
+	vslprintf( msgbuf, sizeof(msgbuf)-1, format_str, ap );
+	va_end( ap );
 
-	if (res != -1) {
-		format_debug_text(msgbuf);
-	} else {
-		ret = false;
-	}
-	SAFE_FREE(msgbuf);
-	return ret;
-}
+	format_debug_text( msgbuf );
 
-/*
- * Get us a temporary talloc context usable just for DEBUG arguments
- */
-TALLOC_CTX *debug_ctx(void)
-{
-        if (tmp_debug_ctx == NULL) {
-                tmp_debug_ctx = talloc_named_const(NULL, 0, "debug_ctx");
-        }
-        return tmp_debug_ctx;
+  return( True );
 }

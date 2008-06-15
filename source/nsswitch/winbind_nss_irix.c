@@ -7,17 +7,19 @@
    Copyright (C) James Peach 2006
    
    This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
+   modify it under the terms of the GNU Library General Public
    License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
+   version 2 of the License, or (at your option) any later version.
    
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
    
-   You should have received a copy of the GNU Lesser General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the
+   Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+   Boston, MA  02111-1307, USA.   
 */
 
 #include "winbind_client.h"
@@ -195,7 +197,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 
 	if (status != NSS_STATUS_SUCCESS) {
 		/* free any extra data area in response structure */
-		winbindd_free_response(&response);
+		free_response(&response);
 		nsd_logprintf(NSD_LOG_MIN, 
 			"callback (winbind) returning not found, status = %d\n",
 			status);
@@ -227,7 +229,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 			return NSD_ERROR;
 		}
 		
-		winbindd_free_response(&response);
+		free_response(&response);
 		
 		nsd_logprintf(NSD_LOG_MIN, "    %s\n", result);
 		nsd_set_result(rq, NS_SUCCESS, result, rlen, DYNAMIC);
@@ -252,7 +254,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	        if (rlen == 0 || result == NULL)
 	            return NSD_ERROR;
 	    
-	        winbindd_free_response(&response);
+	        free_response(&response);
 	    
 	        nsd_logprintf(NSD_LOG_MIN, "    %s\n", result);
 	        nsd_set_result(rq, NS_SUCCESS, result, rlen, DYNAMIC);
@@ -279,7 +281,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	        if (rlen == 0 || result == NULL)
 	            return NSD_ERROR;
 	    
-	        winbindd_free_response(&response);
+	        free_response(&response);
 	    
 	        nsd_logprintf(NSD_LOG_MIN, "    %s\n", result);
 	        nsd_set_result(rq, NS_SUCCESS, result, rlen, DYNAMIC);
@@ -290,7 +292,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	    case WINBINDD_SETPWENT:
 		nsd_logprintf(NSD_LOG_MIN,
 			"callback (winbind) SETGRENT | SETPWENT\n");
-		winbindd_free_response(&response);
+		free_response(&response);
 		return(do_list(1,rq));
 
 	    case WINBINDD_GETGRENT:
@@ -311,7 +313,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	            gr = (struct winbindd_gr *)response.extra_data.data;
 	            if (! gr ) {
 	                nsd_logprintf(NSD_LOG_MIN, "     no extra_data\n");
-	                winbindd_free_response(&response);
+	                free_response(&response);
 	                return NSD_ERROR;
 	            }
 	    
@@ -338,7 +340,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	        }
 	    
 	        entries = response.data.num_entries;
-	        winbindd_free_response(&response);
+	        free_response(&response);
 	        if (entries < MAX_GETPWENT_USERS)
 	            return(do_list(2,rq));
 	        else
@@ -360,7 +362,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 		    pw = (struct winbindd_pw *)response.extra_data.data;
 		    if (! pw ) {
 			nsd_logprintf(NSD_LOG_MIN, "     no extra_data\n");
-			winbindd_free_response(&response);
+			free_response(&response);
 			return NSD_ERROR;
 		    }
 		    for (i = 0; i < response.data.num_entries; i++) {
@@ -385,7 +387,7 @@ winbind_callback(nsd_file_t **rqp, int fd)
 		}
 
 		entries = response.data.num_entries;
-		winbindd_free_response(&response);
+		free_response(&response);
 		if (entries < MAX_GETPWENT_USERS)
 		    return(do_list(2,rq));
 		else
@@ -396,11 +398,11 @@ winbind_callback(nsd_file_t **rqp, int fd)
 	    case WINBINDD_ENDPWENT:
 		nsd_logprintf(NSD_LOG_MIN, "callback (winbind) ENDGRENT | ENDPWENT\n");
 		nsd_append_element(rq, NS_SUCCESS, "\n", 1);
-		winbindd_free_response(&response);
+		free_response(&response);
 		return NSD_NEXT;
 
 	    default:
-		winbindd_free_response(&response);
+		free_response(&response);
 		nsd_logprintf(NSD_LOG_MIN, "callback (winbind) invalid command %d\n", (int)rq->f_cmd_data);
 		return NSD_NEXT;
 	}

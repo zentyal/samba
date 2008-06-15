@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 #include "includes.h"
 #include "utils/net.h"
@@ -34,17 +35,17 @@ static int net_idmap_dump_one_entry(TDB_CONTEXT *tdb,
 				    TDB_DATA data,
 				    void *unused)
 {
-	if (strcmp((char *)key.dptr, "USER HWM") == 0) {
+	if (strcmp(key.dptr, "USER HWM") == 0) {
 		printf("USER HWM %d\n", IVAL(data.dptr,0));
 		return 0;
 	}
 
-	if (strcmp((char *)key.dptr, "GROUP HWM") == 0) {
+	if (strcmp(key.dptr, "GROUP HWM") == 0) {
 		printf("GROUP HWM %d\n", IVAL(data.dptr,0));
 		return 0;
 	}
 
-	if (strncmp((char *)key.dptr, "S-", 2) != 0)
+	if (strncmp(key.dptr, "S-", 2) != 0)
 		return 0;
 
 	printf("%s %s\n", data.dptr, key.dptr);
@@ -101,10 +102,9 @@ static int net_idmap_restore(int argc, const char **argv)
 	while (!feof(input)) {
 		char line[128], sid_string[128];
 		int len;
-		struct wbcDomainSid sid;
-		enum id_type type = ID_TYPE_NOT_SPECIFIED;
+		DOM_SID sid;
+		struct id_map map;
 		unsigned long idval;
-		wbcErr wbc_status;
 
 		if (fgets(line, 127, input) == NULL)
 			break;
@@ -115,23 +115,21 @@ static int net_idmap_restore(int argc, const char **argv)
 			line[len-1] = '\0';
 
 		if (sscanf(line, "GID %lu %128s", &idval, sid_string) == 2) {
-			type = ID_TYPE_GID;
+			map.xid.type = ID_TYPE_GID;
+			map.xid.id = idval;
 		} else if (sscanf(line, "UID %lu %128s", &idval, sid_string) == 2) {
-			type = ID_TYPE_UID;
+			map.xid.type = ID_TYPE_UID;
+			map.xid.id = idval;
 		} else if (sscanf(line, "USER HWM %lu", &idval) == 1) {
 			/* set uid hwm */
-			wbc_status = wbcSetUidHwm(idval);
-			if (!WBC_ERROR_IS_OK(wbc_status)) {
-				d_fprintf(stderr, "Could not set USER HWM: %s\n",
-					  wbcErrorString(wbc_status));
+			if (! winbind_set_uid_hwm(idval)) {
+				d_fprintf(stderr, "Could not set USER HWM\n");
 			}
 			continue;
 		} else if (sscanf(line, "GROUP HWM %lu", &idval) == 1) {
 			/* set gid hwm */
-			wbc_status = wbcSetGidHwm(idval);
-			if (!WBC_ERROR_IS_OK(wbc_status)) {
-				d_fprintf(stderr, "Could not set GROUP HWM: %s\n",
-					  wbcErrorString(wbc_status));
+			if (! winbind_set_gid_hwm(idval)) {
+				d_fprintf(stderr, "Could not set GROUP HWM\n");
 			}
 			continue;
 		} else {
@@ -139,25 +137,19 @@ static int net_idmap_restore(int argc, const char **argv)
 			continue;
 		}
 
-		wbc_status = wbcStringToSid(sid_string, &sid);
-		if (!WBC_ERROR_IS_OK(wbc_status)) {
-			d_fprintf(stderr, "ignoring invalid sid [%s]: %s\n",
-				  sid_string, wbcErrorString(wbc_status));
+		if (!string_to_sid(&sid, sid_string)) {
+			d_fprintf(stderr, "ignoring invalid sid [%s]\n", sid_string);
 			continue;
 		}
+		map.sid = &sid;
 
-		if (type == ID_TYPE_UID) {
-			wbc_status = wbcSetUidMapping(idval, &sid);
-		} else {
-			wbc_status = wbcSetGidMapping(idval, &sid);
-		}
-		if (!WBC_ERROR_IS_OK(wbc_status)) {
-			d_fprintf(stderr, "Could not set mapping of %s %lu to sid %s: %s\n",
-				 (type == ID_TYPE_GID) ? "GID" : "UID",
-				 idval, sid_string,
-				 wbcErrorString(wbc_status));
+		if (!winbind_set_mapping(&map)) {
+			d_fprintf(stderr, "Could not set mapping of %s %lu to sid %s\n",
+				 (map.xid.type == ID_TYPE_GID) ? "GID" : "UID",
+				 (unsigned long)map.xid.id, sid_string_static(map.sid));
 			continue;
 		}
+			 
 	}
 
 	if (input != stdin) {
@@ -182,13 +174,13 @@ static int net_idmap_set(int argc, const char **argv)
 	d_printf("Not Implemented yet\n");
 	return -1;
 }
-bool idmap_store_secret(const char *backend, bool alloc,
+BOOL idmap_store_secret(const char *backend, bool alloc,
 			const char *domain, const char *identity,
 			const char *secret)
 {
 	char *tmp;
 	int r;
-	bool ret;
+	BOOL ret;
 
 	if (alloc) {
 		r = asprintf(&tmp, "IDMAP_ALLOC_%s", backend);
@@ -214,7 +206,7 @@ static int net_idmap_secret(int argc, const char **argv)
 	char *domain;
 	char *backend;
 	char *opt = NULL;
-	bool ret;
+	BOOL ret;
 
 	if (argc != 2) {
 		return net_help_idmap(argc, argv);
@@ -278,7 +270,7 @@ static int net_idmap_secret(int argc, const char **argv)
 
 int net_help_idmap(int argc, const char **argv)
 {
-	d_printf("net idmap dump <inputfile>\n"\
+	d_printf("net idmap dump <outputfile>\n"\
 		 "    Dump current id mapping\n");
 
 	d_printf("net idmap restore\n"\
@@ -292,70 +284,6 @@ int net_help_idmap(int argc, const char **argv)
 	return -1;
 }
 
-static int net_idmap_aclmapset(int argc, const char **argv)
-{
-	TALLOC_CTX *mem_ctx;
-	int result = -1;
-	DOM_SID src_sid, dst_sid;
-	char *src, *dst;
-	struct db_context *db;
-	struct db_record *rec;
-	NTSTATUS status;
-
-	if (argc != 3) {
-		d_fprintf(stderr, "usage: net idmap aclmapset <tdb> "
-			  "<src-sid> <dst-sid>\n");
-		return -1;
-	}
-
-	if (!(mem_ctx = talloc_init("net idmap aclmapset"))) {
-		d_fprintf(stderr, "talloc_init failed\n");
-		return -1;
-	}
-
-	if (!(db = db_open(mem_ctx, argv[0], 0, TDB_DEFAULT,
-			   O_RDWR|O_CREAT, 0600))) {
-		d_fprintf(stderr, "db_open failed: %s\n", strerror(errno));
-		goto fail;
-	}
-
-	if (!string_to_sid(&src_sid, argv[1])) {
-		d_fprintf(stderr, "%s is not a valid sid\n", argv[1]);
-		goto fail;
-	}
-
-	if (!string_to_sid(&dst_sid, argv[2])) {
-		d_fprintf(stderr, "%s is not a valid sid\n", argv[2]);
-		goto fail;
-	}
-
-	if (!(src = sid_string_talloc(mem_ctx, &src_sid))
-	    || !(dst = sid_string_talloc(mem_ctx, &dst_sid))) {
-		d_fprintf(stderr, "talloc_strdup failed\n");
-		goto fail;
-	}
-
-	if (!(rec = db->fetch_locked(
-		      db, mem_ctx, string_term_tdb_data(src)))) {
-		d_fprintf(stderr, "could not fetch db record\n");
-		goto fail;
-	}
-
-	status = rec->store(rec, string_term_tdb_data(dst), 0);
-	TALLOC_FREE(rec);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, "could not store record: %s\n",
-			  nt_errstr(status));
-		goto fail;
-	}
-
-	result = 0;
-fail:
-	TALLOC_FREE(mem_ctx);
-	return result;
-}
-
 /***********************************************************
  Look at the current idmap
  **********************************************************/
@@ -367,7 +295,6 @@ int net_idmap(int argc, const char **argv)
 		{"setmap", net_idmap_set },
 		{"delete", net_idmap_delete},
 		{"secret", net_idmap_secret},
-		{"aclmapset", net_idmap_aclmapset},
 		{"help", net_help_idmap},
 		{NULL, NULL}
 	};

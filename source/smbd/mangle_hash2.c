@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -93,6 +94,15 @@ static unsigned char char_flags[256];
 */
 static unsigned mangle_prefix;
 
+/* we will use a very simple direct mapped prefix cache. The big
+   advantage of this cache structure is speed and low memory usage 
+
+   The cache is indexed by the low-order bits of the hash, and confirmed by
+   hashing the resulting cache entry to match the known hash
+*/
+static char **prefix_cache;
+static unsigned int *prefix_cache_hashes;
+
 /* these are the characters we use in the 8.3 hash. Must be 36 chars long */
 static const char *basechars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 static unsigned char base_reverse[256];
@@ -138,39 +148,56 @@ static unsigned int mangle_hash(const char *key, unsigned int length)
 	return value & ~0x80000000;  
 }
 
+/* 
+   initialise (ie. allocate) the prefix cache
+ */
+static BOOL cache_init(void)
+{
+	if (prefix_cache) {
+		return True;
+	}
+
+	prefix_cache = SMB_CALLOC_ARRAY(char *,MANGLE_CACHE_SIZE);
+	if (!prefix_cache) {
+		return False;
+	}
+
+	prefix_cache_hashes = SMB_CALLOC_ARRAY(unsigned int, MANGLE_CACHE_SIZE);
+	if (!prefix_cache_hashes) {
+		return False;
+	}
+
+	return True;
+}
+
 /*
   insert an entry into the prefix cache. The string might not be null
   terminated */
 static void cache_insert(const char *prefix, int length, unsigned int hash)
 {
-	char *str = SMB_STRNDUP(prefix, length);
+	int i = hash % MANGLE_CACHE_SIZE;
 
-	if (str == NULL) {
-		return;
+	if (prefix_cache[i]) {
+		free(prefix_cache[i]);
 	}
 
-	memcache_add(smbd_memcache(), MANGLE_HASH2_CACHE,
-		     data_blob_const(&hash, sizeof(hash)),
-		     data_blob_const(str, length+1));
-	SAFE_FREE(str);
+	prefix_cache[i] = SMB_STRNDUP(prefix, length);
+	prefix_cache_hashes[i] = hash;
 }
 
 /*
   lookup an entry in the prefix cache. Return NULL if not found.
 */
-static char *cache_lookup(TALLOC_CTX *mem_ctx, unsigned int hash)
+static const char *cache_lookup(unsigned int hash)
 {
-	DATA_BLOB value;
+	int i = hash % MANGLE_CACHE_SIZE;
 
-	if (!memcache_lookup(smbd_memcache(), MANGLE_HASH2_CACHE,
-			     data_blob_const(&hash, sizeof(hash)), &value)) {
+	if (!prefix_cache[i] || hash != prefix_cache_hashes[i]) {
 		return NULL;
 	}
 
-	SMB_ASSERT((value.length > 0)
-		   && (value.data[value.length-1] == '\0'));
-
-	return talloc_strdup(mem_ctx, (char *)value.data);
+	/* yep, it matched */
+	return prefix_cache[i];
 }
 
 
@@ -181,7 +208,7 @@ static char *cache_lookup(TALLOC_CTX *mem_ctx, unsigned int hash)
    In this algorithm, mangled names use only pure ascii characters (no
    multi-byte) so we can avoid doing a UCS2 conversion 
  */
-static bool is_mangled_component(const char *name, size_t len)
+static BOOL is_mangled_component(const char *name, size_t len)
 {
 	unsigned int i;
 
@@ -241,7 +268,7 @@ static bool is_mangled_component(const char *name, size_t len)
    directory separators. It should return true if any component is
    mangled
  */
-static bool is_mangled(const char *name, const struct share_params *parm)
+static BOOL is_mangled(const char *name, const struct share_params *parm)
 {
 	const char *p;
 	const char *s;
@@ -266,7 +293,7 @@ static bool is_mangled(const char *name, const struct share_params *parm)
    simplifies things greatly (it means that we know the string won't
    get larger when converted from UNIX to DOS formats)
 */
-static bool is_8_3(const char *name, bool check_case, bool allow_wildcards, const struct share_params *p)
+static BOOL is_8_3(const char *name, BOOL check_case, BOOL allow_wildcards, const struct share_params *p)
 {
 	int len, i;
 	char *dot_p;
@@ -341,23 +368,18 @@ static void mangle_reset(void)
 
 /*
   try to find a 8.3 name in the cache, and if found then
-  replace the string with the original long name.
+  replace the string with the original long name. 
 */
-static bool lookup_name_from_8_3(TALLOC_CTX *ctx,
-			const char *name,
-			char **pp_out, /* talloced on the given context. */
-			const struct share_params *p)
+static BOOL check_cache(char *name, size_t maxlen, const struct share_params *p)
 {
 	unsigned int hash, multiplier;
 	unsigned int i;
-	char *prefix;
+	const char *prefix;
 	char extension[4];
-
-	*pp_out = NULL;
 
 	/* make sure that this is a mangled name from this cache */
 	if (!is_mangled(name, p)) {
-		M_DEBUG(10,("lookup_name_from_8_3: %s -> not mangled\n", name));
+		M_DEBUG(10,("check_cache: %s -> not mangled\n", name));
 		return False;
 	}
 
@@ -370,10 +392,9 @@ static bool lookup_name_from_8_3(TALLOC_CTX *ctx,
 	}
 
 	/* now look in the prefix cache for that hash */
-	prefix = cache_lookup(ctx, hash);
+	prefix = cache_lookup(hash);
 	if (!prefix) {
-		M_DEBUG(10,("lookup_name_from_8_3: %s -> %08X -> not found\n",
-					name, hash));
+		M_DEBUG(10,("check_cache: %s -> %08X -> not found\n", name, hash));
 		return False;
 	}
 
@@ -386,28 +407,21 @@ static bool lookup_name_from_8_3(TALLOC_CTX *ctx,
 	}
 
 	if (extension[0]) {
-		M_DEBUG(10,("lookup_name_from_8_3: %s -> %s.%s\n",
-					name, prefix, extension));
-		*pp_out = talloc_asprintf(ctx, "%s.%s", prefix, extension);
+		M_DEBUG(10,("check_cache: %s -> %s.%s\n", name, prefix, extension));
+		slprintf(name, maxlen, "%s.%s", prefix, extension);
 	} else {
-		M_DEBUG(10,("lookup_name_from_8_3: %s -> %s\n", name, prefix));
-		*pp_out = talloc_strdup(ctx, prefix);
-	}
-
-	TALLOC_FREE(prefix);
-
-	if (!*pp_out) {
-		M_DEBUG(0,("talloc_fail"));
-		return False;
+		M_DEBUG(10,("check_cache: %s -> %s\n", name, prefix));
+		safe_strcpy(name, prefix, maxlen);
 	}
 
 	return True;
 }
 
+
 /*
   look for a DOS reserved name
 */
-static bool is_reserved_name(const char *name)
+static BOOL is_reserved_name(const char *name)
 {
 	if (FLAG_CHECK(name[0], FLAG_POSSIBLE1) &&
 	    FLAG_CHECK(name[1], FLAG_POSSIBLE2) &&
@@ -434,10 +448,10 @@ static bool is_reserved_name(const char *name)
  A filename ending in ' ' is not legal either. See bug id #2769.
 */
 
-static bool is_legal_name(const char *name)
+static BOOL is_legal_name(const char *name)
 {
 	const char *dot_pos = NULL;
-	bool alldots = True;
+	BOOL alldots = True;
 	size_t numdots = 0;
 
 	while (*name) {
@@ -485,27 +499,18 @@ static bool is_legal_name(const char *name)
 	return True;
 }
 
-static bool must_mangle(const char *name,
-			const struct share_params *p)
-{
-	if (is_reserved_name(name)) {
-		return True;
-	}
-	return !is_legal_name(name);
-}
-
 /*
   the main forward mapping function, which converts a long filename to 
   a 8.3 name
 
+  if need83 is not set then we only do the mangling if the name is illegal
+  as a long name
+
   if cache83 is not set then we don't cache the result
 
+  the name parameter must be able to hold 13 bytes
 */
-static bool hash2_name_to_8_3(const char *name,
-			char new_name[13],
-			bool cache83,
-			int default_case,
-			const struct share_params *p)
+static void name_map(fstring name, BOOL need83, BOOL cache83, int default_case, const struct share_params *p)
 {
 	char *dot_p;
 	char lead_chars[7];
@@ -513,14 +518,20 @@ static bool hash2_name_to_8_3(const char *name,
 	unsigned int extension_length, i;
 	unsigned int prefix_len;
 	unsigned int hash, v;
+	char new_name[13];
 
 	/* reserved names are handled specially */
 	if (!is_reserved_name(name)) {
-		/* if the name is already a valid 8.3 name then we don't need to
-		 * change anything */
-		if (is_legal_name(name) && is_8_3(name, False, False, p)) {
-			safe_strcpy(new_name, name, 12);
-			return True;
+		/* if the name is already a valid 8.3 name then we don't need to 
+		   do anything */
+		if (is_8_3(name, False, False, p)) {
+			return;
+		}
+
+		/* if the caller doesn't strictly need 8.3 then just check for illegal 
+		   filenames */
+		if (!need83 && is_legal_name(name)) {
+			return;
 		}
 	}
 
@@ -537,9 +548,7 @@ static bool hash2_name_to_8_3(const char *name,
 				break;
 			}
 		}
-		if (i == 0 || i == 4) {
-			dot_p = NULL;
-		}
+		if (i == 0 || i == 4) dot_p = NULL;
 	}
 
 	/* the leading characters in the mangled name is taken from
@@ -571,12 +580,11 @@ static bool hash2_name_to_8_3(const char *name,
 		for (i=1; extension_length < 3 && dot_p[i]; i++) {
 			char c = dot_p[i];
 			if (FLAG_CHECK(c, FLAG_ASCII)) {
-				extension[extension_length++] =
-					toupper_ascii(c);
+				extension[extension_length++] = toupper_ascii(c);
 			}
 		}
 	}
-
+	   
 	/* find the hash for this prefix */
 	v = hash = mangle_hash(name, prefix_len);
 
@@ -585,7 +593,7 @@ static bool hash2_name_to_8_3(const char *name,
 		new_name[i] = lead_chars[i];
 	}
 	new_name[7] = base_forward(v % 36);
-	new_name[6] = '~';
+	new_name[6] = '~';	
 	for (i=5; i>=mangle_prefix; i--) {
 		v = v / 36;
 		new_name[i] = base_forward(v % 36);
@@ -605,18 +613,22 @@ static bool hash2_name_to_8_3(const char *name,
 		cache_insert(name, prefix_len, hash);
 	}
 
-	M_DEBUG(10,("hash2_name_to_8_3: %s -> %08X -> %s (cache=%d)\n",
+	M_DEBUG(10,("name_map: %s -> %08X -> %s (cache=%d)\n", 
 		   name, hash, new_name, cache83));
 
-	return True;
+	/* and overwrite the old name */
+	fstrcpy(name, new_name);
+
+	/* all done, we've managed to mangle it */
 }
 
-/* initialise the flags table
+
+/* initialise the flags table 
 
   we allow only a very restricted set of characters as 'ascii' in this
   mangling backend. This isn't a significant problem as modern clients
   use the 'long' filenames anyway, and those don't have these
-  restrictions.
+  restrictions. 
 */
 static void init_tables(void)
 {
@@ -630,8 +642,8 @@ static void init_tables(void)
 			char_flags[i] |= FLAG_ILLEGAL;
 		}
 
-		if ((i >= '0' && i <= '9') ||
-		    (i >= 'a' && i <= 'z') ||
+		if ((i >= '0' && i <= '9') || 
+		    (i >= 'a' && i <= 'z') || 
 		    (i >= 'A' && i <= 'Z')) {
 			char_flags[i] |=  (FLAG_ASCII | FLAG_BASECHAR);
 		}
@@ -651,7 +663,7 @@ static void init_tables(void)
 	memset(base_reverse, 0, sizeof(base_reverse));
 	for (i=0;i<36;i++) {
 		base_reverse[(unsigned char)base_forward(i)] = i;
-	}
+	}	
 
 	/* fill in the reserved names flags. These are used as a very
 	   fast filter for finding possible DOS reserved filenames */
@@ -682,10 +694,9 @@ static void init_tables(void)
 static struct mangle_fns mangle_fns = {
 	mangle_reset,
 	is_mangled,
-	must_mangle,
 	is_8_3,
-	lookup_name_from_8_3,
-	hash2_name_to_8_3
+	check_cache,
+	name_map
 };
 
 /* return the methods for this mangling implementation */
@@ -703,56 +714,45 @@ struct mangle_fns *mangle_hash2_init(void)
 	init_tables();
 	mangle_reset();
 
+	if (!cache_init()) {
+		return NULL;
+	}
+
 	return &mangle_fns;
 }
 
 static void posix_mangle_reset(void)
 {;}
 
-static bool posix_is_mangled(const char *s, const struct share_params *p)
+static BOOL posix_is_mangled(const char *s, const struct share_params *p)
 {
 	return False;
 }
 
-static bool posix_must_mangle(const char *s, const struct share_params *p)
+static BOOL posix_is_8_3(const char *fname, BOOL check_case, BOOL allow_wildcards, const struct share_params *p)
 {
 	return False;
 }
 
-static bool posix_is_8_3(const char *fname,
-			bool check_case,
-			bool allow_wildcards,
-			const struct share_params *p)
+static BOOL posix_check_cache( char *s, size_t maxlen, const struct share_params *p )
 {
 	return False;
 }
 
-static bool posix_lookup_name_from_8_3(TALLOC_CTX *ctx,
-				const char *in,
-				char **out, /* talloced on the given context. */
-				const struct share_params *p)
+static void posix_name_map(char *OutName, BOOL need83, BOOL cache83, int default_case, const struct share_params *p)
 {
-	return False;
-}
-
-static bool posix_name_to_8_3(const char *in,
-				char out[13],
-				bool cache83,
-				int default_case,
-				const struct share_params *p)
-{
-	memset(out, '\0', 13);
-	return True;
+	if (need83) {
+		memset(OutName, '\0', 13);
+	}
 }
 
 /* POSIX paths backend - no mangle. */
 static struct mangle_fns posix_mangle_fns = {
-	posix_mangle_reset,
-	posix_is_mangled,
-	posix_must_mangle,
-	posix_is_8_3,
-	posix_lookup_name_from_8_3,
-	posix_name_to_8_3
+        posix_mangle_reset,
+        posix_is_mangled,
+        posix_is_8_3,
+        posix_check_cache,
+        posix_name_map
 };
 
 struct mangle_fns *posix_mangle_init(void)

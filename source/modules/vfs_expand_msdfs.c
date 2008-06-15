@@ -5,7 +5,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *  
  * This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
  * GNU General Public License for more details.
  *  
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
@@ -37,25 +38,24 @@ extern userdom_struct current_user_info;
   This is to redirect a DFS client to a host close to it.
 ***********************************************************/
 
-static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
+static BOOL read_target_host(const char *mapfile, pstring targethost)
 {
 	XFILE *f;
-	char buf[1024];
+	pstring buf;
 	char *space = buf;
-	bool found = false;
-
+	BOOL found = False;
+	
 	f = x_fopen(mapfile, O_RDONLY, 0);
 
 	if (f == NULL) {
 		DEBUG(0,("can't open IP map %s. Error %s\n",
 			 mapfile, strerror(errno) ));
-		return NULL;
+		return False;
 	}
 
 	DEBUG(10, ("Scanning mapfile [%s]\n", mapfile));
 
 	while (x_fgets(buf, sizeof(buf), f) != NULL) {
-		char addr[INET6_ADDRSTRLEN];
 
 		if ((strlen(buf) > 0) && (buf[strlen(buf)-1] == '\n'))
 			buf[strlen(buf)-1] = '\0';
@@ -71,25 +71,24 @@ static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
 
 		*space = '\0';
 
-		if (strncmp(client_addr(get_client_fd(),addr,sizeof(addr)),
-				buf, strlen(buf)) == 0) {
-			found = true;
+		if (strncmp(client_addr(), buf, strlen(buf)) == 0) {
+			found = True;
 			break;
 		}
 	}
 
 	x_fclose(f);
 
-	if (!found) {
-		return NULL;
-	}
+	if (!found)
+		return False;
 
 	space += 1;
 
 	while (isspace(*space))
 		space += 1;
 
-	return talloc_strdup(ctx, space);
+	pstrcpy(targethost, space);
+	return True;
 }
 
 /**********************************************************
@@ -105,83 +104,65 @@ static char *read_target_host(TALLOC_CTX *ctx, const char *mapfile)
 
 ***********************************************************/
 
-static char *expand_msdfs_target(TALLOC_CTX *ctx,
-				connection_struct *conn,
-				char *target)
+static BOOL expand_msdfs_target(connection_struct* conn, pstring target)
 {
-	char *mapfilename = NULL;
+	pstring mapfilename;
 	char *filename_start = strchr_m(target, '@');
-	char *filename_end = NULL;
-	int filename_len = 0;
-	char *targethost = NULL;
-	char *new_target = NULL;
+	char *filename_end;
+	int filename_len;
+	pstring targethost;
+	pstring new_target;
 
 	if (filename_start == NULL) {
 		DEBUG(10, ("No filename start in %s\n", target));
-		return NULL;
+		return False;
 	}
 
 	filename_end = strchr_m(filename_start+1, '@');
 
 	if (filename_end == NULL) {
 		DEBUG(10, ("No filename end in %s\n", target));
-		return NULL;
+		return False;
 	}
 
 	filename_len = PTR_DIFF(filename_end, filename_start+1);
-	mapfilename = talloc_strdup(ctx, filename_start+1);
-	if (!mapfilename) {
-		return NULL;
-	}
+	pstrcpy(mapfilename, filename_start+1);
 	mapfilename[filename_len] = '\0';
 
 	DEBUG(10, ("Expanding from table [%s]\n", mapfilename));
 
-	if ((targethost = read_target_host(ctx, mapfilename)) == NULL) {
+	if (!read_target_host(mapfilename, targethost)) {
 		DEBUG(1, ("Could not expand target host from file %s\n",
 			  mapfilename));
-		return NULL;
+		return False;
 	}
 
-	targethost = talloc_sub_advanced(ctx,
-				lp_servicename(SNUM(conn)),
-				conn->user,
-				conn->connectpath,
-				conn->gid,
-				get_current_username(),
-				current_user_info.domain,
-				targethost);
+	standard_sub_advanced(lp_servicename(SNUM(conn)), conn->user,
+			      conn->connectpath, conn->gid,
+			      get_current_username(),
+			      current_user_info.domain,
+			      mapfilename, sizeof(mapfilename));
 
 	DEBUG(10, ("Expanded targethost to %s\n", targethost));
 
-	/* Replace the part between '@...@' */
 	*filename_start = '\0';
-	new_target = talloc_asprintf(ctx,
-				"%s%s%s",
-				target,
-				targethost,
-				filename_end+1);
-	if (!new_target) {
-		return NULL;
-	}
+	pstrcpy(new_target, target);
+	pstrcat(new_target, targethost);
+	pstrcat(new_target, filename_end+1);
 
 	DEBUG(10, ("New DFS target: %s\n", new_target));
-	return new_target;
+	pstrcpy(target, new_target);
+	return True;
 }
 
 static int expand_msdfs_readlink(struct vfs_handle_struct *handle,
 				 const char *path, char *buf, size_t bufsiz)
 {
-	TALLOC_CTX *ctx = talloc_tos();
+	pstring target;
 	int result;
-	char *target = TALLOC_ARRAY(ctx, char, PATH_MAX+1);
 
-	if (!target) {
-		errno = ENOMEM;
-		return -1;
-	}
 	result = SMB_VFS_NEXT_READLINK(handle, path, target,
-				       PATH_MAX);
+				       sizeof(target));
 
 	if (result < 0)
 		return result;
@@ -190,8 +171,7 @@ static int expand_msdfs_readlink(struct vfs_handle_struct *handle,
 
 	if ((strncmp(target, "msdfs:", strlen("msdfs:")) == 0) &&
 	    (strchr_m(target, '@') != NULL)) {
-		target = expand_msdfs_target(ctx, handle->conn, target);
-		if (!target) {
+		if (!expand_msdfs_target(handle->conn, target)) {
 			errno = ENOENT;
 			return -1;
 		}
@@ -203,7 +183,7 @@ static int expand_msdfs_readlink(struct vfs_handle_struct *handle,
 
 /* VFS operations structure */
 
-static vfs_op_tuple expand_msdfs_ops[] = {
+static vfs_op_tuple expand_msdfs_ops[] = {	
 	{SMB_VFS_OP(expand_msdfs_readlink), SMB_VFS_OP_READLINK,
 	 SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}

@@ -9,7 +9,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 
@@ -29,7 +30,7 @@
 **********************************************************************/
 
 #ifdef HAVE_KRB5
-static bool is_our_primary_domain(const char *domain)
+static BOOL is_our_primary_domain(const char *domain)
 {
 	int role = lp_server_role();
 
@@ -46,15 +47,14 @@ static bool is_our_primary_domain(const char *domain)
  Find the name and IP address for a server in the realm/domain
  *************************************************************************/
  
-static bool ads_dc_name(const char *domain,
+static BOOL ads_dc_name(const char *domain,
 			const char *realm,
-			struct sockaddr_storage *dc_ss,
+			struct in_addr *dc_ip,
 			fstring srv_name)
 {
 	ADS_STRUCT *ads;
 	char *sitename;
 	int i;
-	char addr[INET6_ADDRSTRLEN];
 
 	if (!realm && strequal(domain, lp_workgroup())) {
 		realm = lp_realm();
@@ -99,7 +99,7 @@ static bool ads_dc_name(const char *domain,
 		}
 
 #ifdef HAVE_KRB5
-		if (is_our_primary_domain(domain) && (ads->config.flags & NBT_SERVER_KDC)) {
+		if (is_our_primary_domain(domain) && (ads->config.flags & ADS_KDC)) {
 			if (ads_closest_dc(ads)) {
 				/* We're going to use this KDC for this realm/domain.
 				   If we are using sites, then force the krb5 libs
@@ -108,12 +108,13 @@ static bool ads_dc_name(const char *domain,
 				create_local_private_krb5_conf_for_domain(realm,
 									domain,
 									sitename,
-									&ads->ldap.ss);
+									ads->ldap_ip);
 			} else {
+				/* use an off site KDC */
 				create_local_private_krb5_conf_for_domain(realm,
 									domain,
 									NULL,
-									&ads->ldap.ss);
+									ads->ldap_ip);
 			}
 		}
 #endif
@@ -131,37 +132,31 @@ static bool ads_dc_name(const char *domain,
 
 	fstrcpy(srv_name, ads->config.ldap_server_name);
 	strupper_m(srv_name);
-#ifdef HAVE_ADS
-	*dc_ss = ads->ldap.ss;
-#else
-	zero_addr(dc_ss);
-#endif
+	*dc_ip = ads->ldap_ip;
 	ads_destroy(&ads);
-
-	print_sockaddr(addr, sizeof(addr), dc_ss);
+	
 	DEBUG(4,("ads_dc_name: using server='%s' IP=%s\n",
-		 srv_name, addr));
-
+		 srv_name, inet_ntoa(*dc_ip)));
+	
 	return True;
 }
 
 /****************************************************************************
- Utility function to return the name of a DC. The name is guaranteed to be
- valid since we have already done a name_status_find on it
+ Utility function to return the name of a DC. The name is guaranteed to be 
+ valid since we have already done a name_status_find on it 
  ***************************************************************************/
 
-static bool rpc_dc_name(const char *domain,
-			fstring srv_name,
-			struct sockaddr_storage *ss_out)
+static BOOL rpc_dc_name(const char *domain, fstring srv_name, struct in_addr *ip_out)
 {
 	struct ip_service *ip_list = NULL;
-	struct sockaddr_storage dc_ss;
+	struct in_addr dc_ip, exclude_ip;
 	int count, i;
 	NTSTATUS result;
-	char addr[INET6_ADDRSTRLEN];
+	
+	zero_ip(&exclude_ip);
 
 	/* get a list of all domain controllers */
-
+	
 	if (!NT_STATUS_IS_OK(get_sorted_dc_list(domain, NULL, &ip_list, &count,
 						False))) {
 		DEBUG(3, ("Could not look up dc's for domain %s\n", domain));
@@ -171,34 +166,35 @@ static bool rpc_dc_name(const char *domain,
 	/* Remove the entry we've already failed with (should be the PDC). */
 
 	for (i = 0; i < count; i++) {
-		if (is_zero_addr(&ip_list[i].ss))
+		if (is_zero_ip(ip_list[i].ip))
 			continue;
 
-		if (name_status_find(domain, 0x1c, 0x20, &ip_list[i].ss, srv_name)) {
+		if (name_status_find(domain, 0x1c, 0x20, ip_list[i].ip, srv_name)) {
 			result = check_negative_conn_cache( domain, srv_name );
 			if ( NT_STATUS_IS_OK(result) ) {
-				dc_ss = ip_list[i].ss;
+				dc_ip = ip_list[i].ip;
 				goto done;
 			}
 		}
 	}
+	
 
 	SAFE_FREE(ip_list);
 
 	/* No-one to talk to )-: */
 	return False;		/* Boo-hoo */
-
+	
  done:
 	/* We have the netbios name and IP address of a domain controller.
 	   Ideally we should sent a SAMLOGON request to determine whether
 	   the DC is alive and kicking.  If we can catch a dead DC before
 	   performing a cli_connect() we can avoid a 30-second timeout. */
 
-	print_sockaddr(addr, sizeof(addr), &dc_ss);
 	DEBUG(3, ("rpc_dc_name: Returning DC %s (%s) for domain %s\n", srv_name,
-		  addr, domain));
+		  inet_ntoa(dc_ip), domain));
 
-	*ss_out = dc_ss;
+	*ip_out = dc_ip;
+
 	SAFE_FREE(ip_list);
 
 	return True;
@@ -208,40 +204,37 @@ static bool rpc_dc_name(const char *domain,
  wrapper around ads and rpc methods of finds DC's
 **********************************************************************/
 
-bool get_dc_name(const char *domain,
-		const char *realm,
-		fstring srv_name,
-		struct sockaddr_storage *ss_out)
+BOOL get_dc_name(const char *domain, const char *realm, fstring srv_name, struct in_addr *ip_out)
 {
-	struct sockaddr_storage dc_ss;
-	bool ret;
-	bool our_domain = False;
+	struct in_addr dc_ip;
+	BOOL ret;
+	BOOL our_domain = False;
 
-	zero_addr(&dc_ss);
+	zero_ip(&dc_ip);
 
 	ret = False;
-
+	
 	if ( strequal(lp_workgroup(), domain) || strequal(lp_realm(), realm) )
 		our_domain = True;
-
-	/* always try to obey what the admin specified in smb.conf
+	
+	/* always try to obey what the admin specified in smb.conf 
 	   (for the local domain) */
-
+	
 	if ( (our_domain && lp_security()==SEC_ADS) || realm ) {
-		ret = ads_dc_name(domain, realm, &dc_ss, srv_name);
+		ret = ads_dc_name(domain, realm, &dc_ip, srv_name);
 	}
 
 	if (!domain) {
 		/* if we have only the realm we can't do anything else */
 		return False;
 	}
-
+	
 	if (!ret) {
 		/* fall back on rpc methods if the ADS methods fail */
-		ret = rpc_dc_name(domain, srv_name, &dc_ss);
+		ret = rpc_dc_name(domain, srv_name, &dc_ip);
 	}
-
-	*ss_out = dc_ss;
+		
+	*ip_out = dc_ip;
 
 	return ret;
 }

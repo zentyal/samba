@@ -1,27 +1,28 @@
-/*
+/* 
    Unix SMB/CIFS implementation.
    filename matching routine
    Copyright (C) Andrew Tridgell 1992-2004
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  
 */
 
 /*
    This module was originally based on fnmatch.c copyright by the Free
    Software Foundation. It bears little (if any) resemblence to that
    code now
-*/
+*/  
 
 
 #include "includes.h"
@@ -53,9 +54,9 @@ struct max_n {
   an optimisation only. The ldot pointer is NULL if the string does
   not contain a '.', otherwise it points at the last dot in 'n'.
 */
-static int ms_fnmatch_core(const smb_ucs2_t *p, const smb_ucs2_t *n,
+static int ms_fnmatch_core(const smb_ucs2_t *p, const smb_ucs2_t *n, 
 			   struct max_n *max_n, const smb_ucs2_t *ldot,
-			   bool is_case_sensitive)
+			   BOOL is_case_sensitive)
 {
 	smb_ucs2_t c;
 	int i;
@@ -137,25 +138,22 @@ static int ms_fnmatch_core(const smb_ucs2_t *p, const smb_ucs2_t *n,
 			break;
 		}
 	}
-
+	
 	if (! *n) {
 		return 0;
 	}
-
+	
 	return -1;
 }
 
-int ms_fnmatch(const char *pattern, const char *string, bool translate_pattern,
-	       bool is_case_sensitive)
+int ms_fnmatch(const char *pattern, const char *string, BOOL translate_pattern,
+	       BOOL is_case_sensitive)
 {
-	smb_ucs2_t *p = NULL;
-	smb_ucs2_t *s = NULL;
+	wpstring p, s;
 	int ret, count, i;
 	struct max_n *max_n = NULL;
-	struct max_n *max_n_free = NULL;
-	struct max_n one_max_n;
 
-	if (ISDOTDOT(string)) {
+	if (strcmp(string, "..") == 0) {
 		string = ".";
 	}
 
@@ -169,12 +167,15 @@ int ms_fnmatch(const char *pattern, const char *string, bool translate_pattern,
 		}
 	}
 
-	if (push_ucs2_allocate(&p, pattern) == (size_t)-1) {
+	if (push_ucs2(NULL, p, pattern, sizeof(p), STR_TERMINATE) == (size_t)-1) {
+		/* Not quite the right answer, but finding the right one
+		  under this failure case is expensive, and it's pretty close */
 		return -1;
 	}
 
-	if (push_ucs2_allocate(&s, string) == (size_t)-1) {
-		SAFE_FREE(p);
+	if (push_ucs2(NULL, s, string, sizeof(s), STR_TERMINATE) == (size_t)-1) {
+		/* Not quite the right answer, but finding the right one
+		   under this failure case is expensive, and it's pretty close */
 		return -1;
 	}
 
@@ -187,8 +188,8 @@ int ms_fnmatch(const char *pattern, const char *string, bool translate_pattern,
 		for (i=0;p[i];i++) {
 			if (p[i] == UCS2_CHAR('?')) {
 				p[i] = UCS2_CHAR('>');
-			} else if (p[i] == UCS2_CHAR('.') &&
-				   (p[i+1] == UCS2_CHAR('?') ||
+			} else if (p[i] == UCS2_CHAR('.') && 
+				   (p[i+1] == UCS2_CHAR('?') || 
 				    p[i+1] == UCS2_CHAR('*') ||
 				    p[i+1] == 0)) {
 				p[i] = UCS2_CHAR('"');
@@ -203,29 +204,18 @@ int ms_fnmatch(const char *pattern, const char *string, bool translate_pattern,
 	}
 
 	if (count != 0) {
-		if (count == 1) {
-			/*
-			 * We're doing this a LOT, so save the effort to allocate
-			 */
-			ZERO_STRUCT(one_max_n);
-			max_n = &one_max_n;
-		}
-		else {
-			max_n = SMB_CALLOC_ARRAY(struct max_n, count);
-			if (!max_n) {
-				SAFE_FREE(p);
-				SAFE_FREE(s);
-				return -1;
-			}
-			max_n_free = max_n;
+		max_n = SMB_CALLOC_ARRAY(struct max_n, count);
+		if (!max_n) {
+			return -1;
 		}
 	}
 
 	ret = ms_fnmatch_core(p, s, max_n, strrchr_w(s, UCS2_CHAR('.')), is_case_sensitive);
 
-	SAFE_FREE(max_n_free);
-	SAFE_FREE(p);
-	SAFE_FREE(s);
+	if (max_n) {
+		free(max_n);
+	}
+
 	return ret;
 }
 

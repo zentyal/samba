@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -24,22 +25,22 @@
 *************************************************************/
 
 NTSTATUS remote_password_change(const char *remote_machine, const char *user_name, 
-				const char *old_passwd, const char *new_passwd,
-				char **err_str)
+			    const char *old_passwd, const char *new_passwd,
+			    char *err_str, size_t err_str_len)
 {
 	struct nmb_name calling, called;
 	struct cli_state *cli;
 	struct rpc_pipe_client *pipe_hnd;
-	struct sockaddr_storage ss;
+	struct in_addr ip;
 
 	NTSTATUS result;
-	bool pass_must_change = False;
+	BOOL pass_must_change = False;
 
-	*err_str = NULL;
+	*err_str = '\0';
 
-	if(!resolve_name( remote_machine, &ss, 0x20)) {
-		asprintf(err_str, "Unable to find an IP address for machine "
-			 "%s.\n", remote_machine);
+	if(!resolve_name( remote_machine, &ip, 0x20)) {
+		slprintf(err_str, err_str_len-1, "Unable to find an IP address for machine %s.\n",
+			remote_machine );
 		return NT_STATUS_UNSUCCESSFUL;
 	}
  
@@ -48,11 +49,10 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	result = cli_connect(cli, remote_machine, &ss);
+	result = cli_connect(cli, remote_machine, &ip);
 	if (!NT_STATUS_IS_OK(result)) {
-		asprintf(err_str, "Unable to connect to SMB server on "
-			 "machine %s. Error was : %s.\n",
-			 remote_machine, nt_errstr(result));
+		slprintf(err_str, err_str_len-1, "Unable to connect to SMB server on machine %s. Error was : %s.\n",
+			remote_machine, nt_errstr(result) );
 		cli_shutdown(cli);
 		return result;
 	}
@@ -61,9 +61,8 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 	make_nmb_name(&called , remote_machine, 0x20);
 	
 	if (!cli_session_request(cli, &calling, &called)) {
-		asprintf(err_str, "machine %s rejected the session setup. "
-			 "Error was : %s.\n",
-			 remote_machine, cli_errstr(cli) );
+		slprintf(err_str, err_str_len-1, "machine %s rejected the session setup. Error was : %s.\n",
+			remote_machine, cli_errstr(cli) );
 		result = cli_nt_error(cli);
 		cli_shutdown(cli);
 		return result;
@@ -72,9 +71,8 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 	cli->protocol = PROTOCOL_NT1;
 
 	if (!cli_negprot(cli)) {
-		asprintf(err_str, "machine %s rejected the negotiate "
-			 "protocol. Error was : %s.\n",        
-			 remote_machine, cli_errstr(cli) );
+		slprintf(err_str, err_str_len-1, "machine %s rejected the negotiate protocol. Error was : %s.\n",        
+			remote_machine, cli_errstr(cli) );
 		result = cli_nt_error(cli);
 		cli_shutdown(cli);
 		return result;
@@ -95,8 +93,9 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 
 		if (!NT_STATUS_EQUAL(result, NT_STATUS_PASSWORD_MUST_CHANGE) &&
 		    !NT_STATUS_EQUAL(result, NT_STATUS_PASSWORD_EXPIRED)) {
-			asprintf(err_str, "Could not connect to machine %s: "
-				 "%s\n", remote_machine, cli_errstr(cli));
+			slprintf(err_str, err_str_len-1, "Could not "
+				 "connect to machine %s: %s\n",
+				 remote_machine, cli_errstr(cli));
 			cli_shutdown(cli);
 			return result;
 		}
@@ -112,8 +111,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		result = cli_session_setup(cli, "", "", 0, "", 0, "");
 
 		if (!NT_STATUS_IS_OK(result)) {
-			asprintf(err_str, "machine %s rejected the session "
-				 "setup. Error was : %s.\n",        
+			slprintf(err_str, err_str_len-1, "machine %s rejected the session setup. Error was : %s.\n",        
 				 remote_machine, cli_errstr(cli) );
 			cli_shutdown(cli);
 			return result;
@@ -125,9 +123,8 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 	}
 
 	if (!cli_send_tconX(cli, "IPC$", "IPC", "", 1)) {
-		asprintf(err_str, "machine %s rejected the tconX on the IPC$ "
-			 "share. Error was : %s.\n",
-			 remote_machine, cli_errstr(cli) );
+		slprintf(err_str, err_str_len-1, "machine %s rejected the tconX on the IPC$ share. Error was : %s.\n",
+			remote_machine, cli_errstr(cli) );
 		result = cli_nt_error(cli);
 		cli_shutdown(cli);
 		return result;
@@ -159,25 +156,24 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		if (lp_client_lanman_auth()) {
 			/* Use the old RAP method. */
 			if (!cli_oem_change_password(cli, user_name, new_passwd, old_passwd)) {
-				asprintf(err_str, "machine %s rejected the "
-					 "password change: Error was : %s.\n",
+				slprintf(err_str, err_str_len-1, "machine %s rejected the password change: Error was : %s.\n",
 					 remote_machine, cli_errstr(cli) );
 				result = cli_nt_error(cli);
 				cli_shutdown(cli);
 				return result;
 			}
 		} else {
-			asprintf(err_str, "SAMR connection to machine %s "
-				 "failed. Error was %s, but LANMAN password "
-				 "changed are disabled\n",
-				 nt_errstr(result), remote_machine);
+			slprintf(err_str, err_str_len-1,
+				"SAMR connection to machine %s failed. Error was %s, "
+				"but LANMAN password changed are disabled\n",
+				nt_errstr(result), remote_machine);
 			result = cli_nt_error(cli);
 			cli_shutdown(cli);
 			return result;
 		}
 	}
 
-	if (NT_STATUS_IS_OK(result = rpccli_samr_chgpasswd_user(pipe_hnd, pipe_hnd->mem_ctx, user_name, 
+	if (NT_STATUS_IS_OK(result = rpccli_samr_chgpasswd_user(pipe_hnd, cli->mem_ctx, user_name, 
 							     new_passwd, old_passwd))) {
 		/* Great - it all worked! */
 		cli_shutdown(cli);
@@ -187,8 +183,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		     || NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL))) {
 		/* it failed, but for reasons such as wrong password, too short etc ... */
 		
-		asprintf(err_str, "machine %s rejected the password change: "
-			 "Error was : %s.\n",
+		slprintf(err_str, err_str_len-1, "machine %s rejected the password change: Error was : %s.\n",
 			 remote_machine, get_friendly_nt_error_msg(result));
 		cli_shutdown(cli);
 		return result;
@@ -207,7 +202,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 
 	if ( pipe_hnd &&
 		(NT_STATUS_IS_OK(result = rpccli_samr_chgpasswd_user(pipe_hnd,
-						pipe_hnd->mem_ctx,
+						cli->mem_ctx,
 						user_name, 
 						new_passwd,
 						old_passwd)))) {
@@ -219,10 +214,9 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		      || NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL))) {
 			/* it failed, but again it was due to things like new password too short */
 
-			asprintf(err_str, "machine %s rejected the "
-				 "(anonymous) password change: Error was : "
-				 "%s.\n", remote_machine,
-				 get_friendly_nt_error_msg(result));
+			slprintf(err_str, err_str_len-1, 
+				 "machine %s rejected the (anonymous) password change: Error was : %s.\n",
+				 remote_machine, get_friendly_nt_error_msg(result));
 			cli_shutdown(cli);
 			return result;
 		}
@@ -238,16 +232,16 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 				cli_shutdown(cli);
 				return NT_STATUS_OK;
 			}
-			asprintf(err_str, "machine %s rejected the password "
-				 "change: Error was : %s.\n",
+			slprintf(err_str, err_str_len-1, 
+				 "machine %s rejected the password change: Error was : %s.\n",
 				 remote_machine, cli_errstr(cli) );
 			result = cli_nt_error(cli);
 			cli_shutdown(cli);
 			return result;
 		} else {
-			asprintf(err_str, "SAMR connection to machine %s "
-				 "failed. Error was %s, but LANMAN password "
-				 "changed are disabled\n",
+			slprintf(err_str, err_str_len-1,
+				"SAMR connection to machine %s failed. Error was %s, "
+				"but LANMAN password changed are disabled\n",
 				nt_errstr(result), remote_machine);
 			cli_shutdown(cli);
 			return NT_STATUS_UNSUCCESSFUL;

@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -30,12 +31,12 @@ static struct notify_queue {
 	struct notify_queue *next, *prev;
 	struct spoolss_notify_msg *msg;
 	struct timeval tv;
-	uint8 *buf;
+	char *buf;
 	size_t buflen;
 } *notify_queue_head = NULL;
 
 
-static bool create_send_ctx(void)
+static BOOL create_send_ctx(void)
 {
 	if (!send_ctx)
 		send_ctx = talloc_init("print notify queue");
@@ -62,7 +63,7 @@ int print_queue_snum(const char *qname)
  Used to decide if we need a short select timeout.
 *******************************************************************/
 
-bool print_notify_messages_pending(void)
+BOOL print_notify_messages_pending(void)
 {
 	return (notify_queue_head != NULL);
 }
@@ -71,10 +72,10 @@ bool print_notify_messages_pending(void)
  Flatten data into a message.
 *******************************************************************/
 
-static bool flatten_message(struct notify_queue *q)
+static BOOL flatten_message(struct notify_queue *q)
 {
 	struct spoolss_notify_msg *msg = q->msg;
-	uint8 *buf = NULL;
+	char *buf = NULL;
 	size_t buflen = 0, len;
 
 again:
@@ -98,7 +99,7 @@ again:
 				msg->len, msg->notify.data);
 
 	if (buflen != len) {
-		buf = (uint8 *)TALLOC_REALLOC(send_ctx, buf, len);
+		buf = (char *)TALLOC_REALLOC(send_ctx, buf, len);
 		if (!buf)
 			return False;
 		buflen = len;
@@ -115,9 +116,7 @@ again:
  Send the batched messages - on a per-printer basis.
 *******************************************************************/
 
-static void print_notify_send_messages_to_printer(struct messaging_context *msg_ctx,
-						  const char *printer,
-						  unsigned int timeout)
+static void print_notify_send_messages_to_printer(const char *printer, unsigned int timeout)
 {
 	char *buf;
 	struct notify_queue *pq, *pq_next;
@@ -125,7 +124,6 @@ static void print_notify_send_messages_to_printer(struct messaging_context *msg_
 	size_t num_pids = 0;
 	size_t i;
 	pid_t *pid_list = NULL;
-	struct timeval end_time = timeval_zero();
 
 	/* Count the space needed to send the messages. */
 	for (pq = notify_queue_head; pq; pq = pq->next) {
@@ -177,19 +175,16 @@ static void print_notify_send_messages_to_printer(struct messaging_context *msg_
 	if (!print_notify_pid_list(printer, send_ctx, &num_pids, &pid_list))
 		return;
 
-	if (timeout != 0) {
-		end_time = timeval_current_ofs(timeout, 0);
-	}
-
 	for (i = 0; i < num_pids; i++) {
-		messaging_send_buf(msg_ctx,
-				   pid_to_procid(pid_list[i]),
-				   MSG_PRINTER_NOTIFY2 | MSG_FLAG_LOWPRIORITY,
-				   (uint8 *)buf, offset);
-
-		if ((timeout != 0) && timeval_expired(&end_time)) {
-			break;
+		unsigned int q_len = messages_pending_for_pid(pid_to_procid(pid_list[i]));
+		if (q_len > 1000) {
+			DEBUG(5, ("print_notify_send_messages_to_printer: discarding notify to printer %s as queue length = %u\n",
+				printer, q_len ));
+			continue;
 		}
+		message_send_pid_with_timeout(pid_to_procid(pid_list[i]),
+					      MSG_PRINTER_NOTIFY2,
+					      buf, offset, True, timeout);
 	}
 }
 
@@ -197,8 +192,7 @@ static void print_notify_send_messages_to_printer(struct messaging_context *msg_
  Actually send the batched messages.
 *******************************************************************/
 
-void print_notify_send_messages(struct messaging_context *msg_ctx,
-				unsigned int timeout)
+void print_notify_send_messages(unsigned int timeout)
 {
 	if (!print_notify_messages_pending())
 		return;
@@ -207,8 +201,7 @@ void print_notify_send_messages(struct messaging_context *msg_ctx,
 		return;
 
 	while (print_notify_messages_pending())
-		print_notify_send_messages_to_printer(
-			msg_ctx, notify_queue_head->msg->printer, timeout);
+		print_notify_send_messages_to_printer(notify_queue_head->msg->printer, timeout);
 
 	talloc_free_children(send_ctx);
 	num_messages = 0;
@@ -218,7 +211,7 @@ void print_notify_send_messages(struct messaging_context *msg_ctx,
  deep copy a SPOOLSS_NOTIFY_MSG structure using a TALLOC_CTX
  *********************************************************************/
  
-static bool copy_notify2_msg( SPOOLSS_NOTIFY_MSG *to, SPOOLSS_NOTIFY_MSG *from )
+static BOOL copy_notify2_msg( SPOOLSS_NOTIFY_MSG *to, SPOOLSS_NOTIFY_MSG *from )
 {
 
 	if ( !to || !from )
@@ -510,12 +503,12 @@ void notify_printer_byname( const char *printername, uint32 change, const char *
  messages on this print queue. Used in printing/notify to send the messages.
 ****************************************************************************/
 
-bool print_notify_pid_list(const char *printername, TALLOC_CTX *mem_ctx, size_t *p_num_pids, pid_t **pp_pid_list)
+BOOL print_notify_pid_list(const char *printername, TALLOC_CTX *mem_ctx, size_t *p_num_pids, pid_t **pp_pid_list)
 {
 	struct tdb_print_db *pdb = NULL;
 	TDB_CONTEXT *tdb = NULL;
 	TDB_DATA data;
-	bool ret = True;
+	BOOL ret = True;
 	size_t i, num_pids, offset;
 	pid_t *pid_list;
 
@@ -553,7 +546,7 @@ bool print_notify_pid_list(const char *printername, TALLOC_CTX *mem_ctx, size_t 
 		pid_list = NULL;
 	}
 
-	for( i = 0, offset = 0; i < num_pids; offset += 8, i++)
+	for( i = 0, offset = 0; offset < data.dsize; offset += 8, i++)
 		pid_list[i] = (pid_t)IVAL(data.dptr, offset);
 
 	*pp_pid_list = pid_list;

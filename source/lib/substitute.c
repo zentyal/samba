@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 
@@ -23,191 +24,126 @@
 
 extern struct current_user current_user;
 
+fstring local_machine="";
+fstring remote_arch="UNKNOWN";
 userdom_struct current_user_info;
 fstring remote_proto="UNKNOWN";
 
-/**
+static fstring remote_machine;
+static fstring smb_user_name;
+
+/** 
  * Set the 'local' machine name
  * @param local_name the name we are being called
  * @param if this is the 'final' name for us, not be be changed again
  */
 
-static char *local_machine;
-
-void free_local_machine_name(void)
+void set_local_machine_name(const char* local_name, BOOL perm)
 {
-	SAFE_FREE(local_machine);
-}
+	static BOOL already_perm = False;
+	fstring tmp_local_machine;
 
-bool set_local_machine_name(const char *local_name, bool perm)
-{
-	static bool already_perm = false;
-	char *tmp_local_machine = NULL;
-	char addr[INET6_ADDRSTRLEN];
-	size_t len;
-
-	tmp_local_machine = SMB_STRDUP(local_name);
-	if (!tmp_local_machine) {
-		return false;
-	}
+	fstrcpy(tmp_local_machine,local_name);
 	trim_char(tmp_local_machine,' ',' ');
 
 	/*
 	 * Windows NT/2k uses "*SMBSERVER" and XP uses "*SMBSERV"
-	 * arrggg!!!
+	 * arrggg!!! 
 	 */
 
-	if (strequal(tmp_local_machine, "*SMBSERVER") ||
-			strequal(tmp_local_machine, "*SMBSERV") )  {
-		SAFE_FREE(local_machine);
-		local_machine = SMB_STRDUP(client_socket_addr(get_client_fd(),
-					addr, sizeof(addr)) );
-		SAFE_FREE(tmp_local_machine);
-		return local_machine ? true : false;
+	if ( strequal(tmp_local_machine, "*SMBSERVER") || strequal(tmp_local_machine, "*SMBSERV") )  {
+		fstrcpy( local_machine, client_socket_addr() );
+		return;
 	}
 
-	if (already_perm) {
-		return true;
-	}
-
-	SAFE_FREE(local_machine);
-	len = strlen(tmp_local_machine);
-	local_machine = SMB_CALLOC_ARRAY(char, len+1);
-	if (!local_machine) {
-		SAFE_FREE(tmp_local_machine);
-		return false;
-	}
-	/* alpha_strcpy includes the space for the terminating nul. */
-	alpha_strcpy(local_machine,tmp_local_machine,
-			SAFE_NETBIOS_CHARS,len+1);
-	strlower_m(local_machine);
-	SAFE_FREE(tmp_local_machine);
+	if (already_perm)
+		return;
 
 	already_perm = perm;
 
-	return true;
+	alpha_strcpy(local_machine,tmp_local_machine,SAFE_NETBIOS_CHARS,sizeof(local_machine)-1);
+	strlower_m(local_machine);
 }
 
-const char *get_local_machine_name(void)
+/** 
+ * Set the 'remote' machine name
+ * @param remote_name the name our client wants to be called by
+ * @param if this is the 'final' name for them, not be be changed again
+ */
+
+void set_remote_machine_name(const char* remote_name, BOOL perm)
 {
-	if (!local_machine || !*local_machine) {
+	static BOOL already_perm = False;
+	fstring tmp_remote_machine;
+
+	if (already_perm)
+		return;
+
+	already_perm = perm;
+
+	fstrcpy(tmp_remote_machine,remote_name);
+	trim_char(tmp_remote_machine,' ',' ');
+	alpha_strcpy(remote_machine,tmp_remote_machine,SAFE_NETBIOS_CHARS,sizeof(remote_machine)-1);
+	strlower_m(remote_machine);
+}
+
+const char* get_remote_machine_name(void) 
+{
+	return remote_machine;
+}
+
+const char* get_local_machine_name(void) 
+{
+	if (!*local_machine) {
 		return global_myname();
 	}
 
 	return local_machine;
 }
 
-/**
- * Set the 'remote' machine name
- * @param remote_name the name our client wants to be called by
- * @param if this is the 'final' name for them, not be be changed again
- */
-
-static char *remote_machine;
-
-bool set_remote_machine_name(const char *remote_name, bool perm)
-{
-	static bool already_perm = False;
-	char *tmp_remote_machine;
-	size_t len;
-
-	if (already_perm) {
-		return true;
-	}
-
-	tmp_remote_machine = SMB_STRDUP(remote_name);
-	if (!tmp_remote_machine) {
-		return false;
-	}
-	trim_char(tmp_remote_machine,' ',' ');
-
-	SAFE_FREE(remote_machine);
-	len = strlen(tmp_remote_machine);
-	remote_machine = SMB_CALLOC_ARRAY(char, len+1);
-	if (!remote_machine) {
-		SAFE_FREE(tmp_remote_machine);
-		return false;
-	}
-
-	/* alpha_strcpy includes the space for the terminating nul. */
-	alpha_strcpy(remote_machine,tmp_remote_machine,
-			SAFE_NETBIOS_CHARS,len+1);
-	strlower_m(remote_machine);
-	SAFE_FREE(tmp_remote_machine);
-
-	already_perm = perm;
-
-	return true;
-}
-
-const char *get_remote_machine_name(void)
-{
-	return remote_machine ? remote_machine : "";
-}
-
 /*******************************************************************
  Setup the string used by %U substitution.
 ********************************************************************/
 
-static char *smb_user_name;
-
 void sub_set_smb_name(const char *name)
 {
-	char *tmp;
-	size_t len;
-	bool is_machine_account = false;
+	fstring tmp;
+	int len;
+	BOOL is_machine_account = False;
 
 	/* don't let anonymous logins override the name */
-	if (!name || !*name) {
+	if (! *name)
 		return;
-	}
 
-	tmp = SMB_STRDUP(name);
-	if (!tmp) {
+
+	fstrcpy( tmp, name );
+	trim_char( tmp, ' ', ' ' );
+	strlower_m( tmp );
+
+	len = strlen( tmp );
+
+	if ( len == 0 )
 		return;
-	}
-	trim_char(tmp, ' ', ' ');
-	strlower_m(tmp);
-
-	len = strlen(tmp);
-
-	if (len == 0) {
-		SAFE_FREE(tmp);
-		return;
-	}
 
 	/* long story but here goes....we have to allow usernames
 	   ending in '$' as they are valid machine account names.
 	   So check for a machine account and re-add the '$'
 	   at the end after the call to alpha_strcpy().   --jerry  */
-
-	if (tmp[len-1] == '$') {
+	   
+	if ( tmp[len-1] == '$' )
 		is_machine_account = True;
-	}
+	
+	alpha_strcpy( smb_user_name, tmp, SAFE_NETBIOS_CHARS, sizeof(smb_user_name)-1 );
 
-	SAFE_FREE(smb_user_name);
-	smb_user_name = SMB_CALLOC_ARRAY(char, len+1);
-	if (!smb_user_name) {
-		SAFE_FREE(tmp);
-		return;
-	}
-
-	/* alpha_strcpy includes the space for the terminating nul. */
-	alpha_strcpy(smb_user_name, tmp,
-			SAFE_NETBIOS_CHARS,
-			len+1);
-
-	SAFE_FREE(tmp);
-
-	if (is_machine_account) {
-		len = strlen(smb_user_name);
+	if ( is_machine_account ) {
+		len = strlen( smb_user_name );
 		smb_user_name[len-1] = '$';
 	}
 }
 
-static const char *get_smb_user_name(void)
+char* sub_get_smb_name( void )
 {
-	return smb_user_name ? smb_user_name : "";
+	return smb_user_name;
 }
 
 /*******************************************************************
@@ -219,22 +155,20 @@ void set_current_user_info(const userdom_struct *pcui)
 {
 	current_user_info = *pcui;
 	/* The following is safe as current_user_info.smb_name
-	 * has already been sanitised in register_existing_vuid. */
-
-	sub_set_smb_name(current_user_info.smb_name);
+	 * has already been sanitised in register_vuid. */
+	fstrcpy(smb_user_name, current_user_info.smb_name);
 }
 
 /*******************************************************************
- Return the current active user name.
+ return the current active user name
 *******************************************************************/
 
-const char *get_current_username(void)
+const char* get_current_username( void )
 {
-	if (current_user_info.smb_name[0] == '\0' ) {
-		return get_smb_user_name();
-	}
+	if ( current_user_info.smb_name[0] == '\0' )
+		return smb_user_name;
 
-	return current_user_info.smb_name;
+	return current_user_info.smb_name; 
 }
 
 /*******************************************************************
@@ -307,14 +241,13 @@ static char * realloc_expand_env_var(char *str, char *p)
 static char *longvar_domainsid( void )
 {
 	DOM_SID sid;
-	fstring tmp;
 	char *sid_string;
 	
 	if ( !secrets_fetch_domain_sid( lp_workgroup(), &sid ) ) {
 		return NULL;
 	}
 	
-	sid_string = SMB_STRDUP( sid_to_fstring( tmp, &sid ) );
+	sid_string = SMB_STRDUP( sid_string_static( &sid ) );
 	
 	if ( !sid_string ) {
 		DEBUG(0,("longvar_domainsid: failed to dup SID string!\n"));
@@ -331,7 +264,7 @@ struct api_longvar {
 	char* (*fn)( void );
 };
 
-static struct api_longvar longvar_table[] = {
+struct api_longvar longvar_table[] = {
 	{ "DomainSID",		longvar_domainsid },
 	{ NULL, 		NULL }
 };
@@ -394,9 +327,9 @@ static char *realloc_expand_longvar(char *str, char *p)
 	varname[copylen] = '\0';
 	r = realloc_string_sub(str, varname, value);
 	SAFE_FREE( value );
-
+	
 	/* skip over the %(varname) */
-
+	
 	return r;
 }
 
@@ -405,48 +338,37 @@ static char *realloc_expand_longvar(char *str, char *p)
  Added this to implement %p (NIS auto-map version of %H)
 *******************************************************************/
 
-static const char *automount_path(const char *user_name)
+static char *automount_path(const char *user_name)
 {
-	TALLOC_CTX *ctx = talloc_tos();
-	const char *server_path;
+	static pstring server_path;
 
 	/* use the passwd entry as the default */
 	/* this will be the default if WITH_AUTOMOUNT is not used or fails */
 
-	server_path = talloc_strdup(ctx, get_user_home_dir(ctx, user_name));
-	if (!server_path) {
-		return "";
-	}
+	pstrcpy(server_path, get_user_home_dir(user_name));
 
 #if (defined(HAVE_NETGROUP) && defined (WITH_AUTOMOUNT))
 
 	if (lp_nis_home_map()) {
 		const char *home_path_start;
-		char *automount_value = automount_lookup(ctx, user_name);
+		const char *automount_value = automount_lookup(user_name);
 
-		if(automount_value && strlen(automount_value) > 0) {
+		if(strlen(automount_value) > 0) {
 			home_path_start = strchr_m(automount_value,':');
 			if (home_path_start != NULL) {
-				DEBUG(5, ("NIS lookup succeeded. "
-					"Home path is: %s\n",
-					home_path_start ?
-						(home_path_start+1):""));
-				server_path = talloc_strdup(ctx,
-							home_path_start+1);
-				if (!server_path) {
-					server_path = "";
-				}
+				DEBUG(5, ("NIS lookup succeeded.  Home path is: %s\n",
+						home_path_start?(home_path_start+1):""));
+				pstrcpy(server_path, home_path_start+1);
 			}
 		} else {
-			/* NIS key lookup failed: default to
-			 * user home directory from password file */
-			DEBUG(5, ("NIS lookup failed. Using Home path from "
-			"passwd file. Home path is: %s\n", server_path ));
+			/* NIS key lookup failed: default to user home directory from password file */
+			DEBUG(5, ("NIS lookup failed. Using Home path from passwd file. Home path is: %s\n", server_path ));
 		}
 	}
 #endif
 
 	DEBUG(4,("Home server path: %s\n", server_path));
+
 	return server_path;
 }
 
@@ -458,46 +380,32 @@ static const char *automount_path(const char *user_name)
 
 static const char *automount_server(const char *user_name)
 {
-	TALLOC_CTX *ctx = talloc_tos();
-	const char *server_name;
-	const char *local_machine_name = get_local_machine_name();
+	static pstring server_name;
+	const char *local_machine_name = get_local_machine_name(); 
 
 	/* use the local machine name as the default */
 	/* this will be the default if WITH_AUTOMOUNT is not used or fails */
-	if (local_machine_name && *local_machine_name) {
-		server_name = talloc_strdup(ctx, local_machine_name);
-	} else {
-		server_name = talloc_strdup(ctx, global_myname());
-	}
-
-	if (!server_name) {
-		return "";
-	}
-
+	if (local_machine_name && *local_machine_name)
+		pstrcpy(server_name, local_machine_name);
+	else
+		pstrcpy(server_name, global_myname());
+	
 #if (defined(HAVE_NETGROUP) && defined (WITH_AUTOMOUNT))
+
 	if (lp_nis_home_map()) {
-		char *p;
-		char *srv;
-		char *automount_value = automount_lookup(ctx, user_name);
-		if (!automount_value) {
-			return "";
-		}
-		srv = talloc_strdup(ctx, automount_value);
-		if (!srv) {
-			return "";
-		}
-		p = strchr_m(srv, ':');
-		if (!p) {
-			return "";
-		}
-		*p = '\0';
-		server_name = srv;
-		DEBUG(5, ("NIS lookup succeeded.  Home server %s\n",
-					server_name));
+	        int home_server_len;
+		char *automount_value = automount_lookup(user_name);
+		home_server_len = strcspn(automount_value,":");
+		DEBUG(5, ("NIS lookup succeeded.  Home server length: %d\n",home_server_len));
+		if (home_server_len > sizeof(pstring))
+			home_server_len = sizeof(pstring);
+		strncpy(server_name, automount_value, home_server_len);
+                server_name[home_server_len] = '\0';
 	}
 #endif
 
 	DEBUG(4,("Home server: %s\n", server_name));
+
 	return server_name;
 }
 
@@ -545,10 +453,9 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 		      const char *str)
 {
 	char *b, *p, *s, *r, *a_string;
-	fstring pidstr, vnnstr;
-	char addr[INET6_ADDRSTRLEN];
+	fstring pidstr;
+	struct passwd *pass;
 	const char *local_machine_name = get_local_machine_name();
-	TALLOC_CTX *tmp_ctx = NULL;
 
 	/* workaround to prevent a crash while looking at bug #687 */
 	
@@ -562,14 +469,12 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 		DEBUG(0, ("alloc_sub_basic: Out of memory!\n"));
 		return NULL;
 	}
-
-	tmp_ctx = talloc_stackframe();
-
+	
 	for (b = s = a_string; (p = strchr_m(s, '%')); s = a_string + (p - b)) {
 
 		r = NULL;
 		b = a_string;
-
+		
 		switch (*(p+1)) {
 		case 'U' : 
 			r = strdup_lower(smb_name);
@@ -578,21 +483,15 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			}
 			a_string = realloc_string_sub(a_string, "%U", r);
 			break;
-		case 'G' : {
-			struct passwd *pass;
+		case 'G' :
 			r = SMB_STRDUP(smb_name);
 			if (r == NULL) {
 				goto error;
 			}
-			pass = Get_Pwnam_alloc(tmp_ctx, r);
-			if (pass != NULL) {
-				a_string = realloc_string_sub(
-					a_string, "%G",
-					gidtoname(pass->pw_gid));
-			}
-			TALLOC_FREE(pass);
+			if ((pass = Get_Pwnam(r))!=NULL) {
+				a_string = realloc_string_sub(a_string, "%G", gidtoname(pass->pw_gid));
+			} 
 			break;
-		}
 		case 'D' :
 			r = strdup_upper(domain_name);
 			if (r == NULL) {
@@ -600,19 +499,11 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			}
 			a_string = realloc_string_sub(a_string, "%D", r);
 			break;
-		case 'I' : {
-			int offset = 0;
-			client_addr(get_client_fd(), addr, sizeof(addr));
-			if (strnequal(addr,"::ffff:",7)) {
-				offset = 7;
-			}
-			a_string = realloc_string_sub(a_string, "%I",
-						      addr + offset);
+		case 'I' :
+			a_string = realloc_string_sub(a_string, "%I", client_addr());
 			break;
-		}
 		case 'i': 
-			a_string = realloc_string_sub( a_string, "%i",
-					client_socket_addr(get_client_fd(), addr, sizeof(addr)) );
+			a_string = realloc_string_sub( a_string, "%i", client_socket_addr() );
 			break;
 		case 'L' : 
 			if ( StrnCaseCmp(p, "%LOGONSERVER%", strlen("%LOGONSERVER%")) == 0 ) {
@@ -628,17 +519,16 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 			a_string = realloc_string_sub(a_string, "%N", automount_server(smb_name));
 			break;
 		case 'M' :
-			a_string = realloc_string_sub(a_string, "%M", client_name(get_client_fd()));
+			a_string = realloc_string_sub(a_string, "%M", client_name());
 			break;
 		case 'R' :
 			a_string = realloc_string_sub(a_string, "%R", remote_proto);
 			break;
 		case 'T' :
-			a_string = realloc_string_sub(a_string, "%T", current_timestring(tmp_ctx, False));
+			a_string = realloc_string_sub(a_string, "%T", current_timestring(False));
 			break;
 		case 'a' :
-			a_string = realloc_string_sub(a_string, "%a",
-					get_remote_arch_str());
+			a_string = realloc_string_sub(a_string, "%a", remote_arch);
 			break;
 		case 'd' :
 			slprintf(pidstr,sizeof(pidstr)-1, "%d",(int)sys_getpid());
@@ -662,30 +552,23 @@ char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 		case '(':
 			a_string = realloc_expand_longvar( a_string, p );
 			break;
-		case 'V' :
-			slprintf(vnnstr,sizeof(vnnstr)-1, "%u", get_my_vnn());
-			a_string = realloc_string_sub(a_string, "%V", vnnstr);
-			break;
 		default: 
 			break;
 		}
 
 		p++;
 		SAFE_FREE(r);
-
-		if (a_string == NULL) {
-			goto done;
+		
+		if ( !a_string ) {
+			return NULL;
 		}
 	}
 
-	goto done;
+	return a_string;
 
 error:
 	SAFE_FREE(a_string);
-
-done:
-	TALLOC_FREE(tmp_ctx);
-	return a_string;
+	return NULL;
 }
 
 /****************************************************************************
@@ -788,7 +671,7 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 			 const char *str)
 {
 	char *a_string, *ret_string;
-	char *b, *p, *s;
+	char *b, *p, *s, *h;
 
 	a_string = SMB_STRDUP(str);
 	if (a_string == NULL) {
@@ -804,13 +687,10 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 		case 'N' :
 			a_string = realloc_string_sub(a_string, "%N", automount_server(user));
 			break;
-		case 'H': {
-			char *h;
-			if ((h = get_user_home_dir(talloc_tos(), user)))
+		case 'H':
+			if ((h = get_user_home_dir(user)))
 				a_string = realloc_string_sub(a_string, "%H", h);
-			TALLOC_FREE(h);
 			break;
-		}
 		case 'P': 
 			a_string = realloc_string_sub(a_string, "%P", connectpath); 
 			break;
@@ -857,8 +737,8 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
  */
 
 char *talloc_sub_advanced(TALLOC_CTX *mem_ctx,
-			  const char *servicename, const char *user,
-			  const char *connectpath, gid_t gid,
+			  const char *servicename, const char *user, 
+			  const char *connectpath, gid_t gid, 
 			  const char *smb_name, const char *domain_name,
 			  const char *str)
 {
@@ -874,13 +754,13 @@ char *talloc_sub_advanced(TALLOC_CTX *mem_ctx,
 }
 
 
-void standard_sub_advanced(const char *servicename, const char *user,
-			   const char *connectpath, gid_t gid,
+void standard_sub_advanced(const char *servicename, const char *user, 
+			   const char *connectpath, gid_t gid, 
 			   const char *smb_name, const char *domain_name,
 			   char *str, size_t len)
 {
 	char *s;
-
+	
 	s = alloc_sub_advanced(servicename, user, connectpath,
 			       gid, smb_name, domain_name, str);
 
@@ -891,17 +771,19 @@ void standard_sub_advanced(const char *servicename, const char *user,
 }
 
 /****************************************************************************
- Do some standard substitutions in a string.
-****************************************************************************/
+ *  Do some standard substitutions in a string.
+ *  ****************************************************************************/
 
-char *standard_sub_conn(TALLOC_CTX *ctx, connection_struct *conn, const char *str)
+void standard_sub_conn(connection_struct *conn, char *str, size_t len)
 {
-	return talloc_sub_advanced(ctx,
-				lp_servicename(SNUM(conn)),
-				conn->user,
-				conn->connectpath,
-				conn->gid,
-				get_smb_user_name(),
-				"",
-				str);
+	char *s;
+
+	s = alloc_sub_advanced(lp_servicename(SNUM(conn)), conn->user, conn->connectpath,
+			       conn->gid, smb_user_name, "", str);
+
+	if ( s ) {
+		strncpy( str, s, len );
+		SAFE_FREE( s );
+	}
 }
+

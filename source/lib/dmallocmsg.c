@@ -4,7 +4,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -13,7 +13,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -34,11 +35,10 @@ static unsigned long our_dm_mark = 0;
  * Respond to a POOL_USAGE message by sending back string form of memory
  * usage stats.
  **/
-static void msg_req_dmalloc_mark(struct messaging_context *msg,
-				 void *private_data,
-				 uint32_t msg_type,
-				 struct server_id server_id,
-				 DATA_BLOB *data)
+static void msg_req_dmalloc_mark(int UNUSED(msg_type),
+				 struct process_id UNUSED(src_pid),
+				 void *UNUSED(buf), size_t UNUSED(len),
+				 void *private_data)
 {
 #ifdef ENABLE_DMALLOC
 	our_dm_mark = dmalloc_mark();
@@ -50,11 +50,10 @@ static void msg_req_dmalloc_mark(struct messaging_context *msg,
 
 
 
-static void msg_req_dmalloc_log_changed(struct messaging_context *msg,
-					void *private_data,
-					uint32_t msg_type,
-					struct server_id server_id,
-					DATA_BLOB *data)
+static void msg_req_dmalloc_log_changed(int UNUSED(msg_type),
+					struct process_id UNUSED(src_pid),
+					void *UNUSED(buf), size_t UNUSED(len),
+					void *private_data)
 {
 #ifdef ENABLE_DMALLOC
 	dmalloc_log_changed(our_dm_mark, True, True, True);
@@ -68,11 +67,10 @@ static void msg_req_dmalloc_log_changed(struct messaging_context *msg,
 /**
  * Register handler for MSG_REQ_POOL_USAGE
  **/
-void register_dmalloc_msgs(struct messaging_context *msg_ctx)
+void register_dmalloc_msgs(void)
 {
-	messaging_register(msg_ctx, NULL, MSG_REQ_DMALLOC_MARK,
-			   msg_req_dmalloc_mark);
-	messaging_register(msg_ctx, NULL, MSG_REQ_DMALLOC_LOG_CHANGED,
-			   msg_req_dmalloc_log_changed);
+	message_register(MSG_REQ_DMALLOC_MARK, msg_req_dmalloc_mark, NULL);
+	message_register(MSG_REQ_DMALLOC_LOG_CHANGED,
+			 msg_req_dmalloc_log_changed, NULL);
 	DEBUG(2, ("Registered MSG_REQ_DMALLOC_MARK and LOG_CHANGED\n"));
 }	

@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -27,7 +28,7 @@
 ********************************************************/
 
 struct con_struct {
-	bool failed_connect;
+	BOOL failed_connect;
 	NTSTATUS err;
 	struct cli_state *cli;
 	struct rpc_pipe_client *lsapipe;
@@ -56,14 +57,9 @@ static int cs_destructor(struct con_struct *p)
 static struct con_struct *create_cs(TALLOC_CTX *ctx, NTSTATUS *perr)
 {
 	NTSTATUS nt_status;
-	struct sockaddr_storage loopback_ss;
+	struct in_addr loopback_ip = *interpret_addr2("127.0.0.1");
 
 	*perr = NT_STATUS_OK;
-
-	if (!interpret_string_addr(&loopback_ss, "127.0.0.1", AI_NUMERICHOST)) {
-		*perr = NT_STATUS_INVALID_PARAMETER;
-		return NULL;
-	}
 
 	if (cs) {
 		if (cs->failed_connect) {
@@ -94,7 +90,7 @@ static struct con_struct *create_cs(TALLOC_CTX *ctx, NTSTATUS *perr)
 #endif
 
 	nt_status = cli_full_connection(&cs->cli, global_myname(), global_myname(),
-					&loopback_ss, 0,
+					&loopback_ip, 0,
 					"IPC$", "IPC",
 #if 0
 					opt_user_name,
@@ -210,8 +206,8 @@ NTSTATUS net_lookup_sid_from_name(TALLOC_CTX *ctx, const char *full_name, DOM_SI
 						&csp->pol,
 						1,
 						&full_name,
-					        NULL, 1,
-						&sids, &types);
+					        NULL, &sids,
+						&types);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;

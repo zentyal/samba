@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,15 +14,14 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 /* 
  * A function of this type is passed to the '
  * run_rpc_command' wrapper.  Must go before the net_proto.h 
  * include
  */
-
-#include "lib/netapi/netapi.h"
 
 typedef NTSTATUS (*rpc_command_fn)(const DOM_SID *,
 				const char *, 
@@ -44,7 +43,7 @@ struct rpc_sh_ctx {
 	struct cli_state *cli;
 
 	DOM_SID *domain_sid;
-	const char *domain_name;
+	char *domain_name;
 
 	const char *whoami;
 	const char *thiscmd;
@@ -102,10 +101,10 @@ extern int opt_timeout;
 extern const char *opt_host;
 extern const char *opt_user_name;
 extern const char *opt_password;
-extern bool opt_user_specified;
+extern BOOL opt_user_specified;
 
-extern int opt_localgroup;
-extern int opt_domaingroup;
+extern BOOL opt_localgroup;
+extern BOOL opt_domaingroup;
 extern const char *opt_newntname;
 extern int opt_rid;
 extern int opt_acls;
@@ -113,11 +112,9 @@ extern int opt_attrs;
 extern int opt_timestamps;
 extern const char *opt_exclude;
 extern const char *opt_destination;
-extern int opt_testmode;
 
-extern int opt_have_ip;
-extern struct sockaddr_storage opt_dest_ip;
-extern struct libnetapi_ctx *netapi_ctx;
+extern BOOL opt_have_ip;
+extern struct in_addr opt_dest_ip;
 
 extern const char *share_type[];
 

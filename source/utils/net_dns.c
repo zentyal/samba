@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  
 */
 
 #include "includes.h"
@@ -26,21 +27,12 @@
 
 #if defined(WITH_DNS_UPDATES)
 
-/*
- * Silly prototype to get rid of a warning
- */
-
-DNS_ERROR DoDNSUpdate(char *pszServerName,
-		      const char *pszDomainName, const char *pszHostName,
-		      const struct sockaddr_storage *sslist,
-		      size_t num_addrs );
-
 /*********************************************************************
 *********************************************************************/
 
 DNS_ERROR DoDNSUpdate(char *pszServerName,
 		      const char *pszDomainName, const char *pszHostName,
-		      const struct sockaddr_storage *sslist, size_t num_addrs )
+		      const struct in_addr *iplist, size_t num_addrs )
 {
 	DNS_ERROR err;
 	struct dns_connection *conn;
@@ -48,7 +40,7 @@ DNS_ERROR DoDNSUpdate(char *pszServerName,
 	OM_uint32 minor;
 	struct dns_update_request *req, *resp;
 
-	if ( (num_addrs <= 0) || !sslist ) {
+	if ( (num_addrs <= 0) || !iplist ) {
 		return ERROR_DNS_INVALID_PARAMETER;
 	}
 
@@ -66,7 +58,7 @@ DNS_ERROR DoDNSUpdate(char *pszServerName,
 	 */
 
 	err = dns_create_probe(mem_ctx, pszDomainName, pszHostName,
-			       num_addrs, sslist, &req);
+			       num_addrs, iplist, &req);
 	if (!ERR_DNS_IS_OK(err)) goto error;
 
 	err = dns_update_transaction(mem_ctx, conn, req, &resp);
@@ -82,7 +74,7 @@ DNS_ERROR DoDNSUpdate(char *pszServerName,
 	 */
 
 	err = dns_create_update_request(mem_ctx, pszDomainName, pszHostName,
-					sslist, num_addrs, &req);
+					iplist, num_addrs, &req);
 	if (!ERR_DNS_IS_OK(err)) goto error;
 
 	err = dns_update_transaction(mem_ctx, conn, req, &resp);
@@ -142,51 +134,31 @@ error:
 /*********************************************************************
 *********************************************************************/
 
-int get_my_ip_address( struct sockaddr_storage **pp_ss )
-
+int get_my_ip_address( struct in_addr **ips )
 {
 	struct iface_struct nics[MAX_INTERFACES];
 	int i, n;
-	struct sockaddr_storage *list = NULL;
+	struct in_addr loopback_ip = *interpret_addr2("127.0.0.1");
+	struct in_addr *list;
 	int count = 0;
 
 	/* find the first non-loopback address from our list of interfaces */
 
 	n = get_interfaces(nics, MAX_INTERFACES);
-
-	if (n <= 0) {
-		return -1;
-	}
-
-	if ( (list = SMB_MALLOC_ARRAY( struct sockaddr_storage, n )) == NULL ) {
+	
+	if ( (list = SMB_MALLOC_ARRAY( struct in_addr, n )) == NULL ) {
 		return -1;
 	}
 
 	for ( i=0; i<n; i++ ) {
-		if (is_loopback_addr(&nics[i].ip)) {
-			continue;
-		}
-#if defined(HAVE_IPV6)
-		if ((nics[i].ip.ss_family == AF_INET6)) {
-			memcpy(&list[count++], &nics[i].ip,
-			       sizeof(struct sockaddr_storage));
-		} else
-#endif
-		if (nics[i].ip.ss_family == AF_INET) {
-			memcpy(&list[count++], &nics[i].ip,
-			       sizeof(struct sockaddr_storage));
+		if ( nics[i].ip.s_addr != loopback_ip.s_addr ) {
+			memcpy( &list[count++], &nics[i].ip, sizeof( struct in_addr ) );
 		}
 	}
-	*pp_ss = list;
+	*ips = list;
 
 	return count;
 }
-
-/*
- * Silly prototype to get rid of a warning
- */
-
-DNS_ERROR do_gethostbyname(const char *server, const char *host);
 
 DNS_ERROR do_gethostbyname(const char *server, const char *host)
 {

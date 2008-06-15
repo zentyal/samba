@@ -5,7 +5,7 @@
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
    
 */
 
@@ -40,7 +41,6 @@ struct smbldap_state;
 #define LDAP_OBJ_IDMAP_ENTRY		"sambaIdmapEntry"
 #define LDAP_OBJ_SID_ENTRY		"sambaSidEntry"
 #define LDAP_OBJ_TRUST_PASSWORD         "sambaTrustPassword"
-#define LDAP_OBJ_TRUSTDOM_PASSWORD      "sambaTrustedDomainPassword"
 
 #define LDAP_OBJ_ACCOUNT		"account"
 #define LDAP_OBJ_POSIXACCOUNT		"posixAccount"
@@ -128,7 +128,6 @@ extern ATTRIB_MAP_ENTRY trustpw_attr_list[];
    have to worry about LDAP structure types */
 
 NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx,
-		      struct event_context *event_ctx,
                       const char *location,
                       struct smbldap_state **smbldap_state);
 
@@ -138,9 +137,11 @@ void smbldap_set_mod (LDAPMod *** modlist, int modop, const char *attribute, con
 void smbldap_make_mod(LDAP *ldap_struct, LDAPMessage *existing,
 		      LDAPMod ***mods,
 		      const char *attribute, const char *newval);
-bool smbldap_get_single_attribute (LDAP * ldap_struct, LDAPMessage * entry,
+BOOL smbldap_get_single_attribute (LDAP * ldap_struct, LDAPMessage * entry,
 				   const char *attribute, char *value,
 				   int max_len);
+BOOL smbldap_get_single_pstring (LDAP * ldap_struct, LDAPMessage * entry,
+				 const char *attribute, pstring value);
 char *smbldap_get_dn(LDAP *ld, LDAPMessage *entry);
 int smbldap_modify(struct smbldap_state *ldap_state,
                    const char *dn,
@@ -159,17 +160,16 @@ struct smbldap_state {
 	const char *uri;
 
 	/* credentials */
-	bool anonymous;
+	BOOL anonymous;
 	char *bind_dn;
 	char *bind_secret;
 
-	bool paged_results;
+	BOOL paged_results;
 
 	unsigned int num_failures;
 
 	time_t last_use;
-	struct event_context *event_context;
-	struct timed_event *idle_event;
+	smb_event_id_t event_id;
 
 	struct timeval last_rebind;
 };
@@ -220,8 +220,7 @@ const char *smbldap_talloc_dn(TALLOC_CTX *mem_ctx, LDAP *ld,
 
 #endif 	/* HAVE_LDAP */
 
-#define LDAP_DEFAULT_TIMEOUT   15
-#define LDAP_CONNECTION_DEFAULT_TIMEOUT 2
+#define LDAP_CONNECT_DEFAULT_TIMEOUT   15
 #define LDAP_PAGE_SIZE 1024
 
 #endif	/* _SMBLDAP_H */

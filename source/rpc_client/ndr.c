@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,38 +16,33 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
 
 
-NTSTATUS cli_do_rpc_ndr(struct rpc_pipe_client *cli,
-			TALLOC_CTX *mem_ctx, int p_idx,
-			const struct ndr_interface_table *table,
-			uint32 opnum, void *r)
+NTSTATUS cli_do_rpc_ndr(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, 
+			int p_idx, int opnum, void *data, 
+			ndr_pull_flags_fn_t pull_fn, ndr_push_flags_fn_t push_fn)
 {
 	prs_struct q_ps, r_ps;
-	const struct ndr_interface_call *call;
 	struct ndr_pull *pull;
 	DATA_BLOB blob;
 	struct ndr_push *push;
 	NTSTATUS status;
-	enum ndr_err_code ndr_err;
 
 	SMB_ASSERT(cli->pipe_idx == p_idx);
-	SMB_ASSERT(table->num_calls > opnum);
-
-	call = &table->calls[opnum];
 
 	push = ndr_push_init_ctx(mem_ctx);
 	if (!push) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ndr_err = call->ndr_push(push, NDR_IN, r);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return ndr_map_error2ntstatus(ndr_err);
+	status = push_fn(push, NDR_IN, data);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
 	blob = ndr_push_blob(push);
@@ -58,7 +53,10 @@ NTSTATUS cli_do_rpc_ndr(struct rpc_pipe_client *cli,
 
 	talloc_free(push);
 
-	prs_init_empty( &r_ps, mem_ctx, UNMARSHALL );
+	if (!prs_init( &r_ps, 0, mem_ctx, UNMARSHALL )) {
+		prs_mem_free( &q_ps );
+		return NT_STATUS_NO_MEMORY;
+	}
 	
 	status = rpc_api_pipe_req(cli, opnum, &q_ps, &r_ps); 
 
@@ -83,11 +81,11 @@ NTSTATUS cli_do_rpc_ndr(struct rpc_pipe_client *cli,
 
 	/* have the ndr parser alloc memory for us */
 	pull->flags |= LIBNDR_FLAG_REF_ALLOC;
-	ndr_err = call->ndr_pull(pull, NDR_OUT, r);
+	status = pull_fn(pull, NDR_OUT, data);
 	talloc_free(pull);
 
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return ndr_map_error2ntstatus(ndr_err);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
 
 	return NT_STATUS_OK;

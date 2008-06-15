@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -28,13 +29,11 @@ static int total_errors;
 
 static void *find_fn(const char *name)
 {
-	char *s;
+	pstring s;
 	static void *h;
 	void *res;
 
-	if (asprintf(&s, "_nss_%s_%s", nss_name, name) < 0) {
-		exit(1);
-	}
+	pstr_sprintf(s, "_nss_%s_%s", nss_name, name);
 
 	if (!h) {
 		h = sys_dlopen(so_path, RTLD_LAZY);
@@ -47,10 +46,8 @@ static void *find_fn(const char *name)
 	if (!res) {
 		printf("Can't find function %s\n", s);
 		total_errors++;
-		SAFE_FREE(s);
 		return NULL;
 	}
-	SAFE_FREE(s);
 	return res;
 }
 
@@ -201,6 +198,7 @@ again:
 		SAFE_FREE(buf);
 		return NULL;
 	}
+	SAFE_FREE(buf);
 	return &grp;
 }
 
@@ -239,6 +237,7 @@ again:
 		SAFE_FREE(buf);
 		return NULL;
 	}
+	SAFE_FREE(buf);
 	return &grp;
 }
 
@@ -278,6 +277,7 @@ again:
 		SAFE_FREE(buf);
 		return NULL;
 	}
+	SAFE_FREE(buf);
 	return &grp;
 }
 

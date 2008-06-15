@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -29,42 +30,35 @@ char *ads_build_path(const char *realm, const char *sep, const char *field, int 
 	int numbits = 0;
 	char *ret;
 	int len;
-	char *saveptr;
-
+	
 	r = SMB_STRDUP(realm);
 
-	if (!r || !*r) {
+	if (!r || !*r)
 		return r;
-	}
 
-	for (p=r; *p; p++) {
-		if (strchr(sep, *p)) {
+	for (p=r; *p; p++)
+		if (strchr(sep, *p))
 			numbits++;
-		}
-	}
 
 	len = (numbits+1)*(strlen(field)+1) + strlen(r) + 1;
 
 	ret = (char *)SMB_MALLOC(len);
-	if (!ret) {
-		free(r);
+	if (!ret)
 		return NULL;
-	}
 
 	strlcpy(ret,field, len);
-	p=strtok_r(r, sep, &saveptr);
+	p=strtok(r,sep); 
 	if (p) {
 		strlcat(ret, p, len);
 	
-		while ((p=strtok_r(NULL, sep, &saveptr)) != NULL) {
+		while ((p=strtok(NULL,sep))) {
 			char *s;
 			if (reverse)
 				asprintf(&s, "%s%s,%s", field, p, ret);
 			else
 				asprintf(&s, "%s,%s%s", ret, field, p);
 			free(ret);
-			ret = SMB_STRDUP(s);
-			free(s);
+			ret = s;
 		}
 	}
 
@@ -116,7 +110,6 @@ ADS_STRUCT *ads_init(const char *realm,
 		     const char *ldap_server)
 {
 	ADS_STRUCT *ads;
-	int wrap_flags;
 	
 	ads = SMB_XMALLOC_P(ADS_STRUCT);
 	ZERO_STRUCTP(ads);
@@ -136,13 +129,6 @@ ADS_STRUCT *ads_init(const char *realm,
 	/* the caller will own the memory by default */
 	ads->is_mine = 1;
 
-	wrap_flags = lp_client_ldap_sasl_wrapping();
-	if (wrap_flags == -1) {
-		wrap_flags = 0;
-	}
-
-	ads->auth.flags = wrap_flags;
-
 	return ads;
 }
 
@@ -152,11 +138,13 @@ ADS_STRUCT *ads_init(const char *realm,
 void ads_destroy(ADS_STRUCT **ads)
 {
 	if (ads && *ads) {
-		bool is_mine;
+		BOOL is_mine;
 
 		is_mine = (*ads)->is_mine;
 #if HAVE_LDAP
-		ads_disconnect(*ads);
+		if ((*ads)->ld) {
+			ldap_unbind((*ads)->ld);
+		}
 #endif
 		SAFE_FREE((*ads)->server.realm);
 		SAFE_FREE((*ads)->server.workgroup);
@@ -172,8 +160,6 @@ void ads_destroy(ADS_STRUCT **ads)
 		SAFE_FREE((*ads)->config.ldap_server_name);
 		SAFE_FREE((*ads)->config.server_site_name);
 		SAFE_FREE((*ads)->config.client_site_name);
-		SAFE_FREE((*ads)->config.schema_path);
-		SAFE_FREE((*ads)->config.config_path);
 		
 		ZERO_STRUCTP(*ads);
 

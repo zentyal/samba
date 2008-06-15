@@ -4,7 +4,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -13,7 +13,8 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
@@ -38,8 +39,10 @@ static const struct dcerpc_fault_table dcerpc_faults[] =
 
 const char *dcerpc_errstr(uint32 fault_code)
 {
-	char *result;
+	static pstring msg;
 	int idx = 0;
+
+	slprintf(msg, sizeof(msg), "DCERPC fault 0x%08x", fault_code);
 
 	while (dcerpc_faults[idx].errstr != NULL) {
 		if (dcerpc_faults[idx].faultcode == fault_code) {
@@ -48,8 +51,5 @@ const char *dcerpc_errstr(uint32 fault_code)
 		idx++;
 	}
 
-	result = talloc_asprintf(talloc_tos(), "DCERPC fault 0x%08x",
-				 fault_code);
-	SMB_ASSERT(result != NULL);
-	return result;
+	return msg;
 }

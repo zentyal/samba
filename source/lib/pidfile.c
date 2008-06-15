@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -33,15 +34,12 @@ pid_t pidfile_pid(const char *name)
 	char pidstr[20];
 	pid_t pid;
 	unsigned int ret;
-	char * pidFile;
+	pstring pidFile;
 
-	if (asprintf(&pidFile, "%s/%s.pid", lp_piddir(), name) == -1) {
-		return 0;
-	}
+	slprintf(pidFile, sizeof(pidFile)-1, "%s/%s.pid", lp_piddir(), name);
 
 	fd = sys_open(pidFile, O_NONBLOCK | O_RDONLY, 0644);
 	if (fd == -1) {
-		SAFE_FREE(pidFile);
 		return 0;
 	}
 
@@ -70,14 +68,12 @@ pid_t pidfile_pid(const char *name)
 		goto noproc;
 	}
 
-	SAFE_FREE(pidFile);
 	close(fd);
 	return (pid_t)ret;
 
  noproc:
 	close(fd);
 	unlink(pidFile);
-	SAFE_FREE(pidFile);
 	return 0;
 }
 
@@ -86,33 +82,29 @@ void pidfile_create(const char *program_name)
 {
 	int     fd;
 	char    buf[20];
-	const char    *short_configfile;
-	char *name;
-	char *pidFile;
+	char    *short_configfile;
+	pstring name;
+	pstring pidFile;
 	pid_t pid;
 
 	/* Add a suffix to the program name if this is a process with a
 	 * none default configuration file name. */
-	if (strcmp( CONFIGFILE, get_dyn_CONFIGFILE()) == 0) {
-		name = SMB_STRDUP(program_name);
+	if (strcmp( CONFIGFILE, dyn_CONFIGFILE) == 0) {
+		strncpy( name, program_name, sizeof( name)-1);
 	} else {
-		short_configfile = strrchr( get_dyn_CONFIGFILE(), '/');
+		short_configfile = strrchr( dyn_CONFIGFILE, '/');
 		if (short_configfile == NULL) {
 			/* conf file in current directory */
-			short_configfile = get_dyn_CONFIGFILE();
+			short_configfile = dyn_CONFIGFILE;
 		} else {
 			/* full/relative path provided */
 			short_configfile++;
 		}
-		if (asprintf(&name, "%s-%s", program_name,
-			     short_configfile) == -1) {
-			smb_panic("asprintf failed");
-		}
+		slprintf( name, sizeof( name)-1, "%s-%s", program_name,
+			  short_configfile );
 	}
 
-	if (asprintf(&pidFile, "%s/%s.pid", lp_piddir(), name) == -1) {
-		smb_panic("asprintf failed");
-	}
+	slprintf(pidFile, sizeof(pidFile)-1, "%s/%s.pid", lp_piddir(), name);
 
 	pid = pidfile_pid(name);
 	if (pid != 0) {
@@ -142,6 +134,4 @@ void pidfile_create(const char *program_name)
 		exit(1);
 	}
 	/* Leave pid file open & locked for the duration... */
-	SAFE_FREE(name);
-	SAFE_FREE(pidFile);
 }

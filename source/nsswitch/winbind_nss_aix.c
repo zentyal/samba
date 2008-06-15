@@ -9,17 +9,19 @@
    Copyright (C) Andrew Tridgell 2003-2004
    
    This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
+   modify it under the terms of the GNU Library General Public
    License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
+   version 2 of the License, or (at your option) any later version.
    
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Library General Public License for more details.
    
-   You should have received a copy of the GNU Lesser General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU Library General Public
+   License along with this library; if not, write to the
+   Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+   Boston, MA  02111-1307, USA.   
 */
 
 /*
@@ -284,7 +286,7 @@ static struct group *wb_aix_getgrgid(gid_t gid)
 
 	grp = fill_grent(&response.data.gr, response.extra_data.data);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	return grp;
 }
@@ -314,7 +316,7 @@ static struct group *wb_aix_getgrnam(const char *name)
 
 	grp = fill_grent(&response.data.gr, response.extra_data.data);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	return grp;
 }
@@ -385,7 +387,7 @@ static char *wb_aix_getgrset(char *user)
 	}
 	idx += sprintf(tmpbuf+idx, "%u", gid_list[i]);	
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	return tmpbuf;
 }
@@ -412,7 +414,7 @@ static struct passwd *wb_aix_getpwuid(uid_t uid)
 
 	pwd = fill_pwent(&response.data.pw);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	logit("getpwuid gave ptr %p\n", pwd);
 
@@ -445,7 +447,7 @@ static struct passwd *wb_aix_getpwnam(const char *name)
 	
 	pwd = fill_pwent(&response.data.pw);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	logit("getpwnam gave ptr %p\n", pwd);
 
@@ -482,7 +484,7 @@ static int wb_aix_lsuser(char *attributes[], attrval_t results[], int size)
 
 	s = malloc(len+2);
 	if (!s) {
-		winbindd_free_response(&response);
+		free_response(&response);
 		errno = ENOMEM;
 		return -1;
 	}
@@ -494,7 +496,7 @@ static int wb_aix_lsuser(char *attributes[], attrval_t results[], int size)
 	results[0].attr_un.au_char = s;
 	results[0].attr_flag = 0;
 
-	winbindd_free_response(&response);
+	free_response(&response);
 	
 	return 0;
 }
@@ -530,7 +532,7 @@ static int wb_aix_lsgroup(char *attributes[], attrval_t results[], int size)
 
 	s = malloc(len+2);
 	if (!s) {
-		winbindd_free_response(&response);
+		free_response(&response);
 		errno = ENOMEM;
 		return -1;
 	}
@@ -542,7 +544,7 @@ static int wb_aix_lsgroup(char *attributes[], attrval_t results[], int size)
 	results[0].attr_un.au_char = s;
 	results[0].attr_flag = 0;
 
-	winbindd_free_response(&response);
+	free_response(&response);
 	
 	return 0;
 }
@@ -887,7 +889,7 @@ static int wb_aix_authenticate(char *user, char *pass,
 
 	result = winbindd_request_response(WINBINDD_PAM_AUTH, &request, &response);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	logit("auth result %d for '%s'\n", result, user);
 
@@ -936,7 +938,7 @@ static int wb_aix_chpass(char *user, char *oldpass, char *newpass, char **messag
 
 	result = winbindd_request_response(WINBINDD_PAM_CHAUTHTOK, &request, &response);
 
-	winbindd_free_response(&response);
+	free_response(&response);
 
 	if (result == NSS_STATUS_SUCCESS) {
 		errno = 0;

@@ -39,15 +39,8 @@ static void create_files(void)
 	int i;
 	for (i=0;i<NUM_FILES;i++) {
 		char fname[40];
-		int fd;
 		sprintf(fname, TESTDIR "/test%u.txt", i);
-		fd = open(fname, O_CREAT|O_RDWR, 0600);
-		if (fd < 0) {
-			FAILED("open");
-		}
-		if (close(fd) != 0) {
-			FAILED("close");
-		}
+		close(open(fname, O_CREAT|O_RDWR, 0600)) == 0 || FAILED("close");
 	}
 }
 

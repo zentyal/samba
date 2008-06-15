@@ -9,7 +9,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -44,9 +45,9 @@ enum ntlm_break {
  * Test the normal 'LM and NTLM' combination
  */
 
-static bool test_lm_ntlm_broken(enum ntlm_break break_which) 
+static BOOL test_lm_ntlm_broken(enum ntlm_break break_which) 
 {
-	bool pass = True;
+	BOOL pass = True;
 	NTSTATUS nt_status;
 	uint32 flags = 0;
 	DATA_BLOB lm_response = data_blob(NULL, 24);
@@ -115,9 +116,9 @@ static bool test_lm_ntlm_broken(enum ntlm_break break_which)
 		   sizeof(lm_key)) != 0) {
 		DEBUG(1, ("LM Key does not match expectations!\n"));
  		DEBUG(1, ("lm_key:\n"));
-		dump_data(1, lm_key, 8);
+		dump_data(1, (const char *)lm_key, 8);
 		DEBUG(1, ("expected:\n"));
-		dump_data(1, lm_hash, 8);
+		dump_data(1, (const char *)lm_hash, 8);
 		pass = False;
 	}
 
@@ -126,9 +127,9 @@ static bool test_lm_ntlm_broken(enum ntlm_break break_which)
 			   8) != 0) {
 			DEBUG(1, ("NT Session Key does not match expectations (should be LM hash)!\n"));
 			DEBUG(1, ("user_session_key:\n"));
-			dump_data(1, user_session_key, sizeof(user_session_key));
+			dump_data(1, (const char *)user_session_key, sizeof(user_session_key));
 			DEBUG(1, ("expected:\n"));
-			dump_data(1, lm_hash, sizeof(lm_hash));
+			dump_data(1, (const char *)lm_hash, sizeof(lm_hash));
 			pass = False;
 		}
 	} else {		
@@ -136,9 +137,9 @@ static bool test_lm_ntlm_broken(enum ntlm_break break_which)
 			   sizeof(user_session_key)) != 0) {
 			DEBUG(1, ("NT Session Key does not match expectations!\n"));
 			DEBUG(1, ("user_session_key:\n"));
-			dump_data(1, user_session_key, 16);
+			dump_data(1, (const char *)user_session_key, 16);
 			DEBUG(1, ("expected:\n"));
-			dump_data(1, session_key.data, session_key.length);
+			dump_data(1, (const char *)session_key.data, session_key.length);
 			pass = False;
 		}
 	}
@@ -149,7 +150,7 @@ static bool test_lm_ntlm_broken(enum ntlm_break break_which)
  * Test LM authentication, no NT response supplied
  */
 
-static bool test_lm(void) 
+static BOOL test_lm(void) 
 {
 
 	return test_lm_ntlm_broken(NO_NT);
@@ -159,7 +160,7 @@ static bool test_lm(void)
  * Test the NTLM response only, no LM.
  */
 
-static bool test_ntlm(void) 
+static BOOL test_ntlm(void) 
 {
 	return test_lm_ntlm_broken(NO_LM);
 }
@@ -168,9 +169,9 @@ static bool test_ntlm(void)
  * Test the NTLM response only, but in the LM field.
  */
 
-static bool test_ntlm_in_lm(void) 
+static BOOL test_ntlm_in_lm(void) 
 {
-	bool pass = True;
+	BOOL pass = True;
 	NTSTATUS nt_status;
 	uint32 flags = 0;
 	DATA_BLOB nt_response = data_blob(NULL, 24);
@@ -214,17 +215,17 @@ static bool test_ntlm_in_lm(void)
 		   sizeof(lm_key)) != 0) {
 		DEBUG(1, ("LM Key does not match expectations!\n"));
  		DEBUG(1, ("lm_key:\n"));
-		dump_data(1, lm_key, 8);
+		dump_data(1, (const char *)lm_key, 8);
 		DEBUG(1, ("expected:\n"));
-		dump_data(1, lm_hash, 8);
+		dump_data(1, (const char *)lm_hash, 8);
 		pass = False;
 	}
 	if (memcmp(lm_hash, user_session_key, 8) != 0) {
 		DEBUG(1, ("Session Key (first 8 lm hash) does not match expectations!\n"));
  		DEBUG(1, ("user_session_key:\n"));
-		dump_data(1, user_session_key, 16);
+		dump_data(1, (const char *)user_session_key, 16);
  		DEBUG(1, ("expected:\n"));
-		dump_data(1, lm_hash, 8);
+		dump_data(1, (const char *)lm_hash, 8);
 		pass = False;
 	}
         return pass;
@@ -234,18 +235,18 @@ static bool test_ntlm_in_lm(void)
  * Test the NTLM response only, but in the both the NT and LM fields.
  */
 
-static bool test_ntlm_in_both(void) 
+static BOOL test_ntlm_in_both(void) 
 {
-	bool pass = True;
+	BOOL pass = True;
 	NTSTATUS nt_status;
 	uint32 flags = 0;
 	DATA_BLOB nt_response = data_blob(NULL, 24);
 	DATA_BLOB session_key = data_blob(NULL, 16);
 
-	uint8 lm_key[8];
-	uint8 lm_hash[16];
-	uint8 user_session_key[16];
-	uint8 nt_hash[16];
+	char lm_key[8];
+	char lm_hash[16];
+	char user_session_key[16];
+	char nt_hash[16];
 	DATA_BLOB chall = get_challenge();
 	char *error_string;
 	
@@ -256,10 +257,10 @@ static bool test_ntlm_in_both(void)
 	flags |= WBFLAG_PAM_USER_SESSION_KEY;
 
 	SMBNTencrypt(opt_password,chall.data,nt_response.data);
-	E_md4hash(opt_password, nt_hash);
-	SMBsesskeygen_ntv1(nt_hash, NULL, session_key.data);
+	E_md4hash(opt_password, (unsigned char *)nt_hash);
+	SMBsesskeygen_ntv1((const unsigned char *)nt_hash, NULL, session_key.data);
 
-	E_deshash(opt_password, lm_hash); 
+	E_deshash(opt_password, (unsigned char *)lm_hash); 
 
 	nt_status = contact_winbind_auth_crap(opt_username, opt_domain, 
 					      opt_workstation,
@@ -267,8 +268,8 @@ static bool test_ntlm_in_both(void)
 					      &nt_response,
 					      &nt_response,
 					      flags,
-					      lm_key,
-					      user_session_key,
+					      (unsigned char *)lm_key,
+					      (unsigned char *)user_session_key,
 					      &error_string, NULL);
 	
 	data_blob_free(&nt_response);
@@ -296,7 +297,7 @@ static bool test_ntlm_in_both(void)
  		DEBUG(1, ("user_session_key:\n"));
 		dump_data(1, user_session_key, 16);
  		DEBUG(1, ("expected:\n"));
-		dump_data(1, session_key.data, session_key.length);
+		dump_data(1, (const char *)session_key.data, session_key.length);
 		pass = False;
 	}
 
@@ -308,14 +309,14 @@ static bool test_ntlm_in_both(void)
  * Test the NTLMv2 and LMv2 responses
  */
 
-static bool test_lmv2_ntlmv2_broken(enum ntlm_break break_which) 
+static BOOL test_lmv2_ntlmv2_broken(enum ntlm_break break_which) 
 {
-	bool pass = True;
+	BOOL pass = True;
 	NTSTATUS nt_status;
 	uint32 flags = 0;
-	DATA_BLOB ntlmv2_response = data_blob_null;
-	DATA_BLOB lmv2_response = data_blob_null;
-	DATA_BLOB ntlmv2_session_key = data_blob_null;
+	DATA_BLOB ntlmv2_response = data_blob(NULL, 0);
+	DATA_BLOB lmv2_response = data_blob(NULL, 0);
+	DATA_BLOB ntlmv2_session_key = data_blob(NULL, 0);
 	DATA_BLOB names_blob = NTLMv2_generate_names_blob(get_winbind_netbios_name(), get_winbind_domain());
 
 	uchar user_session_key[16];
@@ -377,9 +378,9 @@ static bool test_lmv2_ntlmv2_broken(enum ntlm_break break_which)
 		   sizeof(user_session_key)) != 0) {
 		DEBUG(1, ("USER (NTLMv2) Session Key does not match expectations!\n"));
  		DEBUG(1, ("user_session_key:\n"));
-		dump_data(1, user_session_key, 16);
+		dump_data(1, (const char *)user_session_key, 16);
  		DEBUG(1, ("expected:\n"));
-		dump_data(1, ntlmv2_session_key.data, ntlmv2_session_key.length);
+		dump_data(1, (const char *)ntlmv2_session_key.data, ntlmv2_session_key.length);
 		pass = False;
 	}
         return pass;
@@ -389,7 +390,7 @@ static bool test_lmv2_ntlmv2_broken(enum ntlm_break break_which)
  * Test the NTLMv2 and LMv2 responses
  */
 
-static bool test_lmv2_ntlmv2(void) 
+static BOOL test_lmv2_ntlmv2(void) 
 {
 	return test_lmv2_ntlmv2_broken(BREAK_NONE);
 }
@@ -398,7 +399,7 @@ static bool test_lmv2_ntlmv2(void)
  * Test the LMv2 response only
  */
 
-static bool test_lmv2(void) 
+static BOOL test_lmv2(void) 
 {
 	return test_lmv2_ntlmv2_broken(NO_NT);
 }
@@ -407,42 +408,42 @@ static bool test_lmv2(void)
  * Test the NTLMv2 response only
  */
 
-static bool test_ntlmv2(void) 
+static BOOL test_ntlmv2(void) 
 {
 	return test_lmv2_ntlmv2_broken(NO_LM);
 }
 
-static bool test_lm_ntlm(void) 
+static BOOL test_lm_ntlm(void) 
 {
 	return test_lm_ntlm_broken(BREAK_NONE);
 }
 
-static bool test_ntlm_lm_broken(void) 
+static BOOL test_ntlm_lm_broken(void) 
 {
 	return test_lm_ntlm_broken(BREAK_LM);
 }
 
-static bool test_ntlm_ntlm_broken(void) 
+static BOOL test_ntlm_ntlm_broken(void) 
 {
 	return test_lm_ntlm_broken(BREAK_NT);
 }
 
-static bool test_ntlmv2_lmv2_broken(void) 
+static BOOL test_ntlmv2_lmv2_broken(void) 
 {
 	return test_lmv2_ntlmv2_broken(BREAK_LM);
 }
 
-static bool test_ntlmv2_ntlmv2_broken(void) 
+static BOOL test_ntlmv2_ntlmv2_broken(void) 
 {
 	return test_lmv2_ntlmv2_broken(BREAK_NT);
 }
 
-static bool test_plaintext(enum ntlm_break break_which)
+static BOOL test_plaintext(enum ntlm_break break_which)
 {
 	NTSTATUS nt_status;
 	uint32 flags = 0;
-	DATA_BLOB nt_response = data_blob_null;
-	DATA_BLOB lm_response = data_blob_null;
+	DATA_BLOB nt_response = data_blob(NULL, 0);
+	DATA_BLOB lm_response = data_blob(NULL, 0);
 	char *password;
 	smb_ucs2_t *nt_response_ucs2;
 
@@ -470,16 +471,17 @@ static bool test_plaintext(enum ntlm_break break_which)
 		exit(1);
 	}
 
-	if (!convert_string_allocate(NULL, CH_UNIX,
+	if ((convert_string_allocate(NULL, CH_UNIX, 
 				     CH_DOS, password,
 				     strlen(password)+1, 
-				     &lm_response.data,
-				     &lm_response.length, True)) {
+				     &lm_response.data,True)) == -1) {
 		DEBUG(0, ("convert_string_allocate failed!\n"));
 		exit(1);
 	}
 
 	SAFE_FREE(password);
+
+	lm_response.length = strlen((const char *)lm_response.data);
 
 	switch (break_which) {
 	case BREAK_NONE:
@@ -525,23 +527,23 @@ static bool test_plaintext(enum ntlm_break break_which)
         return break_which != BREAK_NT;
 }
 
-static bool test_plaintext_none_broken(void) {
+static BOOL test_plaintext_none_broken(void) {
 	return test_plaintext(BREAK_NONE);
 }
 
-static bool test_plaintext_lm_broken(void) {
+static BOOL test_plaintext_lm_broken(void) {
 	return test_plaintext(BREAK_LM);
 }
 
-static bool test_plaintext_nt_broken(void) {
+static BOOL test_plaintext_nt_broken(void) {
 	return test_plaintext(BREAK_NT);
 }
 
-static bool test_plaintext_nt_only(void) {
+static BOOL test_plaintext_nt_only(void) {
 	return test_plaintext(NO_LM);
 }
 
-static bool test_plaintext_lm_only(void) {
+static BOOL test_plaintext_lm_only(void) {
 	return test_plaintext(NO_NT);
 }
 
@@ -564,7 +566,7 @@ static bool test_plaintext_lm_only(void) {
 */
 
 static const struct ntlm_tests {
-	bool (*fn)(void);
+	BOOL (*fn)(void);
 	const char *name;
 } test_table[] = {
 	{test_lm, "LM"},
@@ -587,10 +589,10 @@ static const struct ntlm_tests {
 	{NULL, NULL}
 };
 
-bool diagnose_ntlm_auth(void)
+BOOL diagnose_ntlm_auth(void)
 {
 	unsigned int i;
-	bool pass = True;
+	BOOL pass = True;
 
 	for (i=0; test_table[i].fn; i++) {
 		if (!test_table[i].fn()) {

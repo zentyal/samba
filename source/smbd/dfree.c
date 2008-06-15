@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -23,7 +24,7 @@
  Normalise for DOS usage.
 ****************************************************************************/
 
-static void disk_norm(bool small_query, SMB_BIG_UINT *bsize,SMB_BIG_UINT *dfree,SMB_BIG_UINT *dsize)
+static void disk_norm(BOOL small_query, SMB_BIG_UINT *bsize,SMB_BIG_UINT *dfree,SMB_BIG_UINT *dsize)
 {
 	/* check if the disk is beyond the max disk size */
 	SMB_BIG_UINT maxdisksize = lp_maxdisksize();
@@ -62,7 +63,7 @@ static void disk_norm(bool small_query, SMB_BIG_UINT *bsize,SMB_BIG_UINT *dfree,
  Return number of 1K blocks available on a path and total number.
 ****************************************************************************/
 
-SMB_BIG_UINT sys_disk_free(connection_struct *conn, const char *path, bool small_query, 
+SMB_BIG_UINT sys_disk_free(connection_struct *conn, const char *path, BOOL small_query, 
                               SMB_BIG_UINT *bsize,SMB_BIG_UINT *dfree,SMB_BIG_UINT *dsize)
 {
 	SMB_BIG_UINT dfree_retval;
@@ -81,18 +82,10 @@ SMB_BIG_UINT sys_disk_free(connection_struct *conn, const char *path, bool small
 	dfree_command = lp_dfree_command(SNUM(conn));
 	if (dfree_command && *dfree_command) {
 		const char *p;
-		char **lines = NULL;
-		char *syscmd = NULL;
+		char **lines;
+		pstring syscmd;
 
-		syscmd = talloc_asprintf(talloc_tos(),
-				"%s %s",
-				dfree_command,
-				path);
-
-		if (!syscmd) {
-			return (SMB_BIG_UINT)-1;
-		}
-
+		slprintf(syscmd, sizeof(syscmd)-1, "%s %s", dfree_command, path);
 		DEBUG (3, ("disk_free: Running command %s\n", syscmd));
 
 		lines = file_lines_pload(syscmd, NULL);
@@ -150,10 +143,10 @@ SMB_BIG_UINT sys_disk_free(connection_struct *conn, const char *path, bool small
 	}
 
 	if ((*dsize)<1) {
-		static bool done = false;
+		static int done;
 		if (!done) {
 			DEBUG(0,("WARNING: dfree is broken on this system\n"));
-			done=true;
+			done=1;
 		}
 		*dsize = 20*1024*1024/(*bsize);
 		*dfree = MAX(1,*dfree);
@@ -176,7 +169,7 @@ SMB_BIG_UINT sys_disk_free(connection_struct *conn, const char *path, bool small
 
 SMB_BIG_UINT get_dfree_info(connection_struct *conn,
 			const char *path,
-			bool small_query,
+			BOOL small_query,
 			SMB_BIG_UINT *bsize,
 			SMB_BIG_UINT *dfree,
 			SMB_BIG_UINT *dsize)

@@ -1,20 +1,21 @@
-/*
+/* 
  *  Unix SMB/CIFS implementation.
  *  Virtual Windows Registry Layer
  *  Copyright (C) Gerald Carter                     2002-2005
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
- *
+ *  
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
+ *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 /* Implementation of registry frontend view functions. */
@@ -22,16 +23,16 @@
 #include "includes.h"
 
 #undef DBGC_CLASS
-#define DBGC_CLASS DBGC_REGISTRY
+#define DBGC_CLASS DBGC_RPC_SRV
 
 /**********************************************************************
 
  Note that the REGSUB_CTR and REGVAL_CTR objects *must* be talloc()'d
- since the methods use the object pointer as the talloc context for
+ since the methods use the object pointer as the talloc context for 
  internal private data.
 
  There is no longer a regXXX_ctr_intit() and regXXX_ctr_destroy()
- pair of functions.  Simply TALLOC_ZERO_P() and TALLOC_FREE() the
+ pair of functions.  Simply TALLOC_ZERO_P() and TALLOC_FREE() the 
  object.
 
  **********************************************************************/
@@ -40,41 +41,39 @@
  Add a new key to the array
  **********************************************************************/
 
-WERROR regsubkey_ctr_addkey( REGSUBKEY_CTR *ctr, const char *keyname )
+int regsubkey_ctr_addkey( REGSUBKEY_CTR *ctr, const char *keyname )
 {
-	char **newkeys;
-
-	if ( !keyname ) {
-		return WERR_OK;
-	}
+	if ( !keyname )
+		return ctr->num_subkeys;
 
 	/* make sure the keyname is not already there */
 
-	if ( regsubkey_ctr_key_exists( ctr, keyname ) ) {
-		return WERR_OK;
+	if ( regsubkey_ctr_key_exists( ctr, keyname ) )
+		return ctr->num_subkeys;
+		
+	/* allocate a space for the char* in the array */
+		
+	if (ctr->subkeys == NULL) {
+		ctr->subkeys = TALLOC_P(ctr, char *);
+	} else {
+		ctr->subkeys = TALLOC_REALLOC_ARRAY(ctr, ctr->subkeys, char *, ctr->num_subkeys+1);
 	}
 
-	if (!(newkeys = TALLOC_REALLOC_ARRAY(ctr, ctr->subkeys, char *,
-					     ctr->num_subkeys+1))) {
-		return WERR_NOMEM;
+	if (!ctr->subkeys) {
+		ctr->num_subkeys = 0;
+		return 0;
 	}
 
-	ctr->subkeys = newkeys;
-
-	if (!(ctr->subkeys[ctr->num_subkeys] = talloc_strdup(ctr->subkeys,
-							     keyname ))) {
-		/*
-		 * Don't shrink the new array again, this wastes a pointer
-		 */
-		return WERR_NOMEM;
-	}
+	/* allocate the string and save it in the array */
+	
+	ctr->subkeys[ctr->num_subkeys] = talloc_strdup( ctr, keyname );
 	ctr->num_subkeys++;
-
-	return WERR_OK;
+	
+	return ctr->num_subkeys;
 }
-
+ 
  /***********************************************************************
- Delete a key from the array
+ Add a new key to the array
  **********************************************************************/
 
 int regsubkey_ctr_delkey( REGSUBKEY_CTR *ctr, const char *keyname )
@@ -90,16 +89,15 @@ int regsubkey_ctr_delkey( REGSUBKEY_CTR *ctr, const char *keyname )
 		if ( strequal( ctr->subkeys[i], keyname ) )
 			break;
 	}
-
+	
 	if ( i == ctr->num_subkeys )
 		return ctr->num_subkeys;
 
 	/* update if we have any keys left */
 	ctr->num_subkeys--;
 	if ( i < ctr->num_subkeys )
-		memmove(&ctr->subkeys[i], &ctr->subkeys[i+1],
-			sizeof(char*) * (ctr->num_subkeys-i));
-
+		memmove( &ctr->subkeys[i], &ctr->subkeys[i+1], sizeof(char*) * (ctr->num_subkeys-i) );
+	
 	return ctr->num_subkeys;
 }
 
@@ -107,10 +105,10 @@ int regsubkey_ctr_delkey( REGSUBKEY_CTR *ctr, const char *keyname )
  Check for the existance of a key
  **********************************************************************/
 
-bool regsubkey_ctr_key_exists( REGSUBKEY_CTR *ctr, const char *keyname )
+BOOL regsubkey_ctr_key_exists( REGSUBKEY_CTR *ctr, const char *keyname )
 {
 	int 	i;
-
+	
 	if (!ctr->subkeys) {
 		return False;
 	}
@@ -119,7 +117,7 @@ bool regsubkey_ctr_key_exists( REGSUBKEY_CTR *ctr, const char *keyname )
 		if ( strequal( ctr->subkeys[i],keyname ) )
 			return True;
 	}
-
+	
 	return False;
 }
 
@@ -140,7 +138,7 @@ char* regsubkey_ctr_specific_key( REGSUBKEY_CTR *ctr, uint32 key_index )
 {
 	if ( ! (key_index < ctr->num_subkeys) )
 		return NULL;
-
+		
 	return ctr->subkeys[key_index];
 }
 
@@ -165,49 +163,49 @@ int regval_ctr_numvals( REGVAL_CTR *ctr )
 REGISTRY_VALUE* dup_registry_value( REGISTRY_VALUE *val )
 {
 	REGISTRY_VALUE 	*copy = NULL;
-
+	
 	if ( !val )
 		return NULL;
-
+	
 	if ( !(copy = SMB_MALLOC_P( REGISTRY_VALUE)) ) {
 		DEBUG(0,("dup_registry_value: malloc() failed!\n"));
 		return NULL;
 	}
-
+	
 	/* copy all the non-pointer initial data */
-
+	
 	memcpy( copy, val, sizeof(REGISTRY_VALUE) );
-
+	
 	copy->size = 0;
 	copy->data_p = NULL;
-
-	if ( val->data_p && val->size )
+	
+	if ( val->data_p && val->size ) 
 	{
 		if ( !(copy->data_p = (uint8 *)memdup( val->data_p,
 						       val->size )) ) {
-			DEBUG(0,("dup_registry_value: memdup() failed for [%d] "
-				 "bytes!\n", val->size));
+			DEBUG(0,("dup_registry_value: memdup() failed for [%d] bytes!\n",
+				val->size));
 			SAFE_FREE( copy );
 			return NULL;
 		}
 		copy->size = val->size;
 	}
-
-	return copy;
+	
+	return copy;	
 }
 
 /**********************************************************************
- free the memory allocated to a REGISTRY_VALUE
+ free the memory allocated to a REGISTRY_VALUE 
  *********************************************************************/
-
+ 
 void free_registry_value( REGISTRY_VALUE *val )
 {
 	if ( !val )
 		return;
-
+		
 	SAFE_FREE( val->data_p );
 	SAFE_FREE( val );
-
+	
 	return;
 }
 
@@ -252,7 +250,7 @@ REGISTRY_VALUE* regval_ctr_specific_value( REGVAL_CTR *ctr, uint32 idx )
 {
 	if ( !(idx < ctr->num_values) )
 		return NULL;
-
+		
 	return ctr->values[idx];
 }
 
@@ -260,52 +258,22 @@ REGISTRY_VALUE* regval_ctr_specific_value( REGVAL_CTR *ctr, uint32 idx )
  Check for the existance of a value
  **********************************************************************/
 
-bool regval_ctr_key_exists( REGVAL_CTR *ctr, const char *value )
+BOOL regval_ctr_key_exists( REGVAL_CTR *ctr, const char *value )
 {
 	int 	i;
-
+	
 	for ( i=0; i<ctr->num_values; i++ ) {
 		if ( strequal( ctr->values[i]->valuename, value) )
 			return True;
 	}
-
+	
 	return False;
 }
-
-/***********************************************************************
- * compose a REGISTRY_VALUE from input data
- **********************************************************************/
-
-REGISTRY_VALUE *regval_compose(TALLOC_CTX *ctx, const char *name, uint16 type,
-			       const char *data_p, size_t size)
-{
-	REGISTRY_VALUE *regval = TALLOC_P(ctx, REGISTRY_VALUE);
-
-	if (regval == NULL) {
-		return NULL;
-	}
-
-	fstrcpy(regval->valuename, name);
-	regval->type = type;
-	if (size) {
-		regval->data_p = (uint8 *)TALLOC_MEMDUP(regval, data_p, size);
-		if (!regval->data_p) {
-			TALLOC_FREE(regval);
-			return NULL;
-		}
-	} else {
-		regval->data_p = NULL;
-	}
-	regval->size = size;
-
-	return regval;
-}
-
 /***********************************************************************
  Add a new registry value to the array
  **********************************************************************/
 
-int regval_ctr_addvalue( REGVAL_CTR *ctr, const char *name, uint16 type,
+int regval_ctr_addvalue( REGVAL_CTR *ctr, const char *name, uint16 type, 
                          const char *data_p, size_t size )
 {
 	if ( !name )
@@ -316,13 +284,11 @@ int regval_ctr_addvalue( REGVAL_CTR *ctr, const char *name, uint16 type,
 	regval_ctr_delvalue( ctr, name );
 
 	/* allocate a slot in the array of pointers */
-
+		
 	if (  ctr->num_values == 0 ) {
 		ctr->values = TALLOC_P( ctr, REGISTRY_VALUE *);
 	} else {
-		ctr->values = TALLOC_REALLOC_ARRAY(ctr, ctr->values,
-						   REGISTRY_VALUE *,
-						   ctr->num_values+1);
+		ctr->values = TALLOC_REALLOC_ARRAY( ctr, ctr->values, REGISTRY_VALUE *, ctr->num_values+1 );
 	}
 
 	if (!ctr->values) {
@@ -331,13 +297,28 @@ int regval_ctr_addvalue( REGVAL_CTR *ctr, const char *name, uint16 type,
 	}
 
 	/* allocate a new value and store the pointer in the arrya */
-
-	ctr->values[ctr->num_values] = regval_compose(ctr, name, type, data_p,
-						      size);
-	if (ctr->values[ctr->num_values] == NULL) {
+		
+	ctr->values[ctr->num_values] = TALLOC_P( ctr, REGISTRY_VALUE);
+	if (!ctr->values[ctr->num_values]) {
 		ctr->num_values = 0;
 		return 0;
 	}
+
+	/* init the value */
+	
+	fstrcpy( ctr->values[ctr->num_values]->valuename, name );
+	ctr->values[ctr->num_values]->type = type;
+	if (size) {
+		ctr->values[ctr->num_values]->data_p = (uint8 *)TALLOC_MEMDUP(
+			ctr, data_p, size );
+		if (!ctr->values[ctr->num_values]->data_p) {
+			ctr->num_values = 0;
+			return 0;
+		}
+	} else {
+		ctr->values[ctr->num_values]->data_p = NULL;
+	}
+	ctr->values[ctr->num_values]->size = size;
 	ctr->num_values++;
 
 	return ctr->num_values;
@@ -350,8 +331,43 @@ int regval_ctr_addvalue( REGVAL_CTR *ctr, const char *name, uint16 type,
 int regval_ctr_copyvalue( REGVAL_CTR *ctr, REGISTRY_VALUE *val )
 {
 	if ( val ) {
-		regval_ctr_addvalue(ctr, val->valuename, val->type,
-				    (char *)val->data_p, val->size);
+		/* allocate a slot in the array of pointers */
+		
+		if (  ctr->num_values == 0 ) {
+			ctr->values = TALLOC_P( ctr, REGISTRY_VALUE *);
+		} else {
+			ctr->values = TALLOC_REALLOC_ARRAY( ctr, ctr->values, REGISTRY_VALUE *, ctr->num_values+1 );
+		}
+
+		if (!ctr->values) {
+			ctr->num_values = 0;
+			return 0;
+		}
+
+		/* allocate a new value and store the pointer in the arrya */
+		
+		ctr->values[ctr->num_values] = TALLOC_P( ctr, REGISTRY_VALUE);
+		if (!ctr->values[ctr->num_values]) {
+			ctr->num_values = 0;
+			return 0;
+		}
+
+		/* init the value */
+	
+		fstrcpy( ctr->values[ctr->num_values]->valuename, val->valuename );
+		ctr->values[ctr->num_values]->type = val->type;
+		if (val->size) {
+			ctr->values[ctr->num_values]->data_p = (uint8 *)TALLOC_MEMDUP(
+				ctr, val->data_p, val->size );
+			if (!ctr->values[ctr->num_values]->data_p) {
+				ctr->num_values = 0;
+				return 0;
+			}
+		} else {
+			ctr->values[ctr->num_values]->data_p = NULL;
+		}
+		ctr->values[ctr->num_values]->size = val->size;
+		ctr->num_values++;
 	}
 
 	return ctr->num_values;
@@ -365,23 +381,22 @@ int regval_ctr_copyvalue( REGVAL_CTR *ctr, REGISTRY_VALUE *val )
 int regval_ctr_delvalue( REGVAL_CTR *ctr, const char *name )
 {
 	int 	i;
-
+	
 	for ( i=0; i<ctr->num_values; i++ ) {
 		if ( strequal( ctr->values[i]->valuename, name ) )
 			break;
 	}
-
+	
 	/* just return if we don't find it */
-
+	
 	if ( i == ctr->num_values )
 		return ctr->num_values;
-
+	
 	/* If 'i' was not the last element, just shift everything down one */
 	ctr->num_values--;
 	if ( i < ctr->num_values )
-		memmove(&ctr->values[i], &ctr->values[i+1],
-			sizeof(REGISTRY_VALUE*)*(ctr->num_values-i));
-
+		memmove( &ctr->values[i], &ctr->values[i+1], sizeof(REGISTRY_VALUE*)*(ctr->num_values-i) );
+	
 	return ctr->num_values;
 }
 
@@ -393,14 +408,14 @@ int regval_ctr_delvalue( REGVAL_CTR *ctr, const char *name )
 REGISTRY_VALUE* regval_ctr_getvalue( REGVAL_CTR *ctr, const char *name )
 {
 	int 	i;
-
+	
 	/* search for the value */
-
+	
 	for ( i=0; i<ctr->num_values; i++ ) {
 		if ( strequal( ctr->values[i]->valuename, name ) )
 			return ctr->values[i];
 	}
-
+	
 	return NULL;
 }
 
@@ -411,9 +426,9 @@ REGISTRY_VALUE* regval_ctr_getvalue( REGVAL_CTR *ctr, const char *name )
 uint32 regval_dword( REGISTRY_VALUE *val )
 {
 	uint32 data;
-
+	
 	data = IVAL( regval_data_p(val), 0 );
-
+	
 	return data;
 }
 
@@ -421,11 +436,11 @@ uint32 regval_dword( REGISTRY_VALUE *val )
  return the data_p as a character string
  **********************************************************************/
 
-char *regval_sz(REGISTRY_VALUE *val)
+char* regval_sz( REGISTRY_VALUE *val )
 {
-	char *data = NULL;
+	static pstring data;
 
-	rpcstr_pull_talloc(talloc_tos(), &data,
-			regval_data_p(val), regval_size(val),0);
+	rpcstr_pull( data, regval_data_p(val), sizeof(data), regval_size(val), 0 );
+	
 	return data;
 }

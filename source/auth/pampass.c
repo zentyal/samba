@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -40,11 +41,7 @@
  *   which determines what actions/limitations/allowances become affected.
  *********************************************************************/
 
-#if defined(HAVE_SECURITY_PAM_APPL_H)
 #include <security/pam_appl.h>
-#elif defined(HAVE_PAM_PAM_APPL_H)
-#include <pam/pam_appl.h>
-#endif
 
 /*
  * Structure used to communicate between the conversation function
@@ -68,7 +65,7 @@ typedef int (*smb_pam_conv_fn)(int, const struct pam_message **, struct pam_resp
  PAM error handler.
  *********************************************************************/
 
-static bool smb_pam_error_handler(pam_handle_t *pamh, int pam_error, const char *msg, int dbglvl)
+static BOOL smb_pam_error_handler(pam_handle_t *pamh, int pam_error, const char *msg, int dbglvl)
 {
 
 	if( pam_error != PAM_SUCCESS) {
@@ -85,7 +82,7 @@ static bool smb_pam_error_handler(pam_handle_t *pamh, int pam_error, const char 
  failure as sucess.
 *********************************************************************/
 
-static bool smb_pam_nt_status_error_handler(pam_handle_t *pamh, int pam_error,
+static BOOL smb_pam_nt_status_error_handler(pam_handle_t *pamh, int pam_error,
 					    const char *msg, int dbglvl, 
 					    NTSTATUS *nt_status)
 {
@@ -207,17 +204,15 @@ struct chat_struct {
 
 static struct chat_struct *make_pw_chat(const char *p) 
 {
-	char *prompt;
-	char *reply;
+	fstring prompt;
+	fstring reply;
 	struct chat_struct *list = NULL;
 	struct chat_struct *t;
-	TALLOC_CTX *frame = talloc_stackframe();
 
 	while (1) {
 		t = SMB_MALLOC_P(struct chat_struct);
 		if (!t) {
 			DEBUG(0,("make_pw_chat: malloc failed!\n"));
-			TALLOC_FREE(frame);
 			return NULL;
 		}
 
@@ -225,26 +220,22 @@ static struct chat_struct *make_pw_chat(const char *p)
 
 		DLIST_ADD_END(list, t, struct chat_struct*);
 
-		if (!next_token_talloc(frame, &p, &prompt, NULL)) {
+		if (!next_token(&p, prompt, NULL, sizeof(fstring)))
 			break;
-		}
 
-		if (strequal(prompt,".")) {
+		if (strequal(prompt,"."))
 			fstrcpy(prompt,"*");
-		}
 
 		special_char_sub(prompt);
 		fstrcpy(t->prompt, prompt);
 		strlower_m(t->prompt);
 		trim_char(t->prompt, ' ', ' ');
 
-		if (!next_token_talloc(frame, &p, &reply, NULL)) {
+		if (!next_token(&p, reply, NULL, sizeof(fstring)))
 			break;
-		}
 
-		if (strequal(reply,".")) {
-			fstrcpy(reply,"");
-		}
+		if (strequal(reply,"."))
+				fstrcpy(reply,"");
 
 		special_char_sub(reply);
 		fstrcpy(t->reply, reply);
@@ -252,7 +243,6 @@ static struct chat_struct *make_pw_chat(const char *p)
 		trim_char(t->reply, ' ', ' ');
 
 	}
-	TALLOC_FREE(frame);
 	return list;
 }
 
@@ -277,7 +267,7 @@ static int smb_pam_passchange_conv(int num_msg,
 	struct smb_pam_userdata *udp = (struct smb_pam_userdata *)appdata_ptr;
 	struct chat_struct *pw_chat= make_pw_chat(lp_passwd_chat());
 	struct chat_struct *t;
-	bool found; 
+	BOOL found; 
 	*resp = NULL;
 	
 	DEBUG(10,("smb_pam_passchange_conv: starting converstation for %d messages\n", num_msg));
@@ -437,7 +427,7 @@ static struct pam_conv *smb_setup_pam_conv(smb_pam_conv_fn smb_pam_conv_fnptr, c
  * PAM Closing out cleanup handler
  */
 
-static bool smb_pam_end(pam_handle_t *pamh, struct pam_conv *smb_pam_conv_ptr)
+static BOOL smb_pam_end(pam_handle_t *pamh, struct pam_conv *smb_pam_conv_ptr)
 {
 	int pam_error;
 
@@ -458,11 +448,10 @@ static bool smb_pam_end(pam_handle_t *pamh, struct pam_conv *smb_pam_conv_ptr)
  * Start PAM authentication for specified account
  */
 
-static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rhost, struct pam_conv *pconv)
+static BOOL smb_pam_start(pam_handle_t **pamh, const char *user, const char *rhost, struct pam_conv *pconv)
 {
 	int pam_error;
 	const char *our_rhost;
-	char addr[INET6_ADDRSTRLEN];
 
 	*pamh = (pam_handle_t *)NULL;
 
@@ -475,9 +464,9 @@ static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rho
 	}
 
 	if (rhost == NULL) {
-		our_rhost = client_name(get_client_fd());
+		our_rhost = client_name();
 		if (strequal(our_rhost,"UNKNOWN"))
-			our_rhost = client_addr(get_client_fd(),addr,sizeof(addr));
+			our_rhost = client_addr();
 	} else {
 		our_rhost = rhost;
 	}
@@ -632,7 +621,7 @@ static NTSTATUS smb_pam_setcred(pam_handle_t *pamh, const char * user)
 /*
  * PAM Internal Session Handler
  */
-static bool smb_internal_pam_session(pam_handle_t *pamh, const char *user, const char *tty, bool flag)
+static BOOL smb_internal_pam_session(pam_handle_t *pamh, const char *user, const char *tty, BOOL flag)
 {
 	int pam_error;
 
@@ -660,7 +649,7 @@ static bool smb_internal_pam_session(pam_handle_t *pamh, const char *user, const
  * Internal PAM Password Changer.
  */
 
-static bool smb_pam_chauthtok(pam_handle_t *pamh, const char * user)
+static BOOL smb_pam_chauthtok(pam_handle_t *pamh, const char * user)
 {
 	int pam_error;
 
@@ -714,7 +703,7 @@ static bool smb_pam_chauthtok(pam_handle_t *pamh, const char * user)
  * PAM Externally accessible Session handler
  */
 
-bool smb_pam_claim_session(char *user, char *tty, char *rhost)
+BOOL smb_pam_claim_session(char *user, char *tty, char *rhost)
 {
 	pam_handle_t *pamh = NULL;
 	struct pam_conv *pconv = NULL;
@@ -742,7 +731,7 @@ bool smb_pam_claim_session(char *user, char *tty, char *rhost)
  * PAM Externally accessible Session handler
  */
 
-bool smb_pam_close_session(char *user, char *tty, char *rhost)
+BOOL smb_pam_close_session(char *user, char *tty, char *rhost)
 {
 	pam_handle_t *pamh = NULL;
 	struct pam_conv *pconv = NULL;
@@ -842,7 +831,7 @@ NTSTATUS smb_pam_passcheck(const char * user, const char * password)
  * PAM Password Change Suite
  */
 
-bool smb_pam_passchange(const char * user, const char * oldpassword, const char * newpassword)
+BOOL smb_pam_passchange(const char * user, const char * oldpassword, const char * newpassword)
 {
 	/* Appropriate quantities of root should be obtained BEFORE calling this function */
 	struct pam_conv *pconv = NULL;
@@ -872,13 +861,13 @@ NTSTATUS smb_pam_accountcheck(const char * user)
 }
 
 /* If PAM not used, also no PAM restrictions on sessions. */
-bool smb_pam_claim_session(char *user, char *tty, char *rhost)
+BOOL smb_pam_claim_session(char *user, char *tty, char *rhost)
 {
 	return True;
 }
 
 /* If PAM not used, also no PAM restrictions on sessions. */
-bool smb_pam_close_session(char *in_user, char *tty, char *rhost)
+BOOL smb_pam_close_session(char *in_user, char *tty, char *rhost)
 {
 	return True;
 }

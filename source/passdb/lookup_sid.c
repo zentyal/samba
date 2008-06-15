@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -29,7 +30,7 @@
  to do guesswork.
 *****************************************************************/  
 
-bool lookup_name(TALLOC_CTX *mem_ctx,
+BOOL lookup_name(TALLOC_CTX *mem_ctx,
 		 const char *full_name, int flags,
 		 const char **ret_domain, const char **ret_name,
 		 DOM_SID *ret_sid, enum lsa_SidType *ret_type)
@@ -45,7 +46,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 
 	if (tmp_ctx == NULL) {
 		DEBUG(0, ("talloc_new failed\n"));
-		return false;
+		return False;
 	}
 
 	p = strchr_m(full_name, '\\');
@@ -62,7 +63,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	if ((domain == NULL) || (name == NULL)) {
 		DEBUG(0, ("talloc failed\n"));
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	DEBUG(10,("lookup_name: %s => %s (domain), %s (name)\n",
@@ -80,7 +81,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 			goto ok;
 		}
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	if ((flags & LOOKUP_NAME_BUILTIN) &&
@@ -94,7 +95,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 			goto ok;
 		}
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	/* Try the explicit winbind lookup first, don't let it guess the
@@ -106,27 +107,27 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 			goto ok;
 	}
 
-	if (!(flags & LOOKUP_NAME_EXPLICIT) && strequal(domain, unix_users_domain_name())) {
+	if (strequal(domain, unix_users_domain_name())) {
 		if (lookup_unix_user_name(name, &sid)) {
 			type = SID_NAME_USER;
 			goto ok;
 		}
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
-	if (!(flags & LOOKUP_NAME_EXPLICIT) && strequal(domain, unix_groups_domain_name())) {
+	if (strequal(domain, unix_groups_domain_name())) {
 		if (lookup_unix_group_name(name, &sid)) {
 			type = SID_NAME_DOM_GRP;
 			goto ok;
 		}
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	if ((domain[0] == '\0') && (!(flags & LOOKUP_NAME_ISOLATED))) {
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	/* Now the guesswork begins, we haven't been given an explicit
@@ -163,7 +164,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 		if (!secrets_fetch_domain_sid(name, &sid)) {
 			DEBUG(3, ("Could not fetch my SID\n"));
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		/* Swap domain and name */
 		tmp = name; name = domain; domain = tmp;
@@ -179,7 +180,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 		if (!secrets_fetch_domain_sid(name, &sid)) {
 			DEBUG(3, ("Could not fetch the domain SID\n"));
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		/* Swap domain and name */
 		tmp = name; name = domain; domain = tmp;
@@ -191,7 +192,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
               this, tested an XP workstation in a NT domain -- vl */
 
 	if ((flags & LOOKUP_NAME_REMOTE) && IS_DC &&
-	    (pdb_get_trusteddom_pw(name, NULL, &sid, NULL)))
+	    (secrets_fetch_trusted_domain_password(name, NULL, &sid, NULL)))
 	{
 		/* Swap domain and name */
 		tmp = name; name = domain; domain = tmp;
@@ -229,7 +230,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 
 	if (!(flags & LOOKUP_NAME_REMOTE)) {
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	/* If we are not a DC, we have to ask in our primary domain. Let
@@ -270,7 +271,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 			DEBUG(2, ("winbind could not find the domain's name "
 				  "it just looked up for us\n"));
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		goto ok;
 	}
@@ -280,13 +281,13 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	/* 11. Ok, windows would end here. Samba has two more options:
                Unmapped users and unmapped groups */
 
-	if (!(flags & LOOKUP_NAME_EXPLICIT) && lookup_unix_user_name(name, &sid)) {
+	if (lookup_unix_user_name(name, &sid)) {
 		domain = talloc_strdup(tmp_ctx, unix_users_domain_name());
 		type = SID_NAME_USER;
 		goto ok;
 	}
 
-	if (!(flags & LOOKUP_NAME_EXPLICIT) && lookup_unix_group_name(name, &sid)) {
+	if (lookup_unix_group_name(name, &sid)) {
 		domain = talloc_strdup(tmp_ctx, unix_groups_domain_name());
 		type = SID_NAME_DOM_GRP;
 		goto ok;
@@ -297,13 +298,13 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	 */
 
 	TALLOC_FREE(tmp_ctx);
-	return false;
+	return False;
 
  ok:
 	if ((domain == NULL) || (name == NULL)) {
 		DEBUG(0, ("talloc failed\n"));
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	/*
@@ -314,7 +315,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	    !(*ret_name = talloc_strdup(mem_ctx, name))) {
 		DEBUG(0, ("talloc failed\n"));
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	if (ret_domain != NULL) {
@@ -322,7 +323,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 		if (!(tmp_dom = talloc_strdup(mem_ctx, domain))) {
 			DEBUG(0, ("talloc failed\n"));
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		strupper_m(tmp_dom);
 		*ret_domain = tmp_dom;
@@ -337,7 +338,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	}
 
 	TALLOC_FREE(tmp_ctx);
-	return true;
+	return True;
 }
 
 /************************************************************************
@@ -346,7 +347,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
  and then "Unix Users"\foo (or "Unix Groups"\foo).
 ************************************************************************/
 
-bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
+BOOL lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 		 const char *full_name, int flags,
 		 const char **ret_domain, const char **ret_name,
 		 DOM_SID *ret_sid, enum lsa_SidType *ret_type)
@@ -366,7 +367,7 @@ bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 
 			tmp = talloc_strdup(mem_ctx, full_name);
 			if (!tmp) {
-				return false;
+				return False;
 			}
 			tmp[p - full_name] = '\\';
 			full_name = tmp;
@@ -382,13 +383,13 @@ bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 				get_global_sam_name(),
 				full_name );
 	if (!qualified_name) {
-		return false;
+		return False;
 	}
 
 	if (lookup_name(mem_ctx, qualified_name, flags,
 				ret_domain, ret_name,
 				ret_sid, ret_type)) {
-		return true;
+		return True;
 	}
 	
 	/* Finally try with "Unix Users" or "Unix Group" */
@@ -398,7 +399,7 @@ bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 					unix_users_domain_name(),
 				full_name );
 	if (!qualified_name) {
-		return false;
+		return False;
 	}
 
 	return lookup_name(mem_ctx, qualified_name, flags,
@@ -406,7 +407,7 @@ bool lookup_name_smbconf(TALLOC_CTX *mem_ctx,
 				ret_sid, ret_type);
 }
 
-static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
+static BOOL wb_lookup_rids(TALLOC_CTX *mem_ctx,
 			   const DOM_SID *domain_sid,
 			   int num_rids, uint32 *rids,
 			   const char **domain_name,
@@ -418,7 +419,7 @@ static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx;
 
 	if (!(tmp_ctx = talloc_init("wb_lookup_rids"))) {
-		return false;
+		return False;
 	}
 
 	if (!winbind_lookup_rids(tmp_ctx, domain_sid, num_rids, rids,
@@ -429,12 +430,12 @@ static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
 			types[i] = SID_NAME_UNKNOWN;
 		}
 		TALLOC_FREE(tmp_ctx);
-		return true;
+		return True;
 	}
 
 	if (!(*domain_name = talloc_strdup(mem_ctx, *domain_name))) {
 		TALLOC_FREE(tmp_ctx);
-		return false;
+		return False;
 	}
 
 	/*
@@ -445,34 +446,31 @@ static bool wb_lookup_rids(TALLOC_CTX *mem_ctx,
 	for (i=0; i<num_rids; i++) {
 		if (my_names[i] == NULL) {
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		if (!(names[i] = talloc_strdup(names, my_names[i]))) {
 			TALLOC_FREE(tmp_ctx);
-			return false;
+			return False;
 		}
 		types[i] = my_types[i];
 	}
 	TALLOC_FREE(tmp_ctx);
-	return true;
+	return True;
 }
 
-static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
+static BOOL lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 			int num_rids, uint32_t *rids,
 			const char **domain_name,
 			const char ***names, enum lsa_SidType **types)
 {
 	int i;
 
-	DEBUG(10, ("lookup_rids called for domain sid '%s'\n",
-		   sid_string_dbg(domain_sid)));
-
 	if (num_rids) {
 		*names = TALLOC_ARRAY(mem_ctx, const char *, num_rids);
 		*types = TALLOC_ARRAY(mem_ctx, enum lsa_SidType, num_rids);
 
 		if ((*names == NULL) || (*types == NULL)) {
-			return false;
+			return False;
 		}
 	} else {
 		*names = NULL;
@@ -488,7 +486,7 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 		}
 
 		if (*domain_name == NULL) {
-			return false;
+			return False;
 		}
 
 		become_root();
@@ -509,21 +507,21 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 		}
 
 		if (*domain_name == NULL) {
-			return false;
+			return False;
 		}
 
 		for (i=0; i<num_rids; i++) {
 			if (lookup_builtin_rid(*names, rids[i],
 					       &(*names)[i])) {
 				if ((*names)[i] == NULL) {
-					return false;
+					return False;
 				}
 				(*types)[i] = SID_NAME_ALIAS;
 			} else {
 				(*types)[i] = SID_NAME_UNKNOWN;
 			}
 		}
-		return true;
+		return True;
 	}
 
 	if (sid_check_is_wellknown_domain(domain_sid, NULL)) {
@@ -534,52 +532,40 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 			if (lookup_wellknown_sid(mem_ctx, &sid,
 						 domain_name, &(*names)[i])) {
 				if ((*names)[i] == NULL) {
-					return false;
+					return False;
 				}
 				(*types)[i] = SID_NAME_WKN_GRP;
 			} else {
 				(*types)[i] = SID_NAME_UNKNOWN;
 			}
 		}
-		return true;
+		return True;
 	}
 
 	if (sid_check_is_unix_users(domain_sid)) {
 		if (*domain_name == NULL) {
 			*domain_name = talloc_strdup(
 				mem_ctx, unix_users_domain_name());
-			if (*domain_name == NULL) {
-				return false;
-			}
 		}
 		for (i=0; i<num_rids; i++) {
 			(*names)[i] = talloc_strdup(
 				(*names), uidtoname(rids[i]));
-			if ((*names)[i] == NULL) {
-				return false;
-			}
 			(*types)[i] = SID_NAME_USER;
 		}
-		return true;
+		return True;
 	}
 
 	if (sid_check_is_unix_groups(domain_sid)) {
 		if (*domain_name == NULL) {
 			*domain_name = talloc_strdup(
 				mem_ctx, unix_groups_domain_name());
-			if (*domain_name == NULL) {
-				return false;
-			}
 		}
 		for (i=0; i<num_rids; i++) {
 			(*names)[i] = talloc_strdup(
 				(*names), gidtoname(rids[i]));
-			if ((*names)[i] == NULL) {
-				return false;
-			}
 			(*types)[i] = SID_NAME_DOM_GRP;
 		}
-		return true;
+		return True;
 	}
 
 	return wb_lookup_rids(mem_ctx, domain_sid, num_rids, rids,
@@ -590,7 +576,7 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
  * Is the SID a domain as such? If yes, lookup its name.
  */
 
-static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
+static BOOL lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
 			     const char **name)
 {
 	const char *tmp;
@@ -598,32 +584,22 @@ static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
 
 	if (sid_check_is_domain(sid)) {
 		*name = talloc_strdup(mem_ctx, get_global_sam_name());
-		return true;
+		return True;
 	}
 
 	if (sid_check_is_builtin(sid)) {
 		*name = talloc_strdup(mem_ctx, builtin_domain_name());
-		return true;
+		return True;
 	}
 
 	if (sid_check_is_wellknown_domain(sid, &tmp)) {
 		*name = talloc_strdup(mem_ctx, tmp);
-		return true;
-	}
-
-	if (sid_check_is_unix_users(sid)) {
-		*name = talloc_strdup(mem_ctx, unix_users_domain_name());
-		return true;
-	}
-
-	if (sid_check_is_unix_groups(sid)) {
-		*name = talloc_strdup(mem_ctx, unix_groups_domain_name());
-		return true;
+		return True;
 	}
 
 	if (sid->num_auths != 4) {
 		/* This can't be a domain */
-		return false;
+		return False;
 	}
 
 	if (IS_DC) {
@@ -634,29 +610,29 @@ static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
 		 * and for SIDs that have 4 sub-authorities and thus look like
 		 * domains */
 
-		if (!NT_STATUS_IS_OK(pdb_enum_trusteddoms(mem_ctx,
-						          &num_domains,
-						          &domains))) {
-			return false;
+		if (!NT_STATUS_IS_OK(secrets_trusted_domains(mem_ctx,
+							     &num_domains,
+							     &domains))) {
+			return False;
 		}
 
 		for (i=0; i<num_domains; i++) {
 			if (sid_equal(sid, &domains[i]->sid)) {
 				*name = talloc_strdup(mem_ctx,
 						      domains[i]->name);
-				return true;
+				return True;
 			}
 		}
-		return false;
+		return False;
 	}
 
 	if (winbind_lookup_sid(mem_ctx, sid, &tmp, NULL, &type) &&
 	    (type == SID_NAME_DOMAIN)) {
 		*name = tmp;
-		return true;
+		return True;
 	}
 
-	return false;
+	return False;
 }
 
 /*
@@ -674,17 +650,17 @@ static bool lookup_as_domain(const DOM_SID *sid, TALLOC_CTX *mem_ctx,
  * Level 2: Ask domain and trusted domains, no builtin and wkn
  * Level 3: Only ask domain
  * Level 4: W2k3ad: Only ask AD trusts
- * Level 5: Only ask transitive forest trusts
+ * Level 5: Don't lookup anything
  * Level 6: Like 4
  */
 
-static bool check_dom_sid_to_level(const DOM_SID *sid, int level)
+static BOOL check_dom_sid_to_level(const DOM_SID *sid, int level)
 {
-	int ret = false;
+	int ret = False;
 
 	switch(level) {
 	case 1:
-		ret = true;
+		ret = True;
 		break;
 	case 2:
 		ret = (!sid_check_is_builtin(sid) &&
@@ -696,13 +672,13 @@ static bool check_dom_sid_to_level(const DOM_SID *sid, int level)
 		ret = sid_check_is_domain(sid);
 		break;
 	case 5:
-		ret = false;
+		ret = False;
 		break;
 	}
 
 	DEBUG(10, ("%s SID %s in level %d\n",
 		   ret ? "Accepting" : "Rejecting",
-		   sid_string_dbg(sid), level));
+		   sid_string_static(sid), level));
 	return ret;
 }
 
@@ -834,7 +810,7 @@ NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
 		if (!dom_infos[j].valid) {
 			/* We found a domain not yet referenced, create a new
 			 * ref. */
-			dom_infos[j].valid = true;
+			dom_infos[j].valid = True;
 			sid_copy(&dom_infos[j].sid, &sid);
 
 			if (domain_name != NULL) {
@@ -924,7 +900,6 @@ NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
 
 	*ret_domains = dom_infos;
 	*ret_names = name_infos;
-	TALLOC_FREE(tmp_ctx);
 	return NT_STATUS_OK;
 
  fail:
@@ -938,20 +913,18 @@ NTSTATUS lookup_sids(TALLOC_CTX *mem_ctx, int num_sids,
  *THE CANONICAL* convert SID to name function.
 *****************************************************************/  
 
-bool lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
+BOOL lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
 		const char **ret_domain, const char **ret_name,
 		enum lsa_SidType *ret_type)
 {
 	struct lsa_dom_info *domain;
 	struct lsa_name_info *name;
 	TALLOC_CTX *tmp_ctx;
-	bool ret = false;
-
-	DEBUG(10, ("lookup_sid called for SID '%s'\n", sid_string_dbg(sid)));
+	BOOL ret = False;
 
 	if (!(tmp_ctx = talloc_new(mem_ctx))) {
 		DEBUG(0, ("talloc_new failed\n"));
-		return false;
+		return False;
 	}
 
 	if (!NT_STATUS_IS_OK(lookup_sids(tmp_ctx, 1, &sid, 1,
@@ -977,14 +950,16 @@ bool lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
 		*ret_type = name->type;
 	}
 
-	ret = true;
+	ret = True;
 
  done:
 	if (ret) {
-		DEBUG(10, ("Sid %s -> %s\\%s(%d)\n", sid_string_dbg(sid),
-			   domain->name, name->name, name->type));
+		DEBUG(10, ("Sid %s -> %s\\%s(%d)\n",
+			   sid_string_static(sid), domain->name,
+			   name->name, name->type));
 	} else {
-		DEBUG(10, ("failed to lookup sid %s\n", sid_string_dbg(sid)));
+		DEBUG(10, ("failed to lookup sid %s\n",
+			   sid_string_static(sid)));
 	}
 	TALLOC_FREE(tmp_ctx);
 	return ret;
@@ -998,114 +973,184 @@ bool lookup_sid(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
  modified to use linked lists by jra.
 *****************************************************************/  
 
+#define MAX_UID_SID_CACHE_SIZE 100
+#define TURNOVER_UID_SID_CACHE_SIZE 10
+#define MAX_GID_SID_CACHE_SIZE 100
+#define TURNOVER_GID_SID_CACHE_SIZE 10
+
+static size_t n_uid_sid_cache = 0;
+static size_t n_gid_sid_cache = 0;
+
+static struct uid_sid_cache {
+	struct uid_sid_cache *next, *prev;
+	uid_t uid;
+	DOM_SID sid;
+	enum lsa_SidType sidtype;
+} *uid_sid_cache_head;
+
+static struct gid_sid_cache {
+	struct gid_sid_cache *next, *prev;
+	gid_t gid;
+	DOM_SID sid;
+	enum lsa_SidType sidtype;
+} *gid_sid_cache_head;
+
 /*****************************************************************
   Find a SID given a uid.
-*****************************************************************/
+*****************************************************************/  
 
-static bool fetch_sid_from_uid_cache(DOM_SID *psid, uid_t uid)
+static BOOL fetch_sid_from_uid_cache(DOM_SID *psid, uid_t uid)
 {
-	DATA_BLOB cache_value;
+	struct uid_sid_cache *pc;
 
-	if (!memcache_lookup(NULL, UID_SID_CACHE,
-			     data_blob_const(&uid, sizeof(uid)),
-			     &cache_value)) {
-		return false;
+	for (pc = uid_sid_cache_head; pc; pc = pc->next) {
+		if (pc->uid == uid) {
+			*psid = pc->sid;
+			DEBUG(3,("fetch sid from uid cache %u -> %s\n",
+				 (unsigned int)uid, sid_string_static(psid)));
+			DLIST_PROMOTE(uid_sid_cache_head, pc);
+			return True;
+		}
 	}
-
-	memcpy(psid, cache_value.data, MIN(sizeof(*psid), cache_value.length));
-	SMB_ASSERT(cache_value.length >= offsetof(struct dom_sid, id_auth));
-	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, 0));
-
-	return true;
+	return False;
 }
 
 /*****************************************************************
   Find a uid given a SID.
-*****************************************************************/
+*****************************************************************/  
 
-static bool fetch_uid_from_cache( uid_t *puid, const DOM_SID *psid )
+static BOOL fetch_uid_from_cache( uid_t *puid, const DOM_SID *psid )
 {
-	DATA_BLOB cache_value;
+	struct uid_sid_cache *pc;
 
-	if (!memcache_lookup(NULL, SID_UID_CACHE,
-			     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
-			     &cache_value)) {
-		return false;
+	for (pc = uid_sid_cache_head; pc; pc = pc->next) {
+		if (sid_compare(&pc->sid, psid) == 0) {
+			*puid = pc->uid;
+			DEBUG(3,("fetch uid from cache %u -> %s\n",
+				 (unsigned int)*puid, sid_string_static(psid)));
+			DLIST_PROMOTE(uid_sid_cache_head, pc);
+			return True;
+		}
 	}
-
-	SMB_ASSERT(cache_value.length == sizeof(*puid));
-	memcpy(puid, cache_value.data, sizeof(*puid));
-
-	return true;
+	return False;
 }
 
 /*****************************************************************
  Store uid to SID mapping in cache.
-*****************************************************************/
+*****************************************************************/  
 
 void store_uid_sid_cache(const DOM_SID *psid, uid_t uid)
 {
-	memcache_add(NULL, SID_UID_CACHE,
-		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
-		     data_blob_const(&uid, sizeof(uid)));
-	memcache_add(NULL, UID_SID_CACHE,
-		     data_blob_const(&uid, sizeof(uid)),
-		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)));
+	struct uid_sid_cache *pc;
+
+	/* do not store SIDs in the "Unix Group" domain */
+	
+	if ( sid_check_is_in_unix_users( psid ) )
+		return;
+
+	if (n_uid_sid_cache >= MAX_UID_SID_CACHE_SIZE && n_uid_sid_cache > TURNOVER_UID_SID_CACHE_SIZE) {
+		/* Delete the last TURNOVER_UID_SID_CACHE_SIZE entries. */
+		struct uid_sid_cache *pc_next;
+		size_t i;
+
+		for (i = 0, pc = uid_sid_cache_head; i < (n_uid_sid_cache - TURNOVER_UID_SID_CACHE_SIZE); i++, pc = pc->next)
+			;
+		for(; pc; pc = pc_next) {
+			pc_next = pc->next;
+			DLIST_REMOVE(uid_sid_cache_head,pc);
+			SAFE_FREE(pc);
+			n_uid_sid_cache--;
+		}
+	}
+
+	pc = SMB_MALLOC_P(struct uid_sid_cache);
+	if (!pc)
+		return;
+	pc->uid = uid;
+	sid_copy(&pc->sid, psid);
+	DLIST_ADD(uid_sid_cache_head, pc);
+	n_uid_sid_cache++;
 }
 
 /*****************************************************************
   Find a SID given a gid.
-*****************************************************************/
+*****************************************************************/  
 
-static bool fetch_sid_from_gid_cache(DOM_SID *psid, gid_t gid)
+static BOOL fetch_sid_from_gid_cache(DOM_SID *psid, gid_t gid)
 {
-	DATA_BLOB cache_value;
+	struct gid_sid_cache *pc;
 
-	if (!memcache_lookup(NULL, GID_SID_CACHE,
-			     data_blob_const(&gid, sizeof(gid)),
-			     &cache_value)) {
-		return false;
+	for (pc = gid_sid_cache_head; pc; pc = pc->next) {
+		if (pc->gid == gid) {
+			*psid = pc->sid;
+			DEBUG(3,("fetch sid from gid cache %u -> %s\n",
+				 (unsigned int)gid, sid_string_static(psid)));
+			DLIST_PROMOTE(gid_sid_cache_head, pc);
+			return True;
+		}
 	}
-
-	memcpy(psid, cache_value.data, MIN(sizeof(*psid), cache_value.length));
-	SMB_ASSERT(cache_value.length >= offsetof(struct dom_sid, id_auth));
-	SMB_ASSERT(cache_value.length == ndr_size_dom_sid(psid, 0));
-
-	return true;
+	return False;
 }
 
 /*****************************************************************
   Find a gid given a SID.
-*****************************************************************/
+*****************************************************************/  
 
-static bool fetch_gid_from_cache(gid_t *pgid, const DOM_SID *psid)
+static BOOL fetch_gid_from_cache(gid_t *pgid, const DOM_SID *psid)
 {
-	DATA_BLOB cache_value;
+	struct gid_sid_cache *pc;
 
-	if (!memcache_lookup(NULL, SID_UID_CACHE,
-			     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
-			     &cache_value)) {
-		return false;
+	for (pc = gid_sid_cache_head; pc; pc = pc->next) {
+		if (sid_compare(&pc->sid, psid) == 0) {
+			*pgid = pc->gid;
+			DEBUG(3,("fetch gid from cache %u -> %s\n",
+				 (unsigned int)*pgid, sid_string_static(psid)));
+			DLIST_PROMOTE(gid_sid_cache_head, pc);
+			return True;
+		}
 	}
-
-	SMB_ASSERT(cache_value.length == sizeof(*pgid));
-	memcpy(pgid, cache_value.data, sizeof(*pgid));
-
-	return true;
+	return False;
 }
 
 /*****************************************************************
  Store gid to SID mapping in cache.
-*****************************************************************/
+*****************************************************************/  
 
 void store_gid_sid_cache(const DOM_SID *psid, gid_t gid)
 {
-	memcache_add(NULL, SID_GID_CACHE,
-		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)),
-		     data_blob_const(&gid, sizeof(gid)));
-	memcache_add(NULL, GID_SID_CACHE,
-		     data_blob_const(&gid, sizeof(gid)),
-		     data_blob_const(psid, ndr_size_dom_sid(psid, 0)));
+	struct gid_sid_cache *pc;
+	
+	/* do not store SIDs in the "Unix Group" domain */
+	
+	if ( sid_check_is_in_unix_groups( psid ) )
+		return;
+
+	if (n_gid_sid_cache >= MAX_GID_SID_CACHE_SIZE && n_gid_sid_cache > TURNOVER_GID_SID_CACHE_SIZE) {
+		/* Delete the last TURNOVER_GID_SID_CACHE_SIZE entries. */
+		struct gid_sid_cache *pc_next;
+		size_t i;
+
+		for (i = 0, pc = gid_sid_cache_head; i < (n_gid_sid_cache - TURNOVER_GID_SID_CACHE_SIZE); i++, pc = pc->next)
+			;
+		for(; pc; pc = pc_next) {
+			pc_next = pc->next;
+			DLIST_REMOVE(gid_sid_cache_head,pc);
+			SAFE_FREE(pc);
+			n_gid_sid_cache--;
+		}
+	}
+
+	pc = SMB_MALLOC_P(struct gid_sid_cache);
+	if (!pc)
+		return;
+	pc->gid = gid;
+	sid_copy(&pc->sid, psid);
+	DLIST_ADD(gid_sid_cache_head, pc);
+
+	DEBUG(3,("store_gid_sid_cache: gid %u in cache -> %s\n", (unsigned int)gid,
+		sid_string_static(psid)));
+
+	n_gid_sid_cache++;
 }
 
 /*****************************************************************
@@ -1115,7 +1160,7 @@ void store_gid_sid_cache(const DOM_SID *psid, gid_t gid)
 static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
 {
 	uint32 rid;
-	bool ret;
+	BOOL ret;
 
 	ZERO_STRUCTP(psid);
 
@@ -1136,7 +1181,7 @@ static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
 
  done:
 	DEBUG(10,("LEGACY: uid %u -> sid %s\n", (unsigned int)uid,
-		  sid_string_dbg(psid)));
+		  sid_string_static(psid)));
 
 	store_uid_sid_cache(psid, uid);
 	return;
@@ -1148,7 +1193,7 @@ static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
 
 static void legacy_gid_to_sid(DOM_SID *psid, gid_t gid)
 {
-	bool ret;
+	BOOL ret;
 
 	ZERO_STRUCTP(psid);
 
@@ -1167,7 +1212,7 @@ static void legacy_gid_to_sid(DOM_SID *psid, gid_t gid)
 
  done:
 	DEBUG(10,("LEGACY: gid %u -> sid %s\n", (unsigned int)gid,
-		  sid_string_dbg(psid)));
+		  sid_string_static(psid)));
 
 	store_gid_sid_cache(psid, gid);
 	return;
@@ -1177,14 +1222,14 @@ static void legacy_gid_to_sid(DOM_SID *psid, gid_t gid)
  *THE LEGACY* convert SID to uid function.
 *****************************************************************/  
 
-static bool legacy_sid_to_uid(const DOM_SID *psid, uid_t *puid)
+static BOOL legacy_sid_to_uid(const DOM_SID *psid, uid_t *puid)
 {
 	enum lsa_SidType type;
 	uint32 rid;
 
 	if (sid_peek_check_rid(get_global_sam_sid(), psid, &rid)) {
 		union unid_t id;
-		bool ret;
+		BOOL ret;
 
 		become_root();
 		ret = pdb_sid_to_id(psid, &id, &type);
@@ -1193,27 +1238,26 @@ static bool legacy_sid_to_uid(const DOM_SID *psid, uid_t *puid)
 		if (ret) {
 			if (type != SID_NAME_USER) {
 				DEBUG(5, ("sid %s is a %s, expected a user\n",
-					  sid_string_dbg(psid),
+					  sid_string_static(psid),
 					  sid_type_lookup(type)));
-				return false;
+				return False;
 			}
 			*puid = id.uid;
 			goto done;
 		}
 
 		/* This was ours, but it was not mapped.  Fail */
-	}
+		}
 
-	DEBUG(10,("LEGACY: mapping failed for sid %s\n",
-		  sid_string_dbg(psid)));
-	return false;
+	DEBUG(10,("LEGACY: mapping failed for sid %s\n", sid_string_static(psid)));
+	return False;
 
 done:
-	DEBUG(10,("LEGACY: sid %s -> uid %u\n", sid_string_dbg(psid),
-		  (unsigned int)*puid ));
+	DEBUG(10,("LEGACY: sid %s -> uid %u\n", sid_string_static(psid),
+		(unsigned int)*puid ));
 
 	store_uid_sid_cache(psid, *puid);
-	return true;
+	return True;
 }
 
 /*****************************************************************
@@ -1221,7 +1265,7 @@ done:
  Group mapping is used for gids that maps to Wellknown SIDs
 *****************************************************************/  
 
-static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
+static BOOL legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 {
 	uint32 rid;
 	GROUP_MAP map;
@@ -1230,7 +1274,7 @@ static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 
 	if ((sid_check_is_in_builtin(psid) ||
 	     sid_check_is_in_wellknown_domain(psid))) {
-		bool ret;
+		BOOL ret;
 
 		become_root();
 		ret = pdb_getgrsid(&map, *psid);
@@ -1240,13 +1284,12 @@ static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 			*pgid = map.gid;
 			goto done;
 		}
-		DEBUG(10,("LEGACY: mapping failed for sid %s\n",
-			  sid_string_dbg(psid)));
-		return false;
+		DEBUG(10,("LEGACY: mapping failed for sid %s\n", sid_string_static(psid)));
+		return False;
 	}
 
 	if (sid_peek_check_rid(get_global_sam_sid(), psid, &rid)) {
-		bool ret;
+		BOOL ret;
 
 		become_root();
 		ret = pdb_sid_to_id(psid, &id, &type);
@@ -1255,29 +1298,28 @@ static bool legacy_sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 		if (ret) {
 			if ((type != SID_NAME_DOM_GRP) &&
 			    (type != SID_NAME_ALIAS)) {
-				DEBUG(5, ("LEGACY: sid %s is a %s, expected "
-					  "a group\n", sid_string_dbg(psid),
+				DEBUG(5, ("LEGACY: sid %s is a %s, expected a group\n",
+					  sid_string_static(psid),
 					  sid_type_lookup(type)));
-				return false;
+				return False;
 			}
 			*pgid = id.gid;
 			goto done;
 		}
-	
+
 		/* This was ours, but it was not mapped.  Fail */
 	}
 
-	DEBUG(10,("LEGACY: mapping failed for sid %s\n",
-		  sid_string_dbg(psid)));
-	return false;
+	DEBUG(10,("LEGACY: mapping failed for sid %s\n", sid_string_static(psid)));
+		return False;
 	
  done:
-	DEBUG(10,("LEGACY: sid %s -> gid %u\n", sid_string_dbg(psid),
+	DEBUG(10,("LEGACY: sid %s -> gid %u\n", sid_string_static(psid),
 		  (unsigned int)*pgid ));
 
 	store_gid_sid_cache(psid, *pgid);
 
-	return true;
+	return True;
 }
 
 /*****************************************************************
@@ -1301,9 +1343,9 @@ void uid_to_sid(DOM_SID *psid, uid_t uid)
 			uid));
 		return;
 	}
-
-	DEBUG(10,("uid %u -> sid %s\n", (unsigned int)uid,
-		  sid_string_dbg(psid)));
+	
+	DEBUG(10,("uid %u -> sid %s\n",
+		  (unsigned int)uid, sid_string_static(psid)));
 
 	store_uid_sid_cache(psid, uid);
 	return;
@@ -1316,7 +1358,7 @@ void uid_to_sid(DOM_SID *psid, uid_t uid)
 void gid_to_sid(DOM_SID *psid, gid_t gid)
 {
 	ZERO_STRUCTP(psid);
-
+		
 	if (fetch_sid_from_gid_cache(psid, gid))
 		return;
 
@@ -1331,8 +1373,8 @@ void gid_to_sid(DOM_SID *psid, gid_t gid)
 		return;
 	}
 
-	DEBUG(10,("gid %u -> sid %s\n", (unsigned int)gid,
-		  sid_string_dbg(psid)));
+	DEBUG(10,("gid %u -> sid %s\n",
+		  (unsigned int)gid, sid_string_static(psid)));
 	
 	store_gid_sid_cache(psid, gid);
 	return;
@@ -1342,16 +1384,16 @@ void gid_to_sid(DOM_SID *psid, gid_t gid)
  *THE CANONICAL* convert SID to uid function.
 *****************************************************************/  
 
-bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
+BOOL sid_to_uid(const DOM_SID *psid, uid_t *puid)
 {
 	uint32 rid;
 	gid_t gid;
 
 	if (fetch_uid_from_cache(puid, psid))
-		return true;
+		return True;
 
 	if (fetch_gid_from_cache(&gid, psid)) {
-		return false;
+		return False;
 	}
 
 	/* Optimize for the Unix Users Domain
@@ -1361,9 +1403,9 @@ bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
 		*puid = uid;
 
 		/* return here, don't cache */
-		DEBUG(10,("sid %s -> uid %u\n", sid_string_dbg(psid),
+		DEBUG(10,("sid %s -> uid %u\n", sid_string_static(psid),
 			(unsigned int)*puid ));
-		return true;
+		return True;
 	}
 
 	if (!winbind_sid_to_uid(puid, psid)) {
@@ -1372,18 +1414,18 @@ bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
 		}
 
 		DEBUG(5, ("winbind failed to find a uid for sid %s\n",
-			  sid_string_dbg(psid)));
-		return false;
+			  sid_string_static(psid)));
+		return False;
 	}
-
+	
 	/* TODO: Here would be the place to allocate both a gid and a uid for
 	 * the SID in question */
 
-	DEBUG(10,("sid %s -> uid %u\n", sid_string_dbg(psid),
+	DEBUG(10,("sid %s -> uid %u\n", sid_string_static(psid),
 		(unsigned int)*puid ));
 
 	store_uid_sid_cache(psid, *puid);
-	return true;
+	return True;
 }
 
 /*****************************************************************
@@ -1391,16 +1433,16 @@ bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
  Group mapping is used for gids that maps to Wellknown SIDs
 *****************************************************************/  
 
-bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
+BOOL sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 {
 	uint32 rid;
 	uid_t uid;
 
 	if (fetch_gid_from_cache(pgid, psid))
-		return true;
+		return True;
 
 	if (fetch_uid_from_cache(&uid, psid))
-		return false;
+		return False;
 
 	/* Optimize for the Unix Groups Domain
 	 * as the conversion is straightforward */
@@ -1409,9 +1451,9 @@ bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 		*pgid = gid;
 
 		/* return here, don't cache */
-		DEBUG(10,("sid %s -> gid %u\n", sid_string_dbg(psid),
+		DEBUG(10,("sid %s -> gid %u\n", sid_string_static(psid),
 			(unsigned int)*pgid ));
-		return true;
+		return True;
 	}
 
 	/* Ask winbindd if it can map this sid to a gid.
@@ -1423,15 +1465,15 @@ bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 		}
 
 		DEBUG(10,("winbind failed to find a gid for sid %s\n",
-			  sid_string_dbg(psid)));
-		return false;
+					sid_string_static(psid)));
+		return False;
 	}
 
-	DEBUG(10,("sid %s -> gid %u\n", sid_string_dbg(psid),
+	DEBUG(10,("sid %s -> gid %u\n", sid_string_static(psid),
 		  (unsigned int)*pgid ));
 
 	store_gid_sid_cache(psid, *pgid);
 	
-	return true;
+	return True;
 }
 

@@ -9,7 +9,7 @@
       
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -47,7 +48,7 @@ uint32 pdb_get_group_rid (struct samu *sampass)
 	return (0);
 }
 
-bool pdb_set_user_sid_from_rid (struct samu *sampass, uint32 rid, enum pdb_value_state flag)
+BOOL pdb_set_user_sid_from_rid (struct samu *sampass, uint32 rid, enum pdb_value_state flag)
 {
 	DOM_SID u_sid;
 	const DOM_SID *global_sam_sid;
@@ -69,12 +70,12 @@ bool pdb_set_user_sid_from_rid (struct samu *sampass, uint32 rid, enum pdb_value
 		return False;
 
 	DEBUG(10, ("pdb_set_user_sid_from_rid:\n\tsetting user sid %s from rid %d\n", 
-		    sid_string_dbg(&u_sid),rid));
+		    sid_string_static(&u_sid),rid));
 
 	return True;
 }
 
-bool pdb_set_group_sid_from_rid (struct samu *sampass, uint32 grid, enum pdb_value_state flag)
+BOOL pdb_set_group_sid_from_rid (struct samu *sampass, uint32 grid, enum pdb_value_state flag)
 {
 	DOM_SID g_sid;
 	const DOM_SID *global_sam_sid;
@@ -96,7 +97,7 @@ bool pdb_set_group_sid_from_rid (struct samu *sampass, uint32 grid, enum pdb_val
 		return False;
 
 	DEBUG(10, ("pdb_set_group_sid_from_rid:\n\tsetting group sid %s from rid %d\n", 
-		    sid_string_dbg(&g_sid), grid));
+		    sid_string_static(&g_sid), grid));
 
 	return True;
 }

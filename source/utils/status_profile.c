@@ -6,7 +6,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -15,13 +15,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "includes.h"
 
-bool status_profile_dump(bool be_verbose);
-bool status_profile_rates(bool be_verbose);
+BOOL status_profile_dump(BOOL be_verbose);
+BOOL status_profile_rates(BOOL be_verbose);
 
 #ifdef WITH_PROFILE
 static void profile_separator(const char * title)
@@ -43,10 +44,10 @@ static void profile_separator(const char * title)
 /*******************************************************************
  dump the elements of the profile structure
   ******************************************************************/
-bool status_profile_dump(bool verbose)
+BOOL status_profile_dump(BOOL verbose)
 {
 #ifdef WITH_PROFILE
-	if (!profile_setup(NULL, True)) {
+	if (!profile_setup(True)) {
 		fprintf(stderr,"Failed to initialise profile memory\n");
 		return False;
 	}
@@ -471,7 +472,7 @@ static int print_count_samples(
 static struct profile_stats	sample_data[2];
 static SMB_BIG_UINT		sample_time[2];
 
-bool status_profile_rates(bool verbose)
+BOOL status_profile_rates(BOOL verbose)
 {
 	SMB_BIG_UINT remain_usec;
 	SMB_BIG_UINT next_usec;
@@ -486,7 +487,7 @@ bool status_profile_rates(bool verbose)
 		    usec_to_sec(sample_interval_usec));
 	}
 
-	if (!profile_setup(NULL, True)) {
+	if (!profile_setup(True)) {
 		fprintf(stderr,"Failed to initialise profile memory\n");
 		return False;
 	}
@@ -533,7 +534,7 @@ bool status_profile_rates(bool verbose)
 
 #else /* WITH_PROFILE */
 
-bool status_profile_rates(bool verbose)
+BOOL status_profile_rates(BOOL verbose)
 {
 	fprintf(stderr, "Profile data unavailable\n");
 	return False;

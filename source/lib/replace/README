@@ -15,6 +15,7 @@ rename
 initgroups
 memmove
 strdup
+inet_ntoa
 setlinebuf
 vsyslog
 timegm
@@ -49,21 +50,10 @@ pwrite
 getpass
 readline (the library)
 inet_ntoa
-inet_ntop
-inet_pton
-inet_aton
 strtoll
 strtoull
 socketpair
 strptime
-getaddrinfo
-freeaddrinfo
-getnameinfo
-gai_strerror
-getifaddrs
-freeifaddrs
-utime
-utimes
 
 Types:
 bool

@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 /*  this module apparently provides an implementation of DCE/RPC over a
@@ -45,17 +46,12 @@ static void free_pipe_ntlmssp_auth_data(struct pipe_auth_data *auth)
 	auth->a_u.auth_ntlmssp_state = NULL;
 }
 
-static DATA_BLOB generic_session_key(void)
-{
-	return data_blob("SystemLibraryDTC", 16);
-}
-
 /*******************************************************************
  Generate the next PDU to be returned from the data in p->rdata. 
  Handle NTLMSSP.
  ********************************************************************/
 
-static bool create_next_pdu_ntlmssp(pipes_struct *p)
+static BOOL create_next_pdu_ntlmssp(pipes_struct *p)
 {
 	RPC_HDR_RESP hdr_resp;
 	uint32 ss_padding_len = 0;
@@ -151,7 +147,7 @@ static bool create_next_pdu_ntlmssp(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -272,7 +268,7 @@ static bool create_next_pdu_ntlmssp(pipes_struct *p)
  Return an schannel authenticated fragment.
  ********************************************************************/
 
-static bool create_next_pdu_schannel(pipes_struct *p)
+static BOOL create_next_pdu_schannel(pipes_struct *p)
 {
 	RPC_HDR_RESP hdr_resp;
 	uint32 ss_padding_len = 0;
@@ -358,7 +354,7 @@ static bool create_next_pdu_schannel(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -450,7 +446,7 @@ static bool create_next_pdu_schannel(pipes_struct *p)
  No authentication done.
 ********************************************************************/
 
-static bool create_next_pdu_noauth(pipes_struct *p)
+static BOOL create_next_pdu_noauth(pipes_struct *p)
 {
 	RPC_HDR_RESP hdr_resp;
 	uint32 data_len;
@@ -531,7 +527,7 @@ static bool create_next_pdu_noauth(pipes_struct *p)
 	 * data.
 	 */
 
-	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/* Store the header in the data stream. */
@@ -571,7 +567,7 @@ static bool create_next_pdu_noauth(pipes_struct *p)
  Generate the next PDU to be returned from the data in p->rdata. 
 ********************************************************************/
 
-bool create_next_pdu(pipes_struct *p)
+BOOL create_next_pdu(pipes_struct *p)
 {
 	switch(p->auth.auth_level) {
 		case PIPE_AUTH_LEVEL_NONE:
@@ -604,7 +600,7 @@ bool create_next_pdu(pipes_struct *p)
  the pipe struct.
 *******************************************************************/
 
-static bool pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
+static BOOL pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
 {
 	DATA_BLOB reply;
 	NTSTATUS status;
@@ -673,20 +669,18 @@ static bool pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
 	p->pipe_user.ut.gid = a->server_info->gid;
 	
 	/*
-	 * We're an authenticated bind over smbd, so the session key needs to
-	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
-	 * does. See the RPC-SAMBA3SESSIONKEY.
+	 * Copy the session key from the ntlmssp state.
 	 */
 
 	data_blob_free(&p->session_key);
-	p->session_key = generic_session_key();
+	p->session_key = data_blob(a->ntlmssp_state->session_key.data, a->ntlmssp_state->session_key.length);
 	if (!p->session_key.data) {
 		return False;
 	}
 
 	p->pipe_user.ut.ngroups = a->server_info->n_groups;
 	if (p->pipe_user.ut.ngroups) {
-		if (!(p->pipe_user.ut.groups = (gid_t *)memdup(a->server_info->groups,
+		if (!(p->pipe_user.ut.groups = memdup(a->server_info->groups,
 						sizeof(gid_t) * p->pipe_user.ut.ngroups))) {
 			DEBUG(0,("failed to memdup group list to p->pipe_user.groups\n"));
 			return False;
@@ -714,7 +708,7 @@ struct rpc_table {
 		const char *clnt;
 		const char *srv;
 	} pipe;
-	const struct api_struct *cmds;
+	struct api_struct *cmds;
 	int n_cmds;
 };
 
@@ -725,7 +719,7 @@ static int rpc_lookup_size;
  This is the "stage3" NTLMSSP response after a bind request and reply.
 *******************************************************************/
 
-bool api_pipe_bind_auth3(pipes_struct *p, prs_struct *rpc_in_p)
+BOOL api_pipe_bind_auth3(pipes_struct *p, prs_struct *rpc_in_p)
 {
 	RPC_HDR_AUTH auth_info;
 	uint32 pad;
@@ -797,7 +791,7 @@ bool api_pipe_bind_auth3(pipes_struct *p, prs_struct *rpc_in_p)
  Marshall a bind_nak pdu.
 *******************************************************************/
 
-static bool setup_bind_nak(pipes_struct *p)
+static BOOL setup_bind_nak(pipes_struct *p)
 {
 	prs_struct outgoing_rpc;
 	RPC_HDR nak_hdr;
@@ -812,7 +806,7 @@ static bool setup_bind_nak(pipes_struct *p)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_rpc, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -859,7 +853,7 @@ static bool setup_bind_nak(pipes_struct *p)
  Marshall a fault pdu.
 *******************************************************************/
 
-bool setup_fault_pdu(pipes_struct *p, NTSTATUS status)
+BOOL setup_fault_pdu(pipes_struct *p, NTSTATUS status)
 {
 	prs_struct outgoing_pdu;
 	RPC_HDR fault_hdr;
@@ -875,7 +869,7 @@ bool setup_fault_pdu(pipes_struct *p, NTSTATUS status)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -930,7 +924,7 @@ bool setup_fault_pdu(pipes_struct *p, NTSTATUS status)
  We should probably check the auth-verifier here.
 *******************************************************************/
 
-bool setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
+BOOL setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
 {
 	prs_struct outgoing_pdu;
 	RPC_HDR ack_reply_hdr;
@@ -944,7 +938,7 @@ bool setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
 	 * header and are never sending more than one PDU here.
 	 */
 
-	prs_init_empty( &outgoing_pdu, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_pdu, 0, p->mem_ctx, MARSHALL);
 	prs_give_memory( &outgoing_pdu, (char *)p->out_data.current_pdu, sizeof(p->out_data.current_pdu), False);
 
 	/*
@@ -978,7 +972,7 @@ bool setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
  Used to reject unknown binds from Win2k.
 *******************************************************************/
 
-bool check_bind_req(struct pipes_struct *p, RPC_IFACE* abstract,
+BOOL check_bind_req(struct pipes_struct *p, RPC_IFACE* abstract,
                     RPC_IFACE* transfer, uint32 context_id)
 {
 	char *pipe_name = p->name;
@@ -993,7 +987,7 @@ bool check_bind_req(struct pipes_struct *p, RPC_IFACE* abstract,
 	/* we have to check all now since win2k introduced a new UUID on the lsaprpc pipe */
 		
 	for ( i=0; pipe_names[i].client_pipe; i++ ) {
-		DEBUGADD(10,("checking %s\n", pipe_names[i].client_pipe));
+		DEBUG(10,("checking %s\n", pipe_names[i].client_pipe));
 		if ( strequal(pipe_names[i].client_pipe, pname)
 			&& (abstract->version == pipe_names[i].abstr_syntax.version) 
 			&& (memcmp(&abstract->uuid, &pipe_names[i].abstr_syntax.uuid, sizeof(struct GUID)) == 0)
@@ -1075,8 +1069,12 @@ NTSTATUS rpc_pipe_register_commands(int version, const char *clnt, const char *s
         ZERO_STRUCTP(rpc_entry);
         rpc_entry->pipe.clnt = SMB_STRDUP(clnt);
         rpc_entry->pipe.srv = SMB_STRDUP(srv);
-        rpc_entry->cmds = cmds;
-        rpc_entry->n_cmds = size;
+        rpc_entry->cmds = SMB_REALLOC_ARRAY(rpc_entry->cmds, struct api_struct, rpc_entry->n_cmds + size);
+	if (!rpc_entry->cmds) {
+		return NT_STATUS_NO_MEMORY;
+	}
+        memcpy(rpc_entry->cmds + rpc_entry->n_cmds, cmds, size * sizeof(struct api_struct));
+        rpc_entry->n_cmds += size;
         
         return NT_STATUS_OK;
 }
@@ -1085,7 +1083,7 @@ NTSTATUS rpc_pipe_register_commands(int version, const char *clnt, const char *s
  Handle a SPNEGO krb5 bind auth.
 *******************************************************************/
 
-static bool pipe_spnego_auth_bind_kerberos(pipes_struct *p, prs_struct *rpc_in_p, RPC_HDR_AUTH *pauth_info,
+static BOOL pipe_spnego_auth_bind_kerberos(pipes_struct *p, prs_struct *rpc_in_p, RPC_HDR_AUTH *pauth_info,
 		DATA_BLOB *psecblob, prs_struct *pout_auth)
 {
 	return False;
@@ -1095,7 +1093,7 @@ static bool pipe_spnego_auth_bind_kerberos(pipes_struct *p, prs_struct *rpc_in_p
  Handle the first part of a SPNEGO bind auth.
 *******************************************************************/
 
-static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_p,
+static BOOL pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_p,
 					RPC_HDR_AUTH *pauth_info, prs_struct *pout_auth)
 {
 	DATA_BLOB blob;
@@ -1105,7 +1103,7 @@ static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_
 	char *OIDs[ASN1_MAX_OIDS];
         int i;
 	NTSTATUS status;
-        bool got_kerberos_mechanism = false;
+        BOOL got_kerberos_mechanism = False;
 	AUTH_NTLMSSP_STATE *a = NULL;
 	RPC_HDR_AUTH auth_info;
 
@@ -1133,7 +1131,7 @@ static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_
         }
 
 	if (strcmp(OID_KERBEROS5, OIDs[0]) == 0 || strcmp(OID_KERBEROS5_OLD, OIDs[0]) == 0) {
-		got_kerberos_mechanism = true;
+		got_kerberos_mechanism = True;
 	}
 
 	for (i=0;OIDs[i];i++) {
@@ -1143,7 +1141,7 @@ static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_
 	DEBUG(3,("pipe_spnego_auth_bind_negotiate: Got secblob of size %lu\n", (unsigned long)secblob.length));
 
 	if ( got_kerberos_mechanism && ((lp_security()==SEC_ADS) || lp_use_kerberos_keytab()) ) {
-		bool ret = pipe_spnego_auth_bind_kerberos(p, rpc_in_p, pauth_info, &secblob, pout_auth);
+		BOOL ret = pipe_spnego_auth_bind_kerberos(p, rpc_in_p, pauth_info, &secblob, pout_auth);
 		data_blob_free(&secblob);
 		data_blob_free(&blob);
 		return ret;
@@ -1154,38 +1152,27 @@ static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_
 		free_pipe_ntlmssp_auth_data(&p->auth);
 	}
 
-	if (!got_kerberos_mechanism) {
-		/* Initialize the NTLM engine. */
-		status = auth_ntlmssp_start(&a);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto err;
-		}
-
-		/*
-		 * Pass the first security blob of data to it.
-		 * This can return an error or NT_STATUS_MORE_PROCESSING_REQUIRED
-		 * which means we need another packet to complete the bind.
-		 */
-
-		status = auth_ntlmssp_update(a, secblob, &chal);
-
-		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-			DEBUG(3,("pipe_spnego_auth_bind_negotiate: auth_ntlmssp_update failed.\n"));
-			goto err;
-		}
-
-		/* Generate the response blob we need for step 2 of the bind. */
-		response = spnego_gen_auth_response(&chal, status, OID_NTLMSSP);
-	} else {
-		/*
-		 * SPNEGO negotiate down to NTLMSSP. The subsequent
-		 * code to process follow-up packets is not complete
-		 * yet. JRA.
-		 */
-		response = spnego_gen_auth_response(NULL,
-					NT_STATUS_MORE_PROCESSING_REQUIRED,
-					OID_NTLMSSP);
+	/* Initialize the NTLM engine. */
+	status = auth_ntlmssp_start(&a);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto err;
 	}
+
+	/*
+	 * Pass the first security blob of data to it.
+	 * This can return an error or NT_STATUS_MORE_PROCESSING_REQUIRED
+	 * which means we need another packet to complete the bind.
+	 */
+
+        status = auth_ntlmssp_update(a, secblob, &chal);
+
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+		DEBUG(3,("pipe_spnego_auth_bind_negotiate: auth_ntlmssp_update failed.\n"));
+		goto err;
+	}
+
+	/* Generate the response blob we need for step 2 of the bind. */
+	response = spnego_gen_auth_response(&chal, status, OID_NTLMSSP);
 
 	/* Copy the blob into the pout_auth parse struct */
 	init_rpc_hdr_auth(&auth_info, RPC_SPNEGO_AUTH_TYPE, pauth_info->auth_level, RPC_HDR_AUTH_LEN, 1);
@@ -1227,7 +1214,7 @@ static bool pipe_spnego_auth_bind_negotiate(pipes_struct *p, prs_struct *rpc_in_
  Handle the second part of a SPNEGO bind auth.
 *******************************************************************/
 
-static bool pipe_spnego_auth_bind_continue(pipes_struct *p, prs_struct *rpc_in_p,
+static BOOL pipe_spnego_auth_bind_continue(pipes_struct *p, prs_struct *rpc_in_p,
 					RPC_HDR_AUTH *pauth_info, prs_struct *pout_auth)
 {
 	RPC_HDR_AUTH auth_info;
@@ -1242,10 +1229,6 @@ static bool pipe_spnego_auth_bind_continue(pipes_struct *p, prs_struct *rpc_in_p
 	ZERO_STRUCT(auth_reply);
 	ZERO_STRUCT(response);
 
-	/*
-	 * NB. If we've negotiated down from krb5 to NTLMSSP we'll currently
-	 * fail here as 'a' == NULL.
-	 */
 	if (p->auth.auth_type != PIPE_AUTH_TYPE_SPNEGO_NTLMSSP || !a) {
 		DEBUG(0,("pipe_spnego_auth_bind_continue: not in NTLMSSP auth state.\n"));
 		goto err;
@@ -1274,7 +1257,7 @@ static bool pipe_spnego_auth_bind_continue(pipes_struct *p, prs_struct *rpc_in_p
 	 * The following call actually checks the challenge/response data.
 	 * for correctness against the given DOMAIN\user name.
 	 */
-
+	
 	if (!pipe_ntlmssp_verify_final(p, &auth_blob)) {
 		goto err;
 	}
@@ -1321,13 +1304,13 @@ static bool pipe_spnego_auth_bind_continue(pipes_struct *p, prs_struct *rpc_in_p
  Handle an schannel bind auth.
 *******************************************************************/
 
-static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
+static BOOL pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 					RPC_HDR_AUTH *pauth_info, prs_struct *pout_auth)
 {
 	RPC_HDR_AUTH auth_info;
 	RPC_AUTH_SCHANNEL_NEG neg;
 	RPC_AUTH_VERIFIER auth_verifier;
-	bool ret;
+	BOOL ret;
 	struct dcinfo *pdcinfo;
 	uint32 flags;
 
@@ -1369,20 +1352,7 @@ static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 	 * JRA. Should we also copy the schannel session key into the pipe session key p->session_key
 	 * here ? We do that for NTLMSSP, but the session key is already set up from the vuser
 	 * struct of the person who opened the pipe. I need to test this further. JRA.
-	 *
-	 * VL. As we are mapping this to guest set the generic key
-	 * "SystemLibraryDTC" key here. It's a bit difficult to test against
-	 * W2k3, as it does not allow schannel binds against SAMR and LSA
-	 * anymore.
 	 */
-
-	data_blob_free(&p->session_key);
-	p->session_key = generic_session_key();
-	if (p->session_key.data == NULL) {
-		DEBUG(0, ("pipe_schannel_auth_bind: Could not alloc session"
-			  " key\n"));
-		return False;
-	}
 
 	init_rpc_hdr_auth(&auth_info, RPC_SCHANNEL_AUTH_TYPE, pauth_info->auth_level, RPC_HDR_AUTH_LEN, 1);
 	if(!smb_io_rpc_hdr_auth("", &auth_info, pout_auth, 0)) {
@@ -1421,7 +1391,7 @@ static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
  Handle an NTLMSSP bind auth.
 *******************************************************************/
 
-static bool pipe_ntlmssp_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
+static BOOL pipe_ntlmssp_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 					RPC_HDR_AUTH *pauth_info, prs_struct *pout_auth)
 {
 	RPC_HDR_AUTH auth_info;
@@ -1502,7 +1472,7 @@ static bool pipe_ntlmssp_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
  Respond to a pipe bind request.
 *******************************************************************/
 
-bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
+BOOL api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 {
 	RPC_HDR_BA hdr_ba;
 	RPC_HDR_RB hdr_rb;
@@ -1522,7 +1492,7 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 		return setup_bind_nak(p);
 	}
 
-	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
 
 	/* 
 	 * Marshall directly into the outgoing PDU space. We
@@ -1593,8 +1563,6 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 		}
 	}
 
-	ZERO_STRUCT(hdr_rb);
-
 	/* decode the bind request */
 	if(!smb_io_rpc_hdr_rb("", &hdr_rb, rpc_in_p, 0))  {
 		DEBUG(0,("api_pipe_bind_req: unable to unmarshall RPC_HDR_RB struct.\n"));
@@ -1664,18 +1632,11 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 
 		case RPC_ANONYMOUS_AUTH_TYPE:
 			/* Unauthenticated bind request. */
-			/* Get the authenticated pipe user from current_user */
-			if (!copy_current_user(&p->pipe_user, &current_user)) {
-				DEBUG(10, ("Could not copy current user\n"));
-				goto err_exit;
-			}
 			/* We're finished - no more packets. */
 			p->auth.auth_type = PIPE_AUTH_TYPE_NONE;
 			/* We must set the pipe auth_level here also. */
 			p->auth.auth_level = PIPE_AUTH_LEVEL_NONE;
 			p->pipe_bound = True;
-			/* The session key was initialized from the SMB
-			 * session in make_internal_rpc_pipe_p */
 			break;
 
 		default:
@@ -1784,7 +1745,7 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
  SPNEGO calls.
 ****************************************************************************/
 
-bool api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
+BOOL api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
 {
 	RPC_HDR_BA hdr_ba;
 	RPC_HDR_RB hdr_rb;
@@ -1796,7 +1757,7 @@ bool api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
 	prs_struct outgoing_rpc;
 	int auth_len = 0;
 
-	prs_init_empty( &outgoing_rpc, p->mem_ctx, MARSHALL);
+	prs_init( &outgoing_rpc, 0, p->mem_ctx, MARSHALL);
 
 	/* 
 	 * Marshall directly into the outgoing PDU space. We
@@ -1975,7 +1936,7 @@ bool api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
  Deal with NTLMSSP sign & seal processing on an RPC request.
 ****************************************************************************/
 
-bool api_pipe_ntlmssp_auth_process(pipes_struct *p, prs_struct *rpc_in,
+BOOL api_pipe_ntlmssp_auth_process(pipes_struct *p, prs_struct *rpc_in,
 					uint32 *p_ss_padding_len, NTSTATUS *pstatus)
 {
 	RPC_HDR_AUTH auth_info;
@@ -2091,7 +2052,7 @@ bool api_pipe_ntlmssp_auth_process(pipes_struct *p, prs_struct *rpc_in,
  Deal with schannel processing on an RPC request.
 ****************************************************************************/
 
-bool api_pipe_schannel_process(pipes_struct *p, prs_struct *rpc_in, uint32 *p_ss_padding_len)
+BOOL api_pipe_schannel_process(pipes_struct *p, prs_struct *rpc_in, uint32 *p_ss_padding_len)
 {
 	uint32 data_len;
 	uint32 auth_len;
@@ -2243,10 +2204,10 @@ void free_pipe_rpc_context( PIPE_RPC_FNS *list )
  before doing the call.
 ****************************************************************************/
 
-bool api_pipe_request(pipes_struct *p)
+BOOL api_pipe_request(pipes_struct *p)
 {
-	bool ret = False;
-	bool changed_user = False;
+	BOOL ret = False;
+	BOOL changed_user = False;
 	PIPE_RPC_FNS *pipe_fns;
 	
 	if (p->pipe_bound &&
@@ -2266,9 +2227,9 @@ bool api_pipe_request(pipes_struct *p)
 	pipe_fns = find_pipe_fns_by_context(p->contexts, p->hdr_req.context_id);
 	
 	if ( pipe_fns ) {
-		TALLOC_CTX *frame = talloc_stackframe();
+		set_current_rpc_talloc(p->mem_ctx);
 		ret = api_rpcTNP(p, p->name, pipe_fns->cmds, pipe_fns->n_cmds);
-		TALLOC_FREE(frame);
+		set_current_rpc_talloc(NULL);	
 	}
 	else {
 		DEBUG(0,("api_pipe_request: No rpc function table associated with context [%d] on pipe [%s]\n",
@@ -2286,7 +2247,7 @@ bool api_pipe_request(pipes_struct *p)
  Calls the underlying RPC function for a named pipe.
  ********************************************************************/
 
-bool api_rpcTNP(pipes_struct *p, const char *rpc_name, 
+BOOL api_rpcTNP(pipes_struct *p, const char *rpc_name, 
 		const struct api_struct *api_rpc_cmds, int n_cmds)
 {
 	int fn_num;
@@ -2335,13 +2296,6 @@ bool api_rpcTNP(pipes_struct *p, const char *rpc_name,
 		return True;
 	}
 
-	if (p->rng_fault_state) {
-		DEBUG(4, ("api_rpcTNP: rng fault return\n"));
-		p->rng_fault_state = False;
-		setup_fault_pdu(p, NT_STATUS(DCERPC_FAULT_OP_RNG_ERROR));
-		return True;
-	}
-
 	slprintf(name, sizeof(name)-1, "out_%s", rpc_name);
 	offset2 = prs_offset(&p->out_data.rdata);
 	prs_set_offset(&p->out_data.rdata, offset1);
@@ -2355,7 +2309,7 @@ bool api_rpcTNP(pipes_struct *p, const char *rpc_name,
 	if ((DEBUGLEVEL >= 10) && 
 	    (prs_offset(&p->in_data.data) != prs_data_size(&p->in_data.data))) {
 		size_t data_len = prs_data_size(&p->in_data.data) - prs_offset(&p->in_data.data);
-		char *data = (char *)SMB_MALLOC(data_len);
+		char *data = SMB_MALLOC(data_len);
 
 		DEBUG(10, ("api_rpcTNP: rpc input buffer underflow (parse error?)\n"));
 		if (data) {
@@ -2378,16 +2332,16 @@ void get_pipe_fns( int idx, struct api_struct **fns, int *n_fns )
 
 	switch ( idx ) {
 		case PI_LSARPC:
-			lsarpc_get_pipe_fns( &cmds, &n_cmds );
+			lsa_get_pipe_fns( &cmds, &n_cmds );
 			break;
-		case PI_DSSETUP:
-			dssetup_get_pipe_fns( &cmds, &n_cmds );
+		case PI_LSARPC_DS:
+			lsa_ds_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_SAMR:
 			samr_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_NETLOGON:
-			netlogon_get_pipe_fns( &cmds, &n_cmds );
+			netlog_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_SRVSVC:
 			srvsvc_get_pipe_fns( &cmds, &n_cmds );
@@ -2396,7 +2350,7 @@ void get_pipe_fns( int idx, struct api_struct **fns, int *n_fns )
 			wkssvc_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_WINREG:
-			winreg_get_pipe_fns( &cmds, &n_cmds );
+			reg_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_SPOOLSS:
 			spoolss_get_pipe_fns( &cmds, &n_cmds );
@@ -2405,17 +2359,17 @@ void get_pipe_fns( int idx, struct api_struct **fns, int *n_fns )
 			netdfs_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_SVCCTL:
-			svcctl2_get_pipe_fns( &cmds, &n_cmds );
+			svcctl_get_pipe_fns( &cmds, &n_cmds );
 			break;
 	        case PI_EVENTLOG:
-			eventlog2_get_pipe_fns( &cmds, &n_cmds );
+			eventlog_get_pipe_fns( &cmds, &n_cmds );
 			break;
 		case PI_NTSVCS:
-			ntsvcs2_get_pipe_fns( &cmds, &n_cmds );
+			ntsvcs_get_pipe_fns( &cmds, &n_cmds );
 			break;
 #ifdef DEVELOPER
-		case PI_RPCECHO:
-			rpcecho_get_pipe_fns( &cmds, &n_cmds );
+		case PI_ECHO:
+			echo_get_pipe_fns( &cmds, &n_cmds );
 			break;
 #endif
 		default:

@@ -1,23 +1,23 @@
-/*
+/* 
    Unix SMB/CIFS implementation.
    stat cache code
    Copyright (C) Andrew Tridgell 1992-2000
-   Copyright (C) Jeremy Allison 1999-2007
+   Copyright (C) Jeremy Allison 1999-2004
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2003
-   Copyright (C) Volker Lendecke 2007
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -26,40 +26,46 @@
  Stat cache code used in unix_convert.
 *****************************************************************************/
 
+static TDB_CONTEXT *tdb_stat_cache;
+
 /**
  * Add an entry into the stat cache.
  *
  * @param full_orig_name       The original name as specified by the client
  * @param orig_translated_path The name on our filesystem.
- *
- * @note Only the first strlen(orig_translated_path) characters are stored
+ * 
+ * @note Only the first strlen(orig_translated_path) characters are stored 
  *       into the cache.  This means that full_orig_name will be internally
  *       truncated.
  *
  */
 
-void stat_cache_add( const char *full_orig_name,
-		char *translated_path,
-		bool case_sensitive)
+void stat_cache_add( const char *full_orig_name, const char *orig_translated_path, BOOL case_sensitive)
 {
+	char *translated_path;
 	size_t translated_path_length;
+	TDB_DATA data_val;
 	char *original_path;
 	size_t original_path_length;
-	char saved_char;
-	TALLOC_CTX *ctx = talloc_tos();
+	size_t sc_size = lp_max_stat_cache_size();
 
-	if (!lp_stat_cache()) {
+	if (!lp_stat_cache())
 		return;
+
+	if (sc_size && (tdb_map_size(tdb_stat_cache) > sc_size*1024)) {
+		reset_stat_cache();
 	}
+
+	ZERO_STRUCT(data_val);
 
 	/*
 	 * Don't cache trivial valid directory entries such as . and ..
 	 */
 
-	if ((*full_orig_name == '\0')
-	    || ISDOT(full_orig_name) || ISDOTDOT(full_orig_name)) {
+	if((*full_orig_name == '\0') || (full_orig_name[0] == '.' && 
+				((full_orig_name[1] == '\0') ||
+				 (full_orig_name[1] == '.' && full_orig_name[2] == '\0'))))
 		return;
-	}
 
 	/*
 	 * If we are in case insentive mode, we don't need to
@@ -67,28 +73,33 @@ void stat_cache_add( const char *full_orig_name,
 	 * would be a waste.
 	 */
 
-	if (case_sensitive && (strcmp(full_orig_name, translated_path) == 0)) {
+	if(case_sensitive && (strcmp(full_orig_name, orig_translated_path) == 0))
 		return;
-	}
 
 	/*
 	 * Remove any trailing '/' characters from the
 	 * translated path.
 	 */
 
+	translated_path = SMB_STRDUP(orig_translated_path);
+	if (!translated_path)
+		return;
+
 	translated_path_length = strlen(translated_path);
 
 	if(translated_path[translated_path_length-1] == '/') {
+		translated_path[translated_path_length-1] = '\0';
 		translated_path_length--;
 	}
 
 	if(case_sensitive) {
-		original_path = talloc_strdup(ctx,full_orig_name);
+		original_path = SMB_STRDUP(full_orig_name);
 	} else {
-		original_path = talloc_strdup_upper(ctx,full_orig_name);
+		original_path = strdup_upper(full_orig_name);
 	}
 
 	if (!original_path) {
+		SAFE_FREE(translated_path);
 		return;
 	}
 
@@ -101,13 +112,10 @@ void stat_cache_add( const char *full_orig_name,
 
 	if (original_path_length != translated_path_length) {
 		if (original_path_length < translated_path_length) {
-			DEBUG(0, ("OOPS - tried to store stat cache entry "
-			"for weird length paths [%s] %lu and [%s] %lu)!\n",
-				  original_path,
-				  (unsigned long)original_path_length,
-				  translated_path,
-				  (unsigned long)translated_path_length));
-			TALLOC_FREE(original_path);
+			DEBUG(0, ("OOPS - tried to store stat cache entry for weird length paths [%s] %lu and [%s] %lu)!\n",
+				  original_path, (unsigned long)original_path_length, translated_path, (unsigned long)translated_path_length));
+			SAFE_FREE(original_path);
+			SAFE_FREE(translated_path);
 			return;
 		}
 
@@ -118,27 +126,22 @@ void stat_cache_add( const char *full_orig_name,
 		original_path_length = translated_path_length;
 	}
 
-	/* Ensure we're null terminated. */
-	saved_char = translated_path[translated_path_length];
-	translated_path[translated_path_length] = '\0';
-
 	/*
 	 * New entry or replace old entry.
 	 */
+  
+	data_val.dsize = translated_path_length + 1;
+	data_val.dptr = translated_path;
 
-	memcache_add(
-		smbd_memcache(), STAT_CACHE,
-		data_blob_const(original_path, original_path_length),
-		data_blob_const(translated_path, translated_path_length + 1));
+	if (tdb_store_bystring(tdb_stat_cache, original_path, data_val, TDB_REPLACE) != 0) {
+		DEBUG(0,("stat_cache_add: Error storing entry %s -> %s\n", original_path, translated_path));
+	} else {
+		DEBUG(5,("stat_cache_add: Added entry (%lx:size%x) %s -> %s\n",
+			(unsigned long)data_val.dptr, (unsigned int)data_val.dsize, original_path, translated_path));
+	}
 
-	DEBUG(5,("stat_cache_add: Added entry (%lx:size %x) %s -> %s\n",
-		 (unsigned long)translated_path,
-		 (unsigned int)translated_path_length,
-		 original_path,
-		 translated_path));
-
-	translated_path[translated_path_length] = saved_char;
-	TALLOC_FREE(original_path);
+	SAFE_FREE(original_path);
+	SAFE_FREE(translated_path);
 }
 
 /**
@@ -146,64 +149,49 @@ void stat_cache_add( const char *full_orig_name,
  *
  * @param conn    A connection struct to do the stat() with.
  * @param name    The path we are attempting to cache, modified by this routine
- *                to be correct as far as the cache can tell us. We assume that
- *		  it is a talloc'ed string from top of stack, we free it if
- *		  necessary.
- * @param dirpath The path as far as the stat cache told us. Also talloced
- * 		  from top of stack.
- * @param start   A pointer into name, for where to 'start' in fixing the rest
- * 		  of the name up.
+ *                to be correct as far as the cache can tell us
+ * @param dirpath The path as far as the stat cache told us.
+ * @param start   A pointer into name, for where to 'start' in fixing the rest of the name up.
  * @param psd     A stat buffer, NOT from the cache, but just a side-effect.
  *
- * @return True if we translated (and did a scuccessful stat on) the entire
- * 		  name.
+ * @return True if we translated (and did a scuccessful stat on) the entire name.
  *
  */
 
-bool stat_cache_lookup(connection_struct *conn,
-			char **pp_name,
-			char **pp_dirpath,
-			char **pp_start,
-			SMB_STRUCT_STAT *pst)
+BOOL stat_cache_lookup(connection_struct *conn, pstring name, pstring dirpath, 
+		       char **start, SMB_STRUCT_STAT *pst)
 {
 	char *chk_name;
 	size_t namelen;
-	bool sizechanged = False;
+	BOOL sizechanged = False;
 	unsigned int num_components = 0;
-	char *translated_path;
-	size_t translated_path_length;
-	DATA_BLOB data_val;
-	char *name;
-	TALLOC_CTX *ctx = talloc_tos();
 
-	*pp_dirpath = NULL;
-	*pp_start = *pp_name;
-
-	if (!lp_stat_cache()) {
+	if (!lp_stat_cache())
 		return False;
-	}
-
-	name = *pp_name;
+ 
 	namelen = strlen(name);
+
+	*start = name;
 
 	DO_PROFILE_INC(statcache_lookups);
 
 	/*
 	 * Don't lookup trivial valid directory entries.
 	 */
-	if ((*name == '\0') || ISDOT(name) || ISDOTDOT(name)) {
+	if((*name == '\0') || (name[0] == '.' && 
+				((name[1] == '\0') ||
+				 (name[1] == '.' && name[1] == '\0'))))
 		return False;
-	}
 
 	if (conn->case_sensitive) {
-		chk_name = talloc_strdup(ctx,name);
+		chk_name = SMB_STRDUP(name);
 		if (!chk_name) {
 			DEBUG(0, ("stat_cache_lookup: strdup failed!\n"));
 			return False;
 		}
 
 	} else {
-		chk_name = talloc_strdup_upper(ctx,name);
+		chk_name = strdup_upper(name);
 		if (!chk_name) {
 			DEBUG(0, ("stat_cache_lookup: strdup_upper failed!\n"));
 			return False;
@@ -214,116 +202,87 @@ bool stat_cache_lookup(connection_struct *conn,
 		 * if we uppercase. We need to treat this differently
 		 * below.
 		 */
-		if (strlen(chk_name) != namelen) {
+		if (strlen(chk_name) != namelen)
 			sizechanged = True;
-		}
 	}
 
 	while (1) {
+		TDB_DATA data_val;
 		char *sp;
 
-		data_val = data_blob_null;
-
-		if (memcache_lookup(
-			    smbd_memcache(), STAT_CACHE,
-			    data_blob_const(chk_name, strlen(chk_name)),
-			    &data_val)) {
-			break;
-		}
-
-		DEBUG(10,("stat_cache_lookup: lookup failed for name [%s]\n",
-				chk_name ));
-		/*
-		 * Didn't find it - remove last component for next try.
-		 */
-		if (!(sp = strrchr_m(chk_name, '/'))) {
+		data_val = tdb_fetch_bystring(tdb_stat_cache, chk_name);
+		if(data_val.dptr == NULL || data_val.dsize == 0) {
+			DEBUG(10,("stat_cache_lookup: lookup failed for name [%s]\n", chk_name ));
 			/*
-			 * We reached the end of the name - no match.
+			 * Didn't find it - remove last component for next try.
 			 */
-			DO_PROFILE_INC(statcache_misses);
-			TALLOC_FREE(chk_name);
-			return False;
-		}
-
-		*sp = '\0';
-
-		/*
-		 * Count the number of times we have done this, we'll
-		 * need it when reconstructing the string.
-		 */
-
-		if (sizechanged) {
-			num_components++;
-		}
-
-		if ((*chk_name == '\0')
-		    || ISDOT(chk_name) || ISDOTDOT(chk_name)) {
-			DO_PROFILE_INC(statcache_misses);
-			TALLOC_FREE(chk_name);
-			return False;
-		}
-	}
-
-	translated_path = talloc_strdup(ctx,(char *)data_val.data);
-	if (!translated_path) {
-		smb_panic("talloc failed");
-	}
-	translated_path_length = data_val.length - 1;
-
-	DEBUG(10,("stat_cache_lookup: lookup succeeded for name [%s] "
-		  "-> [%s]\n", chk_name, translated_path ));
-	DO_PROFILE_INC(statcache_hits);
-
-	if (SMB_VFS_STAT(conn, translated_path, pst) != 0) {
-		/* Discard this entry - it doesn't exist in the filesystem. */
-		memcache_delete(smbd_memcache(), STAT_CACHE,
-				data_blob_const(chk_name, strlen(chk_name)));
-		TALLOC_FREE(chk_name);
-		TALLOC_FREE(translated_path);
-		return False;
-	}
-
-	if (!sizechanged) {
-		memcpy(*pp_name, translated_path,
-		       MIN(namelen, translated_path_length));
-	} else {
-		if (num_components == 0) {
-			name = talloc_strndup(ctx, translated_path,
-					   translated_path_length);
-		} else {
-			char *sp;
-
-			sp = strnrchr_m(name, '/', num_components);
+			sp = strrchr_m(chk_name, '/');
 			if (sp) {
-				name = talloc_asprintf(ctx,"%.*s%s",
-					 (int)translated_path_length,
-					 translated_path, sp);
+				*sp = '\0';
+				/*
+				 * Count the number of times we have done this,
+				 * we'll need it when reconstructing the string.
+				 */
+				if (sizechanged)
+					num_components++;
+
 			} else {
-				name = talloc_strndup(ctx,
-						translated_path,
-						translated_path_length);
+				/*
+				 * We reached the end of the name - no match.
+				 */
+				DO_PROFILE_INC(statcache_misses);
+				SAFE_FREE(chk_name);
+				return False;
 			}
+			if((*chk_name == '\0') || (strcmp(chk_name, ".") == 0)
+					|| (strcmp(chk_name, "..") == 0)) {
+				DO_PROFILE_INC(statcache_misses);
+				SAFE_FREE(chk_name);
+				return False;
+			}
+		} else {
+			BOOL retval;
+			char *translated_path = data_val.dptr;
+			size_t translated_path_length = data_val.dsize - 1;
+
+			DEBUG(10,("stat_cache_lookup: lookup succeeded for name [%s] -> [%s]\n", chk_name, translated_path ));
+			DO_PROFILE_INC(statcache_hits);
+			if(SMB_VFS_STAT(conn,translated_path, pst) != 0) {
+				/* Discard this entry - it doesn't exist in the filesystem.  */
+				tdb_delete_bystring(tdb_stat_cache, chk_name);
+				SAFE_FREE(chk_name);
+				SAFE_FREE(data_val.dptr);
+				return False;
+			}
+
+			if (!sizechanged) {
+				memcpy(name, translated_path, MIN(sizeof(pstring)-1, translated_path_length));
+			} else if (num_components == 0) {
+				pstrcpy(name, translated_path);
+			} else {
+				sp = strnrchr_m(name, '/', num_components);
+				if (sp) {
+					pstring last_component;
+					pstrcpy(last_component, sp);
+					pstrcpy(name, translated_path);
+					pstrcat(name, last_component);
+				} else {
+					pstrcpy(name, translated_path);
+				}
+			}
+
+			/* set pointer for 'where to start' on fixing the rest of the name */
+			*start = &name[translated_path_length];
+			if(**start == '/')
+				++*start;
+
+			pstrcpy(dirpath, translated_path);
+			retval = (namelen == translated_path_length) ? True : False;
+			SAFE_FREE(chk_name);
+			SAFE_FREE(data_val.dptr);
+			return retval;
 		}
-		if (name == NULL) {
-			/*
-			 * TODO: Get us out of here with a real error message
-			 */
-			smb_panic("talloc failed");
-		}
-		TALLOC_FREE(*pp_name);
-		*pp_name = name;
 	}
-
-
-	/* set pointer for 'where to start' on fixing the rest of the name */
-	*pp_start = &name[translated_path_length];
-	if (**pp_start == '/') {
-		++*pp_start;
-	}
-
-	*pp_dirpath = translated_path;
-	TALLOC_FREE(chk_name);
-	return (namelen == translated_path_length);
 }
 
 /***************************************************************************
@@ -333,10 +292,11 @@ bool stat_cache_lookup(connection_struct *conn,
 void send_stat_cache_delete_message(const char *name)
 {
 #ifdef DEVELOPER
-	message_send_all(smbd_messaging_context(),
+	message_send_all(conn_tdb_ctx(),
 			MSG_SMB_STAT_CACHE_DELETE,
 			name,
 			strlen(name)+1,
+			True,
 			NULL);
 #endif
 }
@@ -347,7 +307,7 @@ void send_stat_cache_delete_message(const char *name)
 
 void stat_cache_delete(const char *name)
 {
-	char *lname = talloc_strdup_upper(talloc_tos(), name);
+	char *lname = strdup_upper(name);
 
 	if (!lname) {
 		return;
@@ -355,9 +315,8 @@ void stat_cache_delete(const char *name)
 	DEBUG(10,("stat_cache_delete: deleting name [%s] -> %s\n",
 			lname, name ));
 
-	memcache_delete(smbd_memcache(), STAT_CACHE,
-			data_blob_const(lname, talloc_get_size(lname)-1));
-	TALLOC_FREE(lname);
+	tdb_delete_bystring(tdb_stat_cache, lname);
+	SAFE_FREE(lname);
 }
 
 /***************************************************************
@@ -365,12 +324,12 @@ void stat_cache_delete(const char *name)
  The function returns the bucket index number for the hashed key.
  JRA. Use a djb-algorithm hash for speed.
 ***************************************************************/
-
+                                                                                                     
 unsigned int fast_string_hash(TDB_DATA *key)
 {
         unsigned int n = 0;
         const char *p;
-        for (p = (const char *)key->dptr; *p != '\0'; p++) {
+        for (p = key->dptr; *p != '\0'; p++) {
                 n = ((n << 5) + n) ^ (unsigned int)(*p);
         }
         return n;
@@ -380,12 +339,20 @@ unsigned int fast_string_hash(TDB_DATA *key)
  Initializes or clears the stat cache.
 **************************************************************************/
 
-bool reset_stat_cache( void )
+BOOL reset_stat_cache( void )
 {
 	if (!lp_stat_cache())
 		return True;
 
-	memcache_flush(smbd_memcache(), STAT_CACHE);
+	if (tdb_stat_cache) {
+		tdb_close(tdb_stat_cache);
+	}
 
+	/* Create the in-memory tdb using our custom hash function. */
+	tdb_stat_cache = tdb_open_ex("statcache", 1031, TDB_INTERNAL,
+                                    (O_RDWR|O_CREAT), 0644, NULL, fast_string_hash);
+
+	if (!tdb_stat_cache)
+		return False;
 	return True;
 }

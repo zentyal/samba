@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  
 */
 
 #include "includes.h"
@@ -48,7 +49,6 @@ int net_common_flags_usage(int argc, const char **argv)
 	d_printf("\t-l or --long\t\t\tDisplay full information\n");
 	d_printf("\t-V or --version\t\t\tPrint samba version information\n");
 	d_printf("\t-P or --machine-pass\t\tAuthenticate as machine account\n");
-	d_printf("\t-e or --encrypt\t\tEncrypt SMB transport (UNIX extended servers only)\n");
 	return -1;
 }
 
@@ -234,9 +234,8 @@ static int net_usage(int argc, const char **argv)
 		 "  net changesecretpw\tto change the machine password in the local secrets database only\n"\
 		 "                    \tthis requires the -f flag as a safety barrier\n"\
 		 "  net status\t\tShow server status\n"\
-		 "  net usersidlist\tto get a list of all users with their SIDs\n"
-		 "  net usershare\t\tto add, delete and list locally user-modifiable shares\n"
-		 "  net conf\t\tto view and edit samba's registry based configuration\n"
+		"  net usersidlist\tto get a list of all users with their SIDs\n"
+		"  net usershare\t\tto add, delete and list locally user-modifiable shares\n"
 		 "\n"\
 		 "  net ads <command>\tto run ADS commands\n"\
 		 "  net rap <command>\tto run RAP (pre-RPC) commands\n"\
@@ -267,7 +266,6 @@ int net_help(int argc, const char **argv)
 		{"GROUP", net_help_group},
 		{"GROUPMAP", net_help_groupmap},
 		{"JOIN", net_help_join},
-		{"DOM", net_help_dom},
 		{"VALIDATE", net_rap_validate_usage},
 		{"GROUPMEMBER", net_rap_groupmember_usage},
 		{"ADMIN", net_rap_admin_usage},

@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,7 +17,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
    This work was sponsored by Optifacio Software Services, Inc.
 */
@@ -31,7 +32,7 @@ static_decl_vfs;
 
 struct vfs_init_function_entry {
 	char *name;
-	const vfs_op_tuple *vfs_op_tuples;
+ 	vfs_op_tuple *vfs_op_tuples;
 	struct vfs_init_function_entry *prev, *next;
 };
 
@@ -44,8 +45,6 @@ static struct vfs_init_function_entry *backends = NULL;
 static struct vfs_init_function_entry *vfs_find_backend_entry(const char *name)
 {
 	struct vfs_init_function_entry *entry = backends;
-
-	DEBUG(10, ("vfs_find_backend_entry called for %s\n", name));
  
 	while(entry) {
 		if (strcmp(entry->name, name)==0) return entry;
@@ -55,7 +54,7 @@ static struct vfs_init_function_entry *vfs_find_backend_entry(const char *name)
 	return NULL;
 }
 
-NTSTATUS smb_register_vfs(int version, const char *name, const vfs_op_tuple *vfs_op_tuples)
+NTSTATUS smb_register_vfs(int version, const char *name, vfs_op_tuple *vfs_op_tuples)
 {
 	struct vfs_init_function_entry *entry = backends;
 
@@ -108,15 +107,14 @@ static inline void vfs_set_operation(struct vfs_ops * vfs, vfs_op_type which,
 	((void **)(void *)&vfs->ops)[which] = op;
 }
 
-bool vfs_init_custom(connection_struct *conn, const char *vfs_object)
+BOOL vfs_init_custom(connection_struct *conn, const char *vfs_object)
 {
-	const vfs_op_tuple *ops;
-	char *module_path = NULL;
+	vfs_op_tuple *ops;
 	char *module_name = NULL;
 	char *module_param = NULL, *p;
 	int i;
 	vfs_handle_struct *handle;
-	const struct vfs_init_function_entry *entry;
+	struct vfs_init_function_entry *entry;
 	
 	if (!conn||!vfs_object||!vfs_object[0]) {
 		DEBUG(0,("vfs_init_custon() called with NULL pointer or emtpy vfs_object!\n"));
@@ -129,9 +127,9 @@ bool vfs_init_custom(connection_struct *conn, const char *vfs_object)
 
 	DEBUG(3, ("Initialising custom vfs hooks from [%s]\n", vfs_object));
 
-	module_path = smb_xstrdup(vfs_object);
+	module_name = smb_xstrdup(vfs_object);
 
-	p = strchr_m(module_path, ':');
+	p = strchr_m(module_name, ':');
 
 	if (p) {
 		*p = 0;
@@ -139,48 +137,31 @@ bool vfs_init_custom(connection_struct *conn, const char *vfs_object)
 		trim_char(module_param, ' ', ' ');
 	}
 
-	trim_char(module_path, ' ', ' ');
-
-	module_name = smb_xstrdup(module_path);
-
-	if ((module_name[0] == '/') &&
-	    (strcmp(module_path, DEFAULT_VFS_MODULE_NAME) != 0)) {
-
-		/*
-		 * Extract the module name from the path. Just use the base
-		 * name of the last path component.
-		 */
-
-		SAFE_FREE(module_name);
-		module_name = smb_xstrdup(strrchr_m(module_path, '/')+1);
-
-		p = strchr_m(module_name, '.');
-
-		if (p != NULL) {
-			*p = '\0';
-		}
-	}
+	trim_char(module_name, ' ', ' ');
 
 	/* First, try to load the module with the new module system */
 	if((entry = vfs_find_backend_entry(module_name)) || 
-	   (NT_STATUS_IS_OK(smb_probe_module("vfs", module_path)) &&
+	   (NT_STATUS_IS_OK(smb_probe_module("vfs", module_name)) && 
 		(entry = vfs_find_backend_entry(module_name)))) {
 
 		DEBUGADD(5,("Successfully loaded vfs module [%s] with the new modules system\n", vfs_object));
 		
 	 	if ((ops = entry->vfs_op_tuples) == NULL) {
 	 		DEBUG(0, ("entry->vfs_op_tuples==NULL for [%s] failed\n", vfs_object));
-			goto fail;
+	 		SAFE_FREE(module_name);
+	 		return False;
 	 	}
 	} else {
 		DEBUG(0,("Can't find a vfs module [%s]\n",vfs_object));
-		goto fail;
+		SAFE_FREE(module_name);
+		return False;
 	}
 
 	handle = TALLOC_ZERO_P(conn->mem_ctx,vfs_handle_struct);
 	if (!handle) {
 		DEBUG(0,("TALLOC_ZERO() failed!\n"));
-		goto fail;
+		SAFE_FREE(module_name);
+		return False;
 	}
 	memcpy(&handle->vfs_next, &conn->vfs, sizeof(struct vfs_ops));
 	handle->conn = conn;
@@ -203,14 +184,8 @@ bool vfs_init_custom(connection_struct *conn, const char *vfs_object)
 		vfs_set_operation(&conn->vfs, ops[i].type, handle, ops[i].op);
 	}
 
-	SAFE_FREE(module_path);
 	SAFE_FREE(module_name);
 	return True;
-
- fail:
-	SAFE_FREE(module_path);
-	SAFE_FREE(module_name);
-	return False;
 }
 
 /*****************************************************************
@@ -263,26 +238,14 @@ void vfs_remove_fsp_extension(vfs_handle_struct *handle, files_struct *fsp)
 	}
 }
 
-void *vfs_memctx_fsp_extension(vfs_handle_struct *handle, files_struct *fsp)
+void *vfs_fetch_fsp_extension(vfs_handle_struct *handle, files_struct *fsp)
 {
 	struct vfs_fsp_data *head;
 
 	for (head = fsp->vfs_extension; head; head = head->next) {
 		if (head->owner == handle) {
-			return head;
+			return EXT_DATA_AREA(head);
 		}
-	}
-
-	return NULL;
-}
-
-void *vfs_fetch_fsp_extension(vfs_handle_struct *handle, files_struct *fsp)
-{
-	struct vfs_fsp_data *head;
-
-	head = (struct vfs_fsp_data *)vfs_memctx_fsp_extension(handle, fsp);
-	if (head != NULL) {
-		return EXT_DATA_AREA(head);
 	}
 
 	return NULL;
@@ -294,7 +257,7 @@ void *vfs_fetch_fsp_extension(vfs_handle_struct *handle, files_struct *fsp)
  Generic VFS init.
 ******************************************************************/
 
-bool smbd_vfs_init(connection_struct *conn)
+BOOL smbd_vfs_init(connection_struct *conn)
 {
 	const char **vfs_objects;
 	unsigned int i = 0;
@@ -325,10 +288,10 @@ bool smbd_vfs_init(connection_struct *conn)
  Check if directory exists.
 ********************************************************************/
 
-bool vfs_directory_exist(connection_struct *conn, const char *dname, SMB_STRUCT_STAT *st)
+BOOL vfs_directory_exist(connection_struct *conn, const char *dname, SMB_STRUCT_STAT *st)
 {
 	SMB_STRUCT_STAT st2;
-	bool ret;
+	BOOL ret;
 
 	if (!st)
 		st = &st2;
@@ -347,7 +310,7 @@ bool vfs_directory_exist(connection_struct *conn, const char *dname, SMB_STRUCT_
  Check if an object exists in the vfs.
 ********************************************************************/
 
-bool vfs_object_exist(connection_struct *conn,const char *fname,SMB_STRUCT_STAT *sbuf)
+BOOL vfs_object_exist(connection_struct *conn,const char *fname,SMB_STRUCT_STAT *sbuf)
 {
 	SMB_STRUCT_STAT st;
 
@@ -365,7 +328,7 @@ bool vfs_object_exist(connection_struct *conn,const char *fname,SMB_STRUCT_STAT 
  Check if a file exists in the vfs.
 ********************************************************************/
 
-bool vfs_file_exist(connection_struct *conn, const char *fname,SMB_STRUCT_STAT *sbuf)
+BOOL vfs_file_exist(connection_struct *conn, const char *fname,SMB_STRUCT_STAT *sbuf)
 {
 	SMB_STRUCT_STAT st;
 
@@ -389,8 +352,8 @@ ssize_t vfs_read_data(files_struct *fsp, char *buf, size_t byte_count)
 
 	while (total < byte_count)
 	{
-		ssize_t ret = SMB_VFS_READ(fsp, buf + total,
-					   byte_count - total);
+		ssize_t ret = SMB_VFS_READ(fsp, fsp->fh->fd, buf + total,
+					byte_count - total);
 
 		if (ret == 0) return total;
 		if (ret == -1) {
@@ -411,7 +374,7 @@ ssize_t vfs_pread_data(files_struct *fsp, char *buf,
 
 	while (total < byte_count)
 	{
-		ssize_t ret = SMB_VFS_PREAD(fsp, buf + total,
+		ssize_t ret = SMB_VFS_PREAD(fsp, fsp->fh->fd, buf + total,
 					byte_count - total, offset + total);
 
 		if (ret == 0) return total;
@@ -430,27 +393,13 @@ ssize_t vfs_pread_data(files_struct *fsp, char *buf,
  Write data to a fd on the vfs.
 ****************************************************************************/
 
-ssize_t vfs_write_data(struct smb_request *req,
-			files_struct *fsp,
-			const char *buffer,
-			size_t N)
+ssize_t vfs_write_data(files_struct *fsp,const char *buffer,size_t N)
 {
 	size_t total=0;
 	ssize_t ret;
 
-	if (req && req->unread_bytes) {
-		SMB_ASSERT(req->unread_bytes == N);
-		/* VFS_RECVFILE must drain the socket
-		 * before returning. */
-		req->unread_bytes = 0;
-		return SMB_VFS_RECVFILE(smbd_server_fd(),
-					fsp,
-					(SMB_OFF_T)-1,
-					N);
-	}
-
 	while (total < N) {
-		ret = SMB_VFS_WRITE(fsp, buffer + total, N - total);
+		ret = SMB_VFS_WRITE(fsp,fsp->fh->fd,buffer + total,N - total);
 
 		if (ret == -1)
 			return -1;
@@ -462,29 +411,15 @@ ssize_t vfs_write_data(struct smb_request *req,
 	return (ssize_t)total;
 }
 
-ssize_t vfs_pwrite_data(struct smb_request *req,
-			files_struct *fsp,
-			const char *buffer,
-			size_t N,
-			SMB_OFF_T offset)
+ssize_t vfs_pwrite_data(files_struct *fsp,const char *buffer,
+                size_t N, SMB_OFF_T offset)
 {
 	size_t total=0;
 	ssize_t ret;
 
-	if (req && req->unread_bytes) {
-		SMB_ASSERT(req->unread_bytes == N);
-		/* VFS_RECVFILE must drain the socket
-		 * before returning. */
-		req->unread_bytes = 0;
-		return SMB_VFS_RECVFILE(smbd_server_fd(),
-					fsp,
-					offset,
-					N);
-	}
-
 	while (total < N) {
-		ret = SMB_VFS_PWRITE(fsp, buffer + total, N - total,
-				     offset + total);
+		ret = SMB_VFS_PWRITE(fsp, fsp->fh->fd, buffer + total,
+                                N - total, offset + total);
 
 		if (ret == -1)
 			return -1;
@@ -523,7 +458,7 @@ int vfs_allocate_file_space(files_struct *fsp, SMB_BIG_UINT len)
 		return -1;
 	}
 
-	ret = SMB_VFS_FSTAT(fsp, &st);
+	ret = SMB_VFS_FSTAT(fsp,fsp->fh->fd,&st);
 	if (ret == -1)
 		return ret;
 
@@ -537,7 +472,7 @@ int vfs_allocate_file_space(files_struct *fsp, SMB_BIG_UINT len)
 				fsp->fsp_name, (double)st.st_size ));
 
 		flush_write_cache(fsp, SIZECHANGE_FLUSH);
-		if ((ret = SMB_VFS_FTRUNCATE(fsp, (SMB_OFF_T)len)) != -1) {
+		if ((ret = SMB_VFS_FTRUNCATE(fsp, fsp->fh->fd, (SMB_OFF_T)len)) != -1) {
 			set_filelen_write_cache(fsp, len);
 		}
 		return ret;
@@ -579,7 +514,7 @@ int vfs_set_filelen(files_struct *fsp, SMB_OFF_T len)
 	release_level_2_oplocks_on_change(fsp);
 	DEBUG(10,("vfs_set_filelen: ftruncate %s to len %.0f\n", fsp->fsp_name, (double)len));
 	flush_write_cache(fsp, SIZECHANGE_FLUSH);
-	if ((ret = SMB_VFS_FTRUNCATE(fsp, len)) != -1) {
+	if ((ret = SMB_VFS_FTRUNCATE(fsp, fsp->fh->fd, len)) != -1) {
 		set_filelen_write_cache(fsp, len);
 		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_SIZE
@@ -610,7 +545,7 @@ int vfs_fill_sparse(files_struct *fsp, SMB_OFF_T len)
 	ssize_t pwrite_ret;
 
 	release_level_2_oplocks_on_change(fsp);
-	ret = SMB_VFS_FSTAT(fsp, &st);
+	ret = SMB_VFS_FSTAT(fsp,fsp->fh->fd,&st);
 	if (ret == -1) {
 		return ret;
 	}
@@ -639,7 +574,7 @@ int vfs_fill_sparse(files_struct *fsp, SMB_OFF_T len)
 	while (total < num_to_write) {
 		size_t curr_write_size = MIN(SPARSE_BUF_WRITE_SIZE, (num_to_write - total));
 
-		pwrite_ret = SMB_VFS_PWRITE(fsp, sparse_buf, curr_write_size, offset + total);
+		pwrite_ret = SMB_VFS_PWRITE(fsp, fsp->fh->fd, sparse_buf, curr_write_size, offset + total);
 		if (pwrite_ret == -1) {
 			DEBUG(10,("vfs_fill_sparse: SMB_VFS_PWRITE for file %s failed with error %s\n",
 				fsp->fsp_name, strerror(errno) ));
@@ -660,24 +595,25 @@ int vfs_fill_sparse(files_struct *fsp, SMB_OFF_T len)
  Transfer some data (n bytes) between two file_struct's.
 ****************************************************************************/
 
-static ssize_t vfs_read_fn(void *file, void *buf, size_t len)
-{
-	struct files_struct *fsp = (struct files_struct *)file;
+static files_struct *in_fsp;
+static files_struct *out_fsp;
 
-	return SMB_VFS_READ(fsp, buf, len);
+static ssize_t read_fn(int fd, void *buf, size_t len)
+{
+	return SMB_VFS_READ(in_fsp, fd, buf, len);
 }
 
-static ssize_t vfs_write_fn(void *file, const void *buf, size_t len)
+static ssize_t write_fn(int fd, const void *buf, size_t len)
 {
-	struct files_struct *fsp = (struct files_struct *)file;
-
-	return SMB_VFS_WRITE(fsp, buf, len);
+	return SMB_VFS_WRITE(out_fsp, fd, buf, len);
 }
 
 SMB_OFF_T vfs_transfer_file(files_struct *in, files_struct *out, SMB_OFF_T n)
 {
-	return transfer_file_internal((void *)in, (void *)out, n,
-				      vfs_read_fn, vfs_write_fn);
+	in_fsp = in;
+	out_fsp = out;
+
+	return transfer_file_internal(in_fsp->fh->fd, out_fsp->fh->fd, n, read_fn, write_fn);
 }
 
 /*******************************************************************
@@ -718,11 +654,7 @@ char *vfs_readdirname(connection_struct *conn, void *p)
 int vfs_ChDir(connection_struct *conn, const char *path)
 {
 	int res;
-	static char *LastDir = NULL;
-
-	if (!LastDir) {
-		LastDir = SMB_STRDUP("");
-	}
+	static pstring LastDir="";
 
 	if (strcsequal(path,"."))
 		return(0);
@@ -733,11 +665,44 @@ int vfs_ChDir(connection_struct *conn, const char *path)
 	DEBUG(4,("vfs_ChDir to %s\n",path));
 
 	res = SMB_VFS_CHDIR(conn,path);
-	if (!res) {
-		SAFE_FREE(LastDir);
-		LastDir = SMB_STRDUP(path);
-	}
+	if (!res)
+		pstrcpy(LastDir,path);
 	return(res);
+}
+
+/* number of list structures for a caching GetWd function. */
+#define MAX_GETWDCACHE (50)
+
+static struct {
+	SMB_DEV_T dev; /* These *must* be compatible with the types returned in a stat() call. */
+	SMB_INO_T inode; /* These *must* be compatible with the types returned in a stat() call. */
+	char *dos_path; /* The pathname in DOS format. */
+	BOOL valid;
+} ino_list[MAX_GETWDCACHE];
+
+extern BOOL use_getwd_cache;
+
+/****************************************************************************
+ Prompte a ptr (to make it recently used)
+****************************************************************************/
+
+static void array_promote(char *array,int elsize,int element)
+{
+	char *p;
+	if (element == 0)
+		return;
+
+	p = (char *)SMB_MALLOC(elsize);
+
+	if (!p) {
+		DEBUG(5,("array_promote: malloc fail\n"));
+		return;
+	}
+
+	memcpy(p,array + element * elsize, elsize);
+	memmove(array + elsize,array,elsize*element);
+	memcpy(array,p,elsize);
+	SAFE_FREE(p);
 }
 
 /*******************************************************************
@@ -746,92 +711,90 @@ int vfs_ChDir(connection_struct *conn, const char *path)
  format. Note this can be called with conn == NULL.
 ********************************************************************/
 
-struct getwd_cache_key {
-	SMB_DEV_T dev;
-	SMB_INO_T ino;
-};
-
-char *vfs_GetWd(TALLOC_CTX *ctx, connection_struct *conn)
+char *vfs_GetWd(connection_struct *conn, char *path)
 {
-        char s[PATH_MAX+1];
+	pstring s;
+	static BOOL getwd_cache_init = False;
 	SMB_STRUCT_STAT st, st2;
-	char *result;
-	DATA_BLOB cache_value;
-	struct getwd_cache_key key;
+	int i;
 
 	*s = 0;
 
-	if (!lp_getwd_cache()) {
-		goto nocache;
+	if (!use_getwd_cache)
+		return(SMB_VFS_GETWD(conn,path));
+
+	/* init the cache */
+	if (!getwd_cache_init) {
+		getwd_cache_init = True;
+		for (i=0;i<MAX_GETWDCACHE;i++) {
+			string_set(&ino_list[i].dos_path,"");
+			ino_list[i].valid = False;
+		}
 	}
 
-	SET_STAT_INVALID(st);
+	/*  Get the inode of the current directory, if this doesn't work we're
+		in trouble :-) */
 
 	if (SMB_VFS_STAT(conn, ".",&st) == -1) {
-		/*
-		 * Known to fail for root: the directory may be NFS-mounted
-		 * and exported with root_squash (so has no root access).
-		 */
-		DEBUG(1,("vfs_GetWd: couldn't stat \".\" error %s "
-			 "(NFS problem ?)\n", strerror(errno) ));
-		goto nocache;
+		/* Known to fail for root: the directory may be
+		 * NFS-mounted and exported with root_squash (so has no root access). */
+		DEBUG(1,("vfs_GetWd: couldn't stat \".\" path=%s error %s (NFS problem ?)\n", path, strerror(errno) ));
+		return(SMB_VFS_GETWD(conn,path));
 	}
 
-	ZERO_STRUCT(key); /* unlikely, but possible padding */
-	key.dev = st.st_dev;
-	key.ino = st.st_ino;
 
-	if (!memcache_lookup(smbd_memcache(), GETWD_CACHE,
-			     data_blob_const(&key, sizeof(key)),
-			     &cache_value)) {
-		goto nocache;
-	}
+	for (i=0; i<MAX_GETWDCACHE; i++) {
+		if (ino_list[i].valid) {
 
-	SMB_ASSERT((cache_value.length > 0)
-		   && (cache_value.data[cache_value.length-1] == '\0'));
+			/*  If we have found an entry with a matching inode and dev number
+				then find the inode number for the directory in the cached string.
+				If this agrees with that returned by the stat for the current
+				directory then all is o.k. (but make sure it is a directory all
+				the same...) */
 
-	if ((SMB_VFS_STAT(conn, (char *)cache_value.data, &st2) == 0)
-	    && (st.st_dev == st2.st_dev) && (st.st_ino == st2.st_ino)
-	    && (S_ISDIR(st.st_mode))) {
-		/*
-		 * Ok, we're done
-		 */
-		result = talloc_strdup(ctx, (char *)cache_value.data);
-		if (result == NULL) {
-			errno = ENOMEM;
+			if (st.st_ino == ino_list[i].inode && st.st_dev == ino_list[i].dev) {
+				if (SMB_VFS_STAT(conn,ino_list[i].dos_path,&st2) == 0) {
+					if (st.st_ino == st2.st_ino && st.st_dev == st2.st_dev &&
+							(st2.st_mode & S_IFMT) == S_IFDIR) {
+						pstrcpy (path, ino_list[i].dos_path);
+
+						/* promote it for future use */
+						array_promote((char *)&ino_list[0],sizeof(ino_list[0]),i);
+						return (path);
+					} else {
+						/*  If the inode is different then something's changed,
+							scrub the entry and start from scratch. */
+						ino_list[i].valid = False;
+					}
+				}
+			}
 		}
-		return result;
 	}
 
- nocache:
-
-	/*
-	 * We don't have the information to hand so rely on traditional
-	 * methods. The very slow getcwd, which spawns a process on some
-	 * systems, or the not quite so bad getwd.
-	 */
+	/*  We don't have the information to hand so rely on traditional methods.
+		The very slow getcwd, which spawns a process on some systems, or the
+		not quite so bad getwd. */
 
 	if (!SMB_VFS_GETWD(conn,s)) {
-		DEBUG(0, ("vfs_GetWd: SMB_VFS_GETWD call failed: %s\n",
-			  strerror(errno)));
-		return NULL;
+		DEBUG(0,("vfs_GetWd: SMB_VFS_GETWD call failed, errno %s\n",strerror(errno)));
+		return (NULL);
 	}
 
-	if (lp_getwd_cache() && VALID_STAT(st)) {
-		ZERO_STRUCT(key); /* unlikely, but possible padding */
-		key.dev = st.st_dev;
-		key.ino = st.st_ino;
+	pstrcpy(path,s);
 
-		memcache_add(smbd_memcache(), GETWD_CACHE,
-			     data_blob_const(&key, sizeof(key)),
-			     data_blob_const(s, strlen(s)+1));
-	}
+	DEBUG(5,("vfs_GetWd %s, inode %.0f, dev %.0f\n",s,(double)st.st_ino,(double)st.st_dev));
 
-	result = talloc_strdup(ctx, s);
-	if (result == NULL) {
-		errno = ENOMEM;
-	}
-	return result;
+	/* add it to the cache */
+	i = MAX_GETWDCACHE - 1;
+	string_set(&ino_list[i].dos_path,s);
+	ino_list[i].dev = st.st_dev;
+	ino_list[i].inode = st.st_ino;
+	ino_list[i].valid = True;
+
+	/* put it at the top of the list */
+	array_promote((char *)&ino_list[0],sizeof(ino_list[0]),i);
+
+	return (path);
 }
 
 /*******************************************************************
@@ -839,13 +802,17 @@ char *vfs_GetWd(TALLOC_CTX *ctx, connection_struct *conn)
  it is below dir in the heirachy. This uses realpath.
 ********************************************************************/
 
-NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
+NTSTATUS reduce_name(connection_struct *conn, const pstring fname)
 {
 #ifdef REALPATH_TAKES_NULL
-	bool free_resolved_name = True;
+	BOOL free_resolved_name = True;
 #else
+#ifdef PATH_MAX
         char resolved_name_buf[PATH_MAX+1];
-	bool free_resolved_name = False;
+#else
+        pstring resolved_name_buf;
+#endif
+	BOOL free_resolved_name = False;
 #endif
 	char *resolved_name = NULL;
 	size_t con_path_len = strlen(conn->connectpath);
@@ -866,26 +833,18 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 				return map_nt_error_from_unix(errno);
 			case ENOENT:
 			{
-				TALLOC_CTX *ctx = talloc_tos();
-				char *tmp_fname = NULL;
-				char *last_component = NULL;
+				pstring tmp_fname;
+				fstring last_component;
 				/* Last component didn't exist. Remove it and try and canonicalise the directory. */
 
-				tmp_fname = talloc_strdup(ctx, fname);
-				if (!tmp_fname) {
-					return NT_STATUS_NO_MEMORY;
-				}
+				pstrcpy(tmp_fname, fname);
 				p = strrchr_m(tmp_fname, '/');
 				if (p) {
 					*p++ = '\0';
-					last_component = p;
+					fstrcpy(last_component, p);
 				} else {
-					last_component = tmp_fname;
-					tmp_fname = talloc_strdup(ctx,
-							".");
-					if (!tmp_fname) {
-						return NT_STATUS_NO_MEMORY;
-					}
+					fstrcpy(last_component, tmp_fname);
+					pstrcpy(tmp_fname, ".");
 				}
 
 #ifdef REALPATH_TAKES_NULL
@@ -897,13 +856,9 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 					DEBUG(3,("reduce_name: couldn't get realpath for %s\n", fname));
 					return map_nt_error_from_unix(errno);
 				}
-				tmp_fname = talloc_asprintf(ctx,
-						"%s/%s",
-						resolved_name,
-						last_component);
-				if (!tmp_fname) {
-					return NT_STATUS_NO_MEMORY;
-				}
+				pstrcpy(tmp_fname, resolved_name);
+				pstrcat(tmp_fname, "/");
+				pstrcat(tmp_fname, last_component);
 #ifdef REALPATH_TAKES_NULL
 				SAFE_FREE(resolved_name);
 				resolved_name = SMB_STRDUP(tmp_fname);
@@ -912,7 +867,11 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 					return NT_STATUS_NO_MEMORY;
 				}
 #else
+#ifdef PATH_MAX
 				safe_strcpy(resolved_name_buf, tmp_fname, PATH_MAX);
+#else
+				pstrcpy(resolved_name_buf, tmp_fname);
+#endif
 				resolved_name = resolved_name_buf;
 #endif
 				break;
@@ -945,7 +904,7 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
         /* Check if we are allowing users to follow symlinks */
         /* Patch from David Clerc <David.Clerc@cui.unige.ch>
                 University of Geneva */
-
+                                                                                                                                                    
 #ifdef S_ISLNK
         if (!lp_symlinks(SNUM(conn))) {
                 SMB_STRUCT_STAT statbuf;

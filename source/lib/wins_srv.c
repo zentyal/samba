@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,10 +16,13 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
+
+extern struct in_addr loopback_ip;
 
 /*
   This is pretty much a complete rewrite of the earlier code. The main
@@ -94,10 +97,10 @@ done:
   see if an ip is on the dead list
 */
 
-bool wins_srv_is_dead(struct in_addr wins_ip, struct in_addr src_ip)
+BOOL wins_srv_is_dead(struct in_addr wins_ip, struct in_addr src_ip)
 {
 	char *keystr = wins_srv_keystr(wins_ip, src_ip);
-	bool result;
+	BOOL result;
 
 	/* If the key exists then the WINS server has been marked as dead */
 
@@ -132,7 +135,7 @@ void wins_srv_died(struct in_addr wins_ip, struct in_addr src_ip)
 {
 	char *keystr;
 
-	if (is_zero_ip_v4(wins_ip) || wins_srv_is_dead(wins_ip, src_ip))
+	if (is_zero_ip(wins_ip) || wins_srv_is_dead(wins_ip, src_ip))
 		return;
 
 	keystr = wins_srv_keystr(wins_ip, src_ip);
@@ -183,16 +186,14 @@ static void parse_ip(struct tagged_ip *ip, const char *str)
 	char *s = strchr(str, ':');
 	if (!s) {
 		fstrcpy(ip->tag, "*");
-		(void)interpret_addr2(&ip->ip,str);
+		ip->ip = *interpret_addr2(str);
 		return;
 	} 
 
-	(void)interpret_addr2(&ip->ip,s+1);
+	ip->ip = *interpret_addr2(s+1);
 	fstrcpy(ip->tag, str);
 	s = strchr(ip->tag, ':');
-	if (s) {
-		*s = 0;
-	}
+	if (s) *s = 0;
 }
 
 
@@ -284,15 +285,13 @@ struct in_addr wins_srv_ip_tag(const char *tag, struct in_addr src_ip)
 
 	/* if we are a wins server then we always just talk to ourselves */
 	if (lp_wins_support()) {
-		struct in_addr loopback_ip;
-		loopback_ip.s_addr = htonl(INADDR_LOOPBACK);
 		return loopback_ip;
 	}
 
 	list = lp_wins_server_list();
 	if (!list || !list[0]) {
 		struct in_addr ip;
-		zero_ip_v4(&ip);
+		zero_ip(&ip);
 		return ip;
 	}
 
@@ -324,7 +323,7 @@ struct in_addr wins_srv_ip_tag(const char *tag, struct in_addr src_ip)
 	}
 
 	/* this can't happen?? */
-	zero_ip_v4(&t_ip.ip);
+	zero_ip(&t_ip.ip);
 	return t_ip.ip;
 }
 

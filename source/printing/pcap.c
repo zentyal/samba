@@ -13,7 +13,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -22,7 +22,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -71,7 +72,7 @@ typedef struct pcap_cache {
 
 static pcap_cache_t *pcap_cache = NULL;
 
-bool pcap_cache_add(const char *name, const char *comment)
+BOOL pcap_cache_add(const char *name, const char *comment)
 {
 	pcap_cache_t *p;
 
@@ -100,7 +101,7 @@ static void pcap_cache_destroy(pcap_cache_t *cache)
 	}
 }
 
-bool pcap_cache_loaded(void)
+BOOL pcap_cache_loaded(void)
 {
 	return (pcap_cache != NULL);
 }
@@ -108,7 +109,7 @@ bool pcap_cache_loaded(void)
 void pcap_cache_reload(void)
 {
 	const char *pcap_name = lp_printcapname();
-	bool pcap_reloaded = False;
+	BOOL pcap_reloaded = False;
 	pcap_cache_t *tmp_cache = NULL;
 	XFILE *pcap_file;
 	char *pcap_line;
@@ -159,9 +160,8 @@ void pcap_cache_reload(void)
 		goto done;
 	}
 
-	for (; (pcap_line = fgets_slash(NULL, 1024, pcap_file)) != NULL; safe_free(pcap_line)) {
-		char name[MAXPRINTERLEN+1];
-		char comment[62];
+	for (; (pcap_line = fgets_slash(NULL, sizeof(pstring), pcap_file)) != NULL; safe_free(pcap_line)) {
+		pstring name, comment;
 		char *p, *q;
 
 		if (*pcap_line == '#' || *pcap_line == 0)
@@ -176,7 +176,7 @@ void pcap_cache_reload(void)
 		 * this is pure guesswork, but it's better than nothing
 		 */
 		for (*name = *comment = 0, p = pcap_line; p != NULL; p = q) {
-			bool has_punctuation;
+			BOOL has_punctuation;
 
 			if ((q = strchr_m(p, '|')) != NULL)
 				*q++ = 0;
@@ -187,22 +187,22 @@ void pcap_cache_reload(void)
 			                   strchr_m(p, ')'));
 
 			if (strlen(p) > strlen(comment) && has_punctuation) {
-				strlcpy(comment, p, sizeof(comment));
+				pstrcpy(comment, p);
 				continue;
 			}
 
 			if (strlen(p) <= MAXPRINTERLEN &&
 			    strlen(p) > strlen(name) && !has_punctuation) {
-				if (!*comment) {
-					strlcpy(comment, name, sizeof(comment));
-				}
-				strlcpy(name, p, sizeof(name));
+				if (!*comment)
+					pstrcpy(comment, name);
+
+				pstrcpy(name, p);
 				continue;
 			}
 
 			if (!strchr_m(comment, ' ') &&
 			    strlen(p) > strlen(comment)) {
-				strlcpy(comment, p, sizeof(comment));
+				pstrcpy(comment, p);
 				continue;
 			}
 		}
@@ -233,7 +233,7 @@ done:
 }
 
 
-bool pcap_printername_ok(const char *printername)
+BOOL pcap_printername_ok(const char *printername)
 {
 	pcap_cache_t *p;
 

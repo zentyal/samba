@@ -1,469 +1,305 @@
-/*
+/* 
  * CAP VFS module for Samba 3.x Version 0.3
  *
  * Copyright (C) Tim Potter, 1999-2000
  * Copyright (C) Alexander Bokovoy, 2002-2003
  * Copyright (C) Stefan (metze) Metzmacher, 2003
  * Copyright (C) TAKAHASHI Motonobu (monyo), 2003
- * Copyright (C) Jeremy Allison, 2007
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- *
+ *  
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ *  
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 
 #include "includes.h"
 
 /* cap functions */
-static char *capencode(TALLOC_CTX *ctx, const char *from);
-static char *capdecode(TALLOC_CTX *ctx, const char *from);
+static char *capencode(char *to, const char *from);
+static char *capdecode(char *to, const char *from);
 
 static SMB_BIG_UINT cap_disk_free(vfs_handle_struct *handle, const char *path,
-	bool small_query, SMB_BIG_UINT *bsize,
+	BOOL small_query, SMB_BIG_UINT *bsize,
 	SMB_BIG_UINT *dfree, SMB_BIG_UINT *dsize)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return (SMB_BIG_UINT)-1;
-	}
+        pstring cappath;
+        capencode(cappath, path);
 	return SMB_VFS_NEXT_DISK_FREE(handle, cappath, small_query, bsize,
-					dfree, dsize);
+					 dfree, dsize);
 }
 
 static SMB_STRUCT_DIR *cap_opendir(vfs_handle_struct *handle, const char *fname, const char *mask, uint32 attr)
 {
-	char *capname = capencode(talloc_tos(), fname);
-
-	if (!capname) {
-		errno = ENOMEM;
-		return NULL;
-	}
+        pstring capname;
+        capencode(capname, fname);
 	return SMB_VFS_NEXT_OPENDIR(handle, capname, mask, attr);
 }
 
 static SMB_STRUCT_DIRENT *cap_readdir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 {
-	SMB_STRUCT_DIRENT *result;
-	SMB_STRUCT_DIRENT *newdirent;
-	char *newname;
-	size_t newnamelen;
+        SMB_STRUCT_DIRENT *result;
 	DEBUG(3,("cap: cap_readdir\n"));
-
 	result = SMB_VFS_NEXT_READDIR(handle, dirp);
-	if (!result) {
-		return NULL;
-	}
-
-	newname = capdecode(talloc_tos(), result->d_name);
-	if (!newname) {
-		return NULL;
-	}
-	DEBUG(3,("cap: cap_readdir: %s\n", newname));
-	newnamelen = strlen(newname)+1;
-	newdirent = (SMB_STRUCT_DIRENT *)TALLOC_ARRAY(talloc_tos(),
-			char,
-			sizeof(SMB_STRUCT_DIRENT)+
-				newnamelen);
-	if (!newdirent) {
-		return NULL;
-	}
-	memcpy(newdirent, result, sizeof(SMB_STRUCT_DIRENT));
-	memcpy(&newdirent->d_name, newname, newnamelen);
-	return newdirent;
+	if (result) {
+	  DEBUG(3,("cap: cap_readdir: %s\n", result->d_name));
+	  capdecode(result->d_name, result->d_name);
+        }
+        return result;
 }
 
 static int cap_mkdir(vfs_handle_struct *handle, const char *path, mode_t mode)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+	pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_MKDIR(handle, cappath, mode);
 }
 
 static int cap_rmdir(vfs_handle_struct *handle, const char *path)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+        capencode(cappath, path);
 	return SMB_VFS_NEXT_RMDIR(handle, cappath);
 }
 
 static int cap_open(vfs_handle_struct *handle, const char *fname, files_struct *fsp, int flags, mode_t mode)
 {
-	char *cappath = capencode(talloc_tos(), fname);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring capname;
 	DEBUG(3,("cap: cap_open for %s\n", fname));
-	return SMB_VFS_NEXT_OPEN(handle, cappath, fsp, flags, mode);
+	capencode(capname, fname);
+	return SMB_VFS_NEXT_OPEN(handle, capname, fsp, flags, mode);
 }
 
 static int cap_rename(vfs_handle_struct *handle, const char *oldname, const char *newname)
 {
-	char *capold = capencode(talloc_tos(), oldname);
-	char *capnew = capencode(talloc_tos(), newname);
+	pstring capold, capnew;
+	capencode(capold, oldname);
+	capencode(capnew, newname);
 
-	if (!capold || !capnew) {
-		errno = ENOMEM;
-		return -1;
-	}
 	return SMB_VFS_NEXT_RENAME(handle, capold, capnew);
 }
 
-static int cap_stat(vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf)
+static int cap_stat(vfs_handle_struct *handle, const char *fname, SMB_STRUCT_STAT *sbuf)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_STAT(handle, cappath, sbuf);
+        pstring capname;
+	capencode(capname, fname);
+	return SMB_VFS_NEXT_STAT(handle, capname, sbuf);
 }
 
 static int cap_lstat(vfs_handle_struct *handle, const char *path, SMB_STRUCT_STAT *sbuf)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+	pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_LSTAT(handle, cappath, sbuf);
 }
 
 static int cap_unlink(vfs_handle_struct *handle, const char *path)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+	pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_UNLINK(handle, cappath);
 }
 
 static int cap_chmod(vfs_handle_struct *handle, const char *path, mode_t mode)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_CHMOD(handle, cappath, mode);
 }
 
 static int cap_chown(vfs_handle_struct *handle, const char *path, uid_t uid, gid_t gid)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_CHOWN(handle, cappath, uid, gid);
-}
-
-static int cap_lchown(vfs_handle_struct *handle, const char *path, uid_t uid, gid_t gid)
-{
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_LCHOWN(handle, cappath, uid, gid);
 }
 
 static int cap_chdir(vfs_handle_struct *handle, const char *path)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
 	DEBUG(3,("cap: cap_chdir for %s\n", path));
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_CHDIR(handle, cappath);
 }
 
 static int cap_ntimes(vfs_handle_struct *handle, const char *path, const struct timespec ts[2])
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_NTIMES(handle, cappath, ts);
 }
 
 
-static bool cap_symlink(vfs_handle_struct *handle, const char *oldpath, const char *newpath)
+static BOOL cap_symlink(vfs_handle_struct *handle, const char *oldpath, const char *newpath)
 {
-	char *capold = capencode(talloc_tos(), oldpath);
-	char *capnew = capencode(talloc_tos(), newpath);
-
-	if (!capold || !capnew) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_SYMLINK(handle, capold, capnew);
+        pstring capoldpath, capnewpath;
+        capencode(capoldpath, oldpath);
+        capencode(capnewpath, newpath);
+	return SMB_VFS_NEXT_SYMLINK(handle, capoldpath, capnewpath);
 }
 
-static bool cap_readlink(vfs_handle_struct *handle, const char *path, char *buf, size_t bufsiz)
+static BOOL cap_readlink(vfs_handle_struct *handle, const char *path, char *buf, size_t bufsiz)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_READLINK(handle, cappath, buf, bufsiz);
 }
 
 static int cap_link(vfs_handle_struct *handle, const char *oldpath, const char *newpath)
 {
-	char *capold = capencode(talloc_tos(), oldpath);
-	char *capnew = capencode(talloc_tos(), newpath);
-
-	if (!capold || !capnew) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_LINK(handle, capold, capnew);
+        pstring capoldpath, capnewpath;
+        capencode(capoldpath, oldpath);
+        capencode(capnewpath, newpath);
+	return SMB_VFS_NEXT_LINK(handle, capoldpath, capnewpath);
 }
 
 static int cap_mknod(vfs_handle_struct *handle, const char *path, mode_t mode, SMB_DEV_T dev)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_MKNOD(handle, cappath, mode, dev);
 }
 
 static char *cap_realpath(vfs_handle_struct *handle, const char *path, char *resolved_path)
 {
         /* monyo need capencode'ed and capdecode'ed? */
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return NULL;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_REALPATH(handle, path, resolved_path);
 }
 
-static NTSTATUS cap_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *path, uint32 security_info_sent, struct security_descriptor *psd)
+static BOOL cap_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, struct security_descriptor_info *psd)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return NT_STATUS_NO_MEMORY;
-	}
-	return SMB_VFS_NEXT_SET_NT_ACL(handle, fsp, cappath, security_info_sent, psd);
+        pstring capname;
+	capencode(capname, name);
+	return SMB_VFS_NEXT_SET_NT_ACL(handle, fsp, capname, security_info_sent, psd);
 }
 
-static int cap_chmod_acl(vfs_handle_struct *handle, const char *path, mode_t mode)
+static int cap_chmod_acl(vfs_handle_struct *handle, const char *name, mode_t mode)
 {
-	char *cappath = capencode(talloc_tos(), path);
+        pstring capname;
+	capencode(capname, name);
 
 	/* If the underlying VFS doesn't have ACL support... */
 	if (!handle->vfs_next.ops.chmod_acl) {
 		errno = ENOSYS;
 		return -1;
 	}
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_CHMOD_ACL(handle, cappath, mode);
+	return SMB_VFS_NEXT_CHMOD_ACL(handle, capname, mode);
 }
 
-static SMB_ACL_T cap_sys_acl_get_file(vfs_handle_struct *handle, const char *path, SMB_ACL_TYPE_T type)
+static SMB_ACL_T cap_sys_acl_get_file(vfs_handle_struct *handle, const char *path_p, SMB_ACL_TYPE_T type)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return (SMB_ACL_T)NULL;
-	}
-	return SMB_VFS_NEXT_SYS_ACL_GET_FILE(handle, cappath, type);
+        pstring cappath_p;
+	capencode(cappath_p, path_p);
+	return SMB_VFS_NEXT_SYS_ACL_GET_FILE(handle, cappath_p, type);
 }
 
-static int cap_sys_acl_set_file(vfs_handle_struct *handle, const char *path, SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl)
+static int cap_sys_acl_set_file(vfs_handle_struct *handle, const char *name, SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-	return SMB_VFS_NEXT_SYS_ACL_SET_FILE(handle, cappath, acltype, theacl);
+        pstring capname;
+	capencode(capname, name);
+	return SMB_VFS_NEXT_SYS_ACL_SET_FILE(handle, capname, acltype, theacl);
 }
 
 static int cap_sys_acl_delete_def_file(vfs_handle_struct *handle, const char *path)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
 	return SMB_VFS_NEXT_SYS_ACL_DELETE_DEF_FILE(handle, cappath);
 }
 
 static ssize_t cap_getxattr(vfs_handle_struct *handle, const char *path, const char *name, void *value, size_t size)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_GETXATTR(handle, cappath, capname, value, size);
 }
 
 static ssize_t cap_lgetxattr(vfs_handle_struct *handle, const char *path, const char *name, void *value, size_t
 size)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_LGETXATTR(handle, cappath, capname, value, size);
 }
 
-static ssize_t cap_fgetxattr(vfs_handle_struct *handle, struct files_struct *fsp, const char *path, void *value, size_t size)
+static ssize_t cap_fgetxattr(vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name, void *value, size_t size)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-        return SMB_VFS_NEXT_FGETXATTR(handle, fsp, cappath, value, size);
+        pstring capname;
+	capencode(capname, name);
+        return SMB_VFS_NEXT_FGETXATTR(handle, fsp, fd, capname, value, size);
 }
 
 static ssize_t cap_listxattr(vfs_handle_struct *handle, const char *path, char *list, size_t size)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
         return SMB_VFS_NEXT_LISTXATTR(handle, cappath, list, size);
 }
 
 static ssize_t cap_llistxattr(vfs_handle_struct *handle, const char *path, char *list, size_t size)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath;
+	capencode(cappath, path);
         return SMB_VFS_NEXT_LLISTXATTR(handle, cappath, list, size);
 }
 
 static int cap_removexattr(vfs_handle_struct *handle, const char *path, const char *name)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_REMOVEXATTR(handle, cappath, capname);
 }
 
 static int cap_lremovexattr(vfs_handle_struct *handle, const char *path, const char *name)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_LREMOVEXATTR(handle, cappath, capname);
 }
 
-static int cap_fremovexattr(vfs_handle_struct *handle, struct files_struct *fsp, const char *path)
+static int cap_fremovexattr(vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-        return SMB_VFS_NEXT_FREMOVEXATTR(handle, fsp, cappath);
+        pstring capname;
+	capencode(capname, name);
+        return SMB_VFS_NEXT_FREMOVEXATTR(handle, fsp, fd, capname);
 }
 
 static int cap_setxattr(vfs_handle_struct *handle, const char *path, const char *name, const void *value, size_t size, int flags)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_SETXATTR(handle, cappath, capname, value, size, flags);
 }
 
 static int cap_lsetxattr(vfs_handle_struct *handle, const char *path, const char *name, const void *value, size_t size, int flags)
 {
-	char *cappath = capencode(talloc_tos(), path);
-	char *capname = capencode(talloc_tos(), name);
-
-	if (!cappath || !capname) {
-		errno = ENOMEM;
-		return -1;
-	}
+        pstring cappath, capname;
+	capencode(cappath, path);
+	capencode(capname, name);
         return SMB_VFS_NEXT_LSETXATTR(handle, cappath, capname, value, size, flags);
 }
 
-static int cap_fsetxattr(vfs_handle_struct *handle, struct files_struct *fsp, const char *path, const void *value, size_t size, int flags)
+static int cap_fsetxattr(vfs_handle_struct *handle, struct files_struct *fsp,int fd, const char *name, const void *value, size_t size, int flags)
 {
-	char *cappath = capencode(talloc_tos(), path);
-
-	if (!cappath) {
-		errno = ENOMEM;
-		return -1;
-	}
-        return SMB_VFS_NEXT_FSETXATTR(handle, fsp, cappath, value, size, flags);
+        pstring capname;
+	capencode(capname, name);
+        return SMB_VFS_NEXT_FSETXATTR(handle, fsp, fd, capname, value, size, flags);
 }
 
 /* VFS operations structure */
@@ -473,7 +309,7 @@ static vfs_op_tuple cap_op_tuples[] = {
 	/* Disk operations */
 
 	{SMB_VFS_OP(cap_disk_free),			SMB_VFS_OP_DISK_FREE,		SMB_VFS_LAYER_TRANSPARENT},
-
+	
 	/* Directory operations */
 
 	{SMB_VFS_OP(cap_opendir),			SMB_VFS_OP_OPENDIR,		SMB_VFS_LAYER_TRANSPARENT},
@@ -490,7 +326,6 @@ static vfs_op_tuple cap_op_tuples[] = {
 	{SMB_VFS_OP(cap_unlink),			SMB_VFS_OP_UNLINK,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_chmod),			SMB_VFS_OP_CHMOD,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_chown),			SMB_VFS_OP_CHOWN,		SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(cap_lchown),		SMB_VFS_OP_LCHOWN,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_chdir),			SMB_VFS_OP_CHDIR,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_ntimes),			SMB_VFS_OP_NTIMES,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_symlink),			SMB_VFS_OP_SYMLINK,		SMB_VFS_LAYER_TRANSPARENT},
@@ -510,7 +345,7 @@ static vfs_op_tuple cap_op_tuples[] = {
 	{SMB_VFS_OP(cap_sys_acl_get_file),		SMB_VFS_OP_SYS_ACL_GET_FILE,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_sys_acl_set_file),		SMB_VFS_OP_SYS_ACL_SET_FILE,		SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_sys_acl_delete_def_file),	SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE,	SMB_VFS_LAYER_TRANSPARENT},
-
+	
 	/* EA operations. */
 	{SMB_VFS_OP(cap_getxattr),			SMB_VFS_OP_GETXATTR,			SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(cap_lgetxattr),			SMB_VFS_OP_LGETXATTR,			SMB_VFS_LAYER_TRANSPARENT},
@@ -564,76 +399,51 @@ static unsigned char bin2hex_table[256] = "0123456789abcdef";
 /*******************************************************************
   original code -> ":xx"  - CAP format
 ********************************************************************/
-
-static char *capencode(TALLOC_CTX *ctx, const char *from)
+static char *capencode(char *to, const char *from)
 {
-	char *out = NULL;
-	const char *p1;
-	char *to = NULL;
-	size_t len = 0;
+  pstring cvtbuf;
+  char *out;
 
-	for (p1 = from; *p1; p1++) {
-		if ((unsigned char)*p1 >= 0x80) {
-			len += 3;
-		} else {
-			len++;
-		}
-	}
-	len++;
+  if (to == from) {
+    from = pstrcpy ((char *) cvtbuf, from);
+  }
 
-	to = TALLOC_ARRAY(ctx, char, len);
-	if (!to) {
-		return NULL;
-	}
-
-	for (out = to; *from;) {
-		/* buffer husoku error */
-		if ((unsigned char)*from >= 0x80) {
-			*out++ = hex_tag;
-			*out++ = bin2hex (((*from)>>4)&0x0f);
-			*out++ = bin2hex ((*from)&0x0f);
-			from++;
-		} else {
-			*out++ = *from++;
-		}
-  	}
-	*out = '\0';
-	return to;
+  for (out = to; *from && (out - to < sizeof(pstring)-7);) {
+    /* buffer husoku error */
+    if ((unsigned char)*from >= 0x80) {
+      *out++ = hex_tag;
+      *out++ = bin2hex (((*from)>>4)&0x0f);
+      *out++ = bin2hex ((*from)&0x0f);
+      from++;
+    } 
+    else {
+      *out++ = *from++;
+    }
+  }
+  *out = '\0';
+  return to;
 }
 
 /*******************************************************************
   CAP -> original code
 ********************************************************************/
 /* ":xx" -> a byte */
-
-static char *capdecode(TALLOC_CTX *ctx, const char *from)
+static char *capdecode(char *to, const char *from)
 {
-	const char *p1;
-	char *out = NULL;
-	char *to = NULL;
-	size_t len = 0;
+  pstring cvtbuf;
+  char *out;
 
-	for (p1 = from; *p1; len++) {
-		if (is_hex(from)) {
-			p1 += 3;
-		} else {
-			p1++;
-		}
-	}
-
-	to = TALLOC_ARRAY(ctx, char, len);
-	if (!to) {
-		return NULL;
-	}
-
-	for (out = to; *from;) {
-		if (is_hex(from)) {
-			*out++ = (hex2bin(from[1])<<4) | (hex2bin(from[2]));
-			from += 3;
-		} else {
-			*out++ = *from++;
-		}
-	}
-	*out = '\0';
-	return to;
+  if (to == from) {
+    from = pstrcpy ((char *) cvtbuf, from);
+  }
+  for (out = to; *from && (out - to < sizeof(pstring)-3);) {
+    if (is_hex(from)) {
+      *out++ = (hex2bin (from[1])<<4) | (hex2bin (from[2]));
+      from += 3;
+    } else {
+      *out++ = *from++;
+    }
+  }
+  *out = '\0';
+  return to;
 }

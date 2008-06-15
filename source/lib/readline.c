@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -53,7 +54,7 @@ static char *smb_readline_replacement(const char *prompt, void (*callback)(void)
 				char **(completion_fn)(const char *text, int start, int end))
 {
 	fd_set fds;
-	char *line = NULL;
+	static pstring line;
 	struct timeval timeout;
 	int fd = x_fileno(x_stdin);
 	char *ret;
@@ -64,28 +65,19 @@ static char *smb_readline_replacement(const char *prompt, void (*callback)(void)
 		x_fflush(x_stdout);
 	}
 
-	line = (char *)SMB_MALLOC(BUFSIZ);
-	if (!line) {
-		return NULL;
-	}
-
 	while (1) {
 		timeout.tv_sec = 5;
 		timeout.tv_usec = 0;
 
 		FD_ZERO(&fds);
 		FD_SET(fd,&fds);
-
+	
 		if (sys_select_intr(fd+1,&fds,NULL,NULL,&timeout) == 1) {
-			ret = x_fgets(line, BUFSIZ, x_stdin);
-			if (ret == 0) {
-				SAFE_FREE(line);
-			}
+			ret = x_fgets(line, sizeof(line), x_stdin);
 			return ret;
 		}
-		if (callback) {
+		if (callback)
 			callback();
-		}
 	}
 }
 
@@ -93,15 +85,15 @@ static char *smb_readline_replacement(const char *prompt, void (*callback)(void)
  Display the prompt and wait for input. Call callback() regularly.
 ****************************************************************************/
 
-char *smb_readline(const char *prompt, void (*callback)(void),
+char *smb_readline(const char *prompt, void (*callback)(void), 
 		   char **(completion_fn)(const char *text, int start, int end))
 {
 	char *ret;
-	bool interactive;
+	BOOL interactive;
 
 	interactive = isatty(x_fileno(x_stdin)) || getenv("CLI_FORCE_INTERACTIVE");
 	if (!interactive) {
-		return smb_readline_replacement(NULL, callback, completion_fn);
+	    return smb_readline_replacement(NULL, callback, completion_fn);
 	}
 
 #if HAVE_LIBREADLINE
@@ -169,7 +161,7 @@ int cmd_history(void)
 	int i;
 
 	hlist = history_list();
-
+	
 	for (i = 0; hlist && hlist[i]; i++) {
 		DEBUG(0, ("%d: %s\n", i, hlist[i]->line));
 	}
@@ -179,3 +171,4 @@ int cmd_history(void)
 
 	return 0;
 }
+

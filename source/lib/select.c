@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
+   the Free Software Foundation; either version 2 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,7 +15,8 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include "includes.h"
@@ -58,8 +59,7 @@ int sys_select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *errorfds, s
 	fd_set *readfds2, readfds_buf;
 
 	if (initialised != sys_getpid()) {
-		if (pipe(select_pipe) == -1)
-			smb_panic("Could not create select pipe");
+		pipe(select_pipe);
 
 		/*
 		 * These next two lines seem to fix a bug with the Linux
@@ -71,9 +71,9 @@ int sys_select(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *errorfds, s
 		 */
 
 		if(set_blocking(select_pipe[0],0)==-1)
-			smb_panic("select_pipe[0]: O_NONBLOCK failed");
+			smb_panic("select_pipe[0]: O_NONBLOCK failed.\n");
 		if(set_blocking(select_pipe[1],0)==-1)
-			smb_panic("select_pipe[1]: O_NONBLOCK failed");
+			smb_panic("select_pipe[1]: O_NONBLOCK failed.\n");
 
 		initialised = sys_getpid();
 	}

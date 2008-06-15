@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,7 +14,8 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
  
 #ifndef _RPC_EVENTLOG_H		/* _RPC_EVENTLOG_H */
@@ -30,10 +31,20 @@
 #define EVENTLOG_READEVENTLOG		0x0a
 
 /* Eventlog read flags */
-/* defined in librpc/gen_ndr/eventlog.h */
+
+#define EVENTLOG_SEQUENTIAL_READ      0x0001
+#define EVENTLOG_SEEK_READ            0x0002
+#define EVENTLOG_FORWARDS_READ        0x0004
+#define EVENTLOG_BACKWARDS_READ       0x0008
 
 /* Event types */
-/* defined in librpc/gen_ndr/eventlog.h */
+
+#define EVENTLOG_SUCCESS              0x0000
+#define EVENTLOG_ERROR_TYPE           0x0001
+#define EVENTLOG_WARNING_TYPE         0x0002
+#define EVENTLOG_INFORMATION_TYPE     0x0004
+#define EVENTLOG_AUDIT_SUCCESS        0x0008
+#define EVENTLOG_AUDIT_FAILURE        0x0010
 
 /* Defines for TDB keys */
 #define  EVT_OLDEST_ENTRY  "INFO/oldest_entry"
@@ -57,6 +68,63 @@ typedef struct elog_tdb {
 
 
 #define  EVENTLOG_DATABASE_VERSION_V1    1
+
+/***********************************/
+
+typedef struct {
+	uint16 unknown1;
+	uint16 unknown2;
+} EVENTLOG_OPEN_UNKNOWN0;
+
+typedef struct {
+	EVENTLOG_OPEN_UNKNOWN0 *unknown0;
+	UNISTR4 logname;
+	UNISTR4 servername;
+	uint32 unknown1;
+	uint32 unknown2;
+} EVENTLOG_Q_OPEN_EVENTLOG;
+
+typedef struct {
+	POLICY_HND handle;
+	NTSTATUS status;
+} EVENTLOG_R_OPEN_EVENTLOG;
+
+
+/***********************************/
+
+typedef struct {
+	POLICY_HND handle;
+} EVENTLOG_Q_CLOSE_EVENTLOG;
+
+typedef struct {
+	POLICY_HND handle;
+	NTSTATUS status;
+} EVENTLOG_R_CLOSE_EVENTLOG;
+
+
+/***********************************/
+
+typedef struct {
+	POLICY_HND handle;
+} EVENTLOG_Q_GET_NUM_RECORDS;
+
+typedef struct {
+	uint32 num_records;
+	NTSTATUS status;
+} EVENTLOG_R_GET_NUM_RECORDS;
+
+
+/***********************************/
+
+typedef struct {
+	POLICY_HND handle;
+} EVENTLOG_Q_GET_OLDEST_ENTRY;
+
+typedef struct {
+	uint32 oldest_entry;
+	NTSTATUS status;
+} EVENTLOG_R_GET_OLDEST_ENTRY;
+
 
 /***********************************/
 
@@ -89,15 +157,15 @@ typedef struct {
 
 typedef struct {
 	uint32 source_name_len;
-	smb_ucs2_t *source_name;
+	wpstring source_name;
 	uint32 computer_name_len;
-	smb_ucs2_t *computer_name;
+	wpstring computer_name;
 	uint32 sid_padding;
-	smb_ucs2_t *sid;
+	wpstring sid;
 	uint32 strings_len;
-	smb_ucs2_t *strings;
+	wpstring strings;
 	uint32 user_data_len;
-	char *user_data;
+	pstring user_data;
 	uint32 data_padding;
 } Eventlog_data_record;
 
@@ -119,5 +187,17 @@ typedef struct {
 	uint32 real_size;
 	NTSTATUS status;
 } EVENTLOG_R_READ_EVENTLOG;
+
+
+/***********************************/
+
+typedef struct {
+	POLICY_HND handle;
+	UNISTR4 backupfile;
+} EVENTLOG_Q_CLEAR_EVENTLOG;
+
+typedef struct {
+	NTSTATUS status;
+} EVENTLOG_R_CLEAR_EVENTLOG;
 
 #endif /* _RPC_EVENTLOG_H */

@@ -94,7 +94,7 @@ build-stamp:
 	dh_testdir
 
 	$(MAKE) -C source headers
-	$(MAKE) -C source all nsswitch/libnss_wins.so
+	$(MAKE) -C source everything nsswitch/libnss_wins.so
 
 	touch build-stamp
 
@@ -151,6 +151,19 @@ install: build
 	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
 	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	# Install torture stuff
+	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
+	install -m 0755 source/bin/msgtest $(DESTDIR)/usr/bin/msgtest
+	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest
+	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest
+	install -m 0755 source/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
+	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest
+	install -m 0755 source/bin/vfstest $(DESTDIR)/usr/bin/vfstest
+	install -m 0755 source/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
+	install -m 0755 source/bin/talloctort $(DESTDIR)/usr/bin/talloctort
+	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
+	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
+	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 
 ifeq ($(mount_cifs),yes)
 	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs

@@ -59,6 +59,17 @@ Description: Samba common files used by both the server and the client
  (provided in the samba package) and the client (provided in the smbclient
  package).
 
+Package: samba-tools
+Architecture: any
+Description: tools provided by the Samba suite
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains tools such as smbtorture which may help
+ testing the performance of CIFS servers or clients.
+
 Package: smbclient
 Architecture: any
 Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}

@@ -16,3 +16,4 @@ smbpasswd-syslog.patch
 usershare.patch
 disable-weak-auth.patch
 no-unnecessary-cups.patch
+smbtar-bashism.patch

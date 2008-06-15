@@ -1,6 +1,10 @@
 samba (2:3.0.30-4) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Rename libcupsys2-dev to libcups2-dev in build dependencies
+  
+  [ Jelmer Vernooij ]
+  * Fix bashism in smbtar. (Closes: #486056)
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 13 Jun 2008 08:16:47 +0200
 

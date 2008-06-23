@@ -2,6 +2,7 @@ samba (2:3.0.30-4) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Rename libcupsys2-dev to libcups2-dev in build dependencies
+  * Localize SWAT in German. Closes: #487681
   
   [ Jelmer Vernooij ]
   * Fix bashism in smbtar. (Closes: #486056)

@@ -7,6 +7,9 @@ samba (2:3.0.30-4) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Fix bashism in smbtar. (Closes: #486056)
 
+  [ Debconf translations ]
+  * Romanian updated. Closes: #488709.
+
  -- Christian Perrier <bubulle@debian.org>  Fri, 13 Jun 2008 08:16:47 +0200
 
 samba (2:3.0.30-3) unstable; urgency=low

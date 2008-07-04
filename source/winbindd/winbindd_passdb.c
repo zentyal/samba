@@ -28,35 +28,31 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
-/* list all domain groups */
-static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
+static NTSTATUS enum_groups_internal(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
 				uint32 *num_entries, 
-				struct acct_info **info)
-{
-	/* We don't have domain groups */
-	*num_entries = 0;
-	*info = NULL;
-	return NT_STATUS_OK;
-}
-
-/* List all domain groups */
-
-static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
-				TALLOC_CTX *mem_ctx,
-				uint32 *num_entries, 
-				struct acct_info **info)
+				struct acct_info **info,
+				enum lsa_SidType sidtype)
 {
 	struct pdb_search *search;
-	struct samr_displayentry *aliases;
+	struct samr_displayentry *entries;
 	int i;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 
-	search = pdb_search_aliases(&domain->sid);
+	if (sidtype == SID_NAME_ALIAS) {
+		search = pdb_search_aliases(&domain->sid);
+	} else {
+		search = pdb_search_groups();
+	}
+
 	if (search == NULL) goto done;
 
-	*num_entries = pdb_search_entries(search, 0, 0xffffffff, &aliases);
-	if (*num_entries == 0) goto done;
+	*num_entries = pdb_search_entries(search, 0, 0xffffffff, &entries);
+	if (*num_entries == 0) {
+		/* Zero entries isn't an error */
+		result = NT_STATUS_OK;
+		goto done;
+	}
 
 	*info = TALLOC_ARRAY(mem_ctx, struct acct_info, *num_entries);
 	if (*info == NULL) {
@@ -65,15 +61,28 @@ static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
 	}
 
 	for (i=0; i<*num_entries; i++) {
-		fstrcpy((*info)[i].acct_name, aliases[i].account_name);
-		fstrcpy((*info)[i].acct_desc, aliases[i].description);
-		(*info)[i].rid = aliases[i].rid;
+		fstrcpy((*info)[i].acct_name, entries[i].account_name);
+		fstrcpy((*info)[i].acct_desc, entries[i].description);
+		(*info)[i].rid = entries[i].rid;
 	}
 
 	result = NT_STATUS_OK;
  done:
 	pdb_search_destroy(search);
 	return result;
+}
+
+/* List all local groups (aliases) */
+static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
+				TALLOC_CTX *mem_ctx,
+				uint32 *num_entries, 
+				struct acct_info **info)
+{
+	return enum_groups_internal(domain,
+				mem_ctx,
+				num_entries,
+				info,
+				SID_NAME_ALIAS);
 }
 
 /* convert a single name to a sid in a domain */
@@ -349,6 +358,18 @@ static NTSTATUS password_policy(struct winbindd_domain *domain,
  BUILTIN specific functions.
 *********************************************************************/
 
+/* list all domain groups */
+static NTSTATUS builtin_enum_dom_groups(struct winbindd_domain *domain,
+				TALLOC_CTX *mem_ctx,
+				uint32 *num_entries, 
+				struct acct_info **info)
+{
+	/* BUILTIN doesn't have domain groups */
+	*num_entries = 0;
+	*info = NULL;
+	return NT_STATUS_OK;
+}
+
 /* Query display info for a domain.  This returns enough information plus a
    bit extra to give an overview of domain users for the User Manager
    application. */
@@ -403,6 +424,19 @@ static NTSTATUS builtin_trusted_domains(struct winbindd_domain *domain,
 /*********************************************************************
  SAM specific functions.
 *********************************************************************/
+
+/* list all domain groups */
+static NTSTATUS sam_enum_dom_groups(struct winbindd_domain *domain,
+				TALLOC_CTX *mem_ctx,
+				uint32 *num_entries, 
+				struct acct_info **info)
+{
+	return enum_groups_internal(domain,
+				mem_ctx,
+				num_entries,
+				info,
+				SID_NAME_DOM_GRP);
+}
 
 static NTSTATUS sam_query_user_list(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
@@ -666,7 +700,7 @@ static NTSTATUS sam_trusted_domains(struct winbindd_domain *domain,
 struct winbindd_methods builtin_passdb_methods = {
 	false,
 	builtin_query_user_list,
-	enum_dom_groups,
+	builtin_enum_dom_groups,
 	enum_local_groups,
 	name_to_sid,
 	sid_to_name,
@@ -685,7 +719,7 @@ struct winbindd_methods builtin_passdb_methods = {
 struct winbindd_methods sam_passdb_methods = {
 	false,
 	sam_query_user_list,
-	enum_dom_groups,
+	sam_enum_dom_groups,
 	enum_local_groups,
 	name_to_sid,
 	sid_to_name,

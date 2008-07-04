@@ -1,8 +1,12 @@
-samba (2:3.2.0~rc2-2) UNRELEASED; urgency=low
+samba (2:3.2.0-1) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * New samba-tools package to provide all "torture" tools:
     smbtorture msgtest masktest locktest locktest2 nsstest vfstest
     pdbtest talloctort replacetort tdbtorture smbconftort
+
+  [ Steve Langasek ]
+  * New upstream release
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 15 Jun 2008 08:17:58 +0200
 

@@ -54,7 +54,7 @@ Index: samba-3.2.0rc1/docs/manpages/smb.conf.5
  .PP
  net usershare add sharename path [comment] [acl] [guest_ok=[y|n]]
  .RS 4
-@@ -8737,25 +8713,25 @@
+@@ -8804,25 +8780,25 @@
  usershare path (G)
  .PP
  .RS 4
@@ -106,7 +106,7 @@ Index: samba-3.2.0rc1/source/param/loadparm.c
 ===================================================================
 --- samba-3.2.0rc1.orig/source/param/loadparm.c
 +++ samba-3.2.0rc1/source/param/loadparm.c
-@@ -4868,7 +4868,7 @@
+@@ -4879,7 +4879,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

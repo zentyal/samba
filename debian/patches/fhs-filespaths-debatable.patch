@@ -230,7 +230,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
 ===================================================================
 --- samba-3.2.0rc1.orig/source/winbindd/winbindd_cache.c
 +++ samba-3.2.0rc1/source/winbindd/winbindd_cache.c
-@@ -2304,7 +2304,7 @@
+@@ -2310,7 +2310,7 @@
  		return true;
  
  	/* when working offline we must not clear the cache on restart */
@@ -239,7 +239,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
-@@ -2347,9 +2347,9 @@
+@@ -2353,9 +2353,9 @@
  		tdb_close(wcache->tdb);
  		wcache->tdb = NULL;
  
@@ -251,7 +251,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				strerror(errno) ));
  			return false;
  		}
-@@ -2631,7 +2631,7 @@
+@@ -2637,7 +2637,7 @@
  		return;
  
  	/* when working offline we must not clear the cache on restart */
@@ -260,7 +260,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
-@@ -3416,7 +3416,7 @@
+@@ -3422,7 +3422,7 @@
  int winbindd_validate_cache(void)
  {
  	int ret = -1;
@@ -269,7 +269,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  	TDB_CONTEXT *tdb = NULL;
  
  	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
-@@ -3458,7 +3458,7 @@
+@@ -3464,7 +3464,7 @@
  int winbindd_validate_cache_nobackup(void)
  {
  	int ret = -1;

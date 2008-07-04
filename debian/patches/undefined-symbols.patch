@@ -13,7 +13,7 @@ Index: samba-3.2.0rc1/source/Makefile.in
 ===================================================================
 --- samba-3.2.0rc1.orig/source/Makefile.in
 +++ samba-3.2.0rc1/source/Makefile.in
-@@ -1653,7 +1653,7 @@
+@@ -1645,7 +1645,7 @@
  
  bin/libsmbclient.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
  	@echo Linking shared library $@

@@ -21,7 +21,7 @@ Index: samba-3.2.0rc1/source/param/loadparm.c
  	char *szLockDir;
  	char *szPidDir;
  	char *szRootdir;
-@@ -3667,6 +3670,26 @@
+@@ -3677,6 +3680,26 @@
  		.enum_list	= NULL,
  		.flags		= FLAG_ADVANCED,
  	},
@@ -48,7 +48,7 @@ Index: samba-3.2.0rc1/source/param/loadparm.c
  	{
  		.label		= "lock directory",
  		.type		= P_STRING,
-@@ -3685,6 +3708,7 @@
+@@ -3695,6 +3718,7 @@
  		.enum_list	= NULL,
  		.flags		= FLAG_HIDE,
  	},

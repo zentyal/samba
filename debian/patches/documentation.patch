@@ -266,7 +266,7 @@ Index: samba-3.2.0rc1/docs/manpages/winbindd.8
 ===================================================================
 --- samba-3.2.0rc1.orig/docs/manpages/winbindd.8
 +++ samba-3.2.0rc1/docs/manpages/winbindd.8
-@@ -518,16 +518,16 @@
+@@ -521,16 +521,16 @@
  file are owned by root\.
  .RE
  .PP
@@ -287,7 +287,7 @@ Index: samba-3.2.0rc1/docs/manpages/winbindd.8
  file are owned by root\.
  .RE
  .PP
-@@ -536,15 +536,12 @@
+@@ -539,15 +539,12 @@
  Implementation of name service switch library\.
  .RE
  .PP

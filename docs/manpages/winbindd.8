@@ -1,11 +1,11 @@
 .\"     Title: winbindd
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 06/10/2008
+.\"      Date: 06/26/2008
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.2
 .\"
-.TH "WINBINDD" "8" "06/10/2008" "Samba 3\.2" "System Administration tools"
+.TH "WINBINDD" "8" "06/26/2008" "Samba 3\.2" "System Administration tools"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -106,8 +106,11 @@ and then from the Windows NT server\.
 .nf
 passwd:         files winbind
 group:          files winbind
-## only available on IRIX; Linux users should us libnss_wins\.so
-hosts:          files dns winbind
+## only available on IRIX: use winbind to resolve hosts:
+# hosts:        files dns winbind
+## All other NSS enabled systems should use libnss_wins\.so like this:
+hosts:          files dns wins
+
 .fi
 .RE
 .PP

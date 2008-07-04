@@ -6,7 +6,7 @@ if [ $# != 3 ]; then
 fi
 
 SMBTORTURE4=$3
-TESTS=$2
+SUBTESTS=$2
 
 ##
 ## create the test directory
@@ -162,6 +162,10 @@ cat >$SERVERCONFFILE<<EOF
 
 	passdb backend = tdbsam
 
+	domain master = yes
+	domain logons = yes
+	time server = yes
+
 	add user script = $PERL $SRCDIR/lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
 	add machine script = $PERL $SRCDIR/lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
 	delete user script = $PERL $SRCDIR/lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action delete --name %u
@@ -250,6 +254,7 @@ SOCKET_WRAPPER_DEFAULT_IFACE=2
 export SOCKET_WRAPPER_DEFAULT_IFACE
 samba3_check_or_start
 
+
 # ensure any one smbtorture call doesn't run too long
 # and smbtorture will use 127.0.0.6 as source address by default
 SOCKET_WRAPPER_DEFAULT_IFACE=6
@@ -290,7 +295,7 @@ START=`date`
 
  failed=0
 
- . $SCRIPTDIR/tests_$TESTS.sh
+ . $SCRIPTDIR/tests_$SUBTESTS.sh
  exit $failed
 )
 failed=$?

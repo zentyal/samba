@@ -6026,701 +6026,6 @@ _ACEOF
 fi
 
 
-{ echo "$as_me:$LINENO: checking for uint_t" >&5
-echo $ECHO_N "checking for uint_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_uint_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef uint_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_uint_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_uint_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_uint_t" >&5
-echo "${ECHO_T}$ac_cv_type_uint_t" >&6; }
-if test $ac_cv_type_uint_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define uint_t unsigned int
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for int8_t" >&5
-echo $ECHO_N "checking for int8_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_int8_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef int8_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_int8_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_int8_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_int8_t" >&5
-echo "${ECHO_T}$ac_cv_type_int8_t" >&6; }
-if test $ac_cv_type_int8_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define int8_t char
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for uint8_t" >&5
-echo $ECHO_N "checking for uint8_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_uint8_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef uint8_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_uint8_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_uint8_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_uint8_t" >&5
-echo "${ECHO_T}$ac_cv_type_uint8_t" >&6; }
-if test $ac_cv_type_uint8_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define uint8_t unsigned char
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for int16_t" >&5
-echo $ECHO_N "checking for int16_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_int16_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef int16_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_int16_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_int16_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_int16_t" >&5
-echo "${ECHO_T}$ac_cv_type_int16_t" >&6; }
-if test $ac_cv_type_int16_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define int16_t short
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for uint16_t" >&5
-echo $ECHO_N "checking for uint16_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_uint16_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef uint16_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_uint16_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_uint16_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_uint16_t" >&5
-echo "${ECHO_T}$ac_cv_type_uint16_t" >&6; }
-if test $ac_cv_type_uint16_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define uint16_t unsigned short
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for int32_t" >&5
-echo $ECHO_N "checking for int32_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_int32_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef int32_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_int32_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_int32_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_int32_t" >&5
-echo "${ECHO_T}$ac_cv_type_int32_t" >&6; }
-if test $ac_cv_type_int32_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define int32_t long
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for uint32_t" >&5
-echo $ECHO_N "checking for uint32_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_uint32_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef uint32_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_uint32_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_uint32_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_uint32_t" >&5
-echo "${ECHO_T}$ac_cv_type_uint32_t" >&6; }
-if test $ac_cv_type_uint32_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define uint32_t unsigned long
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for int64_t" >&5
-echo $ECHO_N "checking for int64_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_int64_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef int64_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_int64_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_int64_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_int64_t" >&5
-echo "${ECHO_T}$ac_cv_type_int64_t" >&6; }
-if test $ac_cv_type_int64_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define int64_t long long
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for uint64_t" >&5
-echo $ECHO_N "checking for uint64_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_uint64_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef uint64_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_uint64_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_uint64_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_uint64_t" >&5
-echo "${ECHO_T}$ac_cv_type_uint64_t" >&6; }
-if test $ac_cv_type_uint64_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define uint64_t unsigned long long
-_ACEOF
-
-fi
-
-
-{ echo "$as_me:$LINENO: checking for size_t" >&5
-echo $ECHO_N "checking for size_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_size_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef size_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_size_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_size_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_size_t" >&5
-echo "${ECHO_T}$ac_cv_type_size_t" >&6; }
-if test $ac_cv_type_size_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define size_t unsigned int
-_ACEOF
-
-fi
-
-{ echo "$as_me:$LINENO: checking for ssize_t" >&5
-echo $ECHO_N "checking for ssize_t... $ECHO_C" >&6; }
-if test "${ac_cv_type_ssize_t+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-typedef ssize_t ac__type_new_;
-int
-main ()
-{
-if ((ac__type_new_ *) 0)
-  return 0;
-if (sizeof (ac__type_new_))
-  return 0;
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_type_ssize_t=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_type_ssize_t=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ echo "$as_me:$LINENO: result: $ac_cv_type_ssize_t" >&5
-echo "${ECHO_T}$ac_cv_type_ssize_t" >&6; }
-if test $ac_cv_type_ssize_t = yes; then
-  :
-else
-
-cat >>confdefs.h <<_ACEOF
-#define ssize_t int
-_ACEOF
-
-fi
-
-
 { echo "$as_me:$LINENO: checking for int" >&5
 echo $ECHO_N "checking for int... $ECHO_C" >&6; }
 if test "${ac_cv_type_int+set}" = set; then
@@ -8745,6 +8050,836 @@ cat >>confdefs.h <<_ACEOF
 #define SIZEOF_LONG_LONG $ac_cv_sizeof_long_long
 _ACEOF
 
+
+
+{ echo "$as_me:$LINENO: checking for uint_t" >&5
+echo $ECHO_N "checking for uint_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint_t" >&6; }
+if test $ac_cv_type_uint_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint_t unsigned int
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for int8_t" >&5
+echo $ECHO_N "checking for int8_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_int8_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef int8_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_int8_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_int8_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_int8_t" >&5
+echo "${ECHO_T}$ac_cv_type_int8_t" >&6; }
+if test $ac_cv_type_int8_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define int8_t char
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for uint8_t" >&5
+echo $ECHO_N "checking for uint8_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint8_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint8_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint8_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint8_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint8_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint8_t" >&6; }
+if test $ac_cv_type_uint8_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint8_t unsigned char
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for int16_t" >&5
+echo $ECHO_N "checking for int16_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_int16_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef int16_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_int16_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_int16_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_int16_t" >&5
+echo "${ECHO_T}$ac_cv_type_int16_t" >&6; }
+if test $ac_cv_type_int16_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define int16_t short
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for uint16_t" >&5
+echo $ECHO_N "checking for uint16_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint16_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint16_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint16_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint16_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint16_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint16_t" >&6; }
+if test $ac_cv_type_uint16_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint16_t unsigned short
+_ACEOF
+
+fi
+
+
+if test $ac_cv_sizeof_int -eq 4 ; then
+{ echo "$as_me:$LINENO: checking for int32_t" >&5
+echo $ECHO_N "checking for int32_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_int32_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef int32_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_int32_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_int32_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_int32_t" >&5
+echo "${ECHO_T}$ac_cv_type_int32_t" >&6; }
+if test $ac_cv_type_int32_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define int32_t int
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for uint32_t" >&5
+echo $ECHO_N "checking for uint32_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint32_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint32_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint32_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint32_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint32_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint32_t" >&6; }
+if test $ac_cv_type_uint32_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint32_t unsigned int
+_ACEOF
+
+fi
+
+elif test $ac_cv_size_long -eq 4 ; then
+{ echo "$as_me:$LINENO: checking for int32_t" >&5
+echo $ECHO_N "checking for int32_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_int32_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef int32_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_int32_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_int32_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_int32_t" >&5
+echo "${ECHO_T}$ac_cv_type_int32_t" >&6; }
+if test $ac_cv_type_int32_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define int32_t long
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for uint32_t" >&5
+echo $ECHO_N "checking for uint32_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint32_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint32_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint32_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint32_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint32_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint32_t" >&6; }
+if test $ac_cv_type_uint32_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint32_t unsigned long
+_ACEOF
+
+fi
+
+else
+{ { echo "$as_me:$LINENO: error: LIBREPLACE no 32-bit type found" >&5
+echo "$as_me: error: LIBREPLACE no 32-bit type found" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+{ echo "$as_me:$LINENO: checking for int64_t" >&5
+echo $ECHO_N "checking for int64_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_int64_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef int64_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_int64_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_int64_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_int64_t" >&5
+echo "${ECHO_T}$ac_cv_type_int64_t" >&6; }
+if test $ac_cv_type_int64_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define int64_t long long
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for uint64_t" >&5
+echo $ECHO_N "checking for uint64_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_uint64_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef uint64_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_uint64_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_uint64_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_uint64_t" >&5
+echo "${ECHO_T}$ac_cv_type_uint64_t" >&6; }
+if test $ac_cv_type_uint64_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define uint64_t unsigned long long
+_ACEOF
+
+fi
+
+
+{ echo "$as_me:$LINENO: checking for size_t" >&5
+echo $ECHO_N "checking for size_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_size_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef size_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_size_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_size_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_size_t" >&5
+echo "${ECHO_T}$ac_cv_type_size_t" >&6; }
+if test $ac_cv_type_size_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define size_t unsigned int
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking for ssize_t" >&5
+echo $ECHO_N "checking for ssize_t... $ECHO_C" >&6; }
+if test "${ac_cv_type_ssize_t+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+typedef ssize_t ac__type_new_;
+int
+main ()
+{
+if ((ac__type_new_ *) 0)
+  return 0;
+if (sizeof (ac__type_new_))
+  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_type_ssize_t=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_ssize_t=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_type_ssize_t" >&5
+echo "${ECHO_T}$ac_cv_type_ssize_t" >&6; }
+if test $ac_cv_type_ssize_t = yes; then
+  :
+else
+
+cat >>confdefs.h <<_ACEOF
+#define ssize_t int
+_ACEOF
+
+fi
 
 
 { echo "$as_me:$LINENO: checking for off_t" >&5
@@ -45495,7 +45630,9 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 			BLDSHARED="true"
-			LDSHFLAGS="-Wl,-G,-bexpfull,-bbigtoc"
+			# use expfull to export underscored symbols
+			# add rtl to remove /lib/crt0.o warning
+			LDSHFLAGS="-Wl,-G,-bexpfull,-bbigtoc,-brtl"
 			DYNEXP="-Wl,-brtl,-bexpfull,-bbigtoc"
 			PICFLAG="-O2"
 			# as AIX code is always position independent...
@@ -71586,7 +71723,7 @@ echo $ECHO_N "checking how to build pdb_ldap... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define pdb_ldap_init init_module
+#define pdb_ldap_init init_samba_module
 _ACEOF
 
 		PDB_MODULES="$PDB_MODULES "bin/ldapsam.$SHLIBEXT""
@@ -71623,7 +71760,7 @@ echo $ECHO_N "checking how to build pdb_smbpasswd... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define pdb_smbpasswd_init init_module
+#define pdb_smbpasswd_init init_samba_module
 _ACEOF
 
 		PDB_MODULES="$PDB_MODULES "bin/smbpasswd.$SHLIBEXT""
@@ -71660,7 +71797,7 @@ echo $ECHO_N "checking how to build pdb_tdbsam... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define pdb_tdbsam_init init_module
+#define pdb_tdbsam_init init_samba_module
 _ACEOF
 
 		PDB_MODULES="$PDB_MODULES "bin/tdbsam.$SHLIBEXT""
@@ -71714,7 +71851,7 @@ echo $ECHO_N "checking how to build rpc_lsarpc... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_lsarpc_init init_module
+#define rpc_lsarpc_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_lsarpc.$SHLIBEXT""
@@ -71751,7 +71888,7 @@ echo $ECHO_N "checking how to build rpc_winreg... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_winreg_init init_module
+#define rpc_winreg_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_winreg.$SHLIBEXT""
@@ -71788,7 +71925,7 @@ echo $ECHO_N "checking how to build rpc_initshutdown... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_initshutdown_init init_module
+#define rpc_initshutdown_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_initshutdown.$SHLIBEXT""
@@ -71825,7 +71962,7 @@ echo $ECHO_N "checking how to build rpc_dssetup... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_dssetup_init init_module
+#define rpc_dssetup_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_dssetup.$SHLIBEXT""
@@ -71862,7 +71999,7 @@ echo $ECHO_N "checking how to build rpc_wkssvc... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_wkssvc_init init_module
+#define rpc_wkssvc_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_wkssvc.$SHLIBEXT""
@@ -71899,7 +72036,7 @@ echo $ECHO_N "checking how to build rpc_svcctl2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_svcctl2_init init_module
+#define rpc_svcctl2_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_svcctl2.$SHLIBEXT""
@@ -71936,7 +72073,7 @@ echo $ECHO_N "checking how to build rpc_ntsvcs2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_ntsvcs2_init init_module
+#define rpc_ntsvcs2_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_ntsvcs2.$SHLIBEXT""
@@ -71973,7 +72110,7 @@ echo $ECHO_N "checking how to build rpc_netlogon... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_netlogon_init init_module
+#define rpc_netlogon_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_NETLOGON.$SHLIBEXT""
@@ -72010,7 +72147,7 @@ echo $ECHO_N "checking how to build rpc_netdfs... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_netdfs_init init_module
+#define rpc_netdfs_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_netdfs.$SHLIBEXT""
@@ -72047,7 +72184,7 @@ echo $ECHO_N "checking how to build rpc_srvsvc... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_srvsvc_init init_module
+#define rpc_srvsvc_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_svcsvc.$SHLIBEXT""
@@ -72084,7 +72221,7 @@ echo $ECHO_N "checking how to build rpc_spoolss... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_spoolss_init init_module
+#define rpc_spoolss_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_spoolss.$SHLIBEXT""
@@ -72121,7 +72258,7 @@ echo $ECHO_N "checking how to build rpc_eventlog2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_eventlog2_init init_module
+#define rpc_eventlog2_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_eventlog2.$SHLIBEXT""
@@ -72158,7 +72295,7 @@ echo $ECHO_N "checking how to build rpc_samr... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_samr_init init_module
+#define rpc_samr_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_samr.$SHLIBEXT""
@@ -72195,7 +72332,7 @@ echo $ECHO_N "checking how to build rpc_rpcecho... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define rpc_rpcecho_init init_module
+#define rpc_rpcecho_init init_samba_module
 _ACEOF
 
 		RPC_MODULES="$RPC_MODULES "bin/librpc_rpcecho.$SHLIBEXT""
@@ -72248,7 +72385,7 @@ echo $ECHO_N "checking how to build idmap_ldap... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_ldap_init init_module
+#define idmap_ldap_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/ldap.$SHLIBEXT""
@@ -72285,7 +72422,7 @@ echo $ECHO_N "checking how to build idmap_tdb... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_tdb_init init_module
+#define idmap_tdb_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/tdb.$SHLIBEXT""
@@ -72322,7 +72459,7 @@ echo $ECHO_N "checking how to build idmap_tdb2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_tdb2_init init_module
+#define idmap_tdb2_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/tdb2.$SHLIBEXT""
@@ -72359,7 +72496,7 @@ echo $ECHO_N "checking how to build idmap_passdb... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_passdb_init init_module
+#define idmap_passdb_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/passdb.$SHLIBEXT""
@@ -72396,7 +72533,7 @@ echo $ECHO_N "checking how to build idmap_nss... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_nss_init init_module
+#define idmap_nss_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/nss.$SHLIBEXT""
@@ -72433,7 +72570,7 @@ echo $ECHO_N "checking how to build idmap_rid... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_rid_init init_module
+#define idmap_rid_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/rid.$SHLIBEXT""
@@ -72470,7 +72607,7 @@ echo $ECHO_N "checking how to build idmap_ad... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define idmap_ad_init init_module
+#define idmap_ad_init init_samba_module
 _ACEOF
 
 		IDMAP_MODULES="$IDMAP_MODULES "bin/ad.$SHLIBEXT""
@@ -72523,7 +72660,7 @@ echo $ECHO_N "checking how to build nss_info_template... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define nss_info_template_init init_module
+#define nss_info_template_init init_samba_module
 _ACEOF
 
 		NSS_INFO_MODULES="$NSS_INFO_MODULES "bin/template.$SHLIBEXT""
@@ -72576,7 +72713,7 @@ echo $ECHO_N "checking how to build charset_weird... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define charset_weird_init init_module
+#define charset_weird_init init_samba_module
 _ACEOF
 
 		CHARSET_MODULES="$CHARSET_MODULES "bin/weird.$SHLIBEXT""
@@ -72613,7 +72750,7 @@ echo $ECHO_N "checking how to build charset_CP850... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define charset_CP850_init init_module
+#define charset_CP850_init init_samba_module
 _ACEOF
 
 		CHARSET_MODULES="$CHARSET_MODULES "bin/CP850.$SHLIBEXT""
@@ -72650,7 +72787,7 @@ echo $ECHO_N "checking how to build charset_CP437... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define charset_CP437_init init_module
+#define charset_CP437_init init_samba_module
 _ACEOF
 
 		CHARSET_MODULES="$CHARSET_MODULES "bin/CP437.$SHLIBEXT""
@@ -72687,7 +72824,7 @@ echo $ECHO_N "checking how to build charset_macosxfs... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define charset_macosxfs_init init_module
+#define charset_macosxfs_init init_samba_module
 _ACEOF
 
 		CHARSET_MODULES="$CHARSET_MODULES "bin/macosxfs.$SHLIBEXT""
@@ -72740,7 +72877,7 @@ echo $ECHO_N "checking how to build auth_sam... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_sam_init init_module
+#define auth_sam_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/sam.$SHLIBEXT""
@@ -72777,7 +72914,7 @@ echo $ECHO_N "checking how to build auth_unix... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_unix_init init_module
+#define auth_unix_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/unix.$SHLIBEXT""
@@ -72814,7 +72951,7 @@ echo $ECHO_N "checking how to build auth_winbind... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_winbind_init init_module
+#define auth_winbind_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/winbind.$SHLIBEXT""
@@ -72851,7 +72988,7 @@ echo $ECHO_N "checking how to build auth_server... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_server_init init_module
+#define auth_server_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/smbserver.$SHLIBEXT""
@@ -72888,7 +73025,7 @@ echo $ECHO_N "checking how to build auth_domain... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_domain_init init_module
+#define auth_domain_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/domain.$SHLIBEXT""
@@ -72925,7 +73062,7 @@ echo $ECHO_N "checking how to build auth_builtin... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_builtin_init init_module
+#define auth_builtin_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/builtin.$SHLIBEXT""
@@ -72962,7 +73099,7 @@ echo $ECHO_N "checking how to build auth_script... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define auth_script_init init_module
+#define auth_script_init init_samba_module
 _ACEOF
 
 		AUTH_MODULES="$AUTH_MODULES "bin/script.$SHLIBEXT""
@@ -73015,7 +73152,7 @@ echo $ECHO_N "checking how to build vfs_default... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_default_init init_module
+#define vfs_default_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/default.$SHLIBEXT""
@@ -73052,7 +73189,7 @@ echo $ECHO_N "checking how to build vfs_recycle... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_recycle_init init_module
+#define vfs_recycle_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/recycle.$SHLIBEXT""
@@ -73089,7 +73226,7 @@ echo $ECHO_N "checking how to build vfs_audit... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_audit_init init_module
+#define vfs_audit_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/audit.$SHLIBEXT""
@@ -73126,7 +73263,7 @@ echo $ECHO_N "checking how to build vfs_extd_audit... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_extd_audit_init init_module
+#define vfs_extd_audit_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/extd_audit.$SHLIBEXT""
@@ -73163,7 +73300,7 @@ echo $ECHO_N "checking how to build vfs_full_audit... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_full_audit_init init_module
+#define vfs_full_audit_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/full_audit.$SHLIBEXT""
@@ -73200,7 +73337,7 @@ echo $ECHO_N "checking how to build vfs_netatalk... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_netatalk_init init_module
+#define vfs_netatalk_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/netatalk.$SHLIBEXT""
@@ -73237,7 +73374,7 @@ echo $ECHO_N "checking how to build vfs_fake_perms... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_fake_perms_init init_module
+#define vfs_fake_perms_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/fake_perms.$SHLIBEXT""
@@ -73274,7 +73411,7 @@ echo $ECHO_N "checking how to build vfs_default_quota... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_default_quota_init init_module
+#define vfs_default_quota_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/default_quota.$SHLIBEXT""
@@ -73311,7 +73448,7 @@ echo $ECHO_N "checking how to build vfs_readonly... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_readonly_init init_module
+#define vfs_readonly_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/readonly.$SHLIBEXT""
@@ -73348,7 +73485,7 @@ echo $ECHO_N "checking how to build vfs_cap... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_cap_init init_module
+#define vfs_cap_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/cap.$SHLIBEXT""
@@ -73385,7 +73522,7 @@ echo $ECHO_N "checking how to build vfs_expand_msdfs... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_expand_msdfs_init init_module
+#define vfs_expand_msdfs_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/expand_msdfs.$SHLIBEXT""
@@ -73422,7 +73559,7 @@ echo $ECHO_N "checking how to build vfs_shadow_copy... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_shadow_copy_init init_module
+#define vfs_shadow_copy_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/shadow_copy.$SHLIBEXT""
@@ -73459,7 +73596,7 @@ echo $ECHO_N "checking how to build vfs_shadow_copy2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_shadow_copy2_init init_module
+#define vfs_shadow_copy2_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/shadow_copy2.$SHLIBEXT""
@@ -73496,7 +73633,7 @@ echo $ECHO_N "checking how to build vfs_afsacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_afsacl_init init_module
+#define vfs_afsacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/afsacl.$SHLIBEXT""
@@ -73533,7 +73670,7 @@ echo $ECHO_N "checking how to build vfs_xattr_tdb... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_xattr_tdb_init init_module
+#define vfs_xattr_tdb_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/xattr_tdb.$SHLIBEXT""
@@ -73570,7 +73707,7 @@ echo $ECHO_N "checking how to build vfs_posixacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_posixacl_init init_module
+#define vfs_posixacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/posixacl.$SHLIBEXT""
@@ -73607,7 +73744,7 @@ echo $ECHO_N "checking how to build vfs_aixacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_aixacl_init init_module
+#define vfs_aixacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/aixacl.$SHLIBEXT""
@@ -73644,7 +73781,7 @@ echo $ECHO_N "checking how to build vfs_aixacl2... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_aixacl2_init init_module
+#define vfs_aixacl2_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/aixacl2.$SHLIBEXT""
@@ -73681,7 +73818,7 @@ echo $ECHO_N "checking how to build vfs_solarisacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_solarisacl_init init_module
+#define vfs_solarisacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/solarisacl.$SHLIBEXT""
@@ -73718,7 +73855,7 @@ echo $ECHO_N "checking how to build vfs_irixacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_irixacl_init init_module
+#define vfs_irixacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/irixacl.$SHLIBEXT""
@@ -73755,7 +73892,7 @@ echo $ECHO_N "checking how to build vfs_hpuxacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_hpuxacl_init init_module
+#define vfs_hpuxacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/hpuxacl.$SHLIBEXT""
@@ -73792,7 +73929,7 @@ echo $ECHO_N "checking how to build vfs_tru64acl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_tru64acl_init init_module
+#define vfs_tru64acl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/tru64acl.$SHLIBEXT""
@@ -73829,7 +73966,7 @@ echo $ECHO_N "checking how to build vfs_catia... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_catia_init init_module
+#define vfs_catia_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/catia.$SHLIBEXT""
@@ -73866,7 +74003,7 @@ echo $ECHO_N "checking how to build vfs_streams_xattr... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_streams_xattr_init init_module
+#define vfs_streams_xattr_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/streams_xattr.$SHLIBEXT""
@@ -73903,7 +74040,7 @@ echo $ECHO_N "checking how to build vfs_streams_depot... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_streams_depot_init init_module
+#define vfs_streams_depot_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/streams_depot.$SHLIBEXT""
@@ -73940,7 +74077,7 @@ echo $ECHO_N "checking how to build vfs_cacheprime... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_cacheprime_init init_module
+#define vfs_cacheprime_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/cacheprime.$SHLIBEXT""
@@ -73977,7 +74114,7 @@ echo $ECHO_N "checking how to build vfs_prealloc... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_prealloc_init init_module
+#define vfs_prealloc_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/prealloc.$SHLIBEXT""
@@ -74014,7 +74151,7 @@ echo $ECHO_N "checking how to build vfs_commit... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_commit_init init_module
+#define vfs_commit_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/commit.$SHLIBEXT""
@@ -74051,7 +74188,7 @@ echo $ECHO_N "checking how to build vfs_gpfs... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_gpfs_init init_module
+#define vfs_gpfs_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/gpfs.$SHLIBEXT""
@@ -74088,7 +74225,7 @@ echo $ECHO_N "checking how to build vfs_readahead... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_readahead_init init_module
+#define vfs_readahead_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/readahead.$SHLIBEXT""
@@ -74125,7 +74262,7 @@ echo $ECHO_N "checking how to build vfs_tsmsm... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_tsmsm_init init_module
+#define vfs_tsmsm_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/tsmsm.$SHLIBEXT""
@@ -74162,7 +74299,7 @@ echo $ECHO_N "checking how to build vfs_fileid... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_fileid_init init_module
+#define vfs_fileid_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/fileid.$SHLIBEXT""
@@ -74199,7 +74336,7 @@ echo $ECHO_N "checking how to build vfs_aio_fork... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_aio_fork_init init_module
+#define vfs_aio_fork_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/aio_fork.$SHLIBEXT""
@@ -74236,7 +74373,7 @@ echo $ECHO_N "checking how to build vfs_syncops... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_syncops_init init_module
+#define vfs_syncops_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/syncops.$SHLIBEXT""
@@ -74273,7 +74410,7 @@ echo $ECHO_N "checking how to build vfs_zfsacl... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_zfsacl_init init_module
+#define vfs_zfsacl_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/zfsacl.$SHLIBEXT""
@@ -74310,7 +74447,7 @@ echo $ECHO_N "checking how to build vfs_notify_fam... $ECHO_C" >&6; }
 	if test x"$DEST" = xSHARED; then
 
 cat >>confdefs.h <<\_ACEOF
-#define vfs_notify_fam_init init_module
+#define vfs_notify_fam_init init_samba_module
 _ACEOF
 
 		VFS_MODULES="$VFS_MODULES "bin/notify_fam.$SHLIBEXT""

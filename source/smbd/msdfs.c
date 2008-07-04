@@ -367,8 +367,9 @@ static bool parse_msdfs_symlink(TALLOC_CTX *ctx,
 		reflist[i].ttl = REFERRAL_TTL;
 		DEBUG(10, ("parse_msdfs_symlink: Created alt path: %s\n",
 					reflist[i].alternate_path));
-		*refcount += 1;
 	}
+
+	*refcount = count;
 
 	TALLOC_FREE(alt_path);
 	return True;
@@ -1305,8 +1306,7 @@ static bool junction_to_local_path(const struct junction_map *jucn,
 	return True;
 }
 
-bool create_msdfs_link(const struct junction_map *jucn,
-		bool exists)
+bool create_msdfs_link(const struct junction_map *jucn)
 {
 	char *path = NULL;
 	char *msdfs_link = NULL;
@@ -1359,17 +1359,18 @@ bool create_msdfs_link(const struct junction_map *jucn,
 	DEBUG(5,("create_msdfs_link: Creating new msdfs link: %s -> %s\n",
 		path, msdfs_link));
 
-	if(exists) {
-		if(SMB_VFS_UNLINK(conn,path)!=0) {
+	if(SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
+		if (errno == EEXIST) {
+			if(SMB_VFS_UNLINK(conn,path)!=0) {
+				goto out;
+			}
+		}
+		if (SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
+			DEBUG(1,("create_msdfs_link: symlink failed "
+				 "%s -> %s\nError: %s\n",
+				 path, msdfs_link, strerror(errno)));
 			goto out;
 		}
-	}
-
-	if(SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
-		DEBUG(1,("create_msdfs_link: symlink failed "
-			"%s -> %s\nError: %s\n", 
-			path, msdfs_link, strerror(errno)));
-		goto out;
 	}
 
 	ret = True;
@@ -1501,6 +1502,7 @@ static int form_junctions(TALLOC_CTX *ctx,
 	if (!jucn[cnt].service_name || !jucn[cnt].volume_name) {
 		goto out;
 	}
+	jucn[cnt].comment = "";
 	jucn[cnt].referral_count = 1;
 
 	ref = jucn[cnt].referral_list = TALLOC_ZERO_P(ctx, struct referral);
@@ -1539,7 +1541,6 @@ static int form_junctions(TALLOC_CTX *ctx,
 	while ((dname = vfs_readdirname(&conn, dirp)) != NULL) {
 		char *link_target = NULL;
 		if (cnt >= jn_remain) {
-			SMB_VFS_CLOSEDIR(&conn,dirp);
 			DEBUG(2, ("form_junctions: ran out of MSDFS "
 				"junction slots"));
 			goto out;
@@ -1561,8 +1562,10 @@ static int form_junctions(TALLOC_CTX *ctx,
 						!jucn[cnt].volume_name) {
 					goto out;
 				}
+				jucn[cnt].comment = "";
 				cnt++;
 			}
+			TALLOC_FREE(link_target);
 		}
 	}
 

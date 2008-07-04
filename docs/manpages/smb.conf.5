@@ -1,11 +1,11 @@
 .\"     Title: smb.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 06/10/2008
+.\"      Date: 06/26/2008
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.2
 .\"
-.TH "SMB\.CONF" "5" "06/10/2008" "Samba 3\.2" "File Formats and Conventions"
+.TH "SMB\.CONF" "5" "06/26/2008" "Samba 3\.2" "File Formats and Conventions"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -790,13 +790,13 @@ Example:
 \fI\fIadd port command\fR\fR\fI = \fR\fI/etc/samba/scripts/addport\.sh\fR\fI \fR
 .RE
 
-add printer command (G)
+addprinter command (G)
 .PP
 .RS 4
 With the introduction of MS\-RPC based printing support for Windows NT/2000 clients in Samba 2\.2, The MS Add Printer Wizard (APW) icon is now also available in the "Printers\.\.\." folder displayed a share listing\. The APW allows for printers to be add remotely to a Samba or Windows NT/2000 print server\.
 .sp
 For a Samba host this means that the printer must be physically added to the underlying printing system\. The
-\fIadd printer command\fR
+\fIaddprinter command\fR
 defines a script to be run which will perform the necessary operations for adding the printer to the print system and to add the appropriate service definition to the
 \fIsmb\.conf\fR
 file in order that it can be shared by
@@ -884,13 +884,15 @@ to determine if the share defined by the APW exists\. If the sharename is still 
 smbd
 will return an ACCESS_DENIED error to the client\.
 .sp
-The "add printer command" program can output a single line of text, which Samba will set as the port the new printer is connected to\. If this line isn\'t output, Samba won\'t reload its printer shares\.
+The
+\fIaddprinter command\fR
+program can output a single line of text, which Samba will set as the port the new printer is connected to\. If this line isn\'t output, Samba won\'t reload its printer shares\.
 .sp
 Default:
-\fI\fIadd printer command\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fIaddprinter command\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
-\fI\fIadd printer command\fR\fR\fI = \fR\fI/usr/bin/addprinter\fR\fI \fR
+\fI\fIaddprinter command\fR\fR\fI = \fR\fI/usr/bin/addprinter\fR\fI \fR
 .RE
 
 add share command (G)
@@ -1312,13 +1314,13 @@ to bind only to the interface list given in the
 \fIinterfaces\fR
 parameter\. This restricts the networks that
 smbd
-will serve to packets coming in those interfaces\. Note that you should not use this parameter for machines that are serving PPP or other intermittent or non\-broadcast network interfaces as it will not cope with non\-permanent interfaces\.
+will serve, to packets coming in on those interfaces\. Note that you should not use this parameter for machines that are serving PPP or other intermittent or non\-broadcast network interfaces as it will not cope with non\-permanent interfaces\.
 .sp
 If
 \fIbind interfaces only\fR
-is set then unless the network address
+is set and the network address
 \fI127\.0\.0\.1\fR
-is added to the
+is not added to the
 \fIinterfaces\fR
 parameter list
 \fBsmbpasswd\fR(8)
@@ -1560,11 +1562,13 @@ Example:
 check password script (G)
 .PP
 .RS 4
-The name of a program that can be used to check password complexity\. The password is sent to the program\'s standrad input\.
+The name of a program that can be used to check password complexity\. The password is sent to the program\'s standard input\.
 .sp
-The program must return 0 on good password any other value otherwise\. In case the password is considered weak (the program do not return 0) the user will be notified and the password change will fail\.
+The program must return 0 on a good password, or any other value if the password is bad\. In case the password is considered weak (the program does not return 0) the user will be notified and the password change will fail\.
 .sp
-Note: In the example directory there is a sample program called crackcheck that uses cracklib to checkpassword quality\.
+Note: In the example directory is a sample program called
+crackcheck
+that uses cracklib to check the password quality\.
 .sp
 Default:
 \fI\fIcheck password script\fR\fR\fI = \fR\fIDisabled\fR\fI \fR
@@ -2120,9 +2124,9 @@ Default:
 deleteprinter command (G)
 .PP
 .RS 4
-With the introduction of MS\-RPC based printer support for Windows NT/2000 clients in Samba 2\.2, it is now possible to delete printer at run time by issuing the DeletePrinter() RPC call\.
+With the introduction of MS\-RPC based printer support for Windows NT/2000 clients in Samba 2\.2, it is now possible to delete a printer at run time by issuing the DeletePrinter() RPC call\.
 .sp
-For a Samba host this means that the printer must be physically deleted from underlying printing system\. The
+For a Samba host this means that the printer must be physically deleted from the underlying printing system\. The
 \fIdeleteprinter command\fR
 defines a script to be run which will perform the necessary operations for removing the printer from the print system and from
 \fIsmb\.conf\fR\.
@@ -2138,7 +2142,7 @@ has been executed,
 smbd
 will reparse the
 \fI smb\.conf\fR
-to associated printer no longer exists\. If the sharename is still valid, then
+to check that the associated printer no longer exists\. If the sharename is still valid, then
 smbd
 will return an ACCESS_DENIED error to the client\.
 .sp
@@ -3688,7 +3692,7 @@ Default:
 interfaces (G)
 .PP
 .RS 4
-This option allows you to override the default network interfaces list that Samba will use for browsing, name registration and other NBT traffic\. By default Samba will query the kernel for the list of all active interfaces and use any interfaces except 127\.0\.0\.1 that are broadcast capable\.
+This option allows you to override the default network interfaces list that Samba will use for browsing, name registration and other NetBIOS over TCP/IP (NBT) traffic\. By default Samba will query the kernel for the list of all active interfaces and use any interfaces except 127\.0\.0\.1 that are broadcast capable\.
 .sp
 The option takes a list of interface strings\. Each string can be in any of the following forms:
 .sp
@@ -4104,7 +4108,7 @@ An example configuration can be the following:
 .fi
 .RE
 .sp
-This configuration assume the ldap server have been loaded with a base tree like described in the following ldif:
+This configuration assumes a directory layout like described in the following ldif:
 .sp
 .RS 4
 .nf
@@ -5256,7 +5260,7 @@ The three settings are :
 .\}
 
 \fBYes\fR
-\- The read only DOS attribute is mapped to the inverse of the user or owner write bit in the unix permission mode set\. If the owner write bit is not set, the read only attribute is reported as being set on the file\.
+\- The read only DOS attribute is mapped to the inverse of the user or owner write bit in the unix permission mode set\. If the owner write bit is not set, the read only attribute is reported as being set on the file\. If the read only DOS attribute is set, Samba sets the owner, group and others write bits to zero\. Write bits set in an ACL are ignored by Samba\. If the read only DOS attribute is unset, Samba simply sets the write bit of the owner to one\.
 .RE
 .sp
 .RS 4
@@ -5998,7 +6002,7 @@ will attempt to authenticate users using the NTLM encrypted password response\. 
 .sp
 If this option, and
 lanman auth
-are both disabled, then only NTLMv2 logins will be permited\. Not all clients support NTLMv2, and most will require special configuration to us it\.
+are both disabled, then only NTLMv2 logins will be permited\. Not all clients support NTLMv2, and most will require special configuration to use it\.
 .sp
 Default:
 \fI\fIntlm auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -6163,7 +6167,7 @@ has a chance of becoming a local master browser for the
 in the local broadcast area\.
 .sp
 \fI Note:\fR
-By default, Samba will win a local master browsing election over all Microsoft operating systems except a Windows NT 4\.0/2000 Domain Controller\. This means that a misconfigured Samba host can effectively isolate a subnet for browsing purposes\. This parameter is largely auto\-configured in the Samba\-3 release series and it is seldom necessary to manually override the default setting\. Please refer to chapter 9 of the Samba\-3 HOWTO document for further information regarding the use of this parameter\.
+By default, Samba will win a local master browsing election over all Microsoft operating systems except a Windows NT 4\.0/2000 Domain Controller\. This means that a misconfigured Samba host can effectively isolate a subnet for browsing purposes\. This parameter is largely auto\-configured in the Samba\-3 release series and it is seldom necessary to manually override the default setting\. Please refer to the chapter on Network Browsing in the Samba\-3 HOWTO document for further information regarding the use of this parameter\.
 \fINote:\fR
 The maximum value for this parameter is 255\. If you use higher values, counting will start at 0!
 .sp
@@ -6344,7 +6348,7 @@ and what to expect back\. If the expected output is not received then the passwo
 .sp
 This chat sequence is often quite site specific, depending on what local methods are used for password control (such as NIS etc)\.
 .sp
-Note that this parameter only is only used if the
+Note that this parameter only is used if the
 \fIunix password sync\fR
 parameter is set to
 \fByes\fR\. This sequence is then called

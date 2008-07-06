@@ -43,6 +43,10 @@ samba (2:3.2.0-1) experimental; urgency=low
   [ Steve Langasek ]
   * New upstream release
 
+  [ Jelmer Vernooij ]
+  * Merged from unstable:
+  * Fix bashism in smbtar. (Closes: #486056)
+
   [ Peter Eisentraut ]
   * Merged from unstable:
     * Removed myself from Uploaders

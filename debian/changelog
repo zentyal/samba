@@ -26,6 +26,8 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * Create the entire set of directories needed by clients for
     Point-and-Click printing (including old clients!) in
     /var/lib/samba/printers (idea taken from SerNet packages)
+  * Update copyright and README.debian information for current and past
+    maintainers. Remove redundant mention of Tridge (the copyright is enough)
 
   [ Steve Langasek ]
   * New upstream release

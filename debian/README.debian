@@ -2,14 +2,13 @@ Samba for Debian
 ----------------
 
 This package was built by Eloy Paris <peloy@debian.org>, Steve
-Langasek <vorlon@debian.org>, Noèl Köthe <noel@debian.org>, Peter
-Eisentraut <petere@debian.org> and Christian Perrier
-<bubulle@debian.org>, current maintainers of the Samba packages for
-Debian, based on previous work from Bruce Perens <Bruce@Pixar.com>,
-Andrew Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and
-Michael Meskes <meskes@topsystem.de>, all previous maintainers of the
-packages samba and sambades (merged together for longer than we can
-remember.)
+Langasek <vorlon@debian.org>, Noèl Köthe <noel@debian.org> and
+Christian Perrier <bubulle@debian.org>, current maintainers of the
+Samba packages for Debian, based on previous work from Peter
+Eisentraut <petere@debian.org>, Bruce Perens <Bruce@Pixar.com>, Andrew
+Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and Michael
+Meskes <meskes@topsystem.de>, all previous maintainers of the packages
+samba and sambades (merged together for longer than we can remember.)
 
 Contents of this README file:
 

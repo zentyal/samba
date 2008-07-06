@@ -10,30 +10,29 @@
 #         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
 #    Developers do not need to manually edit POT or PO files.
 #
-# Eddy Petrişor <eddy.petrisor@gmail.com>, 2006.
-# Eddy Petrișor <eddy.petrisor@gmail.com>, 2007.
+# Eddy Petrișor <eddy.petrisor@gmail.com>, 2006, 2007, 2008.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_po_ro\n"
+"Project-Id-Version: samba/debian/po/ro.po\n"
 "Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
 "POT-Creation-Date: 2007-09-17 22:34+0200\n"
-"PO-Revision-Date: 2007-03-12 23:25+0200\n"
+"PO-Revision-Date: 2008-06-29 19:42+0300\n"
 "Last-Translator: Eddy Petrișor <eddy.petrisor@gmail.com>\n"
 "Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: nplurals=3;plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
+"Plural-Forms:  nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
 "20)) ? 1 : 2;\n"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Se modifică smb.conf pentru a folosi configuraţiile WINS din DHCP?"
+msgstr "Se modifică smb.conf pentru a folosi configurațiile WINS din DHCP?"
 
-# RO: prefer să nu folosesc termeni de genul „calculatorul dvs.”; de multe ori nu e cazul şi sună mai puţin profesional.
+# RO: prefer să nu folosesc termeni de genul „calculatorul dvs.”; de multe ori nu e cazul și sună mai puțin profesional.
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
@@ -44,10 +43,10 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Dacă acest calculator primeşte informaţiile IP (de configurare a reţelei) de "
-"la un server DHCP din reţea, acel server ar putea să ofere informaţii şi "
-"despre serverele WINS („Serverele NetBIOS de nume”) prezente în reţea. Acest "
-"lucru necesită o schimbare a fişierului smb.conf astfel încât configuraţiile "
+"Dacă acest calculator primește informațiile IP (de configurare a rețelei) de "
+"la un server DHCP din rețea, acel server ar putea să ofere informații și "
+"despre serverele WINS („Serverele NetBIOS de nume”) prezente în rețea. Acest "
+"lucru necesită o schimbare a fișierului smb.conf astfel încât configurațiile "
 "WINS oferite prin DHCP vor fi citite automat din /etc/samba/dhcp.conf."
 
 #. Type: boolean
@@ -63,7 +62,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid "Configure smb.conf automatically?"
-msgstr "Se configură smb.conf automat?"
+msgstr "Se configurează smb.conf automat?"
 
 #. Type: boolean
 #. Description
@@ -76,13 +75,13 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
-"Restul configuraţiei Samba tratează întrebările care afectează parametrii "
-"din /etc/samba/smb.conf, fişierul utilizat pentru a configura programele "
-"Samba (nmbd şi smbd). Actualul fişier smb.conf conţine o linie „include” sau "
-"o opţiune care se desfăşoară de-a lungul a mai multor linii, lucru care ar "
-"putea să creeze confuzie în procesul de configurare automată şi ar putea "
-"duce la necesitatea editării manuale a fişierului smb.conf pentru a-l face "
-"din nou funcţional."
+"Restul configurației Samba tratează întrebările care afectează parametrii "
+"din /etc/samba/smb.conf, fișierul utilizat pentru a configura programele "
+"Samba (nmbd și smbd). Actualul fișier smb.conf conține o linie „include” sau "
+"o opțiune care se desfășoară de-a lungul a mai multor linii, lucru care ar "
+"putea să creeze confuzie în procesul de configurare automată și ar putea "
+"duce la necesitatea editării manuale a fișierului smb.conf pentru a-l face "
+"din nou funcțional."
 
 #. Type: boolean
 #. Description
@@ -92,9 +91,9 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Dacă nu selectaţi aceasta opţiune, va trebui să gestionaţi personal orice "
-"schimbare a configuraţiei şi nu veţi putea beneficia de îmbunătăţirile "
-"periodice ale configuraţiei."
+"Dacă nu selectați aceasta opțiune, va trebui să gestionați personal orice "
+"schimbare a configurației și nu veți putea beneficia de îmbunătățirile "
+"periodice ale configurației."
 
 #. Type: string
 #. Description
@@ -110,15 +109,15 @@ msgid ""
 "queried by clients. Note that this parameter also controls the domain name "
 "used with the security=domain setting."
 msgstr ""
-"Vă rugăm să specificaţi grupul de lucru de care acest server va aparţine "
-"când va fi chestionat de clienţi. A se reţine că acest parametru controlează "
-"şi numele de domeniu folosit cu opţiunea security=domain."
+"Vă rugăm să specificați grupul de lucru de care acest server va aparține "
+"când va fi chestionat de clienți. A se reține că acest parametru controlează "
+"și numele de domeniu folosit cu opțiunea security=domain."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
 msgid "Use password encryption?"
-msgstr "Se folosc parole criptate? "
+msgstr "Se folosesc parole criptate? "
 
 #. Type: boolean
 #. Description
@@ -128,8 +127,8 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Cei mai recenţi clienţi Windows comunică cu serverele SMB folosind parole "
-"criptate. Dacă doriţi să folosiţi parole necriptate, va trebui să schimbaţi "
+"Cei mai recenți clienți Windows comunică cu serverele SMB folosind parole "
+"criptate. Dacă doriți să folosiți parole necriptate, va trebui să schimbați "
 "un parametru în registrul de configurare Windows."
 
 #. Type: boolean
@@ -140,8 +139,8 @@ msgid ""
 "valid /etc/samba/smbpasswd file and that you set passwords in there for each "
 "user using the smbpasswd command."
 msgstr ""
-"Activarea acestei opţiuni este recomandată în mod deosebit. Dacă o activaţi, "
-"asiguraţi-vă că fişierul /etc/samba/smbpasswd este valid şi că aveţi "
+"Activarea acestei opțiuni este recomandată în mod deosebit. Dacă o activați, "
+"asigurați-vă că fișierul /etc/samba/smbpasswd este valid și că aveți "
 "configurată o parolă pentru fiecare utilizator (folosind comanda smbpasswd)."
 
 #. Type: boolean
@@ -162,9 +161,9 @@ msgid ""
 msgstr ""
 "Pentru compatibilitate cu majoritatea versiunilor de Windows, Samba trebuie "
 "să fie configurată să folosească parole criptate. Acest lucru necesită ca "
-"parolele utilizatorilor să fie stocate în alt fişier decât /etc/passwd.  "
-"Acest fişier poate fi creat automat, dar parolele trebuie să fie adăugate "
-"manual prin rularea comenzii smbpasswd şi, în viitor, trebuie ţinut la zi."
+"parolele utilizatorilor să fie stocate în alt fișier decât /etc/passwd.  "
+"Acest fișier poate fi creat automat, dar parolele trebuie să fie adăugate "
+"manual prin rularea comenzii smbpasswd și, în viitor, trebuie ținut la zi."
 
 #. Type: boolean
 #. Description
@@ -173,7 +172,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"Dacă nu-l creaţi, va trebui să reconfiguraţi Samba (probabil şi "
+"Dacă nu-l creați, va trebui să reconfigurați Samba (probabil și "
 "calculatoarele client) să folosească parole necriptate."
 
 #. Type: boolean
@@ -202,7 +201,7 @@ msgstr "inetd"
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr "Cum doriţi să rulaţi Samba?"
+msgstr "Cum doriți să rulați Samba?"
 
 #. Type: select
 #. Description
@@ -213,40 +212,3 @@ msgid ""
 msgstr ""
 "Demonul Samba smbd poate rula ca un demon normal sau din inetd. Rularea ca "
 "demon este recomandată."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Înlănţuirea suporturilor pentru passdb nu este posibilă"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Începând cu versiunea 3.0.23, în samba nu mai este posibilă înlănţuirea "
-#~ "suporturilor în parametrul „passdb backend”. Se pare că fişierul smb.conf "
-#~ "conţine un asemenea parametru care consistă într-o listă de suporturi. "
-#~ "Noua versiune de samba nu va funcţiona până când nu veţi fi corectat "
-#~ "această problemă."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Se mută /etc/samba/smbpasswd în /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 a introdus o interfaţă pentru baza de date SAM mai completă "
-#~ "care înlocuieşte fişierul /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Vă rugăm să confirmaţi dacă doriţi ca fişierul smbpasswd existent să fie "
-#~ "migrat automat în /var/lib/samba/passdb.tdb. Nu alegeţi această opţiune "
-#~ "dacă plănuiţi să folosiţi un alt suport pentru pdb (ex. LDAP)."
-
-#~ msgid "daemons, inetd"
-#~ msgstr "demoni, inetd"

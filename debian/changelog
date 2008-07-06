@@ -40,6 +40,7 @@ samba (2:3.2.0-1) experimental; urgency=low
   [ Debconf translations ]
   * Merged from unstable:
     * Kurdish. Closes: #480151
+    * Romanian updated. Closes: #488709.
 
   [ Steve Langasek ]
   * New upstream release

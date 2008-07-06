@@ -15,6 +15,11 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * Remove Conflicts with non-existing packages
   * Drop dpkg-dev and binutils from Build-Depends, since the versioned
     build-dep is no longer needed and these are both Build-Essential
+  * Mini-policy for settings in smb.conf:
+    - don't explicitely set settings to their default value
+    - commented settings with the default value are commented with "#"
+    - commented settings with a non-default value are commented with ";"
+  * Apply this policy to "socket options". Closes: #476104
 
   [ Steve Langasek ]
   * New upstream release

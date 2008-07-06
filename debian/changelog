@@ -1,50 +1,52 @@
-samba (2:3.2.0-1) UNRELEASED; urgency=low
+samba (2:3.2.0-1) experimental; urgency=low
 
   [ Christian Perrier ]
   * New samba-tools package to provide all "torture" tools:
     smbtorture msgtest masktest locktest locktest2 nsstest vfstest
     pdbtest talloctort replacetort tdbtorture smbconftort
+  * Upgrade Standard to 3.8.0 (checked)
   * Merged from unstable:
-  * Drop "invalid users = root" from the default smb.conf file
-    as it differs from upstream's behaviour and upstream is fairly
-    noisy about this choice of ours. Closes: #462046
-  * Drop commented "guest account = nobody". This is already upstream's
-    default
-  * Remove versioned Build-Depends when satisfied in etch (actually all
-    versioning in Build-Depends)
-  * Remove Conflicts with non-existing packages
-  * Drop dpkg-dev and binutils from Build-Depends, since the versioned
-    build-dep is no longer needed and these are both Build-Essential
-  * Mini-policy for settings in smb.conf:
-    - don't explicitly set settings to their default value
-    - commented settings with the default value are commented with "#"
-    - commented settings with a non-default value are commented with ";"
-  * Apply this policy to "socket options". Closes: #476104
-  * No longer gratuitously use /usr/lib/libsmbclient.so.0.1 but a more logical
-    libsmbclient.so.0 as upstream doesn't assign versions
-  * Add idmap_*(8) man pages (idea taken from SerNet packages)
-  * Create the entire set of directories needed by clients for
-    Point-and-Click printing (including old clients!) in
-    /var/lib/samba/printers (idea taken from SerNet packages)
-  * Update copyright and README.debian information for current and past
-    maintainers. Remove redundant mention of Tridge (the copyright is enough)
-  * Add doc-base files for samba-doc-pdf. Closes: #451685
-  * add a soft dependency on slapd in init script to allow
-    proper operation when dependency-based boot sequence is enabled.
-    Thanks to Petter Reinholdtsen for reporting and providing a patch
-    Closes: #478800
+    * Drop "invalid users = root" from the default smb.conf file
+      as it differs from upstream's behaviour and upstream is fairly
+      noisy about this choice of ours. Closes: #462046
+    * Drop commented "guest account = nobody". This is already upstream's
+      default
+    * Remove versioned Build-Depends when satisfied in etch (actually all
+      versioning in Build-Depends)
+    * Remove Conflicts with non-existing packages
+    * Drop dpkg-dev and binutils from Build-Depends, since the versioned
+      build-dep is no longer needed and these are both Build-Essential
+    * Mini-policy for settings in smb.conf:
+      - don't explicitly set settings to their default value
+      - commented settings with the default value are commented with "#"
+      - commented settings with a non-default value are commented with ";"
+    * Apply this policy to "socket options". Closes: #476104
+    * No longer gratuitously use /usr/lib/libsmbclient.so.0.1 but a more logical
+      libsmbclient.so.0 as upstream doesn't assign versions
+    * Add idmap_*(8) man pages (idea taken from SerNet packages)
+    * Create the entire set of directories needed by clients for
+      Point-and-Click printing (including old clients!) in
+      /var/lib/samba/printers (idea taken from SerNet packages)
+    * Update copyright and README.debian information for current and past
+      maintainers. Remove redundant mention of Tridge (the copyright is enough)
+    * Add doc-base files for samba-doc-pdf. Closes: #451685
+    * add a soft dependency on slapd in init script to allow
+      proper operation when dependency-based boot sequence is enabled.
+      Thanks to Petter Reinholdtsen for reporting and providing a patch
+      Closes: #478800
 
   [ Debconf translations ]
-  * Kurdish. Closes: #480151
+  * Merged from unstable:
+    * Kurdish. Closes: #480151
 
   [ Steve Langasek ]
   * New upstream release
 
   [ Peter Eisentraut ]
   * Merged from unstable:
-  * Removed myself from Uploaders
+    * Removed myself from Uploaders
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 15 Jun 2008 08:17:58 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sun, 06 Jul 2008 09:59:07 +0200
 
 samba (2:3.2.0~rc2-1) experimental; urgency=low
 

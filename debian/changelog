@@ -10,6 +10,8 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
     noisy about this choice of ours. Closes: #462046
   * Drop commented "guest account = nobody". This is already upstream's
     default
+  * Remove versioned Build-Depends when satisfied in etch (actually all
+    versioning in Build-Depends)
 
   [ Steve Langasek ]
   * New upstream release

@@ -4,11 +4,18 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * New samba-tools package to provide all "torture" tools:
     smbtorture msgtest masktest locktest locktest2 nsstest vfstest
     pdbtest talloctort replacetort tdbtorture smbconftort
+  * Merged from unstable:
+  * Drop "invalid users = root" from the default smb.conf file
+    as it differs from upstream's behaviour and upstream is fairly
+    noisy about this choice of ours. Closes: #462046
+  * Drop commented "guest account = nobody". This is already upstream's
+    default
 
   [ Steve Langasek ]
   * New upstream release
 
   [ Peter Eisentraut ]
+  * Merged from unstable:
   * Removed myself from Uploaders
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 15 Jun 2008 08:17:58 +0200

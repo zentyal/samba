@@ -32,6 +32,9 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * Remove "socket options" from smb.conf (the value that was set
     is the default value). Closes: #476104
 
+  [ Debconf translations ]
+  * Kurdish. Closes: #480151
+
   [ Steve Langasek ]
   * New upstream release
 

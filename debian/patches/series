@@ -18,3 +18,4 @@ disable-weak-auth.patch
 no-unnecessary-cups.patch
 swat-de.patch
 smbtar-bashism.patch
+upstream_bug5517.patch

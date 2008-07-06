@@ -7,6 +7,11 @@ samba (2:3.0.30-4) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Fix bashism in smbtar. (Closes: #486056)
 
+  [ Jamie Strandboge ]
+  * debian/patches/upstream_bug5517.patch: adjust cli_negprot() to properly
+    calculate buffer sizes. This bug was introduced in the fix for
+    CVE-2008-1105. Closes: #488688
+
   [ Debconf translations ]
   * Romanian updated. Closes: #488709.
 

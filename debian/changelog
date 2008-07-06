@@ -28,6 +28,7 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
     /var/lib/samba/printers (idea taken from SerNet packages)
   * Update copyright and README.debian information for current and past
     maintainers. Remove redundant mention of Tridge (the copyright is enough)
+  * Add doc-base files for samba-doc-pdf. Closes: #451685
 
   [ Steve Langasek ]
   * New upstream release

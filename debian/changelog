@@ -12,6 +12,7 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
     default
   * Remove versioned Build-Depends when satisfied in etch (actually all
     versioning in Build-Depends)
+  * Remove Conflicts with non-existing packages
 
   [ Steve Langasek ]
   * New upstream release

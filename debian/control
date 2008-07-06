@@ -61,6 +61,7 @@ Description: Samba common files used by both the server and the client
 
 Package: samba-tools
 Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: tools provided by the Samba suite
  The Samba software suite is a collection of programs that
  implements the SMB/CIFS protocol for unix systems, allowing you to serve

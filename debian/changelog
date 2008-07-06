@@ -13,6 +13,8 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * Remove versioned Build-Depends when satisfied in etch (actually all
     versioning in Build-Depends)
   * Remove Conflicts with non-existing packages
+  * Drop dpkg-dev and binutils from Build-Depends, since the versioned
+    build-dep is no longer needed and these are both Build-Essential
 
   [ Steve Langasek ]
   * New upstream release

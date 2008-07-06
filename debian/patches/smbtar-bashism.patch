@@ -17,7 +17,7 @@ Index: samba/source/script/smbtar
        echo "server    is $server"
  #     echo "share     is $service"
 -      echo "share     is $service\\$cdcmd"
-+      printf "share     is %s\\%s" "$service\n" "$cdcmd"
++      printf "share     is %s\\%s\n" "$service" "$cdcmd"
        echo "tar args  is $tarargs"
  #     echo "password  is $password"  # passwords should never be sent to screen
        echo "tape      is $tapefile"

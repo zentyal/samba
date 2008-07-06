@@ -15,3 +15,4 @@ smbpasswd-syslog.patch
 usershare.patch
 swat-de.patch
 smbtar-bashism.patch
+no-unnecessary-cups.patch

@@ -44,6 +44,10 @@ samba (2:3.2.0-1) experimental; urgency=low
 
   [ Steve Langasek ]
   * New upstream release
+  * Merged from unstable:
+    * debian/patches/no-unnecessary-cups.patch: don't try to connect to a
+      cups server when we know that no printers are configured.
+      Closes: #479512.
 
   [ Jelmer Vernooij ]
   * Merged from unstable:

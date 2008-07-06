@@ -13,4 +13,5 @@ adapt_machine_creation_script.patch
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
+swat-de.patch
 smbtar-bashism.patch

@@ -35,6 +35,7 @@ samba (2:3.2.0-1) experimental; urgency=low
       Thanks to Petter Reinholdtsen for reporting and providing a patch
       Closes: #478800
   * Rename libcupsys2-dev to libcups2-dev in build dependencies
+  * Localize SWAT in German. Closes: #487681
 
   [ Debconf translations ]
   * Merged from unstable:

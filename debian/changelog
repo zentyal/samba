@@ -8,6 +8,9 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * New upstream release
 
+  [ Peter Eisentraut ]
+  * Removed myself from Uploaders
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 15 Jun 2008 08:17:58 +0200
 
 samba (2:3.2.0~rc2-1) experimental; urgency=low

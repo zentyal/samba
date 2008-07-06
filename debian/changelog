@@ -29,6 +29,10 @@ samba (2:3.2.0-1) UNRELEASED; urgency=low
   * Update copyright and README.debian information for current and past
     maintainers. Remove redundant mention of Tridge (the copyright is enough)
   * Add doc-base files for samba-doc-pdf. Closes: #451685
+  * add a soft dependency on slapd in init script to allow
+    proper operation when dependency-based boot sequence is enabled.
+    Thanks to Petter Reinholdtsen for reporting and providing a patch
+    Closes: #478800
 
   [ Debconf translations ]
   * Kurdish. Closes: #480151

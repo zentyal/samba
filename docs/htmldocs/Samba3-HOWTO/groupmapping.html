@@ -1,38 +1,38 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 12. Group Mapping: MS Windows and UNIX</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.2"><link rel="start" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="passdb.html" title="Chapter 11. Account Information Databases"><link rel="next" href="NetCommand.html" title="Chapter 13. Remote and Local Management: The Net Command"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 12. Group Mapping: MS Windows and UNIX</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="passdb.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="NetCommand.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="groupmapping"></a>Chapter 12. Group Mapping: MS Windows and UNIX</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jean François</span> <span class="surname">Micouleau</span></h3></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="groupmapping.html#id382442">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="groupmapping.html#id382834">Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id383149">Warning: User Private Group Problems</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383201">Nested Groups: Adding Windows Domain Groups to Windows Local Groups</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383730">Important Administrative Information</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383950">Default Users, Groups, and Relative Identifiers</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id384556">Example Configuration</a></span></dt></dl></dd><dt><span class="sect1"><a href="groupmapping.html#id384627">Configuration Scripts</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id384638">Sample <code class="filename">smb.conf</code> Add Group Script</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id384798">Script to Configure Group Mapping</a></span></dt></dl></dd><dt><span class="sect1"><a href="groupmapping.html#id384912">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id384922">Adding Groups Fails</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id385002">Adding Domain Users to the Workstation Power Users Group</a></span></dt></dl></dd></dl></div><p>
-<a class="indexterm" name="id382324"></a>
-<a class="indexterm" name="id382333"></a>
-<a class="indexterm" name="id382339"></a>
-<a class="indexterm" name="id382346"></a>
-<a class="indexterm" name="id382353"></a>
-<a class="indexterm" name="id382360"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 12. Group Mapping: MS Windows and UNIX</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.2"><link rel="start" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="passdb.html" title="Chapter 11. Account Information Databases"><link rel="next" href="NetCommand.html" title="Chapter 13. Remote and Local Management: The Net Command"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 12. Group Mapping: MS Windows and UNIX</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="passdb.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="NetCommand.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="groupmapping"></a>Chapter 12. Group Mapping: MS Windows and UNIX</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jean François</span> <span class="surname">Micouleau</span></h3></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="groupmapping.html#id382452">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="groupmapping.html#id382844">Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id383159">Warning: User Private Group Problems</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383211">Nested Groups: Adding Windows Domain Groups to Windows Local Groups</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383743">Important Administrative Information</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id383964">Default Users, Groups, and Relative Identifiers</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id384569">Example Configuration</a></span></dt></dl></dd><dt><span class="sect1"><a href="groupmapping.html#id384641">Configuration Scripts</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id384651">Sample <code class="filename">smb.conf</code> Add Group Script</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id384811">Script to Configure Group Mapping</a></span></dt></dl></dd><dt><span class="sect1"><a href="groupmapping.html#id384925">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="groupmapping.html#id384936">Adding Groups Fails</a></span></dt><dt><span class="sect2"><a href="groupmapping.html#id385015">Adding Domain Users to the Workstation Power Users Group</a></span></dt></dl></dd></dl></div><p>
+<a class="indexterm" name="id382334"></a>
+<a class="indexterm" name="id382343"></a>
+<a class="indexterm" name="id382349"></a>
+<a class="indexterm" name="id382356"></a>
+<a class="indexterm" name="id382363"></a>
+<a class="indexterm" name="id382370"></a>
 	Starting with Samba-3, new group mapping functionality is available to create associations
 	between Windows group SIDs and UNIX group GIDs. The <code class="literal">groupmap</code> subcommand
 	included with the <span class="application">net</span> tool can be used to manage these associations.
 	</p><p>
-<a class="indexterm" name="id382383"></a>
-<a class="indexterm" name="id382390"></a>
+<a class="indexterm" name="id382393"></a>
+<a class="indexterm" name="id382400"></a>
 	The new facility for mapping NT groups to UNIX system groups allows the administrator to decide
 	which NT domain groups are to be exposed to MS Windows clients. Only those NT groups that map
 	to a UNIX group that has a value other than the default (<code class="constant">-1</code>) will be exposed
 	in group selection lists in tools that access domain users and groups.
 	</p><div class="warning" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Warning</h3><p>
-	<a class="indexterm" name="id382408"></a>
-<a class="indexterm" name="id382415"></a>
+	<a class="indexterm" name="id382418"></a>
+<a class="indexterm" name="id382425"></a>
 	The <em class="parameter"><code>domain admin group</code></em> parameter has been removed in Samba-3 and should no longer
 	be specified in <code class="filename">smb.conf</code>. In Samba-2.2.x, this parameter was used to give the listed users membership in the
 	<code class="constant">Domain Admins</code> Windows group, which gave local admin rights on their workstations
 	(in default configurations).
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id382442"></a>Features and Benefits</h2></div></div></div><p>
+	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id382452"></a>Features and Benefits</h2></div></div></div><p>
 	Samba allows the administrator to create MS Windows NT4/200x group accounts and to
 	arbitrarily associate them with UNIX/Linux group accounts.
 	</p><p>
-	<a class="indexterm" name="id382454"></a>
-	<a class="indexterm" name="id382460"></a>
-	<a class="indexterm" name="id382467"></a>
-<a class="indexterm" name="id382474"></a>
-<a class="indexterm" name="id382480"></a>
-<a class="indexterm" name="id382487"></a>
-<a class="indexterm" name="id382494"></a>
+	<a class="indexterm" name="id382464"></a>
+	<a class="indexterm" name="id382470"></a>
+	<a class="indexterm" name="id382477"></a>
+<a class="indexterm" name="id382484"></a>
+<a class="indexterm" name="id382490"></a>
+<a class="indexterm" name="id382497"></a>
+<a class="indexterm" name="id382504"></a>
 	Group accounts can be managed using the MS Windows NT4 or MS Windows 200x/XP Professional MMC tools.
 	Appropriate interface scripts should be provided in <code class="filename">smb.conf</code> if it is desired that UNIX/Linux system
 	accounts should be automatically created when these tools are used. In the absence of these scripts, and
@@ -41,19 +41,19 @@
 	<a class="link" href="smb.conf.5.html#IDMAPUID">idmap uid</a>/<a class="link" href="smb.conf.5.html#IDMAPGID">idmap gid</a>
 	parameters in the <code class="filename">smb.conf</code> file.
 	</p><div class="figure"><a name="idmap-sid2gid"></a><p class="title"><b>Figure 12.1. IDMAP: Group SID-to-GID Resolution.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/idmap-sid2gid.png" width="270" alt="IDMAP: Group SID-to-GID Resolution."></div></div></div><br class="figure-break"><div class="figure"><a name="idmap-gid2sid"></a><p class="title"><b>Figure 12.2. IDMAP: GID Resolution to Matching SID.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/idmap-gid2sid.png" width="270" alt="IDMAP: GID Resolution to Matching SID."></div></div></div><br class="figure-break"><p>
-	<a class="indexterm" name="id382629"></a>
-<a class="indexterm" name="id382636"></a>
-<a class="indexterm" name="id382643"></a>
-<a class="indexterm" name="id382652"></a>
+	<a class="indexterm" name="id382639"></a>
+<a class="indexterm" name="id382646"></a>
+<a class="indexterm" name="id382653"></a>
+<a class="indexterm" name="id382662"></a>
 	In both cases, when winbindd is not running, only locally resolvable groups can be recognized. Please refer to
 	<a class="link" href="groupmapping.html#idmap-sid2gid" title="Figure 12.1. IDMAP: Group SID-to-GID Resolution.">IDMAP: Group SID-to-GID Resolution</a> and <a class="link" href="groupmapping.html#idmap-gid2sid" title="Figure 12.2. IDMAP: GID Resolution to Matching SID.">IDMAP: GID Resolution to Matching SID</a>.  The <code class="literal">net groupmap</code> is
 	used to establish UNIX group to NT SID mappings as shown in <a class="link" href="groupmapping.html#idmap-store-gid2sid" title="Figure 12.3. IDMAP Storing Group Mappings.">IDMAP: storing
 	group mappings</a>.
 	</p><div class="figure"><a name="idmap-store-gid2sid"></a><p class="title"><b>Figure 12.3. IDMAP Storing Group Mappings.</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/idmap-store-gid2sid.png" width="270" alt="IDMAP Storing Group Mappings."></div></div></div><br class="figure-break"><p>
-	<a class="indexterm" name="id382733"></a>
-	<a class="indexterm" name="id382739"></a>
-<a class="indexterm" name="id382746"></a>
-<a class="indexterm" name="id382753"></a>
+	<a class="indexterm" name="id382743"></a>
+	<a class="indexterm" name="id382749"></a>
+<a class="indexterm" name="id382756"></a>
+<a class="indexterm" name="id382763"></a>
 	Administrators should be aware that where <code class="filename">smb.conf</code> group interface scripts make
 	direct calls to the UNIX/Linux system tools (the shadow utilities, <code class="literal">groupadd</code>,
 	<code class="literal">groupdel</code>, and <code class="literal">groupmod</code>), the resulting UNIX/Linux group names will be subject
@@ -62,48 +62,48 @@
 	<code class="literal">Engineering Managers</code> will attempt to create an identically named
 	UNIX/Linux group, an attempt that will of course fail.
 	</p><p>
-	<a class="indexterm" name="id382796"></a>
-	<a class="indexterm" name="id382803"></a>
+	<a class="indexterm" name="id382806"></a>
+	<a class="indexterm" name="id382813"></a>
 	There are several possible workarounds for the operating system tools limitation. One
 	method is to use a script that generates a name for the UNIX/Linux system group that
 	fits the operating system limits and that then just passes the UNIX/Linux group ID (GID)
 	back to the calling Samba interface. This will provide a dynamic workaround solution.
 	</p><p>
-<a class="indexterm" name="id382816"></a>
+<a class="indexterm" name="id382826"></a>
 	Another workaround is to manually create a UNIX/Linux group, then manually create the
 	MS Windows NT4/200x group on the Samba server, and then use the <code class="literal">net groupmap</code>
 	tool to connect the two to each other.
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id382834"></a>Discussion</h2></div></div></div><p>
-<a class="indexterm" name="id382842"></a>
-<a class="indexterm" name="id382849"></a>
+	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id382844"></a>Discussion</h2></div></div></div><p>
+<a class="indexterm" name="id382852"></a>
+<a class="indexterm" name="id382859"></a>
 	When you install <span class="application">MS Windows NT4/200x</span> on a computer, the installation
 	program creates default users and groups, notably the <code class="constant">Administrators</code> group,
 	and gives that group privileges necessary to perform essential system tasks,
 	such as the ability to change the date and time or to kill (or close) any process running on the
 	local machine.
 	</p><p>
-	<a class="indexterm" name="id382871"></a>
+	<a class="indexterm" name="id382881"></a>
 	The <code class="constant">Administrator</code> user is a member of the <code class="constant">Administrators</code> group, and thus inherits
 	<code class="constant">Administrators</code> group privileges. If a <code class="constant">joe</code> user is created to be a member of the
 	<code class="constant">Administrators</code> group, <code class="constant">joe</code> has exactly the same rights as the user
 	<code class="constant">Administrator</code>.
 	</p><p>
-<a class="indexterm" name="id382908"></a>
-<a class="indexterm" name="id382915"></a>
-<a class="indexterm" name="id382921"></a>
-<a class="indexterm" name="id382928"></a>
+<a class="indexterm" name="id382918"></a>
+<a class="indexterm" name="id382925"></a>
+<a class="indexterm" name="id382931"></a>
+<a class="indexterm" name="id382938"></a>
 	When an MS Windows NT4/200x/XP machine is made a domain member, the &#8220;<span class="quote">Domain Admins</span>&#8221; group of the
 	PDC is added to the local <code class="constant">Administrators</code> group of the workstation. Every member of the
 	<code class="constant">Domain Admins</code> group inherits the rights of the local <code class="constant">Administrators</code> group when
 	logging on the workstation.
 	</p><p>
-<a class="indexterm" name="id382955"></a>
-<a class="indexterm" name="id382961"></a>
+<a class="indexterm" name="id382965"></a>
+<a class="indexterm" name="id382971"></a>
 	The following steps describe how to make Samba PDC users members of the <code class="constant">Domain Admins</code> group.
 	</p><div class="orderedlist"><ol type="1"><li><p>
 		Create a UNIX group (usually in <code class="filename">/etc/group</code>); let's call it <code class="constant">domadm</code>.
 		</p></li><li><p>
-<a class="indexterm" name="id382998"></a>
+<a class="indexterm" name="id383008"></a>
 		Add to this group the users that must be &#8220;<span class="quote">Administrators</span>&#8221;. For example,
 		if you want <code class="constant">joe, john</code>, and <code class="constant">mary</code> to be administrators,
 		your entry in <code class="filename">/etc/group</code> will look like this:
@@ -117,13 +117,13 @@
 <code class="prompt">root# </code><strong class="userinput"><code>net groupmap add ntgroup="Domain Admins" unixgroup=domadm rid=512 type=d</code></strong>
 </pre><p>
 		</p><p>
-		<a class="indexterm" name="id383062"></a>
+		<a class="indexterm" name="id383072"></a>
 		The quotes around &#8220;<span class="quote">Domain Admins</span>&#8221; are necessary due to the space in the group name.
 		Also make sure to leave no white space surrounding the equal character (=).
 		</p></li></ol></div><p>
 	Now <code class="constant">joe, john</code>, and <code class="constant">mary</code> are domain administrators.
 	</p><p>
-	<a class="indexterm" name="id383089"></a>
+	<a class="indexterm" name="id383099"></a>
 	It is possible to map any arbitrary UNIX group to any Windows NT4/200x group as well as
 	to make any UNIX group a Windows domain group. For example, if you wanted to include a
 	UNIX group (e.g., acct) in an ACL on a local file or printer on a Domain Member machine,
@@ -135,54 +135,54 @@
 	The <code class="literal">ntgroup</code> value must be in quotes if it contains space characters to prevent
 	the space from being interpreted as a command delimiter.
 	</p><p>
-<a class="indexterm" name="id383131"></a>
-<a class="indexterm" name="id383138"></a>
+<a class="indexterm" name="id383141"></a>
+<a class="indexterm" name="id383148"></a>
 	Be aware that the RID parameter is an unsigned 32-bit integer that should
 	normally start at 1000. However, this RID must not overlap with any RID assigned
 	to a user. Verification for this is done differently depending on the passdb backend
 	you are using. Future versions of the tools may perform the verification automatically,
 	but for now the burden is on you.
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383149"></a>Warning: User Private Group Problems</h3></div></div></div><p>
-<a class="indexterm" name="id383157"></a>
-<a class="indexterm" name="id383164"></a>
-<a class="indexterm" name="id383170"></a>
+	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383159"></a>Warning: User Private Group Problems</h3></div></div></div><p>
+<a class="indexterm" name="id383167"></a>
+<a class="indexterm" name="id383174"></a>
+<a class="indexterm" name="id383180"></a>
 	Windows does not permit user and group accounts to have the same name.
 	This has serious implications for all sites that use private group accounts.
 	A private group account is an administrative practice whereby users are each
 	given their own group account. Red Hat Linux, as well as several free distributions
 	of Linux, by default create private groups.
 	</p><p>
-<a class="indexterm" name="id383184"></a>
-<a class="indexterm" name="id383190"></a>
+<a class="indexterm" name="id383194"></a>
+<a class="indexterm" name="id383200"></a>
 	When mapping a UNIX/Linux group to a Windows group account, all conflict can
 	be avoided by assuring that the Windows domain group name does not overlap
 	with any user account name.
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383201"></a>Nested Groups: Adding Windows Domain Groups to Windows Local Groups</h3></div></div></div><a class="indexterm" name="id383207"></a><p>
-<a class="indexterm" name="id383218"></a>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383211"></a>Nested Groups: Adding Windows Domain Groups to Windows Local Groups</h3></div></div></div><a class="indexterm" name="id383217"></a><p>
+<a class="indexterm" name="id383228"></a>
 	This functionality is known as <code class="constant">nested groups</code> and was first added to
 	Samba-3.0.3.
 	</p><p>
-<a class="indexterm" name="id383233"></a>
+<a class="indexterm" name="id383243"></a>
 	All MS Windows products since the release of Windows NT 3.10 support the use of nested groups.
 	Many Windows network administrators depend on this capability because it greatly simplifies security
 	administration.
 	</p><p>
-<a class="indexterm" name="id383245"></a>
-<a class="indexterm" name="id383251"></a>
-<a class="indexterm" name="id383258"></a>
-<a class="indexterm" name="id383265"></a>
-<a class="indexterm" name="id383272"></a>
-<a class="indexterm" name="id383279"></a>
-<a class="indexterm" name="id383285"></a>
+<a class="indexterm" name="id383255"></a>
+<a class="indexterm" name="id383261"></a>
+<a class="indexterm" name="id383268"></a>
+<a class="indexterm" name="id383275"></a>
+<a class="indexterm" name="id383282"></a>
+<a class="indexterm" name="id383289"></a>
+<a class="indexterm" name="id383295"></a>
 	The nested group architecture was designed with the premise that day-to-day user and group membership
 	management should be performed on the domain security database. The application of group security
 	should be implemented on domain member servers using only local groups. On the domain member server,
 	all file system security controls are then limited to use of the local groups, which will contain
 	domain global groups and domain global users.
 	</p><p>
-<a class="indexterm" name="id383299"></a>
-<a class="indexterm" name="id383306"></a>
-<a class="indexterm" name="id383313"></a>
+<a class="indexterm" name="id383309"></a>
+<a class="indexterm" name="id383316"></a>
+<a class="indexterm" name="id383323"></a>
 	You may ask, What are the benefits of this arrangement? The answer is obvious to those who have plumbed
 	the dark depths of Windows networking architecture. Consider for a moment a server on which are stored
 	200,000 files, each with individual domain user and domain group settings. The company that owns the
@@ -190,10 +190,10 @@
 	it is made a member of a different domain. Who would you think now owns all the files and directories?
 	Answer: Account Unknown.
 	</p><p>
-<a class="indexterm" name="id383328"></a>
-<a class="indexterm" name="id383335"></a>
-<a class="indexterm" name="id383341"></a>
-<a class="indexterm" name="id383348"></a>
+<a class="indexterm" name="id383338"></a>
+<a class="indexterm" name="id383345"></a>
+<a class="indexterm" name="id383351"></a>
+<a class="indexterm" name="id383358"></a>
 	Unraveling the file ownership mess is an unenviable administrative task that can be avoided simply
 	by using local groups to control all file and directory access control. In this case, only the members
 	of the local groups will have been lost. The files and directories in the storage subsystem will still
@@ -201,14 +201,14 @@
 	to delete the <code class="constant">Account Unknown</code> membership entries inside local groups with appropriate
 	entries for domain global groups in the new domain that the server has been made a member of.
 	</p><p>
-<a class="indexterm" name="id383367"></a>
-<a class="indexterm" name="id383373"></a>
 <a class="indexterm" name="id383380"></a>
 <a class="indexterm" name="id383387"></a>
 <a class="indexterm" name="id383394"></a>
 <a class="indexterm" name="id383401"></a>
 <a class="indexterm" name="id383408"></a>
 <a class="indexterm" name="id383414"></a>
+<a class="indexterm" name="id383421"></a>
+<a class="indexterm" name="id383428"></a>
 	Another prominent example of the use of nested groups involves implementation of administrative privileges
 	on domain member workstations and servers. Administrative privileges are given to all members of the
 	built-in local group <code class="constant">Administrators</code> on each domain member machine. To ensure that all domain
@@ -217,10 +217,10 @@
 	logged into the domain as a member of the Domain Admins group is also granted local administrative
 	privileges on each domain member.
 	</p><p>
-<a class="indexterm" name="id383437"></a>
-<a class="indexterm" name="id383444"></a>
-<a class="indexterm" name="id383451"></a>
+<a class="indexterm" name="id383450"></a>
 <a class="indexterm" name="id383457"></a>
+<a class="indexterm" name="id383464"></a>
+<a class="indexterm" name="id383471"></a>
 	UNIX/Linux has no concept of support for nested groups, and thus Samba has for a long time not supported
 	them either. The problem is that you would have to enter UNIX groups as auxiliary members of a group in
 	<code class="filename">/etc/group</code>. This does not work because it was not a design requirement at the time
@@ -228,11 +228,11 @@
 	<code class="filename">/etc/group</code> entries on demand by obtaining user and group information from the domain
 	controller that the Samba server is a member of.
 	</p><p>
-<a class="indexterm" name="id383484"></a>
-<a class="indexterm" name="id383490"></a>
 <a class="indexterm" name="id383497"></a>
 <a class="indexterm" name="id383504"></a>
 <a class="indexterm" name="id383511"></a>
+<a class="indexterm" name="id383517"></a>
+<a class="indexterm" name="id383524"></a>
 	In effect, Samba supplements the <code class="filename">/etc/group</code> data via the dynamic
 	<code class="literal">libnss_winbind</code> mechanism. Beginning with Samba-3.0.3, this facility is used to provide
 	local groups in the same manner as Windows. It works by expanding the local groups on the
@@ -242,13 +242,13 @@
 	group. By definition, it can only contain user objects, which can then be faked to be member of the
 	UNIX/Linux group <code class="constant">demo</code>.
 	</p><p>
-<a class="indexterm" name="id383552"></a>
-<a class="indexterm" name="id383558"></a>
 <a class="indexterm" name="id383565"></a>
 <a class="indexterm" name="id383572"></a>
 <a class="indexterm" name="id383579"></a>
 <a class="indexterm" name="id383585"></a>
 <a class="indexterm" name="id383592"></a>
+<a class="indexterm" name="id383599"></a>
+<a class="indexterm" name="id383606"></a>
 	To enable the use of nested groups, <code class="literal">winbindd</code> must be used with NSS winbind.
 	Creation and administration of the local groups is done best via the Windows Domain User Manager or its
 	Samba equivalent, the utility <code class="literal">net rpc group</code>. Creating the local group
@@ -256,8 +256,8 @@
 	</p><pre class="screen">
 	<code class="prompt">root# </code> net rpc group add demo -L -Uroot%not24get
 	</pre><p>
-<a class="indexterm" name="id383633"></a>
-<a class="indexterm" name="id383640"></a>
+<a class="indexterm" name="id383646"></a>
+<a class="indexterm" name="id383653"></a>
 	Here the -L switch means that you want to create a local group. It may be necessary to add -S and -U
 	switches for accessing the correct host with appropriate user or root privileges. Adding and removing
 	group members can be done via the <code class="constant">addmem</code> and <code class="constant">delmem</code> subcommands of
@@ -266,10 +266,10 @@
 	</p><pre class="screen">
 	net rpc group addmem demo "DOM\Domain Users"
 	</pre><p>
-<a class="indexterm" name="id383676"></a>
-<a class="indexterm" name="id383682"></a>
 <a class="indexterm" name="id383689"></a>
 <a class="indexterm" name="id383696"></a>
+<a class="indexterm" name="id383703"></a>
+<a class="indexterm" name="id383710"></a>
 	Having completed these two steps, the execution of <code class="literal">getent group demo</code> will show demo
 	members of the global <code class="constant">Domain Users</code> group as members of  the group
 	<code class="constant">demo</code>.  This also works with any local or domain user. In case the domain DOM trusts
@@ -277,46 +277,46 @@
 	<code class="constant">demo</code>. The users from the foreign domain who are members of the group that has been
 	added to the <code class="constant">demo</code> group now have the same local access permissions as local domain
 	users have. 
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383730"></a>Important Administrative Information</h3></div></div></div><p>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383743"></a>Important Administrative Information</h3></div></div></div><p>
 	Administrative rights are necessary in two specific forms:
 	</p><div class="orderedlist"><ol type="1"><li><p>For Samba-3 domain controllers and domain member servers/clients.</p></li><li><p>To manage domain member Windows workstations.</p></li></ol></div><p>
-<a class="indexterm" name="id383759"></a>
-<a class="indexterm" name="id383766"></a>
 <a class="indexterm" name="id383772"></a>
+<a class="indexterm" name="id383779"></a>
+<a class="indexterm" name="id383786"></a>
 	Versions of Samba up to and including 3.0.10 do not provide a means for assigning rights and privileges
 	that are necessary for system administration tasks from a Windows domain member client machine, so
 	domain administration tasks such as adding, deleting, and changing user and group account information, and
 	managing workstation domain membership accounts, can be handled by any account other than root.
 	</p><p>
-<a class="indexterm" name="id383786"></a>
-<a class="indexterm" name="id383793"></a>
-<a class="indexterm" name="id383800"></a>
+<a class="indexterm" name="id383799"></a>
+<a class="indexterm" name="id383806"></a>
+<a class="indexterm" name="id383813"></a>
 	Samba-3.0.11 introduced a new privilege management interface (see <a class="link" href="rights.html" title="Chapter 15. User Rights and Privileges">User Rights and Privileges</a>)
 	that permits these tasks to be delegated to non-root (i.e., accounts other than the equivalent of the
 	MS Windows Administrator) accounts.
 	</p><p>
-<a class="indexterm" name="id383819"></a>
-<a class="indexterm" name="id383825"></a>
+<a class="indexterm" name="id383832"></a>
+<a class="indexterm" name="id383839"></a>
 	Administrative tasks on a Windows domain member workstation can be done by anyone who is a member of the
 	<code class="constant">Domain Admins</code> group. This group can be mapped to any convenient UNIX group.
-	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id383838"></a>Applicable Only to Versions Earlier than 3.0.11</h4></div></div></div><p>
-<a class="indexterm" name="id383846"></a>
+	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id383852"></a>Applicable Only to Versions Earlier than 3.0.11</h4></div></div></div><p>
+<a class="indexterm" name="id383860"></a>
 	Administrative tasks on UNIX/Linux systems, such as adding users or groups, requires
 	<code class="constant">root</code>-level privilege. The addition of a Windows client to a Samba domain involves the
 	addition of a user account for the Windows client.
 	</p><p>
-<a class="indexterm" name="id383862"></a>
-<a class="indexterm" name="id383869"></a>
+<a class="indexterm" name="id383875"></a>
+<a class="indexterm" name="id383882"></a>
 	Many UNIX administrators continue to request that the Samba Team make it possible to add Windows workstations, or 
 	the ability to add, delete, or modify user accounts, without requiring <code class="constant">root</code> privileges. 
 	Such a request violates every understanding of basic UNIX system security.
 	</p><p>
-<a class="indexterm" name="id383885"></a>
-<a class="indexterm" name="id383892"></a>
 <a class="indexterm" name="id383898"></a>
 <a class="indexterm" name="id383905"></a>
 <a class="indexterm" name="id383912"></a>
 <a class="indexterm" name="id383919"></a>
+<a class="indexterm" name="id383925"></a>
+<a class="indexterm" name="id383932"></a>
 	There is no safe way to provide access on a UNIX/Linux system without providing
 	<code class="constant">root</code>-level privileges. Provision of <code class="constant">root</code> privileges can be done
 	either by logging on to the Domain as the user <code class="constant">root</code> or by permitting particular users to
@@ -324,15 +324,15 @@
 	can use tools like the NT4 Domain User Manager and the NT4 Domain Server Manager to manage user and group
 	accounts as well as domain member server and client accounts. This level of privilege is also needed to manage
 	share-level ACLs.
-	</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383950"></a>Default Users, Groups, and Relative Identifiers</h3></div></div></div><p>
-	<a class="indexterm" name="id383958"></a>
-	<a class="indexterm" name="id383967"></a>
-<a class="indexterm" name="id383974"></a>
-<a class="indexterm" name="id383980"></a>
+	</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id383964"></a>Default Users, Groups, and Relative Identifiers</h3></div></div></div><p>
+	<a class="indexterm" name="id383972"></a>
+	<a class="indexterm" name="id383980"></a>
 <a class="indexterm" name="id383987"></a>
 <a class="indexterm" name="id383994"></a>
 <a class="indexterm" name="id384001"></a>
-<a class="indexterm" name="id384008"></a>
+<a class="indexterm" name="id384007"></a>
+<a class="indexterm" name="id384014"></a>
+<a class="indexterm" name="id384021"></a>
 	When first installed, Windows NT4/200x/XP are preconfigured with certain user, group, and
 	alias entities. Each has a well-known RID. These must be preserved for continued
 	integrity of operation. Samba must be provisioned with certain essential domain groups that require
@@ -340,23 +340,23 @@
 	domain groups are automatically created. It is the LDAP administrator's responsibility to create
 	(provision) the default NT groups.
 	</p><p>
-<a class="indexterm" name="id384025"></a>
-<a class="indexterm" name="id384032"></a>
 <a class="indexterm" name="id384039"></a>
 <a class="indexterm" name="id384046"></a>
+<a class="indexterm" name="id384052"></a>
+<a class="indexterm" name="id384059"></a>
 	Each essential domain group must be assigned its respective well-known RID. The default users, groups,
 	aliases, and RIDs are shown in <a class="link" href="groupmapping.html#WKURIDS" title="Table 12.1. Well-Known User Default RIDs">Well-Known User Default RIDs</a>.
 	</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id384066"></a>
-<a class="indexterm" name="id384072"></a>
 <a class="indexterm" name="id384079"></a>
 <a class="indexterm" name="id384086"></a>
-<a class="indexterm" name="id384093"></a>
+<a class="indexterm" name="id384092"></a>
+<a class="indexterm" name="id384099"></a>
+<a class="indexterm" name="id384106"></a>
 	It is the administrator's responsibility to create the essential domain groups and to assign each
 	its default RID.
 	</p></div><p>
-<a class="indexterm" name="id384103"></a>
-<a class="indexterm" name="id384110"></a>
+<a class="indexterm" name="id384117"></a>
+<a class="indexterm" name="id384124"></a>
 	It is permissible to create any domain group that may be necessary; just make certain that the essential
 	domain groups (well known) have been created and assigned their default RIDs. Other groups you create may
 	be assigned any arbitrary RID you care to use.
@@ -365,12 +365,12 @@
 	will be available for use as an NT domain group.
 	</p><p>
 	</p><div class="table"><a name="WKURIDS"></a><p class="title"><b>Table 12.1. Well-Known User Default RIDs</b></p><div class="table-contents"><table summary="Well-Known User Default RIDs" border="1"><colgroup><col align="left"><col align="left"><col align="left"><col align="center"></colgroup><thead><tr><th align="left">Well-Known Entity</th><th align="left">RID</th><th align="left">Type</th><th align="center">Essential</th></tr></thead><tbody><tr><td align="left">Domain Administrator</td><td align="left">500</td><td align="left">User</td><td align="center">No</td></tr><tr><td align="left">Domain Guest</td><td align="left">501</td><td align="left">User</td><td align="center">No</td></tr><tr><td align="left">Domain KRBTGT</td><td align="left">502</td><td align="left">User</td><td align="center">No</td></tr><tr><td align="left">Domain Admins</td><td align="left">512</td><td align="left">Group</td><td align="center">Yes</td></tr><tr><td align="left">Domain Users</td><td align="left">513</td><td align="left">Group</td><td align="center">Yes</td></tr><tr><td align="left">Domain Guests</td><td align="left">514</td><td align="left">Group</td><td align="center">Yes</td></tr><tr><td align="left">Domain Computers</td><td align="left">515</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Domain Controllers</td><td align="left">516</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Domain Certificate Admins</td><td align="left">517</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Domain Schema Admins</td><td align="left">518</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Domain Enterprise Admins</td><td align="left">519</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Domain Policy Admins</td><td align="left">520</td><td align="left">Group</td><td align="center">No</td></tr><tr><td align="left">Builtin Admins</td><td align="left">544</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin users</td><td align="left">545</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Guests</td><td align="left">546</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Power Users</td><td align="left">547</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Account Operators</td><td align="left">548</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin System Operators</td><td align="left">549</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Print Operators</td><td align="left">550</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Backup Operators</td><td align="left">551</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin Replicator</td><td align="left">552</td><td align="left">Alias</td><td align="center">No</td></tr><tr><td align="left">Builtin RAS Servers</td><td align="left">553</td><td align="left">Alias</td><td align="center">No</td></tr></tbody></table></div></div><p><br class="table-break">
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384556"></a>Example Configuration</h3></div></div></div><p>
-<a class="indexterm" name="id384564"></a>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384569"></a>Example Configuration</h3></div></div></div><p>
+<a class="indexterm" name="id384577"></a>
 		You can list the various groups in the mapping database by executing
 		<code class="literal">net groupmap list</code>. Here is an example:
 		</p><p>
-<a class="indexterm" name="id384585"></a>
+<a class="indexterm" name="id384599"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> <strong class="userinput"><code>net groupmap list</code></strong>
 Domain Admins (S-1-5-21-2547222302-1596225915-2414751004-512) -&gt; domadmin
@@ -379,15 +379,15 @@ Domain Guests (S-1-5-21-2547222302-1596225915-2414751004-514) -&gt; domguest
 </pre><p>
 		</p><p>
 		For complete details on <code class="literal">net groupmap</code>, refer to the net(8) man page.
-		</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id384627"></a>Configuration Scripts</h2></div></div></div><p>
+		</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id384641"></a>Configuration Scripts</h2></div></div></div><p>
 	Everyone needs tools. Some of us like to create our own, others prefer to use canned tools
 	(i.e., prepared by someone else for general use). 
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384638"></a>Sample <code class="filename">smb.conf</code> Add Group Script</h3></div></div></div><p>
-		<a class="indexterm" name="id384651"></a>
-		<a class="indexterm" name="id384658"></a>
+	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384651"></a>Sample <code class="filename">smb.conf</code> Add Group Script</h3></div></div></div><p>
 		<a class="indexterm" name="id384665"></a>
-<a class="indexterm" name="id384672"></a>
-<a class="indexterm" name="id384678"></a>
+		<a class="indexterm" name="id384672"></a>
+		<a class="indexterm" name="id384678"></a>
+<a class="indexterm" name="id384685"></a>
+<a class="indexterm" name="id384692"></a>
 		A script to create complying group names for use by the Samba group interfaces
 		is provided in <a class="link" href="groupmapping.html#smbgrpadd.sh" title="Example 12.1. smbgrpadd.sh">smbgrpadd.sh</a>. This script
 		adds a temporary entry in the <code class="filename">/etc/group</code> file and then renames
@@ -415,15 +415,15 @@ exit 0
 		The <code class="filename">smb.conf</code> entry for the above script shown in <a class="link" href="groupmapping.html#smbgrpadd" title="Example 12.2. Configuration of smb.conf for the add group Script">the configuration of
 		<code class="filename">smb.conf</code> for the add group Script</a> demonstrates how it may be used.
 
-</p><div class="example"><a name="smbgrpadd"></a><p class="title"><b>Example 12.2. Configuration of <code class="filename">smb.conf</code> for the add group Script</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id384783"></a><em class="parameter"><code>add group script = /path_to_tool/smbgrpadd.sh "%g"</code></em></td></tr></table></div></div><p><br class="example-break">
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384798"></a>Script to Configure Group Mapping</h3></div></div></div><p>
-<a class="indexterm" name="id384806"></a>
+</p><div class="example"><a name="smbgrpadd"></a><p class="title"><b>Example 12.2. Configuration of <code class="filename">smb.conf</code> for the add group Script</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id384796"></a><em class="parameter"><code>add group script = /path_to_tool/smbgrpadd.sh "%g"</code></em></td></tr></table></div></div><p><br class="example-break">
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384811"></a>Script to Configure Group Mapping</h3></div></div></div><p>
+<a class="indexterm" name="id384819"></a>
 	In our example we have created a UNIX/Linux group called <code class="literal">ntadmin</code>.
 	Our script will create the additional groups <code class="literal">Orks</code>, <code class="literal">Elves</code>, and <code class="literal">Gnomes</code>.
 	It is a good idea to save this shell script for later use just in case you ever need to rebuild your mapping database.
 	For the sake of convenience we elect to save this script as a file called <code class="filename">initGroups.sh</code>.
 	This script is given in <a class="link" href="groupmapping.html#set-group-map" title="Example 12.3. Script to Set Group Mapping">intGroups.sh</a>.
-<a class="indexterm" name="id384852"></a>
+<a class="indexterm" name="id384866"></a>
 </p><div class="example"><a name="set-group-map"></a><p class="title"><b>Example 12.3. Script to Set Group Mapping</b></p><div class="example-contents"><pre class="programlisting">
 #!/bin/bash
 
@@ -450,32 +450,32 @@ net groupmap add ntgroup="Gnomes" unixgroup=Gnomes type=d
 	trouble. Commencing with Samba-3.0.23 this annomaly has been fixed - thus all Windows groups
 	must now be manually and explicitly created and mapped to a valid UNIX GID by the Samba 
 	administrator.
-	</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id384912"></a>Common Errors</h2></div></div></div><p>
+	</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id384925"></a>Common Errors</h2></div></div></div><p>
 At this time there are many little surprises for the unwary administrator. In a real sense
 it is imperative that every step of automated control scripts be carefully tested
 manually before putting it into active service.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384922"></a>Adding Groups Fails</h3></div></div></div><p>
-<a class="indexterm" name="id384930"></a>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id384936"></a>Adding Groups Fails</h3></div></div></div><p>
+<a class="indexterm" name="id384944"></a>
 		This is a common problem when the <code class="literal">groupadd</code> is called directly
 		by the Samba interface script for the <a class="link" href="smb.conf.5.html#ADDGROUPSCRIPT">add group script</a> in
 		the <code class="filename">smb.conf</code> file.
 		</p><p>
-<a class="indexterm" name="id384965"></a>
-<a class="indexterm" name="id384972"></a>
+<a class="indexterm" name="id384978"></a>
+<a class="indexterm" name="id384985"></a>
 		The most common cause of failure is an attempt to add an MS Windows group account
 		that has an uppercase character and/or a space character in it.
 		</p><p>
-<a class="indexterm" name="id384983"></a>
+<a class="indexterm" name="id384997"></a>
 		There are three possible workarounds. First, use only group names that comply
 		with the limitations of the UNIX/Linux <code class="literal">groupadd</code> system tool.
 		Second, it involves the use of the script mentioned earlier in this chapter, and
 		third is the option is to manually create a UNIX/Linux group account that can substitute
 		for the MS Windows group name, then use the procedure listed above to map that group
 		to the MS Windows group.
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id385002"></a>Adding Domain Users to the Workstation Power Users Group</h3></div></div></div><p>&#8220;<span class="quote">
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id385015"></a>Adding Domain Users to the Workstation Power Users Group</h3></div></div></div><p>&#8220;<span class="quote">
 		What must I do to add domain users to the Power Users group?
 		</span>&#8221;</p><p>
-<a class="indexterm" name="id385015"></a>
+<a class="indexterm" name="id385028"></a>
 		The Power Users group is a group that is local to each Windows 200x/XP Professional workstation.
 		You cannot add the Domain Users group to the Power Users group automatically, it must be done on
 		each workstation by logging in as the local workstation <span class="emphasis"><em>administrator</em></span> and

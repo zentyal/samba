@@ -35,7 +35,6 @@
 #define DBGC_CLASS DBGC_WINBIND
 
 extern BOOL override_logfile;
-extern struct winbindd_methods cache_methods;
 
 /* Read some data from a client connection */
 
@@ -887,6 +886,7 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 	int fdpair[2];
 	struct winbindd_cli_state state;
 	struct winbindd_domain *domain;
+	struct winbindd_domain *primary_domain = NULL;
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, fdpair) != 0) {
 		DEBUG(0, ("Could not open child pipe: %s\n",
@@ -966,10 +966,13 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 	}
 
 	/* Ensure we have no pending check_online events other
-	   than one for this domain. */
+	   than one for this domain or the primary domain. */
 
 	for (domain = domain_list(); domain; domain = domain->next) {
-		if (domain != child->domain) {
+		if (domain->primary) {
+			primary_domain = domain;
+		}
+		if ((domain != child->domain) && !domain->primary) {
 			TALLOC_FREE(domain->check_online_event);
 		}
 	}
@@ -986,20 +989,25 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 
 		set_domain_online_request(child->domain);
 
+		if (primary_domain != child->domain) {
+			/* We need to talk to the primary
+			 * domain as well as the trusted
+			 * domain inside a trusted domain
+			 * child.
+			 * See the code in :
+			 * winbindd_dual_pam_auth_samlogon()
+			 * especially the calling of 
+			 * contact_domain = find_our_domain()
+			 * in the non-DC case for details.
+			 */
+			set_domain_online_request(primary_domain);
+		}
+
 		child->lockout_policy_event = event_add_timed(
 			winbind_event_context(), NULL, timeval_zero(),
 			"account_lockout_policy_handler",
 			account_lockout_policy_handler,
 			child);
-	}
-
-	/* Special case for Winbindd on a Samba DC,
-	 * We want to make sure the child can connect to smbd
-	 * but not the main daemon */
-
-	if (child->domain && child->domain->internal && IS_DC) {
-		child->domain->methods = &cache_methods;
-		child->domain->online = False;
 	}
 
 	while (1) {
@@ -1015,7 +1023,7 @@ static BOOL fork_domain_child(struct winbindd_child *child)
 		main_loop_TALLOC_FREE();
 
 		/* check for signals */
-		winbind_check_sigterm();
+		winbind_check_sigterm(false);
 		winbind_check_sighup();
 
 		run_events(winbind_event_context(), 0, NULL, NULL);

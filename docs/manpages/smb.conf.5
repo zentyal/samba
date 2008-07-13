@@ -1,11 +1,11 @@
 .\"     Title: smb.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/28/2008
+.\"      Date: 07/10/2008
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.0
 .\"
-.TH "SMB\.CONF" "5" "05/28/2008" "Samba 3\.0" "File Formats and Conventions"
+.TH "SMB\.CONF" "5" "07/10/2008" "Samba 3\.0" "File Formats and Conventions"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -644,7 +644,7 @@ option and also on on a share containing directories with the UNIX
 \fIsetgid bit\fR
 set on them, which causes new files and directories created within it to inherit the group ownership from the containing directory\.
 .sp
-This is parameter has been marked deprecated in Samba 3\.0\.23\. The same behavior is now implemented by the
+This is parameter has been was deprecated in Samba 3\.0\.23, but re\-activated in Samba 3\.0\.31 and above, as it now only controls permission changes if the user is in the owning primary group\. It is now no longer equivalent to the
 \fIdos filemode\fR
 option\.
 .sp
@@ -1333,7 +1333,9 @@ Default:
 Example:
 \fI\fIblock size\fR\fR\fI = \fR\fI4096\fR\fI \fR
 .RE
-browsable.PP
+
+browsable
+.PP
 .RS 4
 This parameter is a synonym for
 browseable\.
@@ -1361,7 +1363,9 @@ call\. Normally set to
 Default:
 \fI\fIbrowse list\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-casesignames.PP
+
+casesignames
+.PP
 .RS 4
 This parameter is a synonym for
 case sensitive\.
@@ -1642,7 +1646,9 @@ Default:
 Example:
 \fI\fIcopy\fR\fR\fI = \fR\fIotherservice\fR\fI \fR
 .RE
-create mode.PP
+
+create mode
+.PP
 .RS 4
 This parameter is a synonym for
 create mask\.
@@ -1805,7 +1811,9 @@ parameter\.
 Default:
 \fI\fIdebug prefix timestamp\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-timestamp logs.PP
+
+timestamp logs
+.PP
 .RS 4
 This parameter is a synonym for
 debug timestamp\.
@@ -1866,7 +1874,9 @@ MSDN documentation\.
 Default:
 \fI\fIdefault devmode\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-default.PP
+
+default
+.PP
 .RS 4
 This parameter is a synonym for
 default service\.
@@ -2153,7 +2163,9 @@ By default internal routines for determining the disk capacity and remaining spa
 Example:
 \fI\fIdfree command\fR\fR\fI = \fR\fI/usr/local/samba/bin/dfree\fR\fI \fR
 .RE
-directory mode.PP
+
+directory mode
+.PP
 .RS 4
 This parameter is a synonym for
 directory mask\.
@@ -2366,7 +2378,7 @@ to check the default on your system\.
 dos filemode (S)
 .PP
 .RS 4
-The default behavior in Samba is to provide UNIX\-like behavior where only the owner of a file/directory is able to change the permissions on it\. However, this behavior is often confusing to DOS/Windows users\. Enabling this parameter allows a user who has write access to the file (by whatever means) to modify the permissions (including ACL) on it\. Note that a user belonging to the group owning the file will not be allowed to change permissions if the group is only granted read access\. Ownership of the file/directory may also be changed\.
+The default behavior in Samba is to provide UNIX\-like behavior where only the owner of a file/directory is able to change the permissions on it\. However, this behavior is often confusing to DOS/Windows users\. Enabling this parameter allows a user who has write access to the file (by whatever means, including an ACL permission) to modify the permissions (including ACL) on it\. Note that a user belonging to the group owning the file will not be allowed to change permissions if the group is only granted read access\. Ownership of the file/directory may also be changed\.
 .sp
 Default:
 \fI\fIdos filemode\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -2620,7 +2632,9 @@ Default:
 Example:
 \fI\fIforce directory security mode\fR\fR\fI = \fR\fI700\fR\fI \fR
 .RE
-group.PP
+
+group
+.PP
 .RS 4
 This parameter is a synonym for
 force group\.
@@ -2747,10 +2761,11 @@ The
 get quota command
 should only be used whenever there is no operating system API available from the OS that samba can use\.
 .sp
-This option is only available with
-\./configure \-\-with\-sys\-quotas\. Or on linux when
-\./configure \-\-with\-quotas
-was used and a working quota api was found in the system\.
+This option is only available you have compiled Samba with the
+\-\-with\-sys\-quotas
+option or on Linux with
+\-\-with\-quotas
+and a working quota api was found in the system\.
 .sp
 This parameter should specify the path to a script that queries the quota information for the specified user/group for the partition that the specified directory is on\.
 .sp
@@ -2966,7 +2981,9 @@ Default:
 Example:
 \fI\fIguest account\fR\fR\fI = \fR\fIftp\fR\fI \fR
 .RE
-public.PP
+
+public
+.PP
 .RS 4
 This parameter is a synonym for
 guest ok\.
@@ -2990,7 +3007,9 @@ for more information about this option\.
 Default:
 \fI\fIguest ok\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-only guest.PP
+
+only guest
+.PP
 .RS 4
 This parameter is a synonym for
 guest only\.
@@ -3141,7 +3160,9 @@ Default:
 Example:
 \fI\fIhostname lookups\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-allow hosts.PP
+
+allow hosts
+.PP
 .RS 4
 This parameter is a synonym for
 hosts allow\.
@@ -3204,7 +3225,9 @@ Default:
 Example:
 \fI\fIhosts allow\fR\fR\fI = \fR\fI150\.203\.5\. myhost\.mynet\.edu\.au\fR\fI \fR
 .RE
-deny hosts.PP
+
+deny hosts
+.PP
 .RS 4
 This parameter is a synonym for
 hosts deny\.
@@ -3345,7 +3368,9 @@ for details about managing the SID/uid/gid backend for each domain\.
 Example:
 \fI\fIidmap domains\fR\fR\fI = \fR\fIdefault AD CORP\fR\fI \fR
 .RE
-winbind gid.PP
+
+winbind gid
+.PP
 .RS 4
 This parameter is a synonym for
 idmap gid\.
@@ -3377,7 +3402,9 @@ This parameter specifies the number of seconds that Winbind\'s idmap interface w
 Default:
 \fI\fIidmap negative cache time\fR\fR\fI = \fR\fI120\fR\fI \fR
 .RE
-winbind uid.PP
+
+winbind uid
+.PP
 .RS 4
 This parameter is a synonym for
 idmap uid\.
@@ -4116,7 +4143,9 @@ to become a local master browser\.
 Default:
 \fI\fIlocal master\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-lock dir.PP
+
+lock dir
+.PP
 .RS 4
 This parameter is a synonym for
 lock directory\.
@@ -4193,7 +4222,9 @@ This option takes the standard substitutions, allowing you to have separate log 
 Example:
 \fI\fIlog file\fR\fR\fI = \fR\fI/usr/local/samba/var/log\.%m\fR\fI \fR
 .RE
-debuglevel.PP
+
+debuglevel
+.PP
 .RS 4
 This parameter is a synonym for
 log level\.
@@ -5251,7 +5282,9 @@ Default:
 Example:
 \fI\fImax print jobs\fR\fR\fI = \fR\fI5000\fR\fI \fR
 .RE
-protocol.PP
+
+protocol
+.PP
 .RS 4
 This parameter is a synonym for
 max protocol\.
@@ -5919,7 +5952,7 @@ has a chance of becoming a local master browser for the
 in the local broadcast area\.
 .sp
 \fI Note:\fR
-By default, Samba will win a local master browsing election over all Microsoft operating systems except a Windows NT 4\.0/2000 Domain Controller\. This means that a misconfigured Samba host can effectively isolate a subnet for browsing purposes\. This parameter is largely auto\-configured in the Samba\-3 release series and it is seldom necessary to manually override the default setting\. Please refer to chapter 9 of the Samba\-3 HOWTO document for further information regarding the use of this parameter\.
+By default, Samba will win a local master browsing election over all Microsoft operating systems except a Windows NT 4\.0/2000 Domain Controller\. This means that a misconfigured Samba host can effectively isolate a subnet for browsing purposes\. This parameter is largely auto\-configured in the Samba\-3 release series and it is seldom necessary to manually override the default setting\. Please refer to the chapter on Network Browsing in the Samba\-3 HOWTO document for further information regarding the use of this parameter\.
 \fINote:\fR
 The maximum value for this parameter is 255\. If you use higher values, counting will start at 0!
 .sp
@@ -6303,7 +6336,9 @@ Example:
 Example:
 \fI\fIpassword server\fR\fR\fI = \fR\fI*\fR\fI \fR
 .RE
-directory.PP
+
+directory
+.PP
 .RS 4
 This parameter is a synonym for
 path\.
@@ -6382,7 +6417,9 @@ should close the service being connected to\.
 Default:
 \fI\fIpreexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
-exec.PP
+
+exec
+.PP
 .RS 4
 This parameter is a synonym for
 preexec\.
@@ -6411,7 +6448,9 @@ Default:
 Example:
 \fI\fIpreexec\fR\fR\fI = \fR\fIecho \e"%u connected to %S from %m (%I)\e" >> /tmp/log\fR\fI \fR
 .RE
-prefered master.PP
+
+prefered master
+.PP
 .RS 4
 This parameter is a synonym for
 preferred master\.
@@ -6449,7 +6488,9 @@ Default:
 Example:
 \fI\fIpreload modules\fR\fR\fI = \fR\fI/usr/lib/samba/passdb/mysql\.so\fR\fI \fR
 .RE
-auto services.PP
+
+auto services
+.PP
 .RS 4
 This parameter is a synonym for
 preload\.
@@ -6484,7 +6525,9 @@ for a fuller discussion\.
 Default:
 \fI\fIpreserve case\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
-print ok.PP
+
+print ok
+.PP
 .RS 4
 This parameter is a synonym for
 printable\.
@@ -6517,7 +6560,9 @@ Default:
 Example:
 \fI\fIprintcap cache time\fR\fR\fI = \fR\fI600\fR\fI \fR
 .RE
-printcap.PP
+
+printcap
+.PP
 .RS 4
 This parameter is a synonym for
 printcap name\.
@@ -6672,7 +6717,9 @@ Default:
 Example:
 \fI\fIprinter admin\fR\fR\fI = \fR\fIadmin, @staff\fR\fI \fR
 .RE
-printer.PP
+
+printer
+.PP
 .RS 4
 This parameter is a synonym for
 printer name\.
@@ -7013,12 +7060,16 @@ on any share\.
 Default:
 \fI\fIrestrict anonymous\fR\fR\fI = \fR\fI0\fR\fI \fR
 .RE
-root.PP
+
+root
+.PP
 .RS 4
 This parameter is a synonym for
 root directory\.
 .RE
-root dir.PP
+
+root dir
+.PP
 .RS 4
 This parameter is a synonym for
 root directory\.
@@ -8202,7 +8253,8 @@ unix password sync (G)
 This boolean parameter controls whether Samba attempts to synchronize the UNIX password with the SMB password when the encrypted SMB password in the smbpasswd file is changed\. If this is set to
 \fByes\fR
 the program specified in the
-\fIpasswd program\fRparameter is called
+\fIpasswd program\fR
+parameter is called
 \fIAS ROOT\fR
 \- to allow the new UNIX password to be set without access to the old UNIX password (as the SMB password change code has no access to the old password cleartext, only the new)\.
 .sp
@@ -8418,12 +8470,16 @@ username map = /usr/local/samba/lib/users\.map
 Default:
 \fI\fIusername map\fR\fR\fI = \fR\fI # no username map\fR\fI \fR
 .RE
-user.PP
+
+user
+.PP
 .RS 4
 This parameter is a synonym for
 username\.
 .RE
-users.PP
+
+users
+.PP
 .RS 4
 This parameter is a synonym for
 username\.
@@ -8714,7 +8770,9 @@ veto oplock files = /\.*SEM/
 Default:
 \fI\fIveto oplock files\fR\fR\fI = \fR\fI # No files are vetoed for oplock grants\fR\fI \fR
 .RE
-vfs object.PP
+
+vfs object
+.PP
 .RS 4
 This parameter is a synonym for
 vfs objects\.
@@ -9112,7 +9170,9 @@ Default:
 Example:
 \fI\fIworkgroup\fR\fR\fI = \fR\fIMYGROUP\fR\fI \fR
 .RE
-writable.PP
+
+writable
+.PP
 .RS 4
 This parameter is a synonym for
 writeable\.

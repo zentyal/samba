@@ -607,12 +607,12 @@ static NTSTATUS get_trust_creds(const struct winbindd_domain *domain,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	/* this is at least correct when domain is our domain,
-	 * which is the only case, when this is currently used: */
+	/* For now assume our machine account only exists in our domain */
+
 	if (machine_krb5_principal != NULL)
 	{
 		if (asprintf(machine_krb5_principal, "%s$@%s",
-			     account_name, domain->alt_name) == -1)
+			     account_name, lp_realm()) == -1)
 		{
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -729,13 +729,14 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 			(*cli)->use_kerberos = True;
 			DEBUG(5, ("connecting to %s from %s with kerberos principal "
-				  "[%s]\n", controller, global_myname(),
-				  machine_krb5_principal));
+				  "[%s] and realm [%s]\n", controller, global_myname(),
+				  machine_krb5_principal, domain->alt_name));
 
 			ads_status = cli_session_setup_spnego(*cli,
 							      machine_krb5_principal, 
 							      machine_password, 
-							      domain->name);
+							      lp_workgroup(),
+							      domain->alt_name);
 
 			if (!ADS_ERR_OK(ads_status)) {
 				DEBUG(4,("failed kerberos session setup with %s\n",
@@ -755,12 +756,13 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 		DEBUG(5, ("connecting to %s from %s with username "
 			  "[%s]\\[%s]\n",  controller, global_myname(),
-			  domain->name, machine_account));
+			  lp_workgroup(), machine_account));
 
 		ads_status = cli_session_setup_spnego(*cli,
 						      machine_account, 
 						      machine_password, 
-						      domain->name);
+						      lp_workgroup(),
+						      NULL);
 		if (!ADS_ERR_OK(ads_status)) {
 			DEBUG(4, ("authenticated session setup failed with %s\n",
 				ads_errstr(ads_status)));
@@ -1248,6 +1250,8 @@ static BOOL find_new_dc(TALLOC_CTX *mem_ctx,
 
 	int i, fd_index;
 
+	*fd = -1;
+
  again:
 	if (!get_dcs(mem_ctx, domain, &dcs, &num_dcs) || (num_dcs == 0))
 		return False;
@@ -1308,6 +1312,19 @@ static BOOL find_new_dc(TALLOC_CTX *mem_ctx,
 	/* We can not continue without the DC's name */
 	winbind_add_failed_connection_entry(domain, dcs[fd_index].name,
 				    NT_STATUS_UNSUCCESSFUL);
+
+	/* Throw away all arrays as we're doing this again. */
+	TALLOC_FREE(dcs);
+	num_dcs = 0;
+
+	TALLOC_FREE(dcnames);
+	num_dcnames = 0;
+
+	TALLOC_FREE(addrs);
+	num_addrs = 0;
+
+	*fd = -1;
+
 	goto again;
 }
 

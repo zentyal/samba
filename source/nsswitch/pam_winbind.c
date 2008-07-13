@@ -1181,6 +1181,10 @@ static int winbind_chauthtok_request(pam_handle_t * pamh,
 		request.flags = WBFLAG_PAM_KRB5 | WBFLAG_PAM_CONTACT_TRUSTDOM;
 	}
 
+	if (ctrl & WINBIND_CACHED_LOGIN) {
+		request.flags |= WBFLAG_PAM_CACHED_LOGIN;
+	}
+
 	ret = pam_winbind_request_log(pamh, ctrl, WINBINDD_PAM_CHAUTHTOK, &request, &response, user);
 
 	if (ret == PAM_SUCCESS) {
@@ -1907,17 +1911,19 @@ out:
 static BOOL _pam_require_krb5_auth_after_chauthtok(pam_handle_t *pamh, int ctrl, const char *user)
 {
 
-	/* Make sure that we only do this if 
+	/* Make sure that we only do this if
 	 * a) the chauthtok got initiated during a logon attempt (authenticate->acct_mgmt->chauthtok)
 	 * b) any later password change via the "passwd" command if done by the user itself 
-	 */
-		
+	 *
+	 * NB. If we login from gdm or xdm and the password expires,
+	 * we change the password, but there is no memory cache.
+	 * Thus, even for passthrough login, we should do the
+	 * authentication again to update memory cache.
+	 * --- BoYang
+	 * */
+
 	char *new_authtok_reqd_during_auth = NULL;
 	struct passwd *pwd = NULL;
-
-	if (!(ctrl & WINBIND_KRB5_AUTH)) {
-		return False;
-	}
 
 	_pam_get_data(pamh, PAM_WINBIND_NEW_AUTHTOK_REQD_DURING_AUTH, &new_authtok_reqd_during_auth);
 	pam_set_data(pamh, PAM_WINBIND_NEW_AUTHTOK_REQD_DURING_AUTH, NULL, NULL);
@@ -1946,6 +1952,7 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 	unsigned int lctrl;
 	int ret;
 	unsigned int ctrl;
+	bool cached_login = False;
 
 	/* <DO NOT free() THESE> */
 	const char *user;
@@ -1969,7 +1976,9 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 
 	_PAM_LOG_FUNCTION_ENTER("pam_sm_chauthtok", pamh, ctrl, flags);
 
-	/* clearing offline bit for the auth in the password change */
+	cached_login = (ctrl & WINBIND_CACHED_LOGIN);
+
+	/* clearing offline bit for auth */
 	ctrl &= ~WINBIND_CACHED_LOGIN;
 
 	/*
@@ -2117,6 +2126,15 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 		_pam_get_data( pamh, PAM_WINBIND_PWD_LAST_SET,
 			       &pwdlastset_update);
 
+		/*
+		 * if cached creds were enabled, make sure to set the
+		 * WINBIND_CACHED_LOGIN bit here in order to have winbindd
+		 * update the cached creds storage - gd
+		 */
+		if (cached_login) {
+			ctrl |= WINBIND_CACHED_LOGIN;
+		}
+
 		ret = winbind_chauthtok_request(pamh, ctrl, user, pass_old, pass_new, pwdlastset_update);
 		if (ret) {
 			_pam_overwrite(pass_new);
@@ -2129,6 +2147,14 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 
 			const char *member = get_member_from_config(pamh, argc, argv, ctrl, d);
 			const char *cctype = get_krb5_cc_type_from_config(pamh, argc, argv, ctrl, d);
+
+                        /* Keep the WINBIND_CACHED_LOGIN bit for
+                         * authentication after changing the password.
+                         * This will update the cached credentials in case
+                         * that winbindd_dual_pam_chauthtok() fails
+                         * to update them.
+                         * --- BoYang
+                         * */
 
 			ret = winbind_auth_request(pamh, ctrl, user, pass_new,
 							member, cctype, &response, NULL, &username_ret);

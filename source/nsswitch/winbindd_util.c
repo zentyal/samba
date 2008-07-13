@@ -28,7 +28,8 @@
 #define DBGC_CLASS DBGC_WINBIND
 
 extern struct winbindd_methods cache_methods;
-extern struct winbindd_methods passdb_methods;
+extern struct winbindd_methods builtin_passdb_methods;
+extern struct winbindd_methods sam_passdb_methods;
 
 /**
  * @file winbindd_util.c
@@ -83,6 +84,9 @@ static BOOL is_internal_domain(const DOM_SID *sid)
 	if (sid == NULL)
 		return False;
 
+	if ( IS_DC )
+		return sid_check_is_builtin(sid);
+
 	return (sid_check_is_domain(sid) || sid_check_is_builtin(sid));
 }
 
@@ -90,6 +94,9 @@ static BOOL is_in_internal_domain(const DOM_SID *sid)
 {
 	if (sid == NULL)
 		return False;
+
+	if ( IS_DC )
+		return sid_check_is_in_builtin(sid);
 
 	return (sid_check_is_in_our_domain(sid) || sid_check_is_in_builtin(sid));
 }
@@ -140,15 +147,9 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
         
 	ZERO_STRUCTP(domain);
 
-	/* prioritise the short name */
-	if (strchr_m(domain_name, '.') && alternative_name && *alternative_name) {
-		fstrcpy(domain->name, alternative_name);
-		fstrcpy(domain->alt_name, domain_name);
-	} else {
-		fstrcpy(domain->name, domain_name);
-		if (alternative_name) {
-			fstrcpy(domain->alt_name, alternative_name);
-		}
+	fstrcpy(domain->name, domain_name);
+	if (alternative_name) {
+		fstrcpy(domain->alt_name, alternative_name);
 	}
 
 	domain->methods = methods;
@@ -523,7 +524,7 @@ BOOL init_domain_list(void)
 	/* Local SAM */
 
 	domain = add_trusted_domain(get_global_sam_name(), NULL,
-				    &passdb_methods, get_global_sam_sid());
+				    &sam_passdb_methods, get_global_sam_sid());
 	if ( role != ROLE_DOMAIN_MEMBER ) {
 		domain->primary = True;
 	}
@@ -531,7 +532,7 @@ BOOL init_domain_list(void)
 
 	/* BUILTIN domain */
 
-	domain = add_trusted_domain("BUILTIN", NULL, &passdb_methods,
+	domain = add_trusted_domain("BUILTIN", NULL, &builtin_passdb_methods,
 				    &global_sid_Builtin);
 	setup_domain_child(domain, &domain->child, NULL);
 

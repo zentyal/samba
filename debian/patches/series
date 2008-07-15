@@ -10,6 +10,7 @@ smbclient-pager.patch
 undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
+proper-static-lib-linking.patch 
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch

@@ -1,11 +1,11 @@
-samba (2:3.2.0-2ubuntu1) UNRELEASED; urgency=low
+samba (2:3.2.0-3) UNRELEASED; urgency=low
 
   * debian/patches/proper-static-lib-linking.patch: fix SMB_LIBRARY macro
     and Makefile.in to properly avoid linking .a libraries into other .a
     libraries, since this bloats the libraries without providing any useful
     functionality.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 15 Jul 2008 12:33:54 +0100
+ -- Steve Langasek <vorlon@debian.org>  Tue, 15 Jul 2008 12:33:54 +0100
 
 samba (2:3.2.0-2) experimental; urgency=low
 

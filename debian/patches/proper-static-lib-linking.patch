@@ -1,3 +1,11 @@
+Goal: Sane library interdependencies with static and dynamic linking
+
+Fixes:
+
+Status wrt upstream: not yet forwarded
+
+Note:
+
 === modified file 'source/Makefile.in'
 Index: samba.experimental/source/Makefile.in
 ===================================================================

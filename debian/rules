@@ -243,7 +243,7 @@ endif
 	chown root:adm debian/samba-common/var/log/samba/
 	chmod 1777 debian/samba/var/spool/samba/
 
-	DH_OPTIONS= dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 3.0.2a-1)'
+	DH_OPTIONS= dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
 	DH_OPTIONS= dh_makeshlibs -plibwbclient0
 	dh_installdeb
 	dh_shlibdeps

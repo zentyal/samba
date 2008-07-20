@@ -29,7 +29,7 @@ Note: Use dedicated directories for:
       export QUILT_PATCHES=debian/patches
       quilt push fhs.patch
       grep -r lock_path source/ | grep -vE \
-         '"((brlock|connections|gencache|locking|messages|notify|sessionid|unexpected|wins)\.tdb|namelist.debug|lang_)|char \*lock_path|WINBINDD_PRIV_SOCKET_SUBDIR'
+         '"((brlock|connections|gencache|locking|messages|notify|sessionid|unexpected|wins|mutex)\.tdb|namelist.debug|lang_)|char \*lock_path|WINBINDD_PRIV_SOCKET_SUBDIR'
 
       - This will get you the list of any new, unexpected references to
         lock_path.  The files mentioned above are the known good uses of

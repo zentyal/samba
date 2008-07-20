@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -25,45 +24,67 @@ extern struct current_user current_user;
 extern userdom_struct current_user_info;
 
 /****************************************************************************
-run a given print command 
-a null terminated list of value/substitute pairs is provided
-for local substitution strings
+ Run a given print command
+ a null terminated list of value/substitute pairs is provided
+ for local substitution strings
 ****************************************************************************/
-static int print_run_command(int snum, const char* printername, BOOL do_sub,
+static int print_run_command(int snum, const char* printername, bool do_sub,
 			     const char *command, int *outfd, ...)
 {
-	pstring syscmd;
+	char *syscmd;
 	char *arg;
 	int ret;
+	TALLOC_CTX *ctx = talloc_tos();
 	va_list ap;
 	va_start(ap, outfd);
 
 	/* check for a valid system printername and valid command to run */
 
-	if ( !printername || !*printername ) 
+	if ( !printername || !*printername ) {
+		va_end(ap);
 		return -1;
+	}
 
-	if (!command || !*command) 
+	if (!command || !*command) {
+		va_end(ap);
 		return -1;
+	}
 
-	pstrcpy(syscmd, command);
+	syscmd = talloc_strdup(ctx, command);
+	if (!syscmd) {
+		va_end(ap);
+		return -1;
+	}
 
 	while ((arg = va_arg(ap, char *))) {
 		char *value = va_arg(ap,char *);
-		pstring_sub(syscmd, arg, value);
+		syscmd = talloc_string_sub(ctx, syscmd, arg, value);
+		if (!syscmd) {
+			va_end(ap);
+			return -1;
+		}
 	}
 	va_end(ap);
-  
-	pstring_sub( syscmd, "%p", printername );
 
-	if ( do_sub && snum != -1 )
-		standard_sub_advanced(lp_servicename(snum),
-				      current_user_info.unix_name, "",
-				      current_user.ut.gid,
-				      get_current_username(),
-				      current_user_info.domain,
-				      syscmd, sizeof(syscmd));
-		
+	syscmd = talloc_string_sub(ctx, syscmd, "%p", printername);
+	if (!syscmd) {
+		return -1;
+	}
+
+	if (do_sub && snum != -1) {
+		syscmd = talloc_sub_advanced(ctx,
+				lp_servicename(snum),
+				current_user_info.unix_name,
+				"",
+				current_user.ut.gid,
+				get_current_username(),
+				current_user_info.domain,
+				syscmd);
+		if (!syscmd) {
+			return -1;
+		}
+	}
+
 	ret = smbrun_no_sanitize(syscmd,outfd);
 
 	DEBUG(3,("Running the command `%s' gave %d\n",syscmd,ret));
@@ -108,7 +129,7 @@ resume a job
 static int generic_job_resume(int snum, struct printjob *pjob)
 {
 	fstring jobstr;
-	
+
 	/* need to pause the spooled entry */
 	slprintf(jobstr, sizeof(jobstr)-1, "%d", pjob->sysjob);
 	return print_run_command(snum, PRINTERNAME(snum), True,
@@ -123,30 +144,52 @@ static int generic_job_resume(int snum, struct printjob *pjob)
 
 static int generic_job_submit(int snum, struct printjob *pjob)
 {
-	int ret;
-	pstring current_directory;
-	pstring print_directory;
-	char *wd, *p;
-	pstring jobname;
+	int ret = -1;
+	char *current_directory = NULL;
+	char *print_directory = NULL;
+	char *wd = NULL;
+	char *p = NULL;
+	char *jobname = NULL;
+	TALLOC_CTX *ctx = talloc_tos();
 	fstring job_page_count, job_size;
 
 	/* we print from the directory path to give the best chance of
            parsing the lpq output */
+	current_directory = TALLOC_ARRAY(ctx,
+					char,
+					PATH_MAX+1);
+	if (!current_directory) {
+		return -1;
+	}
 	wd = sys_getwd(current_directory);
-	if (!wd)
-		return 0;
+	if (!wd) {
+		return -1;
+	}
 
-	pstrcpy(print_directory, pjob->filename);
+	print_directory = talloc_strdup(ctx, pjob->filename);
+	if (!print_directory) {
+		return -1;
+	}
 	p = strrchr_m(print_directory,'/');
-	if (!p)
-		return 0;
+	if (!p) {
+		return -1;
+	}
 	*p++ = 0;
 
-	if (chdir(print_directory) != 0)
-		return 0;
+	if (chdir(print_directory) != 0) {
+		return -1;
+	}
 
-	pstrcpy(jobname, pjob->jobname);
-	pstring_sub(jobname, "'", "_");
+	jobname = talloc_strdup(ctx, pjob->jobname);
+	if (!jobname) {
+		ret = -1;
+		goto out;
+	}
+	jobname = talloc_string_sub(ctx, jobname, "'", "_");
+	if (!jobname) {
+		ret = -1;
+		goto out;
+	}
 	slprintf(job_page_count, sizeof(job_page_count)-1, "%d", pjob->page_count);
 	slprintf(job_size, sizeof(job_size)-1, "%lu", (unsigned long)pjob->size);
 
@@ -160,8 +203,10 @@ static int generic_job_submit(int snum, struct printjob *pjob)
 			"%c", job_page_count,
 			NULL);
 
-	chdir(wd);
+ out:
 
+	chdir(wd);
+	TALLOC_FREE(current_directory);
         return ret;
 }
 

@@ -8,7 +8,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -17,50 +17,18 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
 #include "includes.h"
 #include "utils/net.h"
 
-
-/*********************************************************
- utility function to parse an integer parameter from 
- "parameter = value"
-**********************************************************/
-static uint32 get_int_param( const char* param )
-{
-	char *p;
-	
-	p = strchr( param, '=' );
-	if ( !p )
-		return 0;
-		
-	return atoi(p+1);
-}
-
-/*********************************************************
- utility function to parse an integer parameter from 
- "parameter = value"
-**********************************************************/
-static char* get_string_param( const char* param )
-{
-	char *p;
-	
-	p = strchr( param, '=' );
-	if ( !p )
-		return NULL;
-		
-	return (p+1);
-}
-
 /*********************************************************
  Figure out if the input was an NT group or a SID string.
  Return the SID.
 **********************************************************/
-static BOOL get_sid_from_input(DOM_SID *sid, char *input)
+static bool get_sid_from_input(DOM_SID *sid, char *input)
 {
 	GROUP_MAP map;
 
@@ -85,14 +53,14 @@ static BOOL get_sid_from_input(DOM_SID *sid, char *input)
  Dump a GROUP_MAP entry to stdout (long or short listing)
 **********************************************************/
 
-static void print_map_entry ( GROUP_MAP map, BOOL long_list )
+static void print_map_entry ( GROUP_MAP map, bool long_list )
 {
 	if (!long_list)
 		d_printf("%s (%s) -> %s\n", map.nt_name,
-			 sid_string_static(&map.sid), gidtoname(map.gid));
+			 sid_string_tos(&map.sid), gidtoname(map.gid));
 	else {
 		d_printf("%s\n", map.nt_name);
-		d_printf("\tSID       : %s\n", sid_string_static(&map.sid));
+		d_printf("\tSID       : %s\n", sid_string_tos(&map.sid));
 		d_printf("\tUnix gid  : %d\n", map.gid);
 		d_printf("\tUnix group: %s\n", gidtoname(map.gid));
 		d_printf("\tGroup type: %s\n",
@@ -107,7 +75,7 @@ static void print_map_entry ( GROUP_MAP map, BOOL long_list )
 static int net_groupmap_list(int argc, const char **argv)
 {
 	size_t entries;
-	BOOL long_list = False;
+	bool long_list = False;
 	size_t i;
 	fstring ntgroup = "";
 	fstring sid_string = "";
@@ -281,7 +249,7 @@ static int net_groupmap_add(int argc, const char **argv)
 	{
 		if (pdb_getgrgid(&map, gid)) {
 			d_printf("Unix group %s already mapped to SID %s\n",
-				 unixgrp, sid_string_static(&map.sid));
+				 unixgrp, sid_string_tos(&map.sid));
 			return -1;
 		}
 	}
@@ -302,7 +270,7 @@ static int net_groupmap_add(int argc, const char **argv)
 	if ( !string_sid[0] ) {
 		sid_copy(&sid, get_global_sam_sid());
 		sid_append_rid(&sid, rid);
-		sid_to_string(string_sid, &sid);
+		sid_to_fstring(string_sid, &sid);
 	}
 
 	if (!ntcomment[0]) {
@@ -527,7 +495,7 @@ static int net_groupmap_set(int argc, const char **argv)
 	const char *ntgroup = NULL;
 	struct group *grp = NULL;
 	GROUP_MAP map;
-	BOOL have_map = False;
+	bool have_map = False;
 
 	if ((argc < 1) || (argc > 2)) {
 		d_printf("Usage: net groupmap set \"NT Group\" "
@@ -651,7 +619,7 @@ static int net_groupmap_cleanup(int argc, const char **argv)
 		if (!sid_check_is_in_our_domain(&map[i].sid)) {
 			printf("Deleting mapping for NT Group %s, sid %s\n",
 			       map[i].nt_name,
-			       sid_string_static(&map[i].sid));
+			       sid_string_tos(&map[i].sid));
 			pdb_delete_group_mapping_entry(map[i].sid);
 		}
 	}
@@ -722,15 +690,15 @@ static int net_groupmap_listmem(int argc, const char **argv)
 	}
 
 	for (i = 0; i < num; i++) {
-		printf("%s\n", sid_string_static(&(members[i])));
+		printf("%s\n", sid_string_tos(&(members[i])));
 	}
 
-	SAFE_FREE(members);
+	TALLOC_FREE(members);
 
 	return 0;
 }
 
-static BOOL print_alias_memberships(TALLOC_CTX *mem_ctx,
+static bool print_alias_memberships(TALLOC_CTX *mem_ctx,
 				    const DOM_SID *domain_sid,
 				    const DOM_SID *member)
 {
@@ -744,7 +712,7 @@ static BOOL print_alias_memberships(TALLOC_CTX *mem_ctx,
 				     mem_ctx, domain_sid, member, 1,
 				     &alias_rids, &num_alias_rids))) {
 		d_fprintf(stderr, "Could not list memberships for sid %s\n",
-			 sid_string_static(member));
+			 sid_string_tos(member));
 		return False;
 	}
 
@@ -752,7 +720,7 @@ static BOOL print_alias_memberships(TALLOC_CTX *mem_ctx,
 		DOM_SID alias;
 		sid_copy(&alias, domain_sid);
 		sid_append_rid(&alias, alias_rids[i]);
-		printf("%s\n", sid_string_static(&alias));
+		printf("%s\n", sid_string_tos(&alias));
 	}
 
 	return True;

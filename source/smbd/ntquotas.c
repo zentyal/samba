@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -89,7 +88,7 @@ int vfs_get_ntquota(files_struct *fsp, enum SMB_QUOTA_TYPE qtype, DOM_SID *psid,
 
 	if (psid && !sid_to_uid(psid, &id.uid)) {
 		DEBUG(0,("sid_to_uid: failed, SID[%s]\n",
-			sid_string_static(psid)));	
+			 sid_string_dbg(psid)));
 	}
 
 	ret = SMB_VFS_GET_QUOTA(fsp->conn, qtype, id, &D);
@@ -133,7 +132,7 @@ int vfs_set_ntquota(files_struct *fsp, enum SMB_QUOTA_TYPE qtype, DOM_SID *psid,
 
 	if (psid && !sid_to_uid(psid, &id.uid)) {
 		DEBUG(0,("sid_to_uid: failed, SID[%s]\n",
-			sid_string_static(psid)));	
+			 sid_string_dbg(psid)));
 	}
 
 	ret = SMB_VFS_SET_QUOTA(fsp->conn, qtype, id, &D);
@@ -141,7 +140,7 @@ int vfs_set_ntquota(files_struct *fsp, enum SMB_QUOTA_TYPE qtype, DOM_SID *psid,
 	return ret;
 }
 
-static BOOL allready_in_quota_list(SMB_NTQUOTA_LIST *qt_list, uid_t uid)
+static bool allready_in_quota_list(SMB_NTQUOTA_LIST *qt_list, uid_t uid)
 {
 	SMB_NTQUOTA_LIST *tmp_list = NULL;
 	
@@ -189,12 +188,13 @@ int vfs_get_user_ntquota_list(files_struct *fsp, SMB_NTQUOTA_LIST **qt_list)
 
 		if (vfs_get_ntquota(fsp, SMB_USER_QUOTA_TYPE, &sid, &tmp_qt)!=0) {
 			DEBUG(5,("no quota entry for sid[%s] path[%s]\n",
-				sid_string_static(&sid),fsp->conn->connectpath));
+				 sid_string_dbg(&sid),
+				 fsp->conn->connectpath));
 			continue;
 		}
 
 		DEBUG(15,("quota entry for id[%s] path[%s]\n",
-			sid_string_static(&sid),fsp->conn->connectpath));
+			  sid_string_dbg(&sid), fsp->conn->connectpath));
 
 		if ((tmp_list_ent=TALLOC_ZERO_P(mem_ctx,SMB_NTQUOTA_LIST))==NULL) {
 			DEBUG(0,("TALLOC_ZERO() failed\n"));

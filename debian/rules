@@ -35,7 +35,7 @@ conf_args = \
 		--disable-pie \
 		--prefix=/usr \
 		--sysconfdir=/etc \
-		--libdir=/etc/samba \
+		--libdir=/usr/lib/samba \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
 		--localstatedir=/var \
@@ -53,11 +53,14 @@ conf_args = \
 		--with-ldap \
 		--with-ads \
 		--without-smbmount \
-		--with-dnsupdate
+		--with-dnsupdate \
+		--without-libtdb \
+		--without-libnetapi
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
 		--with-cifsmount \
+		--with-cifsspnego \
 		--with-acl-support \
 		--with-quotas
   mount_cifs	= yes
@@ -91,7 +94,7 @@ build-stamp:
 	dh_testdir
 
 	$(MAKE) -C source headers
-	$(MAKE) -C source all nsswitch/libnss_wins.so
+	$(MAKE) -C source everything nsswitch/libnss_wins.so
 
 	touch build-stamp
 
@@ -138,11 +141,28 @@ install: build
 	# default library path. Here we move it to /usr/lib/.
 	mv $(DESTDIR)/usr/lib/samba/libsmbclient* $(DESTDIR)/usr/lib/
 
+	# same problem with libwbclient.
+	mv $(DESTDIR)/usr/lib/samba/libwbclient.so $(DESTDIR)/usr/lib/libwbclient.so.0
+	ln -s libwbclient.so.0 $(DESTDIR)/usr/lib/samba/libwbclient.so
+
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
 	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	# Install torture stuff
+	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
+	install -m 0755 source/bin/msgtest $(DESTDIR)/usr/bin/msgtest
+	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest
+	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest
+	install -m 0755 source/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
+	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest
+	install -m 0755 source/bin/vfstest $(DESTDIR)/usr/bin/vfstest
+	install -m 0755 source/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
+	install -m 0755 source/bin/talloctort $(DESTDIR)/usr/bin/talloctort
+	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
+	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
+	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 
 ifeq ($(mount_cifs),yes)
 	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs
@@ -223,7 +243,8 @@ endif
 	chown root:adm debian/samba-common/var/log/samba/
 	chmod 1777 debian/samba/var/spool/samba/
 
-	DH_OPTIONS= dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 3.0.2a-1)'
+	DH_OPTIONS= dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
+	DH_OPTIONS= dh_makeshlibs -plibwbclient0
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol

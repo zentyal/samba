@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -185,20 +184,27 @@ void event_fd_set_not_readable(struct fd_event *fde)
 	fde->flags &= ~EVENT_FD_READ;
 }
 
-void event_add_to_select_args(struct event_context *event_ctx,
+/*
+ * Return if there's something in the queue
+ */
+
+bool event_add_to_select_args(struct event_context *event_ctx,
 			      const struct timeval *now,
 			      fd_set *read_fds, fd_set *write_fds,
 			      struct timeval *timeout, int *maxfd)
 {
 	struct fd_event *fde;
 	struct timeval diff;
+	bool ret = False;
 
 	for (fde = event_ctx->fd_events; fde; fde = fde->next) {
 		if (fde->flags & EVENT_FD_READ) {
 			FD_SET(fde->fd, read_fds);
+			ret = True;
 		}
 		if (fde->flags & EVENT_FD_WRITE) {
 			FD_SET(fde->fd, write_fds);
+			ret = True;
 		}
 
 		if ((fde->flags & (EVENT_FD_READ|EVENT_FD_WRITE))
@@ -208,17 +214,34 @@ void event_add_to_select_args(struct event_context *event_ctx,
 	}
 
 	if (event_ctx->timed_events == NULL) {
-		return;
+		return ret;
 	}
 
 	diff = timeval_until(now, &event_ctx->timed_events->when);
 	*timeout = timeval_min(timeout, &diff);
+
+	return True;
 }
 
-BOOL run_events(struct event_context *event_ctx,
+bool events_pending(struct event_context *event_ctx)
+{
+	struct fd_event *fde;
+
+	if (event_ctx->timed_events != NULL) {
+		return True;
+	}
+	for (fde = event_ctx->fd_events; fde; fde = fde->next) {
+		if (fde->flags & (EVENT_FD_READ|EVENT_FD_WRITE)) {
+			return True;
+		}
+	}
+	return False;
+}
+
+bool run_events(struct event_context *event_ctx,
 		int selrtn, fd_set *read_fds, fd_set *write_fds)
 {
-	BOOL fired = False;
+	bool fired = False;
 	struct fd_event *fde, *next;
 
 	/* Run all events that are pending, not just one (as we
@@ -297,6 +320,40 @@ struct timeval *get_timed_events_timeout(struct event_context *event_ctx,
 	return to_ret;
 }
 
+int event_loop_once(struct event_context *ev)
+{
+	struct timeval now, to;
+	fd_set r_fds, w_fds;
+	int maxfd = 0;
+	int ret;
+
+	FD_ZERO(&r_fds);
+	FD_ZERO(&w_fds);
+
+	to.tv_sec = 9999;	/* Max timeout */
+	to.tv_usec = 0;
+
+	GetTimeOfDay(&now);
+
+	if (!event_add_to_select_args(ev, &now, &r_fds, &w_fds, &to, &maxfd)) {
+		return -1;
+	}
+
+	if (timeval_is_zero(&to)) {
+		run_events(ev, 0, NULL, NULL);
+		return 0;
+	}
+
+	ret = sys_select(maxfd+1, &r_fds, &w_fds, NULL, &to);
+
+	if (ret == -1 && errno != EINTR) {
+		return -1;
+	}
+
+	run_events(ev, ret, &r_fds, &w_fds);
+	return 0;
+}
+
 struct event_context *event_context_init(TALLOC_CTX *mem_ctx)
 {
 	return TALLOC_ZERO_P(NULL, struct event_context);
@@ -332,4 +389,38 @@ int cancel_named_event(struct event_context *event_ctx,
 		}
 	}
 	return 0;
+}
+
+void dump_event_list(struct event_context *event_ctx)
+{
+	struct timed_event *te;
+	struct fd_event *fe;
+	struct timeval evt, now;
+
+	if (!event_ctx) {
+		return;
+	}
+
+	now = timeval_current();
+
+	DEBUG(10,("dump_event_list:\n"));
+
+	for (te = event_ctx->timed_events; te; te = te->next) {
+
+		evt = timeval_until(&now, &te->when);
+
+		DEBUGADD(10,("Timed Event \"%s\" %lx handled in %d seconds (at %s)\n",
+			   te->event_name,
+			   (unsigned long)te,
+			   (int)evt.tv_sec,
+			   http_timestring(te->when.tv_sec)));
+	}
+
+	for (fe = event_ctx->fd_events; fe; fe = fe->next) {
+
+		DEBUGADD(10,("FD Event %d %lx, flags: 0x%04x\n",
+			   fe->fd,
+			   (unsigned long)fe,
+			   fe->flags));
+	}
 }

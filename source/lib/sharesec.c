@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -24,54 +23,103 @@
  Create the share security tdb.
  ********************************************************************/
 
-static TDB_CONTEXT *share_tdb; /* used for share security descriptors */
+static struct db_context *share_db; /* used for share security descriptors */
 #define SHARE_DATABASE_VERSION_V1 1
 #define SHARE_DATABASE_VERSION_V2 2 /* version id in little endian. */
 
 /* Map generic permissions to file object specific permissions */
 
-static struct generic_mapping file_generic_mapping = {
+static const struct generic_mapping file_generic_mapping = {
         FILE_GENERIC_READ,
         FILE_GENERIC_WRITE,
         FILE_GENERIC_EXECUTE,
         FILE_GENERIC_ALL
 };
 
+static int delete_fn(struct db_record *rec, void *priv)
+{
+	rec->delete_rec(rec);
+	return 0;
+}
 
-BOOL share_info_db_init(void)
+static bool share_info_db_init(void)
 {
 	const char *vstring = "INFO/version";
 	int32 vers_id;
  
-	if (share_tdb) {
+	if (share_db != NULL) {
 		return True;
 	}
 
-	share_tdb = tdb_open_log(lock_path("share_info.tdb"), 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-	if (!share_tdb) {
+	share_db = db_open_trans(NULL, state_path("share_info.tdb"), 0,
+				 TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	if (share_db == NULL) {
 		DEBUG(0,("Failed to open share info database %s (%s)\n",
-			lock_path("share_info.tdb"), strerror(errno) ));
+			state_path("share_info.tdb"), strerror(errno) ));
 		return False;
 	}
  
-	/* handle a Samba upgrade */
-	tdb_lock_bystring(share_tdb, vstring);
+	vers_id = dbwrap_fetch_int32(share_db, vstring);
+	if (vers_id == SHARE_DATABASE_VERSION_V2) {
+		return true;
+	}
+
+	if (share_db->transaction_start(share_db) != 0) {
+		DEBUG(0, ("transaction_start failed\n"));
+		TALLOC_FREE(share_db);
+		return false;
+	}
+
+	vers_id = dbwrap_fetch_int32(share_db, vstring);
+	if (vers_id == SHARE_DATABASE_VERSION_V2) {
+		/*
+		 * Race condition
+		 */
+		if (share_db->transaction_cancel(share_db)) {
+			smb_panic("transaction_cancel failed");
+		}
+		return true;
+	}
 
 	/* Cope with byte-reversed older versions of the db. */
-	vers_id = tdb_fetch_int32(share_tdb, vstring);
 	if ((vers_id == SHARE_DATABASE_VERSION_V1) || (IREV(vers_id) == SHARE_DATABASE_VERSION_V1)) {
 		/* Written on a bigendian machine with old fetch_int code. Save as le. */
-		tdb_store_int32(share_tdb, vstring, SHARE_DATABASE_VERSION_V2);
+
+		if (dbwrap_store_int32(share_db, vstring,
+				       SHARE_DATABASE_VERSION_V2) != 0) {
+			DEBUG(0, ("dbwrap_store_int32 failed\n"));
+			goto cancel;
+		}
 		vers_id = SHARE_DATABASE_VERSION_V2;
 	}
 
 	if (vers_id != SHARE_DATABASE_VERSION_V2) {
-		tdb_traverse(share_tdb, tdb_traverse_delete_fn, NULL);
-		tdb_store_int32(share_tdb, vstring, SHARE_DATABASE_VERSION_V2);
+		int ret;
+		ret = share_db->traverse(share_db, delete_fn, NULL);
+		if (ret < 0) {
+			DEBUG(0, ("traverse failed\n"));
+			goto cancel;
+		}
+		if (dbwrap_store_int32(share_db, vstring,
+				       SHARE_DATABASE_VERSION_V2) != 0) {
+			DEBUG(0, ("dbwrap_store_int32 failed\n"));
+			goto cancel;
+		}
 	}
-	tdb_unlock_bystring(share_tdb, vstring);
 
-	return True;
+	if (share_db->transaction_commit(share_db) != 0) {
+		DEBUG(0, ("transaction_commit failed\n"));
+		goto cancel;
+	}
+
+	return true;
+
+ cancel:
+	if (share_db->transaction_cancel(share_db)) {
+		smb_panic("transaction_cancel failed");
+	}
+
+	return false;
 }
 
 /*******************************************************************
@@ -93,7 +141,9 @@ SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def
 	init_sec_ace(&ace, &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 0);
 
 	if ((psa = make_sec_acl(ctx, NT4_ACL_REVISION, 1, &ace)) != NULL) {
-		psd = make_sec_desc(ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL, psa, psize);
+		psd = make_sec_desc(ctx, SECURITY_DESCRIPTOR_REVISION_1,
+				    SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL,
+				    psa, psize);
 	}
 
 	if (!psd) {
@@ -111,33 +161,42 @@ SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def
 SEC_DESC *get_share_security( TALLOC_CTX *ctx, const char *servicename,
 			      size_t *psize)
 {
-	prs_struct ps;
-	fstring key;
+	char *key;
 	SEC_DESC *psd = NULL;
+	TDB_DATA data;
+	NTSTATUS status;
 
 	if (!share_info_db_init()) {
 		return NULL;
 	}
 
-	*psize = 0;
+	if (!(key = talloc_asprintf(ctx, "SECDESC/%s", servicename))) {
+		DEBUG(0, ("talloc_asprintf failed\n"));
+		return NULL;
+	}
 
-	/* Fetch security descriptor from tdb */
- 
-	slprintf(key, sizeof(key)-1, "SECDESC/%s", servicename);
- 
-	if (tdb_prs_fetch(share_tdb, key, &ps, ctx)!=0 ||
-		!sec_io_desc("get_share_security", &psd, &ps, 1)) {
- 
-		DEBUG(4, ("get_share_security: using default secdesc for %s\n",
-			  servicename));
- 
-		return get_share_security_default(ctx, psize, GENERIC_ALL_ACCESS);
+	data = dbwrap_fetch_bystring(share_db, talloc_tos(), key);
+
+	TALLOC_FREE(key);
+
+	if (data.dptr == NULL) {
+		return get_share_security_default(ctx, psize,
+						  GENERIC_ALL_ACCESS);
+	}
+
+	status = unmarshall_sec_desc(ctx, data.dptr, data.dsize, &psd);
+
+	TALLOC_FREE(data.dptr);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("unmarshall_sec_desc failed: %s\n",
+			  nt_errstr(status)));
+		return NULL;
 	}
 
 	if (psd)
-		*psize = sec_desc_size(psd);
+		*psize = ndr_size_security_descriptor(psd, 0);
 
-	prs_mem_free(&ps);
 	return psd;
 }
 
@@ -145,42 +204,46 @@ SEC_DESC *get_share_security( TALLOC_CTX *ctx, const char *servicename,
  Store a security descriptor in the share db.
  ********************************************************************/
 
-BOOL set_share_security(const char *share_name, SEC_DESC *psd)
+bool set_share_security(const char *share_name, SEC_DESC *psd)
 {
-	prs_struct ps;
-	TALLOC_CTX *mem_ctx = NULL;
-	fstring key;
-	BOOL ret = False;
+	TALLOC_CTX *frame;
+	char *key;
+	bool ret = False;
+	TDB_DATA blob;
+	NTSTATUS status;
 
 	if (!share_info_db_init()) {
 		return False;
 	}
 
-	mem_ctx = talloc_init("set_share_security");
-	if (mem_ctx == NULL)
-		return False;
+	frame = talloc_stackframe();
 
-	prs_init(&ps, (uint32)sec_desc_size(psd), mem_ctx, MARSHALL);
- 
-	if (!sec_io_desc("share_security", &psd, &ps, 1))
+	status = marshall_sec_desc(frame, psd, &blob.dptr, &blob.dsize);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("marshall_sec_desc failed: %s\n",
+			  nt_errstr(status)));
 		goto out;
- 
-	slprintf(key, sizeof(key)-1, "SECDESC/%s", share_name);
- 
-	if (tdb_prs_store(share_tdb, key, &ps)==0) {
-		ret = True;
-		DEBUG(5,("set_share_security: stored secdesc for %s\n", share_name ));
-	} else {
-		DEBUG(1,("set_share_security: Failed to store secdesc for %s\n", share_name ));
-	} 
+	}
 
-	/* Free malloc'ed memory */
- 
-out:
- 
-	prs_mem_free(&ps);
-	if (mem_ctx)
-		talloc_destroy(mem_ctx);
+	if (!(key = talloc_asprintf(frame, "SECDESC/%s", share_name))) {
+		DEBUG(0, ("talloc_asprintf failed\n"));
+		goto out;
+	}
+
+	status = dbwrap_trans_store(share_db, string_term_tdb_data(key), blob,
+				    TDB_REPLACE);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("set_share_security: Failed to store secdesc for "
+			  "%s: %s\n", share_name, nt_errstr(status)));
+		goto out;
+	}
+
+	DEBUG(5,("set_share_security: stored secdesc for %s\n", share_name ));
+	ret = True;
+
+ out:
+	TALLOC_FREE(frame);
 	return ret;
 }
 
@@ -188,19 +251,22 @@ out:
  Delete a security descriptor.
 ********************************************************************/
 
-BOOL delete_share_security(const struct share_params *params)
+bool delete_share_security(const char *servicename)
 {
 	TDB_DATA kbuf;
-	fstring key;
+	char *key;
+	NTSTATUS status;
 
-	slprintf(key, sizeof(key)-1, "SECDESC/%s",
-		 lp_servicename(params->service));
-	kbuf.dptr = key;
-	kbuf.dsize = strlen(key)+1;
+	if (!(key = talloc_asprintf(talloc_tos(), "SECDESC/%s",
+				    servicename))) {
+		return False;
+	}
+	kbuf = string_term_tdb_data(key);
 
-	if (tdb_trans_delete(share_tdb, kbuf) != 0) {
-		DEBUG(0,("delete_share_security: Failed to delete entry for share %s\n",
-			 lp_servicename(params->service) ));
+	status = dbwrap_trans_delete(share_db, kbuf);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("delete_share_security: Failed to delete entry for "
+			  "share %s: %s\n", servicename, nt_errstr(status)));
 		return False;
 	}
 
@@ -211,30 +277,25 @@ BOOL delete_share_security(const struct share_params *params)
  Can this user access with share with the required permissions ?
 ********************************************************************/
 
-BOOL share_access_check(const NT_USER_TOKEN *token, const char *sharename,
+bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
 			uint32 desired_access)
 {
 	uint32 granted;
 	NTSTATUS status;
-	TALLOC_CTX *mem_ctx = NULL;
 	SEC_DESC *psd = NULL;
 	size_t sd_size;
-	BOOL ret = True;
+	bool ret = True;
 
-	if (!(mem_ctx = talloc_init("share_access_check"))) {
-		return False;
-	}
-
-	psd = get_share_security(mem_ctx, sharename, &sd_size);
+	psd = get_share_security(talloc_tos(), sharename, &sd_size);
 
 	if (!psd) {
-		TALLOC_FREE(mem_ctx);
 		return True;
 	}
 
 	ret = se_access_check(psd, token, desired_access, &granted, &status);
 
-	talloc_destroy(mem_ctx);
+	TALLOC_FREE(psd);
+
 	return ret;
 }
 
@@ -242,7 +303,7 @@ BOOL share_access_check(const NT_USER_TOKEN *token, const char *sharename,
  Parse the contents of an acl string from a usershare file.
 ***************************************************************************/
 
-BOOL parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
+bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 {
 	size_t s_size = 0;
 	const char *pacl = acl_str;
@@ -280,10 +341,10 @@ BOOL parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 		uint32 g_access;
 		uint32 s_access;
 		DOM_SID sid;
-		fstring sidstr;
-		uint8 type = SEC_ACE_TYPE_ACCESS_ALLOWED;
+		char *sidstr;
+		enum security_ace_type type = SEC_ACE_TYPE_ACCESS_ALLOWED;
 
-		if (!next_token(&pacl, sidstr, ":", sizeof(sidstr))) {
+		if (!next_token_talloc(ctx, &pacl, &sidstr, ":")) {
 			DEBUG(0,("parse_usershare_acl: malformed usershare acl looking "
 				"for ':' in string '%s'\n", pacl));
 			return False;
@@ -329,7 +390,9 @@ BOOL parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 	}
 
 	if ((psa = make_sec_acl(ctx, NT4_ACL_REVISION, num_aces, ace_list)) != NULL) {
-		psd = make_sec_desc(ctx, SEC_DESC_REVISION, SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL, psa, &sd_size);
+		psd = make_sec_desc(ctx, SECURITY_DESCRIPTOR_REVISION_1,
+				    SEC_DESC_SELF_RELATIVE, NULL, NULL, NULL,
+				    psa, &sd_size);
 	}
 
 	if (!psd) {

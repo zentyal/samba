@@ -2,7 +2,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -11,8 +11,7 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 /* indicate the following groups are defined */
@@ -24,11 +23,19 @@
 #ifndef LINUX
 
 /* This is only used in the Sun implementation. */
+#if defined(HAVE_SECURITY_PAM_APPL_H)
 #include <security/pam_appl.h>
+#elif defined(HAVE_PAM_PAM_APPL_H)
+#include <pam/pam_appl.h>
+#endif
 
 #endif  /* LINUX */
 
+#if defined(HAVE_SECURITY_PAM_MODULES_H)
 #include <security/pam_modules.h>
+#elif defined(HAVE_PAM_PAM_MODULES_H)
+#include <pam/pam_modules.h>
+#endif
 
 #include "general.h"
 
@@ -47,7 +54,7 @@ do {								\
 } while (0)
 
 static int _smb_add_user(pam_handle_t *pamh, unsigned int ctrl,
-                         const char *name, struct samu *sampass, BOOL exist);
+                         const char *name, struct samu *sampass, bool exist);
 
 
 /*
@@ -65,10 +72,9 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	unsigned int ctrl;
 	int retval, *ret_data = NULL;
 	struct samu *sampass = NULL;
-	extern BOOL in_client;
 	const char *name;
 	void (*oldsig_handler)(int) = NULL;
-	BOOL found;
+	bool found;
 
 	/* Points to memory managed by the PAM library. Do not free. */
 	char *p = NULL;
@@ -76,7 +82,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	/* Samba initialization. */
 	load_case_tables();
 	setup_logging("pam_smbpass",False);
-	in_client = True;
+        lp_set_in_client(True);
 
 	ctrl = set_ctrl(flags, argc, argv);
 
@@ -102,12 +108,12 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	}
 
 	if (geteuid() != 0) {
-		_log_err(LOG_DEBUG, "Cannot access samba password database, not running as root.");
+		_log_err( LOG_DEBUG, "Cannot access samba password database, not running as root.");
 		retval = PAM_AUTHINFO_UNAVAIL;
 		AUTH_RETURN;
 	}
 
-	if (!initialize_password_db(True)) {
+	if (!initialize_password_db(True, NULL)) {
 		_log_err( LOG_ALERT, "Cannot access samba password database" );
 		retval = PAM_AUTHINFO_UNAVAIL;
 		AUTH_RETURN;
@@ -135,7 +141,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		sampass = NULL;
 		AUTH_RETURN;
 	}
-   
+
 	/* if this user does not have a password... */
 
 	if (_smb_blankpasswd( ctrl, sampass )) {
@@ -169,98 +175,82 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 int pam_sm_setcred(pam_handle_t *pamh, int flags,
                    int argc, const char **argv)
 {
-    int retval, *pretval = NULL;
+	int retval, *pretval = NULL;
 
-    retval = PAM_SUCCESS;
+	retval = PAM_SUCCESS;
 
-    pam_get_data(pamh, "smb_setcred_return", (const void **) &pretval);
-    if(pretval) {
-	retval = *pretval;
-	SAFE_FREE(pretval);
-    }
-    pam_set_data(pamh, "smb_setcred_return", NULL, NULL);
+	pam_get_data(pamh, "smb_setcred_return", (const void **) &pretval);
+	if(pretval) {
+		retval = *pretval;
+		SAFE_FREE(pretval);
+	}
+	pam_set_data(pamh, "smb_setcred_return", NULL, NULL);
 
-    return retval;
+	return retval;
 }
-
 
 /* Helper function for adding a user to the db. */
 static int _smb_add_user(pam_handle_t *pamh, unsigned int ctrl,
-                         const char *name, struct samu *sampass, BOOL exist)
+                         const char *name, struct samu *sampass, bool exist)
 {
-    pstring err_str;
-    pstring msg_str;
-    const char *pass = NULL;
-    int retval;
+	char *err_str = NULL;
+	char *msg_str = NULL;
+	const char *pass = NULL;
+	int retval;
 
-    err_str[0] = '\0';
-    msg_str[0] = '\0';
+	/* Get the authtok; if we don't have one, silently fail. */
+	retval = pam_get_item( pamh, PAM_AUTHTOK, (const void **) &pass );
 
-    /* Get the authtok; if we don't have one, silently fail. */
-    retval = pam_get_item( pamh, PAM_AUTHTOK, (const void **) &pass );
-
-    if (retval != PAM_SUCCESS) {
-	_log_err( LOG_ALERT
-	          , "pam_get_item returned error to pam_sm_authenticate" );
-	return PAM_AUTHTOK_RECOVER_ERR;
-    } else if (pass == NULL) {
-	return PAM_AUTHTOK_RECOVER_ERR;
-    }
-
-    /* Add the user to the db if they aren't already there. */
-   if (!exist) {
-	retval = NT_STATUS_IS_OK(local_password_change( name, LOCAL_ADD_USER|LOCAL_SET_PASSWORD,
-	                                 pass, err_str,
-	                                 sizeof(err_str),
-	                                 msg_str, sizeof(msg_str) ));
-	if (!retval && *err_str)
-	{
-	    err_str[PSTRING_LEN-1] = '\0';
-	    make_remark( pamh, ctrl, PAM_ERROR_MSG, err_str );
+	if (retval != PAM_SUCCESS) {
+		_log_err( LOG_ALERT
+			, "pam_get_item returned error to pam_sm_authenticate" );
+		return PAM_AUTHTOK_RECOVER_ERR;
+	} else if (pass == NULL) {
+		return PAM_AUTHTOK_RECOVER_ERR;
 	}
-	else if (*msg_str)
-	{
-	    msg_str[PSTRING_LEN-1] = '\0';
-	    make_remark( pamh, ctrl, PAM_TEXT_INFO, msg_str );
-	}
-	pass = NULL;
 
-	return PAM_IGNORE;
-   }
-   else {
-    /* mimick 'update encrypted' as long as the 'no pw req' flag is not set */
-    if ( pdb_get_acct_ctrl(sampass) & ~ACB_PWNOTREQ )
-    {
-	retval = NT_STATUS_IS_OK(local_password_change( name, LOCAL_SET_PASSWORD, pass, err_str, sizeof(err_str),
-	                                 msg_str, sizeof(msg_str) ));
-	if (!retval && *err_str)
-	{
-	    err_str[PSTRING_LEN-1] = '\0';
-	    make_remark( pamh, ctrl, PAM_ERROR_MSG, err_str );
+	/* Add the user to the db if they aren't already there. */
+	if (!exist) {
+		retval = NT_STATUS_IS_OK(local_password_change(name, LOCAL_ADD_USER|LOCAL_SET_PASSWORD,
+					pass, &err_str, &msg_str));
+		if (!retval && err_str) {
+			make_remark(pamh, ctrl, PAM_ERROR_MSG, err_str );
+		} else if (msg_str) {
+			make_remark(pamh, ctrl, PAM_TEXT_INFO, msg_str );
+		}
+		pass = NULL;
+
+		SAFE_FREE(err_str);
+		SAFE_FREE(msg_str);
+		return PAM_IGNORE;
+	} else {
+		/* mimick 'update encrypted' as long as the 'no pw req' flag is not set */
+		if ( pdb_get_acct_ctrl(sampass) & ~ACB_PWNOTREQ ) {
+			retval = NT_STATUS_IS_OK(local_password_change(name, LOCAL_SET_PASSWORD,
+					pass, &err_str, &msg_str));
+			if (!retval && err_str) {
+				make_remark(pamh, ctrl, PAM_ERROR_MSG, err_str );
+			} else if (msg_str) {
+				make_remark(pamh, ctrl, PAM_TEXT_INFO, msg_str );
+			}
+		}
 	}
-	else if (*msg_str)
-	{
-	    msg_str[PSTRING_LEN-1] = '\0';
-	    make_remark( pamh, ctrl, PAM_TEXT_INFO, msg_str );
-	}
-    }
-   }
     
-    pass = NULL;
-
-    return PAM_IGNORE;
+	SAFE_FREE(err_str);
+	SAFE_FREE(msg_str);
+	pass = NULL;
+	return PAM_IGNORE;
 }
-
 
 /* static module data */
 #ifdef PAM_STATIC
 struct pam_module _pam_smbpass_auth_modstruct = {
-     "pam_smbpass",
-     pam_sm_authenticate,
-     pam_sm_setcred,
-     NULL,
-     NULL,
-     NULL,
-     NULL
+	"pam_smbpass",
+	pam_sm_authenticate,
+	pam_sm_setcred,
+	NULL,
+	NULL,
+	NULL,
+	NULL
 };
 #endif

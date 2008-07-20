@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -71,7 +70,7 @@ static NTSTATUS sam_password_ok(const struct auth_context *auth_context,
  bitmask.
 ****************************************************************************/
                                                                                                               
-static BOOL logon_hours_ok(struct samu *sampass)
+static bool logon_hours_ok(struct samu *sampass)
 {
 	/* In logon hours first bit is Sunday from 12AM to 1AM */
 	const uint8 *hours;
@@ -123,7 +122,7 @@ static BOOL logon_hours_ok(struct samu *sampass)
 }
 
 /****************************************************************************
- Do a specific test for a struct samu being vaild for this connection 
+ Do a specific test for a struct samu being valid for this connection
  (ie not disabled, expired and the like).
 ****************************************************************************/
 
@@ -189,16 +188,15 @@ static NTSTATUS sam_account_ok(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 
 	if (*workstation_list) {
-		BOOL invalid_ws = True;
-		fstring tok;
+		bool invalid_ws = True;
+		char *tok;
 		const char *s = workstation_list;
 
 		const char *machine_name = talloc_asprintf(mem_ctx, "%s$", user_info->wksta_name);
 		if (machine_name == NULL)
 			return NT_STATUS_NO_MEMORY;
-			
-			
-		while (next_token(&s, tok, ",", sizeof(tok))) {
+
+		while (next_token_talloc(mem_ctx, &s, &tok, ",")) {
 			DEBUG(10,("sam_account_ok: checking for workstation match %s and %s\n",
 				  tok, user_info->wksta_name));
 			if(strequal(tok, user_info->wksta_name)) {
@@ -213,9 +211,11 @@ static NTSTATUS sam_account_ok(TALLOC_CTX *mem_ctx,
 					break;
 				}
 			}
+			TALLOC_FREE(tok);
 		}
-		
-		if (invalid_ws) 
+		TALLOC_FREE(tok);
+
+		if (invalid_ws)
 			return NT_STATUS_INVALID_WORKSTATION;
 	}
 
@@ -223,7 +223,7 @@ static NTSTATUS sam_account_ok(TALLOC_CTX *mem_ctx,
 		DEBUG(2,("sam_account_ok: Domain trust account %s denied by server\n", pdb_get_username(sampass)));
 		return NT_STATUS_NOLOGON_INTERDOMAIN_TRUST_ACCOUNT;
 	}
-	
+
 	if (acct_ctrl & ACB_SVRTRUST) {
 		if (!(user_info->logon_parameters & MSV1_0_ALLOW_SERVER_TRUST_ACCOUNT)) {
 			DEBUG(2,("sam_account_ok: Server trust account %s denied by server\n", pdb_get_username(sampass)));
@@ -253,21 +253,21 @@ static NTSTATUS check_sam_security(const struct auth_context *auth_context,
 				   auth_serversupplied_info **server_info)
 {
 	struct samu *sampass=NULL;
-	BOOL ret;
+	bool ret;
 	NTSTATUS nt_status;
 	NTSTATUS update_login_attempts_status;
-	DATA_BLOB user_sess_key = data_blob(NULL, 0);
-	DATA_BLOB lm_sess_key = data_blob(NULL, 0);
-	BOOL updated_autolock = False, updated_badpw = False;
+	DATA_BLOB user_sess_key = data_blob_null;
+	DATA_BLOB lm_sess_key = data_blob_null;
+	bool updated_autolock = False, updated_badpw = False;
 
 	if (!user_info || !auth_context) {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	/* Can't use the talloc version here, because the returned struct gets
-	   kept on the server_info */
+	/* the returned struct gets kept on the server_info, by means
+	   of a steal further down */
 
-	if ( !(sampass = samu_new( NULL )) ) {
+	if ( !(sampass = samu_new( mem_ctx )) ) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -296,14 +296,16 @@ static NTSTATUS check_sam_security(const struct auth_context *auth_context,
 	nt_status = sam_password_ok(auth_context, mem_ctx, sampass, 
 				    user_info, &user_sess_key, &lm_sess_key);
 
-	/* Notify passdb backend of login success/failure. If not NT_STATUS_OK the backend doesn't like the login */
+	/* Notify passdb backend of login success/failure. If not 
+	   NT_STATUS_OK the backend doesn't like the login */
+
 	update_login_attempts_status = pdb_update_login_attempts(sampass, NT_STATUS_IS_OK(nt_status));
-	if (!NT_STATUS_IS_OK(update_login_attempts_status))
-		nt_status = update_login_attempts_status;
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		if (NT_STATUS_EQUAL(nt_status,NT_STATUS_WRONG_PASSWORD) && 
-		    pdb_get_acct_ctrl(sampass) &ACB_NORMAL) {  
+		    pdb_get_acct_ctrl(sampass) &ACB_NORMAL &&
+		    NT_STATUS_IS_OK(update_login_attempts_status)) 
+		{  
 			pdb_increment_bad_password_count(sampass);
 			updated_badpw = True;
 		} else {
@@ -351,7 +353,6 @@ static NTSTATUS check_sam_security(const struct auth_context *auth_context,
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("check_sam_security: make_server_info_sam() failed with '%s'\n", nt_errstr(nt_status)));
-		TALLOC_FREE(sampass);
 		data_blob_free(&user_sess_key);
 		data_blob_free(&lm_sess_key);
 		return nt_status;
@@ -395,7 +396,7 @@ static NTSTATUS check_samstrict_security(const struct auth_context *auth_context
 					 const auth_usersupplied_info *user_info, 
 					 auth_serversupplied_info **server_info)
 {
-	BOOL is_local_name, is_my_domain;
+	bool is_local_name, is_my_domain;
 
 	if (!user_info || !auth_context) {
 		return NT_STATUS_LOGON_FAILURE;

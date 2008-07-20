@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #define DBGC_CLASS DBGC_LOCKING
@@ -30,21 +29,29 @@ static int oplock_pipe_read = -1;
  Test to see if IRIX kernel oplocks work.
 ****************************************************************************/
 
-static BOOL irix_oplocks_available(void)
+static bool irix_oplocks_available(void)
 {
 	int fd;
 	int pfd[2];
-	pstring tmpname;
+	TALLOC_CTX *ctx = talloc_stackframe();
+	char *tmpname = NULL;
 
 	set_effective_capability(KERNEL_OPLOCK_CAPABILITY);
 
-	slprintf(tmpname,sizeof(tmpname)-1, "%s/koplock.%d", lp_lockdir(),
-		 (int)sys_getpid());
+	tmpname = talloc_asprintf(ctx,
+				"%s/koplock.%d",
+				lp_lockdir(),
+				(int)sys_getpid());
+	if (!tmpname) {
+		TALLOC_FREE(ctx);
+		return False;
+	}
 
 	if(pipe(pfd) != 0) {
 		DEBUG(0,("check_kernel_oplocks: Unable to create pipe. Error "
 			 "was %s\n",
 			 strerror(errno) ));
+		TALLOC_FREE(ctx);
 		return False;
 	}
 
@@ -55,10 +62,13 @@ static BOOL irix_oplocks_available(void)
 		unlink( tmpname );
 		close(pfd[0]);
 		close(pfd[1]);
+		TALLOC_FREE(ctx);
 		return False;
 	}
 
 	unlink(tmpname);
+
+	TALLOC_FREE(ctx);
 
 	if(sys_fcntl_long(fd, F_OPLKREG, pfd[1]) == -1) {
 		DEBUG(0,("check_kernel_oplocks: Kernel oplocks are not "
@@ -94,9 +104,9 @@ static BOOL irix_oplocks_available(void)
 
 static files_struct *irix_oplock_receive_message(fd_set *fds)
 {
-	extern int smb_read_error;
 	oplock_stat_t os;
 	char dummy;
+	struct file_id fileid;
 	files_struct *fsp;
 
 	/* Ensure we only get one call per select fd set. */
@@ -111,7 +121,6 @@ static files_struct *irix_oplock_receive_message(fd_set *fds)
 		DEBUG(0,("irix_oplock_receive_message: read of kernel "
 			 "notification failed. Error was %s.\n",
 			 strerror(errno) ));
-		smb_read_error = READ_ERROR;
 		return NULL;
 	}
 
@@ -131,17 +140,20 @@ static files_struct *irix_oplock_receive_message(fd_set *fds)
 			 */
 			return NULL;
 		}
-		smb_read_error = READ_ERROR;
 		return NULL;
 	}
 
 	/*
 	 * We only have device and inode info here - we have to guess that this
 	 * is the first fsp open with this dev,ino pair.
+	 *
+	 * NOTE: this doesn't work if any VFS modules overloads
+	 *       the file_id_create() hook!
 	 */
 
-	if ((fsp = file_find_di_first((SMB_DEV_T)os.os_dev,
-				      (SMB_INO_T)os.os_ino)) == NULL) {
+	fileid = file_id_create_dev((SMB_DEV_T)os.os_dev,
+				    (SMB_INO_T)os.os_ino);
+	if ((fsp = file_find_di_first(fileid)) == NULL) {
 		DEBUG(0,("irix_oplock_receive_message: unable to find open "
 			 "file with dev = %x, inode = %.0f\n",
 			 (unsigned int)os.os_dev, (double)os.os_ino ));
@@ -149,9 +161,9 @@ static files_struct *irix_oplock_receive_message(fd_set *fds)
 	}
      
 	DEBUG(5,("irix_oplock_receive_message: kernel oplock break request "
-		 "received for dev = %x, inode = %.0f\n, file_id = %ul",
-		 (unsigned int)fsp->dev, (double)fsp->inode,
-		 fsp->fh->file_id ));
+		 "received for file_id %s gen_id = %ul",
+		 file_id_string_tos(&fsp->file_id),
+		 fsp->fh->gen_id ));
 
 	return fsp;
 }
@@ -160,32 +172,32 @@ static files_struct *irix_oplock_receive_message(fd_set *fds)
  Attempt to set an kernel oplock on a file.
 ****************************************************************************/
 
-static BOOL irix_set_kernel_oplock(files_struct *fsp, int oplock_type)
+static bool irix_set_kernel_oplock(files_struct *fsp, int oplock_type)
 {
 	if (sys_fcntl_long(fsp->fh->fd, F_OPLKREG, oplock_pipe_write) == -1) {
 		if(errno != EAGAIN) {
 			DEBUG(0,("irix_set_kernel_oplock: Unable to get "
-				 "kernel oplock on file %s, dev = %x, inode "
-				 "= %.0f, file_id = %ul. Error was %s\n", 
-				 fsp->fsp_name, (unsigned int)fsp->dev,
-				 (double)fsp->inode, fsp->fh->file_id,
+				 "kernel oplock on file %s, file_id %s "
+				 "gen_id = %ul. Error was %s\n", 
+				 fsp->fsp_name, file_id_string_tos(&fsp->file_id), 
+				 fsp->fh->gen_id,
 				 strerror(errno) ));
 		} else {
 			DEBUG(5,("irix_set_kernel_oplock: Refused oplock on "
-				 "file %s, fd = %d, dev = %x, inode = %.0f, "
-				 "file_id = %ul. Another process had the file "
+				 "file %s, fd = %d, file_id = 5s, "
+				 "gen_id = %ul. Another process had the file "
 				 "open.\n",
 				 fsp->fsp_name, fsp->fh->fd,
-				 (unsigned int)fsp->dev, (double)fsp->inode,
-				 fsp->fh->file_id ));
+				 file_id_string_tos(&fsp->file_id),
+				 fsp->fh->gen_id ));
 		}
 		return False;
 	}
 	
-	DEBUG(10,("irix_set_kernel_oplock: got kernel oplock on file %s, dev "
-		  "= %x, inode = %.0f, file_id = %ul\n",
-		  fsp->fsp_name, (unsigned int)fsp->dev, (double)fsp->inode,
-		  fsp->fh->file_id));
+	DEBUG(10,("irix_set_kernel_oplock: got kernel oplock on file %s, file_id = %s "
+		  "gen_id = %ul\n",
+		  fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+		  fsp->fh->gen_id));
 
 	return True;
 }
@@ -202,10 +214,10 @@ static void irix_release_kernel_oplock(files_struct *fsp)
 		 * oplock state of this file.
 		 */
 		int state = sys_fcntl_long(fsp->fh->fd, F_OPLKACK, -1);
-		dbgtext("irix_release_kernel_oplock: file %s, dev = %x, "
-			"inode = %.0f file_id = %ul, has kernel oplock state "
-			"of %x.\n", fsp->fsp_name, (unsigned int)fsp->dev,
-                        (double)fsp->inode, fsp->fh->file_id, state );
+		dbgtext("irix_release_kernel_oplock: file %s, file_id = %s"
+			"gen_id = %ul, has kernel oplock state "
+			"of %x.\n", fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+                        fsp->fh->gen_id, state );
 	}
 
 	/*
@@ -215,10 +227,10 @@ static void irix_release_kernel_oplock(files_struct *fsp)
 		if( DEBUGLVL( 0 )) {
 			dbgtext("irix_release_kernel_oplock: Error when "
 				"removing kernel oplock on file " );
-			dbgtext("%s, dev = %x, inode = %.0f, file_id = %ul. "
+			dbgtext("%s, file_id = %s gen_id = %ul. "
 				"Error was %s\n",
-				fsp->fsp_name, (unsigned int)fsp->dev, 
-				(double)fsp->inode, fsp->fh->file_id,
+				fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+				fsp->fh->gen_id,
 				strerror(errno) );
 		}
 	}
@@ -229,7 +241,7 @@ static void irix_release_kernel_oplock(files_struct *fsp)
  Note that fds MAY BE NULL ! If so we must do our own select.
 ****************************************************************************/
 
-static BOOL irix_oplock_msg_waiting(fd_set *fds)
+static bool irix_oplock_msg_waiting(fd_set *fds)
 {
 	int selrtn;
 	fd_set myfds;

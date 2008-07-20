@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -26,17 +25,13 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
 
-/* Cache of latest SAM lookup query */
-
-static struct samu *csamuser = NULL;
-
 static_decl_pdb;
 
 static struct pdb_init_function_entry *backends = NULL;
 
 static void lazy_initialize_passdb(void)
 {
-	static BOOL initialized = False;
+	static bool initialized = False;
 	if(initialized) {
 		return;
 	}
@@ -44,7 +39,7 @@ static void lazy_initialize_passdb(void)
 	initialized = True;
 }
 
-static BOOL lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
+static bool lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
 				  const char **name,
 				  enum lsa_SidType *psid_name_use,
 				  union unid_t *unix_id);
@@ -92,6 +87,23 @@ struct pdb_init_function_entry *pdb_find_backend_entry(const char *name)
 	}
 
 	return NULL;
+}
+
+/*
+ * The event context for the passdb backend. I know this is a bad hack and yet
+ * another static variable, but our pdb API is a global thing per
+ * definition. The first use for this is the LDAP idle function, more might be
+ * added later.
+ *
+ * I don't feel too bad about this static variable, it replaces the
+ * smb_idle_event_list that used to exist in lib/module.c.  -- VL
+ */
+
+static struct event_context *pdb_event_ctx;
+
+struct event_context *pdb_get_event_context(void)
+{
+	return pdb_event_ctx;
 }
 
 /******************************************************************
@@ -156,28 +168,30 @@ NTSTATUS make_pdb_method_name(struct pdb_methods **methods, const char *selected
 }
 
 /******************************************************************
- Return an already initialised pdn_methods structure
+ Return an already initialized pdb_methods structure
 *******************************************************************/
 
-static struct pdb_methods *pdb_get_methods_reload( BOOL reload ) 
+static struct pdb_methods *pdb_get_methods_reload( bool reload ) 
 {
 	static struct pdb_methods *pdb = NULL;
 
 	if ( pdb && reload ) {
 		pdb->free_private_data( &(pdb->private_data) );
 		if ( !NT_STATUS_IS_OK( make_pdb_method_name( &pdb, lp_passdb_backend() ) ) ) {
-			pstring msg;
-			slprintf(msg, sizeof(msg)-1, "pdb_get_methods_reload: failed to get pdb methods for backend %s\n",
-				lp_passdb_backend() );
+			char *msg = NULL;
+			asprintf(&msg, "pdb_get_methods_reload: "
+				"failed to get pdb methods for backend %s\n",
+				lp_passdb_backend());
 			smb_panic(msg);
 		}
 	}
 
 	if ( !pdb ) {
 		if ( !NT_STATUS_IS_OK( make_pdb_method_name( &pdb, lp_passdb_backend() ) ) ) {
-			pstring msg;
-			slprintf(msg, sizeof(msg)-1, "pdb_get_methods_reload: failed to get pdb methods for backend %s\n",
-				lp_passdb_backend() );
+			char *msg = NULL;
+			asprintf(&msg, "pdb_get_methods_reload: "
+				"failed to get pdb methods for backend %s\n",
+				lp_passdb_backend());
 			smb_panic(msg);
 		}
 	}
@@ -190,54 +204,31 @@ static struct pdb_methods *pdb_get_methods(void)
 	return pdb_get_methods_reload(False);
 }
 
-/******************************************************************
- Backward compatibility functions for the original passdb interface
-*******************************************************************/
-
-BOOL pdb_setsampwent(BOOL update, uint16 acb_mask) 
+bool pdb_getsampwnam(struct samu *sam_acct, const char *username) 
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return NT_STATUS_IS_OK(pdb->setsampwent(pdb, update, acb_mask));
-}
-
-void pdb_endsampwent(void) 
-{
-	struct pdb_methods *pdb = pdb_get_methods();
-	pdb->endsampwent(pdb);
-}
-
-BOOL pdb_getsampwent(struct samu *user) 
-{
-	struct pdb_methods *pdb = pdb_get_methods();
-
-	if ( !NT_STATUS_IS_OK(pdb->getsampwent(pdb, user) ) ) {
-		return False;
-	}
-
-	return True;
-}
-
-BOOL pdb_getsampwnam(struct samu *sam_acct, const char *username) 
-{
-	struct pdb_methods *pdb = pdb_get_methods();
+	struct samu *cache_copy;
+	const struct dom_sid *user_sid;
 
 	if (!NT_STATUS_IS_OK(pdb->getsampwnam(pdb, sam_acct, username))) {
 		return False;
 	}
 
-	if ( csamuser ) {
-		TALLOC_FREE(csamuser);
-	}
-
-	csamuser = samu_new( NULL );
-	if (!csamuser) {
+	cache_copy = samu_new(NULL);
+	if (cache_copy == NULL) {
 		return False;
 	}
 
-	if (!pdb_copy_sam_account(csamuser, sam_acct)) {
-		TALLOC_FREE(csamuser);
+	if (!pdb_copy_sam_account(cache_copy, sam_acct)) {
+		TALLOC_FREE(cache_copy);
 		return False;
 	}
+
+	user_sid = pdb_get_user_sid(cache_copy);
+
+	memcache_add_talloc(NULL, PDB_GETPWSID_CACHE,
+			    data_blob_const(user_sid, sizeof(*user_sid)),
+			    cache_copy);
 
 	return True;
 }
@@ -245,7 +236,7 @@ BOOL pdb_getsampwnam(struct samu *sam_acct, const char *username)
 /**********************************************************************
 **********************************************************************/
 
-BOOL guest_user_info( struct samu *user )
+bool guest_user_info( struct samu *user )
 {
 	struct passwd *pwd;
 	NTSTATUS result;
@@ -267,10 +258,11 @@ BOOL guest_user_info( struct samu *user )
 /**********************************************************************
 **********************************************************************/
 
-BOOL pdb_getsampwsid(struct samu *sam_acct, const DOM_SID *sid) 
+bool pdb_getsampwsid(struct samu *sam_acct, const DOM_SID *sid) 
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	uint32 rid;
+	void *cache_data;
 
 	/* hard code the Guest RID of 501 */
 
@@ -283,9 +275,16 @@ BOOL pdb_getsampwsid(struct samu *sam_acct, const DOM_SID *sid)
 	}
 	
 	/* check the cache first */
-	
-	if ( csamuser && sid_equal(sid, pdb_get_user_sid(csamuser) ) )
-		return pdb_copy_sam_account(sam_acct, csamuser);
+
+	cache_data = memcache_lookup_talloc(
+		NULL, PDB_GETPWSID_CACHE, data_blob_const(sid, sizeof(*sid)));
+
+	if (cache_data != NULL) {
+		struct samu *cache_copy = talloc_get_type_abort(
+			cache_data, struct samu);
+
+		return pdb_copy_sam_account(sam_acct, cache_copy);
+	}
 
 	return NT_STATUS_IS_OK(pdb->getsampwsid(pdb, sam_acct, sid));
 }
@@ -303,17 +302,19 @@ static NTSTATUS pdb_default_create_user(struct pdb_methods *methods,
 	}
 
 	if ( !(pwd = Get_Pwnam_alloc(tmp_ctx, name)) ) {
-		pstring add_script;
+		char *add_script = NULL;
 		int add_ret;
 		fstring name2;
 
 		if ((acb_info & ACB_NORMAL) && name[strlen(name)-1] != '$') {
-			pstrcpy(add_script, lp_adduser_script());
+			add_script = talloc_strdup(tmp_ctx,
+					lp_adduser_script());
 		} else {
-			pstrcpy(add_script, lp_addmachine_script());
+			add_script = talloc_strdup(tmp_ctx,
+					lp_addmachine_script());
 		}
 
-		if (add_script[0] == '\0') {
+		if (!add_script || add_script[0] == '\0') {
 			DEBUG(3, ("Could not find user %s and no add script "
 				  "defined\n", name));
 			return NT_STATUS_NO_SUCH_USER;
@@ -323,21 +324,19 @@ static NTSTATUS pdb_default_create_user(struct pdb_methods *methods,
 		   compatibility with previous Samba releases */
 		fstrcpy( name2, name );
 		strlower_m( name2 );
-		all_string_sub(add_script, "%u", name2, sizeof(add_script));
+		add_script = talloc_all_string_sub(tmp_ctx,
+					add_script,
+					"%u",
+					name2);
+		if (!add_script) {
+			return NT_STATUS_NO_MEMORY;
+		}
 		add_ret = smbrun(add_script,NULL);
 		DEBUG(add_ret ? 0 : 3, ("_samr_create_user: Running the command `%s' gave %d\n",
 					add_script, add_ret));
 		if (add_ret == 0) {
 			smb_nscd_flush_user_cache();
 		}
-
-#ifdef ENABLE_BUILD_FARM_HACKS
-		if (add_ret != 0) {
-			DEBUG(1, ("Creating a faked user %s for build farm "
-				  "purposes\n", name));
-			faked_create_user(name);
-		}
-#endif
 
 		flush_pwnam_cache();
 
@@ -391,7 +390,7 @@ NTSTATUS pdb_create_user(TALLOC_CTX *mem_ctx, const char *name, uint32 flags,
 
 static int smb_delete_user(const char *unix_user)
 {
-	pstring del_script;
+	char *del_script = NULL;
 	int ret;
 
 	/* safety check */
@@ -401,10 +400,17 @@ static int smb_delete_user(const char *unix_user)
 		return -1;
 	}
 
-	pstrcpy(del_script, lp_deluser_script());
-	if (! *del_script)
+	del_script = talloc_strdup(talloc_tos(), lp_deluser_script());
+	if (!del_script || !*del_script) {
 		return -1;
-	all_string_sub(del_script, "%u", unix_user, sizeof(del_script));
+	}
+	del_script = talloc_all_string_sub(talloc_tos(),
+				del_script,
+				"%u",
+				unix_user);
+	if (!del_script) {
+		return -1;
+	}
 	ret = smbrun(del_script,NULL);
 	flush_pwnam_cache();
 	if (ret == 0) {
@@ -473,10 +479,7 @@ NTSTATUS pdb_update_sam_account(struct samu *sam_acct)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 
-	if (csamuser != NULL) {
-		TALLOC_FREE(csamuser);
-		csamuser = NULL;
-	}
+	memcache_flush(NULL, PDB_GETPWSID_CACHE);
 
 	return pdb->update_sam_account(pdb, sam_acct);
 }
@@ -485,10 +488,7 @@ NTSTATUS pdb_delete_sam_account(struct samu *sam_acct)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 
-	if (csamuser != NULL) {
-		TALLOC_FREE(csamuser);
-		csamuser = NULL;
-	}
+	memcache_flush(NULL, PDB_GETPWSID_CACHE);
 
 	return pdb->delete_sam_account(pdb, sam_acct);
 }
@@ -499,10 +499,7 @@ NTSTATUS pdb_rename_sam_account(struct samu *oldname, const char *newname)
 	uid_t uid;
 	NTSTATUS status;
 
-	if (csamuser != NULL) {
-		TALLOC_FREE(csamuser);
-		csamuser = NULL;
-	}
+	memcache_flush(NULL, PDB_GETPWSID_CACHE);
 
 	/* sanity check to make sure we don't rename root */
 
@@ -522,25 +519,25 @@ NTSTATUS pdb_rename_sam_account(struct samu *oldname, const char *newname)
 	return status;
 }
 
-NTSTATUS pdb_update_login_attempts(struct samu *sam_acct, BOOL success)
+NTSTATUS pdb_update_login_attempts(struct samu *sam_acct, bool success)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->update_login_attempts(pdb, sam_acct, success);
 }
 
-BOOL pdb_getgrsid(GROUP_MAP *map, DOM_SID sid)
+bool pdb_getgrsid(GROUP_MAP *map, DOM_SID sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return NT_STATUS_IS_OK(pdb->getgrsid(pdb, map, sid));
 }
 
-BOOL pdb_getgrgid(GROUP_MAP *map, gid_t gid)
+bool pdb_getgrgid(GROUP_MAP *map, gid_t gid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return NT_STATUS_IS_OK(pdb->getgrgid(pdb, map, gid));
 }
 
-BOOL pdb_getgrnam(GROUP_MAP *map, const char *name)
+bool pdb_getgrnam(GROUP_MAP *map, const char *name)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return NT_STATUS_IS_OK(pdb->getgrnam(pdb, map, name));
@@ -553,6 +550,7 @@ static NTSTATUS pdb_default_create_dom_group(struct pdb_methods *methods,
 {
 	DOM_SID group_sid;
 	struct group *grp;
+	fstring tmp;
 
 	grp = getgrnam(name);
 
@@ -580,7 +578,7 @@ static NTSTATUS pdb_default_create_dom_group(struct pdb_methods *methods,
 
 	sid_compose(&group_sid, get_global_sam_sid(), *rid);
 		
-	return add_initial_entry(grp->gr_gid, sid_string_static(&group_sid),
+	return add_initial_entry(grp->gr_gid, sid_to_fstring(tmp, &group_sid),
 				 SID_NAME_DOM_GRP, name, NULL);
 }
 
@@ -663,8 +661,8 @@ NTSTATUS pdb_delete_group_mapping_entry(DOM_SID sid)
 	return pdb->delete_group_mapping_entry(pdb, sid);
 }
 
-BOOL pdb_enum_group_mapping(const DOM_SID *sid, enum lsa_SidType sid_name_use, GROUP_MAP **pp_rmap,
-			    size_t *p_num_entries, BOOL unix_only)
+bool pdb_enum_group_mapping(const DOM_SID *sid, enum lsa_SidType sid_name_use, GROUP_MAP **pp_rmap,
+			    size_t *p_num_entries, bool unix_only)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return NT_STATUS_IS_OK(pdb-> enum_group_mapping(pdb, sid, sid_name_use,
@@ -742,7 +740,7 @@ NTSTATUS pdb_set_unix_primary_group(TALLOC_CTX *mem_ctx, struct samu *user)
  * fulfil.
  */
 
-static BOOL pdb_user_in_group(TALLOC_CTX *mem_ctx, struct samu *account,
+static bool pdb_user_in_group(TALLOC_CTX *mem_ctx, struct samu *account,
 			      const DOM_SID *group_sid)
 {
 	DOM_SID *sids;
@@ -887,35 +885,28 @@ NTSTATUS pdb_del_groupmem(TALLOC_CTX *mem_ctx, uint32 group_rid,
 	return pdb->del_groupmem(pdb, mem_ctx, group_rid, member_rid);
 }
 
-BOOL pdb_find_alias(const char *name, DOM_SID *sid)
-{
-	struct pdb_methods *pdb = pdb_get_methods();
-	return NT_STATUS_IS_OK(pdb->find_alias(pdb, name, sid));
-}
-
 NTSTATUS pdb_create_alias(const char *name, uint32 *rid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->create_alias(pdb, name, rid);
 }
 
-BOOL pdb_delete_alias(const DOM_SID *sid)
+NTSTATUS pdb_delete_alias(const DOM_SID *sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return NT_STATUS_IS_OK(pdb->delete_alias(pdb, sid));
-							    
+	return pdb->delete_alias(pdb, sid);
 }
 
-BOOL pdb_get_aliasinfo(const DOM_SID *sid, struct acct_info *info)
+NTSTATUS pdb_get_aliasinfo(const DOM_SID *sid, struct acct_info *info)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return NT_STATUS_IS_OK(pdb->get_aliasinfo(pdb, sid, info));
+	return pdb->get_aliasinfo(pdb, sid, info);
 }
 
-BOOL pdb_set_aliasinfo(const DOM_SID *sid, struct acct_info *info)
+NTSTATUS pdb_set_aliasinfo(const DOM_SID *sid, struct acct_info *info)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return NT_STATUS_IS_OK(pdb->set_aliasinfo(pdb, sid, info));
+	return pdb->set_aliasinfo(pdb, sid, info);
 }
 
 NTSTATUS pdb_add_aliasmem(const DOM_SID *alias, const DOM_SID *member)
@@ -984,7 +975,7 @@ NTSTATUS pdb_lookup_names(const DOM_SID *domain_sid,
 }
 #endif
 
-BOOL pdb_get_account_policy(int policy_index, uint32 *value)
+bool pdb_get_account_policy(int policy_index, uint32 *value)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	NTSTATUS status;
@@ -996,7 +987,7 @@ BOOL pdb_get_account_policy(int policy_index, uint32 *value)
 	return NT_STATUS_IS_OK(status);	
 }
 
-BOOL pdb_set_account_policy(int policy_index, uint32 value)
+bool pdb_set_account_policy(int policy_index, uint32 value)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	NTSTATUS status;
@@ -1008,38 +999,38 @@ BOOL pdb_set_account_policy(int policy_index, uint32 value)
 	return NT_STATUS_IS_OK(status);
 }
 
-BOOL pdb_get_seq_num(time_t *seq_num)
+bool pdb_get_seq_num(time_t *seq_num)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return NT_STATUS_IS_OK(pdb->get_seq_num(pdb, seq_num));
 }
 
-BOOL pdb_uid_to_rid(uid_t uid, uint32 *rid)
+bool pdb_uid_to_rid(uid_t uid, uint32 *rid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->uid_to_rid(pdb, uid, rid);
 }
 
-BOOL pdb_uid_to_sid(uid_t uid, DOM_SID *sid)
+bool pdb_uid_to_sid(uid_t uid, DOM_SID *sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->uid_to_sid(pdb, uid, sid);
 }
 
-BOOL pdb_gid_to_sid(gid_t gid, DOM_SID *sid)
+bool pdb_gid_to_sid(gid_t gid, DOM_SID *sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->gid_to_sid(pdb, gid, sid);
 }
 
-BOOL pdb_sid_to_id(const DOM_SID *sid, union unid_t *id,
+bool pdb_sid_to_id(const DOM_SID *sid, union unid_t *id,
 		   enum lsa_SidType *type)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->sid_to_id(pdb, sid, id, type);
 }
 
-BOOL pdb_rid_algorithm(void)
+bool pdb_rid_algorithm(void)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->rid_algorithm(pdb);
@@ -1052,7 +1043,7 @@ BOOL pdb_rid_algorithm(void)
  with add RIDs (assigned from previous algorithmic mappings)
 ********************************************************************/
 
-BOOL pdb_new_rid(uint32 *rid)
+bool pdb_new_rid(uint32 *rid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	const char *name = NULL;
@@ -1116,8 +1107,9 @@ BOOL pdb_new_rid(uint32 *rid)
   If uninitialised, context will auto-init on first use.
  ***************************************************************/
 
-BOOL initialize_password_db(BOOL reload)
-{	
+bool initialize_password_db(bool reload, struct event_context *event_ctx)
+{
+	pdb_event_ctx = event_ctx;
 	return (pdb_get_methods_reload(reload) != NULL);
 }
 
@@ -1156,24 +1148,9 @@ static NTSTATUS pdb_default_rename_sam_account (struct pdb_methods *methods, str
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-static NTSTATUS pdb_default_update_login_attempts (struct pdb_methods *methods, struct samu *newpwd, BOOL success)
-{
-	return NT_STATUS_OK;
-}
-
-static NTSTATUS pdb_default_setsampwent(struct pdb_methods *methods, BOOL update, uint32 acb_mask)
+static NTSTATUS pdb_default_update_login_attempts (struct pdb_methods *methods, struct samu *newpwd, bool success)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-static NTSTATUS pdb_default_getsampwent(struct pdb_methods *methods, struct samu *user)
-{
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-static void pdb_default_endsampwent(struct pdb_methods *methods)
-{
-	return; /* NT_STATUS_NOT_IMPLEMENTED; */
 }
 
 static NTSTATUS pdb_default_get_account_policy(struct pdb_methods *methods, int policy_index, uint32 *value)
@@ -1192,12 +1169,12 @@ static NTSTATUS pdb_default_get_seq_num(struct pdb_methods *methods, time_t *seq
 	return NT_STATUS_OK;
 }
 
-static BOOL pdb_default_uid_to_sid(struct pdb_methods *methods, uid_t uid,
+static bool pdb_default_uid_to_sid(struct pdb_methods *methods, uid_t uid,
 				   DOM_SID *sid)
 {
 	struct samu *sampw = NULL;
 	struct passwd *unix_pw;
-	BOOL ret;
+	bool ret;
 	
 	unix_pw = sys_getpwuid( uid );
 
@@ -1231,11 +1208,11 @@ static BOOL pdb_default_uid_to_sid(struct pdb_methods *methods, uid_t uid,
 	return True;
 }
 
-static BOOL pdb_default_uid_to_rid(struct pdb_methods *methods, uid_t uid,
+static bool pdb_default_uid_to_rid(struct pdb_methods *methods, uid_t uid,
 				   uint32 *rid)
 {
 	DOM_SID sid;
-	BOOL ret;
+	bool ret;
 
 	ret = pdb_default_uid_to_sid(methods, uid, &sid);
 	if (!ret) {
@@ -1246,13 +1223,13 @@ static BOOL pdb_default_uid_to_rid(struct pdb_methods *methods, uid_t uid,
 
 	if (!ret) {
 		DEBUG(1, ("Could not peek rid out of sid %s\n",
-			  sid_string_static(&sid)));
+			  sid_string_dbg(&sid)));
 	}
 
 	return ret;
 }
 
-static BOOL pdb_default_gid_to_sid(struct pdb_methods *methods, gid_t gid,
+static bool pdb_default_gid_to_sid(struct pdb_methods *methods, gid_t gid,
 				   DOM_SID *sid)
 {
 	GROUP_MAP map;
@@ -1265,12 +1242,12 @@ static BOOL pdb_default_gid_to_sid(struct pdb_methods *methods, gid_t gid,
 	return True;
 }
 
-static BOOL pdb_default_sid_to_id(struct pdb_methods *methods,
+static bool pdb_default_sid_to_id(struct pdb_methods *methods,
 				  const DOM_SID *sid,
 				  union unid_t *id, enum lsa_SidType *type)
 {
 	TALLOC_CTX *mem_ctx;
-	BOOL ret = False;
+	bool ret = False;
 	const char *name;
 	uint32 rid;
 
@@ -1296,7 +1273,7 @@ static BOOL pdb_default_sid_to_id(struct pdb_methods *methods,
 		goto done;		
 	}
 	
-	/* check for "Unix User" */
+	/* check for "Unix Group" */
 
 	if ( sid_peek_check_rid(&global_sid_Unix_Groups, sid, &rid) ) {
 		id->gid = rid;
@@ -1305,21 +1282,21 @@ static BOOL pdb_default_sid_to_id(struct pdb_methods *methods,
 		goto done;		
 	}
 	
-
 	/* BUILTIN */
 
-	if (sid_peek_check_rid(&global_sid_Builtin, sid, &rid)) {
+	if (sid_check_is_in_builtin(sid) ||
+	    sid_check_is_in_wellknown_domain(sid)) {
 		/* Here we only have aliases */
 		GROUP_MAP map;
 		if (!NT_STATUS_IS_OK(methods->getgrsid(methods, &map, *sid))) {
 			DEBUG(10, ("Could not find map for sid %s\n",
-				   sid_string_static(sid)));
+				   sid_string_dbg(sid)));
 			goto done;
 		}
 		if ((map.sid_name_use != SID_NAME_ALIAS) &&
 		    (map.sid_name_use != SID_NAME_WKN_GRP)) {
 			DEBUG(10, ("Map for sid %s is a %s, expected an "
-				   "alias\n", sid_string_static(sid),
+				   "alias\n", sid_string_dbg(sid),
 				   sid_type_lookup(map.sid_name_use)));
 			goto done;
 		}
@@ -1331,7 +1308,7 @@ static BOOL pdb_default_sid_to_id(struct pdb_methods *methods,
 	}
 
 	DEBUG(5, ("Sid %s is neither ours, a Unix SID, nor builtin\n",
-		  sid_string_static(sid)));
+		  sid_string_dbg(sid)));
 
  done:
 
@@ -1339,7 +1316,7 @@ static BOOL pdb_default_sid_to_id(struct pdb_methods *methods,
 	return ret;
 }
 
-static BOOL add_uid_to_array_unique(TALLOC_CTX *mem_ctx,
+static bool add_uid_to_array_unique(TALLOC_CTX *mem_ctx,
 				    uid_t uid, uid_t **pp_uids, size_t *p_num)
 {
 	size_t i;
@@ -1359,20 +1336,20 @@ static BOOL add_uid_to_array_unique(TALLOC_CTX *mem_ctx,
 	return True;
 }
 
-static BOOL get_memberuids(TALLOC_CTX *mem_ctx, gid_t gid, uid_t **pp_uids, size_t *p_num)
+static bool get_memberuids(TALLOC_CTX *mem_ctx, gid_t gid, uid_t **pp_uids, size_t *p_num)
 {
 	struct group *grp;
 	char **gr;
 	struct passwd *pwd;
-	BOOL winbind_env;
-	BOOL ret = False;
+	bool winbind_env;
+	bool ret = False;
  
 	*pp_uids = NULL;
 	*p_num = 0;
 
 	/* We only look at our own sam, so don't care about imported stuff */
 	winbind_env = winbind_env_set();
-	winbind_off();
+	(void)winbind_off();
 
 	if ((grp = getgrgid(gid)) == NULL) {
 		/* allow winbindd lookups, but only if they weren't already disabled */
@@ -1408,17 +1385,17 @@ static BOOL get_memberuids(TALLOC_CTX *mem_ctx, gid_t gid, uid_t **pp_uids, size
 
 	/* allow winbindd lookups, but only if they weren't already disabled */
 	if (!winbind_env) {
-		winbind_on();
+		(void)winbind_on();
 	}
 	
 	return ret;
 }
 
 static NTSTATUS pdb_default_enum_group_members(struct pdb_methods *methods,
-					TALLOC_CTX *mem_ctx,
-					const DOM_SID *group,
-					uint32 **pp_member_rids,
-					size_t *p_num_members)
+					       TALLOC_CTX *mem_ctx,
+					       const DOM_SID *group,
+					       uint32 **pp_member_rids,
+					       size_t *p_num_members)
 {
 	gid_t gid;
 	uid_t *uids;
@@ -1457,11 +1434,11 @@ static NTSTATUS pdb_default_enum_group_members(struct pdb_methods *methods,
 }
 
 static NTSTATUS pdb_default_enum_group_memberships(struct pdb_methods *methods,
-					    TALLOC_CTX *mem_ctx,
-					    struct samu *user,
-					    DOM_SID **pp_sids,
-					    gid_t **pp_gids,
-					    size_t *p_num_groups)
+						   TALLOC_CTX *mem_ctx,
+						   struct samu *user,
+						   DOM_SID **pp_sids,
+						   gid_t **pp_gids,
+						   size_t *p_num_groups)
 {
 	size_t i;
 	gid_t gid;
@@ -1506,14 +1483,14 @@ static NTSTATUS pdb_default_enum_group_memberships(struct pdb_methods *methods,
  Look up a rid in the SAM we're responsible for (i.e. passdb)
  ********************************************************************/
 
-static BOOL lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
+static bool lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
 				  const char **name,
 				  enum lsa_SidType *psid_name_use,
 				  union unid_t *unix_id)
 {
 	struct samu *sam_account = NULL;
 	GROUP_MAP map;
-	BOOL ret;
+	bool ret;
 	DOM_SID sid;
 
 	*psid_name_use = SID_NAME_UNKNOWN;
@@ -1550,11 +1527,12 @@ static BOOL lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
 			return True;
 		}
 
-		pw = Get_Pwnam(*name);
+		pw = Get_Pwnam_alloc(talloc_tos(), *name);
 		if (pw == NULL) {
 			return False;
 		}
 		unix_id->uid = pw->pw_uid;
+		TALLOC_FREE(pw);
 		return True;
 	}
 	TALLOC_FREE(sam_account);
@@ -1596,16 +1574,16 @@ static BOOL lookup_global_sam_rid(TALLOC_CTX *mem_ctx, uint32 rid,
 }
 
 static NTSTATUS pdb_default_lookup_rids(struct pdb_methods *methods,
-				 const DOM_SID *domain_sid,
-				 int num_rids,
-				 uint32 *rids,
-				 const char **names,
-				 enum lsa_SidType *attrs)
+					const DOM_SID *domain_sid,
+					int num_rids,
+					uint32 *rids,
+					const char **names,
+					enum lsa_SidType *attrs)
 {
 	int i;
 	NTSTATUS result;
-	BOOL have_mapped = False;
-	BOOL have_unmapped = False;
+	bool have_mapped = False;
+	bool have_unmapped = False;
 
 	if (sid_check_is_builtin(domain_sid)) {
 
@@ -1660,16 +1638,16 @@ static NTSTATUS pdb_default_lookup_rids(struct pdb_methods *methods,
 
 #if 0
 static NTSTATUS pdb_default_lookup_names(struct pdb_methods *methods,
-				  const DOM_SID *domain_sid,
-				  int num_names,
-				  const char **names,
-				  uint32 *rids,
-				  enum lsa_SidType *attrs)
+					 const DOM_SID *domain_sid,
+					 int num_names,
+					 const char **names,
+					 uint32 *rids,
+					 enum lsa_SidType *attrs)
 {
 	int i;
 	NTSTATUS result;
-	BOOL have_mapped = False;
-	BOOL have_unmapped = False;
+	bool have_mapped = False;
+	bool have_unmapped = False;
 
 	if (sid_check_is_builtin(domain_sid)) {
 
@@ -1717,7 +1695,7 @@ static NTSTATUS pdb_default_lookup_names(struct pdb_methods *methods,
 }
 #endif
 
-static struct pdb_search *pdb_search_init(enum pdb_search_type type)
+struct pdb_search *pdb_search_init(enum pdb_search_type type)
 {
 	TALLOC_CTX *mem_ctx;
 	struct pdb_search *result;
@@ -1774,87 +1752,12 @@ static void fill_displayentry(TALLOC_CTX *mem_ctx, uint32 rid,
 		entry->description = "";
 }
 
-static BOOL user_search_in_progress = False;
-struct user_search {
-	uint16 acct_flags;
-};
-
-static BOOL next_entry_users(struct pdb_search *s,
-			     struct samr_displayentry *entry)
-{
-	struct user_search *state = (struct user_search *)s->private_data;
-	struct samu *user = NULL;
-
- next:
-	if ( !(user = samu_new( NULL )) ) {
-		DEBUG(0, ("next_entry_users: samu_new() failed!\n"));
-		return False;
-	}
-
-	if (!pdb_getsampwent(user)) {
-		TALLOC_FREE(user);
-		return False;
-	}
-
- 	if ((state->acct_flags != 0) &&
-	    ((pdb_get_acct_ctrl(user) & state->acct_flags) == 0)) {
-		TALLOC_FREE(user);
-		goto next;
-	}
-
-	fill_displayentry(s->mem_ctx, pdb_get_user_rid(user),
-			  pdb_get_acct_ctrl(user), pdb_get_username(user),
-			  pdb_get_fullname(user), pdb_get_acct_desc(user),
-			  entry);
-
-	TALLOC_FREE(user);
-	return True;
-}
-
-static void search_end_users(struct pdb_search *search)
-{
-	pdb_endsampwent();
-	user_search_in_progress = False;
-}
-
-static BOOL pdb_default_search_users(struct pdb_methods *methods,
-				     struct pdb_search *search,
-				     uint32 acct_flags)
-{
-	struct user_search *state;
-
-	if (user_search_in_progress) {
-		DEBUG(1, ("user search in progress\n"));
-		return False;
-	}
-
-	if (!pdb_setsampwent(False, acct_flags)) {
-		DEBUG(5, ("Could not start search\n"));
-		return False;
-	}
-
-	user_search_in_progress = True;
-
-	state = TALLOC_P(search->mem_ctx, struct user_search);
-	if (state == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		return False;
-	}
-
-	state->acct_flags = acct_flags;
-
-	search->private_data = state;
-	search->next_entry = next_entry_users;
-	search->search_end = search_end_users;
-	return True;
-}
-
 struct group_search {
 	GROUP_MAP *groups;
 	size_t num_groups, current_group;
 };
 
-static BOOL next_entry_groups(struct pdb_search *s,
+static bool next_entry_groups(struct pdb_search *s,
 			      struct samr_displayentry *entry)
 {
 	struct group_search *state = (struct group_search *)s->private_data;
@@ -1880,7 +1783,7 @@ static void search_end_groups(struct pdb_search *search)
 	SAFE_FREE(state->groups);
 }
 
-static BOOL pdb_search_grouptype(struct pdb_search *search,
+static bool pdb_search_grouptype(struct pdb_search *search,
 				 const DOM_SID *sid, enum lsa_SidType type)
 {
 	struct group_search *state;
@@ -1904,13 +1807,13 @@ static BOOL pdb_search_grouptype(struct pdb_search *search,
 	return True;
 }
 
-static BOOL pdb_default_search_groups(struct pdb_methods *methods,
+static bool pdb_default_search_groups(struct pdb_methods *methods,
 				      struct pdb_search *search)
 {
 	return pdb_search_grouptype(search, get_global_sam_sid(), SID_NAME_DOM_GRP);
 }
 
-static BOOL pdb_default_search_aliases(struct pdb_methods *methods,
+static bool pdb_default_search_aliases(struct pdb_methods *methods,
 				       struct pdb_search *search,
 				       const DOM_SID *sid)
 {
@@ -2030,6 +1933,77 @@ void pdb_search_destroy(struct pdb_search *search)
 }
 
 /*******************************************************************
+ trustodm methods
+ *******************************************************************/
+
+bool pdb_get_trusteddom_pw(const char *domain, char** pwd, DOM_SID *sid, 
+			   time_t *pass_last_set_time)
+{
+	struct pdb_methods *pdb = pdb_get_methods();
+	return pdb->get_trusteddom_pw(pdb, domain, pwd, sid, 
+			pass_last_set_time);
+}
+
+bool pdb_set_trusteddom_pw(const char* domain, const char* pwd,
+			   const DOM_SID *sid)
+{
+	struct pdb_methods *pdb = pdb_get_methods();
+	return pdb->set_trusteddom_pw(pdb, domain, pwd, sid);
+}
+
+bool pdb_del_trusteddom_pw(const char *domain)
+{
+	struct pdb_methods *pdb = pdb_get_methods();
+	return pdb->del_trusteddom_pw(pdb, domain);
+}
+
+NTSTATUS pdb_enum_trusteddoms(TALLOC_CTX *mem_ctx, uint32 *num_domains,
+			      struct trustdom_info ***domains)
+{
+	struct pdb_methods *pdb = pdb_get_methods();
+	return pdb->enum_trusteddoms(pdb, mem_ctx, num_domains, domains);
+}
+
+/*******************************************************************
+ the defaults for trustdom methods: 
+ these simply call the original passdb/secrets.c actions,
+ to be replaced by pdb_ldap.
+ *******************************************************************/
+
+static bool pdb_default_get_trusteddom_pw(struct pdb_methods *methods,
+					  const char *domain, 
+					  char** pwd, 
+					  DOM_SID *sid, 
+	        	 		  time_t *pass_last_set_time)
+{
+	return secrets_fetch_trusted_domain_password(domain, pwd,
+				sid, pass_last_set_time);
+
+}
+
+static bool pdb_default_set_trusteddom_pw(struct pdb_methods *methods, 
+					  const char* domain, 
+					  const char* pwd,
+	        	  		  const DOM_SID *sid)
+{
+	return secrets_store_trusted_domain_password(domain, pwd, sid);
+}
+
+static bool pdb_default_del_trusteddom_pw(struct pdb_methods *methods, 
+					  const char *domain)
+{
+	return trusted_domain_password_delete(domain);
+}
+
+static NTSTATUS pdb_default_enum_trusteddoms(struct pdb_methods *methods,
+					     TALLOC_CTX *mem_ctx, 
+					     uint32 *num_domains,
+					     struct trustdom_info ***domains)
+{
+	return secrets_trusted_domains(mem_ctx, num_domains, domains);
+}
+
+/*******************************************************************
  Create a pdb_methods structure and initialize it with the default
  operations.  In this way a passdb module can simply implement
  the functionality it cares about.  However, normally this is done 
@@ -2044,9 +2018,6 @@ NTSTATUS make_pdb_method( struct pdb_methods **methods )
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	(*methods)->setsampwent = pdb_default_setsampwent;
-	(*methods)->endsampwent = pdb_default_endsampwent;
-	(*methods)->getsampwent = pdb_default_getsampwent;
 	(*methods)->getsampwnam = pdb_default_getsampwnam;
 	(*methods)->getsampwsid = pdb_default_getsampwsid;
 	(*methods)->create_user = pdb_default_create_user;
@@ -2071,7 +2042,6 @@ NTSTATUS make_pdb_method( struct pdb_methods **methods )
 	(*methods)->set_unix_primary_group = pdb_default_set_unix_primary_group;
 	(*methods)->add_groupmem = pdb_default_add_groupmem;
 	(*methods)->del_groupmem = pdb_default_del_groupmem;
-	(*methods)->find_alias = pdb_default_find_alias;
 	(*methods)->create_alias = pdb_default_create_alias;
 	(*methods)->delete_alias = pdb_default_delete_alias;
 	(*methods)->get_aliasinfo = pdb_default_get_aliasinfo;
@@ -2089,9 +2059,13 @@ NTSTATUS make_pdb_method( struct pdb_methods **methods )
 	(*methods)->gid_to_sid = pdb_default_gid_to_sid;
 	(*methods)->sid_to_id = pdb_default_sid_to_id;
 
-	(*methods)->search_users = pdb_default_search_users;
 	(*methods)->search_groups = pdb_default_search_groups;
 	(*methods)->search_aliases = pdb_default_search_aliases;
+
+	(*methods)->get_trusteddom_pw = pdb_default_get_trusteddom_pw;
+	(*methods)->set_trusteddom_pw = pdb_default_set_trusteddom_pw;
+	(*methods)->del_trusteddom_pw = pdb_default_del_trusteddom_pw;
+	(*methods)->enum_trusteddoms  = pdb_default_enum_trusteddoms;
 
 	return NT_STATUS_OK;
 }

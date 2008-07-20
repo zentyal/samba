@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -41,28 +40,28 @@
 typedef struct _client_referral {
 	uint32 proximity;
 	uint32 ttl;
-	pstring dfspath;
+	char *dfspath;
 } CLIENT_DFS_REFERRAL;
 
 struct referral {
-	pstring alternate_path; /* contains the path referred */
+	char *alternate_path; /* contains the path referred */
 	uint32 proximity;
 	uint32 ttl; /* how long should client cache referral */
 };
 
 struct junction_map {
-	fstring service_name;
-	pstring volume_name;
-	pstring comment;
+	char *service_name;
+	char *volume_name;
+	const char *comment;
 	int referral_count;
 	struct referral* referral_list;
 };
 
 struct dfs_path {
-	fstring hostname;
-	fstring servicename;
-	pstring reqpath;
-	BOOL posix_path;
+	char *hostname;
+	char *servicename;
+	char *reqpath;
+	bool posix_path;
 };
 
 #define init_dfsroot(conn, inbuf, outbuf)                    	\

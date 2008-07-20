@@ -4,7 +4,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -65,9 +64,11 @@ static void msg_pool_usage_helper(const void *ptr, int depth, int max_depth, int
  * Respond to a POOL_USAGE message by sending back string form of memory
  * usage stats.
  **/
-void msg_pool_usage(int msg_type, struct process_id src_pid,
-		    void *UNUSED(buf), size_t UNUSED(len),
-		    void *private_data)
+static void msg_pool_usage(struct messaging_context *msg_ctx,
+			   void *private_data, 
+			   uint32_t msg_type, 
+			   struct server_id src,
+			   DATA_BLOB *data)
 {
 	struct msg_pool_usage_state state;
 
@@ -90,8 +91,8 @@ void msg_pool_usage(int msg_type, struct process_id src_pid,
 		return;
 	}
 	
-	message_send_pid(src_pid, MSG_POOL_USAGE,
-			 state.s, strlen(state.s)+1, True);
+	messaging_send_buf(msg_ctx, src, MSG_POOL_USAGE,
+			   (uint8 *)state.s, strlen(state.s)+1);
 
 	talloc_destroy(state.mem_ctx);
 }
@@ -99,8 +100,8 @@ void msg_pool_usage(int msg_type, struct process_id src_pid,
 /**
  * Register handler for MSG_REQ_POOL_USAGE
  **/
-void register_msg_pool_usage(void)
+void register_msg_pool_usage(struct messaging_context *msg_ctx)
 {
-	message_register(MSG_REQ_POOL_USAGE, msg_pool_usage, NULL);
+	messaging_register(msg_ctx, NULL, MSG_REQ_POOL_USAGE, msg_pool_usage);
 	DEBUG(2, ("Registered MSG_REQ_POOL_USAGE\n"));
 }	

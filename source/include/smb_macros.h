@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _SMB_MACROS_H
@@ -49,12 +48,13 @@
 /* assert macros */
 #ifdef DEVELOPER
 #define SMB_ASSERT(b) ( (b) ? (void)0 : \
-        (DEBUG(0,("PANIC: assert failed at %s(%d)\n", \
-		 __FILE__, __LINE__)), smb_panic("assert failed")))
+        (DEBUG(0,("PANIC: assert failed at %s(%d): %s\n", \
+		 __FILE__, __LINE__, #b)), smb_panic("assert failed: " #b)))
 #else
 /* redefine the assert macro for non-developer builds */
 #define SMB_ASSERT(b) ( (b) ? (void)0 : \
-        (DEBUG(0,("PANIC: assert failed at %s(%d)\n", __FILE__, __LINE__))))
+        (DEBUG(0,("PANIC: assert failed at %s(%d): %s\n", \
+	    __FILE__, __LINE__, #b))))
 #endif
 
 #define SMB_WARN(condition, message) \
@@ -158,23 +158,22 @@
 #define SMB_LARGE_LKLEN_OFFSET_HIGH(indx) (12 + (20 * (indx)))
 #define SMB_LARGE_LKLEN_OFFSET_LOW(indx) (16 + (20 * (indx)))
 
-/* Macro to test if an error has been cached for this fnum */
-#define HAS_CACHED_ERROR(fsp) ((fsp)->wbmpx_ptr && \
-                (fsp)->wbmpx_ptr->wr_discard)
-/* Macro to turn the cached error into an error packet */
-#define CACHED_ERROR(fsp) cached_error_packet(outbuf,fsp,__LINE__,__FILE__)
-
 #define ERROR_DOS(class,code) error_packet(outbuf,class,code,NT_STATUS_OK,__LINE__,__FILE__)
 #define ERROR_NT(status) error_packet(outbuf,0,0,status,__LINE__,__FILE__)
-#define ERROR_OPEN(status) error_open(outbuf,status,__LINE__,__FILE__)
 #define ERROR_FORCE_NT(status) error_packet(outbuf,-1,-1,status,__LINE__,__FILE__)
 #define ERROR_BOTH(status,class,code) error_packet(outbuf,class,code,status,__LINE__,__FILE__)
 
-/* this is how errors are generated */
-#define UNIXERROR(defclass,deferror) unix_error_packet(outbuf,defclass,deferror,NT_STATUS_OK,__LINE__,__FILE__)
+#define reply_nterror(req,status) reply_nt_error(req,status,__LINE__,__FILE__)
+#define reply_force_nterror(req,status) reply_force_nt_error(req,status,__LINE__,__FILE__)
+#define reply_doserror(req,eclass,ecode) reply_dos_error(req,eclass,ecode,__LINE__,__FILE__)
+#define reply_botherror(req,status,eclass,ecode) reply_both_error(req,eclass,ecode,status,__LINE__,__FILE__)
+#define reply_unixerror(req,defclass,deferror) reply_unix_error(req,defclass,deferror,NT_STATUS_OK,__LINE__,__FILE__)
 
+#if 0
+/* defined in IDL */
 /* these are the datagram types */
 #define DGRAM_DIRECT_UNIQUE 0x10
+#endif
 
 #define SMB_ROUNDUP(x,r) ( ((x)%(r)) ? ( (((x)+(r))/(r))*(r) ) : (x))
 
@@ -189,8 +188,15 @@
 #define smb_offset(p,buf) (PTR_DIFF(p,buf+4) + chain_size)
 
 #define smb_len(buf) (PVAL(buf,3)|(PVAL(buf,2)<<8)|((PVAL(buf,1)&1)<<16))
-#define _smb_setlen(buf,len) do { buf[0] = 0; buf[1] = (len&0x10000)>>16; \
-        buf[2] = (len&0xFF00)>>8; buf[3] = len&0xFF; } while (0)
+#define _smb_setlen(buf,len) do { buf[0] = 0; buf[1] = ((len)&0x10000)>>16; \
+        buf[2] = ((len)&0xFF00)>>8; buf[3] = (len)&0xFF; } while (0)
+
+#define smb_len_large(buf) (PVAL(buf,3)|(PVAL(buf,2)<<8)|(PVAL(buf,1)<<16))
+#define _smb_setlen_large(buf,len) do { buf[0] = 0; buf[1] = ((len)&0xFF0000)>>16; \
+        buf[2] = ((len)&0xFF00)>>8; buf[3] = (len)&0xFF; } while (0)
+
+#define ENCRYPTION_REQUIRED(conn) ((conn) ? ((conn)->encrypt_level == Required) : false)
+#define IS_CONN_ENCRYPTED(conn) ((conn) ? (conn)->encrypted_tid : false)
 
 /*******************************************************************
 find the difference in milliseconds between two struct timeval
@@ -202,11 +208,10 @@ values
 	 ((int)(tvalnew)->tv_usec - (int)(tvalold)->tv_usec)/1000)
 
 /****************************************************************************
-true if two IP addresses are equal
+true if two IPv4 addresses are equal
 ****************************************************************************/
 
-#define ip_equal(ip1,ip2) ((ip1).s_addr == (ip2).s_addr)
-#define ip_service_equal(ip1,ip2) ( ((ip1).ip.s_addr == (ip2).ip.s_addr) && ((ip1).port == (ip2).port) )
+#define ip_equal_v4(ip1,ip2) ((ip1).s_addr == (ip2).s_addr)
 
 /*****************************************************************
  splits out the last subkey of a key
@@ -267,10 +272,12 @@ copy an IP address from one buffer to another
 #define SMB_XMALLOC_P(type) (type *)smb_xmalloc_array(sizeof(type),1)
 #define SMB_XMALLOC_ARRAY(type,count) (type *)smb_xmalloc_array(sizeof(type),(count))
 
-/* limiting size of ipc replies */
-#define SMB_REALLOC_LIMIT(ptr,size) (char *)SMB_REALLOC(ptr,MAX((size),4*1024))
-
 /* The new talloc is paranoid malloc checker safe. */
+
+#if 0
+
+Disable these now we have checked all code paths and ensured
+NULL returns on zero request. JRA.
 
 #define TALLOC(ctx, size) talloc_zeronull(ctx, size, __location__)
 #define TALLOC_P(ctx, type) (type *)talloc_zeronull(ctx, sizeof(type), #type)
@@ -279,17 +286,31 @@ copy an IP address from one buffer to another
 #define TALLOC_ZERO(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
 #define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero_zeronull(ctx, sizeof(type), #type)
 #define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array_zeronull(ctx, sizeof(type), count, #type)
+#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
+#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
+
+#else
+
+#define TALLOC(ctx, size) talloc_named_const(ctx, size, __location__)
+#define TALLOC_P(ctx, type) (type *)talloc_named_const(ctx, sizeof(type), #type)
+#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, #type)
+#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup(ctx, ptr, size, __location__)
+#define TALLOC_ZERO(ctx, size) _talloc_zero(ctx, size, __location__)
+#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero(ctx, sizeof(type), #type)
+#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array(ctx, sizeof(type), count, #type)
+#define TALLOC_SIZE(ctx, size) talloc_named_const(ctx, size, __location__)
+#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero(ctx, size, __location__)
+
+#endif
+
 #define TALLOC_REALLOC(ctx, ptr, count) _talloc_realloc(ctx, ptr, count, __location__)
 #define TALLOC_REALLOC_ARRAY(ctx, ptr, type, count) (type *)_talloc_realloc_array(ctx, ptr, sizeof(type), count, #type)
 #define talloc_destroy(ctx) talloc_free(ctx)
 #define TALLOC_FREE(ctx) do { if ((ctx) != NULL) {talloc_free(ctx); ctx=NULL;} } while(0)
-#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
 
-/* only define PARANOID_MALLOC_CHECKER with --enable-developer and not compiling
-   the smbmount utils */
+/* only define PARANOID_MALLOC_CHECKER with --enable-developer */
 
-#if defined(DEVELOPER) && !defined(SMBMOUNT_MALLOC)
+#if defined(DEVELOPER)
 #  define PARANOID_MALLOC_CHECKER 1
 #endif
 
@@ -365,5 +386,13 @@ do { \
 #ifndef ISDOTDOT
 #define ISDOTDOT(p) (*(p) == '.' && *((p) + 1) == '.' && *((p) + 2) == '\0')
 #endif /* ISDOTDOT */
+
+#ifndef toupper_ascii_fast
+/* Warning - this must only be called with 0 <= c < 128. IT WILL
+ * GIVE GARBAGE if c > 128 or c < 0. JRA.
+ */
+extern char toupper_ascii_fast_table[];
+#define toupper_ascii_fast(c) toupper_ascii_fast_table[(unsigned int)(c)];
+#endif
 
 #endif /* _SMB_MACROS_H */

@@ -8,7 +8,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -27,7 +26,8 @@
  Create a SEC_ACL structure.  
 ********************************************************************/
 
-SEC_ACL *make_sec_acl(TALLOC_CTX *ctx, uint16 revision, int num_aces, SEC_ACE *ace_list)
+SEC_ACL *make_sec_acl(TALLOC_CTX *ctx, enum security_acl_revision revision,
+		      int num_aces, SEC_ACE *ace_list)
 {
 	SEC_ACL *dst;
 	int i;
@@ -75,7 +75,7 @@ SEC_ACL *dup_sec_acl(TALLOC_CTX *ctx, SEC_ACL *src)
  Compares two SEC_ACL structures
 ********************************************************************/
 
-BOOL sec_acl_equal(SEC_ACL *s1, SEC_ACL *s2)
+bool sec_acl_equal(SEC_ACL *s1, SEC_ACL *s2)
 {
 	unsigned int i, j;
 
@@ -102,7 +102,7 @@ BOOL sec_acl_equal(SEC_ACL *s1, SEC_ACL *s2)
 	   each ACE in s2. */
 
 	for (i = 0; i < s1->num_aces; i++) {
-		BOOL found = False;
+		bool found = False;
 
 		for (j = 0; j < s2->num_aces; j++) {
 			if (sec_ace_equal(&s1->aces[i], &s2->aces[j])) {

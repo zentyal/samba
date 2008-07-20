@@ -9,7 +9,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,8 +18,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _DOSERR_H
@@ -200,23 +199,33 @@
 #define WERR_REG_FILE_INVALID W_ERROR(1017)
 #define WERR_NO_SUCH_SERVICE W_ERROR(1060)
 #define WERR_INVALID_SERVICE_CONTROL W_ERROR(1052)
+#define WERR_SERVICE_ALREADY_RUNNING W_ERROR(1056)
 #define WERR_SERVICE_DISABLED W_ERROR(1058)
 #define WERR_SERVICE_NEVER_STARTED W_ERROR(1077)
+#define WERR_INVALID_COMPUTER_NAME W_ERROR(1210)
+#define WERR_INVALID_DOMAINNAME W_ERROR(1212)
 #define WERR_MACHINE_LOCKED W_ERROR(1271)
 #define WERR_NO_LOGON_SERVERS W_ERROR(1311)
+#define WERR_NO_SUCH_LOGON_SESSION W_ERROR(1312)
+#define WERR_USER_ALREADY_EXISTS W_ERROR(1316)
+#define WERR_NO_SUCH_USER W_ERROR(1317)
+#define WERR_PASSWORD_RESTRICTION W_ERROR(1325)
 #define WERR_LOGON_FAILURE W_ERROR(1326)
 #define WERR_NO_SUCH_DOMAIN W_ERROR(1355)
+#define WERR_NONE_MAPPED W_ERROR(1332)
 #define WERR_INVALID_SECURITY_DESCRIPTOR W_ERROR(1338)
+#define WERR_INVALID_DOMAIN_STATE W_ERROR(1353)
+#define WERR_INVALID_DOMAIN_ROLE W_ERROR(1354)
 #define WERR_TIME_SKEW W_ERROR(1398)
 #define WERR_EVENTLOG_FILE_CORRUPT W_ERROR(1500)
 #define WERR_SERVER_UNAVAILABLE W_ERROR(1722)
 #define WERR_INVALID_FORM_NAME W_ERROR(1902)
 #define WERR_INVALID_FORM_SIZE W_ERROR(1903)
-#define WERR_BUF_TOO_SMALL W_ERROR(2123)
-#define WERR_JOB_NOT_FOUND W_ERROR(2151)
-#define WERR_DEST_NOT_FOUND W_ERROR(2152)
-#define WERR_NOT_LOCAL_DOMAIN W_ERROR(2320)
-#define WERR_DOMAIN_CONTROLLER_NOT_FOUND W_ERROR(2453)
+#define WERR_PASSWORD_MUST_CHANGE W_ERROR(1907)
+#define WERR_DOMAIN_CONTROLLER_NOT_FOUND W_ERROR(1908)
+#define WERR_ACCOUNT_LOCKED_OUT W_ERROR(1909)
+
+#define WERR_DEVICE_NOT_AVAILABLE W_ERROR(4319)
 #define WERR_STATUS_MORE_ENTRIES   W_ERROR(0x0105)
 
 #define WERR_PRINTER_DRIVER_ALREADY_INSTALLED W_ERROR(ERRdriveralreadyinstalled)
@@ -255,13 +264,25 @@
 #define NERR_BASE (2100)
 #endif
 
+#ifndef MAX_NERR
+#define MAX_NERR (NERR_BASE+899)
+#endif
+
+#define WERR_BUF_TOO_SMALL		W_ERROR(NERR_BASE+23)
+#define WERR_JOB_NOT_FOUND		W_ERROR(NERR_BASE+51)
+#define WERR_DEST_NOT_FOUND		W_ERROR(NERR_BASE+52)
+#define WERR_USER_EXISTS		W_ERROR(NERR_BASE+124)
+#define WERR_NET_NAME_NOT_FOUND		W_ERROR(NERR_BASE+210)
+#define WERR_NOT_LOCAL_DOMAIN		W_ERROR(NERR_BASE+220)
+#define WERR_DC_NOT_FOUND		W_ERROR(NERR_BASE+353)
 #define WERR_DFS_NO_SUCH_VOL            W_ERROR(NERR_BASE+562)
 #define WERR_DFS_NO_SUCH_SHARE          W_ERROR(NERR_BASE+565)
 #define WERR_DFS_NO_SUCH_SERVER         W_ERROR(NERR_BASE+573)
 #define WERR_DFS_INTERNAL_ERROR         W_ERROR(NERR_BASE+590)
 #define WERR_DFS_CANT_CREATE_JUNCT      W_ERROR(NERR_BASE+569)
-
-#define WERR_NET_NAME_NOT_FOUND		W_ERROR(NERR_BASE+210)
-
+#define WERR_SETUP_ALREADY_JOINED	W_ERROR(NERR_BASE+591)
+#define WERR_SETUP_NOT_JOINED		W_ERROR(NERR_BASE+592)
+#define WERR_SETUP_DOMAIN_CONTROLLER	W_ERROR(NERR_BASE+593)
+#define WERR_DEFAULT_JOIN_REQUIRED	W_ERROR(NERR_BASE+594)
 
 #endif /* _DOSERR_H */

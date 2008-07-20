@@ -15,7 +15,7 @@
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
-   version 2 of the License, or (at your option) any later version.
+   version 3 of the License, or (at your option) any later version.
 
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,8 +23,7 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with this library; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -61,6 +60,8 @@
 #define TALLOC_MAGIC 0xe814ec70
 #define TALLOC_FLAG_FREE 0x01
 #define TALLOC_FLAG_LOOP 0x02
+#define TALLOC_FLAG_POOL 0x04		/* This is a talloc pool */
+#define TALLOC_FLAG_POOLMEM 0x08	/* This is allocated in a pool */
 #define TALLOC_MAGIC_REFERENCE ((const char *)1)
 
 /* by default we abort when given a bad pointer (such as when talloc_free() is called 
@@ -81,11 +82,19 @@
 #if (__GNUC__ >= 3)
 /* the strange !! is to ensure that __builtin_expect() takes either 0 or 1
    as its first argument */
+#ifndef likely
 #define likely(x)   __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
 #else
-#define likely(x) x
-#define unlikely(x) x
+#ifndef likely
+#define likely(x) (x)
+#endif
+#ifndef unlikely
+#define unlikely(x) (x)
+#endif
 #endif
 
 /* this null_context is only used if talloc_enable_leak_report() or
@@ -110,11 +119,34 @@ struct talloc_chunk {
 	const char *name;
 	size_t size;
 	unsigned flags;
+
+	/*
+	 * "pool" has dual use:
+	 *
+	 * For the talloc pool itself (i.e. TALLOC_FLAG_POOL is set), "pool"
+	 * marks the end of the currently allocated area.
+	 *
+	 * For members of the pool (i.e. TALLOC_FLAG_POOLMEM is set), "pool"
+	 * is a pointer to the struct talloc_chunk of the pool that it was
+	 * allocated from. This way children can quickly find the pool to chew
+	 * from.
+	 */
+	void *pool;
 };
 
 /* 16 byte alignment seems to keep everyone happy */
 #define TC_HDR_SIZE ((sizeof(struct talloc_chunk)+15)&~15)
 #define TC_PTR_FROM_CHUNK(tc) ((void *)(TC_HDR_SIZE + (char*)tc))
+
+static void talloc_abort_double_free(void)
+{
+	TALLOC_ABORT("Bad talloc magic value - double free"); 
+}
+
+static void talloc_abort_unknown_value(void)
+{
+	TALLOC_ABORT("Bad talloc magic value - unknown value"); 
+}
 
 /* panic if we get a bad magic value */
 static inline struct talloc_chunk *talloc_chunk_from_ptr(const void *ptr)
@@ -123,9 +155,9 @@ static inline struct talloc_chunk *talloc_chunk_from_ptr(const void *ptr)
 	struct talloc_chunk *tc = discard_const_p(struct talloc_chunk, pp - TC_HDR_SIZE);
 	if (unlikely((tc->flags & (TALLOC_FLAG_FREE | ~0xF)) != TALLOC_MAGIC)) { 
 		if (tc->flags & TALLOC_FLAG_FREE) {
-			TALLOC_ABORT("Bad talloc magic value - double free"); 
+			talloc_abort_double_free();
 		} else {
-			TALLOC_ABORT("Bad talloc magic value - unknown value"); 
+			talloc_abort_unknown_value();
 		}
 	}
 	return tc;
@@ -191,12 +223,87 @@ const char *talloc_parent_name(const void *ptr)
 	return tc? tc->name : NULL;
 }
 
+/*
+  A pool carries an in-pool object count count in the first 16 bytes.
+  bytes. This is done to support talloc_steal() to a parent outside of the
+  pool. The count includes the pool itself, so a talloc_free() on a pool will
+  only destroy the pool if the count has dropped to zero. A talloc_free() of a
+  pool member will reduce the count, and eventually also call free(3) on the
+  pool memory.
+
+  The object count is not put into "struct talloc_chunk" because it is only
+  relevant for talloc pools and the alignment to 16 bytes would increase the
+  memory footprint of each talloc chunk by those 16 bytes.
+*/
+
+#define TALLOC_POOL_HDR_SIZE 16
+
+static unsigned int *talloc_pool_objectcount(struct talloc_chunk *tc)
+{
+	return (unsigned int *)((char *)tc + sizeof(struct talloc_chunk));
+}
+
+/*
+  Allocate from a pool
+*/
+
+static struct talloc_chunk *talloc_alloc_pool(struct talloc_chunk *parent,
+					      size_t size)
+{
+	struct talloc_chunk *pool_ctx = NULL;
+	size_t space_left;
+	struct talloc_chunk *result;
+	size_t chunk_size;
+
+	if (parent == NULL) {
+		return NULL;
+	}
+
+	if (parent->flags & TALLOC_FLAG_POOL) {
+		pool_ctx = parent;
+	}
+	else if (parent->flags & TALLOC_FLAG_POOLMEM) {
+		pool_ctx = (struct talloc_chunk *)parent->pool;
+	}
+
+	if (pool_ctx == NULL) {
+		return NULL;
+	}
+
+	space_left = ((char *)pool_ctx + TC_HDR_SIZE + pool_ctx->size)
+		- ((char *)pool_ctx->pool);
+
+	/*
+	 * Align size to 16 bytes
+	 */
+	chunk_size = ((size + 15) & ~15);
+
+	if (space_left < chunk_size) {
+		return NULL;
+	}
+
+	result = (struct talloc_chunk *)pool_ctx->pool;
+
+#if defined(DEVELOPER) && defined(VALGRIND_MAKE_MEM_UNDEFINED)
+	VALGRIND_MAKE_MEM_UNDEFINED(result, size);
+#endif
+
+	pool_ctx->pool = (void *)((char *)result + chunk_size);
+
+	result->flags = TALLOC_MAGIC | TALLOC_FLAG_POOLMEM;
+	result->pool = pool_ctx;
+
+	*talloc_pool_objectcount(pool_ctx) += 1;
+
+	return result;
+}
+
 /* 
    Allocate a bit of memory as a child of an existing pointer
 */
 static inline void *__talloc(const void *context, size_t size)
 {
-	struct talloc_chunk *tc;
+	struct talloc_chunk *tc = NULL;
 
 	if (unlikely(context == NULL)) {
 		context = null_context;
@@ -206,11 +313,19 @@ static inline void *__talloc(const void *context, size_t size)
 		return NULL;
 	}
 
-	tc = (struct talloc_chunk *)malloc(TC_HDR_SIZE+size);
-	if (unlikely(tc == NULL)) return NULL;
+	if (context != NULL) {
+		tc = talloc_alloc_pool(talloc_chunk_from_ptr(context),
+				       TC_HDR_SIZE+size);
+	}
+
+	if (tc == NULL) {
+		tc = (struct talloc_chunk *)malloc(TC_HDR_SIZE+size);
+		if (unlikely(tc == NULL)) return NULL;
+		tc->flags = TALLOC_MAGIC;
+		tc->pool  = NULL;
+	}
 
 	tc->size = size;
-	tc->flags = TALLOC_MAGIC;
 	tc->destructor = NULL;
 	tc->child = NULL;
 	tc->name = NULL;
@@ -234,6 +349,33 @@ static inline void *__talloc(const void *context, size_t size)
 	}
 
 	return TC_PTR_FROM_CHUNK(tc);
+}
+
+/*
+ * Create a talloc pool
+ */
+
+void *talloc_pool(const void *context, size_t size)
+{
+	void *result = __talloc(context, size + TALLOC_POOL_HDR_SIZE);
+	struct talloc_chunk *tc;
+
+	if (unlikely(result == NULL)) {
+		return NULL;
+	}
+
+	tc = talloc_chunk_from_ptr(result);
+
+	tc->flags |= TALLOC_FLAG_POOL;
+	tc->pool = (char *)result + TALLOC_POOL_HDR_SIZE;
+
+	*talloc_pool_objectcount(tc) = 1;
+
+#if defined(DEVELOPER) && defined(VALGRIND_MAKE_MEM_NOACCESS)
+	VALGRIND_MAKE_MEM_NOACCESS(tc->pool, size);
+#endif
+
+	return result;
 }
 
 /*
@@ -411,7 +553,29 @@ static inline int _talloc_free(void *ptr)
 	}
 
 	tc->flags |= TALLOC_FLAG_FREE;
-	free(tc);
+
+	if (tc->flags & (TALLOC_FLAG_POOL|TALLOC_FLAG_POOLMEM)) {
+		struct talloc_chunk *pool;
+		unsigned int *pool_object_count;
+
+		pool = (tc->flags & TALLOC_FLAG_POOL)
+			? tc : (struct talloc_chunk *)tc->pool;
+
+		pool_object_count = talloc_pool_objectcount(pool);
+
+		if (*pool_object_count == 0) {
+			TALLOC_ABORT("Pool object count zero!");
+		}
+
+		*pool_object_count -= 1;
+
+		if (*pool_object_count == 0) {
+			free(pool);
+		}
+	}
+	else {
+		free(tc);
+	}
 	return 0;
 }
 
@@ -709,6 +873,15 @@ void talloc_free_children(void *ptr)
 			talloc_steal(new_parent, child);
 		}
 	}
+
+	if ((tc->flags & TALLOC_FLAG_POOL)
+	    && (*talloc_pool_objectcount(tc) == 1)) {
+		tc->pool = ((char *)tc + TC_HDR_SIZE + TALLOC_POOL_HDR_SIZE);
+#if defined(DEVELOPER) && defined(VALGRIND_MAKE_MEM_NOACCESS)
+		VALGRIND_MAKE_MEM_NOACCESS(
+			tc->pool, tc->size - TALLOC_POOL_HDR_SIZE);
+#endif
+	}
 }
 
 /* 
@@ -760,6 +933,7 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 {
 	struct talloc_chunk *tc;
 	void *new_ptr;
+	bool malloced = false;
 
 	/* size zero is equivalent to free() */
 	if (unlikely(size == 0)) {
@@ -783,6 +957,12 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 		return NULL;
 	}
 
+	/* don't shrink if we have less than 1k to gain */
+	if ((size < tc->size) && ((tc->size - size) < 1024)) {
+		tc->size = size;
+		return ptr;
+	}
+
 	/* by resetting magic we catch users of the old memory */
 	tc->flags |= TALLOC_FLAG_FREE;
 
@@ -793,7 +973,24 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 		free(tc);
 	}
 #else
-	new_ptr = realloc(tc, size + TC_HDR_SIZE);
+	if (tc->flags & TALLOC_FLAG_POOLMEM) {
+
+		new_ptr = talloc_alloc_pool(tc, size + TC_HDR_SIZE);
+		*talloc_pool_objectcount((struct talloc_chunk *)
+					 (tc->pool)) -= 1;
+
+		if (new_ptr == NULL) {
+			new_ptr = malloc(TC_HDR_SIZE+size);
+			malloced = true;
+		}
+
+		if (new_ptr) {
+			memcpy(new_ptr, tc, MIN(tc->size,size) + TC_HDR_SIZE);
+		}
+	}
+	else {
+		new_ptr = realloc(tc, size + TC_HDR_SIZE);
+	}
 #endif
 	if (unlikely(!new_ptr)) {	
 		tc->flags &= ~TALLOC_FLAG_FREE; 
@@ -801,7 +998,10 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 	}
 
 	tc = (struct talloc_chunk *)new_ptr;
-	tc->flags &= ~TALLOC_FLAG_FREE; 
+	tc->flags &= ~TALLOC_FLAG_FREE;
+	if (malloced) {
+		tc->flags &= ~TALLOC_FLAG_POOLMEM;
+	}
 	if (tc->parent) {
 		tc->parent->child = tc;
 	}
@@ -1100,62 +1300,132 @@ void *_talloc_memdup(const void *t, const void *p, size_t size, const char *name
 	return newp;
 }
 
+static inline char *__talloc_strlendup(const void *t, const char *p, size_t len)
+{
+	char *ret;
+
+	ret = (char *)__talloc(t, len + 1);
+	if (unlikely(!ret)) return NULL;
+
+	memcpy(ret, p, len);
+	ret[len] = 0;
+
+	_talloc_set_name_const(ret, ret);
+	return ret;
+}
+
 /*
-  strdup with a talloc 
+  strdup with a talloc
 */
 char *talloc_strdup(const void *t, const char *p)
 {
-	char *ret;
-	if (!p) {
-		return NULL;
-	}
-	ret = (char *)talloc_memdup(t, p, strlen(p) + 1);
-	if (likely(ret)) {
-		_talloc_set_name_const(ret, ret);
-	}
-	return ret;
+	if (unlikely(!p)) return NULL;
+	return __talloc_strlendup(t, p, strlen(p));
 }
 
 /*
- append to a talloced string 
-*/
-char *talloc_append_string(const void *t, char *orig, const char *append)
-{
-	char *ret;
-	size_t olen = strlen(orig);
-	size_t alenz;
-
-	if (!append)
-		return orig;
-
-	alenz = strlen(append) + 1;
-
-	ret = talloc_realloc(t, orig, char, olen + alenz);
-	if (!ret)
-		return NULL;
-
-	/* append the string with the trailing \0 */
-	memcpy(&ret[olen], append, alenz);
-
-	return ret;
-}
-
-/*
-  strndup with a talloc 
+  strndup with a talloc
 */
 char *talloc_strndup(const void *t, const char *p, size_t n)
 {
-	size_t len;
+	if (unlikely(!p)) return NULL;
+	return __talloc_strlendup(t, p, strnlen(p, n));
+}
+
+static inline char *__talloc_strlendup_append(char *s, size_t slen,
+					      const char *a, size_t alen)
+{
 	char *ret;
 
-	for (len=0; len<n && p[len]; len++) ;
+	ret = talloc_realloc(NULL, s, char, slen + alen + 1);
+	if (unlikely(!ret)) return NULL;
 
-	ret = (char *)__talloc(t, len + 1);
-	if (!ret) { return NULL; }
-	memcpy(ret, p, len);
-	ret[len] = 0;
+	/* append the string and the trailing \0 */
+	memcpy(&ret[slen], a, alen);
+	ret[slen+alen] = 0;
+
 	_talloc_set_name_const(ret, ret);
 	return ret;
+}
+
+/*
+ * Appends at the end of the string.
+ */
+char *talloc_strdup_append(char *s, const char *a)
+{
+	if (unlikely(!s)) {
+		return talloc_strdup(NULL, a);
+	}
+
+	if (unlikely(!a)) {
+		return s;
+	}
+
+	return __talloc_strlendup_append(s, strlen(s), a, strlen(a));
+}
+
+/*
+ * Appends at the end of the talloc'ed buffer,
+ * not the end of the string.
+ */
+char *talloc_strdup_append_buffer(char *s, const char *a)
+{
+	size_t slen;
+
+	if (unlikely(!s)) {
+		return talloc_strdup(NULL, a);
+	}
+
+	if (unlikely(!a)) {
+		return s;
+	}
+
+	slen = talloc_get_size(s);
+	if (likely(slen > 0)) {
+		slen--;
+	}
+
+	return __talloc_strlendup_append(s, slen, a, strlen(a));
+}
+
+/*
+ * Appends at the end of the string.
+ */
+char *talloc_strndup_append(char *s, const char *a, size_t n)
+{
+	if (unlikely(!s)) {
+		return talloc_strdup(NULL, a);
+	}
+
+	if (unlikely(!a)) {
+		return s;
+	}
+
+	return __talloc_strlendup_append(s, strlen(s), a, strnlen(a, n));
+}
+
+/*
+ * Appends at the end of the talloc'ed buffer,
+ * not the end of the string.
+ */
+char *talloc_strndup_append_buffer(char *s, const char *a, size_t n)
+{
+	size_t slen;
+
+	if (unlikely(!s)) {
+		return talloc_strdup(NULL, a);
+	}
+
+	if (unlikely(!a)) {
+		return s;
+	}
+
+	slen = talloc_get_size(s);
+	if (likely(slen > 0)) {
+		slen--;
+	}
+
+	return __talloc_strlendup_append(s, slen, a, strnlen(a, n));
 }
 
 #ifndef HAVE_VA_COPY
@@ -1177,18 +1447,18 @@ char *talloc_vasprintf(const void *t, const char *fmt, va_list ap)
 	va_copy(ap2, ap);
 	len = vsnprintf(&c, 1, fmt, ap2);
 	va_end(ap2);
-	if (len < 0) {
+	if (unlikely(len < 0)) {
 		return NULL;
 	}
 
 	ret = (char *)__talloc(t, len+1);
-	if (ret) {
-		va_copy(ap2, ap);
-		vsnprintf(ret, len+1, fmt, ap2);
-		va_end(ap2);
-		_talloc_set_name_const(ret, ret);
-	}
+	if (unlikely(!ret)) return NULL;
 
+	va_copy(ap2, ap);
+	vsnprintf(ret, len+1, fmt, ap2);
+	va_end(ap2);
+
+	_talloc_set_name_const(ret, ret);
 	return ret;
 }
 
@@ -1208,50 +1478,76 @@ char *talloc_asprintf(const void *t, const char *fmt, ...)
 	return ret;
 }
 
+static inline char *__talloc_vaslenprintf_append(char *s, size_t slen,
+						 const char *fmt, va_list ap)
+						 PRINTF_ATTRIBUTE(3,0);
 
-/**
- * Realloc @p s to append the formatted result of @p fmt and @p ap,
- * and return @p s, which may have moved.  Good for gradually
- * accumulating output into a string buffer.
- **/
-char *talloc_vasprintf_append(char *s, const char *fmt, va_list ap)
-{	
-	struct talloc_chunk *tc;
-	int len, s_len;
+static inline char *__talloc_vaslenprintf_append(char *s, size_t slen,
+						 const char *fmt, va_list ap)
+{
+	ssize_t alen;
 	va_list ap2;
 	char c;
 
-	if (s == NULL) {
-		return talloc_vasprintf(NULL, fmt, ap);
-	}
-
-	tc = talloc_chunk_from_ptr(s);
-
-	s_len = tc->size - 1;
-
 	va_copy(ap2, ap);
-	len = vsnprintf(&c, 1, fmt, ap2);
+	alen = vsnprintf(&c, 1, fmt, ap2);
 	va_end(ap2);
 
-	if (len <= 0) {
+	if (alen <= 0) {
 		/* Either the vsnprintf failed or the format resulted in
 		 * no characters being formatted. In the former case, we
 		 * ought to return NULL, in the latter we ought to return
-		 * the original string. Most current callers of this 
+		 * the original string. Most current callers of this
 		 * function expect it to never return NULL.
 		 */
 		return s;
 	}
 
-	s = talloc_realloc(NULL, s, char, s_len + len+1);
+	s = talloc_realloc(NULL, s, char, slen + alen + 1);
 	if (!s) return NULL;
 
 	va_copy(ap2, ap);
-	vsnprintf(s+s_len, len+1, fmt, ap2);
+	vsnprintf(s + slen, alen + 1, fmt, ap2);
 	va_end(ap2);
-	_talloc_set_name_const(s, s);
 
+	_talloc_set_name_const(s, s);
 	return s;
+}
+
+/**
+ * Realloc @p s to append the formatted result of @p fmt and @p ap,
+ * and return @p s, which may have moved.  Good for gradually
+ * accumulating output into a string buffer. Appends at the end
+ * of the string.
+ **/
+char *talloc_vasprintf_append(char *s, const char *fmt, va_list ap)
+{
+	if (unlikely(!s)) {
+		return talloc_vasprintf(NULL, fmt, ap);
+	}
+
+	return __talloc_vaslenprintf_append(s, strlen(s), fmt, ap);
+}
+
+/**
+ * Realloc @p s to append the formatted result of @p fmt and @p ap,
+ * and return @p s, which may have moved. Always appends at the
+ * end of the talloc'ed buffer, not the end of the string.
+ **/
+char *talloc_vasprintf_append_buffer(char *s, const char *fmt, va_list ap)
+{
+	size_t slen;
+
+	if (unlikely(!s)) {
+		return talloc_vasprintf(NULL, fmt, ap);
+	}
+
+	slen = talloc_get_size(s);
+	if (likely(slen > 0)) {
+		slen--;
+	}
+
+	return __talloc_vaslenprintf_append(s, slen, fmt, ap);
 }
 
 /*
@@ -1265,6 +1561,21 @@ char *talloc_asprintf_append(char *s, const char *fmt, ...)
 
 	va_start(ap, fmt);
 	s = talloc_vasprintf_append(s, fmt, ap);
+	va_end(ap);
+	return s;
+}
+
+/*
+  Realloc @p s to append the formatted result of @p fmt and return @p
+  s, which may have moved.  Good for gradually accumulating output
+  into a buffer.
+ */
+char *talloc_asprintf_append_buffer(char *s, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	s = talloc_vasprintf_append_buffer(s, fmt, ap);
 	va_end(ap);
 	return s;
 }

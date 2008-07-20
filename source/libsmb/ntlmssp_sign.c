@@ -6,7 +6,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -57,7 +56,7 @@ static NTSTATUS ntlmssp_make_packet_signature(NTLMSSP_STATE *ntlmssp_state,
 						const uchar *whole_pdu, size_t pdu_length,
 						enum ntlmssp_direction direction,
 						DATA_BLOB *sig,
-						BOOL encrypt_sig)
+						bool encrypt_sig)
 {
 	if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_NTLM2) {
 		HMACMD5Context ctx;
@@ -196,10 +195,10 @@ NTSTATUS ntlmssp_check_packet(NTLMSSP_STATE *ntlmssp_state,
 		if (local_sig.length != sig->length ||
 				memcmp(local_sig.data, sig->data, sig->length) != 0) {
 			DEBUG(5, ("BAD SIG NTLM2: wanted signature of\n"));
-			dump_data(5, (const char *)local_sig.data, local_sig.length);
+			dump_data(5, local_sig.data, local_sig.length);
 
 			DEBUG(5, ("BAD SIG: got signature of\n"));
-			dump_data(5, (const char *)sig->data, sig->length);
+			dump_data(5, sig->data, sig->length);
 
 			DEBUG(0, ("NTLMSSP NTLM2 packet check failed due to invalid signature!\n"));
 			data_blob_free(&local_sig);
@@ -209,10 +208,10 @@ NTSTATUS ntlmssp_check_packet(NTLMSSP_STATE *ntlmssp_state,
 		if (local_sig.length != sig->length ||
 				memcmp(local_sig.data + 8, sig->data + 8, sig->length - 8) != 0) {
 			DEBUG(5, ("BAD SIG NTLM1: wanted signature of\n"));
-			dump_data(5, (const char *)local_sig.data, local_sig.length);
+			dump_data(5, local_sig.data, local_sig.length);
 
 			DEBUG(5, ("BAD SIG: got signature of\n"));
-			dump_data(5, (const char *)sig->data, sig->length);
+			dump_data(5, sig->data, sig->length);
 
 			DEBUG(0, ("NTLMSSP NTLM1 packet check failed due to invalid signature!\n"));
 			data_blob_free(&local_sig);

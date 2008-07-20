@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -48,7 +47,7 @@
  *         false if cache init failed
  **/
  
-BOOL trustdom_cache_enable(void)
+bool trustdom_cache_enable(void)
 {
 	/* Init trustdom cache by calling gencache initialisation */
 	if (!gencache_init()) {
@@ -68,7 +67,7 @@ BOOL trustdom_cache_enable(void)
  *         false if it failed
  **/
  
-BOOL trustdom_cache_shutdown(void)
+bool trustdom_cache_shutdown(void)
 {
 	/* Close trustdom cache by calling gencache shutdown */
 	if (!gencache_shutdown()) {
@@ -91,7 +90,7 @@ BOOL trustdom_cache_shutdown(void)
 static char* trustdom_cache_key(const char* name)
 {
 	char* keystr = NULL;
-	asprintf(&keystr, TDOMKEY_FMT, strupper_static(name));
+	asprintf_strupper_m(&keystr, TDOMKEY_FMT, name);
 	
 	return keystr;
 }
@@ -99,7 +98,7 @@ static char* trustdom_cache_key(const char* name)
 
 /**
  * Store trusted domain in gencache as the domain name (key)
- * and ip address of domain controller (value)
+ * and trusted domain's SID (value)
  *
  * @param name trusted domain name
  * @param alt_name alternative trusted domain name (used in ADS domains)
@@ -109,12 +108,12 @@ static char* trustdom_cache_key(const char* name)
  *         false if store attempt failed
  **/
  
-BOOL trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
+bool trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
                           time_t timeout)
 {
 	char *key, *alt_key;
 	fstring sid_string;
-	BOOL ret;
+	bool ret;
 
 	/*
 	 * we use gecache call to avoid annoying debug messages
@@ -124,13 +123,13 @@ BOOL trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
 		return False;
 
 	DEBUG(5, ("trustdom_store: storing SID %s of domain %s\n",
-	          sid_string_static(sid), name));
+	          sid_string_dbg(sid), name));
 
 	key = trustdom_cache_key(name);
 	alt_key = alt_name ? trustdom_cache_key(alt_name) : NULL;
 
 	/* Generate string representation domain SID */
-	sid_to_string(sid_string, sid);
+	sid_to_fstring(sid_string, sid);
 
 	/*
 	 * try to put the names in the cache
@@ -152,7 +151,7 @@ BOOL trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
 
 
 /**
- * Fetch trusted domain's dc from the gencache.
+ * Fetch trusted domain's SID from the gencache.
  * This routine can also be used to check whether given
  * domain is currently trusted one.
  *
@@ -162,7 +161,7 @@ BOOL trustdom_cache_store(char* name, char* alt_name, const DOM_SID *sid,
  *         false if has expired/doesn't exist
  **/
  
-BOOL trustdom_cache_fetch(const char* name, DOM_SID* sid)
+bool trustdom_cache_fetch(const char* name, DOM_SID* sid)
 {
 	char *key = NULL, *value = NULL;
 	time_t timeout;
@@ -189,7 +188,7 @@ BOOL trustdom_cache_fetch(const char* name, DOM_SID* sid)
 		DEBUG(5, ("trusted domain %s found (%s)\n", name, value));
 	}
 
-	/* convert ip string representation into in_addr structure */
+	/* convert sid string representation into DOM_SID structure */
 	if(! string_to_sid(sid, value)) {
 		sid = NULL;
 		SAFE_FREE(value);
@@ -231,7 +230,7 @@ uint32 trustdom_cache_fetch_timestamp( void )
  store the timestamp from the last update 
 *******************************************************************/
 
-BOOL trustdom_cache_store_timestamp( uint32 t, time_t timeout )
+bool trustdom_cache_store_timestamp( uint32 t, time_t timeout )
 {
 	fstring value;
 

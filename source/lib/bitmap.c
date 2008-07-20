@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -100,7 +99,7 @@ int bitmap_copy(struct bitmap * const dst, const struct bitmap * const src)
 /****************************************************************************
 set a bit in a bitmap
 ****************************************************************************/
-BOOL bitmap_set(struct bitmap *bm, unsigned i)
+bool bitmap_set(struct bitmap *bm, unsigned i)
 {
 	if (i >= bm->n) {
 		DEBUG(0,("Setting invalid bitmap entry %d (of %d)\n",
@@ -114,7 +113,7 @@ BOOL bitmap_set(struct bitmap *bm, unsigned i)
 /****************************************************************************
 clear a bit in a bitmap
 ****************************************************************************/
-BOOL bitmap_clear(struct bitmap *bm, unsigned i)
+bool bitmap_clear(struct bitmap *bm, unsigned i)
 {
 	if (i >= bm->n) {
 		DEBUG(0,("clearing invalid bitmap entry %d (of %d)\n",
@@ -128,7 +127,7 @@ BOOL bitmap_clear(struct bitmap *bm, unsigned i)
 /****************************************************************************
 query a bit in a bitmap
 ****************************************************************************/
-BOOL bitmap_query(struct bitmap *bm, unsigned i)
+bool bitmap_query(struct bitmap *bm, unsigned i)
 {
 	if (i >= bm->n) return False;
 	if (bm->b[i/32] & (1<<(i%32))) {

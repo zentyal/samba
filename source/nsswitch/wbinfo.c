@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,34 +17,45 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
-#include "winbindd.h"
-#include "debug.h"
+#include "winbind_client.h"
+#include "libwbclient/wbclient.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
-extern int winbindd_fd;
-
-static char winbind_separator_int(BOOL strict)
+static struct wbcInterfaceDetails *init_interface_details(void)
 {
-	struct winbindd_response response;
-	static BOOL got_sep;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	static struct wbcInterfaceDetails *details;
+
+	if (details) {
+		return details;
+	}
+
+	wbc_status = wbcInterfaceDetails(&details);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		d_fprintf(stderr, "could not obtain winbind interface details!\n");
+	}
+
+	return details;
+}
+
+static char winbind_separator_int(bool strict)
+{
+	struct wbcInterfaceDetails *details;
+	static bool got_sep;
 	static char sep;
 
 	if (got_sep)
 		return sep;
 
-	ZERO_STRUCT(response);
+	details = init_interface_details();
 
-	/* Send off request */
-
-	if (winbindd_request_response(WINBINDD_INFO, NULL, &response) !=
-	    NSS_STATUS_SUCCESS) {
+	if (!details) {
 		d_fprintf(stderr, "could not obtain winbind separator!\n");
 		if (strict) {
 			return 0;
@@ -53,8 +64,8 @@ static char winbind_separator_int(BOOL strict)
 		return *lp_winbind_separator();
 	}
 
-	sep = response.data.info.winbind_separator;
-	got_sep = True;
+	sep = details->winbind_separator;
+	got_sep = true;
 
 	if (!sep) {
 		d_fprintf(stderr, "winbind separator was NULL!\n");
@@ -70,377 +81,429 @@ static char winbind_separator_int(BOOL strict)
 
 static char winbind_separator(void)
 {
-	return winbind_separator_int(False);
+	return winbind_separator_int(false);
 }
 
 static const char *get_winbind_domain(void)
 {
-	struct winbindd_response response;
-	static fstring winbind_domain;
+	static struct wbcInterfaceDetails *details;
 
-	ZERO_STRUCT(response);
+	details = init_interface_details();
 
-	/* Send off request */
-
-	if (winbindd_request_response(WINBINDD_DOMAIN_NAME, NULL, &response) !=
-	    NSS_STATUS_SUCCESS) {
+	if (!details) {
 		d_fprintf(stderr, "could not obtain winbind domain name!\n");
-		
-		/* HACK: (this module should not call lp_ funtions) */
+
+		/* HACK: (this module should not call lp_ functions) */
 		return lp_workgroup();
 	}
 
-	fstrcpy(winbind_domain, response.data.domain_name);
-
-	return winbind_domain;
-
+	return details->netbios_domain;
 }
 
 /* Copy of parse_domain_user from winbindd_util.c.  Parse a string of the
    form DOMAIN/user into a domain and a user */
 
-static BOOL parse_wbinfo_domain_user(const char *domuser, fstring domain, 
+static bool parse_wbinfo_domain_user(const char *domuser, fstring domain,
 				     fstring user)
 {
 
 	char *p = strchr(domuser,winbind_separator());
 
 	if (!p) {
+		/* Maybe it was a UPN? */
+		if ((p = strchr(domuser, '@')) != NULL) {
+			fstrcpy(domain, "");
+			fstrcpy(user, domuser);
+			return true;
+		}
+
 		fstrcpy(user, domuser);
 		fstrcpy(domain, get_winbind_domain());
-		return True;
+		return true;
 	}
-        
+
 	fstrcpy(user, p+1);
 	fstrcpy(domain, domuser);
 	domain[PTR_DIFF(p, domuser)] = 0;
 	strupper_m(domain);
 
-	return True;
+	return true;
 }
 
 /* pull pwent info for a given user */
 
-static BOOL wbinfo_get_userinfo(char *user)
+static bool wbinfo_get_userinfo(char *user)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	NSS_STATUS result;
-	
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct passwd *pwd = NULL;
 
-	/* Send request */
-	
-	fstrcpy(request.data.username, user);
+	wbc_status = wbcGetpwnam(user, &pwd);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	result = winbindd_request_response(WINBINDD_GETPWNAM, &request, &response);
-	
-	if (result != NSS_STATUS_SUCCESS)
-		return False;
-	
-	d_printf( "%s:%s:%d:%d:%s:%s:%s\n",
-			  response.data.pw.pw_name,
-			  response.data.pw.pw_passwd,
-			  response.data.pw.pw_uid,
-			  response.data.pw.pw_gid,
-			  response.data.pw.pw_gecos,
-			  response.data.pw.pw_dir,
-			  response.data.pw.pw_shell );
-	
-	return True;
+	d_printf("%s:%s:%d:%d:%s:%s:%s\n",
+		 pwd->pw_name,
+		 pwd->pw_passwd,
+		 pwd->pw_uid,
+		 pwd->pw_gid,
+		 pwd->pw_gecos,
+		 pwd->pw_dir,
+		 pwd->pw_shell);
+
+	return true;
+}
+
+/* pull pwent info for a given uid */
+static bool wbinfo_get_uidinfo(int uid)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct passwd *pwd = NULL;
+
+	wbc_status = wbcGetpwuid(uid, &pwd);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	d_printf("%s:%s:%d:%d:%s:%s:%s\n",
+		 pwd->pw_name,
+		 pwd->pw_passwd,
+		 pwd->pw_uid,
+		 pwd->pw_gid,
+		 pwd->pw_gecos,
+		 pwd->pw_dir,
+		 pwd->pw_shell);
+
+	return true;
 }
 
 /* pull grent for a given group */
-static BOOL wbinfo_get_groupinfo(char *group)
+static bool wbinfo_get_groupinfo(const char *group)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	NSS_STATUS result;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct group *grp;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbc_status = wbcGetgrnam(group, &grp);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	/* Send request */
+	d_printf("%s:%s:%d\n",
+		 grp->gr_name,
+		 grp->gr_passwd,
+		 grp->gr_gid);
 
-	fstrcpy(request.data.groupname, group);
+	wbcFreeMemory(grp);
 
-	result = winbindd_request_response(WINBINDD_GETGRNAM, &request,
-					   &response);
-
-	if ( result != NSS_STATUS_SUCCESS)
-		return False;
-
-  	d_printf( "%s:%s:%d\n",
-		  response.data.gr.gr_name,
-		  response.data.gr.gr_passwd,
-		  response.data.gr.gr_gid );
-	
-	return True;
+	return true;
 }
 
 /* List groups a user is a member of */
 
-static BOOL wbinfo_get_usergroups(char *user)
+static bool wbinfo_get_usergroups(const char *user)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	NSS_STATUS result;
-	int i;
-	
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uint32_t num_groups;
+	uint32_t i;
+	gid_t *groups = NULL;
 
 	/* Send request */
 
-	fstrcpy(request.data.username, user);
+	wbc_status = wbcGetGroups(user, &num_groups, &groups);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	result = winbindd_request_response(WINBINDD_GETGROUPS, &request, &response);
+	for (i = 0; i < num_groups; i++) {
+		d_printf("%d\n", (int)groups[i]);
+	}
 
-	if (result != NSS_STATUS_SUCCESS)
-		return False;
+	wbcFreeMemory(groups);
 
-	for (i = 0; i < response.data.num_entries; i++)
-		d_printf("%d\n", (int)((gid_t *)response.extra_data.data)[i]);
-
-	SAFE_FREE(response.extra_data.data);
-
-	return True;
+	return true;
 }
 
 
 /* List group SIDs a user SID is a member of */
-static BOOL wbinfo_get_usersids(char *user_sid)
+static bool wbinfo_get_usersids(const char *user_sid_str)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	NSS_STATUS result;
-	int i;
-	const char *s;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uint32_t num_sids;
+	uint32_t i;
+	struct wbcDomainSid user_sid, *sids = NULL;
 
 	/* Send request */
-	fstrcpy(request.data.sid, user_sid);
 
-	result = winbindd_request_response(WINBINDD_GETUSERSIDS, &request, &response);
-
-	if (result != NSS_STATUS_SUCCESS)
-		return False;
-
-	s = (const char *)response.extra_data.data;
-	for (i = 0; i < response.data.num_entries; i++) {
-		d_printf("%s\n", s);
-		s += strlen(s) + 1;
+	wbc_status = wbcStringToSid(user_sid_str, &user_sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
 	}
 
-	SAFE_FREE(response.extra_data.data);
+	wbc_status = wbcLookupUserSids(&user_sid, false, &num_sids, &sids);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	return True;
+	for (i = 0; i < num_sids; i++) {
+		char *str = NULL;
+		wbc_status = wbcSidToString(&sids[i], &str);
+		if (!WBC_ERROR_IS_OK(wbc_status)) {
+			wbcFreeMemory(sids);
+			return false;
+		}
+		d_printf("%s\n", str);
+		wbcFreeMemory(str);
+	}
+
+	wbcFreeMemory(sids);
+
+	return true;
 }
 
-static BOOL wbinfo_get_userdomgroups(const char *user_sid)
+static bool wbinfo_get_userdomgroups(const char *user_sid_str)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	NSS_STATUS result;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uint32_t num_sids;
+	uint32_t i;
+	struct wbcDomainSid user_sid, *sids = NULL;
 
 	/* Send request */
-	fstrcpy(request.data.sid, user_sid);
 
-	result = winbindd_request_response(WINBINDD_GETUSERDOMGROUPS, &request,
-				  &response);
+	wbc_status = wbcStringToSid(user_sid_str, &user_sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (result != NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcLookupUserSids(&user_sid, true, &num_sids, &sids);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (response.data.num_entries != 0)
-		printf("%s", (char *)response.extra_data.data);
-	
-	SAFE_FREE(response.extra_data.data);
+	for (i = 0; i < num_sids; i++) {
+		char *str = NULL;
+		wbc_status = wbcSidToString(&sids[i], &str);
+		if (!WBC_ERROR_IS_OK(wbc_status)) {
+			wbcFreeMemory(sids);
+			return false;
+		}
+		d_printf("%s\n", str);
+		wbcFreeMemory(str);
+	}
 
-	return True;
+	wbcFreeMemory(sids);
+
+	return true;
 }
 
 /* Convert NetBIOS name to IP */
 
-static BOOL wbinfo_wins_byname(char *name)
+static bool wbinfo_wins_byname(const char *name)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *ip = NULL;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Send request */
-
-	fstrcpy(request.data.winsreq, name);
-
-	if (winbindd_request_response(WINBINDD_WINS_BYNAME, &request, &response) !=
-	    NSS_STATUS_SUCCESS) {
-		return False;
+	wbc_status = wbcResolveWinsByName(name, &ip);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
 	}
 
 	/* Display response */
 
-	d_printf("%s\n", response.data.winsresp);
+	d_printf("%s\n", ip);
 
-	return True;
+	wbcFreeMemory(ip);
+
+	return true;
 }
 
 /* Convert IP to NetBIOS name */
 
-static BOOL wbinfo_wins_byip(char *ip)
+static bool wbinfo_wins_byip(const char *ip)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *name = NULL;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Send request */
-
-	fstrcpy(request.data.winsreq, ip);
-
-	if (winbindd_request_response(WINBINDD_WINS_BYIP, &request, &response) !=
-	    NSS_STATUS_SUCCESS) {
-		return False;
+	wbc_status = wbcResolveWinsByIP(ip, &name);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
 	}
 
 	/* Display response */
 
-	d_printf("%s\n", response.data.winsresp);
+	d_printf("%s\n", name);
 
-	return True;
+	wbcFreeMemory(name);
+
+	return true;
 }
 
-/* List trusted domains */
+/* List all/trusted domains */
 
-static BOOL wbinfo_list_domains(BOOL list_all_domains)
+static bool wbinfo_list_domains(bool list_all_domains, bool verbose)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
+	struct wbcDomainInfo *domain_list = NULL;
+	size_t num_domains;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	bool print_all = !list_all_domains && verbose;
+	int i;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Send request */
-
-	request.data.list_all_domains = list_all_domains;
-
-	if (winbindd_request_response(WINBINDD_LIST_TRUSTDOM, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
-
-	/* Display response */
-
-	if (response.extra_data.data) {
-		const char *extra_data = (char *)response.extra_data.data;
-		fstring name;
-		char *p;
-
-		while(next_token(&extra_data, name, "\n", sizeof(fstring))) {
-			p = strchr(name, '\\');
-			if (p == 0) {
-				d_fprintf(stderr, "Got invalid response: %s\n",
-					 extra_data);
-				return False;
-			}
-			*p = 0;
-			d_printf("%s\n", name);
-		}
-
-		SAFE_FREE(response.extra_data.data);
+	wbc_status = wbcListTrusts(&domain_list, &num_domains);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
 	}
 
-	return True;
+	if (print_all) {
+		d_printf("%-16s%-24s%-12s%-12s%-5s%-5s\n", 
+			 "Domain Name", "DNS Domain", "Trust Type", 
+			 "Transitive", "In", "Out");
+	}
+
+	for (i=0; i<num_domains; i++) {
+		d_printf("%-16s", domain_list[i].short_name);
+
+		if (!print_all) {
+			d_printf("\n");	
+			continue;
+		}
+
+		d_printf("%-24s", domain_list[i].dns_name);
+
+		switch(domain_list[i].trust_type) {
+		case WBC_DOMINFO_TRUSTTYPE_NONE:
+			d_printf("None        ");
+			break;
+		case WBC_DOMINFO_TRUSTTYPE_FOREST:		
+			d_printf("Forest      ");
+			break;
+		case WBC_DOMINFO_TRUSTTYPE_EXTERNAL:		
+			d_printf("External    ");
+			break;
+		case WBC_DOMINFO_TRUSTTYPE_IN_FOREST:
+			d_printf("In-Forest   ");
+			break;
+		}
+
+		if (domain_list[i].trust_flags & WBC_DOMINFO_TRUST_TRANSITIVE) {
+			d_printf("Yes         ");
+		} else {
+			d_printf("No          ");
+		}
+
+		if (domain_list[i].trust_flags & WBC_DOMINFO_TRUST_INCOMING) {
+			d_printf("Yes  ");
+		} else {
+			d_printf("No   ");
+		}
+
+		if (domain_list[i].trust_flags & WBC_DOMINFO_TRUST_OUTGOING) {
+			d_printf("Yes  ");
+		} else {
+			d_printf("No   ");
+		}
+
+		d_printf("\n");
+	}
+
+	return true;
 }
 
 /* List own domain */
 
-static BOOL wbinfo_list_own_domain(void)
+static bool wbinfo_list_own_domain(void)
 {
 	d_printf("%s\n", get_winbind_domain());
 
-	return True;
+	return true;
 }
 
 /* show sequence numbers */
-static BOOL wbinfo_show_sequence(const char *domain)
+static bool wbinfo_show_sequence(const char *domain)
 {
-	struct winbindd_request  request;
-	struct winbindd_response response;
+	d_printf("This command has been deprecated.  Please use the --online-status option instead.\n");
+	return false;
+}
 
-	ZERO_STRUCT(response);
-	ZERO_STRUCT(request);
+/* show sequence numbers */
+static bool wbinfo_show_onlinestatus(const char *domain)
+{
+	struct wbcDomainInfo *domain_list = NULL;
+	size_t num_domains;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	int i;
 
-	if ( domain )
-		fstrcpy( request.domain_name, domain );
-
-	/* Send request */
-
-	if (winbindd_request_response(WINBINDD_SHOW_SEQUENCE, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
-
-	/* Display response */
-
-	if (response.extra_data.data) {
-		char *extra_data = (char *)response.extra_data.data;
-		d_printf("%s", extra_data);
-		SAFE_FREE(response.extra_data.data);
+	wbc_status = wbcListTrusts(&domain_list, &num_domains);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
 	}
 
-	return True;
+	for (i=0; i<num_domains; i++) {
+		bool is_offline;
+
+		if (domain) {
+			if (!strequal(domain_list[i].short_name, domain)) {
+				continue;
+			}
+		}
+
+		is_offline = (domain_list[i].domain_flags & WBC_DOMINFO_DOMAIN_OFFLINE);
+		
+		d_printf("%s : %s\n", 
+			 domain_list[i].short_name,
+			 is_offline ? "offline" : "online" );
+	}
+
+	return true;
 }
+
 
 /* Show domain info */
 
-static BOOL wbinfo_domain_info(const char *domain_name)
+static bool wbinfo_domain_info(const char *domain)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainInfo *dinfo = NULL;
+	char *sid_str = NULL;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	if ((strequal(domain_name, ".")) || (domain_name[0] == '\0'))
-		fstrcpy(request.domain_name, get_winbind_domain());
-	else
-		fstrcpy(request.domain_name, domain_name);
+	if ((domain == NULL) || (strequal(domain, ".")) || (domain[0] == '\0')) {
+		domain = get_winbind_domain();
+	}
 
 	/* Send request */
 
-	if (winbindd_request_response(WINBINDD_DOMAIN_INFO, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcDomainInfo(domain, &dinfo);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcSidToString(&dinfo->sid, &sid_str);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		wbcFreeMemory(dinfo);
+		return false;
+	}
 
 	/* Display response */
 
-	d_printf("Name              : %s\n", response.data.domain_info.name);
-	d_printf("Alt_Name          : %s\n", response.data.domain_info.alt_name);
+	d_printf("Name              : %s\n", dinfo->short_name);
+	d_printf("Alt_Name          : %s\n", dinfo->dns_name);
 
-	d_printf("SID               : %s\n", response.data.domain_info.sid);
+	d_printf("SID               : %s\n", sid_str);
 
 	d_printf("Active Directory  : %s\n",
-		 response.data.domain_info.active_directory ? "Yes" : "No");
+		 (dinfo->domain_flags & WBC_DOMINFO_DOMAIN_AD) ? "Yes" : "No");
 	d_printf("Native            : %s\n",
-		 response.data.domain_info.native_mode ? "Yes" : "No");
+		 (dinfo->domain_flags & WBC_DOMINFO_DOMAIN_NATIVE) ? "Yes" : "No");
 
 	d_printf("Primary           : %s\n",
-		 response.data.domain_info.primary ? "Yes" : "No");
+		 (dinfo->domain_flags & WBC_DOMINFO_DOMAIN_PRIMARY) ? "Yes" : "No");
 
-	d_printf("Sequence          : %d\n", response.data.domain_info.sequence_number);
+	wbcFreeMemory(sid_str);
+	wbcFreeMemory(dinfo);
 
-	return True;
+	return true;
 }
 
 /* Get a foreign DC's name */
-static BOOL wbinfo_getdcname(const char *domain_name)
+static bool wbinfo_getdcname(const char *domain_name)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
@@ -455,250 +518,303 @@ static BOOL wbinfo_getdcname(const char *domain_name)
 	if (winbindd_request_response(WINBINDD_GETDCNAME, &request, &response) !=
 	    NSS_STATUS_SUCCESS) {
 		d_fprintf(stderr, "Could not get dc name for %s\n", domain_name);
-		return False;
+		return false;
 	}
 
 	/* Display response */
 
 	d_printf("%s\n", response.data.dc_name);
 
-	return True;
+	return true;
+}
+
+/* Find a DC */
+static bool wbinfo_dsgetdcname(const char *domain_name, uint32_t flags)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	fstrcpy(request.domain_name, domain_name);
+	request.flags = flags;
+
+	request.flags |= DS_DIRECTORY_SERVICE_REQUIRED;
+
+	/* Send request */
+
+	if (winbindd_request_response(WINBINDD_DSGETDCNAME, &request, &response) !=
+	    NSS_STATUS_SUCCESS) {
+		d_fprintf(stderr, "Could not find dc for %s\n", domain_name);
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("%s\n", response.data.dc_name);
+
+	return true;
 }
 
 /* Check trust account password */
 
-static BOOL wbinfo_check_secret(void)
+static bool wbinfo_check_secret(void)
 {
-        struct winbindd_response response;
-        NSS_STATUS result;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcAuthErrorInfo *error = NULL;
 
-        ZERO_STRUCT(response);
+	wbc_status = wbcCheckTrustCredentials(NULL, &error);
 
-        result = winbindd_request_response(WINBINDD_CHECK_MACHACC, NULL, &response);
-		
-	d_printf("checking the trust secret via RPC calls %s\n", 
-		 (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed");
+	d_printf("checking the trust secret via RPC calls %s\n",
+		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
 
-	if (result != NSS_STATUS_SUCCESS)	
-		d_fprintf(stderr, "error code was %s (0x%x)\n", 
-		 	 response.data.auth.nt_status_string, 
-		 	 response.data.auth.nt_status);
-	
-	return result == NSS_STATUS_SUCCESS;	
+	if (wbc_status == WBC_ERR_AUTH_ERROR) {
+		d_fprintf(stderr, "error code was %s (0x%x)\n",
+			  error->nt_string, error->nt_status);
+		wbcFreeMemory(error);
+	}
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	return true;
 }
 
 /* Convert uid to sid */
 
-static BOOL wbinfo_uid_to_sid(uid_t uid)
+static bool wbinfo_uid_to_sid(uid_t uid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	char *sid_str = NULL;
 
 	/* Send request */
 
-	request.data.uid = uid;
+	wbc_status = wbcUidToSid(uid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (winbindd_request_response(WINBINDD_UID_TO_SID, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcSidToString(&sid, &sid_str);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
 	/* Display response */
 
-	d_printf("%s\n", response.data.sid.sid);
+	d_printf("%s\n", sid_str);
 
-	return True;
+	wbcFreeMemory(sid_str);
+
+	return true;
 }
 
 /* Convert gid to sid */
 
-static BOOL wbinfo_gid_to_sid(gid_t gid)
+static bool wbinfo_gid_to_sid(gid_t gid)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	char *sid_str = NULL;
 
 	/* Send request */
 
-	request.data.gid = gid;
+	wbc_status = wbcGidToSid(gid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (winbindd_request_response(WINBINDD_GID_TO_SID, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcSidToString(&sid, &sid_str);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
 	/* Display response */
 
-	d_printf("%s\n", response.data.sid.sid);
+	d_printf("%s\n", sid_str);
 
-	return True;
+	wbcFreeMemory(sid_str);
+
+	return true;
 }
 
 /* Convert sid to uid */
 
-static BOOL wbinfo_sid_to_uid(char *sid)
+static bool wbinfo_sid_to_uid(const char *sid_str)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Send request */
-
-	fstrcpy(request.data.sid, sid);
-
-	if (winbindd_request_response(WINBINDD_SID_TO_UID, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
-
-	/* Display response */
-
-	d_printf("%d\n", (int)response.data.uid);
-
-	return True;
-}
-
-static BOOL wbinfo_sid_to_gid(char *sid)
-{
-	struct winbindd_request request;
-	struct winbindd_response response;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	/* Send request */
-
-	fstrcpy(request.data.sid, sid);
-
-	if (winbindd_request_response(WINBINDD_SID_TO_GID, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
-
-	/* Display response */
-
-	d_printf("%d\n", (int)response.data.gid);
-
-	return True;
-}
-
-static BOOL wbinfo_allocate_uid(void)
-{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
 	uid_t uid;
 
-	if (!winbind_allocate_uid(&uid))
-		return False;
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcSidToUid(&sid, &uid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("%d\n", (int)uid);
+
+	return true;
+}
+
+static bool wbinfo_sid_to_gid(const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	gid_t gid;
+
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcSidToGid(&sid, &gid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("%d\n", (int)gid);
+
+	return true;
+}
+
+static bool wbinfo_allocate_uid(void)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uid_t uid;
+
+	/* Send request */
+
+	wbc_status = wbcAllocateUid(&uid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
 
 	d_printf("New uid: %d\n", uid);
 
-	return True;
+	return true;
 }
 
-static BOOL wbinfo_allocate_gid(void)
+static bool wbinfo_allocate_gid(void)
 {
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	gid_t gid;
 
-	if (!winbind_allocate_gid(&gid))
-		return False;
+	/* Send request */
+
+	wbc_status = wbcAllocateGid(&gid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
 
 	d_printf("New gid: %d\n", gid);
 
-	return True;
+	return true;
 }
 
 /* Convert sid to string */
 
-static BOOL wbinfo_lookupsid(char *sid)
+static bool wbinfo_lookupsid(const char *sid_str)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	char *domain;
+	char *name;
+	enum wbcSidType type;
 
 	/* Send off request */
 
-	fstrcpy(request.data.sid, sid);
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (winbindd_request_response(WINBINDD_LOOKUPSID, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcLookupSid(&sid, &domain, &name, &type);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
 	/* Display response */
 
-	d_printf("%s%c%s %d\n", response.data.name.dom_name, 
-		 winbind_separator(), response.data.name.name, 
-		 response.data.name.type);
+	d_printf("%s%c%s %d\n",
+		 domain, winbind_separator(), name, type);
 
-	return True;
+	return true;
 }
 
 /* Lookup a list of RIDs */
 
-static BOOL wbinfo_lookuprids(char *domain, char *arg)
+static bool wbinfo_lookuprids(const char *domain, const char *arg)
 {
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainInfo *dinfo = NULL;
+	char *domain_name = NULL;
+	const char **names = NULL;
+	enum wbcSidType *types = NULL;
 	size_t i;
-	DOM_SID sid;
 	int num_rids;
-	uint32 *rids;
+	uint32 *rids = NULL;
 	const char *p;
-	char ridstr[32];
-	const char **names;
-	enum lsa_SidType *types;
-	const char *domain_name;
-	TALLOC_CTX *mem_ctx;
-	struct winbindd_request request;
-	struct winbindd_response response;
+	char *ridstr;
+	TALLOC_CTX *mem_ctx = NULL;
+	bool ret = false;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-	if ((domain == NULL) || (strequal(domain, ".")) || (domain[0] == '\0'))
-		fstrcpy(request.domain_name, get_winbind_domain());
-	else
-		fstrcpy(request.domain_name, domain);
+	if ((domain == NULL) || (strequal(domain, ".")) || (domain[0] == '\0')) {
+		domain = get_winbind_domain();
+	}
 
 	/* Send request */
 
-	if (winbindd_request_response(WINBINDD_DOMAIN_INFO, &request, &response) !=
-	    NSS_STATUS_SUCCESS) {
-		d_printf("Could not get domain sid for %s\n", request.domain_name);
-		return False;
-	}
-
-	if (!string_to_sid(&sid, response.data.domain_info.sid)) {
-		d_printf("Could not convert %s to sid\n", response.data.domain_info.sid);
-		return False;
+	wbc_status = wbcDomainInfo(domain, &dinfo);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		d_printf("wbcDomainInfo(%s) failed: %s\n", domain,
+			 wbcErrorString(wbc_status));
+		goto done;
 	}
 
 	mem_ctx = talloc_new(NULL);
 	if (mem_ctx == NULL) {
 		d_printf("talloc_new failed\n");
-		return False;
+		goto done;
 	}
 
 	num_rids = 0;
 	rids = NULL;
 	p = arg;
 
-	while (next_token(&p, ridstr, " ,\n", sizeof(ridstr))) {
+	while (next_token_talloc(mem_ctx, &p, &ridstr, " ,\n")) {
 		uint32 rid = strtoul(ridstr, NULL, 10);
 		ADD_TO_ARRAY(mem_ctx, uint32, rid, &rids, &num_rids);
 	}
 
 	if (rids == NULL) {
-		TALLOC_FREE(mem_ctx);
-		return False;
+		d_printf("no rids\n");
+		goto done;
 	}
 
-	if (!winbind_lookup_rids(mem_ctx, &sid, num_rids, rids,
-				 &domain_name, &names, &types)) {
-		d_printf("winbind_lookup_rids failed\n");
-		TALLOC_FREE(mem_ctx);
-		return False;
+	wbc_status = wbcLookupRids(&dinfo->sid, num_rids, rids,
+				   (const char **)&domain_name, &names, &types);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		d_printf("winbind_lookup_rids failed: %s\n",
+			 wbcErrorString(wbc_status));
+		goto done;
 	}
 
 	d_printf("Domain: %s\n", domain_name);
@@ -708,39 +824,63 @@ static BOOL wbinfo_lookuprids(char *domain, char *arg)
 			 sid_type_lookup(types[i]));
 	}
 
+	ret = true;
+done:
+	if (dinfo) {
+		wbcFreeMemory(dinfo);
+	}
+	if (domain_name) {
+		wbcFreeMemory(domain_name);
+	}
+	if (names) {
+		wbcFreeMemory(names);
+	}
+	if (types) {
+		wbcFreeMemory(types);
+	}
 	TALLOC_FREE(mem_ctx);
-	return True;
+	return ret;
 }
 
 /* Convert string to sid */
 
-static BOOL wbinfo_lookupname(char *name)
+static bool wbinfo_lookupname(const char *full_name)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	char *sid_str;
+	enum wbcSidType type;
+	fstring domain_name;
+	fstring account_name;
 
 	/* Send off request */
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	parse_wbinfo_domain_user(full_name, domain_name,
+				 account_name);
 
-	parse_wbinfo_domain_user(name, request.data.name.dom_name, 
-				 request.data.name.name);
+	wbc_status = wbcLookupName(domain_name, account_name,
+				   &sid, &type);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	if (winbindd_request_response(WINBINDD_LOOKUPNAME, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcSidToString(&sid, &sid_str);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
 	/* Display response */
 
-	d_printf("%s %s (%d)\n", response.data.sid.sid, sid_type_lookup(response.data.sid.type), response.data.sid.type);
+	d_printf("%s %s (%d)\n", sid_str, sid_type_lookup(type), type);
 
-	return True;
+	wbcFreeMemory(sid_str);
+
+	return true;
 }
 
 /* Authenticate a user with a plaintext password */
 
-static BOOL wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
+static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
@@ -784,8 +924,8 @@ static BOOL wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 	if (result == NSS_STATUS_SUCCESS) {
 
 		if (request.flags & WBFLAG_PAM_INFO3_TEXT) {
-			if (response.data.auth.info3.user_flgs & LOGON_CACHED_ACCOUNT) {
-				d_printf("user_flgs: LOGON_CACHED_ACCOUNT\n");
+			if (response.data.auth.info3.user_flgs & NETLOGON_CACHED_ACCOUNT) {
+				d_printf("user_flgs: NETLOGON_CACHED_ACCOUNT\n");
 			}
 		}
 
@@ -801,167 +941,167 @@ static BOOL wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 
 /* Authenticate a user with a plaintext password */
 
-static BOOL wbinfo_auth(char *username)
+static bool wbinfo_auth(char *username)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-        NSS_STATUS result;
-        char *p;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *s = NULL;
+	char *p = NULL;
+	const char *password = NULL;
+	char *name = NULL;
 
-	/* Send off request */
+	if ((s = SMB_STRDUP(username)) == NULL) {
+		return false;
+	}
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	if ((p = strchr(s, '%')) != NULL) {
+		*p = 0;
+		p++;
+		password = p;
+	} else {
+		password = "";
+	}
 
-        p = strchr(username, '%');
+	name = s;
 
-        if (p) {
-                *p = 0;
-                fstrcpy(request.data.auth.user, username);
-                fstrcpy(request.data.auth.pass, p + 1);
-                *p = '%';
-        } else
-                fstrcpy(request.data.auth.user, username);
+	wbc_status = wbcAuthenticateUser(name, password);
 
-	result = winbindd_request_response(WINBINDD_PAM_AUTH, &request, &response);
+	d_printf("plaintext password authentication %s\n",
+		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
 
-	/* Display response */
-
-        d_printf("plaintext password authentication %s\n", 
-               (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed");
-
+#if 0
 	if (response.data.auth.nt_status)
 		d_fprintf(stderr, "error code was %s (0x%x)\nerror messsage was: %s\n", 
-			 response.data.auth.nt_status_string, 
+			 response.data.auth.nt_status_string,
 			 response.data.auth.nt_status,
 			 response.data.auth.error_string);
+#endif
 
-        return result == NSS_STATUS_SUCCESS;
+	SAFE_FREE(s);
+
+	return WBC_ERROR_IS_OK(wbc_status);
 }
 
 /* Authenticate a user with a challenge/response */
 
-static BOOL wbinfo_auth_crap(char *username)
+static bool wbinfo_auth_crap(char *username)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-        NSS_STATUS result;
-        fstring name_user;
-        fstring name_domain;
-        fstring pass;
-        char *p;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcAuthUserParams params;
+	struct wbcAuthUserInfo *info = NULL;
+	struct wbcAuthErrorInfo *err = NULL;
+	DATA_BLOB lm = data_blob_null;
+	DATA_BLOB nt = data_blob_null;
+	fstring name_user;
+	fstring name_domain;
+	fstring pass;
+	char *p;
 
-	/* Send off request */
+	p = strchr(username, '%');
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-
-        p = strchr(username, '%');
-
-        if (p) {
-                *p = 0;
-                fstrcpy(pass, p + 1);
+	if (p) {
+		*p = 0;
+		fstrcpy(pass, p + 1);
 	}
 		
 	parse_wbinfo_domain_user(username, name_domain, name_user);
 
-	request.data.auth_crap.logon_parameters = MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT | MSV1_0_ALLOW_SERVER_TRUST_ACCOUNT;
+	params.account_name	= name_user;
+	params.domain_name	= name_domain;
+	params.workstation_name	= NULL;
 
-	fstrcpy(request.data.auth_crap.user, name_user);
+	params.flags		= 0;
+	params.parameter_control= WBC_MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT |
+				  WBC_MSV1_0_ALLOW_SERVER_TRUST_ACCOUNT;
 
-	fstrcpy(request.data.auth_crap.domain, 
-			      name_domain);
+	params.level		= WBC_AUTH_USER_LEVEL_RESPONSE;
 
-	generate_random_buffer(request.data.auth_crap.chal, 8);
-        
+	generate_random_buffer(params.password.response.challenge, 8);
+
 	if (lp_client_ntlmv2_auth()) {
 		DATA_BLOB server_chal;
-		DATA_BLOB names_blob;	
+		DATA_BLOB names_blob;
 
-		DATA_BLOB lm_response;
-		DATA_BLOB nt_response;
+		server_chal = data_blob(params.password.response.challenge, 8);
 
-		server_chal = data_blob(request.data.auth_crap.chal, 8); 
-		
 		/* Pretend this is a login to 'us', for blob purposes */
 		names_blob = NTLMv2_generate_names_blob(global_myname(), lp_workgroup());
-		
-		if (!SMBNTLMv2encrypt(name_user, name_domain, pass, &server_chal, 
+
+		if (!SMBNTLMv2encrypt(name_user, name_domain, pass, &server_chal,
 				      &names_blob,
-				      &lm_response, &nt_response, NULL)) {
+				      &lm, &nt, NULL)) {
 			data_blob_free(&names_blob);
 			data_blob_free(&server_chal);
-			return False;
+			return false;
 		}
 		data_blob_free(&names_blob);
 		data_blob_free(&server_chal);
 
-		memcpy(request.data.auth_crap.nt_resp, nt_response.data, 
-		       MIN(nt_response.length, 
-			   sizeof(request.data.auth_crap.nt_resp)));
-		request.data.auth_crap.nt_resp_len = nt_response.length;
-
-		memcpy(request.data.auth_crap.lm_resp, lm_response.data, 
-		       MIN(lm_response.length, 
-			   sizeof(request.data.auth_crap.lm_resp)));
-		request.data.auth_crap.lm_resp_len = lm_response.length;
-		       
-		data_blob_free(&nt_response);
-		data_blob_free(&lm_response);
-
 	} else {
-		if (lp_client_lanman_auth() 
-		    && SMBencrypt(pass, request.data.auth_crap.chal, 
-			       (uchar *)request.data.auth_crap.lm_resp)) {
-			request.data.auth_crap.lm_resp_len = 24;
-		} else {
-			request.data.auth_crap.lm_resp_len = 0;
+		if (lp_client_lanman_auth()) {
+			bool ok;
+			lm = data_blob(NULL, 24);
+			ok = SMBencrypt(pass, params.password.response.challenge,
+					lm.data);
+			if (!ok) {
+				data_blob_free(&lm);
+			}
 		}
-		SMBNTencrypt(pass, request.data.auth_crap.chal,
-			     (uchar *)request.data.auth_crap.nt_resp);
-
-		request.data.auth_crap.nt_resp_len = 24;
+		nt = data_blob(NULL, 24);
+		SMBNTencrypt(pass, params.password.response.challenge,
+			     nt.data);
 	}
 
-	result = winbindd_request_response(WINBINDD_PAM_AUTH_CRAP, &request, &response);
+	params.password.response.nt_length	= nt.length;
+	params.password.response.nt_data	= nt.data;
+	params.password.response.lm_length	= lm.length;
+	params.password.response.lm_data	= lm.data;
+
+	wbc_status = wbcAuthenticateUserEx(&params, &info, &err);
 
 	/* Display response */
 
-        d_printf("challenge/response password authentication %s\n", 
-               (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed");
+	d_printf("challenge/response password authentication %s\n",
+		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
 
-	if (response.data.auth.nt_status)
+	if (wbc_status == WBC_ERR_AUTH_ERROR) {
 		d_fprintf(stderr, "error code was %s (0x%x)\nerror messsage was: %s\n", 
-			 response.data.auth.nt_status_string, 
-			 response.data.auth.nt_status,
-			 response.data.auth.error_string);
+			 err->nt_string,
+			 err->nt_status,
+			 err->display_string);
+		wbcFreeMemory(err);
+	} else if (WBC_ERROR_IS_OK(wbc_status)) {
+		wbcFreeMemory(info);
+	}
 
-        return result == NSS_STATUS_SUCCESS;
+	data_blob_free(&nt);
+	data_blob_free(&lm);
+
+	return WBC_ERROR_IS_OK(wbc_status);
 }
 
 /* Authenticate a user with a plaintext password and set a token */
 
-static BOOL wbinfo_klog(char *username)
+static bool wbinfo_klog(char *username)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
-        NSS_STATUS result;
-        char *p;
+	NSS_STATUS result;
+	char *p;
 
 	/* Send off request */
 
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-        p = strchr(username, '%');
+	p = strchr(username, '%');
 
-        if (p) {
-                *p = 0;
-                fstrcpy(request.data.auth.user, username);
-                fstrcpy(request.data.auth.pass, p + 1);
-                *p = '%';
-        } else {
-                fstrcpy(request.data.auth.user, username);
+	if (p) {
+		*p = 0;
+		fstrcpy(request.data.auth.user, username);
+		fstrcpy(request.data.auth.pass, p + 1);
+		*p = '%';
+	} else {
+		fstrcpy(request.data.auth.user, username);
 		fstrcpy(request.data.auth.pass, getpass("Password: "));
 	}
 
@@ -971,114 +1111,95 @@ static BOOL wbinfo_klog(char *username)
 
 	/* Display response */
 
-        d_printf("plaintext password authentication %s\n", 
-               (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed");
+	d_printf("plaintext password authentication %s\n",
+		 (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed");
 
 	if (response.data.auth.nt_status)
 		d_fprintf(stderr, "error code was %s (0x%x)\nerror messsage was: %s\n", 
-			 response.data.auth.nt_status_string, 
+			 response.data.auth.nt_status_string,
 			 response.data.auth.nt_status,
 			 response.data.auth.error_string);
 
 	if (result != NSS_STATUS_SUCCESS)
-		return False;
+		return false;
 
 	if (response.extra_data.data == NULL) {
 		d_fprintf(stderr, "Did not get token data\n");
-		return False;
+		return false;
 	}
 
 	if (!afs_settoken_str((char *)response.extra_data.data)) {
 		d_fprintf(stderr, "Could not set token\n");
-		return False;
+		return false;
 	}
 
 	d_printf("Successfully created AFS token\n");
-	return True;
+	return true;
 }
 
 /* Print domain users */
 
-static BOOL print_domain_users(const char *domain)
+static bool print_domain_users(const char *domain)
 {
-	struct winbindd_request request;
-	struct winbindd_response response;
-	const char *extra_data;
-	fstring name;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uint32_t i;
+	uint32_t num_users = 0;
+	const char **users = NULL;
 
 	/* Send request to winbind daemon */
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
-	
-	if (domain) {
-		/* '.' is the special sign for our own domain */
-		if ( strequal(domain, ".") )
-			fstrcpy( request.domain_name, get_winbind_domain() );
-		else
-			fstrcpy( request.domain_name, domain );
+	/* '.' is the special sign for our own domain */
+	if (domain && strcmp(domain, ".") == 0) {
+		domain = get_winbind_domain();
 	}
 
-	if (winbindd_request_response(WINBINDD_LIST_USERS, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcListUsers(domain, &num_users, &users);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	/* Look through extra data */
+	for (i=0; i < num_users; i++) {
+		d_printf("%s\n", users[i]);
+	}
 
-	if (!response.extra_data.data)
-		return False;
+	wbcFreeMemory(users);
 
-	extra_data = (const char *)response.extra_data.data;
-
-	while(next_token(&extra_data, name, ",", sizeof(fstring)))
-		d_printf("%s\n", name);
-	
-	SAFE_FREE(response.extra_data.data);
-
-	return True;
+	return true;
 }
 
 /* Print domain groups */
 
-static BOOL print_domain_groups(const char *domain)
+static bool print_domain_groups(const char *domain)
 {
-	struct winbindd_request  request;
-	struct winbindd_response response;
-	const char *extra_data;
-	fstring name;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	uint32_t i;
+	uint32_t num_groups = 0;
+	const char **groups = NULL;
 
-	ZERO_STRUCT(request);
-	ZERO_STRUCT(response);
+	/* Send request to winbind daemon */
 
-	if (domain) {
-		if ( strequal(domain, ".") )
-			fstrcpy( request.domain_name, get_winbind_domain() );
-		else
-			fstrcpy( request.domain_name, domain );
+	/* '.' is the special sign for our own domain */
+	if (domain && strcmp(domain, ".") == 0) {
+		domain = get_winbind_domain();
 	}
 
-	if (winbindd_request_response(WINBINDD_LIST_GROUPS, &request, &response) !=
-	    NSS_STATUS_SUCCESS)
-		return False;
+	wbc_status = wbcListGroups(domain, &num_groups, &groups);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
 
-	/* Look through extra data */
+	for (i=0; i < num_groups; i++) {
+		d_printf("%s\n", groups[i]);
+	}
 
-	if (!response.extra_data.data)
-		return False;
+	wbcFreeMemory(groups);
 
-	extra_data = (const char *)response.extra_data.data;
-
-	while(next_token(&extra_data, name, ",", sizeof(fstring)))
-		d_printf("%s\n", name);
-
-	SAFE_FREE(response.extra_data.data);
-	
-	return True;
+	return true;
 }
 
 /* Set the authorised user for winbindd access in secrets.tdb */
 
-static BOOL wbinfo_set_auth_user(char *username)
+static bool wbinfo_set_auth_user(char *username)
 {
 	const char *password;
 	char *p;
@@ -1096,7 +1217,7 @@ static BOOL wbinfo_set_auth_user(char *username)
 	} else {
 		char *thepass = getpass("Password: ");
 		if (thepass) {
-			password = thepass;	
+			password = thepass;
 		} else
 			password = "";
 	}
@@ -1110,7 +1231,7 @@ static BOOL wbinfo_set_auth_user(char *username)
 		if (!secrets_store(SECRETS_AUTH_USER, user,
 				   strlen(user) + 1)) {
 			d_fprintf(stderr, "error storing username\n");
-			return False;
+			return false;
 		}
 
 		/* We always have a domain name added by the
@@ -1119,7 +1240,7 @@ static BOOL wbinfo_set_auth_user(char *username)
 		if (!secrets_store(SECRETS_AUTH_DOMAIN, domain,
 				   strlen(domain) + 1)) {
 			d_fprintf(stderr, "error storing domain name\n");
-			return False;
+			return false;
 		}
 
 	} else {
@@ -1132,13 +1253,13 @@ static BOOL wbinfo_set_auth_user(char *username)
 		if (!secrets_store(SECRETS_AUTH_PASSWORD, password,
 				   strlen(password) + 1)) {
 			d_fprintf(stderr, "error storing password\n");
-			return False;
+			return false;
 		}
 
 	} else
 		secrets_delete(SECRETS_AUTH_PASSWORD);
 
-	return True;
+	return true;
 }
 
 static void wbinfo_get_auth_user(void)
@@ -1146,7 +1267,7 @@ static void wbinfo_get_auth_user(void)
 	char *user, *domain, *password;
 
 	/* Lift data from secrets file */
-	
+
 	secrets_fetch_ipc_userpass(&user, &domain, &password);
 
 	if ((!user || !*user) && (!domain || !*domain ) && (!password || !*password)){
@@ -1168,18 +1289,18 @@ static void wbinfo_get_auth_user(void)
 	SAFE_FREE(password);
 }
 
-static BOOL wbinfo_ping(void)
+static bool wbinfo_ping(void)
 {
-        NSS_STATUS result;
+	wbcErr wbc_status;
 
-	result = winbindd_request_response(WINBINDD_PING, NULL, NULL);
+	wbc_status = wbcPing();
 
 	/* Display response */
 
-        d_printf("Ping to winbindd %s on fd %d\n", 
-               (result == NSS_STATUS_SUCCESS) ? "succeeded" : "failed", winbindd_fd);
+	d_printf("Ping to winbindd %s\n",
+		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
 
-        return result == NSS_STATUS_SUCCESS;
+	return WBC_ERROR_IS_OK(wbc_status);
 }
 
 /* Main program */
@@ -1190,6 +1311,7 @@ enum {
 	OPT_DOMAIN_NAME,
 	OPT_SEQUENCE,
 	OPT_GETDCNAME,
+	OPT_DSGETDCNAME,
 	OPT_USERDOMGROUPS,
 	OPT_USERSIDS,
 	OPT_ALLOCATE_UID,
@@ -1197,23 +1319,27 @@ enum {
 	OPT_SEPARATOR,
 	OPT_LIST_ALL_DOMAINS,
 	OPT_LIST_OWN_DOMAIN,
+	OPT_UID_INFO,
 	OPT_GROUP_INFO,
+	OPT_VERBOSE,
+	OPT_ONLINESTATUS
 };
 
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
-
+	TALLOC_CTX *frame = talloc_stackframe();
 	poptContext pc;
 	static char *string_arg;
 	static char *opt_domain_name;
 	static int int_arg;
 	int result = 1;
+	bool verbose = false;
 
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 
-		/* longName, shortName, argInfo, argPtr, value, descrip, 
+		/* longName, shortName, argInfo, argPtr, value, descrip,
 		   argDesc */
 
 		{ "domain-users", 'u', POPT_ARG_NONE, 0, 'u', "Lists all domain users", "domain"},
@@ -1236,8 +1362,10 @@ int main(int argc, char **argv, char **envp)
 		{ "all-domains", 0, POPT_ARG_NONE, 0, OPT_LIST_ALL_DOMAINS, "List all domains (trusted and own domain)" },
 		{ "own-domain", 0, POPT_ARG_NONE, 0, OPT_LIST_OWN_DOMAIN, "List own domain" },
 		{ "sequence", 0, POPT_ARG_NONE, 0, OPT_SEQUENCE, "Show sequence numbers of all domains" },
+		{ "online-status", 0, POPT_ARG_NONE, 0, OPT_ONLINESTATUS, "Show whether domains are marked as online or offline"},
 		{ "domain-info", 'D', POPT_ARG_STRING, &string_arg, 'D', "Show most of the info we have about the domain" },
 		{ "user-info", 'i', POPT_ARG_STRING, &string_arg, 'i', "Get user info", "USER" },
+		{ "uid-info", 0, POPT_ARG_INT, &int_arg, OPT_UID_INFO, "Get user info from uid", "UID" },
 		{ "group-info", 0, POPT_ARG_STRING, &string_arg, OPT_GROUP_INFO, "Get group info", "GROUP" },
 		{ "user-groups", 'r', POPT_ARG_STRING, &string_arg, 'r', "Get user groups", "USER" },
 		{ "user-domgroups", 0, POPT_ARG_STRING, &string_arg,
@@ -1247,6 +1375,7 @@ int main(int argc, char **argv, char **envp)
 		{ "set-auth-user", 0, POPT_ARG_STRING, &string_arg, OPT_SET_AUTH_USER, "Store user and password used by winbindd (root only)", "user%password" },
 		{ "getdcname", 0, POPT_ARG_STRING, &string_arg, OPT_GETDCNAME,
 		  "Get a DC name for a foreign domain", "domainname" },
+		{ "dsgetdcname", 0, POPT_ARG_STRING, &string_arg, OPT_DSGETDCNAME, "Find a DC for a domain", "domainname" },
 		{ "get-auth-user", 0, POPT_ARG_NONE, NULL, OPT_GET_AUTH_USER, "Retrieve user and password used by winbindd (root only)", NULL },
 		{ "ping", 'p', POPT_ARG_NONE, 0, 'p', "Ping winbindd to see if it is alive" },
 		{ "domain", 0, POPT_ARG_STRING, &opt_domain_name, OPT_DOMAIN_NAME, "Define to the domain to restrict operation", "domain" },
@@ -1259,6 +1388,8 @@ int main(int argc, char **argv, char **envp)
 			/* "user%password,DOM\\user%password,user@EXAMPLE.COM,EXAMPLE.COM\\user%password" }, */
 #endif
 		{ "separator", 0, POPT_ARG_NONE, 0, OPT_SEPARATOR, "Get the active winbind separator", NULL },
+		{ "verbose", 0, POPT_ARG_NONE, 0, OPT_VERBOSE, "Print additional information per command", NULL },
+		POPT_COMMON_CONFIGFILE
 		POPT_COMMON_VERSION
 		POPT_TABLEEND
 	};
@@ -1266,16 +1397,6 @@ int main(int argc, char **argv, char **envp)
 	/* Samba client initialisation */
 	load_case_tables();
 
-	if (!lp_load(dyn_CONFIGFILE, True, False, False, True)) {
-		d_fprintf(stderr, "wbinfo: error opening config file %s. Error was %s\n",
-			dyn_CONFIGFILE, strerror(errno));
-		exit(1);
-	}
-
-	if (!init_names())
-		return 1;
-
-	load_interfaces();
 
 	/* Parse options */
 
@@ -1290,9 +1411,25 @@ int main(int argc, char **argv, char **envp)
 
 	while((opt = poptGetNextOpt(pc)) != -1) {
 		/* get the generic configuration parameters like --domain */
+		switch (opt) {
+		case OPT_VERBOSE:
+			verbose = True;
+			break;
+		}
 	}
 
 	poptFreeContext(pc);
+
+	if (!lp_load(get_dyn_CONFIGFILE(), true, false, false, true)) {
+		d_fprintf(stderr, "wbinfo: error opening config file %s. Error was %s\n",
+			get_dyn_CONFIGFILE(), strerror(errno));
+		exit(1);
+	}
+
+	if (!init_names())
+		return 1;
+
+	load_interfaces();
 
 	pc = poptGetContext(NULL, argc, (const char **)argv, long_options, 
 			    POPT_CONTEXT_KEEP_FIRST);
@@ -1387,7 +1524,7 @@ int main(int argc, char **argv, char **envp)
 			}
 			break;
 		case 'm':
-			if (!wbinfo_list_domains(False)) {
+			if (!wbinfo_list_domains(false, verbose)) {
 				d_fprintf(stderr, "Could not list trusted domains\n");
 				goto done;
 			}
@@ -1395,6 +1532,12 @@ int main(int argc, char **argv, char **envp)
 		case OPT_SEQUENCE:
 			if (!wbinfo_show_sequence(opt_domain_name)) {
 				d_fprintf(stderr, "Could not show sequence numbers\n");
+				goto done;
+			}
+			break;
+		case OPT_ONLINESTATUS:
+			if (!wbinfo_show_onlinestatus(opt_domain_name)) {
+				d_fprintf(stderr, "Could not show online-status\n");
 				goto done;
 			}
 			break;
@@ -1408,6 +1551,13 @@ int main(int argc, char **argv, char **envp)
 			if (!wbinfo_get_userinfo(string_arg)) {
 				d_fprintf(stderr, "Could not get info for user %s\n",
 						  string_arg);
+				goto done;
+			}
+			break;
+		case OPT_UID_INFO:
+			if ( !wbinfo_get_uidinfo(int_arg)) {
+				d_fprintf(stderr, "Could not get info for uid "
+						"%d\n", int_arg);
 				goto done;
 			}
 			break;
@@ -1440,18 +1590,18 @@ int main(int argc, char **argv, char **envp)
 			}
 			break;
 		case 'a': {
-				BOOL got_error = False;
+				bool got_error = false;
 
 				if (!wbinfo_auth(string_arg)) {
 					d_fprintf(stderr, "Could not authenticate user %s with "
 						"plaintext password\n", string_arg);
-					got_error = True;
+					got_error = true;
 				}
 
 				if (!wbinfo_auth_crap(string_arg)) {
 					d_fprintf(stderr, "Could not authenticate user %s with "
 						"challenge/response\n", string_arg);
-					got_error = True;
+					got_error = true;
 				}
 
 				if (got_error)
@@ -1496,8 +1646,13 @@ int main(int argc, char **argv, char **envp)
 				goto done;
 			}
 			break;
+		case OPT_DSGETDCNAME:
+			if (!wbinfo_dsgetdcname(string_arg, 0)) {
+				goto done;
+			}
+			break;
 		case OPT_SEPARATOR: {
-			const char sep = winbind_separator_int(True);
+			const char sep = winbind_separator_int(true);
 			if ( !sep ) {
 				goto done;
 			}
@@ -1505,7 +1660,7 @@ int main(int argc, char **argv, char **envp)
 			break;
 		}
 		case OPT_LIST_ALL_DOMAINS:
-			if (!wbinfo_list_domains(True)) {
+			if (!wbinfo_list_domains(true, verbose)) {
 				goto done;
 			}
 			break;
@@ -1516,6 +1671,8 @@ int main(int argc, char **argv, char **envp)
 			break;
 		/* generic configuration options */
 		case OPT_DOMAIN_NAME:
+			break;
+		case OPT_VERBOSE:
 			break;
 		default:
 			d_fprintf(stderr, "Invalid option\n");
@@ -1529,6 +1686,8 @@ int main(int argc, char **argv, char **envp)
 	/* Exit code */
 
  done:
+	talloc_destroy(frame);
+
 	poptFreeContext(pc);
 	return result;
 }

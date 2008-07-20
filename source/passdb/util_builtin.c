@@ -5,7 +5,7 @@
       
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -42,7 +41,7 @@ static const struct rid_name_map builtin_aliases[] = {
 /*******************************************************************
  Look up a rid in the BUILTIN domain
  ********************************************************************/
-BOOL lookup_builtin_rid(TALLOC_CTX *mem_ctx, uint32 rid, const char **name)
+bool lookup_builtin_rid(TALLOC_CTX *mem_ctx, uint32 rid, const char **name)
 {
 	const struct rid_name_map *aliases = builtin_aliases;
 
@@ -60,7 +59,7 @@ BOOL lookup_builtin_rid(TALLOC_CTX *mem_ctx, uint32 rid, const char **name)
 /*******************************************************************
  Look up a name in the BUILTIN domain
  ********************************************************************/
-BOOL lookup_builtin_name(const char *name, uint32 *rid)
+bool lookup_builtin_name(const char *name, uint32 *rid)
 {
 	const struct rid_name_map *aliases = builtin_aliases;
 
@@ -88,7 +87,7 @@ const char *builtin_domain_name(void)
  Check if the SID is the builtin SID (S-1-5-32).
 *****************************************************************/  
 
-BOOL sid_check_is_builtin(const DOM_SID *sid)
+bool sid_check_is_builtin(const DOM_SID *sid)
 {
 	return sid_equal(sid, &global_sid_Builtin);
 }
@@ -97,7 +96,7 @@ BOOL sid_check_is_builtin(const DOM_SID *sid)
  Check if the SID is one of the builtin SIDs (S-1-5-32-a).
 *****************************************************************/  
 
-BOOL sid_check_is_in_builtin(const DOM_SID *sid)
+bool sid_check_is_in_builtin(const DOM_SID *sid)
 {
 	DOM_SID dom_sid;
 	uint32 rid;

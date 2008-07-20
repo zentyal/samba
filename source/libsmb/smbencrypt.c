@@ -9,7 +9,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,8 +18,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -36,9 +35,9 @@ void SMBencrypt_hash(const uchar lm_hash[16], const uchar *c8, uchar p24[24])
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("SMBencrypt_hash: lm#, challenge, response\n"));
-	dump_data(100, (const char *)p21, 16);
-	dump_data(100, (const char *)c8, 8);
-	dump_data(100, (const char *)p24, 24);
+	dump_data(100, p21, 16);
+	dump_data(100, c8, 8);
+	dump_data(100, p24, 24);
 #endif
 }
 
@@ -50,9 +49,9 @@ void SMBencrypt_hash(const uchar lm_hash[16], const uchar *c8, uchar p24[24])
    Returns False if password must have been truncated to create LM hash
 */
 
-BOOL SMBencrypt(const char *passwd, const uchar *c8, uchar p24[24])
+bool SMBencrypt(const char *passwd, const uchar *c8, uchar p24[24])
 {
-	BOOL ret;
+	bool ret;
 	uchar lm_hash[16];
 
 	ret = E_deshash(passwd, lm_hash); 
@@ -108,9 +107,9 @@ void E_md5hash(const uchar salt[16], const uchar nthash[16], uchar hash_out[16])
  * @note p16 is filled in regardless
  */
  
-BOOL E_deshash(const char *passwd, uchar p16[16])
+bool E_deshash(const char *passwd, uchar p16[16])
 {
-	BOOL ret = True;
+	bool ret = True;
 	fstring dospwd; 
 	ZERO_STRUCT(dospwd);
 	
@@ -146,23 +145,23 @@ void nt_lm_owf_gen(const char *pwd, uchar nt_p16[16], uchar p16[16])
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("nt_lm_owf_gen: pwd, nt#\n"));
-	dump_data(120, pwd, strlen(pwd));
-	dump_data(100, (char *)nt_p16, 16);
+	dump_data(120, (uint8 *)pwd, strlen(pwd));
+	dump_data(100, nt_p16, 16);
 #endif
 
 	E_deshash(pwd, (uchar *)p16);
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("nt_lm_owf_gen: pwd, lm#\n"));
-	dump_data(120, pwd, strlen(pwd));
-	dump_data(100, (char *)p16, 16);
+	dump_data(120, (uint8 *)pwd, strlen(pwd));
+	dump_data(100, p16, 16);
 #endif
 }
 
 /* Does both the NTLMv2 owfs of a user's password */
-BOOL ntv2_owf_gen(const uchar owf[16],
+bool ntv2_owf_gen(const uchar owf[16],
 		  const char *user_in, const char *domain_in,
-		  BOOL upper_case_domain, /* Transform the domain into UPPER case */
+		  bool upper_case_domain, /* Transform the domain into UPPER case */
 		  uchar kr_buf[16])
 {
 	smb_ucs2_t *user;
@@ -205,10 +204,10 @@ BOOL ntv2_owf_gen(const uchar owf[16],
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("ntv2_owf_gen: user, domain, owfkey, kr\n"));
-	dump_data(100, (const char *)user, user_byte_len);
-	dump_data(100, (const char *)domain, domain_byte_len);
-	dump_data(100, (const char *)owf, 16);
-	dump_data(100, (const char *)kr_buf, 16);
+	dump_data(100, (uint8 *)user, user_byte_len);
+	dump_data(100, (uint8 *)domain, domain_byte_len);
+	dump_data(100, (uint8 *)owf, 16);
+	dump_data(100, (uint8 *)kr_buf, 16);
 #endif
 
 	SAFE_FREE(user);
@@ -239,9 +238,9 @@ void NTLMSSPOWFencrypt(const uchar passwd[8], const uchar *ntlmchalresp, uchar p
 	E_P24(p21, ntlmchalresp, p24);
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("NTLMSSPOWFencrypt: p21, c8, p24\n"));
-	dump_data(100, (char *)p21, 21);
-	dump_data(100, (const char *)ntlmchalresp, 8);
-	dump_data(100, (char *)p24, 24);
+	dump_data(100, p21, 21);
+	dump_data(100, ntlmchalresp, 8);
+	dump_data(100, p24, 24);
 #endif
 }
 
@@ -258,9 +257,9 @@ void SMBNTencrypt_hash(const uchar nt_hash[16], uchar *c8, uchar *p24)
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("SMBNTencrypt: nt#, challenge, response\n"));
-	dump_data(100, (char *)p21, 16);
-	dump_data(100, (char *)c8, 8);
-	dump_data(100, (char *)p24, 24);
+	dump_data(100, p21, 16);
+	dump_data(100, c8, 8);
+	dump_data(100, p24, 24);
 #endif
 }
 
@@ -288,9 +287,9 @@ void SMBOWFencrypt_ntv2(const uchar kr[16],
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("SMBOWFencrypt_ntv2: srv_chal, cli_chal, resp_buf\n"));
-	dump_data(100, (const char *)srv_chal->data, srv_chal->length);
-	dump_data(100, (const char *)cli_chal->data, cli_chal->length);
-	dump_data(100, (const char *)resp_buf, 16);
+	dump_data(100, srv_chal->data, srv_chal->length);
+	dump_data(100, cli_chal->data, cli_chal->length);
+	dump_data(100, resp_buf, 16);
 #endif
 }
 
@@ -307,7 +306,7 @@ void SMBsesskeygen_ntv2(const uchar kr[16],
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("SMBsesskeygen_ntv2:\n"));
-	dump_data(100, (const char *)sess_key, 16);
+	dump_data(100, sess_key, 16);
 #endif
 }
 
@@ -321,7 +320,7 @@ void SMBsesskeygen_ntv1(const uchar kr[16],
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("SMBsesskeygen_ntv1:\n"));
-	dump_data(100, (const char *)sess_key, 16);
+	dump_data(100, sess_key, 16);
 #endif
 }
 
@@ -341,14 +340,14 @@ void SMBsesskeygen_lm_sess_key(const uchar lm_hash[16],
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("SMBsesskeygen_lmv1_jerry:\n"));
-	dump_data(100, (const char *)sess_key, 16);
+	dump_data(100, sess_key, 16);
 #endif
 }
 
 DATA_BLOB NTLMv2_generate_names_blob(const char *hostname, 
 				     const char *domain)
 {
-	DATA_BLOB names_blob = data_blob(NULL, 0);
+	DATA_BLOB names_blob = data_blob_null;
 	
 	msrpc_gen(&names_blob, "aaa", 
 		  NTLMSSP_NAME_TYPE_DOMAIN, domain,
@@ -360,7 +359,7 @@ DATA_BLOB NTLMv2_generate_names_blob(const char *hostname,
 static DATA_BLOB NTLMv2_generate_client_data(const DATA_BLOB *names_blob) 
 {
 	uchar client_chal[8];
-	DATA_BLOB response = data_blob(NULL, 0);
+	DATA_BLOB response = data_blob_null;
 	char long_date[8];
 
 	generate_random_buffer(client_chal, sizeof(client_chal));
@@ -433,7 +432,7 @@ static DATA_BLOB LMv2_generate_response(const uchar ntlm_v2_hash[16],
 	return final_response;
 }
 
-BOOL SMBNTLMv2encrypt_hash(const char *user, const char *domain, const uchar nt_hash[16], 
+bool SMBNTLMv2encrypt_hash(const char *user, const char *domain, const uchar nt_hash[16], 
 		      const DATA_BLOB *server_chal, 
 		      const DATA_BLOB *names_blob,
 		      DATA_BLOB *lm_response, DATA_BLOB *nt_response, 
@@ -472,7 +471,7 @@ BOOL SMBNTLMv2encrypt_hash(const char *user, const char *domain, const uchar nt_
 
 /* Plaintext version of the above. */
 
-BOOL SMBNTLMv2encrypt(const char *user, const char *domain, const char *password, 
+bool SMBNTLMv2encrypt(const char *user, const char *domain, const char *password, 
 		      const DATA_BLOB *server_chal, 
 		      const DATA_BLOB *names_blob,
 		      DATA_BLOB *lm_response, DATA_BLOB *nt_response, 
@@ -492,7 +491,7 @@ BOOL SMBNTLMv2encrypt(const char *user, const char *domain, const char *password
  encode a password buffer with a unicode password.  The buffer
  is filled with random data to make it harder to attack.
 ************************************************************/
-BOOL encode_pw_buffer(uint8 buffer[516], const char *password, int string_flags)
+bool encode_pw_buffer(uint8 buffer[516], const char *password, int string_flags)
 {
 	uchar new_pw[512];
 	size_t new_pw_len;
@@ -524,11 +523,16 @@ BOOL encode_pw_buffer(uint8 buffer[516], const char *password, int string_flags)
  returned password including termination.
 ************************************************************/
 
-BOOL decode_pw_buffer(uint8 in_buffer[516], char *new_pwrd,
-		      int new_pwrd_size, uint32 *new_pw_len,
-		      int string_flags)
+bool decode_pw_buffer(TALLOC_CTX *ctx,
+			uint8 in_buffer[516],
+			char **pp_new_pwrd,
+			uint32 *new_pw_len,
+			int string_flags)
 {
 	int byte_len=0;
+
+	*pp_new_pwrd = NULL;
+	*new_pw_len = 0;
 
 	/* the incoming buffer can be any alignment. */
 	string_flags |= STR_NOALIGN;
@@ -545,28 +549,38 @@ BOOL decode_pw_buffer(uint8 in_buffer[516], char *new_pwrd,
 	byte_len = IVAL(in_buffer, 512);
 
 #ifdef DEBUG_PASSWORD
-	dump_data(100, (const char *)in_buffer, 516);
+	dump_data(100, in_buffer, 516);
 #endif
 
 	/* Password cannot be longer than the size of the password buffer */
 	if ( (byte_len < 0) || (byte_len > 512)) {
 		DEBUG(0, ("decode_pw_buffer: incorrect password length (%d).\n", byte_len));
 		DEBUG(0, ("decode_pw_buffer: check that 'encrypt passwords = yes'\n"));
-		return False;
+		return false;
 	}
 
-	/* decode into the return buffer.  Buffer length supplied */
- 	*new_pw_len = pull_string(NULL, new_pwrd, &in_buffer[512 - byte_len], new_pwrd_size, 
-				  byte_len, string_flags);
+	/* decode into the return buffer. */
+	*new_pw_len = pull_string_talloc(ctx,
+				NULL,
+				0,
+				pp_new_pwrd,
+				&in_buffer[512 - byte_len],
+				byte_len,
+				string_flags);
+
+	if (!*pp_new_pwrd || *new_pw_len == 0) {
+		DEBUG(0, ("decode_pw_buffer: pull_string_talloc failed\n"));
+		return false;
+	}
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("decode_pw_buffer: new_pwrd: "));
-	dump_data(100, (const char *)new_pwrd, *new_pw_len);
+	dump_data(100, (uint8 *)*pp_new_pwrd, *new_pw_len);
 	DEBUG(100,("multibyte len:%d\n", *new_pw_len));
 	DEBUG(100,("original char len:%d\n", byte_len/2));
 #endif
-	
-	return True;
+
+	return true;
 }
 
 /***********************************************************
@@ -681,3 +695,94 @@ char *decrypt_trustdom_secret(const char *pass, DATA_BLOB *data_in)
 
 }
 
+/* encode a wkssvc_PasswordBuffer:
+ *
+ * similar to samr_CryptPasswordEx. Different: 8byte confounder (instead of
+ * 16byte), confounder in front of the 516 byte buffer (instead of after that
+ * buffer), calling MD5Update() first with session_key and then with confounder
+ * (vice versa in samr) - Guenther */
+
+void encode_wkssvc_join_password_buffer(TALLOC_CTX *mem_ctx,
+					const char *pwd,
+					DATA_BLOB *session_key,
+					struct wkssvc_PasswordBuffer **pwd_buf)
+{
+	uint8_t buffer[516];
+	struct MD5Context ctx;
+	struct wkssvc_PasswordBuffer *my_pwd_buf = NULL;
+	DATA_BLOB confounded_session_key;
+	int confounder_len = 8;
+	uint8_t confounder[8];
+
+	my_pwd_buf = talloc_zero(mem_ctx, struct wkssvc_PasswordBuffer);
+	if (!my_pwd_buf) {
+		return;
+	}
+
+	confounded_session_key = data_blob_talloc(mem_ctx, NULL, 16);
+
+	encode_pw_buffer(buffer, pwd, STR_UNICODE);
+
+	generate_random_buffer((uint8_t *)confounder, confounder_len);
+
+	MD5Init(&ctx);
+	MD5Update(&ctx, session_key->data, session_key->length);
+	MD5Update(&ctx, confounder, confounder_len);
+	MD5Final(confounded_session_key.data, &ctx);
+
+	SamOEMhashBlob(buffer, 516, &confounded_session_key);
+
+	memcpy(&my_pwd_buf->data[0], confounder, confounder_len);
+	memcpy(&my_pwd_buf->data[8], buffer, 516);
+
+	data_blob_free(&confounded_session_key);
+
+	*pwd_buf = my_pwd_buf;
+}
+
+WERROR decode_wkssvc_join_password_buffer(TALLOC_CTX *mem_ctx,
+					  struct wkssvc_PasswordBuffer *pwd_buf,
+					  DATA_BLOB *session_key,
+					  char **pwd)
+{
+	uint8_t buffer[516];
+	struct MD5Context ctx;
+	uint32_t pwd_len;
+
+	DATA_BLOB confounded_session_key;
+
+	int confounder_len = 8;
+	uint8_t confounder[8];
+
+	*pwd = NULL;
+
+	if (!pwd_buf) {
+		return WERR_BAD_PASSWORD;
+	}
+
+	if (session_key->length != 16) {
+		DEBUG(10,("invalid session key\n"));
+		return WERR_BAD_PASSWORD;
+	}
+
+	confounded_session_key = data_blob_talloc(mem_ctx, NULL, 16);
+
+	memcpy(&confounder, &pwd_buf->data[0], confounder_len);
+	memcpy(&buffer, &pwd_buf->data[8], 516);
+
+	MD5Init(&ctx);
+	MD5Update(&ctx, session_key->data, session_key->length);
+	MD5Update(&ctx, confounder, confounder_len);
+	MD5Final(confounded_session_key.data, &ctx);
+
+	SamOEMhashBlob(buffer, 516, &confounded_session_key);
+
+	if (!decode_pw_buffer(mem_ctx, buffer, pwd, &pwd_len, STR_UNICODE)) {
+		data_blob_free(&confounded_session_key);
+		return WERR_BAD_PASSWORD;
+	}
+
+	data_blob_free(&confounded_session_key);
+
+	return WERR_OK;
+}

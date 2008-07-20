@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -49,7 +48,7 @@ static int socketpair_tcp(int fd[2])
 #endif
         sock2.sin_family = PF_INET;
 
-        bind(listener, (struct sockaddr *)&sock2, sizeof(sock2));
+        if (bind(listener, (struct sockaddr *)&sock2, sizeof(sock2)) != 0) goto failed;
 
 	if (listen(listener, 1) != 0) goto failed;
 
@@ -61,7 +60,7 @@ static int socketpair_tcp(int fd[2])
 
 	sock.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-	if (connect(fd[1],(struct sockaddr *)&sock,sizeof(sock)) == -1) {
+	if (sys_connect(fd[1], (struct sockaddr *)&sock) == -1) {
 		if (errno != EINPROGRESS) goto failed;
 	} else {
 		connect_done = 1;
@@ -71,7 +70,7 @@ static int socketpair_tcp(int fd[2])
 
 	close(listener);
 	if (connect_done == 0) {
-		if (connect(fd[1],(struct sockaddr *)&sock,sizeof(sock)) != 0
+		if (sys_connect(fd[1], (struct sockaddr *)&sock) != 0
 		    && errno != EISCONN) goto failed;
 	}
 
@@ -106,8 +105,12 @@ int sock_exec(const char *prog)
 		close(fd[0]);
 		close(0);
 		close(1);
-		dup(fd[1]);
-		dup(fd[1]);
+		if (dup(fd[1]) == -1) {
+			exit(1);
+		}
+		if (dup(fd[1]) == -1) {
+			exit(1);
+		}
 		exit(system(prog));
 	}
 	close(fd[1]);

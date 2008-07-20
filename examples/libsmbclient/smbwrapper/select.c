@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -73,13 +72,12 @@ int sys_select_intr(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *errorf
 	int ret;
 	fd_set *readfds2, readfds_buf, *writefds2, writefds_buf, *errorfds2, errorfds_buf;
 	struct timeval tval2, *ptval, end_time, now_time;
-        extern void GetTimeOfDay(struct timeval *tval);
 
 	readfds2 = (readfds ? &readfds_buf : NULL);
 	writefds2 = (writefds ? &writefds_buf : NULL);
 	errorfds2 = (errorfds ? &errorfds_buf : NULL);
         if (tval) {
-                GetTimeOfDay(&end_time);
+                gettimeofday(&end_time, NULL);
                 end_time.tv_sec += tval->tv_sec;
                 end_time.tv_usec += tval->tv_usec;
                 end_time.tv_sec += end_time.tv_usec / 1000000;
@@ -97,7 +95,7 @@ int sys_select_intr(int maxfd, fd_set *readfds, fd_set *writefds, fd_set *errorf
 		if (errorfds)
 			errorfds_buf = *errorfds;
 		if (tval) {
-                        GetTimeOfDay(&now_time);
+                        gettimeofday(&now_time, NULL);
                         tval2.tv_sec = end_time.tv_sec - now_time.tv_sec;
 			tval2.tv_usec = end_time.tv_usec - now_time.tv_usec;
                         if ((signed long) tval2.tv_usec < 0) {

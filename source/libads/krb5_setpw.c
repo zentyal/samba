@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -88,7 +87,7 @@ static DATA_BLOB encode_krb5_setpw(const char *principal, const char *password)
 		realm = c;
 	} else {
 		/* We must have a realm component. */
-		return data_blob(NULL, 0);
+		return data_blob_null;
 	}
 
 	memset(&req, 0, sizeof(req));
@@ -137,7 +136,7 @@ static krb5_error_code build_kpasswd_request(uint16 pversion,
 					   krb5_data *ap_req,
 					   const char *princ,
 					   const char *passwd,
-					   BOOL use_tcp,
+					   bool use_tcp,
 					   krb5_data *packet)
 {
 	krb5_error_code ret;
@@ -268,7 +267,7 @@ static krb5_error_code setpw_result_code_string(krb5_context context,
 	}
 }
 static krb5_error_code parse_setpw_reply(krb5_context context,
-					 BOOL use_tcp,
+					 bool use_tcp,
 					 krb5_auth_context auth_context,
 					 krb5_data *packet)
 {
@@ -402,11 +401,14 @@ static ADS_STATUS do_krb5_kpasswd_request(krb5_context context,
 	krb5_data ap_req, chpw_req, chpw_rep;
 	int ret, sock;
 	socklen_t addr_len;
-	struct sockaddr remote_addr, local_addr;
-	struct in_addr *addr = interpret_addr2(kdc_host);
+	struct sockaddr_storage remote_addr, local_addr;
+	struct sockaddr_storage addr;
 	krb5_address local_kaddr, remote_kaddr;
-	BOOL	use_tcp = False;
+	bool use_tcp = False;
 
+
+	if (!interpret_string_addr(&addr, kdc_host, 0)) {
+	}
 
 	ret = krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SUBKEY,
 				   NULL, credsp, &ap_req);
@@ -423,7 +425,7 @@ static ADS_STATUS do_krb5_kpasswd_request(krb5_context context,
 
 		} else {
 
-			sock = open_socket_out(SOCK_STREAM, addr, DEFAULT_KPASSWD_PORT, 
+			sock = open_socket_out(SOCK_STREAM, &addr, DEFAULT_KPASSWD_PORT, 
 					       LONG_CONNECT_TIMEOUT);
 		}
 
@@ -431,19 +433,37 @@ static ADS_STATUS do_krb5_kpasswd_request(krb5_context context,
 			int rc = errno;
 			SAFE_FREE(ap_req.data);
 			krb5_auth_con_free(context, auth_context);
-			DEBUG(1,("failed to open kpasswd socket to %s (%s)\n", 
+			DEBUG(1,("failed to open kpasswd socket to %s (%s)\n",
 				 kdc_host, strerror(errno)));
 			return ADS_ERROR_SYSTEM(rc);
 		}
-		
 		addr_len = sizeof(remote_addr);
-		getpeername(sock, &remote_addr, &addr_len);
+		if (getpeername(sock, (struct sockaddr *)&remote_addr, &addr_len) != 0) {
+			close(sock);
+			SAFE_FREE(ap_req.data);
+			krb5_auth_con_free(context, auth_context);
+			DEBUG(1,("getpeername() failed (%s)\n", error_message(errno)));
+			return ADS_ERROR_SYSTEM(errno);
+		}
 		addr_len = sizeof(local_addr);
-		getsockname(sock, &local_addr, &addr_len);
-		
-		setup_kaddr(&remote_kaddr, &remote_addr);
-		setup_kaddr(&local_kaddr, &local_addr);
-	
+		if (getsockname(sock, (struct sockaddr *)&local_addr, &addr_len) != 0) {
+			close(sock);
+			SAFE_FREE(ap_req.data);
+			krb5_auth_con_free(context, auth_context);
+			DEBUG(1,("getsockname() failed (%s)\n", error_message(errno)));
+			return ADS_ERROR_SYSTEM(errno);
+		}
+		if (!setup_kaddr(&remote_kaddr, &remote_addr) ||
+				!setup_kaddr(&local_kaddr, &local_addr)) {
+			DEBUG(1,("do_krb5_kpasswd_request: "
+				"Failed to setup addresses.\n"));
+			close(sock);
+			SAFE_FREE(ap_req.data);
+			krb5_auth_con_free(context, auth_context);
+			errno = EINVAL;
+			return ADS_ERROR_SYSTEM(EINVAL);
+		}
+
 		ret = krb5_auth_con_setaddrs(context, auth_context, &local_kaddr, NULL);
 		if (ret) {
 			close(sock);
@@ -452,7 +472,7 @@ static ADS_STATUS do_krb5_kpasswd_request(krb5_context context,
 			DEBUG(1,("krb5_auth_con_setaddrs failed (%s)\n", error_message(ret)));
 			return ADS_ERROR_KRB5(ret);
 		}
-	
+
 		ret = build_kpasswd_request(pversion, context, auth_context, &ap_req,
 					  princ, newpw, use_tcp, &chpw_req);
 		if (ret) {

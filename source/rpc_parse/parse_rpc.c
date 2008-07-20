@@ -8,7 +8,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -259,7 +258,7 @@ void init_rpc_hdr(RPC_HDR *hdr, enum RPC_PKT_TYPE pkt_type, uint8 flags,
  Reads or writes an RPC_HDR structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr(const char *desc,  RPC_HDR *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr(const char *desc,  RPC_HDR *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -313,7 +312,7 @@ BOOL smb_io_rpc_hdr(const char *desc,  RPC_HDR *rpc, prs_struct *ps, int depth)
  Reads or writes an RPC_IFACE structure.
 ********************************************************************/
 
-static BOOL smb_io_rpc_iface(const char *desc, RPC_IFACE *ifc, prs_struct *ps, int depth)
+static bool smb_io_rpc_iface(const char *desc, RPC_IFACE *ifc, prs_struct *ps, int depth)
 {
 	if (ifc == NULL)
 		return False;
@@ -347,7 +346,7 @@ static void init_rpc_addr_str(RPC_ADDR_STR *str, const char *name)
  Reads or writes an RPC_ADDR_STR structure.
 ********************************************************************/
 
-static BOOL smb_io_rpc_addr_str(const char *desc,  RPC_ADDR_STR *str, prs_struct *ps, int depth)
+static bool smb_io_rpc_addr_str(const char *desc,  RPC_ADDR_STR *str, prs_struct *ps, int depth)
 {
 	if (str == NULL)
 		return False;
@@ -379,7 +378,7 @@ static void init_rpc_hdr_bba(RPC_HDR_BBA *bba, uint16 max_tsize, uint16 max_rsiz
  Reads or writes an RPC_HDR_BBA structure.
 ********************************************************************/
 
-static BOOL smb_io_rpc_hdr_bba(const char *desc,  RPC_HDR_BBA *rpc, prs_struct *ps, int depth)
+static bool smb_io_rpc_hdr_bba(const char *desc,  RPC_HDR_BBA *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -410,7 +409,7 @@ void init_rpc_context(RPC_CONTEXT *rpc_ctx, uint16 context_id, RPC_IFACE *abstra
 	rpc_ctx->abstract = *abstract;
 
 	/* vers. of interface to use for replies */
-	rpc_ctx->transfer = transfer;
+	rpc_ctx->transfer = CONST_DISCARD(RPC_IFACE *, transfer);
 }
 
 /*******************************************************************
@@ -432,7 +431,7 @@ void init_rpc_hdr_rb(RPC_HDR_RB *rpc,
  Reads or writes an RPC_CONTEXT structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_context(const char *desc, RPC_CONTEXT *rpc_ctx, prs_struct *ps, int depth)
+bool smb_io_rpc_context(const char *desc, RPC_CONTEXT *rpc_ctx, prs_struct *ps, int depth)
 {
 	int i;
 
@@ -470,7 +469,7 @@ BOOL smb_io_rpc_context(const char *desc, RPC_CONTEXT *rpc_ctx, prs_struct *ps, 
  Reads or writes an RPC_HDR_RB structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_rb(const char *desc, RPC_HDR_RB *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_rb(const char *desc, RPC_HDR_RB *rpc, prs_struct *ps, int depth)
 {
 	int i;
 	
@@ -526,7 +525,7 @@ static void init_rpc_results(RPC_RESULTS *res,
  lkclXXXX only one reason at the moment!
 ********************************************************************/
 
-static BOOL smb_io_rpc_results(const char *desc, RPC_RESULTS *res, prs_struct *ps, int depth)
+static bool smb_io_rpc_results(const char *desc, RPC_RESULTS *res, prs_struct *ps, int depth)
 {
 	if (res == NULL)
 		return False;
@@ -575,7 +574,7 @@ void init_rpc_hdr_ba(RPC_HDR_BA *rpc,
  Reads or writes an RPC_HDR_BA structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_ba(const char *desc, RPC_HDR_BA *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_ba(const char *desc, RPC_HDR_BA *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -609,7 +608,7 @@ void init_rpc_hdr_req(RPC_HDR_REQ *hdr, uint32 alloc_hint, uint16 opnum)
  Reads or writes an RPC_HDR_REQ structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_req(const char *desc, RPC_HDR_REQ *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_req(const char *desc, RPC_HDR_REQ *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -630,7 +629,7 @@ BOOL smb_io_rpc_hdr_req(const char *desc, RPC_HDR_REQ *rpc, prs_struct *ps, int 
  Reads or writes an RPC_HDR_RESP structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_resp(const char *desc, RPC_HDR_RESP *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_resp(const char *desc, RPC_HDR_RESP *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -653,7 +652,7 @@ BOOL smb_io_rpc_hdr_resp(const char *desc, RPC_HDR_RESP *rpc, prs_struct *ps, in
  Reads or writes an RPC_HDR_FAULT structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_fault(const char *desc, RPC_HDR_FAULT *rpc, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_fault(const char *desc, RPC_HDR_FAULT *rpc, prs_struct *ps, int depth)
 {
 	if (rpc == NULL)
 		return False;
@@ -689,7 +688,7 @@ void init_rpc_hdr_auth(RPC_HDR_AUTH *rai,
  Reads or writes an RPC_HDR_AUTH structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_hdr_auth(const char *desc, RPC_HDR_AUTH *rai, prs_struct *ps, int depth)
+bool smb_io_rpc_hdr_auth(const char *desc, RPC_HDR_AUTH *rai, prs_struct *ps, int depth)
 {
 	if (rai == NULL)
 		return False;
@@ -718,7 +717,7 @@ BOOL smb_io_rpc_hdr_auth(const char *desc, RPC_HDR_AUTH *rai, prs_struct *ps, in
  Checks an RPC_AUTH_VERIFIER structure.
 ********************************************************************/
 
-BOOL rpc_auth_verifier_chk(RPC_AUTH_VERIFIER *rav,
+bool rpc_auth_verifier_chk(RPC_AUTH_VERIFIER *rav,
 				const char *signature, uint32 msg_type)
 {
 	return (strequal(rav->signature, signature) && rav->msg_type == msg_type);
@@ -739,7 +738,7 @@ void init_rpc_auth_verifier(RPC_AUTH_VERIFIER *rav,
  Reads or writes an RPC_AUTH_VERIFIER structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_auth_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
+bool smb_io_rpc_auth_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
 {
 	if (rav == NULL)
 		return False;
@@ -761,7 +760,7 @@ BOOL smb_io_rpc_auth_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_stru
  This parses an RPC_AUTH_VERIFIER for schannel. I think
 ********************************************************************/
 
-BOOL smb_io_rpc_schannel_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
+bool smb_io_rpc_schannel_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
 {
 	if (rav == NULL)
 		return False;
@@ -794,7 +793,7 @@ void init_rpc_auth_schannel_neg(RPC_AUTH_SCHANNEL_NEG *neg,
  Reads or writes an RPC_AUTH_SCHANNEL_NEG structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_auth_schannel_neg(const char *desc, RPC_AUTH_SCHANNEL_NEG *neg,
+bool smb_io_rpc_auth_schannel_neg(const char *desc, RPC_AUTH_SCHANNEL_NEG *neg,
 				prs_struct *ps, int depth)
 {
 	if (neg == NULL)
@@ -822,7 +821,7 @@ BOOL smb_io_rpc_auth_schannel_neg(const char *desc, RPC_AUTH_SCHANNEL_NEG *neg,
 reads or writes an RPC_AUTH_SCHANNEL_CHK structure.
 ********************************************************************/
 
-BOOL smb_io_rpc_auth_schannel_chk(const char *desc, int auth_len, 
+bool smb_io_rpc_auth_schannel_chk(const char *desc, int auth_len, 
                                 RPC_AUTH_SCHANNEL_CHK * chk,
 				prs_struct *ps, int depth)
 {

@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _NTERR_H
@@ -31,7 +30,7 @@
 #define NT_STATUS_NO_MORE_ENTRIES         NT_STATUS(0x8000001a)
 
 /* Vista Status codes. */
-#define STATUS_INACCESSIBLE_SYSTEM_SHORTCUT         NT_STATUS(0x8000002d)
+#define NT_STATUS_INACCESSIBLE_SYSTEM_SHORTCUT         NT_STATUS(0x8000002d)
 
 #define STATUS_MORE_ENTRIES               NT_STATUS(0x0105)
 #define STATUS_SOME_UNMAPPED              NT_STATUS(0x0107)
@@ -567,5 +566,6 @@
 #define NT_STATUS_DOWNGRADE_DETECTED NT_STATUS(0xC0000000 | 0x0388)
 #define NT_STATUS_NO_SUCH_JOB NT_STATUS(0xC0000000 | 0xEDE) /* scheduler */
 #define NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED NT_STATUS(0xC0000000 | 0x20004)
+#define NT_STATUS_RPC_CANNOT_SUPPORT NT_STATUS(0xC0000000 | 0x20041)
 
 #endif /* _NTERR_H */

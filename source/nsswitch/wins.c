@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -32,7 +31,7 @@
 
 static int initialised;
 
-extern BOOL AllowDebugChange;
+extern bool AllowDebugChange;
 
 NSS_STATUS _nss_wins_gethostbyname_r(const char *hostname, struct hostent *he,
 			  char *buffer, size_t buflen, int *h_errnop);
@@ -59,9 +58,15 @@ static int wins_lookup_open_socket_in(void)
 	if (res == -1)
 		return -1;
 
-	setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val));
+	if (setsockopt(res,SOL_SOCKET,SO_REUSEADDR,(char *)&val,sizeof(val)) != 0) {
+		close(res);
+		return -1;
+	}
 #ifdef SO_REUSEPORT
-	setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val));
+	if (setsockopt(res,SOL_SOCKET,SO_REUSEPORT,(char *)&val,sizeof(val)) != 0) {
+		close(res);
+		return -1;
+	}
 #endif /* SO_REUSEPORT */
 
 	/* now we've got a socket - we need to bind it */
@@ -86,7 +91,7 @@ static void nss_wins_init(void)
 	TimeInit();
 	setup_logging("nss_wins",False);
 	load_case_tables();
-	lp_load(dyn_CONFIGFILE,True,False,False,True);
+	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 }
 
@@ -104,12 +109,17 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 	*count = 0;
 
 	/* always try with wins first */
-	if (resolve_wins(name,0x00,&address,count)) {
+	if (NT_STATUS_IS_OK(resolve_wins(name,0x00,&address,count))) {
 		if ( (ret = SMB_MALLOC_P(struct in_addr)) == NULL ) {
 			free( address );
 			return NULL;
 		}
-		*ret = address[0].ip;
+		if (address[0].ss.ss_family != AF_INET) {
+			free(address);
+			free(ret);
+			return NULL;
+		}
+		*ret = ((struct sockaddr_in *)&address[0].ss)->sin_addr;
 		free( address );
 		return ret;
 	}
@@ -121,9 +131,21 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 
 	/* uggh, we have to broadcast to each interface in turn */
 	for (j=iface_count() - 1;j >= 0;j--) {
-		struct in_addr *bcast = iface_n_bcast(j);
-		ret = name_query(fd,name,0x00,True,True,*bcast,count, &flags, NULL);
-		if (ret) break;
+		const struct in_addr *bcast = iface_n_bcast_v4(j);
+		struct sockaddr_storage ss;
+		struct sockaddr_storage *pss;
+		if (!bcast) {
+			continue;
+		}
+		in_addr_to_sockaddr_storage(&ss, *bcast);
+		pss = name_query(fd,name,0x00,True,True,&ss,count, &flags, NULL);
+		if (pss) {
+			if ((ret = SMB_MALLOC_P(struct in_addr)) == NULL) {
+				return NULL;
+			}
+			*ret = ((struct sockaddr_in *)pss)->sin_addr;
+			break;
+		}
 	}
 
 	close(fd);
@@ -135,7 +157,7 @@ static struct in_addr *lookup_byname_backend(const char *name, int *count)
 static NODE_STATUS_STRUCT *lookup_byaddr_backend(char *addr, int *count)
 {
 	int fd;
-	struct in_addr  ip;
+	struct sockaddr_storage ss;
 	struct nmb_name nname;
 	NODE_STATUS_STRUCT *status;
 
@@ -148,8 +170,10 @@ static NODE_STATUS_STRUCT *lookup_byaddr_backend(char *addr, int *count)
 		return NULL;
 
 	make_nmb_name(&nname, "*", 0);
-	ip = *interpret_addr2(addr);
-	status = node_status_query(fd,&nname,ip, count, NULL);
+	if (!interpret_string_addr(&ss, addr, AI_NUMERICHOST)) {
+		return NULL;
+	}
+	status = node_status_query(fd, &nname, &ss, count, NULL);
 
 	close(fd);
 	return status;
@@ -173,7 +197,7 @@ int lookup(nsd_file_t *rq)
 	NODE_STATUS_STRUCT *status;
 	int i, count, len, size;
 	char response[1024];
-	BOOL found = False;
+	bool found = False;
 
 	nsd_logprintf(NSD_LOG_MIN, "entering lookup (wins)\n");
 	if (! rq) 
@@ -316,8 +340,10 @@ _nss_wins_gethostbyname_r(const char *hostname, struct hostent *he,
 
 	namelen = strlen(name) + 1;
 
-	if ((he->h_name = get_static(&buffer, &buflen, namelen)) == NULL)
+	if ((he->h_name = get_static(&buffer, &buflen, namelen)) == NULL) {
+		free(ip_list);
 		return NSS_STATUS_TRYAGAIN;
+	}
 
 	memcpy(he->h_name, name, namelen);
 
@@ -326,24 +352,29 @@ _nss_wins_gethostbyname_r(const char *hostname, struct hostent *he,
 	if ((i = (unsigned long)(buffer) % sizeof(char*)) != 0)
 		i = sizeof(char*) - i;
 
-	if (get_static(&buffer, &buflen, i) == NULL)
+	if (get_static(&buffer, &buflen, i) == NULL) {
+		free(ip_list);
 		return NSS_STATUS_TRYAGAIN;
+	}
 
 	if ((he->h_addr_list = (char **)get_static(
-		     &buffer, &buflen, (count + 1) * sizeof(char *))) == NULL)
+		     &buffer, &buflen, (count + 1) * sizeof(char *))) == NULL) {
+		free(ip_list);
 		return NSS_STATUS_TRYAGAIN;
+	}
 
 	for (i = 0; i < count; i++) {
 		if ((he->h_addr_list[i] = get_static(&buffer, &buflen,
-						     INADDRSZ)) == NULL)
+						     INADDRSZ)) == NULL) {
+			free(ip_list);
 			return NSS_STATUS_TRYAGAIN;
+		}
 		memcpy(he->h_addr_list[i], &ip_list[i], INADDRSZ);
 	}
 
 	he->h_addr_list[count] = NULL;
 
-	if (ip_list)
-		free(ip_list);
+	free(ip_list);
 
 	/* Set h_addr_type and h_length */
 

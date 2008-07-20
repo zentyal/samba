@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -33,11 +32,12 @@ extern userdom_struct current_user_info;
 static struct cli_state *server_cryptkey(TALLOC_CTX *mem_ctx)
 {
 	struct cli_state *cli = NULL;
-	fstring desthost;
-	struct in_addr dest_ip;
+	char *desthost = NULL;
+	struct sockaddr_storage dest_ss;
 	const char *p;
-	char *pserver;
-	BOOL connected_ok = False;
+	char *pserver = NULL;
+	bool connected_ok = False;
+	struct named_mutex *mutex;
 
 	if (!(cli = cli_initialise()))
 		return NULL;
@@ -48,34 +48,40 @@ static struct cli_state *server_cryptkey(TALLOC_CTX *mem_ctx)
         pserver = talloc_strdup(mem_ctx, lp_passwordserver());
 	p = pserver;
 
-        while(next_token( &p, desthost, LIST_SEP, sizeof(desthost))) {
+        while(next_token_talloc(mem_ctx, &p, &desthost, LIST_SEP)) {
 		NTSTATUS status;
 
-		standard_sub_basic(current_user_info.smb_name, current_user_info.domain,
-				   desthost, sizeof(desthost));
+		desthost = talloc_sub_basic(mem_ctx,
+				current_user_info.smb_name,
+				current_user_info.domain,
+				desthost);
+		if (!desthost) {
+			return NULL;
+		}
 		strupper_m(desthost);
 
-		if(!resolve_name( desthost, &dest_ip, 0x20)) {
+		if(!resolve_name( desthost, &dest_ss, 0x20)) {
 			DEBUG(1,("server_cryptkey: Can't resolve address for %s\n",desthost));
 			continue;
 		}
 
-		if (ismyip(dest_ip)) {
+		if (ismyaddr(&dest_ss)) {
 			DEBUG(1,("Password server loop - disabling password server %s\n",desthost));
 			continue;
 		}
 
-		/* we use a mutex to prevent two connections at once - when a 
-		   Win2k PDC get two connections where one hasn't completed a 
-		   session setup yet it will send a TCP reset to the first 
+		/* we use a mutex to prevent two connections at once - when a
+		   Win2k PDC get two connections where one hasn't completed a
+		   session setup yet it will send a TCP reset to the first
 		   connection (tridge) */
 
-		if (!grab_server_mutex(desthost)) {
+		mutex = grab_named_mutex(talloc_tos(), desthost, 10);
+		if (mutex == NULL) {
 			cli_shutdown(cli);
 			return NULL;
 		}
 
-		status = cli_connect(cli, desthost, &dest_ip);
+		status = cli_connect(cli, desthost, &dest_ss);
 		if (NT_STATUS_IS_OK(status)) {
 			DEBUG(3,("connected to password server %s\n",desthost));
 			connected_ok = True;
@@ -83,97 +89,131 @@ static struct cli_state *server_cryptkey(TALLOC_CTX *mem_ctx)
 		}
 		DEBUG(10,("server_cryptkey: failed to connect to server %s. Error %s\n",
 			desthost, nt_errstr(status) ));
+		TALLOC_FREE(mutex);
 	}
 
 	if (!connected_ok) {
-		release_server_mutex();
 		DEBUG(0,("password server not available\n"));
 		cli_shutdown(cli);
 		return NULL;
 	}
-	
-	if (!attempt_netbios_session_request(&cli, global_myname(), 
-					     desthost, &dest_ip)) {
-		release_server_mutex();
+
+	if (!attempt_netbios_session_request(&cli, global_myname(),
+					     desthost, &dest_ss)) {
+		TALLOC_FREE(mutex);
 		DEBUG(1,("password server fails session request\n"));
 		cli_shutdown(cli);
 		return NULL;
 	}
-	
+
 	if (strequal(desthost,myhostname())) {
 		exit_server_cleanly("Password server loop!");
 	}
-	
+
 	DEBUG(3,("got session\n"));
 
 	if (!cli_negprot(cli)) {
+		TALLOC_FREE(mutex);
 		DEBUG(1,("%s rejected the negprot\n",desthost));
-		release_server_mutex();
 		cli_shutdown(cli);
 		return NULL;
 	}
 
 	if (cli->protocol < PROTOCOL_LANMAN2 ||
 	    !(cli->sec_mode & NEGOTIATE_SECURITY_USER_LEVEL)) {
+		TALLOC_FREE(mutex);
 		DEBUG(1,("%s isn't in user level security mode\n",desthost));
-		release_server_mutex();
 		cli_shutdown(cli);
 		return NULL;
 	}
 
-	/* Get the first session setup done quickly, to avoid silly 
+	/* Get the first session setup done quickly, to avoid silly
 	   Win2k bugs.  (The next connection to the server will kill
-	   this one... 
+	   this one...
 	*/
 
 	if (!NT_STATUS_IS_OK(cli_session_setup(cli, "", "", 0, "", 0,
 					       ""))) {
+		TALLOC_FREE(mutex);
 		DEBUG(0,("%s rejected the initial session setup (%s)\n",
 			 desthost, cli_errstr(cli)));
-		release_server_mutex();
 		cli_shutdown(cli);
 		return NULL;
 	}
-	
-	release_server_mutex();
+
+	TALLOC_FREE(mutex);
 
 	DEBUG(3,("password server OK\n"));
-	
+
 	return cli;
 }
 
-/****************************************************************************
- Clean up our allocated cli.
-****************************************************************************/
-
-static void free_server_private_data(void **private_data_pointer) 
-{
-	struct cli_state **cli = (struct cli_state **)private_data_pointer;
-	if (*cli && (*cli)->initialised) {
-		DEBUG(10, ("Shutting down smbserver connection\n"));
-		cli_shutdown(*cli);
-	}
-	*private_data_pointer = NULL;
-}
+struct server_security_state {
+	struct cli_state *cli;
+};
 
 /****************************************************************************
  Send a 'keepalive' packet down the cli pipe.
 ****************************************************************************/
 
-static void send_server_keepalive(void **private_data_pointer) 
+static bool send_server_keepalive(const struct timeval *now,
+				  void *private_data)
 {
-	/* also send a keepalive to the password server if its still
-	   connected */
-	if (private_data_pointer) {
-		struct cli_state *cli = (struct cli_state *)(*private_data_pointer);
-		if (cli && cli->initialised) {
-			if (!send_keepalive(cli->fd)) {
-				DEBUG( 2, ( "send_server_keepalive: password server keepalive failed.\n"));
-				cli_shutdown(cli);
-				*private_data_pointer = NULL;
-			}
+	struct server_security_state *state = talloc_get_type_abort(
+		private_data, struct server_security_state);
+
+	if (!state->cli || !state->cli->initialised) {
+		return False;
+	}
+
+	if (send_keepalive(state->cli->fd)) {
+		return True;
+	}
+
+	DEBUG( 2, ( "send_server_keepalive: password server keepalive "
+		    "failed.\n"));
+	cli_shutdown(state->cli);
+	state->cli = NULL;
+	return False;
+}
+
+static int destroy_server_security(struct server_security_state *state)
+{
+	if (state->cli) {
+		cli_shutdown(state->cli);
+	}
+	return 0;
+}
+
+static struct server_security_state *make_server_security_state(struct cli_state *cli)
+{
+	struct server_security_state *result;
+
+	if (!(result = talloc(NULL, struct server_security_state))) {
+		DEBUG(0, ("talloc failed\n"));
+		cli_shutdown(cli);
+		return NULL;
+	}
+
+	result->cli = cli;
+	talloc_set_destructor(result, destroy_server_security);
+
+	if (lp_keepalive() != 0) {
+		struct timeval interval;
+		interval.tv_sec = lp_keepalive();
+		interval.tv_usec = 0;
+
+		if (event_add_idle(smbd_event_context(), result, interval,
+				   "server_security_keepalive",
+				   send_server_keepalive,
+				   result) == NULL) {
+			DEBUG(0, ("event_add_idle failed\n"));
+			TALLOC_FREE(result);
+			return NULL;
 		}
 	}
+
+	return result;
 }
 
 /****************************************************************************
@@ -196,23 +236,25 @@ static DATA_BLOB auth_get_challenge_server(const struct auth_context *auth_conte
 			
 			/* However, it is still a perfectly fine connection
 			   to pass that unencrypted password over */
-			*my_private_data = (void *)cli;
-			return data_blob(NULL, 0);
-			
+			*my_private_data =
+				(void *)make_server_security_state(cli);
+			return data_blob_null;
 		} else if (cli->secblob.length < 8) {
 			/* We can't do much if we don't get a full challenge */
 			DEBUG(2,("make_auth_info_server: Didn't receive a full challenge from server\n"));
 			cli_shutdown(cli);
-			return data_blob(NULL, 0);
+			return data_blob_null;
 		}
 
-		*my_private_data = (void *)cli;
+		if (!(*my_private_data = (void *)make_server_security_state(cli))) {
+			return data_blob(NULL,0);
+		}
 
 		/* The return must be allocated on the caller's mem_ctx, as our own will be
 		   destoyed just after the call. */
 		return data_blob_talloc(auth_context->mem_ctx, cli->secblob.data,8);
 	} else {
-		return data_blob(NULL, 0);
+		return data_blob_null;
 	}
 }
 
@@ -228,15 +270,15 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 					 const auth_usersupplied_info *user_info, 
 					 auth_serversupplied_info **server_info)
 {
+	struct server_security_state *state = talloc_get_type_abort(
+		my_private_data, struct server_security_state);
 	struct cli_state *cli;
-	static unsigned char badpass[24];
-	static fstring baduser; 
-	static BOOL tested_password_server = False;
-	static BOOL bad_password_server = False;
+	static bool tested_password_server = False;
+	static bool bad_password_server = False;
 	NTSTATUS nt_status = NT_STATUS_NOT_IMPLEMENTED;
-	BOOL locally_made_cli = False;
+	bool locally_made_cli = False;
 
-	cli = (struct cli_state *)my_private_data;
+	cli = state->cli;
 	
 	if (cli) {
 	} else {
@@ -245,7 +287,7 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 	}
 
 	if (!cli || !cli->initialised) {
-		DEBUG(1,("password server is not connected (cli not initilised)\n"));
+		DEBUG(1,("password server is not connected (cli not initialised)\n"));
 		return NT_STATUS_LOGON_FAILURE;
 	}  
 	
@@ -261,23 +303,6 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 		}
 	}
 
-	if(badpass[0] == 0)
-		memset(badpass, 0x1f, sizeof(badpass));
-
-	if((user_info->nt_resp.length == sizeof(badpass)) && 
-	   !memcmp(badpass, user_info->nt_resp.data, sizeof(badpass))) {
-		/* 
-		 * Very unlikely, our random bad password is the same as the users
-		 * password.
-		 */
-		memset(badpass, badpass[0]+1, sizeof(badpass));
-	}
-
-	if(baduser[0] == 0) {
-		fstrcpy(baduser, INVALID_USER_PREFIX);
-		fstrcat(baduser, global_myname());
-	}
-
 	/*
 	 * Attempt a session setup with a totally incorrect password.
 	 * If this succeeds with the guest bit *NOT* set then the password
@@ -291,6 +316,28 @@ static NTSTATUS check_smbserver_security(const struct auth_context *auth_context
 	 */
 
 	if ((!tested_password_server) && (lp_paranoid_server_security())) {
+		unsigned char badpass[24];
+		char *baduser = NULL;
+
+		memset(badpass, 0x1f, sizeof(badpass));
+
+		if((user_info->nt_resp.length == sizeof(badpass)) && 
+		   !memcmp(badpass, user_info->nt_resp.data, sizeof(badpass))) {
+			/* 
+			 * Very unlikely, our random bad password is the same as the users
+			 * password.
+			 */
+			memset(badpass, badpass[0]+1, sizeof(badpass));
+		}
+
+		baduser = talloc_asprintf(mem_ctx,
+					"%s%s",
+					INVALID_USER_PREFIX,
+					global_myname());
+		if (!baduser) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
 		if (NT_STATUS_IS_OK(cli_session_setup(cli, baduser,
 						      (char *)badpass,
 						      sizeof(badpass), 
@@ -410,8 +457,6 @@ static NTSTATUS auth_init_smbserver(struct auth_context *auth_context, const cha
 	(*auth_method)->name = "smbserver";
 	(*auth_method)->auth = check_smbserver_security;
 	(*auth_method)->get_chal = auth_get_challenge_server;
-	(*auth_method)->send_keepalive = send_server_keepalive;
-	(*auth_method)->free_private_data = free_server_private_data;
 	return NT_STATUS_OK;
 }
 

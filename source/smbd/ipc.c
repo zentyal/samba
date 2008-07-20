@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    */
 /*
    This file handles the named pipe and mailslot calls
@@ -31,7 +30,7 @@ extern int max_send;
 
 #define NERR_notsupported 50
 
-extern int smb_read_error;
+static void api_no_reply(connection_struct *conn, struct smb_request *req);
 
 /*******************************************************************
  copies parameters and data, as needed, into the smb buffer
@@ -47,7 +46,7 @@ static void copy_trans_params_and_data(char *outbuf, int align,
 				char *rparam, int param_offset, int param_len,
 				char *rdata, int data_offset, int data_len)
 {
-	char *copy_into = smb_buf(outbuf)+1;
+	char *copy_into = smb_buf(outbuf);
 
 	if(param_len < 0)
 		param_len = 0;
@@ -55,14 +54,24 @@ static void copy_trans_params_and_data(char *outbuf, int align,
 	if(data_len < 0)
 		data_len = 0;
 
-	DEBUG(5,("copy_trans_params_and_data: params[%d..%d] data[%d..%d]\n",
+	DEBUG(5,("copy_trans_params_and_data: params[%d..%d] data[%d..%d] (align %d)\n",
 			param_offset, param_offset + param_len,
-			data_offset , data_offset  + data_len));
+			data_offset , data_offset  + data_len,
+			align));
+
+	*copy_into = '\0';
+
+	copy_into += 1;
 
 	if (param_len)
 		memcpy(copy_into, &rparam[param_offset], param_len);
 
-	copy_into += param_len + align;
+	copy_into += param_len;
+	if (align) {
+		memset(copy_into, '\0', align);
+	}
+
+	copy_into += align;
 
 	if (data_len )
 		memcpy(copy_into, &rdata[data_offset], data_len);
@@ -72,10 +81,11 @@ static void copy_trans_params_and_data(char *outbuf, int align,
  Send a trans reply.
  ****************************************************************************/
 
-void send_trans_reply(char *outbuf,
-				char *rparam, int rparam_len,
-				char *rdata, int rdata_len,
-				BOOL buffer_too_large)
+void send_trans_reply(connection_struct *conn,
+			struct smb_request *req,
+		      char *rparam, int rparam_len,
+		      char *rdata, int rdata_len,
+		      bool buffer_too_large)
 {
 	int this_ldata,this_lparam;
 	int tot_data_sent = 0;
@@ -93,29 +103,39 @@ void send_trans_reply(char *outbuf,
 
 	align = ((this_lparam)%4);
 
+	reply_outbuf(req, 10, 1+align+this_ldata+this_lparam);
+
+	copy_trans_params_and_data((char *)req->outbuf, align,
+				rparam, tot_param_sent, this_lparam,
+				rdata, tot_data_sent, this_ldata);
+
+	SSVAL(req->outbuf,smb_vwv0,lparam);
+	SSVAL(req->outbuf,smb_vwv1,ldata);
+	SSVAL(req->outbuf,smb_vwv3,this_lparam);
+	SSVAL(req->outbuf,smb_vwv4,smb_offset(smb_buf(req->outbuf)+1,
+					      req->outbuf));
+	SSVAL(req->outbuf,smb_vwv5,0);
+	SSVAL(req->outbuf,smb_vwv6,this_ldata);
+	SSVAL(req->outbuf,smb_vwv7,smb_offset(smb_buf(req->outbuf)+1+
+					      this_lparam+align,
+					      req->outbuf));
+	SSVAL(req->outbuf,smb_vwv8,0);
+	SSVAL(req->outbuf,smb_vwv9,0);
+
 	if (buffer_too_large) {
-		ERROR_BOTH(STATUS_BUFFER_OVERFLOW,ERRDOS,ERRmoredata);
+		error_packet_set((char *)req->outbuf,
+				 ERRDOS, ERRmoredata,
+				 STATUS_BUFFER_OVERFLOW,
+				 __LINE__, __FILE__);
 	}
 
-	set_message(outbuf,10,1+align+this_ldata+this_lparam,True);
+	show_msg((char *)req->outbuf);
+	if (!srv_send_smb(smbd_server_fd(),
+			(char *)req->outbuf,
+			IS_CONN_ENCRYPTED(conn)))
+		exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
 
-	copy_trans_params_and_data(outbuf, align,
-								rparam, tot_param_sent, this_lparam,
-								rdata, tot_data_sent, this_ldata);
-
-	SSVAL(outbuf,smb_vwv0,lparam);
-	SSVAL(outbuf,smb_vwv1,ldata);
-	SSVAL(outbuf,smb_vwv3,this_lparam);
-	SSVAL(outbuf,smb_vwv4,smb_offset(smb_buf(outbuf)+1,outbuf));
-	SSVAL(outbuf,smb_vwv5,0);
-	SSVAL(outbuf,smb_vwv6,this_ldata);
-	SSVAL(outbuf,smb_vwv7,smb_offset(smb_buf(outbuf)+1+this_lparam+align,outbuf));
-	SSVAL(outbuf,smb_vwv8,0);
-	SSVAL(outbuf,smb_vwv9,0);
-
-	show_msg(outbuf);
-	if (!send_smb(smbd_server_fd(),outbuf))
-		exit_server_cleanly("send_trans_reply: send_smb failed.");
+	TALLOC_FREE(req->outbuf);
 
 	tot_data_sent = this_ldata;
 	tot_param_sent = this_lparam;
@@ -133,26 +153,39 @@ void send_trans_reply(char *outbuf,
 
 		align = (this_lparam%4);
 
-		set_message(outbuf,10,1+this_ldata+this_lparam+align,False);
+		reply_outbuf(req, 10, 1+this_ldata+this_lparam+align);
 
-		copy_trans_params_and_data(outbuf, align,
+		copy_trans_params_and_data((char *)req->outbuf, align,
 					   rparam, tot_param_sent, this_lparam,
 					   rdata, tot_data_sent, this_ldata);
 		
-		SSVAL(outbuf,smb_vwv3,this_lparam);
-		SSVAL(outbuf,smb_vwv4,smb_offset(smb_buf(outbuf)+1,outbuf));
-		SSVAL(outbuf,smb_vwv5,tot_param_sent);
-		SSVAL(outbuf,smb_vwv6,this_ldata);
-		SSVAL(outbuf,smb_vwv7,smb_offset(smb_buf(outbuf)+1+this_lparam+align,outbuf));
-		SSVAL(outbuf,smb_vwv8,tot_data_sent);
-		SSVAL(outbuf,smb_vwv9,0);
+		SSVAL(req->outbuf,smb_vwv3,this_lparam);
+		SSVAL(req->outbuf,smb_vwv4,smb_offset(smb_buf(req->outbuf)+1,
+						      req->outbuf));
+		SSVAL(req->outbuf,smb_vwv5,tot_param_sent);
+		SSVAL(req->outbuf,smb_vwv6,this_ldata);
+		SSVAL(req->outbuf,smb_vwv7,smb_offset(smb_buf(req->outbuf)+1+
+						      this_lparam+align,
+						      req->outbuf));
+		SSVAL(req->outbuf,smb_vwv8,tot_data_sent);
+		SSVAL(req->outbuf,smb_vwv9,0);
 
-		show_msg(outbuf);
-		if (!send_smb(smbd_server_fd(),outbuf))
-			exit_server_cleanly("send_trans_reply: send_smb failed.");
+		if (buffer_too_large) {
+			error_packet_set((char *)req->outbuf,
+					 ERRDOS, ERRmoredata,
+					 STATUS_BUFFER_OVERFLOW,
+					 __LINE__, __FILE__);
+		}
+
+		show_msg((char *)req->outbuf);
+		if (!srv_send_smb(smbd_server_fd(),
+				(char *)req->outbuf,
+				IS_CONN_ENCRYPTED(conn)))
+			exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
 
 		tot_data_sent  += this_ldata;
 		tot_param_sent += this_lparam;
+		TALLOC_FREE(req->outbuf);
 	}
 }
 
@@ -160,49 +193,53 @@ void send_trans_reply(char *outbuf,
  Start the first part of an RPC reply which began with an SMBtrans request.
 ****************************************************************************/
 
-static BOOL api_rpc_trans_reply(char *outbuf, smb_np_struct *p)
+static void api_rpc_trans_reply(connection_struct *conn, struct smb_request *req, smb_np_struct *p)
 {
-	BOOL is_data_outstanding;
+	bool is_data_outstanding;
 	char *rdata = (char *)SMB_MALLOC(p->max_trans_reply);
 	int data_len;
 
 	if(rdata == NULL) {
 		DEBUG(0,("api_rpc_trans_reply: malloc fail.\n"));
-		return False;
+		reply_nterror(req, NT_STATUS_NO_MEMORY);
+		return;
 	}
 
 	if((data_len = read_from_pipe( p, rdata, p->max_trans_reply,
 					&is_data_outstanding)) < 0) {
 		SAFE_FREE(rdata);
-		return False;
+		api_no_reply(conn,req);
+		return;
 	}
 
-	send_trans_reply(outbuf, NULL, 0, rdata, data_len, is_data_outstanding);
-
+	send_trans_reply(conn, req, NULL, 0, rdata, data_len, is_data_outstanding);
 	SAFE_FREE(rdata);
-	return True;
+	return;
 }
 
 /****************************************************************************
  WaitNamedPipeHandleState 
 ****************************************************************************/
 
-static BOOL api_WNPHS(char *outbuf, smb_np_struct *p, char *param, int param_len)
+static void api_WNPHS(connection_struct *conn, struct smb_request *req, smb_np_struct *p,
+		      char *param, int param_len)
 {
 	uint16 priority;
 
-	if (!param || param_len < 2)
-		return False;
+	if (!param || param_len < 2) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
 
 	priority = SVAL(param,0);
 	DEBUG(4,("WaitNamedPipeHandleState priority %x\n", priority));
 
 	if (wait_rpc_pipe_hnd_state(p, priority)) {
 		/* now send the reply */
-		send_trans_reply(outbuf, NULL, 0, NULL, 0, False);
-		return True;
+		send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+		return;
 	}
-	return False;
+	api_no_reply(conn,req);
 }
 
 
@@ -210,22 +247,25 @@ static BOOL api_WNPHS(char *outbuf, smb_np_struct *p, char *param, int param_len
  SetNamedPipeHandleState 
 ****************************************************************************/
 
-static BOOL api_SNPHS(char *outbuf, smb_np_struct *p, char *param, int param_len)
+static void api_SNPHS(connection_struct *conn, struct smb_request *req, smb_np_struct *p,
+		      char *param, int param_len)
 {
 	uint16 id;
 
-	if (!param || param_len < 2)
-		return False;
+	if (!param || param_len < 2) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
 
 	id = SVAL(param,0);
 	DEBUG(4,("SetNamedPipeHandleState to code %x\n", id));
 
 	if (set_rpc_pipe_hnd_state(p, id)) {
 		/* now send the reply */
-		send_trans_reply(outbuf, NULL, 0, NULL, 0, False);
-		return True;
+		send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+		return;
 	}
-	return False;
+	api_no_reply(conn,req);
 }
 
 
@@ -233,7 +273,7 @@ static BOOL api_SNPHS(char *outbuf, smb_np_struct *p, char *param, int param_len
  When no reply is generated, indicate unsupported.
  ****************************************************************************/
 
-static BOOL api_no_reply(char *outbuf, int max_rdata_len)
+static void api_no_reply(connection_struct *conn, struct smb_request *req)
 {
 	char rparam[4];
 
@@ -244,20 +284,22 @@ static BOOL api_no_reply(char *outbuf, int max_rdata_len)
 	DEBUG(3,("Unsupported API fd command\n"));
 
 	/* now send the reply */
-	send_trans_reply(outbuf, rparam, 4, NULL, 0, False);
+	send_trans_reply(conn, req, rparam, 4, NULL, 0, False);
 
-	return -1;
+	return;
 }
 
 /****************************************************************************
  Handle remote api calls delivered to a named pipe already opened.
  ****************************************************************************/
 
-static int api_fd_reply(connection_struct *conn,uint16 vuid,char *outbuf,
-		 	uint16 *setup,char *data,char *params,
-		 	int suwcnt,int tdscnt,int tpscnt,int mdrcnt,int mprcnt)
+static void api_fd_reply(connection_struct *conn, uint16 vuid,
+			 struct smb_request *req,
+			 uint16 *setup, char *data, char *params,
+			 int suwcnt, int tdscnt, int tpscnt,
+			 int mdrcnt, int mprcnt)
 {
-	BOOL reply = False;
+	bool reply = False;
 	smb_np_struct *p = NULL;
 	int pnum;
 	int subcommand;
@@ -267,7 +309,8 @@ static int api_fd_reply(connection_struct *conn,uint16 vuid,char *outbuf,
 	/* First find out the name of this file. */
 	if (suwcnt != 2) {
 		DEBUG(0,("Unexpected named pipe transaction.\n"));
-		return ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
 	}
 
 	/* Get the file handle and hence the file name. */
@@ -283,18 +326,20 @@ static int api_fd_reply(connection_struct *conn,uint16 vuid,char *outbuf,
 			/* Win9x does this call with a unicode pipe name, not a pnum. */
 			/* Just return success for now... */
 			DEBUG(3,("Got TRANSACT_WAITNAMEDPIPEHANDLESTATE on text pipe name\n"));
-			send_trans_reply(outbuf, NULL, 0, NULL, 0, False);
-			return -1;
+			send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+			return;
 		}
 
 		DEBUG(1,("api_fd_reply: INVALID PIPE HANDLE: %x\n", pnum));
-		return ERROR_NT(NT_STATUS_INVALID_HANDLE);
+		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
+		return;
 	}
 
 	if (vuid != p->vuid) {
 		DEBUG(1, ("Got pipe request (pnum %x) using invalid VUID %d, "
 			  "expected %d\n", pnum, vuid, p->vuid));
-		return ERROR_NT(NT_STATUS_INVALID_HANDLE);
+		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
+		return;
 	}
 
 	DEBUG(3,("Got API command 0x%x on pipe \"%s\" (pnum %x)\n", subcommand, p->name, pnum));
@@ -308,62 +353,80 @@ static int api_fd_reply(connection_struct *conn,uint16 vuid,char *outbuf,
 	case TRANSACT_DCERPCCMD:
 		/* dce/rpc command */
 		reply = write_to_pipe(p, data, tdscnt);
-		if (reply)
-			reply = api_rpc_trans_reply(outbuf, p);
+		if (!reply) {
+			api_no_reply(conn, req);
+			return;
+		}
+		api_rpc_trans_reply(conn, req, p);
 		break;
 	case TRANSACT_WAITNAMEDPIPEHANDLESTATE:
 		/* Wait Named Pipe Handle state */
-		reply = api_WNPHS(outbuf, p, params, tpscnt);
+		api_WNPHS(conn, req, p, params, tpscnt);
 		break;
 	case TRANSACT_SETNAMEDPIPEHANDLESTATE:
 		/* Set Named Pipe Handle state */
-		reply = api_SNPHS(outbuf, p, params, tpscnt);
+		api_SNPHS(conn, req, p, params, tpscnt);
 		break;
 	default:
-		return ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
 	}
-
-	if (!reply)
-		return api_no_reply(outbuf, mdrcnt);
-
-	return -1;
 }
 
 /****************************************************************************
-  handle named pipe commands
-  ****************************************************************************/
-static int named_pipe(connection_struct *conn,uint16 vuid, char *outbuf,char *name,
-		      uint16 *setup,char *data,char *params,
-		      int suwcnt,int tdscnt,int tpscnt,
-		      int msrcnt,int mdrcnt,int mprcnt)
+ Handle named pipe commands.
+****************************************************************************/
+
+static void named_pipe(connection_struct *conn, uint16 vuid,
+		       struct smb_request *req,
+		       const char *name, uint16 *setup,
+		       char *data, char *params,
+		       int suwcnt, int tdscnt,int tpscnt,
+		       int msrcnt, int mdrcnt, int mprcnt)
 {
 	DEBUG(3,("named pipe command on <%s> name\n", name));
 
-	if (strequal(name,"LANMAN"))
-		return api_reply(conn,vuid,outbuf,data,params,tdscnt,tpscnt,mdrcnt,mprcnt);
+	if (strequal(name,"LANMAN")) {
+		api_reply(conn, vuid, req,
+			  data, params,
+			  tdscnt, tpscnt,
+			  mdrcnt, mprcnt);
+		return;
+	}
 
 	if (strequal(name,"WKSSVC") ||
 	    strequal(name,"SRVSVC") ||
 	    strequal(name,"WINREG") ||
 	    strequal(name,"SAMR") ||
-	    strequal(name,"LSARPC"))
-	{
+	    strequal(name,"LSARPC")) {
+
 		DEBUG(4,("named pipe command from Win95 (wow!)\n"));
-		return api_fd_reply(conn,vuid,outbuf,setup,data,params,suwcnt,tdscnt,tpscnt,mdrcnt,mprcnt);
+
+		api_fd_reply(conn, vuid, req,
+			     setup, data, params,
+			     suwcnt, tdscnt, tpscnt,
+			     mdrcnt, mprcnt);
+		return;
 	}
 
-	if (strlen(name) < 1)
-		return api_fd_reply(conn,vuid,outbuf,setup,data,params,suwcnt,tdscnt,tpscnt,mdrcnt,mprcnt);
+	if (strlen(name) < 1) {
+		api_fd_reply(conn, vuid, req,
+			     setup, data,
+			     params, suwcnt, tdscnt,
+			     tpscnt, mdrcnt, mprcnt);
+		return;
+	}
 
 	if (setup)
-		DEBUG(3,("unknown named pipe: setup 0x%X setup1=%d\n", (int)setup[0],(int)setup[1]));
+		DEBUG(3,("unknown named pipe: setup 0x%X setup1=%d\n",
+			 (int)setup[0],(int)setup[1]));
 
-	return 0;
+	reply_nterror(req, NT_STATUS_NOT_SUPPORTED);
+	return;
 }
 
-static NTSTATUS handle_trans(connection_struct *conn,
-			     struct trans_state *state,
-			     char *outbuf, int *outsize)
+static void handle_trans(connection_struct *conn, struct smb_request *req,
+			 struct trans_state *state)
 {
 	char *local_machine_name;
 	int name_offset = 0;
@@ -380,7 +443,8 @@ static NTSTATUS handle_trans(connection_struct *conn,
 					     get_local_machine_name());
 
 	if (local_machine_name == NULL) {
-		return NT_STATUS_NO_MEMORY;
+		reply_nterror(req, NT_STATUS_NO_MEMORY);
+		return;
 	}
 
 	if (strnequal(state->name, local_machine_name,
@@ -390,9 +454,10 @@ static NTSTATUS handle_trans(connection_struct *conn,
 
 	if (!strnequal(&state->name[name_offset], "\\PIPE",
 		       strlen("\\PIPE"))) {
-		return NT_STATUS_NOT_SUPPORTED;
+		reply_nterror(req, NT_STATUS_NOT_SUPPORTED);
+		return;
 	}
-	
+
 	name_offset += strlen("\\PIPE");
 
 	/* Win9x weirdness.  When talking to a unicode server Win9x
@@ -402,79 +467,92 @@ static NTSTATUS handle_trans(connection_struct *conn,
 		name_offset++;
 
 	DEBUG(5,("calling named_pipe\n"));
-	*outsize = named_pipe(conn, state->vuid, outbuf,
-			      state->name+name_offset,
-			      state->setup,state->data,
-			      state->param,
-			      state->setup_count,state->total_data,
-			      state->total_param,
-			      state->max_setup_return,
-			      state->max_data_return,
-			      state->max_param_return);
+	named_pipe(conn, state->vuid, req,
+		   state->name+name_offset,
+		   state->setup,state->data,
+		   state->param,
+		   state->setup_count,state->total_data,
+		   state->total_param,
+		   state->max_setup_return,
+		   state->max_data_return,
+		   state->max_param_return);
 
-	if (*outsize == 0) {
-		return NT_STATUS_NOT_SUPPORTED;
+	if (state->close_on_completion) {
+		close_cnum(conn,state->vuid);
+		req->conn = NULL;
 	}
 
-	if (state->close_on_completion)
-		close_cnum(conn,state->vuid);
-
-	return NT_STATUS_OK;
+	return;
 }
 
 /****************************************************************************
  Reply to a SMBtrans.
  ****************************************************************************/
 
-int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
-		int size, int bufsize)
+void reply_trans(struct smb_request *req)
 {
-	int outsize = 0;
-	unsigned int dsoff = SVAL(inbuf, smb_dsoff);
-	unsigned int dscnt = SVAL(inbuf, smb_dscnt);
-	unsigned int psoff = SVAL(inbuf, smb_psoff);
-	unsigned int pscnt = SVAL(inbuf, smb_pscnt);
-	unsigned int av_size = size-4;
+	connection_struct *conn = req->conn;
+	unsigned int dsoff;
+	unsigned int dscnt;
+	unsigned int psoff;
+	unsigned int pscnt;
 	struct trans_state *state;
 	NTSTATUS result;
+	unsigned int size;
+	unsigned int av_size;
 
 	START_PROFILE(SMBtrans);
 
-	result = allow_new_trans(conn->pending_trans, SVAL(inbuf, smb_mid));
+	if (req->wct < 14) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		END_PROFILE(SMBtrans);
+		return;
+	}
+
+	size = smb_len(req->inbuf) + 4;
+	av_size = smb_len(req->inbuf);
+	dsoff = SVAL(req->inbuf, smb_dsoff);
+	dscnt = SVAL(req->inbuf, smb_dscnt);
+	psoff = SVAL(req->inbuf, smb_psoff);
+	pscnt = SVAL(req->inbuf, smb_pscnt);
+
+	result = allow_new_trans(conn->pending_trans, req->mid);
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(2, ("Got invalid trans request: %s\n",
 			  nt_errstr(result)));
+		reply_nterror(req, result);
 		END_PROFILE(SMBtrans);
-		return ERROR_NT(result);
+		return;
 	}
 
 	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
 		DEBUG(0, ("talloc failed\n"));
+		reply_nterror(req, NT_STATUS_NO_MEMORY);
 		END_PROFILE(SMBtrans);
-		return ERROR_NT(NT_STATUS_NO_MEMORY);
+		return;
 	}
 
 	state->cmd = SMBtrans;
 
-	state->mid = SVAL(inbuf, smb_mid);
-	state->vuid = SVAL(inbuf, smb_uid);
-	state->setup_count = CVAL(inbuf, smb_suwcnt);
+	state->mid = req->mid;
+	state->vuid = req->vuid;
+	state->setup_count = CVAL(req->inbuf, smb_suwcnt);
 	state->setup = NULL;
-	state->total_param = SVAL(inbuf, smb_tpscnt);
+	state->total_param = SVAL(req->inbuf, smb_tpscnt);
 	state->param = NULL;
-	state->total_data = SVAL(inbuf, smb_tdscnt);
+	state->total_data = SVAL(req->inbuf, smb_tdscnt);
 	state->data = NULL;
-	state->max_param_return = SVAL(inbuf, smb_mprcnt);
-	state->max_data_return = SVAL(inbuf, smb_mdrcnt);
-	state->max_setup_return = CVAL(inbuf, smb_msrcnt);
-	state->close_on_completion = BITSETW(inbuf+smb_vwv5,0);
-	state->one_way = BITSETW(inbuf+smb_vwv5,1);
+	state->max_param_return = SVAL(req->inbuf, smb_mprcnt);
+	state->max_data_return = SVAL(req->inbuf, smb_mdrcnt);
+	state->max_setup_return = CVAL(req->inbuf, smb_msrcnt);
+	state->close_on_completion = BITSETW(req->inbuf+smb_vwv5,0);
+	state->one_way = BITSETW(req->inbuf+smb_vwv5,1);
 
-	memset(state->name, '\0',sizeof(state->name));
-	srvstr_pull_buf(inbuf, state->name, smb_buf(inbuf),
-			sizeof(state->name), STR_TERMINATE);
-	
-	if ((dscnt > state->total_data) || (pscnt > state->total_param))
+	srvstr_pull_buf_talloc(state, req->inbuf, req->flags2, &state->name,
+			smb_buf(req->inbuf), STR_TERMINATE);
+
+	if ((dscnt > state->total_data) || (pscnt > state->total_param) ||
+			!state->name)
 		goto bad_param;
 
 	if (state->total_data)  {
@@ -485,9 +563,10 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 			DEBUG(0,("reply_trans: data malloc fail for %u "
 				 "bytes !\n", (unsigned int)state->total_data));
 			TALLOC_FREE(state);
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			END_PROFILE(SMBtrans);
-			return(ERROR_DOS(ERRDOS,ERRnomem));
-		} 
+			return;
+		}
 		/* null-terminate the slack space */
 		memset(&state->data[state->total_data], 0, 100);
 
@@ -502,7 +581,7 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 			goto bad_param;
 		}
 
-		memcpy(state->data,smb_base(inbuf)+dsoff,dscnt);
+		memcpy(state->data,smb_base(req->inbuf)+dsoff,dscnt);
 	}
 
 	if (state->total_param) {
@@ -514,8 +593,9 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 				 "bytes !\n", (unsigned int)state->total_param));
 			SAFE_FREE(state->data);
 			TALLOC_FREE(state);
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			END_PROFILE(SMBtrans);
-			return(ERROR_DOS(ERRDOS,ERRnomem));
+			return;
 		} 
 		/* null-terminate the slack space */
 		memset(&state->param[state->total_param], 0, 100);
@@ -531,7 +611,7 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 			goto bad_param;
 		}
 
-		memcpy(state->param,smb_base(inbuf)+psoff,pscnt);
+		memcpy(state->param,smb_base(req->inbuf)+psoff,pscnt);
 	}
 
 	state->received_data  = dscnt;
@@ -544,12 +624,15 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 			DEBUG(0,("reply_trans: setup malloc fail for %u "
 				 "bytes !\n", (unsigned int)
 				 (state->setup_count * sizeof(uint16))));
+			SAFE_FREE(state->data);
+			SAFE_FREE(state->param);
 			TALLOC_FREE(state);
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
 			END_PROFILE(SMBtrans);
-			return(ERROR_DOS(ERRDOS,ERRnomem));
+			return;
 		} 
-		if (inbuf+smb_vwv14+(state->setup_count*SIZEOFWORD) >
-		    inbuf + size)
+		if (req->inbuf+smb_vwv14+(state->setup_count*SIZEOFWORD) >
+		    req->inbuf + size)
 			goto bad_param;
 		if ((smb_vwv14+(state->setup_count*SIZEOFWORD) < smb_vwv14) ||
 		    (smb_vwv14+(state->setup_count*SIZEOFWORD) <
@@ -557,42 +640,32 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 			goto bad_param;
 
 		for (i=0;i<state->setup_count;i++)
-			state->setup[i] = SVAL(inbuf,smb_vwv14+i*SIZEOFWORD);
+			state->setup[i] = SVAL(req->inbuf,
+					       smb_vwv14+i*SIZEOFWORD);
 	}
 
 	state->received_param = pscnt;
 
-	if ((state->received_param == state->total_param) &&
-	    (state->received_data == state->total_data)) {
+	if ((state->received_param != state->total_param) ||
+	    (state->received_data != state->total_data)) {
+		DLIST_ADD(conn->pending_trans, state);
 
-		result = handle_trans(conn, state, outbuf, &outsize);
-
-		SAFE_FREE(state->data);
-		SAFE_FREE(state->param);
-		TALLOC_FREE(state);
-
-		if (!NT_STATUS_IS_OK(result)) {
-			END_PROFILE(SMBtrans);
-			return ERROR_NT(result);
-		}
-
-		if (outsize == 0) {
-			END_PROFILE(SMBtrans);
-			return ERROR_NT(NT_STATUS_INTERNAL_ERROR);
-		}
-
+		/* We need to send an interim response then receive the rest
+		   of the parameter/data bytes */
+		reply_outbuf(req, 0, 0);
+		show_msg((char *)req->outbuf);
 		END_PROFILE(SMBtrans);
-		return outsize;
+		return;
 	}
 
-	DLIST_ADD(conn->pending_trans, state);
+	handle_trans(conn, req, state);
 
-	/* We need to send an interim response then receive the rest
-	   of the parameter/data bytes */
-	outsize = set_message(outbuf,0,0,True);
-	show_msg(outbuf);
+	SAFE_FREE(state->data);
+	SAFE_FREE(state->param);
+	TALLOC_FREE(state);
+
 	END_PROFILE(SMBtrans);
-	return outsize;
+	return;
 
   bad_param:
 
@@ -601,53 +674,61 @@ int reply_trans(connection_struct *conn, char *inbuf,char *outbuf,
 	SAFE_FREE(state->param);
 	TALLOC_FREE(state);
 	END_PROFILE(SMBtrans);
-	return ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+	reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+	return;
 }
 
 /****************************************************************************
  Reply to a secondary SMBtrans.
  ****************************************************************************/
 
-int reply_transs(connection_struct *conn, char *inbuf,char *outbuf,
-		 int size, int bufsize)
+void reply_transs(struct smb_request *req)
 {
-	int outsize = 0;
+	connection_struct *conn = req->conn;
 	unsigned int pcnt,poff,dcnt,doff,pdisp,ddisp;
-	unsigned int av_size = size-4;
 	struct trans_state *state;
-	NTSTATUS result;
+	unsigned int av_size;
 
 	START_PROFILE(SMBtranss);
 
-	show_msg(inbuf);
+	show_msg((char *)req->inbuf);
+
+	if (req->wct < 8) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		END_PROFILE(SMBtranss);
+		return;
+	}
 
 	for (state = conn->pending_trans; state != NULL;
 	     state = state->next) {
-		if (state->mid == SVAL(inbuf,smb_mid)) {
+		if (state->mid == req->mid) {
 			break;
 		}
 	}
 
 	if ((state == NULL) || (state->cmd != SMBtrans)) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		END_PROFILE(SMBtranss);
-		return ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+		return;
 	}
 
 	/* Revise total_params and total_data in case they have changed
 	 * downwards */
 
-	if (SVAL(inbuf, smb_vwv0) < state->total_param)
-		state->total_param = SVAL(inbuf,smb_vwv0);
-	if (SVAL(inbuf, smb_vwv1) < state->total_data)
-		state->total_data = SVAL(inbuf,smb_vwv1);
+	if (SVAL(req->inbuf, smb_vwv0) < state->total_param)
+		state->total_param = SVAL(req->inbuf,smb_vwv0);
+	if (SVAL(req->inbuf, smb_vwv1) < state->total_data)
+		state->total_data = SVAL(req->inbuf,smb_vwv1);
 
-	pcnt = SVAL(inbuf, smb_spscnt);
-	poff = SVAL(inbuf, smb_spsoff);
-	pdisp = SVAL(inbuf, smb_spsdisp);
+	av_size = smb_len(req->inbuf);
 
-	dcnt = SVAL(inbuf, smb_sdscnt);
-	doff = SVAL(inbuf, smb_sdsoff);
-	ddisp = SVAL(inbuf, smb_sdsdisp);
+	pcnt = SVAL(req->inbuf, smb_spscnt);
+	poff = SVAL(req->inbuf, smb_spsoff);
+	pdisp = SVAL(req->inbuf, smb_spsdisp);
+
+	dcnt = SVAL(req->inbuf, smb_sdscnt);
+	doff = SVAL(req->inbuf, smb_sdsoff);
+	ddisp = SVAL(req->inbuf, smb_sdsdisp);
 
 	state->received_param += pcnt;
 	state->received_data += dcnt;
@@ -671,7 +752,7 @@ int reply_transs(connection_struct *conn, char *inbuf,char *outbuf,
 			goto bad_param;
 		}
 
-		memcpy(state->param+pdisp,smb_base(inbuf)+poff,
+		memcpy(state->param+pdisp,smb_base(req->inbuf)+poff,
 		       pcnt);
 	}
 
@@ -680,7 +761,7 @@ int reply_transs(connection_struct *conn, char *inbuf,char *outbuf,
 				dcnt > state->total_data ||
 				ddisp+dcnt > state->total_data ||
 				ddisp+dcnt < ddisp) {
-			goto bad_param; 
+			goto bad_param;
 		}
 
 		if (ddisp > av_size ||
@@ -690,35 +771,31 @@ int reply_transs(connection_struct *conn, char *inbuf,char *outbuf,
 			goto bad_param;
 		}
 
-		memcpy(state->data+ddisp, smb_base(inbuf)+doff,
-		       dcnt);      
+		memcpy(state->data+ddisp, smb_base(req->inbuf)+doff,
+		       dcnt);
 	}
 
 	if ((state->received_param < state->total_param) ||
 	    (state->received_data < state->total_data)) {
 		END_PROFILE(SMBtranss);
-		return -1;
+		return;
 	}
 
-	/* construct_reply_common has done us the favor to pre-fill the
-	 * command field with SMBtranss which is wrong :-)
-	 */
-	SCVAL(outbuf,smb_com,SMBtrans);
+        /*
+	 * construct_reply_common will copy smb_com from inbuf to
+	 * outbuf. SMBtranss is wrong here.
+         */
+        SCVAL(req->inbuf,smb_com,SMBtrans);
 
-	result = handle_trans(conn, state, outbuf, &outsize);
+	handle_trans(conn, req, state);
 
 	DLIST_REMOVE(conn->pending_trans, state);
 	SAFE_FREE(state->data);
 	SAFE_FREE(state->param);
 	TALLOC_FREE(state);
 
-	if ((outsize == 0) || !NT_STATUS_IS_OK(result)) {
-		END_PROFILE(SMBtranss);
-		return(ERROR_DOS(ERRSRV,ERRnosupport));
-	}
-	
 	END_PROFILE(SMBtranss);
-	return(outsize);
+	return;
 
   bad_param:
 
@@ -727,6 +804,7 @@ int reply_transs(connection_struct *conn, char *inbuf,char *outbuf,
 	SAFE_FREE(state->data);
 	SAFE_FREE(state->param);
 	TALLOC_FREE(state);
+	reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 	END_PROFILE(SMBtranss);
-	return ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+	return;
 }

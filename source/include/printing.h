@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -35,8 +34,8 @@ struct printjob {
 	int status; /* the status of this job */
 	size_t size; /* the size of the job so far */
 	int page_count;	/* then number of pages so far */
-	BOOL spooled; /* has it been sent to the spooler yet? */
-	BOOL smbjob; /* set if the job is a SMB job */
+	bool spooled; /* has it been sent to the spooler yet? */
+	bool smbjob; /* set if the job is a SMB job */
 	fstring filename; /* the filename used to spool the file */
 	fstring jobname; /* the job name given to us by the client */
 	fstring user; /* the user who started the job */
@@ -72,10 +71,6 @@ extern struct printif	cups_printif;
 #ifdef HAVE_IPRINT
 extern struct printif	iprint_printif;
 #endif /* HAVE_IPRINT */
-
-#if defined(DEVELOPER) || defined(ENABLE_BUILD_FARM_HACKS)
-extern struct printif test_printif;
-#endif /* DEVELOPER||ENABLE_BUILD_FARM_HACKS */
 
 /* PRINT_MAX_JOBID is now defined in local.h */
 #define UNIX_JOB_START PRINT_MAX_JOBID

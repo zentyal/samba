@@ -1,34 +1,34 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    client print routines
    Copyright (C) Andrew Tridgell 1994-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
 /*****************************************************************************
  Convert a character pointer in a cli_call_api() response to a form we can use.
- This function contains code to prevent core dumps if the server returns 
+ This function contains code to prevent core dumps if the server returns
  invalid data.
 *****************************************************************************/
-static const char *fix_char_ptr(unsigned int datap, unsigned int converter, 
+static const char *fix_char_ptr(unsigned int datap, unsigned int converter,
 			  char *rdata, int rdrcnt)
 {
-	if (datap == 0)	{	/* turn NULL pointers into zero length strings */
+	if (datap == 0)	{
+		/* turn NULL pointers into zero length strings */
 		return "";
 	} else {
 		unsigned int offset = datap - converter;
@@ -43,41 +43,41 @@ static const char *fix_char_ptr(unsigned int datap, unsigned int converter,
 	}
 }
 
-
 /****************************************************************************
 call fn() on each entry in a print queue
 ****************************************************************************/
-int cli_print_queue(struct cli_state *cli, 
+
+int cli_print_queue(struct cli_state *cli,
 		    void (*fn)(struct print_job_info *))
 {
 	char *rparam = NULL;
 	char *rdata = NULL;
 	char *p;
 	unsigned int rdrcnt, rprcnt;
-	pstring param;
+	char param[1024];
 	int result_code=0;
 	int i = -1;
-	
+
 	memset(param,'\0',sizeof(param));
 
 	p = param;
 	SSVAL(p,0,76);         /* API function number 76 (DosPrintJobEnum) */
 	p += 2;
-	pstrcpy_base(p,"zWrLeh", param);   /* parameter description? */
+	safe_strcpy_base(p,"zWrLeh", param, sizeof(param));   /* parameter description? */
 	p = skip_string(param,sizeof(param),p);
-	pstrcpy_base(p,"WWzWWDDzz", param);  /* returned data format */
+	safe_strcpy_base(p,"WWzWWDDzz", param, sizeof(param));  /* returned data format */
 	p = skip_string(param,sizeof(param),p);
-	pstrcpy_base(p,cli->share, param);    /* name of queue */
+	safe_strcpy_base(p,cli->share, param, sizeof(param));    /* name of queue */
 	p = skip_string(param,sizeof(param),p);
 	SSVAL(p,0,2);   /* API function level 2, PRJINFO_2 data structure */
 	SSVAL(p,2,1000); /* size of bytes of returned data buffer */
 	p += 4;
-	pstrcpy_base(p,"", param);   /* subformat */
+	safe_strcpy_base(p,"", param,sizeof(param));   /* subformat */
 	p = skip_string(param,sizeof(param),p);
 
 	DEBUG(4,("doing cli_print_queue for %s\n", cli->share));
 
-	if (cli_api(cli, 
+	if (cli_api(cli,
 		    param, PTR_DIFF(p,param), 1024,  /* Param, length, maxlen */
 		    NULL, 0, CLI_BUFFER_SIZE,            /* data, length, maxlen */
 		    &rparam, &rprcnt,                /* return params, length */
@@ -88,21 +88,21 @@ int cli_print_queue(struct cli_state *cli,
 
 		if (result_code == 0) {
 			struct print_job_info job;
-			
-			p = rdata; 
+
+			p = rdata;
 
 			for (i = 0; i < SVAL(rparam,4); ++i) {
 				job.id = SVAL(p,0);
 				job.priority = SVAL(p,2);
 				fstrcpy(job.user,
-					fix_char_ptr(SVAL(p,4), converter, 
+					fix_char_ptr(SVAL(p,4), converter,
 						     rdata, rdrcnt));
 				job.t = cli_make_unix_date3(cli, p + 12);
 				job.size = IVAL(p,16);
-				fstrcpy(job.name,fix_char_ptr(SVAL(p,24), 
-							      converter, 
+				fstrcpy(job.name,fix_char_ptr(SVAL(p,24),
+							      converter,
 							      rdata, rdrcnt));
-				fn(&job);				
+				fn(&job);
 				p += 28;
 			}
 		}
@@ -118,6 +118,7 @@ int cli_print_queue(struct cli_state *cli,
 /****************************************************************************
   cancel a print job
   ****************************************************************************/
+
 int cli_printjob_del(struct cli_state *cli, int job)
 {
 	char *rparam = NULL;
@@ -125,21 +126,21 @@ int cli_printjob_del(struct cli_state *cli, int job)
 	char *p;
 	unsigned int rdrcnt,rprcnt;
 	int ret = -1;
-	pstring param;
+	char param[1024];
 
 	memset(param,'\0',sizeof(param));
 
 	p = param;
 	SSVAL(p,0,81);		/* DosPrintJobDel() */
 	p += 2;
-	pstrcpy_base(p,"W", param);
+	safe_strcpy_base(p,"W", param,sizeof(param));
 	p = skip_string(param,sizeof(param),p);
-	pstrcpy_base(p,"", param);
+	safe_strcpy_base(p,"", param,sizeof(param));
 	p = skip_string(param,sizeof(param),p);
-	SSVAL(p,0,job);     
+	SSVAL(p,0,job);
 	p += 2;
-	
-	if (cli_api(cli, 
+
+	if (cli_api(cli,
 		    param, PTR_DIFF(p,param), 1024,  /* Param, length, maxlen */
 		    NULL, 0, CLI_BUFFER_SIZE,            /* data, length, maxlen */
 		    &rparam, &rprcnt,                /* return params, length */
@@ -179,7 +180,7 @@ int cli_spl_open(struct cli_state *cli, const char *fname, int flags, int share_
 		accessmode |= 2;
 	} else if ((flags & O_ACCMODE) == O_WRONLY) {
 		accessmode |= 1;
-	} 
+	}
 
 #if defined(O_SYNC)
 	if ((flags & O_SYNC) == O_SYNC) {
@@ -194,7 +195,7 @@ int cli_spl_open(struct cli_state *cli, const char *fname, int flags, int share_
 	memset(cli->outbuf,'\0',smb_size);
 	memset(cli->inbuf,'\0',smb_size);
 
-	set_message(cli->outbuf,15,0,True);
+	cli_set_message(cli->outbuf,15,0,True);
 
 	SCVAL(cli->outbuf,smb_com,SMBsplopen);
 	SSVAL(cli->outbuf,smb_tid,cli->cnum);
@@ -214,7 +215,7 @@ int cli_spl_open(struct cli_state *cli, const char *fname, int flags, int share_
 			FLAG_REQUEST_OPLOCK|FLAG_REQUEST_BATCH_OPLOCK);
 		SSVAL(cli->outbuf,smb_vwv2,SVAL(cli->outbuf,smb_vwv2) | 6);
 	}
-  
+
 	p = smb_buf(cli->outbuf);
 	p += clistr_push(cli, p, fname, -1, STR_TERMINATE);
 
@@ -236,12 +237,12 @@ int cli_spl_open(struct cli_state *cli, const char *fname, int flags, int share_
  Close a file.
 ****************************************************************************/
 
-BOOL cli_spl_close(struct cli_state *cli, int fnum)
+bool cli_spl_close(struct cli_state *cli, int fnum)
 {
 	memset(cli->outbuf,'\0',smb_size);
 	memset(cli->inbuf,'\0',smb_size);
 
-	set_message(cli->outbuf,3,0,True);
+	cli_set_message(cli->outbuf,3,0,True);
 
 	SCVAL(cli->outbuf,smb_com,SMBsplclose);
 	SSVAL(cli->outbuf,smb_tid,cli->cnum);
@@ -257,5 +258,3 @@ BOOL cli_spl_close(struct cli_state *cli, int fnum)
 
 	return !cli_is_error(cli);
 }
-
-

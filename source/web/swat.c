@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /**
@@ -31,10 +30,10 @@
 #include "includes.h"
 #include "web/swat_proto.h"
 
-static BOOL demo_mode = False;
-static BOOL passwd_only = False;
-static BOOL have_write_access = False;
-static BOOL have_read_access = False;
+static int demo_mode = False;
+static int passwd_only = False;
+static bool have_write_access = False;
+static bool have_read_access = False;
 static int iNumNonAutoPrintServices = 0;
 
 /*
@@ -52,6 +51,7 @@ static int iNumNonAutoPrintServices = 0;
 #define ENABLE_USER_FLAG "enable_user_flag"
 #define RHOST "remote_host"
 
+#define _(x) lang_msg_rotate(talloc_tos(),x)
 
 /****************************************************************************
 ****************************************************************************/
@@ -77,21 +77,35 @@ static char *fix_backslash(const char *str)
 	return newstring;
 }
 
-static char *fix_quotes(const char *str)
+static const char *fix_quotes(TALLOC_CTX *ctx, const char *str)
 {
-	static pstring newstring;
-	char *p = newstring;
-	size_t newstring_len = sizeof(newstring);
+	char *newstring = NULL;
+	char *p = NULL;
+	size_t newstring_len;
 	int quote_len = strlen("&quot;");
 
-	while (*str) {
-		if ( *str == '\"' && (newstring_len - PTR_DIFF(p, newstring) - 1) > quote_len ) {
-			strncpy( p, "&quot;", quote_len); 
+	/* Count the number of quotes. */
+	newstring_len = 1;
+	p = (char *) str;
+	while (*p) {
+		if ( *p == '\"') {
+			newstring_len += quote_len;
+		} else {
+			newstring_len++;
+		}
+		++p;
+	}
+	newstring = TALLOC_ARRAY(ctx, char, newstring_len);
+	if (!newstring) {
+		return "";
+	}
+	for (p = newstring; *str; str++) {
+		if ( *str == '\"') {
+			strncpy( p, "&quot;", quote_len);
 			p += quote_len;
 		} else {
 			*p++ = *str;
 		}
-		++str;
 	}
 	*p = '\0';
 	return newstring;
@@ -180,25 +194,24 @@ static void print_header(void)
    "i18n_translated_parm" class is used to change the color of the
    translated parameter with CSS.
    **************************************************************** */
-static const char* get_parm_translated(
+static const char *get_parm_translated(TALLOC_CTX *ctx,
 	const char* pAnchor, const char* pHelp, const char* pLabel)
 {
-	const char* pTranslated = _(pLabel);
-	static pstring output;
-	if(strcmp(pLabel, pTranslated) != 0)
-	{
-		pstr_sprintf(output,
+	const char *pTranslated = _(pLabel);
+	char *output;
+	if(strcmp(pLabel, pTranslated) != 0) {
+		output = talloc_asprintf(ctx,
 		  "<A HREF=\"/swat/help/manpages/smb.conf.5.html#%s\" target=\"docs\"> %s</A>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %s <br><span class=\"i18n_translated_parm\">%s</span>",
 		   pAnchor, pHelp, pLabel, pTranslated);
 		return output;
 	}
-	pstr_sprintf(output, 
+	output = talloc_asprintf(ctx,
 	  "<A HREF=\"/swat/help/manpages/smb.conf.5.html#%s\" target=\"docs\"> %s</A>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %s",
 	  pAnchor, pHelp, pLabel);
 	return output;
 }
 /****************************************************************************
- finish off the page 
+ finish off the page
 ****************************************************************************/
 static void print_footer(void)
 {
@@ -208,19 +221,21 @@ static void print_footer(void)
 }
 
 /****************************************************************************
-  display one editable parameter in a form 
+  display one editable parameter in a form
 ****************************************************************************/
 static void show_parameter(int snum, struct parm_struct *parm)
 {
 	int i;
 	void *ptr = parm->ptr;
 	char *utf8_s1, *utf8_s2;
+	TALLOC_CTX *ctx = talloc_stackframe();
 
 	if (parm->p_class == P_LOCAL && snum >= 0) {
 		ptr = lp_local_ptr(snum, ptr);
 	}
 
-	printf("<tr><td>%s</td><td>", get_parm_translated(stripspaceupper(parm->label), _("Help"), parm->label));
+	printf("<tr><td>%s</td><td>", get_parm_translated(ctx,
+				stripspaceupper(parm->label), _("Help"), parm->label));
 	switch (parm->type) {
 	case P_CHAR:
 		printf("<input type=text size=2 name=\"parm_%s\" value=\"%c\">",
@@ -256,7 +271,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 			char **list = (char **)(parm->def.lvalue);
 			for (; *list; list++) {
 				/* enclose in HTML encoded quotes if the string contains a space */
-				if ( strchr_m(*list, ' ') ) 
+				if ( strchr_m(*list, ' ') )
 					printf("&quot;%s&quot;%s", *list, ((*(list+1))?", ":""));
 				else
 					printf("%s%s", *list, ((*(list+1))?", ":""));
@@ -269,17 +284,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 	case P_USTRING:
 		push_utf8_allocate(&utf8_s1, *(char **)ptr);
 		printf("<input type=text size=40 name=\"parm_%s\" value=\"%s\">",
-		       make_parm_name(parm->label), fix_quotes(utf8_s1));
-		SAFE_FREE(utf8_s1);
-		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.value=\'%s\'\">",
-			_("Set Default"), make_parm_name(parm->label),fix_backslash((char *)(parm->def.svalue)));
-		break;
-
-	case P_GSTRING:
-	case P_UGSTRING:
-		push_utf8_allocate(&utf8_s1, (char *)ptr);
-		printf("<input type=text size=40 name=\"parm_%s\" value=\"%s\">",
-		       make_parm_name(parm->label), fix_quotes(utf8_s1));
+		       make_parm_name(parm->label), fix_quotes(ctx, utf8_s1));
 		SAFE_FREE(utf8_s1);
 		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.value=\'%s\'\">",
 			_("Set Default"), make_parm_name(parm->label),fix_backslash((char *)(parm->def.svalue)));
@@ -287,20 +292,20 @@ static void show_parameter(int snum, struct parm_struct *parm)
 
 	case P_BOOL:
 		printf("<select name=\"parm_%s\">",make_parm_name(parm->label)); 
-		printf("<option %s>Yes", (*(BOOL *)ptr)?"selected":"");
-		printf("<option %s>No", (*(BOOL *)ptr)?"":"selected");
+		printf("<option %s>Yes", (*(bool *)ptr)?"selected":"");
+		printf("<option %s>No", (*(bool *)ptr)?"":"selected");
 		printf("</select>");
 		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.selectedIndex=\'%d\'\">",
-			_("Set Default"), make_parm_name(parm->label),(BOOL)(parm->def.bvalue)?0:1);
+			_("Set Default"), make_parm_name(parm->label),(bool)(parm->def.bvalue)?0:1);
 		break;
 
 	case P_BOOLREV:
 		printf("<select name=\"parm_%s\">",make_parm_name(parm->label)); 
-		printf("<option %s>Yes", (*(BOOL *)ptr)?"":"selected");
-		printf("<option %s>No", (*(BOOL *)ptr)?"selected":"");
+		printf("<option %s>Yes", (*(bool *)ptr)?"":"selected");
+		printf("<option %s>No", (*(bool *)ptr)?"selected":"");
 		printf("</select>");
 		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.selectedIndex=\'%d\'\">",
-			_("Set Default"), make_parm_name(parm->label),(BOOL)(parm->def.bvalue)?1:0);
+			_("Set Default"), make_parm_name(parm->label),(bool)(parm->def.bvalue)?1:0);
 		break;
 
 	case P_INTEGER:
@@ -309,12 +314,19 @@ static void show_parameter(int snum, struct parm_struct *parm)
 			_("Set Default"), make_parm_name(parm->label),(int)(parm->def.ivalue));
 		break;
 
-	case P_OCTAL:
-		printf("<input type=text size=8 name=\"parm_%s\" value=%s>", make_parm_name(parm->label), octal_string(*(int *)ptr));
-		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.value=\'%s\'\">",
-		       _("Set Default"), make_parm_name(parm->label),
-		       octal_string((int)(parm->def.ivalue)));
+	case P_OCTAL: {
+		char *o;
+		o = octal_string(*(int *)ptr);
+		printf("<input type=text size=8 name=\"parm_%s\" value=%s>",
+		       make_parm_name(parm->label), o);
+		TALLOC_FREE(o);
+		o = octal_string((int)(parm->def.ivalue));
+		printf("<input type=button value=\"%s\" "
+		       "onClick=\"swatform.parm_%s.value=\'%s\'\">",
+		       _("Set Default"), make_parm_name(parm->label), o);
+		TALLOC_FREE(o);
 		break;
+	}
 
 	case P_ENUM:
 		printf("<select name=\"parm_%s\">",make_parm_name(parm->label)); 
@@ -331,6 +343,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 		break;
 	}
 	printf("</td></tr>\n");
+	TALLOC_FREE(ctx);
 }
 
 /****************************************************************************
@@ -378,14 +391,9 @@ static void show_parameters(int snum, int allparameters, unsigned int parm_filte
 					if (!strcmp(*(char **)ptr,(char *)(parm->def.svalue))) continue;
 					break;
 
-				case P_GSTRING:
-				case P_UGSTRING:
-					if (!strcmp((char *)ptr,(char *)(parm->def.svalue))) continue;
-					break;
-
 				case P_BOOL:
 				case P_BOOLREV:
-					if (*(BOOL *)ptr == (BOOL)(parm->def.bvalue)) continue;
+					if (*(bool *)ptr == (bool)(parm->def.bvalue)) continue;
 					break;
 
 				case P_INTEGER:
@@ -419,22 +427,26 @@ static void show_parameters(int snum, int allparameters, unsigned int parm_filte
 /****************************************************************************
   load the smb.conf file into loadparm.
 ****************************************************************************/
-static BOOL load_config(BOOL save_def)
+static bool load_config(bool save_def)
 {
 	lp_resetnumservices();
-	return lp_load(dyn_CONFIGFILE,False,save_def,False,True);
+	return lp_load(get_dyn_CONFIGFILE(),False,save_def,False,True);
 }
 
 /****************************************************************************
   write a config file 
 ****************************************************************************/
-static void write_config(FILE *f, BOOL show_defaults)
+static void write_config(FILE *f, bool show_defaults)
 {
+	TALLOC_CTX *ctx = talloc_stackframe();
+
 	fprintf(f, "# Samba config file created using SWAT\n");
 	fprintf(f, "# from %s (%s)\n", cgi_remote_host(), cgi_remote_addr());
-	fprintf(f, "# Date: %s\n\n", current_timestring(False));
+	fprintf(f, "# Date: %s\n\n", current_timestring(ctx, False));
 	
 	lp_dump(f, show_defaults, iNumNonAutoPrintServices);
+
+	TALLOC_FREE(ctx);
 }
 
 /****************************************************************************
@@ -445,9 +457,9 @@ static int save_reload(int snum)
 	FILE *f;
 	struct stat st;
 
-	f = sys_fopen(dyn_CONFIGFILE,"w");
+	f = sys_fopen(get_dyn_CONFIGFILE(),"w");
 	if (!f) {
-		printf(_("failed to open %s for writing"), dyn_CONFIGFILE);
+		printf(_("failed to open %s for writing"), get_dyn_CONFIGFILE());
 		printf("\n");
 		return 0;
 	}
@@ -458,7 +470,7 @@ static int save_reload(int snum)
 #if defined HAVE_FCHMOD
 		fchmod(fileno(f), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
 #else
-		chmod(dyn_CONFIGFILE, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
+		chmod(get_dyn_CONFIGFILE(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
 #endif
 	}
 
@@ -467,10 +479,10 @@ static int save_reload(int snum)
 		lp_dump_one(f, False, snum);
 	fclose(f);
 
-	lp_killunused(NULL);
+	lp_kill_all_services();
 
 	if (!load_config(False)) {
-                printf(_("Can't reload %s"), dyn_CONFIGFILE);
+                printf(_("Can't reload %s"), get_dyn_CONFIGFILE());
 		printf("\n");
                 return 0;
         }
@@ -510,14 +522,17 @@ static void commit_parameters(int snum)
 {
 	int i = 0;
 	struct parm_struct *parm;
-	pstring label;
+	char *label;
 	const char *v;
 
 	while ((parm = lp_next_parameter(snum, &i, 1))) {
-		slprintf(label, sizeof(label)-1, "parm_%s", make_parm_name(parm->label));
-		if ((v = cgi_variable(label)) != NULL) {
-			if (parm->flags & FLAG_HIDE) continue;
-			commit_parameter(snum, parm, v); 
+		if (asprintf(&label, "parm_%s", make_parm_name(parm->label)) > 0) {
+			if ((v = cgi_variable(label)) != NULL) {
+				if (parm->flags & FLAG_HIDE)
+					continue;
+				commit_parameter(snum, parm, v);
+			}
+			SAFE_FREE(label);
 		}
 	}
 }
@@ -720,9 +735,8 @@ static void wizard_page(void)
 
 		/* Have to create Homes share? */
 		if ((HomeExpo == 1) && (have_home == -1)) {
-			pstring unix_share;
-			
-			pstrcpy(unix_share,HOMES_NAME);
+			const char *unix_share = HOMES_NAME;
+
 			load_config(False);
 			lp_copy_service(GLOBAL_SECTION_SNUM, unix_share);
 			iNumNonAutoPrintServices = lp_numservices();
@@ -749,7 +763,6 @@ static void wizard_page(void)
 			winstype = 1;
 		if (lp_wins_server_list() && strlen(*lp_wins_server_list()))
  		        winstype = 2;
- 		
 
 		/* Do we have a homes share? */
 		have_home = lp_servicenumber(HOMES_NAME);
@@ -982,13 +995,13 @@ static void shares_page(void)
 /*************************************************************
 change a password either locally or remotely
 *************************************************************/
-static BOOL change_password(const char *remote_machine, const char *user_name, 
+static bool change_password(const char *remote_machine, const char *user_name, 
 			    const char *old_passwd, const char *new_passwd, 
 				int local_flags)
 {
 	NTSTATUS ret;
-	pstring err_str;
-	pstring msg_str;
+	char *err_str = NULL;
+	char *msg_str = NULL;
 
 	if (demo_mode) {
 		printf("%s\n<p>", _("password change in demo mode rejected"));
@@ -996,26 +1009,29 @@ static BOOL change_password(const char *remote_machine, const char *user_name,
 	}
 	
 	if (remote_machine != NULL) {
-		ret = remote_password_change(remote_machine, user_name, old_passwd, 
-									 new_passwd, err_str, sizeof(err_str));
-		if(*err_str)
+		ret = remote_password_change(remote_machine, user_name,
+					     old_passwd, new_passwd, &err_str);
+		if (err_str != NULL)
 			printf("%s\n<p>", err_str);
+		SAFE_FREE(err_str);
 		return NT_STATUS_IS_OK(ret);
 	}
 
-	if(!initialize_password_db(True)) {
+	if(!initialize_password_db(True, NULL)) {
 		printf("%s\n<p>", _("Can't setup password database vectors."));
 		return False;
 	}
 	
-	ret = local_password_change(user_name, local_flags, new_passwd, err_str, sizeof(err_str),
-					 msg_str, sizeof(msg_str));
+	ret = local_password_change(user_name, local_flags, new_passwd,
+					&err_str, &msg_str);
 
-	if(*msg_str)
+	if(msg_str)
 		printf("%s\n<p>", msg_str);
-	if(*err_str)
+	if(err_str)
 		printf("%s\n<p>", err_str);
 
+	SAFE_FREE(msg_str);
+	SAFE_FREE(err_str);
 	return NT_STATUS_IS_OK(ret);
 }
 
@@ -1025,7 +1041,7 @@ static BOOL change_password(const char *remote_machine, const char *user_name,
 static void chg_passwd(void)
 {
 	const char *host;
-	BOOL rslt;
+	bool rslt;
 	int local_flags = 0;
 
 	/* Make sure users name has been specified */
@@ -1329,6 +1345,32 @@ static void printers_page(void)
 	printf("</FORM>\n");
 }
 
+/*
+  when the _() translation macro is used there is no obvious place to free
+  the resulting string and there is no easy way to give a static pointer.
+  All we can do is rotate between some static buffers and hope a single d_printf()
+  doesn't have more calls to _() than the number of buffers
+*/
+
+const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
+{
+	const char *msgstr;
+	const char *ret;
+
+	msgstr = lang_msg(msgid);
+	if (!msgstr) {
+		return msgid;
+	}
+
+	ret = talloc_strdup(ctx, msgstr);
+
+	lang_msg_free(msgstr);
+	if (!ret) {
+		return msgid;
+	}
+
+	return ret;
+}
 
 /**
  * main function for SWAT.
@@ -1344,6 +1386,7 @@ static void printers_page(void)
 		POPT_COMMON_SAMBA
 		POPT_TABLEEND
 	};
+	TALLOC_CTX *frame = talloc_stackframe();
 
 	fault_setup(NULL);
 	umask(S_IWGRP | S_IWOTH);
@@ -1383,23 +1426,23 @@ static void printers_page(void)
 	iNumNonAutoPrintServices = lp_numservices();
 	load_printers();
 
-	cgi_setup(dyn_SWATDIR, !demo_mode);
+	cgi_setup(get_dyn_SWATDIR(), !demo_mode);
 
 	print_header();
 
 	cgi_load_variables();
 
-	if (!file_exist(dyn_CONFIGFILE, NULL)) {
+	if (!file_exist(get_dyn_CONFIGFILE(), NULL)) {
 		have_read_access = True;
 		have_write_access = True;
 	} else {
 		/* check if the authenticated user has write access - if not then
 		   don't show write options */
-		have_write_access = (access(dyn_CONFIGFILE,W_OK) == 0);
+		have_write_access = (access(get_dyn_CONFIGFILE(),W_OK) == 0);
 
 		/* if the user doesn't have read access to smb.conf then
 		   don't let them view it */
-		have_read_access = (access(dyn_CONFIGFILE,R_OK) == 0);
+		have_read_access = (access(get_dyn_CONFIGFILE(),R_OK) == 0);
 	}
 
 	show_main_buttons();
@@ -1430,6 +1473,8 @@ static void printers_page(void)
 	}
 
 	print_footer();
+
+	TALLOC_FREE(frame);
 	return 0;
 }
 

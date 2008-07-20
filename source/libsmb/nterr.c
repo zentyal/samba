@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* NT error codes.  please read nterr.h */
@@ -540,6 +539,7 @@ static const nt_err_code_struct nt_errs[] =
 	{ "STATUS_MORE_ENTRIES", STATUS_MORE_ENTRIES },
 	{ "STATUS_SOME_UNMAPPED", STATUS_SOME_UNMAPPED },
 	{ "STATUS_NO_MORE_FILES", STATUS_NO_MORE_FILES },
+	{ "NT_STATUS_RPC_CANNOT_SUPPORT", NT_STATUS_RPC_CANNOT_SUPPORT },
 	{ NULL, NT_STATUS(0) }
 };
 
@@ -649,16 +649,14 @@ nt_err_code_struct nt_err_desc[] =
 
 const char *nt_errstr(NTSTATUS nt_code)
 {
-        static pstring msg;
         int idx = 0;
+	char *result;
 
 #ifdef HAVE_LDAP
         if (NT_STATUS_TYPE(nt_code) == NT_STATUS_TYPE_LDAP) {
                 return ldap_err2string(NT_STATUS_LDAP_CODE(nt_code));
 	}
 #endif
-
-	slprintf(msg, sizeof(msg), "NT code 0x%08x", NT_STATUS_V(nt_code));
 
 	while (nt_errs[idx].nt_errstr != NULL) {
 		if (NT_STATUS_EQUAL(nt_errs[idx].nt_errcode, nt_code)) {
@@ -667,7 +665,10 @@ const char *nt_errstr(NTSTATUS nt_code)
 		idx++;
 	}
 
-        return msg;
+	result = talloc_asprintf(talloc_tos(), "NT code 0x%08x",
+				 NT_STATUS_V(nt_code));
+	SMB_ASSERT(result != NULL);
+	return result;
 }
 
 /************************************************************************
@@ -696,7 +697,7 @@ const char *get_friendly_nt_error_msg(NTSTATUS nt_code)
 
 const char *get_nt_error_c_code(NTSTATUS nt_code)
 {
-        static pstring out;
+	char *result;
         int idx = 0;
 
 	while (nt_errs[idx].nt_errstr != NULL) {
@@ -707,9 +708,10 @@ const char *get_nt_error_c_code(NTSTATUS nt_code)
 		idx++;
 	}
 
-	slprintf(out, sizeof(out), "NT_STATUS(0x%08x)", NT_STATUS_V(nt_code));
-
-        return out;
+	result = talloc_asprintf(talloc_tos(), "NT_STATUS(0x%08x)",
+				 NT_STATUS_V(nt_code));
+	SMB_ASSERT(result);
+	return result;
 }
 
 /*****************************************************************************

@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -574,7 +573,7 @@ char *sys_getwd(char *s)
 {
 	char *wd;
 #ifdef HAVE_GETCWD
-	wd = (char *)getcwd(s, sizeof (pstring));
+	wd = (char *)getcwd(s, PATH_MAX);
 #else
 	wd = (char *)getwd(s);
 #endif
@@ -643,6 +642,25 @@ int sys_chown(const char *fname,uid_t uid,gid_t gid)
 }
 
 /*******************************************************************
+ Wrapper for lchown.
+********************************************************************/
+
+int sys_lchown(const char *fname,uid_t uid,gid_t gid)
+{
+#ifndef HAVE_LCHOWN
+	static int done;
+	if (!done) {
+		DEBUG(1,("WARNING: no lchown!\n"));
+		done=1;
+	}
+	errno = ENOSYS;
+	return -1;
+#else
+	return(lchown(fname,uid,gid));
+#endif
+}
+
+/*******************************************************************
 os/2 also doesn't have chroot
 ********************************************************************/
 int sys_chroot(const char *dname)
@@ -660,68 +678,7 @@ int sys_chroot(const char *dname)
 #endif
 }
 
-/**************************************************************************
-A wrapper for gethostbyname() that tries avoids looking up hostnames 
-in the root domain, which can cause dial-on-demand links to come up for no
-apparent reason.
-****************************************************************************/
-
-struct hostent *sys_gethostbyname(const char *name)
-{
-#ifdef REDUCE_ROOT_DNS_LOOKUPS
-	char query[256], hostname[256];
-	char *domain;
-
-	/* Does this name have any dots in it? If so, make no change */
-
-	if (strchr_m(name, '.'))
-		return(gethostbyname(name));
-
-	/* Get my hostname, which should have domain name 
-		attached. If not, just do the gethostname on the
-		original string. 
-	*/
-
-	gethostname(hostname, sizeof(hostname) - 1);
-	hostname[sizeof(hostname) - 1] = 0;
-	if ((domain = strchr_m(hostname, '.')) == NULL)
-		return(gethostbyname(name));
-
-	/* Attach domain name to query and do modified query.
-		If names too large, just do gethostname on the
-		original string.
-	*/
-
-	if((strlen(name) + strlen(domain)) >= sizeof(query))
-		return(gethostbyname(name));
-
-	slprintf(query, sizeof(query)-1, "%s%s", name, domain);
-	return(gethostbyname(query));
-#else /* REDUCE_ROOT_DNS_LOOKUPS */
-	return(gethostbyname(name));
-#endif /* REDUCE_ROOT_DNS_LOOKUPS */
-}
-
-
 #if defined(HAVE_POSIX_CAPABILITIES)
-
-#ifdef HAVE_SYS_CAPABILITY_H
-
-#if defined(BROKEN_REDHAT_7_SYSTEM_HEADERS) && !defined(_I386_STATFS_H) && !defined(_PPC_STATFS_H)
-#define _I386_STATFS_H
-#define _PPC_STATFS_H
-#define BROKEN_REDHAT_7_STATFS_WORKAROUND
-#endif
-
-#include <sys/capability.h>
-
-#ifdef BROKEN_REDHAT_7_STATFS_WORKAROUND
-#undef _I386_STATFS_H
-#undef _PPC_STATFS_H
-#undef BROKEN_REDHAT_7_STATFS_WORKAROUND
-#endif
-
-#endif /* HAVE_SYS_CAPABILITY_H */
 
 /**************************************************************************
  Try and abstract process capabilities (for systems that have them).
@@ -732,8 +689,8 @@ struct hostent *sys_gethostbyname(const char *name)
  * from the inheritable set, because there is no circumstance in which our
  * children should inherit our elevated privileges.
  */
-static BOOL set_process_capability(enum smbd_capability capability,
-				   BOOL	enable)
+static bool set_process_capability(enum smbd_capability capability,
+				   bool enable)
 {
 	cap_value_t cap_vals[2] = {0};
 	int num_cap_vals = 0;
@@ -876,15 +833,13 @@ int groups_max(void)
 }
 
 /**************************************************************************
- Wrapper for getgroups. Deals with broken (int) case.
+ Wrap setgroups and getgroups for systems that declare getgroups() as
+ returning an array of gid_t, but actuall return an array of int.
 ****************************************************************************/
 
-int sys_getgroups(int setlen, gid_t *gidset)
+#if defined(HAVE_BROKEN_GETGROUPS)
+static int sys_broken_getgroups(int setlen, gid_t *gidset)
 {
-#if !defined(HAVE_BROKEN_GETGROUPS)
-	return getgroups(setlen, gidset);
-#else
-
 	GID_T gid;
 	GID_T *group_list;
 	int i, ngroups;
@@ -906,7 +861,7 @@ int sys_getgroups(int setlen, gid_t *gidset)
 	if (setlen == 0)
 		setlen = groups_max();
 
-	if((group_list = (GID_T *)malloc(setlen * sizeof(GID_T))) == NULL) {
+	if((group_list = SMB_MALLOC_ARRAY(GID_T, setlen)) == NULL) {
 		DEBUG(0,("sys_getgroups: Malloc fail.\n"));
 		return -1;
 	}
@@ -923,26 +878,10 @@ int sys_getgroups(int setlen, gid_t *gidset)
 
 	SAFE_FREE(group_list);
 	return ngroups;
-#endif /* HAVE_BROKEN_GETGROUPS */
 }
 
-
-/**************************************************************************
- Wrapper for setgroups. Deals with broken (int) case. Automatically used
- if we have broken getgroups.
-****************************************************************************/
-
-int sys_setgroups(int setlen, gid_t *gidset)
+static int sys_broken_setgroups(int setlen, gid_t *gidset)
 {
-#if !defined(HAVE_SETGROUPS)
-	errno = ENOSYS;
-	return -1;
-#endif /* HAVE_SETGROUPS */
-
-#if !defined(HAVE_BROKEN_GETGROUPS)
-	return setgroups(setlen, gidset);
-#else
-
 	GID_T *group_list;
 	int i ; 
 
@@ -959,7 +898,7 @@ int sys_setgroups(int setlen, gid_t *gidset)
 	 * GID_T array of size setlen.
 	 */
 
-	if((group_list = (GID_T *)malloc(setlen * sizeof(GID_T))) == NULL) {
+	if((group_list = SMB_MALLOC_ARRAY(GID_T, setlen)) == NULL) {
 		DEBUG(0,("sys_setgroups: Malloc fail.\n"));
 		return -1;    
 	}
@@ -976,7 +915,105 @@ int sys_setgroups(int setlen, gid_t *gidset)
  
 	SAFE_FREE(group_list);
 	return 0 ;
+}
+
 #endif /* HAVE_BROKEN_GETGROUPS */
+
+/* This is a list of systems that require the first GID passed to setgroups(2)
+ * to be the effective GID. If your system is one of these, add it here.
+ */
+#if defined (FREEBSD) || defined (DARWINOS)
+#define USE_BSD_SETGROUPS
+#endif
+
+#if defined(USE_BSD_SETGROUPS)
+/* Depending on the particular BSD implementation, the first GID that is
+ * passed to setgroups(2) will either be ignored or will set the credential's
+ * effective GID. In either case, the right thing to do is to guarantee that
+ * gidset[0] is the effective GID.
+ */
+static int sys_bsd_setgroups(gid_t primary_gid, int setlen, const gid_t *gidset)
+{
+	gid_t *new_gidset = NULL;
+	int max;
+	int ret;
+
+	/* setgroups(2) will fail with EINVAL if we pass too many groups. */
+	max = groups_max();
+
+	/* No group list, just make sure we are setting the efective GID. */
+	if (setlen == 0) {
+		return setgroups(1, &primary_gid);
+	}
+
+	/* If the primary gid is not the first array element, grow the array
+	 * and insert it at the front.
+	 */
+	if (gidset[0] != primary_gid) {
+	        new_gidset = SMB_MALLOC_ARRAY(gid_t, setlen + 1);
+	        if (new_gidset == NULL) {
+			return -1;
+	        }
+
+		memcpy(new_gidset + 1, gidset, (setlen * sizeof(gid_t)));
+		new_gidset[0] = primary_gid;
+		setlen++;
+	}
+
+	if (setlen > max) {
+		DEBUG(3, ("forced to truncate group list from %d to %d\n",
+			setlen, max));
+		setlen = max;
+	}
+
+#if defined(HAVE_BROKEN_GETGROUPS)
+	ret = sys_broken_setgroups(setlen, new_gidset ? new_gidset : gidset);
+#else
+	ret = setgroups(setlen, new_gidset ? new_gidset : gidset);
+#endif
+
+	if (new_gidset) {
+		int errsav = errno;
+		SAFE_FREE(new_gidset);
+		errno = errsav;
+	}
+
+	return ret;
+}
+
+#endif /* USE_BSD_SETGROUPS */
+
+/**************************************************************************
+ Wrapper for getgroups. Deals with broken (int) case.
+****************************************************************************/
+
+int sys_getgroups(int setlen, gid_t *gidset)
+{
+#if defined(HAVE_BROKEN_GETGROUPS)
+	return sys_broken_getgroups(setlen, gidset);
+#else
+	return getgroups(setlen, gidset);
+#endif
+}
+
+/**************************************************************************
+ Wrapper for setgroups. Deals with broken (int) case and BSD case.
+****************************************************************************/
+
+int sys_setgroups(gid_t UNUSED(primary_gid), int setlen, gid_t *gidset)
+{
+#if !defined(HAVE_SETGROUPS)
+	errno = ENOSYS;
+	return -1;
+#endif /* HAVE_SETGROUPS */
+
+#if defined(USE_BSD_SETGROUPS)
+	return sys_bsd_setgroups(primary_gid, setlen, gidset);
+#elif defined(HAVE_BROKEN_GETGROUPS)
+	return sys_broken_setgroups(setlen, gidset);
+#else
+	return setgroups(setlen, gidset);
+#endif
 }
 
 /**************************************************************************
@@ -1002,81 +1039,6 @@ void sys_endpwent(void)
  Wrappers for getpwnam(), getpwuid(), getgrnam(), getgrgid()
 ****************************************************************************/
 
-#ifdef ENABLE_BUILD_FARM_HACKS
-
-/*
- * In the build farm we want to be able to join machines to the domain. As we
- * don't have root access, we need to bypass direct access to /etc/passwd
- * after a user has been created via samr. Fake those users.
- */
-
-static struct passwd *fake_pwd;
-static int num_fake_pwd;
-
-struct passwd *sys_getpwnam(const char *name)
-{
-	int i;
-
-	for (i=0; i<num_fake_pwd; i++) {
-		if (strcmp(fake_pwd[i].pw_name, name) == 0) {
-			DEBUG(10, ("Returning fake user %s\n", name));
-			return &fake_pwd[i];
-		}
-	}
-
-	return getpwnam(name);
-}
-
-struct passwd *sys_getpwuid(uid_t uid)
-{
-	int i;
-
-	for (i=0; i<num_fake_pwd; i++) {
-		if (fake_pwd[i].pw_uid == uid) {
-			DEBUG(10, ("Returning fake user %s\n",
-				   fake_pwd[i].pw_name));
-			return &fake_pwd[i];
-		}
-	}
-
-	return getpwuid(uid);
-}
-
-void faked_create_user(const char *name)
-{
-	int i;
-	uid_t uid;
-	struct passwd new_pwd;
-
-	for (i=0; i<10; i++) {
-		generate_random_buffer((unsigned char *)&uid,
-				       sizeof(uid));
-		if (getpwuid(uid) == NULL) {
-			break;
-		}
-	}
-
-	if (i==10) {
-		/* Weird. No free uid found... */
-		return;
-	}
-
-	new_pwd.pw_name = SMB_STRDUP(name);
-	new_pwd.pw_passwd = SMB_STRDUP("x");
-	new_pwd.pw_uid = uid;
-	new_pwd.pw_gid = 100;
-	new_pwd.pw_gecos = SMB_STRDUP("faked user");
-	new_pwd.pw_dir = SMB_STRDUP("/nodir");
-	new_pwd.pw_shell = SMB_STRDUP("/bin/false");
-
-	ADD_TO_ARRAY(NULL, struct passwd, new_pwd, &fake_pwd,
-		     &num_fake_pwd);
-
-	DEBUG(10, ("Added fake user %s, have %d fake users\n",
-		   name, num_fake_pwd));
-}
-
-#else
 
 struct passwd *sys_getpwnam(const char *name)
 {
@@ -1087,8 +1049,6 @@ struct passwd *sys_getpwuid(uid_t uid)
 {
 	return getpwuid(uid);
 }
-
-#endif
 
 struct group *sys_getgrnam(const char *name)
 {
@@ -1100,194 +1060,26 @@ struct group *sys_getgrgid(gid_t gid)
 	return getgrgid(gid);
 }
 
-#if 0 /* NOT CURRENTLY USED - JRA */
 /**************************************************************************
- The following are the UNICODE versions of *all* system interface functions
- called within Samba. Ok, ok, the exceptions are the gethostbyXX calls,
- which currently are left as ascii as they are not used other than in name
- resolution.
+ Extract a command into an arg list.
 ****************************************************************************/
 
-/**************************************************************************
- Wide stat. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_stat(const smb_ucs2_t *wfname,SMB_STRUCT_STAT *sbuf)
+static char **extract_args(TALLOC_CTX *mem_ctx, const char *command)
 {
-	pstring fname;
-	return sys_stat(unicode_to_unix(fname,wfname,sizeof(fname)), sbuf);
-}
-
-/**************************************************************************
- Wide lstat. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_lstat(const smb_ucs2_t *wfname,SMB_STRUCT_STAT *sbuf)
-{
-	pstring fname;
-	return sys_lstat(unicode_to_unix(fname,wfname,sizeof(fname)), sbuf);
-}
-
-/**************************************************************************
- Wide creat. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_creat(const smb_ucs2_t *wfname, mode_t mode)
-{
-	pstring fname;
-	return sys_creat(unicode_to_unix(fname,wfname,sizeof(fname)), mode);
-}
-
-/**************************************************************************
- Wide open. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_open(const smb_ucs2_t *wfname, int oflag, mode_t mode)
-{
-	pstring fname;
-	return sys_open(unicode_to_unix(fname,wfname,sizeof(fname)), oflag, mode);
-}
-
-/**************************************************************************
- Wide fopen. Just narrow and call sys_xxx.
-****************************************************************************/
-
-FILE *wsys_fopen(const smb_ucs2_t *wfname, const char *type)
-{
-	pstring fname;
-	return sys_fopen(unicode_to_unix(fname,wfname,sizeof(fname)), type);
-}
-
-/**************************************************************************
- Wide opendir. Just narrow and call sys_xxx.
-****************************************************************************/
-
-SMB_STRUCT_DIR *wsys_opendir(const smb_ucs2_t *wfname)
-{
-	pstring fname;
-	return opendir(unicode_to_unix(fname,wfname,sizeof(fname)));
-}
-
-/**************************************************************************
- Wide readdir. Return a structure pointer containing a wide filename.
-****************************************************************************/
-
-SMB_STRUCT_WDIRENT *wsys_readdir(SMB_STRUCT_DIR *dirp)
-{
-	static SMB_STRUCT_WDIRENT retval;
-	SMB_STRUCT_DIRENT *dirval = sys_readdir(dirp);
-
-	if(!dirval)
-		return NULL;
-
-	/*
-	 * The only POSIX defined member of this struct is d_name.
-	 */
-
-	unix_to_unicode(retval.d_name,dirval->d_name,sizeof(retval.d_name));
-
-	return &retval;
-}
-
-/**************************************************************************
- Wide getwd. Call sys_xxx and widen. Assumes s points to a wpstring.
-****************************************************************************/
-
-smb_ucs2_t *wsys_getwd(smb_ucs2_t *s)
-{
-	pstring fname;
-	char *p = sys_getwd(fname);
-
-	if(!p)
-		return NULL;
-
-	return unix_to_unicode(s, p, sizeof(wpstring));
-}
-
-/**************************************************************************
- Wide chown. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_chown(const smb_ucs2_t *wfname, uid_t uid, gid_t gid)
-{
-	pstring fname;
-	return chown(unicode_to_unix(fname,wfname,sizeof(fname)), uid, gid);
-}
-
-/**************************************************************************
- Wide chroot. Just narrow and call sys_xxx.
-****************************************************************************/
-
-int wsys_chroot(const smb_ucs2_t *wfname)
-{
-	pstring fname;
-	return chroot(unicode_to_unix(fname,wfname,sizeof(fname)));
-}
-
-/**************************************************************************
- Wide getpwnam. Return a structure pointer containing wide names.
-****************************************************************************/
-
-SMB_STRUCT_WPASSWD *wsys_getpwnam(const smb_ucs2_t *wname)
-{
-	static SMB_STRUCT_WPASSWD retval;
-	fstring name;
-	struct passwd *pwret = sys_getpwnam(unicode_to_unix(name,wname,sizeof(name)));
-
-	if(!pwret)
-		return NULL;
-
-	unix_to_unicode(retval.pw_name, pwret->pw_name, sizeof(retval.pw_name));
-	retval.pw_passwd = pwret->pw_passwd;
-	retval.pw_uid = pwret->pw_uid;
-	retval.pw_gid = pwret->pw_gid;
-	unix_to_unicode(retval.pw_gecos, pwret->pw_gecos, sizeof(retval.pw_gecos));
-	unix_to_unicode(retval.pw_dir, pwret->pw_dir, sizeof(retval.pw_dir));
-	unix_to_unicode(retval.pw_shell, pwret->pw_shell, sizeof(retval.pw_shell));
-
-	return &retval;
-}
-
-/**************************************************************************
- Wide getpwuid. Return a structure pointer containing wide names.
-****************************************************************************/
-
-SMB_STRUCT_WPASSWD *wsys_getpwuid(uid_t uid)
-{
-	static SMB_STRUCT_WPASSWD retval;
-	struct passwd *pwret = sys_getpwuid(uid);
-
-	if(!pwret)
-		return NULL;
-
-	unix_to_unicode(retval.pw_name, pwret->pw_name, sizeof(retval.pw_name));
-	retval.pw_passwd = pwret->pw_passwd;
-	retval.pw_uid = pwret->pw_uid;
-	retval.pw_gid = pwret->pw_gid;
-	unix_to_unicode(retval.pw_gecos, pwret->pw_gecos, sizeof(retval.pw_gecos));
-	unix_to_unicode(retval.pw_dir, pwret->pw_dir, sizeof(retval.pw_dir));
-	unix_to_unicode(retval.pw_shell, pwret->pw_shell, sizeof(retval.pw_shell));
-
-	return &retval;
-}
-#endif /* NOT CURRENTLY USED - JRA */
-
-/**************************************************************************
- Extract a command into an arg list. Uses a static pstring for storage.
- Caller frees returned arg list (which contains pointers into the static pstring).
-****************************************************************************/
-
-static char **extract_args(const char *command)
-{
-	static pstring trunc_cmd;
+	char *trunc_cmd;
+	char *saveptr;
 	char *ptr;
 	int argcl;
 	char **argl = NULL;
 	int i;
 
-	pstrcpy(trunc_cmd, command);
+	if (!(trunc_cmd = talloc_strdup(mem_ctx, command))) {
+		DEBUG(0, ("talloc failed\n"));
+		goto nomem;
+	}
 
-	if(!(ptr = strtok(trunc_cmd, " \t"))) {
+	if(!(ptr = strtok_r(trunc_cmd, " \t", &saveptr))) {
+		TALLOC_FREE(trunc_cmd);
 		errno = EINVAL;
 		return NULL;
 	}
@@ -1296,27 +1088,46 @@ static char **extract_args(const char *command)
 	 * Count the args.
 	 */
 
-	for( argcl = 1; ptr; ptr = strtok(NULL, " \t"))
+	for( argcl = 1; ptr; ptr = strtok_r(NULL, " \t", &saveptr))
 		argcl++;
 
-	if((argl = (char **)SMB_MALLOC((argcl + 1) * sizeof(char *))) == NULL)
-		return NULL;
+	TALLOC_FREE(trunc_cmd);
+
+	if (!(argl = TALLOC_ARRAY(mem_ctx, char *, argcl + 1))) {
+		goto nomem;
+	}
 
 	/*
 	 * Now do the extraction.
 	 */
 
-	pstrcpy(trunc_cmd, command);
+	if (!(trunc_cmd = talloc_strdup(mem_ctx, command))) {
+		goto nomem;
+	}
 
-	ptr = strtok(trunc_cmd, " \t");
+	ptr = strtok_r(trunc_cmd, " \t", &saveptr);
 	i = 0;
-	argl[i++] = ptr;
 
-	while((ptr = strtok(NULL, " \t")) != NULL)
-		argl[i++] = ptr;
+	if (!(argl[i++] = talloc_strdup(argl, ptr))) {
+		goto nomem;
+	}
+
+	while((ptr = strtok_r(NULL, " \t", &saveptr)) != NULL) {
+
+		if (!(argl[i++] = talloc_strdup(argl, ptr))) {
+			goto nomem;
+		}
+	}
 
 	argl[i++] = NULL;
 	return argl;
+
+ nomem:
+	DEBUG(0, ("talloc failed\n"));
+	TALLOC_FREE(trunc_cmd);
+	TALLOC_FREE(argl);
+	errno = ENOMEM;
+	return NULL;
 }
 
 /**************************************************************************
@@ -1390,7 +1201,7 @@ int sys_popen(const char *command)
 	 * Extract the command and args into a NULL terminated array.
 	 */
 
-	if(!(argl = extract_args(command)))
+	if(!(argl = extract_args(NULL, command)))
 		goto err_exit;
 
 	entry->child_pid = sys_fork();
@@ -1432,7 +1243,7 @@ int sys_popen(const char *command)
 	 */
 
 	close (child_end);
-	SAFE_FREE(argl);
+	TALLOC_FREE(argl);
 
 	/* Link into popen_chain. */
 	entry->next = popen_chain;
@@ -2111,11 +1922,6 @@ int sys_fremovexattr (int filedes, const char *name)
 #endif
 }
 
-#if !defined(HAVE_SETXATTR)
-#define XATTR_CREATE  0x1       /* set value, fail if attr already exists */
-#define XATTR_REPLACE 0x2       /* set value, fail if attr does not exist */
-#endif
-
 int sys_setxattr (const char *path, const char *name, const void *value, size_t size, int flags)
 {
 #if defined(HAVE_SETXATTR)
@@ -2362,14 +2168,13 @@ static ssize_t solaris_list_xattr(int attrdirfd, char *list, size_t size)
 			/* return the current size of the list of extended attribute names*/
 			len += listlen + 1;
 		} else {
-			/* check size and copy entrieÑ + nul into list. */
+			/* check size and copy entrieѕ + nul into list. */
 			if ((len + listlen + 1) > size) {
 				errno = ERANGE;
 				len = -1;
 				break;
 			} else {
 				safe_strcpy(list + len, de->d_name, listlen);
-				pstrcpy(list + len, de->d_name);
 				len += listlen;
 				list[len] = '\0';
 				++len;
@@ -2433,6 +2238,7 @@ static int solaris_write_xattr(int attrfd, const char *value, size_t size)
 	}
 }
 #endif /*HAVE_ATTROPEN*/
+
 
 /****************************************************************************
  Return the major devicenumber for UNIX extensions.
@@ -2641,4 +2447,46 @@ int sys_getpeereid( int s, uid_t *uid)
 	errno = ENOSYS;
 	return -1;
 #endif
+}
+
+int sys_getnameinfo(const struct sockaddr *psa,
+			socklen_t salen,
+			char *host,
+			size_t hostlen,
+			char *service,
+			size_t servlen,
+			int flags)
+{
+	/*
+	 * For Solaris we must make sure salen is the
+	 * correct length for the incoming sa_family.
+	 */
+
+	if (salen == sizeof(struct sockaddr_storage)) {
+		salen = sizeof(struct sockaddr_in);
+#if defined(HAVE_IPV6)
+		if (psa->sa_family == AF_INET6) {
+			salen = sizeof(struct sockaddr_in6);
+		}
+#endif
+	}
+	return getnameinfo(psa, salen, host, hostlen, service, servlen, flags);
+}
+
+int sys_connect(int fd, const struct sockaddr * addr)
+{
+	socklen_t salen = -1;
+
+	if (addr->sa_family == AF_INET) {
+	    salen = sizeof(struct sockaddr_in);
+	} else if (addr->sa_family == AF_UNIX) {
+	    salen = sizeof(struct sockaddr_un);
+	}
+#if defined(HAVE_IPV6)
+	else if (addr->sa_family == AF_INET6) {
+	    salen = sizeof(struct sockaddr_in6);
+	}
+#endif
+
+	return connect(fd, addr, salen);
 }

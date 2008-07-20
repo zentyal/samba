@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -26,60 +25,60 @@
 /** Startup smbd from web interface. */
 void start_smbd(void)
 {
-	pstring binfile;
+	char *binfile = NULL;
 
-	if (geteuid() != 0) return;
+	if (geteuid() != 0) {
+		 return;
+	}
 
 	if (fork()) {
 		return;
 	}
 
-	slprintf(binfile, sizeof(pstring) - 1, "%s/smbd", dyn_SBINDIR);
-
-	become_daemon(True, False);
-
-	execl(binfile, binfile, "-D", NULL);
-
+	if (asprintf(&binfile, "%s/smbd", get_dyn_SBINDIR()) > 0) {
+		become_daemon(true, false);
+		execl(binfile, binfile, "-D", NULL);
+	}
 	exit(0);
 }
 
 /* startup nmbd */
 void start_nmbd(void)
 {
-	pstring binfile;
+	char *binfile = NULL;
 
-	if (geteuid() != 0) return;
+	if (geteuid() != 0) {
+		return;
+	}
 
 	if (fork()) {
 		return;
 	}
 
-	slprintf(binfile, sizeof(pstring) - 1, "%s/nmbd", dyn_SBINDIR);
-	
-	become_daemon(True, False);
-
-	execl(binfile, binfile, "-D", NULL);
-
+	if (asprintf(&binfile, "%s/nmbd", get_dyn_SBINDIR()) > 0) {
+		become_daemon(true, false);
+		execl(binfile, binfile, "-D", NULL);
+	}
 	exit(0);
 }
 
 /** Startup winbindd from web interface. */
 void start_winbindd(void)
 {
-	pstring binfile;
+	char *binfile = NULL;
 
-	if (geteuid() != 0) return;
+	if (geteuid() != 0) {
+		return;
+	}
 
 	if (fork()) {
 		return;
 	}
 
-	slprintf(binfile, sizeof(pstring) - 1, "%s/winbindd", dyn_SBINDIR);
-
-	become_daemon(True, False);
-
-	execl(binfile, binfile, NULL);
-
+	if (asprintf(&binfile, "%s/winbindd", get_dyn_SBINDIR()) > 0) {
+		become_daemon(true, false);
+		execl(binfile, binfile, NULL);
+	}
 	exit(0);
 }
 
@@ -121,7 +120,7 @@ void stop_winbindd(void)
 }
 #endif
 /* kill a specified process */
-void kill_pid(struct process_id pid)
+void kill_pid(struct server_id pid)
 {
 	if (geteuid() != 0) return;
 

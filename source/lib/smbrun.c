@@ -1,21 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    run a command as a specified user
    Copyright (C) Andrew Tridgell 1992-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -28,11 +27,19 @@ This is a utility function of smbrun().
 ****************************************************************************/
 
 static int setup_out_fd(void)
-{  
+{
 	int fd;
-	pstring path;
+	TALLOC_CTX *ctx = talloc_stackframe();
+	char *path = NULL;
 
-	slprintf(path, sizeof(path)-1, "%s/smb.XXXXXX", tmpdir());
+	path = talloc_asprintf(ctx,
+				"%s/smb.XXXXXX",
+				tmpdir());
+	if (!path) {
+		TALLOC_FREE(ctx);
+		errno = ENOMEM;
+		return -1;
+	}
 
 	/* now create the file */
 	fd = smb_mkstemp(path);
@@ -40,6 +47,7 @@ static int setup_out_fd(void)
 	if (fd == -1) {
 		DEBUG(0,("setup_out_fd: Failed to create file %s. (%s)\n",
 			path, strerror(errno) ));
+		TALLOC_FREE(ctx);
 		return -1;
 	}
 
@@ -47,6 +55,7 @@ static int setup_out_fd(void)
 
 	/* Ensure file only kept around by open fd. */
 	unlink(path);
+	TALLOC_FREE(ctx);
 	return fd;
 }
 
@@ -55,12 +64,12 @@ run a command being careful about uid/gid handling and putting the output in
 outfd (or discard it if outfd is NULL).
 ****************************************************************************/
 
-static int smbrun_internal(const char *cmd, int *outfd, BOOL sanitize)
+static int smbrun_internal(const char *cmd, int *outfd, bool sanitize)
 {
 	pid_t pid;
 	uid_t uid = current_user.ut.uid;
 	gid_t gid = current_user.ut.gid;
-	
+
 	/*
 	 * Lose any elevated privileges.
 	 */

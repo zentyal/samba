@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,13 +14,12 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-extern BOOL torture_showall;
+extern bool torture_showall;
 
 enum deny_result {A_0=0, A_X=1, A_R=2, A_W=3, A_RW=5};
 
@@ -1404,12 +1403,12 @@ static void progress_bar(unsigned i, unsigned total)
 /*
   this produces a matrix of deny mode behaviour for 1 connection
  */
-BOOL torture_denytest1(int dummy)
+bool torture_denytest1(int dummy)
 {
 	struct cli_state *cli1;
 	int fnum1, fnum2;
 	int i;
-	BOOL correct = True;
+	bool correct = True;
 	const char *fnames[2] = {"\\denytest1.dat", "\\denytest1.exe"};
 
 	if (!torture_open_connection(&cli1, 0)) {
@@ -1490,12 +1489,12 @@ BOOL torture_denytest1(int dummy)
 /*
   this produces a matrix of deny mode behaviour with 2 connections
  */
-BOOL torture_denytest2(int dummy)
+bool torture_denytest2(int dummy)
 {
 	static struct cli_state *cli1, *cli2;
 	int fnum1, fnum2;
 	int i;
-	BOOL correct = True;
+	bool correct = True;
 	const char *fnames[2] = {"\\denytest2.dat", "\\denytest2.exe"};
 
 	if (!torture_open_connection(&cli1, 0) || !torture_open_connection(&cli2, 1)) {

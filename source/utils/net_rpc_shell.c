@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -46,7 +45,7 @@ static char **completion_fn(const char *text, int start, int end)
 	ADD_TO_ARRAY(NULL, char *, SMB_STRDUP(text), &cmds, &n_cmds);
 
 	for (c = this_ctx->cmds; c->name != NULL; c++) {
-		BOOL match = (strncmp(text, c->name, strlen(text)) == 0);
+		bool match = (strncmp(text, c->name, strlen(text)) == 0);
 
 		if (match) {
 			ADD_TO_ARRAY(NULL, char *, SMB_STRDUP(c->name),
@@ -93,7 +92,7 @@ static NTSTATUS net_sh_run(struct rpc_sh_ctx *ctx, struct rpc_sh_cmd *cmd,
 	return status;
 }
 
-static BOOL net_sh_process(struct rpc_sh_ctx *ctx,
+static bool net_sh_process(struct rpc_sh_ctx *ctx,
 			   int argc, const char **argv)
 {
 	struct rpc_sh_cmd *c;
@@ -219,9 +218,10 @@ int net_rpc_shell(int argc, const char **argv)
 		return -1;
 	}
 
-	ctx->cli = net_make_ipc_connection(0);
-	if (ctx->cli == NULL) {
-		d_fprintf(stderr, "Could not open connection\n");
+	status = net_make_ipc_connection(0, &(ctx->cli));
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "Could not open connection: %s\n",
+			  nt_errstr(status));
 		return -1;
 	}
 
@@ -236,16 +236,18 @@ int net_rpc_shell(int argc, const char **argv)
 	}
 
 	d_printf("Talking to domain %s (%s)\n", ctx->domain_name,
-		 sid_string_static(ctx->domain_sid));
-	
+		 sid_string_tos(ctx->domain_sid));
+
 	this_ctx = ctx;
 
 	while(1) {
-		char *prompt;
-		char *line;
+		char *prompt = NULL;
+		char *line = NULL;
 		int ret;
 
-		asprintf(&prompt, "%s> ", this_ctx->whoami);
+		if (asprintf(&prompt, "%s> ", this_ctx->whoami) < 0) {
+			break;
+		}
 
 		line = smb_readline(prompt, NULL, completion_fn);
 		SAFE_FREE(prompt);
@@ -256,18 +258,22 @@ int net_rpc_shell(int argc, const char **argv)
 
 		ret = poptParseArgvString(line, &argc, &argv);
 		if (ret == POPT_ERROR_NOARG) {
+			SAFE_FREE(line);
 			continue;
 		}
 		if (ret != 0) {
 			d_fprintf(stderr, "cmdline invalid: %s\n",
 				  poptStrerror(ret));
+			SAFE_FREE(line);
 			return False;
 		}
 
 		if ((line[0] != '\n') &&
 		    (!net_sh_process(this_ctx, argc, argv))) {
+			SAFE_FREE(line);
 			break;
 		}
+		SAFE_FREE(line);
 	}
 
 	cli_shutdown(ctx->cli);

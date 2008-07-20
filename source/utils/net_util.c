@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -14,20 +14,12 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
 #include "includes.h"
 #include "utils/net.h"
-
-BOOL is_valid_policy_hnd(const POLICY_HND *hnd)
-{
-	POLICY_HND tmp;
-	ZERO_STRUCT(tmp);
-	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
-}
 
 NTSTATUS net_rpc_lookup_name(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 			     const char *name, const char **ret_domain,
@@ -59,7 +51,7 @@ NTSTATUS net_rpc_lookup_name(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 	}
 
 	result = rpccli_lsa_lookup_names(lsa_pipe, mem_ctx, &pol, 1,
-					 &name, &dom_names, &sids, &types);
+					 &name, &dom_names, 1, &sids, &types);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		/* This can happen easily, don't log an error */
@@ -81,7 +73,7 @@ NTSTATUS net_rpc_lookup_name(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 
  done:
 	if (is_valid_policy_hnd(&pol)) {
-		rpccli_lsa_close(lsa_pipe, mem_ctx, &pol);
+		rpccli_lsa_Close(lsa_pipe, mem_ctx, &pol);
 	}
 	cli_rpc_pipe_close(lsa_pipe);
 

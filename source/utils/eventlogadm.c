@@ -8,7 +8,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -60,7 +59,7 @@ static void display_eventlog_names( void )
 		printf( "\t<None specified>\n");
 }
 
-static int DoAddSourceCommand( int argc, char **argv, BOOL debugflag, char *exename )
+static int DoAddSourceCommand( int argc, char **argv, bool debugflag, char *exename )
 {
 
 	if ( argc < 3 ) {
@@ -69,7 +68,7 @@ static int DoAddSourceCommand( int argc, char **argv, BOOL debugflag, char *exen
 		return -1;
 	}
 	/* must open the registry before we access it */
-	if ( !regdb_init(  ) ) {
+	if (!W_ERROR_IS_OK(regdb_init())) {
 		printf( "Can't open the registry.\n" );
 		return -1;
 	}
@@ -79,15 +78,15 @@ static int DoAddSourceCommand( int argc, char **argv, BOOL debugflag, char *exen
 	return 0;
 }
 
-static int DoWriteCommand( int argc, char **argv, BOOL debugflag, char *exename )
+static int DoWriteCommand( int argc, char **argv, bool debugflag, char *exename )
 {
 	FILE *f1;
 	char *argfname;
 	ELOG_TDB *etdb;
 
 	/* fixed constants are bad bad bad  */
-	pstring linein;
-	BOOL is_eor;
+	char linein[1024];
+	bool is_eor;
 	Eventlog_entry ee;
 	int rcnum;
 
@@ -161,6 +160,7 @@ int main( int argc, char *argv[] )
 {
 	int opt, rc;
 	char *exename;
+	TALLOC_CTX *frame = talloc_stackframe();
 
 
 	fstring opname;
@@ -169,7 +169,7 @@ int main( int argc, char *argv[] )
 
 	opt_debug = 0;		/* todo set this from getopts */
 
-	lp_load( dyn_CONFIGFILE, True, False, False, True);
+	lp_load(get_dyn_CONFIGFILE(), True, False, False, True);
 
 	exename = argv[0];
 
@@ -224,5 +224,6 @@ int main( int argc, char *argv[] )
 		exit( 1 );
 		break;
 	}
+	TALLOC_FREE(frame);
 	return rc;
 }

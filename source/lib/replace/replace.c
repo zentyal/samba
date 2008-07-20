@@ -10,7 +10,7 @@
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
-   version 2 of the License, or (at your option) any later version.
+   version 3 of the License, or (at your option) any later version.
 
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,8 +18,7 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with this library; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   License along with this library; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "replace.h"
@@ -28,7 +27,6 @@
 #include "system/time.h"
 #include "system/passwd.h"
 #include "system/syslog.h"
-#include "system/network.h"
 #include "system/locale.h"
 #include "system/wait.h"
 
@@ -84,9 +82,6 @@ size_t rep_strlcat(char *d, const char *s, size_t bufsize)
 	size_t ret = len1 + len2;
 
 	if (len1+len2 >= bufsize) {
-		if (bufsize < (len1+1)) {
-			return ret;
-		}
 		len2 = bufsize - (len1+1);
 	}
 	if (len2 > 0) {
@@ -222,7 +217,7 @@ long nap(long milliseconds) {
 #ifndef HAVE_MEMMOVE
 /*******************************************************************
 safely copies memory, ensuring no overlap problems.
-this is only used if the machine does not have it's own memmove().
+this is only used if the machine does not have its own memmove().
 this is not the fastest algorithm in town, but it will do for our
 needs.
 ********************************************************************/
@@ -298,20 +293,6 @@ char *rep_strdup(const char *s)
 	return(ret);
 }
 #endif /* HAVE_STRDUP */
-
-#ifndef WITH_PTHREADS
-/* REWRITE: not thread safe */
-#ifdef REPLACE_INET_NTOA
-char *rep_inet_ntoa(struct in_addr ip)
-{
-	uint8_t *p = (uint8_t *)&ip.s_addr;
-	static char buf[18];
-	slprintf(buf, 17, "%d.%d.%d.%d", 
-		 (int)p[0], (int)p[1], (int)p[2], (int)p[3]);
-	return buf;
-}
-#endif /* REPLACE_INET_NTOA */
-#endif
 
 #ifndef HAVE_SETLINEBUF
 void rep_setlinebuf(FILE *stream)
@@ -441,6 +422,10 @@ char *rep_mkdtemp(char *template)
 }
 #endif
 
+/*****************************************************************
+ Watch out: this is not thread safe.
+*****************************************************************/
+
 #ifndef HAVE_PREAD
 ssize_t rep_pread(int __fd, void *__buf, size_t __nbytes, off_t __offset)
 {
@@ -450,6 +435,10 @@ ssize_t rep_pread(int __fd, void *__buf, size_t __nbytes, off_t __offset)
 	return read(__fd, __buf, __nbytes);
 }
 #endif
+
+/*****************************************************************
+ Watch out: this is not thread safe.
+*****************************************************************/
 
 #ifndef HAVE_PWRITE
 ssize_t rep_pwrite(int __fd, const void *__buf, size_t __nbytes, off_t __offset)
@@ -469,7 +458,7 @@ char *rep_strcasestr(const char *haystack, const char *needle)
 	for (s=haystack;*s;s++) {
 		if (toupper(*needle) == toupper(*s) &&
 		    strncasecmp(s, needle, nlen) == 0) {
-			return (char *)((intptr_t)s);
+			return (char *)((uintptr_t)s);
 		}
 	}
 	return NULL;
@@ -571,20 +560,24 @@ int rep_unsetenv(const char *name)
 {
 	extern char **environ;
 	size_t len = strlen(name);
-	size_t i; 
-	int found = 0;
+	size_t i, count;
 
-	for (i=0; (environ && environ[i]); i++) {
-		if (found) {
-			environ[i-1] = environ[i];
-			continue;
-		}
+	if (environ == NULL || getenv(name) == NULL) {
+		return 0;
+	}
 
+	for (i=0;environ[i];i++) /* noop */ ;
+
+	count=i;
+	
+	for (i=0;i<count;) {
 		if (strncmp(environ[i], name, len) == 0 && environ[i][len] == '=') {
-			free(environ[i]);
-			environ[i] = NULL;
-			found = 1;
-			continue;
+			/* note: we do _not_ free the old variable here. It is unsafe to 
+			   do so, as the pointer may not have come from malloc */
+			memmove(&environ[i], &environ[i+1], (count-i)*sizeof(char *));
+			count--;
+		} else {
+			i++;
 		}
 	}
 
@@ -592,24 +585,29 @@ int rep_unsetenv(const char *name)
 }
 #endif
 
-#ifndef HAVE_SOCKETPAIR
-int rep_socketpair(int d, int type, int protocol, int sv[2])
+#ifndef HAVE_UTIME
+int rep_utime(const char *filename, const struct utimbuf *buf)
 {
-	if (d != AF_UNIX) {
-		errno = EAFNOSUPPORT;
-		return -1;
+	errno = ENOSYS;
+	return -1;
+}
+#endif
+
+#ifndef HAVE_UTIMES
+int rep_utimes(const char *filename, const struct timeval tv[2])
+{
+	struct utimbuf u;
+
+	u.actime = tv[0].tv_sec;
+	if (tv[0].tv_usec > 500000) {
+		u.actime += 1;
 	}
 
-	if (protocol != 0) {
-		errno = EPROTONOSUPPORT;
-		return -1;
+	u.modtime = tv[1].tv_sec;
+	if (tv[1].tv_usec > 500000) {
+		u.modtime += 1;
 	}
 
-	if (type != SOCK_STREAM) {
-		errno = EOPNOTSUPP;
-		return -1;
-	}
-
-	return pipe(sv);
+	return utime(filename, &u);
 }
 #endif

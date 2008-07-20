@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -34,29 +33,31 @@
  *		-i,--scope
  */
 
-extern pstring user_socket_options;
-extern BOOL AllowDebugChange;
-extern BOOL override_logfile;
-
-struct user_auth_info cmdline_auth_info;
+extern bool AllowDebugChange;
+extern bool override_logfile;
 
 static void set_logfile(poptContext con, const char * arg)
 {
 
-	pstring logfile;
+	char *logfile = NULL;
 	const char *pname;
-	
+
 	/* Find out basename of current program */
 	pname = strrchr_m(poptGetInvocationName(con),'/');
 
 	if (!pname)
 		pname = poptGetInvocationName(con);
-	else 
+	else
 		pname++;
 
-	pstr_sprintf(logfile, "%s/log.%s", arg, pname);
+	if (asprintf(&logfile, "%s/log.%s", arg, pname) < 0) {
+		return;
+	}
 	lp_set_logfile(logfile);
+	SAFE_FREE(logfile);
 }
+
+static bool PrintSambaVersionString;
 
 static void popt_common_callback(poptContext con,
 			   enum poptCallbackReason reason,
@@ -65,7 +66,24 @@ static void popt_common_callback(poptContext con,
 {
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
-		set_logfile(con, dyn_LOGFILEBASE);
+		set_logfile(con, get_dyn_LOGFILEBASE());
+		return;
+	}
+
+	if (reason == POPT_CALLBACK_REASON_POST) {
+
+		if (PrintSambaVersionString) {
+			printf( "Version %s\n", SAMBA_VERSION_STRING);
+			exit(0);
+		}
+
+		if (is_default_dyn_CONFIGFILE()) {
+			if(getenv("SMB_CONF_PATH")) {
+				set_dyn_CONFIGFILE(getenv("SMB_CONF_PATH"));
+			}
+		}
+
+		/* Further 'every Samba program must do this' hooks here. */
 		return;
 	}
 
@@ -78,19 +96,18 @@ static void popt_common_callback(poptContext con,
 		break;
 
 	case 'V':
-		printf( "Version %s\n", SAMBA_VERSION_STRING);
-		exit(0);
+		PrintSambaVersionString = True;
 		break;
 
 	case 'O':
 		if (arg) {
-			pstrcpy(user_socket_options,arg);
+			lp_do_parameter(-1, "socket options", arg);
 		}
 		break;
 
 	case 's':
 		if (arg) {
-			pstrcpy(dyn_CONFIGFILE, arg);
+			set_dyn_CONFIGFILE(arg);
 		}
 		break;
 
@@ -104,7 +121,7 @@ static void popt_common_callback(poptContext con,
 		if (arg) {
 			set_logfile(con, arg);
 			override_logfile = True;
-			pstr_sprintf(dyn_LOGFILEBASE, "%s", arg);
+			set_dyn_LOGFILEBASE(arg);
 		}
 		break;
 
@@ -134,11 +151,17 @@ struct poptOption popt_common_connection[] = {
 };
 
 struct poptOption popt_common_samba[] = {
-	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_PRE, (void *)popt_common_callback },
+	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_PRE|POPT_CBFLAG_POST, (void *)popt_common_callback },
 	{ "debuglevel", 'd', POPT_ARG_STRING, NULL, 'd', "Set debug level", "DEBUGLEVEL" },
 	{ "configfile", 's', POPT_ARG_STRING, NULL, 's', "Use alternate configuration file", "CONFIGFILE" },
 	{ "log-basename", 'l', POPT_ARG_STRING, NULL, 'l', "Base name for log files", "LOGFILEBASE" },
 	{ "version", 'V', POPT_ARG_NONE, NULL, 'V', "Print version" },
+	POPT_TABLEEND
+};
+
+struct poptOption popt_common_configfile[] = {
+	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_PRE|POPT_CBFLAG_POST, (void *)popt_common_callback },
+	{ "configfile", 0, POPT_ARG_STRING, NULL, 's', "Use alternate configuration file", "CONFIGFILE" },
 	POPT_TABLEEND
 };
 
@@ -185,61 +208,61 @@ static void popt_dynconfig_callback(poptContext con,
 	switch (opt->val) {
 	case DYN_SBINDIR:
 		if (arg) {
-			dyn_SBINDIR = SMB_STRDUP(arg);
+			set_dyn_SBINDIR(arg);
 		}
 		break;
 
 	case DYN_BINDIR:
 		if (arg) {
-			dyn_BINDIR = SMB_STRDUP(arg);
+			set_dyn_BINDIR(arg);
 		}
 		break;
 
 	case DYN_SWATDIR:
 		if (arg) {
-			dyn_SWATDIR = SMB_STRDUP(arg);
+			set_dyn_SWATDIR(arg);
 		}
 		break;
 
 	case DYN_LMHOSTSFILE:
 		if (arg) {
-			pstrcpy(dyn_LMHOSTSFILE, arg);
+			set_dyn_LMHOSTSFILE(arg);
 		}
 		break;
 
 	case DYN_LIBDIR:
 		if (arg) {
-			pstrcpy(dyn_LIBDIR, arg);
+			set_dyn_LIBDIR(arg);
 		}
 		break;
 
 	case DYN_SHLIBEXT:
 		if (arg) {
-			fstrcpy(dyn_SHLIBEXT, arg);
+			set_dyn_SHLIBEXT(arg);
 		}
 		break;
 
 	case DYN_LOCKDIR:
 		if (arg) {
-			pstrcpy(dyn_LOCKDIR, arg);
+			set_dyn_LOCKDIR(arg);
 		}
 		break;
 
 	case DYN_PIDDIR:
 		if (arg) {
-			pstrcpy(dyn_PIDDIR, arg);
+			set_dyn_PIDDIR(arg);
 		}
 		break;
 
 	case DYN_SMB_PASSWD_FILE:
 		if (arg) {
-			pstrcpy(dyn_SMB_PASSWD_FILE, arg);
+			set_dyn_SMB_PASSWD_FILE(arg);
 		}
 		break;
 
 	case DYN_PRIVATE_DIR:
 		if (arg) {
-			pstrcpy(dyn_PRIVATE_DIR, arg);
+			set_dyn_PRIVATE_DIR(arg);
 		}
 		break;
 
@@ -278,28 +301,35 @@ const struct poptOption popt_common_dynconfig[] = {
  * get a password from a a file or file descriptor
  * exit on failure
  * ****************************************************************************/
-static void get_password_file(struct user_auth_info *a)
+
+static void get_password_file(void)
 {
 	int fd = -1;
 	char *p;
-	BOOL close_it = False;
-	pstring spec;
+	bool close_it = False;
+	char *spec = NULL;
 	char pass[128];
 
 	if ((p = getenv("PASSWD_FD")) != NULL) {
-		pstrcpy(spec, "descriptor ");
-		pstrcat(spec, p);
+		if (asprintf(&spec, "descriptor %s", p) < 0) {
+			return;
+		}
 		sscanf(p, "%d", &fd);
-		close_it = False;
+		close_it = false;
 	} else if ((p = getenv("PASSWD_FILE")) != NULL) {
 		fd = sys_open(p, O_RDONLY, 0);
-		pstrcpy(spec, p);
+		spec = SMB_STRDUP(p);
 		if (fd < 0) {
 			fprintf(stderr, "Error opening PASSWD_FILE %s: %s\n",
 					spec, strerror(errno));
 			exit(1);
 		}
 		close_it = True;
+	}
+
+	if (fd < 0) {
+		fprintf(stderr, "fd = %d, < 0\n", fd);
+		exit(1);
 	}
 
 	for(p = pass, *p = '\0'; /* ensure that pass is null-terminated */
@@ -318,21 +348,26 @@ static void get_password_file(struct user_auth_info *a)
 			} else {
 				fprintf(stderr, "Error reading password from file %s: %s\n",
 						spec, "empty password\n");
+				SAFE_FREE(spec);
 				exit(1);
 			}
 
 		default:
 			fprintf(stderr, "Error reading password from file %s: %s\n",
 					spec, strerror(errno));
+			SAFE_FREE(spec);
 			exit(1);
 		}
 	}
-	pstrcpy(a->password, pass);
-	if (close_it)
+	SAFE_FREE(spec);
+
+	set_cmdline_auth_info_password(pass);
+	if (close_it) {
 		close(fd);
+	}
 }
 
-static void get_credentials_file(const char *file, struct user_auth_info *info) 
+static void get_credentials_file(const char *file)
 {
 	XFILE *auth;
 	fstring buf;
@@ -374,15 +409,13 @@ static void get_credentials_file(const char *file, struct user_auth_info *info)
 		while ((*val!='\0') && ((*val==' ') || (*val=='\t')))
 			val++;
 
-		if (strwicmp("password", param) == 0)
-		{
-			pstrcpy(info->password, val);
-			info->got_pass = True;
-		}
-		else if (strwicmp("username", param) == 0)
-			pstrcpy(info->username, val);
-		else if (strwicmp("domain", param) == 0)
+		if (strwicmp("password", param) == 0) {
+			set_cmdline_auth_info_password(val);
+		} else if (strwicmp("username", param) == 0) {
+			set_cmdline_auth_info_username(val);
+		} else if (strwicmp("domain", param) == 0) {
 			set_global_myworkgroup(val);
+		}
 		memset(buf, 0, sizeof(buf));
 	}
 	x_fclose(auth);
@@ -395,10 +428,11 @@ static void get_credentials_file(const char *file, struct user_auth_info *info)
  *		-N,--no-pass
  *		-S,--signing
  *              -P --machine-pass
+ * 		-e --encrypt
  */
 
 
-static void popt_common_credentials_callback(poptContext con, 
+static void popt_common_credentials_callback(poptContext con,
 					enum poptCallbackReason reason,
 					const struct poptOption *opt,
 					const char *arg, const void *data)
@@ -406,32 +440,35 @@ static void popt_common_credentials_callback(poptContext con,
 	char *p;
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
-		cmdline_auth_info.use_kerberos = False;
-		cmdline_auth_info.got_pass = False;
-		cmdline_auth_info.signing_state = Undefined;
-		pstrcpy(cmdline_auth_info.username, "GUEST");	
+		set_cmdline_auth_info_username("GUEST");
 
-		if (getenv("LOGNAME"))pstrcpy(cmdline_auth_info.username,getenv("LOGNAME"));
+		if (getenv("LOGNAME")) {
+			set_cmdline_auth_info_username(getenv("LOGNAME"));
+		}
 
 		if (getenv("USER")) {
-			pstrcpy(cmdline_auth_info.username,getenv("USER"));
-
-			if ((p = strchr_m(cmdline_auth_info.username,'%'))) {
-				*p = 0;
-				pstrcpy(cmdline_auth_info.password,p+1);
-				cmdline_auth_info.got_pass = True;
-				memset(strchr_m(getenv("USER"),'%')+1,'X',strlen(cmdline_auth_info.password));
+			char *puser = SMB_STRDUP(getenv("USER"));
+			if (!puser) {
+				exit(ENOMEM);
 			}
+			set_cmdline_auth_info_username(puser);
+
+			if ((p = strchr_m(puser,'%'))) {
+				size_t len;
+				*p = 0;
+				len = strlen(p+1);
+				set_cmdline_auth_info_password(p+1);
+				memset(strchr_m(getenv("USER"),'%')+1,'X',len);
+			}
+			SAFE_FREE(puser);
 		}
 
 		if (getenv("PASSWD")) {
-			pstrcpy(cmdline_auth_info.password,getenv("PASSWD"));
-			cmdline_auth_info.got_pass = True;
+			set_cmdline_auth_info_password(getenv("PASSWD"));
 		}
 
 		if (getenv("PASSWD_FD") || getenv("PASSWD_FILE")) {
-			get_password_file(&cmdline_auth_info);
-			cmdline_auth_info.got_pass = True;
+			get_password_file();
 		}
 
 		return;
@@ -441,19 +478,24 @@ static void popt_common_credentials_callback(poptContext con,
 	case 'U':
 		{
 			char *lp;
+			char *puser = SMB_STRDUP(arg);
 
-			pstrcpy(cmdline_auth_info.username,arg);
-			if ((lp=strchr_m(cmdline_auth_info.username,'%'))) {
+			if ((lp=strchr_m(puser,'%'))) {
+				size_t len;
 				*lp = 0;
-				pstrcpy(cmdline_auth_info.password,lp+1);
-				cmdline_auth_info.got_pass = True;
-				memset(strchr_m(arg,'%')+1,'X',strlen(cmdline_auth_info.password));
+				set_cmdline_auth_info_username(puser);
+				set_cmdline_auth_info_password(lp+1);
+				len = strlen(lp+1);
+				memset(strchr_m(arg,'%')+1,'X',len);
+			} else {
+				set_cmdline_auth_info_username(puser);
 			}
+			SAFE_FREE(puser);
 		}
 		break;
 
 	case 'A':
-		get_credentials_file(arg, &cmdline_auth_info);
+		get_credentials_file(arg);
 		break;
 
 	case 'k':
@@ -461,66 +503,37 @@ static void popt_common_credentials_callback(poptContext con,
 		d_printf("No kerberos support compiled in\n");
 		exit(1);
 #else
-		cmdline_auth_info.use_kerberos = True;
-		cmdline_auth_info.got_pass = True;
+		set_cmdline_auth_info_use_krb5_ticket();
 #endif
 		break;
 
 	case 'S':
-		{
-			cmdline_auth_info.signing_state = -1;
-			if (strequal(arg, "off") || strequal(arg, "no") || strequal(arg, "false"))
-				cmdline_auth_info.signing_state = False;
-			else if (strequal(arg, "on") || strequal(arg, "yes") || strequal(arg, "true") ||
-					strequal(arg, "auto") )
-				cmdline_auth_info.signing_state = True;
-			else if (strequal(arg, "force") || strequal(arg, "required") || strequal(arg, "forced"))
-				cmdline_auth_info.signing_state = Required;
-			else {
-				fprintf(stderr, "Unknown signing option %s\n", arg );
-				exit(1);
-			}
+		if (!set_cmdline_auth_info_signing_state(arg)) {
+			fprintf(stderr, "Unknown signing option %s\n", arg );
+			exit(1);
 		}
 		break;
 	case 'P':
-	        {
-			char *opt_password = NULL;
-			/* it is very useful to be able to make ads queries as the
-			   machine account for testing purposes and for domain leave */
-			
-			if (!secrets_init()) {
-				d_printf("ERROR: Unable to open secrets database\n");
-				exit(1);
-			}
-			
-			opt_password = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
-			
-			if (!opt_password) {
-				d_printf("ERROR: Unable to fetch machine password\n");
-				exit(1);
-			}
-			pstr_sprintf(cmdline_auth_info.username, "%s$", 
-				     global_myname());
-			pstrcpy(cmdline_auth_info.password,opt_password);
-			SAFE_FREE(opt_password);
-
-			/* machine accounts only work with kerberos */
-			cmdline_auth_info.use_kerberos = True;
-			cmdline_auth_info.got_pass = True;
-		}
+		set_cmdline_auth_info_use_machine_account();
 		break;
+	case 'N':
+		set_cmdline_auth_info_password("");
+		break;
+	case 'e':
+		set_cmdline_auth_info_smb_encrypt();
+		break;
+
 	}
 }
-
-
 
 struct poptOption popt_common_credentials[] = {
 	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_PRE, (void *)popt_common_credentials_callback },
 	{ "user", 'U', POPT_ARG_STRING, NULL, 'U', "Set the network username", "USERNAME" },
-	{ "no-pass", 'N', POPT_ARG_NONE, &cmdline_auth_info.got_pass, 0, "Don't ask for a password" },
-	{ "kerberos", 'k', POPT_ARG_NONE, &cmdline_auth_info.use_kerberos, 'k', "Use kerberos (active directory) authentication" },
+	{ "no-pass", 'N', POPT_ARG_NONE, NULL, 'N', "Don't ask for a password" },
+	{ "kerberos", 'k', POPT_ARG_NONE, NULL, 'k', "Use kerberos (active directory) authentication" },
 	{ "authentication-file", 'A', POPT_ARG_STRING, NULL, 'A', "Get the credentials from a file", "FILE" },
 	{ "signing", 'S', POPT_ARG_STRING, NULL, 'S', "Set the client signing state", "on|off|required" },
 	{"machine-pass", 'P', POPT_ARG_NONE, NULL, 'P', "Use stored machine account password" },
+	{"encrypt", 'e', POPT_ARG_NONE, NULL, 'e', "Encrypt SMB transport (UNIX extended servers only)" },
 	POPT_TABLEEND
 };

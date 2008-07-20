@@ -10,20 +10,42 @@ enum wb_posix_mapping {
 	WB_POSIX_MAP_UNKNOWN    = -1,
 	WB_POSIX_MAP_TEMPLATE 	= 0, 
 	WB_POSIX_MAP_SFU 	= 1, 
-	WB_POSIX_MAP_RFC2307 	= 2,
-	WB_POSIX_MAP_UNIXINFO	= 3
+	WB_POSIX_MAP_SFU20 	= 2, 
+	WB_POSIX_MAP_RFC2307 	= 3,
+	WB_POSIX_MAP_UNIXINFO	= 4
 };
 
+/* there are 5 possible types of errors the ads subsystem can produce */
+enum ads_error_type {ENUM_ADS_ERROR_KRB5, ENUM_ADS_ERROR_GSS, 
+		     ENUM_ADS_ERROR_LDAP, ENUM_ADS_ERROR_SYSTEM, ENUM_ADS_ERROR_NT};
+
 typedef struct {
-#ifdef HAVE_LDAP
-	LDAP *ld;
-#else
-	void *ld; /* the active ldap structure */
-#endif
-	struct in_addr ldap_ip; /* the ip of the active connection, if any */
-	time_t last_attempt; /* last attempt to reconnect */
-	int ldap_port;
-	
+	enum ads_error_type error_type;
+	union err_state{		
+		int rc;
+		NTSTATUS nt_status;
+	} err;
+	/* For error_type = ENUM_ADS_ERROR_GSS minor_status describe GSS API error */
+	/* Where rc represents major_status of GSS API error */
+	int minor_status;
+} ADS_STATUS;
+
+struct ads_struct;
+
+struct ads_saslwrap_ops {
+	const char *name;
+	ADS_STATUS (*wrap)(struct ads_struct *, uint8 *buf, uint32 len);
+	ADS_STATUS (*unwrap)(struct ads_struct *);
+	void (*disconnect)(struct ads_struct *);
+};
+
+enum ads_saslwrap_type {
+	ADS_SASLWRAP_TYPE_PLAIN = 1,
+	ADS_SASLWRAP_TYPE_SIGN = 2,
+	ADS_SASLWRAP_TYPE_SEAL = 4
+};
+
+typedef struct ads_struct {
 	int is_mine;	/* do I own this structure's memory? */
 	
 	/* info needed to find the server */
@@ -57,7 +79,47 @@ typedef struct {
 		char *client_site_name;
 		time_t current_time;
 		int tried_closest_dc;
+		char *schema_path;
+		char *config_path;
 	} config;
+
+	/* info about the current LDAP connection */
+#ifdef HAVE_LDAP
+	struct {
+		LDAP *ld;
+		struct sockaddr_storage ss; /* the ip of the active connection, if any */
+		time_t last_attempt; /* last attempt to reconnect */
+		int port;
+
+		enum ads_saslwrap_type wrap_type;
+
+#ifdef HAVE_LDAP_SASL_WRAPPING
+		Sockbuf_IO_Desc *sbiod; /* lowlevel state for LDAP wrapping */
+#endif /* HAVE_LDAP_SASL_WRAPPING */
+		TALLOC_CTX *mem_ctx;
+		const struct ads_saslwrap_ops *wrap_ops;
+		void *wrap_private_data;
+		struct {
+			uint32 ofs;
+			uint32 needed;
+			uint32 left;
+#define        ADS_SASL_WRAPPING_IN_MAX_WRAPPED        0x0FFFFFFF
+			uint32 max_wrapped;
+			uint32 min_wrapped;
+			uint32 size;
+			uint8 *buf;
+		} in;
+		struct {
+			uint32 ofs;
+			uint32 left;
+#define        ADS_SASL_WRAPPING_OUT_MAX_WRAPPED       0x00A00000
+			uint32 max_unwrapped;
+			uint32 sig_size;
+			uint32 size;
+			uint8 *buf;
+		} out;
+	} ldap;
+#endif /* HAVE_LDAP */
 } ADS_STRUCT;
 
 /* used to remember the names of the posix attributes in AD */
@@ -72,20 +134,6 @@ struct posix_schema {
 };
 
 
-/* there are 5 possible types of errors the ads subsystem can produce */
-enum ads_error_type {ENUM_ADS_ERROR_KRB5, ENUM_ADS_ERROR_GSS, 
-		     ENUM_ADS_ERROR_LDAP, ENUM_ADS_ERROR_SYSTEM, ENUM_ADS_ERROR_NT};
-
-typedef struct {
-	enum ads_error_type error_type;
-	union err_state{		
-		int rc;
-		NTSTATUS nt_status;
-	} err;
-	/* For error_type = ENUM_ADS_ERROR_GSS minor_status describe GSS API error */
-	/* Where rc represents major_status of GSS API error */
-	int minor_status;
-} ADS_STATUS;
 
 #ifdef HAVE_ADS
 typedef LDAPMod **ADS_MODLIST;
@@ -121,13 +169,21 @@ typedef void **ADS_MODLIST;
 #define ADS_PERMIT_MODIFY_OID 	"1.2.840.113556.1.4.1413"
 #define ADS_ASQ_OID		"1.2.840.113556.1.4.1504"
 #define ADS_EXTENDED_DN_OID	"1.2.840.113556.1.4.529"
+#define ADS_SD_FLAGS_OID	"1.2.840.113556.1.4.801"
 
-/* ldap attribute oids (Services for Unix) */
+/* ldap attribute oids (Services for Unix 3.0, 3.5) */
 #define ADS_ATTR_SFU_UIDNUMBER_OID 	"1.2.840.113556.1.6.18.1.310"
 #define ADS_ATTR_SFU_GIDNUMBER_OID 	"1.2.840.113556.1.6.18.1.311"
 #define ADS_ATTR_SFU_HOMEDIR_OID 	"1.2.840.113556.1.6.18.1.344"
 #define ADS_ATTR_SFU_SHELL_OID 		"1.2.840.113556.1.6.18.1.312"
 #define ADS_ATTR_SFU_GECOS_OID 		"1.2.840.113556.1.6.18.1.337"
+
+/* ldap attribute oids (Services for Unix 2.0) */
+#define ADS_ATTR_SFU20_UIDNUMBER_OID	"1.2.840.113556.1.4.7000.187.70"
+#define ADS_ATTR_SFU20_GIDNUMBER_OID	"1.2.840.113556.1.4.7000.187.71"
+#define ADS_ATTR_SFU20_HOMEDIR_OID	"1.2.840.113556.1.4.7000.187.106"
+#define ADS_ATTR_SFU20_SHELL_OID	"1.2.840.113556.1.4.7000.187.72"
+#define ADS_ATTR_SFU20_GECOS_OID 	"1.2.840.113556.1.4.7000.187.97"
 
 /* ldap attribute oids (RFC2307) */
 #define ADS_ATTR_RFC2307_UIDNUMBER_OID	"1.3.6.1.1.1.1.0"
@@ -249,6 +305,11 @@ typedef void **ADS_MODLIST;
 		GROUP_TYPE_ACCOUNT_GROUP| \
 		GROUP_TYPE_SECURITY_ENABLED \
 		)
+#define GTYPE_SECURITY_UNIVERSAL_GROUP (	/* 0x80000008 -2147483656 */ \
+		GROUP_TYPE_UNIVERSAL_GROUP| \
+		GROUP_TYPE_SECURITY_ENABLED \
+		)
+
 #define GTYPE_DISTRIBUTION_GLOBAL_GROUP		0x00000002	/* 2 */
 #define GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP	0x00000004	/* 4 */
 #define GTYPE_DISTRIBUTION_UNIVERSAL_GROUP	0x00000008	/* 8 */
@@ -258,17 +319,15 @@ typedef void **ADS_MODLIST;
 #define ADS_DNS_DOMAIN     0x40000000  /* DomainName is a DNS name */
 #define ADS_DNS_FOREST     0x80000000  /* DnsForestName is a DNS name */
 
-/* DomainControllerAddressType */
-#define ADS_INET_ADDRESS      0x00000001
-#define ADS_NETBIOS_ADDRESS   0x00000002
-
-
 /* ads auth control flags */
 #define ADS_AUTH_DISABLE_KERBEROS 0x01
 #define ADS_AUTH_NO_BIND          0x02
 #define ADS_AUTH_ANON_BIND        0x04
 #define ADS_AUTH_SIMPLE_BIND      0x08
 #define ADS_AUTH_ALLOW_NTLMSSP    0x10
+#define ADS_AUTH_SASL_SIGN        0x20
+#define ADS_AUTH_SASL_SEAL        0x40
+#define ADS_AUTH_SASL_FORCE       0x80
 
 /* Kerberos environment variable names */
 #define KRB5_ENV_CCNAME "KRB5CCNAME"
@@ -298,6 +357,12 @@ typedef void **ADS_MODLIST;
 
 #ifdef HAVE_KRB5
 typedef struct {
+	NTSTATUS ntstatus;
+	uint32 unknown1;
+	uint32 unknown2; /* 0x00000001 */
+} KRB5_EDATA_NTSTATUS;
+
+typedef struct {
 #if defined(HAVE_MAGIC_IN_KRB5_ADDRESS) && defined(HAVE_ADDRTYPE_IN_KRB5_ADDRESS) /* MIT */
 	krb5_address **addrs;
 #elif defined(HAVE_KRB5_ADDRESSES) /* Heimdal */
@@ -322,6 +387,15 @@ typedef struct {
 	int critical;
 } ads_control;
 
+#define ADS_EXTENDED_RIGHT_APPLY_GROUP_POLICY "edacfd8f-ffb3-11d1-b41d-00a0c968f939"
+
 #define ADS_IGNORE_PRINCIPAL "not_defined_in_RFC4178@please_ignore"
+
+/* Settings for the domainFunctionality attribute in the rootDSE */
+
+#define DS_DOMAIN_FUNCTION_2000		0
+#define DS_DOMAIN_FUCNTION_2003_MIXED	1
+#define DS_DOMAIN_FUNCTION_2003		2
+#define DS_DOMAIN_FUNCTION_2008		3
 
 #endif	/* _INCLUDE_ADS_H_ */

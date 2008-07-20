@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Eloy A. Paris <peloy@debian.org>, Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Adam Conrad <adconrad@0c3.net>
-Build-Depends: debhelper, libpam0g-dev, libreadline5-dev, libcups2-dev, libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev
+Build-Depends: debhelper, libpam0g-dev, libreadline5-dev, libcups2-dev, libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev, libtalloc-dev (>= 1.2.0~git20080616-1), libkeyutils-dev
 Build-Conflicts: libfam-dev
 Standards-Version: 3.8.0
 
@@ -35,6 +35,7 @@ Description: a LanManager-like file and printer server for Unix
   libsmbclient - Shared library that allows applications to talk to SMB/CIFS
                  servers
   libsmbclient-dev - libsmbclient shared libraries
+  libwbclient0 - Shared library for interfacing with the winbind service
   winbind - Service to resolve user and group information from Windows NT 
             servers
  .
@@ -57,6 +58,18 @@ Description: Samba common files used by both the server and the client
  This package contains the common files that are used by both the server
  (provided in the samba package) and the client (provided in the smbclient
  package).
+
+Package: samba-tools
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: tools provided by the Samba suite
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains tools such as smbtorture which may help
+ testing the performance of CIFS servers or clients.
 
 Package: smbclient
 Architecture: any
@@ -201,3 +214,13 @@ Description: Samba debugging symbols
  .
  This package contains debugging symbols for the programs included in
  the samba and smbclient packages.
+
+Package: libwbclient0
+Section: libs
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: client library for interfacing with winbind service
+ libwbclient is an API for client interactions with the winbind service.
+ This library abstracts the winbind pipe protocol into a stable API that
+ allows the winbind server to be independently upgraded.

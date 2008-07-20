@@ -6,13 +6,13 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.0.29/examples/LDAP/README
+Index: samba-3.2.0rc1/examples/LDAP/README
 ===================================================================
---- samba-3.0.29.orig/examples/LDAP/README
-+++ samba-3.0.29/examples/LDAP/README
-@@ -59,6 +59,9 @@
- The smbldap-tools package can be downloaded individually from 
- http://samba.idealx.org/dist/
+--- samba-3.2.0rc1.orig/examples/LDAP/README
++++ samba-3.2.0rc1/examples/LDAP/README
+@@ -69,6 +69,9 @@
+ The smbldap-tools package can be downloaded individually from
+ https://gna.org/projects/smbldap-tools/
  
 +On Debian systems, the smbldap-tools exists as a separate package
 +and is not included in LDAP examples.

@@ -5,7 +5,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -26,55 +25,44 @@
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_get_version(pipes_struct *p)
+static bool proxy_ntsvcs_call(pipes_struct *p, uint8_t opnum)
 {
-	NTSVCS_Q_GET_VERSION q_u;
-	NTSVCS_R_GET_VERSION r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
+	struct api_struct *fns;
+	int n_fns;
 
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
+	ntsvcs_get_pipe_fns(&fns, &n_fns);
 
-	if(!ntsvcs_io_q_get_version("", &q_u, data, 0))
-		return False;
+	if (opnum >= n_fns) {
+		return false;
+	}
 
-	r_u.status = _ntsvcs_get_version(p, &q_u, &r_u);
+	if (fns[opnum].opnum != opnum) {
+		smb_panic("NTSVCS function table not sorted");
+	}
 
-	if(!ntsvcs_io_r_get_version("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return fns[opnum].fn(p);
 }
 
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_get_device_list_size(pipes_struct *p)
+static bool api_ntsvcs_get_version(pipes_struct *p)
 {
-	NTSVCS_Q_GET_DEVICE_LIST_SIZE q_u;
-	NTSVCS_R_GET_DEVICE_LIST_SIZE r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!ntsvcs_io_q_get_device_list_size("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _ntsvcs_get_device_list_size(p, &q_u, &r_u);
-
-	if(!ntsvcs_io_r_get_device_list_size("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_ntsvcs_call(p, NDR_PNP_GETVERSION);
 }
 
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_get_device_list(pipes_struct *p)
+static bool api_ntsvcs_get_device_list_size(pipes_struct *p)
+{
+	return proxy_ntsvcs_call(p, NDR_PNP_GETDEVICELISTSIZE);
+}
+
+/*******************************************************************
+ ********************************************************************/
+
+static bool api_ntsvcs_get_device_list(pipes_struct *p)
 {
 	NTSVCS_Q_GET_DEVICE_LIST q_u;
 	NTSVCS_R_GET_DEVICE_LIST r_u;
@@ -98,31 +86,15 @@ static BOOL api_ntsvcs_get_device_list(pipes_struct *p)
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_validate_device_instance(pipes_struct *p)
+static bool api_ntsvcs_validate_device_instance(pipes_struct *p)
 {
-	NTSVCS_Q_VALIDATE_DEVICE_INSTANCE q_u;
-	NTSVCS_R_VALIDATE_DEVICE_INSTANCE r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!ntsvcs_io_q_validate_device_instance("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _ntsvcs_validate_device_instance(p, &q_u, &r_u);
-
-	if(!ntsvcs_io_r_validate_device_instance("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_ntsvcs_call(p, NDR_PNP_VALIDATEDEVICEINSTANCE);
 }
 
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_get_device_reg_property(pipes_struct *p)
+static bool api_ntsvcs_get_device_reg_property(pipes_struct *p)
 {
 	NTSVCS_Q_GET_DEVICE_REG_PROPERTY q_u;
 	NTSVCS_R_GET_DEVICE_REG_PROPERTY r_u;
@@ -146,49 +118,17 @@ static BOOL api_ntsvcs_get_device_reg_property(pipes_struct *p)
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_get_hw_profile_info(pipes_struct *p)
+static bool api_ntsvcs_get_hw_profile_info(pipes_struct *p)
 {
-	NTSVCS_Q_GET_HW_PROFILE_INFO q_u;
-	NTSVCS_R_GET_HW_PROFILE_INFO r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!ntsvcs_io_q_get_hw_profile_info("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _ntsvcs_get_hw_profile_info(p, &q_u, &r_u);
-
-	if(!ntsvcs_io_r_get_hw_profile_info("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_ntsvcs_call(p, NDR_PNP_GETHWPROFINFO);
 }
 
 /*******************************************************************
  ********************************************************************/
 
-static BOOL api_ntsvcs_hw_profile_flags(pipes_struct *p)
+static bool api_ntsvcs_hw_profile_flags(pipes_struct *p)
 {
-	NTSVCS_Q_HW_PROFILE_FLAGS q_u;
-	NTSVCS_R_HW_PROFILE_FLAGS r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!ntsvcs_io_q_hw_profile_flags("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _ntsvcs_hw_profile_flags(p, &q_u, &r_u);
-
-	if(!ntsvcs_io_r_hw_profile_flags("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_ntsvcs_call(p, NDR_PNP_HWPROFFLAGS);
 }
 
 /*******************************************************************
@@ -207,13 +147,13 @@ static struct api_struct api_ntsvcs_cmds[] =
 };
 
 
-void ntsvcs_get_pipe_fns( struct api_struct **fns, int *n_fns )
+void ntsvcs2_get_pipe_fns( struct api_struct **fns, int *n_fns )
 {
 	*fns = api_ntsvcs_cmds;
 	*n_fns = sizeof(api_ntsvcs_cmds) / sizeof(struct api_struct);
 }
 
-NTSTATUS rpc_ntsvcs_init(void)
+NTSTATUS rpc_ntsvcs2_init(void)
 {
   return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "ntsvcs", "ntsvcs", api_ntsvcs_cmds,
 				    sizeof(api_ntsvcs_cmds) / sizeof(struct api_struct));

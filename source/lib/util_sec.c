@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef AUTOCONF_TEST
@@ -40,7 +39,7 @@
 
 #define DEBUG(x, y) printf y
 #define smb_panic(x) exit(1)
-#define BOOL int
+#define bool int
 #endif
 
 /* are we running as non-root? This is used by the regresison test code,
@@ -83,7 +82,7 @@ gid_t sec_initial_gid(void)
 /****************************************************************************
 are we running in non-root mode?
 ****************************************************************************/
-BOOL non_root_mode(void)
+bool non_root_mode(void)
 {
 	return (initial_uid != (uid_t)0);
 }
@@ -477,7 +476,7 @@ main()
 /****************************************************************************
 Check if we are setuid root.  Used in libsmb and smbpasswd paranoia checks.
 ****************************************************************************/
-BOOL is_setuid_root(void) 
+bool is_setuid_root(void) 
 {
 	return (geteuid() == (uid_t)0) && (getuid() != (uid_t)0);
 }

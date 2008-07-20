@@ -6,7 +6,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *  
  * This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *  
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -195,7 +194,7 @@ static SMB_STRUCT_DIR *atalk_opendir(struct vfs_handle_struct *handle, const cha
 
 static int atalk_rmdir(struct vfs_handle_struct *handle, const char *path)
 {
-	BOOL add = False;
+	bool add = False;
 	TALLOC_CTX *ctx = 0;
 	char *dpath;
 
@@ -375,6 +374,38 @@ exit_chown:
 	return ret;
 }
 
+static int atalk_lchown(struct vfs_handle_struct *handle, const char *path, uid_t uid, gid_t gid)
+{
+	int ret = 0;
+	char *adbl_path = 0;
+	char *orig_path = 0;
+	SMB_STRUCT_STAT adbl_info;
+	SMB_STRUCT_STAT orig_info;
+	TALLOC_CTX *ctx;
+
+	ret = SMB_VFS_NEXT_CHOWN(handle, path, uid, gid);
+
+	if (!path) return ret;
+
+	if (!(ctx = talloc_init("lchown_file")))
+		return ret;
+
+	if (atalk_build_paths(ctx, handle->conn->origpath, path, &adbl_path, &orig_path,
+	  &adbl_info, &orig_info) != 0)
+		goto exit_lchown;
+
+	if (!S_ISDIR(orig_info.st_mode) && !S_ISREG(orig_info.st_mode)) {
+		DEBUG(3, ("ATALK: %s has passed..\n", orig_path));		
+		goto exit_lchown;
+	}
+
+	sys_lchown(adbl_path, uid, gid);
+
+exit_lchown:	
+	talloc_destroy(ctx);
+	return ret;
+}
+
 static vfs_op_tuple atalk_ops[] = {
     
 	/* Directory operations */
@@ -388,6 +419,7 @@ static vfs_op_tuple atalk_ops[] = {
 	{SMB_VFS_OP(atalk_unlink), 		SMB_VFS_OP_UNLINK, 	SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(atalk_chmod), 		SMB_VFS_OP_CHMOD, 	SMB_VFS_LAYER_TRANSPARENT},
 	{SMB_VFS_OP(atalk_chown),		SMB_VFS_OP_CHOWN,	SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(atalk_lchown),		SMB_VFS_OP_LCHOWN,	SMB_VFS_LAYER_TRANSPARENT},
 	
 	/* Finish VFS operations definition */
 	

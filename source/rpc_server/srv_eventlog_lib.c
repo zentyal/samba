@@ -7,7 +7,7 @@
  *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -63,17 +62,16 @@ TDB_CONTEXT *elog_init_tdb( char *tdbfilename )
  and size. Caller must free memory.
 ********************************************************************/
 
-char *elog_tdbname( const char *name )
+char *elog_tdbname(TALLOC_CTX *ctx, const char *name )
 {
-	fstring path;
-	char *tdb_fullpath;
-	char *eventlogdir = lock_path( "eventlog" );
-	
-	pstr_sprintf( path, "%s/%s.tdb", eventlogdir, name );
-	strlower_m( path );
-	tdb_fullpath = SMB_STRDUP( path );
-	
-	return tdb_fullpath;
+	char *path = talloc_asprintf(ctx, "%s/%s.tdb",
+			state_path("eventlog"),
+			name);
+	if (!path) {
+		return NULL;
+	}
+	strlower_m(path);
+	return path;
 }
 
 
@@ -90,7 +88,7 @@ struct trav_size_struct {
 static int eventlog_tdb_size_fn( TDB_CONTEXT * tdb, TDB_DATA key, TDB_DATA data,
 			  void *state )
 {
-	struct trav_size_struct	 *tsize = state;
+	struct trav_size_struct	 *tsize = (struct trav_size_struct *)state;
 	
 	tsize->size += data.dsize;
 	tsize->rec_count++;
@@ -142,15 +140,14 @@ int elog_tdb_size( TDB_CONTEXT * tdb, int *MaxSize, int *Retention )
  return True if we made enough room to accommodate needed bytes
 ********************************************************************/
 
-BOOL make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
-			     BOOL whack_by_date )
+static bool make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
+				    bool whack_by_date )
 {
 	int start_record, i, new_start;
 	int end_record;
 	int nbytes, reclen, len, Retention, MaxSize;
 	int tresv1, trecnum, timegen, timewr;
 	TDB_DATA key, ret;
-	TALLOC_CTX *mem_ctx = NULL;
 	time_t current_time, exp_time;
 
 	/* discard some eventlogs */
@@ -158,10 +155,7 @@ BOOL make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
 	/* read eventlogs from oldest_entry -- there can't be any discontinuity in recnos,
 	   although records not necessarily guaranteed to have successive times */
 	/* */
-	mem_ctx = talloc_init( "make_way_for_eventlogs" );	/* Homage to BPG */
 
-	if ( mem_ctx == NULL )
-		return False;	/* can't allocate memory indicates bigger problems */
 	/* lock */
 	tdb_lock_bystring_with_timeout( the_tdb, EVT_NEXT_RECORD, 1 );
 	/* read */
@@ -188,7 +182,7 @@ BOOL make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
 	for ( i = start_record; i < end_record; i++ ) {
 		/* read a record, add the amt to nbytes */
 		key.dsize = sizeof( int32 );
-		key.dptr = ( char * ) ( int32 * ) & i;
+		key.dptr = ( uint8 * ) ( int32 * ) & i;
 		ret = tdb_fetch( the_tdb, key );
 		if ( ret.dsize == 0 ) {
 			DEBUG( 8,
@@ -233,7 +227,7 @@ BOOL make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
 	if ( start_record != new_start ) {
 		for ( i = start_record; i < new_start; i++ ) {
 			key.dsize = sizeof( int32 );
-			key.dptr = ( char * ) ( int32 * ) & i;
+			key.dptr = ( uint8 * ) ( int32 * ) & i;
 			tdb_delete( the_tdb, key );
 		}
 
@@ -248,7 +242,7 @@ BOOL make_way_for_eventlogs( TDB_CONTEXT * the_tdb, int32 needed,
   calculate how many bytes we need to remove                   
 ********************************************************************/
 
-BOOL prune_eventlog( TDB_CONTEXT * tdb )
+bool prune_eventlog( TDB_CONTEXT * tdb )
 {
 	int MaxSize, Retention, CalcdSize;
 
@@ -273,7 +267,7 @@ BOOL prune_eventlog( TDB_CONTEXT * tdb )
 /********************************************************************
 ********************************************************************/
 
-BOOL can_write_to_eventlog( TDB_CONTEXT * tdb, int32 needed )
+bool can_write_to_eventlog( TDB_CONTEXT * tdb, int32 needed )
 {
 	int calcd_size;
 	int MaxSize, Retention;
@@ -316,18 +310,18 @@ BOOL can_write_to_eventlog( TDB_CONTEXT * tdb, int32 needed )
 /*******************************************************************
 *******************************************************************/
 
-ELOG_TDB *elog_open_tdb( char *logname, BOOL force_clear )
+ELOG_TDB *elog_open_tdb( char *logname, bool force_clear )
 {
 	TDB_CONTEXT *tdb = NULL;
 	uint32 vers_id;
 	ELOG_TDB *ptr;
-	char *tdbfilename;
-	pstring tdbpath;
+	char *tdbpath = NULL;
 	ELOG_TDB *tdb_node = NULL;
 	char *eventlogdir;
+	TALLOC_CTX *ctx = talloc_tos();
 
 	/* first see if we have an open context */
-	
+
 	for ( ptr=open_elog_list; ptr; ptr=ptr->next ) {
 		if ( strequal( ptr->name, logname ) ) {
 			ptr->ref_count++;
@@ -346,27 +340,28 @@ ELOG_TDB *elog_open_tdb( char *logname, BOOL force_clear )
 				return ptr;
 		}
 	}
-	
-	/* make sure that the eventlog dir exists */
-	
-	eventlogdir = lock_path( "eventlog" );
-	if ( !directory_exist( eventlogdir, NULL ) )
-		mkdir( eventlogdir, 0755 );	
-	
-	/* get the path on disk */
-	
-	tdbfilename = elog_tdbname( logname );
-	pstrcpy( tdbpath, tdbfilename );
-	SAFE_FREE( tdbfilename );
 
-	DEBUG(7,("elog_open_tdb: Opening %s...(force_clear == %s)\n", 
+	/* make sure that the eventlog dir exists */
+
+	eventlogdir = state_path( "eventlog" );
+	if ( !directory_exist( eventlogdir, NULL ) )
+		mkdir( eventlogdir, 0755 );
+
+	/* get the path on disk */
+
+	tdbpath = elog_tdbname(ctx, logname);
+	if (!tdbpath) {
+		return NULL;
+	}
+
+	DEBUG(7,("elog_open_tdb: Opening %s...(force_clear == %s)\n",
 		tdbpath, force_clear?"True":"False" ));
-		
+
 	/* the tdb wasn't already open or this is a forced clear open */
 
 	if ( !force_clear ) {
 
-		tdb = tdb_open_log( tdbpath, 0, TDB_DEFAULT, O_RDWR , 0 );	
+		tdb = tdb_open_log( tdbpath, 0, TDB_DEFAULT, O_RDWR , 0 );
 		if ( tdb ) {
 			vers_id = tdb_fetch_int32( tdb, EVT_VERSION );
 
@@ -413,7 +408,7 @@ ELOG_TDB *elog_open_tdb( char *logname, BOOL force_clear )
  Wrapper to handle reference counts to the tdb
 *******************************************************************/
 
-int elog_close_tdb( ELOG_TDB *etdb, BOOL force_close )
+int elog_close_tdb( ELOG_TDB *etdb, bool force_close )
 {
 	TDB_CONTEXT *tdb;
 
@@ -469,8 +464,6 @@ int write_eventlog_tdb( TDB_CONTEXT * the_tdb, Eventlog_entry * ee )
 	if ( mem_ctx == NULL )
 		return 0;
 
-	if ( !ee )
-		return 0;
 	/* discard any entries that have bogus time, which usually indicates a bogus entry as well. */
 	if ( ee->record.time_generated == 0 )
 		return 0;
@@ -500,7 +493,7 @@ int write_eventlog_tdb( TDB_CONTEXT * the_tdb, Eventlog_entry * ee )
 	next_record = tdb_fetch_int32( the_tdb, EVT_NEXT_RECORD );
 
 	n_packed =
-		tdb_pack( (char *)packed_ee, ee->record.length + MARGIN,
+		tdb_pack( (uint8 *)packed_ee, ee->record.length + MARGIN,
 			  "ddddddwwwwddddddBBdBBBd", ee->record.length,
 			  ee->record.reserved1, next_record,
 			  ee->record.time_generated, ee->record.time_written,
@@ -529,10 +522,10 @@ int write_eventlog_tdb( TDB_CONTEXT * the_tdb, Eventlog_entry * ee )
 	/* increment the record count */
 
 	kbuf.dsize = sizeof( int32 );
-	kbuf.dptr = (char * ) & next_record;
+	kbuf.dptr = (uint8 * ) & next_record;
 
 	ebuf.dsize = n_packed;
-	ebuf.dptr = (char *)packed_ee;
+	ebuf.dptr = (uint8 *)packed_ee;
 
 	if ( tdb_store( the_tdb, kbuf, ebuf, 0 ) ) {
 		/* DEBUG(1,("write_eventlog_tdb: Can't write record %d to eventlog\n",next_record)); */
@@ -592,11 +585,10 @@ void fixup_eventlog_entry( Eventlog_entry * ee )
  going in.
 ********************************************************************/
 
-BOOL parse_logentry( char *line, Eventlog_entry * entry, BOOL * eor )
+bool parse_logentry( char *line, Eventlog_entry * entry, bool * eor )
 {
+	TALLOC_CTX *ctx = talloc_tos();
 	char *start = NULL, *stop = NULL;
-	pstring temp;
-	int temp_len = 0;
 
 	start = line;
 
@@ -662,62 +654,69 @@ BOOL parse_logentry( char *line, Eventlog_entry * entry, BOOL * eor )
 	} else if ( 0 == strncmp( start, "USL", stop - start ) ) {
 		entry->record.user_sid_length = atoi( stop + 1 );
 	} else if ( 0 == strncmp( start, "SRC", stop - start ) ) {
-		memset( temp, 0, sizeof( temp ) );
 		stop++;
 		while ( isspace( stop[0] ) ) {
 			stop++;
 		}
-		temp_len = strlen( stop );
-		strncpy( temp, stop, temp_len );
-		rpcstr_push( ( void * ) ( entry->data_record.source_name ),
-			     temp, sizeof( entry->data_record.source_name ),
-			     STR_TERMINATE );
-		entry->data_record.source_name_len =
-			( strlen_w( entry->data_record.source_name ) * 2 ) +
-			2;
+		entry->data_record.source_name_len = rpcstr_push_talloc(ctx,
+				&entry->data_record.source_name,
+				stop);
+		if (entry->data_record.source_name_len == (uint32_t)-1 ||
+				entry->data_record.source_name == NULL) {
+			return false;
+		}
 	} else if ( 0 == strncmp( start, "SRN", stop - start ) ) {
-		memset( temp, 0, sizeof( temp ) );
 		stop++;
 		while ( isspace( stop[0] ) ) {
 			stop++;
 		}
-		temp_len = strlen( stop );
-		strncpy( temp, stop, temp_len );
-		rpcstr_push( ( void * ) ( entry->data_record.computer_name ),
-			     temp, sizeof( entry->data_record.computer_name ),
-			     STR_TERMINATE );
-		entry->data_record.computer_name_len =
-			( strlen_w( entry->data_record.computer_name ) * 2 ) +
-			2;
+		entry->data_record.computer_name_len = rpcstr_push_talloc(ctx,
+				&entry->data_record.computer_name,
+				stop);
+		if (entry->data_record.computer_name_len == (uint32_t)-1 ||
+				entry->data_record.computer_name == NULL) {
+			return false;
+		}
 	} else if ( 0 == strncmp( start, "SID", stop - start ) ) {
-		memset( temp, 0, sizeof( temp ) );
 		stop++;
 		while ( isspace( stop[0] ) ) {
 			stop++;
 		}
-		temp_len = strlen( stop );
-		strncpy( temp, stop, temp_len );
-		rpcstr_push( ( void * ) ( entry->data_record.sid ), temp,
-			     sizeof( entry->data_record.sid ),
-			     STR_TERMINATE );
-		entry->record.user_sid_length =
-			( strlen_w( entry->data_record.sid ) * 2 ) + 2;
+		entry->record.user_sid_length = rpcstr_push_talloc(ctx,
+				&entry->data_record.sid,
+				stop);
+		if (entry->record.user_sid_length == (uint32_t)-1 ||
+				entry->data_record.sid == NULL) {
+			return false;
+		}
 	} else if ( 0 == strncmp( start, "STR", stop - start ) ) {
+		smb_ucs2_t *temp = NULL;
+		size_t tmp_len;
+		uint32_t old_len;
 		/* skip past initial ":" */
 		stop++;
 		/* now skip any other leading whitespace */
-		while ( isspace( stop[0] ) ) {
+		while ( isspace(stop[0])) {
 			stop++;
 		}
-		temp_len = strlen( stop );
-		memset( temp, 0, sizeof( temp ) );
-		strncpy( temp, stop, temp_len );
-		rpcstr_push( ( void * ) ( entry->data_record.strings +
-					  ( entry->data_record.strings_len / 2 ) ),
-			     temp,
-			     sizeof( entry->data_record.strings ) -
-			     ( entry->data_record.strings_len / 2 ), STR_TERMINATE );
-		entry->data_record.strings_len += ( temp_len * 2 ) + 2;
+		tmp_len = rpcstr_push_talloc(ctx,
+						&temp,
+						stop);
+		if (tmp_len == (size_t)-1 || !temp) {
+			return false;
+		}
+		old_len = entry->data_record.strings_len;
+		entry->data_record.strings = (smb_ucs2_t *)TALLOC_REALLOC_ARRAY(ctx,
+						entry->data_record.strings,
+						char,
+						old_len + tmp_len);
+		if (!entry->data_record.strings) {
+			return false;
+		}
+		memcpy(entry->data_record.strings + old_len,
+				temp,
+				tmp_len);
+		entry->data_record.strings_len += tmp_len;
 		entry->record.num_strings++;
 	} else if ( 0 == strncmp( start, "DAT", stop - start ) ) {
 		/* skip past initial ":" */
@@ -726,25 +725,18 @@ BOOL parse_logentry( char *line, Eventlog_entry * entry, BOOL * eor )
 		while ( isspace( stop[0] ) ) {
 			stop++;
 		}
-		entry->data_record.user_data_len = strlen( stop );
-		memset( entry->data_record.user_data, 0,
-			sizeof( entry->data_record.user_data ) );
-		if ( entry->data_record.user_data_len > 0 ) {
-			/* copy no more than the first 1024 bytes */
-			if ( entry->data_record.user_data_len >
-			     sizeof( entry->data_record.user_data ) )
-				entry->data_record.user_data_len =
-					sizeof( entry->data_record.
-						user_data );
-			memcpy( entry->data_record.user_data, stop,
-				entry->data_record.user_data_len );
+		entry->data_record.user_data_len = strlen(stop);
+		entry->data_record.user_data = talloc_strdup(ctx,
+						stop);
+		if (!entry->data_record.user_data) {
+			return false;
 		}
 	} else {
 		/* some other eventlog entry -- not implemented, so dropping on the floor */
 		DEBUG( 10, ( "Unknown entry [%s]. Ignoring.\n", line ) );
 		/* For now return true so that we can keep on parsing this mess. Eventually
 		   we will return False here. */
-		return True;
+		return true;
 	}
-	return True;
+	return true;
 }

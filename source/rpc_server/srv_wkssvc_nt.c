@@ -4,10 +4,11 @@
  *
  *  Copyright (C) Andrew Tridgell		1992-1997,
  *  Copyright (C) Gerald (Jerry) Carter		2006.
- *  
+ *  Copyright (C) Guenther Deschner		2007-2008.
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -16,38 +17,31 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* This is the implementation of the wks interface. */
 
 #include "includes.h"
+#include "libnet/libnet.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
 
 /*******************************************************************
- Fill in the valiues for the struct wkssvc_NetWkstaInfo100.
+ Fill in the values for the struct wkssvc_NetWkstaInfo100.
  ********************************************************************/
 
 static void create_wks_info_100(struct wkssvc_NetWkstaInfo100 *info100)
 {
-	pstring my_name;
-	pstring domain;
+	info100->platform_id	 = PLATFORM_ID_NT;	/* unknown */
+	info100->version_major	 = lp_major_announce_version();
+	info100->version_minor	 = lp_minor_announce_version();
 
-	pstrcpy (my_name, global_myname());
-	strupper_m(my_name);
-
-	pstrcpy (domain, lp_workgroup());
-	strupper_m(domain);
-	
-	info100->platform_id     = 0x000001f4; 	/* unknown */
-	info100->version_major   = lp_major_announce_version(); 
-	info100->version_minor   = lp_minor_announce_version();   
-
-	info100->server_name = talloc_strdup( info100, my_name );
-	info100->domain_name = talloc_strdup( info100, domain );
+	info100->server_name = talloc_asprintf_strupper_m(
+		info100, "%s", global_myname());
+	info100->domain_name = talloc_asprintf_strupper_m(
+		info100, "%s", lp_workgroup());
 
 	return;
 }
@@ -56,7 +50,7 @@ static void create_wks_info_100(struct wkssvc_NetWkstaInfo100 *info100)
  only supports info level 100 at the moment.
  ********************************************************************/
 
-WERROR _wkssvc_NetWkstaGetInfo( pipes_struct *p, struct wkssvc_NetWkstaGetInfo *r)
+WERROR _wkssvc_NetWkstaGetInfo(pipes_struct *p, struct wkssvc_NetWkstaGetInfo *r)
 {
 	struct wkssvc_NetWkstaInfo100 *wks100 = NULL;
 	
@@ -80,7 +74,7 @@ WERROR _wkssvc_NetWkstaGetInfo( pipes_struct *p, struct wkssvc_NetWkstaGetInfo *
 /********************************************************************
  ********************************************************************/
 
-WERROR _wkssvc_NetWkstaSetInfo( pipes_struct *p, struct wkssvc_NetWkstaSetInfo *r)
+WERROR _wkssvc_NetWkstaSetInfo(pipes_struct *p, struct wkssvc_NetWkstaSetInfo *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -90,7 +84,7 @@ WERROR _wkssvc_NetWkstaSetInfo( pipes_struct *p, struct wkssvc_NetWkstaSetInfo *
 /********************************************************************
  ********************************************************************/
 
-WERROR _wkssvc_NetWkstaEnumUsers( pipes_struct *p, struct wkssvc_NetWkstaEnumUsers *r)
+WERROR _wkssvc_NetWkstaEnumUsers(pipes_struct *p, struct wkssvc_NetWkstaEnumUsers *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -100,7 +94,7 @@ WERROR _wkssvc_NetWkstaEnumUsers( pipes_struct *p, struct wkssvc_NetWkstaEnumUse
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRWKSTAUSERGETINFO( pipes_struct *p, struct WKSSVC_NETRWKSTAUSERGETINFO *r )
+WERROR _wkssvc_NetrWkstaUserGetInfo(pipes_struct *p, struct wkssvc_NetrWkstaUserGetInfo *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -110,7 +104,7 @@ WERROR _WKSSVC_NETRWKSTAUSERGETINFO( pipes_struct *p, struct WKSSVC_NETRWKSTAUSE
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRWKSTAUSERSETINFO( pipes_struct *p, struct WKSSVC_NETRWKSTAUSERSETINFO *r )
+WERROR _wkssvc_NetrWkstaUserSetInfo(pipes_struct *p, struct wkssvc_NetrWkstaUserSetInfo *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -120,7 +114,7 @@ WERROR _WKSSVC_NETRWKSTAUSERSETINFO( pipes_struct *p, struct WKSSVC_NETRWKSTAUSE
 /********************************************************************
  ********************************************************************/
 
-WERROR _wkssvc_NetWkstaTransportEnum( pipes_struct *p, struct wkssvc_NetWkstaTransportEnum *r)
+WERROR _wkssvc_NetWkstaTransportEnum(pipes_struct *p, struct wkssvc_NetWkstaTransportEnum *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -130,7 +124,7 @@ WERROR _wkssvc_NetWkstaTransportEnum( pipes_struct *p, struct wkssvc_NetWkstaTra
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRWKSTATRANSPORTADD( pipes_struct *p, struct WKSSVC_NETRWKSTATRANSPORTADD *r )
+WERROR _wkssvc_NetrWkstaTransportAdd(pipes_struct *p, struct wkssvc_NetrWkstaTransportAdd *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -140,7 +134,7 @@ WERROR _WKSSVC_NETRWKSTATRANSPORTADD( pipes_struct *p, struct WKSSVC_NETRWKSTATR
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRWKSTATRANSPORTDEL( pipes_struct *p, struct WKSSVC_NETRWKSTATRANSPORTDEL *r )
+WERROR _wkssvc_NetrWkstaTransportDel(pipes_struct *p, struct wkssvc_NetrWkstaTransportDel *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -150,7 +144,7 @@ WERROR _WKSSVC_NETRWKSTATRANSPORTDEL( pipes_struct *p, struct WKSSVC_NETRWKSTATR
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRUSEADD( pipes_struct *p, struct WKSSVC_NETRUSEADD *r )
+WERROR _wkssvc_NetrUseAdd(pipes_struct *p, struct wkssvc_NetrUseAdd *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -160,7 +154,7 @@ WERROR _WKSSVC_NETRUSEADD( pipes_struct *p, struct WKSSVC_NETRUSEADD *r )
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRUSEGETINFO( pipes_struct *p, struct WKSSVC_NETRUSEGETINFO *r )
+WERROR _wkssvc_NetrUseGetInfo(pipes_struct *p, struct wkssvc_NetrUseGetInfo *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -170,7 +164,7 @@ WERROR _WKSSVC_NETRUSEGETINFO( pipes_struct *p, struct WKSSVC_NETRUSEGETINFO *r 
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRUSEDEL( pipes_struct *p, struct WKSSVC_NETRUSEDEL *r )
+WERROR _wkssvc_NetrUseDel(pipes_struct *p, struct wkssvc_NetrUseDel *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -180,7 +174,7 @@ WERROR _WKSSVC_NETRUSEDEL( pipes_struct *p, struct WKSSVC_NETRUSEDEL *r )
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRUSEENUM( pipes_struct *p, struct WKSSVC_NETRUSEENUM *r )
+WERROR _wkssvc_NetrUseEnum(pipes_struct *p, struct wkssvc_NetrUseEnum *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -190,7 +184,7 @@ WERROR _WKSSVC_NETRUSEENUM( pipes_struct *p, struct WKSSVC_NETRUSEENUM *r )
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRMESSAGEBUFFERSEND( pipes_struct *p, struct WKSSVC_NETRMESSAGEBUFFERSEND *r )
+WERROR _wkssvc_NetrMessageBufferSend(pipes_struct *p, struct wkssvc_NetrMessageBufferSend *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -200,7 +194,7 @@ WERROR _WKSSVC_NETRMESSAGEBUFFERSEND( pipes_struct *p, struct WKSSVC_NETRMESSAGE
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRWORKSTATIONSTATISTICSGET( pipes_struct *p, struct WKSSVC_NETRWORKSTATIONSTATISTICSGET *r )
+WERROR _wkssvc_NetrWorkstationStatisticsGet(pipes_struct *p, struct wkssvc_NetrWorkstationStatisticsGet *r) 
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -210,7 +204,7 @@ WERROR _WKSSVC_NETRWORKSTATIONSTATISTICSGET( pipes_struct *p, struct WKSSVC_NETR
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRLOGONDOMAINNAMEADD( pipes_struct *p, struct WKSSVC_NETRLOGONDOMAINNAMEADD *r )
+WERROR _wkssvc_NetrLogonDomainNameAdd(pipes_struct *p, struct wkssvc_NetrLogonDomainNameAdd *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -220,7 +214,7 @@ WERROR _WKSSVC_NETRLOGONDOMAINNAMEADD( pipes_struct *p, struct WKSSVC_NETRLOGOND
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRLOGONDOMAINNAMEDEL( pipes_struct *p, struct WKSSVC_NETRLOGONDOMAINNAMEDEL *r )
+WERROR _wkssvc_NetrLogonDomainNameDel(pipes_struct *p, struct wkssvc_NetrLogonDomainNameDel *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -230,7 +224,7 @@ WERROR _WKSSVC_NETRLOGONDOMAINNAMEDEL( pipes_struct *p, struct WKSSVC_NETRLOGOND
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRJOINDOMAIN( pipes_struct *p, struct WKSSVC_NETRJOINDOMAIN *r )
+WERROR _wkssvc_NetrJoinDomain(pipes_struct *p, struct wkssvc_NetrJoinDomain *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -240,7 +234,7 @@ WERROR _WKSSVC_NETRJOINDOMAIN( pipes_struct *p, struct WKSSVC_NETRJOINDOMAIN *r 
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRUNJOINDOMAIN( pipes_struct *p, struct WKSSVC_NETRUNJOINDOMAIN *r )
+WERROR _wkssvc_NetrUnjoinDomain(pipes_struct *p, struct wkssvc_NetrUnjoinDomain *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -250,7 +244,7 @@ WERROR _WKSSVC_NETRUNJOINDOMAIN( pipes_struct *p, struct WKSSVC_NETRUNJOINDOMAIN
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRRENAMEMACHINEINDOMAIN( pipes_struct *p, struct WKSSVC_NETRRENAMEMACHINEINDOMAIN *r )
+WERROR _wkssvc_NetrRenameMachineInDomain(pipes_struct *p, struct wkssvc_NetrRenameMachineInDomain *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -260,7 +254,7 @@ WERROR _WKSSVC_NETRRENAMEMACHINEINDOMAIN( pipes_struct *p, struct WKSSVC_NETRREN
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRVALIDATENAME( pipes_struct *p, struct WKSSVC_NETRVALIDATENAME *r )
+WERROR _wkssvc_NetrValidateName(pipes_struct *p, struct wkssvc_NetrValidateName *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -270,7 +264,7 @@ WERROR _WKSSVC_NETRVALIDATENAME( pipes_struct *p, struct WKSSVC_NETRVALIDATENAME
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRGETJOININFORMATION( pipes_struct *p, struct WKSSVC_NETRGETJOININFORMATION *r )
+WERROR _wkssvc_NetrGetJoinInformation(pipes_struct *p, struct wkssvc_NetrGetJoinInformation *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -280,7 +274,7 @@ WERROR _WKSSVC_NETRGETJOININFORMATION( pipes_struct *p, struct WKSSVC_NETRGETJOI
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRGETJOINABLEOUS( pipes_struct *p, struct WKSSVC_NETRGETJOINABLEOUS *r )
+WERROR _wkssvc_NetrGetJoinableOus(pipes_struct *p, struct wkssvc_NetrGetJoinableOus *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -288,23 +282,146 @@ WERROR _WKSSVC_NETRGETJOINABLEOUS( pipes_struct *p, struct WKSSVC_NETRGETJOINABL
 }
 
 /********************************************************************
+ _wkssvc_NetrJoinDomain2
  ********************************************************************/
 
-WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p, struct wkssvc_NetrJoinDomain2 *r)
+WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p,
+			       struct wkssvc_NetrJoinDomain2 *r)
 {
-	/* FIXME: Add implementation code here */
-	p->rng_fault_state = True;
-	return WERR_NOT_SUPPORTED;
+	struct libnet_JoinCtx *j = NULL;
+	char *cleartext_pwd = NULL;
+	char *admin_domain = NULL;
+	char *admin_account = NULL;
+	WERROR werr;
+	struct nt_user_token *token = p->pipe_user.nt_user_token;
+
+	if (!r->in.domain_name) {
+		return WERR_INVALID_PARAM;
+	}
+
+	if (!r->in.admin_account || !r->in.encrypted_password) {
+		return WERR_INVALID_PARAM;
+	}
+
+	if (!user_has_privileges(token, &se_machine_account) &&
+	    !nt_token_check_domain_rid(token, DOMAIN_GROUP_RID_ADMINS) &&
+	    !nt_token_check_domain_rid(token, BUILTIN_ALIAS_RID_ADMINS)) {
+		DEBUG(5,("_wkssvc_NetrJoinDomain2: account doesn't have "
+			"sufficient privileges\n"));
+		return WERR_ACCESS_DENIED;
+	}
+
+	if ((r->in.join_flags & WKSSVC_JOIN_FLAGS_MACHINE_PWD_PASSED) ||
+	    (r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE)) {
+		return WERR_NOT_SUPPORTED;
+	}
+
+	werr = decode_wkssvc_join_password_buffer(p->mem_ctx,
+						  r->in.encrypted_password,
+						  &p->session_key,
+						  &cleartext_pwd);
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
+
+	split_domain_user(p->mem_ctx,
+			  r->in.admin_account,
+			  &admin_domain,
+			  &admin_account);
+
+	werr = libnet_init_JoinCtx(p->mem_ctx, &j);
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
+
+	j->in.domain_name	= r->in.domain_name;
+	j->in.account_ou	= r->in.account_ou;
+	j->in.join_flags	= r->in.join_flags;
+	j->in.admin_account	= admin_account;
+	j->in.admin_password	= cleartext_pwd;
+	j->in.debug		= true;
+	j->in.modify_config     = lp_config_backend_is_registry();
+	j->in.msg_ctx		= smbd_messaging_context();
+
+	become_root();
+	werr = libnet_Join(p->mem_ctx, j);
+	unbecome_root();
+
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(5,("_wkssvc_NetrJoinDomain2: libnet_Join failed with: %s\n",
+			j->out.error_string ? j->out.error_string :
+			dos_errstr(werr)));
+	}
+
+	TALLOC_FREE(j);
+	return werr;
 }
 
 /********************************************************************
+ _wkssvc_NetrUnjoinDomain2
  ********************************************************************/
 
-WERROR _wkssvc_NetrUnjoinDomain2(pipes_struct *p, struct wkssvc_NetrUnjoinDomain2 *r)
+WERROR _wkssvc_NetrUnjoinDomain2(pipes_struct *p,
+				 struct wkssvc_NetrUnjoinDomain2 *r)
 {
-	/* FIXME: Add implementation code here */
-	p->rng_fault_state = True;
-	return WERR_NOT_SUPPORTED;
+	struct libnet_UnjoinCtx *u = NULL;
+	char *cleartext_pwd = NULL;
+	char *admin_domain = NULL;
+	char *admin_account = NULL;
+	WERROR werr;
+	struct nt_user_token *token = p->pipe_user.nt_user_token;
+
+	if (!r->in.account || !r->in.encrypted_password) {
+		return WERR_INVALID_PARAM;
+	}
+
+	if (!user_has_privileges(token, &se_machine_account) &&
+	    !nt_token_check_domain_rid(token, DOMAIN_GROUP_RID_ADMINS) &&
+	    !nt_token_check_domain_rid(token, BUILTIN_ALIAS_RID_ADMINS)) {
+		DEBUG(5,("_wkssvc_NetrUnjoinDomain2: account doesn't have "
+			"sufficient privileges\n"));
+		return WERR_ACCESS_DENIED;
+	}
+
+	werr = decode_wkssvc_join_password_buffer(p->mem_ctx,
+						  r->in.encrypted_password,
+						  &p->session_key,
+						  &cleartext_pwd);
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
+
+	split_domain_user(p->mem_ctx,
+			  r->in.account,
+			  &admin_domain,
+			  &admin_account);
+
+	werr = libnet_init_UnjoinCtx(p->mem_ctx, &u);
+	if (!W_ERROR_IS_OK(werr)) {
+		return werr;
+	}
+
+	u->in.domain_name	= lp_realm();
+	u->in.unjoin_flags	= r->in.unjoin_flags |
+				  WKSSVC_JOIN_FLAGS_JOIN_TYPE;
+	u->in.admin_account	= admin_account;
+	u->in.admin_password	= cleartext_pwd;
+	u->in.debug		= true;
+	u->in.modify_config     = lp_config_backend_is_registry();
+	u->in.msg_ctx		= smbd_messaging_context();
+
+	become_root();
+	werr = libnet_Unjoin(p->mem_ctx, u);
+	unbecome_root();
+
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(5,("_wkssvc_NetrUnjoinDomain2: libnet_Unjoin failed with: %s\n",
+			u->out.error_string ? u->out.error_string :
+			dos_errstr(werr)));
+	}
+
+	TALLOC_FREE(u);
+	return werr;
 }
 
 /********************************************************************
@@ -320,7 +437,7 @@ WERROR _wkssvc_NetrRenameMachineInDomain2(pipes_struct *p, struct wkssvc_NetrRen
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRVALIDATENAME2( pipes_struct *p, struct WKSSVC_NETRVALIDATENAME2 *r )
+WERROR _wkssvc_NetrValidateName2(pipes_struct *p, struct wkssvc_NetrValidateName2 *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -330,7 +447,7 @@ WERROR _WKSSVC_NETRVALIDATENAME2( pipes_struct *p, struct WKSSVC_NETRVALIDATENAM
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRGETJOINABLEOUS2( pipes_struct *p, struct WKSSVC_NETRGETJOINABLEOUS2 *r )
+WERROR _wkssvc_NetrGetJoinableOus2(pipes_struct *p, struct wkssvc_NetrGetJoinableOus2 *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -340,7 +457,7 @@ WERROR _WKSSVC_NETRGETJOINABLEOUS2( pipes_struct *p, struct WKSSVC_NETRGETJOINAB
 /********************************************************************
  ********************************************************************/
 
-WERROR _wkssvc_NetrAddAlternateComputerName(pipes_struct *p, struct wkssvc_NetrAddAlternateComputerName *r )
+WERROR _wkssvc_NetrAddAlternateComputerName(pipes_struct *p, struct wkssvc_NetrAddAlternateComputerName *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -360,7 +477,7 @@ WERROR _wkssvc_NetrRemoveAlternateComputerName(pipes_struct *p, struct wkssvc_Ne
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRSETPRIMARYCOMPUTERNAME( pipes_struct *p, struct WKSSVC_NETRSETPRIMARYCOMPUTERNAME *r )
+WERROR _wkssvc_NetrSetPrimaryComputername(pipes_struct *p, struct wkssvc_NetrSetPrimaryComputername *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;
@@ -370,7 +487,7 @@ WERROR _WKSSVC_NETRSETPRIMARYCOMPUTERNAME( pipes_struct *p, struct WKSSVC_NETRSE
 /********************************************************************
  ********************************************************************/
 
-WERROR _WKSSVC_NETRENUMERATECOMPUTERNAMES( pipes_struct *p, struct WKSSVC_NETRENUMERATECOMPUTERNAMES *r )
+WERROR _wkssvc_NetrEnumerateComputerNames(pipes_struct *p, struct wkssvc_NetrEnumerateComputerNames *r)
 {
 	/* FIXME: Add implementation code here */
 	p->rng_fault_state = True;

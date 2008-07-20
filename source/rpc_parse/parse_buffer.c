@@ -10,7 +10,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -19,8 +19,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
  
 #include "includes.h"
@@ -35,15 +34,17 @@ void rpcbuf_init(RPC_BUFFER *buffer, uint32 size, TALLOC_CTX *ctx)
 {
 	buffer->size = size;
 	buffer->string_at_end = size;
-	prs_init(&buffer->prs, size, ctx, MARSHALL);
-	buffer->struct_start = prs_offset(&buffer->prs);
+	if (prs_init(&buffer->prs, size, ctx, MARSHALL))
+		buffer->struct_start = prs_offset(&buffer->prs);
+	else
+		buffer->struct_start = 0;
 }
 
 /*******************************************************************
  Read/write a RPC_BUFFER struct.
 ********************************************************************/  
 
-BOOL prs_rpcbuffer(const char *desc, prs_struct *ps, int depth, RPC_BUFFER *buffer)
+bool prs_rpcbuffer(const char *desc, prs_struct *ps, int depth, RPC_BUFFER *buffer)
 {
 	prs_debug(ps, depth, desc, "prs_rpcbuffer");
 	depth++;
@@ -78,7 +79,7 @@ BOOL prs_rpcbuffer(const char *desc, prs_struct *ps, int depth, RPC_BUFFER *buff
 		return True;
 	}
 	else {
-		BOOL ret = False;
+		bool ret = False;
 
 		if (!prs_uint32("size", ps, depth, &buffer->size))
 			goto out;
@@ -100,7 +101,7 @@ BOOL prs_rpcbuffer(const char *desc, prs_struct *ps, int depth, RPC_BUFFER *buff
  Read/write an RPC_BUFFER* struct.(allocate memory if unmarshalling)
 ********************************************************************/  
 
-BOOL prs_rpcbuffer_p(const char *desc, prs_struct *ps, int depth, RPC_BUFFER **buffer)
+bool prs_rpcbuffer_p(const char *desc, prs_struct *ps, int depth, RPC_BUFFER **buffer)
 {
 	uint32 data_p;
 
@@ -133,7 +134,7 @@ BOOL prs_rpcbuffer_p(const char *desc, prs_struct *ps, int depth, RPC_BUFFER **b
  Allocate more memory for a RPC_BUFFER.
 ****************************************************************************/
 
-BOOL rpcbuf_alloc_size(RPC_BUFFER *buffer, uint32 buffer_size)
+bool rpcbuf_alloc_size(RPC_BUFFER *buffer, uint32 buffer_size)
 {
 	prs_struct *ps;
 	uint32 extra_space;
@@ -228,7 +229,7 @@ uint32 rpcbuf_get_size(RPC_BUFFER *buffer)
  *
  ********************************************************************/
 
-BOOL smb_io_relstr(const char *desc, RPC_BUFFER *buffer, int depth, UNISTR *string)
+bool smb_io_relstr(const char *desc, RPC_BUFFER *buffer, int depth, UNISTR *string)
 {
 	prs_struct *ps=&buffer->prs;
 	
@@ -290,7 +291,7 @@ BOOL smb_io_relstr(const char *desc, RPC_BUFFER *buffer, int depth, UNISTR *stri
  * used by 2 RPC structs
  ********************************************************************/
 
-BOOL smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 **string)
+bool smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 **string)
 {
 	UNISTR chaine;
 	
@@ -373,8 +374,10 @@ BOOL smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 
 			return False;
 	
 		do {
-			if (!smb_io_unistr(desc, &chaine, ps, depth))
+			if (!smb_io_unistr(desc, &chaine, ps, depth)) {
+				SAFE_FREE(chaine2);
 				return False;
+			}
 			
 			l_chaine=str_len_uni(&chaine);
 			
@@ -401,10 +404,10 @@ BOOL smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 
 		{
 			chaine2[l_chaine2] = '\0';
 			*string=(uint16 *)TALLOC_MEMDUP(prs_get_mem_context(ps),chaine2,realloc_size);
+			SAFE_FREE(chaine2);
 			if (!*string) {
 				return False;
 			}
-			SAFE_FREE(chaine2);
 		}
 
 		if(!prs_set_offset(ps, old_offset))
@@ -417,7 +420,7 @@ BOOL smb_io_relarraystr(const char *desc, RPC_BUFFER *buffer, int depth, uint16 
  Parse a DEVMODE structure and its relative pointer.
 ********************************************************************/
 
-BOOL smb_io_relsecdesc(const char *desc, RPC_BUFFER *buffer, int depth, SEC_DESC **secdesc)
+bool smb_io_relsecdesc(const char *desc, RPC_BUFFER *buffer, int depth, SEC_DESC **secdesc)
 {
 	prs_struct *ps= &buffer->prs;
 
@@ -436,7 +439,7 @@ BOOL smb_io_relsecdesc(const char *desc, RPC_BUFFER *buffer, int depth, SEC_DESC
 		}
 		
 		if (*secdesc != NULL) {
-			buffer->string_at_end -= sec_desc_size(*secdesc);
+			buffer->string_at_end -= ndr_size_security_descriptor(*secdesc, 0);
 
 			if(!prs_set_offset(ps, buffer->string_at_end))
 				return False;

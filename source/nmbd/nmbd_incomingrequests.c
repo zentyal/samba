@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
    This file contains all the code to process NetBIOS requests coming
    in on port 137. It does not deal with the code needed to service
@@ -59,9 +58,9 @@ void process_name_release_request(struct subnet_record *subrec,
 	struct in_addr owner_ip;
 	struct nmb_name *question = &nmb->question.question_name;
 	unstring qname;
-	BOOL bcast = nmb->header.nm_flags.bcast;
+	bool bcast = nmb->header.nm_flags.bcast;
 	uint16 nb_flags = get_nb_flags(nmb->additional->rdata);
-	BOOL group = (nb_flags & NB_GROUP) ? True : False;
+	bool group = (nb_flags & NB_GROUP) ? True : False;
 	struct name_record *namerec;
 	int rcode = 0;
   
@@ -89,7 +88,7 @@ subnet %s from owner IP %s\n",
 		subrec->subnet_name, inet_ntoa(owner_ip)));
   
 	/* If someone is releasing a broadcast group name, just ignore it. */
-	if( group && !ismyip(owner_ip) )
+	if( group && !ismyip_v4(owner_ip) )
 		return;
 
 	/*
@@ -99,7 +98,7 @@ subnet %s from owner IP %s\n",
 	 */
 
 	pull_ascii_nstring(qname, sizeof(qname), question->name);
-	if( !group && !ismyip(owner_ip) && strequal(qname, lp_workgroup()) && 
+	if( !group && !ismyip_v4(owner_ip) && strequal(qname, lp_workgroup()) && 
 			((question->name_type == 0x0) || (question->name_type == 0x1e))) {
 		DEBUG(6,("process_name_release_request: FTP OnNet bug workaround. Ignoring \
 group release name %s from IP %s on subnet %s with no group bit set.\n",
@@ -154,7 +153,7 @@ void process_name_refresh_request(struct subnet_record *subrec,
 {    
 	struct nmb_packet *nmb = &p->packet.nmb;
 	struct nmb_name *question = &nmb->question.question_name;
-	BOOL bcast = nmb->header.nm_flags.bcast;
+	bool bcast = nmb->header.nm_flags.bcast;
 	struct in_addr from_ip;
   
 	putip((char *)&from_ip,&nmb->additional->rdata[2]);
@@ -191,9 +190,9 @@ void process_name_registration_request(struct subnet_record *subrec,
 {
 	struct nmb_packet *nmb = &p->packet.nmb;
 	struct nmb_name *question = &nmb->question.question_name;
-	BOOL bcast = nmb->header.nm_flags.bcast;
+	bool bcast = nmb->header.nm_flags.bcast;
 	uint16 nb_flags = get_nb_flags(nmb->additional->rdata);
-	BOOL group = (nb_flags & NB_GROUP) ? True : False;
+	bool group = (nb_flags & NB_GROUP) ? True : False;
 	struct name_record *namerec = NULL;
 	int ttl = nmb->additional->ttl;
 	struct in_addr from_ip;
@@ -332,7 +331,7 @@ subnet %s - name not found.\n", nmb_namestr(&nmb->question.question_name),
  
 	/* this is not an exact calculation. the 46 is for the stats buffer
 		and the 60 is to leave room for the header etc */
-	bufend = &rdata[MAX_DGRAM_SIZE] - (18 + 46 + 60);
+	bufend = &rdata[MAX_DGRAM_SIZE-1] - (18 + 46 + 60);
 	countptr = buf = rdata;
 	buf += 1;
 	buf0 = buf;
@@ -440,12 +439,12 @@ void process_name_query_request(struct subnet_record *subrec, struct packet_stru
 	struct nmb_packet *nmb = &p->packet.nmb;
 	struct nmb_name *question = &nmb->question.question_name;
 	int name_type = question->name_type;
-	BOOL bcast = nmb->header.nm_flags.bcast;
+	bool bcast = nmb->header.nm_flags.bcast;
 	int ttl=0;
 	int rcode = 0;
 	char *prdata = NULL;
 	char rdata[6];
-	BOOL success = False;
+	bool success = False;
 	struct name_record *namerec = NULL;
 	int reply_data_len = 0;
 	int i;
@@ -498,7 +497,7 @@ void process_name_query_request(struct subnet_record *subrec, struct packet_stru
 			
 			if (namerec->data.source == WINS_PROXY_NAME) {
 				for( i = 0; i < namerec->data.num_ips; i++) {
-					if (same_net(namerec->data.ip[i], subrec->myip, subrec->mask_ip)) {
+					if (same_net_v4(namerec->data.ip[i], subrec->myip, subrec->mask_ip)) {
 						DEBUG(5,("process_name_query_request: name %s is a WINS proxy name and is also on the same subnet (%s) as the requestor. Not replying.\n", 
 							 nmb_namestr(&namerec->name), subrec->subnet_name ));
 						return;

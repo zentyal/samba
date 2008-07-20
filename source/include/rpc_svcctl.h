@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _RPC_SVCCTL_H /* _RPC_SVCCTL_H */
@@ -123,15 +122,11 @@
 
 /* utility structures for RPCs */
 
-typedef struct {
-	uint32 type;
-	uint32 state;
-	uint32 controls_accepted;
-	WERROR win32_exit_code;
-	uint32 service_exit_code;
-	uint32 check_point;
-	uint32 wait_hint;
-} SERVICE_STATUS;
+/*
+ * "struct SERVICE_STATUS" comes from librpc/gen_ndr/svcctl.h
+ */
+
+typedef struct SERVICE_STATUS SERVICE_STATUS;
 
 typedef struct {
 	SERVICE_STATUS status;
@@ -198,92 +193,6 @@ typedef struct _ServiceInfo {
 
 
 /* rpc structures */
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-} SVCCTL_Q_CLOSE_SERVICE;
-
-typedef struct {
-        POLICY_HND handle;
-	WERROR status;
-} SVCCTL_R_CLOSE_SERVICE;
-
-/**************************/
-
-typedef struct {
-	UNISTR2 *servername;
-	UNISTR2 *database; 
-	uint32 access;
-} SVCCTL_Q_OPEN_SCMANAGER;
-
-typedef struct {
-	POLICY_HND handle;
-	WERROR status;
-} SVCCTL_R_OPEN_SCMANAGER;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-	UNISTR2 servicename;
-	uint32  display_name_len;
-} SVCCTL_Q_GET_DISPLAY_NAME;
-
-typedef struct {
-	UNISTR2 displayname;
-	uint32 display_name_len;
-	WERROR status;
-} SVCCTL_R_GET_DISPLAY_NAME;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-	UNISTR2 servicename;
-	uint32 access;
-} SVCCTL_Q_OPEN_SERVICE;
-
-typedef struct {
-	POLICY_HND handle;
-	WERROR status;
-} SVCCTL_R_OPEN_SERVICE;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-	uint32 parmcount;
-	UNISTR4_ARRAY *parameters;
-} SVCCTL_Q_START_SERVICE;
-
-typedef struct {
-	WERROR status;
-} SVCCTL_R_START_SERVICE;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-	uint32 control;
-} SVCCTL_Q_CONTROL_SERVICE;
-
-typedef struct {
-	SERVICE_STATUS svc_status;
-	WERROR status;
-} SVCCTL_R_CONTROL_SERVICE;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-} SVCCTL_Q_QUERY_STATUS;
-
-typedef struct {
-	SERVICE_STATUS svc_status;
-	WERROR status;
-} SVCCTL_R_QUERY_STATUS;
 
 /**************************/
 
@@ -361,58 +270,6 @@ typedef struct {
 	uint32 needed;
 	WERROR status;
 } SVCCTL_R_QUERY_SERVICE_STATUSEX;
-
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-} SVCCTL_Q_LOCK_SERVICE_DB;
-
-typedef struct {
-	POLICY_HND h_lock;
-	WERROR status;
-} SVCCTL_R_LOCK_SERVICE_DB;
-
-
-/**************************/
-
-typedef struct {
-	POLICY_HND h_lock;
-} SVCCTL_Q_UNLOCK_SERVICE_DB;
-
-typedef struct {
-	WERROR status;
-} SVCCTL_R_UNLOCK_SERVICE_DB;
-
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle;
-	uint32 security_flags;
-	uint32 buffer_size;	
-} SVCCTL_Q_QUERY_SERVICE_SEC;
-
-typedef struct {
-	RPC_BUFFER buffer;
-	uint32 needed;
-	WERROR status;
-} SVCCTL_R_QUERY_SERVICE_SEC;
-
-/**************************/
-
-typedef struct {
-	POLICY_HND handle; 
-	uint32 security_flags;        
-	RPC_BUFFER buffer;
-	uint32 buffer_size;
-} SVCCTL_Q_SET_SERVICE_SEC;
-
-typedef struct {
-	WERROR status;
-} SVCCTL_R_SET_SERVICE_SEC;
-
 
 #endif /* _RPC_SVCCTL_H */
 

@@ -8,7 +8,7 @@
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -17,8 +17,7 @@
  * more details.
  * 
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -54,7 +53,7 @@ struct smbpasswd_privates
 	
 	/* formerly static variables */
 	struct smb_passwd pw_buf;
-	pstring  user_name;
+	fstring user_name;
 	unsigned char smbpwd[16];
 	unsigned char smbntpwd[16];
 
@@ -80,7 +79,7 @@ static void gotalarm_sig(void)
  seconds.
 ****************************************************************/
 
-static BOOL do_file_lock(int fd, int waitsecs, int type)
+static bool do_file_lock(int fd, int waitsecs, int type)
 {
 	SMB_STRUCT_FLOCK lock;
 	int             ret;
@@ -114,7 +113,7 @@ static BOOL do_file_lock(int fd, int waitsecs, int type)
  Lock an fd. Abandon after waitsecs seconds.
 ****************************************************************/
 
-static BOOL pw_file_lock(int fd, int type, int secs, int *plock_depth)
+static bool pw_file_lock(int fd, int type, int secs, int *plock_depth)
 {
 	if (fd < 0) {
 		return False;
@@ -137,9 +136,9 @@ static BOOL pw_file_lock(int fd, int type, int secs, int *plock_depth)
  Unlock an fd. Abandon after waitsecs seconds.
 ****************************************************************/
 
-static BOOL pw_file_unlock(int fd, int *plock_depth)
+static bool pw_file_unlock(int fd, int *plock_depth)
 {
-	BOOL ret=True;
+	bool ret=True;
 
 	if (fd == 0 || *plock_depth == 0) {
 		return True;
@@ -438,12 +437,6 @@ static struct smb_passwd *getsmbfilepwent(struct smbpasswd_privates *smbpasswd_s
 			continue;
 		}
 
-		/*
-		 * As 256 is shorter than a pstring we don't need to check
-		 * length here - if this ever changes....
-		 */
-		SMB_ASSERT(sizeof(pstring) > sizeof(linebuf));
-
 		strncpy(user_name, linebuf, PTR_DIFF(p, linebuf));
 		user_name[PTR_DIFF(p, linebuf)] = '\0';
 
@@ -729,10 +722,10 @@ Error was %s. Password file may be corrupt ! Please examine by hand !\n",
  override = True, override XXXXXXXX'd out password or NO PASS
 ************************************************************************/
 
-static BOOL mod_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, const struct smb_passwd* pwd)
+static bool mod_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, const struct smb_passwd* pwd)
 {
 	/* Static buffers we will return. */
-	pstring user_name;
+	fstring user_name;
 
 	char *status;
 	char linebuf[256];
@@ -745,8 +738,8 @@ static BOOL mod_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, con
 	FILE *fp;
 	int lockfd;
 	const char *pfile = smbpasswd_state->smbpasswd_file;
-	BOOL found_entry = False;
-	BOOL got_pass_last_set_time = False;
+	bool found_entry = False;
+	bool got_pass_last_set_time = False;
 
 	SMB_OFF_T pwd_seekpos = 0;
 
@@ -847,13 +840,6 @@ static BOOL mod_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, con
 			DEBUG(0, ("mod_smbfilepwd_entry: malformed password entry (no :)\n"));
 			continue;
 		}
-
-		/*
-		 * As 256 is shorter than a pstring we don't need to check
-		 * length here - if this ever changes....
-		 */
-
-		SMB_ASSERT(sizeof(user_name) > sizeof(linebuf));
 
 		strncpy(user_name, linebuf, PTR_DIFF(p, linebuf));
 		user_name[PTR_DIFF(p, linebuf)] = '\0';
@@ -1023,7 +1009,7 @@ This is no longer supported.!\n", pwd->smb_name));
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("mod_smbfilepwd_entry: "));
-	dump_data(100, ascii_p16, wr_len);
+	dump_data(100, (uint8 *)ascii_p16, wr_len);
 #endif
 
 	if(wr_len > sizeof(linebuf)) {
@@ -1089,16 +1075,21 @@ This is no longer supported.!\n", pwd->smb_name));
  Routine to delete an entry in the smbpasswd file by name.
 *************************************************************************/
 
-static BOOL del_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, const char *name)
+static bool del_smbfilepwd_entry(struct smbpasswd_privates *smbpasswd_state, const char *name)
 {
 	const char *pfile = smbpasswd_state->smbpasswd_file;
-	pstring pfile2;
+	char *pfile2 = NULL;
 	struct smb_passwd *pwd = NULL;
 	FILE *fp = NULL;
 	FILE *fp_write = NULL;
 	int pfile2_lockdepth = 0;
 
-	slprintf(pfile2, sizeof(pfile2)-1, "%s.%u", pfile, (unsigned)sys_getpid() );
+	pfile2 = talloc_asprintf(talloc_tos(),
+			"%s.%u",
+			pfile, (unsigned)sys_getpid());
+	if (!pfile2) {
+		return false;
+	}
 
 	/*
 	 * Open the smbpassword file - for update. It needs to be update
@@ -1180,7 +1171,7 @@ Error was %s\n", pwd->smb_name, pfile2, strerror(errno)));
 	if(rename(pfile2,pfile) != 0) {
 		unlink(pfile2);
 	}
-  
+
 	endsmbfilepwent(fp, &smbpasswd_state->pw_file_lock_depth);
 	endsmbfilepwent(fp_write,&pfile2_lockdepth);
 	return True;
@@ -1192,7 +1183,7 @@ Error was %s\n", pwd->smb_name, pfile2, strerror(errno)));
  should only stay around as long as the struct samu does.
  ********************************************************************/
 
-static BOOL build_smb_pass (struct smb_passwd *smb_pw, const struct samu *sampass)
+static bool build_smb_pass (struct smb_passwd *smb_pw, const struct samu *sampass)
 {
 	uint32 rid;
 
@@ -1235,7 +1226,7 @@ static BOOL build_smb_pass (struct smb_passwd *smb_pw, const struct samu *sampas
  Create a struct samu from a smb_passwd struct
  ********************************************************************/
 
-static BOOL build_sam_account(struct smbpasswd_privates *smbpasswd_state, 
+static bool build_sam_account(struct smbpasswd_privates *smbpasswd_state, 
 			      struct samu *sam_pass, const struct smb_passwd *pw_buf)
 {
 	struct passwd *pwfile;
@@ -1260,8 +1251,10 @@ static BOOL build_sam_account(struct smbpasswd_privates *smbpasswd_state,
 
 	/* set remaining fields */
 		
-	pdb_set_nt_passwd (sam_pass, pw_buf->smb_nt_passwd, PDB_SET);
-	pdb_set_lanman_passwd (sam_pass, pw_buf->smb_passwd, PDB_SET);			
+	if (!pdb_set_nt_passwd (sam_pass, pw_buf->smb_nt_passwd, PDB_SET))
+		return False;
+	if (!pdb_set_lanman_passwd (sam_pass, pw_buf->smb_passwd, PDB_SET))
+		return False;
 	pdb_set_acct_ctrl (sam_pass, pw_buf->acct_ctrl, PDB_SET);
 	pdb_set_pass_last_set_time (sam_pass, pw_buf->pass_last_set_time, PDB_SET);
 	pdb_set_pass_can_change_time (sam_pass, pw_buf->pass_last_set_time, PDB_SET);
@@ -1272,79 +1265,6 @@ static BOOL build_sam_account(struct smbpasswd_privates *smbpasswd_state,
 /*****************************************************************
  Functions to be implemented by the new passdb API 
  ****************************************************************/
-
-static NTSTATUS smbpasswd_setsampwent (struct pdb_methods *my_methods, BOOL update, uint32 acb_mask)
-{
-	struct smbpasswd_privates *smbpasswd_state = (struct smbpasswd_privates*)my_methods->private_data;
-	
-	smbpasswd_state->pw_file = startsmbfilepwent(smbpasswd_state->smbpasswd_file, 
-						       update ? PWF_UPDATE : PWF_READ, 
-						       &(smbpasswd_state->pw_file_lock_depth));
-				   
-	/* did we fail?  Should we try to create it? */
-	if (!smbpasswd_state->pw_file && update && errno == ENOENT) {
-		FILE *fp;
-		/* slprintf(msg_str,msg_str_len-1,
-		   "smbpasswd file did not exist - attempting to create it.\n"); */
-		DEBUG(0,("smbpasswd file did not exist - attempting to create it.\n"));
-		fp = sys_fopen(smbpasswd_state->smbpasswd_file, "w");
-		if (fp) {
-			fprintf(fp, "# Samba SMB password file\n");
-			fclose(fp);
-		}
-		
-		smbpasswd_state->pw_file = startsmbfilepwent(smbpasswd_state->smbpasswd_file, 
-							     update ? PWF_UPDATE : PWF_READ, 
-							     &(smbpasswd_state->pw_file_lock_depth));
-	}
-	
-	if (smbpasswd_state->pw_file != NULL)
-		return NT_STATUS_OK;
-	else
-		return NT_STATUS_UNSUCCESSFUL;  
-}
-
-static void smbpasswd_endsampwent (struct pdb_methods *my_methods)
-{
-	struct smbpasswd_privates *smbpasswd_state = (struct smbpasswd_privates*)my_methods->private_data;
-	endsmbfilepwent(smbpasswd_state->pw_file, &(smbpasswd_state->pw_file_lock_depth));
-}
- 
-/*****************************************************************
- ****************************************************************/
-
-static NTSTATUS smbpasswd_getsampwent(struct pdb_methods *my_methods, struct samu *user)
-{
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	struct smbpasswd_privates *smbpasswd_state = (struct smbpasswd_privates*)my_methods->private_data;
-	struct smb_passwd *pw_buf=NULL;
-	BOOL done = False;
-
-	DEBUG(5,("pdb_getsampwent\n"));
-
-	if ( !user ) {
-		DEBUG(5,("pdb_getsampwent (smbpasswd): user is NULL\n"));
-		return nt_status;
-	}
-
-	while (!done) {
-		/* do we have an entry? */
-		pw_buf = getsmbfilepwent(smbpasswd_state, smbpasswd_state->pw_file);
-		if (pw_buf == NULL) 
-			return nt_status;
-
-		/* build the struct samu entry from the smb_passwd struct. 
-		   We loop in case the user in the pdb does not exist in 
-		   the local system password file */
-		if (build_sam_account(smbpasswd_state, user, pw_buf))
-			done = True;
-	}
-
-	DEBUG(5,("getsampwent (smbpasswd): done\n"));
-
-	/* success */
-	return NT_STATUS_OK;
-}
 
 /****************************************************************
  Search smbpasswd file by iterating over the entries.  Do not
@@ -1403,10 +1323,10 @@ static NTSTATUS smbpasswd_getsampwsid(struct pdb_methods *my_methods, struct sam
 	struct smbpasswd_privates *smbpasswd_state = (struct smbpasswd_privates*)my_methods->private_data;
 	struct smb_passwd *smb_pw;
 	FILE *fp = NULL;
-	fstring sid_str;
 	uint32 rid;
 	
-	DEBUG(10, ("smbpasswd_getsampwrid: search by sid: %s\n", sid_to_string(sid_str, sid)));
+	DEBUG(10, ("smbpasswd_getsampwrid: search by sid: %s\n",
+		   sid_string_dbg(sid)));
 
 	if (!sid_peek_check_rid(get_global_sam_sid(), sid, &rid))
 		return NT_STATUS_UNSUCCESSFUL;
@@ -1452,9 +1372,10 @@ static NTSTATUS smbpasswd_getsampwsid(struct pdb_methods *my_methods, struct sam
 
 	/* build_sam_account might change the SID on us, if the name was for the guest account */
 	if (NT_STATUS_IS_OK(nt_status) && !sid_equal(pdb_get_user_sid(sam_acct), sid)) {
-		fstring sid_string1, sid_string2;
-		DEBUG(1, ("looking for user with sid %s instead returned %s for account %s!?!\n",
-			  sid_to_string(sid_string1, sid), sid_to_string(sid_string2, pdb_get_user_sid(sam_acct)), pdb_get_username(sam_acct)));
+		DEBUG(1, ("looking for user with sid %s instead returned %s "
+			  "for account %s!?!\n", sid_string_dbg(sid),
+			  sid_string_dbg(pdb_get_user_sid(sam_acct)),
+			  pdb_get_username(sam_acct)));
 		return NT_STATUS_NO_SUCH_USER;
 	}
 
@@ -1512,9 +1433,10 @@ static NTSTATUS smbpasswd_rename_sam_account (struct pdb_methods *my_methods,
 					      struct samu *old_acct,
 					      const char *newname)
 {
-	pstring rename_script;
+	char *rename_script = NULL;
 	struct samu *new_acct = NULL;
-	BOOL interim_account = False;
+	bool interim_account = False;
+	TALLOC_CTX *ctx = talloc_tos();
 	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
 
 	if (!*(lp_renameuser_script()))
@@ -1529,7 +1451,7 @@ static NTSTATUS smbpasswd_rename_sam_account (struct pdb_methods *my_methods,
 	{
 		goto done;
 	}
-	
+
 	ret = smbpasswd_add_sam_account(my_methods, new_acct);
 	if (!NT_STATUS_IS_OK(ret))
 		goto done;
@@ -1537,15 +1459,38 @@ static NTSTATUS smbpasswd_rename_sam_account (struct pdb_methods *my_methods,
 	interim_account = True;
 
 	/* rename the posix user */
-	pstrcpy(rename_script, lp_renameuser_script());
+	rename_script = talloc_strdup(ctx,
+				lp_renameuser_script());
+	if (!rename_script) {
+		ret = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
 
 	if (*rename_script) {
 	        int rename_ret;
 
-		string_sub2(rename_script, "%unew", newname, sizeof(pstring), 
-			    True, False, True);
-		string_sub2(rename_script, "%uold", pdb_get_username(old_acct), 
-			    sizeof(pstring), True, False, True);
+		rename_script = talloc_string_sub2(ctx,
+					rename_script,
+					"%unew",
+					newname,
+					true,
+					false,
+					true);
+		if (!rename_script) {
+			ret = NT_STATUS_NO_MEMORY;
+			goto done;
+		}
+		rename_script = talloc_string_sub2(ctx,
+					rename_script,
+					"%uold",
+					pdb_get_username(old_acct),
+					true,
+					false,
+					true);
+		if (!rename_script) {
+			ret = NT_STATUS_NO_MEMORY;
+			goto done;
+		}
 
 		rename_ret = smbrun(rename_script, NULL);
 
@@ -1555,8 +1500,8 @@ static NTSTATUS smbpasswd_rename_sam_account (struct pdb_methods *my_methods,
 			smb_nscd_flush_user_cache();
 		}
 
-		if (rename_ret) 
-			goto done; 
+		if (rename_ret)
+			goto done;
         } else {
 		goto done;
 	}
@@ -1564,7 +1509,7 @@ static NTSTATUS smbpasswd_rename_sam_account (struct pdb_methods *my_methods,
 	smbpasswd_delete_sam_account(my_methods, old_acct);
 	interim_account = False;
 
-done:	
+done:
 	/* cleanup */
 	if (interim_account)
 		smbpasswd_delete_sam_account(my_methods, new_acct);
@@ -1575,7 +1520,7 @@ done:
 	return (ret);	
 }
 
-static BOOL smbpasswd_rid_algorithm(struct pdb_methods *methods)
+static bool smbpasswd_rid_algorithm(struct pdb_methods *methods)
 {
 	return True;
 }
@@ -1590,6 +1535,135 @@ static void free_private_data(void **vp)
 	/* No need to free any further, as it is talloc()ed */
 }
 
+struct smbpasswd_search_state {
+	uint32_t acct_flags;
+
+	struct samr_displayentry *entries;
+	uint32_t num_entries;
+	ssize_t array_size;
+	uint32_t current;
+};
+
+static void smbpasswd_search_end(struct pdb_search *search)
+{
+	struct smbpasswd_search_state *state = talloc_get_type_abort(
+		search->private_data, struct smbpasswd_search_state);
+	TALLOC_FREE(state);
+}
+
+static bool smbpasswd_search_next_entry(struct pdb_search *search,
+					struct samr_displayentry *entry)
+{
+	struct smbpasswd_search_state *state = talloc_get_type_abort(
+		search->private_data, struct smbpasswd_search_state);
+
+	if (state->current == state->num_entries) {
+		return false;
+	}
+
+	entry->idx = state->entries[state->current].idx;
+	entry->rid = state->entries[state->current].rid;
+	entry->acct_flags = state->entries[state->current].acct_flags;
+
+	entry->account_name = talloc_strdup(
+		search->mem_ctx, state->entries[state->current].account_name);
+	entry->fullname = talloc_strdup(
+		search->mem_ctx, state->entries[state->current].fullname);
+	entry->description = talloc_strdup(
+		search->mem_ctx, state->entries[state->current].description);
+
+	if ((entry->account_name == NULL) || (entry->fullname == NULL)
+	    || (entry->description == NULL)) {
+		DEBUG(0, ("talloc_strdup failed\n"));
+		return false;
+	}
+
+	state->current += 1;
+	return true;
+}
+
+static bool smbpasswd_search_users(struct pdb_methods *methods,
+				   struct pdb_search *search,
+				   uint32_t acct_flags)
+{
+	struct smbpasswd_privates *smbpasswd_state =
+		(struct smbpasswd_privates*)methods->private_data;
+
+	struct smbpasswd_search_state *search_state;
+	struct smb_passwd *pwd;
+	FILE *fp;
+
+	search_state = TALLOC_ZERO_P(search->mem_ctx,
+				     struct smbpasswd_search_state);
+	if (search_state == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		return false;
+	}
+	search_state->acct_flags = acct_flags;
+
+	fp = startsmbfilepwent(smbpasswd_state->smbpasswd_file, PWF_READ,
+			       &smbpasswd_state->pw_file_lock_depth);
+
+	if (fp == NULL) {
+		DEBUG(10, ("Unable to open smbpasswd file.\n"));
+		TALLOC_FREE(search_state);
+		return false;
+	}
+
+	while ((pwd = getsmbfilepwent(smbpasswd_state, fp)) != NULL) {
+		struct samr_displayentry entry;
+		struct samu *user;
+
+		if ((acct_flags != 0)
+		    && ((acct_flags & pwd->acct_ctrl) == 0)) {
+			continue;
+		}
+
+		user = samu_new(talloc_tos());
+		if (user == NULL) {
+			DEBUG(0, ("samu_new failed\n"));
+			break;
+		}
+
+		if (!build_sam_account(smbpasswd_state, user, pwd)) {
+			/* Already got debug msgs... */
+			break;
+		}
+
+		ZERO_STRUCT(entry);
+
+		entry.acct_flags = pdb_get_acct_ctrl(user);
+		sid_peek_rid(pdb_get_user_sid(user), &entry.rid);
+		entry.account_name = talloc_strdup(
+			search_state, pdb_get_username(user));
+		entry.fullname = talloc_strdup(
+			search_state, pdb_get_fullname(user));
+		entry.description = talloc_strdup(
+			search_state, pdb_get_acct_desc(user));
+
+		TALLOC_FREE(user);
+
+		if ((entry.account_name == NULL) || (entry.fullname == NULL)
+		    || (entry.description == NULL)) {
+			DEBUG(0, ("talloc_strdup failed\n"));
+			break;
+		}
+
+		ADD_TO_LARGE_ARRAY(search_state, struct samr_displayentry,
+				   entry, &search_state->entries,
+				   &search_state->num_entries,
+				   &search_state->array_size);
+	}
+
+	endsmbfilepwent(fp, &(smbpasswd_state->pw_file_lock_depth));
+
+	search->private_data = search_state;
+	search->next_entry = smbpasswd_search_next_entry;
+	search->search_end = smbpasswd_search_end;
+
+	return true;
+}
+
 static NTSTATUS pdb_init_smbpasswd( struct pdb_methods **pdb_method, const char *location )
 {
 	NTSTATUS nt_status;
@@ -1601,15 +1675,13 @@ static NTSTATUS pdb_init_smbpasswd( struct pdb_methods **pdb_method, const char 
 
 	(*pdb_method)->name = "smbpasswd";
 
-	(*pdb_method)->setsampwent = smbpasswd_setsampwent;
-	(*pdb_method)->endsampwent = smbpasswd_endsampwent;
-	(*pdb_method)->getsampwent = smbpasswd_getsampwent;
 	(*pdb_method)->getsampwnam = smbpasswd_getsampwnam;
 	(*pdb_method)->getsampwsid = smbpasswd_getsampwsid;
 	(*pdb_method)->add_sam_account = smbpasswd_add_sam_account;
 	(*pdb_method)->update_sam_account = smbpasswd_update_sam_account;
 	(*pdb_method)->delete_sam_account = smbpasswd_delete_sam_account;
 	(*pdb_method)->rename_sam_account = smbpasswd_rename_sam_account;
+	(*pdb_method)->search_users = smbpasswd_search_users;
 
 	(*pdb_method)->rid_algorithm = smbpasswd_rid_algorithm;
 

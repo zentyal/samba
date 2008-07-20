@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #define DBGC_CLASS DBGC_LOCKING
@@ -61,8 +60,16 @@ static void signal_handler(int sig, siginfo_t *info, void *unused)
 }
 
 /*
- Call to set the kernel lease signal handler
-*/
+ * public function to get linux lease capability. Needed by some VFS modules (eg. gpfs.c)
+ */
+void linux_set_lease_capability(void)
+{
+	set_effective_capability(LEASE_CAPABILITY);
+}
+
+/* 
+ * Call to set the kernel lease signal handler
+ */
 int linux_set_lease_sighandler(int fd)
 {
         if (fcntl(fd, F_SETSIG, RT_SIGNAL_LEASE) == -1) {
@@ -121,21 +128,21 @@ static files_struct *linux_oplock_receive_message(fd_set *fds)
  Attempt to set an kernel oplock on a file.
 ****************************************************************************/
 
-static BOOL linux_set_kernel_oplock(files_struct *fsp, int oplock_type)
+static bool linux_set_kernel_oplock(files_struct *fsp, int oplock_type)
 {
-	if ( SMB_VFS_LINUX_SETLEASE(fsp,fsp->fh->fd, F_WRLCK) == -1) {
+	if ( SMB_VFS_LINUX_SETLEASE(fsp, F_WRLCK) == -1) {
 		DEBUG(3,("linux_set_kernel_oplock: Refused oplock on file %s, "
-			 "fd = %d, dev = %x, inode = %.0f. (%s)\n",
+			 "fd = %d, file_id = %s. (%s)\n",
 			 fsp->fsp_name, fsp->fh->fd, 
-			 (unsigned int)fsp->dev, (double)fsp->inode,
+			 file_id_string_tos(&fsp->file_id),
 			 strerror(errno)));
 		return False;
 	}
 	
 	DEBUG(3,("linux_set_kernel_oplock: got kernel oplock on file %s, "
-		 "dev = %x, inode = %.0f, file_id = %lu\n",
-		  fsp->fsp_name, (unsigned int)fsp->dev, (double)fsp->inode,
-		 fsp->fh->file_id));
+		 "file_id = %s gen_id = %lu\n",
+		 fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+		 fsp->fh->gen_id));
 
 	return True;
 }
@@ -152,23 +159,23 @@ static void linux_release_kernel_oplock(files_struct *fsp)
 		 * oplock state of this file.
 		 */
 		int state = fcntl(fsp->fh->fd, F_GETLEASE, 0);
-		dbgtext("linux_release_kernel_oplock: file %s, dev = %x, "
-			"inode = %.0f file_id = %lu has kernel oplock state "
-			"of %x.\n", fsp->fsp_name, (unsigned int)fsp->dev,
-                        (double)fsp->inode, fsp->fh->file_id, state );
+		dbgtext("linux_release_kernel_oplock: file %s, file_id = %s "
+			"gen_id = %lu has kernel oplock state "
+			"of %x.\n", fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+			fsp->fh->gen_id, state );
 	}
 
 	/*
 	 * Remove the kernel oplock on this file.
 	 */
-	if ( SMB_VFS_LINUX_SETLEASE(fsp,fsp->fh->fd, F_UNLCK) == -1) {
+	if ( SMB_VFS_LINUX_SETLEASE(fsp, F_UNLCK) == -1) {
 		if (DEBUGLVL(0)) {
 			dbgtext("linux_release_kernel_oplock: Error when "
 				"removing kernel oplock on file " );
-			dbgtext("%s, dev = %x, inode = %.0f, file_id = %lu. "
+			dbgtext("%s, file_id = %s, gen_id = %lu. "
 				"Error was %s\n", fsp->fsp_name,
-				(unsigned int)fsp->dev, (double)fsp->inode,
-				fsp->fh->file_id, strerror(errno) );
+				file_id_string_tos(&fsp->file_id),
+				fsp->fh->gen_id, strerror(errno) );
 		}
 	}
 }
@@ -177,7 +184,7 @@ static void linux_release_kernel_oplock(files_struct *fsp)
  See if a oplock message is waiting.
 ****************************************************************************/
 
-static BOOL linux_oplock_msg_waiting(fd_set *fds)
+static bool linux_oplock_msg_waiting(fd_set *fds)
 {
 	return signals_received != 0;
 }
@@ -186,7 +193,7 @@ static BOOL linux_oplock_msg_waiting(fd_set *fds)
  See if the kernel supports oplocks.
 ****************************************************************************/
 
-static BOOL linux_oplocks_available(void)
+static bool linux_oplocks_available(void)
 {
 	int fd, ret;
 	fd = open("/dev/null", O_RDONLY);

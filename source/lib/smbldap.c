@@ -9,7 +9,7 @@
     
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,8 +18,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -262,7 +261,7 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
  Search an attribute and return the first value found.
 ******************************************************************/
 
- BOOL smbldap_get_single_attribute (LDAP * ldap_struct, LDAPMessage * entry,
+ bool smbldap_get_single_attribute (LDAP * ldap_struct, LDAPMessage * entry,
 				    const char *attribute, char *value,
 				    int max_len)
 {
@@ -291,14 +290,6 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 	DEBUG (100, ("smbldap_get_single_attribute: [%s] = [%s]\n", attribute, value));
 #endif	
 	return True;
-}
-
- BOOL smbldap_get_single_pstring (LDAP * ldap_struct, LDAPMessage * entry,
-				  const char *attribute, pstring value)
-{
-	return smbldap_get_single_attribute(ldap_struct, entry,
-					    attribute, value, 
-					    sizeof(pstring));
 }
 
  char * smbldap_talloc_single_attribute(LDAP *ldap_struct, LDAPMessage *entry,
@@ -409,9 +400,8 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 	if (mods == NULL) {
 		mods = SMB_MALLOC_P(LDAPMod *);
 		if (mods == NULL) {
-			smb_panic("smbldap_set_mod: out of memory!\n");
+			smb_panic("smbldap_set_mod: out of memory!");
 			/* notreached. */
-			abort();
 		}
 		mods[0] = NULL;
 	}
@@ -424,15 +414,13 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 	if (mods[i] == NULL) {
 		mods = SMB_REALLOC_ARRAY (mods, LDAPMod *, i + 2);
 		if (mods == NULL) {
-			smb_panic("smbldap_set_mod: out of memory!\n");
+			smb_panic("smbldap_set_mod: out of memory!");
 			/* notreached. */
-			abort();
 		}
 		mods[i] = SMB_MALLOC_P(LDAPMod);
 		if (mods[i] == NULL) {
-			smb_panic("smbldap_set_mod: out of memory!\n");
+			smb_panic("smbldap_set_mod: out of memory!");
 			/* notreached. */
-			abort();
 		}
 		mods[i]->mod_op = modop;
 		mods[i]->mod_values = NULL;
@@ -450,15 +438,13 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 		mods[i]->mod_values = SMB_REALLOC_ARRAY(mods[i]->mod_values, char *, j + 2);
 					       
 		if (mods[i]->mod_values == NULL) {
-			smb_panic("smbldap_set_mod: out of memory!\n");
+			smb_panic("smbldap_set_mod: out of memory!");
 			/* notreached. */
-			abort();
 		}
 
 		if (push_utf8_allocate(&utf8_value, value) == (size_t)-1) {
-			smb_panic("smbldap_set_mod: String conversion failure!\n");
+			smb_panic("smbldap_set_mod: String conversion failure!");
 			/* notreached. */
-			abort();
 		}
 
 		mods[i]->mod_values[j] = utf8_value;
@@ -478,7 +464,7 @@ ATTRIB_MAP_ENTRY sidmap_attr_list[] = {
 		      const char *attribute, const char *newval)
 {
 	char oldval[2048]; /* current largest allowed value is mungeddial */
-	BOOL existed;
+	bool existed;
 
 	if (attribute == NULL) {
 		/* This can actually happen for ldapsam_compat where we for
@@ -684,9 +670,33 @@ int smb_ldap_setup_conn(LDAP **ldap_struct, const char *uri)
 			return LDAP_OPERATIONS_ERROR;
 #endif /* LDAP_OPT_X_TLS */
 		}
-
 	}
 #endif /* HAVE_LDAP_INITIALIZE */
+
+
+	/* now set connection timeout */
+#ifdef LDAP_X_OPT_CONNECT_TIMEOUT /* Netscape */
+	{
+		int ct = lp_ldap_connection_timeout()*1000;
+		rc = ldap_set_option(*ldap_struct, LDAP_X_OPT_CONNECT_TIMEOUT, &ct);
+		if (rc != LDAP_SUCCESS) {
+			DEBUG(0,("Failed to setup an ldap connection timeout %d: %s\n",
+				ct, ldap_err2string(rc)));
+		}
+	}
+#elif defined (LDAP_OPT_NETWORK_TIMEOUT) /* OpenLDAP */
+	{
+		struct timeval ct;
+		ct.tv_usec = 0;
+		ct.tv_sec = lp_ldap_connection_timeout();
+		rc = ldap_set_option(*ldap_struct, LDAP_OPT_NETWORK_TIMEOUT, &ct);
+		if (rc != LDAP_SUCCESS) {
+			DEBUG(0,("Failed to setup an ldap connection timeout %d: %s\n",
+				(int)ct.tv_sec, ldap_err2string(rc)));
+		}
+	}
+#endif
+
 	return LDAP_SUCCESS;
 }
 
@@ -1000,13 +1010,18 @@ static int smbldap_connect_system(struct smbldap_state *ldap_state, LDAP * ldap_
 	return rc;
 }
 
+static void smbldap_idle_fn(struct event_context *event_ctx,
+			    struct timed_event *te,
+			    const struct timeval *now,
+			    void *private_data);
+
 /**********************************************************************
  Connect to LDAP server (called before every ldap operation)
 *********************************************************************/
 static int smbldap_open(struct smbldap_state *ldap_state)
 {
 	int rc, opt_rc;
-	BOOL reopen = False;
+	bool reopen = False;
 	SMB_ASSERT(ldap_state);
 		
 #ifndef NO_LDAP_SECURITY
@@ -1062,6 +1077,16 @@ static int smbldap_open(struct smbldap_state *ldap_state)
 
 	ldap_state->last_ping = time(NULL);
 	ldap_state->pid = sys_getpid();
+
+	TALLOC_FREE(ldap_state->idle_event);
+
+	if (ldap_state->event_context != NULL) {
+		ldap_state->idle_event = event_add_timed(
+			ldap_state->event_context, NULL,
+			timeval_current_ofs(SMBLDAP_IDLE_TIME, 0),
+			"smbldap_idle_fn", smbldap_idle_fn, ldap_state);
+	}
+
 	DEBUG(4,("The LDAP server is successfully connected\n"));
 
 	return LDAP_SUCCESS;
@@ -1088,7 +1113,7 @@ static NTSTATUS smbldap_close(struct smbldap_state *ldap_state)
 	return NT_STATUS_OK;
 }
 
-static BOOL got_alarm;
+static bool got_alarm;
 
 static void (*old_handler)(int);
 
@@ -1285,7 +1310,7 @@ int smbldap_search_paged(struct smbldap_state *ldap_state,
 	BerElement 	*cookie_be = NULL;
 	struct berval 	*cookie_bv = NULL;
 	int		tmp = 0, i, rc;
-	BOOL 		critical = True;
+	bool 		critical = True;
 
 	*res = NULL;
 
@@ -1546,17 +1571,28 @@ int smbldap_search_suffix (struct smbldap_state *ldap_state,
 			      filter, search_attr, 0, result);
 }
 
-static void smbldap_idle_fn(void **data, time_t *interval, time_t now)
+static void smbldap_idle_fn(struct event_context *event_ctx,
+			    struct timed_event *te,
+			    const struct timeval *now,
+			    void *private_data)
 {
-	struct smbldap_state *state = (struct smbldap_state *)(*data);
+	struct smbldap_state *state = (struct smbldap_state *)private_data;
+
+	TALLOC_FREE(state->idle_event);
 
 	if (state->ldap_struct == NULL) {
 		DEBUG(10,("ldap connection not connected...\n"));
 		return;
 	}
 		
-	if ((state->last_use+SMBLDAP_IDLE_TIME) > now) {
+	if ((state->last_use+SMBLDAP_IDLE_TIME) > now->tv_sec) {
 		DEBUG(10,("ldap connection not idle...\n"));
+
+		state->idle_event = event_add_timed(
+			event_ctx, NULL,
+			timeval_add(now, SMBLDAP_IDLE_TIME, 0),
+			"smbldap_idle_fn", smbldap_idle_fn,
+			private_data);
 		return;
 	}
 		
@@ -1579,7 +1615,7 @@ void smbldap_free_struct(struct smbldap_state **ldap_state)
 	SAFE_FREE((*ldap_state)->bind_dn);
 	SAFE_FREE((*ldap_state)->bind_secret);
 
-	smb_unregister_idle_event((*ldap_state)->event_id);
+	TALLOC_FREE((*ldap_state)->idle_event);
 
 	*ldap_state = NULL;
 
@@ -1591,7 +1627,9 @@ void smbldap_free_struct(struct smbldap_state **ldap_state)
  Intitalise the 'general' ldap structures, on which ldap operations may be conducted
  *********************************************************************/
 
-NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx, const char *location, struct smbldap_state **smbldap_state) 
+NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx, struct event_context *event_ctx,
+		      const char *location,
+		      struct smbldap_state **smbldap_state)
 {
 	*smbldap_state = TALLOC_ZERO_P(mem_ctx, struct smbldap_state);
 	if (!*smbldap_state) {
@@ -1605,14 +1643,7 @@ NTSTATUS smbldap_init(TALLOC_CTX *mem_ctx, const char *location, struct smbldap_
 		(*smbldap_state)->uri = "ldap://localhost";
 	}
 
-	(*smbldap_state)->event_id =
-		smb_register_idle_event(smbldap_idle_fn, (void *)(*smbldap_state),
-					SMBLDAP_IDLE_TIME);
-
-	if ((*smbldap_state)->event_id == SMB_EVENT_ID_INVALID) {
-		DEBUG(0,("Failed to register LDAP idle event!\n"));
-		return NT_STATUS_INVALID_HANDLE;
-	}
+	(*smbldap_state)->event_context = event_ctx;
 
 	return NT_STATUS_OK;
 }
@@ -1660,13 +1691,13 @@ char *smbldap_get_dn(LDAP *ld, LDAPMessage *entry)
  Check if root-dse has a certain Control or Extension
 ********************************************************************/
 
-static BOOL smbldap_check_root_dse(LDAP *ld, const char **attrs, const char *value) 
+static bool smbldap_check_root_dse(LDAP *ld, const char **attrs, const char *value) 
 {
 	LDAPMessage *msg = NULL;
 	LDAPMessage *entry = NULL;
 	char **values = NULL;
 	int rc, num_result, num_values, i;
-	BOOL result = False;
+	bool result = False;
 
 	if (!attrs[0]) {
 		DEBUG(3,("smbldap_check_root_dse: nothing to look for\n"));
@@ -1736,7 +1767,7 @@ static BOOL smbldap_check_root_dse(LDAP *ld, const char **attrs, const char *val
  Check if LDAP-Server supports a certain Control (OID in string format)
 ********************************************************************/
 
-BOOL smbldap_has_control(LDAP *ld, const char *control)
+bool smbldap_has_control(LDAP *ld, const char *control)
 {
 	const char *attrs[] = { "supportedControl", NULL };
 	return smbldap_check_root_dse(ld, attrs, control);
@@ -1746,7 +1777,7 @@ BOOL smbldap_has_control(LDAP *ld, const char *control)
  Check if LDAP-Server supports a certain Extension (OID in string format)
 ********************************************************************/
 
-BOOL smbldap_has_extension(LDAP *ld, const char *extension)
+bool smbldap_has_extension(LDAP *ld, const char *extension)
 {
 	const char *attrs[] = { "supportedExtension", NULL };
 	return smbldap_check_root_dse(ld, attrs, extension);
@@ -1756,13 +1787,13 @@ BOOL smbldap_has_extension(LDAP *ld, const char *extension)
  Check if LDAP-Server holds a given namingContext
 ********************************************************************/
 
-BOOL smbldap_has_naming_context(LDAP *ld, const char *naming_context)
+bool smbldap_has_naming_context(LDAP *ld, const char *naming_context)
 {
 	const char *attrs[] = { "namingContexts", NULL };
 	return smbldap_check_root_dse(ld, attrs, naming_context);
 }
 
-BOOL smbldap_set_creds(struct smbldap_state *ldap_state, BOOL anon, const char *dn, const char *secret)
+bool smbldap_set_creds(struct smbldap_state *ldap_state, bool anon, const char *dn, const char *secret)
 {
 	ldap_state->anonymous = anon;
 

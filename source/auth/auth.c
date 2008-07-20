@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -79,7 +78,7 @@ static struct auth_init_function_entry *auth_find_backend_entry(const char *name
 
 static const uint8 *get_ntlm_challenge(struct auth_context *auth_context) 
 {
-	DATA_BLOB challenge = data_blob(NULL, 0);
+	DATA_BLOB challenge = data_blob_null;
 	const char *challenge_set_by = NULL;
 	auth_methods *auth_method;
 	TALLOC_CTX *mem_ctx;
@@ -136,7 +135,7 @@ static const uint8 *get_ntlm_challenge(struct auth_context *auth_context)
 	
 	DEBUG(5, ("auth_context challenge created by %s\n", challenge_set_by));
 	DEBUG(5, ("challenge is: \n"));
-	dump_data(5, (const char *)auth_context->challenge.data, auth_context->challenge.length);
+	dump_data(5, auth_context->challenge.data, auth_context->challenge.length);
 	
 	SMB_ASSERT(auth_context->challenge.length == 8);
 
@@ -157,7 +156,7 @@ static const uint8 *get_ntlm_challenge(struct auth_context *auth_context)
  *         False otherwise.
 **/
 
-static BOOL check_domain_match(const char *user, const char *domain) 
+static bool check_domain_match(const char *user, const char *domain) 
 {
 	/*
 	 * If we aren't serving to trusted domains, we must make sure that
@@ -233,15 +232,15 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 					auth_context->challenge_set_by));
 
 	DEBUG(10, ("challenge is: \n"));
-	dump_data(5, (const char *)auth_context->challenge.data, auth_context->challenge.length);
+	dump_data(5, auth_context->challenge.data, auth_context->challenge.length);
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100, ("user_info has passwords of length %d and %d\n", 
 		    (int)user_info->lm_resp.length, (int)user_info->nt_resp.length));
 	DEBUG(100, ("lm:\n"));
-	dump_data(100, (const char *)user_info->lm_resp.data, user_info->lm_resp.length);
+	dump_data(100, user_info->lm_resp.data, user_info->lm_resp.length);
 	DEBUG(100, ("nt:\n"));
-	dump_data(100, (const char *)user_info->nt_resp.data, user_info->nt_resp.length);
+	dump_data(100, user_info->nt_resp.data, user_info->nt_resp.length);
 #endif
 
 	/* This needs to be sorted:  If it doesn't match, what should we do? */
@@ -333,10 +332,7 @@ static void free_auth_context(struct auth_context **auth_context)
 	if (*auth_context) {
 		/* Free private data of context's authentication methods */
 		for (auth_method = (*auth_context)->auth_method_list; auth_method; auth_method = auth_method->next) {
-			if (auth_method->free_private_data) {
-				auth_method->free_private_data (&auth_method->private_data);
-				auth_method->private_data = NULL;
-			}
+			TALLOC_FREE(auth_method->private_data);
 		}
 
 		talloc_destroy((*auth_context)->mem_ctx);
@@ -370,16 +366,16 @@ static NTSTATUS make_auth_context(struct auth_context **auth_context)
 	return NT_STATUS_OK;
 }
 
-BOOL load_auth_module(struct auth_context *auth_context, 
+bool load_auth_module(struct auth_context *auth_context, 
 		      const char *module, auth_methods **ret) 
 {
-	static BOOL initialised_static_modules = False;
+	static bool initialised_static_modules = False;
 
 	struct auth_init_function_entry *entry;
 	char *module_name = smb_xstrdup(module);
 	char *module_params = NULL;
 	char *p;
-	BOOL good = False;
+	bool good = False;
 
 	/* Initialise static modules if not done so yet */
 	if(!initialised_static_modules) {
@@ -462,7 +458,9 @@ NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context)
 	char **auth_method_list = NULL; 
 	NTSTATUS nt_status;
 
-	if (lp_auth_methods() && !str_list_copy(&auth_method_list, lp_auth_methods())) {
+	if (lp_auth_methods()
+	    && !str_list_copy(talloc_tos(), &auth_method_list,
+			      lp_auth_methods())) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -471,38 +469,52 @@ NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context)
 		{
 		case SEC_DOMAIN:
 			DEBUG(5,("Making default auth method list for security=domain\n"));
-			auth_method_list = str_list_make("guest sam winbind:ntdomain", NULL);
+			auth_method_list = str_list_make(
+				talloc_tos(), "guest sam winbind:ntdomain",
+				NULL);
 			break;
 		case SEC_SERVER:
 			DEBUG(5,("Making default auth method list for security=server\n"));
-			auth_method_list = str_list_make("guest sam smbserver", NULL);
+			auth_method_list = str_list_make(
+				talloc_tos(), "guest sam smbserver",
+				NULL);
 			break;
 		case SEC_USER:
 			if (lp_encrypted_passwords()) {	
 				if ((lp_server_role() == ROLE_DOMAIN_PDC) || (lp_server_role() == ROLE_DOMAIN_BDC)) {
 					DEBUG(5,("Making default auth method list for DC, security=user, encrypt passwords = yes\n"));
-					auth_method_list = str_list_make("guest sam winbind:trustdomain", NULL);
+					auth_method_list = str_list_make(
+						talloc_tos(),
+						"guest sam winbind:trustdomain",
+						NULL);
 				} else {
 					DEBUG(5,("Making default auth method list for standalone security=user, encrypt passwords = yes\n"));
-					auth_method_list = str_list_make("guest sam", NULL);
+					auth_method_list = str_list_make(
+						talloc_tos(), "guest sam",
+						NULL);
 				}
 			} else {
 				DEBUG(5,("Making default auth method list for security=user, encrypt passwords = no\n"));
-				auth_method_list = str_list_make("guest unix", NULL);
+				auth_method_list = str_list_make(
+					talloc_tos(), "guest unix", NULL);
 			}
 			break;
 		case SEC_SHARE:
 			if (lp_encrypted_passwords()) {
 				DEBUG(5,("Making default auth method list for security=share, encrypt passwords = yes\n"));
-				auth_method_list = str_list_make("guest sam", NULL);
+				auth_method_list = str_list_make(
+					talloc_tos(), "guest sam", NULL);
 			} else {
 				DEBUG(5,("Making default auth method list for security=share, encrypt passwords = no\n"));
-				auth_method_list = str_list_make("guest unix", NULL);
+				auth_method_list = str_list_make(
+					talloc_tos(), "guest unix", NULL);
 			}
 			break;
 		case SEC_ADS:
 			DEBUG(5,("Making default auth method list for security=ADS\n"));
-			auth_method_list = str_list_make("guest sam winbind:ntdomain", NULL);
+			auth_method_list = str_list_make(
+				talloc_tos(), "guest sam winbind:ntdomain",
+				NULL);
 			break;
 		default:
 			DEBUG(5,("Unknown auth method!\n"));
@@ -512,12 +524,10 @@ NTSTATUS make_auth_context_subsystem(struct auth_context **auth_context)
 		DEBUG(5,("Using specified auth order\n"));
 	}
 	
-	if (!NT_STATUS_IS_OK(nt_status = make_auth_context_text_list(auth_context, auth_method_list))) {
-		str_list_free(&auth_method_list);
-		return nt_status;
-	}
-	
-	str_list_free(&auth_method_list);
+	nt_status = make_auth_context_text_list(auth_context,
+						auth_method_list);
+
+	TALLOC_FREE(auth_method_list);
 	return nt_status;
 }
 

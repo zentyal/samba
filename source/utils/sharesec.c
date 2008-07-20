@@ -9,7 +9,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -18,8 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -65,7 +64,7 @@ static void print_ace(FILE *f, SEC_ACE *ace)
 	int do_print = 0;
 	uint32 got_mask;
 
-	fprintf(f, "%s:", sid_string_static(&ace->trustee));
+	fprintf(f, "%s:", sid_string_tos(&ace->trustee));
 
 	/* Ace type */
 
@@ -127,9 +126,9 @@ static void sec_desc_print(FILE *f, SEC_DESC *sd)
 
 	/* Print owner and group sid */
 
-	fprintf(f, "OWNER:%s\n", sid_string_static(sd->owner_sid));
+	fprintf(f, "OWNER:%s\n", sid_string_tos(sd->owner_sid));
 
-	fprintf(f, "GROUP:%s\n", sid_string_static(sd->group_sid));
+	fprintf(f, "GROUP:%s\n", sid_string_tos(sd->group_sid));
 
 	/* Print aces */
 	for (i = 0; sd->dacl && i < sd->dacl->num_aces; i++) {
@@ -145,11 +144,11 @@ static void sec_desc_print(FILE *f, SEC_DESC *sd)
     parse an ACE in the same format as print_ace()
 ********************************************************************/
 
-static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
+static bool parse_ace(SEC_ACE *ace, const char *orig_str)
 {
 	char *p;
 	const char *cp;
-	fstring tok;
+	char *tok;
 	unsigned int atype = 0;
 	unsigned int aflags = 0;
 	unsigned int amask = 0;
@@ -157,8 +156,10 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 	SEC_ACCESS mask;
 	const struct perm_value *v;
 	char *str = SMB_STRDUP(orig_str);
+	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (!str) {
+		TALLOC_FREE(frame);
 		return False;
 	}
 
@@ -167,6 +168,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 	if (!p) {
 		printf("ACE '%s': missing ':'.\n", orig_str);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 	*p = '\0';
@@ -184,14 +186,16 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 		printf("ACE '%s': failed to convert '%s' to SID\n",
 			orig_str, str);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 
 	cp = p;
-	if (!next_token(&cp, tok, "/", sizeof(fstring))) {
+	if (!next_token_talloc(frame, &cp, &tok, "/")) {
 		printf("ACE '%s': failed to find '/' character.\n",
 			orig_str);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 
@@ -203,24 +207,27 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 		printf("ACE '%s': missing 'ALLOWED' or 'DENIED' entry at '%s'\n",
 			orig_str, tok);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 
 	/* Only numeric form accepted for flags at present */
 	/* no flags on share permissions */
 
-	if (!(next_token(&cp, tok, "/", sizeof(fstring)) &&
+	if (!(next_token_talloc(frame, &cp, &tok, "/") &&
 	      sscanf(tok, "%i", &aflags) && aflags == 0)) {
 		printf("ACE '%s': bad integer flags entry at '%s'\n",
 			orig_str, tok);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 
-	if (!next_token(&cp, tok, "/", sizeof(fstring))) {
+	if (!next_token_talloc(frame, &cp, &tok, "/")) {
 		printf("ACE '%s': missing / at '%s'\n",
 			orig_str, tok);
 		SAFE_FREE(str);
+		TALLOC_FREE(frame);
 		return False;
 	}
 
@@ -228,6 +235,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 		if (sscanf(tok, "%i", &amask) != 1) {
 			printf("ACE '%s': bad hex number at '%s'\n",
 				orig_str, tok);
+			TALLOC_FREE(frame);
 			SAFE_FREE(str);
 			return False;
 		}
@@ -244,7 +252,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 	p = tok;
 
 	while(*p) {
-		BOOL found = False;
+		bool found = False;
 
 		for (v = special_values; v->perm; v++) {
 			if (v->perm[0] == *p) {
@@ -256,6 +264,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 		if (!found) {
 			printf("ACE '%s': bad permission value at '%s'\n",
 				orig_str, p);
+			TALLOC_FREE(frame);
 			SAFE_FREE(str);
 		 	return False;
 		}
@@ -263,6 +272,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 	}
 
 	if (*p) {
+		TALLOC_FREE(frame);
 		SAFE_FREE(str);
 		return False;
 	}
@@ -271,6 +281,7 @@ static BOOL parse_ace(SEC_ACE *ace, const char *orig_str)
 	mask = amask;
 	init_sec_ace(ace, &sid, atype, mask, aflags);
 	SAFE_FREE(str);
+	TALLOC_FREE(frame);
 	return True;
 }
 
@@ -320,7 +331,7 @@ static SEC_DESC* parse_acl_string(TALLOC_CTX *mem_ctx, const char *szACL, size_t
 }
 
 /* add an ACE to a list of ACEs in a SEC_ACL */
-static BOOL add_ace(TALLOC_CTX *mem_ctx, SEC_ACL **the_acl, SEC_ACE *ace)
+static bool add_ace(TALLOC_CTX *mem_ctx, SEC_ACL **the_acl, SEC_ACE *ace)
 {
 	SEC_ACL *new_ace;
 	SEC_ACE *aces;
@@ -413,7 +424,7 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		return 0;
 	case SMB_ACL_DELETE:
 	    for (i=0;sd->dacl && i<sd->dacl->num_aces;i++) {
-		BOOL found = False;
+		bool found = False;
 
 		for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
 		    if (sec_ace_equal(&sd->dacl->aces[i], &old->dacl->aces[j])) {
@@ -437,7 +448,7 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 	    break;
 	case SMB_ACL_MODIFY:
 	    for (i=0;sd->dacl && i<sd->dacl->num_aces;i++) {
-		BOOL found = False;
+		bool found = False;
 
 		for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
 		    if (sid_equal(&sd->dacl->aces[i].trustee,
@@ -448,7 +459,8 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		}
 
 		if (!found) {
-		    printf("ACL for SID %s not found\n", sid_string_static(&sd->dacl->aces[i].trustee));
+		    printf("ACL for SID %s not found\n",
+			   sid_string_tos(&sd->dacl->aces[i].trustee));
 		}
 	    }
 
@@ -491,10 +503,10 @@ int main(int argc, const char *argv[])
 	enum acl_mode mode = SMB_ACL_SET;
 	static char *the_acl = NULL;
 	fstring sharename;
-	BOOL force_acl = False;
+	bool force_acl = False;
 	int snum;
 	poptContext pc;
-	BOOL initialize_sid = False;
+	bool initialize_sid = False;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 		{ "remove", 'r', POPT_ARG_STRING, &the_acl, 'r', "Delete an ACE", "ACL" },
@@ -508,7 +520,7 @@ int main(int argc, const char *argv[])
 		{ NULL }
 	};
 
-	if ( !(ctx = talloc_init("main")) ) {
+	if ( !(ctx = talloc_stackframe()) ) {
 		fprintf( stderr, "Failed to initialize talloc context!\n");
 		return -1;
 	}
@@ -562,7 +574,7 @@ int main(int argc, const char *argv[])
 
 	load_case_tables();
 
-	lp_load( dyn_CONFIGFILE, False, False, False, True );
+	lp_load( get_dyn_CONFIGFILE(), False, False, False, True );
 
 	/* check for initializing secrets.tdb first */
 	
@@ -574,7 +586,7 @@ int main(int argc, const char *argv[])
 			return 3;
 		}
 		
-		printf ("%s\n", sid_string_static( sid ) );
+		printf ("%s\n", sid_string_tos( sid ) );
 		return 0;
 	}
 

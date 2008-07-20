@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -49,25 +48,26 @@ struct ClearToken {
 	uint32 EndTimestamp;
 };
 
-static BOOL afs_decode_token(const char *string, char **cell,
+static bool afs_decode_token(const char *string, char **cell,
 			     DATA_BLOB *ticket, struct ClearToken *ct)
 {
 	DATA_BLOB blob;
 	struct ClearToken result_ct;
+	char *saveptr;
 
 	char *s = SMB_STRDUP(string);
 
 	char *t;
 
-	if ((t = strtok(s, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(s, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
 	*cell = SMB_STRDUP(t);
 
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -76,8 +76,8 @@ static BOOL afs_decode_token(const char *string, char **cell,
 		return False;
 	}
 		
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -94,8 +94,8 @@ static BOOL afs_decode_token(const char *string, char **cell,
 
 	data_blob_free(&blob);
 
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -104,8 +104,8 @@ static BOOL afs_decode_token(const char *string, char **cell,
 		return False;
 	}
 		
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -114,8 +114,8 @@ static BOOL afs_decode_token(const char *string, char **cell,
 		return False;
 	}
 		
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -124,8 +124,8 @@ static BOOL afs_decode_token(const char *string, char **cell,
 		return False;
 	}
 		
-	if ((t = strtok(NULL, "\n")) == NULL) {
-		DEBUG(10, ("strtok failed\n"));
+	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
+		DEBUG(10, ("strtok_r failed\n"));
 		return False;
 	}
 
@@ -152,7 +152,7 @@ static BOOL afs_decode_token(const char *string, char **cell,
   to avoid. 
 */
 
-static BOOL afs_settoken(const char *cell,
+static bool afs_settoken(const char *cell,
 			 const struct ClearToken *ctok,
 			 DATA_BLOB ticket)
 {
@@ -208,11 +208,11 @@ static BOOL afs_settoken(const char *cell,
 	return (ret == 0);
 }
 
-BOOL afs_settoken_str(const char *token_string)
+bool afs_settoken_str(const char *token_string)
 {
 	DATA_BLOB ticket;
 	struct ClearToken ct;
-	BOOL result;
+	bool result;
 	char *cell;
 
 	if (!afs_decode_token(token_string, &cell, &ticket, &ct))
@@ -231,7 +231,7 @@ BOOL afs_settoken_str(const char *token_string)
 
 #else
 
-BOOL afs_settoken_str(const char *token_string)
+bool afs_settoken_str(const char *token_string)
 {
 	return False;
 }

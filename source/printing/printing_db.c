@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -34,8 +33,8 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 {
 	struct tdb_print_db *p = NULL, *last_entry = NULL;
 	int num_open = 0;
-	pstring printdb_path;
-	BOOL done_become_root = False;
+	char *printdb_path = NULL;
+	bool done_become_root = False;
 
 	SMB_ASSERT(printername != NULL);
 
@@ -79,7 +78,7 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 			p = print_db_head;
 		}
 	}
-       
+
 	if (!p)	{
 		/* Create one. */
 		p = SMB_MALLOC_P(struct tdb_print_db);
@@ -91,9 +90,13 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 		DLIST_ADD(print_db_head, p);
 	}
 
-	pstrcpy(printdb_path, lock_path("printing/"));
-	pstrcat(printdb_path, printername);
-	pstrcat(printdb_path, ".tdb");
+	if (asprintf(&printdb_path, "%s%s.tdb",
+				lock_path("printing/"),
+				printername) < 0) {
+		DLIST_REMOVE(print_db_head, p);
+		SAFE_FREE(p);
+		return NULL;
+	}
 
 	if (geteuid() != 0) {
 		become_root();
@@ -110,9 +113,11 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 		DEBUG(0,("get_print_db: Failed to open printer backend database %s.\n",
 					printdb_path ));
 		DLIST_REMOVE(print_db_head, p);
+		SAFE_FREE(printdb_path);
 		SAFE_FREE(p);
 		return NULL;
 	}
+	SAFE_FREE(printdb_path);
 	fstrcpy(p->printer_name, printername);
 	p->ref_count++;
 	return p;
@@ -153,7 +158,7 @@ void close_all_print_db(void)
  messages. data needs freeing on exit.
 ****************************************************************************/
 
-TDB_DATA get_printer_notify_pid_list(TDB_CONTEXT *tdb, const char *printer_name, BOOL cleanlist)
+TDB_DATA get_printer_notify_pid_list(TDB_CONTEXT *tdb, const char *printer_name, bool cleanlist)
 {
 	TDB_DATA data;
 	size_t i;

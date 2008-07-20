@@ -10,7 +10,7 @@
       
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -19,14 +19,14 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
 /*
- * Some useful sids
+ * Some useful sids, more well known sids can be found at
+ * http://support.microsoft.com/kb/243330/EN-US/
  */
 
 
@@ -44,6 +44,11 @@ const DOM_SID global_sid_NULL =            		/* NULL sid */
 { 1, 1, {0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
 const DOM_SID global_sid_Authenticated_Users =	/* All authenticated rids */
 { 1, 1, {0,0,0,0,0,5}, {11,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
+#if 0
+/* for documentation */
+const DOM_SID global_sid_Restriced =			/* Restriced Code */
+{ 1, 1, {0,0,0,0,0,5}, {12,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
+#endif
 const DOM_SID global_sid_Network =			/* Network rids */
 { 1, 1, {0,0,0,0,0,5}, {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
 
@@ -167,52 +172,52 @@ const char *get_global_sam_name(void)
  Convert a SID to an ascii string.
 *****************************************************************/
 
-char *sid_to_string(fstring sidstr_out, const DOM_SID *sid)
+char *sid_to_fstring(fstring sidstr_out, const DOM_SID *sid)
 {
-	char subauth[16];
-	int i;
-	uint32 ia;
-  
-	if (!sid) {
-		fstrcpy(sidstr_out, "(NULL SID)");
-		return sidstr_out;
-	}
-
-	/*
-	 * BIG NOTE: this function only does SIDS where the identauth is not >= 2^32 
-	 * in a range of 2^48.
-	 */
-	ia = (sid->id_auth[5]) +
-		(sid->id_auth[4] << 8 ) +
-		(sid->id_auth[3] << 16) +
-		(sid->id_auth[2] << 24);
-
-	slprintf(sidstr_out, sizeof(fstring) - 1, "S-%u-%lu", (unsigned int)sid->sid_rev_num, (unsigned long)ia);
-
-	for (i = 0; i < sid->num_auths; i++) {
-		slprintf(subauth, sizeof(subauth)-1, "-%lu", (unsigned long)sid->sub_auths[i]);
-		fstrcat(sidstr_out, subauth);
-	}
-
+	char *str = sid_string_talloc(talloc_tos(), sid);
+	fstrcpy(sidstr_out, str);
+	TALLOC_FREE(str);
 	return sidstr_out;
 }
 
 /*****************************************************************
- Useful function for debug lines.
-*****************************************************************/  
+ Essentially a renamed dom_sid_string from librpc/ndr with a
+ panic if it didn't work
 
-const char *sid_string_static(const DOM_SID *sid)
+ This introduces a dependency on librpc/ndr/sid.o which can easily
+ be turned around if necessary
+*****************************************************************/
+
+char *sid_string_talloc(TALLOC_CTX *mem_ctx, const DOM_SID *sid)
 {
-	static fstring sid_str;
-	sid_to_string(sid_str, sid);
-	return sid_str;
+	char *result = dom_sid_string(mem_ctx, sid);
+	SMB_ASSERT(result != NULL);
+	return result;
+}
+
+/*****************************************************************
+ Useful function for debug lines.
+*****************************************************************/
+
+char *sid_string_dbg(const DOM_SID *sid)
+{
+	return sid_string_talloc(debug_ctx(), sid);
+}
+
+/*****************************************************************
+ Use with care!
+*****************************************************************/
+
+char *sid_string_tos(const DOM_SID *sid)
+{
+	return sid_string_talloc(talloc_tos(), sid);
 }
 
 /*****************************************************************
  Convert a string to a SID. Returns True on success, False on fail.
 *****************************************************************/  
    
-BOOL string_to_sid(DOM_SID *sidout, const char *sidstr)
+bool string_to_sid(DOM_SID *sidout, const char *sidstr)
 {
 	const char *p;
 	char *q;
@@ -283,7 +288,7 @@ DOM_SID *string_sid_talloc(TALLOC_CTX *mem_ctx, const char *sidstr)
  Add a rid to the end of a sid
 *****************************************************************/  
 
-BOOL sid_append_rid(DOM_SID *sid, uint32 rid)
+bool sid_append_rid(DOM_SID *sid, uint32 rid)
 {
 	if (sid->num_auths < MAXSUBAUTHS) {
 		sid->sub_auths[sid->num_auths++] = rid;
@@ -292,7 +297,7 @@ BOOL sid_append_rid(DOM_SID *sid, uint32 rid)
 	return False;
 }
 
-BOOL sid_compose(DOM_SID *dst, const DOM_SID *domain_sid, uint32 rid)
+bool sid_compose(DOM_SID *dst, const DOM_SID *domain_sid, uint32 rid)
 {
 	sid_copy(dst, domain_sid);
 	return sid_append_rid(dst, rid);
@@ -302,7 +307,7 @@ BOOL sid_compose(DOM_SID *dst, const DOM_SID *domain_sid, uint32 rid)
  Removes the last rid from the end of a sid
 *****************************************************************/  
 
-BOOL sid_split_rid(DOM_SID *sid, uint32 *rid)
+bool sid_split_rid(DOM_SID *sid, uint32 *rid)
 {
 	if (sid->num_auths > 0) {
 		sid->num_auths--;
@@ -316,7 +321,7 @@ BOOL sid_split_rid(DOM_SID *sid, uint32 *rid)
  Return the last rid from the end of a sid
 *****************************************************************/  
 
-BOOL sid_peek_rid(const DOM_SID *sid, uint32 *rid)
+bool sid_peek_rid(const DOM_SID *sid, uint32 *rid)
 {
 	if (!sid || !rid)
 		return False;		
@@ -333,7 +338,7 @@ BOOL sid_peek_rid(const DOM_SID *sid, uint32 *rid)
  and check the sid against the exp_dom_sid  
 *****************************************************************/  
 
-BOOL sid_peek_check_rid(const DOM_SID *exp_dom_sid, const DOM_SID *sid, uint32 *rid)
+bool sid_peek_check_rid(const DOM_SID *exp_dom_sid, const DOM_SID *sid, uint32 *rid)
 {
 	if (!exp_dom_sid || !sid || !rid)
 		return False;
@@ -373,11 +378,11 @@ void sid_copy(DOM_SID *dst, const DOM_SID *src)
  Write a sid out into on-the-wire format.
 *****************************************************************/  
 
-BOOL sid_linearize(char *outbuf, size_t len, const DOM_SID *sid)
+bool sid_linearize(char *outbuf, size_t len, const DOM_SID *sid)
 {
 	size_t i;
 
-	if (len < sid_size(sid))
+	if (len < ndr_size_dom_sid(sid, 0))
 		return False;
 
 	SCVAL(outbuf,0,sid->sid_rev_num);
@@ -393,7 +398,7 @@ BOOL sid_linearize(char *outbuf, size_t len, const DOM_SID *sid)
  Parse a on-the-wire SID to a DOM_SID.
 *****************************************************************/  
 
-BOOL sid_parse(const char *inbuf, size_t len, DOM_SID *sid)
+bool sid_parse(const char *inbuf, size_t len, DOM_SID *sid)
 {
 	int i;
 	if (len < 8)
@@ -484,28 +489,16 @@ int sid_compare_domain(const DOM_SID *sid1, const DOM_SID *sid2)
  Compare two sids.
 *****************************************************************/  
 
-BOOL sid_equal(const DOM_SID *sid1, const DOM_SID *sid2)
+bool sid_equal(const DOM_SID *sid1, const DOM_SID *sid2)
 {
 	return sid_compare(sid1, sid2) == 0;
-}
-
-/*****************************************************************
- Calculates size of a sid.
-*****************************************************************/  
-
-size_t sid_size(const DOM_SID *sid)
-{
-	if (sid == NULL)
-		return 0;
-
-	return sid->num_auths * sizeof(uint32) + 8;
 }
 
 /*****************************************************************
  Returns true if SID is internal (and non-mappable).
 *****************************************************************/
 
-BOOL non_mappable_sid(DOM_SID *sid)
+bool non_mappable_sid(DOM_SID *sid)
 {
 	DOM_SID dom;
 	uint32 rid;
@@ -530,7 +523,7 @@ BOOL non_mappable_sid(DOM_SID *sid)
 char *sid_binstring(const DOM_SID *sid)
 {
 	char *buf, *s;
-	int len = sid_size(sid);
+	int len = ndr_size_dom_sid(sid, 0);
 	buf = (char *)SMB_MALLOC(len);
 	if (!buf)
 		return NULL;
@@ -548,7 +541,7 @@ char *sid_binstring(const DOM_SID *sid)
 char *sid_binstring_hex(const DOM_SID *sid)
 {
 	char *buf, *s;
-	int len = sid_size(sid);
+	int len = ndr_size_dom_sid(sid, 0);
 	buf = (char *)SMB_MALLOC(len);
 	if (!buf)
 		return NULL;
@@ -580,20 +573,20 @@ DOM_SID *sid_dup_talloc(TALLOC_CTX *ctx, const DOM_SID *src)
  Add SID to an array SIDs
 ********************************************************************/
 
-BOOL add_sid_to_array(TALLOC_CTX *mem_ctx, const DOM_SID *sid, 
-		      DOM_SID **sids, size_t *num)
+NTSTATUS add_sid_to_array(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
+			  DOM_SID **sids, size_t *num)
 {
 	*sids = TALLOC_REALLOC_ARRAY(mem_ctx, *sids, DOM_SID,
 					     (*num)+1);
 	if (*sids == NULL) {
 		*num = 0;
-		return False;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	sid_copy(&((*sids)[*num]), sid);
 	*num += 1;
 
-	return True;
+	return NT_STATUS_OK;
 }
 
 
@@ -601,14 +594,14 @@ BOOL add_sid_to_array(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
  Add SID to an array SIDs ensuring that it is not already there
 ********************************************************************/
 
-BOOL add_sid_to_array_unique(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
-			     DOM_SID **sids, size_t *num_sids)
+NTSTATUS add_sid_to_array_unique(TALLOC_CTX *mem_ctx, const DOM_SID *sid,
+				 DOM_SID **sids, size_t *num_sids)
 {
 	size_t i;
 
 	for (i=0; i<(*num_sids); i++) {
 		if (sid_compare(sid, &(*sids)[i]) == 0)
-			return True;
+			return NT_STATUS_OK;
 	}
 
 	return add_sid_to_array(mem_ctx, sid, sids, num_sids);
@@ -643,7 +636,7 @@ void del_sid_from_array(const DOM_SID *sid, DOM_SID **sids, size_t *num)
 	return;
 }
 
-BOOL add_rid_to_array_unique(TALLOC_CTX *mem_ctx,
+bool add_rid_to_array_unique(TALLOC_CTX *mem_ctx,
 				    uint32 rid, uint32 **pp_rids, size_t *p_num)
 {
 	size_t i;
@@ -665,8 +658,94 @@ BOOL add_rid_to_array_unique(TALLOC_CTX *mem_ctx,
 	return True;
 }
 
-BOOL is_null_sid(const DOM_SID *sid)
+bool is_null_sid(const DOM_SID *sid)
 {
 	static const DOM_SID null_sid = {0};
 	return sid_equal(sid, &null_sid);
+}
+
+NTSTATUS sid_array_from_info3(TALLOC_CTX *mem_ctx,
+			      const struct netr_SamInfo3 *info3,
+			      DOM_SID **user_sids,
+			      size_t *num_user_sids,
+			      bool include_user_group_rid,
+			      bool skip_ressource_groups)
+{
+	NTSTATUS status;
+	DOM_SID sid;
+	DOM_SID *sid_array = NULL;
+	size_t num_sids = 0;
+	int i;
+
+	if (include_user_group_rid) {
+
+		if (!sid_compose(&sid, info3->base.domain_sid, info3->base.rid))
+		{
+			DEBUG(3, ("could not compose user SID from rid 0x%x\n",
+				  info3->base.rid));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+		status = add_sid_to_array(mem_ctx, &sid, &sid_array, &num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(3, ("could not append user SID from rid 0x%x\n",
+				  info3->base.rid));
+			return status;
+		}
+
+		if (!sid_compose(&sid, info3->base.domain_sid, info3->base.primary_gid))
+		{
+			DEBUG(3, ("could not compose group SID from rid 0x%x\n",
+				  info3->base.primary_gid));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+		status = add_sid_to_array(mem_ctx, &sid, &sid_array, &num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(3, ("could not append group SID from rid 0x%x\n",
+				  info3->base.rid));
+			return status;
+		}
+	}
+
+	for (i = 0; i < info3->base.groups.count; i++) {
+		if (!sid_compose(&sid, info3->base.domain_sid,
+				 info3->base.groups.rids[i].rid))
+		{
+			DEBUG(3, ("could not compose SID from additional group "
+				  "rid 0x%x\n", info3->base.groups.rids[i].rid));
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+		status = add_sid_to_array(mem_ctx, &sid, &sid_array, &num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(3, ("could not append SID from additional group "
+				  "rid 0x%x\n", info3->base.groups.rids[i].rid));
+			return status;
+		}
+	}
+
+	/* Copy 'other' sids.  We need to do sid filtering here to
+ 	   prevent possible elevation of privileges.  See:
+
+           http://www.microsoft.com/windows2000/techinfo/administration/security/sidfilter.asp
+         */
+
+	for (i = 0; i < info3->sidcount; i++) {
+
+		if (skip_ressource_groups &&
+		    (info3->sids[i].attributes & SE_GROUP_RESOURCE)) {
+			continue;
+		}
+
+		status = add_sid_to_array(mem_ctx, info3->sids[i].sid,
+				      &sid_array, &num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(3, ("could not add SID to array: %s\n",
+				  sid_string_dbg(info3->sids[i].sid)));
+			return status;
+		}
+	}
+
+	*user_sids = sid_array;
+	*num_user_sids = num_sids;
+
+	return NT_STATUS_OK;
 }

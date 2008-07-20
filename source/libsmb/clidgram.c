@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -26,26 +25,30 @@
  * cli_send_mailslot, send a mailslot for client code ...
  */
 
-BOOL cli_send_mailslot(BOOL unique, const char *mailslot,
+bool cli_send_mailslot(struct messaging_context *msg_ctx,
+		       bool unique, const char *mailslot,
 		       uint16 priority,
 		       char *buf, int len,
-		       const char *srcname, int src_type, 
+		       const char *srcname, int src_type,
 		       const char *dstname, int dest_type,
-		       struct in_addr dest_ip)
+		       const struct sockaddr_storage *dest_ss)
 {
 	struct packet_struct p;
 	struct dgram_packet *dgram = &p.packet.dgram;
 	char *ptr, *p2;
 	char tmp[4];
 	pid_t nmbd_pid;
+	char addr[INET6_ADDRSTRLEN];
 
 	if ((nmbd_pid = pidfile_pid("nmbd")) == 0) {
 		DEBUG(3, ("No nmbd found\n"));
 		return False;
 	}
 
-	if (!message_init())
-		return False;
+	if (dest_ss->ss_family != AF_INET) {
+		DEBUG(3, ("cli_send_mailslot: can't send to IPv6 address.\n"));
+		return false;
+	}
 
 	memset((char *)&p, '\0', sizeof(p));
 
@@ -54,7 +57,7 @@ BOOL cli_send_mailslot(BOOL unique, const char *mailslot,
 	 */
 
 	/* DIRECT GROUP or UNIQUE datagram. */
-	dgram->header.msg_type = unique ? 0x10 : 0x11; 
+	dgram->header.msg_type = unique ? 0x10 : 0x11;
 	dgram->header.flags.node_type = M_NODE;
 	dgram->header.flags.first = True;
 	dgram->header.flags.more = False;
@@ -63,7 +66,7 @@ BOOL cli_send_mailslot(BOOL unique, const char *mailslot,
 	/* source ip is filled by nmbd */
 	dgram->header.dgm_length = 0; /* Let build_dgram() handle this. */
 	dgram->header.packet_offset = 0;
-  
+
 	make_nmb_name(&dgram->source_name,srcname,src_type);
 	make_nmb_name(&dgram->dest_name,dstname,dest_type);
 
@@ -78,7 +81,7 @@ BOOL cli_send_mailslot(BOOL unique, const char *mailslot,
 		return False;
 	}
 
-	set_message(ptr,17,strlen(mailslot) + 1 + len,True);
+	cli_set_message(ptr,17,strlen(mailslot) + 1 + len,True);
 	memcpy(ptr,tmp,4);
 
 	SCVAL(ptr,smb_com,SMBtrans);
@@ -102,104 +105,253 @@ BOOL cli_send_mailslot(BOOL unique, const char *mailslot,
 	dgram->datasize = PTR_DIFF(p2,ptr+4); /* +4 for tcp length. */
 
 	p.packet_type = DGRAM_PACKET;
-	p.ip = dest_ip;
+	p.ip = ((const struct sockaddr_in *)dest_ss)->sin_addr;
 	p.timestamp = time(NULL);
 
 	DEBUG(4,("send_mailslot: Sending to mailslot %s from %s ",
 		 mailslot, nmb_namestr(&dgram->source_name)));
-	DEBUGADD(4,("to %s IP %s\n", nmb_namestr(&dgram->dest_name),
-		    inet_ntoa(dest_ip)));
+	print_sockaddr(addr, sizeof(addr), dest_ss);
 
-	return NT_STATUS_IS_OK(message_send_pid(pid_to_procid(nmbd_pid),
-						MSG_SEND_PACKET, &p, sizeof(p),
-						False));
+	DEBUGADD(4,("to %s IP %s\n", nmb_namestr(&dgram->dest_name), addr));
+
+	return NT_STATUS_IS_OK(messaging_send_buf(msg_ctx,
+						  pid_to_procid(nmbd_pid),
+						  MSG_SEND_PACKET,
+						  (uint8 *)&p, sizeof(p)));
 }
 
-/*
- * cli_get_response: Get a response ...
- */
-BOOL cli_get_response(const char *mailslot, char *buf, int bufsiz)
+static const char *mailslot_name(TALLOC_CTX *mem_ctx, struct in_addr dc_ip)
 {
-	struct packet_struct *p;
-
-	p = receive_unexpected(DGRAM_PACKET, 0, mailslot);
-
-	if (p == NULL)
-		return False;
-
-	memcpy(buf, &p->packet.dgram.data[92],
-	       MIN(bufsiz, p->packet.dgram.datasize-92));
-
-	return True;
+	return talloc_asprintf(mem_ctx, "%s%X",
+			       NBT_MAILSLOT_GETDC, dc_ip.s_addr);
 }
 
-/*
- * cli_get_backup_list: Send a get backup list request ...
- */
-
-static char cli_backup_list[1024];
-
-int cli_get_backup_list(const char *myname, const char *send_to_name)
+bool send_getdc_request(TALLOC_CTX *mem_ctx,
+			struct messaging_context *msg_ctx,
+			struct sockaddr_storage *dc_ss,
+			const char *domain_name,
+			const DOM_SID *sid,
+			uint32_t nt_version)
 {
-	pstring outbuf;
-	char *p;
-	struct in_addr sendto_ip;
+	struct in_addr dc_ip;
+	const char *my_acct_name = NULL;
+	const char *my_mailslot = NULL;
+	struct nbt_ntlogon_packet packet;
+	struct nbt_ntlogon_sam_logon *s;
+	enum ndr_err_code ndr_err;
+	DATA_BLOB blob;
+	struct dom_sid my_sid;
 
-	if (!resolve_name(send_to_name, &sendto_ip, 0x1d)) {
+	ZERO_STRUCT(packet);
+	ZERO_STRUCT(my_sid);
 
-		DEBUG(0, ("Could not resolve name: %s<1D>\n", send_to_name));
-		return False;
-
+	if (dc_ss->ss_family != AF_INET) {
+		return false;
 	}
 
-	memset(cli_backup_list, '\0', sizeof(cli_backup_list));
-	memset(outbuf, '\0', sizeof(outbuf));
+	if (sid) {
+		my_sid = *sid;
+	}
 
-	p = outbuf;
+	dc_ip = ((struct sockaddr_in *)dc_ss)->sin_addr;
+	my_mailslot = mailslot_name(mem_ctx, dc_ip);
+	if (!my_mailslot) {
+		return false;
+	}
 
-	SCVAL(p, 0, ANN_GetBackupListReq);
-	p++;
+	my_acct_name = talloc_asprintf(mem_ctx, "%s$", global_myname());
+	if (!my_acct_name) {
+		return false;
+	}
 
-	SCVAL(p, 0, 1); /* Count pointer ... */
-	p++;
+	packet.command	= NTLOGON_SAM_LOGON;
+	s		= &packet.req.logon;
 
-	SIVAL(p, 0, 1); /* The sender's token ... */
-	p += 4;
+	s->request_count	= 0;
+	s->computer_name	= global_myname();
+	s->user_name		= my_acct_name;
+	s->mailslot_name	= my_mailslot;
+	s->acct_control		= ACB_WSTRUST;
+	s->sid			= my_sid;
+	s->nt_version		= nt_version;
+	s->lmnt_token		= 0xffff;
+	s->lm20_token		= 0xffff;
 
-	cli_send_mailslot(True, "\\MAILSLOT\\BROWSE", 1, outbuf, 
-			  PTR_DIFF(p, outbuf), myname, 0, send_to_name, 
-			  0x1d, sendto_ip);
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_DEBUG(nbt_ntlogon_packet, &packet);
+	}
 
-	/* We should check the error and return if we got one */
+	ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &packet,
+		       (ndr_push_flags_fn_t)ndr_push_nbt_ntlogon_packet);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return false;
+	}
 
-	/* Now, get the response ... */
+	return cli_send_mailslot(msg_ctx,
+				 false, NBT_MAILSLOT_NTLOGON, 0,
+				 (char *)blob.data, blob.length,
+				 global_myname(), 0, domain_name, 0x1c,
+				 dc_ss);
+}
 
-	cli_get_response("\\MAILSLOT\\BROWSE",
-			 cli_backup_list, sizeof(cli_backup_list));
+bool receive_getdc_response(TALLOC_CTX *mem_ctx,
+			    struct sockaddr_storage *dc_ss,
+			    const char *domain_name,
+			    uint32_t *nt_version,
+			    const char **dc_name,
+			    union nbt_cldap_netlogon **reply)
+{
+	struct packet_struct *packet;
+	const char *my_mailslot = NULL;
+	struct in_addr dc_ip;
+	DATA_BLOB blob;
+	union nbt_cldap_netlogon r;
+	union dgram_message_body p;
+	enum ndr_err_code ndr_err;
+
+	const char *returned_dc = NULL;
+	const char *returned_domain = NULL;
+
+	if (dc_ss->ss_family != AF_INET) {
+		return false;
+	}
+
+	dc_ip = ((struct sockaddr_in *)dc_ss)->sin_addr;
+
+	my_mailslot = mailslot_name(mem_ctx, dc_ip);
+	if (!my_mailslot) {
+		return false;
+	}
+
+	packet = receive_unexpected(DGRAM_PACKET, 0, my_mailslot);
+
+	if (packet == NULL) {
+		DEBUG(5, ("Did not receive packet for %s\n", my_mailslot));
+		return False;
+	}
+
+	DEBUG(5, ("Received packet for %s\n", my_mailslot));
+
+	blob = data_blob_const(packet->packet.dgram.data,
+			       packet->packet.dgram.datasize);
+
+	if (blob.length < 4) {
+		DEBUG(0,("invalid length: %d\n", (int)blob.length));
+		return false;
+	}
+
+	if (RIVAL(blob.data,0) != DGRAM_SMB) {
+		DEBUG(0,("invalid packet\n"));
+		return false;
+	}
+
+	blob.data += 4;
+	blob.length -= 4;
+
+	ndr_err = ndr_pull_union_blob_all(&blob, mem_ctx, &p, DGRAM_SMB,
+		       (ndr_pull_flags_fn_t)ndr_pull_dgram_smb_packet);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(0,("failed to parse packet\n"));
+		return false;
+	}
+
+	if (p.smb.smb_command != SMB_TRANSACTION) {
+		DEBUG(0,("invalid smb_command: %d\n", p.smb.smb_command));
+		return false;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_DEBUG(dgram_smb_packet, &p);
+	}
+
+	blob = p.smb.body.trans.data;
+
+	if (!pull_mailslot_cldap_reply(mem_ctx, &blob,
+				       &r, nt_version))
+	{
+		return false;
+	}
+
+	switch (*nt_version) {
+		case 1:
+		case 16:
+		case 17:
+
+			returned_domain = r.logon1.domain_name;
+			returned_dc = r.logon1.pdc_name;
+			break;
+		case 2:
+		case 3:
+		case 18:
+		case 19:
+			returned_domain = r.logon3.domain_name;
+			returned_dc = r.logon3.pdc_name;
+			break;
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+			returned_domain = r.logon5.domain;
+			returned_dc = r.logon5.pdc_name;
+			break;
+		case 8:
+		case 9:
+		case 10:
+		case 11:
+		case 12:
+		case 13:
+		case 14:
+		case 15:
+			returned_domain = r.logon13.domain;
+			returned_dc = r.logon13.pdc_name;
+			break;
+		case 20:
+		case 21:
+		case 22:
+		case 23:
+		case 24:
+		case 25:
+		case 26:
+		case 27:
+		case 28:
+			returned_domain = r.logon15.domain;
+			returned_dc = r.logon15.pdc_name;
+			break;
+		case 29:
+		case 30:
+		case 31:
+			returned_domain = r.logon29.domain;
+			returned_dc = r.logon29.pdc_name;
+			break;
+		default:
+			return false;
+	}
+
+	if (!strequal(returned_domain, domain_name)) {
+		DEBUG(3, ("GetDC: Expected domain %s, got %s\n",
+			  domain_name, returned_domain));
+		return false;
+	}
+
+	*dc_name = talloc_strdup(mem_ctx, returned_dc);
+	if (!*dc_name) {
+		return false;
+	}
+
+	if (**dc_name == '\\')	*dc_name += 1;
+	if (**dc_name == '\\')	*dc_name += 1;
+
+	if (reply) {
+		*reply = (union nbt_cldap_netlogon *)talloc_memdup(
+			mem_ctx, &r, sizeof(union nbt_cldap_netlogon));
+		if (!*reply) {
+			return false;
+		}
+	}
+
+	DEBUG(10, ("GetDC gave name %s for domain %s\n",
+		   *dc_name, returned_domain));
 
 	return True;
-
 }
 
-/*
- * cli_get_backup_server: Get the backup list and retrieve a server from it
- */
-
-int cli_get_backup_server(char *my_name, char *target, char *servername, int namesize)
-{
-
-  /* Get the backup list first. We could pull this from the cache later */
-
-  cli_get_backup_list(my_name, target);  /* FIXME: Check the response */
-
-  if (!cli_backup_list[0]) { /* Empty list ... try again */
-
-    cli_get_backup_list(my_name, target);
-
-  }
-
-  strncpy(servername, cli_backup_list, MIN(16, namesize));
-
-  return True;
-
-}

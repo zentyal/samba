@@ -6,7 +6,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _NT_STATUS_H
@@ -28,10 +27,10 @@
 #undef HAVE_IMMEDIATE_STRUCTURES
 #endif
 
-/* the following rather strange looking definitions of NTSTATUS and WERROR
-   and there in order to catch common coding errors where different error types
+/* The following rather strange looking definitions of NTSTATUS and WERROR
+   are there in order to catch common coding errors where different error types
    are mixed up. This is especially important as we slowly convert Samba
-   from using BOOL for internal functions 
+   from using bool for internal functions.
 */
 
 #if defined(HAVE_IMMEDIATE_STRUCTURES)
@@ -68,6 +67,18 @@ typedef uint32 WERROR;
 
 #define NT_STATUS_NOT_OK_RETURN(x) do { \
 	if (!NT_STATUS_IS_OK(x)) {\
+		return x;\
+	}\
+} while (0)
+
+#define W_ERROR_HAVE_NO_MEMORY(x) do { \
+	if (!(x)) {\
+		return WERR_NOMEM;\
+	}\
+} while (0)
+
+#define W_ERROR_NOT_OK_RETURN(x) do { \
+	if (!W_ERROR_IS_OK(x)) {\
 		return x;\
 	}\
 } while (0)

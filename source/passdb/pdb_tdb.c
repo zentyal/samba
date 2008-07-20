@@ -10,7 +10,7 @@
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -19,8 +19,7 @@
  * more details.
  * 
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -42,21 +41,14 @@ static int tdbsam_debug_level = DBGC_ALL;
 #define TDBSAM_VERSION_STRING	"INFO/version"
 #define PASSDB_FILE_NAME	"passdb.tdb"
 #define USERPREFIX		"USER_"
+#define USERPREFIX_LEN		5
 #define RIDPREFIX		"RID_"
 #define PRIVPREFIX		"PRIV_"
 
-struct pwent_list {
-	struct pwent_list *prev, *next;
-	TDB_DATA key;
-};
-static struct pwent_list *tdbsam_pwent_list;
-static BOOL pwent_initialized;
-
 /* GLOBAL TDB SAM CONTEXT */
 
-static TDB_CONTEXT *tdbsam;
-static int ref_count = 0;
-static pstring tdbsam_filename;
+static struct db_context *db_sam;
+static char *tdbsam_filename;
 
 /**********************************************************************
  Marshall/unmarshall struct samu structs.
@@ -69,7 +61,7 @@ static pstring tdbsam_filename;
 /*********************************************************************
 *********************************************************************/
 
-static BOOL init_sam_from_buffer_v0(struct samu *sampass, uint8 *buf, uint32 buflen)
+static bool init_sam_from_buffer_v0(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
@@ -105,7 +97,7 @@ static BOOL init_sam_from_buffer_v0(struct samu *sampass, uint8 *buf, uint32 buf
 	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
 	uint32		len = 0;
 	uint32		lm_pw_len, nt_pw_len, hourslen;
-	BOOL ret = True;
+	bool ret = True;
 	
 	if(sampass == NULL || buf == NULL) {
 		DEBUG(0, ("init_sam_from_buffer_v0: NULL parameters found!\n"));
@@ -115,7 +107,7 @@ static BOOL init_sam_from_buffer_v0(struct samu *sampass, uint8 *buf, uint32 buf
 /* TDB_FORMAT_STRING_V0       "ddddddBBBBBBBBBBBBddBBwdwdBwwd" */
 
 	/* unpack the buffer into variables */
-	len = tdb_unpack ((char *)buf, buflen, TDB_FORMAT_STRING_V0,
+	len = tdb_unpack (buf, buflen, TDB_FORMAT_STRING_V0,
 		&logon_time,						/* d */
 		&logoff_time,						/* d */
 		&kickoff_time,						/* d */
@@ -254,7 +246,7 @@ done:
 /*********************************************************************
 *********************************************************************/
 
-static BOOL init_sam_from_buffer_v1(struct samu *sampass, uint8 *buf, uint32 buflen)
+static bool init_sam_from_buffer_v1(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
@@ -291,7 +283,7 @@ static BOOL init_sam_from_buffer_v1(struct samu *sampass, uint8 *buf, uint32 buf
 	uint8	*lm_pw_ptr = NULL, *nt_pw_ptr = NULL;
 	uint32		len = 0;
 	uint32		lm_pw_len, nt_pw_len, hourslen;
-	BOOL ret = True;
+	bool ret = True;
 	
 	if(sampass == NULL || buf == NULL) {
 		DEBUG(0, ("init_sam_from_buffer_v1: NULL parameters found!\n"));
@@ -301,7 +293,7 @@ static BOOL init_sam_from_buffer_v1(struct samu *sampass, uint8 *buf, uint32 buf
 /* TDB_FORMAT_STRING_V1       "dddddddBBBBBBBBBBBBddBBwdwdBwwd" */
 
 	/* unpack the buffer into variables */
-	len = tdb_unpack ((char *)buf, buflen, TDB_FORMAT_STRING_V1,
+	len = tdb_unpack (buf, buflen, TDB_FORMAT_STRING_V1,
 		&logon_time,						/* d */
 		&logoff_time,						/* d */
 		&kickoff_time,						/* d */
@@ -443,7 +435,7 @@ done:
 	return ret;
 }
 
-BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
+bool init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 
 	/* times are stored as 32bit integer
@@ -481,9 +473,9 @@ BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 	uint32		len = 0;
 	uint32		lm_pw_len, nt_pw_len, nt_pw_hist_len, hourslen;
 	uint32 pwHistLen = 0;
-	BOOL ret = True;
-	fstring tmpstring;
-	BOOL expand_explicit = lp_passdb_expand_explicit();
+	bool ret = True;
+	fstring tmp_string;
+	bool expand_explicit = lp_passdb_expand_explicit();
 	
 	if(sampass == NULL || buf == NULL) {
 		DEBUG(0, ("init_sam_from_buffer_v2: NULL parameters found!\n"));
@@ -493,7 +485,7 @@ BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 /* TDB_FORMAT_STRING_V2       "dddddddBBBBBBBBBBBBddBBBwwdBwwd" */
 
 	/* unpack the buffer into variables */
-	len = tdb_unpack ((char *)buf, buflen, TDB_FORMAT_STRING_V2,
+	len = tdb_unpack (buf, buflen, TDB_FORMAT_STRING_V2,
 		&logon_time,						/* d */
 		&logoff_time,						/* d */
 		&kickoff_time,						/* d */
@@ -547,12 +539,12 @@ BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 	pdb_set_fullname(sampass, fullname, PDB_SET);
 
 	if (homedir) {
-		fstrcpy( tmpstring, homedir );
+		fstrcpy( tmp_string, homedir );
 		if (expand_explicit) {
-			standard_sub_basic( username, domain, tmpstring,
-					    sizeof(tmpstring) );
+			standard_sub_basic( username, domain, tmp_string,
+					    sizeof(tmp_string) );
 		}
-		pdb_set_homedir(sampass, tmpstring, PDB_SET);
+		pdb_set_homedir(sampass, tmp_string, PDB_SET);
 	}
 	else {
 		pdb_set_homedir(sampass, 
@@ -567,12 +559,12 @@ BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 		pdb_set_dir_drive(sampass, lp_logon_drive(), PDB_DEFAULT );
 
 	if (logon_script) {
-		fstrcpy( tmpstring, logon_script );
+		fstrcpy( tmp_string, logon_script );
 		if (expand_explicit) {
-			standard_sub_basic( username, domain, tmpstring,
-					    sizeof(tmpstring) );
+			standard_sub_basic( username, domain, tmp_string,
+					    sizeof(tmp_string) );
 		}
-		pdb_set_logon_script(sampass, tmpstring, PDB_SET);
+		pdb_set_logon_script(sampass, tmp_string, PDB_SET);
 	}
 	else {
 		pdb_set_logon_script(sampass, 
@@ -582,12 +574,12 @@ BOOL init_sam_from_buffer_v2(struct samu *sampass, uint8 *buf, uint32 buflen)
 	}
 	
 	if (profile_path) {	
-		fstrcpy( tmpstring, profile_path );
+		fstrcpy( tmp_string, profile_path );
 		if (expand_explicit) {
-			standard_sub_basic( username, domain, tmpstring,
-					    sizeof(tmpstring) );
+			standard_sub_basic( username, domain, tmp_string,
+					    sizeof(tmp_string) );
 		}
-		pdb_set_profile_path(sampass, tmpstring, PDB_SET);
+		pdb_set_profile_path(sampass, tmp_string, PDB_SET);
 	} 
 	else {
 		pdb_set_profile_path(sampass, 
@@ -680,7 +672,7 @@ done:
  Intialize a struct samu struct from a BYTE buffer of size len
  *********************************************************************/
 
-static BOOL init_sam_from_buffer(struct samu *sampass, uint8 *buf, uint32 buflen)
+static bool init_sam_from_buffer(struct samu *sampass, uint8 *buf, uint32 buflen)
 {
 	return init_sam_from_buffer_v3(sampass, buf, buflen);
 }
@@ -689,7 +681,7 @@ static BOOL init_sam_from_buffer(struct samu *sampass, uint8 *buf, uint32 buflen
  Intialize a BYTE buffer from a struct samu struct
  *********************************************************************/
 
-static uint32 init_buffer_from_sam (uint8 **buf, struct samu *sampass, BOOL size_only)
+static uint32 init_buffer_from_sam (uint8 **buf, struct samu *sampass, bool size_only)
 {
 	return init_buffer_from_sam_v3(buf, sampass, size_only);
 }
@@ -698,109 +690,131 @@ static uint32 init_buffer_from_sam (uint8 **buf, struct samu *sampass, BOOL size
  Intialize a BYTE buffer from a struct samu struct
  *********************************************************************/
 
-static BOOL tdbsam_convert(int32 from) 
+struct tdbsam_convert_state {
+	int32_t from;
+	bool success;
+};
+
+static int tdbsam_convert_one(struct db_record *rec, void *priv)
 {
-	const char      *vstring = TDBSAM_VERSION_STRING;
-	const char      *prefix = USERPREFIX;
-	TDB_DATA 	data, key, old_key;
-	uint8		*buf = NULL;
-	BOOL 		ret;
+	struct tdbsam_convert_state *state =
+		(struct tdbsam_convert_state *)priv;
+	struct samu *user;
+	TDB_DATA data;
+	NTSTATUS status;
+	bool ret;
 
-	/* handle a Samba upgrade */
-	tdb_lock_bystring(tdbsam, vstring);
-	
-	/* Enumerate all records and convert them */
-	key = tdb_firstkey(tdbsam);
-
-	while (key.dptr) {
-	
-		/* skip all non-USER entries (eg. RIDs) */
-		while ((key.dsize != 0) && (strncmp(key.dptr, prefix, strlen (prefix)))) {
-			old_key = key;
-			/* increment to next in line */
-			key = tdb_nextkey(tdbsam, key);
-			SAFE_FREE(old_key.dptr);
-		}
-	
-		if (key.dptr) {
-			struct samu *user = NULL;
-
-			/* read from tdbsam */
-			data = tdb_fetch(tdbsam, key);
-			if (!data.dptr) {
-				DEBUG(0,("tdbsam_convert: database entry not found: %s.\n",key.dptr));
-				return False;
-			}
-	
-			/* unpack the buffer from the former format */
-			if ( !(user = samu_new( NULL )) ) {
-				DEBUG(0,("tdbsam_convert: samu_new() failed!\n"));
-				SAFE_FREE( data.dptr );
-				return False;
-			}
-			DEBUG(10,("tdbsam_convert: Try unpacking a record with (key:%s) (version:%d)\n", key.dptr, from));
-			switch (from) {
-				case 0:
-					ret = init_sam_from_buffer_v0(user, (uint8 *)data.dptr, data.dsize);
-					break;
-				case 1:
-					ret = init_sam_from_buffer_v1(user, (uint8 *)data.dptr, data.dsize);
-					break;
-				case 2:
-					ret = init_sam_from_buffer_v2(user, (uint8 *)data.dptr, data.dsize);
-					break;
-				case 3:
-					ret = init_sam_from_buffer_v3(user, (uint8 *)data.dptr, data.dsize);
-					break;
-				default:
-					/* unknown tdbsam version */
-					ret = False;
-			}
-			if (!ret) {
-				DEBUG(0,("tdbsam_convert: Bad struct samu entry returned from TDB (key:%s) (version:%d)\n", key.dptr, from));
-				SAFE_FREE(data.dptr);
-				TALLOC_FREE(user );
-				return False;
-			}
-	
-			/* We're finished with the old data. */
-			SAFE_FREE(data.dptr);
-
-			/* pack from the buffer into the new format */
-			
-			DEBUG(10,("tdbsam_convert: Try packing a record (key:%s) (version:%d)\n", key.dptr, from));
-			data.dsize = init_buffer_from_sam (&buf, user, False);
-			TALLOC_FREE(user );
-			
-			if ( data.dsize == -1 ) {
-				DEBUG(0,("tdbsam_convert: cannot pack the struct samu into the new format\n"));
-				return False;
-			}
-			data.dptr = (char *)buf;
-			
-			/* Store the buffer inside the TDBSAM */
-			if (tdb_store(tdbsam, key, data, TDB_MODIFY) != TDB_SUCCESS) {
-				DEBUG(0,("tdbsam_convert: cannot store the struct samu (key:%s) in new format\n",key.dptr));
-				SAFE_FREE(data.dptr);
-				return False;
-			}
-			
-			SAFE_FREE(data.dptr);
-			
-			/* increment to next in line */
-			old_key = key;
-			key = tdb_nextkey(tdbsam, key);
-			SAFE_FREE(old_key.dptr);
-		}
-		
+	if (rec->key.dsize < USERPREFIX_LEN) {
+		return 0;
+	}
+	if (strncmp((char *)rec->key.dptr, USERPREFIX, USERPREFIX_LEN) != 0) {
+		return 0;
 	}
 
-	
-	/* upgrade finished */
-	tdb_store_int32(tdbsam, vstring, TDBSAM_VERSION);
-	tdb_unlock_bystring(tdbsam, vstring);
+	user = samu_new(talloc_tos());
+	if (user == NULL) {
+		DEBUG(0,("tdbsam_convert: samu_new() failed!\n"));
+		state->success = false;
+		return -1;
+	}
 
-	return(True);	
+	DEBUG(10,("tdbsam_convert: Try unpacking a record with (key:%s) "
+		  "(version:%d)\n", rec->key.dptr, state->from));
+
+	switch (state->from) {
+	case 0:
+		ret = init_sam_from_buffer_v0(user, (uint8 *)rec->value.dptr,
+					      rec->value.dsize);
+		break;
+	case 1:
+		ret = init_sam_from_buffer_v1(user, (uint8 *)rec->value.dptr,
+					      rec->value.dsize);
+		break;
+	case 2:
+		ret = init_sam_from_buffer_v2(user, (uint8 *)rec->value.dptr,
+					      rec->value.dsize);
+		break;
+	case 3:
+		ret = init_sam_from_buffer_v3(user, (uint8 *)rec->value.dptr,
+					      rec->value.dsize);
+		break;
+	default:
+		/* unknown tdbsam version */
+		ret = False;
+	}
+	if (!ret) {
+		DEBUG(0,("tdbsam_convert: Bad struct samu entry returned "
+			 "from TDB (key:%s) (version:%d)\n", rec->key.dptr,
+			 state->from));
+		TALLOC_FREE(user);
+		state->success = false;
+		return -1;
+	}
+
+	data.dsize = init_buffer_from_sam(&data.dptr, user, false);
+	TALLOC_FREE(user);
+
+	if (data.dsize == -1) {
+		DEBUG(0,("tdbsam_convert: cannot pack the struct samu into "
+			 "the new format\n"));
+		state->success = false;
+		return -1;
+	}
+
+	status = rec->store(rec, data, TDB_MODIFY);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Could not store the new record: %s\n",
+			  nt_errstr(status)));
+		state->success = false;
+		return -1;
+	}
+
+	return 0;
+}
+
+static bool tdbsam_convert(struct db_context *db, int32 from)
+{
+	struct tdbsam_convert_state state;
+	int ret;
+
+	state.from = from;
+	state.success = true;
+
+	if (db->transaction_start(db) != 0) {
+		DEBUG(0, ("Could not start transaction\n"));
+		return false;
+	}
+
+	ret = db->traverse(db, tdbsam_convert_one, &state);
+	if (ret < 0) {
+		DEBUG(0, ("traverse failed\n"));
+		goto cancel;
+	}
+
+	if (!state.success) {
+		DEBUG(0, ("Converting records failed\n"));
+		goto cancel;
+	}
+
+	if (dbwrap_store_int32(db, TDBSAM_VERSION_STRING,
+			       TDBSAM_VERSION) != 0) {
+		DEBUG(0, ("Could not store tdbsam version\n"));
+		goto cancel;
+	}
+
+	if (db->transaction_commit(db) != 0) {
+		DEBUG(0, ("Could not commit transaction\n"));
+		goto cancel;
+	}
+
+	return true;
+
+ cancel:
+	if (db->transaction_cancel(db) != 0) {
+		smb_panic("transaction_cancel failed");
+	}
+
+	return false;
 }
 
 /*********************************************************************
@@ -808,224 +822,66 @@ static BOOL tdbsam_convert(int32 from)
  Uses a reference count to allow multiple open calls.
 *********************************************************************/
 
-static BOOL tdbsam_open( const char *name )
+static bool tdbsam_open( const char *name )
 {
 	int32	version;
-	
+
 	/* check if we are already open */
-	
-	if ( tdbsam ) {
-		ref_count++;
-		DEBUG(8,("tdbsam_open: Incrementing open reference count.  Ref count is now %d\n", 
-			ref_count));
-		return True;
+
+	if ( db_sam ) {
+		return true;
 	}
-	
-	SMB_ASSERT( ref_count == 0 );
-	
+
 	/* Try to open tdb passwd.  Create a new one if necessary */
-	
-	if (!(tdbsam = tdb_open_log(name, 0, TDB_DEFAULT, O_CREAT|O_RDWR, 0600))) {
-		DEBUG(0, ("tdbsam_open: Failed to open/create TDB passwd [%s]\n", name));
-		return False;
+
+	db_sam = db_open_trans(NULL, name, 0, TDB_DEFAULT, O_CREAT|O_RDWR, 0600);
+	if (db_sam == NULL) {
+		DEBUG(0, ("tdbsam_open: Failed to open/create TDB passwd "
+			  "[%s]\n", name));
+		return false;
 	}
-
-	/* set the initial reference count - must be done before tdbsam_convert
-	   as that calls tdbsam_open()/tdbsam_close(). */
-
-	ref_count = 1;
 
 	/* Check the version */
-	version = tdb_fetch_int32( tdbsam, TDBSAM_VERSION_STRING );
-	
+	version = dbwrap_fetch_int32(db_sam, TDBSAM_VERSION_STRING);
 	if (version == -1) {
 		version = 0;	/* Version not found, assume version 0 */
 	}
-	
+
 	/* Compare the version */
 	if (version > TDBSAM_VERSION) {
-		/* Version more recent than the latest known */ 
+		/* Version more recent than the latest known */
 		DEBUG(0, ("tdbsam_open: unknown version => %d\n", version));
-		tdb_close( tdbsam );
-		ref_count = 0;
-		return False;
-	} 
-	
-	
-	if ( version < TDBSAM_VERSION ) {	
-		DEBUG(1, ("tdbsam_open: Converting version %d database to version %d.\n", 
-			version, TDBSAM_VERSION));
-		
-		if ( !tdbsam_convert(version) ) {
-			DEBUG(0, ("tdbsam_open: Error when trying to convert tdbsam [%s]\n",name));
-			tdb_close(tdbsam);
-			ref_count = 0;
-			return False;
+		TALLOC_FREE(db_sam);
+		return false;
+	}
+
+	if ( version < TDBSAM_VERSION ) {
+		DEBUG(1, ("tdbsam_open: Converting version %d database to "
+			  "version %d.\n", version, TDBSAM_VERSION));
+
+		if ( !tdbsam_convert(db_sam, version) ) {
+			DEBUG(0, ("tdbsam_open: Error when trying to convert "
+				  "tdbsam [%s]\n",name));
+			TALLOC_FREE(db_sam);
+			return false;
 		}
-			
+
 		DEBUG(3, ("TDBSAM converted successfully.\n"));
 	}
-	
-	DEBUG(4,("tdbsam_open: successfully opened %s\n", name ));	
-	
-	return True;
-}
 
-/****************************************************************************
- wrapper atound tdb_close() to handle the reference count
-****************************************************************************/
+	DEBUG(4,("tdbsam_open: successfully opened %s\n", name ));
 
-void tdbsam_close( void )
-{
-	ref_count--;
-	
-	DEBUG(8,("tdbsam_close: Reference count is now %d.\n", ref_count));
-
-	SMB_ASSERT(ref_count >= 0 );
-	
-	if ( ref_count == 0 ) {
-		tdb_close( tdbsam );
-		tdbsam = NULL;
-	}
-	
-	return;
-}
-
-/****************************************************************************
- creates a list of user keys
-****************************************************************************/
-
-static int tdbsam_traverse_setpwent(TDB_CONTEXT *t, TDB_DATA key, TDB_DATA data, void *state)
-{
-	const char *prefix = USERPREFIX;
-	int  prefixlen = strlen (prefix);
-	struct pwent_list *ptr;
-	
-	if ( strncmp(key.dptr, prefix, prefixlen) == 0 ) {
-		if ( !(ptr=SMB_MALLOC_P(struct pwent_list)) ) {
-			DEBUG(0,("tdbsam_traverse_setpwent: Failed to malloc new entry for list\n"));
-			
-			/* just return 0 and let the traversal continue */
-			return 0;
-		}
-		ZERO_STRUCTP(ptr);
-		
-		/* save a copy of the key */
-		
-		ptr->key.dptr = (char *)memdup( key.dptr, key.dsize );
-		if (!ptr->key.dptr) {
-			DEBUG(0,("tdbsam_traverse_setpwent: memdup failed\n"));
-			/* just return 0 and let the traversal continue */
-			SAFE_FREE(ptr);
-			return 0;
-		}
-
-		ptr->key.dsize = key.dsize;
-		
-		DLIST_ADD( tdbsam_pwent_list, ptr );
-	
-	}
-	
-	return 0;
-}
-
-/***************************************************************
- Open the TDB passwd database for SAM account enumeration.
- Save a list of user keys for iteration.
-****************************************************************/
-
-static NTSTATUS tdbsam_setsampwent(struct pdb_methods *my_methods, BOOL update, uint32 acb_mask)
-{
-	if ( !tdbsam_open( tdbsam_filename ) ) {
-		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n", tdbsam_filename));
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	tdb_traverse( tdbsam, tdbsam_traverse_setpwent, NULL );
-	pwent_initialized = True;
-
-	return NT_STATUS_OK;
-}
-
-
-/***************************************************************
- End enumeration of the TDB passwd list.
-****************************************************************/
-
-static void tdbsam_endsampwent(struct pdb_methods *my_methods)
-{
-	struct pwent_list *ptr, *ptr_next;
-	
-	/* close the tdb only if we have a valid pwent state */
-	
-	if ( pwent_initialized ) {
-		DEBUG(7, ("endtdbpwent: closed sam database.\n"));
-		tdbsam_close();
-	}
-	
-	/* clear out any remaining entries in the list */
-	
-	for ( ptr=tdbsam_pwent_list; ptr; ptr = ptr_next ) {
-		ptr_next = ptr->next;
-		DLIST_REMOVE( tdbsam_pwent_list, ptr );
-		SAFE_FREE( ptr->key.dptr);
-		SAFE_FREE( ptr );
-	}	
-	
-	pwent_initialized = False;
-}
-
-/*****************************************************************
- Get one struct samu from the TDB (next in line)
-*****************************************************************/
-
-static NTSTATUS tdbsam_getsampwent(struct pdb_methods *my_methods, struct samu *user)
-{
-	NTSTATUS 		nt_status = NT_STATUS_UNSUCCESSFUL;
-	TDB_DATA 		data;
-	struct pwent_list	*pkey;
-
-	if ( !user ) {
-		DEBUG(0,("tdbsam_getsampwent: struct samu is NULL.\n"));
-		return nt_status;
-	}
-
-	if ( !tdbsam_pwent_list ) {
-		DEBUG(4,("tdbsam_getsampwent: end of list\n"));
-		return nt_status;
-	}
-	
-	/* pull the next entry */
-		
-	pkey = tdbsam_pwent_list;
-	DLIST_REMOVE( tdbsam_pwent_list, pkey );
-	
-	data = tdb_fetch(tdbsam, pkey->key);
-
-	SAFE_FREE( pkey->key.dptr);
-	SAFE_FREE( pkey);
-	
-	if ( !data.dptr ) {
-		DEBUG(5,("pdb_getsampwent: database entry not found.  Was the user deleted?\n"));
-		return nt_status;
-	}
-  
-	if ( !init_sam_from_buffer(user, (unsigned char *)data.dptr, data.dsize) ) {
-		DEBUG(0,("pdb_getsampwent: Bad struct samu entry returned from TDB!\n"));
-	}
-	
-	SAFE_FREE( data.dptr );
-
-	return NT_STATUS_OK;
+	return true;
 }
 
 /******************************************************************
  Lookup a name in the SAM TDB
 ******************************************************************/
 
-static NTSTATUS tdbsam_getsampwnam (struct pdb_methods *my_methods, struct samu *user, const char *sname)
+static NTSTATUS tdbsam_getsampwnam (struct pdb_methods *my_methods,
+				    struct samu *user, const char *sname)
 {
-	TDB_DATA 	data, key;
+	TDB_DATA 	data;
 	fstring 	keystr;
 	fstring		name;
 
@@ -1040,41 +896,35 @@ static NTSTATUS tdbsam_getsampwnam (struct pdb_methods *my_methods, struct samu 
 
 	/* set search key */
 	slprintf(keystr, sizeof(keystr)-1, "%s%s", USERPREFIX, name);
-	key.dptr = keystr;
-	key.dsize = strlen(keystr) + 1;
 
 	/* open the database */
-		
+
 	if ( !tdbsam_open( tdbsam_filename ) ) {
 		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n", tdbsam_filename));
 		return NT_STATUS_ACCESS_DENIED;
 	}
-	
+
 	/* get the record */
-	
-	data = tdb_fetch(tdbsam, key);
+
+	data = dbwrap_fetch_bystring(db_sam, talloc_tos(), keystr);
 	if (!data.dptr) {
 		DEBUG(5,("pdb_getsampwnam (TDB): error fetching database.\n"));
-		DEBUGADD(5, (" Error: %s\n", tdb_errorstr(tdbsam)));
 		DEBUGADD(5, (" Key: %s\n", keystr));
-		tdbsam_close();
 		return NT_STATUS_NO_SUCH_USER;
 	}
-  
+
   	/* unpack the buffer */
-	
-	if (!init_sam_from_buffer(user, (unsigned char *)data.dptr, data.dsize)) {
+
+	if (!init_sam_from_buffer(user, data.dptr, data.dsize)) {
 		DEBUG(0,("pdb_getsampwent: Bad struct samu entry returned from TDB!\n"));
 		SAFE_FREE(data.dptr);
-		tdbsam_close();
 		return NT_STATUS_NO_MEMORY;
 	}
-	
+
 	/* success */
-	
-	SAFE_FREE(data.dptr);
-	tdbsam_close();
-	
+
+	TALLOC_FREE(data.dptr);
+
 	return NT_STATUS_OK;
 }
 
@@ -1082,10 +932,11 @@ static NTSTATUS tdbsam_getsampwnam (struct pdb_methods *my_methods, struct samu 
  Search by rid
  **************************************************************************/
 
-static NTSTATUS tdbsam_getsampwrid (struct pdb_methods *my_methods, struct samu *user, uint32 rid)
+static NTSTATUS tdbsam_getsampwrid (struct pdb_methods *my_methods,
+				    struct samu *user, uint32 rid)
 {
 	NTSTATUS                nt_status = NT_STATUS_UNSUCCESSFUL;
-	TDB_DATA 		data, key;
+	TDB_DATA 		data;
 	fstring 		keystr;
 	fstring			name;
 
@@ -1093,93 +944,82 @@ static NTSTATUS tdbsam_getsampwrid (struct pdb_methods *my_methods, struct samu 
 		DEBUG(0,("pdb_getsampwrid: struct samu is NULL.\n"));
 		return nt_status;
 	}
-	
+
 	/* set search key */
-	
+
 	slprintf(keystr, sizeof(keystr)-1, "%s%.8x", RIDPREFIX, rid);
-	key.dptr = keystr;
-	key.dsize = strlen (keystr) + 1;
 
 	/* open the database */
-		
+
 	if ( !tdbsam_open( tdbsam_filename ) ) {
 		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n", tdbsam_filename));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	/* get the record */
-	
-	data = tdb_fetch (tdbsam, key);
+
+	data = dbwrap_fetch_bystring(db_sam, talloc_tos(), keystr);
 	if (!data.dptr) {
 		DEBUG(5,("pdb_getsampwrid (TDB): error looking up RID %d by key %s.\n", rid, keystr));
-		DEBUGADD(5, (" Error: %s\n", tdb_errorstr(tdbsam)));
-		nt_status = NT_STATUS_UNSUCCESSFUL;
-		goto done;
+		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	fstrcpy(name, data.dptr);
-	SAFE_FREE(data.dptr);
-	
-	nt_status = tdbsam_getsampwnam (my_methods, user, name);
+	fstrcpy(name, (const char *)data.dptr);
+	TALLOC_FREE(data.dptr);
 
- done:
-	/* cleanup */
-	
-	tdbsam_close();
-		
-	return nt_status;
+	return tdbsam_getsampwnam (my_methods, user, name);
 }
 
-static NTSTATUS tdbsam_getsampwsid(struct pdb_methods *my_methods, struct samu * user, const DOM_SID *sid)
+static NTSTATUS tdbsam_getsampwsid(struct pdb_methods *my_methods,
+				   struct samu * user, const DOM_SID *sid)
 {
 	uint32 rid;
-	
+
 	if ( !sid_peek_check_rid(get_global_sam_sid(), sid, &rid) )
 		return NT_STATUS_UNSUCCESSFUL;
 
 	return tdbsam_getsampwrid(my_methods, user, rid);
 }
 
-static BOOL tdb_delete_samacct_only( struct samu *sam_pass )
+static bool tdb_delete_samacct_only( struct samu *sam_pass )
 {
-	TDB_DATA 	key;
 	fstring 	keystr;
 	fstring		name;
+	NTSTATUS status;
 
 	fstrcpy(name, pdb_get_username(sam_pass));
 	strlower_m(name);
-	
+
   	/* set the search key */
-	
+
 	slprintf(keystr, sizeof(keystr)-1, "%s%s", USERPREFIX, name);
-	key.dptr = keystr;
-	key.dsize = strlen (keystr) + 1;
-	
+
 	/* it's outaa here!  8^) */
-	
-	if (tdb_delete(tdbsam, key) != TDB_SUCCESS) {
-		DEBUG(5, ("Error deleting entry from tdb passwd database!\n"));
-		DEBUGADD(5, (" Error: %s\n", tdb_errorstr(tdbsam)));
-		return False;
+
+	status = dbwrap_delete_bystring(db_sam, keystr);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(5, ("Error deleting entry from tdb passwd "
+			  "database: %s!\n", nt_errstr(status)));
+		return false;
 	}
-	
-	return True;
+
+	return true;
 }
 
 /***************************************************************************
  Delete a struct samu records for the username and RID key
 ****************************************************************************/
 
-static NTSTATUS tdbsam_delete_sam_account(struct pdb_methods *my_methods, struct samu *sam_pass)
+static NTSTATUS tdbsam_delete_sam_account(struct pdb_methods *my_methods,
+					  struct samu *sam_pass)
 {
 	NTSTATUS        nt_status = NT_STATUS_UNSUCCESSFUL;
-	TDB_DATA 	key;
 	fstring 	keystr;
 	uint32		rid;
 	fstring		name;
-	
+
 	/* open the database */
-		
+
 	if ( !tdbsam_open( tdbsam_filename ) ) {
 		DEBUG(0,("tdbsam_delete_sam_account: failed to open %s!\n",
 			 tdbsam_filename));
@@ -1188,44 +1028,52 @@ static NTSTATUS tdbsam_delete_sam_account(struct pdb_methods *my_methods, struct
 
 	fstrcpy(name, pdb_get_username(sam_pass));
 	strlower_m(name);
-	
+
   	/* set the search key */
 
 	slprintf(keystr, sizeof(keystr)-1, "%s%s", USERPREFIX, name);
-	key.dptr = keystr;
-	key.dsize = strlen (keystr) + 1;
-	
+
 	rid = pdb_get_user_rid(sam_pass);
 
 	/* it's outaa here!  8^) */
 
-	if ( tdb_delete(tdbsam, key) != TDB_SUCCESS ) {
-		DEBUG(5, ("Error deleting entry from tdb passwd database!\n"));
-		DEBUGADD(5, (" Error: %s\n", tdb_errorstr(tdbsam)));
-		nt_status = NT_STATUS_UNSUCCESSFUL;
-		goto done;
+	if (db_sam->transaction_start(db_sam) != 0) {
+		DEBUG(0, ("Could not start transaction\n"));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	nt_status = dbwrap_delete_bystring(db_sam, keystr);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		DEBUG(5, ("Error deleting entry from tdb passwd "
+			  "database: %s!\n", nt_errstr(nt_status)));
+		goto cancel;
 	}
 
   	/* set the search key */
-	
+
 	slprintf(keystr, sizeof(keystr)-1, "%s%.8x", RIDPREFIX, rid);
-	key.dptr = keystr;
-	key.dsize = strlen (keystr) + 1;
 
 	/* it's outaa here!  8^) */
-	
-	if ( tdb_delete(tdbsam, key) != TDB_SUCCESS ) {
-		DEBUG(5, ("Error deleting entry from tdb rid database!\n"));
-		DEBUGADD(5, (" Error: %s\n", tdb_errorstr(tdbsam)));
-		nt_status = NT_STATUS_UNSUCCESSFUL;
-		goto done;
+
+	nt_status = dbwrap_delete_bystring(db_sam, keystr);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		DEBUG(5, ("Error deleting entry from tdb rid "
+			  "database: %s!\n", nt_errstr(nt_status)));
+		goto cancel;
 	}
 
-	nt_status = NT_STATUS_OK;
-	
- done:
-	tdbsam_close();
-	
+	if (db_sam->transaction_commit(db_sam) != 0) {
+		DEBUG(0, ("Could not commit transaction\n"));
+		goto cancel;
+	}
+
+	return NT_STATUS_OK;
+
+ cancel:
+	if (db_sam->transaction_cancel(db_sam) != 0) {
+		smb_panic("transaction_cancel failed");
+	}
+
 	return nt_status;
 }
 
@@ -1234,84 +1082,80 @@ static NTSTATUS tdbsam_delete_sam_account(struct pdb_methods *my_methods, struct
  Update the TDB SAM account record only
  Assumes that the tdbsam is already open 
 ****************************************************************************/
-static BOOL tdb_update_samacct_only( struct samu* newpwd, int flag )
+static bool tdb_update_samacct_only( struct samu* newpwd, int flag )
 {
-	TDB_DATA 	key, data;
+	TDB_DATA 	data;
 	uint8		*buf = NULL;
 	fstring 	keystr;
 	fstring		name;
-	BOOL		ret = True;
+	bool		ret = false;
+	NTSTATUS status;
 
 	/* copy the struct samu struct into a BYTE buffer for storage */
-	
+
 	if ( (data.dsize=init_buffer_from_sam (&buf, newpwd, False)) == -1 ) {
 		DEBUG(0,("tdb_update_sam: ERROR - Unable to copy struct samu info BYTE buffer!\n"));
-		ret = False;
 		goto done;
 	}
-	data.dptr = (char *)buf;
+	data.dptr = buf;
 
 	fstrcpy(name, pdb_get_username(newpwd));
 	strlower_m(name);
-	
-	DEBUG(5, ("Storing %saccount %s with RID %d\n", 
-		  flag == TDB_INSERT ? "(new) " : "", name, 
+
+	DEBUG(5, ("Storing %saccount %s with RID %d\n",
+		  flag == TDB_INSERT ? "(new) " : "", name,
 		  pdb_get_user_rid(newpwd)));
 
   	/* setup the USER index key */
 	slprintf(keystr, sizeof(keystr)-1, "%s%s", USERPREFIX, name);
-	key.dptr = keystr;
-	key.dsize = strlen(keystr) + 1;
 
 	/* add the account */
-	
-	if ( tdb_store(tdbsam, key, data, flag) != TDB_SUCCESS ) {
-		DEBUG(0, ("Unable to modify passwd TDB!"));
-		DEBUGADD(0, (" Error: %s", tdb_errorstr(tdbsam)));
-		DEBUGADD(0, (" occured while storing the main record (%s)\n",
-			     keystr));
-		ret = False;
+
+	status = dbwrap_store_bystring(db_sam, keystr, data, flag);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Unable to modify passwd TDB: %s!",
+			  nt_errstr(status)));
 		goto done;
 	}
 
-done:	
+	ret = true;
+
+done:
 	/* cleanup */
 	SAFE_FREE(buf);
-	
 	return ret;
 }
 
 /***************************************************************************
  Update the TDB SAM RID record only
- Assumes that the tdbsam is already open 
+ Assumes that the tdbsam is already open
 ****************************************************************************/
-static BOOL tdb_update_ridrec_only( struct samu* newpwd, int flag )
+static bool tdb_update_ridrec_only( struct samu* newpwd, int flag )
 {
-	TDB_DATA 	key, data;
+	TDB_DATA 	data;
 	fstring 	keystr;
 	fstring		name;
+	NTSTATUS status;
 
 	fstrcpy(name, pdb_get_username(newpwd));
 	strlower_m(name);
 
 	/* setup RID data */
-	data.dsize = strlen(name) + 1;
-	data.dptr = name;
+	data = string_term_tdb_data(name);
 
 	/* setup the RID index key */
-	slprintf(keystr, sizeof(keystr)-1, "%s%.8x", RIDPREFIX,  pdb_get_user_rid(newpwd));
-	key.dptr = keystr;
-	key.dsize = strlen (keystr) + 1;
-	
+	slprintf(keystr, sizeof(keystr)-1, "%s%.8x", RIDPREFIX,
+		 pdb_get_user_rid(newpwd));
+
 	/* add the reference */
-	if (tdb_store(tdbsam, key, data, flag) != TDB_SUCCESS) {
-		DEBUG(0, ("Unable to modify TDB passwd !"));
-		DEBUGADD(0, (" Error: %s\n", tdb_errorstr(tdbsam)));
-		DEBUGADD(0, (" occured while storing the RID index (%s)\n", keystr));
-		return False;
+	status = dbwrap_store_bystring(db_sam, keystr, data, flag);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Unable to modify TDB passwd: %s!\n",
+			  nt_errstr(status)));
+		return false;
 	}
 
-	return True;
+	return true;
 
 }
 
@@ -1319,43 +1163,44 @@ static BOOL tdb_update_ridrec_only( struct samu* newpwd, int flag )
  Update the TDB SAM
 ****************************************************************************/
 
-static BOOL tdb_update_sam(struct pdb_methods *my_methods, struct samu* newpwd, int flag)
+static bool tdb_update_sam(struct pdb_methods *my_methods, struct samu* newpwd,
+			   int flag)
 {
-	BOOL            result = True;
-
-	/* invalidate the existing TDB iterator if it is open */
-	
-	tdbsam_endsampwent( my_methods );
-	
-#if 0 
-	if ( !pdb_get_group_rid(newpwd) ) {
-		DEBUG (0,("tdb_update_sam: Failing to store a struct samu for [%s] "
-			"without a primary group RID\n", pdb_get_username(newpwd)));
-		return False;
-	}
-#endif
-
 	if (!pdb_get_user_rid(newpwd)) {
-		DEBUG(0,("tdb_update_sam: struct samu (%s) with no RID!\n", pdb_get_username(newpwd)));
+		DEBUG(0,("tdb_update_sam: struct samu (%s) with no RID!\n",
+			 pdb_get_username(newpwd)));
 		return False;
 	}
 
 	/* open the database */
-		
+
 	if ( !tdbsam_open( tdbsam_filename ) ) {
 		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n", tdbsam_filename));
 		return False;
 	}
-	
-	if ( !tdb_update_samacct_only(newpwd, flag) || !tdb_update_ridrec_only(newpwd, flag)) {
-		result = False;
+
+	if (db_sam->transaction_start(db_sam) != 0) {
+		DEBUG(0, ("Could not start transaction\n"));
+		return false;
 	}
 
-	/* cleanup */
+	if (!tdb_update_samacct_only(newpwd, flag)
+	    || !tdb_update_ridrec_only(newpwd, flag)) {
+		goto cancel;
+	}
 
-	tdbsam_close();
-	
-	return result;	
+	if (db_sam->transaction_commit(db_sam) != 0) {
+		DEBUG(0, ("Could not commit transaction\n"));
+		goto cancel;
+	}
+
+	return true;
+
+ cancel:
+	if (db_sam->transaction_cancel(db_sam) != 0) {
+		smb_panic("transaction_cancel failed");
+	}
+	return false;
 }
 
 /***************************************************************************
@@ -1392,56 +1237,56 @@ static NTSTATUS tdbsam_add_sam_account (struct pdb_methods *my_methods, struct s
  - unlock the new user record
 ***************************************************************************/
 static NTSTATUS tdbsam_rename_sam_account(struct pdb_methods *my_methods,
-					  struct samu *old_acct, 
+					  struct samu *old_acct,
 					  const char *newname)
 {
 	struct samu      *new_acct = NULL;
-	pstring          rename_script;
-	BOOL             interim_account = False;
+	char *rename_script = NULL;
 	int              rename_ret;
 	fstring          oldname_lower;
 	fstring          newname_lower;
 
 	/* can't do anything without an external script */
-	
-	pstrcpy(rename_script, lp_renameuser_script() );
-	if ( ! *rename_script ) {
+
+	if ( !(new_acct = samu_new( talloc_tos() )) ) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	rename_script = talloc_strdup(new_acct, lp_renameuser_script());
+	if (!rename_script) {
+		TALLOC_FREE(new_acct);
+		return NT_STATUS_NO_MEMORY;
+	}
+	if (!*rename_script) {
+		TALLOC_FREE(new_acct);
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	/* invalidate the existing TDB iterator if it is open */
-	
-	tdbsam_endsampwent( my_methods );
-
-	if ( !(new_acct = samu_new( NULL )) ) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	
-	if ( !pdb_copy_sam_account(new_acct, old_acct) 
-		|| !pdb_set_username(new_acct, newname, PDB_CHANGED)) 
+	if ( !pdb_copy_sam_account(new_acct, old_acct)
+		|| !pdb_set_username(new_acct, newname, PDB_CHANGED))
 	{
-		TALLOC_FREE(new_acct );
+		TALLOC_FREE(new_acct);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	/* open the database */
-		
 	if ( !tdbsam_open( tdbsam_filename ) ) {
-		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n", tdbsam_filename));
-		TALLOC_FREE(new_acct );
+		DEBUG(0, ("tdbsam_getsampwnam: failed to open %s!\n",
+			  tdbsam_filename));
+		TALLOC_FREE(new_acct);
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	/* add the new account and lock it */
-	
-	if ( !tdb_update_samacct_only(new_acct, TDB_INSERT) ) {
-		goto done;
-	}
-	
-	interim_account = True;
+	if (db_sam->transaction_start(db_sam) != 0) {
+		DEBUG(0, ("Could not start transaction\n"));
+		TALLOC_FREE(new_acct);
+		return NT_STATUS_ACCESS_DENIED;
 
-	if ( tdb_lock_bystring_with_timeout(tdbsam, newname, 30) == -1 ) {
-		goto done;
+	}
+
+	/* add the new account and lock it */
+	if ( !tdb_update_samacct_only(new_acct, TDB_INSERT) ) {
+		goto cancel;
 	}
 
 	/* Rename the posix user.  Follow the semantics of _samr_create_user()
@@ -1453,53 +1298,69 @@ static NTSTATUS tdbsam_rename_sam_account(struct pdb_methods *my_methods,
 	fstrcpy( newname_lower, newname );
 	strlower_m( newname_lower );
 
-	string_sub2(rename_script, "%unew", newname_lower, sizeof(pstring), 
-		True, False, True);
-	string_sub2(rename_script, "%uold", oldname_lower, sizeof(pstring), 
-		True, False, True);
+	rename_script = talloc_string_sub2(new_acct,
+				rename_script,
+				"%unew",
+				newname_lower,
+				true,
+				false,
+				true);
+	if (!rename_script) {
+		goto cancel;
+	}
+	rename_script = talloc_string_sub2(new_acct,
+				rename_script,
+				"%uold",
+				oldname_lower,
+				true,
+				false,
+				true);
+	if (!rename_script) {
+		goto cancel;
+	}
 	rename_ret = smbrun(rename_script, NULL);
 
-	DEBUG(rename_ret ? 0 : 3,("Running the command `%s' gave %d\n", rename_script, rename_ret));
+	DEBUG(rename_ret ? 0 : 3,("Running the command `%s' gave %d\n",
+				rename_script, rename_ret));
 
-	if (rename_ret == 0) {
-		smb_nscd_flush_user_cache();
+	if (rename_ret != 0) {
+		goto cancel;
 	}
 
-	if (rename_ret) {
-		goto done; 
-	}
+	smb_nscd_flush_user_cache();
 
 	/* rewrite the rid->username record */
-	
+
 	if ( !tdb_update_ridrec_only( new_acct, TDB_MODIFY) ) {
-		goto done;
+		goto cancel;
 	}
-	interim_account = False;
-	tdb_unlock_bystring( tdbsam, newname );
 
 	tdb_delete_samacct_only( old_acct );
-	
-	tdbsam_close();
-	
+
+	if (db_sam->transaction_commit(db_sam) != 0) {
+		/*
+		 * Ok, we're screwed. We've changed the posix account, but
+		 * could not adapt passdb.tdb. Shall we change the posix
+		 * account back?
+		 */
+		DEBUG(0, ("transaction_commit failed\n"));
+		goto cancel;
+	}
+
 	TALLOC_FREE(new_acct );
 	return NT_STATUS_OK;
 
-done:	
-	/* cleanup */
-	if (interim_account) {
-		tdb_unlock_bystring(tdbsam, newname);
-		tdb_delete_samacct_only(new_acct);
+ cancel:
+	if (db_sam->transaction_cancel(db_sam) != 0) {
+		smb_panic("transaction_cancel failed");
 	}
-	
-	tdbsam_close();
-	
-	if (new_acct)
-		TALLOC_FREE(new_acct);
-	
+
+	TALLOC_FREE(new_acct);
+
 	return NT_STATUS_ACCESS_DENIED;	
 }
 
-static BOOL tdbsam_rid_algorithm(struct pdb_methods *methods)
+static bool tdbsam_rid_algorithm(struct pdb_methods *methods)
 {
 	return False;
 }
@@ -1520,7 +1381,7 @@ static BOOL tdbsam_rid_algorithm(struct pdb_methods *methods)
  interested in the RID counter.
 *****************************************************************************/
 
-static BOOL init_idmap_tdb(TDB_CONTEXT *tdb)
+static bool init_idmap_tdb(TDB_CONTEXT *tdb)
 {
 	int32 version;
 
@@ -1553,13 +1414,13 @@ static BOOL init_idmap_tdb(TDB_CONTEXT *tdb)
 	return True;
 }
 
-static BOOL tdbsam_new_rid(struct pdb_methods *methods, uint32 *prid)
+static bool tdbsam_new_rid(struct pdb_methods *methods, uint32 *prid)
 {
 	TDB_CONTEXT *tdb;
 	uint32 rid;
-	BOOL ret = False;
+	bool ret = False;
 
-	tdb = tdb_open_log(lock_path("winbindd_idmap.tdb"), 0,
+	tdb = tdb_open_log(state_path("winbindd_idmap.tdb"), 0,
 			   TDB_DEFAULT, O_RDWR | O_CREAT, 0644);
 
 	if (tdb == NULL) {
@@ -1584,10 +1445,140 @@ static BOOL tdbsam_new_rid(struct pdb_methods *methods, uint32 *prid)
 
  done:
 	if ((tdb != NULL) && (tdb_close(tdb) != 0)) {
-		smb_panic("tdb_close(idmap_tdb) failed\n");
+		smb_panic("tdb_close(idmap_tdb) failed");
 	}
 
 	return ret;
+}
+
+struct tdbsam_search_state {
+	struct pdb_methods *methods;
+	uint32_t acct_flags;
+
+	uint32_t *rids;
+	uint32_t num_rids;
+	ssize_t array_size;
+	uint32_t current;
+};
+
+static int tdbsam_collect_rids(struct db_record *rec, void *private_data)
+{
+	struct tdbsam_search_state *state = talloc_get_type_abort(
+		private_data, struct tdbsam_search_state);
+	size_t prefixlen = strlen(RIDPREFIX);
+	uint32 rid;
+
+	if ((rec->key.dsize < prefixlen)
+	    || (strncmp((char *)rec->key.dptr, RIDPREFIX, prefixlen))) {
+		return 0;
+	}
+
+	rid = strtoul((char *)rec->key.dptr+prefixlen, NULL, 16);
+
+	ADD_TO_LARGE_ARRAY(state, uint32, rid, &state->rids, &state->num_rids,
+			   &state->array_size);
+
+	return 0;
+}
+
+static void tdbsam_search_end(struct pdb_search *search)
+{
+	struct tdbsam_search_state *state = talloc_get_type_abort(
+		search->private_data, struct tdbsam_search_state);
+	TALLOC_FREE(state);
+}
+
+static bool tdbsam_search_next_entry(struct pdb_search *search,
+				     struct samr_displayentry *entry)
+{
+	struct tdbsam_search_state *state = talloc_get_type_abort(
+		search->private_data, struct tdbsam_search_state);
+	struct samu *user = NULL;
+	NTSTATUS status;
+	uint32_t rid;
+
+ again:
+	TALLOC_FREE(user);
+	user = samu_new(talloc_tos());
+	if (user == NULL) {
+		DEBUG(0, ("samu_new failed\n"));
+		return false;
+	}
+
+	if (state->current == state->num_rids) {
+		return false;
+	}
+
+	rid = state->rids[state->current++];
+
+	status = tdbsam_getsampwrid(state->methods, user, rid);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_SUCH_USER)) {
+		/*
+		 * Someone has deleted that user since we listed the RIDs
+		 */
+		goto again;
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("tdbsam_getsampwrid failed: %s\n",
+			   nt_errstr(status)));
+		TALLOC_FREE(user);
+		return false;
+	}
+
+	if ((state->acct_flags != 0) &&
+	    ((state->acct_flags & pdb_get_acct_ctrl(user)) == 0)) {
+		goto again;
+	}
+
+	entry->acct_flags = pdb_get_acct_ctrl(user);
+	entry->rid = rid;
+	entry->account_name = talloc_strdup(
+		search->mem_ctx, pdb_get_username(user));
+	entry->fullname = talloc_strdup(
+		search->mem_ctx, pdb_get_fullname(user));
+	entry->description = talloc_strdup(
+		search->mem_ctx, pdb_get_acct_desc(user));
+
+	TALLOC_FREE(user);
+
+	if ((entry->account_name == NULL) || (entry->fullname == NULL)
+	    || (entry->description == NULL)) {
+		DEBUG(0, ("talloc_strdup failed\n"));
+		return false;
+	}
+
+	return true;
+}
+
+static bool tdbsam_search_users(struct pdb_methods *methods,
+				struct pdb_search *search,
+				uint32 acct_flags)
+{
+	struct tdbsam_search_state *state;
+
+	if (!tdbsam_open(tdbsam_filename)) {
+		DEBUG(0,("tdbsam_getsampwnam: failed to open %s!\n",
+			 tdbsam_filename));
+		return false;
+	}
+
+	state = TALLOC_ZERO_P(search->mem_ctx, struct tdbsam_search_state);
+	if (state == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		return false;
+	}
+	state->acct_flags = acct_flags;
+	state->methods = methods;
+
+	db_sam->traverse_read(db_sam, tdbsam_collect_rids, state);
+
+	search->private_data = state;
+	search->next_entry = tdbsam_search_next_entry;
+	search->search_end = tdbsam_search_end;
+
+	return true;
 }
 
 /*********************************************************************
@@ -1598,7 +1589,7 @@ static BOOL tdbsam_new_rid(struct pdb_methods *methods, uint32 *prid)
 static NTSTATUS pdb_init_tdbsam(struct pdb_methods **pdb_method, const char *location)
 {
 	NTSTATUS nt_status;
-	pstring tdbfile;
+	char *tdbfile = NULL;
 	const char *pfile = location;
 
 	if (!NT_STATUS_IS_OK(nt_status = make_pdb_method( pdb_method ))) {
@@ -1607,29 +1598,34 @@ static NTSTATUS pdb_init_tdbsam(struct pdb_methods **pdb_method, const char *loc
 
 	(*pdb_method)->name = "tdbsam";
 
-	(*pdb_method)->setsampwent = tdbsam_setsampwent;
-	(*pdb_method)->endsampwent = tdbsam_endsampwent;
-	(*pdb_method)->getsampwent = tdbsam_getsampwent;
 	(*pdb_method)->getsampwnam = tdbsam_getsampwnam;
 	(*pdb_method)->getsampwsid = tdbsam_getsampwsid;
 	(*pdb_method)->add_sam_account = tdbsam_add_sam_account;
 	(*pdb_method)->update_sam_account = tdbsam_update_sam_account;
 	(*pdb_method)->delete_sam_account = tdbsam_delete_sam_account;
 	(*pdb_method)->rename_sam_account = tdbsam_rename_sam_account;
+	(*pdb_method)->search_users = tdbsam_search_users;
 
 	(*pdb_method)->rid_algorithm = tdbsam_rid_algorithm;
 	(*pdb_method)->new_rid = tdbsam_new_rid;
 
 	/* save the path for later */
-			   
-	if ( !location ) {
-		pstr_sprintf( tdbfile, "%s/%s", lp_private_dir(), PASSDB_FILE_NAME );
+
+	if (!location) {
+		if (asprintf(&tdbfile, "%s/%s", lp_private_dir(),
+			     PASSDB_FILE_NAME) < 0) {
+			return NT_STATUS_NO_MEMORY;
+		}
 		pfile = tdbfile;
 	}
-	pstrcpy( tdbsam_filename, pfile );
+	tdbsam_filename = SMB_STRDUP(pfile);
+	if (!tdbsam_filename) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	SAFE_FREE(tdbfile);
 
 	/* no private data */
-	
+
 	(*pdb_method)->private_data      = NULL;
 	(*pdb_method)->free_private_data = NULL;
 

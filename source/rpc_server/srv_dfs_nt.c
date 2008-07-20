@@ -1,23 +1,22 @@
-/* 
+/*
  *  Unix SMB/CIFS implementation.
  *  RPC Pipe client / server routines for Dfs
  *  Copyright (C) Shirish Kalele	2000.
- *  Copyright (C) Jeremy Allison	2001.
- *  Copyright (C) Jelmer Vernooij	2005.
- *  
+ *  Copyright (C) Jeremy Allison	2001-2007.
+ *  Copyright (C) Jelmer Vernooij	2005-2006.
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
- *  
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *  
+ *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* This is the implementation of the dfs pipe. */
@@ -30,71 +29,77 @@
 /* This function does not return a WERROR or NTSTATUS code but rather 1 if
    dfs exists, or 0 otherwise. */
 
-uint32 _dfs_GetManagerVersion(pipes_struct *p, NETDFS_Q_DFS_GETMANAGERVERSION *q_u, NETDFS_R_DFS_GETMANAGERVERSION *r_u)
+void _dfs_GetManagerVersion(pipes_struct *p, struct dfs_GetManagerVersion *r)
 {
-	if(lp_host_msdfs()) 
-		return 1;
-	else
-		return 0;
+	if (lp_host_msdfs()) {
+		*r->out.version = DFS_MANAGER_VERSION_NT4;
+	} else {
+		*r->out.version = (enum dfs_ManagerVersion)0;
+	}
 }
 
-WERROR _dfs_Add(pipes_struct *p, NETDFS_Q_DFS_ADD* q_u, NETDFS_R_DFS_ADD *r_u)
+WERROR _dfs_Add(pipes_struct *p, struct dfs_Add *r)
 {
-	struct current_user user;
-	struct junction_map jn;
-	struct referral* old_referral_list = NULL;
-	BOOL self_ref = False;
+	struct junction_map *jn = NULL;
+	struct referral *old_referral_list = NULL;
+	bool self_ref = False;
 	int consumedcnt = 0;
-	BOOL exists = False;
+	char *altpath = NULL;
+	NTSTATUS status;
+	TALLOC_CTX *ctx = talloc_tos();
 
-	pstring dfspath, servername, sharename;
-	pstring altpath;
-
-	get_current_user(&user,p);
-
-	if (user.ut.uid != 0) {
+	if (p->pipe_user.ut.uid != sec_initial_uid()) {
 		DEBUG(10,("_dfs_add: uid != 0. Access denied.\n"));
 		return WERR_ACCESS_DENIED;
 	}
 
-	unistr2_to_ascii(dfspath, &q_u->path, sizeof(dfspath)-1);
-	unistr2_to_ascii(servername, &q_u->server, sizeof(servername)-1);
-	unistr2_to_ascii(sharename, &q_u->share, sizeof(sharename)-1);
+	jn = TALLOC_ZERO_P(ctx, struct junction_map);
+	if (!jn) {
+		return WERR_NOMEM;
+	}
 
 	DEBUG(5,("init_reply_dfs_add: Request to add %s -> %s\\%s.\n",
-		dfspath, servername, sharename));
+		r->in.path, r->in.server, r->in.share));
 
-	pstrcpy(altpath, servername);
-	pstrcat(altpath, "\\");
-	pstrcat(altpath, sharename);
+	altpath = talloc_asprintf(ctx, "%s\\%s",
+			r->in.server,
+			r->in.share);
+	if (!altpath) {
+		return WERR_NOMEM;
+	}
 
 	/* The following call can change the cwd. */
-	if(NT_STATUS_IS_OK(get_referred_path(p->mem_ctx, dfspath, &jn, &consumedcnt, &self_ref))) {
-		exists = True;
-		jn.referral_count += 1;
-		old_referral_list = jn.referral_list;
-	} else {
-		jn.referral_count = 1;
+	status = get_referred_path(ctx, r->in.path, jn,
+			&consumedcnt, &self_ref);
+	if(!NT_STATUS_IS_OK(status)) {
+		return ntstatus_to_werror(status);
 	}
+
+	jn->referral_count += 1;
+	old_referral_list = jn->referral_list;
 
 	vfs_ChDir(p->conn,p->conn->connectpath);
 
-	jn.referral_list = TALLOC_ARRAY(p->mem_ctx, struct referral, jn.referral_count);
-	if(jn.referral_list == NULL) {
+	if (jn->referral_count < 1) {
+		return WERR_NOMEM;
+	}
+
+	jn->referral_list = TALLOC_ARRAY(ctx, struct referral, jn->referral_count);
+	if(jn->referral_list == NULL) {
 		DEBUG(0,("init_reply_dfs_add: talloc failed for referral list!\n"));
 		return WERR_DFS_INTERNAL_ERROR;
 	}
 
-	if(old_referral_list) {
-		memcpy(jn.referral_list, old_referral_list, sizeof(struct referral)*jn.referral_count-1);
+	if(old_referral_list && jn->referral_list) {
+		memcpy(jn->referral_list, old_referral_list,
+				sizeof(struct referral)*jn->referral_count-1);
 	}
-  
-	jn.referral_list[jn.referral_count-1].proximity = 0;
-	jn.referral_list[jn.referral_count-1].ttl = REFERRAL_TTL;
 
-	pstrcpy(jn.referral_list[jn.referral_count-1].alternate_path, altpath);
-  
-	if(!create_msdfs_link(&jn, exists)) {
+	jn->referral_list[jn->referral_count-1].proximity = 0;
+	jn->referral_list[jn->referral_count-1].ttl = REFERRAL_TTL;
+	jn->referral_list[jn->referral_count-1].alternate_path = altpath;
+
+	if(!create_msdfs_link(jn)) {
 		vfs_ChDir(p->conn,p->conn->connectpath);
 		return WERR_DFS_CANT_CREATE_JUNCT;
 	}
@@ -103,51 +108,45 @@ WERROR _dfs_Add(pipes_struct *p, NETDFS_Q_DFS_ADD* q_u, NETDFS_R_DFS_ADD *r_u)
 	return WERR_OK;
 }
 
-WERROR _dfs_Remove(pipes_struct *p, NETDFS_Q_DFS_REMOVE *q_u, 
-                   NETDFS_R_DFS_REMOVE *r_u)
+WERROR _dfs_Remove(pipes_struct *p, struct dfs_Remove *r)
 {
-	struct current_user user;
-	struct junction_map jn;
-	BOOL self_ref = False;
+	struct junction_map *jn = NULL;
+	bool self_ref = False;
 	int consumedcnt = 0;
-	BOOL found = False;
+	bool found = False;
+	TALLOC_CTX *ctx = talloc_tos();
+	char *altpath = NULL;
 
-	pstring dfspath, servername, sharename;
-	pstring altpath;
-
-	get_current_user(&user,p);
-
-	if (user.ut.uid != 0) {
+	if (p->pipe_user.ut.uid != sec_initial_uid()) {
 		DEBUG(10,("_dfs_remove: uid != 0. Access denied.\n"));
 		return WERR_ACCESS_DENIED;
 	}
 
-	unistr2_to_ascii(dfspath, &q_u->path, sizeof(dfspath)-1);
-	if(q_u->ptr0_server) {
-		unistr2_to_ascii(servername, &q_u->server, sizeof(servername)-1);
+	jn = TALLOC_ZERO_P(ctx, struct junction_map);
+	if (!jn) {
+		return WERR_NOMEM;
 	}
 
-	if(q_u->ptr0_share) {
-		unistr2_to_ascii(sharename, &q_u->share, sizeof(sharename)-1);
-	}
-
-	if(q_u->ptr0_server && q_u->ptr0_share) {
-		pstrcpy(altpath, servername);
-		pstrcat(altpath, "\\");
-		pstrcat(altpath, sharename);
+	if (r->in.servername && r->in.sharename) {
+		altpath = talloc_asprintf(ctx, "%s\\%s",
+			r->in.servername,
+			r->in.sharename);
+		if (!altpath) {
+			return WERR_NOMEM;
+		}
 		strlower_m(altpath);
+		DEBUG(5,("init_reply_dfs_remove: Request to remove %s -> %s\\%s.\n",
+			r->in.dfs_entry_path, r->in.servername, r->in.sharename));
 	}
 
-	DEBUG(5,("init_reply_dfs_remove: Request to remove %s -> %s\\%s.\n",
-		dfspath, servername, sharename));
-
-	if(!NT_STATUS_IS_OK(get_referred_path(p->mem_ctx, dfspath, &jn, &consumedcnt, &self_ref))) {
+	if(!NT_STATUS_IS_OK(get_referred_path(ctx, r->in.dfs_entry_path, jn,
+				&consumedcnt, &self_ref))) {
 		return WERR_DFS_NO_SUCH_VOL;
 	}
 
 	/* if no server-share pair given, remove the msdfs link completely */
-	if(!q_u->ptr0_server && !q_u->ptr0_share) {
-		if(!remove_msdfs_link(&jn)) {
+	if(!r->in.servername && !r->in.sharename) {
+		if(!remove_msdfs_link(jn)) {
 			vfs_ChDir(p->conn,p->conn->connectpath);
 			return WERR_DFS_NO_SUCH_VOL;
 		}
@@ -155,14 +154,17 @@ WERROR _dfs_Remove(pipes_struct *p, NETDFS_Q_DFS_REMOVE *q_u,
 	} else {
 		int i=0;
 		/* compare each referral in the list with the one to remove */
-		DEBUG(10,("altpath: .%s. refcnt: %d\n", altpath, jn.referral_count));
-		for(i=0;i<jn.referral_count;i++) {
-			pstring refpath;
-			pstrcpy(refpath,jn.referral_list[i].alternate_path);
+		DEBUG(10,("altpath: .%s. refcnt: %d\n", altpath, jn->referral_count));
+		for(i=0;i<jn->referral_count;i++) {
+			char *refpath = talloc_strdup(ctx,
+					jn->referral_list[i].alternate_path);
+			if (!refpath) {
+				return WERR_NOMEM;
+			}
 			trim_char(refpath, '\\', '\\');
 			DEBUG(10,("_dfs_remove:  refpath: .%s.\n", refpath));
 			if(strequal(refpath, altpath)) {
-				*(jn.referral_list[i].alternate_path)='\0';
+				*(jn->referral_list[i].alternate_path)='\0';
 				DEBUG(10,("_dfs_remove: Removal request matches referral %s\n",
 					refpath));
 				found = True;
@@ -174,13 +176,13 @@ WERROR _dfs_Remove(pipes_struct *p, NETDFS_Q_DFS_REMOVE *q_u,
 		}
 
 		/* Only one referral, remove it */
-		if(jn.referral_count == 1) {
-			if(!remove_msdfs_link(&jn)) {
+		if(jn->referral_count == 1) {
+			if(!remove_msdfs_link(jn)) {
 				vfs_ChDir(p->conn,p->conn->connectpath);
 				return WERR_DFS_NO_SUCH_VOL;
 			}
 		} else {
-			if(!create_msdfs_link(&jn, True)) { 
+			if(!create_msdfs_link(jn)) {
 				vfs_ChDir(p->conn,p->conn->connectpath);
 				return WERR_DFS_CANT_CREATE_JUNCT;
 			}
@@ -191,68 +193,67 @@ WERROR _dfs_Remove(pipes_struct *p, NETDFS_Q_DFS_REMOVE *q_u,
 	return WERR_OK;
 }
 
-static BOOL init_reply_dfs_info_1(struct junction_map* j, NETDFS_DFS_INFO1* dfs1)
+static bool init_reply_dfs_info_1(TALLOC_CTX *mem_ctx, struct junction_map* j,struct dfs_Info1* dfs1)
 {
-	pstring str;
-	dfs1->ptr0_path = 1;
-	slprintf(str, sizeof(pstring)-1, "\\\\%s\\%s\\%s", global_myname(), 
-		j->service_name, j->volume_name);
-	DEBUG(5,("init_reply_dfs_info_1: initing entrypath: %s\n",str));
-	init_unistr2(&dfs1->path,str,UNI_STR_TERMINATE);
+	dfs1->path = talloc_asprintf(mem_ctx,
+				"\\\\%s\\%s\\%s", global_myname(),
+				j->service_name, j->volume_name);
+	if (dfs1->path == NULL)
+		return False;
+
+	DEBUG(5,("init_reply_dfs_info_1: initing entrypath: %s\n",dfs1->path));
 	return True;
 }
 
-static BOOL init_reply_dfs_info_2(struct junction_map* j, NETDFS_DFS_INFO2* dfs2)
+static bool init_reply_dfs_info_2(TALLOC_CTX *mem_ctx, struct junction_map* j, struct dfs_Info2* dfs2)
 {
-	pstring str;
-	dfs2->ptr0_path = 1;
-	slprintf(str, sizeof(pstring)-1, "\\\\%s\\%s\\%s", global_myname(),
-		j->service_name, j->volume_name);
-	init_unistr2(&dfs2->path, str, UNI_STR_TERMINATE);
-	dfs2->ptr0_comment = 0;
-	init_unistr2(&dfs2->comment, j->comment, UNI_STR_TERMINATE);
+	dfs2->path = talloc_asprintf(mem_ctx,
+			"\\\\%s\\%s\\%s", global_myname(), j->service_name, j->volume_name);
+	if (dfs2->path == NULL)
+		return False;
+	dfs2->comment = talloc_strdup(mem_ctx, j->comment);
 	dfs2->state = 1; /* set up state of dfs junction as OK */
 	dfs2->num_stores = j->referral_count;
 	return True;
 }
 
-static BOOL init_reply_dfs_info_3(TALLOC_CTX *ctx, struct junction_map* j, NETDFS_DFS_INFO3* dfs3)
+static bool init_reply_dfs_info_3(TALLOC_CTX *mem_ctx, struct junction_map* j, struct dfs_Info3* dfs3)
 {
 	int ii;
-	pstring str;
-	dfs3->ptr0_path = 1;
 	if (j->volume_name[0] == '\0')
-		slprintf(str, sizeof(pstring)-1, "\\\\%s\\%s",
+		dfs3->path = talloc_asprintf(mem_ctx, "\\\\%s\\%s",
 			global_myname(), j->service_name);
 	else
-		slprintf(str, sizeof(pstring)-1, "\\\\%s\\%s\\%s", global_myname(),
+		dfs3->path = talloc_asprintf(mem_ctx, "\\\\%s\\%s\\%s", global_myname(),
 			j->service_name, j->volume_name);
 
-	init_unistr2(&dfs3->path, str, UNI_STR_TERMINATE);
-	dfs3->ptr0_comment = 1;
-	init_unistr2(&dfs3->comment, j->comment, UNI_STR_TERMINATE);
+	if (dfs3->path == NULL)
+		return False;
+
+	dfs3->comment = talloc_strdup(mem_ctx, j->comment);
 	dfs3->state = 1;
-	dfs3->num_stores = dfs3->size_stores = j->referral_count;
-    
+	dfs3->num_stores = j->referral_count;
+
 	/* also enumerate the stores */
 	if (j->referral_count) {
-		dfs3->stores = TALLOC_ARRAY(ctx, NETDFS_DFS_STORAGEINFO, j->referral_count);
+		dfs3->stores = TALLOC_ARRAY(mem_ctx, struct dfs_StorageInfo, j->referral_count);
 		if (!dfs3->stores)
 			return False;
-		memset(dfs3->stores, '\0', j->referral_count * sizeof(NETDFS_DFS_STORAGEINFO));
-		dfs3->ptr0_stores = 1;
+		memset(dfs3->stores, '\0', j->referral_count * sizeof(struct dfs_StorageInfo));
 	} else {
 		dfs3->stores = NULL;
-		dfs3->ptr0_stores = 0;
 	}
 
 	for(ii=0;ii<j->referral_count;ii++) {
-		char* p; 
-		pstring path;
-		NETDFS_DFS_STORAGEINFO* stor = &(dfs3->stores[ii]);
+		char* p;
+		char *path = NULL;
+ 		struct dfs_StorageInfo* stor = &(dfs3->stores[ii]);
 		struct referral* ref = &(j->referral_list[ii]);
-  
-		pstrcpy(path, ref->alternate_path);
+
+		path = talloc_strdup(mem_ctx, ref->alternate_path);
+		if (!path) {
+			return False;
+		}
 		trim_char(path,'\\','\0');
 		p = strrchr_m(path,'\\');
 		if(p==NULL) {
@@ -262,245 +263,281 @@ static BOOL init_reply_dfs_info_3(TALLOC_CTX *ctx, struct junction_map* j, NETDF
 		*p = '\0';
 		DEBUG(5,("storage %d: %s.%s\n",ii,path,p+1));
 		stor->state = 2; /* set all stores as ONLINE */
-		init_unistr2(&stor->server, path, UNI_STR_TERMINATE);
-		init_unistr2(&stor->share,  p+1, UNI_STR_TERMINATE);
-		stor->ptr0_server = stor->ptr0_share = 1;
+		stor->server = talloc_strdup(mem_ctx, path);
+		stor->share = talloc_strdup(mem_ctx, p+1);
 	}
 	return True;
 }
 
-static BOOL init_reply_dfs_info_100(struct junction_map* j, NETDFS_DFS_INFO100* dfs100)
+static bool init_reply_dfs_info_100(TALLOC_CTX *mem_ctx, struct junction_map* j, struct dfs_Info100* dfs100)
 {
-	dfs100->ptr0_comment = 1;
-	init_unistr2(&dfs100->comment, j->comment, UNI_STR_TERMINATE);
+	dfs100->comment = talloc_strdup(mem_ctx, j->comment);
 	return True;
 }
 
-
-WERROR _dfs_Enum(pipes_struct *p, NETDFS_Q_DFS_ENUM *q_u, NETDFS_R_DFS_ENUM *r_u)
+WERROR _dfs_Enum(pipes_struct *p, struct dfs_Enum *r)
 {
-	uint32 level = q_u->level;
-	struct junction_map jn[MAX_MSDFS_JUNCTIONS];
-	int num_jn = 0;
-	int i;
+	struct junction_map *jn = NULL;
+	size_t num_jn = 0;
+	size_t i;
+	TALLOC_CTX *ctx = talloc_tos();
 
-	num_jn = enum_msdfs_links(p->mem_ctx, jn, ARRAY_SIZE(jn));
+	jn = enum_msdfs_links(ctx, &num_jn);
+	if (!jn || num_jn == 0) {
+		num_jn = 0;
+		jn = NULL;
+	}
 	vfs_ChDir(p->conn,p->conn->connectpath);
-    
-	DEBUG(5,("_dfs_Enum: %d junctions found in Dfs, doing level %d\n", num_jn, level));
 
-	r_u->ptr0_info = q_u->ptr0_info;
-	r_u->ptr0_total = q_u->ptr0_total;
-	r_u->total = num_jn;
+	DEBUG(5,("_dfs_Enum: %u junctions found in Dfs, doing level %d\n",
+				(unsigned int)num_jn, r->in.level));
 
-	r_u->info = q_u->info;
+	*r->out.total = num_jn;
 
 	/* Create the return array */
-	switch (level) {
+	switch (r->in.level) {
 	case 1:
-		r_u->info.e.u.info1.count = num_jn;
 		if (num_jn) {
-			if ((r_u->info.e.u.info1.s = TALLOC_ARRAY(p->mem_ctx, NETDFS_DFS_INFO1, num_jn)) == NULL) {
+			if ((r->out.info->e.info1->s = TALLOC_ARRAY(ctx, struct dfs_Info1, num_jn)) == NULL) {
 				return WERR_NOMEM;
 			}
-			r_u->info.e.u.info1.ptr0_s = 1;
-			r_u->info.e.u.info1.size_s = num_jn;
+		} else {
+			r->out.info->e.info1->s = NULL;
 		}
+		r->out.info->e.info1->count = num_jn;
 		break;
 	case 2:
-		r_u->info.e.u.info2.count = num_jn;
 		if (num_jn) {
-			if ((r_u->info.e.u.info2.s = TALLOC_ARRAY(p->mem_ctx, NETDFS_DFS_INFO2, num_jn)) == NULL) {
+			if ((r->out.info->e.info2->s = TALLOC_ARRAY(ctx, struct dfs_Info2, num_jn)) == NULL) {
 				return WERR_NOMEM;
 			}
-			r_u->info.e.u.info2.ptr0_s = 1;
-			r_u->info.e.u.info2.size_s = num_jn;
+		} else {
+			r->out.info->e.info2->s = NULL;
 		}
+		r->out.info->e.info2->count = num_jn;
 		break;
 	case 3:
-		r_u->info.e.u.info3.count = num_jn;
 		if (num_jn) {
-			if ((r_u->info.e.u.info3.s = TALLOC_ARRAY(p->mem_ctx, NETDFS_DFS_INFO3, num_jn)) == NULL) {
+			if ((r->out.info->e.info3->s = TALLOC_ARRAY(ctx, struct dfs_Info3, num_jn)) == NULL) {
 				return WERR_NOMEM;
 			}
-			r_u->info.e.u.info3.ptr0_s = 1;
-			r_u->info.e.u.info3.size_s = num_jn;
+		} else {
+			r->out.info->e.info3->s = NULL;
 		}
+		r->out.info->e.info3->count = num_jn;
 		break;
 	default:
 		return WERR_INVALID_PARAM;
 	}
 
 	for (i = 0; i < num_jn; i++) {
-		switch (level) {
-		case 1: 
-			init_reply_dfs_info_1(&jn[i], &r_u->info.e.u.info1.s[i]);
+		switch (r->in.level) {
+		case 1:
+			init_reply_dfs_info_1(ctx, &jn[i], &r->out.info->e.info1->s[i]);
 			break;
 		case 2:
-			init_reply_dfs_info_2(&jn[i], &r_u->info.e.u.info2.s[i]);
+			init_reply_dfs_info_2(ctx, &jn[i], &r->out.info->e.info2->s[i]);
 			break;
 		case 3:
-			init_reply_dfs_info_3(p->mem_ctx, &jn[i], &r_u->info.e.u.info3.s[i]);
+			init_reply_dfs_info_3(ctx, &jn[i], &r->out.info->e.info3->s[i]);
 			break;
 		default:
 			return WERR_INVALID_PARAM;
 		}
 	}
-  
-	r_u->status = WERR_OK;
 
-	return r_u->status;
+	return WERR_OK;
 }
-      
-WERROR _dfs_GetInfo(pipes_struct *p, NETDFS_Q_DFS_GETINFO *q_u, 
-                     NETDFS_R_DFS_GETINFO *r_u)
-{
-	UNISTR2* uni_path = &q_u->path;
-	uint32 level = q_u->level;
-	int consumedcnt = sizeof(pstring);
-	pstring path;
-	BOOL ret = False;
-	BOOL self_ref = False;
-	struct junction_map jn;
 
-	unistr2_to_ascii(path, uni_path, sizeof(path)-1);
-	if(!create_junction(path, &jn))
+WERROR _dfs_GetInfo(pipes_struct *p, struct dfs_GetInfo *r)
+{
+	int consumedcnt = strlen(r->in.dfs_entry_path);
+	struct junction_map *jn = NULL;
+	bool self_ref = False;
+	TALLOC_CTX *ctx = talloc_tos();
+	bool ret;
+
+	jn = TALLOC_ZERO_P(ctx, struct junction_map);
+	if (!jn) {
+		return WERR_NOMEM;
+	}
+
+	if(!create_junction(ctx, r->in.dfs_entry_path, jn)) {
 		return WERR_DFS_NO_SUCH_SERVER;
-  
+	}
+
 	/* The following call can change the cwd. */
-	if(!NT_STATUS_IS_OK(get_referred_path(p->mem_ctx, path, &jn, &consumedcnt, &self_ref)) || consumedcnt < strlen(path)) {
+	if(!NT_STATUS_IS_OK(get_referred_path(ctx, r->in.dfs_entry_path,
+					jn, &consumedcnt, &self_ref)) ||
+			consumedcnt < strlen(r->in.dfs_entry_path)) {
 		vfs_ChDir(p->conn,p->conn->connectpath);
 		return WERR_DFS_NO_SUCH_VOL;
 	}
 
 	vfs_ChDir(p->conn,p->conn->connectpath);
-	r_u->info.switch_value = level;
-	r_u->info.ptr0 = 1;
-	r_u->status = WERR_OK;
 
-	switch (level) {
-		case 1: ret = init_reply_dfs_info_1(&jn, &r_u->info.u.info1); break;
-		case 2: ret = init_reply_dfs_info_2(&jn, &r_u->info.u.info2); break;
-		case 3: ret = init_reply_dfs_info_3(p->mem_ctx, &jn, &r_u->info.u.info3); break;
-		case 100: ret = init_reply_dfs_info_100(&jn, &r_u->info.u.info100); break;
-		default:
-			r_u->info.ptr0 = 1;
-			r_u->info.switch_value = 0;
-			r_u->status = WERR_OK;
-			ret = True;
+	switch (r->in.level) {
+		case 1:
+			r->out.info->info1 = TALLOC_ZERO_P(ctx,struct dfs_Info1);
+			if (!r->out.info->info1) {
+				return WERR_NOMEM;
+			}
+			ret = init_reply_dfs_info_1(ctx, jn, r->out.info->info1);
 			break;
+		case 2:
+			r->out.info->info2 = TALLOC_ZERO_P(ctx,struct dfs_Info2);
+			if (!r->out.info->info2) {
+				return WERR_NOMEM;
+			}
+			ret = init_reply_dfs_info_2(ctx, jn, r->out.info->info2);
+			break;
+		case 3:
+			r->out.info->info3 = TALLOC_ZERO_P(ctx,struct dfs_Info3);
+			if (!r->out.info->info3) {
+				return WERR_NOMEM;
+			}
+			ret = init_reply_dfs_info_3(ctx, jn, r->out.info->info3);
+			break;
+		case 100:
+			r->out.info->info100 = TALLOC_ZERO_P(ctx,struct dfs_Info100);
+			if (!r->out.info->info100) {
+				return WERR_NOMEM;
+			}
+			ret = init_reply_dfs_info_100(ctx, jn, r->out.info->info100);
+			break;
+		default:
+			r->out.info->info1 = NULL;
+			return WERR_INVALID_PARAM;
 	}
 
-	if (!ret) 
-		r_u->status = WERR_INVALID_PARAM;
-  
-	return r_u->status;
+	if (!ret)
+		return WERR_INVALID_PARAM;
+
+	return WERR_OK;
 }
 
-WERROR _dfs_SetInfo(pipes_struct *p, NETDFS_Q_DFS_SETINFO *q_u, NETDFS_R_DFS_SETINFO *r_u)
+WERROR _dfs_SetInfo(pipes_struct *p, struct dfs_SetInfo *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_Rename(pipes_struct *p, NETDFS_Q_DFS_RENAME *q_u, NETDFS_R_DFS_RENAME *r_u)
+WERROR _dfs_Rename(pipes_struct *p, struct dfs_Rename *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_Move(pipes_struct *p, NETDFS_Q_DFS_MOVE *q_u, NETDFS_R_DFS_MOVE *r_u)
+WERROR _dfs_Move(pipes_struct *p, struct dfs_Move *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_ManagerGetConfigInfo(pipes_struct *p, NETDFS_Q_DFS_MANAGERGETCONFIGINFO *q_u, NETDFS_R_DFS_MANAGERGETCONFIGINFO *r_u)
+WERROR _dfs_ManagerGetConfigInfo(pipes_struct *p, struct dfs_ManagerGetConfigInfo *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_ManagerSendSiteInfo(pipes_struct *p, NETDFS_Q_DFS_MANAGERSENDSITEINFO *q_u, NETDFS_R_DFS_MANAGERSENDSITEINFO *r_u)
+WERROR _dfs_ManagerSendSiteInfo(pipes_struct *p, struct dfs_ManagerSendSiteInfo *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_AddFtRoot(pipes_struct *p, NETDFS_Q_DFS_ADDFTROOT *q_u, NETDFS_R_DFS_ADDFTROOT *r_u)
+WERROR _dfs_AddFtRoot(pipes_struct *p, struct dfs_AddFtRoot *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_RemoveFtRoot(pipes_struct *p, NETDFS_Q_DFS_REMOVEFTROOT *q_u, NETDFS_R_DFS_REMOVEFTROOT *r_u)
+WERROR _dfs_RemoveFtRoot(pipes_struct *p, struct dfs_RemoveFtRoot *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_AddStdRoot(pipes_struct *p, NETDFS_Q_DFS_ADDSTDROOT *q_u, NETDFS_R_DFS_ADDSTDROOT *r_u)
+WERROR _dfs_AddStdRoot(pipes_struct *p, struct dfs_AddStdRoot *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_RemoveStdRoot(pipes_struct *p, NETDFS_Q_DFS_REMOVESTDROOT *q_u, NETDFS_R_DFS_REMOVESTDROOT *r_u)
+WERROR _dfs_RemoveStdRoot(pipes_struct *p, struct dfs_RemoveStdRoot *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_ManagerInitialize(pipes_struct *p, NETDFS_Q_DFS_MANAGERINITIALIZE *q_u, NETDFS_R_DFS_MANAGERINITIALIZE *r_u)
+WERROR _dfs_ManagerInitialize(pipes_struct *p, struct dfs_ManagerInitialize *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_AddStdRootForced(pipes_struct *p, NETDFS_Q_DFS_ADDSTDROOTFORCED *q_u, NETDFS_R_DFS_ADDSTDROOTFORCED *r_u)
+WERROR _dfs_AddStdRootForced(pipes_struct *p, struct dfs_AddStdRootForced *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_GetDcAddress(pipes_struct *p, NETDFS_Q_DFS_GETDCADDRESS *q_u, NETDFS_R_DFS_GETDCADDRESS *r_u)
+WERROR _dfs_GetDcAddress(pipes_struct *p, struct dfs_GetDcAddress *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_SetDcAddress(pipes_struct *p, NETDFS_Q_DFS_SETDCADDRESS *q_u, NETDFS_R_DFS_SETDCADDRESS *r_u)
+WERROR _dfs_SetDcAddress(pipes_struct *p, struct dfs_SetDcAddress *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_FlushFtTable(pipes_struct *p, NETDFS_Q_DFS_FLUSHFTTABLE *q_u, NETDFS_R_DFS_FLUSHFTTABLE *r_u)
+WERROR _dfs_FlushFtTable(pipes_struct *p, struct dfs_FlushFtTable *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_Add2(pipes_struct *p, NETDFS_Q_DFS_ADD2 *q_u, NETDFS_R_DFS_ADD2 *r_u)
+WERROR _dfs_Add2(pipes_struct *p, struct dfs_Add2 *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_Remove2(pipes_struct *p, NETDFS_Q_DFS_REMOVE2 *q_u, NETDFS_R_DFS_REMOVE2 *r_u)
+WERROR _dfs_Remove2(pipes_struct *p, struct dfs_Remove2 *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_EnumEx(pipes_struct *p, NETDFS_Q_DFS_ENUMEX *q_u, NETDFS_R_DFS_ENUMEX *r_u)
+WERROR _dfs_EnumEx(pipes_struct *p, struct dfs_EnumEx *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }
 
-WERROR _dfs_SetInfo2(pipes_struct *p, NETDFS_Q_DFS_SETINFO2 *q_u, NETDFS_R_DFS_SETINFO2 *r_u)
+WERROR _dfs_SetInfo2(pipes_struct *p, struct dfs_SetInfo2 *r)
 {
 	/* FIXME: Implement your code here */
+	p->rng_fault_state = True;
 	return WERR_NOT_SUPPORTED;
 }

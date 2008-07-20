@@ -1,11 +1,11 @@
 .\"     Title: winbindd
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 07/10/2008
+.\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
+.\"      Date: 06/26/2008
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.2
 .\"
-.TH "WINBINDD" "8" "07/10/2008" "Samba 3\.2" "System Administration tools"
+.TH "WINBINDD" "8" "06/26/2008" "Samba 3\.2" "System Administration tools"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -31,13 +31,13 @@ smbd,
 ntlm_auth
 and the
 pam_winbind\.so
-PAM module, by managing connections to domain controllers\. In this configuration the
+PAM module, by managing connections to domain controllers\. In this configuraiton the
 \fIidmap uid\fR
 and
 \fIidmap gid\fR
 parameters are not required\. (This is known as `netlogon proxy only mode\'\.)
 .PP
-The Name Service Switch allows user and system information to be obtained from different databases services such as NIS or DNS\. The exact behaviour can be configured through the
+The Name Service Switch allows user and system information to be obtained from different databases services such as NIS or DNS\. The exact behaviour can be configured throught the
 \fI/etc/nsswitch\.conf\fR
 file\. Users and groups are allocated as they are resolved to a range of user and group ids specified by the administrator of the Samba system\.
 .PP

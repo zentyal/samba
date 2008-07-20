@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -79,7 +78,7 @@ static void filter_request(char *buf)
 {
 	int msg_type = CVAL(buf,0);
 	int type = CVAL(buf,smb_com);
-	pstring name1,name2;
+	fstring name1,name2;
 	unsigned x;
 
 	if (msg_type) {
@@ -115,16 +114,46 @@ static void filter_request(char *buf)
 
 }
 
+/****************************************************************************
+ Send an smb to a fd.
+****************************************************************************/
 
-static void filter_child(int c, struct in_addr dest_ip)
+static bool send_smb(int fd, char *buffer)
+{
+	size_t len;
+	size_t nwritten=0;
+	ssize_t ret;
+
+        len = smb_len(buffer) + 4;
+
+	while (nwritten < len) {
+		ret = write_data(fd,buffer+nwritten,len - nwritten);
+		if (ret <= 0) {
+			DEBUG(0,("Error writing %d bytes to client. %d. (%s)\n",
+				(int)len,(int)ret, strerror(errno) ));
+			return false;
+		}
+		nwritten += ret;
+	}
+
+	return true;
+}
+
+static void filter_child(int c, struct sockaddr_storage *dest_ss)
 {
 	int s;
 
 	/* we have a connection from a new client, now connect to the server */
-	s = open_socket_out(SOCK_STREAM, &dest_ip, 445, LONG_CONNECT_TIMEOUT);
+	s = open_socket_out(SOCK_STREAM, dest_ss, 445, LONG_CONNECT_TIMEOUT);
 
 	if (s == -1) {
-		d_printf("Unable to connect to %s\n", inet_ntoa(dest_ip));
+		char addr[INET6_ADDRSTRLEN];
+		if (dest_ss) {
+			print_sockaddr(addr, sizeof(addr), dest_ss);
+		}
+
+		d_printf("Unable to connect to %s (%s)\n",
+			 dest_ss?addr:"NULL",strerror(errno));
 		exit(1);
 	}
 
@@ -140,7 +169,10 @@ static void filter_child(int c, struct in_addr dest_ip)
 		if (num <= 0) continue;
 		
 		if (c != -1 && FD_ISSET(c, &fds)) {
-			if (!receive_smb(c, packet, BUFFER_SIZE, 0)) {
+			size_t len;
+			if (!NT_STATUS_IS_OK(receive_smb_raw(
+							c, packet, sizeof(packet),
+							0, 0, &len))) {
 				d_printf("client closed connection\n");
 				exit(0);
 			}
@@ -151,7 +183,10 @@ static void filter_child(int c, struct in_addr dest_ip)
 			}			
 		}
 		if (s != -1 && FD_ISSET(s, &fds)) {
-			if (!receive_smb(s, packet, BUFFER_SIZE, 0)) {
+			size_t len;
+			if (!NT_STATUS_IS_OK(receive_smb_raw(
+							s, packet, sizeof(packet),
+							0, 0, &len))) {
 				d_printf("server closed connection\n");
 				exit(0);
 			}
@@ -170,12 +205,15 @@ static void filter_child(int c, struct in_addr dest_ip)
 static void start_filter(char *desthost)
 {
 	int s, c;
-	struct in_addr dest_ip;
+	struct sockaddr_storage dest_ss;
+	struct sockaddr_storage my_ss;
 
 	CatchChild();
 
 	/* start listening on port 445 locally */
-	s = open_socket_in(SOCK_STREAM, 445, 0, 0, True);
+
+	zero_addr(&my_ss);
+	s = open_socket_in(SOCK_STREAM, 445, 0, &my_ss, True);
 	
 	if (s == -1) {
 		d_printf("bind failed\n");
@@ -186,7 +224,7 @@ static void start_filter(char *desthost)
 		d_printf("listen failed\n");
 	}
 
-	if (!resolve_name(desthost, &dest_ip, 0x20)) {
+	if (!resolve_name(desthost, &dest_ss, 0x20)) {
 		d_printf("Unable to resolve host %s\n", desthost);
 		exit(1);
 	}
@@ -194,19 +232,19 @@ static void start_filter(char *desthost)
 	while (1) {
 		fd_set fds;
 		int num;
-		struct sockaddr addr;
-		socklen_t in_addrlen = sizeof(addr);
+		struct sockaddr_storage ss;
+		socklen_t in_addrlen = sizeof(ss);
 		
 		FD_ZERO(&fds);
 		FD_SET(s, &fds);
 
 		num = sys_select_intr(s+1,&fds,NULL,NULL,NULL);
 		if (num > 0) {
-			c = accept(s, &addr, &in_addrlen);
+			c = accept(s, (struct sockaddr *)&ss, &in_addrlen);
 			if (c != -1) {
 				if (fork() == 0) {
 					close(s);
-					filter_child(c, dest_ip);
+					filter_child(c, &dest_ss);
 					exit(0);
 				} else {
 					close(c);
@@ -220,12 +258,15 @@ static void start_filter(char *desthost)
 int main(int argc, char *argv[])
 {
 	char *desthost;
-	pstring configfile;
+	const char *configfile;
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	load_case_tables();
 
 	setup_logging(argv[0],True);
-  
-	pstrcpy(configfile,dyn_CONFIGFILE);
- 
+
+	configfile = get_dyn_CONFIGFILE();
+
 	if (argc < 2) {
 		fprintf(stderr,"smbfilter <desthost> <netbiosname>\n");
 		exit(1);
@@ -241,5 +282,6 @@ int main(int argc, char *argv[])
 	}
 
 	start_filter(desthost);
+	TALLOC_FREE(frame);
 	return 0;
 }

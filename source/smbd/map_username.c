@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -29,41 +28,82 @@
  any incoming or new username - in order to canonicalize the name.
  This is being done to de-couple the case conversions from the user mapping
  function. Previously, the map_username was being called
- every time Get_Pwnam was called.
+ every time Get_Pwnam_alloc was called.
  Returns True if username was changed, false otherwise.
 ********************************************************************/
 
-BOOL map_username(fstring user)
+static char *last_from, *last_to;
+
+static const char *get_last_from(void)
 {
-	static BOOL initialised=False;
-	static fstring last_from,last_to;
+	if (!last_from) {
+		return "";
+	}
+	return last_from;
+}
+
+static const char *get_last_to(void)
+{
+	if (!last_to) {
+		return "";
+	}
+	return last_to;
+}
+
+static bool set_last_from_to(const char *from, const char *to)
+{
+	char *orig_from = last_from;
+	char *orig_to = last_to;
+
+	last_from = SMB_STRDUP(from);
+	last_to = SMB_STRDUP(to);
+
+	SAFE_FREE(orig_from);
+	SAFE_FREE(orig_to);
+
+	if (!last_from || !last_to) {
+		SAFE_FREE(last_from);
+		SAFE_FREE(last_to);
+		return false;
+	}
+	return true;
+}
+
+bool map_username(fstring user)
+{
 	XFILE *f;
 	char *mapfile = lp_username_map();
 	char *s;
-	pstring buf;
-	BOOL mapped_user = False;
+	char buf[512];
+	bool mapped_user = False;
 	char *cmd = lp_username_map_script();
-	
-	if (!*user)
-		return False;
-		
-	if (strequal(user,last_to))
-		return False;
 
-	if (strequal(user,last_from)) {
-		DEBUG(3,("Mapped user %s to %s\n",user,last_to));
-		fstrcpy(user,last_to);
-		return True;
+	if (!*user)
+		return false;
+
+	if (strequal(user,get_last_to()))
+		return false;
+
+	if (strequal(user,get_last_from())) {
+		DEBUG(3,("Mapped user %s to %s\n",user,get_last_to()));
+		fstrcpy(user,get_last_to());
+		return true;
 	}
-	
+
 	/* first try the username map script */
-	
+
 	if ( *cmd ) {
 		char **qlines;
-		pstring command;
+		char *command = NULL;
 		int numlines, ret, fd;
 
-		pstr_sprintf( command, "%s \"%s\"", cmd, user );
+		command = talloc_asprintf(talloc_tos(),
+					"%s \"%s\"",
+					cmd,
+					user);
+		if (!command) {
+			return false;
+		}
 
 		DEBUG(10,("Running [%s]\n", command));
 		ret = smbrun(command, &fd);
@@ -88,20 +128,14 @@ BOOL map_username(fstring user)
 		}
 
 		file_lines_free(qlines);
-		
+
 		return numlines != 0;
 	}
 
 	/* ok.  let's try the mapfile */
-	
 	if (!*mapfile)
 		return False;
 
-	if (!initialised) {
-		*last_from = *last_to = 0;
-		initialised = True;
-	}
-  
 	f = x_fopen(mapfile,O_RDONLY, 0);
 	if (!f) {
 		DEBUG(0,("can't open username map %s. Error %s\n",mapfile, strerror(errno) ));
@@ -114,7 +148,7 @@ BOOL map_username(fstring user)
 		char *unixname = s;
 		char *dosname = strchr_m(unixname,'=');
 		char **dosuserlist;
-		BOOL return_if_mapped = False;
+		bool return_if_mapped = False;
 
 		if (!dosname)
 			continue;
@@ -130,7 +164,7 @@ BOOL map_username(fstring user)
 			while (*unixname && isspace((int)*unixname))
 				unixname++;
 		}
-    
+
 		if (!*unixname || strchr_m("#;",*unixname))
 			continue;
 
@@ -144,7 +178,7 @@ BOOL map_username(fstring user)
 
 		/* skip lines like 'user = ' */
 
-		dosuserlist = str_list_make(dosname, NULL);
+		dosuserlist = str_list_make(talloc_tos(), dosname, NULL);
 		if (!dosuserlist) {
 			DEBUG(0,("Bad username map entry.  Unable to build user list.  Ignoring.\n"));
 			continue;
@@ -154,27 +188,28 @@ BOOL map_username(fstring user)
 		    user_in_list(user, (const char **)dosuserlist)) {
 			DEBUG(3,("Mapped user %s to %s\n",user,unixname));
 			mapped_user = True;
-			fstrcpy( last_from,user );
+
+			set_last_from_to(user, unixname);
 			fstrcpy( user, unixname );
-			fstrcpy( last_to,user );
+
 			if ( return_if_mapped ) {
-				str_list_free (&dosuserlist);
+				TALLOC_FREE(dosuserlist);
 				x_fclose(f);
 				return True;
 			}
 		}
-    
-		str_list_free (&dosuserlist);
+
+		TALLOC_FREE(dosuserlist);
 	}
 
 	x_fclose(f);
 
 	/*
-	 * Setup the last_from and last_to as an optimization so 
+	 * Setup the last_from and last_to as an optimization so
 	 * that we don't scan the file again for the same user.
 	 */
-	fstrcpy(last_from,user);
-	fstrcpy(last_to,user);
+
+	set_last_from_to(user, user);
 
 	return mapped_user;
 }

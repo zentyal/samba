@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -23,6 +22,9 @@
 #define VERBOSE 0
 #define OP_MIN 0
 #define OP_MAX 20
+
+#define DATA_SIZE 1024
+#define PARAM_SIZE 1024
 
 /****************************************************************************
 look for a partial hit
@@ -85,14 +87,14 @@ static NTSTATUS try_trans2_len(struct cli_state *cli,
 	NTSTATUS ret=NT_STATUS_OK;
 
 	ret = try_trans2(cli, op, param, data, param_len,
-			 sizeof(pstring), rparam_len, rdata_len);
+			 DATA_SIZE, rparam_len, rdata_len);
 #if VERBOSE 
 	printf("op=%d level=%d ret=%s\n", op, level, nt_errstr(ret));
 #endif
 	if (!NT_STATUS_IS_OK(ret)) return ret;
 
 	*data_len = 0;
-	while (*data_len < sizeof(pstring)) {
+	while (*data_len < DATA_SIZE) {
 		ret = try_trans2(cli, op, param, data, param_len,
 				 *data_len, rparam_len, rdata_len);
 		if (NT_STATUS_IS_OK(ret)) break;
@@ -110,13 +112,13 @@ static NTSTATUS try_trans2_len(struct cli_state *cli,
 /****************************************************************************
 check for existance of a trans2 call
 ****************************************************************************/
-static BOOL scan_trans2(struct cli_state *cli, int op, int level, 
+static bool scan_trans2(struct cli_state *cli, int op, int level, 
 			int fnum, int dnum, const char *fname)
 {
 	int data_len = 0;
 	int param_len = 0;
 	unsigned int rparam_len, rdata_len;
-	pstring param, data;
+	char param[PARAM_SIZE], data[DATA_SIZE];
 	NTSTATUS status;
 
 	memset(data, 0, sizeof(data));
@@ -187,7 +189,7 @@ static BOOL scan_trans2(struct cli_state *cli, int op, int level,
 }
 
 
-BOOL torture_trans2_scan(int dummy)
+bool torture_trans2_scan(int dummy)
 {
 	static struct cli_state *cli;
 	int op, level;
@@ -287,14 +289,14 @@ static NTSTATUS try_nttrans_len(struct cli_state *cli,
 	NTSTATUS ret=NT_STATUS_OK;
 
 	ret = try_nttrans(cli, op, param, data, param_len,
-			 sizeof(pstring), rparam_len, rdata_len);
+			 DATA_SIZE, rparam_len, rdata_len);
 #if VERBOSE 
 	printf("op=%d level=%d ret=%s\n", op, level, nt_errstr(ret));
 #endif
 	if (!NT_STATUS_IS_OK(ret)) return ret;
 
 	*data_len = 0;
-	while (*data_len < sizeof(pstring)) {
+	while (*data_len < DATA_SIZE) {
 		ret = try_nttrans(cli, op, param, data, param_len,
 				 *data_len, rparam_len, rdata_len);
 		if (NT_STATUS_IS_OK(ret)) break;
@@ -312,13 +314,13 @@ static NTSTATUS try_nttrans_len(struct cli_state *cli,
 /****************************************************************************
 check for existance of a nttrans call
 ****************************************************************************/
-static BOOL scan_nttrans(struct cli_state *cli, int op, int level, 
+static bool scan_nttrans(struct cli_state *cli, int op, int level, 
 			int fnum, int dnum, const char *fname)
 {
 	int data_len = 0;
 	int param_len = 0;
 	unsigned int rparam_len, rdata_len;
-	pstring param, data;
+	char param[PARAM_SIZE], data[DATA_SIZE];
 	NTSTATUS status;
 
 	memset(data, 0, sizeof(data));
@@ -389,7 +391,7 @@ static BOOL scan_nttrans(struct cli_state *cli, int op, int level,
 }
 
 
-BOOL torture_nttrans_scan(int dummy)
+bool torture_nttrans_scan(int dummy)
 {
 	static struct cli_state *cli;
 	int op, level;

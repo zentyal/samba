@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -33,7 +32,7 @@ extern time_t StartupTime;
 static void send_election_dgram(struct subnet_record *subrec, const char *workgroup_name,
                                 uint32 criterion, int timeup,const char *server_name)
 {
-	pstring outbuf;
+	char outbuf[1024];
 	unstring srv_name;
 	char *p;
 
@@ -52,9 +51,9 @@ static void send_election_dgram(struct subnet_record *subrec, const char *workgr
 	unstrcpy(srv_name, server_name);
 	strupper_m(srv_name);
 	/* The following call does UNIX -> DOS charset conversion. */
-	pstrcpy_base(p, srv_name, outbuf);
+	push_ascii(p, srv_name, sizeof(outbuf)-PTR_DIFF(p,outbuf)-1, STR_TERMINATE);
 	p = skip_string(outbuf,sizeof(outbuf),p);
-  
+
 	send_mailslot(False, BROWSE_MAILSLOT, outbuf, PTR_DIFF(p,outbuf),
 		global_myname(), 0,
 		workgroup_name, 0x1e,
@@ -217,7 +216,7 @@ yet registered on subnet %s\n", nmb_namestr(&nmbname), subrec->subnet_name ));
   Determine if I win an election.
 ******************************************************************/
 
-static BOOL win_election(struct work_record *work, int version,
+static bool win_election(struct work_record *work, int version,
                          uint32 criterion, int timeup, const char *server_name)
 {  
 	int mytimeup = time(NULL) - StartupTime;
@@ -329,15 +328,17 @@ done:
   be done by run_elections().
 ***************************************************************************/
 
-BOOL check_elections(void)
+bool check_elections(void)
 {
 	struct subnet_record *subrec;
-	BOOL run_any_election = False;
+	bool run_any_election = False;
 
 	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
 		struct work_record *work;
 		for (work = subrec->workgrouplist; work; work = work->next) {
-			run_any_election |= work->RunningElection;
+			if (work->RunningElection) {
+				run_any_election = work->RunningElection;
+			}
 
 			/* 
 			 * Start an election if we have any chance of winning.
@@ -378,8 +379,11 @@ yet registered on subnet %s\n", nmb_namestr(&nmbname), subrec->subnet_name ));
  Process a internal Samba message forcing an election.
 ***************************************************************************/
 
-void nmbd_message_election(int msg_type, struct process_id src,
-			   void *buf, size_t len, void *private_data)
+void nmbd_message_election(struct messaging_context *msg,
+			   void *private_data,
+			   uint32_t msg_type,
+			   struct server_id server_id,
+			   DATA_BLOB *data)
 {
 	struct subnet_record *subrec;
 

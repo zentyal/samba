@@ -9,7 +9,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,13 +18,14 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
 #ifdef HAVE_KRB5
+
+#define DEFAULT_KRB5_PORT 88
 
 #define LIBADS_CCACHE_NAME "MEMORY:libads"
 
@@ -55,6 +56,127 @@ kerb_prompter(krb5_context ctx, void *data,
 	return 0;
 }
 
+static bool smb_krb5_err_io_nstatus(TALLOC_CTX *mem_ctx, 
+				    DATA_BLOB *edata_blob, 
+				    KRB5_EDATA_NTSTATUS *edata)
+{
+	bool ret = False;
+	prs_struct ps;
+
+	if (!mem_ctx || !edata_blob || !edata) 
+		return False;
+
+	if (!prs_init(&ps, edata_blob->length, mem_ctx, UNMARSHALL))
+		return False;
+
+	if (!prs_copy_data_in(&ps, (char *)edata_blob->data, edata_blob->length))
+		goto out;
+
+	prs_set_offset(&ps, 0);
+
+	if (!prs_ntstatus("ntstatus", &ps, 1, &edata->ntstatus))
+		goto out;
+
+	if (!prs_uint32("unknown1", &ps, 1, &edata->unknown1))
+		goto out;
+
+	if (!prs_uint32("unknown2", &ps, 1, &edata->unknown2)) /* only seen 00000001 here */
+		goto out;
+
+	ret = True;
+ out:
+	prs_mem_free(&ps);
+
+	return ret;
+}
+
+ static bool smb_krb5_get_ntstatus_from_krb5_error(krb5_error *error,
+						   NTSTATUS *nt_status)
+{
+	DATA_BLOB edata;
+	DATA_BLOB unwrapped_edata;
+	TALLOC_CTX *mem_ctx;
+	KRB5_EDATA_NTSTATUS parsed_edata;
+
+#ifdef HAVE_E_DATA_POINTER_IN_KRB5_ERROR
+	edata = data_blob(error->e_data->data, error->e_data->length);
+#else
+	edata = data_blob(error->e_data.data, error->e_data.length);
+#endif /* HAVE_E_DATA_POINTER_IN_KRB5_ERROR */
+
+#ifdef DEVELOPER
+	dump_data(10, edata.data, edata.length);
+#endif /* DEVELOPER */
+
+	mem_ctx = talloc_init("smb_krb5_get_ntstatus_from_krb5_error");
+	if (mem_ctx == NULL) {
+		data_blob_free(&edata);
+		return False;
+	}
+
+	if (!unwrap_edata_ntstatus(mem_ctx, &edata, &unwrapped_edata)) {
+		data_blob_free(&edata);
+		TALLOC_FREE(mem_ctx);
+		return False;
+	}
+
+	data_blob_free(&edata);
+
+	if (!smb_krb5_err_io_nstatus(mem_ctx, &unwrapped_edata, &parsed_edata)) {
+		data_blob_free(&unwrapped_edata);
+		TALLOC_FREE(mem_ctx);
+		return False;
+	}
+
+	data_blob_free(&unwrapped_edata);
+
+	if (nt_status) {
+		*nt_status = parsed_edata.ntstatus;
+	}
+
+	TALLOC_FREE(mem_ctx);
+
+	return True;
+}
+
+ static bool smb_krb5_get_ntstatus_from_krb5_error_init_creds_opt(krb5_context ctx, 
+ 								  krb5_get_init_creds_opt *opt, 
+								  NTSTATUS *nt_status)
+{
+	bool ret = False;
+	krb5_error *error = NULL;
+
+#ifdef HAVE_KRB5_GET_INIT_CREDS_OPT_GET_ERROR
+	ret = krb5_get_init_creds_opt_get_error(ctx, opt, &error);
+	if (ret) {
+		DEBUG(1,("krb5_get_init_creds_opt_get_error gave: %s\n", 
+			error_message(ret)));
+		return False;
+	}
+#endif /* HAVE_KRB5_GET_INIT_CREDS_OPT_GET_ERROR */
+
+	if (!error) {
+		DEBUG(1,("no krb5_error\n"));
+		return False;
+	}
+
+#ifdef HAVE_E_DATA_POINTER_IN_KRB5_ERROR
+	if (!error->e_data) {
+#else
+	if (error->e_data.data == NULL) {
+#endif /* HAVE_E_DATA_POINTER_IN_KRB5_ERROR */
+		DEBUG(1,("no edata in krb5_error\n")); 
+		krb5_free_error(ctx, error);
+		return False;
+	}
+
+	ret = smb_krb5_get_ntstatus_from_krb5_error(error, nt_status);
+
+	krb5_free_error(ctx, error);
+
+	return ret;
+}
+
 /*
   simulate a kinit, putting the tgt in the given cache location. If cache_name == NULL
   place in default cache location.
@@ -66,46 +188,44 @@ int kerberos_kinit_password_ext(const char *principal,
 				time_t *expire_time,
 				time_t *renew_till_time,
 				const char *cache_name,
-				BOOL request_pac,
-				BOOL add_netbios_addr,
-				time_t renewable_time)
+				bool request_pac,
+				bool add_netbios_addr,
+				time_t renewable_time,
+				NTSTATUS *ntstatus)
 {
 	krb5_context ctx = NULL;
 	krb5_error_code code = 0;
 	krb5_ccache cc = NULL;
-	krb5_principal me;
+	krb5_principal me = NULL;
 	krb5_creds my_creds;
 	krb5_get_init_creds_opt *opt = NULL;
 	smb_krb5_addresses *addr = NULL;
 
+	ZERO_STRUCT(my_creds);
+
 	initialize_krb5_error_table();
 	if ((code = krb5_init_context(&ctx)))
-		return code;
+		goto out;
 
 	if (time_offset != 0) {
 		krb5_set_real_time(ctx, time(NULL) + time_offset, 0);
 	}
 
-	DEBUG(10,("kerberos_kinit_password: using [%s] as ccache and config [%s]\n",
+	DEBUG(10,("kerberos_kinit_password: as %s using [%s] as ccache and config [%s]\n",
+			principal,
 			cache_name ? cache_name: krb5_cc_default_name(ctx),
 			getenv("KRB5_CONFIG")));
 
 	if ((code = krb5_cc_resolve(ctx, cache_name ? cache_name : krb5_cc_default_name(ctx), &cc))) {
-		krb5_free_context(ctx);
-		return code;
+		goto out;
 	}
 	
 	if ((code = smb_krb5_parse_name(ctx, principal, &me))) {
-		krb5_cc_close(ctx, cc);
-		krb5_free_context(ctx);	
-		return code;
+		goto out;
 	}
 
-	code = smb_krb5_get_init_creds_opt_alloc(ctx, &opt);
-	if (code) {
-		krb5_cc_close(ctx, cc);
-		krb5_free_context(ctx);	
-		return code;
+	if ((code = smb_krb5_get_init_creds_opt_alloc(ctx, &opt))) {
+		goto out;
 	}
 
 	krb5_get_init_creds_opt_set_renew_life(opt, renewable_time);
@@ -117,56 +237,30 @@ int kerberos_kinit_password_ext(const char *principal,
 
 #ifdef HAVE_KRB5_GET_INIT_CREDS_OPT_SET_PAC_REQUEST
 	if (request_pac) {
-		code = krb5_get_init_creds_opt_set_pac_request(ctx, opt, (krb5_boolean)request_pac);
-		if (code) {
-			krb5_cc_close(ctx, cc);
-			krb5_free_principal(ctx, me);
-			krb5_free_context(ctx);
-			return code;
+		if ((code = krb5_get_init_creds_opt_set_pac_request(ctx, opt, (krb5_boolean)request_pac))) {
+			goto out;
 		}
 	}
 #endif
 	if (add_netbios_addr) {
-		code = smb_krb5_gen_netbios_krb5_address(&addr);
-		if (code) {
-			krb5_cc_close(ctx, cc);
-			krb5_free_principal(ctx, me);
-			krb5_free_context(ctx);		
-			return code;	
+		if ((code = smb_krb5_gen_netbios_krb5_address(&addr))) {
+			goto out;
 		}
 		krb5_get_init_creds_opt_set_address_list(opt, addr->addrs);
 	}
 
 	if ((code = krb5_get_init_creds_password(ctx, &my_creds, me, CONST_DISCARD(char *,password), 
 						 kerb_prompter, CONST_DISCARD(char *,password),
-						 0, NULL, opt)))
-	{
-		smb_krb5_get_init_creds_opt_free(ctx, opt);
-		smb_krb5_free_addresses(ctx, addr);
-		krb5_cc_close(ctx, cc);
-		krb5_free_principal(ctx, me);
-		krb5_free_context(ctx);
-		return code;
+						 0, NULL, opt))) {
+		goto out;
 	}
 
-	smb_krb5_get_init_creds_opt_free(ctx, opt);
-
 	if ((code = krb5_cc_initialize(ctx, cc, me))) {
-		smb_krb5_free_addresses(ctx, addr);
-		krb5_free_cred_contents(ctx, &my_creds);
-		krb5_cc_close(ctx, cc);
-		krb5_free_principal(ctx, me);
-		krb5_free_context(ctx);		
-		return code;
+		goto out;
 	}
 	
 	if ((code = krb5_cc_store_cred(ctx, cc, &my_creds))) {
-		krb5_cc_close(ctx, cc);
-		smb_krb5_free_addresses(ctx, addr);
-		krb5_free_cred_contents(ctx, &my_creds);
-		krb5_free_principal(ctx, me);
-		krb5_free_context(ctx);		
-		return code;
+		goto out;
 	}
 
 	if (expire_time) {
@@ -176,14 +270,47 @@ int kerberos_kinit_password_ext(const char *principal,
 	if (renew_till_time) {
 		*renew_till_time = (time_t) my_creds.times.renew_till;
 	}
+ out:
+	if (ntstatus) {
 
-	krb5_cc_close(ctx, cc);
-	smb_krb5_free_addresses(ctx, addr);
+		NTSTATUS status;
+
+		/* fast path */
+		if (code == 0) {
+			*ntstatus = NT_STATUS_OK;
+			goto cleanup;
+		}
+
+		/* try to get ntstatus code out of krb5_error when we have it
+		 * inside the krb5_get_init_creds_opt - gd */
+
+		if (opt && smb_krb5_get_ntstatus_from_krb5_error_init_creds_opt(ctx, opt, &status)) {
+			*ntstatus = status;
+			goto cleanup;
+		}
+
+		/* fall back to self-made-mapping */
+		*ntstatus = krb5_to_nt_status(code);
+	}
+
+ cleanup:
 	krb5_free_cred_contents(ctx, &my_creds);
-	krb5_free_principal(ctx, me);
-	krb5_free_context(ctx);		
-	
-	return 0;
+	if (me) {
+		krb5_free_principal(ctx, me);
+	}
+	if (addr) {
+		smb_krb5_free_addresses(ctx, addr);
+	}
+ 	if (opt) {
+		smb_krb5_get_init_creds_opt_free(ctx, opt);
+	}
+	if (cc) {
+		krb5_cc_close(ctx, cc);
+	}
+	if (ctx) {
+		krb5_free_context(ctx);
+	}
+	return code;
 }
 
 
@@ -221,7 +348,8 @@ int ads_kinit_password(ADS_STRUCT *ads)
 	}
 	
 	ret = kerberos_kinit_password_ext(s, ads->auth.password, ads->auth.time_offset,
-			&ads->auth.tgt_expire, NULL, NULL, False, False, ads->auth.renewable);
+			&ads->auth.tgt_expire, NULL, NULL, False, False, ads->auth.renewable, 
+			NULL);
 
 	if (ret) {
 		DEBUG(0,("kerberos_kinit_password %s failed: %s\n", 
@@ -279,8 +407,8 @@ static char *kerberos_secrets_fetch_salting_principal(const char *service, int e
 	char *key = NULL;
 	char *ret = NULL;
 
-	asprintf(&key, "%s/%s/enctype=%d", SECRETS_SALTING_PRINCIPAL, service, enctype);
-	if (!key) {
+	if (asprintf(&key, "%s/%s/enctype=%d",
+		     SECRETS_SALTING_PRINCIPAL, service, enctype) == -1) {
 		return NULL;
 	}
 	ret = (char *)secrets_fetch(key, NULL);
@@ -310,7 +438,10 @@ static char* des_salt_key( void )
 {
 	char *key;
 
-	asprintf(&key, "%s/DES/%s", SECRETS_SALTING_PRINCIPAL, lp_realm());
+	if (asprintf(&key, "%s/DES/%s", SECRETS_SALTING_PRINCIPAL,
+		     lp_realm()) == -1) {
+		return NULL;
+	}
 
 	return key;
 }
@@ -318,10 +449,10 @@ static char* des_salt_key( void )
 /************************************************************************
 ************************************************************************/
 
-BOOL kerberos_secrets_store_des_salt( const char* salt )
+bool kerberos_secrets_store_des_salt( const char* salt )
 {
 	char* key;
-	BOOL ret;
+	bool ret;
 
 	if ( (key = des_salt_key()) == NULL ) {
 		DEBUG(0,("kerberos_secrets_store_des_salt: failed to generate key!\n"));
@@ -465,25 +596,31 @@ krb5_principal kerberos_fetch_salt_princ_for_host_princ(krb5_context context,
  Setting principal to NULL deletes this entry.
  ************************************************************************/
 
-BOOL kerberos_secrets_store_salting_principal(const char *service,
+bool kerberos_secrets_store_salting_principal(const char *service,
 					      int enctype,
 					      const char *principal)
 {
 	char *key = NULL;
-	BOOL ret = False;
+	bool ret = False;
 	krb5_context context = NULL;
 	krb5_principal princ = NULL;
 	char *princ_s = NULL;
 	char *unparsed_name = NULL;
+	krb5_error_code code;
 
-	krb5_init_context(&context);
-	if (!context) {
+	if (((code = krb5_init_context(&context)) != 0) || (context == NULL)) {
+		DEBUG(5, ("kerberos_secrets_store_salting_pricipal: kdb5_init_context failed: %s\n",
+			  error_message(code)));
 		return False;
 	}
 	if (strchr_m(service, '@')) {
-		asprintf(&princ_s, "%s", service);
+		if (asprintf(&princ_s, "%s", service) == -1) {
+			goto out;
+		}
 	} else {
-		asprintf(&princ_s, "%s@%s", service, lp_realm());
+		if (asprintf(&princ_s, "%s@%s", service, lp_realm()) == -1) {
+			goto out;
+		}
 	}
 
 	if (smb_krb5_parse_name(context, princ_s, &princ) != 0) {
@@ -494,8 +631,9 @@ BOOL kerberos_secrets_store_salting_principal(const char *service,
 		goto out;
 	}
 
-	asprintf(&key, "%s/%s/enctype=%d", SECRETS_SALTING_PRINCIPAL, unparsed_name, enctype);
-	if (!key)  {
+	if (asprintf(&key, "%s/%s/enctype=%d",
+		     SECRETS_SALTING_PRINCIPAL, unparsed_name, enctype)
+	    == -1) {
 		goto out;
 	}
 
@@ -539,7 +677,59 @@ int kerberos_kinit_password(const char *principal,
 					   cache_name,
 					   False,
 					   False,
-					   0);
+					   0,
+					   NULL);
+}
+
+/************************************************************************
+************************************************************************/
+
+static char *print_kdc_line(char *mem_ctx,
+			const char *prev_line,
+			const struct sockaddr_storage *pss)
+{
+	char *kdc_str = NULL;
+
+	if (pss->ss_family == AF_INET) {
+		kdc_str = talloc_asprintf(mem_ctx, "%s\tkdc = %s\n",
+					prev_line,
+                                        print_canonical_sockaddr(mem_ctx, pss));
+	} else {
+		char addr[INET6_ADDRSTRLEN];
+		uint16_t port = get_sockaddr_port(pss);
+
+		if (port != 0 && port != DEFAULT_KRB5_PORT) {
+			/* Currently for IPv6 we can't specify a non-default
+			   krb5 port with an address, as this requires a ':'.
+			   Resolve to a name. */
+			char hostname[MAX_DNS_NAME_LENGTH];
+			int ret = sys_getnameinfo((const struct sockaddr *)pss,
+					sizeof(*pss),
+					hostname, sizeof(hostname),
+					NULL, 0,
+					NI_NAMEREQD);
+			if (ret) {
+				DEBUG(0,("print_kdc_line: can't resolve name "
+					"for kdc with non-default port %s. "
+					"Error %s\n.",
+					print_canonical_sockaddr(mem_ctx, pss),
+					gai_strerror(ret)));
+			}
+			/* Success, use host:port */
+			kdc_str = talloc_asprintf(mem_ctx,
+					"%s\tkdc = %s:%u\n",
+					prev_line,
+					hostname,
+					(unsigned int)port);
+		} else {
+			kdc_str = talloc_asprintf(mem_ctx, "%s\tkdc = %s\n",
+					prev_line,
+					print_sockaddr(addr,
+						sizeof(addr),
+						pss));
+		}
+	}
+	return kdc_str;
 }
 
 /************************************************************************
@@ -547,15 +737,17 @@ int kerberos_kinit_password(const char *principal,
  Does DNS queries.
 ************************************************************************/
 
-static char *get_kdc_ip_string(char *mem_ctx, const char *realm, const char *sitename, struct in_addr primary_ip)
+static char *get_kdc_ip_string(char *mem_ctx,
+		const char *realm,
+		const char *sitename,
+		struct sockaddr_storage *pss)
 {
 	int i;
 	struct ip_service *ip_srv_site = NULL;
-	struct ip_service *ip_srv_nonsite;
+	struct ip_service *ip_srv_nonsite = NULL;
 	int count_site = 0;
 	int count_nonsite;
-	char *kdc_str = talloc_asprintf(mem_ctx, "\tkdc = %s\n",
-					inet_ntoa(primary_ip));
+	char *kdc_str = print_kdc_line(mem_ctx, "", pss);
 
 	if (kdc_str == NULL) {
 		return NULL;
@@ -568,12 +760,14 @@ static char *get_kdc_ip_string(char *mem_ctx, const char *realm, const char *sit
 		get_kdc_list(realm, sitename, &ip_srv_site, &count_site);
 
 		for (i = 0; i < count_site; i++) {
-			if (ip_equal(ip_srv_site[i].ip, primary_ip)) {
+			if (addr_equal(&ip_srv_site[i].ss, pss)) {
 				continue;
 			}
-			/* Append to the string - inefficient but not done often. */
-			kdc_str = talloc_asprintf(mem_ctx, "%s\tkdc = %s\n",
-				kdc_str, inet_ntoa(ip_srv_site[i].ip));
+			/* Append to the string - inefficient
+			 * but not done often. */
+			kdc_str = print_kdc_line(mem_ctx,
+						kdc_str,
+						&ip_srv_site[i].ss);
 			if (!kdc_str) {
 				SAFE_FREE(ip_srv_site);
 				return NULL;
@@ -588,13 +782,14 @@ static char *get_kdc_ip_string(char *mem_ctx, const char *realm, const char *sit
 	for (i = 0; i < count_nonsite; i++) {
 		int j;
 
-		if (ip_equal(ip_srv_nonsite[i].ip, primary_ip)) {
+		if (addr_equal(&ip_srv_nonsite[i].ss, pss)) {
 			continue;
 		}
 
 		/* Ensure this isn't an IP already seen (YUK! this is n*n....) */
 		for (j = 0; j < count_site; j++) {
-			if (ip_equal(ip_srv_nonsite[i].ip, ip_srv_site[j].ip)) {
+			if (addr_equal(&ip_srv_nonsite[i].ss,
+						&ip_srv_site[j].ss)) {
 				break;
 			}
 			/* As the lists are sorted we can break early if nonsite > site. */
@@ -607,8 +802,9 @@ static char *get_kdc_ip_string(char *mem_ctx, const char *realm, const char *sit
 		}
 
 		/* Append to the string - inefficient but not done often. */
-		kdc_str = talloc_asprintf(mem_ctx, "%s\tkdc = %s\n",
-			kdc_str, inet_ntoa(ip_srv_nonsite[i].ip));
+		kdc_str = print_kdc_line(mem_ctx,
+				kdc_str,
+				&ip_srv_nonsite[i].ss);
 		if (!kdc_str) {
 			SAFE_FREE(ip_srv_site);
 			SAFE_FREE(ip_srv_nonsite);
@@ -633,8 +829,10 @@ static char *get_kdc_ip_string(char *mem_ctx, const char *realm, const char *sit
  run as root or will fail (which is a good thing :-).
 ************************************************************************/
 
-BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *domain,
-					const char *sitename, struct in_addr ip)
+bool create_local_private_krb5_conf_for_domain(const char *realm,
+						const char *domain,
+						const char *sitename,
+						struct sockaddr_storage *pss)
 {
 	char *dname = talloc_asprintf(NULL, "%s/smb_krb5", lp_lockdir());
 	char *tmpname = NULL;
@@ -675,7 +873,7 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 	realm_upper = talloc_strdup(fname, realm);
 	strupper_m(realm_upper);
 
-	kdc_ip_string = get_kdc_ip_string(dname, realm, sitename, ip);
+	kdc_ip_string = get_kdc_ip_string(dname, realm, sitename, pss);
 	if (!kdc_ip_string) {
 		TALLOC_FREE(dname);
 		return False;
@@ -702,6 +900,8 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 		DEBUG(0,("create_local_private_krb5_conf_for_domain: smb_mkstemp failed,"
 			" for file %s. Errno %s\n",
 			tmpname, strerror(errno) ));
+		TALLOC_FREE(dname);
+		return false;
 	}
 
 	if (fchmod(fd, 0644)==-1) {
@@ -742,8 +942,8 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 	}
 
 	DEBUG(5,("create_local_private_krb5_conf_for_domain: wrote "
-		"file %s with realm %s KDC = %s\n",
-		fname, realm_upper, inet_ntoa(ip) ));
+		"file %s with realm %s KDC list = %s\n",
+		fname, realm_upper, kdc_ip_string));
 
 	/* Set the environment variable to this file. */
 	setenv("KRB5_CONFIG", fname, 1);
@@ -754,13 +954,15 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 	/* Insanity, sheer insanity..... */
 
 	if (strequal(realm, lp_realm())) {
-		pstring linkpath;
+		char linkpath[PATH_MAX+1];
 		int lret;
 
 		lret = readlink(SYSTEM_KRB5_CONF_PATH, linkpath, sizeof(linkpath)-1);
-		linkpath[sizeof(pstring)-1] = '\0';
+		if (lret != -1) {
+			linkpath[lret] = '\0';
+		}
 
-		if (lret == 0 || strcmp(linkpath, fname) == 0) {
+		if (lret != -1 || strcmp(linkpath, fname) == 0) {
 			/* Symlink already exists. */
 			TALLOC_FREE(dname);
 			return True;
@@ -768,6 +970,7 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 
 		/* Try and replace with a symlink. */
 		if (symlink(fname, SYSTEM_KRB5_CONF_PATH) == -1) {
+			const char *newpath = SYSTEM_KRB5_CONF_PATH ## ".saved";
 			if (errno != EEXIST) {
 				DEBUG(0,("create_local_private_krb5_conf_for_domain: symlink "
 					"of %s to %s failed. Errno %s\n",
@@ -776,20 +979,17 @@ BOOL create_local_private_krb5_conf_for_domain(const char *realm, const char *do
 				return True; /* Not a fatal error. */
 			}
 
-			pstrcpy(linkpath, SYSTEM_KRB5_CONF_PATH);
-			pstrcat(linkpath, ".saved");
-
 			/* Yes, this is a race conditon... too bad. */
-			if (rename(SYSTEM_KRB5_CONF_PATH, linkpath) == -1) {
+			if (rename(SYSTEM_KRB5_CONF_PATH, newpath) == -1) {
 				DEBUG(0,("create_local_private_krb5_conf_for_domain: rename "
 					"of %s to %s failed. Errno %s\n",
-					SYSTEM_KRB5_CONF_PATH, linkpath,
+					SYSTEM_KRB5_CONF_PATH, newpath,
 					strerror(errno) ));
 				TALLOC_FREE(dname);
 				return True; /* Not a fatal error. */
 			}
 
-			if (symlink(fname, "/etc/krb5.conf") == -1) {
+			if (symlink(fname, SYSTEM_KRB5_CONF_PATH) == -1) {
 				DEBUG(0,("create_local_private_krb5_conf_for_domain: "
 					"forced symlink of %s to /etc/krb5.conf failed. Errno %s\n",
 					fname, strerror(errno) ));

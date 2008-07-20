@@ -5,7 +5,7 @@
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
+ *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
  *  
  *  This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  *  GNU General Public License for more details.
  *  
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -43,20 +42,23 @@ static char *afs_encode_token(const char *cell, const DATA_BLOB ticket,
 			      const struct ClearToken *ct)
 {
 	char *base64_ticket;
-	char *result;
+	char *result = NULL;
 
 	DATA_BLOB key = data_blob(ct->HandShakeKey, 8);
 	char *base64_key;
+	TALLOC_CTX *mem_ctx;
 
-	base64_ticket = base64_encode_data_blob(ticket);
+	mem_ctx = talloc_stackframe();
+	if (mem_ctx == NULL)
+		goto done;
+
+	base64_ticket = base64_encode_data_blob(mem_ctx, ticket);
 	if (base64_ticket == NULL)
-		return NULL;
+		goto done;
 
-	base64_key = base64_encode_data_blob(key);
-	if (base64_key == NULL) {
-		free(base64_ticket);
-		return NULL;
-	}
+	base64_key = base64_encode_data_blob(mem_ctx, key);
+	if (base64_key == NULL)
+		goto done;
 
 	asprintf(&result, "%s\n%u\n%s\n%u\n%u\n%u\n%s\n", cell,
 		 ct->AuthHandle, base64_key, ct->ViceId, ct->BeginTimestamp,
@@ -64,8 +66,8 @@ static char *afs_encode_token(const char *cell, const DATA_BLOB ticket,
 
 	DEBUG(10, ("Got ticket string:\n%s\n", result));
 
-	free(base64_ticket);
-	free(base64_key);
+done:
+	TALLOC_FREE(mem_ctx);
 
 	return result;
 }
@@ -73,7 +75,7 @@ static char *afs_encode_token(const char *cell, const DATA_BLOB ticket,
 /* Create a ClearToken and an encrypted ticket. ClearToken has not yet the
  * ViceId set, this should be set by the caller. */
 
-static BOOL afs_createtoken(const char *username, const char *cell,
+static bool afs_createtoken(const char *username, const char *cell,
 			    DATA_BLOB *ticket, struct ClearToken *ct)
 {
 	fstring clear_ticket;
@@ -209,28 +211,44 @@ char *afs_createtoken_str(const char *username, const char *cell)
   For the comments "Alice" is the User to be auth'ed, and "Bob" is the
   AFS server.  */
 
-BOOL afs_login(connection_struct *conn)
+bool afs_login(connection_struct *conn)
 {
 	extern userdom_struct current_user_info;
 	extern struct current_user current_user;
 	DATA_BLOB ticket;
-	pstring afs_username;
-	char *cell;
-	BOOL result;
-	char *ticket_str;
+	char *afs_username = NULL;
+	char *cell = NULL;
+	bool result;
+	char *ticket_str = NULL;
 	const DOM_SID *user_sid;
+	TALLOC_CTX *ctx = talloc_tos();
 
 	struct ClearToken ct;
 
-	pstrcpy(afs_username, lp_afs_username_map());
-	standard_sub_advanced(SNUM(conn), conn->user,
-			      conn->connectpath, conn->gid,
-			      get_current_username(),
-			      current_user_info.domain,
-			      afs_username, sizeof(afs_username));
+	afs_username = talloc_strdup(ctx,
+				lp_afs_username_map());
+	if (!afs_username) {
+		return false;
+	}
+
+	afs_username = talloc_sub_advanced(ctx,
+				SNUM(conn), conn->user,
+				conn->connectpath, conn->gid,
+				get_current_username(),
+				current_user_info.domain,
+				afs_username);
+	if (!afs_username) {
+		return false;
+	}
 
 	user_sid = &current_user.nt_user_token->user_sids[0];
-	pstring_sub(afs_username, "%s", sid_string_static(user_sid));
+	afs_username = talloc_string_sub(talloc_tos(),
+					afs_username,
+					"%s",
+					sid_string_tos(user_sid));
+	if (!afs_username) {
+		return false;
+	}
 
 	/* The pts command always generates completely lower-case user
 	 * names. */
@@ -241,13 +259,13 @@ BOOL afs_login(connection_struct *conn)
 	if (cell == NULL) {
 		DEBUG(1, ("AFS username doesn't contain a @, "
 			  "could not find cell\n"));
-		return False;
+		return false;
 	}
 
 	*cell = '\0';
 	cell += 1;
 
-	DEBUG(10, ("Trying to log into AFS for user %s@%s\n", 
+	DEBUG(10, ("Trying to log into AFS for user %s@%s\n",
 		   afs_username, cell));
 
 	if (!afs_createtoken(afs_username, cell, &ticket, &ct))
@@ -269,7 +287,7 @@ BOOL afs_login(connection_struct *conn)
 
 #else
 
-BOOL afs_login(connection_struct *conn)
+bool afs_login(connection_struct *conn)
 {
 	return True;
 }

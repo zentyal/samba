@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -28,7 +27,7 @@ static TDB_CONTEXT *tdb;
 
 static unsigned total, collisions, failures;
 
-static BOOL test_one(struct cli_state *cli, const char *name)
+static bool test_one(struct cli_state *cli, const char *name)
 {
 	int fnum;
 	fstring shortname;
@@ -87,7 +86,7 @@ static BOOL test_one(struct cli_state *cli, const char *name)
 	data = tdb_fetch_bystring(tdb, shortname);
 	if (data.dptr) {
 		/* maybe its a duplicate long name? */
-		if (!strequal(name, data.dptr)) {
+		if (!strequal(name, (const char *)data.dptr)) {
 			/* we have a collision */
 			collisions++;
 			printf("Collision between %s and %s   ->  %s "
@@ -98,7 +97,7 @@ static BOOL test_one(struct cli_state *cli, const char *name)
 	} else {
 		TDB_DATA namedata;
 		/* store it for later */
-		namedata.dptr = CONST_DISCARD(char *, name);
+		namedata.dptr = CONST_DISCARD(uint8 *, name);
 		namedata.dsize = strlen(name)+1;
 		tdb_store_bystring(tdb, shortname, namedata, TDB_REPLACE);
 	}
@@ -159,11 +158,11 @@ static void gen_name(char *name)
 }
 
 
-BOOL torture_mangle(int dummy)
+bool torture_mangle(int dummy)
 {
 	static struct cli_state *cli;
 	int i;
-	BOOL ret = True;
+	bool ret = True;
 
 	printf("starting mangle test\n");
 

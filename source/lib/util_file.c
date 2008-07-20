@@ -5,7 +5,7 @@
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -14,8 +14,7 @@
  * more details.
  * 
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -35,7 +34,7 @@ char *fgets_slash(char *s2,int maxlen,XFILE *f)
 	char *s=s2;
 	int len = 0;
 	int c;
-	BOOL start_of_line = True;
+	bool start_of_line = True;
 
 	if (x_feof(f)) {
 		return(NULL);
@@ -102,13 +101,13 @@ char *fgets_slash(char *s2,int maxlen,XFILE *f)
  Load from a pipe into memory.
 ****************************************************************************/
 
-char *file_pload(char *syscmd, size_t *size)
+static char *file_pload(char *syscmd, size_t *size)
 {
 	int fd, n;
 	char *p;
-	pstring buf;
+	char buf[1024];
 	size_t total;
-	
+
 	fd = sys_popen(syscmd);
 	if (fd == -1) {
 		return NULL;
@@ -209,7 +208,7 @@ char *file_load(const char *fname, size_t *size, size_t maxsize)
  unmap or free memory
 *******************************************************************/
 
-BOOL unmap_file(void* start, size_t size)
+bool unmap_file(void* start, size_t size)
 {
 #ifdef HAVE_MMAP
 	if ( munmap( start, size ) != 0 ) {
@@ -410,7 +409,7 @@ void file_lines_slashcont(char **lines)
  Save a lump of data into a file. Mostly used for debugging.
 ****************************************************************************/
 
-BOOL file_save(const char *fname, void *packet, size_t length)
+bool file_save(const char *fname, void *packet, size_t length)
 {
 	int fd;
 	fd = open(fname, O_WRONLY|O_CREAT|O_TRUNC, 0644);

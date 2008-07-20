@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -118,7 +117,7 @@ void unix_to_nt_time(NTTIME *nt, time_t t)
  Check if it's a null unix time.
 ****************************************************************************/
 
-BOOL null_time(time_t t)
+bool null_time(time_t t)
 {
 	return t == 0 || 
 		t == (time_t)0xFFFFFFFF || 
@@ -129,7 +128,7 @@ BOOL null_time(time_t t)
  Check if it's a null NTTIME.
 ****************************************************************************/
 
-BOOL null_nttime(NTTIME t)
+bool null_nttime(NTTIME t)
 {
 	return t == 0 || t == (NTTIME)-1;
 }
@@ -138,7 +137,7 @@ BOOL null_nttime(NTTIME t)
  Check if it's a null timespec.
 ****************************************************************************/
 
-BOOL null_timespec(struct timespec ts)
+bool null_timespec(struct timespec ts)
 {
 	return ts.tv_sec == 0 || 
 		ts.tv_sec == (time_t)0xFFFFFFFF || 
@@ -304,13 +303,13 @@ time_t pull_dos_date3(const uint8_t *date_ptr, int zone_offset)
 
 char *http_timestring(time_t t)
 {
-	static fstring buf;
+	fstring buf;
 	struct tm *tm = localtime(&t);
 
 	if (t == TIME_T_MAX) {
-		slprintf(buf,sizeof(buf)-1,"never");
+		fstrcpy(buf, "never");
 	} else if (!tm) {
-		slprintf(buf,sizeof(buf)-1,"%ld seconds since the Epoch",(long)t);
+		fstr_sprintf(buf, "%ld seconds since the Epoch", (long)t);
 	} else {
 #ifndef HAVE_STRFTIME
 		const char *asct = asctime(tm);
@@ -322,7 +321,7 @@ char *http_timestring(time_t t)
 		strftime(buf, sizeof(buf)-1, "%a, %d %b %Y %H:%M:%S %Z", tm);
 #endif /* !HAVE_STRFTIME */
 	}
-	return buf;
+	return talloc_strdup(talloc_tos(), buf);
 }
 
 
@@ -402,7 +401,7 @@ struct timeval timeval_zero(void)
 /**
   return True if a timeval is zero
 */
-BOOL timeval_is_zero(const struct timeval *tv)
+bool timeval_is_zero(const struct timeval *tv)
 {
 	return tv->tv_sec == 0 && tv->tv_usec == 0;
 }
@@ -480,7 +479,7 @@ int timeval_compare(const struct timeval *tv1, const struct timeval *tv2)
 /**
   return True if a timer is in the past
 */
-BOOL timeval_expired(const struct timeval *tv)
+bool timeval_expired(const struct timeval *tv)
 {
 	struct timeval tv2 = timeval_current();
 	if (tv2.tv_sec > tv->tv_sec) return True;
@@ -635,7 +634,7 @@ int get_time_zone(time_t t)
  Check if NTTIME is 0.
 ****************************************************************************/
 
-BOOL nt_time_is_zero(const NTTIME *nt)
+bool nt_time_is_zero(const NTTIME *nt)
 {
 	return (*nt == 0);
 }
@@ -688,9 +687,9 @@ int set_server_zone_offset(time_t t)
  Return the date and time as a string
 ****************************************************************************/
 
-char *current_timestring(BOOL hires)
+char *current_timestring(TALLOC_CTX *ctx, bool hires)
 {
-	static fstring TimeBuf;
+	fstring TimeBuf;
 	struct timeval tp;
 	time_t t;
 	struct tm *tm;
@@ -740,7 +739,7 @@ char *current_timestring(BOOL hires)
 		}
 #endif
 	}
-	return(TimeBuf);
+	return talloc_strdup(ctx, TimeBuf);
 }
 
 
@@ -827,7 +826,7 @@ void put_long_date(char *p, time_t t)
  structure.
 ****************************************************************************/
 
-time_t get_create_time(const SMB_STRUCT_STAT *st,BOOL fake_dirs)
+time_t get_create_time(const SMB_STRUCT_STAT *st,bool fake_dirs)
 {
 	time_t ret, ret1;
 
@@ -849,7 +848,7 @@ time_t get_create_time(const SMB_STRUCT_STAT *st,BOOL fake_dirs)
 	return ret;
 }
 
-struct timespec get_create_timespec(const SMB_STRUCT_STAT *st,BOOL fake_dirs)
+struct timespec get_create_timespec(const SMB_STRUCT_STAT *st,bool fake_dirs)
 {
 	struct timespec ts;
 	ts.tv_sec = get_create_time(st, fake_dirs);
@@ -1182,17 +1181,17 @@ void cli_put_dos_date3(struct cli_state *cli, char *buf, int offset, time_t unix
 	put_dos_date3(buf, offset, unixdate, cli->serverzone);
 }
 
-time_t cli_make_unix_date(struct cli_state *cli, void *date_ptr)
+time_t cli_make_unix_date(struct cli_state *cli, const void *date_ptr)
 {
 	return make_unix_date(date_ptr, cli->serverzone);
 }
 
-time_t cli_make_unix_date2(struct cli_state *cli, void *date_ptr)
+time_t cli_make_unix_date2(struct cli_state *cli, const void *date_ptr)
 {
 	return make_unix_date2(date_ptr, cli->serverzone);
 }
 
-time_t cli_make_unix_date3(struct cli_state *cli, void *date_ptr)
+time_t cli_make_unix_date3(struct cli_state *cli, const void *date_ptr)
 {
 	return make_unix_date3(date_ptr, cli->serverzone);
 }
@@ -1244,7 +1243,7 @@ struct timespec nt_time_to_unix_timespec(NTTIME *nt)
  Check if two NTTIMEs are the same.
 ****************************************************************************/
 
-BOOL nt_time_equals(const NTTIME *nt1, const NTTIME *nt2)
+bool nt_time_equals(const NTTIME *nt1, const NTTIME *nt2)
 {
 	return (*nt1 == *nt2);
 }
@@ -1387,7 +1386,7 @@ void unix_to_nt_time_abs(NTTIME *nt, time_t t)
 	d = (double)(t);
 	d *= 1.0e7;
 
-	*nt = d;
+	*nt = (NTTIME)d;
 
 	/* convert to a negative value */
 	*nt=~*nt;
@@ -1398,7 +1397,7 @@ void unix_to_nt_time_abs(NTTIME *nt, time_t t)
  Check if it's a null mtime.
 ****************************************************************************/
 
-BOOL null_mtime(time_t mtime)
+bool null_mtime(time_t mtime)
 {
 	if (mtime == 0 || mtime == (time_t)0xFFFFFFFF || mtime == (time_t)-1)
 		return(True);
@@ -1428,8 +1427,6 @@ const char *time_to_asc(const time_t t)
 
 const char *display_time(NTTIME nttime)
 {
-	static fstring string;
-
 	float high;
 	float low;
 	int sec;
@@ -1450,18 +1447,18 @@ const char *display_time(NTTIME nttime)
 	low = ~(nttime & 0xFFFFFFFF);
 	low = low/(1000*1000*10);
 
-	sec=high+low;
+	sec=(int)(high+low);
 
 	days=sec/(60*60*24);
 	hours=(sec - (days*60*60*24)) / (60*60);
 	mins=(sec - (days*60*60*24) - (hours*60*60) ) / 60;
 	secs=sec - (days*60*60*24) - (hours*60*60) - (mins*60);
 
-	fstr_sprintf(string, "%u days, %u hours, %u minutes, %u seconds", days, hours, mins, secs);
-	return (string);
+	return talloc_asprintf(talloc_tos(), "%u days, %u hours, %u minutes, "
+			       "%u seconds", days, hours, mins, secs);
 }
 
-BOOL nt_time_is_set(const NTTIME *nt)
+bool nt_time_is_set(const NTTIME *nt)
 {
 	if (*nt == 0x7FFFFFFFFFFFFFFFLL) {
 		return False;

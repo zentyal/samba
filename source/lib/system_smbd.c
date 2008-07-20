@@ -6,7 +6,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /* 
@@ -104,12 +103,10 @@ static int getgrouplist_internals(const char *user, gid_t gid, gid_t *groups,
 
 	restore_re_gid();
 
-	if (sys_setgroups(ngrp_saved, gids_saved) != 0) {
+	if (sys_setgroups(gid, ngrp_saved, gids_saved) != 0) {
 		/* yikes! */
 		DEBUG(0,("ERROR: getgrouplist: failed to reset group list!\n"));
-		smb_panic("getgrouplist: failed to reset group list!\n");
-		free(gids_saved);
-		return -1;
+		smb_panic("getgrouplist: failed to reset group list!");
 	}
 
 	free(gids_saved);
@@ -120,7 +117,7 @@ static int getgrouplist_internals(const char *user, gid_t gid, gid_t *groups,
 static int sys_getgrouplist(const char *user, gid_t gid, gid_t *groups, int *grpcnt)
 {
 	int retval;
-	BOOL winbind_env;
+	bool winbind_env;
 
 	DEBUG(10,("sys_getgrouplist: user [%s]\n", user));
 
@@ -128,7 +125,7 @@ static int sys_getgrouplist(const char *user, gid_t gid, gid_t *groups, int *grp
 	 * always determined by the info3 coming back from auth3 or the
 	 * PAC. */
 	winbind_env = winbind_env_set();
-	winbind_off();
+	(void)winbind_off();
 
 #ifdef HAVE_GETGROUPLIST
 	retval = getgrouplist(user, gid, groups, grpcnt);
@@ -140,13 +137,13 @@ static int sys_getgrouplist(const char *user, gid_t gid, gid_t *groups, int *grp
 
 	/* allow winbindd lookups, but only if they were not already disabled */
 	if (!winbind_env) {
-		winbind_on();
+		(void)winbind_on();
 	}
 
 	return retval;
 }
 
-BOOL getgroups_unix_user(TALLOC_CTX *mem_ctx, const char *user,
+bool getgroups_unix_user(TALLOC_CTX *mem_ctx, const char *user,
 			 gid_t primary_gid,
 			 gid_t **ret_groups, size_t *p_ngroups)
 {
@@ -156,7 +153,7 @@ BOOL getgroups_unix_user(TALLOC_CTX *mem_ctx, const char *user,
 	gid_t *groups;
 	int i;
 
-	max_grp = groups_max();
+	max_grp = MIN(32, groups_max());
 	temp_groups = SMB_MALLOC_ARRAY(gid_t, max_grp);
 	if (! temp_groups) {
 		return False;

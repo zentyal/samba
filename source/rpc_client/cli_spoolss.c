@@ -10,7 +10,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -19,8 +19,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -33,7 +32,7 @@
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_info_0(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
+static bool decode_printer_info_0(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 				uint32 returned, PRINTER_INFO_0 **info)
 {
 	uint32 i;
@@ -64,7 +63,7 @@ static BOOL decode_printer_info_0(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
+static bool decode_printer_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 				uint32 returned, PRINTER_INFO_1 **info)
 {
 	uint32 i;
@@ -95,7 +94,7 @@ static BOOL decode_printer_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_printer_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 				uint32 returned, PRINTER_INFO_2 **info)
 {
 	uint32 i;
@@ -128,7 +127,7 @@ static BOOL decode_printer_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_info_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_printer_info_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 				uint32 returned, PRINTER_INFO_3 **info)
 {
 	uint32 i;
@@ -160,7 +159,7 @@ static BOOL decode_printer_info_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_info_7(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
+static bool decode_printer_info_7(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 				uint32 returned, PRINTER_INFO_7 **info)
 {
 	uint32 i;
@@ -192,7 +191,7 @@ static BOOL decode_printer_info_7(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_port_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_port_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			uint32 returned, PORT_INFO_1 **info)
 {
 	uint32 i;
@@ -223,7 +222,7 @@ static BOOL decode_port_info_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_port_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_port_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			uint32 returned, PORT_INFO_2 **info)
 {
 	uint32 i;
@@ -254,7 +253,7 @@ static BOOL decode_port_info_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_driver_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_printer_driver_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			uint32 returned, DRIVER_INFO_1 **info)
 {
 	uint32 i;
@@ -285,7 +284,7 @@ static BOOL decode_printer_driver_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_driver_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_printer_driver_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			uint32 returned, DRIVER_INFO_2 **info)
 {
 	uint32 i;
@@ -316,7 +315,7 @@ static BOOL decode_printer_driver_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printer_driver_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_printer_driver_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			uint32 returned, DRIVER_INFO_3 **info)
 {
 	uint32 i;
@@ -347,7 +346,7 @@ static BOOL decode_printer_driver_3(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_printerdriverdir_1 (TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
+static bool decode_printerdriverdir_1 (TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 			uint32 returned, DRIVER_DIRECTORY_1 **info
 )
 {
@@ -372,7 +371,7 @@ static BOOL decode_printerdriverdir_1 (TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_jobs_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_jobs_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			  uint32 num_jobs, JOB_INFO_1 **jobs)
 {
 	uint32 i;
@@ -399,7 +398,7 @@ static BOOL decode_jobs_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_jobs_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_jobs_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			  uint32 num_jobs, JOB_INFO_2 **jobs)
 {
 	uint32 i;
@@ -426,7 +425,7 @@ static BOOL decode_jobs_2(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer,
 /**********************************************************************
 **********************************************************************/
 
-static BOOL decode_forms_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
+static bool decode_forms_1(TALLOC_CTX *mem_ctx, RPC_BUFFER *buffer, 
 			   uint32 num_forms, FORM_1 **forms)
 {
 	int i;

@@ -2,7 +2,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -11,8 +11,7 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 /* indicate the following groups are defined */
@@ -23,11 +22,19 @@
 #ifndef LINUX
 
 /* This is only used in the Sun implementation. */
+#if defined(HAVE_SECURITY_PAM_APPL_H)
 #include <security/pam_appl.h>
+#elif defined(HAVE_PAM_PAM_APPL_H)
+#include <pam/pam_appl.h>
+#endif
 
 #endif  /* LINUX */
 
+#if defined(HAVE_SECURITY_PAM_MODULES_H)
 #include <security/pam_modules.h>
+#elif defined(HAVE_PAM_PAM_MODULES_H)
+#include <pam/pam_modules.h>
+#endif
 
 #include "general.h"
 
@@ -48,12 +55,11 @@ int pam_sm_acct_mgmt( pam_handle_t *pamh, int flags,
 	const char *name;
 	struct samu *sampass = NULL;
 	void (*oldsig_handler)(int);
-	extern BOOL in_client;
 
 	/* Samba initialization. */
 	load_case_tables();
 	setup_logging( "pam_smbpass", False );
-	in_client = True;
+        lp_set_in_client(True);
 
 	ctrl = set_ctrl( flags, argc, argv );
 
@@ -78,7 +84,7 @@ int pam_sm_acct_mgmt( pam_handle_t *pamh, int flags,
 	/* Getting into places that might use LDAP -- protect the app
 		from a SIGPIPE it's not expecting */
 	oldsig_handler = CatchSignal(SIGPIPE, SIGNAL_CAST SIG_IGN);
-	if (!initialize_password_db(True)) {
+	if (!initialize_password_db(True, NULL)) {
 		_log_err( LOG_ALERT, "Cannot access samba password database" );
 		CatchSignal(SIGPIPE, SIGNAL_CAST oldsig_handler);
 		return PAM_AUTHINFO_UNAVAIL;

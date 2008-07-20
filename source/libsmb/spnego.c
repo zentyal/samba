@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
 
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -26,7 +25,7 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
 
-static BOOL read_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
+static bool read_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
 {
 	ZERO_STRUCTP(token);
 
@@ -107,7 +106,7 @@ static BOOL read_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
 	return !asn1->has_error;
 }
 
-static BOOL write_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
+static bool write_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
 {
 	asn1_push_tag(asn1, ASN1_CONTEXT(0));
 	asn1_push_tag(asn1, ASN1_SEQUENCE(0));
@@ -170,7 +169,7 @@ static BOOL write_negTokenInit(ASN1_DATA *asn1, negTokenInit_t *token)
 	return !asn1->has_error;
 }
 
-static BOOL read_negTokenTarg(ASN1_DATA *asn1, negTokenTarg_t *token)
+static bool read_negTokenTarg(ASN1_DATA *asn1, negTokenTarg_t *token)
 {
 	ZERO_STRUCTP(token);
 
@@ -213,7 +212,7 @@ static BOOL read_negTokenTarg(ASN1_DATA *asn1, negTokenTarg_t *token)
 	return !asn1->has_error;
 }
 
-static BOOL write_negTokenTarg(ASN1_DATA *asn1, negTokenTarg_t *token)
+static bool write_negTokenTarg(ASN1_DATA *asn1, negTokenTarg_t *token)
 {
 	asn1_push_tag(asn1, ASN1_CONTEXT(1));
 	asn1_push_tag(asn1, ASN1_SEQUENCE(0));
@@ -312,9 +311,9 @@ ssize_t write_spnego_data(DATA_BLOB *blob, SPNEGO_DATA *spnego)
 	return ret;
 }
 
-BOOL free_spnego_data(SPNEGO_DATA *spnego)
+bool free_spnego_data(SPNEGO_DATA *spnego)
 {
-	BOOL ret = True;
+	bool ret = True;
 
 	if (!spnego) goto out;
 

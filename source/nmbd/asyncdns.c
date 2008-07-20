@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    */
 
 #include "includes.h"
@@ -88,8 +87,13 @@ static void asyncdns_process(void)
 	DEBUGLEVEL = -1;
 
 	while (1) {
-		if (read_data(fd_in, (char *)&r, sizeof(r)) != sizeof(r)) 
+		NTSTATUS status;
+
+		status = read_data(fd_in, (char *)&r, sizeof(r));
+
+		if (!NT_STATUS_IS_OK(status)) {
 			break;
+		}
 
 		pull_ascii_nstring( qname, sizeof(qname), r.name.name);
 		r.result.s_addr = interpret_addr(qname);
@@ -160,6 +164,11 @@ void start_async_dns(void)
 	CatchSignal(SIGHUP, SIG_IGN);
         CatchSignal(SIGTERM, SIGNAL_CAST sig_term );
 
+	if (!reinit_after_fork(nmbd_messaging_context(), true)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
+		smb_panic("reinit_after_fork() failed");
+	}
+
 	asyncdns_process();
 }
 
@@ -167,7 +176,7 @@ void start_async_dns(void)
 /***************************************************************************
 check if a particular name is already being queried
   ****************************************************************************/
-static BOOL query_current(struct query_record *r)
+static bool query_current(struct query_record *r)
 {
 	return dns_current &&
 		nmb_name_equal(&r->name, 
@@ -178,7 +187,7 @@ static BOOL query_current(struct query_record *r)
 /***************************************************************************
   write a query to the child process
   ****************************************************************************/
-static BOOL write_child(struct packet_struct *p)
+static bool write_child(struct packet_struct *p)
 {
 	struct query_record r;
 
@@ -195,7 +204,7 @@ void run_dns_queue(void)
 	struct query_record r;
 	struct packet_struct *p, *p2;
 	struct name_record *namerec;
-	int size;
+	NTSTATUS status;
 
 	if (fd_in == -1)
 		return;
@@ -209,11 +218,11 @@ void run_dns_queue(void)
 		start_async_dns();
 	}
 
-	if ((size=read_data(fd_in, (char *)&r, sizeof(r))) != sizeof(r)) {
-		if (size) {
-			DEBUG(0,("Incomplete DNS answer from child!\n"));
-			fd_in = -1;
-		}
+	status = read_data(fd_in, (char *)&r, sizeof(r));
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("read from child failed: %s\n", nt_errstr(status)));
+		fd_in = -1;
                 BlockSignals(True, SIGTERM);
 		return;
 	}
@@ -286,7 +295,7 @@ void run_dns_queue(void)
 queue a DNS query
   ****************************************************************************/
 
-BOOL queue_dns_query(struct packet_struct *p,struct nmb_name *question)
+bool queue_dns_query(struct packet_struct *p,struct nmb_name *question)
 {
 	if (in_dns || fd_in == -1)
 		return False;
@@ -318,7 +327,7 @@ BOOL queue_dns_query(struct packet_struct *p,struct nmb_name *question)
   we use this when we can't do async DNS lookups
   ****************************************************************************/
 
-BOOL queue_dns_query(struct packet_struct *p,struct nmb_name *question)
+bool queue_dns_query(struct packet_struct *p,struct nmb_name *question)
 {
 	struct name_record *namerec = NULL;
 	struct in_addr dns_ip;

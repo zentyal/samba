@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -23,16 +22,17 @@
 /****************************************************************************
 send an ack for an oplock break request
 ****************************************************************************/
-BOOL cli_oplock_ack(struct cli_state *cli, int fnum, unsigned char level)
+
+bool cli_oplock_ack(struct cli_state *cli, int fnum, unsigned char level)
 {
 	char *oldbuf = cli->outbuf;
-	pstring buf;
-	BOOL ret;
+	char buf[smb_size+16];
+	bool ret;
 
 	cli->outbuf = buf;
 
         memset(buf,'\0',smb_size);
-        set_message(buf,8,0,True);
+        cli_set_message(buf,8,0,True);
 
         SCVAL(buf,smb_com,SMBlockingX);
 	SSVAL(buf,smb_tid, cli->cnum);
@@ -48,7 +48,7 @@ BOOL cli_oplock_ack(struct cli_state *cli, int fnum, unsigned char level)
 	SSVAL(buf,smb_vwv6,0); /* unlockcount */
 	SSVAL(buf,smb_vwv7,0); /* lockcount */
 
-        ret = cli_send_smb(cli);	
+        ret = cli_send_smb(cli);
 
 	cli->outbuf = oldbuf;
 
@@ -60,7 +60,7 @@ BOOL cli_oplock_ack(struct cli_state *cli, int fnum, unsigned char level)
 set the oplock handler for a connection
 ****************************************************************************/
 void cli_oplock_handler(struct cli_state *cli, 
-			BOOL (*handler)(struct cli_state *, int, unsigned char))
+			bool (*handler)(struct cli_state *, int, unsigned char))
 {
 	cli->oplock_handler = handler;
 }

@@ -9,7 +9,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,18 +18,17 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-static pstring server;
+static char *server;
 
 /* numeric is set when the user wants numeric SIDs and ACEs rather
    than going via LSA calls to resolve them */
-static BOOL numeric;
-static BOOL verbose;
+static bool numeric;
+static bool verbose;
 
 enum todo_values {NOOP_QUOTA=0,FS_QUOTA,USER_QUOTA,LIST_QUOTA,SET_QUOTA};
 enum exit_values {EXIT_OK, EXIT_FAILED, EXIT_PARSE_ERROR};
@@ -37,13 +36,13 @@ enum exit_values {EXIT_OK, EXIT_FAILED, EXIT_PARSE_ERROR};
 static struct cli_state *cli_ipc;
 static struct rpc_pipe_client *global_pipe_hnd;
 static POLICY_HND pol;
-static BOOL got_policy_hnd;
+static bool got_policy_hnd;
 
 static struct cli_state *connect_one(const char *share);
 
 /* Open cli connection and policy handle */
 
-static BOOL cli_open_policy_hnd(void)
+static bool cli_open_policy_hnd(void)
 {
 	/* Initialise cli LSA connection */
 
@@ -55,7 +54,7 @@ static BOOL cli_open_policy_hnd(void)
 				return False;
 		}
 	}
-	
+
 	/* Open policy handle */
 
 	if (!got_policy_hnd) {
@@ -63,7 +62,7 @@ static BOOL cli_open_policy_hnd(void)
 		/* Some systems don't support SEC_RIGHTS_MAXIMUM_ALLOWED,
 		   but NT sends 0x2000000 so we might as well do it too. */
 
-		if (!NT_STATUS_IS_OK(rpccli_lsa_open_policy(global_pipe_hnd, cli_ipc->mem_ctx, True, 
+		if (!NT_STATUS_IS_OK(rpccli_lsa_open_policy(global_pipe_hnd, talloc_tos(), True, 
 							 GENERIC_EXECUTE_ACCESS, &pol))) {
 			return False;
 		}
@@ -75,20 +74,20 @@ static BOOL cli_open_policy_hnd(void)
 }
 
 /* convert a SID to a string, either numeric or username/group */
-static void SidToString(fstring str, DOM_SID *sid, BOOL _numeric)
+static void SidToString(fstring str, DOM_SID *sid, bool _numeric)
 {
 	char **domains = NULL;
 	char **names = NULL;
 	enum lsa_SidType *types = NULL;
 
-	sid_to_string(str, sid);
+	sid_to_fstring(str, sid);
 
 	if (_numeric) return;
 
 	/* Ask LSA to convert the sid to a name */
 
 	if (!cli_open_policy_hnd() ||
-	    !NT_STATUS_IS_OK(rpccli_lsa_lookup_sids(global_pipe_hnd, cli_ipc->mem_ctx,  
+	    !NT_STATUS_IS_OK(rpccli_lsa_lookup_sids(global_pipe_hnd, talloc_tos(),
 						 &pol, 1, sid, &domains, 
 						 &names, &types)) ||
 	    !domains || !domains[0] || !names || !names[0]) {
@@ -104,19 +103,19 @@ static void SidToString(fstring str, DOM_SID *sid, BOOL _numeric)
 }
 
 /* convert a string to a SID, either numeric or username/group */
-static BOOL StringToSid(DOM_SID *sid, const char *str)
+static bool StringToSid(DOM_SID *sid, const char *str)
 {
 	enum lsa_SidType *types = NULL;
 	DOM_SID *sids = NULL;
-	BOOL result = True;
+	bool result = True;
 
 	if (strncmp(str, "S-", 2) == 0) {
 		return string_to_sid(sid, str);
 	}
 
 	if (!cli_open_policy_hnd() ||
-	    !NT_STATUS_IS_OK(rpccli_lsa_lookup_names(global_pipe_hnd, cli_ipc->mem_ctx, 
-						  &pol, 1, &str, NULL, &sids, 
+	    !NT_STATUS_IS_OK(rpccli_lsa_lookup_names(global_pipe_hnd, talloc_tos(),
+						  &pol, 1, &str, NULL, 1, &sids, 
 						  &types))) {
 		result = False;
 		goto done;
@@ -135,14 +134,20 @@ static BOOL StringToSid(DOM_SID *sid, const char *str)
 
 enum {PARSE_FLAGS,PARSE_LIM};
 
-static int parse_quota_set(pstring set_str, pstring username_str, enum SMB_QUOTA_TYPE *qtype, int *cmd, SMB_NTQUOTA_STRUCT *pqt)
+static int parse_quota_set(TALLOC_CTX *ctx,
+			char *set_str,
+			char **pp_username_str,
+			enum SMB_QUOTA_TYPE *qtype,
+			int *cmd,
+			SMB_NTQUOTA_STRUCT *pqt)
 {
 	char *p = set_str,*p2;
 	int todo;
-	BOOL stop = False;
-	BOOL enable = False;
-	BOOL deny = False;
-	
+	bool stop = False;
+	bool enable = False;
+	bool deny = False;
+
+	*pp_username_str = NULL;
 	if (strnequal(set_str,"UQLIM:",6)) {
 		p += 6;
 		*qtype = SMB_USER_QUOTA_TYPE;
@@ -151,11 +156,11 @@ static int parse_quota_set(pstring set_str, pstring username_str, enum SMB_QUOTA
 		if ((p2=strstr(p,":"))==NULL) {
 			return -1;
 		}
-		
+
 		*p2 = '\0';
 		p2++;
-		
-		fstrcpy(username_str,p);
+
+		*pp_username_str = talloc_strdup(ctx, p);
 		p = p2;
 	} else if (strnequal(set_str,"FSQLIM:",7)) {
 		p +=7;
@@ -180,7 +185,7 @@ static int parse_quota_set(pstring set_str, pstring username_str, enum SMB_QUOTA
 #endif
 				return -1;
 			}
-			
+
 			break;
 		case PARSE_FLAGS:
 			while (!stop) {
@@ -212,14 +217,18 @@ static int parse_quota_set(pstring set_str, pstring username_str, enum SMB_QUOTA
 			} else if (enable) {
 				pqt->qflags |= QUOTAS_ENABLED;
 			}
-			
-			break;	
+
+			break;
 	}
 
 	return 0;
 }
 
-static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd, pstring username_str, SMB_NTQUOTA_STRUCT *pqt)
+static int do_quota(struct cli_state *cli,
+		enum SMB_QUOTA_TYPE qtype,
+		uint16 cmd,
+		const char *username_str,
+		SMB_NTQUOTA_STRUCT *pqt)
 {
 	uint32 fs_attrs = 0;
 	int quota_fnum = 0;
@@ -235,7 +244,7 @@ static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd
 
 	if (!(fs_attrs & FILE_VOLUME_QUOTAS)) {
 		d_printf("Quotas are not supported by the server.\n");
-		return 0;	
+		return 0;
 	}
 
 	if (!cli_get_quota_handle(cli, &quota_fnum)) {
@@ -251,7 +260,7 @@ static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd
 				d_printf("StringToSid() failed for [%s]\n",username_str);
 				return -1;
 			}
-			
+
 			switch(cmd) {
 				case QUOTA_GET:
 					if (!cli_get_user_quota(cli, quota_fnum, &qt)) {
@@ -282,12 +291,12 @@ static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd
 						return -1;
 					}
 					dump_ntquota_list(&qtl,verbose,numeric,SidToString);
-					free_ntquota_list(&qtl);					
+					free_ntquota_list(&qtl);
 					break;
 				default:
 					d_printf("Unknown Error\n");
 					return -1;
-			} 
+			}
 			break;
 		case SMB_USER_FS_QUOTA_TYPE:
 			switch(cmd) {
@@ -341,7 +350,7 @@ static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd
 				default:
 					d_printf("Unknown Error\n");
 					return -1;
-			} 		
+			}
 			break;
 		default:
 			d_printf("Unknown Error\n");
@@ -353,35 +362,64 @@ static int do_quota(struct cli_state *cli, enum SMB_QUOTA_TYPE qtype, uint16 cmd
 	return 0;
 }
 
-/***************************************************** 
-return a connection to a server
+/*****************************************************
+ Return a connection to a server.
 *******************************************************/
+
 static struct cli_state *connect_one(const char *share)
 {
 	struct cli_state *c;
-	struct in_addr ip;
+	struct sockaddr_storage ss;
 	NTSTATUS nt_status;
-	zero_ip(&ip);
-	
-	if (!cmdline_auth_info.got_pass) {
+	uint32_t flags = 0;
+
+	zero_addr(&ss);
+
+	if (get_cmdline_auth_info_use_machine_account() &&
+	    !set_cmdline_auth_info_machine_account_creds()) {
+		return NULL;
+	}
+
+	if (get_cmdline_auth_info_use_kerberos()) {
+		flags |= CLI_FULL_CONNECTION_USE_KERBEROS |
+			 CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS;
+
+	}
+
+	if (!get_cmdline_auth_info_got_pass()) {
 		char *pass = getpass("Password: ");
 		if (pass) {
-			pstrcpy(cmdline_auth_info.password, pass);
-			cmdline_auth_info.got_pass = True;
+			set_cmdline_auth_info_password(pass);
 		}
 	}
 
-	if (NT_STATUS_IS_OK(nt_status = cli_full_connection(&c, global_myname(), server, 
-							    &ip, 0,
-							    share, "?????",  
-							    cmdline_auth_info.username, lp_workgroup(),
-							    cmdline_auth_info.password, 0,
-							    cmdline_auth_info.signing_state, NULL))) {
-		return c;
-	} else {
+	nt_status = cli_full_connection(&c, global_myname(), server, 
+					    &ss, 0,
+					    share, "?????",
+					    get_cmdline_auth_info_username(),
+					    lp_workgroup(),
+					    get_cmdline_auth_info_password(),
+					    flags,
+					    get_cmdline_auth_info_signing_state(),
+					    NULL);
+	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("cli_full_connection failed! (%s)\n", nt_errstr(nt_status)));
 		return NULL;
 	}
+
+	if (get_cmdline_auth_info_smb_encrypt()) {
+		nt_status = cli_cm_force_encryption(c,
+					get_cmdline_auth_info_username(),
+					get_cmdline_auth_info_password(),
+					lp_workgroup(),
+					share);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			cli_shutdown(c);
+			return NULL;
+		}
+	}
+
+	return c;
 }
 
 /****************************************************************************
@@ -393,15 +431,16 @@ static struct cli_state *connect_one(const char *share)
 	int opt;
 	int result;
 	int todo = 0;
-	pstring username_str = {0};
-	pstring path = {0};
-	pstring set_str = {0};
+	char *username_str = NULL;
+	char *path = NULL;
+	char *set_str = NULL;
 	enum SMB_QUOTA_TYPE qtype = SMB_INVALID_QUOTA_TYPE;
 	int cmd = 0;
-	static BOOL test_args = False;
+	static bool test_args = False;
 	struct cli_state *cli;
-	BOOL fix_user = False;
+	bool fix_user = False;
 	SMB_NTQUOTA_STRUCT qt;
+	TALLOC_CTX *frame = talloc_stackframe();
 	poptContext pc;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -413,9 +452,9 @@ SETSTRING:\n\
 UQLIM:<username>/<softlimit>/<hardlimit> for user quotas\n\
 FSQLIM:<softlimit>/<hardlimit> for filesystem defaults\n\
 FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
-		{ "numeric", 'n', POPT_ARG_NONE, &numeric, True, "Don't resolve sids or limits to names" },
-		{ "verbose", 'v', POPT_ARG_NONE, &verbose, True, "be verbose" },
-		{ "test-args", 't', POPT_ARG_NONE, &test_args, True, "Test arguments"},
+		{ "numeric", 'n', POPT_ARG_NONE, NULL, 'n', "Don't resolve sids or limits to names" },
+		{ "verbose", 'v', POPT_ARG_NONE, NULL, 'v', "be verbose" },
+		{ "test-args", 't', POPT_ARG_NONE, NULL, 'r', "Test arguments"},
 		POPT_COMMON_SAMBA
 		POPT_COMMON_CREDENTIALS
 		{ NULL }
@@ -435,15 +474,24 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 
 	fault_setup(NULL);
 
-	lp_load(dyn_CONFIGFILE,True,False,False,True);
+	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 
 	pc = poptGetContext("smbcquotas", argc, argv, long_options, 0);
-	
+
 	poptSetOtherOptionHelp(pc, "//server1/share1");
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
 		switch (opt) {
+		case 'n':
+			numeric = true;
+			break;
+		case 'v':
+			verbose = true;
+			break;
+		case 't':
+			test_args = true;
+			break;
 		case 'L':
 			if (todo != 0) {
 				d_printf("Please specify only one option of <-L|-F|-S|-u>\n");
@@ -459,23 +507,29 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 			}
 			todo = FS_QUOTA;
 			break;
-		
+
 		case 'u':
 			if (todo != 0) {
 				d_printf("Please specify only one option of <-L|-F|-S|-u>\n");
 				exit(EXIT_PARSE_ERROR);
 			}
-			pstrcpy(username_str,poptGetOptArg(pc));
+			username_str = talloc_strdup(frame, poptGetOptArg(pc));
+			if (!username_str) {
+				exit(EXIT_PARSE_ERROR);
+			}
 			todo = USER_QUOTA;
 			fix_user = True;
 			break;
-		
+
 		case 'S':
 			if (todo != 0) {
 				d_printf("Please specify only one option of <-L|-F|-S|-u>\n");
 				exit(EXIT_PARSE_ERROR);
 			}
-			pstrcpy(set_str,poptGetOptArg(pc));
+			set_str = talloc_strdup(frame, poptGetOptArg(pc));
+			if (!set_str) {
+				exit(EXIT_PARSE_ERROR);
+			}
 			todo = SET_QUOTA;
 			break;
 		}
@@ -484,34 +538,43 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 	if (todo == 0)
 		todo = USER_QUOTA;
 
-	if (!fix_user)
-		pstrcpy(username_str,cmdline_auth_info.username);
+	if (!fix_user) {
+		username_str = talloc_strdup(frame, get_cmdline_auth_info_username());
+		if (!username_str) {
+			exit(EXIT_PARSE_ERROR);
+		}
+	}
 
 	/* Make connection to server */
-	if(!poptPeekArg(pc)) { 
+	if(!poptPeekArg(pc)) {
 		poptPrintUsage(pc, stderr, 0);
 		exit(EXIT_PARSE_ERROR);
 	}
-	
-	pstrcpy(path, poptGetArg(pc));
 
-	all_string_sub(path,"/","\\",0);
+	path = talloc_strdup(frame, poptGetArg(pc));
+	if (!path) {
+		printf("Out of memory\n");
+		exit(EXIT_PARSE_ERROR);
+	}
 
-	pstrcpy(server,path+2);
+	string_replace(path, '/', '\\');
+
+	server = SMB_STRDUP(path+2);
+	if (!server) {
+		printf("Out of memory\n");
+		exit(EXIT_PARSE_ERROR);
+	}
 	share = strchr_m(server,'\\');
 	if (!share) {
-		share = strchr_m(server,'/');
-		if (!share) {
-			printf("Invalid argument: %s\n", share);
-			exit(EXIT_PARSE_ERROR);
-		}
+		printf("Invalid argument: %s\n", share);
+		exit(EXIT_PARSE_ERROR);
 	}
 
 	*share = 0;
 	share++;
 
 	if (todo == SET_QUOTA) {
-		if (parse_quota_set(set_str, username_str, &qtype, &cmd, &qt)) {
+		if (parse_quota_set(talloc_tos(), set_str, &username_str, &qtype, &cmd, &qt)) {
 			printf("Invalid argument: -S %s\n", set_str);
 			exit(EXIT_PARSE_ERROR);
 		}
@@ -548,6 +611,7 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 			break;
 	}
 
+	talloc_free(frame);
+
 	return result;
 }
-

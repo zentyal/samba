@@ -8,7 +8,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -17,8 +17,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _DEBUG_H
@@ -40,8 +39,8 @@
 /* PRINTFLIKE1 */
 int  Debug1( const char *, ... ) PRINTF_ATTRIBUTE(1,2);
 /* PRINTFLIKE1 */
-BOOL dbgtext( const char *, ... ) PRINTF_ATTRIBUTE(1,2);
-BOOL dbghdr( int level, const char *file, const char *func, int line );
+bool dbgtext( const char *, ... ) PRINTF_ATTRIBUTE(1,2);
+bool dbghdr( int level, int cls, const char *file, const char *func, int line );
 
 #if defined(sgi) && (_COMPILER_VERSION >= 730)
 #pragma mips_frequency_hint NEVER Debug1
@@ -50,7 +49,6 @@ BOOL dbghdr( int level, const char *file, const char *func, int line );
 #endif
 
 extern XFILE *dbf;
-extern pstring debugf;
 
 /* If we have these macros, we can add additional info to the header. */
 
@@ -103,6 +101,7 @@ extern int DEBUGLEVEL;
 #define DBGC_LOCKING		16
 #define DBGC_MSDFS		17
 #define DBGC_DMAPI		18
+#define DBGC_REGISTRY		19
 
 /* So you can define DBGC_CLASS before including debug.h */
 #ifndef DBGC_CLASS
@@ -110,7 +109,7 @@ extern int DEBUGLEVEL;
 #endif
 
 extern int  *DEBUGLEVEL_CLASS;
-extern BOOL *DEBUGLEVEL_CLASS_ISSET;
+extern bool *DEBUGLEVEL_CLASS_ISSET;
 
 /* Debugging macros
  *
@@ -162,48 +161,74 @@ extern BOOL *DEBUGLEVEL_CLASS_ISSET;
  * will remove the extra conditional test.
  */
 
-#define DEBUGLVL( level ) \
+/*
+ * From talloc.c:
+ */
+
+/* these macros gain us a few percent of speed on gcc */
+#if (__GNUC__ >= 3)
+/* the strange !! is to ensure that __builtin_expect() takes either 0 or 1
+   as its first argument */
+#ifndef likely
+#define likely(x)   __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+#else
+#ifndef likely
+#define likely(x) (x)
+#endif
+#ifndef unlikely
+#define unlikely(x) (x)
+#endif
+#endif
+
+#define CHECK_DEBUGLVL( level ) \
   ( ((level) <= MAX_DEBUG_LEVEL) && \
-     ((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
+     unlikely((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
      (!DEBUGLEVEL_CLASS_ISSET[ DBGC_CLASS ] && \
-      DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
-   && dbghdr( level, __FILE__, FUNCTION_MACRO, (__LINE__) ) )
+      DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) )
+
+#define DEBUGLVL( level ) \
+  ( CHECK_DEBUGLVL(level) \
+   && dbghdr( level, DBGC_CLASS, __FILE__, FUNCTION_MACRO, (__LINE__) ) )
 
 
 #define DEBUGLVLC( dbgc_class, level ) \
   ( ((level) <= MAX_DEBUG_LEVEL) && \
-     ((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
+     unlikely((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
      (!DEBUGLEVEL_CLASS_ISSET[ dbgc_class ] && \
       DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
-   && dbghdr( level, __FILE__, FUNCTION_MACRO, (__LINE__) ) )
+   && dbghdr( level, DBGC_CLASS, __FILE__, FUNCTION_MACRO, (__LINE__) ) )
 
 
 #define DEBUG( level, body ) \
   (void)( ((level) <= MAX_DEBUG_LEVEL) && \
-           ((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
+           unlikely((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
            (!DEBUGLEVEL_CLASS_ISSET[ DBGC_CLASS ] && \
             DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
-       && (dbghdr( level, __FILE__, FUNCTION_MACRO, (__LINE__) )) \
+       && (dbghdr( level, DBGC_CLASS, __FILE__, FUNCTION_MACRO, (__LINE__) )) \
        && (dbgtext body) )
 
 #define DEBUGC( dbgc_class, level, body ) \
   (void)( ((level) <= MAX_DEBUG_LEVEL) && \
-           ((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
+           unlikely((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
            (!DEBUGLEVEL_CLASS_ISSET[ dbgc_class ] && \
 	    DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
-       && (dbghdr( level, __FILE__, FUNCTION_MACRO, (__LINE__) )) \
+       && (dbghdr( level, DBGC_CLASS, __FILE__, FUNCTION_MACRO, (__LINE__) )) \
        && (dbgtext body) )
 
 #define DEBUGADD( level, body ) \
   (void)( ((level) <= MAX_DEBUG_LEVEL) && \
-           ((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
+           unlikely((DEBUGLEVEL_CLASS[ DBGC_CLASS ] >= (level))||  \
            (!DEBUGLEVEL_CLASS_ISSET[ DBGC_CLASS ] && \
             DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
        && (dbgtext body) )
 
 #define DEBUGADDC( dbgc_class, level, body ) \
   (void)( ((level) <= MAX_DEBUG_LEVEL) && \
-          ((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
+          unlikely((DEBUGLEVEL_CLASS[ dbgc_class ] >= (level))||  \
            (!DEBUGLEVEL_CLASS_ISSET[ dbgc_class ] && \
             DEBUGLEVEL_CLASS[ DBGC_ALL   ] >= (level))  ) \
        && (dbgtext body) )

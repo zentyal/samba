@@ -5,7 +5,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  * 
  * This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "includes.h"
@@ -75,7 +74,7 @@ static http_t *cups_connect(void)
 	return http;
 }
 
-BOOL cups_cache_reload(void)
+bool cups_cache_reload(void)
 {
 	http_t		*http = NULL;		/* HTTP connection to server */
 	ipp_t		*request = NULL,	/* IPP Request */
@@ -89,7 +88,7 @@ BOOL cups_cache_reload(void)
 			  "printer-name",
 			  "printer-info"
 			};       
-	BOOL ret = False;
+	bool ret = False;
 
 	DEBUG(5, ("reloading cups printcap cache\n"));
 
@@ -564,10 +563,11 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 			*response = NULL;	/* IPP Response */
 	cups_lang_t	*language = NULL;	/* Default language */
 	char		uri[HTTP_MAX_URI]; /* printer-uri attribute */
-	char 		*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
-	pstring		new_jobname;
-	int		num_options = 0; 
+	const char 	*clientname = NULL; 	/* hostname of client for job-originating-host attribute */
+	char *new_jobname = NULL;
+	int		num_options = 0;
 	cups_option_t 	*options = NULL;
+	char addr[INET6_ADDRSTRLEN];
 
 	DEBUG(5,("cups_job_submit(%d, %p (%d))\n", snum, pjob, pjob->sysjob));
 
@@ -618,17 +618,19 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name",
         	     NULL, pjob->user);
 
-	clientname = client_name();
+	clientname = client_name(get_client_fd());
 	if (strcmp(clientname, "UNKNOWN") == 0) {
-		clientname = client_addr();
+		clientname = client_addr(get_client_fd(),addr,sizeof(addr));
 	}
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME,
 	             "job-originating-host-name", NULL,
 		      clientname);
 
-        pstr_sprintf(new_jobname,"%s%.8u %s", PRINT_SPOOL_PREFIX, 
-		(unsigned int)pjob->smbjob, pjob->jobname);
+	if (asprintf(&new_jobname,"%s%.8u %s", PRINT_SPOOL_PREFIX,
+			(unsigned int)pjob->smbjob, pjob->jobname) < 0) {
+		goto out;
+	}
 
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "job-name", NULL,
         	     new_jobname);
@@ -675,6 +677,8 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 
 	if (http)
 		httpClose(http);
+
+	SAFE_FREE(new_jobname);
 
 	return ret;
 }
@@ -1198,7 +1202,7 @@ struct printif	cups_printif =
 	cups_job_submit,
 };
 
-BOOL cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
+bool cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
 {
 	http_t		*http = NULL;		/* HTTP connection to server */
 	ipp_t		*request = NULL,	/* IPP Request */
@@ -1215,7 +1219,7 @@ BOOL cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
 			  "printer-info",
 			  "printer-location"
 			};
-	BOOL ret = False;
+	bool ret = False;
 
 	DEBUG(5, ("pulling %s location\n", printer->sharename));
 
@@ -1294,7 +1298,9 @@ BOOL cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
 			{
 				DEBUG(5,("cups_pull_comment_location: Using cups comment: %s\n",
 					 attr->values[0].string.text));				
-			    	pstrcpy(printer->comment,attr->values[0].string.text);
+			    	strlcpy(printer->comment,
+						attr->values[0].string.text,
+						sizeof(printer->comment));
 			}
 
 			/* Grab the location if we don't have one */ 

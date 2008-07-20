@@ -2,14 +2,14 @@
    Unix SMB/CIFS implementation.
    Samba utility functions
    Copyright (C) Andrew Tridgell 1992-1998
-   Copyright (C) Jeremy Allison 2001-2002
+   Copyright (C) Jeremy Allison 2001-2007
    Copyright (C) Simo Sorce 2001
    Copyright (C) Jim McDonough <jmcd@us.ibm.com> 2003
    Copyright (C) James Peach 2006
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -18,16 +18,13 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 
-extern fstring local_machine;
 extern char *global_clobber_region_function;
 extern unsigned int global_clobber_region_line;
-extern fstring remote_arch;
 
 /* Max allowable allococation - 256mb - 0x10000000 */
 #define MAX_ALLOC_SIZE (1024*1024*256)
@@ -60,16 +57,12 @@ extern fstring remote_arch;
 
 enum protocol_types Protocol = PROTOCOL_COREPLUS;
 
-/* a default finfo structure to ensure all fields are sensible */
-file_info def_finfo;
-
 /* this is used by the chaining code */
 int chain_size = 0;
 
 int trans_num = 0;
 
 static enum remote_arch_types ra_type = RA_UNKNOWN;
-pstring user_socket_options=DEFAULT_SOCKET_OPTIONS;   
 
 /***********************************************************************
  Definitions for all names.
@@ -85,7 +78,7 @@ static char **smb_my_netbios_names;
  Allocate and set myname. Ensure upper case.
 ***********************************************************************/
 
-BOOL set_global_myname(const char *myname)
+bool set_global_myname(const char *myname)
 {
 	SAFE_FREE(smb_myname);
 	smb_myname = SMB_STRDUP(myname);
@@ -104,7 +97,7 @@ const char *global_myname(void)
  Allocate and set myworkgroup. Ensure upper case.
 ***********************************************************************/
 
-BOOL set_global_myworkgroup(const char *myworkgroup)
+bool set_global_myworkgroup(const char *myworkgroup)
 {
 	SAFE_FREE(smb_myworkgroup);
 	smb_myworkgroup = SMB_STRDUP(myworkgroup);
@@ -123,7 +116,7 @@ const char *lp_workgroup(void)
  Allocate and set scope. Ensure upper case.
 ***********************************************************************/
 
-BOOL set_global_scope(const char *scope)
+bool set_global_scope(const char *scope)
 {
 	SAFE_FREE(smb_scope);
 	smb_scope = SMB_STRDUP(scope);
@@ -155,7 +148,7 @@ static void free_netbios_names_array(void)
 	smb_num_netbios_names = 0;
 }
 
-static BOOL allocate_my_netbios_names_array(size_t number)
+static bool allocate_my_netbios_names_array(size_t number)
 {
 	free_netbios_names_array();
 
@@ -169,7 +162,7 @@ static BOOL allocate_my_netbios_names_array(size_t number)
 	return True;
 }
 
-static BOOL set_my_netbios_names(const char *name, int i)
+static bool set_my_netbios_names(const char *name, int i)
 {
 	SAFE_FREE(smb_my_netbios_names[i]);
 
@@ -190,16 +183,16 @@ void gfree_names(void)
 	SAFE_FREE( smb_myworkgroup );
 	SAFE_FREE( smb_scope );
 	free_netbios_names_array();
+	free_local_machine_name();
 }
 
 void gfree_all( void )
 {
-	gfree_names();	
+	gfree_names();
 	gfree_loadparm();
 	gfree_case_tables();
 	gfree_debugsyms();
 	gfree_charcnv();
-	gfree_messages();
 	gfree_interfaces();
 
 	/* release the talloc null_context memory last */
@@ -211,7 +204,7 @@ const char *my_netbios_names(int i)
 	return smb_my_netbios_names[i];
 }
 
-BOOL set_netbios_aliases(const char **str_array)
+bool set_netbios_aliases(const char **str_array)
 {
 	size_t namecount;
 
@@ -237,7 +230,7 @@ BOOL set_netbios_aliases(const char **str_array)
 		size_t i;
 		for ( i = 0; str_array[i] != NULL; i++) {
 			size_t n;
-			BOOL duplicate = False;
+			bool duplicate = False;
 
 			/* Look for duplicates */
 			for( n=0; n<namecount; n++ ) {
@@ -260,9 +253,8 @@ BOOL set_netbios_aliases(const char **str_array)
   Common name initialization code.
 ****************************************************************************/
 
-BOOL init_names(void)
+bool init_names(void)
 {
-	char *p;
 	int n;
 
 	if (global_myname() == NULL || *global_myname() == '\0') {
@@ -275,20 +267,176 @@ BOOL init_names(void)
 	if (!set_netbios_aliases(lp_netbios_aliases())) {
 		DEBUG( 0, ( "init_structs: malloc fail.\n" ) );
 		return False;
-	}			
+	}
 
-	fstrcpy( local_machine, global_myname() );
-	trim_char( local_machine, ' ', ' ' );
-	p = strchr( local_machine, ' ' );
-	if (p)
-		*p = 0;
-	strlower_m( local_machine );
+	set_local_machine_name(global_myname(),false);
 
 	DEBUG( 5, ("Netbios name list:-\n") );
-	for( n=0; my_netbios_names(n); n++ )
-		DEBUGADD( 5, ( "my_netbios_names[%d]=\"%s\"\n", n, my_netbios_names(n) ) );
+	for( n=0; my_netbios_names(n); n++ ) {
+		DEBUGADD( 5, ("my_netbios_names[%d]=\"%s\"\n",
+					n, my_netbios_names(n) ) );
+	}
 
 	return( True );
+}
+
+/**************************************************************************n
+  Code to cope with username/password auth options from the commandline.
+  Used mainly in client tools.
+****************************************************************************/
+
+static struct user_auth_info cmdline_auth_info = {
+	NULL,	/* username */
+	NULL,	/* password */
+	false,	/* got_pass */
+	false,	/* use_kerberos */
+	Undefined, /* signing state */
+	false,	/* smb_encrypt */
+	false   /* use machine account */
+};
+
+const char *get_cmdline_auth_info_username(void)
+{
+	if (!cmdline_auth_info.username) {
+		return "";
+	}
+	return cmdline_auth_info.username;
+}
+
+void set_cmdline_auth_info_username(const char *username)
+{
+	SAFE_FREE(cmdline_auth_info.username);
+	cmdline_auth_info.username = SMB_STRDUP(username);
+	if (!cmdline_auth_info.username) {
+		exit(ENOMEM);
+	}
+}
+
+const char *get_cmdline_auth_info_password(void)
+{
+	if (!cmdline_auth_info.password) {
+		return "";
+	}
+	return cmdline_auth_info.password;
+}
+
+void set_cmdline_auth_info_password(const char *password)
+{
+	SAFE_FREE(cmdline_auth_info.password);
+	cmdline_auth_info.password = SMB_STRDUP(password);
+	if (!cmdline_auth_info.password) {
+		exit(ENOMEM);
+	}
+	cmdline_auth_info.got_pass = true;
+}
+
+bool set_cmdline_auth_info_signing_state(const char *arg)
+{
+	cmdline_auth_info.signing_state = -1;
+	if (strequal(arg, "off") || strequal(arg, "no") ||
+			strequal(arg, "false")) {
+		cmdline_auth_info.signing_state = false;
+	} else if (strequal(arg, "on") || strequal(arg, "yes") ||
+			strequal(arg, "true") || strequal(arg, "auto")) {
+		cmdline_auth_info.signing_state = true;
+	} else if (strequal(arg, "force") || strequal(arg, "required") ||
+			strequal(arg, "forced")) {
+		cmdline_auth_info.signing_state = Required;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+int get_cmdline_auth_info_signing_state(void)
+{
+	return cmdline_auth_info.signing_state;
+}
+
+bool get_cmdline_auth_info_use_kerberos(void)
+{
+	return cmdline_auth_info.use_kerberos;
+}
+
+/* This should only be used by lib/popt_common.c JRA */
+void set_cmdline_auth_info_use_krb5_ticket(void)
+{
+	cmdline_auth_info.use_kerberos = true;
+	cmdline_auth_info.got_pass = true;
+}
+
+/* This should only be used by lib/popt_common.c JRA */
+void set_cmdline_auth_info_smb_encrypt(void)
+{
+	cmdline_auth_info.smb_encrypt = true;
+}
+
+void set_cmdline_auth_info_use_machine_account(void)
+{
+	cmdline_auth_info.use_machine_account = true;
+}
+
+bool get_cmdline_auth_info_got_pass(void)
+{
+	return cmdline_auth_info.got_pass;
+}
+
+bool get_cmdline_auth_info_smb_encrypt(void)
+{
+	return cmdline_auth_info.smb_encrypt;
+}
+
+bool get_cmdline_auth_info_use_machine_account(void)
+{
+	return cmdline_auth_info.use_machine_account;
+}
+
+bool get_cmdline_auth_info_copy(struct user_auth_info *info)
+{
+	*info = cmdline_auth_info;
+	/* Now re-alloc the strings. */
+	info->username = SMB_STRDUP(get_cmdline_auth_info_username());
+	info->password = SMB_STRDUP(get_cmdline_auth_info_password());
+	if (!info->username || !info->password) {
+		return false;
+	}
+	return true;
+}
+
+bool set_cmdline_auth_info_machine_account_creds(void)
+{
+	char *pass = NULL;
+	char *account = NULL;
+
+	if (!get_cmdline_auth_info_use_machine_account()) {
+		return false;
+	}
+
+	if (!secrets_init()) {
+		d_printf("ERROR: Unable to open secrets database\n");
+		return false;
+	}
+
+	if (asprintf(&account, "%s$@%s", global_myname(), lp_realm()) < 0) {
+		return false;
+	}
+
+	pass = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
+	if (!pass) {
+		d_printf("ERROR: Unable to fetch machine password for "
+			"%s in domain %s\n",
+			account, lp_workgroup());
+		SAFE_FREE(account);
+		return false;
+	}
+
+	set_cmdline_auth_info_username(account);
+	set_cmdline_auth_info_password(pass);
+
+	SAFE_FREE(account);
+	SAFE_FREE(pass);
+
+	return true;
 }
 
 /**************************************************************************n
@@ -308,7 +456,7 @@ const char *tmpdir(void)
  Add a gid to an array of gids if it's not already there.
 ****************************************************************************/
 
-BOOL add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
+bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
 			     gid_t **gids, size_t *num_gids)
 {
 	int i;
@@ -392,7 +540,7 @@ const char *get_numlist(const char *p, uint32 **num, int *count)
  Check if a file exists - call vfs_file_exist for samba files.
 ********************************************************************/
 
-BOOL file_exist(const char *fname,SMB_STRUCT_STAT *sbuf)
+bool file_exist(const char *fname,SMB_STRUCT_STAT *sbuf)
 {
 	SMB_STRUCT_STAT st;
 	if (!sbuf)
@@ -402,6 +550,19 @@ BOOL file_exist(const char *fname,SMB_STRUCT_STAT *sbuf)
 		return(False);
 
 	return((S_ISREG(sbuf->st_mode)) || (S_ISFIFO(sbuf->st_mode)));
+}
+
+/*******************************************************************
+ Check if a unix domain socket exists - call vfs_file_exist for samba files.
+********************************************************************/
+
+bool socket_exist(const char *fname)
+{
+	SMB_STRUCT_STAT st;
+	if (sys_stat(fname,&st) != 0) 
+		return(False);
+
+	return S_ISSOCK(st.st_mode);
 }
 
 /*******************************************************************
@@ -422,10 +583,10 @@ time_t file_modtime(const char *fname)
  Check if a directory exists.
 ********************************************************************/
 
-BOOL directory_exist(char *dname,SMB_STRUCT_STAT *st)
+bool directory_exist(char *dname,SMB_STRUCT_STAT *st)
 {
 	SMB_STRUCT_STAT st2;
-	BOOL ret;
+	bool ret;
 
 	if (!st)
 		st = &st2;
@@ -458,7 +619,7 @@ SMB_OFF_T get_file_size(char *file_name)
 
 char *attrib_string(uint16 mode)
 {
-	static fstring attrstr;
+	fstring attrstr;
 
 	attrstr[0] = 0;
 
@@ -469,7 +630,7 @@ char *attrib_string(uint16 mode)
 	if (mode & aSYSTEM) fstrcat(attrstr,"S");
 	if (mode & aRONLY) fstrcat(attrstr,"R");	  
 
-	return(attrstr);
+	return talloc_strdup(talloc_tos(), attrstr);
 }
 
 /*******************************************************************
@@ -513,7 +674,20 @@ void show_msg(char *buf)
 	if (DEBUGLEVEL < 50)
 		bcc = MIN(bcc, 512);
 
-	dump_data(10, smb_buf(buf), bcc);	
+	dump_data(10, (uint8 *)smb_buf(buf), bcc);	
+}
+
+/*******************************************************************
+ Set the length and marker of an encrypted smb packet.
+********************************************************************/
+
+void smb_set_enclen(char *buf,int len,uint16 enc_ctx_num)
+{
+	_smb_setlen(buf,len);
+
+	SCVAL(buf,4,0xFF);
+	SCVAL(buf,5,'E');
+	SSVAL(buf,6,enc_ctx_num);
 }
 
 /*******************************************************************
@@ -531,134 +705,163 @@ void smb_setlen(char *buf,int len)
 }
 
 /*******************************************************************
- Setup the word count and byte count for a smb message.
-********************************************************************/
-
-int set_message(char *buf,int num_words,int num_bytes,BOOL zero)
-{
-	if (zero && (num_words || num_bytes)) {
-		memset(buf + smb_size,'\0',num_words*2 + num_bytes);
-	}
-	SCVAL(buf,smb_wct,num_words);
-	SSVAL(buf,smb_vwv + num_words*SIZEOFWORD,num_bytes);  
-	smb_setlen(buf,smb_size + num_words*2 + num_bytes - 4);
-	return (smb_size + num_words*2 + num_bytes);
-}
-
-/*******************************************************************
  Setup only the byte count for a smb message.
 ********************************************************************/
 
 int set_message_bcc(char *buf,int num_bytes)
 {
 	int num_words = CVAL(buf,smb_wct);
-	SSVAL(buf,smb_vwv + num_words*SIZEOFWORD,num_bytes);  
-	smb_setlen(buf,smb_size + num_words*2 + num_bytes - 4);
+	SSVAL(buf,smb_vwv + num_words*SIZEOFWORD,num_bytes);
+	_smb_setlen(buf,smb_size + num_words*2 + num_bytes - 4);
 	return (smb_size + num_words*2 + num_bytes);
 }
 
 /*******************************************************************
- Setup only the byte count for a smb message, using the end of the
- message as a marker.
+ Add a data blob to the end of a smb_buf, adjusting bcc and smb_len.
+ Return the bytes added
 ********************************************************************/
 
-int set_message_end(void *outbuf,void *end_ptr)
+ssize_t message_push_blob(uint8 **outbuf, DATA_BLOB blob)
 {
-	return set_message_bcc((char *)outbuf,PTR_DIFF(end_ptr,smb_buf((char *)outbuf)));
+	size_t newlen = smb_len(*outbuf) + 4 + blob.length;
+	uint8 *tmp;
+
+	if (!(tmp = TALLOC_REALLOC_ARRAY(NULL, *outbuf, uint8, newlen))) {
+		DEBUG(0, ("talloc failed\n"));
+		return -1;
+	}
+	*outbuf = tmp;
+
+	memcpy(tmp + smb_len(tmp) + 4, blob.data, blob.length);
+	set_message_bcc((char *)tmp, smb_buflen(tmp) + blob.length);
+	return blob.length;
 }
 
 /*******************************************************************
  Reduce a file name, removing .. elements.
 ********************************************************************/
 
-void dos_clean_name(char *s)
+static char *dos_clean_name(TALLOC_CTX *ctx, const char *s)
 {
-	char *p=NULL;
+	char *p = NULL;
+	char *str = NULL;
 
 	DEBUG(3,("dos_clean_name [%s]\n",s));
 
 	/* remove any double slashes */
-	all_string_sub(s, "\\\\", "\\", 0);
-
-	/* Remove leading .\\ characters */
-	if(strncmp(s, ".\\", 2) == 0) {
-		trim_string(s, ".\\", NULL);
-		if(*s == 0)
-			pstrcpy(s,".\\");
+	str = talloc_all_string_sub(ctx, s, "\\\\", "\\");
+	if (!str) {
+		return NULL;
 	}
 
-	while ((p = strstr_m(s,"\\..\\")) != NULL) {
-		pstring s1;
+	/* Remove leading .\\ characters */
+	if(strncmp(str, ".\\", 2) == 0) {
+		trim_string(str, ".\\", NULL);
+		if(*str == 0) {
+			str = talloc_strdup(ctx, ".\\");
+			if (!str) {
+				return NULL;
+			}
+		}
+	}
+
+	while ((p = strstr_m(str,"\\..\\")) != NULL) {
+		char *s1;
 
 		*p = 0;
-		pstrcpy(s1,p+3);
+		s1 = p+3;
 
-		if ((p=strrchr_m(s,'\\')) != NULL)
+		if ((p=strrchr_m(str,'\\')) != NULL) {
 			*p = 0;
-		else
-			*s = 0;
-		pstrcat(s,s1);
-	}  
+		} else {
+			*str = 0;
+		}
+		str = talloc_asprintf(ctx,
+				"%s%s",
+				str,
+				s1);
+		if (!str) {
+			return NULL;
+		}
+	}
 
-	trim_string(s,NULL,"\\..");
-	all_string_sub(s, "\\.\\", "\\", 0);
+	trim_string(str,NULL,"\\..");
+	return talloc_all_string_sub(ctx, str, "\\.\\", "\\");
 }
 
 /*******************************************************************
- Reduce a file name, removing .. elements. 
+ Reduce a file name, removing .. elements.
 ********************************************************************/
 
-void unix_clean_name(char *s)
+char *unix_clean_name(TALLOC_CTX *ctx, const char *s)
 {
-	char *p=NULL;
+	char *p = NULL;
+	char *str = NULL;
 
 	DEBUG(3,("unix_clean_name [%s]\n",s));
 
 	/* remove any double slashes */
-	all_string_sub(s, "//","/", 0);
-
-	/* Remove leading ./ characters */
-	if(strncmp(s, "./", 2) == 0) {
-		trim_string(s, "./", NULL);
-		if(*s == 0)
-			pstrcpy(s,"./");
+	str = talloc_all_string_sub(ctx, s, "//","/");
+	if (!str) {
+		return NULL;
 	}
 
-	while ((p = strstr_m(s,"/../")) != NULL) {
-		pstring s1;
+	/* Remove leading ./ characters */
+	if(strncmp(str, "./", 2) == 0) {
+		trim_string(str, "./", NULL);
+		if(*str == 0) {
+			str = talloc_strdup(ctx, "./");
+			if (!str) {
+				return NULL;
+			}
+		}
+	}
+
+	while ((p = strstr_m(str,"/../")) != NULL) {
+		char *s1;
 
 		*p = 0;
-		pstrcpy(s1,p+3);
+		s1 = p+3;
 
-		if ((p=strrchr_m(s,'/')) != NULL)
+		if ((p=strrchr_m(str,'/')) != NULL) {
 			*p = 0;
-		else
-			*s = 0;
-		pstrcat(s,s1);
-	}  
+		} else {
+			*str = 0;
+		}
+		str = talloc_asprintf(ctx,
+				"%s%s",
+				str,
+				s1);
+		if (!str) {
+			return NULL;
+		}
+	}
 
-	trim_string(s,NULL,"/..");
-	all_string_sub(s, "/./", "/", 0);
+	trim_string(str,NULL,"/..");
+	return talloc_all_string_sub(ctx, str, "/./", "/");
 }
 
-void clean_name(char *s)
+char *clean_name(TALLOC_CTX *ctx, const char *s)
 {
-	dos_clean_name(s);
-	unix_clean_name(s);
+	char *str = dos_clean_name(ctx, s);
+	if (!str) {
+		return NULL;
+	}
+	return unix_clean_name(ctx, str);
 }
 
 /*******************************************************************
  Close the low 3 fd's and open dev/null in their place.
 ********************************************************************/
 
-void close_low_fds(BOOL stderr_too)
+void close_low_fds(bool stderr_too)
 {
 #ifndef VALGRIND
 	int fd;
 	int i;
 
 	close(0);
-	close(1); 
+	close(1);
 
 	if (stderr_too)
 		close(2);
@@ -731,7 +934,7 @@ ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos
   if BSD use FNDELAY
 ****************************************************************************/
 
-int set_blocking(int fd, BOOL set)
+int set_blocking(int fd, bool set)
 {
 	int val;
 #ifdef O_NONBLOCK
@@ -752,67 +955,6 @@ int set_blocking(int fd, BOOL set)
 		val |= FLAG_TO_SET;
 	return sys_fcntl_long( fd, F_SETFL, val);
 #undef FLAG_TO_SET
-}
-
-/****************************************************************************
- Transfer some data between two fd's.
-****************************************************************************/
-
-#ifndef TRANSFER_BUF_SIZE
-#define TRANSFER_BUF_SIZE 65536
-#endif
-
-ssize_t transfer_file_internal(int infd, int outfd, size_t n, ssize_t (*read_fn)(int, void *, size_t),
-						ssize_t (*write_fn)(int, const void *, size_t))
-{
-	char *buf;
-	size_t total = 0;
-	ssize_t read_ret;
-	ssize_t write_ret;
-	size_t num_to_read_thistime;
-	size_t num_written = 0;
-
-	if ((buf = SMB_MALLOC_ARRAY(char, TRANSFER_BUF_SIZE)) == NULL)
-		return -1;
-
-	while (total < n) {
-		num_to_read_thistime = MIN((n - total), TRANSFER_BUF_SIZE);
-
-		read_ret = (*read_fn)(infd, buf, num_to_read_thistime);
-		if (read_ret == -1) {
-			DEBUG(0,("transfer_file_internal: read failure. Error = %s\n", strerror(errno) ));
-			SAFE_FREE(buf);
-			return -1;
-		}
-		if (read_ret == 0)
-			break;
-
-		num_written = 0;
- 
-		while (num_written < read_ret) {
-			write_ret = (*write_fn)(outfd,buf + num_written, read_ret - num_written);
- 
-			if (write_ret == -1) {
-				DEBUG(0,("transfer_file_internal: write failure. Error = %s\n", strerror(errno) ));
-				SAFE_FREE(buf);
-				return -1;
-			}
-			if (write_ret == 0)
-				return (ssize_t)total;
- 
-			num_written += (size_t)write_ret;
-		}
-
-		total += (size_t)read_ret;
-	}
-
-	SAFE_FREE(buf);
-	return (ssize_t)total;		
-}
-
-SMB_OFF_T transfer_file(int infd,int outfd,SMB_OFF_T n)
-{
-	return (SMB_OFF_T)transfer_file_internal(infd, outfd, (size_t)n, sys_read, sys_write);
 }
 
 /*******************************************************************
@@ -869,7 +1011,7 @@ void smb_msleep(unsigned int t)
  Become a daemon, discarding the controlling terminal.
 ****************************************************************************/
 
-void become_daemon(BOOL Fork, BOOL no_process_group)
+void become_daemon(bool Fork, bool no_process_group)
 {
 	if (Fork) {
 		if (sys_fork()) {
@@ -895,13 +1037,44 @@ void become_daemon(BOOL Fork, BOOL no_process_group)
 				  attach it to the logfile */
 }
 
+bool reinit_after_fork(struct messaging_context *msg_ctx,
+		       bool parent_longlived)
+{
+	NTSTATUS status;
+
+	/* Reset the state of the random
+	 * number generation system, so
+	 * children do not get the same random
+	 * numbers as each other */
+	set_need_random_reseed();
+
+	/* tdb needs special fork handling */
+	if (tdb_reopen_all(parent_longlived ? 1 : 0) == -1) {
+		DEBUG(0,("tdb_reopen_all failed.\n"));
+		return false;
+	}
+
+	/*
+	 * For clustering, we need to re-init our ctdbd connection after the
+	 * fork
+	 */
+	status = messaging_reinit(msg_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("messaging_reinit() failed: %s\n",
+			 nt_errstr(status)));
+		return false;
+	}
+
+	return true;
+}
+
 /****************************************************************************
  Put up a yes/no prompt.
 ****************************************************************************/
 
-BOOL yesno(char *p)
+bool yesno(const char *p)
 {
-	pstring ans;
+	char ans[20];
 	printf("%s",p);
 
 	if (!fgets(ans,sizeof(ans)-1,stdin))
@@ -1040,7 +1213,7 @@ void *calloc_array(size_t size, size_t nmemb)
  Changes were instigated by Coverity error checking. JRA.
 ****************************************************************************/
 
-void *Realloc(void *p, size_t size, BOOL free_old_on_error)
+void *Realloc(void *p, size_t size, bool free_old_on_error)
 {
 	void *ret=NULL;
 
@@ -1080,7 +1253,7 @@ void *Realloc(void *p, size_t size, BOOL free_old_on_error)
  Type-safe realloc.
 ****************************************************************************/
 
-void *realloc_array(void *p, size_t el_size, unsigned int count, BOOL free_old_on_error)
+void *realloc_array(void *p, size_t el_size, unsigned int count, bool free_old_on_error)
 {
 	if (count >= MAX_ALLOC_SIZE/el_size) {
 		if (free_old_on_error) {
@@ -1161,9 +1334,10 @@ void safe_free(void *p)
  Get my own name and IP.
 ****************************************************************************/
 
-BOOL get_myname(char *my_name)
+char *get_myname(TALLOC_CTX *ctx)
 {
-	pstring hostname;
+	char *p;
+	char hostname[HOST_NAME_MAX];
 
 	*hostname = 0;
 
@@ -1171,76 +1345,41 @@ BOOL get_myname(char *my_name)
 	if (gethostname(hostname, sizeof(hostname)) == -1) {
 		DEBUG(0,("gethostname failed\n"));
 		return False;
-	} 
+	}
 
 	/* Ensure null termination. */
 	hostname[sizeof(hostname)-1] = '\0';
 
-	if (my_name) {
-		/* split off any parts after an initial . */
-		char *p = strchr_m(hostname,'.');
-
-		if (p)
-			*p = 0;
-		
-		fstrcpy(my_name,hostname);
+	/* split off any parts after an initial . */
+	p = strchr_m(hostname,'.');
+	if (p) {
+		*p = 0;
 	}
-	
-	return(True);
+
+	return talloc_strdup(ctx, hostname);
 }
 
 /****************************************************************************
- Get my own canonical name, including domain.
+ Get my own domain name, or "" if we have none.
 ****************************************************************************/
 
-BOOL get_mydnsfullname(fstring my_dnsname)
+char *get_mydnsdomname(TALLOC_CTX *ctx)
 {
-	static fstring dnshostname;
-	struct hostent *hp;
-
-	if (!*dnshostname) {
-		/* get my host name */
-		if (gethostname(dnshostname, sizeof(dnshostname)) == -1) {
-			*dnshostname = '\0';
-			DEBUG(0,("gethostname failed\n"));
-			return False;
-		} 
-
-		/* Ensure null termination. */
-		dnshostname[sizeof(dnshostname)-1] = '\0';
-
-		/* Ensure we get the cannonical name. */
-		if (!(hp = sys_gethostbyname(dnshostname))) {
-			*dnshostname = '\0';
-			return False;
-		}
-		fstrcpy(dnshostname, hp->h_name);
-	}
-	fstrcpy(my_dnsname, dnshostname);
-	return True;
-}
-
-/****************************************************************************
- Get my own domain name.
-****************************************************************************/
-
-BOOL get_mydnsdomname(fstring my_domname)
-{
-	fstring domname;
+	const char *domname;
 	char *p;
 
-	*my_domname = '\0';
-	if (!get_mydnsfullname(domname)) {
-		return False;
-	}	
+	domname = get_mydnsfullname();
+	if (!domname) {
+		return NULL;
+	}
+
 	p = strchr_m(domname, '.');
 	if (p) {
 		p++;
-		fstrcpy(my_domname, p);
-		return True;
+		return talloc_strdup(ctx, p);
+	} else {
+		return talloc_strdup(ctx, "");
 	}
-
-	return False;
 }
 
 /****************************************************************************
@@ -1267,181 +1406,88 @@ int interpret_protocol(const char *str,int def)
 	return(def);
 }
 
-/****************************************************************************
- Return true if a string could be a pure IP address.
-****************************************************************************/
-
-BOOL is_ipaddress(const char *str)
-{
-	BOOL pure_address = True;
-	int i;
-  
-	for (i=0; pure_address && str[i]; i++)
-		if (!(isdigit((int)str[i]) || str[i] == '.'))
-			pure_address = False;
-
-	/* Check that a pure number is not misinterpreted as an IP */
-	pure_address = pure_address && (strchr_m(str, '.') != NULL);
-
-	return pure_address;
-}
-
-/****************************************************************************
- Interpret an internet address or name into an IP address in 4 byte form.
-****************************************************************************/
-
-uint32 interpret_addr(const char *str)
-{
-	struct hostent *hp;
-	uint32 res;
-
-	if (strcmp(str,"0.0.0.0") == 0)
-		return(0);
-	if (strcmp(str,"255.255.255.255") == 0)
-		return(0xFFFFFFFF);
-
-  /* if it's in the form of an IP address then get the lib to interpret it */
-	if (is_ipaddress(str)) {
-		res = inet_addr(str);
-	} else {
-		/* otherwise assume it's a network name of some sort and use 
-			sys_gethostbyname */
-		if ((hp = sys_gethostbyname(str)) == 0) {
-			DEBUG(3,("sys_gethostbyname: Unknown host. %s\n",str));
-			return 0;
-		}
-
-		if(hp->h_addr == NULL) {
-			DEBUG(3,("sys_gethostbyname: host address is invalid for host %s\n",str));
-			return 0;
-		}
-		putip((char *)&res,(char *)hp->h_addr);
-	}
-
-	if (res == (uint32)-1)
-		return(0);
-
-	return(res);
-}
-
-/*******************************************************************
- A convenient addition to interpret_addr().
-******************************************************************/
-
-struct in_addr *interpret_addr2(const char *str)
-{
-	static struct in_addr ret;
-	uint32 a = interpret_addr(str);
-	ret.s_addr = a;
-	return(&ret);
-}
-
-/*******************************************************************
- Check if an IP is the 0.0.0.0.
-******************************************************************/
-
-BOOL is_zero_ip(struct in_addr ip)
-{
-	uint32 a;
-	putip((char *)&a,(char *)&ip);
-	return(a == 0);
-}
-
-/*******************************************************************
- Set an IP to 0.0.0.0.
-******************************************************************/
-
-void zero_ip(struct in_addr *ip)
-{
-        static BOOL init;
-        static struct in_addr ipzero;
-
-        if (!init) {
-                ipzero = *interpret_addr2("0.0.0.0");
-                init = True;
-        }
-
-        *ip = ipzero;
-}
 
 #if (defined(HAVE_NETGROUP) && defined(WITH_AUTOMOUNT))
 /******************************************************************
  Remove any mount options such as -rsize=2048,wsize=2048 etc.
  Based on a fix from <Thomas.Hepper@icem.de>.
+ Returns a malloc'ed string.
 *******************************************************************/
 
-static void strip_mount_options( pstring *str)
+static char *strip_mount_options(TALLOC_CTX *ctx, const char *str)
 {
-	if (**str == '-') { 
-		char *p = *str;
+	if (*str == '-') {
+		const char *p = str;
 		while(*p && !isspace(*p))
 			p++;
 		while(*p && isspace(*p))
 			p++;
 		if(*p) {
-			pstring tmp_str;
-
-			pstrcpy(tmp_str, p);
-			pstrcpy(*str, tmp_str);
+			return talloc_strdup(ctx, p);
 		}
 	}
+	return NULL;
 }
 
 /*******************************************************************
  Patch from jkf@soton.ac.uk
  Split Luke's automount_server into YP lookup and string splitter
- so can easily implement automount_path(). 
- As we may end up doing both, cache the last YP result. 
+ so can easily implement automount_path().
+ Returns a malloc'ed string.
 *******************************************************************/
 
 #ifdef WITH_NISPLUS_HOME
-char *automount_lookup(const char *user_name)
+char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 {
-	static fstring last_key = "";
-	static pstring last_value = "";
- 
+	char *value = NULL;
+
 	char *nis_map = (char *)lp_nis_home_map_name();
- 
+
 	char buffer[NIS_MAXATTRVAL + 1];
 	nis_result *result;
 	nis_object *object;
 	entry_obj  *entry;
- 
-	if (strcmp(user_name, last_key)) {
-		slprintf(buffer, sizeof(buffer)-1, "[key=%s],%s", user_name, nis_map);
-		DEBUG(5, ("NIS+ querystring: %s\n", buffer));
- 
-		if (result = nis_list(buffer, FOLLOW_PATH|EXPAND_NAME|HARD_LOOKUP, NULL, NULL)) {
-			if (result->status != NIS_SUCCESS) {
-				DEBUG(3, ("NIS+ query failed: %s\n", nis_sperrno(result->status)));
-				fstrcpy(last_key, ""); pstrcpy(last_value, "");
-			} else {
-				object = result->objects.objects_val;
-				if (object->zo_data.zo_type == ENTRY_OBJ) {
-					entry = &object->zo_data.objdata_u.en_data;
-					DEBUG(5, ("NIS+ entry type: %s\n", entry->en_type));
-					DEBUG(3, ("NIS+ result: %s\n", entry->en_cols.en_cols_val[1].ec_value.ec_value_val));
- 
-					pstrcpy(last_value, entry->en_cols.en_cols_val[1].ec_value.ec_value_val);
-					pstring_sub(last_value, "&", user_name);
-					fstrcpy(last_key, user_name);
+
+	snprintf(buffer, sizeof(buffer), "[key=%s],%s", user_name, nis_map);
+	DEBUG(5, ("NIS+ querystring: %s\n", buffer));
+
+	if (result = nis_list(buffer, FOLLOW_PATH|EXPAND_NAME|HARD_LOOKUP, NULL, NULL)) {
+		if (result->status != NIS_SUCCESS) {
+			DEBUG(3, ("NIS+ query failed: %s\n", nis_sperrno(result->status)));
+		} else {
+			object = result->objects.objects_val;
+			if (object->zo_data.zo_type == ENTRY_OBJ) {
+				entry = &object->zo_data.objdata_u.en_data;
+				DEBUG(5, ("NIS+ entry type: %s\n", entry->en_type));
+				DEBUG(3, ("NIS+ result: %s\n", entry->en_cols.en_cols_val[1].ec_value.ec_value_val));
+
+				value = talloc_strdup(ctx,
+						entry->en_cols.en_cols_val[1].ec_value.ec_value_val);
+				if (!value) {
+					nis_freeresult(result);
+					return NULL;
 				}
+				value = talloc_string_sub(ctx,
+						value,
+						"&",
+						user_name);
 			}
 		}
-		nis_freeresult(result);
 	}
+	nis_freeresult(result);
 
-	strip_mount_options(&last_value);
-
-	DEBUG(4, ("NIS+ Lookup: %s resulted in %s\n", user_name, last_value));
-	return last_value;
+	if (value) {
+		value = strip_mount_options(ctx, value);
+		DEBUG(4, ("NIS+ Lookup: %s resulted in %s\n",
+					user_name, value));
+	}
+	return value;
 }
 #else /* WITH_NISPLUS_HOME */
 
-char *automount_lookup(const char *user_name)
+char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 {
-	static fstring last_key = "";
-	static pstring last_value = "";
+	char *value = NULL;
 
 	int nis_error;        /* returned by yp all functions */
 	char *nis_result;     /* yp_match inits this */
@@ -1451,82 +1497,64 @@ char *automount_lookup(const char *user_name)
 
 	if ((nis_error = yp_get_default_domain(&nis_domain)) != 0) {
 		DEBUG(3, ("YP Error: %s\n", yperr_string(nis_error)));
-		return last_value;
+		return NULL;
 	}
 
 	DEBUG(5, ("NIS Domain: %s\n", nis_domain));
 
-	if (!strcmp(user_name, last_key)) {
-		nis_result = last_value;
-		nis_result_len = strlen(last_value);
-		nis_error = 0;
-  	} else {
-		if ((nis_error = yp_match(nis_domain, nis_map, user_name, strlen(user_name),
-				&nis_result, &nis_result_len)) == 0) {
-			fstrcpy(last_key, user_name);
-			pstrcpy(last_value, nis_result);
-			strip_mount_options(&last_value);
-
-		} else if(nis_error == YPERR_KEY) {
-
-			/* If Key lookup fails user home server is not in nis_map 
-				use default information for server, and home directory */
-			last_value[0] = 0;
-			DEBUG(3, ("YP Key not found:  while looking up \"%s\" in map \"%s\"\n", 
-					user_name, nis_map));
-			DEBUG(3, ("using defaults for server and home directory\n"));
-		} else {
-			DEBUG(3, ("YP Error: \"%s\" while looking up \"%s\" in map \"%s\"\n", 
-					yperr_string(nis_error), user_name, nis_map));
+	if ((nis_error = yp_match(nis_domain, nis_map, user_name,
+					strlen(user_name), &nis_result,
+					&nis_result_len)) == 0) {
+		value = talloc_strdup(ctx, nis_result);
+		if (!value) {
+			return NULL;
 		}
+		value = strip_mount_options(ctx, value);
+	} else if(nis_error == YPERR_KEY) {
+		DEBUG(3, ("YP Key not found:  while looking up \"%s\" in map \"%s\"\n", 
+				user_name, nis_map));
+		DEBUG(3, ("using defaults for server and home directory\n"));
+	} else {
+		DEBUG(3, ("YP Error: \"%s\" while looking up \"%s\" in map \"%s\"\n", 
+				yperr_string(nis_error), user_name, nis_map));
 	}
 
-	DEBUG(4, ("YP Lookup: %s resulted in %s\n", user_name, last_value));
-	return last_value;
+	if (value) {
+		DEBUG(4, ("YP Lookup: %s resulted in %s\n", user_name, value));
+	}
+	return value;
 }
 #endif /* WITH_NISPLUS_HOME */
 #endif
-
-/*******************************************************************
- Are two IPs on the same subnet?
-********************************************************************/
-
-BOOL same_net(struct in_addr ip1,struct in_addr ip2,struct in_addr mask)
-{
-	uint32 net1,net2,nmask;
-
-	nmask = ntohl(mask.s_addr);
-	net1  = ntohl(ip1.s_addr);
-	net2  = ntohl(ip2.s_addr);
-            
-	return((net1 & nmask) == (net2 & nmask));
-}
-
 
 /****************************************************************************
  Check if a process exists. Does this work on all unixes?
 ****************************************************************************/
 
-BOOL process_exists(const struct process_id pid)
+bool process_exists(const struct server_id pid)
 {
 	if (procid_is_me(&pid)) {
 		return True;
 	}
 
-	if (!procid_is_local(&pid)) {
-		/* This *SEVERELY* needs fixing. */
-		return True;
+	if (procid_is_local(&pid)) {
+		return (kill(pid.pid,0) == 0 || errno != ESRCH);
 	}
 
-	/* Doing kill with a non-positive pid causes messages to be
-	 * sent to places we don't want. */
-	SMB_ASSERT(pid.pid > 0);
-	return(kill(pid.pid,0) == 0 || errno != ESRCH);
+#ifdef CLUSTER_SUPPORT
+	return ctdbd_process_exists(messaging_ctdbd_connection(), pid.vnn,
+				    pid.pid);
+#else
+	return False;
+#endif
 }
 
-BOOL process_exists_by_pid(pid_t pid)
+bool process_exists_by_pid(pid_t pid)
 {
-	return process_exists(pid_to_procid(pid));
+	/* Doing kill with a non-positive pid causes messages to be
+	 * sent to places we don't want. */
+	SMB_ASSERT(pid > 0);
+	return(kill(pid,0) == 0 || errno != ESRCH);
 }
 
 /*******************************************************************
@@ -1535,19 +1563,21 @@ BOOL process_exists_by_pid(pid_t pid)
 
 const char *uidtoname(uid_t uid)
 {
-	static fstring name;
-	struct passwd *pass;
+	TALLOC_CTX *ctx = talloc_tos();
+	char *name = NULL;
+	struct passwd *pass = NULL;
 
-	pass = getpwuid_alloc(NULL, uid);
+	pass = getpwuid_alloc(ctx,uid);
 	if (pass) {
-		fstrcpy(name, pass->pw_name);
+		name = talloc_strdup(ctx,pass->pw_name);
 		TALLOC_FREE(pass);
 	} else {
-		slprintf(name, sizeof(name) - 1, "%ld",(long int)uid);
+		name = talloc_asprintf(ctx,
+				"%ld",
+				(long int)uid);
 	}
 	return name;
 }
-
 
 /*******************************************************************
  Convert a gid into a group name.
@@ -1555,18 +1585,21 @@ const char *uidtoname(uid_t uid)
 
 char *gidtoname(gid_t gid)
 {
-	static fstring name;
 	struct group *grp;
 
 	grp = getgrgid(gid);
-	if (grp)
-		return(grp->gr_name);
-	slprintf(name,sizeof(name) - 1, "%d",(int)gid);
-	return(name);
+	if (grp) {
+		return talloc_strdup(talloc_tos(), grp->gr_name);
+	}
+	else {
+		return talloc_asprintf(talloc_tos(),
+					"%d",
+					(int)gid);
+	}
 }
 
 /*******************************************************************
- Convert a user name into a uid. 
+ Convert a user name into a uid.
 ********************************************************************/
 
 uid_t nametouid(const char *name)
@@ -1816,15 +1849,7 @@ const char *readdirname(SMB_STRUCT_DIR *p)
 	dname = dname - 2;
 #endif
 
-	{
-		static pstring buf;
-		int len = NAMLEN(ptr);
-		memcpy(buf, dname, len);
-		buf[len] = 0;
-		dname = buf;
-	}
-
-	return(dname);
+	return talloc_strdup(talloc_tos(), dname);
 }
 
 /*******************************************************************
@@ -1832,7 +1857,7 @@ const char *readdirname(SMB_STRUCT_DIR *p)
  of a path matches a (possibly wildcarded) entry in a namelist.
 ********************************************************************/
 
-BOOL is_in_path(const char *name, name_compare_entry *namelist, BOOL case_sensitive)
+bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensitive)
 {
 	const char *last_component;
 
@@ -1983,7 +2008,7 @@ void free_namearray(name_compare_entry *name_array)
  Returns True if the lock was granted, False otherwise.
 ****************************************************************************/
 
-BOOL fcntl_lock(int fd, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
+bool fcntl_lock(int fd, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
 {
 	SMB_STRUCT_FLOCK lock;
 	int ret;
@@ -2020,7 +2045,7 @@ BOOL fcntl_lock(int fd, int op, SMB_OFF_T offset, SMB_OFF_T count, int type)
  F_UNLCK in *ptype if the region is unlocked). False if the call failed.
 ****************************************************************************/
 
-BOOL fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pid_t *ppid)
+bool fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pid_t *ppid)
 {
 	SMB_STRUCT_FLOCK lock;
 	int ret;
@@ -2062,10 +2087,10 @@ BOOL fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pi
  Returns true if it is equal, false otherwise.
 ********************************************************************/
 
-BOOL is_myname(const char *s)
+bool is_myname(const char *s)
 {
 	int n;
-	BOOL ret = False;
+	bool ret = False;
 
 	for (n=0; my_netbios_names(n); n++) {
 		if (strequal(my_netbios_names(n), s)) {
@@ -2077,91 +2102,14 @@ BOOL is_myname(const char *s)
 	return(ret);
 }
 
-BOOL is_myname_or_ipaddr(const char *s)
-{
-	fstring name, dnsname;
-	char *servername;
-
-	if ( !s )
-		return False;
-
-	/* santize the string from '\\name' */
-
-	fstrcpy( name, s );
-
-	servername = strrchr_m( name, '\\' );
-	if ( !servername )
-		servername = name;
-	else
-		servername++;
-
-	/* optimize for the common case */
-
-	if (strequal(servername, global_myname())) 
-		return True;
-
-	/* check for an alias */
-
-	if (is_myname(servername))
-		return True;
-
-	/* check for loopback */
-
-	if (strequal(servername, "127.0.0.1")) 
-		return True;
-
-	if (strequal(servername, "localhost")) 
-		return True;
-
-	/* maybe it's my dns name */
-
-	if ( get_mydnsfullname( dnsname ) )
-		if ( strequal( servername, dnsname ) )
-			return True;
-		
-	/* handle possible CNAME records */
-
-	if ( !is_ipaddress( servername ) ) {
-		/* use DNS to resolve the name, but only the first address */
-		struct hostent *hp;
-
-		if (((hp = sys_gethostbyname(name)) != NULL) && (hp->h_addr != NULL)) {
-			struct in_addr return_ip;
-			putip( (char*)&return_ip, (char*)hp->h_addr );
-			fstrcpy( name, inet_ntoa( return_ip ) );
-			servername = name;
-		}	
-	}
-		
-	/* maybe its an IP address? */
-	if (is_ipaddress(servername)) {
-		struct iface_struct nics[MAX_INTERFACES];
-		int i, n;
-		uint32 ip;
-		
-		ip = interpret_addr(servername);
-		if ((ip==0) || (ip==0xffffffff))
-			return False;
-			
-		n = get_interfaces(nics, MAX_INTERFACES);
-		for (i=0; i<n; i++) {
-			if (ip == nics[i].ip.s_addr)
-				return True;
-		}
-	}	
-
-	/* no match */
-	return False;
-}
-
 /*******************************************************************
  Is the name specified our workgroup/domain.
  Returns true if it is equal, false otherwise.
 ********************************************************************/
 
-BOOL is_myworkgroup(const char *s)
+bool is_myworkgroup(const char *s)
 {
-	BOOL ret = False;
+	bool ret = False;
 
 	if (strequal(s, lp_workgroup())) {
 		ret=True;
@@ -2176,20 +2124,30 @@ BOOL is_myworkgroup(const char *s)
    WinXP => "Windows 2002 5.1"
    WinXP 64bit => "Windows XP 5.2"
    Win2k => "Windows 2000 5.0"
-   NT4   => "Windows NT 4.0" 
+   NT4   => "Windows NT 4.0"
    Win9x => "Windows 4.0"
- Windows 2003 doesn't set the native lan manager string but 
+ Windows 2003 doesn't set the native lan manager string but
  they do set the domain to "Windows 2003 5.2" (probably a bug).
 ********************************************************************/
 
 void ra_lanman_string( const char *native_lanman )
-{	
+{
 	if ( strcmp( native_lanman, "Windows 2002 5.1" ) == 0 )
 		set_remote_arch( RA_WINXP );
 	else if ( strcmp( native_lanman, "Windows XP 5.2" ) == 0 )
-		set_remote_arch( RA_WINXP );
+		set_remote_arch( RA_WINXP64 );
 	else if ( strcmp( native_lanman, "Windows Server 2003 5.2" ) == 0 )
 		set_remote_arch( RA_WIN2K3 );
+}
+
+static const char *remote_arch_str;
+
+const char *get_remote_arch_str(void)
+{
+	if (!remote_arch_str) {
+		return "UNKNOWN";
+	}
+	return remote_arch_str;
 }
 
 /*******************************************************************
@@ -2201,42 +2159,46 @@ void set_remote_arch(enum remote_arch_types type)
 	ra_type = type;
 	switch( type ) {
 	case RA_WFWG:
-		fstrcpy(remote_arch, "WfWg");
+		remote_arch_str = "WfWg";
 		break;
 	case RA_OS2:
-		fstrcpy(remote_arch, "OS2");
+		remote_arch_str = "OS2";
 		break;
 	case RA_WIN95:
-		fstrcpy(remote_arch, "Win95");
+		remote_arch_str = "Win95";
 		break;
 	case RA_WINNT:
-		fstrcpy(remote_arch, "WinNT");
+		remote_arch_str = "WinNT";
 		break;
 	case RA_WIN2K:
-		fstrcpy(remote_arch, "Win2K");
+		remote_arch_str = "Win2K";
 		break;
 	case RA_WINXP:
-		fstrcpy(remote_arch, "WinXP");
+		remote_arch_str = "WinXP";
+		break;
+	case RA_WINXP64:
+		remote_arch_str = "WinXP64";
 		break;
 	case RA_WIN2K3:
-		fstrcpy(remote_arch, "Win2K3");
+		remote_arch_str = "Win2K3";
 		break;
 	case RA_VISTA:
-		fstrcpy(remote_arch, "Vista");
+		remote_arch_str = "Vista";
 		break;
 	case RA_SAMBA:
-		fstrcpy(remote_arch,"Samba");
+		remote_arch_str = "Samba";
 		break;
 	case RA_CIFSFS:
-		fstrcpy(remote_arch,"CIFSFS");
+		remote_arch_str = "CIFSFS";
 		break;
 	default:
 		ra_type = RA_UNKNOWN;
-		fstrcpy(remote_arch, "UNKNOWN");
+		remote_arch_str = "UNKNOWN";
 		break;
 	}
 
-	DEBUG(10,("set_remote_arch: Client arch is \'%s\'\n", remote_arch));
+	DEBUG(10,("set_remote_arch: Client arch is \'%s\'\n",
+				remote_arch_str));
 }
 
 /*******************************************************************
@@ -2255,7 +2217,7 @@ void print_asc(int level, const unsigned char *buf,int len)
 		DEBUG(level,("%c", isprint(buf[i])?buf[i]:'.'));
 }
 
-void dump_data(int level, const char *buf1,int len)
+void dump_data(int level, const unsigned char *buf1,int len)
 {
 	const unsigned char *buf = (const unsigned char *)buf1;
 	int i=0;
@@ -2283,9 +2245,9 @@ void dump_data(int level, const char *buf1,int len)
 		n = MIN(8,i%16);
 		print_asc(level,&buf[i-(i%16)],n); DEBUGADD(level,( " " ));
 		n = (i%16) - n;
-		if (n>0) print_asc(level,&buf[i-n],n); 
-		DEBUGADD(level,("\n"));    
-	}	
+		if (n>0) print_asc(level,&buf[i-n],n);
+		DEBUGADD(level,("\n"));
+	}
 }
 
 void dump_data_pw(const char *msg, const uchar * data, size_t len)
@@ -2294,17 +2256,17 @@ void dump_data_pw(const char *msg, const uchar * data, size_t len)
 	DEBUG(11, ("%s", msg));
 	if (data != NULL && len > 0)
 	{
-		dump_data(11, (const char *)data, len);
+		dump_data(11, data, len);
 	}
 #endif
 }
 
-char *tab_depth(int depth)
+const char *tab_depth(int level, int depth)
 {
-	static pstring spaces;
-	memset(spaces, ' ', depth * 4);
-	spaces[depth * 4] = 0;
-	return spaces;
+	if( CHECK_DEBUGLVL(level) ) {
+		dbgtext("%*s", depth*4, "");
+	}
+	return "";
 }
 
 /*****************************************************************************
@@ -2321,7 +2283,7 @@ int str_checksum(const char *s)
 	int res = 0;
 	int c;
 	int i=0;
-	
+
 	while(*s) {
 		c = *s;
 		res ^= (c << (i % 15)) ^ (c >> (15-(i%15)));
@@ -2449,15 +2411,16 @@ int smb_mkstemp(char *name_template)
 void *smb_xmalloc_array(size_t size, unsigned int count)
 {
 	void *p;
-	if (size == 0)
-		smb_panic("smb_xmalloc_array: called with zero size.\n");
+	if (size == 0) {
+		smb_panic("smb_xmalloc_array: called with zero size");
+	}
         if (count >= MAX_ALLOC_SIZE/size) {
-                smb_panic("smb_xmalloc: alloc size too large.\n");
+                smb_panic("smb_xmalloc_array: alloc size too large");
         }
 	if ((p = SMB_MALLOC(size*count)) == NULL) {
 		DEBUG(0, ("smb_xmalloc_array failed to allocate %lu * %lu bytes\n",
 			(unsigned long)size, (unsigned long)count));
-		smb_panic("smb_xmalloc_array: malloc fail.\n");
+		smb_panic("smb_xmalloc_array: malloc failed");
 	}
 	return p;
 }
@@ -2497,8 +2460,9 @@ char *smb_xstrdup(const char *s)
 #endif
 #define strdup(s) __ERROR_DONT_USE_STRDUP_DIRECTLY
 #endif
-	if (!s1)
-		smb_panic("smb_xstrdup: malloc fail\n");
+	if (!s1) {
+		smb_panic("smb_xstrdup: malloc failed");
+	}
 	return s1;
 
 }
@@ -2527,8 +2491,9 @@ char *smb_xstrndup(const char *s, size_t n)
 #endif
 #define strndup(s,n) __ERROR_DONT_USE_STRNDUP_DIRECTLY
 #endif
-	if (!s1)
-		smb_panic("smb_xstrndup: malloc fail\n");
+	if (!s1) {
+		smb_panic("smb_xstrndup: malloc failed");
+	}
 	return s1;
 }
 
@@ -2544,14 +2509,16 @@ char *smb_xstrndup(const char *s, size_t n)
 	VA_COPY(ap2, ap);
 
 	n = vasprintf(ptr, format, ap2);
-	if (n == -1 || ! *ptr)
+	if (n == -1 || ! *ptr) {
 		smb_panic("smb_xvasprintf: out of memory");
+	}
+	va_end(ap2);
 	return n;
 }
 
 /*****************************************************************
  Like strdup but for memory.
-*****************************************************************/  
+*****************************************************************/
 
 void *memdup(const void *p, size_t size)
 {
@@ -2567,34 +2534,50 @@ void *memdup(const void *p, size_t size)
 
 /*****************************************************************
  Get local hostname and cache result.
-*****************************************************************/  
+*****************************************************************/
 
 char *myhostname(void)
 {
-	static pstring ret;
-	if (ret[0] == 0)
-		get_myname(ret);
+	static char *ret;
+	if (ret == NULL) {
+		/* This is cached forever so
+		 * use NULL talloc ctx. */
+		ret = get_myname(NULL);
+	}
 	return ret;
 }
 
 /*****************************************************************
+ A useful function for returning a path in the Samba pid directory.
+*****************************************************************/
+
+static char *xx_path(const char *name, const char *rootpath)
+{
+	char *fname = NULL;
+
+	fname = talloc_strdup(talloc_tos(), rootpath);
+	if (!fname) {
+		return NULL;
+	}
+	trim_string(fname,"","/");
+
+	if (!directory_exist(fname,NULL)) {
+		mkdir(fname,0755);
+	}
+
+	return talloc_asprintf(talloc_tos(),
+				"%s/%s",
+				fname,
+				name);
+}
+
+/*****************************************************************
  A useful function for returning a path in the Samba lock directory.
-*****************************************************************/  
+*****************************************************************/
 
 char *lock_path(const char *name)
 {
-	static pstring fname;
-
-	pstrcpy(fname,lp_lockdir());
-	trim_char(fname,'\0','/');
-	
-	if (!directory_exist(fname,NULL))
-		mkdir(fname,0755);
-	
-	pstrcat(fname,"/");
-	pstrcat(fname,name);
-
-	return fname;
+	return xx_path(name, lp_lockdir());
 }
 
 /*****************************************************************
@@ -2603,18 +2586,7 @@ char *lock_path(const char *name)
 
 char *pid_path(const char *name)
 {
-	static pstring fname;
-
-	pstrcpy(fname,lp_piddir());
-	trim_char(fname,'\0','/');
-
-	if (!directory_exist(fname,NULL))
-		mkdir(fname,0755);
-
-	pstrcat(fname,"/");
-	pstrcat(fname,name);
-
-	return fname;
+	return xx_path(name, lp_piddir());
 }
 
 /**
@@ -2622,56 +2594,65 @@ char *pid_path(const char *name)
  *
  * @param name File to find, relative to LIBDIR.
  *
- * @retval Pointer to a static #pstring containing the full path.
+ * @retval Pointer to a string containing the full path.
  **/
 
 char *lib_path(const char *name)
 {
-	static pstring fname;
-	fstr_sprintf(fname, "%s/%s", dyn_LIBDIR, name);
-	return fname;
+	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_LIBDIR(), name);
+}
+
+/**
+ * @brief Returns an absolute path to a file in the Samba data directory.
+ *
+ * @param name File to find, relative to CODEPAGEDIR.
+ *
+ * @retval Pointer to a talloc'ed string containing the full path.
+ **/
+
+char *data_path(const char *name)
+{
+	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_CODEPAGEDIR(), name);
+}
+
+/*****************************************************************
+a useful function for returning a path in the Samba state directory
+ *****************************************************************/
+
+char *state_path(const char *name)
+{
+	return xx_path(name, get_dyn_STATEDIR());
 }
 
 /**
  * @brief Returns the platform specific shared library extension.
  *
- * @retval Pointer to a static #fstring containing the extension.
+ * @retval Pointer to a const char * containing the extension.
  **/
 
 const char *shlib_ext(void)
 {
-  return dyn_SHLIBEXT;
+	return get_dyn_SHLIBEXT();
 }
 
 /*******************************************************************
  Given a filename - get its directory name
  NB: Returned in static storage.  Caveats:
- o  Not safe in thread environment.
- o  Caller must not free.
  o  If caller wishes to preserve, they should copy.
 ********************************************************************/
 
 char *parent_dirname(const char *path)
 {
-	static pstring dirpath;
-	char *p;
+	char *parent;
 
-	if (!path)
-		return(NULL);
-
-	pstrcpy(dirpath, path);
-	p = strrchr_m(dirpath, '/');  /* Find final '/', if any */
-	if (!p) {
-		pstrcpy(dirpath, ".");    /* No final "/", so dir is "." */
-	} else {
-		if (p == dirpath)
-			++p;    /* For root "/", leave "/" in place */
-		*p = '\0';
+	if (!parent_dirname_talloc(talloc_tos(), path, &parent, NULL)) {
+		return NULL;
 	}
-	return dirpath;
+
+	return parent;
 }
 
-BOOL parent_dirname_talloc(TALLOC_CTX *mem_ctx, const char *dir,
+bool parent_dirname_talloc(TALLOC_CTX *mem_ctx, const char *dir,
 			   char **parent, const char **name)
 {
 	char *p;
@@ -2707,7 +2688,7 @@ BOOL parent_dirname_talloc(TALLOC_CTX *mem_ctx, const char *dir,
  Determine if a pattern contains any Microsoft wildcard characters.
 *******************************************************************/
 
-BOOL ms_has_wild(const char *s)
+bool ms_has_wild(const char *s)
 {
 	char c;
 
@@ -2729,7 +2710,7 @@ BOOL ms_has_wild(const char *s)
 	return False;
 }
 
-BOOL ms_has_wild_w(const smb_ucs2_t *s)
+bool ms_has_wild_w(const smb_ucs2_t *s)
 {
 	smb_ucs2_t c;
 	if (!s) return False;
@@ -2751,7 +2732,7 @@ BOOL ms_has_wild_w(const smb_ucs2_t *s)
  of the ".." name.
 *******************************************************************/
 
-BOOL mask_match(const char *string, const char *pattern, BOOL is_case_sensitive)
+bool mask_match(const char *string, const char *pattern, bool is_case_sensitive)
 {
 	if (strcmp(string,"..") == 0)
 		string = ".";
@@ -2767,7 +2748,7 @@ BOOL mask_match(const char *string, const char *pattern, BOOL is_case_sensitive)
  pattern translation.
 *******************************************************************/
 
-BOOL mask_match_search(const char *string, const char *pattern, BOOL is_case_sensitive)
+bool mask_match_search(const char *string, const char *pattern, bool is_case_sensitive)
 {
 	if (strcmp(string,"..") == 0)
 		string = ".";
@@ -2782,7 +2763,7 @@ BOOL mask_match_search(const char *string, const char *pattern, BOOL is_case_sen
  on each.  Returns True if any of the patterns match.
 *******************************************************************/
 
-BOOL mask_match_list(const char *string, char **list, int listLen, BOOL is_case_sensitive)
+bool mask_match_list(const char *string, char **list, int listLen, bool is_case_sensitive)
 {
        while (listLen-- > 0) {
                if (mask_match(string, *list++, is_case_sensitive))
@@ -2795,7 +2776,7 @@ BOOL mask_match_list(const char *string, char **list, int listLen, BOOL is_case_
  Recursive routine that is called by unix_wild_match.
 *********************************************************/
 
-static BOOL unix_do_match(const char *regexp, const char *str)
+static bool unix_do_match(const char *regexp, const char *str)
 {
 	const char *p;
 
@@ -2815,7 +2796,7 @@ static BOOL unix_do_match(const char *regexp, const char *str)
 				 */
 				p++;
 				if(!*p)
-					return True; /* Automatic match */
+					return true; /* Automatic match */
 				while(*str) {
 
 					while(*str && (*p != *str))
@@ -2850,24 +2831,24 @@ static BOOL unix_do_match(const char *regexp, const char *str)
 						}
 
 						if ( matchcount <= 0 )
-							return False;
+							return false;
 					}
 
 					str--; /* We've eaten the match char after the '*' */
 
 					if(unix_do_match(p, str))
-						return True;
+						return true;
 
 					if(!*str)
-						return False;
+						return false;
 					else
 						str++;
 				}
-				return False;
+				return false;
 
 			default:
 				if(*str != *p)
-					return False;
+					return false;
 				str++;
 				p++;
 				break;
@@ -2875,11 +2856,11 @@ static BOOL unix_do_match(const char *regexp, const char *str)
 	}
 
 	if(!*p && !*str)
-		return True;
+		return true;
 
 	if (!*p && str[0] == '.' && str[1] == 0)
-		return(True);
-  
+		return true;
+
 	if (!*str && *p == '?') {
 		while (*p == '?')
 			p++;
@@ -2887,9 +2868,9 @@ static BOOL unix_do_match(const char *regexp, const char *str)
 	}
 
 	if(!*str && (*p == '*' && p[1] == '\0'))
-		return True;
+		return true;
 
-	return False;
+	return false;
 }
 
 /*******************************************************************
@@ -2897,71 +2878,84 @@ static BOOL unix_do_match(const char *regexp, const char *str)
  Returns True if match, False if not.
 *******************************************************************/
 
-BOOL unix_wild_match(const char *pattern, const char *string)
+bool unix_wild_match(const char *pattern, const char *string)
 {
-	pstring p2, s2;
+	TALLOC_CTX *ctx = talloc_stackframe();
+	char *p2;
+	char *s2;
 	char *p;
+	bool ret = false;
 
-	pstrcpy(p2, pattern);
-	pstrcpy(s2, string);
+	p2 = talloc_strdup(ctx,pattern);
+	s2 = talloc_strdup(ctx,string);
+	if (!p2 || !s2) {
+		TALLOC_FREE(ctx);
+		return false;
+	}
 	strlower_m(p2);
 	strlower_m(s2);
 
 	/* Remove any *? and ** from the pattern as they are meaningless */
-	for(p = p2; *p; p++)
-		while( *p == '*' && (p[1] == '?' ||p[1] == '*'))
-			pstrcpy( &p[1], &p[2]);
- 
-	if (strequal(p2,"*"))
-		return True;
+	for(p = p2; *p; p++) {
+		while( *p == '*' && (p[1] == '?' ||p[1] == '*')) {
+			memmove(&p[1], &p[2], strlen(&p[2])+1);
+		}
+	}
 
-	return unix_do_match(p2, s2);
+	if (strequal(p2,"*")) {
+		TALLOC_FREE(ctx);
+		return true;
+	}
+
+	ret = unix_do_match(p2, s2);
+	TALLOC_FREE(ctx);
+	return ret;
 }
 
 /**********************************************************************
  Converts a name to a fully qualified domain name.
- Returns True if lookup succeeded, False if not (then fqdn is set to name)
+ Returns true if lookup succeeded, false if not (then fqdn is set to name)
+ Note we deliberately use gethostbyname here, not getaddrinfo as we want
+ to examine the h_aliases and I don't know how to do that with getaddrinfo.
 ***********************************************************************/
-                                                                                                                                                   
-BOOL name_to_fqdn(fstring fqdn, const char *name)
+
+bool name_to_fqdn(fstring fqdn, const char *name)
 {
-	struct hostent *hp = sys_gethostbyname(name);
+	char *full = NULL;
+	struct hostent *hp = gethostbyname(name);
 
-	if ( hp && hp->h_name && *hp->h_name ) {
-		char *full = NULL;
-
-		/* find out if the fqdn is returned as an alias
-		 * to cope with /etc/hosts files where the first
-		 * name is not the fqdn but the short name */
-		if (hp->h_aliases && (! strchr_m(hp->h_name, '.'))) {
-			int i;
-			for (i = 0; hp->h_aliases[i]; i++) {
-				if (strchr_m(hp->h_aliases[i], '.')) {
-					full = hp->h_aliases[i];
-					break;
-				}
-			}
-		}
-		if (full && (StrCaseCmp(full, "localhost.localdomain") == 0)) {
-			DEBUG(1, ("WARNING: your /etc/hosts file may be broken!\n"));
-			DEBUGADD(1, ("    Specifing the machine hostname for address 127.0.0.1 may lead\n"));
-			DEBUGADD(1, ("    to Kerberos authentication problems as localhost.localdomain\n"));
-			DEBUGADD(1, ("    may end up being used instead of the real machine FQDN.\n"));
-			full = hp->h_name;
-		}
-			
-		if (!full) {
-			full = hp->h_name;
-		}
-
-		DEBUG(10,("name_to_fqdn: lookup for %s -> %s.\n", name, full));
-		fstrcpy(fqdn, full);
-		return True;
-	} else {
+	if (!hp || !hp->h_name || !*hp->h_name) {
 		DEBUG(10,("name_to_fqdn: lookup for %s failed.\n", name));
 		fstrcpy(fqdn, name);
-		return False;
+		return false;
 	}
+
+	/* Find out if the fqdn is returned as an alias
+	 * to cope with /etc/hosts files where the first
+	 * name is not the fqdn but the short name */
+	if (hp->h_aliases && (! strchr_m(hp->h_name, '.'))) {
+		int i;
+		for (i = 0; hp->h_aliases[i]; i++) {
+			if (strchr_m(hp->h_aliases[i], '.')) {
+				full = hp->h_aliases[i];
+				break;
+			}
+		}
+	}
+	if (full && (StrCaseCmp(full, "localhost.localdomain") == 0)) {
+		DEBUG(1, ("WARNING: your /etc/hosts file may be broken!\n"));
+		DEBUGADD(1, ("    Specifing the machine hostname for address 127.0.0.1 may lead\n"));
+		DEBUGADD(1, ("    to Kerberos authentication problems as localhost.localdomain\n"));
+		DEBUGADD(1, ("    may end up being used instead of the real machine FQDN.\n"));
+		full = hp->h_name;
+	}
+	if (!full) {
+		full = hp->h_name;
+	}
+
+	DEBUG(10,("name_to_fqdn: lookup for %s -> %s.\n", name, full));
+	fstrcpy(fqdn, full);
+	return true;
 }
 
 /**********************************************************************
@@ -2978,50 +2972,10 @@ void *talloc_check_name_abort(const void *ptr, const char *name)
 
 	DEBUG(0, ("Talloc type mismatch, expected %s, got %s\n",
 		  name, talloc_get_name(ptr)));
-	smb_panic("aborting");
+	smb_panic("talloc type mismatch");
 	/* Keep the compiler happy */
 	return NULL;
 }
-
-
-#ifdef __INSURE__
-
-/*******************************************************************
-This routine is a trick to immediately catch errors when debugging
-with insure. A xterm with a gdb is popped up when insure catches
-a error. It is Linux specific.
-********************************************************************/
-
-int _Insure_trap_error(int a1, int a2, int a3, int a4, int a5, int a6)
-{
-	static int (*fn)();
-	int ret;
-	char pidstr[10];
-	/* you can get /usr/bin/backtrace from 
-           http://samba.org/ftp/unpacked/junkcode/backtrace */
-	pstring cmd = "/usr/bin/backtrace %d";
-
-	slprintf(pidstr, sizeof(pidstr)-1, "%d", sys_getpid());
-	pstring_sub(cmd, "%d", pidstr);
-
-	if (!fn) {
-		static void *h;
-		h = dlopen("/usr/local/parasoft/insure++lite/lib.linux2/libinsure.so", RTLD_LAZY);
-		fn = dlsym(h, "_Insure_trap_error");
-
-		if (!h || h == _Insure_trap_error) {
-			h = dlopen("/usr/local/parasoft/lib.linux2/libinsure.so", RTLD_LAZY);
-			fn = dlsym(h, "_Insure_trap_error");
-		}		
-	}
-
-	ret = fn(a1, a2, a3, a4, a5, a6);
-
-	system(cmd);
-
-	return ret;
-}
-#endif
 
 uint32 map_share_mode_to_deny_mode(uint32 share_access, uint32 private_options)
 {
@@ -3044,71 +2998,133 @@ uint32 map_share_mode_to_deny_mode(uint32 share_access, uint32 private_options)
 	return (uint32)-1;
 }
 
-pid_t procid_to_pid(const struct process_id *proc)
+pid_t procid_to_pid(const struct server_id *proc)
 {
 	return proc->pid;
 }
 
-struct process_id pid_to_procid(pid_t pid)
+static uint32 my_vnn = NONCLUSTER_VNN;
+
+void set_my_vnn(uint32 vnn)
 {
-	struct process_id result;
+	DEBUG(10, ("vnn pid %d = %u\n", (int)sys_getpid(), (unsigned int)vnn));
+	my_vnn = vnn;
+}
+
+uint32 get_my_vnn(void)
+{
+	return my_vnn;
+}
+
+struct server_id pid_to_procid(pid_t pid)
+{
+	struct server_id result;
 	result.pid = pid;
+#ifdef CLUSTER_SUPPORT
+	result.vnn = my_vnn;
+#endif
 	return result;
 }
 
-struct process_id procid_self(void)
+struct server_id procid_self(void)
 {
 	return pid_to_procid(sys_getpid());
 }
 
 struct server_id server_id_self(void)
 {
-	struct server_id id;
-	id.id = procid_self();
-	return id;
+	return procid_self();
 }
 
-BOOL procid_equal(const struct process_id *p1, const struct process_id *p2)
+bool procid_equal(const struct server_id *p1, const struct server_id *p2)
 {
-	return (p1->pid == p2->pid);
+	if (p1->pid != p2->pid)
+		return False;
+#ifdef CLUSTER_SUPPORT
+	if (p1->vnn != p2->vnn)
+		return False;
+#endif
+	return True;
 }
 
-BOOL cluster_id_equal(const struct server_id *id1,
+bool cluster_id_equal(const struct server_id *id1,
 		      const struct server_id *id2)
 {
-	return procid_equal(&id1->id, &id2->id);
+	return procid_equal(id1, id2);
 }
 
-BOOL procid_is_me(const struct process_id *pid)
+bool procid_is_me(const struct server_id *pid)
 {
-	return (pid->pid == sys_getpid());
+	if (pid->pid != sys_getpid())
+		return False;
+#ifdef CLUSTER_SUPPORT
+	if (pid->vnn != my_vnn)
+		return False;
+#endif
+	return True;
 }
 
-struct process_id interpret_pid(const char *pid_string)
+struct server_id interpret_pid(const char *pid_string)
 {
+#ifdef CLUSTER_SUPPORT
+	unsigned int vnn, pid;
+	struct server_id result;
+	if (sscanf(pid_string, "%u:%u", &vnn, &pid) == 2) {
+		result.vnn = vnn;
+		result.pid = pid;
+	}
+	else if (sscanf(pid_string, "%u", &pid) == 1) {
+		result.vnn = NONCLUSTER_VNN;
+		result.pid = pid;
+	}
+	else {
+		result.vnn = NONCLUSTER_VNN;
+		result.pid = -1;
+	}
+	return result;
+#else
 	return pid_to_procid(atoi(pid_string));
+#endif
 }
 
-char *procid_str_static(const struct process_id *pid)
+char *procid_str(TALLOC_CTX *mem_ctx, const struct server_id *pid)
 {
-	static fstring str;
-	fstr_sprintf(str, "%d", pid->pid);
-	return str;
+#ifdef CLUSTER_SUPPORT
+	if (pid->vnn == NONCLUSTER_VNN) {
+		return talloc_asprintf(mem_ctx,
+				"%d",
+				(int)pid->pid);
+	}
+	else {
+		return talloc_asprintf(mem_ctx,
+					"%u:%d",
+					(unsigned)pid->vnn,
+					(int)pid->pid);
+	}
+#else
+	return talloc_asprintf(mem_ctx,
+			"%d",
+			(int)pid->pid);
+#endif
 }
 
-char *procid_str(TALLOC_CTX *mem_ctx, const struct process_id *pid)
+char *procid_str_static(const struct server_id *pid)
 {
-	return talloc_strdup(mem_ctx, procid_str_static(pid));
+	return procid_str(talloc_tos(), pid);
 }
 
-BOOL procid_valid(const struct process_id *pid)
+bool procid_valid(const struct server_id *pid)
 {
 	return (pid->pid != -1);
 }
 
-BOOL procid_is_local(const struct process_id *pid)
+bool procid_is_local(const struct server_id *pid)
 {
+#ifdef CLUSTER_SUPPORT
+	return pid->vnn == my_vnn;
+#else
 	return True;
+#endif
 }
 
 int this_is_smp(void)
@@ -3134,7 +3150,7 @@ int this_is_smp(void)
  pointer ptr+off.
 ****************************************************************/
 
-BOOL is_offset_safe(const char *buf_base, size_t buf_len, char *ptr, size_t off)
+bool is_offset_safe(const char *buf_base, size_t buf_len, char *ptr, size_t off)
 {
 	const char *end_base = buf_base + buf_len;
 	char *end_ptr = ptr + off;
@@ -3210,6 +3226,35 @@ int get_safe_IVAL(const char *buf_base, size_t buf_len, char *ptr, size_t off, i
 	}
 	return IVAL(ptr,off);
 }
+
+/****************************************************************
+ Split DOM\user into DOM and user. Do not mix with winbind variants of that
+ call (they take care of winbind separator and other winbind specific settings).
+****************************************************************/
+
+void split_domain_user(TALLOC_CTX *mem_ctx,
+		       const char *full_name,
+		       char **domain,
+		       char **user)
+{
+	const char *p = NULL;
+
+	p = strchr_m(full_name, '\\');
+
+	if (p != NULL) {
+		*domain = talloc_strndup(mem_ctx, full_name,
+					 PTR_DIFF(p, full_name));
+		*user = talloc_strdup(mem_ctx, p+1);
+	} else {
+		*domain = talloc_strdup(mem_ctx, "");
+		*user = talloc_strdup(mem_ctx, full_name);
+	}
+}
+
+#if 0
+
+Disable these now we have checked all code paths and ensured
+NULL returns on zero request. JRA.
 
 /****************************************************************
  talloc wrapper functions that guarentee a null pointer return
@@ -3308,4 +3353,122 @@ void *talloc_zeronull(const void *context, size_t size, const char *name)
 		return NULL;
 	}
 	return talloc_named_const(context, size, name);
+}
+#endif
+
+/* Split a path name into filename and stream name components. Canonicalise
+ * such that an implicit $DATA token is always explicit.
+ *
+ * The "specification" of this function can be found in the
+ * run_local_stream_name() function in torture.c, I've tried those
+ * combinations against a W2k3 server.
+ */
+
+NTSTATUS split_ntfs_stream_name(TALLOC_CTX *mem_ctx, const char *fname,
+				char **pbase, char **pstream)
+{
+	char *base = NULL;
+	char *stream = NULL;
+	char *sname; /* stream name */
+	const char *stype; /* stream type */
+
+	DEBUG(10, ("split_ntfs_stream_name called for [%s]\n", fname));
+
+	sname = strchr_m(fname, ':');
+
+	if (lp_posix_pathnames() || (sname == NULL)) {
+		if (pbase != NULL) {
+			base = talloc_strdup(mem_ctx, fname);
+			NT_STATUS_HAVE_NO_MEMORY(base);
+		}
+		goto done;
+	}
+
+	if (pbase != NULL) {
+		base = talloc_strndup(mem_ctx, fname, PTR_DIFF(sname, fname));
+		NT_STATUS_HAVE_NO_MEMORY(base);
+	}
+
+	sname += 1;
+
+	stype = strchr_m(sname, ':');
+
+	if (stype == NULL) {
+		sname = talloc_strdup(mem_ctx, sname);
+		stype = "$DATA";
+	}
+	else {
+		if (StrCaseCmp(stype, ":$DATA") != 0) {
+			/*
+			 * If there is an explicit stream type, so far we only
+			 * allow $DATA. Is there anything else allowed? -- vl
+			 */
+			DEBUG(10, ("[%s] is an invalid stream type\n", stype));
+			TALLOC_FREE(base);
+			return NT_STATUS_OBJECT_NAME_INVALID;
+		}
+		sname = talloc_strndup(mem_ctx, sname, PTR_DIFF(stype, sname));
+		stype += 1;
+	}
+
+	if (sname == NULL) {
+		TALLOC_FREE(base);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (sname[0] == '\0') {
+		/*
+		 * no stream name, so no stream
+		 */
+		goto done;
+	}
+
+	if (pstream != NULL) {
+		stream = talloc_asprintf(mem_ctx, "%s:%s", sname, stype);
+		if (stream == NULL) {
+			TALLOC_FREE(sname);
+			TALLOC_FREE(base);
+			return NT_STATUS_NO_MEMORY;
+		}
+		/*
+		 * upper-case the type field
+		 */
+		strupper_m(strchr_m(stream, ':')+1);
+	}
+
+ done:
+	if (pbase != NULL) {
+		*pbase = base;
+	}
+	if (pstream != NULL) {
+		*pstream = stream;
+	}
+	return NT_STATUS_OK;
+}
+
+bool is_valid_policy_hnd(const POLICY_HND *hnd)
+{
+	POLICY_HND tmp;
+	ZERO_STRUCT(tmp);
+	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
+}
+
+/****************************************************************
+ strip off leading '\\' from a hostname
+****************************************************************/
+
+const char *strip_hostname(const char *s)
+{
+	if (!s) {
+		return NULL;
+	}
+
+	if (strlen_m(s) < 3) {
+		return s;
+	}
+
+	if (s[0] == '\\') s++;
+	if (s[0] == '\\') s++;
+
+	return s;
 }

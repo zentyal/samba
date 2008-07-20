@@ -20,7 +20,8 @@ incdir=`dirname $0`
 . $incdir/test_functions.sh
 
 tests="FDPASS LOCK1 LOCK2 LOCK3 LOCK4 LOCK5 LOCK6 LOCK7"
-tests="$tests UNLINK BROWSE ATTR TRANS2 MAXFID TORTURE "
+#tests="$tests UNLINK BROWSE ATTR TRANS2 MAXFID TORTURE "
+tests="$tests UNLINK BROWSE ATTR TRANS2 TORTURE "
 tests="$tests OPLOCK1 OPLOCK2 OPLOCK3"
 tests="$tests DIR DIR1 TCON TCONDEV RW1 RW2 RW3"
 tests="$tests OPEN XCOPY RENAME DELETE PROPERTIES W2K"
@@ -41,7 +42,7 @@ for t in $tests; do
     fi
     start=""
     name="$t"
-    testit "$name" $VALGRIND $BINDIR/smbtorture $ADDARGS $unc -U"$username"%"$password" $t || failed=`expr $failed + 1`
+    testit "$name" $VALGRIND $BINDIR/smbtorture $unc -U"$username"%"$password" $ADDARGS $t || failed=`expr $failed + 1`
 done
 
 testok $0 $failed

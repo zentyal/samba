@@ -7,7 +7,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
 */
 
@@ -111,7 +110,7 @@ static struct work_record *create_workgroup(const char *name, int ttl)
 
 	/* No known domain master browser as yet. */
 	*work->dmb_name.name = '\0';
-	zero_ip(&work->dmb_addr);
+	zero_ip_v4(&work->dmb_addr);
 
 	/* WfWg  uses 01040b01 */
 	/* Win95 uses 01041501 */
@@ -270,7 +269,7 @@ on subnet %s\n", name, subrec->subnet_name));
   Dump a copy of the workgroup database into the log file.
   **************************************************************************/
 
-void dump_workgroups(BOOL force_write)
+void dump_workgroups(bool force_write)
 {
 	struct subnet_record *subrec;
 	int debuglevel = force_write ? 0 : 4;

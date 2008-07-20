@@ -5,7 +5,7 @@
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
    
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
    
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -50,7 +49,7 @@ gid_t get_current_user_gid_next(int *piterator)
  Become the guest user without changing the security context stack.
 ****************************************************************************/
 
-BOOL change_to_guest(void)
+bool change_to_guest(void)
 {
 	static struct passwd *pass=NULL;
 
@@ -82,11 +81,11 @@ BOOL change_to_guest(void)
  Check if a username is OK.
 ********************************************************************/
 
-static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
+static bool check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 {
 	unsigned int i;
 	struct vuid_cache_entry *ent = NULL;
-	BOOL readonly_share;
+	bool readonly_share;
 	NT_USER_TOKEN *token;
 
 	for (i=0;i<conn->vuid_cache.entries && i< VUID_CACHE_SIZE;i++) {
@@ -147,14 +146,14 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
  stack, but modify the current_user entries.
 ****************************************************************************/
 
-BOOL change_to_user(connection_struct *conn, uint16 vuid)
+bool change_to_user(connection_struct *conn, uint16 vuid)
 {
 	user_struct *vuser = get_valid_user_struct(vuid);
 	int snum;
 	gid_t gid;
 	uid_t uid;
 	char group_c;
-	BOOL must_free_token = False;
+	bool must_free_token = False;
 	NT_USER_TOKEN *token = NULL;
 	int num_groups = 0;
 	gid_t *group_list = NULL;
@@ -280,7 +279,7 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
  but modify the current_user entries.
 ****************************************************************************/
 
-BOOL change_to_root_user(void)
+bool change_to_root_user(void)
 {
 	set_root_sec_ctx();
 
@@ -299,7 +298,7 @@ BOOL change_to_root_user(void)
  user. Doesn't modify current_user.
 ****************************************************************************/
 
-BOOL become_authenticated_pipe_user(pipes_struct *p)
+bool become_authenticated_pipe_user(pipes_struct *p)
 {
 	if (!push_sec_ctx())
 		return False;
@@ -318,7 +317,7 @@ BOOL become_authenticated_pipe_user(pipes_struct *p)
  current_user.
 ****************************************************************************/
 
-BOOL unbecome_authenticated_pipe_user(void)
+bool unbecome_authenticated_pipe_user(void)
 {
 	return pop_sec_ctx();
 }
@@ -388,7 +387,13 @@ static void pop_conn_ctx(void)
 
 void become_root(void)
 {
-	push_sec_ctx();
+	 /*
+	  * no good way to handle push_sec_ctx() failing without changing
+	  * the prototype of become_root()
+	  */
+	if (!push_sec_ctx()) {
+		smb_panic("become_root: push_sec_ctx failed");
+	}
 	push_conn_ctx();
 	set_root_sec_ctx();
 }
@@ -406,7 +411,7 @@ void unbecome_root(void)
  Saves and restores the connection context.
 ****************************************************************************/
 
-BOOL become_user(connection_struct *conn, uint16 vuid)
+bool become_user(connection_struct *conn, uint16 vuid)
 {
 	if (!push_sec_ctx())
 		return False;
@@ -422,7 +427,7 @@ BOOL become_user(connection_struct *conn, uint16 vuid)
 	return True;
 }
 
-BOOL unbecome_user(void)
+bool unbecome_user(void)
 {
 	pop_sec_ctx();
 	pop_conn_ctx();

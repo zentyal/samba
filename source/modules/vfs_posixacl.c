@@ -5,7 +5,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
@@ -23,7 +22,7 @@
 
 /* prototypes for static functions first - for clarity */
 
-static BOOL smb_ace_to_internal(acl_entry_t posix_ace,
+static bool smb_ace_to_internal(acl_entry_t posix_ace,
 				struct smb_acl_entry *ace);
 static struct smb_acl_t *smb_acl_to_internal(acl_t acl);
 static int smb_acl_set_mode(acl_entry_t entry, SMB_ACL_PERM_T perm);
@@ -64,11 +63,10 @@ SMB_ACL_T posixacl_sys_acl_get_file(vfs_handle_struct *handle,
 }
 
 SMB_ACL_T posixacl_sys_acl_get_fd(vfs_handle_struct *handle,
-				  files_struct *fsp,
-				  int fd)
+				  files_struct *fsp)
 {
 	struct smb_acl_t *result;
-	acl_t acl = acl_get_fd(fd);
+	acl_t acl = acl_get_fd(fsp->fh->fd);
 
 	if (acl == NULL) {
 		return NULL;
@@ -115,14 +113,14 @@ int posixacl_sys_acl_set_file(vfs_handle_struct *handle,
 
 int posixacl_sys_acl_set_fd(vfs_handle_struct *handle,
 			    files_struct *fsp,
-			    int fd, SMB_ACL_T theacl)
+			    SMB_ACL_T theacl)
 {
 	int res;
 	acl_t acl = smb_acl_to_posix(theacl);
 	if (acl == NULL) {
 		return -1;
 	}
-	res =  acl_set_fd(fd, acl);
+	res =  acl_set_fd(fsp->fh->fd, acl);
 	acl_free(acl);
 	return res;
 }
@@ -136,7 +134,7 @@ int posixacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 
 /* private functions */
 
-static BOOL smb_ace_to_internal(acl_entry_t posix_ace,
+static bool smb_ace_to_internal(acl_entry_t posix_ace,
 				struct smb_acl_entry *ace)
 {
 	acl_tag_t tag;

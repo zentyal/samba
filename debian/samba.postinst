@@ -91,6 +91,13 @@ then
 	mv /var/run/samba/share_info.tdb /var/lib/samba/share_info.tdb
 fi
 
+if dpkg --compare-versions "$2" lt-nl 2:3.2.0-3 \
+   && dpkg --compare-versions "$2" ge 3.0.24 \
+   && [ -e /etc/samba/schannel_store.tdb ] \
+   && ! [ -e /var/lib/samba/schannel_store.tdb ]
+then
+	mv /etc/samba/schannel_store.tdb /var/lib/samba/schannel_store.tdb
+fi
 
 # We want to add these entries to inetd.conf commented out. Otherwise
 #	UDP traffic could make inetd to start nmbd or smbd right during

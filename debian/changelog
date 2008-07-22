@@ -1,4 +1,4 @@
-samba (2:3.2.0-4) UNRELEASED; urgency=low
+samba (2:3.2.0-4) unstable; urgency=low
 
   * Brown paper bag bug: add a change to debian/patches/fhs-filespaths.patch
     that went missing somehow, causing samba to look for secrets.tdb in
@@ -6,7 +6,7 @@ samba (2:3.2.0-4) UNRELEASED; urgency=low
     migration handling added, because this was only present in unstable for
     about a day.  Thanks to Rick Nelson for pointing this out.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 21 Jul 2008 15:12:03 -0700
+ -- Steve Langasek <vorlon@debian.org>  Mon, 21 Jul 2008 17:39:48 -0700
 
 samba (2:3.2.0-3) unstable; urgency=low
 

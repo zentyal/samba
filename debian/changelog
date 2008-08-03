@@ -1,3 +1,9 @@
+samba (2:3.2.0-5) UNRELEASED; urgency=low
+
+  * Build-depend on keyutils only on the linux archs.  Closes: #493401.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 02 Aug 2008 23:31:30 -0700
+
 samba (2:3.2.0-4) unstable; urgency=low
 
   * Brown paper bag bug: add a change to debian/patches/fhs-filespaths.patch

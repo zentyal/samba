@@ -43,9 +43,9 @@ bool is_ipaddress_v4(const char *str)
 
 bool is_ipaddress(const char *str)
 {
+#if defined(HAVE_IPV6)
 	int ret = -1;
 
-#if defined(HAVE_IPV6)
 	if (strchr_m(str, ':')) {
 		char addr[INET6_ADDRSTRLEN];
 		struct in6_addr dest6;
@@ -212,9 +212,9 @@ bool interpret_string_addr(struct sockaddr_storage *pss,
 		const char *str,
 		int flags)
 {
-	char addr[INET6_ADDRSTRLEN];
 	struct addrinfo *res = NULL;
 #if defined(HAVE_IPV6)
+	char addr[INET6_ADDRSTRLEN];
 	unsigned int scope_id = 0;
 
 	if (strchr_m(str, ':')) {
@@ -365,7 +365,7 @@ void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 {
 	struct sockaddr_in *sa = (struct sockaddr_in *)ss;
 	memset(ss, '\0', sizeof(*ss));
-	ss->ss_family = AF_INET;
+	sa->sin_family = AF_INET;
 	sa->sin_addr = ip;
 }
 
@@ -379,7 +379,7 @@ void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 {
 	struct sockaddr_in6 *sa = (struct sockaddr_in6 *)ss;
 	memset(ss, '\0', sizeof(*ss));
-	ss->ss_family = AF_INET6;
+	sa->sin6_family = AF_INET6;
 	sa->sin6_addr = ip;
 }
 #endif

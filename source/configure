@@ -53230,9 +53230,17 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 #include <stdio.h>
 #include <limits.h>
+#include <signal.h>
+
+void exit_on_core(int ignored) {
+	exit(1);
+}
+
 main() {
-	char *newpath = realpath("/tmp", NULL);
-	exit ((newpath != NULL) ? 0 : 1);
+	char *newpath;
+	signal(SIGSEGV, exit_on_core);
+	newpath = realpath("/tmp", NULL);
+	exit((newpath != NULL) ? 0 : 1);
 }
 
 _ACEOF

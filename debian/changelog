@@ -1,8 +1,12 @@
-samba (2:3.2.0-5) UNRELEASED; urgency=low
+samba (2:3.2.1-1) unstable; urgency=low
 
+  [ Steve Langasek ]
   * Build-depend on keyutils only on the linux archs.  Closes: #493401.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 02 Aug 2008 23:31:30 -0700
+  [ Christian Perrier ]
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 09 Aug 2008 17:27:45 -0300
 
 samba (2:3.2.0-4) unstable; urgency=low
 

@@ -4,10 +4,10 @@ Fixes: bug #434372
 
 Upstream status: submitted as bugzilla bug #4831
 
-Index: samba-3.2.0rc1/source/pam_smbpass/support.c
+Index: samba-3.2.1/source/pam_smbpass/support.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/pam_smbpass/support.c
-+++ samba-3.2.0rc1/source/pam_smbpass/support.c
+--- samba-3.2.1.orig/source/pam_smbpass/support.c
++++ samba-3.2.1/source/pam_smbpass/support.c
 @@ -14,6 +14,7 @@
   * this program; if not, see <http://www.gnu.org/licenses/>.
   */
@@ -146,7 +146,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
                                , failure->count
 @@ -322,8 +348,7 @@
  
-     if (!pdb_get_lanman_passwd(sampass))
+     if (!pdb_get_nt_passwd(sampass))
      {
 -        _log_err( LOG_DEBUG, "user %s has null SMB password"
 -                  , name );
@@ -154,27 +154,25 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
  
          if (off( SMB__NONULL, ctrl )
              && (pdb_get_acct_ctrl(sampass) & ACB_PWNOTREQ))
-@@ -333,15 +358,16 @@
+@@ -333,7 +358,7 @@
              const char *service;
  
              pam_get_item( pamh, PAM_SERVICE, (const void **)&service );
 -            _log_err( LOG_NOTICE, "failed auth request by %s for service %s as %s",
--                      uidtoname(getuid()), service ? service : "**unknown**", name);
-+            _log_err(pamh, LOG_NOTICE,
-+	             "failed auth request by %s for service %s as %s",
-+                     uidtoname(getuid()), service ? service : "**unknown**", name);
++            _log_err(pamh, LOG_NOTICE, "failed auth request by %s for service %s as %s",
+                       uidtoname(getuid()), service ? service : "**unknown**", name);
              return PAM_AUTH_ERR;
          }
-     }
+@@ -341,7 +366,7 @@
  
      data_name = SMB_MALLOC_ARRAY(char, sizeof(FAIL_PREFIX) + strlen( name ));
      if (data_name == NULL) {
 -        _log_err( LOG_CRIT, "no memory for data-name" );
-+        _log_err(pamh, LOG_CRIT, "no memory for data-name");
++        _log_err(pamh, LOG_CRIT, "no memory for data-name" );
+         return PAM_AUTH_ERR;
      }
      strncpy( data_name, FAIL_PREFIX, sizeof(FAIL_PREFIX) );
-     strncpy( data_name + sizeof(FAIL_PREFIX) - 1, name, strlen( name ) + 1 );
-@@ -387,31 +413,31 @@
+@@ -388,14 +413,14 @@
                          retval = PAM_MAXTRIES;
                      }
                  } else {
@@ -191,29 +189,25 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
                        "failed auth request by %s for service %s as %s",
                        uidtoname(getuid()),
                        service ? service : "**unknown**", name);
- 		}		
--                newauth->user = smbpXstrDup( name );
--                newauth->agent = smbpXstrDup( uidtoname( getuid() ) );
-+                newauth->user = smbpXstrDup(pamh, name);
-+                newauth->agent = smbpXstrDup(pamh, uidtoname( getuid() ));
+@@ -405,14 +430,14 @@
                  pam_set_data( pamh, data_name, newauth, _cleanup_failures );
  
              } else {
 -                _log_err( LOG_CRIT, "no memory for failure recorder" );
 -                _log_err(LOG_NOTICE,
-+                _log_err(pamh, LOG_CRIT, "no memory for failure recorder");
++                _log_err(pamh, LOG_CRIT, "no memory for failure recorder" );
 +                _log_err(pamh, LOG_NOTICE,
                        "failed auth request by %s for service %s as %s(%d)",
                        uidtoname(getuid()),
                        service ? service : "**unknown**", name);
              }
-         } else {
--            _log_err(LOG_NOTICE,
-+            _log_err(pamh, LOG_NOTICE,
-                       "failed auth request by %s for service %s as %s(%d)",
-                       uidtoname(getuid()),
-                       service ? service : "**unknown**", name);
-@@ -485,8 +511,8 @@
+         }
+-        _log_err(LOG_NOTICE,
++        _log_err(pamh, LOG_NOTICE,
+                   "failed auth request by %s for service %s as %s(%d)",
+                   uidtoname(getuid()),
+                   service ? service : "**unknown**", name);
+@@ -488,8 +513,8 @@
          retval = pam_get_item( pamh, authtok_flag, (const void **) &item );
          if (retval != PAM_SUCCESS) {
              /* very strange. */
@@ -224,7 +218,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
              return retval;
          } else if (item != NULL) {	/* we have a password! */
              *pass = item;
-@@ -538,7 +564,7 @@
+@@ -541,7 +566,7 @@
  
          if (retval == PAM_SUCCESS) {	/* a good conversation */
  
@@ -233,7 +227,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
              if (token != NULL) {
                  if (expect == 2) {
                      /* verify that password entered correctly */
-@@ -550,7 +576,8 @@
+@@ -553,7 +578,8 @@
                      }
                  }
              } else {
@@ -243,7 +237,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
              }
          }
  
-@@ -563,7 +590,7 @@
+@@ -566,7 +592,7 @@
  
      if (retval != PAM_SUCCESS) {
          if (on( SMB_DEBUG, ctrl ))
@@ -252,7 +246,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
          return retval;
      }
      /* 'token' is the entered password */
-@@ -578,7 +605,7 @@
+@@ -581,7 +607,7 @@
              || (retval = pam_get_item( pamh, authtok_flag
                              ,(const void **)&item )) != PAM_SUCCESS)
          {
@@ -261,7 +255,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
              return retval;
          }
      } else {
-@@ -592,8 +619,8 @@
+@@ -595,8 +621,8 @@
              || (retval = pam_get_data( pamh, data_name, (const void **)&item ))
                               != PAM_SUCCESS)
          {
@@ -272,7 +266,7 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
              _pam_delete( token );
              item = NULL;
              return retval;
-@@ -617,8 +644,8 @@
+@@ -620,8 +646,8 @@
      if (pass_new == NULL || (pass_old && !strcmp( pass_old, pass_new )))
      {
  	if (on(SMB_DEBUG, ctrl)) {
@@ -283,10 +277,10 @@ Index: samba-3.2.0rc1/source/pam_smbpass/support.c
  	}
  	make_remark( pamh, ctrl, PAM_ERROR_MSG, pass_new == NULL ?
  				"No password supplied" : "Password unchanged" );
-Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_auth.c
+Index: samba-3.2.1/source/pam_smbpass/pam_smb_auth.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/pam_smbpass/pam_smb_auth.c
-+++ samba-3.2.0rc1/source/pam_smbpass/pam_smb_auth.c
+--- samba-3.2.1.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.2.1/source/pam_smbpass/pam_smb_auth.c
 @@ -81,10 +81,9 @@
  
  	/* Samba initialization. */
@@ -361,10 +355,10 @@ Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_auth.c
  			, "pam_get_item returned error to pam_sm_authenticate" );
  		return PAM_AUTHTOK_RECOVER_ERR;
  	} else if (pass == NULL) {
-Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_acct.c
+Index: samba-3.2.1/source/pam_smbpass/pam_smb_acct.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/pam_smbpass/pam_smb_acct.c
-+++ samba-3.2.0rc1/source/pam_smbpass/pam_smb_acct.c
+--- samba-3.2.1.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.2.1/source/pam_smbpass/pam_smb_acct.c
 @@ -58,26 +58,25 @@
  
  	/* Samba initialization. */
@@ -425,10 +419,10 @@ Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_acct.c
  		}
  		make_remark( pamh, ctrl, PAM_ERROR_MSG
  			, "Your account has been disabled; "
-Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_passwd.c
+Index: samba-3.2.1/source/pam_smbpass/pam_smb_passwd.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/pam_smbpass/pam_smb_passwd.c
-+++ samba-3.2.0rc1/source/pam_smbpass/pam_smb_passwd.c
+--- samba-3.2.1.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.2.1/source/pam_smbpass/pam_smb_passwd.c
 @@ -106,10 +106,9 @@
  
      /* Samba initialization. */
@@ -565,10 +559,10 @@ Index: samba-3.2.0rc1/source/pam_smbpass/pam_smb_passwd.c
          retval = PAM_ABORT;
  
      }
-Index: samba-3.2.0rc1/source/pam_smbpass/support.h
+Index: samba-3.2.1/source/pam_smbpass/support.h
 ===================================================================
---- samba-3.2.0rc1.orig/source/pam_smbpass/support.h
-+++ samba-3.2.0rc1/source/pam_smbpass/support.h
+--- samba-3.2.1.orig/source/pam_smbpass/support.h
++++ samba-3.2.1/source/pam_smbpass/support.h
 @@ -1,8 +1,8 @@
  /* syslogging function for errors and other information */
 -extern void _log_err(int, const char *, ...);

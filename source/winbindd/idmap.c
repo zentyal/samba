@@ -798,7 +798,7 @@ NTSTATUS idmap_init(void)
 		}
 	}
 
-	/* cleanpu temporary strings */
+	/* cleanup temporary strings */
 	TALLOC_FREE( compat_backend );
 
 	idmap_init_status = NT_STATUS_OK;
@@ -897,7 +897,7 @@ NTSTATUS idmap_set_gid_hwm(struct unixid *id)
 static struct idmap_domain* find_idmap_domain_from_sid( DOM_SID *account_sid )
 {
 	DOM_SID domain_sid;
-	uint32 rid;
+	uint32_t rid;
 	struct winbindd_domain *domain = NULL;
 	int i;
 
@@ -939,7 +939,7 @@ static struct idmap_domain* find_idmap_domain_from_sid( DOM_SID *account_sid )
  Lookup an index given an idmap_domain pointer
  ******************************************************************************/
 
-static uint32 find_idmap_domain_index( struct idmap_domain *id_domain)
+static uint32_t find_idmap_domain_index( struct idmap_domain *id_domain)
 {
 	int i;
 
@@ -1212,7 +1212,7 @@ static NTSTATUS idmap_backends_sids_to_unixids(struct id_map **ids)
 	/* partition the requests by domain */
 
 	for (i = 0; ids[i]; i++) {
-		uint32 idx;
+		uint32_t idx;
 
 		if ((dom = find_idmap_domain_from_sid(ids[i]->sid)) == NULL) {
 			/* no available idmap_domain.  Move on */
@@ -1361,15 +1361,15 @@ NTSTATUS idmap_unixids_to_sids(struct id_map **ids)
 
 	/* let's see if there is any id mapping to be retieved
 	 * from the backends */
-	if (bi) {
-		/* Only do query if we are online */
-		if ( IS_DOMAIN_OFFLINE(our_domain) ) {
-			ret = NT_STATUS_FILE_IS_OFFLINE;
-			goto done;
-		}
+	if (bids) {
+		bool online;
 
-		ret = idmap_backends_unixids_to_sids(bids);
-		IDMAP_CHECK_RET(ret);
+		/* Only do query if we are online */
+		online = !IS_DOMAIN_OFFLINE(our_domain);
+		if (online) {
+			ret = idmap_backends_unixids_to_sids(bids);
+			IDMAP_CHECK_RET(ret);
+		}
 
 		/* update the cache */
 		for (i = 0; i < bi; i++) {
@@ -1388,7 +1388,7 @@ NTSTATUS idmap_unixids_to_sids(struct id_map **ids)
 				 * unmapped and hope next time things will
 				 * settle down. */
 				bids[i]->status = ID_UNMAPPED;
-			} else { /* unmapped */
+			} else if (online) { /* unmapped */
 				ret = idmap_cache_set_negative_id(idmap_cache,
 								  bids[i]);
 			}
@@ -1480,14 +1480,14 @@ NTSTATUS idmap_sids_to_unixids(struct id_map **ids)
 	/* let's see if there is any id mapping to be retieved
 	 * from the backends */
 	if (bids) {
-		/* Only do query if we are online */
-		if ( IS_DOMAIN_OFFLINE(our_domain) ) {
-			ret = NT_STATUS_FILE_IS_OFFLINE;
-			goto done;
-		}
+		bool online;
 
-		ret = idmap_backends_sids_to_unixids(bids);
-		IDMAP_CHECK_RET(ret);
+		/* Only do query if we are online */
+		online = !IS_DOMAIN_OFFLINE(our_domain);
+		if (online) {
+			ret = idmap_backends_sids_to_unixids(bids);
+			IDMAP_CHECK_RET(ret);
+		}
 
 		/* update the cache */
 		for (i = 0; bids[i]; i++) {
@@ -1506,7 +1506,7 @@ NTSTATUS idmap_sids_to_unixids(struct id_map **ids)
 				 * unmapped and hope next time things will
 				 * settle down. */
 				bids[i]->status = ID_UNMAPPED;
-			} else { /* unmapped */
+			} else if (online) { /* unmapped */
 				ret = idmap_cache_set_negative_sid(idmap_cache,
 								   bids[i]);
 			}

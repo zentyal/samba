@@ -1,4 +1,4 @@
-samba (2:3.2.1-1) unstable; urgency=low
+samba (2:3.2.1-1) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * Build-depend on keyutils only on the linux archs.  Closes: #493401.

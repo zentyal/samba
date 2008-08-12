@@ -5,6 +5,7 @@ samba (2:3.2.1-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * New upstream release
+    - Fix trusted domain handling in Winbindd Closes: #493752
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 09 Aug 2008 17:27:45 -0300
 

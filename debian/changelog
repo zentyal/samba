@@ -2,6 +2,12 @@ samba (2:3.2.1-1) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * Build-depend on keyutils only on the linux archs.  Closes: #493401.
+  * New patch debian/patches/shrink-dead-code.patch: throw all .o files into
+    a .a archive as a first pass before linking the final executables, so
+    that the executables don't end up with quite so much unused code bloating
+    the system.  Not applied to net or ntlm_auth, which have particularly
+    hairy linking needs.  Partially addresses: bug #474543; no code was
+    harmed in the making of this patch.
 
   [ Christian Perrier ]
   * New upstream release

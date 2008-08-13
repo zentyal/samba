@@ -8,6 +8,7 @@ samba (2:3.2.1-1) UNRELEASED; urgency=low
     the system.  Not applied to net or ntlm_auth, which have particularly
     hairy linking needs.  Partially addresses: bug #474543; no code was
     harmed in the making of this patch.
+  * Build-depend on libcups2-dev | libcupsys2-dev, to facilitate backports.
 
   [ Christian Perrier ]
   * New upstream release

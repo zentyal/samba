@@ -11,7 +11,7 @@ samba (2:3.2.2-1) UNRELEASED; urgency=low
   * 
 
   [ Noèl Köthe ]
-  * 
+  * fixing lintian warning "build-depends-on-1-revision"
 
  -- Noèl Köthe <noel@debian.org>  Sat, 16 Aug 2008 17:29:09 +0200
 

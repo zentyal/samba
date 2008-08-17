@@ -4,12 +4,6 @@ samba (2:3.2.2-1) UNRELEASED; urgency=low
     - Fix "/usr/lib/cups/backend/smb does not try port 139 anymore by default"
       Closes: #491881
 
-  [ Steve Langasek ]
-  * 
-
-  [ Christian Perrier ]
-  * 
-
   [ Noèl Köthe ]
   * fixing lintian warning "build-depends-on-1-revision"
 

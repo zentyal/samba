@@ -829,6 +829,9 @@
 /* Define to 1 if you have the `krb5_auth_con_setuseruserkey' function. */
 #undef HAVE_KRB5_AUTH_CON_SETUSERUSERKEY
 
+/* Define to 1 if you have the `krb5_auth_con_set_req_cksumtype' function. */
+#undef HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+
 /* Whether the type krb5_crypto exists */
 #undef HAVE_KRB5_CRYPTO
 
@@ -876,6 +879,9 @@
 
 /* Define to 1 if you have the `krb5_free_unparsed_name' function. */
 #undef HAVE_KRB5_FREE_UNPARSED_NAME
+
+/* Define to 1 if you have the `krb5_fwd_tgt_creds' function. */
+#undef HAVE_KRB5_FWD_TGT_CREDS
 
 /* Define to 1 if you have the `krb5_get_default_in_tkt_etypes' function. */
 #undef HAVE_KRB5_GET_DEFAULT_IN_TKT_ETYPES
@@ -2671,8 +2677,8 @@
 /* Whether to build mount.cifs and umount.cifs */
 #undef WITH_CIFSMOUNT
 
-/* whether to build cifs.spnego */
-#undef WITH_CIFSSPNEGO
+/* whether to build cifs.upcall */
+#undef WITH_CIFSUPCALL
 
 /* Whether to include DFS support */
 #undef WITH_DFS

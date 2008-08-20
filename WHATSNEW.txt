@@ -1,133 +1,103 @@
                    ==============================
-                   Release Notes for Samba 3.2.1
-                           August 5, 2008
+                   Release Notes for Samba 3.2.2
+			  August, 19 2008
                    ==============================
 
-This is the second stable release of Samba 3.2.
+This is a bug fix release of the Samba 3.2 series.
 
-Major bug fixes included in Samba 3.2.1 are:
+Major bug fixes included in Samba 3.2.2 are:
 
-  o Race condition in Winbind leading to a crash.
-  o Regression in Winbindd offline mode.
-  o Flushing of smb.conf when creating a new share using SWAT.
-  o Setting of ACEs in setups with "dos filemode = yes".
+  o Fix removal of dead records in tdb files. This can lead to very large
+    tdb files and to overflowing partitions as a consequence on systems
+    running an nmbd daemon.
+  o Fix "force group" in setups using Winbind.
+  o Fix freezing Windows Explorer on WinXP while browsing Samba shares.
+    This one led to timeouts during printing as well.
+  o Fix assigning of primary group memberships when authenticating via
+    Winbind.
+  o Fix creation and installation of shared libraries.
 
 
 ######################################################################
 Changes
 #######
 
-Changes since 3.2.0
+Changes since 3.2.1
 -------------------
 
 
 o   Michael Adam <obnox@samba.org>
-    * BUG 5608: Fix link creation for libtalloc.so.1 (and friends) on
-      Solaris 8.
-    * BUG 5594: Fix "make test" by adding and using a new testparm
-      switch "--skip-logic-checks".
-    * Fix creation of libaddns.a, libsmbclient.a and libsharemodes.a.
-    * Update the section about net conf in the net(8) manpage.
-    * Improve processing of registry shares.
-    * Fix listing of registry shares with testparm.
-    * Fix several build issues.
+    * BUG 5592: Fix creation and installation of shared libraries.
+    * Fix replacement of random seed generator.
+    * Fix a race condition in idmap_tdb2_allocate_id().
+    * Fix unix_convert() for "*" after changing map_nt_error_from_unix().
+    * Make sure to always set errno on error path in OpenDir.
 
 
 o   Jeremy Allison <jra@samba.org>
-    * BUG 5578: Fix error from strlcat.
-    * BUG 5613: Fix flushing of smb.conf when creating a new share using SWAT.
-    * Ensure consistent use of pdb_get_nt_passwd instead of
-      pdb_get_lanman_passwd.
-    * Remove worrying warning message when safe_strcpy tries to copy a
-      pseaudo interface name that's too long.
-    * Canonicalize servername in the printer functions to remove leading
-      '\\' characters.
-    * Fix option processing in smbcacls - add POPT_COMMON_CONNECTION.
-    * Fix bug creating files using DOS clients with mixed case files.
-    * Fix uninitialized variable.
+    * BUG 5675: Fix smbspool program assuming Kerberos authentication by
+      mistake.
+    * BUG 5686: Fix segfaults in libsmbclient.
+    * BUG 5692: Fix coredump in full_audit.so.
+    * BUG 5696: Fix "force group" in setups using Winbind.
+    * Rename cifs.spnego to cifs.upcall.
+    * Fix segfault in cifs.upcall when it is called without any arguments.
+    * Fix coverity ID 594 (resource leak on error path).
+    * Fix assigning of primary group memberships when authenticating via
+      Winbind.
+    * Several build fixes.
+
+
+o   Bartosz Antosik <antosik@gmail.com>
+    * BUG #5617: Fix freezing Windows Explorer on WinXP while browsing
+      Samba shares.
+
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * Include stdlib.h to get a prototype for free().
 
 
 o   Yannick Bergeron <yaberger@ca.ibm.com>
-    * Fix compile error on AIX 6.1
-
-
-o   Jim Brown <jim.brown@miami.edu>
-    * Fix SGI compiler warnings.
+    * Solve an IBM XL C/C++ compiler error encountered in get_exit_code()
+      auth_errors array initialization in client/smbspool.c.
+    * Use NGROUPS_MAX instead of 32 for the max group value in
+      rep_initgroups().
 
 
 o   Günther Deschner <gd@samba.org>
-    * BUG 5616: Fix session keys also in rpccli_netr_LogonSamLogonEx wrapper.
-    * BUG 5570: Fix bogus error message during AD domain join.
-    * Fix trusted domain handling in Winbindd.
     * Fix build warning.
+    * Add add c++ guard to netapi.
+
+
+o   Steve French <stevef@smf-t60p.smfdom>
+    * Fix compile warning in cifs.upcall.
+    * Add "dns_resolver" key type to cifs.upcall.
 
 
 o   SATOH Fumiyasu <fumiyas@osstech.co.jp>
-    * BUG 5202: Fix setting of ACEs for users/groups with write access
-      in setups with 'dos filemode = yes'.
-    * Re-activate 'acl group control' parameter and make it only apply
-      to owning group.
-
-
-o   Volodymyr Khomenko <Volodymyr.Khomenko@exanet.com>
-    * Make ntimes function more like POSIX and allow NULL arg.
+    * BUG 5688: Fix orphaned LPQ processes if socket address is invalid.
 
 
 o   Volker Lendecke <vl@samba.org>
-    * BUG 5512: Fix alignment problems on sparc.
-    * BUG 5616: Fix share connections in setups with
-      "server signing = mandatory" or SMB signing set on the client side.
-    * Fix a race condition in Winbind leading to a crash.
-    * Fix a segfault in base64_encode_data_blob.
-    * Fix some uninitialized variable references via ndr_print.
-    * Fix error message if trying to join with a non-privileged user.
-    * Fix setups using "include = registry" without [global] settings
-      in the registry.
-    * Fix "net sam rights" on domain member servers.
-    * Add documentation for the vfs streams modules.
+    * BUG 5684: Fix removal of dead records in tdb files.
+    * Fix coverity IDs 595, 596.
+    * Fix smb_len calculation for chained requests.
 
 
 o   Herb Lewis <herb@samba.org>
-    * Cleanup some duplicate code by passing the password to the wbinfo_auth*
-      functions.
-    * Allow SID with 0 in subauthority to be converted properly.
-
-
-o   Zach Loafman <zachary.loafman@isilon.com>
-    * Set sin[6]_family instead of ss_family in in[6]_addr_to_sockaddr_storage.
-    * Fix realpath() check so that it doesn't generate a core() when it fails.
+    * Fix output of test status.
 
 
 o   Jim McDonough <jmcd@samba.org>
-    * Fix overwriting of winbind logfiles.
+    * Fix smbclient connections to older servers.
 
 
-o   Lars Müller <lars@samba.org>
-    * Fix "vfs_full_audit.c: name table not in sync with vfs.h" panic.
-
-
-o   Darshan Purandare <dpurandare@isilon.com>
-    * Add broadcasting of the debug message to all winbindd children.
-
-
-o   Karolin Seeger <kseeger@samba.org>
-    * BUG 5635: Fix updating of printer queues.
-
-
-o   Andreas Schneider <anschneider@suse.de>
-    * Release still reachable memory if the smbclient context is freed.
-    * Remove trailing withespace from wbinfo -m which breaks gdm auth.
-
-
-o   Simo Sorce <idra@samba.org>
-    * BUG 5540: Fix "set primary group script" user option substitution.
-    * Fix regression in Winbindd offline mode.
-
-
-o   Bo Yang <boyang@novell.com>
-    * Allow authentication and memory credential refresh after password
-      change from gdm/xdm.
-    * Allow %u parameters for print job username.
+o   Andrew Tridgell <tridge@samba.org>
+    * Fix a fd leak when trying to regain contact to a domain controller
+      in Winbind.
+    * Fix permissions on ctdb databases.
+    * Fix passing back success when a function had in fact failed in two
+      places.
 
 
 ######################################################################

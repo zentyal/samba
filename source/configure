@@ -721,27 +721,16 @@ INSTALLLIBCMD_SH
 INSTALLLIBCMD_A
 UNINSTALLLIBCMD_SH
 UNINSTALLLIBCMD_A
-INSTALL_LIBADDNS
-UNINSTALL_LIBADDNS
-LIBADDNS_SHARED
-LIBADDNS
 INSTALL_LIBWBCLIENT
 UNINSTALL_LIBWBCLIENT
 LIBWBCLIENT_SHARED_TARGET
 LIBWBCLIENT_SHARED
 LIBWBCLIENT_STATIC_TARGET
 LIBWBCLIENT_STATIC
+LIBWBCLIENT_SOVER
 LIBWBCLIENT
 WINBIND_LIBS
 LIBSAMBAUTIL_SHARED
-INSTALL_LIBSMBCLIENT
-UNINSTALL_LIBSMBCLIENT
-LIBSMBCLIENT_SHARED
-LIBSMBCLIENT
-INSTALL_LIBSMBSHAREMODES
-UNINSTALL_LIBSMBSHAREMODES
-LIBSMBSHAREMODES_SHARED
-LIBSMBSHAREMODES
 PRINT_LIBS
 AUTH_LIBS
 ACL_LIBS
@@ -758,9 +747,9 @@ EXTRA_BIN_PROGS
 CIFSMOUNT_PROGS
 INSTALL_CIFSMOUNT
 UNINSTALL_CIFSMOUNT
-CIFSSPNEGO_PROGS
-INSTALL_CIFSSPNEGO
-UNINSTALL_CIFSSPNEGO
+CIFSUPCALL_PROGS
+INSTALL_CIFSUPCALL
+UNINSTALL_CIFSUPCALL
 EXTRA_SBIN_PROGS
 EXTRA_ALL_TARGETS
 CONFIG_LIBS
@@ -799,16 +788,49 @@ LIBTALLOC_STATIC_TARGET
 LIBTALLOC_SHARED
 LIBTALLOC_STATIC
 LIBTALLOC_LIBS
+INSTALL_LIBTALLOC
+UNINSTALL_LIBTALLOC
+LIBTALLOC_SOVER
 LIBTDB_SHARED_TARGET
 LIBTDB_STATIC_TARGET
 LIBTDB_SHARED
 LIBTDB_STATIC
 LIBTDB_LIBS
+INSTALL_LIBTDB
+UNINSTALL_LIBTDB
+LIBTDB_SOVER
 LIBNETAPI_SHARED_TARGET
 LIBNETAPI_STATIC_TARGET
 LIBNETAPI_SHARED
 LIBNETAPI_STATIC
 LIBNETAPI_LIBS
+INSTALL_LIBNETAPI
+UNINSTALL_LIBNETAPI
+LIBNETAPI_SOVER
+LIBSMBCLIENT_SHARED_TARGET
+LIBSMBCLIENT_STATIC_TARGET
+LIBSMBCLIENT_SHARED
+LIBSMBCLIENT_STATIC
+LIBSMBCLIENT_LIBS
+INSTALL_LIBSMBCLIENT
+UNINSTALL_LIBSMBCLIENT
+LIBSMBCLIENT_SOVER
+LIBSMBSHAREMODES_SHARED_TARGET
+LIBSMBSHAREMODES_STATIC_TARGET
+LIBSMBSHAREMODES_SHARED
+LIBSMBSHAREMODES_STATIC
+LIBSMBSHAREMODES_LIBS
+INSTALL_LIBSMBSHAREMODES
+UNINSTALL_LIBSMBSHAREMODES
+LIBSMBSHAREMODES_SOVER
+LIBADDNS_SHARED_TARGET
+LIBADDNS_STATIC_TARGET
+LIBADDNS_SHARED
+LIBADDNS_STATIC
+LIBADDNS_LIBS
+INSTALL_LIBADDNS
+UNINSTALL_LIBADDNS
+LIBADDNS_SOVER
 WINBIND_NSS_PTHREAD
 WINBIND_NSS
 WINBIND_WINS_NSS
@@ -1490,7 +1512,7 @@ Optional Packages:
   --with-automount        Include automount support (default=no)
   --with-cifsmount        Include mount.cifs and umount.cifs (Linux only)
                           support (default=yes)
-  --with-cifsspnego       Include cifs.spnego (Linux only) support
+  --with-cifsupcall       Include cifs.upcall (Linux only) support
                           (default=no)
   --with-pam              Include PAM support (default=no)
   --with-pam_smbpass      Build PAM module for authenticating against passdb
@@ -1510,12 +1532,12 @@ Optional Packages:
                           shared libs supported)
   --with-libnetapi        Build the libnetapi shared library (default=yes if
                           shared libs supported)
+  --with-libsmbclient     Build the libsmbclient shared library (default=yes if
+                          shared libs supported)
+  --with-libsmbsharemodes Build the libsmbsharemodes shared library (default=yes if
+                          shared libs supported)
   --with-libaddns         Build the libaddns shared library (default=no
-                          undefined API)
-  --with-libsmbclient     Build the libsmbclient shared library (default=yes
-                          if shared libs supported)
-  --with-libsmbsharemodes Build the libsmbsharemodes shared library
-                          (default=yes if shared libs supported)
+                          (undefined API))
   --with-cluster-support  Enable cluster extensions (default=no)
   --with-acl-support      Include ACL support (default=auto)
   --with-aio-support      Include asynchronous io support (default=no)
@@ -10330,6 +10352,7 @@ main ()
 		} f2[] = {
 			{FOO_ONE}
 		};
+		static const FOOBAR f3[] = {FOO_ONE};
 
   ;
   return 0;
@@ -11262,18 +11285,6 @@ SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/popt"
 if test "x${srcdir-.}" != "x."; then
 	SAMBA_CPPFLAGS=`echo ${SAMBA_CPPFLAGS} | sed -e "s;${srcdir};\$\(srcdir\);g"`
 fi
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -60332,6 +60343,194 @@ _ACEOF
 fi
 
 
+
+
+    ac_check_func_ext_save_LIBS=$LIBS
+    LIBS="$KRB5_LIBS $LIBS"
+        { echo "$as_me:$LINENO: checking for krb5_fwd_tgt_creds" >&5
+echo $ECHO_N "checking for krb5_fwd_tgt_creds... $ECHO_C" >&6; }
+if test "${ac_cv_func_ext_krb5_fwd_tgt_creds+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define krb5_fwd_tgt_creds to an innocuous variant, in case <limits.h> declares krb5_fwd_tgt_creds.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define krb5_fwd_tgt_creds innocuous_krb5_fwd_tgt_creds
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char krb5_fwd_tgt_creds (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef krb5_fwd_tgt_creds
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char krb5_fwd_tgt_creds ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_krb5_fwd_tgt_creds || defined __stub___krb5_fwd_tgt_creds
+choke me
+#endif
+
+int
+main ()
+{
+return krb5_fwd_tgt_creds ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_func_ext_krb5_fwd_tgt_creds=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_func_ext_krb5_fwd_tgt_creds=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_func_ext_krb5_fwd_tgt_creds" >&5
+echo "${ECHO_T}$ac_cv_func_ext_krb5_fwd_tgt_creds" >&6; }
+    LIBS=$ac_check_func_ext_save_LIBS
+    if test $ac_cv_func_ext_krb5_fwd_tgt_creds = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_KRB5_FWD_TGT_CREDS 1
+_ACEOF
+
+fi
+
+
+
+
+    ac_check_func_ext_save_LIBS=$LIBS
+    LIBS="$KRB5_LIBS $LIBS"
+        { echo "$as_me:$LINENO: checking for krb5_auth_con_set_req_cksumtype" >&5
+echo $ECHO_N "checking for krb5_auth_con_set_req_cksumtype... $ECHO_C" >&6; }
+if test "${ac_cv_func_ext_krb5_auth_con_set_req_cksumtype+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define krb5_auth_con_set_req_cksumtype to an innocuous variant, in case <limits.h> declares krb5_auth_con_set_req_cksumtype.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define krb5_auth_con_set_req_cksumtype innocuous_krb5_auth_con_set_req_cksumtype
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char krb5_auth_con_set_req_cksumtype (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef krb5_auth_con_set_req_cksumtype
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char krb5_auth_con_set_req_cksumtype ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_krb5_auth_con_set_req_cksumtype || defined __stub___krb5_auth_con_set_req_cksumtype
+choke me
+#endif
+
+int
+main ()
+{
+return krb5_auth_con_set_req_cksumtype ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_func_ext_krb5_auth_con_set_req_cksumtype=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_func_ext_krb5_auth_con_set_req_cksumtype=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_func_ext_krb5_auth_con_set_req_cksumtype" >&5
+echo "${ECHO_T}$ac_cv_func_ext_krb5_auth_con_set_req_cksumtype" >&6; }
+    LIBS=$ac_check_func_ext_save_LIBS
+    if test $ac_cv_func_ext_krb5_auth_con_set_req_cksumtype = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE 1
+_ACEOF
+
+fi
+
+
   LIBS="$KRB5_LIBS $LIBS"
 
   { echo "$as_me:$LINENO: checking whether krb5_ticket contains kvno and enctype" >&5
@@ -62106,6 +62305,7 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
+		#include <stdlib.h>
 		#include <krb5.h>
 		int main(void) {
 			krb5_context context = NULL;
@@ -63143,7 +63343,7 @@ fi
 
 
 #################################################
-# check for cifs.spnego support
+# check for cifs.upcall support
 
 for ac_header in keyutils.h
 do
@@ -63291,15 +63491,15 @@ fi
 
 done
 
-CIFSSPNEGO_PROGS=""
-INSTALL_CIFSSPNEGO=""
-UNINSTALL_CIFSSPNEGO=""
-{ echo "$as_me:$LINENO: checking whether to build cifs.spnego" >&5
-echo $ECHO_N "checking whether to build cifs.spnego... $ECHO_C" >&6; }
+CIFSUPCALL_PROGS=""
+INSTALL_CIFSUPCALL=""
+UNINSTALL_CIFSUPCALL=""
+{ echo "$as_me:$LINENO: checking whether to build cifs.upcall" >&5
+echo $ECHO_N "checking whether to build cifs.upcall... $ECHO_C" >&6; }
 
-# Check whether --with-cifsspnego was given.
-if test "${with_cifsspnego+set}" = set; then
-  withval=$with_cifsspnego;  case "$withval" in
+# Check whether --with-cifsupcall was given.
+if test "${with_cifsupcall+set}" = set; then
+  withval=$with_cifsupcall;  case "$withval" in
   no)
 	{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
@@ -63308,24 +63508,24 @@ echo "${ECHO_T}no" >&6; }
 	case "$host_os" in
 	*linux*)
 		if test x"$use_ads" != x"yes"; then
-			{ { echo "$as_me:$LINENO: error: ADS support should be enabled for building cifs.spnego" >&5
-echo "$as_me: error: ADS support should be enabled for building cifs.spnego" >&2;}
+			{ { echo "$as_me:$LINENO: error: ADS support should be enabled for building cifs.upcall" >&5
+echo "$as_me: error: ADS support should be enabled for building cifs.upcall" >&2;}
    { (exit 1); exit 1; }; }
 		elif test x"$HAVE_KEYUTILS_H" != "x1"; then
-			{ { echo "$as_me:$LINENO: error: keyutils package is required for cifs.spnego" >&5
-echo "$as_me: error: keyutils package is required for cifs.spnego" >&2;}
+			{ { echo "$as_me:$LINENO: error: keyutils package is required for cifs.upcall" >&5
+echo "$as_me: error: keyutils package is required for cifs.upcall" >&2;}
    { (exit 1); exit 1; }; }
 		else
 			{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
-#define WITH_CIFSSPNEGO 1
+#define WITH_CIFSUPCALL 1
 _ACEOF
 
-			CIFSSPNEGO_PROGS="bin/cifs.spnego"
-			INSTALL_CIFSSPNEGO="installcifsspnego"
-			UNINSTALL_CIFSSPNEGO="uninstallcifsspnego"
+			CIFSUPCALL_PROGS="bin/cifs.upcall"
+			INSTALL_CIFSUPCALL="installcifsupcall"
+			UNINSTALL_CIFSUPCALL="uninstallcifsupcall"
 		fi
 		;;
 	*)
@@ -66423,6 +66623,15 @@ fi
 #
 LINK_LIBNETAPI=STATIC
 
+LINK_LIBSMBCLIENT=STATIC
+
+#
+#  The library versions are hardcoded here
+#  and filled into the LIBFOO_SOVER variable.
+#
+#  TODO: for talloc and tdb (at least), these should
+#  be extracted from their respective source directories
+#
 
 
 
@@ -66433,6 +66642,13 @@ LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
 LIBTALLOC_SHARED=
 LIBTALLOC_STATIC=
 LIBTALLOC_LIBS=
+INSTALL_LIBTALLOC=
+UNINSTALL_LIBTALLOC=
+
+LIBTALLOC_SOVER=1
+
+
+
 
 
 
@@ -66443,16 +66659,17 @@ LIBTALLOC_LIBS=
 { echo "$as_me:$LINENO: checking whether to build the libtalloc shared library" >&5
 echo $ECHO_N "checking whether to build the libtalloc shared library... $ECHO_C" >&6; }
 
+
 # Check whether --with-libtalloc was given.
 if test "${with_libtalloc+set}" = set; then
   withval=$with_libtalloc;
 case "$withval" in
-	*)
+	no)
 		{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 		build_lib=no
 		;;
-	yes)
+	*)
 		build_lib=yes
 		;;
 esac
@@ -66466,19 +66683,29 @@ build_lib=yes
 fi
 
 
-if eval test x"$build_lib" = "xyes" -a $BLDSHARED = true; then
-	LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
-	{ echo "$as_me:$LINENO: result: yes" >&5
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBTALLOC=installlibtalloc
+	UNINSTALL_LIBTALLOC=uninstalllibtalloc
+	if eval $BLDSHARED = true; then
+		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
-		LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
+			LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
+		else
+			LIBTALLOC_LIBS=-ltalloc
+		fi
 	else
-		LIBTALLOC_LIBS=-ltalloc
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
 	fi
 else
 	enable_static=yes
-	{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
 	LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
@@ -66499,6 +66726,13 @@ LIBTDB_STATIC_TARGET=bin/libtdb.a
 LIBTDB_SHARED=
 LIBTDB_STATIC=
 LIBTDB_LIBS=
+INSTALL_LIBTDB=
+UNINSTALL_LIBTDB=
+
+LIBTDB_SOVER=1
+
+
+
 
 
 
@@ -66509,16 +66743,17 @@ LIBTDB_LIBS=
 { echo "$as_me:$LINENO: checking whether to build the libtdb shared library" >&5
 echo $ECHO_N "checking whether to build the libtdb shared library... $ECHO_C" >&6; }
 
+
 # Check whether --with-libtdb was given.
 if test "${with_libtdb+set}" = set; then
   withval=$with_libtdb;
 case "$withval" in
-	*)
+	no)
 		{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 		build_lib=no
 		;;
-	yes)
+	*)
 		build_lib=yes
 		;;
 esac
@@ -66532,19 +66767,29 @@ build_lib=yes
 fi
 
 
-if eval test x"$build_lib" = "xyes" -a $BLDSHARED = true; then
-	LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
-	{ echo "$as_me:$LINENO: result: yes" >&5
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBTDB=installlibtdb
+	UNINSTALL_LIBTDB=uninstalllibtdb
+	if eval $BLDSHARED = true; then
+		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
-		LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
+			LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
+		else
+			LIBTDB_LIBS=-ltdb
+		fi
 	else
-		LIBTDB_LIBS=-ltdb
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
 	fi
 else
 	enable_static=yes
-	{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
 	LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
@@ -66565,6 +66810,13 @@ LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
 LIBNETAPI_SHARED=
 LIBNETAPI_STATIC=
 LIBNETAPI_LIBS=
+INSTALL_LIBNETAPI=
+UNINSTALL_LIBNETAPI=
+
+LIBNETAPI_SOVER=0
+
+
+
 
 
 
@@ -66575,16 +66827,17 @@ LIBNETAPI_LIBS=
 { echo "$as_me:$LINENO: checking whether to build the libnetapi shared library" >&5
 echo $ECHO_N "checking whether to build the libnetapi shared library... $ECHO_C" >&6; }
 
+
 # Check whether --with-libnetapi was given.
 if test "${with_libnetapi+set}" = set; then
   withval=$with_libnetapi;
 case "$withval" in
-	*)
+	no)
 		{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 		build_lib=no
 		;;
-	yes)
+	*)
 		build_lib=yes
 		;;
 esac
@@ -66598,19 +66851,29 @@ build_lib=yes
 fi
 
 
-if eval test x"$build_lib" = "xyes" -a $BLDSHARED = true; then
-	LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
-	{ echo "$as_me:$LINENO: result: yes" >&5
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBNETAPI=installlibnetapi
+	UNINSTALL_LIBNETAPI=uninstalllibnetapi
+	if eval $BLDSHARED = true; then
+		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
-		LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
+			LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
+		else
+			LIBNETAPI_LIBS=-lnetapi
+		fi
 	else
-		LIBNETAPI_LIBS=-lnetapi
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
 	fi
 else
 	enable_static=yes
-	{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
 	LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
@@ -66623,154 +66886,258 @@ fi
 
 
 
-#################################################
-# should we build libaddns?
-INSTALL_LIBADDNS=
-UNINSTALL_LIBADDNS=
-LIBADDNS_SHARED=
-LIBADDNS=
-{ echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
-echo $ECHO_N "checking whether to build the libaddns shared library... $ECHO_C" >&6; }
-
-# Check whether --with-libaddns was given.
-if test "${with_libaddns+set}" = set; then
-  withval=$with_libaddns;  case "$withval" in
-  *)
-     { echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6; }
-     ;;
-  yes)
-     if test $BLDSHARED = true; then
-        LIBADDNS_SHARED=bin/libaddns.$SHLIBEXT
-        LIBADDNS=libaddns
-        { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-     else
-	enable_static=yes
-        { echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
-     fi
-     if test $enable_static = yes; then
-        LIBADDNS=libaddns
-     fi
-     INSTALL_LIBADDNS=installlibaddns
-     UNINSTALL_LIBADDNS=uninstalllibaddns
-     ;;
-  esac
-else
-  { echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6; }
-
-fi
 
 
-#################################################
-# should we build libsmbclient?
 
+LIBSMBCLIENT_SHARED_TARGET=bin/libsmbclient.$SHLIBEXT
+LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
+LIBSMBCLIENT_SHARED=
+LIBSMBCLIENT_STATIC=
+LIBSMBCLIENT_LIBS=
 INSTALL_LIBSMBCLIENT=
 UNINSTALL_LIBSMBCLIENT=
-LIBSMBCLIENT_SHARED=
-LIBSMBCLIENT=
+
+LIBSMBCLIENT_SOVER=0
+
+
+
+
+
+
+
+
+
+
 { echo "$as_me:$LINENO: checking whether to build the libsmbclient shared library" >&5
 echo $ECHO_N "checking whether to build the libsmbclient shared library... $ECHO_C" >&6; }
 
+
 # Check whether --with-libsmbclient was given.
 if test "${with_libsmbclient+set}" = set; then
-  withval=$with_libsmbclient;  case "$withval" in
-  no)
-     { echo "$as_me:$LINENO: result: no" >&5
+  withval=$with_libsmbclient;
+case "$withval" in
+	no)
+		{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
-     ;;
-  *)
-     if test $BLDSHARED = true; then
-        LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
-        LIBSMBCLIENT=libsmbclient
-        { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-     else
-	enable_static=yes
-        { echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
-     fi
-     if test $enable_static = yes; then
-        LIBSMBCLIENT=libsmbclient
-     fi
-     INSTALL_LIBSMBCLIENT=installclientlib
-     UNINSTALL_LIBSMBCLIENT=uninstallclientlib
-     ;;
-  esac
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
 else
 
 # if unspecified, default is to build it if possible.
-  if test $BLDSHARED = true; then
-     LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
-     LIBSMBCLIENT=libsmbclient
-     { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-   else
-     enable_static=yes
-     { echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
-   fi
-   if test $enable_static = yes; then
-     LIBSMBCLIENT=libsmbclient
-  fi
-  INSTALL_LIBSMBCLIENT=installclientlib
-  UNINSTALL_LIBSMBCLIENT=uninstallclientlib
+build_lib=yes
+
 
 fi
 
 
-INSTALL_LIBSMBSHAREMODES=
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBSMBCLIENT=installlibsmbclient
+	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
+	if eval $BLDSHARED = true; then
+		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
+			LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
+		else
+			LIBSMBCLIENT_LIBS=-lsmbclient
+		fi
+	else
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
+fi
+
+
+
+
+
+
+
+
+
+
+
+LIBSMBSHAREMODES_SHARED_TARGET=bin/libsmbsharemodes.$SHLIBEXT
+LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
 LIBSMBSHAREMODES_SHARED=
-LIBSMBSHAREMODES=
+LIBSMBSHAREMODES_STATIC=
+LIBSMBSHAREMODES_LIBS=
+INSTALL_LIBSMBSHAREMODES=
+UNINSTALL_LIBSMBSHAREMODES=
+
+LIBSMBSHAREMODES_SOVER=0
+
+
+
+
+
+
+
+
+
+
 { echo "$as_me:$LINENO: checking whether to build the libsmbsharemodes shared library" >&5
 echo $ECHO_N "checking whether to build the libsmbsharemodes shared library... $ECHO_C" >&6; }
 
+
 # Check whether --with-libsmbsharemodes was given.
 if test "${with_libsmbsharemodes+set}" = set; then
-  withval=$with_libsmbsharemodes;  case "$withval" in
-  no)
-     { echo "$as_me:$LINENO: result: no" >&5
+  withval=$with_libsmbsharemodes;
+case "$withval" in
+	no)
+		{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
-     ;;
-  *)
-     if test $BLDSHARED = true; then
-        LIBSMBSHAREMODES_SHARED=bin/libsmbsharemodes.$SHLIBEXT
-        LIBSMBSHAREMODES=libsmbsharemodes
-        { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-     else
-        enable_static=yes
-        { echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
-     fi
-     if test $enable_static = yes; then
-        LIBSMBSHAREMODES=libsmbsharemodes
-     fi
-     INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
-     UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
-     ;;
-  esac
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
 else
 
 # if unspecified, default is to build it if possible.
-  if test $BLDSHARED = true; then
-     LIBSMBSHAREMODES_SHARED=bin/libsmbsharemodes.$SHLIBEXT
-     LIBSMBSHAREMODES=libsmbsharemodes
-     { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-   else
-     enable_static=yes
-     { echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
-   fi
-   if test $enable_static = yes; then
-     LIBSMBSHAREMODES=libsmbsharemodes
-  fi
-  INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
+build_lib=yes
+
 
 fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
+	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
+	if eval $BLDSHARED = true; then
+		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
+			LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
+		else
+			LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
+		fi
+	else
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
+fi
+
+
+
+
+
+
+
+
+
+
+
+LIBADDNS_SHARED_TARGET=bin/libaddns.$SHLIBEXT
+LIBADDNS_STATIC_TARGET=bin/libaddns.a
+LIBADDNS_SHARED=
+LIBADDNS_STATIC=
+LIBADDNS_LIBS=
+INSTALL_LIBADDNS=
+UNINSTALL_LIBADDNS=
+
+LIBADDNS_SOVER=0
+
+
+
+
+
+
+
+
+
+
+{ echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
+echo $ECHO_N "checking whether to build the libaddns shared library... $ECHO_C" >&6; }
+
+
+# Check whether --with-libaddns was given.
+if test "${with_libaddns+set}" = set; then
+  withval=$with_libaddns;
+case "$withval" in
+	yes)
+		build_lib=yes
+		;;
+	*)
+		{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+		build_lib=no
+		;;
+esac
+
+else
+
+# if unspecified, default is not to build
+{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+build_lib=no
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBADDNS=installlibaddns
+	UNINSTALL_LIBADDNS=uninstalllibaddns
+	if eval $BLDSHARED = true; then
+		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
+		{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
+			LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
+		else
+			LIBADDNS_LIBS=-laddns
+		fi
+	else
+		enable_static=yes
+		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ echo "$as_me:$LINENO: result: shared library not selected" >&5
+echo "${ECHO_T}shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
+fi
+
+
+
+
+
+
 
 
 
@@ -70076,6 +70443,7 @@ fi
 
 LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
 LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
+LIBWBCLIENT_SOVER=0
 if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_SHARED" = x"yes"; then
 	NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 	## Only worry about libwbclient if we have shared library support
@@ -74984,7 +75352,7 @@ fi
 SMBD_LIBS="$samba_dmapi_libs"
 
 
-ac_config_files="$ac_config_files Makefile library-versions script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh lib/netapi/examples/Makefile pkgconfig/smbclient.pc pkgconfig/wbclient.pc pkgconfig/netapi.pc pkgconfig/smbsharemodes.pc"
+ac_config_files="$ac_config_files Makefile script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh lib/netapi/examples/Makefile pkgconfig/smbclient.pc pkgconfig/wbclient.pc pkgconfig/netapi.pc pkgconfig/smbsharemodes.pc"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -75557,7 +75925,6 @@ do
     "rm-stdbool.h") CONFIG_COMMANDS="$CONFIG_COMMANDS rm-stdbool.h" ;;
     "mk-stdbool.h") CONFIG_COMMANDS="$CONFIG_COMMANDS mk-stdbool.h" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "library-versions") CONFIG_FILES="$CONFIG_FILES library-versions" ;;
     "script/findsmb") CONFIG_FILES="$CONFIG_FILES script/findsmb" ;;
     "smbadduser") CONFIG_FILES="$CONFIG_FILES smbadduser" ;;
     "script/gen-8bit-gap.sh") CONFIG_FILES="$CONFIG_FILES script/gen-8bit-gap.sh" ;;
@@ -75776,27 +76143,16 @@ INSTALLLIBCMD_SH!$INSTALLLIBCMD_SH$ac_delim
 INSTALLLIBCMD_A!$INSTALLLIBCMD_A$ac_delim
 UNINSTALLLIBCMD_SH!$UNINSTALLLIBCMD_SH$ac_delim
 UNINSTALLLIBCMD_A!$UNINSTALLLIBCMD_A$ac_delim
-INSTALL_LIBADDNS!$INSTALL_LIBADDNS$ac_delim
-UNINSTALL_LIBADDNS!$UNINSTALL_LIBADDNS$ac_delim
-LIBADDNS_SHARED!$LIBADDNS_SHARED$ac_delim
-LIBADDNS!$LIBADDNS$ac_delim
 INSTALL_LIBWBCLIENT!$INSTALL_LIBWBCLIENT$ac_delim
 UNINSTALL_LIBWBCLIENT!$UNINSTALL_LIBWBCLIENT$ac_delim
 LIBWBCLIENT_SHARED_TARGET!$LIBWBCLIENT_SHARED_TARGET$ac_delim
 LIBWBCLIENT_SHARED!$LIBWBCLIENT_SHARED$ac_delim
 LIBWBCLIENT_STATIC_TARGET!$LIBWBCLIENT_STATIC_TARGET$ac_delim
 LIBWBCLIENT_STATIC!$LIBWBCLIENT_STATIC$ac_delim
+LIBWBCLIENT_SOVER!$LIBWBCLIENT_SOVER$ac_delim
 LIBWBCLIENT!$LIBWBCLIENT$ac_delim
 WINBIND_LIBS!$WINBIND_LIBS$ac_delim
 LIBSAMBAUTIL_SHARED!$LIBSAMBAUTIL_SHARED$ac_delim
-INSTALL_LIBSMBCLIENT!$INSTALL_LIBSMBCLIENT$ac_delim
-UNINSTALL_LIBSMBCLIENT!$UNINSTALL_LIBSMBCLIENT$ac_delim
-LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
-LIBSMBCLIENT!$LIBSMBCLIENT$ac_delim
-INSTALL_LIBSMBSHAREMODES!$INSTALL_LIBSMBSHAREMODES$ac_delim
-UNINSTALL_LIBSMBSHAREMODES!$UNINSTALL_LIBSMBSHAREMODES$ac_delim
-LIBSMBSHAREMODES_SHARED!$LIBSMBSHAREMODES_SHARED$ac_delim
-LIBSMBSHAREMODES!$LIBSMBSHAREMODES$ac_delim
 PRINT_LIBS!$PRINT_LIBS$ac_delim
 AUTH_LIBS!$AUTH_LIBS$ac_delim
 ACL_LIBS!$ACL_LIBS$ac_delim
@@ -75813,9 +76169,9 @@ EXTRA_BIN_PROGS!$EXTRA_BIN_PROGS$ac_delim
 CIFSMOUNT_PROGS!$CIFSMOUNT_PROGS$ac_delim
 INSTALL_CIFSMOUNT!$INSTALL_CIFSMOUNT$ac_delim
 UNINSTALL_CIFSMOUNT!$UNINSTALL_CIFSMOUNT$ac_delim
-CIFSSPNEGO_PROGS!$CIFSSPNEGO_PROGS$ac_delim
-INSTALL_CIFSSPNEGO!$INSTALL_CIFSSPNEGO$ac_delim
-UNINSTALL_CIFSSPNEGO!$UNINSTALL_CIFSSPNEGO$ac_delim
+CIFSUPCALL_PROGS!$CIFSUPCALL_PROGS$ac_delim
+INSTALL_CIFSUPCALL!$INSTALL_CIFSUPCALL$ac_delim
+UNINSTALL_CIFSUPCALL!$UNINSTALL_CIFSUPCALL$ac_delim
 EXTRA_SBIN_PROGS!$EXTRA_SBIN_PROGS$ac_delim
 EXTRA_ALL_TARGETS!$EXTRA_ALL_TARGETS$ac_delim
 CONFIG_LIBS!$CONFIG_LIBS$ac_delim
@@ -75854,17 +76210,28 @@ LIBTALLOC_STATIC_TARGET!$LIBTALLOC_STATIC_TARGET$ac_delim
 LIBTALLOC_SHARED!$LIBTALLOC_SHARED$ac_delim
 LIBTALLOC_STATIC!$LIBTALLOC_STATIC$ac_delim
 LIBTALLOC_LIBS!$LIBTALLOC_LIBS$ac_delim
+INSTALL_LIBTALLOC!$INSTALL_LIBTALLOC$ac_delim
+UNINSTALL_LIBTALLOC!$UNINSTALL_LIBTALLOC$ac_delim
+LIBTALLOC_SOVER!$LIBTALLOC_SOVER$ac_delim
 LIBTDB_SHARED_TARGET!$LIBTDB_SHARED_TARGET$ac_delim
 LIBTDB_STATIC_TARGET!$LIBTDB_STATIC_TARGET$ac_delim
 LIBTDB_SHARED!$LIBTDB_SHARED$ac_delim
 LIBTDB_STATIC!$LIBTDB_STATIC$ac_delim
 LIBTDB_LIBS!$LIBTDB_LIBS$ac_delim
+INSTALL_LIBTDB!$INSTALL_LIBTDB$ac_delim
+UNINSTALL_LIBTDB!$UNINSTALL_LIBTDB$ac_delim
+LIBTDB_SOVER!$LIBTDB_SOVER$ac_delim
 LIBNETAPI_SHARED_TARGET!$LIBNETAPI_SHARED_TARGET$ac_delim
 LIBNETAPI_STATIC_TARGET!$LIBNETAPI_STATIC_TARGET$ac_delim
 LIBNETAPI_SHARED!$LIBNETAPI_SHARED$ac_delim
 LIBNETAPI_STATIC!$LIBNETAPI_STATIC$ac_delim
 LIBNETAPI_LIBS!$LIBNETAPI_LIBS$ac_delim
-WINBIND_NSS_PTHREAD!$WINBIND_NSS_PTHREAD$ac_delim
+INSTALL_LIBNETAPI!$INSTALL_LIBNETAPI$ac_delim
+UNINSTALL_LIBNETAPI!$UNINSTALL_LIBNETAPI$ac_delim
+LIBNETAPI_SOVER!$LIBNETAPI_SOVER$ac_delim
+LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
+LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
+LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -75906,6 +76273,28 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
+LIBSMBCLIENT_STATIC!$LIBSMBCLIENT_STATIC$ac_delim
+LIBSMBCLIENT_LIBS!$LIBSMBCLIENT_LIBS$ac_delim
+INSTALL_LIBSMBCLIENT!$INSTALL_LIBSMBCLIENT$ac_delim
+UNINSTALL_LIBSMBCLIENT!$UNINSTALL_LIBSMBCLIENT$ac_delim
+LIBSMBCLIENT_SOVER!$LIBSMBCLIENT_SOVER$ac_delim
+LIBSMBSHAREMODES_SHARED_TARGET!$LIBSMBSHAREMODES_SHARED_TARGET$ac_delim
+LIBSMBSHAREMODES_STATIC_TARGET!$LIBSMBSHAREMODES_STATIC_TARGET$ac_delim
+LIBSMBSHAREMODES_SHARED!$LIBSMBSHAREMODES_SHARED$ac_delim
+LIBSMBSHAREMODES_STATIC!$LIBSMBSHAREMODES_STATIC$ac_delim
+LIBSMBSHAREMODES_LIBS!$LIBSMBSHAREMODES_LIBS$ac_delim
+INSTALL_LIBSMBSHAREMODES!$INSTALL_LIBSMBSHAREMODES$ac_delim
+UNINSTALL_LIBSMBSHAREMODES!$UNINSTALL_LIBSMBSHAREMODES$ac_delim
+LIBSMBSHAREMODES_SOVER!$LIBSMBSHAREMODES_SOVER$ac_delim
+LIBADDNS_SHARED_TARGET!$LIBADDNS_SHARED_TARGET$ac_delim
+LIBADDNS_STATIC_TARGET!$LIBADDNS_STATIC_TARGET$ac_delim
+LIBADDNS_SHARED!$LIBADDNS_SHARED$ac_delim
+LIBADDNS_STATIC!$LIBADDNS_STATIC$ac_delim
+LIBADDNS_LIBS!$LIBADDNS_LIBS$ac_delim
+INSTALL_LIBADDNS!$INSTALL_LIBADDNS$ac_delim
+UNINSTALL_LIBADDNS!$UNINSTALL_LIBADDNS$ac_delim
+LIBADDNS_SOVER!$LIBADDNS_SOVER$ac_delim
+WINBIND_NSS_PTHREAD!$WINBIND_NSS_PTHREAD$ac_delim
 WINBIND_NSS!$WINBIND_NSS$ac_delim
 WINBIND_WINS_NSS!$WINBIND_WINS_NSS$ac_delim
 WINBIND_NSS_LDSHFLAGS!$WINBIND_NSS_LDSHFLAGS$ac_delim
@@ -75939,7 +76328,7 @@ SMBD_LIBS!$SMBD_LIBS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 31; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 53; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

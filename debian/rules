@@ -133,6 +133,10 @@ install: build
 
 	$(MAKE) -C source install DESTDIR=$(DESTDIR)
 
+	# doesn't belong in /sbin; will be fixed upstream, in the meantime
+	# install it in the right place so that we're future-proofed
+	mv $(DESTDIR)/sbin/cifs.upcall $(DESTDIR)/usr/sbin/cifs.upcall
+
 #	mv $(DESTDIR)/usr/lib/samba/libsmbclient.so $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
 #	ln -s libsmbclient.so.0 $(DESTDIR)/usr/lib/samba/libsmbclient.so
 

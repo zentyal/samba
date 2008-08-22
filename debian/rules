@@ -137,9 +137,6 @@ install: build
 	# install it in the right place so that we're future-proofed
 	mv $(DESTDIR)/sbin/cifs.upcall $(DESTDIR)/usr/sbin/cifs.upcall
 
-#	mv $(DESTDIR)/usr/lib/samba/libsmbclient.so $(DESTDIR)/usr/lib/samba/libsmbclient.so.0
-#	ln -s libsmbclient.so.0 $(DESTDIR)/usr/lib/samba/libsmbclient.so
-
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the
 	# default library path. Here we move it to /usr/lib/.

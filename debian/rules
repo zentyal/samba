@@ -56,12 +56,11 @@ conf_args = \
 		--with-dnsupdate \
 		--without-libtdb \
 		--without-libnetapi \
-		--with-cifsupcall
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
 		--with-cifsmount \
-		--with-cifsspnego \
+		--with-cifsupcall \
 		--with-acl-support \
 		--with-quotas
   mount_cifs	= yes

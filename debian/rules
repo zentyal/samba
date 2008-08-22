@@ -55,7 +55,8 @@ conf_args = \
 		--without-smbmount \
 		--with-dnsupdate \
 		--without-libtdb \
-		--without-libnetapi
+		--without-libnetapi \
+		--with-cifsupcall
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

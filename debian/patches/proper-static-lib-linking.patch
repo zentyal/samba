@@ -7,11 +7,11 @@ Status wrt upstream: not yet forwarded
 Note:
 
 === modified file 'source/Makefile.in'
-Index: samba-3.2.1/source/Makefile.in
+Index: samba-3.2.2/source/Makefile.in
 ===================================================================
---- samba-3.2.1.orig/source/Makefile.in
-+++ samba-3.2.1/source/Makefile.in
-@@ -262,7 +262,7 @@
+--- samba-3.2.2.orig/source/Makefile.in
++++ samba-3.2.2/source/Makefile.in
+@@ -228,7 +228,7 @@
  TDB_OBJ = lib/util_tdb.o \
  	  lib/dbwrap.o lib/dbwrap_tdb.o \
  	  lib/dbwrap_tdb2.o lib/dbwrap_ctdb.o \
@@ -20,9 +20,9 @@ Index: samba-3.2.1/source/Makefile.in
  
  SMBLDAP_OBJ = @SMBLDAP@ @SMBLDAPUTIL@
  
-@@ -332,8 +332,7 @@
- LIBTALLOC_OBJ0 = $(TALLOC_OBJ)
- LIBTALLOC_OBJ = $(LIBTALLOC_OBJ0) $(LIBREPLACE_OBJ)
+@@ -292,8 +292,7 @@
+ SOCKET_WRAPPER_OBJ = @SOCKET_WRAPPER_OBJS@
+ NSS_WRAPPER_OBJ = @NSS_WRAPPER_OBJS@
  
 -LIBSAMBAUTIL_OBJ = @LIBTALLOC_STATIC@ \
 -		$(LIBREPLACE_OBJ) \
@@ -30,34 +30,16 @@ Index: samba-3.2.1/source/Makefile.in
  		$(SOCKET_WRAPPER_OBJ) \
  		$(NSS_WRAPPER_OBJ)
  
-@@ -385,7 +384,7 @@
+@@ -345,7 +344,7 @@
  
  LIBADDNS_OBJ0 = libaddns/dnsrecord.o libaddns/dnsutils.o  libaddns/dnssock.o \
  	       libaddns/dnsgss.o libaddns/dnsmarshall.o
 -LIBADDNS_OBJ = $(LIBADDNS_OBJ0) $(SOCKET_WRAPPER_OBJ) @LIBTALLOC_STATIC@
 +LIBADDNS_OBJ = $(LIBADDNS_OBJ0) $(SOCKET_WRAPPER_OBJ)
  
- LIBWBCLIENT_OBJ0 = nsswitch/libwbclient/wbclient.o \
- 		  nsswitch/libwbclient/wbc_util.o \
-@@ -395,7 +394,7 @@
- 		  nsswitch/libwbclient/wbc_pam.o
- LIBWBCLIENT_OBJ = $(LIBWBCLIENT_OBJ0) \
- 		  $(WBCOMMON_OBJ) \
--		  @LIBTALLOC_STATIC@ $(LIBREPLACE_OBJ)
-+		  $(LIBREPLACE_OBJ)
- 
  LIBGPO_OBJ0 = libgpo/gpo_ldap.o libgpo/gpo_ini.o libgpo/gpo_util.o \
  	      libgpo/gpo_fetch.o libgpo/gpo_filesync.o libgpo/gpo_sec.o
-@@ -828,7 +827,7 @@
- LIBSMBCLIENT_OBJ = $(LIBSMBCLIENT_OBJ1) @LIBWBCLIENT_STATIC@
- 
- LIBSMBSHAREMODES_OBJ0 = libsmb/smb_share_modes.o
--LIBSMBSHAREMODES_OBJ = $(LIBSMBSHAREMODES_OBJ0) @LIBTDB_STATIC@
-+LIBSMBSHAREMODES_OBJ = $(LIBSMBSHAREMODES_OBJ0)
- 
- # This shared library is intended for linking with unit test programs
- # to test Samba internals.  It's called libbigballofmud.so to
-@@ -1128,15 +1127,15 @@
+@@ -1057,15 +1056,15 @@
  		iniparser_build/strlib.o
  
  TDBBACKUP_OBJ = @tdbdir@/tools/tdbbackup.o $(LIBREPLACE_OBJ) \
@@ -77,7 +59,7 @@ Index: samba-3.2.1/source/Makefile.in
  	$(SOCKET_WRAPPER_OBJ)
  
  
-@@ -1331,7 +1330,7 @@
+@@ -1260,7 +1259,7 @@
  	  dir=bin $(MAKEDIR); fi
  	@: >> $@ || : > $@ # what a fancy emoticon!
  
@@ -86,12 +68,12 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(LDAP_LIBS) \
  		$(KRB5LIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
-@@ -1339,45 +1338,45 @@
+@@ -1268,45 +1267,45 @@
  		$(POPT_LIBS) @SMBD_LIBS@ $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
  		$(WINBIND_LIBS)
  
 -bin/nmbd@EXEEXT@: $(BINARY_PREREQS) $(NMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
-+bin/nmbd@EXEEXT@: $(BINARY_PREREQS) $(NMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_TARGET@
++bin/nmbd@EXEEXT@: $(BINARY_PREREQS) $(NMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(NMBD_OBJ) $(LDFLAGS) $(DYNEXP) $(LIBS) \
  		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(POPT_LIBS) \
@@ -121,7 +103,7 @@ Index: samba-3.2.1/source/Makefile.in
  		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS)
  
 -bin/net@EXEEXT@: $(BINARY_PREREQS) $(NET_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@ @LIBNETAPI_SHARED@
-+bin/net@EXEEXT@: $(BINARY_PREREQS) $(NET_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @LIBNETAPI_SHARED@
++bin/net@EXEEXT@: $(BINARY_PREREQS) $(NET_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @LIBNETAPI_SHARED@
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(NET_OBJ) $(DYNEXP) $(LDFLAGS) $(LIBS) \
  		$(POPT_LIBS) $(KRB5LIBS) $(UUID_LIBS) $(LDAP_LIBS) \
@@ -139,20 +121,20 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(CUPS_OBJ) $(DYNEXP) $(LDFLAGS) $(LIBS) \
  		$(KRB5LIBS) $(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
-@@ -1390,135 +1389,135 @@
+@@ -1319,135 +1318,135 @@
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(CIFS_UMOUNT_OBJ) $(DYNEXP) $(LDFLAGS) $(POPT_LIBS)
  
--bin/cifs.spnego@EXEEXT@: $(BINARY_PREREQS) $(CIFS_SPNEGO_OBJ) $(LIBSMBCLIENT_OBJ1) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
-+bin/cifs.spnego@EXEEXT@: $(BINARY_PREREQS) $(CIFS_SPNEGO_OBJ) $(LIBSMBCLIENT_OBJ1) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
+-bin/cifs.upcall@EXEEXT@: $(BINARY_PREREQS) $(CIFS_UPCALL_OBJ) $(LIBSMBCLIENT_OBJ1) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
++bin/cifs.upcall@EXEEXT@: $(BINARY_PREREQS) $(CIFS_UPCALL_OBJ) $(LIBSMBCLIENT_OBJ1) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
  	@echo Linking $@
- 	@$(CC) $(FLAGS) -o $@ $(CIFS_SPNEGO_OBJ) $(DYNEXP) $(LDFLAGS) \
+ 	@$(CC) $(FLAGS) -o $@ $(CIFS_UPCALL_OBJ) $(DYNEXP) $(LDFLAGS) \
  		-lkeyutils $(LIBS) $(LIBSMBCLIENT_OBJ1) $(KRB5LIBS) \
  		$(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(WINBIND_LIBS) \
  		$(LIBTDB_LIBS)
  
 -bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
-+bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_TARGET@
++bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(TESTPARM_OBJ) $(LDFLAGS) $(DYNEXP) $(LIBS) \
  		$(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
@@ -298,7 +280,7 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(VFSTEST_OBJ) $(LDFLAGS) $(TERMLDFLAGS) \
  		$(TERMLIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
-@@ -1526,64 +1525,64 @@
+@@ -1455,64 +1454,64 @@
  		@SMBD_LIBS@ $(NSCD_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
  		$(WINBIND_LIBS)
  
@@ -374,53 +356,26 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(LDBDEL_OBJ) $(DYNEXP) $(LDFLAGS) \
  		$(LIBS) $(POPT_LIBS) $(LDAP_LIBS) \
-@@ -1622,7 +1621,7 @@
- $(LIBWBCLIENT_SYMS): $(LIBWBCLIENT_HEADERS)
- 	@$(MKSYMS_SH) $(AWK) $@ $(LIBWBCLIENT_HEADERS)
+@@ -1676,7 +1675,7 @@
+ 		  nsswitch/libwbclient/wbc_pam.o
+ LIBWBCLIENT_OBJ = $(LIBWBCLIENT_OBJ0) \
+ 		  $(WBCOMMON_OBJ) \
+-		  @LIBTALLOC_STATIC@ $(LIBREPLACE_OBJ)
++		  $(LIBREPLACE_OBJ)
  
--$(LIBWBCLIENT_SHARED_TARGET): $(BINARY_PREREQS) $(LIBWBCLIENT_OBJ) $(LIBWBCLIENT_SYMS) @LIBTALLOC_SHARED@
-+$(LIBWBCLIENT_SHARED_TARGET): $(BINARY_PREREQS) $(LIBWBCLIENT_OBJ) $(LIBWBCLIENT_SYMS) @LIBTALLOC_TARGET@
- 	@echo Linking shared library $@
- 	@$(SHLD_DSO) $(LIBTALLOC_LIBS) $(LIBWBCLIENT_OBJ) \
- 		@SONAMEFLAG@`basename $@`.$(SONAME_VER)
-@@ -1633,7 +1632,7 @@
- 	@echo Linking non-shared library $@
- 	@-$(AR) -rc $@ $(LIBWBCLIENT_OBJ0) $(WBCOMMON_OBJ)
+ LIBWBCLIENT_SHARED_TARGET=@LIBWBCLIENT_SHARED_TARGET@
+ LIBWBCLIENT_SOVER=@LIBWBCLIENT_SOVER@
+@@ -1948,7 +1947,7 @@
  
--bin/libaddns.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBADDNS_OBJ) @LIBTALLOC_SHARED@
-+bin/libaddns.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBADDNS_OBJ) @LIBTALLOC_TARGET@
- 	@echo Linking shared library $@
- 	@$(SHLD_DSO) $(LIBADDNS_OBJ) $(LIBS) \
- 		$(KRB5LIBS) $(UUID_LIBS) $(LIBTALLOC_LIBS) \
-@@ -1646,7 +1645,7 @@
- $(LIBNETAPI_SYMS): $(LIBNETAPI_HEADERS)
- 	@$(MKSYMS_SH) $(AWK) $@ $(LIBNETAPI_HEADERS)
+ LIBSMBSHAREMODES_OBJ0 = libsmb/smb_share_modes.o
  
--$(LIBNETAPI_SHARED_TARGET): $(BINARY_PREREQS) $(LIBNETAPI_OBJ) $(LIBNETAPI_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
-+$(LIBNETAPI_SHARED_TARGET): $(BINARY_PREREQS) $(LIBNETAPI_OBJ) $(LIBNETAPI_SYMS) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
- 	@echo Linking shared library $@
- 	@$(SHLD_DSO) $(LIBNETAPI_OBJ) \
- 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
-@@ -1659,7 +1658,7 @@
- 	@echo Linking non-shared library $@
- 	@-$(AR) -rc $@ $(LIBNETAPI_OBJ1)
+-LIBSMBSHAREMODES_OBJ = $(LIBSMBSHAREMODES_OBJ0) @LIBTDB_STATIC@
++LIBSMBSHAREMODES_OBJ = $(LIBSMBSHAREMODES_OBJ0)
  
--bin/libsmbclient.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
-+bin/libsmbclient.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
- 	@echo Linking shared library $@
- 	@$(SHLD_DSO) -Wl,-z,defs $(LIBSMBCLIENT_OBJ) \
- 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
-@@ -1670,7 +1669,7 @@
- 	@echo Linking non-shared library $@
- 	@-$(AR) -rc $@ $(LIBSMBCLIENT_OBJ0)
- 
--bin/libsmbsharemodes.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBSHAREMODES_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
-+bin/libsmbsharemodes.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBSHAREMODES_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
- 	@echo Linking shared library $@
- 	@$(SHLD_DSO) $(LIBSMBSHAREMODES_OBJ) \
- 		$(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
-@@ -1682,7 +1681,7 @@
- 	@-$(AR) -rc $@ $(LIBSMBSHAREMODES_OBJ0)
+ LIBSMBSHAREMODES_SHARED_TARGET=@LIBSMBSHAREMODES_SHARED_TARGET@
+ LIBSMBSHAREMODES_SOVER=@LIBSMBSHAREMODES_SOVER@
+@@ -2014,7 +2013,7 @@
+ #-------------------------------------------------------------------
  
  # This is probably wrong for anything other than the GNU linker.
 -bin/libbigballofmud.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBBIGBALLOFMUD_OBJ) @LIBTALLOC_SHARED@
@@ -428,7 +383,7 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo Linking shared library $@
  	@$(SHLD) $(LDSHFLAGS) -o $@ $(LIBBIGBALLOFMUD_OBJ) \
  		$(LIBS) $(LIBTALLOC_LIBS) \
-@@ -1763,13 +1762,13 @@
+@@ -2095,13 +2094,13 @@
  	@echo "Linking $@"
  	@$(SHLD_MODULE) $(RPC_ECHO_OBJ)
  
@@ -444,7 +399,7 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo "Linking $@"
  	@$(CC) $(FLAGS) -o $@ $(VLP_OBJ) $(LDFLAGS) $(DYNEXP) \
  		$(TERMLDFLAGS) $(TERMLIBS) $(LIBS) $(POPT_LIBS) \
-@@ -1782,7 +1781,7 @@
+@@ -2114,7 +2113,7 @@
  		$(WINBIND_NSS_EXTRA_LIBS) $(WINBIND_NSS_PTHREAD) \
  		@SONAMEFLAG@`basename $@`@NSSSONAMEVERSIONSUFFIX@
  
@@ -453,7 +408,7 @@ Index: samba-3.2.1/source/Makefile.in
  	@echo "Linking $@"
  	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_WINS_NSS_OBJ) \
  		$(LDAP_LIBS) $(KRB5LIBS) $(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
-@@ -2019,55 +2018,55 @@
+@@ -2351,55 +2350,55 @@
  ## None here right now
  #########################################################
  
@@ -519,46 +474,44 @@ Index: samba-3.2.1/source/Makefile.in
  	$(CC) $(FLAGS) -o $@ $(DYNEXP) $(LIBS) $(LIBTALLOC_LIBS) \
  		torture/t_strappend.o -L ./bin -lbigballofmud
  
-Index: samba-3.2.1/source/m4/aclocal.m4
+Index: samba-3.2.2/source/m4/aclocal.m4
 ===================================================================
---- samba-3.2.1.orig/source/m4/aclocal.m4
-+++ samba-3.2.1/source/m4/aclocal.m4
-@@ -68,13 +68,15 @@
+--- samba-3.2.2.orig/source/m4/aclocal.m4
++++ samba-3.2.2/source/m4/aclocal.m4
+@@ -68,7 +68,8 @@
  LIBUC[_STATIC_TARGET]=bin/LIBNAME.a
  LIBUC[_SHARED]=
  LIBUC[_STATIC]=
 -LIBUC[_LIBS]=
 +LIBUC[_LIBS]=LIBLIBS
 +LIBUC[_TARGET]=
+ [INSTALL_]LIBUC=
+ [UNINSTALL_]LIBUC=
  
- AC_SUBST(LIBUC[_SHARED_TARGET])
- AC_SUBST(LIBUC[_STATIC_TARGET])
+@@ -79,6 +80,7 @@
  AC_SUBST(LIBUC[_SHARED])
  AC_SUBST(LIBUC[_STATIC])
  AC_SUBST(LIBUC[_LIBS])
 +AC_SUBST(LIBUC[_TARGET])
- 
- AC_MSG_CHECKING([whether to build the LIBNAME shared library])
- AC_ARG_WITH(LIBNAME,
-@@ -97,16 +99,19 @@
- ]
- )
- 
-+
- if eval test x"$build_lib" = "xyes" -a $BLDSHARED = true; then
- 	LIBUC[_SHARED]=$LIBUC[_SHARED_TARGET]
-+	LIBUC[_TARGET]=$LIBUC[_SHARED_TARGET]
- 	AC_MSG_RESULT(yes)
- 	if test x"$USESHARED" != x"true" -o x"$[LINK_]LIBUC" = "xSTATIC" ; then
- 		LIBUC[_STATIC]=$LIBUC[_STATIC_TARGET]
--	else
--		LIBUC[_LIBS]=LIBLIBS
+ AC_SUBST([INSTALL_]LIBUC)
+ AC_SUBST([UNINSTALL_]LIBUC)
+ AC_SUBST(LIBUC[_SOVER])
+@@ -137,14 +139,16 @@
+ 	[UNINSTALL_]LIBUC=[uninstall]LIBNAME
+ 	if eval $BLDSHARED = true; then
+ 		LIBUC[_SHARED]=$LIBUC[_SHARED_TARGET]
++		LIBUC[_TARGET]=$LIBUC[_SHARED_TARGET]
+ 		AC_MSG_RESULT(yes)
+ 		if test x"$USESHARED" != x"true" -o x"$[LINK_]LIBUC" = "xSTATIC" ; then
+ 			LIBUC[_STATIC]=$LIBUC[_STATIC_TARGET]
+-		else
+-			LIBUC[_LIBS]=LIBLIBS
++			LIBUC[_TARGET]=$LIBUC[_STATIC_TARGET]
++			LIBUC[_LIBS]=$LIBUC[_STATIC_TARGET]
+ 		fi
+ 	else
+ 		enable_static=yes
 +		LIBUC[_TARGET]=$LIBUC[_STATIC_TARGET]
-+		LIBUC[_LIBS]=$LIBUC[_STATIC_TARGET]
+ 		AC_MSG_RESULT(no shared library support -- will supply static library)
  	fi
  else
- 	enable_static=yes
-+	LIBUC[_TARGET]=$LIBUC[_STATIC_TARGET]
- 	AC_MSG_RESULT(no shared library support -- will supply static library)
- fi
- if test $enable_static = yes; then

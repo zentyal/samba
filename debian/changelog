@@ -6,7 +6,7 @@ samba (2:3.2.2-1) UNRELEASED; urgency=low
     - debian/rules, debian/smbfs.files: build with cifs.upcall,
       newly introduced to replace cifs.spnego
     - debian/rules: no more need to rename libsmbclient.so to
-      libsmbclient.so.0
+      libsmbclient.so.0, or libwbclient.so to libwbclient.so.0
 
   [ Noèl Köthe ]
   * fixing lintian warning "build-depends-on-1-revision"

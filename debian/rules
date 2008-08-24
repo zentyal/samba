@@ -143,7 +143,7 @@ install: build
 	mv $(DESTDIR)/usr/lib/samba/libsmbclient* $(DESTDIR)/usr/lib/
 
 	# same problem with libwbclient.
-	mv $(DESTDIR)/usr/lib/samba/libwbclient.so $(DESTDIR)/usr/lib/libwbclient.so.0
+	mv $(DESTDIR)/usr/lib/samba/libwbclient* $(DESTDIR)/usr/lib/
 
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd

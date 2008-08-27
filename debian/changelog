@@ -1,4 +1,4 @@
-samba (2:3.2.2-1) UNRELEASED; urgency=high
+samba (2:3.2.2-1) unstable; urgency=high
 
   * High-urgency upload for security fix
   * New upstream release
@@ -17,7 +17,7 @@ samba (2:3.2.2-1) UNRELEASED; urgency=high
     default permissions on ldb databases.  Addresses CVE-2008-3789,
     closes: #496073.
 
- -- Noèl Köthe <noel@debian.org>  Sat, 16 Aug 2008 17:29:09 +0200
+ -- Steve Langasek <vorlon@debian.org>  Wed, 27 Aug 2008 10:19:59 -0700
 
 samba (2:3.2.1-1) unstable; urgency=low
 

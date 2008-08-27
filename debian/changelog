@@ -1,9 +1,11 @@
-samba (2:3.2.2-1) unstable; urgency=high
+samba (2:3.2.3-1) unstable; urgency=high
 
   * High-urgency upload for security fix
   * New upstream release
     - Fix "/usr/lib/cups/backend/smb does not try port 139 anymore by default"
       Closes: #491881
+    - Fix the default permissions on ldb databases.  Addresses
+      CVE-2008-3789; closes: #496073.
     - debian/rules, debian/smbfs.files: build with cifs.upcall,
       newly introduced to replace cifs.spnego
     - debian/rules: no more need to rename libsmbclient.so to
@@ -11,11 +13,6 @@ samba (2:3.2.2-1) unstable; urgency=high
 
   [ Noèl Köthe ]
   * fixing lintian warning "build-depends-on-1-revision"
-
-  [ Steve Langasek ]
-  * New patch debian/patches/CVE-2008-3789-ldb-permissions.patch, fixing the
-    default permissions on ldb databases.  Addresses CVE-2008-3789,
-    closes: #496073.
 
  -- Steve Langasek <vorlon@debian.org>  Wed, 27 Aug 2008 10:19:59 -0700
 

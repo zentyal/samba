@@ -11,6 +11,11 @@ samba (2:3.2.2-1) UNRELEASED; urgency=low
   [ Noèl Köthe ]
   * fixing lintian warning "build-depends-on-1-revision"
 
+  [ Steve Langasek ]
+  * New patch debian/patches/CVE-2008-3789-ldb-permissions.patch, fixing the
+    default permissions on ldb databases.  Addresses CVE-2008-3789,
+    closes: #496073.
+
  -- Noèl Köthe <noel@debian.org>  Sat, 16 Aug 2008 17:29:09 +0200
 
 samba (2:3.2.1-1) unstable; urgency=low

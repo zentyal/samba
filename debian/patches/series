@@ -18,3 +18,4 @@ swat-de.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 shrink-dead-code.patch
+CVE-2008-3789-ldb-permissions.patch

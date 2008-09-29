@@ -257,7 +257,7 @@ if test "$ac_cv_prog_gnu_ld" = "yes"; then
            if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
              ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
            fi
-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_l= d_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
              ac_cv_gnu_ld_version_script=yes
            fi
         fi
@@ -858,6 +858,21 @@ if test x"$samba_cv_sig_atomic_t" = x"yes"; then
    AC_DEFINE(HAVE_SIG_ATOMIC_T_TYPE,1,[Whether we have the atomic_t variable type])
 fi
 
+AC_CACHE_CHECK([for struct sigevent type],samba_cv_struct_sigevent, [
+    AC_TRY_COMPILE([
+#include <sys/types.h>
+#if STDC_HEADERS
+#include <stdlib.h>
+#include <stddef.h>
+#endif
+#include <signal.h>],[struct sigevent s;],
+	samba_cv_struct_sigevent=yes,samba_cv_struct_sigevent=no)])
+if test x"$samba_cv_struct_sigevent" = x"yes"; then
+   AC_DEFINE(HAVE_STRUCT_SIGEVENT,1,[Whether we have the struct sigevent])
+   AC_CHECK_MEMBERS([struct sigevent.sigev_value.sival_ptr,struct sigevent.sigev_value.sigval_ptr], , ,
+	[#include <signal.h>])
+fi
+
 AC_CACHE_CHECK([for struct timespec type],samba_cv_struct_timespec, [
     AC_TRY_COMPILE([
 #include <sys/types.h>
@@ -1332,6 +1347,96 @@ if test x"$samba_cv_stat_hires_notimespec" = x"yes" ; then
     AC_DEFINE(HAVE_STAT_ST_CTIMENSEC, 1, [whether struct stat contains st_ctimensec])
     AC_DEFINE(HAVE_STAT_HIRES_TIMESTAMPS, 1,
 	    [whether struct stat has sub-second timestamps without struct timespec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtimespec], samba_cv_stat_st_birthtimespec,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct timespec t;
+		struct stat s = {0};
+		t = s.st_birthtimespec;
+	    ],
+	    samba_cv_stat_st_birthtimespec=yes, samba_cv_stat_birthtimespec=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtimespec" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIMESPEC, 1, [whether struct stat contains st_birthtimespec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtimensec], samba_cv_stat_st_birthtimensec,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct timespec t;
+		struct stat s = {0};
+		t.tv_nsec = s.st_birthtimensec;
+	    ],
+	    samba_cv_stat_st_birthtimensec=yes, samba_cv_stat_birthtimensec=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtimensec" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIMENSEC, 1, [whether struct stat contains st_birthtimensec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtime], samba_cv_stat_st_birthtime,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct time_t t;
+		struct stat s = {0};
+		t = s.st_birthtime;
+	    ],
+	    samba_cv_stat_st_birthtime=yes, samba_cv_stat_birthtime=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtime" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIME, 1, [whether struct stat contains st_birthtime])
 fi
 
 #####################################
@@ -2603,19 +2708,6 @@ AC_CHECK_FUNCS(getpagesize)
 ################################################
 # look for a method of setting the effective uid
 seteuid=no;
-if test $seteuid = no; then
-AC_CACHE_CHECK([for setresuid],samba_cv_USE_SETRESUID,[
-AC_TRY_RUN([
-#define AUTOCONF_TEST 1
-#define USE_SETRESUID 1
-#include "confdefs.h"
-#include "${srcdir-.}/lib/util_sec.c"],
-           samba_cv_USE_SETRESUID=yes,samba_cv_USE_SETRESUID=no,samba_cv_USE_SETRESUID=cross)])
-if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
-    seteuid=yes;AC_DEFINE(USE_SETRESUID,1,[Whether setresuid() is available])
-fi
-fi
-
 
 if test $seteuid = no; then
 AC_CACHE_CHECK([for setreuid],samba_cv_USE_SETREUID,[
@@ -2627,6 +2719,21 @@ AC_TRY_RUN([
            samba_cv_USE_SETREUID=yes,samba_cv_USE_SETREUID=no,samba_cv_USE_SETREUID=cross)])
 if test x"$samba_cv_USE_SETREUID" = x"yes"; then
     seteuid=yes;AC_DEFINE(USE_SETREUID,1,[Whether setreuid() is available])
+fi
+fi
+
+# we check for setresuid second as it conflicts with AIO on Linux. 
+# see http://samba.org/~tridge/junkcode/aio_uid.c
+if test $seteuid = no; then
+AC_CACHE_CHECK([for setresuid],samba_cv_USE_SETRESUID,[
+AC_TRY_RUN([
+#define AUTOCONF_TEST 1
+#define USE_SETRESUID 1
+#include "confdefs.h"
+#include "${srcdir-.}/lib/util_sec.c"],
+           samba_cv_USE_SETRESUID=yes,samba_cv_USE_SETRESUID=no,samba_cv_USE_SETRESUID=cross)])
+if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
+    seteuid=yes;AC_DEFINE(USE_SETRESUID,1,[Whether setresuid() is available])
 fi
 fi
 
@@ -4021,7 +4128,7 @@ INSTALL_CIFSUPCALL=""
 UNINSTALL_CIFSUPCALL=""
 AC_MSG_CHECKING(whether to build cifs.upcall)
 AC_ARG_WITH(cifsupcall,
-[AS_HELP_STRING([--with-cifsupcall], [Include cifs.upcall (Linux only) support (default=no)])],
+[AS_HELP_STRING([--with-cifsupcall], [Include cifs.upcall (Linux only) support (default=yes)])],
 [ case "$withval" in
   no)
 	AC_MSG_RESULT(no)
@@ -4047,9 +4154,24 @@ AC_ARG_WITH(cifsupcall,
 	esac
     ;;
   esac ],
-[
-  AC_MSG_RESULT(no)
-  ]
+[ case "$host_os" in
+  *linux*)
+	if test x"$use_ads" != x"yes"; then
+		AC_MSG_WARN(ADS support should be enabled for building cifs.upcall)
+	elif test x"$HAVE_KEYUTILS_H" != "x1"; then
+		AC_MSG_WARN(keyutils package is required for cifs.upcall)
+	else
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(WITH_CIFSUPCALL,1,[whether to build cifs.upcall])
+		CIFSUPCALL_PROGS="bin/cifs.upcall"
+		INSTALL_CIFSUPCALL="installcifsupcall"
+		UNINSTALL_CIFSUPCALL="uninstallcifsupcall"
+	fi
+	;;
+  *)
+	AC_MSG_RESULT(no)
+	;;
+  esac ]
 )
 
 

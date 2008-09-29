@@ -3168,8 +3168,9 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 		setup_readX_header((char *)headerbuf, smb_maxcnt);
 
 		if ((nread = SMB_VFS_SENDFILE(smbd_server_fd(), fsp, &header, startpos, smb_maxcnt)) == -1) {
-			/* Returning ENOSYS means no data at all was sent. Do this as a normal read. */
-			if (errno == ENOSYS) {
+			/* Returning ENOSYS or EINVAL means no data at all was sent. 
+			   Do this as a normal read. */
+			if (errno == ENOSYS || errno == EINVAL) {
 				goto normal_read;
 			}
 
@@ -3782,9 +3783,11 @@ void reply_write(struct smb_request *req)
 			END_PROFILE(SMBwrite);
 			return;
 		}
-	} else
+		trigger_write_time_update_immediate(fsp);
+	} else {
 		nwritten = write_file(req,fsp,data,startpos,numtowrite);
-  
+	}
+
 	status = sync_file(conn, fsp, False);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5,("reply_write: sync_file for %s returned %s\n",
@@ -7095,6 +7098,7 @@ void reply_getattrE(struct smb_request *req)
 	SMB_STRUCT_STAT sbuf;
 	int mode;
 	files_struct *fsp;
+	struct timespec create_ts;
 
 	START_PROFILE(SMBgetattrE);
 
@@ -7129,9 +7133,9 @@ void reply_getattrE(struct smb_request *req)
 
 	reply_outbuf(req, 11, 0);
 
-	srv_put_dos_date2((char *)req->outbuf, smb_vwv0,
-			  get_create_time(&sbuf,
-					  lp_fake_dir_create_times(SNUM(conn))));
+	create_ts = get_create_timespec(&sbuf,
+				  lp_fake_dir_create_times(SNUM(conn)));
+	srv_put_dos_date2((char *)req->outbuf, smb_vwv0, create_ts.tv_sec);
 	srv_put_dos_date2((char *)req->outbuf, smb_vwv2, sbuf.st_atime);
 	/* Should we check pending modtime here ? JRA */
 	srv_put_dos_date2((char *)req->outbuf, smb_vwv4, sbuf.st_mtime);

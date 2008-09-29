@@ -737,14 +737,16 @@ void send_trans2_replies(connection_struct *conn,
 				    + alignment_offset
 				    + data_alignment_offset);
 
-	/* useable_space can never be more than max_send minus the alignment offset. */
-
-	useable_space = MIN(useable_space, max_send - (alignment_offset+data_alignment_offset));
+	if (useable_space < 0) {
+		DEBUG(0, ("send_trans2_replies failed sanity useable_space "
+			  "= %d!!!", useable_space));
+		exit_server_cleanly("send_trans2_replies: Not enough space");
+	}
 
 	while (params_to_send || data_to_send) {
 		/* Calculate whether we will totally or partially fill this packet */
 
-		total_sent_thistime = params_to_send + data_to_send + alignment_offset + data_alignment_offset;
+		total_sent_thistime = params_to_send + data_to_send;
 
 		/* We can never send more than useable_space */
 		/*
@@ -754,9 +756,10 @@ void send_trans2_replies(connection_struct *conn,
 		 * are sent here. Fix from Marc_Jacobsen@hp.com.
 		 */
 
-		total_sent_thistime = MIN(total_sent_thistime, useable_space+ alignment_offset + data_alignment_offset);
+		total_sent_thistime = MIN(total_sent_thistime, useable_space);
 
-		reply_outbuf(req, 10, total_sent_thistime);
+		reply_outbuf(req, 10, total_sent_thistime + alignment_offset
+			     + data_alignment_offset);
 
 		/* Set total params and data to be sent */
 		SSVAL(req->outbuf,smb_tprcnt,paramsize);
@@ -1935,6 +1938,8 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 			break;
 		case SMB_FIND_FILE_UNIX:
 		case SMB_FIND_FILE_UNIX_INFO2:
+			/* Always use filesystem for UNIX mtime query. */
+			ask_sharemode = false;
 			if (!lp_unix_extensions()) {
 				reply_nterror(req, NT_STATUS_INVALID_LEVEL);
 				return;
@@ -2292,6 +2297,8 @@ resume_key = %d resume name = %s continue=%d level = %d\n",
 			break;
 		case SMB_FIND_FILE_UNIX:
 		case SMB_FIND_FILE_UNIX_INFO2:
+			/* Always use filesystem for UNIX mtime query. */
+			ask_sharemode = false;
 			if (!lp_unix_extensions()) {
 				reply_nterror(req, NT_STATUS_INVALID_LEVEL);
 				return;
@@ -4129,7 +4136,7 @@ total_data=%u (should be %u)\n", (unsigned int)total_data, (unsigned int)IVAL(pd
 		}
 	}
 
-	if (!null_timespec(write_time_ts)) {
+	if (!null_timespec(write_time_ts) && !INFO_LEVEL_IS_UNIX(info_level)) {
 		mtime_ts = write_time_ts;
 	}
 
@@ -4884,11 +4891,11 @@ NTSTATUS smb_set_file_time(connection_struct *conn,
 			  time_to_asc(convert_timespec_to_time_t(ts[1])) ));
 
 		if (fsp != NULL) {
-			set_write_time_fsp(fsp, ts[1], true);
+			set_sticky_write_time_fsp(fsp, ts[1]);
 		} else {
-			set_write_time_path(conn, fname,
+			set_sticky_write_time_path(conn, fname,
 					    vfs_file_id_from_sbuf(conn, psbuf),
-					    ts[1], true);
+					    ts[1]);
 		}
 	}
 
@@ -4972,6 +4979,7 @@ static NTSTATUS smb_set_file_size(connection_struct *conn,
 		if (vfs_set_filelen(fsp, size) == -1) {
 			return map_nt_error_from_unix(errno);
 		}
+		trigger_write_time_update_immediate(fsp);
 		return NT_STATUS_OK;
 	}
 
@@ -4995,6 +5003,7 @@ static NTSTATUS smb_set_file_size(connection_struct *conn,
 		return status;
 	}
 
+	trigger_write_time_update_immediate(new_fsp);
 	close_file(new_fsp,NORMAL_CLOSE);
 	return NT_STATUS_OK;
 }
@@ -5720,7 +5729,7 @@ static NTSTATUS smb_set_file_allocation_info(connection_struct *conn,
 		 * This is equivalent to a write. Ensure it's seen immediately
 		 * if there are no pending writes.
 		 */
-		trigger_write_time_update(fsp);
+		trigger_write_time_update_immediate(fsp);
 		return NT_STATUS_OK;
 	}
 
@@ -5754,7 +5763,7 @@ static NTSTATUS smb_set_file_allocation_info(connection_struct *conn,
 	 * This is equivalent to a write. Ensure it's seen immediately
 	 * if there are no pending writes.
 	 */
-	trigger_write_time_update(new_fsp);
+	trigger_write_time_update_immediate(new_fsp);
 
 	close_file(new_fsp,NORMAL_CLOSE);
 	return NT_STATUS_OK;

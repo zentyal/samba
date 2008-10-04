@@ -94,7 +94,7 @@ Index: samba.deb/source/Makefile.in
 +	@$(CC) $(FLAGS) -o $@ $@.a $(DYNEXP) $(LDFLAGS) \
  		-lkeyutils $(LIBS) $(LIBSMBCLIENT_OBJ1) $(KRB5LIBS) \
  		$(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(WINBIND_LIBS) \
- 		$(LIBTDB_LIBS)
+ 		$(LIBTDB_LIBS) $(NSCD_LIBS)
 +	@rm -f $@.a
  
  bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@

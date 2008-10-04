@@ -131,7 +131,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@$(CC) $(FLAGS) -o $@ $(CIFS_UPCALL_OBJ) $(DYNEXP) $(LDFLAGS) \
  		-lkeyutils $(LIBS) $(LIBSMBCLIENT_OBJ1) $(KRB5LIBS) \
  		$(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(WINBIND_LIBS) \
- 		$(LIBTDB_LIBS)
+ 		$(LIBTDB_LIBS) $(NSCD_LIBS)
  
 -bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
 +bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
@@ -503,7 +503,7 @@ Index: samba-3.2.2/source/m4/aclocal.m4
 +		LIBUC[_TARGET]=$LIBUC[_SHARED_TARGET]
  		AC_MSG_RESULT(yes)
  		if test x"$USESHARED" != x"true" -o x"$[LINK_]LIBUC" = "xSTATIC" ; then
- 			LIBUC[_STATIC]=$LIBUC[_STATIC_TARGET]
+ 			enable_static=yes
 -		else
 -			LIBUC[_LIBS]=LIBLIBS
 +			LIBUC[_TARGET]=$LIBUC[_STATIC_TARGET]

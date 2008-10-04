@@ -521,14 +521,14 @@ static void display_finfo(file_info *finfo, const char *dir)
 		/* create absolute filename for cli_nt_create() FIXME */
 		afname = talloc_asprintf(ctx,
 					"%s%s%s",
-					client_get_cwd(),
+					dir,
 					CLI_DIRSEP_STR,
 					finfo->name);
 		if (!afname) {
 			return;
 		}
 		/* print file meta date header */
-		d_printf( "FILENAME:%s\n", afname);
+		d_printf( "FILENAME:%s\n", finfo->name);
 		d_printf( "MODE:%s\n", attrib_string(finfo->mode));
 		d_printf( "SIZE:%.0f\n", (double)finfo->size);
 		d_printf( "MTIME:%s", time_to_asc(t));
@@ -3036,7 +3036,7 @@ static int cmd_getfacl(void)
 				break;
 			case SMB_POSIX_ACL_GROUP:
 				uorg = IVAL(retbuf,SMB_POSIX_ACL_HEADER_SIZE+(i*SMB_POSIX_ACL_ENTRY_SIZE)+2);
-				d_printf("group:%u", uorg);
+				d_printf("group:%u:", uorg);
 				break;
 			case SMB_POSIX_ACL_MASK:
 				d_printf("mask::");
@@ -3073,7 +3073,7 @@ static int cmd_getfacl(void)
 				break;
 			case SMB_POSIX_ACL_GROUP:
 				uorg = IVAL(retbuf,SMB_POSIX_ACL_HEADER_SIZE+((i+num_file_acls)*SMB_POSIX_ACL_ENTRY_SIZE)+2);
-				d_printf("default:group:%u", uorg);
+				d_printf("default:group:%u:", uorg);
 				break;
 			case SMB_POSIX_ACL_MASK:
 				d_printf("default:mask::");

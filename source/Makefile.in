@@ -175,9 +175,9 @@ PATH_FLAGS = -DSMB_PASSWD_FILE=\"$(SMB_PASSWD_FILE)\" \
 
 # Note that all executable programs now provide for an optional executable suffix.
 
-SBIN_PROGS = bin/smbd@EXEEXT@ bin/nmbd@EXEEXT@ @SWAT_SBIN_TARGETS@ @EXTRA_SBIN_PROGS@
+SBIN_PROGS = bin/smbd@EXEEXT@ bin/nmbd@EXEEXT@ @SWAT_SBIN_TARGETS@ @EXTRA_SBIN_PROGS@ @CIFSUPCALL_PROGS@
 
-ROOT_SBIN_PROGS = @CIFSMOUNT_PROGS@ @CIFSUPCALL_PROGS@
+ROOT_SBIN_PROGS = @CIFSMOUNT_PROGS@
 
 BIN_PROGS1 = bin/smbclient@EXEEXT@ bin/net@EXEEXT@ bin/smbspool@EXEEXT@ \
 	bin/testparm@EXEEXT@ bin/smbstatus@EXEEXT@ bin/smbget@EXEEXT@
@@ -1324,7 +1324,7 @@ bin/cifs.upcall@EXEEXT@: $(BINARY_PREREQS) $(CIFS_UPCALL_OBJ) $(LIBSMBCLIENT_OBJ
 	@$(CC) $(FLAGS) -o $@ $(CIFS_UPCALL_OBJ) $(DYNEXP) $(LDFLAGS) \
 		-lkeyutils $(LIBS) $(LIBSMBCLIENT_OBJ1) $(KRB5LIBS) \
 		$(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(WINBIND_LIBS) \
-		$(LIBTDB_LIBS)
+		$(LIBTDB_LIBS) $(NSCD_LIBS)
 
 bin/testparm@EXEEXT@: $(BINARY_PREREQS) $(TESTPARM_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
 	@echo Linking $@
@@ -1798,7 +1798,7 @@ shlibs test_shlibs: @LIBADDNS_SHARED@
 #
 #-------------------------------------------------------------------
 
-LIBNETAPI_OBJ1 = lib/netapi/netapi.o \
+LIBNETAPI_OBJ0 = lib/netapi/netapi.o \
 		 lib/netapi/cm.o \
 		 librpc/gen_ndr/ndr_libnetapi.o \
 		 lib/netapi/libnetapi.o \
@@ -1807,7 +1807,7 @@ LIBNETAPI_OBJ1 = lib/netapi/netapi.o \
 		 lib/netapi/getdc.o \
 		 lib/netapi/user.o
 
-LIBNETAPI_OBJ  = $(LIBNETAPI_OBJ1) $(LIBNET_OBJ) \
+LIBNETAPI_OBJ  = $(LIBNETAPI_OBJ0) $(LIBNET_OBJ) \
 		 $(LIBSMBCONF_OBJ) \
 		 $(REG_SMBCONF_OBJ) \
 		 $(PARAM_WITHOUT_REG_OBJ) $(LIB_NONSMBD_OBJ) \
@@ -1838,9 +1838,9 @@ $(LIBNETAPI_SHARED_TARGET): $(LIBNETAPI_SHARED_TARGET_SONAME)
 	@rm -f $@
 	@ln -s -f `basename $(LIBNETAPI_SHARED_TARGET_SONAME)` $@
 
-$(LIBNETAPI_STATIC_TARGET): $(BINARY_PREREQS) $(LIBNETAPI_OBJ1)
+$(LIBNETAPI_STATIC_TARGET): $(BINARY_PREREQS) $(LIBNETAPI_OBJ0)
 	@echo Linking non-shared library $@
-	@-$(AR) -rc $@ $(LIBNETAPI_OBJ1)
+	@-$(AR) -rc $@ $(LIBNETAPI_OBJ0)
 
 libnetapi: $(LIBNETAPI)
 
@@ -2439,8 +2439,8 @@ installcifsmount:: @CIFSMOUNT_PROGS@
 	@$(SHELL) script/installbin.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(prefix) $(ROOTSBINDIR) @CIFSMOUNT_PROGS@
 
 installcifsupcall:: @CIFSUPCALL_PROGS@
-	@$(SHELL) $(srcdir)/script/installdirs.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(ROOTSBINDIR)
-	@$(SHELL) script/installbin.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(prefix) $(ROOTSBINDIR) @CIFSUPCALL_PROGS@
+	@$(SHELL) $(srcdir)/script/installdirs.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(SBINDIR)
+	@$(SHELL) script/installbin.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(prefix) $(SBINDIR) @CIFSUPCALL_PROGS@
 
 # Some symlinks are required for the 'probing' of modules.
 # This mechanism should go at some point..

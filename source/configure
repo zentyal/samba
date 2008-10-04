@@ -1513,7 +1513,7 @@ Optional Packages:
   --with-cifsmount        Include mount.cifs and umount.cifs (Linux only)
                           support (default=yes)
   --with-cifsupcall       Include cifs.upcall (Linux only) support
-                          (default=no)
+                          (default=yes)
   --with-pam              Include PAM support (default=no)
   --with-pam_smbpass      Build PAM module for authenticating against passdb
                           backends (default=no)
@@ -11979,7 +11979,7 @@ echo "${ECHO_T}${ac_cv_gnu_ld_vernr_minor}" >&6; }
            if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
              ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
            fi
-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_l= d_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
              ac_cv_gnu_ld_version_script=yes
            fi
         fi
@@ -33755,6 +33755,277 @@ _ACEOF
 
 fi
 
+{ echo "$as_me:$LINENO: checking for struct sigevent type" >&5
+echo $ECHO_N "checking for struct sigevent type... $ECHO_C" >&6; }
+if test "${samba_cv_struct_sigevent+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#if STDC_HEADERS
+#include <stdlib.h>
+#include <stddef.h>
+#endif
+#include <signal.h>
+int
+main ()
+{
+struct sigevent s;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_struct_sigevent=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_struct_sigevent=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_struct_sigevent" >&5
+echo "${ECHO_T}$samba_cv_struct_sigevent" >&6; }
+if test x"$samba_cv_struct_sigevent" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STRUCT_SIGEVENT 1
+_ACEOF
+
+   { echo "$as_me:$LINENO: checking for struct sigevent.sigev_value.sival_ptr" >&5
+echo $ECHO_N "checking for struct sigevent.sigev_value.sival_ptr... $ECHO_C" >&6; }
+if test "${ac_cv_member_struct_sigevent_sigev_value_sival_ptr+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <signal.h>
+
+int
+main ()
+{
+static struct sigevent ac_aggr;
+if (ac_aggr.sigev_value.sival_ptr)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_member_struct_sigevent_sigev_value_sival_ptr=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <signal.h>
+
+int
+main ()
+{
+static struct sigevent ac_aggr;
+if (sizeof ac_aggr.sigev_value.sival_ptr)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_member_struct_sigevent_sigev_value_sival_ptr=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_member_struct_sigevent_sigev_value_sival_ptr=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_member_struct_sigevent_sigev_value_sival_ptr" >&5
+echo "${ECHO_T}$ac_cv_member_struct_sigevent_sigev_value_sival_ptr" >&6; }
+if test $ac_cv_member_struct_sigevent_sigev_value_sival_ptr = yes; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIVAL_PTR 1
+_ACEOF
+
+
+fi
+{ echo "$as_me:$LINENO: checking for struct sigevent.sigev_value.sigval_ptr" >&5
+echo $ECHO_N "checking for struct sigevent.sigev_value.sigval_ptr... $ECHO_C" >&6; }
+if test "${ac_cv_member_struct_sigevent_sigev_value_sigval_ptr+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <signal.h>
+
+int
+main ()
+{
+static struct sigevent ac_aggr;
+if (ac_aggr.sigev_value.sigval_ptr)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_member_struct_sigevent_sigev_value_sigval_ptr=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <signal.h>
+
+int
+main ()
+{
+static struct sigevent ac_aggr;
+if (sizeof ac_aggr.sigev_value.sigval_ptr)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_member_struct_sigevent_sigev_value_sigval_ptr=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_member_struct_sigevent_sigev_value_sigval_ptr=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_member_struct_sigevent_sigev_value_sigval_ptr" >&5
+echo "${ECHO_T}$ac_cv_member_struct_sigevent_sigev_value_sigval_ptr" >&6; }
+if test $ac_cv_member_struct_sigevent_sigev_value_sigval_ptr = yes; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIGVAL_PTR 1
+_ACEOF
+
+
+fi
+
+fi
+
 { echo "$as_me:$LINENO: checking for struct timespec type" >&5
 echo $ECHO_N "checking for struct timespec type... $ECHO_C" >&6; }
 if test "${samba_cv_struct_timespec+set}" = set; then
@@ -41068,6 +41339,240 @@ _ACEOF
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_STAT_HIRES_TIMESTAMPS 1
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking whether struct stat has st_birthtimespec" >&5
+echo $ECHO_N "checking whether struct stat has st_birthtimespec... $ECHO_C" >&6; }
+if test "${samba_cv_stat_st_birthtimespec+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+		struct timespec t;
+		struct stat s = {0};
+		t = s.st_birthtimespec;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_st_birthtimespec=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_birthtimespec=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_stat_st_birthtimespec" >&5
+echo "${ECHO_T}$samba_cv_stat_st_birthtimespec" >&6; }
+
+if test x"$samba_cv_stat_st_birthtimespec" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_BIRTHTIMESPEC 1
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking whether struct stat has st_birthtimensec" >&5
+echo $ECHO_N "checking whether struct stat has st_birthtimensec... $ECHO_C" >&6; }
+if test "${samba_cv_stat_st_birthtimensec+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+		struct timespec t;
+		struct stat s = {0};
+		t.tv_nsec = s.st_birthtimensec;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_st_birthtimensec=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_birthtimensec=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_stat_st_birthtimensec" >&5
+echo "${ECHO_T}$samba_cv_stat_st_birthtimensec" >&6; }
+
+if test x"$samba_cv_stat_st_birthtimensec" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_BIRTHTIMENSEC 1
+_ACEOF
+
+fi
+
+{ echo "$as_me:$LINENO: checking whether struct stat has st_birthtime" >&5
+echo $ECHO_N "checking whether struct stat has st_birthtime... $ECHO_C" >&6; }
+if test "${samba_cv_stat_st_birthtime+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+		struct time_t t;
+		struct stat s = {0};
+		t = s.st_birthtime;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_st_birthtime=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_birthtime=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_stat_st_birthtime" >&5
+echo "${ECHO_T}$samba_cv_stat_st_birthtime" >&6; }
+
+if test x"$samba_cv_stat_st_birthtime" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_BIRTHTIME 1
 _ACEOF
 
 fi
@@ -52438,73 +52943,6 @@ done
 ################################################
 # look for a method of setting the effective uid
 seteuid=no;
-if test $seteuid = no; then
-{ echo "$as_me:$LINENO: checking for setresuid" >&5
-echo $ECHO_N "checking for setresuid... $ECHO_C" >&6; }
-if test "${samba_cv_USE_SETRESUID+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-
-if test "$cross_compiling" = yes; then
-  samba_cv_USE_SETRESUID=cross
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-#define AUTOCONF_TEST 1
-#define USE_SETRESUID 1
-#include "confdefs.h"
-#include "${srcdir-.}/lib/util_sec.c"
-_ACEOF
-rm -f conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  samba_cv_USE_SETRESUID=yes
-else
-  echo "$as_me: program exited with status $ac_status" >&5
-echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-( exit $ac_status )
-samba_cv_USE_SETRESUID=no
-fi
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
-fi
-
-
-fi
-{ echo "$as_me:$LINENO: result: $samba_cv_USE_SETRESUID" >&5
-echo "${ECHO_T}$samba_cv_USE_SETRESUID" >&6; }
-if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
-    seteuid=yes;
-cat >>confdefs.h <<\_ACEOF
-#define USE_SETRESUID 1
-_ACEOF
-
-fi
-fi
-
 
 if test $seteuid = no; then
 { echo "$as_me:$LINENO: checking for setreuid" >&5
@@ -52568,6 +53006,75 @@ if test x"$samba_cv_USE_SETREUID" = x"yes"; then
     seteuid=yes;
 cat >>confdefs.h <<\_ACEOF
 #define USE_SETREUID 1
+_ACEOF
+
+fi
+fi
+
+# we check for setresuid second as it conflicts with AIO on Linux.
+# see http://samba.org/~tridge/junkcode/aio_uid.c
+if test $seteuid = no; then
+{ echo "$as_me:$LINENO: checking for setresuid" >&5
+echo $ECHO_N "checking for setresuid... $ECHO_C" >&6; }
+if test "${samba_cv_USE_SETRESUID+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+if test "$cross_compiling" = yes; then
+  samba_cv_USE_SETRESUID=cross
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#define AUTOCONF_TEST 1
+#define USE_SETRESUID 1
+#include "confdefs.h"
+#include "${srcdir-.}/lib/util_sec.c"
+_ACEOF
+rm -f conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  samba_cv_USE_SETRESUID=yes
+else
+  echo "$as_me: program exited with status $ac_status" >&5
+echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+samba_cv_USE_SETRESUID=no
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+
+
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_USE_SETRESUID" >&5
+echo "${ECHO_T}$samba_cv_USE_SETRESUID" >&6; }
+if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
+    seteuid=yes;
+cat >>confdefs.h <<\_ACEOF
+#define USE_SETRESUID 1
 _ACEOF
 
 fi
@@ -63537,10 +64044,32 @@ echo "$as_me: error: not on a linux system!" >&2;}
     ;;
   esac
 else
+   case "$host_os" in
+  *linux*)
+	if test x"$use_ads" != x"yes"; then
+		{ echo "$as_me:$LINENO: WARNING: ADS support should be enabled for building cifs.upcall" >&5
+echo "$as_me: WARNING: ADS support should be enabled for building cifs.upcall" >&2;}
+	elif test x"$HAVE_KEYUTILS_H" != "x1"; then
+		{ echo "$as_me:$LINENO: WARNING: keyutils package is required for cifs.upcall" >&5
+echo "$as_me: WARNING: keyutils package is required for cifs.upcall" >&2;}
+	else
+		{ echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
 
-  { echo "$as_me:$LINENO: result: no" >&5
+cat >>confdefs.h <<\_ACEOF
+#define WITH_CIFSUPCALL 1
+_ACEOF
+
+		CIFSUPCALL_PROGS="bin/cifs.upcall"
+		INSTALL_CIFSUPCALL="installcifsupcall"
+		UNINSTALL_CIFSUPCALL="uninstallcifsupcall"
+	fi
+	;;
+  *)
+	{ echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
-
+	;;
+  esac
 
 fi
 
@@ -66693,7 +67222,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
-			LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBTALLOC_LIBS=-ltalloc
 		fi
@@ -66708,7 +67237,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
+	LIBTALLOC_STATIC=\$\(LIBTALLOC_OBJ0\)
 fi
 
 
@@ -66777,7 +67306,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
-			LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBTDB_LIBS=-ltdb
 		fi
@@ -66792,7 +67321,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
+	LIBTDB_STATIC=\$\(LIBTDB_OBJ0\)
 fi
 
 
@@ -66861,7 +67390,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
-			LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBNETAPI_LIBS=-lnetapi
 		fi
@@ -66876,7 +67405,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
+	LIBNETAPI_STATIC=\$\(LIBNETAPI_OBJ0\)
 fi
 
 
@@ -66945,7 +67474,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
-			LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBSMBCLIENT_LIBS=-lsmbclient
 		fi
@@ -66960,7 +67489,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
+	LIBSMBCLIENT_STATIC=\$\(LIBSMBCLIENT_OBJ0\)
 fi
 
 
@@ -67029,7 +67558,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
-			LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
 		fi
@@ -67044,7 +67573,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
+	LIBSMBSHAREMODES_STATIC=\$\(LIBSMBSHAREMODES_OBJ0\)
 fi
 
 
@@ -67115,7 +67644,7 @@ if eval test x"$build_lib" = "xyes" ; then
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
-			LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
+			enable_static=yes
 		else
 			LIBADDNS_LIBS=-laddns
 		fi
@@ -67130,7 +67659,7 @@ else
 echo "${ECHO_T}shared library not selected" >&6; }
 fi
 if test $enable_static = yes; then
-	LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
+	LIBADDNS_STATIC=\$\(LIBADDNS_OBJ0\)
 fi
 
 

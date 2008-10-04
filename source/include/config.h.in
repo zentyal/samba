@@ -1698,6 +1698,15 @@
 /* whether struct stat contains st_atimensec */
 #undef HAVE_STAT_ST_ATIMENSEC
 
+/* whether struct stat contains st_birthtime */
+#undef HAVE_STAT_ST_BIRTHTIME
+
+/* whether struct stat contains st_birthtimensec */
+#undef HAVE_STAT_ST_BIRTHTIMENSEC
+
+/* whether struct stat contains st_birthtimespec */
+#undef HAVE_STAT_ST_BIRTHTIMESPEC
+
 /* Whether the stat struct has a st_blksize property */
 #undef HAVE_STAT_ST_BLKSIZE
 
@@ -1820,6 +1829,15 @@
 
 /* Define to 1 if `method_version' is member of `struct secmethod_table'. */
 #undef HAVE_STRUCT_SECMETHOD_TABLE_METHOD_VERSION
+
+/* Whether we have the struct sigevent */
+#undef HAVE_STRUCT_SIGEVENT
+
+/* Define to 1 if `sigev_value.sigval_ptr' is member of `struct sigevent'. */
+#undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIGVAL_PTR
+
+/* Define to 1 if `sigev_value.sival_ptr' is member of `struct sigevent'. */
+#undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIVAL_PTR
 
 /* Define to 1 if the system has the type `struct sockaddr'. */
 #undef HAVE_STRUCT_SOCKADDR

@@ -29,9 +29,10 @@ create dns_resolver * * /usr/local/sbin/cifs.upcall %k
 
 #include "cifs_spnego.h"
 
-const char *CIFSSPNEGO_VERSION = "1.1";
+const char *CIFSSPNEGO_VERSION = "1.2";
 static const char *prog = "cifs.upcall";
 typedef enum _secType {
+	NONE = 0,
 	KRB5,
 	MS_KRB5
 } secType_t;
@@ -56,7 +57,8 @@ typedef enum _secType {
  *
  * ret: 0 - success, others - failure
 */
-int handle_krb5_mech(const char *oid, const char *principal,
+static int
+handle_krb5_mech(const char *oid, const char *principal,
 		     DATA_BLOB * secblob, DATA_BLOB * sess_key)
 {
 	int retval;
@@ -73,7 +75,7 @@ int handle_krb5_mech(const char *oid, const char *principal,
 	tkt_wrapped = spnego_gen_krb5_wrap(tkt, TOK_ID_KRB_AP_REQ);
 
 	/* and wrap that in a shiny SPNEGO wrapper */
-	*secblob = gen_negTokenInit(OID_KERBEROS5, tkt_wrapped);
+	*secblob = gen_negTokenInit(oid, tkt_wrapped);
 
 	data_blob_free(&tkt_wrapped);
 	data_blob_free(&tkt);
@@ -88,7 +90,8 @@ int handle_krb5_mech(const char *oid, const char *principal,
 #define DKD_HAVE_UID		32
 #define DKD_MUSTHAVE_SET (DKD_HAVE_HOSTNAME|DKD_HAVE_VERSION|DKD_HAVE_SEC)
 
-int decode_key_description(const char *desc, int *ver, secType_t * sec,
+static int
+decode_key_description(const char *desc, int *ver, secType_t * sec,
 			   char **hostname, uid_t * uid)
 {
 	int retval = 0;
@@ -118,6 +121,9 @@ int decode_key_description(const char *desc, int *ver, secType_t * sec,
 			if (strncmp(tkn + 4, "krb5", 4) == 0) {
 				retval |= DKD_HAVE_SEC;
 				*sec = KRB5;
+			} else if (strncmp(tkn + 4, "mskrb5", 6) == 0) {
+				retval |= DKD_HAVE_SEC;
+				*sec = MS_KRB5;
 			}
 		} else if (strncmp(tkn, "uid=", 4) == 0) {
 			errno = 0;
@@ -148,7 +154,8 @@ int decode_key_description(const char *desc, int *ver, secType_t * sec,
 	return retval;
 }
 
-int cifs_resolver(const key_serial_t key, const char *key_descr)
+static int
+cifs_resolver(const key_serial_t key, const char *key_descr)
 {
 	int c;
 	struct addrinfo *addr;
@@ -200,7 +207,7 @@ int cifs_resolver(const key_serial_t key, const char *key_descr)
 	return 0;
 }
 
-void
+static void
 usage(void)
 {
 	syslog(LOG_WARNING, "Usage: %s [-c] [-v] key_serial", prog);
@@ -212,14 +219,15 @@ int main(const int argc, char *const argv[])
 	struct cifs_spnego_msg *keydata = NULL;
 	DATA_BLOB secblob = data_blob_null;
 	DATA_BLOB sess_key = data_blob_null;
-	secType_t sectype;
+	secType_t sectype = NONE;
 	key_serial_t key = 0;
 	size_t datalen;
 	long rc = 1;
-	uid_t uid;
-	int kernel_upcall_version;
+	uid_t uid = 0;
+	int kernel_upcall_version = 0;
 	int c, use_cifs_service_prefix = 0;
 	char *buf, *hostname = NULL;
+	const char *oid;
 
 	openlog(prog, 0, LOG_DAEMON);
 
@@ -280,7 +288,7 @@ int main(const int argc, char *const argv[])
 	}
 	SAFE_FREE(buf);
 
-	if (kernel_upcall_version != CIFS_SPNEGO_UPCALL_VERSION) {
+	if (kernel_upcall_version > CIFS_SPNEGO_UPCALL_VERSION) {
 		syslog(LOG_WARNING,
 		       "incompatible kernel upcall version: 0x%x",
 		       kernel_upcall_version);
@@ -301,6 +309,7 @@ int main(const int argc, char *const argv[])
 
 	// do mech specific authorization
 	switch (sectype) {
+	case MS_KRB5:
 	case KRB5:{
 			char *princ;
 			size_t len;
@@ -319,8 +328,12 @@ int main(const int argc, char *const argv[])
 			}
 			strlcpy(princ + 5, hostname, len - 5);
 
-			rc = handle_krb5_mech(OID_KERBEROS5, princ,
-					      &secblob, &sess_key);
+			if (sectype == MS_KRB5)
+				oid = OID_KERBEROS5_OLD;
+			else
+				oid = OID_KERBEROS5;
+
+			rc = handle_krb5_mech(oid, princ, &secblob, &sess_key);
 			SAFE_FREE(princ);
 			break;
 		}
@@ -344,7 +357,7 @@ int main(const int argc, char *const argv[])
 		rc = 1;
 		goto out;
 	}
-	keydata->version = CIFS_SPNEGO_UPCALL_VERSION;
+	keydata->version = kernel_upcall_version;
 	keydata->flags = 0;
 	keydata->sesskey_len = sess_key.length;
 	keydata->secblob_len = secblob.length;

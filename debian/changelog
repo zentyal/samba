@@ -1,4 +1,4 @@
-samba (2:3.2.3-3) UNRELEASED; urgency=low
+samba (2:3.2.3-3) unstable; urgency=low
 
   [ Steve Langasek ]
   * Add missing manpage for cifs.upcall; thanks to Per Olofsson for pointing
@@ -9,7 +9,7 @@ samba (2:3.2.3-3) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Add ldb-tools to Suggests: of samba. Closes: #488384
 
- -- Jelmer Vernooij <jelmer@samba.org>  Mon, 29 Sep 2008 16:01:38 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 03 Oct 2008 20:37:19 +0200
 
 samba (2:3.2.3-2) unstable; urgency=low
 

@@ -1,5 +1,6 @@
-samba (2:3.2.3-4) UNRELEASED; urgency=low
+samba (2:3.2.4-1) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * New upstream release.
     - debian/rules: we don't need to move cifs.upcall around, it's now
       installed to the right place upstream.

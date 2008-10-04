@@ -1,3 +1,9 @@
+samba (2:3.2.3-4) UNRELEASED; urgency=low
+
+  * New upstream version.
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 03 Oct 2008 23:31:03 -0700
+
 samba (2:3.2.3-3) unstable; urgency=low
 
   [ Steve Langasek ]

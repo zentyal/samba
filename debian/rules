@@ -133,12 +133,6 @@ install: build
 
 	$(MAKE) -C source install DESTDIR=$(DESTDIR)
 
-	# doesn't belong in /sbin; will be fixed upstream, in the meantime
-	# install it in the right place so that we're future-proofed
-ifeq ($(mount_cifs),yes)
-	mv $(DESTDIR)/sbin/cifs.upcall $(DESTDIR)/usr/sbin/cifs.upcall
-endif
-
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the
 	# default library path. Here we move it to /usr/lib/.

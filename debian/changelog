@@ -4,6 +4,8 @@ samba (2:3.2.4-1) UNRELEASED; urgency=low
   * New upstream release.
     - debian/rules: we don't need to move cifs.upcall around, it's now
       installed to the right place upstream.
+    - Fixed in this release:
+      - typo in cifs.upcall.8. Closes: #501499
 
   [ Christian Perrier ]
   * Create /var/lib/samba in samba-common. Thanks to Thierry Carrez for

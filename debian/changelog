@@ -5,6 +5,10 @@ samba (2:3.2.4-1) UNRELEASED; urgency=low
     - debian/rules: we don't need to move cifs.upcall around, it's now
       installed to the right place upstream.
 
+  [ Christian Perrier ]
+  * Create /var/lib/samba in samba-common. Thanks to Thierry Carrez for
+    the patch. Closes: #499359
+
  -- Steve Langasek <vorlon@debian.org>  Fri, 03 Oct 2008 23:31:03 -0700
 
 samba (2:3.2.3-3) unstable; urgency=low

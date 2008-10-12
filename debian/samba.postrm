@@ -2,7 +2,7 @@
 
 if [ "$1" = purge ]; then
 	rm -rf /var/cache/samba/browse.dat
-	rm -rf /var/lib/samba/
+	rm -rf /var/lib/samba/printers/
 	rm -rf /var/log/samba/log.nmbd* /var/log/samba/log.smbd* /var/log/samba/cores/
 	rm -rf /var/run/samba/nmbd.pid /var/run/samba/smbd.pid /var/run/samba/*.tdb
 

@@ -1,4 +1,4 @@
-samba (2:3.2.4-1) UNRELEASED; urgency=low
+samba (2:3.2.4-1) unstable; urgency=low
 
   [ Steve Langasek ]
   * New upstream release.
@@ -11,7 +11,7 @@ samba (2:3.2.4-1) UNRELEASED; urgency=low
   * Create /var/lib/samba in samba-common. Thanks to Thierry Carrez for
     the patch. Closes: #499359
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 03 Oct 2008 23:31:03 -0700
+ -- Christian Perrier <bubulle@debian.org>  Sat, 18 Oct 2008 08:20:31 +0200
 
 samba (2:3.2.3-3) unstable; urgency=low
 

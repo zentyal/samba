@@ -2,6 +2,8 @@ samba (2:3.2.4-2) UNRELEASED; urgency=low
 
   * Better document cases where using a "master" file for smb.conf
     is a bad idea. Closes: #483187
+  * Insert example "add machine script" and "add group script" scripts
+    in the default smb.conf. Closes: #349049
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 19 Oct 2008 18:34:22 +0200
 

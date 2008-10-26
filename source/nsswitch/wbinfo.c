@@ -359,10 +359,11 @@ static bool wbinfo_list_domains(bool list_all_domains, bool verbose)
 	}
 
 	for (i=0; i<num_domains; i++) {
-		d_printf("%-16s", domain_list[i].short_name);
-
-		if (!print_all) {
-			d_printf("\n");	
+		if (print_all) {
+			d_printf("%-16s", domain_list[i].short_name);
+		} else {
+			d_printf("%s", domain_list[i].short_name);
+			d_printf("\n");
 			continue;
 		}
 
@@ -878,6 +879,33 @@ static bool wbinfo_lookupname(const char *full_name)
 	return true;
 }
 
+static char *wbinfo_prompt_pass(const char *prefix,
+				const char *username)
+{
+	char *prompt;
+	const char *ret = NULL;
+
+	prompt = talloc_asprintf(talloc_tos(), "Enter %s's ", username);
+	if (!prompt) {
+		return NULL;
+	}
+	if (prefix) {
+		prompt = talloc_asprintf_append(prompt, "%s ", prefix);
+		if (!prompt) {
+			return NULL;
+		}
+	}
+	prompt = talloc_asprintf_append(prompt, "password: ");
+	if (!prompt) {
+		return NULL;
+	}
+
+	ret = getpass(prompt);
+	TALLOC_FREE(prompt);
+
+	return SMB_STRDUP(ret);
+}
+
 /* Authenticate a user with a plaintext password */
 
 static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
@@ -886,6 +914,7 @@ static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 	struct winbindd_response response;
 	NSS_STATUS result;
 	char *p;
+	char *password;
 
 	/* Send off request */
 
@@ -899,8 +928,12 @@ static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 		fstrcpy(request.data.auth.user, username);
 		fstrcpy(request.data.auth.pass, p + 1);
 		*p = '%';
-	} else
+	} else {
 		fstrcpy(request.data.auth.user, username);
+		password = wbinfo_prompt_pass(NULL, username);
+		fstrcpy(request.data.auth.pass, password);
+		SAFE_FREE(password);
+	}
 
 	request.flags = flags;
 
@@ -946,7 +979,7 @@ static bool wbinfo_auth(char *username)
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	char *s = NULL;
 	char *p = NULL;
-	const char *password = NULL;
+	char *password = NULL;
 	char *name = NULL;
 
 	if ((s = SMB_STRDUP(username)) == NULL) {
@@ -956,9 +989,9 @@ static bool wbinfo_auth(char *username)
 	if ((p = strchr(s, '%')) != NULL) {
 		*p = 0;
 		p++;
-		password = p;
+		password = SMB_STRDUP(p);
 	} else {
-		password = "";
+		password = wbinfo_prompt_pass(NULL, username);
 	}
 
 	name = s;
@@ -977,6 +1010,7 @@ static bool wbinfo_auth(char *username)
 #endif
 
 	SAFE_FREE(s);
+	SAFE_FREE(password);
 
 	return WBC_ERROR_IS_OK(wbc_status);
 }
@@ -993,16 +1027,18 @@ static bool wbinfo_auth_crap(char *username)
 	DATA_BLOB nt = data_blob_null;
 	fstring name_user;
 	fstring name_domain;
-	fstring pass;
+	char *pass;
 	char *p;
 
 	p = strchr(username, '%');
 
 	if (p) {
 		*p = 0;
-		fstrcpy(pass, p + 1);
+		pass = SMB_STRDUP(p + 1);
+	} else {
+		pass = wbinfo_prompt_pass(NULL, username);
 	}
-		
+
 	parse_wbinfo_domain_user(username, name_domain, name_user);
 
 	params.account_name	= name_user;
@@ -1031,6 +1067,7 @@ static bool wbinfo_auth_crap(char *username)
 				      &lm, &nt, NULL)) {
 			data_blob_free(&names_blob);
 			data_blob_free(&server_chal);
+			SAFE_FREE(pass);
 			return false;
 		}
 		data_blob_free(&names_blob);
@@ -1075,6 +1112,7 @@ static bool wbinfo_auth_crap(char *username)
 
 	data_blob_free(&nt);
 	data_blob_free(&lm);
+	SAFE_FREE(pass);
 
 	return WBC_ERROR_IS_OK(wbc_status);
 }
@@ -1303,6 +1341,28 @@ static bool wbinfo_ping(void)
 	return WBC_ERROR_IS_OK(wbc_status);
 }
 
+static bool wbinfo_change_user_password(const char *username)
+{
+	wbcErr wbc_status;
+	char *old_password = NULL;
+	char *new_password = NULL;
+
+	old_password = wbinfo_prompt_pass("old", username);
+	new_password = wbinfo_prompt_pass("new", username);
+
+	wbc_status = wbcChangeUserPassword(username, old_password, new_password);
+
+	/* Display response */
+
+	d_printf("Password change for user %s %s\n", username,
+		WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
+
+	SAFE_FREE(old_password);
+	SAFE_FREE(new_password);
+
+	return WBC_ERROR_IS_OK(wbc_status);
+}
+
 /* Main program */
 
 enum {
@@ -1322,7 +1382,8 @@ enum {
 	OPT_UID_INFO,
 	OPT_GROUP_INFO,
 	OPT_VERBOSE,
-	OPT_ONLINESTATUS
+	OPT_ONLINESTATUS,
+	OPT_CHANGE_USER_PASSWORD
 };
 
 int main(int argc, char **argv, char **envp)
@@ -1389,6 +1450,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 		{ "separator", 0, POPT_ARG_NONE, 0, OPT_SEPARATOR, "Get the active winbind separator", NULL },
 		{ "verbose", 0, POPT_ARG_NONE, 0, OPT_VERBOSE, "Print additional information per command", NULL },
+		{ "change-user-password", 0, POPT_ARG_STRING, &string_arg, OPT_CHANGE_USER_PASSWORD, "Change the password for a user", NULL },
 		POPT_COMMON_CONFIGFILE
 		POPT_COMMON_VERSION
 		POPT_TABLEEND
@@ -1669,6 +1731,14 @@ int main(int argc, char **argv, char **envp)
 				goto done;
 			}
 			break;
+		case OPT_CHANGE_USER_PASSWORD:
+			if (!wbinfo_change_user_password(string_arg)) {
+				d_fprintf(stderr, "Could not change user password "
+					 "for user %s\n", string_arg);
+				goto done;
+			}
+			break;
+
 		/* generic configuration options */
 		case OPT_DOMAIN_NAME:
 			break;

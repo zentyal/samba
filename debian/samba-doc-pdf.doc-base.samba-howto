@@ -1,7 +1,0 @@
-Document: samba-howto-pdf
-Title: The Official Samba-3 HOWTO and Reference Guide
-Author: Jelmer R. Vernooij, John H. Terpstra, Gerald (Jerry) Carter
-Section: Network/File Transfer
-
-Format: PDF
-Files: /usr/share/doc/samba-doc-pdf/Samba3-HOWTO.pdf.gz

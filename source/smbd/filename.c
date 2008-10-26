@@ -101,8 +101,7 @@ get any fatal errors that should immediately terminate the calling
 SMB processing whilst resolving.
 
 If the saved_last_component != 0, then the unmodified last component
-of the pathname is returned there. This is used in an exceptional
-case in reply_mv (so far). If saved_last_component == 0 then nothing
+of the pathname is returned there. If saved_last_component == 0 then nothing
 is returned there.
 
 If last_component_wcard is true then a MS wildcard was detected and
@@ -477,7 +476,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 				}
 
 				/* ENOENT is the only valid error here. */
-				if (errno != ENOENT) {
+				if ((errno != 0) && (errno != ENOENT)) {
 					/*
 					 * ENOTDIR and ELOOP both map to
 					 * NT_STATUS_OBJECT_PATH_NOT_FOUND

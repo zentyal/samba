@@ -25,10 +25,7 @@
 
 #define AIXACL2_MODULE_NAME "aixacl2"
 
-extern struct current_user current_user;
 extern int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid);
-extern NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp,
-	uint32 security_info_sent, SEC_DESC *psd);
 
 extern SMB_ACL_T aixacl_to_smbacl( struct acl *file_acl);
 extern struct acl *aixacl_smb_to_aixacl(SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl);
@@ -180,7 +177,7 @@ static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 }
 
 static NTSTATUS aixjfs2_get_nt_acl(vfs_handle_struct *handle,
-	files_struct *fsp, const char *name,
+	const char *name,
 	uint32 security_info, SEC_DESC **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
@@ -403,11 +400,6 @@ NTSTATUS aixjfs2_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint3
 	return aixjfs2_set_nt_acl_common(fsp, security_info_sent, psd);
 }
 
-NTSTATUS aixjfs2_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, SEC_DESC *psd)
-{
-	return aixjfs2_set_nt_acl_common(fsp, security_info_sent, psd);
-}
-
 int aixjfs2_sys_acl_set_file(vfs_handle_struct *handle,
 			      const char *name,
 			      SMB_ACL_TYPE_T type,
@@ -507,10 +499,6 @@ static vfs_op_tuple aixjfs2_ops[] =
 
 	{SMB_VFS_OP(aixjfs2_fset_nt_acl),
 	SMB_VFS_OP_FSET_NT_ACL,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_set_nt_acl),
-	SMB_VFS_OP_SET_NT_ACL,
 	SMB_VFS_LAYER_TRANSPARENT},
 
 	{SMB_VFS_OP(aixjfs2_sys_acl_get_file),

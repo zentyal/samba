@@ -1,9 +1,0 @@
-#!/bin/sh -e
-
-if [ "$1" = purge ]; then
-	rm -rf /var/cache/samba/netsamlogon_cache.tdb /var/cache/samba/winbindd_cache.tdb
-	rm -rf /var/log/samba/log.winbind* /var/log/samba/log.wb*
-	rm -rf /var/run/samba/winbindd.pid /var/run/samba/winbindd_privileged/
-fi
-
-#DEBHELPER#

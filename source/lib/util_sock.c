@@ -43,9 +43,9 @@ bool is_ipaddress_v4(const char *str)
 
 bool is_ipaddress(const char *str)
 {
+#if defined(HAVE_IPV6)
 	int ret = -1;
 
-#if defined(HAVE_IPV6)
 	if (strchr_m(str, ':')) {
 		char addr[INET6_ADDRSTRLEN];
 		struct in6_addr dest6;
@@ -212,9 +212,9 @@ bool interpret_string_addr(struct sockaddr_storage *pss,
 		const char *str,
 		int flags)
 {
-	char addr[INET6_ADDRSTRLEN];
 	struct addrinfo *res = NULL;
 #if defined(HAVE_IPV6)
+	char addr[INET6_ADDRSTRLEN];
 	unsigned int scope_id = 0;
 
 	if (strchr_m(str, ':')) {
@@ -365,7 +365,7 @@ void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 {
 	struct sockaddr_in *sa = (struct sockaddr_in *)ss;
 	memset(ss, '\0', sizeof(*ss));
-	ss->ss_family = AF_INET;
+	sa->sin_family = AF_INET;
 	sa->sin_addr = ip;
 }
 
@@ -379,7 +379,7 @@ void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 {
 	struct sockaddr_in6 *sa = (struct sockaddr_in6 *)ss;
 	memset(ss, '\0', sizeof(*ss));
-	ss->ss_family = AF_INET6;
+	sa->sin6_family = AF_INET6;
 	sa->sin6_addr = ip;
 }
 #endif
@@ -1379,11 +1379,22 @@ int open_socket_out(int type,
 	return res;
 }
 
-/****************************************************************************
- Create an outgoing TCP socket to any of the addrs. This is for
- simultaneous connects to port 445 and 139 of a host or even a variety
- of DC's all of which are equivalent for our purposes.
-**************************************************************************/
+/*******************************************************************
+ Create an outgoing TCP socket to the first addr that connects.
+
+ This is for simultaneous connection attempts to port 445 and 139 of a host
+ or for simultatneous connection attempts to multiple DCs at once.  We return
+ a socket fd of the first successful connection.
+
+ @param[in] addrs list of Internet addresses and ports to connect to
+ @param[in] num_addrs number of address/port pairs in the addrs list
+ @param[in] timeout time after which we stop waiting for a socket connection
+            to succeed, given in milliseconds
+ @param[out] fd_index the entry in addrs which we successfully connected to
+ @param[out] fd fd of the open and connected socket
+ @return true on a successful connection, false if all connection attempts
+         failed or we timed out
+*******************************************************************/
 
 bool open_any_socket_out(struct sockaddr_storage *addrs, int num_addrs,
 			 int timeout, int *fd_index, int *fd)

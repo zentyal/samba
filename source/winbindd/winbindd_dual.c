@@ -104,6 +104,7 @@ struct winbindd_async_request {
 	void *private_data;
 };
 
+static void async_request_fail(struct winbindd_async_request *state);
 static void async_main_request_sent(void *private_data, bool success);
 static void async_request_sent(void *private_data, bool success);
 static void async_reply_recv(void *private_data, bool success);
@@ -129,6 +130,7 @@ void async_request(TALLOC_CTX *mem_ctx, struct winbindd_child *child,
 
 	state->mem_ctx = mem_ctx;
 	state->child = child;
+	state->reply_timeout_event = NULL;
 	state->request = request;
 	state->response = response;
 	state->continuation = continuation;
@@ -148,10 +150,7 @@ static void async_main_request_sent(void *private_data, bool success)
 
 	if (!success) {
 		DEBUG(5, ("Could not send async request\n"));
-
-		state->response->length = sizeof(struct winbindd_response);
-		state->response->result = WINBINDD_ERROR;
-		state->continuation(state->private_data, False);
+		async_request_fail(state);
 		return;
 	}
 
@@ -197,10 +196,12 @@ static void async_request_fail(struct winbindd_async_request *state)
 
 	TALLOC_FREE(state->reply_timeout_event);
 
-	SMB_ASSERT(state->child_pid != (pid_t)0);
+	/* If child exists and is not already reaped,
+	   send kill signal to child. */
 
-	/* If not already reaped, send kill signal to child. */
-	if (state->child->pid == state->child_pid) {
+	if ((state->child->pid != (pid_t)0) &&
+			(state->child->pid != (pid_t)-1) &&
+			(state->child->pid == state->child_pid)) {
 		kill(state->child_pid, SIGTERM);
 
 		/* 
@@ -296,12 +297,14 @@ static void schedule_async_request(struct winbindd_child *child)
 	}
 
 	if ((child->pid == 0) && (!fork_domain_child(child))) {
-		/* Cancel all outstanding requests */
+		/* fork_domain_child failed.
+		   Cancel all outstanding requests */
 
 		while (request != NULL) {
 			/* request might be free'd in the continuation */
 			struct winbindd_async_request *next = request->next;
-			request->continuation(request->private_data, False);
+
+			async_request_fail(request);
 			request = next;
 		}
 		return;
@@ -498,6 +501,36 @@ void winbindd_flush_negative_conn_cache(struct winbindd_domain *domain)
 	flush_negative_conn_cache_for_domain(domain->name);
 	if (*domain->alt_name) {
 		flush_negative_conn_cache_for_domain(domain->alt_name);
+	}
+}
+
+/* 
+ * Parent winbindd process sets its own debug level first and then
+ * sends a message to all the winbindd children to adjust their debug
+ * level to that of parents.
+ */
+
+void winbind_msg_debug(struct messaging_context *msg_ctx,
+ 			 void *private_data,
+			 uint32_t msg_type,
+			 struct server_id server_id,
+			 DATA_BLOB *data)
+{
+	struct winbindd_child *child;
+
+	DEBUG(10,("winbind_msg_debug: got debug message.\n"));
+	
+	debug_message(msg_ctx, private_data, MSG_DEBUG, server_id, data);
+
+	for (child = children; child != NULL; child = child->next) {
+
+		DEBUG(10,("winbind_msg_debug: sending message to pid %u.\n",
+			(unsigned int)child->pid));
+
+		messaging_send_buf(msg_ctx, pid_to_procid(child->pid),
+			   MSG_DEBUG,
+			   data->data,
+			   strlen((char *) data->data) + 1);
 	}
 }
 
@@ -1004,6 +1037,8 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 	/* Child */
 
+	DEBUG(10, ("Child process %d\n", (int)sys_getpid()));
+
 	/* Stop zombies in children */
 	CatchChild();
 
@@ -1044,6 +1079,8 @@ static bool fork_domain_child(struct winbindd_child *child)
 			     MSG_DUMP_EVENT_LIST, NULL);
 	messaging_deregister(winbind_messaging_context(),
 			     MSG_WINBIND_DUMP_DOMAIN_LIST, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_DEBUG, NULL);
 
 	/* Handle online/offline messages. */
 	messaging_register(winbind_messaging_context(), NULL,
@@ -1054,6 +1091,8 @@ static bool fork_domain_child(struct winbindd_child *child)
 			   MSG_WINBIND_ONLINESTATUS, child_msg_onlinestatus);
 	messaging_register(winbind_messaging_context(), NULL,
 			   MSG_DUMP_EVENT_LIST, child_msg_dump_event_list);
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_DEBUG, debug_message);
 
 	if ( child->domain ) {
 		child->domain->startup = True;
@@ -1070,6 +1109,10 @@ static bool fork_domain_child(struct winbindd_child *child)
 		if ((domain != child->domain) && !domain->primary) {
 			TALLOC_FREE(domain->check_online_event);
 		}
+	}
+
+	if (primary_domain == NULL) {
+		smb_panic("no primary domain found");
 	}
 
 	/* Ensure we're not handling an event inherited from
@@ -1114,7 +1157,8 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 		/* check for signals */
 		winbind_check_sigterm(false);
-		winbind_check_sighup();
+		winbind_check_sighup(override_logfile ? NULL :
+				child->logfilename);
 
 		run_events(winbind_event_context(), 0, NULL, NULL);
 

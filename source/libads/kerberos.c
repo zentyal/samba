@@ -323,6 +323,11 @@ int ads_kinit_password(ADS_STRUCT *ads)
 	const char *account_name;
 	fstring acct_name;
 
+	if (ads->auth.flags & ADS_AUTH_USER_CREDS) {
+		account_name = ads->auth.user_name;
+		goto got_accountname;
+	}
+
 	if ( IS_DC ) {
 		/* this will end up getting a ticket for DOMAIN@RUSTED.REA.LM */
 		account_name = lp_workgroup();
@@ -338,6 +343,7 @@ int ads_kinit_password(ADS_STRUCT *ads)
 			account_name = ads->auth.user_name;
 	}
 
+ got_accountname:
 	if (asprintf(&s, "%s@%s", account_name, ads->auth.realm) == -1) {
 		return KRB5_CC_NOMEM;
 	}
@@ -735,6 +741,9 @@ static char *print_kdc_line(char *mem_ctx,
 /************************************************************************
  Create a string list of available kdc's, possibly searching by sitename.
  Does DNS queries.
+
+ If "sitename" is given, the DC's in that site are listed first.
+
 ************************************************************************/
 
 static char *get_kdc_ip_string(char *mem_ctx,
@@ -753,7 +762,10 @@ static char *get_kdc_ip_string(char *mem_ctx,
 		return NULL;
 	}
 
-	/* Get the KDC's only in this site. */
+	/*
+	 * First get the KDC's only in this site, the rest will be
+	 * appended later
+	 */
 
 	if (sitename) {
 
@@ -881,9 +893,9 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 
 	file_contents = talloc_asprintf(fname,
 					"[libdefaults]\n\tdefault_realm = %s\n"
-					"default_tgs_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n"
-					"default_tkt_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n"
-					"preferred_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n\n"
+					"\tdefault_tgs_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n"
+					"\tdefault_tkt_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n"
+					"\tpreferred_enctypes = RC4-HMAC DES-CBC-CRC DES-CBC-MD5\n\n"
 					"[realms]\n\t%s = {\n"
 					"\t%s\t}\n",
 					realm_upper, realm_upper, kdc_ip_string);

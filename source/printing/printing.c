@@ -1979,27 +1979,24 @@ static bool print_job_delete1(int snum, uint32 jobid)
  Return true if the current user owns the print job.
 ****************************************************************************/
 
-static bool is_owner(struct current_user *user, const char *servicename,
+static bool is_owner(struct auth_serversupplied_info *server_info,
+		     const char *servicename,
 		     uint32 jobid)
 {
 	struct printjob *pjob = print_job_find(servicename, jobid);
-	user_struct *vuser;
 
-	if (!pjob || !user)
+	if (!pjob || !server_info)
 		return False;
 
-	if ((vuser = get_valid_user_struct(user->vuid)) != NULL) {
-		return strequal(pjob->user, vuser->user.smb_name);
-	} else {
-		return strequal(pjob->user, uidtoname(user->ut.uid));
-	}
+	return strequal(pjob->user, server_info->sanitized_username);
 }
 
 /****************************************************************************
  Delete a print job.
 ****************************************************************************/
 
-bool print_job_delete(struct current_user *user, int snum, uint32 jobid, WERROR *errcode)
+bool print_job_delete(struct auth_serversupplied_info *server_info, int snum,
+		      uint32 jobid, WERROR *errcode)
 {
 	const char* sharename = lp_const_servicename( snum );
 	struct printjob *pjob;
@@ -2008,13 +2005,13 @@ bool print_job_delete(struct current_user *user, int snum, uint32 jobid, WERROR 
 
 	*errcode = WERR_OK;
 		
-	owner = is_owner(user, lp_const_servicename(snum), jobid);
+	owner = is_owner(server_info, lp_const_servicename(snum), jobid);
 	
 	/* Check access against security descriptor or whether the user
 	   owns their job. */
 
 	if (!owner && 
-	    !print_access_check(user, snum, JOB_ACCESS_ADMINISTER)) {
+	    !print_access_check(server_info, snum, JOB_ACCESS_ADMINISTER)) {
 		DEBUG(3, ("delete denied by security descriptor\n"));
 		*errcode = WERR_ACCESS_DENIED;
 
@@ -2022,7 +2019,8 @@ bool print_job_delete(struct current_user *user, int snum, uint32 jobid, WERROR 
 		sys_adminlog( LOG_ERR, 
 			      "Permission denied-- user not allowed to delete, \
 pause, or resume print job. User name: %s. Printer name: %s.",
-			      uidtoname(user->ut.uid), PRINTERNAME(snum) );
+			      uidtoname(server_info->utok.uid),
+			      PRINTERNAME(snum) );
 		/* END_ADMIN_LOG */
 
 		return False;
@@ -2066,7 +2064,8 @@ pause, or resume print job. User name: %s. Printer name: %s.",
  Pause a job.
 ****************************************************************************/
 
-bool print_job_pause(struct current_user *user, int snum, uint32 jobid, WERROR *errcode)
+bool print_job_pause(struct auth_serversupplied_info *server_info, int snum,
+		     uint32 jobid, WERROR *errcode)
 {
 	const char* sharename = lp_const_servicename(snum);
 	struct printjob *pjob;
@@ -2075,7 +2074,7 @@ bool print_job_pause(struct current_user *user, int snum, uint32 jobid, WERROR *
 
 	pjob = print_job_find(sharename, jobid);
 	
-	if (!pjob || !user) {
+	if (!pjob || !server_info) {
 		DEBUG(10, ("print_job_pause: no pjob or user for jobid %u\n",
 			(unsigned int)jobid ));
 		return False;
@@ -2087,15 +2086,16 @@ bool print_job_pause(struct current_user *user, int snum, uint32 jobid, WERROR *
 		return False;
 	}
 
-	if (!is_owner(user, lp_const_servicename(snum), jobid) &&
-	    !print_access_check(user, snum, JOB_ACCESS_ADMINISTER)) {
+	if (!is_owner(server_info, lp_const_servicename(snum), jobid) &&
+	    !print_access_check(server_info, snum, JOB_ACCESS_ADMINISTER)) {
 		DEBUG(3, ("pause denied by security descriptor\n"));
 
 		/* BEGIN_ADMIN_LOG */
 		sys_adminlog( LOG_ERR, 
 			"Permission denied-- user not allowed to delete, \
 pause, or resume print job. User name: %s. Printer name: %s.",
-				uidtoname(user->ut.uid), PRINTERNAME(snum) );
+			      uidtoname(server_info->utok.uid),
+			      PRINTERNAME(snum) );
 		/* END_ADMIN_LOG */
 
 		*errcode = WERR_ACCESS_DENIED;
@@ -2126,7 +2126,8 @@ pause, or resume print job. User name: %s. Printer name: %s.",
  Resume a job.
 ****************************************************************************/
 
-bool print_job_resume(struct current_user *user, int snum, uint32 jobid, WERROR *errcode)
+bool print_job_resume(struct auth_serversupplied_info *server_info, int snum,
+		      uint32 jobid, WERROR *errcode)
 {
 	const char *sharename = lp_const_servicename(snum);
 	struct printjob *pjob;
@@ -2134,8 +2135,8 @@ bool print_job_resume(struct current_user *user, int snum, uint32 jobid, WERROR 
 	struct printif *current_printif = get_printer_fns( snum );
 
 	pjob = print_job_find(sharename, jobid);
-	
-	if (!pjob || !user) {
+
+	if (!pjob || !server_info) {
 		DEBUG(10, ("print_job_resume: no pjob or user for jobid %u\n",
 			(unsigned int)jobid ));
 		return False;
@@ -2147,8 +2148,8 @@ bool print_job_resume(struct current_user *user, int snum, uint32 jobid, WERROR 
 		return False;
 	}
 
-	if (!is_owner(user, lp_const_servicename(snum), jobid) &&
-	    !print_access_check(user, snum, JOB_ACCESS_ADMINISTER)) {
+	if (!is_owner(server_info, lp_const_servicename(snum), jobid) &&
+	    !print_access_check(server_info, snum, JOB_ACCESS_ADMINISTER)) {
 		DEBUG(3, ("resume denied by security descriptor\n"));
 		*errcode = WERR_ACCESS_DENIED;
 
@@ -2156,7 +2157,8 @@ bool print_job_resume(struct current_user *user, int snum, uint32 jobid, WERROR 
 		sys_adminlog( LOG_ERR, 
 			 "Permission denied-- user not allowed to delete, \
 pause, or resume print job. User name: %s. Printer name: %s.",
-			uidtoname(user->ut.uid), PRINTERNAME(snum) );
+			      uidtoname(server_info->utok.uid),
+			      PRINTERNAME(snum) );
 		/* END_ADMIN_LOG */
 		return False;
 	}
@@ -2356,12 +2358,12 @@ static bool add_to_jobs_changed(struct tdb_print_db *pdb, uint32 jobid)
  Start spooling a job - return the jobid.
 ***************************************************************************/
 
-uint32 print_job_start(struct current_user *user, int snum, char *jobname, NT_DEVICEMODE *nt_devmode )
+uint32 print_job_start(struct auth_serversupplied_info *server_info, int snum,
+		       char *jobname, NT_DEVICEMODE *nt_devmode )
 {
 	uint32 jobid;
 	char *path;
 	struct printjob pjob;
-	user_struct *vuser;
 	const char *sharename = lp_const_servicename(snum);
 	struct tdb_print_db *pdb = get_print_db_byname(sharename);
 	int njobs;
@@ -2371,7 +2373,7 @@ uint32 print_job_start(struct current_user *user, int snum, char *jobname, NT_DE
 	if (!pdb)
 		return (uint32)-1;
 
-	if (!print_access_check(user, snum, PRINTER_ACCESS_USE)) {
+	if (!print_access_check(server_info, snum, PRINTER_ACCESS_USE)) {
 		DEBUG(3, ("print_job_start: job start denied by security descriptor\n"));
 		release_print_db(pdb);
 		return (uint32)-1;
@@ -2436,15 +2438,14 @@ uint32 print_job_start(struct current_user *user, int snum, char *jobname, NT_DE
 	
 	fstrcpy(pjob.jobname, jobname);
 
-	if ((vuser = get_valid_user_struct(user->vuid)) != NULL) {
-		fstrcpy(pjob.user, lp_printjob_username(snum));
-		standard_sub_basic(vuser->user.smb_name, vuser->user.domain, 
-				   pjob.user, sizeof(pjob.user)-1);
-		/* ensure NULL termination */ 
-		pjob.user[sizeof(pjob.user)-1] = '\0'; 
-	} else {
-		fstrcpy(pjob.user, uidtoname(user->ut.uid));
-	}
+	fstrcpy(pjob.user, lp_printjob_username(snum));
+	standard_sub_advanced(sharename, server_info->sanitized_username,
+			      path, server_info->utok.gid, 
+			      server_info->sanitized_username,
+			      pdb_get_domain(server_info->sam_account),
+			      pjob.user, sizeof(pjob.user)-1);
+	/* ensure NULL termination */
+	pjob.user[sizeof(pjob.user)-1] = '\0';
 
 	fstrcpy(pjob.queuename, lp_const_servicename(snum));
 
@@ -2772,12 +2773,14 @@ int print_queue_status(int snum,
  Pause a queue.
 ****************************************************************************/
 
-bool print_queue_pause(struct current_user *user, int snum, WERROR *errcode)
+bool print_queue_pause(struct auth_serversupplied_info *server_info, int snum,
+		       WERROR *errcode)
 {
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 	
-	if (!print_access_check(user, snum, PRINTER_ACCESS_ADMINISTER)) {
+	if (!print_access_check(server_info, snum,
+				PRINTER_ACCESS_ADMINISTER)) {
 		*errcode = WERR_ACCESS_DENIED;
 		return False;
 	}
@@ -2808,12 +2811,14 @@ bool print_queue_pause(struct current_user *user, int snum, WERROR *errcode)
  Resume a queue.
 ****************************************************************************/
 
-bool print_queue_resume(struct current_user *user, int snum, WERROR *errcode)
+bool print_queue_resume(struct auth_serversupplied_info *server_info, int snum,
+			WERROR *errcode)
 {
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 
-	if (!print_access_check(user, snum, PRINTER_ACCESS_ADMINISTER)) {
+	if (!print_access_check(server_info, snum,
+				PRINTER_ACCESS_ADMINISTER)) {
 		*errcode = WERR_ACCESS_DENIED;
 		return False;
 	}
@@ -2844,7 +2849,8 @@ bool print_queue_resume(struct current_user *user, int snum, WERROR *errcode)
  Purge a queue - implemented by deleting all jobs that we can delete.
 ****************************************************************************/
 
-bool print_queue_purge(struct current_user *user, int snum, WERROR *errcode)
+bool print_queue_purge(struct auth_serversupplied_info *server_info, int snum,
+		       WERROR *errcode)
 {
 	print_queue_struct *queue;
 	print_status_struct status;
@@ -2854,14 +2860,16 @@ bool print_queue_purge(struct current_user *user, int snum, WERROR *errcode)
 	/* Force and update so the count is accurate (i.e. not a cached count) */
 	print_queue_update(snum, True);
 	
-	can_job_admin = print_access_check(user, snum, JOB_ACCESS_ADMINISTER);
+	can_job_admin = print_access_check(server_info, snum,
+					   JOB_ACCESS_ADMINISTER);
 	njobs = print_queue_status(snum, &queue, &status);
 	
 	if ( can_job_admin )
 		become_root();
 
 	for (i=0;i<njobs;i++) {
-		bool owner = is_owner(user, lp_const_servicename(snum), queue[i].job);
+		bool owner = is_owner(server_info, lp_const_servicename(snum),
+				      queue[i].job);
 
 		if (owner || can_job_admin) {
 			print_job_delete1(snum, queue[i].job);

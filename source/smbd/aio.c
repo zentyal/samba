@@ -24,7 +24,17 @@
 
 /* The signal we'll use to signify aio done. */
 #ifndef RT_SIGNAL_AIO
-#define RT_SIGNAL_AIO (SIGRTMIN+3)
+#ifndef SIGRTMIN
+#define SIGRTMIN	NSIG
+#endif
+#define RT_SIGNAL_AIO	(SIGRTMIN+3)
+#endif
+
+#ifndef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIVAL_PTR
+#ifdef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIGVAL_PTR
+#define sival_int	sigval_int
+#define sival_ptr	sigval_ptr
+#endif
 #endif
 
 /****************************************************************************
@@ -268,12 +278,15 @@ bool schedule_aio_read_and_X(connection_struct *conn,
 	a->aio_sigevent.sigev_signo  = RT_SIGNAL_AIO;
 	a->aio_sigevent.sigev_value.sival_int = aio_ex->mid;
 
+	become_root();
 	if (SMB_VFS_AIO_READ(fsp,a) == -1) {
 		DEBUG(0,("schedule_aio_read_and_X: aio_read failed. "
 			 "Error %s\n", strerror(errno) ));
 		delete_aio_ex(aio_ex);
+		unbecome_root();
 		return False;
 	}
+	unbecome_root();
 
 	DEBUG(10,("schedule_aio_read_and_X: scheduled aio_read for file %s, "
 		  "offset %.0f, len = %u (mid = %u)\n",
@@ -366,13 +379,16 @@ bool schedule_aio_write_and_X(connection_struct *conn,
 	a->aio_sigevent.sigev_signo  = RT_SIGNAL_AIO;
 	a->aio_sigevent.sigev_value.sival_int = aio_ex->mid;
 
+	become_root();
 	if (SMB_VFS_AIO_WRITE(fsp,a) == -1) {
 		DEBUG(3,("schedule_aio_wrote_and_X: aio_write failed. "
 			 "Error %s\n", strerror(errno) ));
 		delete_aio_ex(aio_ex);
+		unbecome_root();
 		return False;
 	}
-
+	unbecome_root();
+	
 	release_level_2_oplocks_on_change(fsp);
 
 	if (!write_through && !lp_syncalways(SNUM(fsp->conn))
@@ -574,6 +590,11 @@ static int handle_aio_write_complete(struct aio_extra *aio_ex)
 static bool handle_aio_completed(struct aio_extra *aio_ex, int *perr)
 {
 	int err;
+
+	if(!aio_ex) {
+	        DEBUG(3, ("handle_aio_completed: Non-existing aio_ex passed\n"));
+		return false;
+	}
 
 	/* Ensure the operation has really completed. */
 	if (SMB_VFS_AIO_ERROR(aio_ex->fsp, &aio_ex->acb) == EINPROGRESS) {

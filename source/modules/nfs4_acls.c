@@ -25,6 +25,8 @@
 
 #define SMBACL4_PARAM_TYPE_NAME "nfs4"
 
+extern const struct generic_mapping file_generic_mapping;
+
 #define SMB_ACE4_INT_MAGIC 0x76F8A967
 typedef struct _SMB_ACE4_INT_T
 {
@@ -42,7 +44,6 @@ typedef struct _SMB_ACL4_INT_T
 	SMB_ACE4_INT_T	*last;
 } SMB_ACL4_INT_T;
 
-extern struct current_user current_user;
 extern int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid);
 extern NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp,
 	uint32 security_info_sent, SEC_DESC *psd);
@@ -529,6 +530,8 @@ static bool smbacl4_fill_ace4(
 	ace_v4->aceMask = ace_nt->access_mask &
 		(STD_RIGHT_ALL_ACCESS | SA_RIGHT_FILE_ALL_ACCESS);
 
+	se_map_generic(&ace_v4->aceMask, &file_generic_mapping);
+
 	if (ace_v4->aceFlags!=ace_nt->flags)
 		DEBUG(9, ("ace_v4->aceFlags(0x%x)!=ace_nt->flags(0x%x)\n",
 			ace_v4->aceFlags, ace_nt->flags));
@@ -732,7 +735,8 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 			need_chown = True;
 		}
 		if (need_chown) {
-			if ((newUID == (uid_t)-1 || newUID == current_user.ut.uid)) {
+			if ((newUID == (uid_t)-1
+			     || newUID == fsp->conn->server_info->utok.uid)) {
 				if(try_chown(fsp->conn, fsp->fsp_name, newUID, newGID)) {
 					DEBUG(3,("chown %s, %u, %u failed. Error = %s.\n",
 						 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID, 

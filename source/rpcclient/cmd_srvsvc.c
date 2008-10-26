@@ -172,7 +172,6 @@ static WERROR cmd_srvsvc_srv_query_info(struct rpc_pipe_client *cli,
 	union srvsvc_NetSrvInfo info;
 	WERROR result;
 	NTSTATUS status;
-	const char *server_name;
 
 	if (argc > 2) {
 		printf("Usage: %s [infolevel]\n", argv[0]);
@@ -182,12 +181,8 @@ static WERROR cmd_srvsvc_srv_query_info(struct rpc_pipe_client *cli,
 	if (argc == 2)
 		info_level = atoi(argv[1]);
 
-	server_name = talloc_asprintf_strupper_m(mem_ctx, "\\\\%s",
-						 cli->cli->desthost);
-	W_ERROR_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_srvsvc_NetSrvGetInfo(cli, mem_ctx,
-					     server_name,
+					     cli->srv_name_slash,
 					     info_level,
 					     &info,
 					     &result);
@@ -336,7 +331,7 @@ static WERROR cmd_srvsvc_net_share_enum_int(struct rpc_pipe_client *cli,
 	switch (opcode) {
 		case NDR_SRVSVC_NETSHAREENUM:
 			status = rpccli_srvsvc_NetShareEnum(cli, mem_ctx,
-							    cli->cli->desthost,
+							    cli->desthost,
 							    &info_ctr,
 							    preferred_len,
 							    &totalentries,
@@ -345,7 +340,7 @@ static WERROR cmd_srvsvc_net_share_enum_int(struct rpc_pipe_client *cli,
 			break;
 		case NDR_SRVSVC_NETSHAREENUMALL:
 			status = rpccli_srvsvc_NetShareEnumAll(cli, mem_ctx,
-							       cli->cli->desthost,
+							       cli->desthost,
 							       &info_ctr,
 							       preferred_len,
 							       &totalentries,
@@ -420,7 +415,7 @@ static WERROR cmd_srvsvc_net_share_get_info(struct rpc_pipe_client *cli,
 		info_level = atoi(argv[2]);
 
 	status = rpccli_srvsvc_NetShareGetInfo(cli, mem_ctx,
-					       cli->cli->desthost,
+					       cli->desthost,
 					       argv[1],
 					       info_level,
 					       &info,
@@ -468,7 +463,7 @@ static WERROR cmd_srvsvc_net_share_set_info(struct rpc_pipe_client *cli,
 
 	/* retrieve share info */
 	status = rpccli_srvsvc_NetShareGetInfo(cli, mem_ctx,
-					       cli->cli->desthost,
+					       cli->desthost,
 					       argv[1],
 					       info_level,
 					       &info_get,
@@ -482,7 +477,7 @@ static WERROR cmd_srvsvc_net_share_set_info(struct rpc_pipe_client *cli,
 
 	/* set share info */
 	status = rpccli_srvsvc_NetShareSetInfo(cli, mem_ctx,
-					       cli->cli->desthost,
+					       cli->desthost,
 					       argv[1],
 					       info_level,
 					       &info_get,
@@ -495,7 +490,7 @@ static WERROR cmd_srvsvc_net_share_set_info(struct rpc_pipe_client *cli,
 
 	/* re-retrieve share info and display */
 	status = rpccli_srvsvc_NetShareGetInfo(cli, mem_ctx,
-					       cli->cli->desthost,
+					       cli->desthost,
 					       argv[1],
 					       info_level,
 					       &info_get,
@@ -525,7 +520,7 @@ static WERROR cmd_srvsvc_net_remote_tod(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetRemoteTOD(cli, mem_ctx,
-					    cli->cli->srv_name_slash,
+					    cli->srv_name_slash,
 					    &tod,
 					    &result);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -568,7 +563,7 @@ static WERROR cmd_srvsvc_net_file_enum(struct rpc_pipe_client *cli,
 	info_ctr.ctr.ctr3 = &ctr3;
 
 	status = rpccli_srvsvc_NetFileEnum(cli, mem_ctx,
-					   cli->cli->desthost,
+					   cli->desthost,
 					   NULL,
 					   NULL,
 					   &info_ctr,
@@ -603,7 +598,7 @@ static WERROR cmd_srvsvc_net_name_validate(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetNameValidate(cli, mem_ctx,
-					       cli->cli->desthost,
+					       cli->desthost,
 					       argv[1],
 					       name_type,
 					       flags,
@@ -630,7 +625,7 @@ static WERROR cmd_srvsvc_net_file_get_sec(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetGetFileSecurity(cli, mem_ctx,
-						  cli->cli->desthost,
+						  cli->desthost,
 						  argv[1],
 						  argv[2],
 						  SECINFO_DACL,
@@ -660,7 +655,7 @@ static WERROR cmd_srvsvc_net_sess_del(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetSessDel(cli, mem_ctx,
-					  cli->cli->desthost,
+					  cli->desthost,
 					  argv[1],
 					  argv[2],
 					  &result);
@@ -744,7 +739,7 @@ static WERROR cmd_srvsvc_net_sess_enum(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetSessEnum(cli, mem_ctx,
-					  cli->cli->desthost,
+					  cli->desthost,
 					  client,
 					  user,
 					  &info_ctr,
@@ -788,7 +783,7 @@ static WERROR cmd_srvsvc_net_disk_enum(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(info);
 
 	status = rpccli_srvsvc_NetDiskEnum(cli, mem_ctx,
-					   cli->cli->desthost,
+					   cli->desthost,
 					   level,
 					   &info,
 					   0xffffffff,
@@ -855,7 +850,7 @@ static WERROR cmd_srvsvc_net_conn_enum(struct rpc_pipe_client *cli,
 	}
 
 	status = rpccli_srvsvc_NetConnEnum(cli, mem_ctx,
-					   cli->cli->desthost,
+					   cli->desthost,
 					   path,
 					   &info_ctr,
 					   0xffffffff,
@@ -878,19 +873,19 @@ struct cmd_set srvsvc_commands[] = {
 
 	{ "SRVSVC" },
 
-	{ "srvinfo",     RPC_RTYPE_WERROR, NULL, cmd_srvsvc_srv_query_info, PI_SRVSVC, NULL, "Server query info", "" },
-	{ "netshareenum",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_enum, PI_SRVSVC, NULL, "Enumerate shares", "" },
-	{ "netshareenumall",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_enum_all, PI_SRVSVC, NULL, "Enumerate all shares", "" },
-	{ "netsharegetinfo",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_get_info, PI_SRVSVC, NULL, "Get Share Info", "" },
-	{ "netsharesetinfo",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_set_info, PI_SRVSVC, NULL, "Set Share Info", "" },
-	{ "netfileenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_file_enum,  PI_SRVSVC, NULL, "Enumerate open files", "" },
-	{ "netremotetod",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_remote_tod, PI_SRVSVC, NULL, "Fetch remote time of day", "" },
-	{ "netnamevalidate", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_name_validate, PI_SRVSVC, NULL, "Validate sharename", "" },
-	{ "netfilegetsec", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_file_get_sec, PI_SRVSVC, NULL, "Get File security", "" },
-	{ "netsessdel", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_sess_del, PI_SRVSVC, NULL, "Delete Session", "" },
-	{ "netsessenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_sess_enum, PI_SRVSVC, NULL, "Enumerate Sessions", "" },
-	{ "netdiskenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_disk_enum, PI_SRVSVC, NULL, "Enumerate Disks", "" },
-	{ "netconnenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_conn_enum, PI_SRVSVC, NULL, "Enumerate Connections", "" },
+	{ "srvinfo",     RPC_RTYPE_WERROR, NULL, cmd_srvsvc_srv_query_info, &ndr_table_srvsvc.syntax_id, NULL, "Server query info", "" },
+	{ "netshareenum",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_enum, &ndr_table_srvsvc.syntax_id, NULL, "Enumerate shares", "" },
+	{ "netshareenumall",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_enum_all, &ndr_table_srvsvc.syntax_id, NULL, "Enumerate all shares", "" },
+	{ "netsharegetinfo",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_get_info, &ndr_table_srvsvc.syntax_id, NULL, "Get Share Info", "" },
+	{ "netsharesetinfo",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_share_set_info, &ndr_table_srvsvc.syntax_id, NULL, "Set Share Info", "" },
+	{ "netfileenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_file_enum,  &ndr_table_srvsvc.syntax_id, NULL, "Enumerate open files", "" },
+	{ "netremotetod",RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_remote_tod, &ndr_table_srvsvc.syntax_id, NULL, "Fetch remote time of day", "" },
+	{ "netnamevalidate", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_name_validate, &ndr_table_srvsvc.syntax_id, NULL, "Validate sharename", "" },
+	{ "netfilegetsec", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_file_get_sec, &ndr_table_srvsvc.syntax_id, NULL, "Get File security", "" },
+	{ "netsessdel", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_sess_del, &ndr_table_srvsvc.syntax_id, NULL, "Delete Session", "" },
+	{ "netsessenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_sess_enum, &ndr_table_srvsvc.syntax_id, NULL, "Enumerate Sessions", "" },
+	{ "netdiskenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_disk_enum, &ndr_table_srvsvc.syntax_id, NULL, "Enumerate Disks", "" },
+	{ "netconnenum", RPC_RTYPE_WERROR, NULL, cmd_srvsvc_net_conn_enum, &ndr_table_srvsvc.syntax_id, NULL, "Enumerate Connections", "" },
 
 	{ NULL }
 };

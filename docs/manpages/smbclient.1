@@ -1,11 +1,11 @@
 .\"     Title: smbclient
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 06/26/2008
+.\"      Date: 10/02/2008
 .\"    Manual: User Commands
 .\"    Source: Samba 3.2
 .\"
-.TH "SMBCLIENT" "1" "06/26/2008" "Samba 3\.2" "User Commands"
+.TH "SMBCLIENT" "1" "10/02/2008" "Samba 3\.2" "User Commands"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -693,9 +693,9 @@ getfacl <filename>
 Requires the server support the UNIX extensions\. Requests and prints the POSIX ACL on a file\.
 .RE
 .PP
-hardlink <src> <dest<
+hardlink <src> <dest>
 .RS 4
-Creates a hardlink on the server using Windows CIFS semantics\. the POSIX ACL on a file\.
+Creates a hardlink on the server using Windows CIFS semantics\.
 .RE
 .PP
 help [command]
@@ -880,6 +880,14 @@ Toggle directory recursion for the commands mget and mput\.
 When toggled ON, these commands will process all directories in the source directory (i\.e\., the directory they are copying from ) and will recurse into any that match the mask specified to the command\. Only files that match the mask specified using the mask command will be retrieved\. See also the mask command\.
 .sp
 When recursion is toggled OFF, only files from the current working directory on the source machine that match the mask specified to the mget or mput commands will be copied, and any mask specified using the mask command will be ignored\.
+.RE
+.PP
+rename <old filename> <new filename>
+.RS 4
+Rename files in the current working directory on the server from
+\fIold filename\fR
+to
+\fInew filename\fR\.
 .RE
 .PP
 rm <mask>

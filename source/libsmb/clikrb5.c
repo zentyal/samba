@@ -27,15 +27,17 @@
 
 #ifdef HAVE_KRB5
 
-#ifdef HAVE_KRB5_KEYBLOCK_KEYVALUE /* Heimdal */
-#define KRB5_KEY_TYPE(k)	((k)->keytype) 
-#define KRB5_KEY_LENGTH(k)	((k)->keyvalue.length)
-#define KRB5_KEY_DATA(k)	((k)->keyvalue.data)
-#else /* MIT */
-#define	KRB5_KEY_TYPE(k)	((k)->enctype)
-#define KRB5_KEY_LENGTH(k)	((k)->length)
-#define KRB5_KEY_DATA(k)	((k)->contents)
-#endif /* HAVE_KRB5_KEYBLOCK_KEYVALUE */
+#define GSSAPI_CHECKSUM      0x8003             /* Checksum type value for Kerberos */
+#define GSSAPI_BNDLENGTH     16                 /* Bind Length (rfc-1964 pg.3) */
+#define GSSAPI_CHECKSUM_SIZE (12+GSSAPI_BNDLENGTH)
+
+#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
+static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
+                                         krb5_auth_context *auth_context,
+                                         krb5_creds *credsp,
+                                         krb5_ccache ccache,
+                                         krb5_data *authenticator);
+#endif
 
 /**************************************************************
  Wrappers around kerberos string functions that convert from
@@ -52,8 +54,9 @@
 {
 	krb5_error_code ret;
 	char *utf8_name;
+	size_t converted_size;
 
-	if (push_utf8_allocate(&utf8_name, name) == (size_t)-1) {
+	if (!push_utf8_allocate(&utf8_name, name, &converted_size)) {
 		return ENOMEM;
 	}
 
@@ -73,9 +76,10 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 {
 	krb5_error_code ret;
 	char *utf8_name;
+	size_t converted_size;
 
 	*principal = NULL;
-	if (push_utf8_allocate(&utf8_name, name) == (size_t)-1) {
+	if (!push_utf8_allocate(&utf8_name, name, &converted_size)) {
 		return ENOMEM;
 	}
 
@@ -96,6 +100,7 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 {
 	krb5_error_code ret;
 	char *utf8_name;
+	size_t converted_size;
 
 	*unix_name = NULL;
 	ret = krb5_unparse_name(context, principal, &utf8_name);
@@ -103,7 +108,7 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 		return ret;
 	}
 
-	if (pull_utf8_allocate(unix_name, utf8_name)==-1) {
+	if (!pull_utf8_allocate(unix_name, utf8_name, &converted_size)) {
 		krb5_free_unparsed_name(context, utf8_name);
 		return ENOMEM;
 	}
@@ -207,13 +212,13 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 #endif
 
 #if defined(HAVE_KRB5_PRINCIPAL2SALT) && defined(HAVE_KRB5_USE_ENCTYPE) && defined(HAVE_KRB5_STRING_TO_KEY) && defined(HAVE_KRB5_ENCRYPT_BLOCK)
- int create_kerberos_key_from_string_direct(krb5_context context,
-					krb5_principal host_princ,
-					krb5_data *password,
-					krb5_keyblock *key,
-					krb5_enctype enctype)
+static int create_kerberos_key_from_string_direct(krb5_context context,
+						  krb5_principal host_princ,
+						  krb5_data *password,
+						  krb5_keyblock *key,
+						  krb5_enctype enctype)
 {
-	int ret;
+	int ret = 0;
 	krb5_data salt;
 	krb5_encrypt_block eblock;
 
@@ -225,14 +230,15 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 	krb5_use_enctype(context, &eblock, enctype);
 	ret = krb5_string_to_key(context, &eblock, key, password, &salt);
 	SAFE_FREE(salt.data);
+
 	return ret;
 }
 #elif defined(HAVE_KRB5_GET_PW_SALT) && defined(HAVE_KRB5_STRING_TO_KEY_SALT)
- int create_kerberos_key_from_string_direct(krb5_context context,
-					krb5_principal host_princ,
-					krb5_data *password,
-					krb5_keyblock *key,
-					krb5_enctype enctype)
+static int create_kerberos_key_from_string_direct(krb5_context context,
+						  krb5_principal host_princ,
+						  krb5_data *password,
+						  krb5_keyblock *key,
+						  krb5_enctype enctype)
 {
 	int ret;
 	krb5_salt salt;
@@ -242,9 +248,10 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 		DEBUG(1,("krb5_get_pw_salt failed (%s)\n", error_message(ret)));
 		return ret;
 	}
-	
+
 	ret = krb5_string_to_key_salt(context, enctype, (const char *)password->data, salt, key);
 	krb5_free_salt(context, salt);
+
 	return ret;
 }
 #else
@@ -255,7 +262,8 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 					krb5_principal host_princ,
 					krb5_data *password,
 					krb5_keyblock *key,
-					krb5_enctype enctype)
+					krb5_enctype enctype,
+					bool no_salt)
 {
 	krb5_principal salt_princ = NULL;
 	int ret;
@@ -264,6 +272,16 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 	 * principal/enctype in a non-obvious way.  If it is, try to match
 	 * its behavior.
 	 */
+	if (no_salt) {
+		KRB5_KEY_DATA(key) = (KRB5_KEY_DATA_CAST *)SMB_MALLOC(password->length);
+		if (!KRB5_KEY_DATA(key)) {
+			return ENOMEM;
+		}
+		memcpy(KRB5_KEY_DATA(key), password->data, password->length);
+		KRB5_KEY_LENGTH(key) = password->length;
+		KRB5_KEY_TYPE(key) = enctype;
+		return 0;
+	}
 	salt_princ = kerberos_fetch_salt_princ_for_host_princ(context, host_princ, enctype);
 	ret = create_kerberos_key_from_string_direct(context, salt_princ ? salt_princ : host_princ, password, key, enctype);
 	if (salt_princ) {
@@ -636,6 +654,8 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 	bool creds_ready = False;
 	int i = 0, maxtries = 3;
 	
+	ZERO_STRUCT(in_data);
+
 	retval = smb_krb5_parse_name(context, principal, &server);
 	if (retval) {
 		DEBUG(1,("ads_krb5_mk_req: Failed to parse principal %s\n", principal));
@@ -691,14 +711,75 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 		*expire_time = (time_t)credsp->times.endtime;
 	}
 
-	in_data.length = 0;
+#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
+	if( credsp->ticket_flags & TKT_FLG_OK_AS_DELEGATE ) {
+		/* Fetch a forwarded TGT from the KDC so that we can hand off a 2nd ticket
+		 as part of the kerberos exchange. */
+
+		DEBUG( 3, ("ads_krb5_mk_req: server marked as OK to delegate to, building forwardable TGT\n")  );
+
+		if( *auth_context == NULL ) {
+			/* Allocate if it has not yet been allocated. */
+			retval = krb5_auth_con_init( context, auth_context );
+			if (retval) {
+				DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_init failed (%s)\n",
+					error_message(retval)));
+				goto cleanup_creds;
+			}
+		}
+
+		retval = krb5_auth_con_setuseruserkey( context, *auth_context, &credsp->keyblock );
+		if (retval) {
+			DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_setuseruserkey failed (%s)\n",
+				error_message(retval)));
+			goto cleanup_creds;
+		}
+
+		/* Must use a subkey for forwarded tickets. */
+		retval = krb5_auth_con_setflags( context, *auth_context, KRB5_AUTH_CONTEXT_USE_SUBKEY);
+		if (retval) {
+			DEBUG(1,("ads_krb5_mk_req: krb5_auth_con_setflags failed (%s)\n",
+				error_message(retval)));
+			goto cleanup_creds;
+		}
+
+		retval = ads_krb5_get_fwd_ticket( context,
+						auth_context,
+						credsp,
+						ccache,
+						&in_data );
+		if (retval) {
+			DEBUG( 3, ("ads_krb5_get_fwd_ticket failed (%s)\n",
+				   error_message( retval ) ) );
+
+			/*
+			 * This is not fatal. Delete the *auth_context and continue
+			 * with krb5_mk_req_extended to get a non-forwardable ticket.
+			 */
+
+			if (in_data.data) {
+				free( in_data.data );
+				in_data.data = NULL;
+				in_data.length = 0;
+			}
+			krb5_auth_con_free(context, *auth_context);
+			*auth_context = NULL;
+		}
+	}
+#endif
+
 	retval = krb5_mk_req_extended(context, auth_context, ap_req_options, 
 				      &in_data, credsp, outbuf);
 	if (retval) {
 		DEBUG(1,("ads_krb5_mk_req: krb5_mk_req_extended failed (%s)\n", 
 			 error_message(retval)));
 	}
-	
+
+	if (in_data.data) {
+		free( in_data.data );
+		in_data.length = 0;
+	}
+
 	krb5_free_creds(context, credsp);
 
 cleanup_creds:
@@ -970,6 +1051,7 @@ get_key_from_keytab(krb5_context context,
 	krb5_error_code ret;
 	krb5_keytab keytab;
 	char *name = NULL;
+	krb5_keyblock *keyp;
 
 	/* We have to open a new keytab handle here, as MIT does
 	   an implicit open/getnext/close on krb5_kt_get_entry. We
@@ -1002,14 +1084,9 @@ get_key_from_keytab(krb5_context context,
 		goto out;
 	}
 
-#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK /* Heimdal */
-	ret = krb5_copy_keyblock(context, &entry.keyblock, out_key);
-#elif defined(HAVE_KRB5_KEYTAB_ENTRY_KEY) /* MIT */
-	ret = krb5_copy_keyblock(context, &entry.key, out_key);
-#else
-#error UNKNOWN_KRB5_KEYTAB_ENTRY_FORMAT
-#endif
+	keyp = KRB5_KT_KEY(&entry);
 
+	ret = krb5_copy_keyblock(context, keyp, out_key);
 	if (ret) {
 		DEBUG(0,("get_key_from_keytab: failed to copy key: %s\n", error_message(ret)));
 		goto out;
@@ -1497,15 +1574,9 @@ done:
 #endif /* HAVE_KRB5_GET_INIT_CREDS_OPT_FREE */
 }
 
- krb5_enctype smb_get_enctype_from_kt_entry(const krb5_keytab_entry *kt_entry)
+ krb5_enctype smb_get_enctype_from_kt_entry(krb5_keytab_entry *kt_entry)
 {
-#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEY		/* MIT */
-	return kt_entry->key.enctype;
-#elif defined(HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK)	/* Heimdal */
-	return kt_entry->keyblock.keytype;
-#else
-#error UNKNOWN_KRB5_KEYTAB_ENTRY_KEYBLOCK_FORMAT
-#endif
+	return KRB5_KEY_TYPE(KRB5_KT_KEY(kt_entry));
 }
 
 
@@ -1703,6 +1774,141 @@ done:
  	TALLOC_FREE(mem_ctx);
  	return ret;
 }
+
+krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
+				     krb5_context context,
+				     krb5_keytab keytab,
+				     const char **keytab_name)
+{
+	char keytab_string[MAX_KEYTAB_NAME_LEN];
+	krb5_error_code ret = 0;
+
+	ret = krb5_kt_get_name(context, keytab,
+			       keytab_string, MAX_KEYTAB_NAME_LEN - 2);
+	if (ret) {
+		return ret;
+	}
+
+	*keytab_name = talloc_strdup(mem_ctx, keytab_string);
+	if (!*keytab_name) {
+		return ENOMEM;
+	}
+
+	return ret;
+}
+
+#if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)
+/**************************************************************
+Routine: ads_krb5_get_fwd_ticket
+ Description:
+    When a service ticket is flagged as trusted
+    for delegation we should provide a forwardable
+    ticket so that the remote host can act on our
+    behalf.  This is done by taking the 2nd forwardable
+    TGT and storing it in the GSS-API authenticator
+    "checksum".  This routine will populate
+    the krb5_data authenticator with this TGT.
+ Parameters:
+    krb5_context context: The kerberos context for this authentication.
+    krb5_auth_context:    The authentication context.
+    krb5_creds *credsp:   The ticket credentials (AS-REP).
+    krb5_ccache ccache:   The credentials cache.
+    krb5_data &authenticator: The checksum field that will store the TGT, and
+     authenticator.data must be freed by the caller.
+
+ Returns:
+    krb5_error_code: 0 if no errors, otherwise set.
+**************************************************************/
+
+static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
+					 krb5_auth_context *auth_context,
+					 krb5_creds *credsp,
+					 krb5_ccache ccache,
+					 krb5_data *authenticator)
+{
+	krb5_data fwdData;
+	krb5_error_code retval = 0;
+	char *pChksum = NULL;
+	char *p = NULL;
+
+	ZERO_STRUCT(fwdData);
+	ZERO_STRUCTP(authenticator);
+
+	retval = krb5_fwd_tgt_creds(context,/* Krb5 context [in] */
+				*auth_context,  /* Authentication context [in] */
+				CONST_DISCARD(char *, KRB5_TGS_NAME),  /* Ticket service name ("krbtgt") [in] */
+				credsp->client, /* Client principal for the tgt [in] */
+				credsp->server, /* Server principal for the tgt [in] */
+				ccache,         /* Credential cache to use for storage [in] */
+				1,              /* Turn on for "Forwardable ticket" [in] */
+				&fwdData );     /* Resulting response [out] */
+
+
+	if (retval) {
+		DEBUG(1,("ads_krb5_get_fwd_ticket: krb5_fwd_tgt_creds failed (%s)\n", 
+			error_message(retval)));
+		goto out;
+	}
+
+	if ((unsigned int)GSSAPI_CHECKSUM_SIZE + (unsigned int)fwdData.length <
+		(unsigned int)GSSAPI_CHECKSUM_SIZE) {
+		retval = EINVAL;
+		goto out;
+	}
+
+	/* We're going to allocate a gssChecksum structure with a little
+	   extra data the length of the kerberos credentials length
+	   (APPLICATION 22) so that we can pack it on the end of the structure.
+	*/
+
+	pChksum	= (char *)SMB_MALLOC(GSSAPI_CHECKSUM_SIZE + fwdData.length );
+	if (!pChksum) {
+		retval = ENOMEM;
+		goto out;
+	}
+
+	p = pChksum;
+
+	SIVAL(p, 0, GSSAPI_BNDLENGTH);
+	p += 4;
+
+	/* Zero out the bindings fields */
+	memset(p, '\0', GSSAPI_BNDLENGTH );
+	p += GSSAPI_BNDLENGTH;
+
+	SIVAL(p, 0, GSS_C_DELEG_FLAG );
+	p += 4;
+	SSVAL(p, 0, 1 );
+	p += 2;
+	SSVAL(p, 0, fwdData.length );
+	p += 2;
+
+	/* Migrate the kerberos KRB_CRED data to the checksum delegation */
+	memcpy(p, fwdData.data, fwdData.length );
+	p += fwdData.length;
+
+	/* We need to do this in order to allow our GSS-API  */
+	retval = krb5_auth_con_set_req_cksumtype( context, *auth_context, GSSAPI_CHECKSUM );
+	if (retval) {
+		goto out;
+	}
+
+	/* We now have a service ticket, now turn it into an AP-REQ. */
+	authenticator->length = fwdData.length + GSSAPI_CHECKSUM_SIZE;
+
+	/* Caller should call free() when they're done with this. */
+	authenticator->data = (char *)pChksum;
+
+  out:
+
+ 	/* Remove that input data, we never needed it anyway. */
+   	if (fwdData.length > 0) {
+  		krb5_free_data_contents( context, &fwdData );
+   	}
+
+	return retval;
+}
+#endif
 
 #else /* HAVE_KRB5 */
  /* this saves a few linking headaches */

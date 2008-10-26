@@ -30,9 +30,8 @@
 /*
  * Is the logging working / configfile read ? 
  */
-static int SMBC_initialized = 0;
-
-
+static bool SMBC_initialized;
+static unsigned int initialized_ctx_count;
 
 /*
  * Get a new empty handle to fill in with your own info
@@ -200,7 +199,20 @@ smbc_free_context(SMBCCTX *context,
         smbc_setUser(context, NULL);
         
         DEBUG(3, ("Context %p successfully freed\n", context));
+
+	SAFE_FREE(context->internal);
         SAFE_FREE(context);
+
+	if (initialized_ctx_count) {
+		initialized_ctx_count--;
+	}
+
+	if (initialized_ctx_count == 0 && SMBC_initialized) {
+		gencache_shutdown();
+		secrets_shutdown();
+		gfree_all();
+		SMBC_initialized = false;
+	}
         return 0;
 }
 
@@ -508,7 +520,7 @@ smbc_init_context(SMBCCTX *context)
                 BlockSignals(True, SIGPIPE);
                 
                 /* Done with one-time initialisation */
-                SMBC_initialized = 1;
+                SMBC_initialized = true;
                 
                 TALLOC_FREE(frame);
         }
@@ -597,7 +609,8 @@ smbc_init_context(SMBCCTX *context)
          */
         
         context->internal->initialized = True;
-        
+	initialized_ctx_count++;
+
         return context;
 }
 
@@ -606,7 +619,27 @@ smbc_init_context(SMBCCTX *context)
 const char *
 smbc_version(void)
 {
-        return samba_version_string();
+        return SAMBA_VERSION_STRING;
 }
 
 
+/*
+ * Set the credentials so DFS will work when following referrals.
+ */
+void
+smbc_set_credentials(char *workgroup,
+                     char *user,
+                     char *password,
+                     smbc_bool use_kerberos,
+                     char *signing_state)
+{
+        
+        set_cmdline_auth_info_username(user);
+        set_cmdline_auth_info_password(password);
+        set_cmdline_auth_info_use_kerberos(use_kerberos);
+        if (! set_cmdline_auth_info_signing_state(signing_state)) {
+                DEBUG(0, ("Invalid signing state: %s", signing_state));
+        }
+        set_global_myworkgroup(workgroup);
+        cli_cm_set_credentials();
+}

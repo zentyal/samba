@@ -80,8 +80,9 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
 		return cli_nt_error(cli);
 	}
 
-	p = cli_rpc_pipe_open_noauth(cli, PI_LSARPC, &status);
-	if (p == NULL) {
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+					  &p);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
 
@@ -103,9 +104,7 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
 
 	status = NT_STATUS_OK;
  fail:
-	if (p != NULL) {
-		cli_rpc_pipe_close(p);
-	}
+	TALLOC_FREE(p);
 	cli_tdis(cli);
 	cli->cnum = orig_cnum;
 	TALLOC_FREE(frame);
@@ -129,8 +128,9 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
 		return cli_nt_error(cli);
 	}
 
-	p = cli_rpc_pipe_open_noauth(cli, PI_LSARPC, &status);
-	if (p == NULL) {
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+					  &p);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
 
@@ -151,9 +151,7 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
 
 	status = NT_STATUS_OK;
  fail:
-	if (p != NULL) {
-		cli_rpc_pipe_close(p);
-	}
+	TALLOC_FREE(p);
 	cli_tdis(cli);
 	cli->cnum = orig_cnum;
 	TALLOC_FREE(frame);
@@ -900,8 +898,9 @@ static struct cli_state *connect_one(const char *server, const char *share)
 		{ "numeric", 0, POPT_ARG_NONE, &numeric, True, "Don't resolve sids or masks to names" },
 		{ "test-args", 't', POPT_ARG_NONE, &test_args, True, "Test arguments"},
 		POPT_COMMON_SAMBA
+		POPT_COMMON_CONNECTION
 		POPT_COMMON_CREDENTIALS
-		{ NULL }
+		POPT_TABLEEND
 	};
 
 	struct cli_state *cli;

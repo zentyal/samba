@@ -47,16 +47,19 @@ struct messaging_context *winbind_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   winbind_event_context()))) {
-		smb_panic("Could not init winbind messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     winbind_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init winbind messaging context.\n"));
 	}
 	return ctx;
 }
 
 /* Reload configuration */
 
-static bool reload_services_file(void)
+static bool reload_services_file(const char *logfile)
 {
 	bool ret;
 
@@ -66,6 +69,12 @@ static bool reload_services_file(void)
 		if (file_exist(fname,NULL) && !strcsequal(fname,get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
 		}
+	}
+
+	/* if this is a child, restore the logfile to the special
+	   name - <domain>, idmap, etc. */
+	if (logfile && *logfile) {
+		lp_set_logfile(logfile);
 	}
 
 	reopen_logs();
@@ -205,7 +214,7 @@ static void msg_reload_services(struct messaging_context *msg,
 {
         /* Flush various caches */
 	flush_caches();
-	reload_services_file();
+	reload_services_file((const char *) private_data);
 }
 
 /* React on 'smbcontrol winbindd shutdown' in the same way as on SIGTERM*/
@@ -331,9 +340,6 @@ static struct winbindd_dispatch_table {
 	{ WINBINDD_SID_TO_GID, winbindd_sid_to_gid, "SID_TO_GID" },
 	{ WINBINDD_UID_TO_SID, winbindd_uid_to_sid, "UID_TO_SID" },
 	{ WINBINDD_GID_TO_SID, winbindd_gid_to_sid, "GID_TO_SID" },
-#if 0   /* DISABLED until we fix the interface in Samba 3.0.26 --jerry */
-	{ WINBINDD_SIDS_TO_XIDS, winbindd_sids_to_unixids, "SIDS_TO_XIDS" },
-#endif  /* end DISABLED */
 	{ WINBINDD_ALLOCATE_UID, winbindd_allocate_uid, "ALLOCATE_UID" },
 	{ WINBINDD_ALLOCATE_GID, winbindd_allocate_gid, "ALLOCATE_GID" },
 	{ WINBINDD_SET_MAPPING, winbindd_set_mapping, "SET_MAPPING" },
@@ -528,7 +534,6 @@ static void request_len_recv(void *private_data, bool success);
 static void request_recv(void *private_data, bool success);
 static void request_main_recv(void *private_data, bool success);
 static void request_finished(struct winbindd_cli_state *state);
-void request_finished_cont(void *private_data, bool success);
 static void response_main_sent(void *private_data, bool success);
 static void response_extra_sent(void *private_data, bool success);
 
@@ -537,17 +542,13 @@ static void response_extra_sent(void *private_data, bool success)
 	struct winbindd_cli_state *state =
 		talloc_get_type_abort(private_data, struct winbindd_cli_state);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	if (!success) {
 		state->finished = True;
 		return;
 	}
 
-	SAFE_FREE(state->request.extra_data.data);
 	SAFE_FREE(state->response.extra_data.data);
 
 	setup_async_read(&state->fd_event, &state->request, sizeof(uint32),
@@ -565,10 +566,7 @@ static void response_main_sent(void *private_data, bool success)
 	}
 
 	if (state->response.length == sizeof(state->response)) {
-		if (state->mem_ctx != NULL) {
-			talloc_destroy(state->mem_ctx);
-			state->mem_ctx = NULL;
-		}
+		TALLOC_FREE(state->mem_ctx);
 
 		setup_async_read(&state->fd_event, &state->request,
 				 sizeof(uint32), request_len_recv, state);
@@ -582,6 +580,8 @@ static void response_main_sent(void *private_data, bool success)
 
 static void request_finished(struct winbindd_cli_state *state)
 {
+	/* Make sure request.extra_data is freed when finish processing a request */
+	SAFE_FREE(state->request.extra_data.data);
 	setup_async_write(&state->fd_event, &state->response,
 			  sizeof(state->response), response_main_sent, state);
 }
@@ -598,17 +598,6 @@ void request_ok(struct winbindd_cli_state *state)
 	SMB_ASSERT(state->response.result == WINBINDD_PENDING);
 	state->response.result = WINBINDD_OK;
 	request_finished(state);
-}
-
-void request_finished_cont(void *private_data, bool success)
-{
-	struct winbindd_cli_state *state =
-		talloc_get_type_abort(private_data, struct winbindd_cli_state);
-
-	if (success)
-		request_ok(state);
-	else
-		request_error(state);
 }
 
 static void request_len_recv(void *private_data, bool success)
@@ -758,10 +747,7 @@ static void remove_client(struct winbindd_cli_state *state)
 
 	SAFE_FREE(state->response.extra_data.data);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	remove_fd_event(&state->fd_event);
 		
@@ -801,14 +787,14 @@ static bool remove_idle_client(void)
 }
 
 /* check if HUP has been received and reload files */
-void winbind_check_sighup(void)
+void winbind_check_sighup(const char *logfile)
 {
 	if (do_sighup) {
 
 		DEBUG(3, ("got SIGHUP\n"));
 
 		flush_caches();
-		reload_services_file();
+		reload_services_file(logfile);
 
 		do_sighup = False;
 	}
@@ -981,7 +967,7 @@ static void process_loop(void)
 	/* Check signal handling things */
 
 	winbind_check_sigterm(true);
-	winbind_check_sighup();
+	winbind_check_sighup(NULL);
 
 	if (do_sigusr2) {
 		print_winbindd_status();
@@ -1038,8 +1024,6 @@ int main(int argc, char **argv, char **envp)
 	dump_core_setup("winbindd");
 
 	load_case_tables();
-
-	db_tdb2_setup_messaging(NULL, false);
 
 	/* Initialise for running in non-root mode */
 
@@ -1128,13 +1112,10 @@ int main(int argc, char **argv, char **envp)
 	/* Initialise messaging system */
 
 	if (winbind_messaging_context() == NULL) {
-		DEBUG(0, ("unable to initialize messaging system\n"));
 		exit(1);
 	}
 
-	db_tdb2_setup_messaging(winbind_messaging_context(), true);
-
-	if (!reload_services_file()) {
+	if (!reload_services_file(NULL)) {
 		DEBUG(0, ("error opening config file\n"));
 		exit(1);
 	}
@@ -1159,12 +1140,6 @@ int main(int argc, char **argv, char **envp)
 	/* Enable netbios namecache */
 
 	namecache_enable();
-
-	/* Winbind daemon initialisation */
-
-	if ( ! NT_STATUS_IS_OK(idmap_init_cache()) ) {
-		DEBUG(1, ("Could not init idmap cache!\n"));		
-	}
 
 	/* Unblock all signals we are interested in as they may have been
 	   blocked by the parent process. */
@@ -1247,6 +1222,11 @@ int main(int argc, char **argv, char **envp)
 			   MSG_WINBIND_DUMP_DOMAIN_LIST,
 			   winbind_msg_dump_domain_list);
 
+	/* Register handler for MSG_DEBUG. */
+	messaging_register(winbind_messaging_context(), NULL,
+			   MSG_DEBUG,
+			   winbind_msg_debug);
+	
 	netsamlogon_cache_init(); /* Non-critical */
 	
 	/* clear the cached list of trusted domains */

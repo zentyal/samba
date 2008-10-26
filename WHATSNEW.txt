@@ -1,171 +1,155 @@
-                   ==============================
-                   Release Notes for Samba 3.2.0
-                            July 1, 2008
-                   ==============================
+                   =================================
+                   Release Notes for Samba 3.3.0pre2
+                           October 2, 2008
+                   =================================
 
-This is the first stable release of Samba 3.2.0.
+This is the second preview release of Samba 3.3.0.  This is *not*
+intended for production environments and is designed for testing
+purposes only.  Please report any defects via the Samba bug reporting
+system at https://bugzilla.samba.org/.
 
-Please be aware that Samba is now distributed under the version 3
-of the new GNU General Public License.  You may refer to the COPYING
-file that accompanies these release notes for further licensing details.
+Major enhancements in Samba 3.3.0 include:
 
-Major enhancements in Samba 3.2.0 include:
+ Configuration/installation:
+ o Splitting of library directory into library directory and separate
+   modules directory.
 
-  File Serving:
-  o Use of IDL generated parsing layer for several DCE/RPC
-    interfaces.
-  o Removal of the 1024 byte limit on pathnames and 256 byte limit on
-    filename components to honor the MAX_PATH setting from the host OS.
-  o Introduction of a registry based configuration system.
-  o Improved CIFS Unix Extensions support.
-  o Experimental support for file serving clusters.
-  o Support for IPv6 in the server, and client tools and libraries.
-  o Support for storing alternate data streams in xattrs.
-  o Encrypted SMB transport in client tools and libraries, and server.
-  o Support for Vista clients authenticating via Kerberos.
+ File Serving:
+ o Extended Cluster support.
 
-  Winbind and Active Directory Integration:
-  o Full support for Windows 2003 cross-forest, transitive trusts
-    and one-way domain trusts.
-  o Support for userPrincipalName logons via pam_winbind and NSS
-    lookups.
-  o Expansion of nested domain groups via NSS calls.
-  o Support for Active Directory LDAP Signing policy.
-  o New LGPL Winbind client library (libwbclient.so).
-  o Support for establishing interdomain trust relationships with
-    Windows 2008.
+ Winbind:
+ o Simplified idmap configuration.
+ o New idmap backends "adex" and "hash".
+ o Added new parameter "winbind reconnect delay".
+ o Added support for user and group aliasing.
 
-  Joining:
-  o New NetApi library for domain join related queries (libnetapi.so)
-    and example GTK+ Domain join gui.
-  o New client and server support for remotely joining and unjoining
-    Domains.
-  o Support for joining into Windows 2008 domains.
+ Administrative tools:
+ o The destination "all" of smbcontrol does now affect all running
+   daemons including nmbd and winbindd.
+ o New 'net rpc vampire keytab' and 'net rpc vampire ldif' commands.
+ o The 'net' utility can now use kerberos for joining and authentication.
 
-  Users & Groups:
-  o New ldb backend for local group mapping tables
-  o Raised level of security defaults for authentication operations.
-  o New NetApi library for user account related queries.
+ Libraries:
+ o NetApi library implements various new calls for User- and Group
+   Account Management.
 
 
+Configure changes
+=================
 
-Now Licensed under the GNU GPLv3
-================================
-
-The Samba Team has adopted the Version 3 of the GNU General Public
-License for the 3.2 and later releases.   The GPLv3 is the updated
-version of the GPLv2 license under which Samba is currently
-distributed. It has been updated to improve compatibility with other
-licenses and to make it easier to adopt internationally, and is an
-improved version of the license to better suit the needs of Free
-Software in the 21st Century.
-
-The original announcement is available on-line at
-
-    http://news.samba.org/announcements/samba_gplv3/
+The configure option "--with-libdir" has been removed. The library
+directory can still be specified by using the existing "--libdir" option.
+A new option "--with-modulesdir" has been added to allow the specification
+of a separate directory for the shared modules.
 
 
-New Security Defaults for Authentication
-========================================
+Winbind idmap backend changes
+=============================
 
-Support for LanMan passwords is now disabled in both client and server
-applications.  Additionally, clear text authentication requests are
-disabled by default in client utilities such as smbclient and all
-libsmbclient based applications.  This will affect connection both
-to and from hosts running DOS, Windows 9x/ME, and OS/2.  Please refer
-to the "Changes" section for details on the exact parameters that were
-updated.
+The idmap configuration has changed with version 3.3 to something that
+allows a smoother upgrade path from pre-3.0.25 configurations that use
+"idmap backend". The reason for this change is that to many, also to Samba
+developers, the 3.0.25 style configuration with "idmap config" turned out
+to be very complex. Version 3.3 no longer deprecates the "idmap backend"
+parameter, instead with "idmap backend" the default idmap backend is
+specified.
 
+Accordingly, the "idmap config <domain> : default = yes" setting is no
+longer being looked at.
 
-Registry Configuration Backend
-==============================
+The alloc backend defaults to the default backend, which should be able to
+allocate IDs. In the default distribution the tdb and ldap backends can
+allocate, the ad and rid backends can not. The idmap alloc range is now
+being set with the "old" parameters "idmap uid" and "idmap gid".
 
-Samba is now able to use a registry based configuration backed to
-supplement smb.conf settings.  This feature may be enabled by setting
-"config backend = registry" in the [global] section of smb.conf for a
-registry only configuration, or by specifying "include = registry" to
-include global options from registry for a mixed setup.
-
-The new parameter "registry shares = yes" in the [global] section of
-smb.conf can be used to activate share definitions from registry.
-These shares are loaded on demand by the server. Registry shares are
-automatically activated by the global registry options above.
-
-The configuration stored in registry can be conveniently managed using
-the "net conf" command.
-
-More information may be obtained from the smb.conf(5) and net(8) man
-pages.
+The "idmap domains" parameter has been removed.
 
 
-Removed Features
-================
+winbind reconnect delay
+=======================
 
-Both the Python bindings and the libmsrpc shared library have been
-removed from the tree due to lack of an official maintainer.
-
-As smbfs is no longer supported in current kernel versions, smbmount has
-been removed in this Samba version. Please use cifs (mount.cifs) instead.
-See examples/scripts/mount/mount.smbfs as an example for a wrapper which
-calls mount.cifs instead of smbmount/mount.smbfs.
+This is a new parameter which specifies the number of seconds the Winbind
+daemon will wait between attempts to contact a Domain controller for a domain
+that is determined to be down or not contactable.
 
 
-Modified API for libsmbclient
-==============================================================================
+Winbind's Name Aliasing
+=======================
 
-Maintaining ABI compatibility for libsmbclient has become increasingly
-difficult to accomplish, while also keeping the code organization such that it
-is easily readable.  Towards the goal of maintaining ABI compatibility and
-also keeping the code easy to maintain and enhance, the API has been enhanced.
-In particular, the fields in the SMBCCTX context structure are no longer
-intended to be read/write by the user, and are marked as deprecated.  An
-application that previously accessed the members of the SMBCCTX context
-structure will now encounter warnings if recompiled.  This is intentional, to
-encourage implementation of the small changes required for the new interface.
-The number of changes is expected to be quite small for the vast majority of
-applications, and no changes need be made for many applications.  The changes
-required for KDE (konqueror) to conform to the new interface, for example, are
-only four lines in only one file.
+Name aliasing in Winbind is a feature that allows an administrator to
+map a fully qualified user or group name from a Windows domain to a
+convenient short name for Unix access.  This is similar to the username
+map functionality supported by smbd but is primary intended for
+clients and servers making use of Winbind's PAM and NSS libraries.
 
-Instead of the application manually changing or reading values in the context
-structure, there are now setter and getter functions for each configurable
-member in that structure.  Similarly, the smbc_option_get() and
-smbc_option_set() functions are deprecated in favor of the setter/getter
-interface.  The setters and getters are all documented in libsmbclient.h
-under these comment blocks:
+For example, the user "DOMAIN\fred" has been mapped to the Unix name
+"freddie".
 
-  Getters and setters for CONFIGURATION
-  Getters and setters for OPTIONS
-  Getters and setters for FUNCTIONS
-  Callable functions for files
-  Callable functions for directories
-  Callable functions applicable to both files and directories
+   $ getent passwd "DOMAIN\fred"
+   freddie:x:1000:1001:Fred Jones:/home/freddie:/bin/bash
 
-Example changes that may be required to eliminate "deprecated" warnings:
+   $ getent passwd freddie
+   freddie:x:1000:1001:Fred Jones:/home/freddie:/bin/bash
 
-  /* Set the debug level */
-  context->debug = 99;
-changes to:
-  smbc_setDebug(context, 99);
-
-  /* Specify the authentication callback function */
-  context->callbacks.auth_fn = auth_smbc_get_data;
-changes to:
-  smbc_setFunctionAuthData(context, auth_smbc_get_data);
-
-  /* Specify the new-style authentication callback with context parameter */
-  smbc_option_set("auth_function", auth_smbc_get_data_with_ctx);
-changes to:
-  smbc_setFunctionAuthDataWithContext(context, auth_smbc_get_data_with_ctx);
-
-  /* Set kerberos flags */
-  context->flags = (SMB_CTX_FLAG_USE_KERBEROS |
-                    SMB_CTX_FLAG_FALLBACK_AFTER_KERBEROS);
-changes to:
-  smbc_setOptionUseKerberos(context, 1);
-  smbc_setOptionFallbackAfterKerberos(context, 1);
+The name aliasing support is provided by individual nss_info plugins.
+For example, the new "adex" plugin reads the uid attribute from Active
+Directory to make a short login name to the fully qualified name.
+While the new "hash" module utilizes a local file to map "short_name
+= QUALIFIED\name".  Both user and group name mapping is supported.
+Please refer to the "winbind nss info" option in smb.conf(5) and
+to individual plugin man pages for further details.
 
 
+idmap_hash
+==========
+
+The idmap_hash plugin provides similar support as the idmap_rid
+module.  However, uids and gids are generated from the full domain
+SID using a hashing algorithm that maps the lower 19 bits from the user
+or group RID to bits 0 - 19 in the Unix id and hashes 96 bits from
+the domain SID to bits 20 - 30 in the Unix id.  The result is a 31 bit
+uid or gid that is consistent across machines and provides support for
+trusted domains.
+
+Please refer to the idmap_hash(8) man page for more details.
+
+
+idmap_adex
+==========
+
+The adex idmap/nss_info plugin is an adaptation of the Likewise
+Enterprise plugin with support for OU based cells removed
+(since the Windows pieces to manage the cells are not available).
+
+This plugin supports
+
+      * The RFC2307 schema for users and groups.
+      * Connections to trusted domains
+      * Global catalog searches
+      * Cross forest trusts
+      * User and group aliases
+
+Prerequisite: Add the following attributes to the Partial Attribute
+Set in global catalog:
+
+      * uidNumber
+      * uid
+      * gidNumber
+
+A basic config using the current trunk code would look like:
+
+[global]
+	idmap backend = adex
+	idmap uid = 10000 - 29999
+	idmap gid = 10000 - 29999
+	winbind nss info = adex
+
+	winbind normalize names = yes
+	winbind refresh tickets = yes
+	template homedir = /home/%D/%U
+	template shell = /bin/bash
+
+Please refer to the idmap_adex(8) man page for more details.
 
 
 ######################################################################
@@ -177,103 +161,171 @@ smb.conf changes
 
     Parameter Name                      Description     Default
     --------------                      -----------     -------
-    administrative share		New		No
-    client lanman auth			Changed Default	No
-    client ldap sasl wrapping		New		plain
-    client plaintext auth		Changed Default	No
-    clustering				New		No
-    cluster addresses			New		""
-    config backend			New		file
-    ctdbd socket			New		""
-    debug class				New		No
-    lanman auth				Changed Default	No
-    ldap connection timeout		New		2
-    ldap debug level			New		0
-    ldap debug threshold		New		10
-    mangled map				Removed
-    min receive file size		New             0
-    open files database hashsize	Removed
-    read bmpx				Removed
-    registry shares			New		No
-    smb encrypt				New		Auto
-    winbind expand groups		New		1
-    winbind rpc only			New		No
-
-    New special meaning of "include = registry".
+    cups connection timeout		New		30
+    idmap domains			Removed
+    init logon delayed hosts		New		""
+    init logon delay			New		100
+    winbind reconnect delay		New		30
 
 
-Changes since 3.2.0rc2:
------------------------
-
-
-o   Jeremy Allison <jra@samba.org>
-    * BUG 5531: Fix conversion of ns units when converting
-      from nttime to timespec.
-    * BUG 5533: Fix handling of workgroup names containing a '.' in Winbindd.
-    * BUG 5551: Fix group enumeration with 'wbinfo -g' on PDCs.
-    * BUG 5555: Fix setting of the password last set field during domain joins.
-    * BUG 5568: Fix net rpc trustdom add.
-    * Fix gcc warnings at -O3.
+Changes since 3.3.0pre1:
+------------------------
 
 
 o   Michael Adam <obnox@samba.org>
-    * BUG 5548: Fix segfaults in handle_include with %m macro expansion.
-    * Add several tests to the testsuite.
+
+    * BUG 5492: Fix RHEL SPEC file by removing libmsrpc stuff.
+    * BUG 5507: Fix several issues in the RHEL SPEC file.
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5729: Explicitly allow "-valid".
+    * BUG 5737: Fix winbindd crash in an unusual failure mode.
+    * BUG 5751: Fix showing of ACLs on DFS in (lib)smbclient.
+    * BUG 5762: Fix opening of mangled directory name (resulted
+      'is a stream name').
+    * BUG 5783: Fix FindFirst where search pattern == mangled filename.
+    * BUG 5790: Fix returning of STATUS_OBJECT_NAME_NOT_FOUND on set file
+      disposition.
+    * BUG 5797: Fix moving of readonly files.
+    * Fix crashes when looking up a non-existant uid.
+    * Fix getting/setting of NT ACLs on a file.
+    * Add st_birthtime and friends for accurate create times on *BSD
+      and MacOSX).
+    * Fix the wcache_invalidate_samlogon calls.
+    * Clarify usage of "force create mode".
+    * Get smbd to look (read-only) into the winbindd cache for uid/gid <--> sid
+      mappings.
+    * Write times code update.
+    * Add experimental version of VFS module acl_xattr.
+    * Fix rename_open_files.
+    * Make SMB traffic analyzer VFS module more efficient.
+
+
+o   Gerald W. Carter <jerry@samba.org>
+    * Fix segfault when calling nss_get_info() with a NULL ads structure.
+    * Add support for name aliasing in Winbind.
+    * Add the idmap/nss-info provider from Likewise Open.
+    * Allow an admin to define the "uid" attribute for a RFC2307
+      user object in AD to be the username alias.
+    * Add new idmap backend "adex" to support RFC2307 enabled AD forests.
+    * Add new idmap backend "hash".
 
 
 o   Steven Danneman <steven.danneman@isilon.com>
-    * Make winbindd enum users and groups async.
+    * Fix build warnings.
+    * Cleanup of DC enumeration in get_dcs().
 
 
 o   Günther Deschner <gd@samba.org>
-    * BUG 5542: Fix empty passwords of samsync.
+    * BUG 5710: Fix changing of machine account passwords.
+    * BUG 5784: Fix pam_winbind build issue on Solaris.
+    * Fix invalid sid copy (hit when enumerating sibling domains) in Winbind.
+    * Fix double installation of cifs.upcall.
+    * Add change-user-password command to wbinfo.
+    * Fix segfault in _srvsvc_NetShareAdd.
+
+
+o   James Ding <ding_cc@hotmail.com>
+    * BUG 5736: Fix Winbind crash bug with trusted domains.
+
+
+o   Ephi Dror <Ephi.Dror@datadomain.com>
+    * Correct the netsamlogon_clear_cached_user function.
+
+
+o   Holger Hetterich <hhetter@novell.com>
+    * Add new VFS module to analyze SMB traffic to record write and read
+      operations on the Samba server.
+
+
+o   Jeff Layton <jlayton@redhat.com>
+    * Fix build warnings in cifs.upcall.
+
+
+o   Volker Lendecke <vl@sernet.de>
+    * BUG 5707: Do proper error handling if the socket is closed.
+    * BUG 5778: Don't define 'strlcat' and 'strlcpy' if it's already defined.
+    * Fix Coverity IDs 587 and 589.
+    * Increase the default positive idmap cache time to a week.
+    * Fix calculation of useable_space for trans2 and nttrans replies.
+    * Add mapping of generic bits when setting an NFSv4 ACL.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * Some write time fixes.
+
+
+o   Karolin Seeger <kseeger@samba.org>
+    * Add new parameter "cups connection timeout".
+
+
+o   Simo Sorce <idra@samba.org>
+    * Fix enumeration of nested group memberships in Winbind.
+      This affected only setups using "security = ads".
+
+
+o   Timur <timur@FreeBSD.org>
+    * Fix cut and paste error in quota code.
+    * Fix display of POSIX ACLs.
+    * Fix aio on FreeBSD.
+
+
+o   Andrew Tridgell <tridge@samba.org>
+    * Fix permissions of group_mapping.ldb (CVE-2008-3789).
+    * Avoid a race condition in glibc between AIO and setresuid().
+    * Add missing become root for AIO operations.
+    * Fix an errno handling bug that could lead to an infinite loop.
+    * Fix logic of tsmsm_sendfile().
+    * Fix handling of arbitrary new PAC types.
+    * Fix segfault on startup with trusted domains.
+    * Fix segfault on the CTDB destructor code.
+    * Fix memory leak.
+    * Re-add "winbind:ignore domains".
+
+
+o   Jelmer Vernooij <jelmer@samba.org>
+    * Fix segfault (Debian bug #431696).
+
+
+o   Qiao Yang <geoyang@ironport.com>
+    * Fix a memleak.
+
+
+Commit Highlights:
+------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 5609: Remove configure option "--with-libdir" and add
+      "--with-modulesdir".
+    * Extend "net rpc vampire keytab" to support differential replication
+      and storing of kerberos keys.
+    * Rework internal logic of registry tdb code.
+    * Freeze autogenerated prototype headers (good bye "make proto").
+
+
+o   Jeremy Allison <jra@samba.org>
+    * Add new "winbind reconnect delay" parameter.
+    * Make the change to smbcontrol for "all" to mean broadcast,
+      and "smbd" to mean the main smb daemon.
+
+
+o   Gerald W. Carter <jerry@samba.org>
+    * Add support for name aliasing in Winbind.
+    * Add the idmap/nss-info provider from Likewise Open.
+    * Allow an admin to define the "uid" attribute for a RFC2307
+      user object in AD to be the username alias.
+    * Add new idmap backend "adex" to support RFC2307 enabled AD forests.
+
+
+o   Guenther Deschner <gd@samba.org>
+    * BUG 5710: Fix changing of machine account passwords.
+    * Add "net rpc vampire keytab" and "net rpc vampire ldif".
 
 
 o   Volker Lendecke <vl@samba.org>
-    * BUG 5500: Add missing become_root to enable access to LDAP DB.
-    * Fix coverity IDs 464, 474.
-    * Fix an uninitialized variable found by the IBM checker.
-    * Fix group parsing in libwbclient's copy_group_entry().
-    * Fix max_fd calculation in event_loop_once.
-    * Fix warnings on Fedory Core 9.
-    * Fix several memleaks.
-    * Fix a segfaults in wbcLookupRids.
-    * Fix a segfault in clitar.
-    * Fix the build on FreeBSD 4.6.2 and Darwin.
-    * Fix a double-closedir() in form_junctions().
-    * Fix a crash in _dfs_Enum.
-    * Fix a segfault in rpcclient adddriver.
-    * Fix valgrind errors in _spoolss_addprinterdriver.
-    * Fix warnings on SuSE 9.0.
-    * Fix a file descriptor leak in add_port_hook.
-
-
-o   William Jojo <jojowil@hvcc.edu>
-    * Fix several AIX build issues.
-    * Add -brtl to the AIX linker flags.
-
-
-o   Atte Peltomäki <atte.peltomaki@f-secure.com>
-    * Fix winbindd group expansion.
-
-
-o   Andreas Schneider <anschneider@suse.de>
-    * Add documentation for kerberos support in libsmbclient.
-    * Add krb5 support for the testbrowse example.
-
-
-o   John H Terpstra <jht@samba.org>
-    * Fix net help info.
-    * Add documentation for TDB file.
-
-
-o   Bo Yang <boyang@novell.com>
-    * Fix update of cached credentials during password change in pam_winbind.
-
-
-o   Christoph Zauner <christoph.zauner@sernet.de>
-    * Fix several typos in the man pages and the Samba3 HowTo Collection.
-
+    * Rework of the Winbind idmap backend.
+    * Fix calculation of useable_space for trans2 and nttrans replies.
+    * Add mapping of generic bits when setting an NFSv4 ACL.
 
 
 ######################################################################
@@ -286,7 +338,7 @@ joining the #samba-technical IRC channel on irc.freenode.net.
 If you do report problems then please try to send high quality
 feedback. If you don't provide vital information to help us track down
 the problem then you will probably be ignored.  All bug reports should
-be filed under the Samba 3.2 product in the project's Bugzilla
+be filed under the Samba 3.3 product in the project's Bugzilla
 database (https://bugzilla.samba.org/).
 
 

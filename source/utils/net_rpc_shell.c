@@ -21,11 +21,12 @@
 #include "includes.h"
 #include "utils/net.h"
 
-static NTSTATUS rpc_sh_info(TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
+static NTSTATUS rpc_sh_info(struct net_context *c,
+			    TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
 			    struct rpc_pipe_client *pipe_hnd,
 			    int argc, const char **argv)
 {
-	return rpc_info_internals(ctx->domain_sid, ctx->domain_name,
+	return rpc_info_internals(c, ctx->domain_sid, ctx->domain_name,
 				  ctx->cli, pipe_hnd, mem_ctx,
 				  argc, argv);
 }
@@ -63,7 +64,8 @@ static char **completion_fn(const char *text, int start, int end)
 	return cmds;
 }
 
-static NTSTATUS net_sh_run(struct rpc_sh_ctx *ctx, struct rpc_sh_cmd *cmd,
+static NTSTATUS net_sh_run(struct net_context *c,
+			   struct rpc_sh_ctx *ctx, struct rpc_sh_cmd *cmd,
 			   int argc, const char **argv)
 {
 	TALLOC_CTX *mem_ctx;
@@ -76,31 +78,33 @@ static NTSTATUS net_sh_run(struct rpc_sh_ctx *ctx, struct rpc_sh_cmd *cmd,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(ctx->cli, cmd->pipe_idx, &status);
-	if (pipe_hnd == NULL) {
+	status = cli_rpc_pipe_open_noauth(ctx->cli, cmd->interface,
+					  &pipe_hnd);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "Could not open pipe: %s\n",
 			  nt_errstr(status));
 		return status;
 	}
 
-	status = cmd->fn(mem_ctx, ctx, pipe_hnd, argc, argv);
+	status = cmd->fn(c, mem_ctx, ctx, pipe_hnd, argc, argv);
 
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 
 	talloc_destroy(mem_ctx);
 
 	return status;
 }
 
-static bool net_sh_process(struct rpc_sh_ctx *ctx,
+static bool net_sh_process(struct net_context *c,
+			   struct rpc_sh_ctx *ctx,
 			   int argc, const char **argv)
 {
-	struct rpc_sh_cmd *c;
+	struct rpc_sh_cmd *cmd;
 	struct rpc_sh_ctx *new_ctx;
 	NTSTATUS status;
 
 	if (argc == 0) {
-		return True;
+		return true;
 	}
 
 	if (ctx == this_ctx) {
@@ -111,48 +115,48 @@ static bool net_sh_process(struct rpc_sh_ctx *ctx,
 			new_ctx = this_ctx->parent;
 			TALLOC_FREE(this_ctx);
 			this_ctx = new_ctx;
-			return True;
+			return true;
 		}
 	}
 
 	if (strequal(argv[0], "exit") || strequal(argv[0], "quit")) {
-		return False;
+		return false;
 	}
 
 	if (strequal(argv[0], "help") || strequal(argv[0], "?")) {
-		for (c = ctx->cmds; c->name != NULL; c++) {
+		for (cmd = ctx->cmds; cmd->name != NULL; cmd++) {
 			if (ctx != this_ctx) {
 				d_printf("%s ", ctx->whoami);
 			}
-			d_printf("%-15s %s\n", c->name, c->help);
+			d_printf("%-15s %s\n", cmd->name, cmd->help);
 		}
-		return True;
+		return true;
 	}
 
-	for (c = ctx->cmds; c->name != NULL; c++) {
-		if (strequal(c->name, argv[0])) {
+	for (cmd = ctx->cmds; cmd->name != NULL; cmd++) {
+		if (strequal(cmd->name, argv[0])) {
 			break;
 		}
 	}
 
-	if (c->name == NULL) {
+	if (cmd->name == NULL) {
 		/* None found */
 		d_fprintf(stderr, "%s: unknown cmd\n", argv[0]);
-		return True;
+		return true;
 	}
 
 	new_ctx = TALLOC_P(ctx, struct rpc_sh_ctx);
 	if (new_ctx == NULL) {
 		d_fprintf(stderr, "talloc failed\n");
-		return False;
+		return false;
 	}
 	new_ctx->cli = ctx->cli;
 	new_ctx->whoami = talloc_asprintf(new_ctx, "%s %s",
-					  ctx->whoami, c->name);
-	new_ctx->thiscmd = talloc_strdup(new_ctx, c->name);
+					  ctx->whoami, cmd->name);
+	new_ctx->thiscmd = talloc_strdup(new_ctx, cmd->name);
 
-	if (c->sub != NULL) {
-		new_ctx->cmds = c->sub(new_ctx, ctx);
+	if (cmd->sub != NULL) {
+		new_ctx->cmds = cmd->sub(c, new_ctx, ctx);
 	} else {
 		new_ctx->cmds = NULL;
 	}
@@ -164,27 +168,27 @@ static bool net_sh_process(struct rpc_sh_ctx *ctx,
 	argc -= 1;
 	argv += 1;
 
-	if (c->sub != NULL) {
+	if (cmd->sub != NULL) {
 		if (argc == 0) {
 			this_ctx = new_ctx;
-			return True;
+			return true;
 		}
-		return net_sh_process(new_ctx, argc, argv);
+		return net_sh_process(c, new_ctx, argc, argv);
 	}
 
-	status = net_sh_run(new_ctx, c, argc, argv);
+	status = net_sh_run(c, new_ctx, cmd, argc, argv);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "%s failed: %s\n", new_ctx->whoami,
 			  nt_errstr(status));
 	}
 
-	return True;
+	return true;
 }
 
 static struct rpc_sh_cmd sh_cmds[6] = {
 
-	{ "info", NULL, PI_SAMR, rpc_sh_info,
+	{ "info", NULL, &ndr_table_samr.syntax_id, rpc_sh_info,
 	  "Print information about the domain connected to" },
 
 	{ "rights", net_rpc_rights_cmds, 0, NULL,
@@ -202,14 +206,24 @@ static struct rpc_sh_cmd sh_cmds[6] = {
 	{ NULL, NULL, 0, NULL, NULL }
 };
 
-int net_rpc_shell(int argc, const char **argv)
+int net_rpc_shell(struct net_context *c, int argc, const char **argv)
 {
 	NTSTATUS status;
 	struct rpc_sh_ctx *ctx;
 
-	if (argc != 0) {
-		d_fprintf(stderr, "usage: net rpc shell\n");
+	if (argc != 0 || c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc shell\n");
 		return -1;
+	}
+
+	if (libnetapi_init(&c->netapi_ctx) != 0) {
+		return -1;
+	}
+	libnetapi_set_username(c->netapi_ctx, c->opt_user_name);
+	libnetapi_set_password(c->netapi_ctx, c->opt_password);
+	if (c->opt_kerberos) {
+		libnetapi_set_use_kerberos(c->netapi_ctx);
 	}
 
 	ctx = TALLOC_P(NULL, struct rpc_sh_ctx);
@@ -218,7 +232,7 @@ int net_rpc_shell(int argc, const char **argv)
 		return -1;
 	}
 
-	status = net_make_ipc_connection(0, &(ctx->cli));
+	status = net_make_ipc_connection(c, 0, &(ctx->cli));
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "Could not open connection: %s\n",
 			  nt_errstr(status));
@@ -265,11 +279,11 @@ int net_rpc_shell(int argc, const char **argv)
 			d_fprintf(stderr, "cmdline invalid: %s\n",
 				  poptStrerror(ret));
 			SAFE_FREE(line);
-			return False;
+			return false;
 		}
 
 		if ((line[0] != '\n') &&
-		    (!net_sh_process(this_ctx, argc, argv))) {
+		    (!net_sh_process(c, this_ctx, argc, argv))) {
 			SAFE_FREE(line);
 			break;
 		}

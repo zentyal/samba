@@ -51,7 +51,7 @@ static bool share_info_db_init(void)
 		return True;
 	}
 
-	share_db = db_open_trans(NULL, state_path("share_info.tdb"), 0,
+	share_db = db_open(NULL, state_path("share_info.tdb"), 0,
 				 TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (share_db == NULL) {
 		DEBUG(0,("Failed to open share info database %s (%s)\n",
@@ -109,7 +109,7 @@ static bool share_info_db_init(void)
 
 	if (share_db->transaction_commit(share_db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
-		goto cancel;
+		return false;
 	}
 
 	return true;

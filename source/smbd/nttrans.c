@@ -22,28 +22,6 @@
 
 extern int max_send;
 extern enum protocol_types Protocol;
-extern struct current_user current_user;
-
-static const char *known_nt_pipes[] = {
-	"\\LANMAN",
-	"\\srvsvc",
-	"\\samr",
-	"\\wkssvc",
-	"\\NETLOGON",
-	"\\ntlsa",
-	"\\ntsvcs",
-	"\\lsass",
-	"\\lsarpc",
-	"\\winreg",
-	"\\initshutdown",
-	"\\spoolss",
-	"\\netdfs",
-	"\\rpcecho",
-        "\\svcctl",
-	"\\eventlog",
-	"\\unixinfo",
-	NULL
-};
 
 static char *nttrans_realloc(char **ptr, size_t size)
 {
@@ -113,14 +91,11 @@ void send_nt_replies(connection_struct *conn,
 				    + alignment_offset
 				    + data_alignment_offset);
 
-	/*
-	 * useable_space can never be more than max_send minus the
-	 * alignment offset.
-	 */
-
-	useable_space = MIN(useable_space,
-				max_send - (alignment_offset+data_alignment_offset));
-
+	if (useable_space < 0) {
+		DEBUG(0, ("send_nt_replies failed sanity useable_space "
+			  "= %d!!!", useable_space));
+		exit_server_cleanly("send_nt_replies: srv_send_smb failed.");
+	}
 
 	while (params_to_send || data_to_send) {
 
@@ -128,8 +103,7 @@ void send_nt_replies(connection_struct *conn,
 		 * Calculate whether we will totally or partially fill this packet.
 		 */
 
-		total_sent_thistime = params_to_send + data_to_send +
-					alignment_offset + data_alignment_offset;
+		total_sent_thistime = params_to_send + data_to_send;
 
 		/*
 		 * We can never send more than useable_space.
@@ -137,7 +111,9 @@ void send_nt_replies(connection_struct *conn,
 
 		total_sent_thistime = MIN(total_sent_thistime, useable_space);
 
-		reply_outbuf(req, 18, total_sent_thistime);
+		reply_outbuf(req, 18,
+			     total_sent_thistime + alignment_offset
+			     + data_alignment_offset);
 
 		/*
 		 * Set total params and data to be sent.
@@ -264,7 +240,7 @@ void send_nt_replies(connection_struct *conn,
 		if(params_to_send < 0 || data_to_send < 0) {
 			DEBUG(0,("send_nt_replies failed sanity check pts = %d, dts = %d\n!!!",
 				params_to_send, data_to_send));
-			return;
+			exit_server_cleanly("send_nt_replies: internal error");
 		}
 	}
 }
@@ -292,25 +268,12 @@ static void nt_open_pipe(char *fname, connection_struct *conn,
 			 struct smb_request *req, int *ppnum)
 {
 	smb_np_struct *p = NULL;
-	int i;
 
 	DEBUG(4,("nt_open_pipe: Opening pipe %s.\n", fname));
 
 	/* See if it is one we want to handle. */
 
-	if (lp_disable_spoolss() && strequal(fname, "\\spoolss")) {
-		reply_botherror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND,
-				ERRDOS, ERRbadpipe);
-		return;
-	}
-
-	for( i = 0; known_nt_pipes[i]; i++ ) {
-		if( strequal(fname,known_nt_pipes[i])) {
-			break;
-		}
-	}
-
-	if ( known_nt_pipes[i] == NULL ) {
+	if (!is_known_pipename(fname)) {
 		reply_botherror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND,
 				ERRDOS, ERRbadpipe);
 		return;
@@ -488,6 +451,12 @@ void reply_ntcreate_and_X(struct smb_request *req)
 			(unsigned int)create_options,
 			(unsigned int)root_dir_fid,
 			fname));
+
+	/*
+	 * we need to remove ignored bits when they come directly from the client
+	 * because we reuse some of them for internal stuff
+	 */
+	create_options &= ~NTCREATEX_OPTIONS_MUST_IGNORE_MASK;
 
 	/*
 	 * If it's an IPC, use the pipe handler.
@@ -770,13 +739,7 @@ static NTSTATUS set_sd(files_struct *fsp, uint8 *data, uint32 sd_len,
 		security_info_sent &= ~DACL_SECURITY_INFORMATION;
 	}
 
-	if (fsp->fh->fd != -1) {
-		status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
-	}
-	else {
-		status = SMB_VFS_SET_NT_ACL(fsp, fsp->fsp_name,
-					    security_info_sent, psd);
-	}
+	status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
 
 	TALLOC_FREE(psd);
 
@@ -898,6 +861,12 @@ static void call_nt_transact_create(connection_struct *conn,
 #ifdef LARGE_SMB_OFF_T
 	allocation_size |= (((SMB_BIG_UINT)IVAL(params,16)) << 32);
 #endif
+
+	/*
+	 * we need to remove ignored bits when they come directly from the client
+	 * because we reuse some of them for internal stuff
+	 */
+	create_options &= ~NTCREATEX_OPTIONS_MUST_IGNORE_MASK;
 
 	/* Ensure the data_len is correct for the sd and ea values given. */
 	if ((ea_len + sd_len > data_count)
@@ -1526,7 +1495,7 @@ static void call_nt_transact_rename(connection_struct *conn,
 	}
 
 	fsp = file_fsp(SVAL(params, 0));
-	if (!check_fsp(conn, req, fsp, &current_user)) {
+	if (!check_fsp(conn, req, fsp)) {
 		return;
 	}
 	srvstr_get_path_wcard(ctx, params, req->flags2, &new_name, params+4,
@@ -1618,14 +1587,8 @@ static void call_nt_transact_query_security_desc(connection_struct *conn,
 	if (!lp_nt_acl_support(SNUM(conn))) {
 		status = get_null_nt_acl(talloc_tos(), &psd);
 	} else {
-		if (fsp->fh->fd != -1) {
-			status = SMB_VFS_FGET_NT_ACL(
-				fsp, security_info_wanted, &psd);
-		}
-		else {
-			status = SMB_VFS_GET_NT_ACL(
-				conn, fsp->fsp_name, security_info_wanted, &psd);
-		}
+		status = SMB_VFS_FGET_NT_ACL(
+			fsp, security_info_wanted, &psd);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1785,7 +1748,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 
 		DEBUG(10,("FSCTL_CREATE_OR_GET_OBJECT_ID: called on FID[0x%04X]\n",fidnum));
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -1840,7 +1803,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 		uint32 i;
 		char *cur_pdata;
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -1963,7 +1926,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 
 		DEBUG(10,("FSCTL_FIND_FILES_BY_SID: called on FID[0x%04X]\n",fidnum));
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -2048,9 +2011,10 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 	ZERO_STRUCT(qt);
 
 	/* access check */
-	if (current_user.ut.uid != 0) {
-		DEBUG(1,("get_user_quota: access_denied service [%s] user [%s]\n",
-			lp_servicename(SNUM(conn)),conn->user));
+	if (conn->server_info->utok.uid != 0) {
+		DEBUG(1,("get_user_quota: access_denied service [%s] user "
+			 "[%s]\n", lp_servicename(SNUM(conn)),
+			 conn->server_info->unix_name));
 		reply_doserror(req, ERRDOS, ERRnoaccess);
 		return;
 	}
@@ -2067,7 +2031,7 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 
 	/* maybe we can check the quota_fnum */
 	fsp = file_fsp(SVAL(params,0));
-	if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+	if (!check_fsp_ntquota_handle(conn, req, fsp)) {
 		DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return;
@@ -2076,7 +2040,7 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 	/* the NULL pointer checking for fsp->fake_file_handle->pd
 	 * is done by CHECK_NTQUOTA_HANDLE_OK()
 	 */
-	qt_handle = (SMB_NTQUOTA_HANDLE *)fsp->fake_file_handle->pd;
+	qt_handle = (SMB_NTQUOTA_HANDLE *)fsp->fake_file_handle->private_data;
 
 	level = SVAL(params,2);
 
@@ -2314,9 +2278,10 @@ static void call_nt_transact_set_user_quota(connection_struct *conn,
 	ZERO_STRUCT(qt);
 
 	/* access check */
-	if (current_user.ut.uid != 0) {
-		DEBUG(1,("set_user_quota: access_denied service [%s] user [%s]\n",
-			lp_servicename(SNUM(conn)),conn->user));
+	if (conn->server_info->utok.uid != 0) {
+		DEBUG(1,("set_user_quota: access_denied service [%s] user "
+			 "[%s]\n", lp_servicename(SNUM(conn)),
+			 conn->server_info->unix_name));
 		reply_doserror(req, ERRDOS, ERRnoaccess);
 		return;
 	}
@@ -2333,7 +2298,7 @@ static void call_nt_transact_set_user_quota(connection_struct *conn,
 
 	/* maybe we can check the quota_fnum */
 	fsp = file_fsp(SVAL(params,0));
-	if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+	if (!check_fsp_ntquota_handle(conn, req, fsp)) {
 		DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return;
@@ -2595,7 +2560,7 @@ void reply_nttrans(struct smb_request *req)
 		return;
 	}
 
-	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
+	if ((state = TALLOC_P(conn, struct trans_state)) == NULL) {
 		reply_doserror(req, ERRSRV, ERRaccess);
 		END_PROFILE(SMBnttrans);
 		return;

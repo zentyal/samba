@@ -212,14 +212,6 @@ static NTSTATUS zfsacl_fset_nt_acl(vfs_handle_struct *handle,
 	return zfs_set_nt_acl(handle, fsp, security_info_sent, psd);
 }
 
-static NTSTATUS zfsacl_set_nt_acl(vfs_handle_struct *handle,
-		       files_struct *fsp,
-		       const char *name, uint32 security_info_sent,
-		       SEC_DESC *psd)
-{
-	return zfs_set_nt_acl(handle, fsp, security_info_sent, psd);
-}
-
 /* VFS operations structure */
 
 static vfs_op_tuple zfsacl_ops[] = {
@@ -229,28 +221,11 @@ static vfs_op_tuple zfsacl_ops[] = {
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(zfsacl_fset_nt_acl), SMB_VFS_OP_FSET_NT_ACL,
 	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(zfsacl_set_nt_acl), SMB_VFS_OP_SET_NT_ACL,
-	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
 };
 
-/* != 0 if this module will be compiled as static */
-
-#define STATIC 0
-
-#if STATIC
 NTSTATUS vfs_zfsacl_init(void);
-#else
-NTSTATUS init_module(void);
-#endif
-
-NTSTATUS
-#if STATIC
-	vfs_zfsacl_init
-#else
-	init_module
-#endif
-		(void)
+NTSTATUS vfs_zfsacl_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "zfsacl",
 				zfsacl_ops);

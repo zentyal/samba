@@ -1,11 +1,11 @@
 .\"     Title: smbcontrol
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 06/26/2008
+.\"      Date: 10/02/2008
 .\"    Manual: User Commands
 .\"    Source: Samba 3.2
 .\"
-.TH "SMBCONTROL" "1" "06/26/2008" "Samba 3\.2" "User Commands"
+.TH "SMBCONTROL" "1" "10/02/2008" "Samba 3\.2" "User Commands"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -56,13 +56,25 @@ One of
 or a process ID\.
 .sp
 The
+\fIall\fR
+destination causes the message to "broadcast" to all running daemons including nmbd and winbind\. This is a change for Samba 3\.3, prior to this the paramter smbd used to do this\.
+.sp
+The
 \fIsmbd\fR
-destination causes the message to "broadcast" to all smbd daemons\.
+destination causes the message to be sent to the smbd daemon specified in the
+\fIsmbd\.pid\fR
+file\.
 .sp
 The
 \fInmbd\fR
 destination causes the message to be sent to the nmbd daemon specified in the
 \fInmbd\.pid\fR
+file\.
+.sp
+The
+\fIwinbindd\fR
+destination causes the message to be sent to the winbind daemon specified in the
+\fIwinbindd\.pid\fR
 file\.
 .sp
 If a single process ID is given, the message is sent to only that process\.

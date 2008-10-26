@@ -13,7 +13,7 @@ CFLAGS = -O0 -g $(SAMBA_INCL) $(EXTLIB_INCL) $(DEFS)
 LDFLAGS = -L/usr/local/samba/lib \
 	  -lldap -lkrb5 -lgssapi_krb5
 #LIBSMBCLIENT = /usr/local/samba/lib/libsmbclient.so
-LIBSMBCLIENT = -lwbclient -lsmbclient -ldl -lresolv
+LIBSMBCLIENT = -lwbclient -lsmbclient -ltalloc -ltdb -ldl -lresolv
 
 TESTS=	testsmbc \
 	testacl \
@@ -92,6 +92,10 @@ testread: testread.o
 
 testwrite: testwrite.o
 	@echo Linking testwrite
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBSMBCLIENT) -lpopt
+
+testctx: testctx.o
+	@echo Linking testctx
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBSMBCLIENT) -lpopt
 
 smbsh:

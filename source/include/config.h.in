@@ -307,6 +307,12 @@
 /* Whether we have CUPS */
 #undef HAVE_CUPS
 
+/* Define to 1 if you have the <cups/cups.h> header file. */
+#undef HAVE_CUPS_CUPS_H
+
+/* Define to 1 if you have the <cups/language.h> header file. */
+#undef HAVE_CUPS_LANGUAGE_H
+
 /* Whether to use the Darwin-specific initgroups system call */
 #undef HAVE_DARWIN_INITGROUPS
 
@@ -531,6 +537,9 @@
 
 /* Define to 1 if you have the `fremovexattr' function. */
 #undef HAVE_FREMOVEXATTR
+
+/* Whether statvfs.f_frsize exists */
+#undef HAVE_FRSIZE
 
 /* Define to 1 if you have the `fseek64' function. */
 #undef HAVE_FSEEK64
@@ -829,6 +838,9 @@
 /* Define to 1 if you have the `krb5_auth_con_setuseruserkey' function. */
 #undef HAVE_KRB5_AUTH_CON_SETUSERUSERKEY
 
+/* Define to 1 if you have the `krb5_auth_con_set_req_cksumtype' function. */
+#undef HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+
 /* Whether the type krb5_crypto exists */
 #undef HAVE_KRB5_CRYPTO
 
@@ -876,6 +888,9 @@
 
 /* Define to 1 if you have the `krb5_free_unparsed_name' function. */
 #undef HAVE_KRB5_FREE_UNPARSED_NAME
+
+/* Define to 1 if you have the `krb5_fwd_tgt_creds' function. */
+#undef HAVE_KRB5_FWD_TGT_CREDS
 
 /* Define to 1 if you have the `krb5_get_default_in_tkt_etypes' function. */
 #undef HAVE_KRB5_GET_DEFAULT_IN_TKT_ETYPES
@@ -1692,6 +1707,15 @@
 /* whether struct stat contains st_atimensec */
 #undef HAVE_STAT_ST_ATIMENSEC
 
+/* whether struct stat contains st_birthtime */
+#undef HAVE_STAT_ST_BIRTHTIME
+
+/* whether struct stat contains st_birthtimensec */
+#undef HAVE_STAT_ST_BIRTHTIMENSEC
+
+/* whether struct stat contains st_birthtimespec */
+#undef HAVE_STAT_ST_BIRTHTIMESPEC
+
 /* Whether the stat struct has a st_blksize property */
 #undef HAVE_STAT_ST_BLKSIZE
 
@@ -1814,6 +1838,15 @@
 
 /* Define to 1 if `method_version' is member of `struct secmethod_table'. */
 #undef HAVE_STRUCT_SECMETHOD_TABLE_METHOD_VERSION
+
+/* Whether we have the struct sigevent */
+#undef HAVE_STRUCT_SIGEVENT
+
+/* Define to 1 if `sigev_value.sigval_ptr' is member of `struct sigevent'. */
+#undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIGVAL_PTR
+
+/* Define to 1 if `sigev_value.sival_ptr' is member of `struct sigevent'. */
+#undef HAVE_STRUCT_SIGEVENT_SIGEV_VALUE_SIVAL_PTR
 
 /* Define to 1 if the system has the type `struct sockaddr'. */
 #undef HAVE_STRUCT_SOCKADDR
@@ -2671,8 +2704,8 @@
 /* Whether to build mount.cifs and umount.cifs */
 #undef WITH_CIFSMOUNT
 
-/* whether to build cifs.spnego */
-#undef WITH_CIFSSPNEGO
+/* whether to build cifs.upcall */
+#undef WITH_CIFSUPCALL
 
 /* Whether to include DFS support */
 #undef WITH_DFS
@@ -2828,8 +2861,23 @@
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t
 
+/* Whether to build gpext_registry as shared module */
+#undef gpext_registry_init
+
+/* Whether to build gpext_scripts as shared module */
+#undef gpext_scripts_init
+
+/* Whether to build gpext_security as shared module */
+#undef gpext_security_init
+
 /* Whether to build idmap_ad as shared module */
 #undef idmap_ad_init
+
+/* Whether to build idmap_adex as shared module */
+#undef idmap_adex_init
+
+/* Whether to build idmap_hash as shared module */
+#undef idmap_hash_init
 
 /* Whether to build idmap_ldap as shared module */
 #undef idmap_ldap_init
@@ -2958,6 +3006,9 @@
 #undef static_decl_charset
 
 /* Decl of Static init functions */
+#undef static_decl_gpext
+
+/* Decl of Static init functions */
 #undef static_decl_idmap
 
 /* Decl of Static init functions */
@@ -2977,6 +3028,9 @@
 
 /* Static init functions */
 #undef static_init_charset
+
+/* Static init functions */
+#undef static_init_gpext
 
 /* Static init functions */
 #undef static_init_idmap
@@ -3013,6 +3067,9 @@
 
 /* Define to `unsigned long long' if <sys/types.h> does not define. */
 #undef uintptr_t
+
+/* Whether to build vfs_acl_xattr as shared module */
+#undef vfs_acl_xattr_init
 
 /* Whether to build vfs_afsacl as shared module */
 #undef vfs_afsacl_init
@@ -3097,6 +3154,9 @@
 
 /* Whether to build vfs_shadow_copy as shared module */
 #undef vfs_shadow_copy_init
+
+/* Whether to build vfs_smb_traffic_analyzer as shared module */
+#undef vfs_smb_traffic_analyzer_init
 
 /* Whether to build vfs_solarisacl as shared module */
 #undef vfs_solarisacl_init

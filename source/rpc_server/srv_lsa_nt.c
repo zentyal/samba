@@ -487,7 +487,7 @@ NTSTATUS _lsa_EnumTrustDom(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&info))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 	if (!(info->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 		return NT_STATUS_ACCESS_DENIED;
 
@@ -568,7 +568,7 @@ NTSTATUS _lsa_QueryInfoPolicy(pipes_struct *p,
 
 		uint32 policy_def = LSA_AUDIT_POLICY_ALL;
 
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_VIEW_AUDIT_INFORMATION)) {
 			DEBUG(10,("_lsa_QueryInfoPolicy: insufficient access rights\n"));
 			return NT_STATUS_ACCESS_DENIED;
@@ -596,7 +596,7 @@ NTSTATUS _lsa_QueryInfoPolicy(pipes_struct *p,
 		break;
 		}
 	case 0x03:
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 			return NT_STATUS_ACCESS_DENIED;
 
@@ -632,7 +632,7 @@ NTSTATUS _lsa_QueryInfoPolicy(pipes_struct *p,
 		init_dom_query_3(&info->domain, name, sid);
 		break;
 	case 0x05:
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 			return NT_STATUS_ACCESS_DENIED;
 
@@ -643,7 +643,7 @@ NTSTATUS _lsa_QueryInfoPolicy(pipes_struct *p,
 		init_dom_query_5(&info->account_domain, name, sid);
 		break;
 	case 0x06:
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 			return NT_STATUS_ACCESS_DENIED;
 
@@ -884,7 +884,7 @@ NTSTATUS _lsa_LookupSids2(pipes_struct *p,
 			return NT_STATUS_INVALID_HANDLE;
 		}
 
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_LOOKUP_NAMES)) {
 			return NT_STATUS_ACCESS_DENIED;
 		}
@@ -1016,7 +1016,7 @@ NTSTATUS _lsa_LookupNames(pipes_struct *p,
 		goto done;
 	}
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 	if (!(handle->access & LSA_POLICY_LOOKUP_NAMES)) {
 		status = NT_STATUS_ACCESS_DENIED;
 		goto done;
@@ -1155,7 +1155,7 @@ NTSTATUS _lsa_LookupNames3(pipes_struct *p,
 			goto done;
 		}
 
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_LOOKUP_NAMES)) {
 			status = NT_STATUS_ACCESS_DENIED;
 			goto done;
@@ -1308,7 +1308,7 @@ NTSTATUS _lsa_EnumPrivs(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&handle))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights
+	/* check if the user has enough rights
 	   I don't know if it's the right one. not documented.  */
 
 	if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
@@ -1364,7 +1364,7 @@ NTSTATUS _lsa_LookupPrivDisplayName(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&handle))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 
 	/*
 	 * I don't know if it's the right one. not documented.
@@ -1463,14 +1463,10 @@ NTSTATUS _lsa_GetUserName(pipes_struct *p,
 			  struct lsa_GetUserName *r)
 {
 	const char *username, *domname;
-	user_struct *vuser = get_valid_user_struct(p->vuid);
 	struct lsa_String *account_name = NULL;
 	struct lsa_String *authority_name = NULL;
 
-	if (vuser == NULL)
-		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
-
-	if (vuser->guest) {
+	if (p->server_info->guest) {
 		/*
 		 * I'm 99% sure this is not the right place to do this,
 		 * global_sid_Anonymous should probably be put into the token
@@ -1481,8 +1477,8 @@ NTSTATUS _lsa_GetUserName(pipes_struct *p,
 			return NT_STATUS_NO_MEMORY;
 		}
 	} else {
-		username = vuser->user.smb_name;
-		domname = vuser->user.domain;
+		username = p->server_info->sanitized_username;
+		domname = pdb_get_domain(p->server_info->sam_account);
 	}
 
 	account_name = TALLOC_ZERO_P(p->mem_ctx, struct lsa_String);
@@ -1518,7 +1514,7 @@ NTSTATUS _lsa_CreateAccount(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&handle))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 
 	/*
 	 * I don't know if it's the right one. not documented.
@@ -1567,7 +1563,7 @@ NTSTATUS _lsa_OpenAccount(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&handle))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 
 	/*
 	 * I don't know if it's the right one. not documented.
@@ -1816,7 +1812,7 @@ NTSTATUS _lsa_QuerySecurity(pipes_struct *p,
 	if (!find_policy_by_hnd(p, r->in.handle, (void **)(void *)&handle))
 		return NT_STATUS_INVALID_HANDLE;
 
-	/* check if the user have enough rights */
+	/* check if the user has enough rights */
 	if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 		return NT_STATUS_ACCESS_DENIED;
 
@@ -1873,7 +1869,7 @@ NTSTATUS _lsa_QuerySecurity(pipes_struct *p,
 
 	switch (q_u->info_class) {
 	case 0x0c:
-		/* check if the user have enough rights */
+		/* check if the user has enough rights */
 		if (!(handle->access & LSA_POLICY_VIEW_LOCAL_INFORMATION))
 			return NT_STATUS_ACCESS_DENIED;
 

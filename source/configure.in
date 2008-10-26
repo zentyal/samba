@@ -79,10 +79,6 @@ AC_SUBST(INSTALLLIBCMD_SH)
 AC_SUBST(INSTALLLIBCMD_A)
 AC_SUBST(UNINSTALLLIBCMD_SH)
 AC_SUBST(UNINSTALLLIBCMD_A)
-AC_SUBST(INSTALL_LIBADDNS)
-AC_SUBST(UNINSTALL_LIBADDNS)
-AC_SUBST(LIBADDNS_SHARED)
-AC_SUBST(LIBADDNS)
 
 AC_SUBST(INSTALL_LIBWBCLIENT)
 AC_SUBST(UNINSTALL_LIBWBCLIENT)
@@ -90,19 +86,11 @@ AC_SUBST(LIBWBCLIENT_SHARED_TARGET)
 AC_SUBST(LIBWBCLIENT_SHARED)
 AC_SUBST(LIBWBCLIENT_STATIC_TARGET)
 AC_SUBST(LIBWBCLIENT_STATIC)
+AC_SUBST(LIBWBCLIENT_SOVER)
 AC_SUBST(LIBWBCLIENT)
 AC_SUBST(WINBIND_LIBS)
 
 AC_SUBST(LIBSAMBAUTIL_SHARED)
-
-AC_SUBST(INSTALL_LIBSMBCLIENT)
-AC_SUBST(UNINSTALL_LIBSMBCLIENT)
-AC_SUBST(LIBSMBCLIENT_SHARED)
-AC_SUBST(LIBSMBCLIENT)
-AC_SUBST(INSTALL_LIBSMBSHAREMODES)
-AC_SUBST(UNINSTALL_LIBSMBSHAREMODES)
-AC_SUBST(LIBSMBSHAREMODES_SHARED)
-AC_SUBST(LIBSMBSHAREMODES)
 
 AC_SUBST(PRINT_LIBS)
 AC_SUBST(AUTH_LIBS)
@@ -112,6 +100,7 @@ AC_SUBST(IDMAP_LIBS)
 AC_SUBST(KRB5_LIBS)
 AC_SUBST(UUID_LIBS)
 AC_SUBST(LDAP_LIBS)
+AC_SUBST(GPEXT_LIBS)
 AC_SUBST(PAM_MODULES)
 AC_SUBST(INSTALL_PAM_MODULES)
 AC_SUBST(UNINSTALL_PAM_MODULES)
@@ -120,9 +109,9 @@ AC_SUBST(EXTRA_BIN_PROGS)
 AC_SUBST(CIFSMOUNT_PROGS)
 AC_SUBST(INSTALL_CIFSMOUNT)
 AC_SUBST(UNINSTALL_CIFSMOUNT)
-AC_SUBST(CIFSSPNEGO_PROGS)
-AC_SUBST(INSTALL_CIFSSPNEGO)
-AC_SUBST(UNINSTALL_CIFSSPNEGO)
+AC_SUBST(CIFSUPCALL_PROGS)
+AC_SUBST(INSTALL_CIFSUPCALL)
+AC_SUBST(UNINSTALL_CIFSUPCALL)
 AC_SUBST(EXTRA_SBIN_PROGS)
 AC_SUBST(EXTRA_ALL_TARGETS)
 AC_SUBST(CONFIG_LIBS)
@@ -193,6 +182,10 @@ if test x"$ac_cv_prog_gcc" = x"yes" ; then
 	# -Wstrict-prototypes.
        if test x"$krb5_developer" != x"$yes" ; then
 	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Wstrict-prototypes"
+       fi
+
+       if test x"$picky_developer" = x"yes"; then
+	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Werror"
        fi
 fi
 
@@ -269,7 +262,7 @@ if test "$ac_cv_prog_gnu_ld" = "yes"; then
            if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
              ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
            fi
-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_l= d_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
              ac_cv_gnu_ld_version_script=yes
            fi
         fi
@@ -416,7 +409,7 @@ dnl These have to be built static:
 default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
 
 dnl These are preferably build shared, and static if dlopen() is not available
-default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr"
+default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr vfs_acl_xattr vfs_smb_traffic_analyzer"
 
 if test "x$developer" = xyes; then
    default_static_modules="$default_static_modules rpc_rpcecho"
@@ -768,10 +761,25 @@ if test x$enable_cups != xno; then
 	AC_PATH_PROG(CUPS_CONFIG, cups-config)
 
         if test "x$CUPS_CONFIG" != x; then
-                AC_DEFINE(HAVE_CUPS,1,[Whether we have CUPS])
+
+		ac_save_CFLAGS=$CFLAGS
+		ac_save_LDFLAGS=$LDFLAGS
+		ac_save_PRINT_LIBS=$PRINT_LIBS
 		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
 		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
 		PRINT_LIBS="$PRINT_LIBS `$CUPS_CONFIG --libs`"
+		AC_CHECK_HEADERS(cups/cups.h cups/language.h)
+		if test x"$ac_cv_header_cups_cups_h" = xyes -a \
+		        x"$ac_cv_header_cups_language_h" = xyes; then
+			AC_DEFINE(HAVE_CUPS,1,[Whether we have CUPS])
+			samba_cv_HAVE_CUPS=yes
+		else
+			AC_MSG_WARN([cups-config around but cups-devel not installed])
+			CFLAGS=$ac_save_CFLAGS
+			LDFLAGS=$ac_save_LDFLAGS
+			PRINT_LIBS=$ac_save_PRINT_LIBS
+		fi
+
 	elif test x"$enable_cups" = x"yes"; then
 		AC_MSG_ERROR(Cups support required but cups-config not located.  Make sure cups-devel related files are installed.)
         fi
@@ -781,7 +789,7 @@ AC_ARG_ENABLE(iprint,
 [AS_HELP_STRING([--enable-iprint], [Turn on iPrint support (default=yes if cups is yes)])])
 
 if test x$enable_iprint != xno; then
-	if test "x$CUPS_CONFIG" != x; then
+	if test x"$samba_cv_HAVE_CUPS" = xyes; then
                 AC_DEFINE(HAVE_IPRINT,1,[Whether we have iPrint])
 	elif test x"$enable_iprint" = x"yes"; then
 		AC_MSG_ERROR(iPrint support required but cups not enabled.  Make sure cups-devel related files are installed and that cups is enabled.)
@@ -868,6 +876,21 @@ AC_CACHE_CHECK([for sig_atomic_t type],samba_cv_sig_atomic_t, [
 	samba_cv_sig_atomic_t=yes,samba_cv_sig_atomic_t=no)])
 if test x"$samba_cv_sig_atomic_t" = x"yes"; then
    AC_DEFINE(HAVE_SIG_ATOMIC_T_TYPE,1,[Whether we have the atomic_t variable type])
+fi
+
+AC_CACHE_CHECK([for struct sigevent type],samba_cv_struct_sigevent, [
+    AC_TRY_COMPILE([
+#include <sys/types.h>
+#if STDC_HEADERS
+#include <stdlib.h>
+#include <stddef.h>
+#endif
+#include <signal.h>],[struct sigevent s;],
+	samba_cv_struct_sigevent=yes,samba_cv_struct_sigevent=no)])
+if test x"$samba_cv_struct_sigevent" = x"yes"; then
+   AC_DEFINE(HAVE_STRUCT_SIGEVENT,1,[Whether we have the struct sigevent])
+   AC_CHECK_MEMBERS([struct sigevent.sigev_value.sival_ptr,struct sigevent.sigev_value.sigval_ptr], , ,
+	[#include <signal.h>])
 fi
 
 AC_CACHE_CHECK([for struct timespec type],samba_cv_struct_timespec, [
@@ -1344,6 +1367,96 @@ if test x"$samba_cv_stat_hires_notimespec" = x"yes" ; then
     AC_DEFINE(HAVE_STAT_ST_CTIMENSEC, 1, [whether struct stat contains st_ctimensec])
     AC_DEFINE(HAVE_STAT_HIRES_TIMESTAMPS, 1,
 	    [whether struct stat has sub-second timestamps without struct timespec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtimespec], samba_cv_stat_st_birthtimespec,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct timespec t;
+		struct stat s = {0};
+		t = s.st_birthtimespec;
+	    ],
+	    samba_cv_stat_st_birthtimespec=yes, samba_cv_stat_birthtimespec=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtimespec" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIMESPEC, 1, [whether struct stat contains st_birthtimespec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtimensec], samba_cv_stat_st_birthtimensec,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct timespec t;
+		struct stat s = {0};
+		t.tv_nsec = s.st_birthtimensec;
+	    ],
+	    samba_cv_stat_st_birthtimensec=yes, samba_cv_stat_birthtimensec=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtimensec" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIMENSEC, 1, [whether struct stat contains st_birthtimensec])
+fi
+
+AC_CACHE_CHECK([whether struct stat has st_birthtime], samba_cv_stat_st_birthtime,
+    [
+	AC_TRY_COMPILE(
+	    [
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+	    ],
+	    [
+		struct time_t t;
+		struct stat s = {0};
+		t = s.st_birthtime;
+	    ],
+	    samba_cv_stat_st_birthtime=yes, samba_cv_stat_birthtime=no)
+    ])
+
+if test x"$samba_cv_stat_st_birthtime" = x"yes" ; then
+    AC_DEFINE(HAVE_STAT_ST_BIRTHTIME, 1, [whether struct stat contains st_birthtime])
 fi
 
 #####################################
@@ -2196,9 +2309,13 @@ for i in $ICONV_LOOK_DIRS ; do
     # in both libiconv and in libc. In this case the jm_ICONV test will always
     # succeed when the header is found. To counter this, make sure the
     # library directory is there and check the ABI directory first (which
-    # should be harmless on other systems.
+    # should be harmless on other systems, but causes tons of linker warnings on
+    # 64bit Ubuntu systems).
+    # As the build farm doesn't seem to have any IRIX machines with iconv.h
+    # installed, I've decided to fix the linker warnings.
+    # -- Kai
     # For IA64 HPUX systems, the libs are located in lib/hpux32 instead of lib.
-    for l in "lib32" "lib" "lib/hpux32"; do
+    for l in "lib" "lib32" "lib/hpux32"; do
         if test -d "$i/$l" ; then
                 LDFLAGS="$save_LDFLAGS -L$i/$l"
 		LIBS=
@@ -2615,19 +2732,6 @@ AC_CHECK_FUNCS(getpagesize)
 ################################################
 # look for a method of setting the effective uid
 seteuid=no;
-if test $seteuid = no; then
-AC_CACHE_CHECK([for setresuid],samba_cv_USE_SETRESUID,[
-AC_TRY_RUN([
-#define AUTOCONF_TEST 1
-#define USE_SETRESUID 1
-#include "confdefs.h"
-#include "${srcdir-.}/lib/util_sec.c"],
-           samba_cv_USE_SETRESUID=yes,samba_cv_USE_SETRESUID=no,samba_cv_USE_SETRESUID=cross)])
-if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
-    seteuid=yes;AC_DEFINE(USE_SETRESUID,1,[Whether setresuid() is available])
-fi
-fi
-
 
 if test $seteuid = no; then
 AC_CACHE_CHECK([for setreuid],samba_cv_USE_SETREUID,[
@@ -2639,6 +2743,21 @@ AC_TRY_RUN([
            samba_cv_USE_SETREUID=yes,samba_cv_USE_SETREUID=no,samba_cv_USE_SETREUID=cross)])
 if test x"$samba_cv_USE_SETREUID" = x"yes"; then
     seteuid=yes;AC_DEFINE(USE_SETREUID,1,[Whether setreuid() is available])
+fi
+fi
+
+# we check for setresuid second as it conflicts with AIO on Linux. 
+# see http://samba.org/~tridge/junkcode/aio_uid.c
+if test $seteuid = no; then
+AC_CACHE_CHECK([for setresuid],samba_cv_USE_SETRESUID,[
+AC_TRY_RUN([
+#define AUTOCONF_TEST 1
+#define USE_SETRESUID 1
+#include "confdefs.h"
+#include "${srcdir-.}/lib/util_sec.c"],
+           samba_cv_USE_SETRESUID=yes,samba_cv_USE_SETRESUID=no,samba_cv_USE_SETRESUID=cross)])
+if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
+    seteuid=yes;AC_DEFINE(USE_SETRESUID,1,[Whether setresuid() is available])
 fi
 fi
 
@@ -2787,9 +2906,17 @@ AC_CACHE_CHECK([if the realpath function allows a NULL argument],samba_cv_REALPA
 AC_TRY_RUN([
 #include <stdio.h>
 #include <limits.h>
+#include <signal.h>
+
+void exit_on_core(int ignored) {
+	exit(1);
+}
+
 main() {
-	char *newpath = realpath("/tmp", NULL);
-	exit ((newpath != NULL) ? 0 : 1);
+	char *newpath;
+	signal(SIGSEGV, exit_on_core);
+	newpath = realpath("/tmp", NULL);
+	exit((newpath != NULL) ? 0 : 1);
 }
 ],
 samba_cv_REALPATH_TAKES_NULL=yes,samba_cv_REALPATH_TAKES_NULL=no,samba_cv_REALPATH_TAKES_NULL=cross)])
@@ -2863,9 +2990,12 @@ if test x"$samba_cv_WITH_AFS" != x"no" ||
     fi
 fi
 
+FAKE_KASERVER_OBJ=""
 if test x"$samba_cv_WITH_FAKE_KASERVER" != x"no" && test x"$have_afs_headers" = x"yes"; then
     AC_DEFINE(WITH_FAKE_KASERVER,1,[Whether to include AFS fake-kaserver support])
+    FAKE_KASERVER_OBJ="utils/net_afs.o"
 fi
+AC_SUBST(FAKE_KASERVER_OBJ)
 
 #################################################
 # check whether to compile AFS/NT ACL mapping module
@@ -3359,6 +3489,8 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_FUNC_EXT(krb5_get_init_creds_opt_free, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_init_creds_opt_get_error, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_enctype_to_string, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_fwd_tgt_creds, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_auth_con_set_req_cksumtype, $KRB5_LIBS)
 
   LIBS="$KRB5_LIBS $LIBS"
 
@@ -3739,6 +3871,7 @@ if test x"$with_ads_support" != x"no"; then
     AC_CACHE_CHECK([for krb5_error_code krb5_enctype_to_string(krb5_context context, krb5_enctype enctype, char **str)],
         smb_krb5_cv_enctype_to_string_takes_krb5_context_arg,[
 	AC_TRY_RUN_STRICT([
+		#include <stdlib.h>
 		#include <krb5.h>
 		int main(void) {
 			krb5_context context = NULL;
@@ -4015,14 +4148,14 @@ AC_ARG_WITH(cifsmount,
 )
 
 #################################################
-# check for cifs.spnego support
+# check for cifs.upcall support
 AC_CHECK_HEADERS([keyutils.h], [HAVE_KEYUTILS_H=1], [HAVE_KEYUTILS_H=0])
-CIFSSPNEGO_PROGS=""
-INSTALL_CIFSSPNEGO=""
-UNINSTALL_CIFSSPNEGO=""
-AC_MSG_CHECKING(whether to build cifs.spnego)
-AC_ARG_WITH(cifsspnego,
-[AS_HELP_STRING([--with-cifsspnego], [Include cifs.spnego (Linux only) support (default=no)])],
+CIFSUPCALL_PROGS=""
+INSTALL_CIFSUPCALL=""
+UNINSTALL_CIFSUPCALL=""
+AC_MSG_CHECKING(whether to build cifs.upcall)
+AC_ARG_WITH(cifsupcall,
+[AS_HELP_STRING([--with-cifsupcall], [Include cifs.upcall (Linux only) support (default=yes)])],
 [ case "$withval" in
   no)
 	AC_MSG_RESULT(no)
@@ -4031,15 +4164,15 @@ AC_ARG_WITH(cifsspnego,
 	case "$host_os" in
 	*linux*)
 		if test x"$use_ads" != x"yes"; then
-			AC_MSG_ERROR(ADS support should be enabled for building cifs.spnego)
+			AC_MSG_ERROR(ADS support should be enabled for building cifs.upcall)
 		elif test x"$HAVE_KEYUTILS_H" != "x1"; then
-			AC_MSG_ERROR(keyutils package is required for cifs.spnego)
+			AC_MSG_ERROR(keyutils package is required for cifs.upcall)
 		else
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(WITH_CIFSSPNEGO,1,[whether to build cifs.spnego])
-			CIFSSPNEGO_PROGS="bin/cifs.spnego"
-			INSTALL_CIFSSPNEGO="installcifsspnego"
-			UNINSTALL_CIFSSPNEGO="uninstallcifsspnego"
+			AC_DEFINE(WITH_CIFSUPCALL,1,[whether to build cifs.upcall])
+			CIFSUPCALL_PROGS="bin/cifs.upcall"
+			INSTALL_CIFSUPCALL="installcifsupcall"
+			UNINSTALL_CIFSUPCALL="uninstallcifsupcall"
 		fi
 		;;
 	*)
@@ -4048,9 +4181,24 @@ AC_ARG_WITH(cifsspnego,
 	esac
     ;;
   esac ],
-[
-  AC_MSG_RESULT(no)
-  ]
+[ case "$host_os" in
+  *linux*)
+	if test x"$use_ads" != x"yes"; then
+		AC_MSG_WARN(ADS support should be enabled for building cifs.upcall)
+	elif test x"$HAVE_KEYUTILS_H" != "x1"; then
+		AC_MSG_WARN(keyutils package is required for cifs.upcall)
+	else
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(WITH_CIFSUPCALL,1,[whether to build cifs.upcall])
+		CIFSUPCALL_PROGS="bin/cifs.upcall"
+		INSTALL_CIFSUPCALL="installcifsupcall"
+		UNINSTALL_CIFSUPCALL="uninstallcifsupcall"
+	fi
+	;;
+  *)
+	AC_MSG_RESULT(no)
+	;;
+  esac ]
 )
 
 
@@ -4660,131 +4808,22 @@ AC_ARG_WITH([static-libs],
 #
 LINK_LIBNETAPI=STATIC
 
-SMB_LIBRARY(talloc)
-SMB_LIBRARY(tdb)
-SMB_LIBRARY(netapi)
+LINK_LIBSMBCLIENT=STATIC
 
+#
+#  The library versions are hardcoded here
+#  and filled into the LIBFOO_SOVER variable.
+#
+#  TODO: for talloc and tdb (at least), these should
+#  be extracted from their respective source directories
+#
+SMB_LIBRARY(talloc, 1)
+SMB_LIBRARY(tdb, 1)
+SMB_LIBRARY(netapi, 0)
+SMB_LIBRARY(smbclient, 0)
+SMB_LIBRARY(smbsharemodes, 0)
+SMB_LIBRARY(addns, 0, no, [undefined API])
 
-#################################################
-# should we build libaddns?
-INSTALL_LIBADDNS=
-UNINSTALL_LIBADDNS=
-LIBADDNS_SHARED=
-LIBADDNS=
-AC_MSG_CHECKING(whether to build the libaddns shared library)
-AC_ARG_WITH(libaddns,
-[AS_HELP_STRING([--with-libaddns], [Build the libaddns shared library (default=no undefined API)])],
-[ case "$withval" in
-  *)
-     AC_MSG_RESULT(no)
-     ;;
-  yes)
-     if test $BLDSHARED = true; then
-        LIBADDNS_SHARED=bin/libaddns.$SHLIBEXT
-        LIBADDNS=libaddns
-        AC_MSG_RESULT(yes)
-     else
-	enable_static=yes
-        AC_MSG_RESULT(no shared library support -- will supply static library)
-     fi
-     if test $enable_static = yes; then
-        LIBADDNS=libaddns
-     fi
-     INSTALL_LIBADDNS=installlibaddns
-     UNINSTALL_LIBADDNS=uninstalllibaddns
-     ;;
-  esac ],
-[AC_MSG_RESULT(no)]
-)
-
-#################################################
-# should we build libsmbclient?
-
-INSTALL_LIBSMBCLIENT=
-UNINSTALL_LIBSMBCLIENT=
-LIBSMBCLIENT_SHARED=
-LIBSMBCLIENT=
-AC_MSG_CHECKING(whether to build the libsmbclient shared library)
-AC_ARG_WITH(libsmbclient,
-[AS_HELP_STRING([--with-libsmbclient], [Build the libsmbclient shared library (default=yes if shared libs supported)])],
-[ case "$withval" in
-  no)
-     AC_MSG_RESULT(no)
-     ;;
-  *)
-     if test $BLDSHARED = true; then
-        LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
-        LIBSMBCLIENT=libsmbclient
-        AC_MSG_RESULT(yes)
-     else
-	enable_static=yes
-        AC_MSG_RESULT(no shared library support -- will supply static library)
-     fi
-     if test $enable_static = yes; then
-        LIBSMBCLIENT=libsmbclient
-     fi
-     INSTALL_LIBSMBCLIENT=installclientlib
-     UNINSTALL_LIBSMBCLIENT=uninstallclientlib
-     ;;
-  esac ],
-[
-# if unspecified, default is to build it if possible.
-  if test $BLDSHARED = true; then
-     LIBSMBCLIENT_SHARED=bin/libsmbclient.$SHLIBEXT
-     LIBSMBCLIENT=libsmbclient
-     AC_MSG_RESULT(yes)
-   else
-     enable_static=yes
-     AC_MSG_RESULT(no shared library support -- will supply static library)
-   fi
-   if test $enable_static = yes; then
-     LIBSMBCLIENT=libsmbclient
-  fi]
-  INSTALL_LIBSMBCLIENT=installclientlib
-  UNINSTALL_LIBSMBCLIENT=uninstallclientlib
-)
-
-INSTALL_LIBSMBSHAREMODES=
-LIBSMBSHAREMODES_SHARED=
-LIBSMBSHAREMODES=
-AC_MSG_CHECKING(whether to build the libsmbsharemodes shared library)
-AC_ARG_WITH(libsmbsharemodes,
-[AS_HELP_STRING([--with-libsmbsharemodes], [Build the libsmbsharemodes shared library (default=yes if shared libs supported)])],
-[ case "$withval" in
-  no)
-     AC_MSG_RESULT(no)
-     ;;
-  *)
-     if test $BLDSHARED = true; then
-        LIBSMBSHAREMODES_SHARED=bin/libsmbsharemodes.$SHLIBEXT
-        LIBSMBSHAREMODES=libsmbsharemodes
-        AC_MSG_RESULT(yes)
-     else
-        enable_static=yes
-        AC_MSG_RESULT(no shared library support -- will supply static library)
-     fi
-     if test $enable_static = yes; then
-        LIBSMBSHAREMODES=libsmbsharemodes
-     fi
-     INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
-     UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
-     ;;
-  esac ],
-[
-# if unspecified, default is to build it if possible.
-  if test $BLDSHARED = true; then
-     LIBSMBSHAREMODES_SHARED=bin/libsmbsharemodes.$SHLIBEXT
-     LIBSMBSHAREMODES=libsmbsharemodes
-     AC_MSG_RESULT(yes)
-   else
-     enable_static=yes
-     AC_MSG_RESULT(no shared library support -- will supply static library)
-   fi
-   if test $enable_static = yes; then
-     LIBSMBSHAREMODES=libsmbsharemodes
-  fi]
-  INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
-)
 
 
 #################################################
@@ -4840,10 +4879,21 @@ fi
 # This is not the case on ancient Linux systems.
 
 AC_CACHE_CHECK([that statvfs.f_fsid is an integer],samba_cv_fsid_int, [
-    AC_TRY_COMPILE([#include <sys/statvfs.h>],[struct statvfs buf; buf.f_fsid = 0],
+    AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/statvfs.h>],[struct statvfs buf; buf.f_fsid = 0],
 	samba_cv_fsid_int=yes,samba_cv_fsid_int=no)])
 if test x"$samba_cv_fsid_int" = x"yes"; then
     AC_DEFINE(HAVE_FSID_INT, 1, [Whether statvfs.f_fsid is an integer])
+fi
+
+# fsusage.c assumes that statvfs has an f_frsize entry. Some weird
+# systems use f_bsize.
+AC_CACHE_CHECK([that statvfs.f_frsize works],samba_cv_frsize, [
+    AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/statvfs.h>],[struct statvfs buf; buf.f_frsize = 0],
+	samba_cv_frsize=yes,samba_cv_frsize=no)])
+if test x"$samba_cv_frsize" = x"yes"; then
+    AC_DEFINE(HAVE_FRSIZE, 1, [Whether statvfs.f_frsize exists])
 fi
 
 if test $space = no; then
@@ -5720,6 +5770,7 @@ fi
 
 LIBWBCLIENT_SHARED_TARGET=bin/libwbclient.$SHLIBEXT
 LIBWBCLIENT_STATIC_TARGET=bin/libwbclient.a
+LIBWBCLIENT_SOVER=0
 if test $BLDSHARED = true -a x"$HAVE_WINBIND" = x"yes" -a x"$BUILD_LIBWBCLIENT_SHARED" = x"yes"; then
 	NSS_MODULES="${WINBIND_NSS} ${WINBIND_WINS_NSS}"
 	## Only worry about libwbclient if we have shared library support
@@ -6008,6 +6059,8 @@ SMB_MODULE(idmap_passdb, winbindd/idmap_passdb.o, "bin/passdb.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_nss, winbindd/idmap_nss.o, "bin/nss.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_rid, winbindd/idmap_rid.o, "bin/rid.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_ad, winbindd/idmap_ad.o, "bin/ad.$SHLIBEXT", IDMAP)
+SMB_MODULE(idmap_hash, \$(IDMAP_HASH_OBJ), "bin/hash.$SHLIBEXT", IDMAP)
+SMB_MODULE(idmap_adex, \$(IDMAP_ADEX_OBJ), "bin/adex.$SHLIBEXT", IDMAP)
 SMB_SUBSYSTEM(IDMAP, winbindd/idmap.o)
 
 SMB_MODULE(nss_info_template, winbindd/nss_info_template.o, "bin/template.$SHLIBEXT", NSS_INFO)
@@ -6064,9 +6117,16 @@ SMB_MODULE(vfs_aio_fork, \$(VFS_AIO_FORK_OBJ), "bin/aio_fork.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_syncops, \$(VFS_SYNCOPS_OBJ), "bin/syncops.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_zfsacl, \$(VFS_ZFSACL_OBJ), "bin/zfsacl.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_notify_fam, \$(VFS_NOTIFY_FAM_OBJ), "bin/notify_fam.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_acl_xattr, \$(VFS_ACL_XATTR_OBJ), "bin/acl_xattr.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_smb_traffic_analyzer, \$(VFS_SMB_TRAFFIC_ANALYZER_OBJ), "bin/smb_traffic_analyzer.$SHLIBEXT", VFS)
 
 
 SMB_SUBSYSTEM(VFS,smbd/vfs.o)
+
+SMB_MODULE(gpext_registry, libgpo/gpext/registry.o, "bin/registry.$SHLIBEXT", GPEXT)
+SMB_MODULE(gpext_scripts, libgpo/gpext/scripts.o, "bin/scripts.$SHLIBEXT", GPEXT)
+SMB_MODULE(gpext_security, libgpo/gpext/security.o, "bin/security.$SHLIBEXT", GPEXT)
+SMB_SUBSYSTEM(GPEXT, libgpo/gpext/gpext.o)
 
 AC_DEFINE_UNQUOTED(STRING_STATIC_MODULES, "$string_static_modules", [String list of builtin modules])
 
@@ -6199,7 +6259,7 @@ AC_TRY_RUN([#include "${srcdir-.}/tests/summary.c"],
 
 dnl Merge in developer cflags from now on
 AC_SUBST(DEVELOPER_CFLAGS)
-if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes"; then
+if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes" -o x"$picky_developer" = x"yes"; then
     CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS)"
 fi
 
@@ -6208,13 +6268,15 @@ fi
 SMBD_LIBS="$samba_dmapi_libs"
 AC_SUBST(SMBD_LIBS)
 
-AC_OUTPUT(Makefile library-versions
+AC_OUTPUT(Makefile
 	  script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh
 	  lib/netapi/examples/Makefile
+	  lib/netapi/tests/Makefile
 	  pkgconfig/smbclient.pc
 	  pkgconfig/wbclient.pc
 	  pkgconfig/netapi.pc
 	  pkgconfig/smbsharemodes.pc
+	  ../examples/libsmbclient/Makefile.internal
 	  )
 
 #################################################

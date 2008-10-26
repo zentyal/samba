@@ -1,11 +1,11 @@
 .\"     Title: net
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 06/26/2008
+.\"      Date: 10/02/2008
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.2
 .\"
-.TH "NET" "8" "06/26/2008" "Samba 3\.2" "System Administration tools"
+.TH "NET" "8" "10/02/2008" "Samba 3\.2" "System Administration tools"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -532,6 +532,12 @@ Print out sam database of remote server\. You need to run this against the PDC, 
 .SS "RPC VAMPIRE"
 .PP
 Export users, aliases and groups from remote server to local server\. You need to run this against the PDC, from a Samba machine joined as a BDC\.
+.SS "RPC VAMPIRE KEYTAB"
+.PP
+Dump remote SAM database to local Kerberos keytab file\.
+.SS "RPC VAMPIRE LDIF"
+.PP
+Dump remote SAM database to local LDIF file or standard output\.
 .SS "RPC GETSID"
 .PP
 Fetch domain SID and store it in the local
@@ -722,7 +728,9 @@ to
 \(lqyes\(rq
 in the [global] section and global configuration options are activated by setting
 \fIinclude = registry\fR
-in the [global] section\. See the
+in the [global] section for a mixed configuration or by setting
+\fIconfig backend = registry\fR
+in the [global] section for a registry\-only configuration\. See the
 \fBsmb.conf\fR(5)
 manpage for details\.
 .PP
@@ -750,6 +758,12 @@ net conf setparm \- Store a parameter\.
 net conf getparm \- Retrieve the value of a parameter\.
 .IP "" 4
 net conf delparm \- Delete a parameter\.
+.IP "" 4
+net conf getincludes \- Show the includes of a share definition\.
+.IP "" 4
+net conf setincludes \- Set includes for a share\.
+.IP "" 4
+net conf delincludes \- Delete includes from a share definition\.
 
 .SS "CONF LIST"
 .PP
@@ -783,14 +797,25 @@ Show a parameter stored in registry\.
 .SS "CONF DELPARM section parameter"
 .PP
 Delete a parameter stored in registry\.
-.SS ""
+.SS "CONF GETINCLUDES section"
 .PP
+Get the list of includes for the provided section (global or share)\.
+.PP
+Note that due to the nature of the registry database and the nature of include directives, the includes need special treatment: Parameters are stored in registry by the parameter name as valuename, so there is only ever one instance of a parameter per share\. Also, a specific order like in a text file is not guaranteed\. For all real parameters, this is perfectly ok, but the include directive is rather a meta parameter, for which, in the smb\.conf text file, the place where it is specified between the other parameters is very important\. This can not be achieved by the simple registry smbconf data model, so there is one ordered list of includes per share, and this list is evaluated after all the parameters of the share\.
+.PP
+Further note that currently, only files can be included from registry configuration\. In the future, there will be the ability to include configuration data from other registry keys\.
+.SS "CONF SETINCLUDES section [filename]+"
+.PP
+Set the list of includes for the provided section (global or share) to the given list of one or more filenames\. The filenames may contain the usual smb\.conf macros like %I\.
+.SS "CONF DELINCLUDES section"
+.PP
+Delete the list of includes from the provided section (global or share)\.
 .SS "HELP [COMMAND]"
 .PP
 Gives usage information for the specified command\.
 .SH "VERSION"
 .PP
-This man page is complete for version 3\.0 of the Samba suite\.
+This man page is complete for version 3 of the Samba suite\.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\.

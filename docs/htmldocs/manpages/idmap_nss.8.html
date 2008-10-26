@@ -4,23 +4,18 @@
 	for a Unix user named jsmith is reported as the one assigned to
 	DOMAIN\jsmith which is necessary for reporting ACLs on files and printers
 	stored on a Samba member server.
-	</p></div><div class="refsect1" lang="en"><a name="id2516090"></a><h2>EXAMPLES</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2516084"></a><h2>EXAMPLES</h2><p>
 	This example shows how to use idmap_nss to check the local accounts for its
 	own domain while using allocation to create new mappings for trusted domains
 	</p><pre class="programlisting">
 	[global]
-	    idmap domains = SAMBA TRUSTEDDOMAINS
+	idmap backend = tdb
+	idmap uid = 1000000-1999999
+	idmap gid = 1000000-1999999
 
-	    idmap config SAMBA:backend  = nss
-	    idmap config SAMBA:readonly = yes
-
-	    idmap config TRUSTEDDOMAINS:default = yes
-	    idmap config TRUSTEDDOMAINS:backend = tdb
-	    idmap config TRUSTEDDOMAINS:range   = 10000 - 50000
-
-	    idmap alloc backend      = tdb
-	    idmap alloc config:range = 10000 - 50000
-	</pre></div><div class="refsect1" lang="en"><a name="id2516113"></a><h2>AUTHOR</h2><p>
+	idmap config SAMBA : backend  = nss
+	idmap config SAMBA : range = 1000-999999
+	</pre></div><div class="refsect1" lang="en"><a name="id2516103"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

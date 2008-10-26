@@ -109,13 +109,15 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 	/* open the netlogon pipe. */
 	if (lp_client_schannel()) {
 		/* We also setup the creds chain in the open_schannel call. */
-		netlogon_pipe = cli_rpc_pipe_open_schannel(*cli, PI_NETLOGON,
-					PIPE_AUTH_LEVEL_PRIVACY, domain, &result);
+		result = cli_rpc_pipe_open_schannel(
+			*cli, &ndr_table_netlogon.syntax_id,
+			PIPE_AUTH_LEVEL_PRIVACY, domain, &netlogon_pipe);
 	} else {
-		netlogon_pipe = cli_rpc_pipe_open_noauth(*cli, PI_NETLOGON, &result);
+		result = cli_rpc_pipe_open_noauth(
+			*cli, &ndr_table_netlogon.syntax_id, &netlogon_pipe);
 	}
 
-	if(!netlogon_pipe) {
+	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0,("connect_to_domain_password_server: unable to open the domain client session to \
 machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 		cli_shutdown(*cli);
@@ -270,9 +272,7 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 						info3);
 
 		if (NT_STATUS_IS_OK(nt_status)) {
-			if (user_info->was_mapped) {
-				(*server_info)->was_mapped = user_info->was_mapped;
-			}
+			(*server_info)->nss_token |= user_info->was_mapped;
 
 			if ( ! (*server_info)->guest) {
 				/* if a real user check pam account restrictions */

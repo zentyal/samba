@@ -51,7 +51,7 @@ struct ldb_context *ldb_init(void *mem_ctx)
 	}
 
 	ldb_set_utf8_default(ldb);
-	ldb_set_create_perms(ldb, 0666);
+	ldb_set_create_perms(ldb, 0600);
 
 	return ldb;
 }
@@ -787,6 +787,7 @@ int ldb_search(struct ldb_context *ldb,
 done:
 	if (ret != LDB_SUCCESS) {
 		talloc_free(res);
+		res = NULL;
 	}
 
 	*_res = res;

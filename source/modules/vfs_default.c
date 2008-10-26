@@ -657,18 +657,22 @@ static int vfswrap_ntimes(vfs_handle_struct *handle, const char *path, const str
 
 	START_PROFILE(syscall_ntimes);
 #if defined(HAVE_UTIMES)
-	{
+	if (ts != NULL) {
 		struct timeval tv[2];
 		tv[0] = convert_timespec_to_timeval(ts[0]);
 		tv[1] = convert_timespec_to_timeval(ts[1]);
 		result = utimes(path, tv);
+	} else {
+		result = utimes(path, NULL);
 	}
 #elif defined(HAVE_UTIME)
-	{
+	if (ts != NULL) {
 		struct utimbuf times;
 		times.actime = convert_timespec_to_time_t(ts[0]);
 		times.modtime = convert_timespec_to_time_t(ts[1]);
 		result = utime(path, times);
+	} else {
+		result = utime(path, NULL);
 	}
 #else
 	errno = ENOSYS;
@@ -1039,16 +1043,6 @@ static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp
 	START_PROFILE(fset_nt_acl);
 	result = set_nt_acl(fsp, security_info_sent, psd);
 	END_PROFILE(fset_nt_acl);
-	return result;
-}
-
-static NTSTATUS vfswrap_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, SEC_DESC *psd)
-{
-	NTSTATUS result;
-
-	START_PROFILE(set_nt_acl);
-	result = set_nt_acl(fsp, security_info_sent, psd);
-	END_PROFILE(set_nt_acl);
 	return result;
 }
 
@@ -1445,8 +1439,6 @@ static vfs_op_tuple vfs_default_ops[] = {
 	{SMB_VFS_OP(vfswrap_get_nt_acl),	SMB_VFS_OP_GET_NT_ACL,
 	 SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(vfswrap_fset_nt_acl),	SMB_VFS_OP_FSET_NT_ACL,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(vfswrap_set_nt_acl),	SMB_VFS_OP_SET_NT_ACL,
 	 SMB_VFS_LAYER_OPAQUE},
 
 	/* POSIX ACL operations. */

@@ -33,6 +33,7 @@ static uint8 *valid_table;
 static bool upcase_table_use_unmap;
 static bool lowcase_table_use_unmap;
 static bool valid_table_use_unmap;
+static bool initialized;
 
 /**
  * Destroy global objects allocated by load_case_tables()
@@ -59,6 +60,7 @@ void gfree_case_tables(void)
 		else
 			SAFE_FREE(valid_table);
 	}
+	initialized = false;
 }
 
 /**
@@ -70,15 +72,14 @@ void gfree_case_tables(void)
 
 void load_case_tables(void)
 {
-	static int initialised;
 	char *old_locale = NULL, *saved_locale = NULL;
 	int i;
 	TALLOC_CTX *frame = NULL;
 
-	if (initialised) {
+	if (initialized) {
 		return;
 	}
-	initialised = 1;
+	initialized = true;
 
 	frame = talloc_stackframe();
 
@@ -312,14 +313,12 @@ int rpcstr_pull_unistr2_fstring(char *dest, UNISTR2 *src)
 char *rpcstr_pull_unistr2_talloc(TALLOC_CTX *ctx, const UNISTR2 *src)
 {
 	char *dest = NULL;
-	size_t dest_len = convert_string_talloc(ctx,
-				CH_UTF16LE,
-				CH_UNIX,
-				src->buffer,
-				src->uni_str_len * 2,
-				(void *)&dest,
-				true);
-	if (dest_len == (size_t)-1) {
+	size_t dest_len;
+
+	if (!convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX, src->buffer,
+				   src->uni_str_len * 2, (void *)&dest,
+				   &dest_len, true))
+	{
 		return NULL;
 	}
 
@@ -364,7 +363,11 @@ int rpcstr_push(void *dest, const char *src, size_t dest_len, int flags)
 
 int rpcstr_push_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src)
 {
-	return push_ucs2_talloc(ctx, dest, src);
+	size_t size;
+	if (push_ucs2_talloc(ctx, dest, src, &size))
+		return size;
+	else
+		return -1;
 }
 
 /*******************************************************************

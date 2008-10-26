@@ -52,9 +52,12 @@ struct messaging_context *nmbd_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   nmbd_event_context()))) {
-		smb_panic("Could not init nmbd messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     nmbd_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init nmbd messaging context.\n"));
 	}
 	return ctx;
 }
@@ -293,8 +296,8 @@ static void reload_interfaces(time_t t)
 
 		BlockSignals(false, SIGTERM);
 
-		/* We only count IPv4 interfaces here. */
-		while (iface_count_v4() == 0 && !got_sig_term) {
+		/* We only count IPv4, non-loopback interfaces here. */
+		while (iface_count_v4_nl() == 0 && !got_sig_term) {
 			sleep(5);
 			load_interfaces();
 		}
@@ -762,8 +765,6 @@ static bool open_sockets(bool isdaemon, int port)
 	};
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
-	db_tdb2_setup_messaging(NULL, false);
-
 	load_case_tables();
 
 	global_nmb_port = NMB_PORT;
@@ -857,8 +858,6 @@ static bool open_sockets(bool isdaemon, int port)
 	if (nmbd_messaging_context() == NULL) {
 		return 1;
 	}
-
-	db_tdb2_setup_messaging(nmbd_messaging_context(), true);
 
 	if ( !reload_nmbd_services(False) )
 		return(-1);

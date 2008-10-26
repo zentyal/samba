@@ -28,6 +28,29 @@
 /****************************************************************
 ****************************************************************/
 
+static WERROR NetServerGetInfo_l_101(struct libnetapi_ctx *ctx,
+				     uint8_t **buffer)
+{
+	struct SERVER_INFO_101 i;
+
+	i.sv101_platform_id	= PLATFORM_ID_NT;
+	i.sv101_name		= global_myname();
+	i.sv101_version_major	= lp_major_announce_version();
+	i.sv101_version_minor	= lp_minor_announce_version();
+	i.sv101_type		= lp_default_server_announce();
+	i.sv101_comment		= lp_serverstring();
+
+	*buffer = (uint8_t *)talloc_memdup(ctx, &i, sizeof(i));
+	if (!*buffer) {
+		return WERR_NOMEM;
+	}
+
+	return WERR_OK;
+}
+
+/****************************************************************
+****************************************************************/
+
 static WERROR NetServerGetInfo_l_1005(struct libnetapi_ctx *ctx,
 				      uint8_t **buffer)
 {
@@ -49,6 +72,8 @@ WERROR NetServerGetInfo_l(struct libnetapi_ctx *ctx,
 			  struct NetServerGetInfo *r)
 {
 	switch (r->in.level) {
+		case 101:
+			return NetServerGetInfo_l_101(ctx, r->out.buffer);
 		case 1005:
 			return NetServerGetInfo_l_1005(ctx, r->out.buffer);
 		default:
@@ -56,6 +81,78 @@ WERROR NetServerGetInfo_l(struct libnetapi_ctx *ctx,
 	}
 
 	return WERR_UNKNOWN_LEVEL;
+}
+
+/****************************************************************
+****************************************************************/
+
+static NTSTATUS map_server_info_to_SERVER_INFO_buffer(TALLOC_CTX *mem_ctx,
+						      uint32_t level,
+						      union srvsvc_NetSrvInfo *i,
+						      uint8_t **buffer)
+{
+	struct SERVER_INFO_100 i100;
+	struct SERVER_INFO_101 i101;
+	struct SERVER_INFO_102 i102;
+	struct SERVER_INFO_1005 i1005;
+
+	uint32_t num_info = 0;
+
+	switch (level) {
+		case 100:
+			i100.sv100_platform_id		= i->info100->platform_id;
+			i100.sv100_name			= talloc_strdup(mem_ctx, i->info100->server_name);
+
+			ADD_TO_ARRAY(mem_ctx, struct SERVER_INFO_100, i100,
+				     (struct SERVER_INFO_100 **)buffer,
+				     &num_info);
+			break;
+
+		case 101:
+			i101.sv101_platform_id		= i->info101->platform_id;
+			i101.sv101_name			= talloc_strdup(mem_ctx, i->info101->server_name);
+			i101.sv101_version_major	= i->info101->version_major;
+			i101.sv101_version_minor	= i->info101->version_minor;
+			i101.sv101_type			= i->info101->server_type;
+			i101.sv101_comment		= talloc_strdup(mem_ctx, i->info101->comment);
+
+			ADD_TO_ARRAY(mem_ctx, struct SERVER_INFO_101, i101,
+				     (struct SERVER_INFO_101 **)buffer,
+				     &num_info);
+			break;
+
+		case 102:
+			i102.sv102_platform_id		= i->info102->platform_id;
+			i102.sv102_name			= talloc_strdup(mem_ctx, i->info102->server_name);
+			i102.sv102_version_major	= i->info102->version_major;
+			i102.sv102_version_minor	= i->info102->version_minor;
+			i102.sv102_type			= i->info102->server_type;
+			i102.sv102_comment		= talloc_strdup(mem_ctx, i->info102->comment);
+			i102.sv102_users		= i->info102->users;
+			i102.sv102_disc			= i->info102->disc;
+			i102.sv102_hidden		= i->info102->hidden;
+			i102.sv102_announce		= i->info102->announce;
+			i102.sv102_anndelta		= i->info102->anndelta;
+			i102.sv102_licenses		= i->info102->licenses;
+			i102.sv102_userpath		= talloc_strdup(mem_ctx, i->info102->userpath);
+
+			ADD_TO_ARRAY(mem_ctx, struct SERVER_INFO_102, i102,
+				     (struct SERVER_INFO_102 **)buffer,
+				     &num_info);
+			break;
+
+		case 1005:
+			i1005.sv1005_comment		= talloc_strdup(mem_ctx, i->info1005->comment);
+
+			ADD_TO_ARRAY(mem_ctx, struct SERVER_INFO_1005, i1005,
+				     (struct SERVER_INFO_1005 **)buffer,
+				     &num_info);
+			break;
+		default:
+			return NT_STATUS_NOT_SUPPORTED;
+	}
+
+	return NT_STATUS_OK;
 }
 
 /****************************************************************
@@ -70,12 +167,24 @@ WERROR NetServerGetInfo_r(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	union srvsvc_NetSrvInfo info;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
+	if (!r->out.buffer) {
+		return WERR_INVALID_PARAM;
 	}
 
-	werr = libnetapi_open_pipe(ctx, cli, PI_SRVSVC, &pipe_cli);
+	switch (r->in.level) {
+		case 100:
+		case 101:
+		case 102:
+		case 1005:
+			break;
+		default:
+			return WERR_UNKNOWN_LEVEL;
+	}
+
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -90,9 +199,10 @@ WERROR NetServerGetInfo_r(struct libnetapi_ctx *ctx,
 		goto done;
 	}
 
-	*r->out.buffer = (uint8_t *)talloc_memdup(ctx, &info, sizeof(info));
-	if (!*r->out.buffer) {
-		werr = WERR_NOMEM;
+	status = map_server_info_to_SERVER_INFO_buffer(ctx, r->in.level, &info,
+						       r->out.buffer);
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
 		goto done;
 	}
 
@@ -170,12 +280,10 @@ WERROR NetServerSetInfo_r(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	union srvsvc_NetSrvInfo info;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_SRVSVC, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -203,3 +311,50 @@ WERROR NetServerSetInfo_r(struct libnetapi_ctx *ctx,
  done:
 	return werr;
 }
+
+/****************************************************************
+****************************************************************/
+
+WERROR NetRemoteTOD_r(struct libnetapi_ctx *ctx,
+		      struct NetRemoteTOD *r)
+{
+	struct cli_state *cli = NULL;
+	struct rpc_pipe_client *pipe_cli = NULL;
+	NTSTATUS status;
+	WERROR werr;
+	struct srvsvc_NetRemoteTODInfo *info = NULL;
+
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_srvsvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
+	}
+
+	status = rpccli_srvsvc_NetRemoteTOD(pipe_cli, ctx,
+					    r->in.server_name,
+					    &info,
+					    &werr);
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+
+	*r->out.buffer = (uint8_t *)talloc_memdup(ctx, info,
+			  sizeof(struct srvsvc_NetRemoteTODInfo));
+	W_ERROR_HAVE_NO_MEMORY(*r->out.buffer);
+
+ done:
+	return werr;
+}
+
+/****************************************************************
+****************************************************************/
+
+WERROR NetRemoteTOD_l(struct libnetapi_ctx *ctx,
+		      struct NetRemoteTOD *r)
+{
+	LIBNETAPI_REDIRECT_TO_LOCALHOST(ctx, r, NetRemoteTOD);
+}
+

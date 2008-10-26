@@ -52,6 +52,7 @@
  */
 
 #include "includes.h"
+#include "printing.h"
 
 bool bLoaded = False;
 
@@ -80,7 +81,6 @@ extern userdom_struct current_user_info;
 
 static bool in_client = False;		/* Not in the client by default */
 static struct smbconf_csn conf_last_csn;
-static struct smbconf_ctx *conf_ctx = NULL;
 
 #define CONFIG_BACKEND_FILE 0
 #define CONFIG_BACKEND_REGISTRY 1
@@ -98,9 +98,8 @@ extern int extra_time_offset;
 
 static bool defaults_saved = False;
 
-typedef struct _param_opt_struct param_opt_struct;
-struct _param_opt_struct {
-	param_opt_struct *prev, *next;
+struct param_opt_struct {
+	struct param_opt_struct *prev, *next;
 	char *key;
 	char *value;
 	char **list;
@@ -196,8 +195,7 @@ struct global {
 	bool bWinbindOfflineLogon;
 	bool bWinbindNormalizeNames;
 	bool bWinbindRpcOnly;
-	char **szIdmapDomains;
-	char **szIdmapBackend; /* deprecated */
+	char *szIdmapBackend;
 	char *szIdmapAllocBackend;
 	char *szAddShareCommand;
 	char *szChangeShareCommand;
@@ -243,6 +241,7 @@ struct global {
 	int map_to_guest;
 	int oplock_break_wait_time;
 	int winbind_cache_time;
+	int winbind_reconnect_delay;
 	int winbind_max_idle_children;
 	char **szWinbindNssInfo;
 	int iLockSpinTime;
@@ -275,6 +274,8 @@ struct global {
 	int  iPreferredMaster;
 	int iDomainMaster;
 	bool bDomainLogons;
+	char **szInitLogonDelayedHosts;
+	int InitLogonDelay;
 	bool bEncryptPasswords;
 	bool bUpdateEncrypt;
 	int  clientSchannel;
@@ -339,7 +340,8 @@ struct global {
 	bool bResetOnZeroVC;
 	int iKeepalive;
 	int iminreceivefile;
-	param_opt_struct *param_opt;
+	struct param_opt_struct *param_opt;
+	int cups_connection_timeout;
 };
 
 static struct global Globals;
@@ -483,7 +485,7 @@ struct service {
 	int iMap_readonly;
 	int iDirectoryNameCacheSize;
 	int ismb_encrypt;
-	param_opt_struct *param_opt;
+	struct param_opt_struct *param_opt;
 
 	char dummy[3];		/* for alignment */
 };
@@ -1508,7 +1510,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.bAclGroupControl,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_GLOBAL | FLAG_SHARE | FLAG_DEPRECATED,
+		.flags		= FLAG_ADVANCED | FLAG_GLOBAL | FLAG_SHARE,
 	},
 	{
 		.label		= "acl map full control",
@@ -2595,6 +2597,15 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_ADVANCED | FLAG_PRINT | FLAG_GLOBAL,
 	},
 	{
+		.label		= "cups connection timeout",
+		.type		= P_INTEGER,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.cups_connection_timeout,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
 		.label		= "iprint server",
 		.type		= P_STRING,
 		.p_class	= P_GLOBAL,
@@ -3190,6 +3201,23 @@ static struct parm_struct parm_table[] = {
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
+	},
+
+	{
+		.label		= "init logon delayed hosts",
+		.type		= P_LIST,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.szInitLogonDelayedHosts,
+		.flags		= FLAG_ADVANCED,
+	},
+
+	{
+		.label		= "init logon delay",
+		.type		= P_INTEGER,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.InitLogonDelay,
+		.flags		= FLAG_ADVANCED,
+
 	},
 
 	{N_("Browse Options"), P_SEP, P_SEPARATOR},
@@ -4239,17 +4267,8 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_ADVANCED,
 	},
 	{
-		.label		= "idmap domains",
-		.type		= P_LIST,
-		.p_class	= P_GLOBAL,
-		.ptr		= &Globals.szIdmapDomains,
-		.special	= NULL,
-		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED,
-	},
-	{
 		.label		= "idmap backend",
-		.type		= P_LIST,
+		.type		= P_STRING,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.szIdmapBackend,
 		.special	= NULL,
@@ -4351,6 +4370,15 @@ static struct parm_struct parm_table[] = {
 		.type		= P_INTEGER,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.winbind_cache_time,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "winbind reconnect delay",
+		.type		= P_INTEGER,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.winbind_reconnect_delay,
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
@@ -4777,6 +4805,7 @@ static void init_globals(bool first_time_only)
 	 * to never expire, though, when this runs out the afs client will 
 	 * forget the token. Set to 0 to get NEVERDATE.*/
 	Globals.iAfsTokenLifetime = 604800;
+	Globals.cups_connection_timeout = CUPS_DEFAULT_CONNECTION_TIMEOUT;
 
 /* these parameters are set to defaults that are more appropriate
    for the increasing samba install base:
@@ -4799,12 +4828,16 @@ static void init_globals(bool first_time_only)
 	Globals.bWINSsupport = False;
 	Globals.bWINSproxy = False;
 
+	TALLOC_FREE(Globals.szInitLogonDelayedHosts);
+	Globals.InitLogonDelay = 100; /* 100 ms default delay */
+
 	Globals.bDNSproxy = True;
 
 	/* this just means to use them if they exist */
 	Globals.bKernelOplocks = True;
 
 	Globals.bAllowTrustedDomains = True;
+	string_set(&Globals.szIdmapBackend, "tdb");
 
 	string_set(&Globals.szTemplateShell, "/bin/false");
 	string_set(&Globals.szTemplateHomedir, "/home/%D/%U");
@@ -4818,6 +4851,7 @@ static void init_globals(bool first_time_only)
 	Globals.clustering = False;
 
 	Globals.winbind_cache_time = 300;	/* 5 minutes */
+	Globals.winbind_reconnect_delay = 30;	/* 30 seconds */
 	Globals.bWinbindEnumUsers = False;
 	Globals.bWinbindEnumGroups = False;
 	Globals.bWinbindUseDefaultDomain = False;
@@ -4828,7 +4862,7 @@ static void init_globals(bool first_time_only)
 	Globals.bWinbindRefreshTickets = False;
 	Globals.bWinbindOfflineLogon = False;
 
-	Globals.iIdmapCacheTime = 900; /* 15 minutes by default */
+	Globals.iIdmapCacheTime = 86400 * 7; /* a week by default */
 	Globals.iIdmapNegativeCacheTime = 120; /* 2 minutes by default */
 
 	Globals.bPassdbExpandExplicit = False;
@@ -5071,8 +5105,7 @@ FN_GLOBAL_BOOL(lp_winbind_offline_logon, &Globals.bWinbindOfflineLogon)
 FN_GLOBAL_BOOL(lp_winbind_normalize_names, &Globals.bWinbindNormalizeNames)
 FN_GLOBAL_BOOL(lp_winbind_rpc_only, &Globals.bWinbindRpcOnly)
 
-FN_GLOBAL_LIST(lp_idmap_domains, &Globals.szIdmapDomains)
-FN_GLOBAL_LIST(lp_idmap_backend, &Globals.szIdmapBackend) /* deprecated */
+FN_GLOBAL_CONST_STRING(lp_idmap_backend, &Globals.szIdmapBackend)
 FN_GLOBAL_STRING(lp_idmap_alloc_backend, &Globals.szIdmapAllocBackend)
 FN_GLOBAL_INTEGER(lp_idmap_cache_time, &Globals.iIdmapCacheTime)
 FN_GLOBAL_INTEGER(lp_idmap_negative_cache_time, &Globals.iIdmapNegativeCacheTime)
@@ -5111,6 +5144,8 @@ FN_GLOBAL_BOOL(lp_we_are_a_wins_server, &Globals.bWINSsupport)
 FN_GLOBAL_BOOL(lp_wins_proxy, &Globals.bWINSproxy)
 FN_GLOBAL_BOOL(lp_local_master, &Globals.bLocalMaster)
 FN_GLOBAL_BOOL(lp_domain_logons, &Globals.bDomainLogons)
+FN_GLOBAL_LIST(lp_init_logon_delayed_hosts, &Globals.szInitLogonDelayedHosts)
+FN_GLOBAL_INTEGER(lp_init_logon_delay, &Globals.InitLogonDelay)
 FN_GLOBAL_BOOL(lp_load_printers, &Globals.bLoadPrinters)
 FN_GLOBAL_BOOL(lp_readraw, &Globals.bReadRaw)
 FN_GLOBAL_BOOL(lp_large_readwrite, &Globals.bLargeReadwrite)
@@ -5212,6 +5247,7 @@ FN_GLOBAL_LIST(lp_svcctl_list, &Globals.szServicesList)
 FN_LOCAL_STRING(lp_cups_options, szCupsOptions)
 FN_GLOBAL_STRING(lp_cups_server, &Globals.szCupsServer)
 FN_GLOBAL_STRING(lp_iprint_server, &Globals.szIPrintServer)
+FN_GLOBAL_INTEGER(lp_cups_connection_timeout, &Globals.cups_connection_timeout)
 FN_GLOBAL_CONST_STRING(lp_ctdbd_socket, &Globals.ctdbdSocket)
 FN_GLOBAL_LIST(lp_cluster_addresses, &Globals.szClusterAddresses)
 FN_GLOBAL_BOOL(lp_clustering, &Globals.clustering)
@@ -5329,6 +5365,7 @@ FN_LOCAL_INTEGER(lp_directory_name_cache_size, iDirectoryNameCacheSize)
 FN_LOCAL_INTEGER(lp_smb_encrypt, ismb_encrypt)
 FN_LOCAL_CHAR(lp_magicchar, magic_char)
 FN_GLOBAL_INTEGER(lp_winbind_cache_time, &Globals.winbind_cache_time)
+FN_GLOBAL_INTEGER(lp_winbind_reconnect_delay, &Globals.winbind_reconnect_delay)
 FN_GLOBAL_LIST(lp_winbind_nss_info, &Globals.szWinbindNssInfo)
 FN_GLOBAL_INTEGER(lp_algorithmic_rid_base, &Globals.AlgorithmicRidBase)
 FN_GLOBAL_INTEGER(lp_name_cache_timeout, &Globals.name_cache_timeout)
@@ -5357,14 +5394,17 @@ static char * canonicalize_servicename(const char *name);
 static void show_parameter(int parmIndex);
 static bool is_synonym_of(int parm1, int parm2, bool *inverse);
 
-/* This is a helper function for parametrical options support. */
-/* It returns a pointer to parametrical option value if it exists or NULL otherwise */
-/* Actual parametrical functions are quite simple */
-static param_opt_struct *get_parametrics(int snum, const char *type, const char *option)
+/*
+ * This is a helper function for parametrical options support.  It returns a
+ * pointer to parametrical option value if it exists or NULL otherwise. Actual
+ * parametrical functions are quite simple
+ */
+static struct param_opt_struct *get_parametrics(int snum, const char *type,
+						const char *option)
 {
 	bool global_section = False;
 	char* param_key;
-        param_opt_struct *data;
+        struct param_opt_struct *data;
 	
 	if (snum >= iNumServices) return NULL;
 	
@@ -5381,7 +5421,7 @@ static param_opt_struct *get_parametrics(int snum, const char *type, const char 
 	}
 
 	while (data) {
-		if (strcmp(data->key, param_key) == 0) {
+		if (strwicmp(data->key, param_key) == 0) {
 			string_free(&param_key);
 			return data;
 		}
@@ -5393,7 +5433,7 @@ static param_opt_struct *get_parametrics(int snum, const char *type, const char 
 		/* but only if we are not already working with Globals */
 		data = Globals.param_opt;
 		while (data) {
-		        if (strcmp(data->key, param_key) == 0) {
+		        if (strwicmp(data->key, param_key) == 0) {
 			        string_free(&param_key);
 				return data;
 			}
@@ -5498,7 +5538,7 @@ static int lp_enum(const char *s,const struct enum_list *_enum)
 /* the returned value is talloced on the talloc_tos() */
 char *lp_parm_talloc_string(int snum, const char *type, const char *option, const char *def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data == NULL||data->value==NULL) {
 		if (def) {
@@ -5515,7 +5555,7 @@ char *lp_parm_talloc_string(int snum, const char *type, const char *option, cons
 /* Parametric option has following syntax: 'Type: option = value' */
 const char *lp_parm_const_string(int snum, const char *type, const char *option, const char *def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data == NULL||data->value==NULL)
 		return def;
@@ -5528,7 +5568,7 @@ const char *lp_parm_const_string(int snum, const char *type, const char *option,
 
 const char **lp_parm_string_list(int snum, const char *type, const char *option, const char **def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 
 	if (data == NULL||data->value==NULL)
 		return (const char **)def;
@@ -5545,7 +5585,7 @@ const char **lp_parm_string_list(int snum, const char *type, const char *option,
 
 int lp_parm_int(int snum, const char *type, const char *option, int def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data && data->value && *data->value)
 		return lp_int(data->value);
@@ -5558,7 +5598,7 @@ int lp_parm_int(int snum, const char *type, const char *option, int def)
 
 unsigned long lp_parm_ulong(int snum, const char *type, const char *option, unsigned long def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data && data->value && *data->value)
 		return lp_ulong(data->value);
@@ -5571,7 +5611,7 @@ unsigned long lp_parm_ulong(int snum, const char *type, const char *option, unsi
 
 bool lp_parm_bool(int snum, const char *type, const char *option, bool def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data && data->value && *data->value)
 		return lp_bool(data->value);
@@ -5585,7 +5625,7 @@ bool lp_parm_bool(int snum, const char *type, const char *option, bool def)
 int lp_parm_enum(int snum, const char *type, const char *option,
 		 const struct enum_list *_enum, int def)
 {
-	param_opt_struct *data = get_parametrics(snum, type, option);
+	struct param_opt_struct *data = get_parametrics(snum, type, option);
 	
 	if (data && data->value && *data->value && _enum)
 		return lp_enum(data->value, _enum);
@@ -5611,7 +5651,7 @@ static void init_service(struct service *pservice)
 static void free_service(struct service *pservice)
 {
 	int i;
-        param_opt_struct *data, *pdata;
+	struct param_opt_struct *data, *pdata;
 	if (!pservice)
 		return;
 
@@ -5690,7 +5730,7 @@ static int add_a_service(const struct service *pservice, const char *name)
 	int i;
 	struct service tservice;
 	int num_to_alloc = iNumServices + 1;
-	param_opt_struct *data, *pdata;
+	struct param_opt_struct *data, *pdata;
 
 	tservice = *pservice;
 
@@ -6075,7 +6115,7 @@ static int map_parameter(const char *pszParmName)
 {
 	int iIndex;
 
-	if (*pszParmName == '-')
+	if (*pszParmName == '-' && !strequal(pszParmName, "-valid"))
 		return (-1);
 
 	for (iIndex = 0; parm_table[iIndex].label; iIndex++)
@@ -6373,7 +6413,7 @@ static void copy_service(struct service *pserviceDest, struct service *pserviceS
 {
 	int i;
 	bool bcopyall = (pcopymapDest == NULL);
-	param_opt_struct *data, *pdata, *paramo;
+	struct param_opt_struct *data, *pdata, *paramo;
 	bool not_added;
 
 	for (i = 0; parm_table[i].label; i++)
@@ -6437,7 +6477,7 @@ static void copy_service(struct service *pserviceDest, struct service *pserviceS
 		/* Traverse destination */
 		while (pdata) {
 			/* If we already have same option, override it */
-			if (strcmp(pdata->key, data->key) == 0) {
+			if (strwicmp(pdata->key, data->key) == 0) {
 				string_free(&pdata->value);
 				TALLOC_FREE(data->list);
 				pdata->value = SMB_STRDUP(data->value);
@@ -6447,7 +6487,7 @@ static void copy_service(struct service *pserviceDest, struct service *pserviceS
 			pdata = pdata->next;
 		}
 		if (not_added) {
-		    paramo = SMB_XMALLOC_P(param_opt_struct);
+		    paramo = SMB_XMALLOC_P(struct param_opt_struct);
 		    paramo->key = SMB_STRDUP(data->key);
 		    paramo->value = SMB_STRDUP(data->value);
 		    paramo->list = NULL;
@@ -6503,6 +6543,47 @@ bool service_ok(int iService)
 	return (bRetval);
 }
 
+static struct smbconf_ctx *lp_smbconf_ctx(void)
+{
+	WERROR werr;
+	static struct smbconf_ctx *conf_ctx = NULL;
+
+	if (conf_ctx == NULL) {
+		werr = smbconf_init(NULL, &conf_ctx, "registry:");
+		if (!W_ERROR_IS_OK(werr)) {
+			DEBUG(1, ("error initializing registry configuration: "
+				  "%s\n", dos_errstr(werr)));
+			conf_ctx = NULL;
+		}
+	}
+
+	return conf_ctx;
+}
+
+static bool process_registry_service(struct smbconf_service *service)
+{
+	uint32_t count;
+	bool ret;
+
+	if (service == NULL) {
+		return false;
+	}
+
+	ret = do_section(service->name, NULL);
+	if (ret != true) {
+		return false;
+	}
+	for (count = 0; count < service->num_params; count++) {
+		ret = do_parameter(service->param_names[count],
+				   service->param_values[count],
+				   NULL);
+		if (ret != true) {
+			return false;
+		}
+	}
+	return true;
+}
+
 /*
  * process_registry_globals
  */
@@ -6510,16 +6591,17 @@ static bool process_registry_globals(void)
 {
 	WERROR werr;
 	struct smbconf_service *service = NULL;
-	uint32_t count;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
+	struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
 	bool ret = false;
 
 	if (conf_ctx == NULL) {
-		/* first time */
-		werr = smbconf_init(NULL, &conf_ctx, "registry:");
-		if (!W_ERROR_IS_OK(werr)) {
-			goto done;
-		}
+		goto done;
+	}
+
+	ret = do_parameter("registry shares", "yes", NULL);
+	if (!ret) {
+		goto done;
 	}
 
 	if (!smbconf_share_exists(conf_ctx, GLOBAL_NAME)) {
@@ -6534,16 +6616,50 @@ static bool process_registry_globals(void)
 		goto done;
 	}
 
-	for (count = 0; count < service->num_params; count++) {
-		ret = do_parameter(service->param_names[count],
-				   service->param_values[count],
-				   NULL);
-		if (ret != true) {
+	ret = process_registry_service(service);
+	if (!ret) {
+		goto done;
+	}
+
+	/* store the csn */
+	smbconf_changed(conf_ctx, &conf_last_csn, NULL, NULL);
+
+done:
+	TALLOC_FREE(mem_ctx);
+	return ret;
+}
+
+static bool process_registry_shares(void)
+{
+	WERROR werr;
+	uint32_t count;
+	struct smbconf_service **service = NULL;
+	uint32_t num_shares = 0;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+	struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
+	bool ret = false;
+
+	if (conf_ctx == NULL) {
+		goto done;
+	}
+
+	werr = smbconf_get_config(conf_ctx, mem_ctx, &num_shares, &service);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
+	}
+
+	ret = true;
+
+	for (count = 0; count < num_shares; count++) {
+		if (strequal(service[count]->name, GLOBAL_NAME)) {
+			continue;
+		}
+		ret = process_registry_service(service[count]);
+		if (!ret) {
 			goto done;
 		}
 	}
 
-	ret = do_parameter("registry shares", "yes", NULL);
 	/* store the csn */
 	smbconf_changed(conf_ctx, &conf_last_csn, NULL, NULL);
 
@@ -6625,14 +6741,10 @@ bool lp_file_list_changed(void)
  	DEBUG(6, ("lp_file_list_changed()\n"));
 
 	if (lp_config_backend_is_registry()) {
+		struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
+
 		if (conf_ctx == NULL) {
-			WERROR werr;
-			werr = smbconf_init(NULL, &conf_ctx, "registry:");
-			if (!W_ERROR_IS_OK(werr)) {
-				DEBUG(0, ("error opening configuration: %s\n",
-					  dos_errstr(werr)));
-				return false;
-			}
+			return false;
 		}
 		if (smbconf_changed(conf_ctx, &conf_last_csn, NULL, NULL)) {
 			DEBUGADD(6, ("registry config changed\n"));
@@ -6772,7 +6884,7 @@ static bool handle_include(int snum, const char *pszParmValue, char **ptr)
 
 	DEBUG(2, ("Can't find include file %s\n", fname));
 	SAFE_FREE(fname);
-	return false;
+	return true;
 }
 
 /***************************************************************************
@@ -6974,9 +7086,11 @@ static void lp_set_enum_parm( struct parm_struct *parm, const char *pszParmValue
 	for (i = 0; parm->enum_list[i].name; i++) {
 		if ( strequal(pszParmValue, parm->enum_list[i].name)) {
 			*ptr = parm->enum_list[i].value;
-			break;
+			return;
 		}
 	}
+	DEBUG(0, ("WARNING: Ignoring invalid value '%s' for parameter '%s'\n",
+		  pszParmValue, parm->label));
 }
 
 /***************************************************************************
@@ -7040,65 +7154,58 @@ void *lp_local_ptr(int snum, void *ptr)
 
 bool lp_do_parameter(int snum, const char *pszParmName, const char *pszParmValue)
 {
-	int parmnum, i, slen;
+	int parmnum, i;
 	void *parm_ptr = NULL;	/* where we are going to store the result */
 	void *def_ptr = NULL;
-	char *param_key = NULL;
-	char *sep;
-	param_opt_struct *paramo, *data;
+	struct param_opt_struct *paramo, *data;
 	bool not_added;
 
 	parmnum = map_parameter(pszParmName);
 
 	if (parmnum < 0) {
-		if ((sep=strchr(pszParmName, ':')) != NULL) {
-			TALLOC_CTX *frame = talloc_stackframe();
+		TALLOC_CTX *frame;
 
-			*sep = '\0';
-			param_key = talloc_asprintf(frame, "%s:", pszParmName);
-			if (!param_key) {
-				TALLOC_FREE(frame);
-				return false;
-			}
-			slen = strlen(param_key);
-			param_key = talloc_asprintf_append(param_key, sep+1);
-			if (!param_key) {
-				TALLOC_FREE(frame);
-				return false;
-			}
-			trim_char(param_key+slen, ' ', ' ');
-			not_added = True;
-			data = (snum < 0) ? Globals.param_opt :
-				ServicePtrs[snum]->param_opt;
-			/* Traverse destination */
-			while (data) {
-				/* If we already have same option, override it */
-				if (strcmp(data->key, param_key) == 0) {
-					string_free(&data->value);
-					TALLOC_FREE(data->list);
-					data->value = SMB_STRDUP(pszParmValue);
-					not_added = False;
-					break;
-				}
-				data = data->next;
-			}
-			if (not_added) {
-				paramo = SMB_XMALLOC_P(param_opt_struct);
-				paramo->key = SMB_STRDUP(param_key);
-				paramo->value = SMB_STRDUP(pszParmValue);
-				paramo->list = NULL;
-				if (snum < 0) {
-					DLIST_ADD(Globals.param_opt, paramo);
-				} else {
-					DLIST_ADD(ServicePtrs[snum]->param_opt, paramo);
-				}
-			}
-
-			*sep = ':';
-			TALLOC_FREE(frame);
+		if (strchr(pszParmName, ':') == NULL) {
+			DEBUG(0, ("Ignoring unknown parameter \"%s\"\n",
+				  pszParmName));
 			return (True);
 		}
-		DEBUG(0, ("Ignoring unknown parameter \"%s\"\n", pszParmName));
+
+		/*
+		 * We've got a parametric option
+		 */
+
+		frame = talloc_stackframe();
+
+		not_added = True;
+		data = (snum < 0)
+			? Globals.param_opt : ServicePtrs[snum]->param_opt;
+		/* Traverse destination */
+		while (data) {
+			/* If we already have same option, override it */
+			if (strwicmp(data->key, pszParmName) == 0) {
+				string_free(&data->value);
+				TALLOC_FREE(data->list);
+				data->value = SMB_STRDUP(pszParmValue);
+				not_added = False;
+				break;
+			}
+			data = data->next;
+		}
+		if (not_added) {
+			paramo = SMB_XMALLOC_P(struct param_opt_struct);
+			paramo->key = SMB_STRDUP(pszParmName);
+			paramo->value = SMB_STRDUP(pszParmValue);
+			paramo->list = NULL;
+			if (snum < 0) {
+				DLIST_ADD(Globals.param_opt, paramo);
+			} else {
+				DLIST_ADD(ServicePtrs[snum]->param_opt,
+					  paramo);
+			}
+		}
+
+		TALLOC_FREE(frame);
 		return (True);
 	}
 
@@ -7137,8 +7244,8 @@ bool lp_do_parameter(int snum, const char *pszParmName, const char *pszParmValue
 
 	/* if it is a special case then go ahead */
 	if (parm_table[parmnum].special) {
-		parm_table[parmnum].special(snum, pszParmValue, (char **)parm_ptr);
-		return (True);
+		return parm_table[parmnum].special(snum, pszParmValue,
+						   (char **)parm_ptr);
 	}
 
 	/* now switch on the type of variable it is */
@@ -7414,7 +7521,7 @@ Display the contents of the global structure.
 static void dump_globals(FILE *f)
 {
 	int i;
-	param_opt_struct *data;
+	struct param_opt_struct *data;
 	
 	fprintf(f, "[global]\n");
 
@@ -7458,7 +7565,7 @@ bool lp_is_default(int snum, struct parm_struct *parm)
 static void dump_a_service(struct service *pService, FILE * f)
 {
 	int i;
-	param_opt_struct *data;
+	struct param_opt_struct *data;
 	
 	if (pService != &sDefault)
 		fprintf(f, "[%s]\n", pService->szService);
@@ -8611,6 +8718,7 @@ void gfree_loadparm(void)
 		SAFE_FREE( f );
 		f = next;
 	}
+	file_lists = NULL;
 
 	/* Free resources allocated to services */
 
@@ -8670,11 +8778,12 @@ bool lp_load_ex(const char *pszFname,
 		bool save_defaults,
 		bool add_ipc,
 		bool initialize_globals,
-		bool allow_include_registry)
+		bool allow_include_registry,
+		bool allow_registry_shares)
 {
 	char *n2 = NULL;
 	bool bRetval;
-	param_opt_struct *data, *pdata;
+	struct param_opt_struct *data, *pdata;
 
 	bRetval = False;
 
@@ -8691,6 +8800,9 @@ bool lp_load_ex(const char *pszFname,
 		init_locals();
 		lp_save_defaults();
 	}
+
+	/* We get sections first, so have to start 'behind' to make up */
+	iServiceIndex = -1;
 
 	if (Globals.param_opt != NULL) {
 		data = Globals.param_opt;
@@ -8715,8 +8827,6 @@ bool lp_load_ex(const char *pszFname,
 
 		add_to_file_list(pszFname, n2);
 
-		/* We get sections first, so have to start 'behind' to make up */
-		iServiceIndex = -1;
 		bRetval = pm_process(n2, do_section, do_parameter, NULL);
 		SAFE_FREE(n2);
 
@@ -8744,7 +8854,8 @@ bool lp_load_ex(const char *pszFname,
 			lp_kill_all_services();
 			return lp_load_ex(pszFname, global_only, save_defaults,
 					  add_ipc, initialize_globals,
-					  allow_include_registry);
+					  allow_include_registry,
+					  allow_registry_shares);
 		}
 	} else if (lp_config_backend_is_registry()) {
 		bRetval = process_registry_globals();
@@ -8752,6 +8863,10 @@ bool lp_load_ex(const char *pszFname,
 		DEBUG(0, ("Illegal config  backend given: %d\n",
 			  lp_config_backend()));
 		bRetval = false;
+	}
+
+	if (bRetval && lp_registry_shares() && allow_registry_shares) {
+		bRetval = process_registry_shares();
 	}
 
 	lp_add_auto_services(lp_auto_services());
@@ -8795,7 +8910,7 @@ bool lp_load(const char *pszFname,
 			  save_defaults,
 			  add_ipc,
 			  initialize_globals,
-			  true);
+			  true, false);
 }
 
 bool lp_load_initial_only(const char *pszFname)
@@ -8805,16 +8920,23 @@ bool lp_load_initial_only(const char *pszFname)
 			  false,
 			  false,
 			  true,
+			  false,
 			  false);
 }
 
-/***************************************************************************
- Reset the max number of services.
-***************************************************************************/
-
-void lp_resetnumservices(void)
+bool lp_load_with_registry_shares(const char *pszFname,
+				  bool global_only,
+				  bool save_defaults,
+				  bool add_ipc,
+				  bool initialize_globals)
 {
-	iNumServices = 0;
+	return lp_load_ex(pszFname,
+			  global_only,
+			  save_defaults,
+			  add_ipc,
+			  initialize_globals,
+			  true,
+			  true);
 }
 
 /***************************************************************************

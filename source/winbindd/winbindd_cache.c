@@ -502,14 +502,8 @@ static void refresh_sequence_number(struct winbindd_domain *domain, bool force)
 	   mode domain or not.  And that we can contact it. */
 
 	if ( winbindd_can_contact_domain( domain ) ) {		
-		struct winbindd_methods *orig_backend = domain->backend;
 		status = domain->backend->sequence_number(domain, 
 							  &domain->sequence_number);
-		if (domain->backend != orig_backend) {
-			/* Try again. */
-			status = domain->backend->sequence_number(domain,
-                                                          &domain->sequence_number);
-		}
 	} else {
 		/* just use the current time */
 		status = NT_STATUS_OK;
@@ -940,6 +934,8 @@ static void wcache_save_lockout_policy(struct winbindd_domain *domain,
 	centry_free(centry);
 }
 
+
+
 static void wcache_save_password_policy(struct winbindd_domain *domain,
 					NTSTATUS status,
 					struct samr_DomInfo1 *policy)
@@ -961,6 +957,209 @@ static void wcache_save_password_policy(struct winbindd_domain *domain,
 	DEBUG(10,("wcache_save_password_policy: %s\n", domain->name));
 
 	centry_free(centry);
+}
+
+/***************************************************************************
+ ***************************************************************************/
+
+static void wcache_save_username_alias(struct winbindd_domain *domain,
+				       NTSTATUS status,
+				       const char *name, const char *alias)
+{
+	struct cache_entry *centry;
+	fstring uname;
+
+	if ( (centry = centry_start(domain, status)) == NULL )
+		return;
+
+	centry_put_string( centry, alias );
+
+	fstrcpy(uname, name);
+	strupper_m(uname);
+	centry_end(centry, "NSS/NA/%s", uname);
+
+	DEBUG(10,("wcache_save_username_alias: %s -> %s\n", name, alias ));
+
+	centry_free(centry);
+}
+
+static void wcache_save_alias_username(struct winbindd_domain *domain,
+				       NTSTATUS status,
+				       const char *alias, const char *name)
+{
+	struct cache_entry *centry;
+	fstring uname;
+
+	if ( (centry = centry_start(domain, status)) == NULL )
+		return;
+
+	centry_put_string( centry, name );
+
+	fstrcpy(uname, alias);
+	strupper_m(uname);
+	centry_end(centry, "NSS/AN/%s", uname);
+
+	DEBUG(10,("wcache_save_alias_username: %s -> %s\n", alias, name ));
+
+	centry_free(centry);
+}
+
+/***************************************************************************
+ ***************************************************************************/
+
+NTSTATUS resolve_username_to_alias( TALLOC_CTX *mem_ctx,
+				    struct winbindd_domain *domain,
+				    const char *name, char **alias )
+{
+	struct winbind_cache *cache = get_cache(domain);
+	struct cache_entry *centry = NULL;
+	NTSTATUS status;
+	char *upper_name;
+
+	if ( domain->internal )
+		return NT_STATUS_NOT_SUPPORTED;
+
+	if (!cache->tdb)
+		goto do_query;
+
+	if ( (upper_name = SMB_STRDUP(name)) == NULL )
+		return NT_STATUS_NO_MEMORY;
+	strupper_m(upper_name);
+
+	centry = wcache_fetch(cache, domain, "NSS/NA/%s", upper_name);
+
+	SAFE_FREE( upper_name );
+
+	if (!centry)
+		goto do_query;
+
+	status = centry->status;
+
+	if (!NT_STATUS_IS_OK(status)) {
+		centry_free(centry);
+		return status;
+	}
+
+	*alias = centry_string( centry, mem_ctx );
+
+	centry_free(centry);
+
+	DEBUG(10,("resolve_username_to_alias: [Cached] - mapped %s to %s\n",
+		  name, *alias ? *alias : "(none)"));
+
+	return (*alias) ? NT_STATUS_OK : NT_STATUS_OBJECT_NAME_NOT_FOUND;
+
+do_query:
+
+	/* If its not in cache and we are offline, then fail */
+
+	if ( get_global_winbindd_state_offline() || !domain->online ) {
+		DEBUG(8,("resolve_username_to_alias: rejecting query "
+			 "in offline mode\n"));
+		return NT_STATUS_NOT_FOUND;
+	}
+
+	status = nss_map_to_alias( mem_ctx, domain->name, name, alias );
+
+	if ( NT_STATUS_IS_OK( status ) ) {
+		wcache_save_username_alias(domain, status, name, *alias);
+	}
+
+	if ( NT_STATUS_EQUAL( status, NT_STATUS_NONE_MAPPED ) ) {
+		wcache_save_username_alias(domain, status, name, "(NULL)");
+	}
+
+	DEBUG(5,("resolve_username_to_alias: backend query returned %s\n",
+		 nt_errstr(status)));
+
+	if ( NT_STATUS_EQUAL(status, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND) ) {
+		set_domain_offline( domain );
+	}
+
+	return status;
+}
+
+/***************************************************************************
+ ***************************************************************************/
+
+NTSTATUS resolve_alias_to_username( TALLOC_CTX *mem_ctx,
+				    struct winbindd_domain *domain,
+				    const char *alias, char **name )
+{
+	struct winbind_cache *cache = get_cache(domain);
+	struct cache_entry *centry = NULL;
+	NTSTATUS status;
+	char *upper_name;
+
+	if ( domain->internal )
+		return  NT_STATUS_NOT_SUPPORTED;
+
+	if (!cache->tdb)
+		goto do_query;
+
+	if ( (upper_name = SMB_STRDUP(alias)) == NULL )
+		return NT_STATUS_NO_MEMORY;
+	strupper_m(upper_name);
+
+	centry = wcache_fetch(cache, domain, "NSS/AN/%s", upper_name);
+
+	SAFE_FREE( upper_name );
+
+	if (!centry)
+		goto do_query;
+
+	status = centry->status;
+
+	if (!NT_STATUS_IS_OK(status)) {
+		centry_free(centry);
+		return status;
+	}
+
+	*name = centry_string( centry, mem_ctx );
+
+	centry_free(centry);
+
+	DEBUG(10,("resolve_alias_to_username: [Cached] - mapped %s to %s\n",
+		  alias, *name ? *name : "(none)"));
+
+	return (*name) ? NT_STATUS_OK : NT_STATUS_OBJECT_NAME_NOT_FOUND;
+
+do_query:
+
+	/* If its not in cache and we are offline, then fail */
+
+	if ( get_global_winbindd_state_offline() || !domain->online ) {
+		DEBUG(8,("resolve_alias_to_username: rejecting query "
+			 "in offline mode\n"));
+		return NT_STATUS_NOT_FOUND;
+	}
+
+	/* an alias cannot contain a domain prefix or '@' */
+
+	if (strchr(alias, '\\') || strchr(alias, '@')) {
+		DEBUG(10,("resolve_alias_to_username: skipping fully "
+			  "qualified name %s\n", alias));
+		return NT_STATUS_OBJECT_NAME_INVALID;
+	}
+
+	status = nss_map_from_alias( mem_ctx, domain->name, alias, name );
+
+	if ( NT_STATUS_IS_OK( status ) ) {
+		wcache_save_alias_username( domain, status, alias, *name );
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
+		wcache_save_alias_username(domain, status, alias, "(NULL)");
+	}
+
+	DEBUG(5,("resolve_alias_to_username: backend query returned %s\n",
+		 nt_errstr(status)));
+
+	if ( NT_STATUS_EQUAL(status, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND) ) {
+		set_domain_offline( domain );
+	}
+
+	return status;
 }
 
 NTSTATUS wcache_cached_creds_exist(struct winbindd_domain *domain, const DOM_SID *sid)
@@ -2078,7 +2277,9 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 	for (i=0; i<(*num_domains); i++) {
 		(*names)[i] = centry_string(centry, mem_ctx);
 		(*alt_names)[i] = centry_string(centry, mem_ctx);
-		centry_sid(centry, mem_ctx, &(*dom_sids)[i]);
+		if (!centry_sid(centry, mem_ctx, &(*dom_sids)[i])) {
+			sid_copy(&(*dom_sids)[i], &global_sid_NULL);
+		}
 	}
 
  	status = centry->status;
@@ -2263,6 +2464,8 @@ static int traverse_fn(TDB_CONTEXT *the_tdb, TDB_DATA kbuf, TDB_DATA dbuf,
 void wcache_invalidate_samlogon(struct winbindd_domain *domain, 
 				struct netr_SamInfo3 *info3)
 {
+        DOM_SID sid;
+        fstring key_str, sid_string;
 	struct winbind_cache *cache;
 
 	/* dont clear cached U/SID and UG/SID entries when we want to logon
@@ -2276,7 +2479,26 @@ void wcache_invalidate_samlogon(struct winbindd_domain *domain,
 		return;
 
 	cache = get_cache(domain);
-	netsamlogon_clear_cached_user(cache->tdb, info3);
+
+        if (!cache->tdb) {
+                return;
+        }
+
+	sid_copy(&sid, info3->base.domain_sid);
+	sid_append_rid(&sid, info3->base.rid);
+
+	/* Clear U/SID cache entry */
+	fstr_sprintf(key_str, "U/%s", sid_to_fstring(sid_string, &sid));
+	DEBUG(10, ("wcache_invalidate_samlogon: clearing %s\n", key_str));
+	tdb_delete(cache->tdb, string_tdb_data(key_str));
+
+	/* Clear UG/SID cache entry */
+	fstr_sprintf(key_str, "UG/%s", sid_to_fstring(sid_string, &sid));
+	DEBUG(10, ("wcache_invalidate_samlogon: clearing %s\n", key_str));
+	tdb_delete(cache->tdb, string_tdb_data(key_str));
+
+	/* Samba/winbindd never needs this. */
+	netsamlogon_clear_cached_user(info3);
 }
 
 bool wcache_invalidate_cache(void)
@@ -3240,6 +3462,48 @@ static int validate_pwinfo(TALLOC_CTX *mem_ctx, const char *keystr,
 	return 0;
 }
 
+static int validate_nss_an(TALLOC_CTX *mem_ctx, const char *keystr,
+			   TDB_DATA dbuf,
+			   struct tdb_validation_status *state)
+{
+	struct cache_entry *centry = create_centry_validate(keystr, dbuf, state);
+
+	if (!centry) {
+		return 1;
+	}
+
+	(void)centry_string( centry, mem_ctx );
+
+	centry_free(centry);
+
+	if (!(state->success)) {
+		return 1;
+	}
+	DEBUG(10,("validate_pwinfo: %s ok\n", keystr));
+	return 0;
+}
+
+static int validate_nss_na(TALLOC_CTX *mem_ctx, const char *keystr,
+			   TDB_DATA dbuf,
+			   struct tdb_validation_status *state)
+{
+	struct cache_entry *centry = create_centry_validate(keystr, dbuf, state);
+
+	if (!centry) {
+		return 1;
+	}
+
+	(void)centry_string( centry, mem_ctx );
+
+	centry_free(centry);
+
+	if (!(state->success)) {
+		return 1;
+	}
+	DEBUG(10,("validate_pwinfo: %s ok\n", keystr));
+	return 0;
+}
+
 static int validate_trustdoms(TALLOC_CTX *mem_ctx, const char *keystr, TDB_DATA dbuf,
 			      struct tdb_validation_status *state)
 {
@@ -3341,6 +3605,8 @@ struct key_val_struct {
 	{"NSS/PWINFO/", validate_pwinfo},
 	{"TRUSTDOMS/", validate_trustdoms},
 	{"TRUSTDOMCACHE/", validate_trustdomcache},
+	{"NSS/NA/", validate_nss_na},
+	{"NSS/AN/", validate_nss_an},
 	{"WINBINDD_OFFLINE", validate_offline},
 	{WINBINDD_CACHE_VERSION_KEYSTR, validate_cache_version},
 	{NULL, NULL}
@@ -3549,8 +3815,11 @@ static bool add_wbdomain_to_tdc_array( struct winbindd_domain *new_dom,
 	list[idx].domain_name = talloc_strdup( list, new_dom->name );
 	list[idx].dns_name = talloc_strdup( list, new_dom->alt_name );
 
-	if ( !is_null_sid( &new_dom->sid ) )
+	if ( !is_null_sid( &new_dom->sid ) ) {
 		sid_copy( &list[idx].sid, &new_dom->sid );
+	} else {
+		sid_copy(&list[idx].sid, &global_sid_NULL);
+	}
 
 	if ( new_dom->domain_flags != 0x0 )
 		list[idx].trust_flags = new_dom->domain_flags;	

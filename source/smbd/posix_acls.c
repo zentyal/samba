@@ -904,7 +904,7 @@ static SEC_ACCESS map_canon_ace_perms(int snum,
 		if (directory_ace) {
 			nt_mask = UNIX_DIRECTORY_ACCESS_RWX;
 		} else {
-			nt_mask = UNIX_ACCESS_RWX;
+			nt_mask = (UNIX_ACCESS_RWX & ~DELETE_ACCESS);
 		}
 	} else if ((perms & ALL_ACE_PERMS) == (mode_t)0) {
 		/*
@@ -2207,9 +2207,7 @@ static canon_ace *canonicalise_acl(struct connection_struct *conn,
 		posix_id unix_ug;
 		enum ace_owner owner_type;
 
-		/* get_next... */
-		if (entry_id == SMB_ACL_FIRST_ENTRY)
-			entry_id = SMB_ACL_NEXT_ENTRY;
+		entry_id = SMB_ACL_NEXT_ENTRY;
 
 		/* Is this a MASK entry ? */
 		if (SMB_VFS_SYS_ACL_GET_TAG_TYPE(conn, entry, &tagtype) == -1)
@@ -2364,20 +2362,32 @@ static bool current_user_in_group(gid_t gid)
 }
 
 /****************************************************************************
- Should we override a deny ?  Check deprecated 'acl group control'
- and 'dos filemode'
+ Should we override a deny ? Check 'acl group control' and 'dos filemode'.
 ****************************************************************************/
 
-static bool acl_group_override(connection_struct *conn, gid_t prim_gid)
+static bool acl_group_override(connection_struct *conn,
+				gid_t prim_gid,
+				const char *fname)
 {
-	if ( (errno == EACCES || errno == EPERM) 
-		&& (lp_acl_group_control(SNUM(conn)) || lp_dos_filemode(SNUM(conn)))
-		&& current_user_in_group(prim_gid)) 
-	{
-		return True;
-	} 
+	SMB_STRUCT_STAT sbuf;
 
-	return False;
+	if ((errno != EPERM) && (errno != EACCES)) {
+		return false;
+	}
+
+	/* file primary group == user primary or supplementary group */
+	if (lp_acl_group_control(SNUM(conn)) &&
+			current_user_in_group(prim_gid)) {
+		return true;
+	}
+
+	/* user has writeable permission */
+	if (lp_dos_filemode(SNUM(conn)) &&
+			can_write_to_file(conn, fname, &sbuf)) {
+		return true;
+	}
+
+	return false;
 }
 
 /****************************************************************************
@@ -2563,7 +2573,7 @@ static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool defau
 				*pacl_set_support = False;
 			}
 
-			if (acl_group_override(conn, prim_gid)) {
+			if (acl_group_override(conn, prim_gid, fsp->fsp_name)) {
 				int sret;
 
 				DEBUG(5,("set_canon_ace_list: acl group control on and current user in file %s primary group.\n",
@@ -2594,7 +2604,7 @@ static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool defau
 				*pacl_set_support = False;
 			}
 
-			if (acl_group_override(conn, prim_gid)) {
+			if (acl_group_override(conn, prim_gid, fsp->fsp_name)) {
 				int sret;
 
 				DEBUG(5,("set_canon_ace_list: acl group control on and current user in file %s primary group.\n",
@@ -3388,10 +3398,17 @@ static NTSTATUS append_parent_acl(files_struct *fsp,
 			parent_name));
 	}
 
-	parent_sd->dacl->aces = new_ace;
-	parent_sd->dacl->num_aces = i;
+	/* This sucks. psd should be const and we should
+	 * be doing a deep-copy here. We're getting away
+	 * with is as we know parent_sd is talloced off
+	 * talloc_tos() as well as psd. JRA. */
 
-	*pp_new_sd = parent_sd;
+	psd->dacl->aces = new_ace;
+	psd->dacl->num_aces = i;
+	psd->type &= ~(SE_DESC_DACL_AUTO_INHERITED|
+                         SE_DESC_DACL_AUTO_INHERIT_REQ);
+
+	*pp_new_sd = psd;
 	return status;
 }
 
@@ -3572,7 +3589,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 					if (SMB_VFS_SYS_ACL_DELETE_DEF_FILE(conn, fsp->fsp_name) == -1) {
 						int sret = -1;
 
-						if (acl_group_override(conn, sbuf.st_gid)) {
+						if (acl_group_override(conn, sbuf.st_gid, fsp->fsp_name)) {
 							DEBUG(5,("set_nt_acl: acl group control on and "
 								"current user in file %s primary group. Override delete_def_acl\n",
 								fsp->fsp_name ));
@@ -3619,7 +3636,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 
 					if(SMB_VFS_CHMOD(conn,fsp->fsp_name, posix_perms) == -1) {
 						int sret = -1;
-						if (acl_group_override(conn, sbuf.st_gid)) {
+						if (acl_group_override(conn, sbuf.st_gid, fsp->fsp_name)) {
 							DEBUG(5,("set_nt_acl: acl group control on and "
 								"current user in file %s primary group. Override chmod\n",
 								fsp->fsp_name ));
@@ -3684,9 +3701,7 @@ int get_acl_group_bits( connection_struct *conn, const char *fname, mode_t *mode
 		SMB_ACL_TAG_T tagtype;
 		SMB_ACL_PERMSET_T permset;
 
-		/* get_next... */
-		if (entry_id == SMB_ACL_FIRST_ENTRY)
-			entry_id = SMB_ACL_NEXT_ENTRY;
+		entry_id = SMB_ACL_NEXT_ENTRY;
 
 		if (SMB_VFS_SYS_ACL_GET_TAG_TYPE(conn, entry, &tagtype) ==-1)
 			break;
@@ -3724,9 +3739,7 @@ static int chmod_acl_internals( connection_struct *conn, SMB_ACL_T posix_acl, mo
 		SMB_ACL_PERMSET_T permset;
 		mode_t perms;
 
-		/* get_next... */
-		if (entry_id == SMB_ACL_FIRST_ENTRY)
-			entry_id = SMB_ACL_NEXT_ENTRY;
+		entry_id = SMB_ACL_NEXT_ENTRY;
 
 		if (SMB_VFS_SYS_ACL_GET_TAG_TYPE(conn, entry, &tagtype) == -1)
 			return -1;
@@ -3783,7 +3796,7 @@ static int chmod_acl_internals( connection_struct *conn, SMB_ACL_T posix_acl, mo
  resulting ACL on TO.  Note that name is in UNIX character set.
 ****************************************************************************/
 
-static int copy_access_acl(connection_struct *conn, const char *from, const char *to, mode_t mode)
+static int copy_access_posix_acl(connection_struct *conn, const char *from, const char *to, mode_t mode)
 {
 	SMB_ACL_T posix_acl = NULL;
 	int ret = -1;
@@ -3810,7 +3823,27 @@ static int copy_access_acl(connection_struct *conn, const char *from, const char
 
 int chmod_acl(connection_struct *conn, const char *name, mode_t mode)
 {
-	return copy_access_acl(conn, name, name, mode);
+	return copy_access_posix_acl(conn, name, name, mode);
+}
+
+/****************************************************************************
+ Check for an existing default POSIX ACL on a directory.
+****************************************************************************/
+
+static bool directory_has_default_posix_acl(connection_struct *conn, const char *fname)
+{
+	SMB_ACL_T def_acl = SMB_VFS_SYS_ACL_GET_FILE( conn, fname, SMB_ACL_TYPE_DEFAULT);
+	bool has_acl = False;
+	SMB_ACL_ENTRY_T entry;
+
+	if (def_acl != NULL && (SMB_VFS_SYS_ACL_GET_ENTRY(conn, def_acl, SMB_ACL_FIRST_ENTRY, &entry) == 1)) {
+		has_acl = True;
+	}
+
+	if (def_acl) {
+	        SMB_VFS_SYS_ACL_FREE_ACL(conn, def_acl);
+	}
+        return has_acl;
 }
 
 /****************************************************************************
@@ -3818,13 +3851,13 @@ int chmod_acl(connection_struct *conn, const char *name, mode_t mode)
  inherit this Access ACL to file name.
 ****************************************************************************/
 
-int inherit_access_acl(connection_struct *conn, const char *inherit_from_dir,
+int inherit_access_posix_acl(connection_struct *conn, const char *inherit_from_dir,
 		       const char *name, mode_t mode)
 {
-	if (directory_has_default_acl(conn, inherit_from_dir))
+	if (directory_has_default_posix_acl(conn, inherit_from_dir))
 		return 0;
 
-	return copy_access_acl(conn, inherit_from_dir, name, mode);
+	return copy_access_posix_acl(conn, inherit_from_dir, name, mode);
 }
 
 /****************************************************************************
@@ -3850,26 +3883,6 @@ int fchmod_acl(files_struct *fsp, mode_t mode)
 
 	SMB_VFS_SYS_ACL_FREE_ACL(conn, posix_acl);
 	return ret;
-}
-
-/****************************************************************************
- Check for an existing default POSIX ACL on a directory.
-****************************************************************************/
-
-bool directory_has_default_acl(connection_struct *conn, const char *fname)
-{
-	SMB_ACL_T def_acl = SMB_VFS_SYS_ACL_GET_FILE( conn, fname, SMB_ACL_TYPE_DEFAULT);
-	bool has_acl = False;
-	SMB_ACL_ENTRY_T entry;
-
-	if (def_acl != NULL && (SMB_VFS_SYS_ACL_GET_ENTRY(conn, def_acl, SMB_ACL_FIRST_ENTRY, &entry) == 1)) {
-		has_acl = True;
-	}
-
-	if (def_acl) {
-	        SMB_VFS_SYS_ACL_FREE_ACL(conn, def_acl);
-	}
-        return has_acl;
 }
 
 /****************************************************************************
@@ -4146,9 +4159,7 @@ static bool remove_posix_acl(connection_struct *conn, files_struct *fsp, const c
 		SMB_ACL_TAG_T tagtype;
 		SMB_ACL_PERMSET_T permset;
 
-		/* get_next... */
-		if (entry_id == SMB_ACL_FIRST_ENTRY)
-			entry_id = SMB_ACL_NEXT_ENTRY;
+		entry_id = SMB_ACL_NEXT_ENTRY;
 
 		if (SMB_VFS_SYS_ACL_GET_TAG_TYPE(conn, entry, &tagtype) == -1) {
 			DEBUG(5,("remove_posix_acl: failed to get tagtype from ACL on file %s (%s).\n",
@@ -4262,30 +4273,29 @@ bool set_unix_posix_acl(connection_struct *conn, files_struct *fsp, const char *
 SEC_DESC *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname)
 {
 	SEC_DESC *psd, *ret_sd;
-	connection_struct conn;
+	connection_struct *conn;
 	files_struct finfo;
 	struct fd_handle fh;
 
-	ZERO_STRUCT( conn );
-
-	if ( !(conn.mem_ctx = talloc_init( "novfs_get_nt_acl" )) ) {
-		DEBUG(0,("get_nt_acl_no_snum: talloc() failed!\n"));
+	conn = TALLOC_ZERO_P(ctx, connection_struct);
+	if (conn == NULL) {
+		DEBUG(0, ("talloc failed\n"));
 		return NULL;
 	}
 
-	if (!(conn.params = TALLOC_P(conn.mem_ctx, struct share_params))) {
+	if (!(conn->params = TALLOC_P(conn, struct share_params))) {
 		DEBUG(0,("get_nt_acl_no_snum: talloc() failed!\n"));
-		TALLOC_FREE(conn.mem_ctx);
+		TALLOC_FREE(conn);
 		return NULL;
 	}
 
-	conn.params->service = -1;
+	conn->params->service = -1;
 
-	set_conn_connectpath(&conn, "/");
+	set_conn_connectpath(conn, "/");
 
-	if (!smbd_vfs_init(&conn)) {
+	if (!smbd_vfs_init(conn)) {
 		DEBUG(0,("get_nt_acl_no_snum: Unable to create a fake connection struct!\n"));
-		conn_free_internal( &conn );
+		conn_free_internal( conn );
 		return NULL;
         }
 
@@ -4293,20 +4303,20 @@ SEC_DESC *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname)
 	ZERO_STRUCT( fh );
 
 	finfo.fnum = -1;
-	finfo.conn = &conn;
+	finfo.conn = conn;
 	finfo.fh = &fh;
 	finfo.fh->fd = -1;
 	finfo.fsp_name = CONST_DISCARD(char *,fname);
 
 	if (!NT_STATUS_IS_OK(posix_fget_nt_acl( &finfo, DACL_SECURITY_INFORMATION, &psd))) {
 		DEBUG(0,("get_nt_acl_no_snum: get_nt_acl returned zero.\n"));
-		conn_free_internal( &conn );
+		conn_free_internal( conn );
 		return NULL;
 	}
 
 	ret_sd = dup_sec_desc( ctx, psd );
 
-	conn_free_internal( &conn );
+	conn_free_internal( conn );
 
 	return ret_sd;
 }

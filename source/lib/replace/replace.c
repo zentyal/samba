@@ -82,6 +82,9 @@ size_t rep_strlcat(char *d, const char *s, size_t bufsize)
 	size_t ret = len1 + len2;
 
 	if (len1+len2 >= bufsize) {
+		if (bufsize < (len1+1)) {
+			return ret;
+		}
 		len2 = bufsize - (len1+1);
 	}
 	if (len2 > 0) {
@@ -167,7 +170,7 @@ int rep_initgroups(char *name, gid_t id)
 #include <grp.h>
 
 	gid_t *grouplst = NULL;
-	int max_gr = 32;
+	int max_gr = NGROUPS_MAX;
 	int ret;
 	int    i,j;
 	struct group *g;

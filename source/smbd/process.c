@@ -152,7 +152,7 @@ static NTSTATUS read_packet_remainder(int fd, char *buffer,
 				1 /* pad byte */)
 
 static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
-						    const char lenbuf[4],
+						    const char *lenbuf,
 						    int fd, char **buffer,
 						    unsigned int timeout,
 						    size_t *p_unread,
@@ -164,7 +164,7 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 	ssize_t toread;
 	NTSTATUS status;
 
-	memcpy(writeX_header, lenbuf, sizeof(lenbuf));
+	memcpy(writeX_header, lenbuf, 4);
 
 	status = read_socket_with_timeout(
 		fd, writeX_header + 4,
@@ -1245,7 +1245,8 @@ static const struct smb_message_struct {
  allocate and initialize a reply packet
 ********************************************************************/
 
-void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
+bool create_outbuf(TALLOC_CTX *mem_ctx, const char *inbuf, char **outbuf,
+		   uint8_t num_words, uint32_t num_bytes)
 {
 	/*
          * Protect against integer wrap
@@ -1260,23 +1261,33 @@ void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
 		smb_panic(msg);
 	}
 
-	if (!(req->outbuf = TALLOC_ARRAY(
-		      req, uint8,
-		      smb_size + num_words*2 + num_bytes))) {
-		smb_panic("could not allocate output buffer\n");
+	*outbuf = TALLOC_ARRAY(mem_ctx, char,
+			       smb_size + num_words*2 + num_bytes);
+	if (*outbuf == NULL) {
+		return false;
 	}
 
-	construct_reply_common((char *)req->inbuf, (char *)req->outbuf);
-	srv_set_message((char *)req->outbuf, num_words, num_bytes, false);
+	construct_reply_common(inbuf, *outbuf);
+	srv_set_message(*outbuf, num_words, num_bytes, false);
 	/*
 	 * Zero out the word area, the caller has to take care of the bcc area
 	 * himself
 	 */
 	if (num_words != 0) {
-		memset(req->outbuf + smb_vwv0, 0, num_words*2);
+		memset(*outbuf + smb_vwv0, 0, num_words*2);
 	}
 
-	return;
+	return true;
+}
+
+void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
+{
+	char *outbuf;
+	if (!create_outbuf(req, (char *)req->inbuf, &outbuf, num_words,
+			   num_bytes)) {
+		smb_panic("could not allocate output buffer\n");
+	}
+	req->outbuf = (uint8_t *)outbuf;
 }
 
 
@@ -1381,7 +1392,13 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
 		if(session_tag != UID_FIELD_INVALID) {
 			vuser = get_valid_user_struct(session_tag);
 			if (vuser) {
-				set_current_user_info(&vuser->user);
+				set_current_user_info(
+					vuser->server_info->sanitized_username,
+					vuser->server_info->unix_name,
+					pdb_get_fullname(vuser->server_info
+							 ->sam_account),
+					pdb_get_domain(vuser->server_info
+						       ->sam_account));
 			}
 		}
 	}
@@ -1636,6 +1653,7 @@ void chain_reply(struct smb_request *req)
 	char *outbuf = (char *)req->outbuf;
 	size_t outsize = smb_len(outbuf) + 4;
 	size_t outsize_padded;
+	size_t padding;
 	size_t ofs, to_move;
 
 	struct smb_request *req2;
@@ -1674,12 +1692,13 @@ void chain_reply(struct smb_request *req)
 	 */
 
 	outsize_padded = (outsize + 3) & ~3;
+	padding = outsize_padded - outsize;
 
 	/*
 	 * remember how much the caller added to the chain, only counting
 	 * stuff after the parameter words
 	 */
-	chain_size += outsize_padded - smb_wct;
+	chain_size += (outsize_padded - smb_wct);
 
 	/*
 	 * work out pointers into the original packets. The
@@ -1787,17 +1806,17 @@ void chain_reply(struct smb_request *req)
 	SCVAL(outbuf, smb_vwv0, smb_com2);
 	SSVAL(outbuf, smb_vwv1, chain_size + smb_wct - 4);
 
-	if (outsize_padded > outsize) {
+	if (padding != 0) {
 
 		/*
 		 * Due to padding we have some uninitialized bytes after the
 		 * caller's output
 		 */
 
-		memset(outbuf + outsize, 0, outsize_padded - outsize);
+		memset(outbuf + outsize, 0, padding);
 	}
 
-	smb_setlen(outbuf, outsize2 + chain_size - 4);
+	smb_setlen(outbuf, outsize2 + caller_outputlen + padding - 4);
 
 	/*
 	 * restore the saved data, being careful not to overwrite any data
@@ -1807,6 +1826,12 @@ void chain_reply(struct smb_request *req)
 
 	SAFE_FREE(caller_output);
 	TALLOC_FREE(req2);
+
+	/*
+	 * Reset the chain_size for our caller's offset calculations
+	 */
+
+	chain_size -= (outsize_padded - smb_wct);
 
 	return;
 }

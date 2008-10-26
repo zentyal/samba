@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 1. NetBIOS in a Unix World</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"><link rel="start" href="index.html" title="SAMBA Developers Guide"><link rel="up" href="pt01.html" title="Part I. The protocol"><link rel="prev" href="pt01.html" title="Part I. The protocol"><link rel="next" href="ntdomain.html" title="Chapter 2. NT Domain RPC's"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 1. NetBIOS in a Unix World</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pt01.html">Prev</a> </td><th width="60%" align="center">Part I. The protocol</th><td width="20%" align="right"> <a accesskey="n" href="ntdomain.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="unix-smb"></a>Chapter 1. NetBIOS in a Unix World</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="surname">Tridgell</span></h3></div></div><div><p class="pubdate">April 1995</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="unix-smb.html#id2495033">Introduction</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2495054">Usernames</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2495386">File Ownership</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494713">Passwords</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494750">Locking</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494803">Deny Modes</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494835">Trapdoor UIDs</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2542039">Port numbers</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2542084">Protocol Complexity</a></span></dt></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495033"></a>Introduction</h2></div></div></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 1. NetBIOS in a Unix World</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"><link rel="start" href="index.html" title="SAMBA Developers Guide"><link rel="up" href="pt01.html" title="Part I. The protocol"><link rel="prev" href="pt01.html" title="Part I. The protocol"><link rel="next" href="ntdomain.html" title="Chapter 2. NT Domain RPC's"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 1. NetBIOS in a Unix World</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pt01.html">Prev</a> </td><th width="60%" align="center">Part I. The protocol</th><td width="20%" align="right"> <a accesskey="n" href="ntdomain.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="unix-smb"></a>Chapter 1. NetBIOS in a Unix World</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="surname">Tridgell</span></h3></div></div><div><p class="pubdate">April 1995</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="unix-smb.html#id2495034">Introduction</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2495055">Usernames</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2495387">File Ownership</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494713">Passwords</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494751">Locking</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494803">Deny Modes</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2494835">Trapdoor UIDs</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2542043">Port numbers</a></span></dt><dt><span class="sect1"><a href="unix-smb.html#id2542089">Protocol Complexity</a></span></dt></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495034"></a>Introduction</h2></div></div></div><p>
 This is a short document that describes some of the issues that
 confront a SMB implementation on unix, and how Samba copes with
 them. They may help people who are looking at unix&lt;-&gt;PC
@@ -6,7 +6,7 @@ interoperability.
 </p><p>
 It was written to help out a person who was writing a paper on unix to
 PC connectivity.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495054"></a>Usernames</h2></div></div></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495055"></a>Usernames</h2></div></div></div><p>
 The SMB protocol has only a loose username concept. Early SMB
 protocols (such as CORE and COREPLUS) have no username concept at
 all. Even in later protocols clients often attempt operations
@@ -43,7 +43,7 @@ in the vast majority of cases. The methods include username maps, the
 service%user syntax, the saving of session setup usernames for later
 validation and the derivation of the username from the service name
 (either directly or via the user= option).
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495386"></a>File Ownership</h2></div></div></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2495387"></a>File Ownership</h2></div></div></div><p>
 The commonly used SMB protocols have no way of saying "you can't do
 that because you don't own the file". They have, in fact, no concept
 of file ownership at all.
@@ -83,7 +83,7 @@ This means that it is *VERY* important to ensure that the Samba
 smbpasswd file containing these password hashes is only readable
 by the root user. See the documentation ENCRYPTION.txt for more
 details.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2494750"></a>Locking</h2></div></div></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2494751"></a>Locking</h2></div></div></div><p>
 Since samba 2.2, samba supports other types of locking as well. This 
 section is outdated.
 </p><p>
@@ -138,7 +138,7 @@ a single uid.
 </p><p>
 Note that you can also get the "trapdoor uid" message for other
 reasons. Please see the FAQ for details.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2542039"></a>Port numbers</h2></div></div></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2542043"></a>Port numbers</h2></div></div></div><p>
 There is a convention that clients on sockets use high "unprivileged"
 port numbers (&gt;1000) and connect to servers on low "privilegedg" port
 numbers. This is enforced in Unix as non-root users can't open a
@@ -161,7 +161,7 @@ to any of these OSes unless they are running as root. The answer comes
 back, but it goes to port 137 which the unix user can't listen
 on. Interestingly WinNT3.1 got this right - it sends node status
 responses back to the source port in the request.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2542084"></a>Protocol Complexity</h2></div></div></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2542089"></a>Protocol Complexity</h2></div></div></div><p>
 There are many "protocol levels" in the SMB protocol. It seems that
 each time new functionality was added to a Microsoft operating system,
 they added the equivalent functions in a new protocol level of the SMB

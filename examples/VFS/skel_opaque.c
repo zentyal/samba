@@ -307,7 +307,7 @@ static size_t skel_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	return 0;
 }
 
-static size_t skel_get_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
+static size_t skel_get_nt_acl(vfs_handle_struct *handle,
 	const char *name, uint32 security_info, SEC_DESC **ppdesc)
 {
 	errno = ENOSYS;
@@ -316,13 +316,6 @@ static size_t skel_get_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 
 static NTSTATUS skel_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	uint32 security_info_sent, SEC_DESC *psd)
-{
-	errno = ENOSYS;
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-static NTSTATUS skel_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const
-	char *name, uint32 security_info_sent, SEC_DESC *psd)
 {
 	errno = ENOSYS;
 	return NT_STATUS_NOT_IMPLEMENTED;
@@ -662,7 +655,6 @@ static vfs_op_tuple skel_op_tuples[] = {
 	{SMB_VFS_OP(skel_fget_nt_acl),			SMB_VFS_OP_FGET_NT_ACL,		SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(skel_get_nt_acl),			SMB_VFS_OP_GET_NT_ACL,		SMB_VFS_LAYER_OPAQUE},
 	{SMB_VFS_OP(skel_fset_nt_acl),			SMB_VFS_OP_FSET_NT_ACL,		SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(skel_set_nt_acl),			SMB_VFS_OP_SET_NT_ACL,		SMB_VFS_LAYER_OPAQUE},
 
 	/* POSIX ACL operations */
 

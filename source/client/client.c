@@ -521,14 +521,14 @@ static void display_finfo(file_info *finfo, const char *dir)
 		/* create absolute filename for cli_nt_create() FIXME */
 		afname = talloc_asprintf(ctx,
 					"%s%s%s",
-					client_get_cwd(),
+					dir,
 					CLI_DIRSEP_STR,
 					finfo->name);
 		if (!afname) {
 			return;
 		}
 		/* print file meta date header */
-		d_printf( "FILENAME:%s\n", afname);
+		d_printf( "FILENAME:%s\n", finfo->name);
 		d_printf( "MODE:%s\n", attrib_string(finfo->mode));
 		d_printf( "SIZE:%.0f\n", (double)finfo->size);
 		d_printf( "MTIME:%s", time_to_asc(t));
@@ -3036,7 +3036,7 @@ static int cmd_getfacl(void)
 				break;
 			case SMB_POSIX_ACL_GROUP:
 				uorg = IVAL(retbuf,SMB_POSIX_ACL_HEADER_SIZE+(i*SMB_POSIX_ACL_ENTRY_SIZE)+2);
-				d_printf("group:%u", uorg);
+				d_printf("group:%u:", uorg);
 				break;
 			case SMB_POSIX_ACL_MASK:
 				d_printf("mask::");
@@ -3073,7 +3073,7 @@ static int cmd_getfacl(void)
 				break;
 			case SMB_POSIX_ACL_GROUP:
 				uorg = IVAL(retbuf,SMB_POSIX_ACL_HEADER_SIZE+((i+num_file_acls)*SMB_POSIX_ACL_ENTRY_SIZE)+2);
-				d_printf("default:group:%u", uorg);
+				d_printf("default:group:%u:", uorg);
 				break;
 			case SMB_POSIX_ACL_MASK:
 				d_printf("default:mask::");
@@ -3634,9 +3634,10 @@ static bool browse_host_rpc(bool sort)
 	uint32_t total_entries = 0;
 	int i;
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
+					  &pipe_hnd);
 
-	if (pipe_hnd == NULL) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("Could not connect to srvsvc pipe: %s\n",
 			   nt_errstr(status)));
 		TALLOC_FREE(frame);
@@ -3650,7 +3651,7 @@ static bool browse_host_rpc(bool sort)
 	info_ctr.ctr.ctr1 = &ctr1;
 
 	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, frame,
-					      pipe_hnd->cli->desthost,
+					      pipe_hnd->desthost,
 					      &info_ctr,
 					      0xffffffff,
 					      &total_entries,
@@ -3658,7 +3659,7 @@ static bool browse_host_rpc(bool sort)
 					      &werr);
 
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
-		cli_rpc_pipe_close(pipe_hnd);
+		TALLOC_FREE(pipe_hnd);
 		TALLOC_FREE(frame);
 		return false;
 	}
@@ -3668,7 +3669,7 @@ static bool browse_host_rpc(bool sort)
 		browse_fn(info.name, info.type, info.comment, NULL);
 	}
 
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 	TALLOC_FREE(frame);
 	return true;
 }

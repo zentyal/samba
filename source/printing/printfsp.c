@@ -20,15 +20,13 @@
 
 #include "includes.h"
 
-extern struct current_user current_user;
-
 /***************************************************************************
 open a print file and setup a fsp for it. This is a wrapper around
 print_job_start().
 ***************************************************************************/
 
 NTSTATUS print_fsp_open(connection_struct *conn, const char *fname,
-			files_struct **result)
+			uint16_t current_vuid, files_struct **result)
 {
 	int jobid;
 	SMB_STRUCT_STAT sbuf;
@@ -51,7 +49,7 @@ NTSTATUS print_fsp_open(connection_struct *conn, const char *fname,
 		fstrcat(name, p);
 	}
 
-	jobid = print_job_start(&current_user, SNUM(conn), name, NULL);
+	jobid = print_job_start(conn->server_info, SNUM(conn), name, NULL);
 	if (jobid == -1) {
 		status = map_nt_error_from_unix(errno);
 		file_free(fsp);
@@ -70,7 +68,7 @@ NTSTATUS print_fsp_open(connection_struct *conn, const char *fname,
 	/* setup a full fsp */
 	fsp->fh->fd = print_job_fd(lp_const_servicename(SNUM(conn)),jobid);
 	GetTimeOfDay(&fsp->open_time);
-	fsp->vuid = current_user.vuid;
+	fsp->vuid = current_vuid;
 	fsp->fh->pos = -1;
 	fsp->can_lock = True;
 	fsp->can_read = False;

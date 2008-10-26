@@ -23,22 +23,6 @@
  * @brief Exported global configurations.
  **/
 
-#if 0
-const char *get_dyn_SBINDIR(void);
-const char *get_dyn_BINDIR(void);
-const char *get_dyn_SWATDIR(void);
-
-extern char dyn_CONFIGFILE[1024];
-extern char dyn_LOGFILEBASE[1024], dyn_LMHOSTSFILE[1024];
-extern char dyn_LIBDIR[1024];
-extern char dyn_CODEPAGEDIR[1024];
-extern fstring dyn_SHLIBEXT;
-extern char dyn_LOCKDIR[1024];
-extern char dyn_PIDDIR[1024];
-extern char dyn_SMB_PASSWD_FILE[1024];
-extern char dyn_PRIVATE_DIR[1024];
-#endif
-
 const char *get_dyn_SBINDIR(void);
 const char *set_dyn_SBINDIR(const char *newpath);
 bool is_default_dyn_SBINDIR(void);
@@ -71,6 +55,10 @@ const char *get_dyn_LIBDIR(void);
 const char *set_dyn_LIBDIR(const char *newpath);
 bool is_default_dyn_LIBDIR(void);
 
+const char *get_dyn_MODULESDIR(void);
+const char *set_dyn_MODULESDIR(const char *newpath);
+bool is_default_dyn_MODULESDIR(void);
+
 const char *get_dyn_SHLIBEXT(void);
 const char *set_dyn_SHLIBEXT(const char *newpath);
 bool is_default_dyn_SHLIBEXT(void);
@@ -91,10 +79,11 @@ const char *get_dyn_PRIVATE_DIR(void);
 const char *set_dyn_PRIVATE_DIR(const char *newpath);
 bool is_default_dyn_PRIVATE_DIR(void);
 
+/*
+ * For STATEDIR and CACHEDIR, there are only getter functions.
+ * In non-FHS-mode, these are configurable via LOCKDIR.
+ * In FHS-mode, these are their own fixed directories.
+ */
 const char *get_dyn_STATEDIR(void);
-const char *set_dyn_STATEDIR(const char *newpath);
-bool is_default_dyn_STATEDIR(void);
 
 const char *get_dyn_CACHEDIR(void);
-const char *set_dyn_CACHEDIR(const char *newpath);
-bool is_default_dyn_CACHEDIR(bool);

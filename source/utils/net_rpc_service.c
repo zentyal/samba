@@ -20,8 +20,41 @@
 #include "utils/net.h"
 
 
-#define CLI_SERVER_NAME_SLASH(_ctx, _p, _cli) \
-	_p = talloc_asprintf(_ctx, "\\\\%s", _cli->cli->desthost);
+struct svc_state_msg {
+	uint32 flag;
+	const char *message;
+};
+
+static struct svc_state_msg state_msg_table[] = {
+	{ SVCCTL_STOPPED,            "stopped" },
+	{ SVCCTL_START_PENDING,      "start pending" },
+	{ SVCCTL_STOP_PENDING,       "stop pending" },
+	{ SVCCTL_RUNNING,            "running" },
+	{ SVCCTL_CONTINUE_PENDING,   "resume pending" },
+	{ SVCCTL_PAUSE_PENDING,      "pause pending" },
+	{ SVCCTL_PAUSED,             "paused" },
+	{ 0,                          NULL }
+};
+
+
+/********************************************************************
+********************************************************************/
+const char *svc_status_string( uint32 state )
+{
+	fstring msg;
+	int i;
+
+	fstr_sprintf( msg, "Unknown State [%d]", state );
+
+	for ( i=0; state_msg_table[i].message; i++ ) {
+		if ( state_msg_table[i].flag == state ) {
+			fstrcpy( msg, state_msg_table[i].message );
+			break;
+		}
+	}
+
+	return talloc_strdup(talloc_tos(), msg);
+}
 
 /********************************************************************
 ********************************************************************/
@@ -157,7 +190,8 @@ done:
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_list_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_list_internal(struct net_context *c,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -172,7 +206,6 @@ static NTSTATUS rpc_service_list_internal(const DOM_SID *domain_sid,
 	fstring servicename;
 	fstring displayname;
 	uint32 num_services = 0;
-	const char *server_name;
 	int i;
 
 	if (argc != 0 ) {
@@ -180,11 +213,8 @@ static NTSTATUS rpc_service_list_internal(const DOM_SID *domain_sid,
 		return NT_STATUS_OK;
 	}
 
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -221,7 +251,8 @@ done:
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_status_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_status_internal(struct net_context *c,
+						const DOM_SID *domain_sid,
 						const char *domain_name,
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
@@ -235,7 +266,6 @@ static NTSTATUS rpc_service_status_internal(const DOM_SID *domain_sid,
 	SERVICE_STATUS service_status;
 	SERVICE_CONFIG config;
 	fstring ascii_string;
-	const char *server_name;
 
 	if (argc != 1 ) {
 		d_printf("Usage: net rpc service status <service>\n");
@@ -243,11 +273,8 @@ static NTSTATUS rpc_service_status_internal(const DOM_SID *domain_sid,
 	}
 
 	/* Open the Service Control Manager */
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -337,7 +364,8 @@ done:
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_stop_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_stop_internal(struct net_context *c,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -349,7 +377,6 @@ static NTSTATUS rpc_service_stop_internal(const DOM_SID *domain_sid,
 	WERROR result = WERR_GENERAL_FAILURE;
 	NTSTATUS status;
 	fstring servicename;
-	const char *server_name;
 
 	if (argc != 1 ) {
 		d_printf("Usage: net rpc service status <service>\n");
@@ -359,11 +386,8 @@ static NTSTATUS rpc_service_stop_internal(const DOM_SID *domain_sid,
 	fstrcpy( servicename, argv[0] );
 
 	/* Open the Service Control Manager */
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -384,7 +408,8 @@ static NTSTATUS rpc_service_stop_internal(const DOM_SID *domain_sid,
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_pause_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_pause_internal(struct net_context *c,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -396,7 +421,6 @@ static NTSTATUS rpc_service_pause_internal(const DOM_SID *domain_sid,
 	WERROR result = WERR_GENERAL_FAILURE;
 	NTSTATUS status;
 	fstring servicename;
-	const char *server_name;
 
 	if (argc != 1 ) {
 		d_printf("Usage: net rpc service status <service>\n");
@@ -406,11 +430,8 @@ static NTSTATUS rpc_service_pause_internal(const DOM_SID *domain_sid,
 	fstrcpy( servicename, argv[0] );
 
 	/* Open the Service Control Manager */
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -431,7 +452,8 @@ static NTSTATUS rpc_service_pause_internal(const DOM_SID *domain_sid,
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_resume_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_resume_internal(struct net_context *c,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -443,7 +465,6 @@ static NTSTATUS rpc_service_resume_internal(const DOM_SID *domain_sid,
 	WERROR result = WERR_GENERAL_FAILURE;
 	NTSTATUS status;
 	fstring servicename;
-	const char *server_name;
 
 	if (argc != 1 ) {
 		d_printf("Usage: net rpc service status <service>\n");
@@ -453,11 +474,8 @@ static NTSTATUS rpc_service_resume_internal(const DOM_SID *domain_sid,
 	fstrcpy( servicename, argv[0] );
 
 	/* Open the Service Control Manager */
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -478,7 +496,8 @@ static NTSTATUS rpc_service_resume_internal(const DOM_SID *domain_sid,
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_service_start_internal(const DOM_SID *domain_sid,
+static NTSTATUS rpc_service_start_internal(struct net_context *c,
+					const DOM_SID *domain_sid,
 					const char *domain_name,
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
@@ -490,7 +509,6 @@ static NTSTATUS rpc_service_start_internal(const DOM_SID *domain_sid,
 	WERROR result = WERR_GENERAL_FAILURE;
 	NTSTATUS status;
 	uint32 state = 0;
-	const char *server_name;
 
 	if (argc != 1 ) {
 		d_printf("Usage: net rpc service status <service>\n");
@@ -498,11 +516,8 @@ static NTSTATUS rpc_service_start_internal(const DOM_SID *domain_sid,
 	}
 
 	/* Open the Service Control Manager */
-	CLI_SERVER_NAME_SLASH(mem_ctx, server_name, pipe_hnd);
-	NT_STATUS_HAVE_NO_MEMORY(server_name);
-
 	status = rpccli_svcctl_OpenSCManagerW(pipe_hnd, mem_ctx,
-					      server_name,
+					      pipe_hnd->srv_name_slash,
 					      NULL,
 					      SC_RIGHT_MGR_ENUMERATE_SERVICE,
 					      &hSCM,
@@ -556,89 +571,155 @@ done:
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_list( int argc, const char **argv )
+static int rpc_service_list(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service list\n"
+			 "    View configured Win32 services\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_list_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_start( int argc, const char **argv )
+static int rpc_service_start(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service start <service>\n"
+			 "    Start a Win32 service\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_start_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_stop( int argc, const char **argv )
+static int rpc_service_stop(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service stop <service>\n"
+			 "    Stop a Win32 service\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_stop_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_resume( int argc, const char **argv )
+static int rpc_service_resume(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service resume <service>\n"
+			 "    Resume a Win32 service\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_resume_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_pause( int argc, const char **argv )
+static int rpc_service_pause(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service pause <service>\n"
+			 "    Pause a Win32 service\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_pause_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_service_status( int argc, const char **argv )
+static int rpc_service_status(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command( NULL, PI_SVCCTL, 0,
+	if (c->display_usage) {
+		d_printf("Usage:\n"
+			 "net rpc service status <service>\n"
+			 "     Show the current status of a service\n");
+		return 0;
+	}
+
+	return run_rpc_command(c, NULL, &ndr_table_svcctl.syntax_id, 0,
 		rpc_service_status_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int net_help_service( int argc, const char **argv )
-{
-	d_printf("net rpc service list               View configured Win32 services\n");
-	d_printf("net rpc service start <service>    Start a service\n");
-	d_printf("net rpc service stop <service>     Stop a service\n");
-	d_printf("net rpc service pause <service>    Pause a service\n");
-	d_printf("net rpc service resume <service>   Resume a paused service\n");
-	d_printf("net rpc service status <service>   View the current status of a service\n");
-
-	return -1;
-}
-
-/********************************************************************
-********************************************************************/
-
-int net_rpc_service(int argc, const char **argv)
+int net_rpc_service(struct net_context *c, int argc, const char **argv)
 {
 	struct functable func[] = {
-		{"list", rpc_service_list},
-		{"start", rpc_service_start},
-		{"stop", rpc_service_stop},
-		{"pause", rpc_service_pause},
-		{"resume", rpc_service_resume},
-		{"status", rpc_service_status},
-		{NULL, NULL}
+		{
+			"list",
+			rpc_service_list,
+			NET_TRANSPORT_RPC,
+			"View configured Win32 services",
+			"net rpc service list\n"
+			"    View configured Win32 services"
+		},
+		{
+			"start",
+			rpc_service_start,
+			NET_TRANSPORT_RPC,
+			"Start a service",
+			"net rpc service start\n"
+			"    Start a service"
+		},
+		{
+			"stop",
+			rpc_service_stop,
+			NET_TRANSPORT_RPC,
+			"Stop a service",
+			"net rpc service stop\n"
+			"    Stop a service"
+		},
+		{
+			"pause",
+			rpc_service_pause,
+			NET_TRANSPORT_RPC,
+			"Pause a service",
+			"net rpc service pause\n"
+			"    Pause a service"
+		},
+		{
+			"resume",
+			rpc_service_resume,
+			NET_TRANSPORT_RPC,
+			"Resume a paused service",
+			"net rpc service resume\n"
+			"    Resume a service"
+		},
+		{
+			"status",
+			rpc_service_status,
+			NET_TRANSPORT_RPC,
+			"View current status of a service",
+			"net rpc service status\n"
+			"    View current status of a service"
+		},
+		{NULL, NULL, 0, NULL, NULL}
 	};
 
-	if ( argc )
-		return net_run_function( argc, argv, func, net_help_service );
-
-	return net_help_service( argc, argv );
+	return net_run_function(c, argc, argv, "net rpc service",func);
 }

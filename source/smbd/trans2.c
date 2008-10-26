@@ -28,7 +28,6 @@
 extern int max_send;
 extern enum protocol_types Protocol;
 extern uint32 global_client_caps;
-extern struct current_user current_user;
 
 #define get_file_size(sbuf) ((sbuf).st_size)
 #define DIR_ENTRY_SAFETY_MARGIN 4096
@@ -178,7 +177,7 @@ NTSTATUS get_ea_names_from_file(TALLOC_CTX *mem_ctx, connection_struct *conn,
 	char *p;
 	char **names, **tmp;
 	size_t num_names;
-	ssize_t sizeret;
+	ssize_t sizeret = -1;
 
 	if (!lp_ea_support(SNUM(conn))) {
 		*pnames = NULL;
@@ -504,7 +503,7 @@ NTSTATUS set_ea(connection_struct *conn, files_struct *fsp, const char *fname, s
 static struct ea_list *read_ea_name_list(TALLOC_CTX *ctx, const char *pdata, size_t data_size)
 {
 	struct ea_list *ea_list_head = NULL;
-	size_t offset = 0;
+	size_t converted_size, offset = 0;
 
 	while (offset + 2 < data_size) {
 		struct ea_list *eal = TALLOC_ZERO_P(ctx, struct ea_list);
@@ -522,7 +521,11 @@ static struct ea_list *read_ea_name_list(TALLOC_CTX *ctx, const char *pdata, siz
 		if (pdata[offset + namelen] != '\0') {
 			return NULL;
 		}
-		pull_ascii_talloc(ctx, &eal->ea.name, &pdata[offset]);
+		if (!pull_ascii_talloc(ctx, &eal->ea.name, &pdata[offset],
+				       &converted_size)) {
+			DEBUG(0,("read_ea_name_list: pull_ascii_talloc "
+				 "failed: %s", strerror(errno)));
+		}
 		if (!eal->ea.name) {
 			return NULL;
 		}
@@ -544,6 +547,7 @@ struct ea_list *read_ea_list_entry(TALLOC_CTX *ctx, const char *pdata, size_t da
 	struct ea_list *eal = TALLOC_ZERO_P(ctx, struct ea_list);
 	uint16 val_len;
 	unsigned int namelen;
+	size_t converted_size;
 
 	if (!eal) {
 		return NULL;
@@ -565,7 +569,10 @@ struct ea_list *read_ea_list_entry(TALLOC_CTX *ctx, const char *pdata, size_t da
 	if (pdata[namelen + 4] != '\0') {
 		return NULL;
 	}
-	pull_ascii_talloc(ctx, &eal->ea.name, pdata + 4);
+	if (!pull_ascii_talloc(ctx, &eal->ea.name, pdata + 4, &converted_size)) {
+		DEBUG(0,("read_ea_list_entry: pull_ascii_talloc failed: %s",
+			 strerror(errno)));
+	}
 	if (!eal->ea.name) {
 		return NULL;
 	}
@@ -1885,7 +1892,7 @@ static void call_trans2findfirst(connection_struct *conn,
 	bool requires_resume_key;
 	int info_level;
 	char *directory = NULL;
-	const char *mask = NULL;
+	char *mask = NULL;
 	char *p;
 	int last_entry_off=0;
 	int dptr_num = -1;
@@ -1973,7 +1980,7 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 		return;
 	}
 
-	ntstatus = unix_convert(ctx, conn, directory, True, &directory, NULL, &sbuf);
+	ntstatus = unix_convert(ctx, conn, directory, True, &directory, &mask, &sbuf);
 	if (!NT_STATUS_IS_OK(ntstatus)) {
 		reply_nterror(req, ntstatus);
 		return;
@@ -1989,10 +1996,12 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 	if(p == NULL) {
 		/* Windows and OS/2 systems treat search on the root '\' as if it were '\*' */
 		if((directory[0] == '.') && (directory[1] == '\0')) {
-			mask = "*";
+			mask = talloc_strdup(ctx,"*");
+			if (!mask) {
+				reply_nterror(req, NT_STATUS_NO_MEMORY);
+				return;
+			}
 			mask_contains_wcard = True;
-		} else {
-			mask = directory;
 		}
 		directory = talloc_strdup(talloc_tos(), "./");
 		if (!directory) {
@@ -2000,7 +2009,6 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 			return;
 		}
 	} else {
-		mask = p+1;
 		*p = 0;
 	}
 
@@ -2832,9 +2840,11 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			fsp.fnum = -1;
 			
 			/* access check */
-			if (current_user.ut.uid != 0) {
-				DEBUG(0,("set_user_quota: access_denied service [%s] user [%s]\n",
-					lp_servicename(SNUM(conn)),conn->user));
+			if (conn->server_info->utok.uid != 0) {
+				DEBUG(0,("set_user_quota: access_denied "
+					 "service [%s] user [%s]\n",
+					 lp_servicename(SNUM(conn)),
+					 conn->server_info->unix_name));
 				reply_doserror(req, ERRDOS, ERRnoaccess);
 				return;
 			}
@@ -2994,7 +3004,7 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			 * in our list of SIDs.
 			 */
 			if (nt_token_check_sid(&global_sid_Builtin_Guests,
-				    current_user.nt_user_token)) {
+					       conn->server_info->ptok)) {
 				flags |= SMB_WHOAMI_GUEST;
 			}
 
@@ -3002,7 +3012,7 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			 * is in our list of SIDs.
 			 */
 			if (nt_token_check_sid(&global_sid_Authenticated_Users,
-				    current_user.nt_user_token)) {
+					       conn->server_info->ptok)) {
 				flags &= ~SMB_WHOAMI_GUEST;
 			}
 
@@ -3018,16 +3028,18 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			    + 4 /* num_sids */
 			    + 4 /* SID bytes */
 			    + 4 /* pad/reserved */
-			    + (current_user.ut.ngroups * 8)
+			    + (conn->server_info->utok.ngroups * 8)
 				/* groups list */
-			    + (current_user.nt_user_token->num_sids *
+			    + (conn->server_info->ptok->num_sids *
 				    SID_MAX_SIZE)
 				/* SID list */;
 
 			SIVAL(pdata, 0, flags);
 			SIVAL(pdata, 4, SMB_WHOAMI_MASK);
-			SBIG_UINT(pdata, 8, (SMB_BIG_UINT)current_user.ut.uid);
-			SBIG_UINT(pdata, 16, (SMB_BIG_UINT)current_user.ut.gid);
+			SBIG_UINT(pdata, 8,
+				  (SMB_BIG_UINT)conn->server_info->utok.uid);
+			SBIG_UINT(pdata, 16,
+				  (SMB_BIG_UINT)conn->server_info->utok.gid);
 
 
 			if (data_len >= max_data_bytes) {
@@ -3042,18 +3054,18 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 				break;
 			}
 
-			SIVAL(pdata, 24, current_user.ut.ngroups);
-			SIVAL(pdata, 28,
-				current_user.nt_user_token->num_sids);
+			SIVAL(pdata, 24, conn->server_info->utok.ngroups);
+			SIVAL(pdata, 28, conn->server_info->num_sids);
 
 			/* We walk the SID list twice, but this call is fairly
 			 * infrequent, and I don't expect that it's performance
 			 * sensitive -- jpeach
 			 */
 			for (i = 0, sid_bytes = 0;
-			    i < current_user.nt_user_token->num_sids; ++i) {
+			     i < conn->server_info->ptok->num_sids; ++i) {
 				sid_bytes += ndr_size_dom_sid(
-					&current_user.nt_user_token->user_sids[i], 0);
+					&conn->server_info->ptok->user_sids[i],
+					0);
 			}
 
 			/* SID list byte count */
@@ -3064,20 +3076,21 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			data_len = 40;
 
 			/* GID list */
-			for (i = 0; i < current_user.ut.ngroups; ++i) {
+			for (i = 0; i < conn->server_info->utok.ngroups; ++i) {
 				SBIG_UINT(pdata, data_len,
-					(SMB_BIG_UINT)current_user.ut.groups[i]);
+					  (SMB_BIG_UINT)conn->server_info->utok.groups[i]);
 				data_len += 8;
 			}
 
 			/* SID list */
 			for (i = 0;
-			    i < current_user.nt_user_token->num_sids; ++i) {
+			    i < conn->server_info->ptok->num_sids; ++i) {
 				int sid_len = ndr_size_dom_sid(
-					&current_user.nt_user_token->user_sids[i], 0);
+					&conn->server_info->ptok->user_sids[i],
+					0);
 
 				sid_linearize(pdata + data_len, sid_len,
-				    &current_user.nt_user_token->user_sids[i]);
+				    &conn->server_info->ptok->user_sids[i]);
 				data_len += sid_len;
 			}
 
@@ -3272,9 +3285,11 @@ cap_low = 0x%x, cap_high = 0x%x\n",
 				ZERO_STRUCT(quotas);
 
 				/* access check */
-				if ((current_user.ut.uid != 0)||!CAN_WRITE(conn)) {
+				if ((conn->server_info->utok.uid != 0)
+				    ||!CAN_WRITE(conn)) {
 					DEBUG(0,("set_user_quota: access_denied service [%s] user [%s]\n",
-						lp_servicename(SNUM(conn)),conn->user));
+						 lp_servicename(SNUM(conn)),
+						 conn->server_info->unix_name));
 					reply_doserror(req, ERRSRV, ERRaccess);
 					return;
 				}
@@ -3284,7 +3299,9 @@ cap_low = 0x%x, cap_high = 0x%x\n",
 				 * --metze 
 				 */
 				fsp = file_fsp(SVAL(params,0));
-				if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+
+				if (!check_fsp_ntquota_handle(conn, req,
+							      fsp)) {
 					DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 					reply_nterror(
 						req, NT_STATUS_INVALID_HANDLE);
@@ -3669,10 +3686,10 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 		size_t namelen;
 		smb_ucs2_t *namebuf;
 
-		namelen = push_ucs2_talloc(talloc_tos(), &namebuf,
-					    streams[i].name);
-
-		if ((namelen == (size_t)-1) || (namelen <= 2)) {
+		if (!push_ucs2_talloc(talloc_tos(), &namebuf,
+				      streams[i].name, &namelen) ||
+		    namelen <= 2)
+		{
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
@@ -3867,7 +3884,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 		}
 
 		/* Initial check for valid fsp ptr. */
-		if (!check_fsp_open(conn, req, fsp, &current_user)) {
+		if (!check_fsp_open(conn, req, fsp)) {
 			return;
 		}
 
@@ -3910,7 +3927,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			/*
 			 * Original code - this is an open file.
 			 */
-			if (!check_fsp(conn, req, fsp, &current_user)) {
+			if (!check_fsp(conn, req, fsp)) {
 				return;
 			}
 
@@ -5090,7 +5107,8 @@ static NTSTATUS smb_set_file_disposition_info(connection_struct *conn,
 	}
 
 	/* The set is across all open files on this dev/inode pair. */
-	if (!set_delete_on_close(fsp, delete_on_close, &current_user.ut)) {
+	if (!set_delete_on_close(fsp, delete_on_close,
+				 &conn->server_info->utok)) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 	return NT_STATUS_OK;
@@ -5877,7 +5895,7 @@ static NTSTATUS smb_unix_mknod(connection_struct *conn,
  	 */
 
 	if (lp_inherit_perms(SNUM(conn))) {
-		inherit_access_acl(
+		inherit_access_posix_acl(
 			conn, parent_dirname(fname),
 			fname, unixmode);
 	}
@@ -6566,7 +6584,7 @@ static void call_trans2setfilepathinfo(connection_struct *conn,
 
 		fsp = file_fsp(SVAL(params,0));
 		/* Basic check for non-null fsp. */
-	        if (!check_fsp_open(conn, req, fsp, &current_user)) {
+	        if (!check_fsp_open(conn, req, fsp)) {
 			return;
 		}
 		info_level = SVAL(params,2);
@@ -6619,7 +6637,7 @@ static void call_trans2setfilepathinfo(connection_struct *conn,
 			/*
 			 * Original code - this is an open file.
 			 */
-		        if (!check_fsp(conn, req, fsp, &current_user)) {
+		        if (!check_fsp(conn, req, fsp)) {
 				return;
 			}
 
@@ -7551,7 +7569,7 @@ void reply_trans2(struct smb_request *req)
 		}
 	}
 
-	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
+	if ((state = TALLOC_P(conn, struct trans_state)) == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		reply_nterror(req, NT_STATUS_NO_MEMORY);
 		END_PROFILE(SMBtrans2);

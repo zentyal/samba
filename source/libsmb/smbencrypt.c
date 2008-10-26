@@ -172,15 +172,15 @@ bool ntv2_owf_gen(const uchar owf[16],
 
 	HMACMD5Context ctx;
 
-	user_byte_len = push_ucs2_allocate(&user, user_in);
-	if (user_byte_len == (size_t)-1) {
-		DEBUG(0, ("push_uss2_allocate() for user returned -1 (probably malloc() failure)\n"));
+	if (!push_ucs2_allocate(&user, user_in, &user_byte_len)) {
+		DEBUG(0, ("push_uss2_allocate() for user failed: %s\n",
+			  strerror(errno)));
 		return False;
 	}
 
-	domain_byte_len = push_ucs2_allocate(&domain, domain_in);
-	if (domain_byte_len == (size_t)-1) {
-		DEBUG(0, ("push_uss2_allocate() for domain returned -1 (probably malloc() failure)\n"));
+	if (!push_ucs2_allocate(&domain, domain_in, &domain_byte_len)) {
+		DEBUG(0, ("push_uss2_allocate() for domain failed: %s\n",
+			  strerror(errno)));
 		SAFE_FREE(user);
 		return False;
 	}
@@ -631,26 +631,22 @@ void sess_crypt_blob(DATA_BLOB *out, const DATA_BLOB *in, const DATA_BLOB *sessi
 }
 
 /* Decrypts password-blob with session-key
- * @param pass		password for session-key
+ * @param nt_hash	NT hash for the session key
  * @param data_in 	DATA_BLOB encrypted password
  *
  * Returns cleartext password in CH_UNIX 
  * Caller must free the returned string
  */
 
-char *decrypt_trustdom_secret(const char *pass, DATA_BLOB *data_in)
+char *decrypt_trustdom_secret(uint8_t nt_hash[16], DATA_BLOB *data_in)
 {
 	DATA_BLOB data_out, sess_key;
-	uchar nt_hash[16];
 	uint32_t length;
 	uint32_t version;
 	fstring cleartextpwd;
 
-	if (!data_in || !pass)
+	if (!data_in || !nt_hash)
 		return NULL;
-
-	/* generate md4 password-hash derived from the NT UNICODE password */
-	E_md4hash(pass, nt_hash);
 
 	/* hashed twice with md4 */
 	mdfour(nt_hash, nt_hash, 16);
@@ -786,3 +782,117 @@ WERROR decode_wkssvc_join_password_buffer(TALLOC_CTX *mem_ctx,
 
 	return WERR_OK;
 }
+
+DATA_BLOB decrypt_drsuapi_blob(TALLOC_CTX *mem_ctx,
+			       const DATA_BLOB *session_key,
+			       bool rcrypt,
+			       uint32_t rid,
+			       const DATA_BLOB *buffer)
+{
+	DATA_BLOB confounder;
+	DATA_BLOB enc_buffer;
+
+	struct MD5Context md5;
+	uint8_t _enc_key[16];
+	DATA_BLOB enc_key;
+
+	DATA_BLOB dec_buffer;
+
+	uint32_t crc32_given;
+	uint32_t crc32_calc;
+	DATA_BLOB checked_buffer;
+
+	DATA_BLOB plain_buffer;
+
+	/*
+	 * the combination "c[3] s[1] e[1] d[0]..."
+	 * was successful!!!!!!!!!!!!!!!!!!!!!!!!!!
+	 */
+
+	/*
+	 * the first 16 bytes at the beginning are the confounder
+	 * followed by the 4 byte crc32 checksum
+	 */
+	if (buffer->length < 20) {
+		return data_blob_const(NULL, 0);
+	}
+	confounder = data_blob_const(buffer->data, 16);
+	enc_buffer = data_blob_const(buffer->data + 16, buffer->length - 16);
+
+	/*
+	 * build the encryption key md5 over the session key followed
+	 * by the confounder
+	 *
+	 * here the gensec session key is used and
+	 * not the dcerpc ncacn_ip_tcp "SystemLibraryDTC" key!
+	 */
+	enc_key = data_blob_const(_enc_key, sizeof(_enc_key));
+	MD5Init(&md5);
+	MD5Update(&md5, session_key->data, session_key->length);
+	MD5Update(&md5, confounder.data, confounder.length);
+	MD5Final(enc_key.data, &md5);
+
+	/*
+	 * copy the encrypted buffer part and
+	 * decrypt it using the created encryption key using arcfour
+	 */
+	dec_buffer = data_blob_talloc(mem_ctx, enc_buffer.data, enc_buffer.length);
+	if (!dec_buffer.data) {
+		return data_blob_const(NULL, 0);
+	}
+	SamOEMhashBlob(dec_buffer.data, dec_buffer.length, &enc_key);
+
+	/*
+	 * the first 4 byte are the crc32 checksum
+	 * of the remaining bytes
+	 */
+	crc32_given = IVAL(dec_buffer.data, 0);
+	crc32_calc = crc32_calc_buffer((const char *)dec_buffer.data + 4 , dec_buffer.length - 4);
+	if (crc32_given != crc32_calc) {
+		DEBUG(1,("CRC32: given[0x%08X] calc[0x%08X]\n",
+		      crc32_given, crc32_calc));
+		return data_blob_const(NULL, 0);
+	}
+	checked_buffer = data_blob_talloc(mem_ctx, dec_buffer.data + 4, dec_buffer.length - 4);
+	if (!checked_buffer.data) {
+		return data_blob_const(NULL, 0);
+	}
+
+	/*
+	 * some attributes seem to be in a usable form after this decryption
+	 * (supplementalCredentials, priorValue, currentValue, trustAuthOutgoing,
+	 *  trustAuthIncoming, initialAuthOutgoing, initialAuthIncoming)
+	 * At least supplementalCredentials contains plaintext
+	 * like "Primary:Kerberos" (in unicode form)
+	 *
+	 * some attributes seem to have some additional encryption
+	 * dBCSPwd, unicodePwd, ntPwdHistory, lmPwdHistory
+	 *
+	 * it's the sam_rid_crypt() function, as the value is constant,
+	 * so it doesn't depend on sessionkeys.
+	 */
+	if (rcrypt) {
+		uint32_t i, num_hashes;
+
+		if ((checked_buffer.length % 16) != 0) {
+			return data_blob_const(NULL, 0);
+		}
+
+		plain_buffer = data_blob_talloc(mem_ctx, checked_buffer.data, checked_buffer.length);
+		if (!plain_buffer.data) {
+			return data_blob_const(NULL, 0);
+		}
+
+		num_hashes = plain_buffer.length / 16;
+		for (i = 0; i < num_hashes; i++) {
+			uint32_t offset = i * 16;
+			sam_pwd_hash(rid, checked_buffer.data + offset, plain_buffer.data + offset, 0);
+		}
+	} else {
+		plain_buffer = checked_buffer;
+	}
+
+	return plain_buffer;
+}
+
+

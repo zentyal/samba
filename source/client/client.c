@@ -3634,9 +3634,10 @@ static bool browse_host_rpc(bool sort)
 	uint32_t total_entries = 0;
 	int i;
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
+					  &pipe_hnd);
 
-	if (pipe_hnd == NULL) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("Could not connect to srvsvc pipe: %s\n",
 			   nt_errstr(status)));
 		TALLOC_FREE(frame);
@@ -3650,7 +3651,7 @@ static bool browse_host_rpc(bool sort)
 	info_ctr.ctr.ctr1 = &ctr1;
 
 	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, frame,
-					      pipe_hnd->cli->desthost,
+					      pipe_hnd->desthost,
 					      &info_ctr,
 					      0xffffffff,
 					      &total_entries,
@@ -3658,7 +3659,7 @@ static bool browse_host_rpc(bool sort)
 					      &werr);
 
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
-		cli_rpc_pipe_close(pipe_hnd);
+		TALLOC_FREE(pipe_hnd);
 		TALLOC_FREE(frame);
 		return false;
 	}
@@ -3668,7 +3669,7 @@ static bool browse_host_rpc(bool sort)
 		browse_fn(info.name, info.type, info.comment, NULL);
 	}
 
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 	TALLOC_FREE(frame);
 	return true;
 }

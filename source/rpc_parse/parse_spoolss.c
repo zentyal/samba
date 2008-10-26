@@ -1164,7 +1164,7 @@ bool spoolss_io_r_open_printer(const char *desc, SPOOL_R_OPEN_PRINTER *r_u, prs_
 	if (!smb_io_pol_hnd("printer handle",&(r_u->handle),ps,depth))
 		return False;	
 
-	if (!prs_werror("status code", ps, depth, &(r_u->status)))
+	if (!prs_werror("status", ps, depth, &(r_u->status)))
 		return False;
 		
 	return True;
@@ -1225,7 +1225,7 @@ bool spoolss_io_r_open_printer_ex(const char *desc, SPOOL_R_OPEN_PRINTER_EX *r_u
 	if (!smb_io_pol_hnd("printer handle",&(r_u->handle),ps,depth))
 		return False;
 
-	if (!prs_werror("status code", ps, depth, &(r_u->status)))
+	if (!prs_werror("status", ps, depth, &(r_u->status)))
 		return False;
 
 	return True;
@@ -7724,4 +7724,3 @@ bool convert_port_data_1( NT_PORT_DATA_1 *port1, RPC_BUFFER *buf )
 
 	return True;
 }
-

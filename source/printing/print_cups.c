@@ -7,12 +7,12 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
@@ -23,6 +23,17 @@
 #ifdef HAVE_CUPS
 #include <cups/cups.h>
 #include <cups/language.h>
+
+static SIG_ATOMIC_T gotalarm;
+
+/***************************************************************
+ Signal function to tell us we timed out.
+****************************************************************/
+
+static void gotalarm_sig(void)
+{
+        gotalarm = 1;
+}
 
 extern userdom_struct current_user_info;
 
@@ -45,7 +56,15 @@ static http_t *cups_connect(void)
 	http_t *http;
 	char *server, *p;
 	int port;
-	
+	int timeout = lp_cups_connection_timeout();
+
+	gotalarm = 0;
+
+	if (timeout) {
+                CatchSignal(SIGALRM, SIGNAL_CAST gotalarm_sig);
+                alarm(timeout);
+        }
+
 	if (lp_cups_server() != NULL && strlen(lp_cups_server()) > 0) {
 		server = smb_xstrdup(lp_cups_server());
 	} else {
@@ -59,15 +78,18 @@ static http_t *cups_connect(void)
 	} else {
 		port = ippPort();
 	}
-	
+
 	DEBUG(10, ("connecting to cups server %s:%d\n",
 		   server, port));
 
-	if ((http = httpConnect(server, port)) == NULL) {
-		DEBUG(0,("Unable to connect to CUPS server %s:%d - %s\n", 
+	http = httpConnect(server, port);
+
+	CatchSignal(SIGALRM, SIGNAL_CAST SIG_IGN);
+        alarm(0);
+
+	if (http == NULL) {
+		DEBUG(0,("Unable to connect to CUPS server %s:%d - %s\n",
 			 server, port, strerror(errno)));
-		SAFE_FREE(server);
-		return NULL;
 	}
 
 	SAFE_FREE(server);
@@ -87,7 +109,7 @@ bool cups_cache_reload(void)
 			{
 			  "printer-name",
 			  "printer-info"
-			};       
+			};
 	bool ret = False;
 
 	DEBUG(5, ("reloading cups printcap cache\n"));
@@ -635,8 +657,8 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "job-name", NULL,
         	     new_jobname);
 
-	/* 
-	 * add any options defined in smb.conf 
+	/*
+	 * add any options defined in smb.conf
 	 */
 
 	num_options = 0;
@@ -644,7 +666,7 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 	num_options = cupsParseOptions(lp_cups_options(snum), num_options, &options);
 
 	if ( num_options )
-		cupsEncodeOptions(request, num_options, options); 
+		cupsEncodeOptions(request, num_options, options);
 
        /*
 	* Do the request and get back a response...
@@ -690,7 +712,7 @@ static int cups_job_submit(int snum, struct printjob *pjob)
 static int cups_queue_get(const char *sharename,
                enum printing_types printing_type,
                char *lpq_command,
-               print_queue_struct **q, 
+               print_queue_struct **q,
                print_status_struct *status)
 {
 	fstring		printername;
@@ -729,10 +751,10 @@ static int cups_queue_get(const char *sharename,
 
 	*q = NULL;
 
-	/* HACK ALERT!!!  The problem with support the 'printer name' 
-	   option is that we key the tdb off the sharename.  So we will 
-	   overload the lpq_command string to pass in the printername 
-	   (which is basically what we do for non-cups printers ... using 
+	/* HACK ALERT!!!  The problem with support the 'printer name'
+	   option is that we key the tdb off the sharename.  So we will
+	   overload the lpq_command string to pass in the printername
+	   (which is basically what we do for non-cups printers ... using
 	   the lpq_command to get the queue listing). */
 
 	fstrcpy( printername, lpq_command );
@@ -1294,22 +1316,22 @@ bool cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
 			/* Grab the comment if we don't have one */
         		if ( (strcmp(attr->name, "printer-info") == 0)
 			     && (attr->value_tag == IPP_TAG_TEXT)
-			     && !strlen(printer->comment) ) 
+			     && !strlen(printer->comment) )
 			{
 				DEBUG(5,("cups_pull_comment_location: Using cups comment: %s\n",
-					 attr->values[0].string.text));				
+					 attr->values[0].string.text));
 			    	strlcpy(printer->comment,
 						attr->values[0].string.text,
 						sizeof(printer->comment));
 			}
 
-			/* Grab the location if we don't have one */ 
+			/* Grab the location if we don't have one */
 			if ( (strcmp(attr->name, "printer-location") == 0)
-			     && (attr->value_tag == IPP_TAG_TEXT) 
+			     && (attr->value_tag == IPP_TAG_TEXT)
 			     && !strlen(printer->location) )
 			{
 				DEBUG(5,("cups_pull_comment_location: Using cups location: %s\n",
-					 attr->values[0].string.text));				
+					 attr->values[0].string.text));
 			    	fstrcpy(printer->location,attr->values[0].string.text);
 			}
 

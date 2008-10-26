@@ -680,6 +680,7 @@ statedir
 cachedir
 rootsbindir
 pammodulesdir
+modulesdir
 selftest_prefix
 smbtorture4_path
 CC
@@ -739,6 +740,7 @@ IDMAP_LIBS
 KRB5_LIBS
 UUID_LIBS
 LDAP_LIBS
+GPEXT_LIBS
 PAM_MODULES
 INSTALL_PAM_MODULES
 UNINSTALL_PAM_MODULES
@@ -754,7 +756,7 @@ EXTRA_SBIN_PROGS
 EXTRA_ALL_TARGETS
 CONFIG_LIBS
 NSCD_LIBS
-DEFAULT_TEST_TARGET
+DEFAULT_TEST_OPTIONS
 HAVE_SOCKET_WRAPPER
 SOCKET_WRAPPER_OBJS
 HAVE_NSS_WRAPPER
@@ -778,6 +780,7 @@ SYMSEXT
 ROFF
 LIB_PATH_VAR
 SMB_FAM_LIBS
+FAKE_KASERVER_OBJ
 SMBLDAP
 SMBLDAPUTIL
 LDBLDAP
@@ -860,6 +863,8 @@ AUTH_STATIC
 AUTH_MODULES
 VFS_STATIC
 VFS_MODULES
+GPEXT_STATIC
+GPEXT_MODULES
 DEVELOPER_CFLAGS
 SMBD_LIBS
 LTLIBOBJS'
@@ -1453,6 +1458,8 @@ Optional Features:
                           (default=no)
   --enable-krb5developer  Turn on developer warnings and debugging, except
                           -Wstrict-prototypes (default=no)
+  --enable-picky-developer
+                          Halt compilation on warnings
   --disable-largefile     omit support for large files
   --enable-socket-wrapper         Turn on socket wrapper library (default=no)
   --enable-nss-wrapper         Turn on nss wrapper library (default=no)
@@ -1484,7 +1491,7 @@ Optional Packages:
   --with-configdir=DIR    Where to put configuration files ($libdir)
   --with-logfilebase=DIR  Where to put log files ($VARDIR)
   --with-ctdb=DIR         Where to find ctdb sources
-  --with-libdir=DIR       Where to put libdir ($libdir)
+  --with-modulesdir=DIR   Where to put shared modules ($libdir)
   --with-pammodulesdir=DIR
                           Which directory to use for PAM modules
                           ($ac_default_prefix/$libdir/security)
@@ -2230,10 +2237,11 @@ test "${mandir}" || mandir="\${prefix}/man"
 logfilebase="\${VARDIR}"
 privatedir="\${prefix}/private"
 test "${libdir}" || libdir="\${prefix}/lib"
-pammodulesdir="\${LIBDIR}/security"
-configdir="\${LIBDIR}"
+modulesdir="${libdir}"
+pammodulesdir="${libdir}/security"
+configdir="${libdir}"
 swatdir="\${prefix}/swat"
-codepagedir="\${LIBDIR}"
+codepagedir="\${MODULESDIR}"
 statedir="\${LOCKDIR}"
 cachedir="\${LOCKDIR}"
 
@@ -2247,10 +2255,11 @@ if test "${with_fhs+set}" = set; then
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
     privatedir="\${CONFIGDIR}/private"
-    test "${libdir}" || libdir="\${prefix}/lib/samba"
+    test "${libdir}" || libdir="\${prefix}/lib"
+    modulesdir="${libdir}/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${LIBDIR}"
+    codepagedir="\${MODULESDIR}"
     statedir="\${VARDIR}/lib/samba"
     cachedir="\${VARDIR}/lib/samba"
 
@@ -2422,20 +2431,20 @@ fi
 
 
 #################################################
-# set lib directory location
+# set shared modules (internal lib) directory location
 
-# Check whether --with-libdir was given.
-if test "${with_libdir+set}" = set; then
-  withval=$with_libdir;  case "$withval" in
+# Check whether --with-modulesdir was given.
+if test "${with_modulesdir+set}" = set; then
+  withval=$with_modulesdir;  case "$withval" in
   yes|no)
   #
   # Just in case anybody does it
   #
-    { echo "$as_me:$LINENO: WARNING: --with-libdir without argument - will use default" >&5
-echo "$as_me: WARNING: --with-libdir without argument - will use default" >&2;}
+    { echo "$as_me:$LINENO: WARNING: --with-modulesdir without argument - will use default" >&5
+echo "$as_me: WARNING: --with-modulesdir without argument - will use default" >&2;}
   ;;
   * )
-    libdir="$withval"
+    modulesdir="$withval"
     ;;
   esac
 fi
@@ -2479,6 +2488,7 @@ echo "$as_me: WARNING: --with-mandir without argument - will use default" >&2;}
     ;;
   esac
 fi
+
 
 
 
@@ -2570,6 +2580,17 @@ if test "${enable_krb5developer+set}" = set; then
         debug=yes
         developer=yes
 	krb5_developer=yes
+    fi
+fi
+
+
+picky_developer=no
+# Check whether --enable-picky-developer was given.
+if test "${enable_picky_developer+set}" = set; then
+  enableval=$enable_picky_developer; if eval "test x$enable_picky_developer = xyes"; then
+        debug=yes
+        developer=yes
+        picky_developer=yes
     fi
 fi
 
@@ -11340,6 +11361,7 @@ fi
 
 
 
+
 # compile with optimization and without debugging by default, but
 # allow people to set their own preference.
 # do this here since AC_CACHE_CHECK apparently sets the CFLAGS to "-g -O2"
@@ -11362,7 +11384,7 @@ if test "${enable_socket_wrapper+set}" = set; then
 fi
 
 
-DEFAULT_TEST_TARGET=test-noswrap
+DEFAULT_TEST_OPTIONS=
 HAVE_SOCKET_WRAPPER=no
 
 if eval "test x$developer = xyes"; then
@@ -11375,7 +11397,7 @@ cat >>confdefs.h <<\_ACEOF
 #define SOCKET_WRAPPER 1
 _ACEOF
 
-	DEFAULT_TEST_TARGET=test-swrap
+	DEFAULT_TEST_OPTIONS=--socket-wrapper
 	HAVE_SOCKET_WRAPPER=yes
 
 	# this is only used for samba3
@@ -11613,6 +11635,10 @@ echo "${ECHO_T}$samba_cv_HAVE_Werror_implicit_function_declaration" >&6; }
 	# -Wstrict-prototypes.
        if test x"$krb5_developer" != x"$yes" ; then
 	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Wstrict-prototypes"
+       fi
+
+       if test x"$picky_developer" = x"yes"; then
+	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Werror"
        fi
 fi
 
@@ -12814,7 +12840,7 @@ DYNEXP=
 
 default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
 
-default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr"
+default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr vfs_acl_xattr vfs_smb_traffic_analyzer"
 
 if test "x$developer" = xyes; then
    default_static_modules="$default_static_modules rpc_rpcecho"
@@ -33346,13 +33372,174 @@ fi
 
         if test "x$CUPS_CONFIG" != x; then
 
+		ac_save_CFLAGS=$CFLAGS
+		ac_save_LDFLAGS=$LDFLAGS
+		ac_save_PRINT_LIBS=$PRINT_LIBS
+		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
+		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
+		PRINT_LIBS="$PRINT_LIBS `$CUPS_CONFIG --libs`"
+
+
+for ac_header in cups/cups.h cups/language.h
+do
+as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { echo "$as_me:$LINENO: checking for $ac_header" >&5
+echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+ac_res=`eval echo '${'$as_ac_Header'}'`
+	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+echo "${ECHO_T}$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking $ac_header usability" >&5
+echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ echo "$as_me:$LINENO: checking $ac_header presence" >&5
+echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for $ac_header" >&5
+echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval echo '${'$as_ac_Header'}'`
+	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+echo "${ECHO_T}$ac_res" >&6; }
+
+fi
+if test `eval echo '${'$as_ac_Header'}'` = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+		if test x"$ac_cv_header_cups_cups_h" = xyes -a \
+		        x"$ac_cv_header_cups_language_h" = xyes; then
+
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_CUPS 1
 _ACEOF
 
-		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
-		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
-		PRINT_LIBS="$PRINT_LIBS `$CUPS_CONFIG --libs`"
+			samba_cv_HAVE_CUPS=yes
+		else
+			{ echo "$as_me:$LINENO: WARNING: cups-config around but cups-devel not installed" >&5
+echo "$as_me: WARNING: cups-config around but cups-devel not installed" >&2;}
+			CFLAGS=$ac_save_CFLAGS
+			LDFLAGS=$ac_save_LDFLAGS
+			PRINT_LIBS=$ac_save_PRINT_LIBS
+		fi
+
 	elif test x"$enable_cups" = x"yes"; then
 		{ { echo "$as_me:$LINENO: error: Cups support required but cups-config not located.  Make sure cups-devel related files are installed." >&5
 echo "$as_me: error: Cups support required but cups-config not located.  Make sure cups-devel related files are installed." >&2;}
@@ -33367,7 +33554,7 @@ fi
 
 
 if test x$enable_iprint != xno; then
-	if test "x$CUPS_CONFIG" != x; then
+	if test x"$samba_cv_HAVE_CUPS" = xyes; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_IPRINT 1
@@ -49495,9 +49682,13 @@ for i in $ICONV_LOOK_DIRS ; do
     # in both libiconv and in libc. In this case the jm_ICONV test will always
     # succeed when the header is found. To counter this, make sure the
     # library directory is there and check the ABI directory first (which
-    # should be harmless on other systems.
+    # should be harmless on other systems, but causes tons of linker warnings on
+    # 64bit Ubuntu systems).
+    # As the build farm doesn't seem to have any IRIX machines with iconv.h
+    # installed, I've decided to fix the linker warnings.
+    # -- Kai
     # For IA64 HPUX systems, the libs are located in lib/hpux32 instead of lib.
-    for l in "lib32" "lib" "lib/hpux32"; do
+    for l in "lib" "lib32" "lib/hpux32"; do
         if test -d "$i/$l" ; then
                 LDFLAGS="$save_LDFLAGS -L$i/$l"
 		LIBS=
@@ -54039,13 +54230,16 @@ echo "$as_me: error: AFS cannot be supported without afs.h" >&2;}
     fi
 fi
 
+FAKE_KASERVER_OBJ=""
 if test x"$samba_cv_WITH_FAKE_KASERVER" != x"no" && test x"$have_afs_headers" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define WITH_FAKE_KASERVER 1
 _ACEOF
 
+    FAKE_KASERVER_OBJ="utils/net_afs.o"
 fi
+
 
 #################################################
 # check whether to compile AFS/NT ACL mapping module
@@ -67836,6 +68030,7 @@ _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
+#include <sys/types.h>
 #include <sys/statvfs.h>
 int
 main ()
@@ -67878,6 +68073,67 @@ if test x"$samba_cv_fsid_int" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_FSID_INT 1
+_ACEOF
+
+fi
+
+# fsusage.c assumes that statvfs has an f_frsize entry. Some weird
+# systems use f_bsize.
+{ echo "$as_me:$LINENO: checking that statvfs.f_frsize works" >&5
+echo $ECHO_N "checking that statvfs.f_frsize works... $ECHO_C" >&6; }
+if test "${samba_cv_frsize+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sys/types.h>
+#include <sys/statvfs.h>
+int
+main ()
+{
+struct statvfs buf; buf.f_frsize = 0
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_frsize=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_frsize=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ echo "$as_me:$LINENO: result: $samba_cv_frsize" >&5
+echo "${ECHO_T}$samba_cv_frsize" >&6; }
+if test x"$samba_cv_frsize" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_FRSIZE 1
 _ACEOF
 
 fi
@@ -73536,6 +73792,80 @@ echo "${ECHO_T}not" >&6; }
 	fi
 
 
+	{ echo "$as_me:$LINENO: checking how to build idmap_hash" >&5
+echo $ECHO_N "checking how to build idmap_hash... $ECHO_C" >&6; }
+	if test "$MODULE_idmap_hash"; then
+		DEST=$MODULE_idmap_hash
+	elif test "$MODULE_idmap" -a "$MODULE_DEFAULT_idmap_hash"; then
+		DEST=$MODULE_idmap
+	else
+		DEST=$MODULE_DEFAULT_idmap_hash
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define idmap_hash_init init_samba_module
+_ACEOF
+
+		IDMAP_MODULES="$IDMAP_MODULES "bin/hash.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules idmap_hash"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_idmap="$init_static_modules_idmap  idmap_hash_init();"
+ 		decl_static_modules_idmap="$decl_static_modules_idmap extern NTSTATUS idmap_hash_init(void);"
+		string_static_modules="$string_static_modules idmap_hash"
+		IDMAP_STATIC="$IDMAP_STATIC \$(IDMAP_HASH_OBJ)"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules idmap_hash"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+	{ echo "$as_me:$LINENO: checking how to build idmap_adex" >&5
+echo $ECHO_N "checking how to build idmap_adex... $ECHO_C" >&6; }
+	if test "$MODULE_idmap_adex"; then
+		DEST=$MODULE_idmap_adex
+	elif test "$MODULE_idmap" -a "$MODULE_DEFAULT_idmap_adex"; then
+		DEST=$MODULE_idmap
+	else
+		DEST=$MODULE_DEFAULT_idmap_adex
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define idmap_adex_init init_samba_module
+_ACEOF
+
+		IDMAP_MODULES="$IDMAP_MODULES "bin/adex.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules idmap_adex"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_idmap="$init_static_modules_idmap  idmap_adex_init();"
+ 		decl_static_modules_idmap="$decl_static_modules_idmap extern NTSTATUS idmap_adex_init(void);"
+		string_static_modules="$string_static_modules idmap_adex"
+		IDMAP_STATIC="$IDMAP_STATIC \$(IDMAP_ADEX_OBJ)"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules idmap_adex"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
 
 
 
@@ -75376,6 +75706,80 @@ echo "${ECHO_T}not" >&6; }
 	fi
 
 
+	{ echo "$as_me:$LINENO: checking how to build vfs_acl_xattr" >&5
+echo $ECHO_N "checking how to build vfs_acl_xattr... $ECHO_C" >&6; }
+	if test "$MODULE_vfs_acl_xattr"; then
+		DEST=$MODULE_vfs_acl_xattr
+	elif test "$MODULE_vfs" -a "$MODULE_DEFAULT_vfs_acl_xattr"; then
+		DEST=$MODULE_vfs
+	else
+		DEST=$MODULE_DEFAULT_vfs_acl_xattr
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define vfs_acl_xattr_init init_samba_module
+_ACEOF
+
+		VFS_MODULES="$VFS_MODULES "bin/acl_xattr.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules vfs_acl_xattr"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_vfs="$init_static_modules_vfs  vfs_acl_xattr_init();"
+ 		decl_static_modules_vfs="$decl_static_modules_vfs extern NTSTATUS vfs_acl_xattr_init(void);"
+		string_static_modules="$string_static_modules vfs_acl_xattr"
+		VFS_STATIC="$VFS_STATIC \$(VFS_ACL_XATTR_OBJ)"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules vfs_acl_xattr"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+	{ echo "$as_me:$LINENO: checking how to build vfs_smb_traffic_analyzer" >&5
+echo $ECHO_N "checking how to build vfs_smb_traffic_analyzer... $ECHO_C" >&6; }
+	if test "$MODULE_vfs_smb_traffic_analyzer"; then
+		DEST=$MODULE_vfs_smb_traffic_analyzer
+	elif test "$MODULE_vfs" -a "$MODULE_DEFAULT_vfs_smb_traffic_analyzer"; then
+		DEST=$MODULE_vfs
+	else
+		DEST=$MODULE_DEFAULT_vfs_smb_traffic_analyzer
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define vfs_smb_traffic_analyzer_init init_samba_module
+_ACEOF
+
+		VFS_MODULES="$VFS_MODULES "bin/smb_traffic_analyzer.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules vfs_smb_traffic_analyzer"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_vfs="$init_static_modules_vfs  vfs_smb_traffic_analyzer_init();"
+ 		decl_static_modules_vfs="$decl_static_modules_vfs extern NTSTATUS vfs_smb_traffic_analyzer_init(void);"
+		string_static_modules="$string_static_modules vfs_smb_traffic_analyzer"
+		VFS_STATIC="$VFS_STATIC \$(VFS_SMB_TRAFFIC_ANALYZER_OBJ)"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules vfs_smb_traffic_analyzer"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
 
 
 
@@ -75391,6 +75795,133 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
     	rm -f smbd/vfs.o
+
+
+
+	{ echo "$as_me:$LINENO: checking how to build gpext_registry" >&5
+echo $ECHO_N "checking how to build gpext_registry... $ECHO_C" >&6; }
+	if test "$MODULE_gpext_registry"; then
+		DEST=$MODULE_gpext_registry
+	elif test "$MODULE_gpext" -a "$MODULE_DEFAULT_gpext_registry"; then
+		DEST=$MODULE_gpext
+	else
+		DEST=$MODULE_DEFAULT_gpext_registry
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define gpext_registry_init init_samba_module
+_ACEOF
+
+		GPEXT_MODULES="$GPEXT_MODULES "bin/registry.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules gpext_registry"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_gpext="$init_static_modules_gpext  gpext_registry_init();"
+ 		decl_static_modules_gpext="$decl_static_modules_gpext extern NTSTATUS gpext_registry_init(void);"
+		string_static_modules="$string_static_modules gpext_registry"
+		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/registry.o"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules gpext_registry"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+	{ echo "$as_me:$LINENO: checking how to build gpext_scripts" >&5
+echo $ECHO_N "checking how to build gpext_scripts... $ECHO_C" >&6; }
+	if test "$MODULE_gpext_scripts"; then
+		DEST=$MODULE_gpext_scripts
+	elif test "$MODULE_gpext" -a "$MODULE_DEFAULT_gpext_scripts"; then
+		DEST=$MODULE_gpext
+	else
+		DEST=$MODULE_DEFAULT_gpext_scripts
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define gpext_scripts_init init_samba_module
+_ACEOF
+
+		GPEXT_MODULES="$GPEXT_MODULES "bin/scripts.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules gpext_scripts"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_gpext="$init_static_modules_gpext  gpext_scripts_init();"
+ 		decl_static_modules_gpext="$decl_static_modules_gpext extern NTSTATUS gpext_scripts_init(void);"
+		string_static_modules="$string_static_modules gpext_scripts"
+		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/scripts.o"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules gpext_scripts"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+	{ echo "$as_me:$LINENO: checking how to build gpext_security" >&5
+echo $ECHO_N "checking how to build gpext_security... $ECHO_C" >&6; }
+	if test "$MODULE_gpext_security"; then
+		DEST=$MODULE_gpext_security
+	elif test "$MODULE_gpext" -a "$MODULE_DEFAULT_gpext_security"; then
+		DEST=$MODULE_gpext
+	else
+		DEST=$MODULE_DEFAULT_gpext_security
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define gpext_security_init init_samba_module
+_ACEOF
+
+		GPEXT_MODULES="$GPEXT_MODULES "bin/security.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules gpext_security"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_gpext="$init_static_modules_gpext  gpext_security_init();"
+ 		decl_static_modules_gpext="$decl_static_modules_gpext extern NTSTATUS gpext_security_init(void);"
+		string_static_modules="$string_static_modules gpext_security"
+		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/security.o"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules gpext_security"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+
+
+
+cat >>confdefs.h <<_ACEOF
+#define static_init_gpext {$init_static_modules_gpext}
+_ACEOF
+
+
+cat >>confdefs.h <<_ACEOF
+#define static_decl_gpext $decl_static_modules_gpext
+_ACEOF
+
+    	rm -f libgpo/gpext/gpext.o
 
 
 
@@ -75872,7 +76403,7 @@ fi
 
 
 
-if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes"; then
+if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes" -o x"$picky_developer" = x"yes"; then
     CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS)"
 fi
 
@@ -75881,7 +76412,7 @@ fi
 SMBD_LIBS="$samba_dmapi_libs"
 
 
-ac_config_files="$ac_config_files Makefile script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh lib/netapi/examples/Makefile pkgconfig/smbclient.pc pkgconfig/wbclient.pc pkgconfig/netapi.pc pkgconfig/smbsharemodes.pc"
+ac_config_files="$ac_config_files Makefile script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh lib/netapi/examples/Makefile lib/netapi/tests/Makefile pkgconfig/smbclient.pc pkgconfig/wbclient.pc pkgconfig/netapi.pc pkgconfig/smbsharemodes.pc ../examples/libsmbclient/Makefile.internal"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -76460,10 +76991,12 @@ do
     "script/installbin.sh") CONFIG_FILES="$CONFIG_FILES script/installbin.sh" ;;
     "script/uninstallbin.sh") CONFIG_FILES="$CONFIG_FILES script/uninstallbin.sh" ;;
     "lib/netapi/examples/Makefile") CONFIG_FILES="$CONFIG_FILES lib/netapi/examples/Makefile" ;;
+    "lib/netapi/tests/Makefile") CONFIG_FILES="$CONFIG_FILES lib/netapi/tests/Makefile" ;;
     "pkgconfig/smbclient.pc") CONFIG_FILES="$CONFIG_FILES pkgconfig/smbclient.pc" ;;
     "pkgconfig/wbclient.pc") CONFIG_FILES="$CONFIG_FILES pkgconfig/wbclient.pc" ;;
     "pkgconfig/netapi.pc") CONFIG_FILES="$CONFIG_FILES pkgconfig/netapi.pc" ;;
     "pkgconfig/smbsharemodes.pc") CONFIG_FILES="$CONFIG_FILES pkgconfig/smbsharemodes.pc" ;;
+    "../examples/libsmbclient/Makefile.internal") CONFIG_FILES="$CONFIG_FILES ../examples/libsmbclient/Makefile.internal" ;;
 
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
@@ -76590,6 +77123,7 @@ statedir!$statedir$ac_delim
 cachedir!$cachedir$ac_delim
 rootsbindir!$rootsbindir$ac_delim
 pammodulesdir!$pammodulesdir$ac_delim
+modulesdir!$modulesdir$ac_delim
 selftest_prefix!$selftest_prefix$ac_delim
 smbtorture4_path!$smbtorture4_path$ac_delim
 CC!$CC$ac_delim
@@ -76622,7 +77156,6 @@ SHLD!$SHLD$ac_delim
 MODULE_EXPORTS!$MODULE_EXPORTS$ac_delim
 DSO_EXPORTS!$DSO_EXPORTS$ac_delim
 HOST_OS!$HOST_OS$ac_delim
-PICFLAG!$PICFLAG$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -76664,6 +77197,7 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
+PICFLAG!$PICFLAG$ac_delim
 PIE_CFLAGS!$PIE_CFLAGS$ac_delim
 PIE_LDFLAGS!$PIE_LDFLAGS$ac_delim
 RELRO_LDFLAGS!$RELRO_LDFLAGS$ac_delim
@@ -76690,6 +77224,7 @@ IDMAP_LIBS!$IDMAP_LIBS$ac_delim
 KRB5_LIBS!$KRB5_LIBS$ac_delim
 UUID_LIBS!$UUID_LIBS$ac_delim
 LDAP_LIBS!$LDAP_LIBS$ac_delim
+GPEXT_LIBS!$GPEXT_LIBS$ac_delim
 PAM_MODULES!$PAM_MODULES$ac_delim
 INSTALL_PAM_MODULES!$INSTALL_PAM_MODULES$ac_delim
 UNINSTALL_PAM_MODULES!$UNINSTALL_PAM_MODULES$ac_delim
@@ -76705,7 +77240,7 @@ EXTRA_SBIN_PROGS!$EXTRA_SBIN_PROGS$ac_delim
 EXTRA_ALL_TARGETS!$EXTRA_ALL_TARGETS$ac_delim
 CONFIG_LIBS!$CONFIG_LIBS$ac_delim
 NSCD_LIBS!$NSCD_LIBS$ac_delim
-DEFAULT_TEST_TARGET!$DEFAULT_TEST_TARGET$ac_delim
+DEFAULT_TEST_OPTIONS!$DEFAULT_TEST_OPTIONS$ac_delim
 HAVE_SOCKET_WRAPPER!$HAVE_SOCKET_WRAPPER$ac_delim
 SOCKET_WRAPPER_OBJS!$SOCKET_WRAPPER_OBJS$ac_delim
 HAVE_NSS_WRAPPER!$HAVE_NSS_WRAPPER$ac_delim
@@ -76729,6 +77264,7 @@ SYMSEXT!$SYMSEXT$ac_delim
 ROFF!$ROFF$ac_delim
 LIB_PATH_VAR!$LIB_PATH_VAR$ac_delim
 SMB_FAM_LIBS!$SMB_FAM_LIBS$ac_delim
+FAKE_KASERVER_OBJ!$FAKE_KASERVER_OBJ$ac_delim
 SMBLDAP!$SMBLDAP$ac_delim
 SMBLDAPUTIL!$SMBLDAPUTIL$ac_delim
 LDBLDAP!$LDBLDAP$ac_delim
@@ -76758,9 +77294,6 @@ LIBNETAPI_LIBS!$LIBNETAPI_LIBS$ac_delim
 INSTALL_LIBNETAPI!$INSTALL_LIBNETAPI$ac_delim
 UNINSTALL_LIBNETAPI!$UNINSTALL_LIBNETAPI$ac_delim
 LIBNETAPI_SOVER!$LIBNETAPI_SOVER$ac_delim
-LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
-LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
-LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -76802,6 +77335,9 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
+LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
+LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
+LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
 LIBSMBCLIENT_STATIC!$LIBSMBCLIENT_STATIC$ac_delim
 LIBSMBCLIENT_LIBS!$LIBSMBCLIENT_LIBS$ac_delim
 INSTALL_LIBSMBCLIENT!$INSTALL_LIBSMBCLIENT$ac_delim
@@ -76852,12 +77388,14 @@ AUTH_STATIC!$AUTH_STATIC$ac_delim
 AUTH_MODULES!$AUTH_MODULES$ac_delim
 VFS_STATIC!$VFS_STATIC$ac_delim
 VFS_MODULES!$VFS_MODULES$ac_delim
+GPEXT_STATIC!$GPEXT_STATIC$ac_delim
+GPEXT_MODULES!$GPEXT_MODULES$ac_delim
 DEVELOPER_CFLAGS!$DEVELOPER_CFLAGS$ac_delim
 SMBD_LIBS!$SMBD_LIBS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 53; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 58; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

@@ -157,22 +157,11 @@ enum schannel_direction {
 #define RPC_MAX_PDU_FRAG_LEN 0x10b8			/* this is what w2k sets */
 
 /* RPC_IFACE */
-typedef struct rpc_iface_info {
-	struct GUID uuid;  /* 16 bytes of rpc interface identification */
-	uint32 version;    /* the interface version number */
-} RPC_IFACE;
+typedef struct ndr_syntax_id RPC_IFACE;
+
+extern const struct ndr_syntax_id syntax_spoolss;
 
 #define RPC_IFACE_LEN (UUID_SIZE + 4)
-
-struct pipe_id_info {
-	/* the names appear not to matter: the syntaxes _do_ matter */
-
-	const char *client_pipe;
-	RPC_IFACE abstr_syntax; /* this one is the abstract syntax id */
-
-	const char *server_pipe;  /* this one is the secondary syntax name */
-	RPC_IFACE trans_syntax; /* this one is the primary syntax id */
-};
 
 /* RPC_HDR - dce rpc header */
 typedef struct rpc_hdr_info {

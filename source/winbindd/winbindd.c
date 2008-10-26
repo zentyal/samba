@@ -47,9 +47,12 @@ struct messaging_context *winbind_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   winbind_event_context()))) {
-		smb_panic("Could not init winbind messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     winbind_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init winbind messaging context.\n"));
 	}
 	return ctx;
 }
@@ -337,9 +340,6 @@ static struct winbindd_dispatch_table {
 	{ WINBINDD_SID_TO_GID, winbindd_sid_to_gid, "SID_TO_GID" },
 	{ WINBINDD_UID_TO_SID, winbindd_uid_to_sid, "UID_TO_SID" },
 	{ WINBINDD_GID_TO_SID, winbindd_gid_to_sid, "GID_TO_SID" },
-#if 0   /* DISABLED until we fix the interface in Samba 3.0.26 --jerry */
-	{ WINBINDD_SIDS_TO_XIDS, winbindd_sids_to_unixids, "SIDS_TO_XIDS" },
-#endif  /* end DISABLED */
 	{ WINBINDD_ALLOCATE_UID, winbindd_allocate_uid, "ALLOCATE_UID" },
 	{ WINBINDD_ALLOCATE_GID, winbindd_allocate_gid, "ALLOCATE_GID" },
 	{ WINBINDD_SET_MAPPING, winbindd_set_mapping, "SET_MAPPING" },
@@ -534,7 +534,6 @@ static void request_len_recv(void *private_data, bool success);
 static void request_recv(void *private_data, bool success);
 static void request_main_recv(void *private_data, bool success);
 static void request_finished(struct winbindd_cli_state *state);
-void request_finished_cont(void *private_data, bool success);
 static void response_main_sent(void *private_data, bool success);
 static void response_extra_sent(void *private_data, bool success);
 
@@ -543,10 +542,7 @@ static void response_extra_sent(void *private_data, bool success)
 	struct winbindd_cli_state *state =
 		talloc_get_type_abort(private_data, struct winbindd_cli_state);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	if (!success) {
 		state->finished = True;
@@ -570,10 +566,7 @@ static void response_main_sent(void *private_data, bool success)
 	}
 
 	if (state->response.length == sizeof(state->response)) {
-		if (state->mem_ctx != NULL) {
-			talloc_destroy(state->mem_ctx);
-			state->mem_ctx = NULL;
-		}
+		TALLOC_FREE(state->mem_ctx);
 
 		setup_async_read(&state->fd_event, &state->request,
 				 sizeof(uint32), request_len_recv, state);
@@ -605,17 +598,6 @@ void request_ok(struct winbindd_cli_state *state)
 	SMB_ASSERT(state->response.result == WINBINDD_PENDING);
 	state->response.result = WINBINDD_OK;
 	request_finished(state);
-}
-
-void request_finished_cont(void *private_data, bool success)
-{
-	struct winbindd_cli_state *state =
-		talloc_get_type_abort(private_data, struct winbindd_cli_state);
-
-	if (success)
-		request_ok(state);
-	else
-		request_error(state);
 }
 
 static void request_len_recv(void *private_data, bool success)
@@ -765,10 +747,7 @@ static void remove_client(struct winbindd_cli_state *state)
 
 	SAFE_FREE(state->response.extra_data.data);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	remove_fd_event(&state->fd_event);
 		
@@ -1046,8 +1025,6 @@ int main(int argc, char **argv, char **envp)
 
 	load_case_tables();
 
-	db_tdb2_setup_messaging(NULL, false);
-
 	/* Initialise for running in non-root mode */
 
 	sec_init();
@@ -1135,11 +1112,8 @@ int main(int argc, char **argv, char **envp)
 	/* Initialise messaging system */
 
 	if (winbind_messaging_context() == NULL) {
-		DEBUG(0, ("unable to initialize messaging system\n"));
 		exit(1);
 	}
-
-	db_tdb2_setup_messaging(winbind_messaging_context(), true);
 
 	if (!reload_services_file(NULL)) {
 		DEBUG(0, ("error opening config file\n"));
@@ -1166,12 +1140,6 @@ int main(int argc, char **argv, char **envp)
 	/* Enable netbios namecache */
 
 	namecache_enable();
-
-	/* Winbind daemon initialisation */
-
-	if ( ! NT_STATUS_IS_OK(idmap_init_cache()) ) {
-		DEBUG(1, ("Could not init idmap cache!\n"));		
-	}
 
 	/* Unblock all signals we are interested in as they may have been
 	   blocked by the parent process. */

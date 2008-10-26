@@ -90,9 +90,12 @@ struct messaging_context *smbd_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   smbd_event_context()))) {
-		smb_panic("Could not init smbd messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     smbd_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init smbd messaging context.\n"));
 	}
 	return ctx;
 }
@@ -293,6 +296,7 @@ static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 		/* a child terminated uncleanly so tickle all processes to see 
 		   if they can grab any of the pending locks
 		*/
+		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", pid));
 		messaging_send_buf(smbd_messaging_context(), procid_self(), 
 				   MSG_SMB_BRL_VALIDATE, NULL, 0);
 		message_send_all(smbd_messaging_context(), 
@@ -570,6 +574,12 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 	messaging_register(smbd_messaging_context(), NULL,
 			   MSG_SMB_STAT_CACHE_DELETE, smb_stat_cache_delete);
 	brl_register_msgs(smbd_messaging_context());
+
+#ifdef CLUSTER_SUPPORT
+	if (lp_clustering()) {
+		ctdbd_register_reconfigure(messaging_ctdbd_connection());
+	}
+#endif
 
 #ifdef DEVELOPER
 	messaging_register(smbd_messaging_context(), NULL,
@@ -884,6 +894,7 @@ static void exit_server_common(enum server_exit_reason how,
 	const char *const reason)
 {
 	static int firsttime=1;
+	bool had_open_conn;
 
 	if (!firsttime)
 		exit(0);
@@ -895,7 +906,7 @@ static void exit_server_common(enum server_exit_reason how,
 		(negprot_global_auth_context->free)(&negprot_global_auth_context);
 	}
 
-	conn_close_all();
+	had_open_conn = conn_close_all();
 
 	invalidate_all_vuids();
 
@@ -945,7 +956,15 @@ static void exit_server_common(enum server_exit_reason how,
 			(reason ? reason : "normal exit")));
 	}
 
-	exit(0);
+	/* if we had any open SMB connections when we exited then we
+	   need to tell the parent smbd so that it can trigger a retry
+	   of any locks we may have been holding or open files we were
+	   blocking */
+	if (had_open_conn) {
+		exit(1);
+	} else {
+		exit(0);
+	}
 }
 
 void exit_server(const char *const explanation)
@@ -979,7 +998,9 @@ static void release_ip(const char *ip, void *priv)
 		   away */
 		DEBUG(0,("Got release IP message for our IP %s - exiting immediately\n",
 			ip));
-		_exit(0);
+		/* note we must exit with non-zero status so the unclean handler gets
+		   called in the parent, so that the brl database is tickled */
+		_exit(1);
 	}
 }
 
@@ -1094,8 +1115,6 @@ extern void build_options(bool screen);
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
 	TimeInit();
-
-	db_tdb2_setup_messaging(NULL, false);
 
 #ifdef HAVE_SET_AUTH_PARAMETERS
 	set_auth_parameters(argc,argv);
@@ -1227,11 +1246,6 @@ extern void build_options(bool screen);
 
 	if (smbd_messaging_context() == NULL)
 		exit(1);
-
-	/*
-	 * Do this before reload_services.
-	 */
-	db_tdb2_setup_messaging(smbd_messaging_context(), true);
 
 	if (!reload_services(False))
 		return(-1);	

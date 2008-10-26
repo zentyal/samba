@@ -39,7 +39,7 @@ static NTSTATUS just_change_the_password(struct rpc_pipe_client *cli, TALLOC_CTX
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 
 	result = rpccli_netlogon_setup_creds(cli,
-					     cli->cli->desthost, /* server name */
+					     cli->desthost, /* server name */
 					     lp_workgroup(), /* domain */
 					     global_myname(), /* client name */
 					     global_myname(), /* machine account name */
@@ -230,8 +230,9 @@ bool enumerate_domain_trusts( TALLOC_CTX *mem_ctx, const char *domain,
 
 	/* open the LSARPC_PIPE	*/
 
-	lsa_pipe = cli_rpc_pipe_open_noauth( cli, PI_LSARPC, &result );
-	if ( !lsa_pipe) {
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+					  &lsa_pipe);
+	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
 

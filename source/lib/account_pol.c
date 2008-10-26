@@ -212,12 +212,12 @@ bool init_account_policy(void)
 		return True;
 	}
 
-	db = db_open_trans(NULL, state_path("account_policy.tdb"), 0, TDB_DEFAULT,
+	db = db_open(NULL, state_path("account_policy.tdb"), 0, TDB_DEFAULT,
 		     O_RDWR, 0600);
 
 	if (db == NULL) { /* the account policies files does not exist or open
 			   * failed, try to create a new one */
-		db = db_open_trans(NULL, state_path("account_policy.tdb"), 0,
+		db = db_open(NULL, state_path("account_policy.tdb"), 0,
 			     TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 		if (db == NULL) {
 			DEBUG(0,("Failed to open account policy database\n"));
@@ -283,7 +283,8 @@ bool init_account_policy(void)
 
 	if (db->transaction_commit(db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
-		goto cancel;
+		TALLOC_FREE(db);
+		return false;
 	}
 
 	return True;

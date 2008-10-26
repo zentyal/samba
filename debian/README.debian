@@ -1,0 +1,76 @@
+Samba for Debian
+----------------
+
+This package was built by Eloy Paris <peloy@debian.org>, Steve
+Langasek <vorlon@debian.org>, Noèl Köthe <noel@debian.org> and
+Christian Perrier <bubulle@debian.org>, current maintainers of the
+Samba packages for Debian, based on previous work from Peter
+Eisentraut <petere@debian.org>, Bruce Perens <Bruce@Pixar.com>, Andrew
+Howell <andrew@it.com.au>, Klee Dienes <klee@debian.org> and Michael
+Meskes <meskes@topsystem.de>, all previous maintainers of the packages
+samba and sambades (merged together for longer than we can remember.)
+
+Contents of this README file:
+
+1. Packages Generated from the Samba Sources
+2. Reporting bugs
+
+
+1. Packages Generated from the Samba Sources
+--------------------------------------------
+
+Currently, the Samba sources produce the following binary packages:
+
+samba:		A LanManager like file and printer server for Unix.
+samba-common:	Samba common files used by both the server and the client.
+smbclient:	A LanManager like simple client for Unix.
+swat:		Samba Web Administration Tool
+samba-doc:	Samba documentation.
+samba-doc-pdf:	Samba documentation (PDF format).
+smbfs:		Mount and umount commands for cifs (smbfs is removed)
+samba-tools:	Tools provided by the Samba suite
+libpam-smbpass:	pluggable authentication module for SMB password database.
+libsmbclient:	Shared library that allows applications to talk to SMB servers.
+libsmbclient-dev: libsmbclient shared libraries.
+winbind:	Service to resolve user and group information from a Windows NT server.
+samba-dbg:	binaries with debugging symbols
+
+
+2. Reporting Bugs
+-----------------
+
+If you believe you have found a bug please make sure the possible bug
+also exists in the latest version of Samba that is available for the
+unstable Debian distribution. If you are running Debian stable this
+means that you will probably have to build your own packages. And if the
+problem does not exist in the latest version of Samba we have packaged it
+means that you will have to run the version of Samba you built yourself
+since it is not easy to upload new packages to the stable distribution,
+unless they fix critical security problems.
+
+If you can reproduce the problem in the latest version of Samba then
+it is likely to be a real bug. Your best shot is to search the Samba
+mailing lists to see if it is something that has already been reported
+and fixed - if it is a simple fix we can add the patch to our packages
+without waiting for a new Samba release.
+
+If you decide that your problem deserves to be submitted to the Debian
+Bug Tracking System (BTS) we expect you to be responsive if we request
+more information. If we request more information and do not receive
+any in a reasonable time frame expect to see your bug closed without
+explanation - we can't fix bugs we can't reproduce, and most of the
+time we need more information to be able to reproduce them.
+
+When submitting a bug to the Debian BTS please include the version of
+the Debian package you are using as well as the Debian distribution you
+are using. Think _twice_ about the severity you assign to the bug: we
+are _very_ sensitive about bug severities; the fact that it doesn't
+work for you doesn't mean that the severity must be such that it holds
+a major Debian release. In fact, that it doesn't work for you it
+doesn't mean that it doesn't work for others. So again: think _twice_.
+
+
+Eloy A. Paris <peloy@debian.org>
+Steve Langasek <vorlon@debian.org>
+Noèl Köthe <noel@debian.org>
+Christian Perrier <bubulle@debian.org>

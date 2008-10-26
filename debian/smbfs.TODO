@@ -1,0 +1,7 @@
+- There is concern about the setuid status of binaries in this package.
+  The audit status of the concerned binaries is unclear.  We should
+  figure out whether it is reasonable to provide the flexible user mount
+  capabilities or whether a more restricted setup is better, at least by
+  default.
+
+Last change: 2006-01-25

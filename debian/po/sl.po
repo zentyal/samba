@@ -1,0 +1,246 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Samba\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-13 08:06+0100\n"
+"Last-Translator: Matej Kovačič <matej.kovacic@owca.info>\n"
+"Language-Team: Sl <skrat@owca.info>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Slovenian\n"
+"X-Poedit-Country: SLOVENIA\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr ""
+"Spremeni smb.conf za uporabo WINS nastavitev pridobljenih s strani DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Če vaš računalnik pridobiva informacije o IP naslovu prek DHCP strežnika, "
+"lahko ta strežnik ponuja tudi informacije o WINS strežnikih (\"NetBIOS "
+"imenski strežniki\"), ki so prisotni v omrežju. To zahteva spremembo v "
+"datoteki smb.conf ki bo omogočila samodejno branje nastavitev WINS iz /etc/"
+"samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "Za uporabo teh možnosti mora biti nameščen paket dhcp3-client."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Samodejna nastavitev smb.conf?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Ostanek nastavitev Sambe se nanaša na vprašanja, ki vplivajo na parametre v /"
+"etc/samba/smb.conf. Ta datoteka se uporablja za konfiguracijo Samba "
+"programov (nmbd in smbd). Vaš trenutni smb.conf vključuje vrstico 'include'  "
+"ali možnost, ki se razteza čez več vrstic konfiguracijske datoteke in lahko "
+"povzroči zmedo v procesu avtomatskih nastavitev. Za ponovno vzpostavitev "
+"delovanja bo potrebno ročno urejanje konfiguracijske datoteke z nastavitvami "
+"smb.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Če ne izberete te možnosti, boste morali vse spremembe nastavitev opraviti "
+"sami in ne boste mogli uporabljati periodičnih samodejnih izboljšav "
+"nastavitev."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Ime delovne skupine/domene:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Prosimo, nastavite ime delovne skupine, v kateri se bo pojavil ta strežnik "
+"ko ga bodo klienti iskali. Ta parameter določa tudi ime domene, ki je "
+"uporabljeno v nastavitvah security=domain."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Uporaba šifriranja gesel?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Vsi novejši Windows odjemalci komunicirajo s SMB strežniki z uporabo "
+"šifriranih gesel. Če želite uporabiti nešifrirana gesla boste morali "
+"spremeniti ustrezen parameter v Windows registru."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Močno priporočamo vklop te možnosti. Če jo boste vključili, preverite da "
+"imate veljavno datoteko /etc/samba/smbpasswd in da ste tam nastavili gesla "
+"za vsakega uporabnika s pomočjo ukaza smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Ali naj ustvarim bazo samba gesel, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Če želite doseči kompatibilnost z večino različic operacijskega sistema "
+"Windows, mora biti Samba nastavljena tako, da uporablja šifrirana gesla. "
+"Taka uporabniška gesla morajo biti shranjena v posebni datoteki in ne v /etc/"
+"passwd. Ta datoteko je mogoče ustvariti samodejno, gesla pa je treba "
+"dodajati ročno s pomočjo programa smbpasswd. Za ažurnost gesel morate tudi v "
+"prihodnje skrbeti ročno."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Če je ne boste ustvarili, boste morali nastaviti Sambo (in verjetno tudi "
+"odjemalce) za uporabo nešifriranih gesel."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Za podrobnejše informacije si oglejte /usr/share/doc/samba-doc/htmldocs/"
+"ENCRYPTION.html iz paketa samba-doc."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "daemoni"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Kako želite poganjati Sambo?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba demon smbd lahko teče kot običajen demon ali iz inetd. Priporočljivo "
+"je poganjanje sambe kot demon."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Veriženje (chaining) passdb hrbtenic ni podprto."
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Od različice 3.0.23 samba ne podpira več veriženja (chaining) večih "
+#~ "hrbtenic v \"passdb backend\" parametru. Kaže, da vaša konfiguracijska "
+#~ "datoteka smb.conf vsebuje passdb hrbtenični parameter, ki vsebuje seznam "
+#~ "hrbtenic. Nova različica sambe ne bo delovala dokler tega ne popravite."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Premaknem /etc/samba/smbpasswd v /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 uvaja popolnejši vmesnik do SAM baze ki nadomešča datoteko /etc/"
+#~ "samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Prosimo potrdite če želite avtomatsko prenesti obstoječo datoteko "
+#~ "smbdpasswd v var/lib/samba/passdb.tdb. Te možnosti ne izberite če boste "
+#~ "namesto tega uporabljali kakšno drugo pdb hrbtenico (n. pr. LDAP)."

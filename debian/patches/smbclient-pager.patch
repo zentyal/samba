@@ -1,0 +1,23 @@
+Goal: Use the pager alternative as pager is PAGER is undefined
+
+Fixes: #125603
+
+Status wrt upstream: Debian specific
+
+Author: Steve Langasek <vorlon@debian.org>
+
+Note: 
+
+Index: samba-3.2.0rc1/source/include/local.h
+===================================================================
+--- samba-3.2.0rc1.orig/source/include/local.h
++++ samba-3.2.0rc1/source/include/local.h
+@@ -109,7 +109,7 @@
+ /* the default pager to use for the client "more" command. Users can
+    override this with the PAGER environment variable */
+ #ifndef PAGER
+-#define PAGER "more"
++#define PAGER "/usr/bin/pager"
+ #endif
+ 
+ /* the size of the uid cache used to reduce valid user checks */

@@ -1,0 +1,246 @@
+# Translation of samba to malayalam
+# Copyright (c) 2006 Praveen A <pravi.a@gmail.com> and Debian Project
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2006-12-11 19:30+0530\n"
+"Last-Translator: Praveen A <pravi.a@gmail.com>\n"
+"Language-Team: Swathanthra Malayalam Computing <smc-discuss@googlegroups."
+"com>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "DHCP യില്‍ നിന്നുള്ള WINS സെറ്റിങ്ങുകള്‍ ഉപയോഗിക്കാന്‍ smb.conf മാറ്റണോ?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"നിങ്ങളുടെ കമ്പ്യൂട്ടറിന് ഐപി വിലാസ വിവരം നെറ്റുവര്‍ക്കിലെ ഒരു DHCP സേവകനില്‍ നിന്നുമാണ് "
+"ലഭിക്കുന്നതെങ്കില്‍, DHCP സേവകന്‍ നെറ്റുവര്‍ക്കിലുള്ള WINS (\"NetBIOS നാമ സേവകര്‍\") "
+"സേവകന്മാരെക്കുറിച്ചുള്ള വിവരങ്ങള്‍ കൂടി നല്കിയേക്കാം. DHCP-നല്കിയ WINS സജ്ജീകരണങ്ങള്‍  /etc/"
+"samba/dhcp.conf ല്‍ നിന്നും സ്വയമേ വായിക്കുന്നതിന് നിങ്ങളുടെ smb.conf ഫയലില്‍ ഒരു മാറ്റം "
+"ആവശ്യമാണ്."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "ഈ കഴിവുപയോഗിക്കാന്‍ dhcp3-client പാക്കേജ് ഇന്‍സ്റ്റാള്‍‍ ചെയ്തിരിക്കേണ്ടതുണ്ട്."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "smb.conf സ്വയമേ ക്രമീകരിക്കണോ?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"ബാക്കിയുള്ള സാംബ ക്രമീകരണം സാംബ പ്രോഗ്രാമുകളെ (nmbd യും smbd) ക്രമീകരിക്കാനുപയോഗിക്കുന്ന "
+"ഫയലായ /etc/samba/smb.conf ലെ പരാമീറ്ററുകളെ ബാധിക്കുന്ന ചോദ്യങ്ങളുമായി ബന്ധപ്പെട്ടതാണ്. "
+"നിങ്ങളുടെ ഇപ്പോഴത്തെ smb.conf ഒരു 'include' വരി അല്ലെങ്കില്‍ ഒന്നിലധികം വരിയില്‍ "
+"വ്യാപിച്ചുള്ള ഒരു തിരഞ്ഞെടുക്കാവുന്ന വില ഉള്‍‌ക്കൊള്ളുന്നതാണ്, അത് സ്വയമേയുള്ള ക്രമീകരണ പ്രക്രിയയെ "
+"ആശയക്കുഴപ്പത്തിലാക്കുകയും വീണ്ടും പ്രവര്‍ത്തിക്കുന്ന വിധത്തിലാക്കാന്‍ smb.conf കൈകൊണ്ട് മാറ്റുന്നത് "
+"ആവശ്യമാക്കുകയും ചെയ്യും."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"ഈ തിരഞ്ഞെടുക്കാവുന്ന വില നിങ്ങള്‍‍ തിരഞ്ഞടുത്തില്ലെങ്കില്‍ എന്തെങ്കിലും ക്രമീകരണ മാറ്റങ്ങള്‍ നിങ്ങള്‍ക്ക് "
+"സ്വയം കൈകാര്യം ചെയ്യേണ്ടി വരുകയും സമയാസമയങ്ങളിലുള്ള ക്രമീകരണ പുരോഗതികളുടെ മുന്‍തൂക്കം നേടാന്‍ "
+"നിങ്ങള്‍ക്ക് സാധിക്കാതെ വരുകയും ചെയ്യും."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "വര്‍ക്ക്ഗ്രൂപ്പ്/ഡൊമൈന്‍ നാമം:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"ദയവായി ക്ലയന്റുകള്‍ അന്വേഷിക്കുമ്പോള്‍ ഈ സേവകന്‍ ഉള്‍‌പ്പെടുന്നു എന്ന് തോന്നേണ്ട വര്‍ക്ക്ഗ്രൂപ്പ് നല്കുക. ഈ "
+"പരാമീറ്റര്‍ security=domain എന്ന സജ്ജീകരണത്തിലുപയോഗിക്കുന്ന ഡൊമൈന്‍ നാമത്തേയും നിയന്ത്രിക്കുന്നു "
+"എന്നോര്‍ക്കുക."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "അടയാളവാക്ക് എന്‍ക്രിപ്ഷന്‍ ഉപയോഗിക്കണോ?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"എല്ലാ പുതിയ വിന്‍ഡോസ് ക്ലയന്റുകളും SMB സേവകരുമായി ആശയവിന്മയം നടത്തുന്നത് എന്‍ക്രിപ്റ്റ് ചെയ്ത "
+"അടയാള വാക്കുകളുപയോഗിച്ചാണ്. നിങ്ങള്‍ ക്ലിയര്‍ ടെക്സ്റ്റ് അടയാള "
+"വാക്കുകളുപയോഗിക്കാനാഗ്രഹിക്കുന്നെങ്കില്‍ നിങ്ങള്‍ക്ക് നിങ്ങളുടെ വിന്‍ഡോസ് രജിസ്ട്രിയിലെ ഒരു പരാമീറ്റര്‍ "
+"മാറ്റേണ്ടി വരും."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"ഈ തിരഞ്ഞെടുക്കാവുന്ന വില ഇനേബിള്‍ ചെയ്യുന്നതിന് വളരെയധികം ശുപാര്‍ശ ചെയ്തിരിക്കുന്നു. നിങ്ങള്‍ "
+"അങ്ങനെ ചെയ്യുകയാണെങ്കില്‍ നിങ്ങള്‍ക്ക് ഒരു യോഗ്യമായ /etc/samba/smbpasswd ഫയലുണ്ടെന്നും  "
+"smbpasswd എന്ന ആജ്ഞ ഉപയോഗിച്ച് ഓരോ ഉപയോക്താക്കള്‍ക്കും അവിടെ അടയാള വാക്ക് സെറ്റ് ചെയ്തു എന്ന് "
+"ഉറപ്പാക്കുകയും ചെയ്യുക."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "സാംബ അടയാള വാക്കുകളുടെ ഡാറ്റാബേസായ /var/lib/samba/passdb.tdb സൃഷ്ടിയ്ക്കട്ടേ?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"കൂടുതല്‍ വിന്‍ഡോസ് ലക്കങ്ങളുടേയും ഡിഫാള്‍ട്ടുകളുമായി പൊരുത്തപ്പെടാന്‍ സാംബ എന്‍ക്രിപ്റ്റ് ചെയ്ത അടയാള "
+"വാക്കുകള്‍ ഉപയോഗിക്കാനായി ക്രമീകരിക്കേണ്ടതുണ്ട്. ഇതിന് ഉപയോക്തൃ അടയാള വാക്കുകള്‍  /etc/passwd "
+"ലില്‍ നിന്നും വ്യത്യസ്തമായ ഒരു ഫയലില്‍ സൂക്ഷിച്ചു വക്കേണ്ടതുണ്ട്. ഈ ഫയല്‍ സ്വയമേ സൃഷ്ടിക്കാവുന്നതാണ് "
+"പക്ഷേ അടയാള വാക്കുകള്‍ smbpasswd ഓടിച്ചുകൊണ്ട് മാന്വലായി കൂട്ടിച്ചേര്‍‌ക്കേണ്ടതും ഭാവിയില്‍ പുതുക്കി "
+"സൂക്ഷിക്കേണ്ടതുമാണ്."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"ഇത് നിങ്ങള്‍ സൃഷ്ടിച്ചില്ലെങ്കില്‍ നിങ്ങള്‍ക്ക് പ്ലെയിന്‍ ടെക്സ്റ്റ് അടയാള വാക്കുകള്‍ ഉപയോഗിക്കണമെങ്കില്‍ "
+"സാംബ (യും ഒരു പക്ഷേ നിങ്ങളുടെ ക്ലയന്റ് മഷീനുകളും) പുനഃക്രമീകരിക്കേണ്ടി വരും."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"കൂടുതല്‍ വിവരങ്ങള്‍ക്കായി samba-doc പാക്കേജിലെ /usr/share/doc/samba-doc/htmldocs/"
+"ENCRYPTION.html കാണുക."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "ഡെമണുകള്‍"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "സാംബ എങ്ങനെ പ്രവര്‍ത്തിപ്പിക്കാനാണ് നിങ്ങളാഗ്രഹിക്കുന്നത്?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"സാംബ ഡെമണ്‍ smbd ഒരു സാധാരണ ഡെമണായോ അല്ലെങ്കില്‍ inetd യില്‍ നിന്നോ "
+"പ്രവര്‍ത്തിപ്പിക്കാവുന്നതാണ്. ഡെമണായി ഓടിക്കുന്നതാണ് ശുപാര്‍ശ ചെയ്തിട്ടുള്ള വഴി."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "passdb ബാക്കെന്‍ഡുകള്‍ ചെയിന്‍ ചെയ്യുന്നതിനെ പിന്‍തുണയ്ക്കുന്നില്ല"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "3.0.23 ലക്കം മുതല്‍ സാംബ \"passdb backend\" പരാമീറ്ററില്‍ ഒന്നില്‍ കൂടുതല്‍ ബാക്കെന്‍ഡുകളെ "
+#~ "ചെയിന്‍ ചെയ്യുന്നത് പിന്‍തുണയ്ക്കുന്നില്ല. നിങ്ങളുടെ smb.conf ല്‍ ബാക്കെന്‍ഡുകളുടെ "
+#~ "പട്ടികയുള്‍‌ക്കൊള്ളുന്ന ഒരു passdb backend പരാമീറ്റര്‍ ഉള്‍‌ക്കൊള്ളുന്നതായി തോന്നുന്നു. നിങ്ങള്‍ ഇത് "
+#~ "ശരിയാക്കുന്നത് വരെ സാംബയുടെ പുതിയ ലക്കം പ്രവര്‍ത്തിക്കുകയില്ല."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd നെ /var/lib/samba/passdb.tdb യിലേക്ക് മാറ്റണോ?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "നേരത്തെയുണ്ടായിരുന്ന /etc/samba/smbpasswd ഫയലിനെ മാറ്റിക്കൊണ്ട് സാംബ 3.0 ഒരു കൂടുതല്‍ "
+#~ "പൂര്‍ണമായ SAM ഡാറ്റാബേസ് ഇന്റര്‍ഫേസ് കൊണ്ടുവന്നിട്ടുണ്ട്."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "ദയവായി നിലവിലുള്ള smbpasswd ഫയല്‍ സ്വയമേ /var/lib/samba/passdb.tdb യിലേക്ക് "
+#~ "മാറ്റുവാന്‍ നിങ്ങളാഗ്രഹിക്കുന്നുണ്ടോ എന്ന് നിശ്ചയിക്കുക. ഇതിന് പകരം മറ്റൊരു pdb ബാക്കെന്‍ഡ് "
+#~ "(ഉദാ. LDAP) ഇതിന് പകരം ഉപയോഗിക്കാന്‍ നിങ്ങള്‍ക്ക് പദ്ധതിയുണ്ടെങ്കില്‍ ഈ തിരഞ്ഞെടുക്കാവുന്ന "
+#~ "വില തിരഞ്ഞെടുക്കരുത്."

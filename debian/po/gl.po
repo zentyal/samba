@@ -1,0 +1,248 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-12 20:24+0100\n"
+"Last-Translator: Jacobo Tarrio <jtarrio@debian.org>\n"
+"Language-Team: Galician <trasno@ceu.fi.udc.es>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "¿Modificar smb.conf para empregar a configuración WINS de DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Se o seu ordenador obtén o enderezo IP dun servidor DHCP da rede, o servidor "
+"DHCP tamén pode fornecer información sobre os servidores WINS (servidores de "
+"nomes NetBIOS) que estean presentes na rede. Para facelo hai que modificar o "
+"ficheiro smb.conf para que a configuración WINS fornecida por DHCP se lea "
+"automaticamente de /etc/samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"O paquete dhcp3-client debe estar instalado para aproveitar esta "
+"característica."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "¿Configurar o ficheiro smb.conf automaticamente?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"O resto da configuración de Samba trata con cuestións que afectan aos "
+"parámetros de /etc/samba/smb.conf, que é o ficheiro que se emprega para "
+"configurar os programas de Samba (nmbd e smbd). O seu ficheiro smb.conf "
+"actual contén unha liña \"include\" ou unha opción que cubre varias liñas, o "
+"que pode confundir ao proceso de configuración automático e facer que teña "
+"que editar o ficheiro smb.conf a man para poñelo a funcionar outra vez."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Se non escolle esta opción ha ter que facer os cambios na configuración "
+"vostede mesmo, e non ha poder aproveitar as melloras periódicas na "
+"configuración."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Nome do grupo de traballo/dominio:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Indique o grupo de traballo no que quere que apareza este servidor cando lle "
+"pregunten os clientes. Teña en conta que este parámetro tamén controla o "
+"nome de dominio que se emprega coa configuración security=domain."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "¿Empregar cifrado de contrasinais?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Todos os clientes Windows recentes comunícanse cos servidores SMB empregando "
+"contrasinais cifrados. Se quere empregar contrasinais de texto claro ha ter "
+"que cambiar un parámetro no rexistro de Windows."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Recoméndase activar esta opción. Se o fai, asegúrese de ter un ficheiro /etc/"
+"samba/smbpasswd válido e de establecer nel os contrasinais de cada usuario "
+"coa orde smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr ""
+"¿Crear a base de datos de contrasinais de samba, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Para que sexa compatible coa configuración por defecto da maioría das "
+"versións de Windows, Samba ten que se configurar para empregar contrasinais "
+"cifrados. Para facelo, hai que armacenar os contrasinais dos usuarios nun "
+"ficheiro separado de /etc/passwd. Este ficheiro pódese crear "
+"automaticamente, pero os contrasinais hai que engadilos á man empregando "
+"smbpasswd e hai que mantelo actualizado no futuro."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Se non o crea ha ter que reconfigurar samba (e probablemente tamén as "
+"máquinas cliente) para que empreguen contrasinais en texto normal."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Consulte o ficheiro /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html do "
+"paquete samba-doc para ter máis detalles."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "servizos"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "¿Como quere executar Samba?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"O servizo de Samba smbd pode funcionar coma un servizo normal ou desde "
+"inetd. Recoméndase executalo coma un servizo."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Non está soportado o encadeamento de motores de passdb"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "A partires da versión 3.0.23, samba xa non soporta o encadeamento de "
+#~ "varios motores no parámetro \"passdb backend\". Semella que o seu "
+#~ "ficheiro smb.conf contén un parámetro de motor de passdb que consiste "
+#~ "nunha lista de motores. A nova versión de samba non ha funcionar ata que "
+#~ "o corrixa."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "¿Trasladar /etc/samba/smbpasswd a /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 introduciu unha interface de base de datos SAM máis completa "
+#~ "que substitúe ao ficheiro /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Confirme se quere que se migre automaticamente o ficheiro smbpasswd "
+#~ "existente a /var/lib/samba/passdb.tdb. Non escolla esta opción se "
+#~ "pretende empregar outro motor pdb (por exemplo, LDAP)."
+
+#~ msgid "daemons, inetd"
+#~ msgstr "servizos, inetd"

@@ -1,0 +1,23 @@
+Goal: Avoid using bashism in smbtar
+
+Status wrt upstream: Debian-specific. 
+
+Fixes: #486056
+
+Author: Jelmer Vernooij <jelmer@samba.org>
+
+Note:
+
+Index: samba/source/script/smbtar
+===================================================================
+--- samba/source/script/smbtar	(Revision 1955)
++++ samba/source/script/smbtar	(Arbeitskopie)
+@@ -151,7 +151,7 @@
+ if [ -z "$verbose" ]; then
+       echo "server    is $server"
+ #     echo "share     is $service"
+-      echo "share     is $service\\$cdcmd"
++      printf "share     is %s\\%s\n" "$service" "$cdcmd"
+       echo "tar args  is $tarargs"
+ #     echo "password  is $password"  # passwords should never be sent to screen
+       echo "tape      is $tapefile"

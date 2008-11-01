@@ -22,11 +22,10 @@ test "${mandir}" || mandir="\${prefix}/man"
 logfilebase="\${VARDIR}"
 privatedir="\${prefix}/private"
 test "${libdir}" || libdir="\${prefix}/lib"
-modulesdir="${libdir}"
-pammodulesdir="${libdir}/security"
-configdir="${libdir}"
+pammodulesdir="\${LIBDIR}/security"
+configdir="\${LIBDIR}"
 swatdir="\${prefix}/swat"
-codepagedir="\${MODULESDIR}"
+codepagedir="\${LIBDIR}"
 statedir="\${LOCKDIR}"
 cachedir="\${LOCKDIR}"
 
@@ -39,11 +38,10 @@ AC_ARG_WITH(fhs,
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
     privatedir="\${CONFIGDIR}/private"
-    test "${libdir}" || libdir="\${prefix}/lib"
-    modulesdir="${libdir}/samba"
+    test "${libdir}" || libdir="\${prefix}/lib/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${MODULESDIR}"
+    codepagedir="\${LIBDIR}"
     statedir="\${VARDIR}/lib/samba"
     cachedir="\${VARDIR}/lib/samba"
     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
@@ -177,18 +175,18 @@ AC_ARG_WITH(ctdb,
   esac])
 
 #################################################
-# set shared modules (internal lib) directory location
-AC_ARG_WITH(modulesdir,
-[AS_HELP_STRING([--with-modulesdir=DIR], [Where to put shared modules ($libdir)])],
+# set lib directory location
+AC_ARG_WITH(libdir,
+[AS_HELP_STRING([--with-libdir=DIR], [Where to put libdir ($libdir)])],
 [ case "$withval" in
   yes|no)
   #
   # Just in case anybody does it
   #
-    AC_MSG_WARN([--with-modulesdir without argument - will use default])
+    AC_MSG_WARN([--with-libdir without argument - will use default])
   ;;
   * )
-    modulesdir="$withval"
+    libdir="$withval"
     ;;
   esac])
 
@@ -238,7 +236,6 @@ AC_SUBST(statedir)
 AC_SUBST(cachedir)
 AC_SUBST(rootsbindir)
 AC_SUBST(pammodulesdir)
-AC_SUBST(modulesdir)
 
 #################################################
 # set prefix for 'make test'
@@ -297,14 +294,6 @@ AC_ARG_ENABLE(krb5developer, [AS_HELP_STRING([--enable-krb5developer], [Turn on 
         debug=yes
         developer=yes
 	krb5_developer=yes
-    fi])
-
-picky_developer=no
-AC_ARG_ENABLE(picky-developer, [AS_HELP_STRING([--enable-picky-developer], [Halt compilation on warnings])],
-    [if eval "test x$enable_picky_developer = xyes"; then
-        debug=yes
-        developer=yes
-        picky_developer=yes
     fi])
 
 AC_ARG_WITH(cfenc,

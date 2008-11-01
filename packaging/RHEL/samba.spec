@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.3.0pre2
+Version:      3.2.4
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -136,8 +136,7 @@ CC="$CC" CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
 	--prefix=%{_prefix} \
 	--localstatedir=/var \
         --with-configdir=%{_sysconfdir}/samba \
-        --libdir=%{_libarchdir} \
-	--with-modulesdir=%{_libarchdir}/samba \
+        --with-libdir=%{_libarchdir}/samba \
 	--with-pammodulesdir=%{_libarch}/security \
         --with-lockdir=/var/lib/samba \
         --with-logfilebase=/var/log/samba \
@@ -163,6 +162,8 @@ CC="$CC" CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
 	--with-dnsupdate
 
 make showlayout
+
+make CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE"  proto 
 
 ## check for gcc 3.4 or later
 CC_VERSION=`${CC} --version | head -1 | awk '{print $3}'`
@@ -222,6 +223,18 @@ install -m 755 source/nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss
 ( cd $RPM_BUILD_ROOT/%{_libarch};
   ln -sf libnss_winbind.so.2  libnss_winbind.so;
   ln -sf libnss_wins.so.2  libnss_wins.so )
+
+# Put the shared (and possibly static) libraries into /usr/lib{,64}/ .
+# Samba 3.2.2 installs them into /usr/lib{,64}/samba/ .
+# This step will become unnecessary in 3.3.0.
+#
+for library in libsmbclient libsmbsharemodes libwbclient libtalloc libtdb
+libnetapi
+do
+	mv -f ${RPM_BUILD_ROOT}%{_libarchdir}/samba/${library}.* \
+		${RPM_BUILD_ROOT}%{_libarchdir}/
+done
+
 
 ## cleanup
 /bin/rm -rf $RPM_BUILD_ROOT/usr/lib*/samba/security
@@ -398,7 +411,6 @@ fi
 %defattr(-,root,root)
 /sbin/mount.cifs
 /sbin/umount.cifs
-%{_sbindir}/cifs.upcall
 
 %{_bindir}/rpcclient
 %{_bindir}/smbcacls
@@ -415,7 +427,6 @@ fi
 
 %{_mandir}/man8/mount.cifs.8.*
 %{_mandir}/man8/umount.cifs.8.*
-%{_mandir}/man8/cifs.upcall.8.*
 %{_mandir}/man8/smbspool.8*
 %{_mandir}/man1/smbget.1*
 %{_mandir}/man5/smbgetrc.5*

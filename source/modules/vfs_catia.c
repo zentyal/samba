@@ -36,13 +36,12 @@ static char *catia_string_replace(TALLOC_CTX *ctx,
 	smb_ucs2_t *ptr = NULL;
 	smb_ucs2_t old = oldc;
 	char *ret = NULL;
-	size_t converted_size;
 
 	if (!s) {
 		return NULL;
 	}
 
-	if (!push_ucs2_talloc(ctx, &tmpbuf, s, &converted_size)) {
+	if (push_ucs2_talloc(ctx, &tmpbuf, s) == -1) {
 		return NULL;
 	}
 
@@ -54,7 +53,7 @@ static char *catia_string_replace(TALLOC_CTX *ctx,
 		}
 	}
 
-	if (!pull_ucs2_talloc(ctx, &ret, tmpbuf, &converted_size)) {
+	if (pull_ucs2_talloc(ctx, &ret, tmpbuf) == -1) {
 		TALLOC_FREE(tmpbuf);
 		return NULL;
 	}
@@ -294,6 +293,14 @@ static NTSTATUS catia_get_nt_acl(vfs_handle_struct *handle,
         return SMB_VFS_NEXT_GET_NT_ACL(handle, name, security_info, ppdesc);
 }
 
+static NTSTATUS catia_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
+			     const char *name, uint32 security_info_sent,
+			     struct security_descriptor *psd)
+{
+        return SMB_VFS_NEXT_SET_NT_ACL(handle, fsp, name, security_info_sent,
+				       psd);
+}
+
 static int catia_chmod_acl(vfs_handle_struct *handle,
 			   const char *name, mode_t mode)
 {
@@ -354,6 +361,8 @@ SMB_VFS_LAYER_TRANSPARENT},
         /* NT File ACL operations */
 
         {SMB_VFS_OP(catia_get_nt_acl), SMB_VFS_OP_GET_NT_ACL,
+SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(catia_set_nt_acl), SMB_VFS_OP_SET_NT_ACL,
 SMB_VFS_LAYER_TRANSPARENT},
 
         /* POSIX ACL operations */

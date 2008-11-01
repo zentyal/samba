@@ -1699,7 +1699,6 @@ static NTSTATUS ldapsam_modify_entry(struct pdb_methods *my_methods,
 		struct berval *retdata = NULL;
 		char *utf8_password;
 		char *utf8_dn;
-		size_t converted_size;
 
 		if (!ldap_state->is_nds_ldap) {
 
@@ -1711,14 +1710,11 @@ static NTSTATUS ldapsam_modify_entry(struct pdb_methods *my_methods,
 			}
 		}
 
-		if (!push_utf8_allocate(&utf8_password,
-					pdb_get_plaintext_passwd(newpwd),
-					&converted_size))
-		{
+		if (push_utf8_allocate(&utf8_password, pdb_get_plaintext_passwd(newpwd)) == (size_t)-1) {
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		if (!push_utf8_allocate(&utf8_dn, dn, &converted_size)) {
+		if (push_utf8_allocate(&utf8_dn, dn) == (size_t)-1) {
 			SAFE_FREE(utf8_password);
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -2723,8 +2719,8 @@ static NTSTATUS ldapsam_enum_group_members(struct pdb_methods *methods,
 								 entry, "sambaSID",
 								 mem_ctx);
 			if (!sidstr) {
-				DEBUG(0, ("Severe DB error, %s can't miss the sambaSID"
-					  "attribute\n", LDAP_OBJ_SAMBASAMACCOUNT));
+				DEBUG(0, ("Severe DB error, sambaSamAccount can't miss "
+					  "the sambaSID attribute\n"));
 				ret = NT_STATUS_INTERNAL_DB_CORRUPTION;
 				goto done;
 			}
@@ -2774,7 +2770,8 @@ static NTSTATUS ldapsam_enum_group_members(struct pdb_methods *methods,
 						    entry,
 						    get_global_sam_sid(),
 						    &rid)) {
-			DEBUG(0, ("Severe DB error, %s can't miss the samba SID"								"attribute\n", LDAP_OBJ_SAMBASAMACCOUNT));
+			DEBUG(0, ("Severe DB error, sambaSamAccount can't miss "
+				  "the sambaSID attribute\n"));
 			ret = NT_STATUS_INTERNAL_DB_CORRUPTION;
 			goto done;
 		}
@@ -2980,8 +2977,8 @@ static NTSTATUS ldapsam_map_posixgroup(TALLOC_CTX *mem_ctx,
 	int rc;
 
 	filter = talloc_asprintf(mem_ctx,
-				 "(&(objectClass=%s)(gidNumber=%u))",
-				 LDAP_OBJ_POSIXGROUP, map->gid);
+				 "(&(objectClass=posixGroup)(gidNumber=%u))",
+				 map->gid);
 	if (filter == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -3004,7 +3001,7 @@ static NTSTATUS ldapsam_map_posixgroup(TALLOC_CTX *mem_ctx,
 
 	mods = NULL;
 	smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass",
-			LDAP_OBJ_GROUPMAP);
+			"sambaGroupMapping");
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, entry, &mods, "sambaSid",
 			 sid_string_talloc(mem_ctx, &map->sid));
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, entry, &mods, "sambaGroupType",
@@ -3124,9 +3121,10 @@ static NTSTATUS ldapsam_add_group_mapping_entry(struct pdb_methods *methods,
 	mods = NULL;
 
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "objectClass",
-			 LDAP_OBJ_SID_ENTRY);
+			 "sambaSidEntry");
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "objectClass",
-			 LDAP_OBJ_GROUPMAP);
+			 "sambaGroupMapping");
+
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "sambaSid",
 			 sid_string_talloc(mem_ctx, &map->sid));
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "sambaGroupType",
@@ -4184,8 +4182,8 @@ static char *get_ldap_filter(TALLOC_CTX *mem_ctx, const char *username)
 	char *escaped = NULL;
 	char *result = NULL;
 
-	asprintf(&filter, "(&%s(objectclass=%s))",
-			  "(uid=%u)", LDAP_OBJ_SAMBASAMACCOUNT);
+	asprintf(&filter, "(&%s(objectclass=sambaSamAccount))",
+		 "(uid=%u)");
 	if (filter == NULL) goto done;
 
 	escaped = escape_ldap_string_alloc(username);
@@ -4406,7 +4404,6 @@ static bool ldapuser2displayentry(struct ldap_search_state *state,
 				  struct samr_displayentry *result)
 {
 	char **vals;
-	size_t converted_size;
 	DOM_SID sid;
 	uint32 acct_flags;
 
@@ -4432,40 +4429,27 @@ static bool ldapuser2displayentry(struct ldap_search_state *state,
 		DEBUG(5, ("\"uid\" not found\n"));
 		return False;
 	}
-	if (!pull_utf8_talloc(mem_ctx,
-			      CONST_DISCARD(char **, &result->account_name),
-			      vals[0], &converted_size))
-	{
-		DEBUG(0,("ldapuser2displayentry: pull_utf8_talloc failed: %s",
-			 strerror(errno)));
-	}
-
+	pull_utf8_talloc(mem_ctx,
+			 CONST_DISCARD(char **, &result->account_name),
+			 vals[0]);
 	ldap_value_free(vals);
 
 	vals = ldap_get_values(ld, entry, "displayName");
 	if ((vals == NULL) || (vals[0] == NULL))
 		DEBUG(8, ("\"displayName\" not found\n"));
-	else if (!pull_utf8_talloc(mem_ctx,
-				   CONST_DISCARD(char **, &result->fullname),
-				   vals[0], &converted_size))
-	{
-		DEBUG(0,("ldapuser2displayentry: pull_utf8_talloc failed: %s",
-			 strerror(errno)));
-	}
-
+	else
+		pull_utf8_talloc(mem_ctx,
+				 CONST_DISCARD(char **, &result->fullname),
+				 vals[0]);
 	ldap_value_free(vals);
 
 	vals = ldap_get_values(ld, entry, "description");
 	if ((vals == NULL) || (vals[0] == NULL))
 		DEBUG(8, ("\"description\" not found\n"));
-	else if (!pull_utf8_talloc(mem_ctx,
-				   CONST_DISCARD(char **, &result->description),
-				   vals[0], &converted_size))
-	{
-		DEBUG(0,("ldapuser2displayentry: pull_utf8_talloc failed: %s",
-			 strerror(errno)));
-	}
-
+	else
+		pull_utf8_talloc(mem_ctx,
+				 CONST_DISCARD(char **, &result->description),
+				 vals[0]);
 	ldap_value_free(vals);
 
 	if ((result->account_name == NULL) ||
@@ -4552,7 +4536,6 @@ static bool ldapgroup2displayentry(struct ldap_search_state *state,
 				   struct samr_displayentry *result)
 {
 	char **vals;
-	size_t converted_size;
 	DOM_SID sid;
 	uint16 group_type;
 
@@ -4592,22 +4575,14 @@ static bool ldapgroup2displayentry(struct ldap_search_state *state,
 			DEBUG(5, ("\"cn\" not found\n"));
 			return False;
 		}
-		if (!pull_utf8_talloc(mem_ctx,
-				      CONST_DISCARD(char **,
-						    &result->account_name),
-				      vals[0], &converted_size))
-		{
-			DEBUG(0,("ldapgroup2displayentry: pull_utf8_talloc "
-				  "failed: %s", strerror(errno)));
-		}
+		pull_utf8_talloc(mem_ctx,
+				 CONST_DISCARD(char **, &result->account_name),
+				 vals[0]);
 	}
-	else if (!pull_utf8_talloc(mem_ctx,
-				   CONST_DISCARD(char **,
-						 &result->account_name),
-				   vals[0], &converted_size))
-	{
-		DEBUG(0,("ldapgroup2displayentry: pull_utf8_talloc failed: %s",
-			  strerror(errno)));
+	else {
+		pull_utf8_talloc(mem_ctx,
+				 CONST_DISCARD(char **, &result->account_name),
+				 vals[0]);
 	}
 
 	ldap_value_free(vals);
@@ -4615,13 +4590,10 @@ static bool ldapgroup2displayentry(struct ldap_search_state *state,
 	vals = ldap_get_values(ld, entry, "description");
 	if ((vals == NULL) || (vals[0] == NULL))
 		DEBUG(8, ("\"description\" not found\n"));
-	else if (!pull_utf8_talloc(mem_ctx,
-				   CONST_DISCARD(char **, &result->description),
-				   vals[0], &converted_size))
-	{
-		DEBUG(0,("ldapgroup2displayentry: pull_utf8_talloc failed: %s",
-			  strerror(errno)));
-	}
+	else
+		pull_utf8_talloc(mem_ctx,
+				 CONST_DISCARD(char **, &result->description),
+				 vals[0]);
 	ldap_value_free(vals);
 
 	if ((result->account_name == NULL) ||
@@ -4692,10 +4664,9 @@ static bool ldapsam_search_grouptype(struct pdb_methods *methods,
 	state->connection = ldap_state->smbldap_state;
 	state->scope = LDAP_SCOPE_SUBTREE;
 	state->filter =	talloc_asprintf(search->mem_ctx,
-					"(&(objectclass=%s)"
-					"(sambaGroupType=%d)(sambaSID=%s*))",
-					 LDAP_OBJ_GROUPMAP,
-					 type, sid_to_fstring(tmp, sid));
+					"(&(objectclass=sambaGroupMapping)"
+					"(sambaGroupType=%d)(sambaSID=%s*))", 
+					type, sid_to_fstring(tmp, sid));
 	state->attrs = talloc_attrs(search->mem_ctx, "cn", "sambaSid",
 				    "displayName", "description",
 				    "sambaGroupType", NULL);
@@ -5787,7 +5758,6 @@ static char *trusteddom_dn(struct ldapsam_privates *ldap_state,
 }
 
 static bool get_trusteddom_pw_int(struct ldapsam_privates *ldap_state,
-				  TALLOC_CTX *mem_ctx,
 				  const char *domain, LDAPMessage **entry)
 {
 	int rc;
@@ -5810,10 +5780,6 @@ static bool get_trusteddom_pw_int(struct ldapsam_privates *ldap_state,
 	rc = smbldap_search(ldap_state->smbldap_state, trusted_dn, scope,
 			    filter, attrs, attrsonly, &result);
 
-	if (result != NULL) {
-		talloc_autofree_ldapmsg(mem_ctx, result);
-	}
-
 	if (rc == LDAP_NO_SUCH_OBJECT) {
 		*entry = NULL;
 		return True;
@@ -5827,15 +5793,15 @@ static bool get_trusteddom_pw_int(struct ldapsam_privates *ldap_state,
 
 	if (num_result > 1) {
 		DEBUG(1, ("ldapsam_get_trusteddom_pw: more than one "
-			  "%s object for domain '%s'?!\n",
-			  LDAP_OBJ_TRUSTDOM_PASSWORD, domain));
+			  "sambaTrustedDomainPassword object for domain '%s'"
+			  "?!\n", domain));
 		return False;
 	}
 
 	if (num_result == 0) {
 		DEBUG(1, ("ldapsam_get_trusteddom_pw: no "
-			  "%s object for domain %s.\n",
-			  LDAP_OBJ_TRUSTDOM_PASSWORD, domain));
+			  "sambaTrustedDomainPassword object for domain %s.\n",
+			  domain));
 		*entry = NULL;
 	} else {
 		*entry = ldap_first_entry(priv2ld(ldap_state), result);
@@ -5856,7 +5822,7 @@ static bool ldapsam_get_trusteddom_pw(struct pdb_methods *methods,
 
 	DEBUG(10, ("ldapsam_get_trusteddom_pw called for domain %s\n", domain));
 
-	if (!get_trusteddom_pw_int(ldap_state, talloc_tos(), domain, &entry) ||
+	if (!get_trusteddom_pw_int(ldap_state, domain, &entry) ||
 	    (entry == NULL))
 	{
 		return False;
@@ -5927,13 +5893,13 @@ static bool ldapsam_set_trusteddom_pw(struct pdb_methods *methods,
 	 * get the current entry (if there is one) in order to put the
 	 * current password into the previous password attribute
 	 */
-	if (!get_trusteddom_pw_int(ldap_state, talloc_tos(), domain, &entry)) {
+	if (!get_trusteddom_pw_int(ldap_state, domain, &entry)) {
 		return False;
 	}
 
 	mods = NULL;
 	smbldap_make_mod(priv2ld(ldap_state), entry, &mods, "objectClass",
-			 LDAP_OBJ_TRUSTDOM_PASSWORD);
+			 "sambaTrustedDomainPassword");
 	smbldap_make_mod(priv2ld(ldap_state), entry, &mods, "sambaDomainName",
 			 domain);
 	smbldap_make_mod(priv2ld(ldap_state), entry, &mods, "sambaSID",
@@ -5942,9 +5908,6 @@ static bool ldapsam_set_trusteddom_pw(struct pdb_methods *methods,
 			 talloc_asprintf(talloc_tos(), "%li", time(NULL)));
 	smbldap_make_mod(priv2ld(ldap_state), entry, &mods,
 			 "sambaClearTextPassword", pwd);
-
-	talloc_autofree_ldapmod(talloc_tos(), mods);
-
 	if (entry != NULL) {
 		prev_pwd = smbldap_talloc_single_attribute(priv2ld(ldap_state),
 				entry, "sambaClearTextPassword", talloc_tos());
@@ -5982,7 +5945,7 @@ static bool ldapsam_del_trusteddom_pw(struct pdb_methods *methods,
 	LDAPMessage *entry = NULL;
 	const char *trusted_dn;
 
-	if (!get_trusteddom_pw_int(ldap_state, talloc_tos(), domain, &entry)) {
+	if (!get_trusteddom_pw_int(ldap_state, domain, &entry)) {
 		return False;
 	}
 
@@ -6032,10 +5995,6 @@ static NTSTATUS ldapsam_enum_trusteddoms(struct pdb_methods *methods,
 			    attrs,
 			    attrsonly,
 			    &result);
-
-	if (result != NULL) {
-		talloc_autofree_ldapmsg(mem_ctx, result);
-	}
 
 	if (rc != LDAP_SUCCESS) {
 		return NT_STATUS_UNSUCCESSFUL;

@@ -167,20 +167,18 @@ user of the system can use this time to cancel the shutdown.
 announce the shutdown.</p></dd></dl></div></div><div class="refsect2" lang="en"><a name="id2526318"></a><h3>RPC SAMDUMP</h3><p>Print out sam database of remote server. You need
 to run this against the PDC, from a Samba machine joined as a BDC. </p></div><div class="refsect2" lang="en"><a name="id2526330"></a><h3>RPC VAMPIRE</h3><p>Export users, aliases and groups from remote server to 
 local server.  You need to run this against the PDC, from a Samba machine joined as a BDC. 
-</p></div><div class="refsect2" lang="en"><a name="id2526342"></a><h3>RPC VAMPIRE KEYTAB</h3><p>Dump remote SAM database to local Kerberos keytab file.
-</p></div><div class="refsect2" lang="en"><a name="id2526353"></a><h3>RPC VAMPIRE LDIF</h3><p>Dump remote SAM database to local LDIF file or standard output.
-</p></div><div class="refsect2" lang="en"><a name="id2526364"></a><h3>RPC GETSID</h3><p>Fetch domain SID and store it in the local <code class="filename">secrets.tdb</code>. </p></div><div class="refsect2" lang="en"><a name="id2526381"></a><h3>ADS LEAVE</h3><p>Make the remote host leave the domain it is part of. </p></div><div class="refsect2" lang="en"><a name="id2526392"></a><h3>ADS STATUS</h3><p>Print out status of machine account of the local machine in ADS.
+</p></div><div class="refsect2" lang="en"><a name="id2526342"></a><h3>RPC GETSID</h3><p>Fetch domain SID and store it in the local <code class="filename">secrets.tdb</code>. </p></div><div class="refsect2" lang="en"><a name="id2526359"></a><h3>ADS LEAVE</h3><p>Make the remote host leave the domain it is part of. </p></div><div class="refsect2" lang="en"><a name="id2526370"></a><h3>ADS STATUS</h3><p>Print out status of machine account of the local machine in ADS.
 Prints out quite some debug info. Aimed at developers, regular 
-users should use <code class="literal">NET ADS TESTJOIN</code>.</p></div><div class="refsect2" lang="en"><a name="id2526410"></a><h3>ADS PRINTER</h3><div class="refsect3" lang="en"><a name="id2526416"></a><h4>ADS PRINTER INFO [<em class="replaceable"><code>PRINTER</code></em>] [<em class="replaceable"><code>SERVER</code></em>]</h4><p>
+users should use <code class="literal">NET ADS TESTJOIN</code>.</p></div><div class="refsect2" lang="en"><a name="id2526388"></a><h3>ADS PRINTER</h3><div class="refsect3" lang="en"><a name="id2526393"></a><h4>ADS PRINTER INFO [<em class="replaceable"><code>PRINTER</code></em>] [<em class="replaceable"><code>SERVER</code></em>]</h4><p>
 Lookup info for <em class="replaceable"><code>PRINTER</code></em> on <em class="replaceable"><code>SERVER</code></em>. The printer name defaults to "*", the 
-server name defaults to the local host.</p></div><div class="refsect3" lang="en"><a name="id2526442"></a><h4>ADS PRINTER PUBLISH <em class="replaceable"><code>PRINTER</code></em></h4><p>Publish specified printer using ADS.</p></div><div class="refsect3" lang="en"><a name="id2526455"></a><h4>ADS PRINTER REMOVE <em class="replaceable"><code>PRINTER</code></em></h4><p>Remove specified printer from ADS directory.</p></div></div><div class="refsect2" lang="en"><a name="id2526469"></a><h3>ADS SEARCH <em class="replaceable"><code>EXPRESSION</code></em> <em class="replaceable"><code>ATTRIBUTES...</code></em></h3><p>Perform a raw LDAP search on a ADS server and dump the results. The 
+server name defaults to the local host.</p></div><div class="refsect3" lang="en"><a name="id2526419"></a><h4>ADS PRINTER PUBLISH <em class="replaceable"><code>PRINTER</code></em></h4><p>Publish specified printer using ADS.</p></div><div class="refsect3" lang="en"><a name="id2526433"></a><h4>ADS PRINTER REMOVE <em class="replaceable"><code>PRINTER</code></em></h4><p>Remove specified printer from ADS directory.</p></div></div><div class="refsect2" lang="en"><a name="id2526447"></a><h3>ADS SEARCH <em class="replaceable"><code>EXPRESSION</code></em> <em class="replaceable"><code>ATTRIBUTES...</code></em></h3><p>Perform a raw LDAP search on a ADS server and dump the results. The 
 expression is a standard LDAP search expression, and the 
 attributes are a list of LDAP fields to show in the results.</p><p>Example: <strong class="userinput"><code>net ads search '(objectCategory=group)' sAMAccountName</code></strong>
-</p></div><div class="refsect2" lang="en"><a name="id2526498"></a><h3>ADS DN <em class="replaceable"><code>DN</code></em> <em class="replaceable"><code>(attributes)</code></em></h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526476"></a><h3>ADS DN <em class="replaceable"><code>DN</code></em> <em class="replaceable"><code>(attributes)</code></em></h3><p>
 Perform a raw LDAP search on a ADS server and dump the results. The 
 DN standard LDAP DN, and the attributes are a list of LDAP fields 
 to show in the result. 
-</p><p>Example: <strong class="userinput"><code>net ads dn 'CN=administrator,CN=Users,DC=my,DC=domain' SAMAccountName</code></strong></p></div><div class="refsect2" lang="en"><a name="id2526526"></a><h3>ADS WORKGROUP</h3><p>Print out workgroup name for specified kerberos realm.</p></div><div class="refsect2" lang="en"><a name="id2526537"></a><h3>SAM CREATEBUILTINGROUP &lt;NAME&gt;</h3><p>
+</p><p>Example: <strong class="userinput"><code>net ads dn 'CN=administrator,CN=Users,DC=my,DC=domain' SAMAccountName</code></strong></p></div><div class="refsect2" lang="en"><a name="id2526504"></a><h3>ADS WORKGROUP</h3><p>Print out workgroup name for specified kerberos realm.</p></div><div class="refsect2" lang="en"><a name="id2526515"></a><h3>SAM CREATEBUILTINGROUP &lt;NAME&gt;</h3><p>
 (Re)Create a BUILTIN group.
 Only a wellknown set of BUILTIN groups can be created with this command.
 This is the list of currently recognized group names: Administrators,
@@ -190,78 +188,78 @@ compatible Access.
 
 This command requires a running Winbindd with idmap allocation properly
 configured. The group gid will be allocated out of the winbindd range.
-</p></div><div class="refsect2" lang="en"><a name="id2526556"></a><h3>SAM CREATELOCALGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526534"></a><h3>SAM CREATELOCALGROUP &lt;NAME&gt;</h3><p>
 Create a LOCAL group (also known as Alias).
 
 This command requires a running Winbindd with idmap allocation properly
 configured. The group gid will be allocated out of the winbindd range.
-</p></div><div class="refsect2" lang="en"><a name="id2526570"></a><h3>SAM DELETELOCALGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526547"></a><h3>SAM DELETELOCALGROUP &lt;NAME&gt;</h3><p>
 Delete an existing LOCAL group (also known as Alias).
 
-</p></div><div class="refsect2" lang="en"><a name="id2526581"></a><h3>SAM MAPUNIXGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526559"></a><h3>SAM MAPUNIXGROUP &lt;NAME&gt;</h3><p>
 Map an existing Unix group and make it a Domain Group, the domain group
 will have the same name.
-</p></div><div class="refsect2" lang="en"><a name="id2526593"></a><h3>SAM UNMAPUNIXGROUP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526571"></a><h3>SAM UNMAPUNIXGROUP &lt;NAME&gt;</h3><p>
 Remove an existing group mapping entry.
-</p></div><div class="refsect2" lang="en"><a name="id2526605"></a><h3>SAM ADDMEM &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526582"></a><h3>SAM ADDMEM &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
 Add a member to a Local group. The group can be specified only by name,
 the member can be specified by name or SID.
-</p></div><div class="refsect2" lang="en"><a name="id2526618"></a><h3>SAM DELMEM  &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526595"></a><h3>SAM DELMEM  &lt;GROUP&gt; &lt;MEMBER&gt;</h3><p>
 Remove a member from a Local group. The group and the member must be
 specified by name.
-</p></div><div class="refsect2" lang="en"><a name="id2526630"></a><h3>SAM LISTMEM &lt;GROUP&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526608"></a><h3>SAM LISTMEM &lt;GROUP&gt;</h3><p>
 List Local group members. The group must be specified by name.
-</p></div><div class="refsect2" lang="en"><a name="id2526641"></a><h3>SAM LIST &lt;users|groups|localgroups|builtin|workstations&gt; [verbose]</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526619"></a><h3>SAM LIST &lt;users|groups|localgroups|builtin|workstations&gt; [verbose]</h3><p>
 List the specified set of accounts by name. If verbose is specified,
 the rid and description is also provided for each account.
-</p></div><div class="refsect2" lang="en"><a name="id2526655"></a><h3>SAM SHOW &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526633"></a><h3>SAM SHOW &lt;NAME&gt;</h3><p>
 Show the full DOMAIN\\NAME the SID and the type for the corresponding
 account.
-</p></div><div class="refsect2" lang="en"><a name="id2526667"></a><h3>SAM SET HOMEDIR &lt;NAME&gt; &lt;DIRECTORY&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526645"></a><h3>SAM SET HOMEDIR &lt;NAME&gt; &lt;DIRECTORY&gt;</h3><p>
 Set the home directory for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526678"></a><h3>SAM SET PROFILEPATH &lt;NAME&gt; &lt;PATH&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526656"></a><h3>SAM SET PROFILEPATH &lt;NAME&gt; &lt;PATH&gt;</h3><p>
 Set the profile path for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526689"></a><h3>SAM SET COMMENT &lt;NAME&gt; &lt;COMMENT&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526667"></a><h3>SAM SET COMMENT &lt;NAME&gt; &lt;COMMENT&gt;</h3><p>
 Set the comment for a user or group account.
-</p></div><div class="refsect2" lang="en"><a name="id2526701"></a><h3>SAM SET FULLNAME &lt;NAME&gt; &lt;FULL NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526678"></a><h3>SAM SET FULLNAME &lt;NAME&gt; &lt;FULL NAME&gt;</h3><p>
 Set the full name for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526712"></a><h3>SAM SET LOGONSCRIPT &lt;NAME&gt; &lt;SCRIPT&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526690"></a><h3>SAM SET LOGONSCRIPT &lt;NAME&gt; &lt;SCRIPT&gt;</h3><p>
 Set the logon script for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526723"></a><h3>SAM SET HOMEDRIVE &lt;NAME&gt; &lt;DRIVE&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526701"></a><h3>SAM SET HOMEDRIVE &lt;NAME&gt; &lt;DRIVE&gt;</h3><p>
 Set the home drive for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526734"></a><h3>SAM SET WORKSTATIONS &lt;NAME&gt; &lt;WORKSTATIONS&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526712"></a><h3>SAM SET WORKSTATIONS &lt;NAME&gt; &lt;WORKSTATIONS&gt;</h3><p>
 Set the workstations a user account is allowed to log in from.
-</p></div><div class="refsect2" lang="en"><a name="id2526746"></a><h3>SAM SET DISABLE &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526724"></a><h3>SAM SET DISABLE &lt;NAME&gt;</h3><p>
 Set the "disabled" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526757"></a><h3>SAM SET PWNOTREQ &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526735"></a><h3>SAM SET PWNOTREQ &lt;NAME&gt;</h3><p>
 Set the "password not required" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526769"></a><h3>SAM SET AUTOLOCK &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526746"></a><h3>SAM SET AUTOLOCK &lt;NAME&gt;</h3><p>
 Set the "autolock" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526780"></a><h3>SAM SET PWNOEXP &lt;NAME&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526758"></a><h3>SAM SET PWNOEXP &lt;NAME&gt;</h3><p>
 Set the "password do not expire" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526791"></a><h3>SAM SET PWDMUSTCHANGENOW &lt;NAME&gt; [yes|no]</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526769"></a><h3>SAM SET PWDMUSTCHANGENOW &lt;NAME&gt; [yes|no]</h3><p>
 Set or unset the "password must change" flag for a user account.
-</p></div><div class="refsect2" lang="en"><a name="id2526803"></a><h3>SAM POLICY LIST</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526781"></a><h3>SAM POLICY LIST</h3><p>
 List the available account policies.
-</p></div><div class="refsect2" lang="en"><a name="id2526814"></a><h3>SAM POLICY SHOW &lt;account policy&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526792"></a><h3>SAM POLICY SHOW &lt;account policy&gt;</h3><p>
 Show the account policy value.
-</p></div><div class="refsect2" lang="en"><a name="id2526825"></a><h3>SAM POLICY SET &lt;account policy&gt; &lt;value&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526803"></a><h3>SAM POLICY SET &lt;account policy&gt; &lt;value&gt;</h3><p>
 Set a value for the account policy.
 Valid values can be: "forever", "never", "off", or a number.
-</p></div><div class="refsect2" lang="en"><a name="id2526838"></a><h3>SAM PROVISION</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526815"></a><h3>SAM PROVISION</h3><p>
 Only available if ldapsam:editposix is set and winbindd is running.
 Properly populates the ldap tree with the basic accounts (Administrator)
 and groups (Domain Users, Domain Admins, Domain Guests) on the ldap tree.
-</p></div><div class="refsect2" lang="en"><a name="id2526851"></a><h3>IDMAP DUMP &lt;local tdb file name&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526829"></a><h3>IDMAP DUMP &lt;local tdb file name&gt;</h3><p>
 Dumps the mappings contained in the local tdb file specified.
 This command is useful to dump only the mappings produced by the idmap_tdb backend.
-</p></div><div class="refsect2" lang="en"><a name="id2526865"></a><h3>IDMAP RESTORE [input file]</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526843"></a><h3>IDMAP RESTORE [input file]</h3><p>
 Restore the mappings from the specified file or stdin.
-</p></div><div class="refsect2" lang="en"><a name="id2526876"></a><h3>IDMAP SECRET &lt;DOMAIN&gt;|ALLOC &lt;secret&gt;</h3><p>
+</p></div><div class="refsect2" lang="en"><a name="id2526854"></a><h3>IDMAP SECRET &lt;DOMAIN&gt;|ALLOC &lt;secret&gt;</h3><p>
 Store a secret for the specified domain, used primarily for domains
 that use idmap_ldap as a backend. In this case the secret is used
 as the password for the user DN used to bind to the ldap server.
-</p></div><div class="refsect2" lang="en"><a name="id2526891"></a><h3>USERSHARE</h3><p>Starting with version 3.0.23, a Samba server now supports the ability for
+</p></div><div class="refsect2" lang="en"><a name="id2526868"></a><h3>USERSHARE</h3><p>Starting with version 3.0.23, a Samba server now supports the ability for
 non-root users to add user defined shares to be exported using the "net usershare"
 commands.
 </p><p>
@@ -290,7 +288,7 @@ can create user defined shares on demand using the commands below.
 
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>net usershare add sharename path [comment] [acl] [guest_ok=[y|n]] - to add or change a user defined share.</td></tr><tr><td>net usershare delete sharename - to delete a user defined share.</td></tr><tr><td>net usershare info [-l|--long] [wildcard sharename] - to print info about a user defined share.</td></tr><tr><td>net usershare list [-l|--long] [wildcard sharename] - to list user defined shares.</td></tr></table><p>
 
-</p><div class="refsect3" lang="en"><a name="id2478130"></a><h4>USERSHARE ADD <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> <em class="replaceable"><code>[comment]</code></em> <em class="replaceable"><code>[acl]</code></em> <em class="replaceable"><code>[guest_ok=[y|n]]</code></em></h4><p>
+</p><div class="refsect3" lang="en"><a name="id2526927"></a><h4>USERSHARE ADD <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> <em class="replaceable"><code>[comment]</code></em> <em class="replaceable"><code>[acl]</code></em> <em class="replaceable"><code>[guest_ok=[y|n]]</code></em></h4><p>
 Add or replace a new user defined share, with name "sharename".
 </p><p>
 "path" specifies the absolute pathname on the system to be exported.
@@ -327,11 +325,11 @@ sharename as the one you wish to modify and specify the new options
 you wish. The Samba smbd daemon notices user defined share modifications
 at connect time so will see the change immediately, there is no need
 to restart smbd on adding, deleting or changing a user defined share.
-</div><div class="refsect3" lang="en"><a name="id2478204"></a><h4>USERSHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>
+</div><div class="refsect3" lang="en"><a name="id2527001"></a><h4>USERSHARE DELETE <em class="replaceable"><code>sharename</code></em></h4><p>
 Deletes the user defined share by name. The Samba smbd daemon
 immediately notices this change, although it will not disconnect
 any users currently connected to the deleted share.
-</p></div><div class="refsect3" lang="en"><a name="id2478220"></a><h4>USERSHARE INFO <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>[wildcard sharename]</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527016"></a><h4>USERSHARE INFO <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>[wildcard sharename]</code></em></h4><p>
 Get info on user defined shares owned by the current user matching the given pattern, or all users.
 </p><p>
 net usershare info on its own dumps out info on the user defined shares that were
@@ -350,7 +348,7 @@ guest_ok=n
 
 And is a list of the current settings of the user defined share that can be
 modified by the "net usershare add" command.
-</p></div><div class="refsect3" lang="en"><a name="id2527211"></a><h4>USERSHARE LIST <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>wildcard sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527051"></a><h4>USERSHARE LIST <em class="replaceable"><code>[-l|--long]</code></em> <em class="replaceable"><code>wildcard sharename</code></em></h4><p>
 List all the user defined shares owned by the current user matching the given pattern, or all users.
 </p><p>
 net usershare list on its own list out the names of the user defined shares that were
@@ -358,7 +356,7 @@ created by the current user, or restricts the list to share names that match the
 wildcard pattern ('*' matches one or more characters, '?' matches only one character).
 If the '-l' or '--long' option is also given, it includes the names of user defined
 shares created by other users.
-</p></div></div><div class="refsect2" lang="en"><a name="id2527239"></a><h3>CONF</h3><p>Starting with version 3.2.0, a Samba server can be configured by data
+</p></div></div><div class="refsect2" lang="en"><a name="id2527086"></a><h3>CONF</h3><p>Starting with version 3.2.0, a Samba server can be configured by data
 stored in registry. This configuration data can be edited with the new "net
 conf" commands.
 </p><p>
@@ -376,10 +374,10 @@ See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry
 format.</td></tr><tr><td>net conf import - Import configuration from file in smb.conf
 format.</td></tr><tr><td>net conf listshares - List the registry shares.</td></tr><tr><td>net conf drop - Delete the complete configuration from
 registry.</td></tr><tr><td>net conf showshare - Show the definition of a registry share.</td></tr><tr><td>net conf addshare - Create a new registry share.</td></tr><tr><td>net conf delshare - Delete a registry share.</td></tr><tr><td>net conf setparm - Store a parameter.</td></tr><tr><td>net conf getparm - Retrieve the value of a parameter.</td></tr><tr><td>net conf delparm - Delete a parameter.</td></tr><tr><td>net conf getincludes - Show the includes of a share definition.</td></tr><tr><td>net conf setincludes - Set includes for a share.</td></tr><tr><td>net conf delincludes - Delete includes from a share definition.</td></tr></table><p>
-</p><div class="refsect3" lang="en"><a name="id2527370"></a><h4>CONF LIST</h4><p>
+</p><div class="refsect3" lang="en"><a name="id2527217"></a><h4>CONF LIST</h4><p>
 Print the configuration data stored in the registry in a smb.conf-like format to
 standard output.
-</p></div><div class="refsect3" lang="en"><a name="id2527382"></a><h4>CONF IMPORT <em class="replaceable"><code>[--test|-T]</code></em> <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>[section]</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527229"></a><h4>CONF IMPORT <em class="replaceable"><code>[--test|-T]</code></em> <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>[section]</code></em></h4><p>
 This command imports configuration from a file in smb.conf format.
 If a section encountered in the input file is present in registry,
 its contents is replaced. Sections of registry configuration that have
@@ -389,30 +387,30 @@ Optionally, a section may be specified to restrict the effect of the
 import command to that specific section. A test mode is enabled by specifying
 the parameter "-T" on the commandline. In test mode, no changes are made to the
 registry, and the resulting configuration is printed to standard output instead.
-</p></div><div class="refsect3" lang="en"><a name="id2527412"></a><h4>CONF LISTSHARES</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527259"></a><h4>CONF LISTSHARES</h4><p>
 List the names of the shares defined in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527423"></a><h4>CONF DROP</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527270"></a><h4>CONF DROP</h4><p>
 Delete the complete configuration data from registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527434"></a><h4>CONF SHOWSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527281"></a><h4>CONF SHOWSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
 Show the definition of the share or section specified. It is valid to specify
 "global" as sharename to retrieve the global configuration options from
 registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527449"></a><h4>CONF ADDSHARE <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> [<em class="replaceable"><code>writeable={y|N}</code></em> [<em class="replaceable"><code>guest_ok={y|N}</code></em> [<em class="replaceable"><code>comment</code></em>]]] </h4><p>Create a new share definition in registry.
+</p></div><div class="refsect3" lang="en"><a name="id2527296"></a><h4>CONF ADDSHARE <em class="replaceable"><code>sharename</code></em> <em class="replaceable"><code>path</code></em> [<em class="replaceable"><code>writeable={y|N}</code></em> [<em class="replaceable"><code>guest_ok={y|N}</code></em> [<em class="replaceable"><code>comment</code></em>]]] </h4><p>Create a new share definition in registry.
 The sharename and path have to be given. The share name may
 <span class="emphasis"><em>not</em></span> be "global". Optionally, values for the very
 common options "writeable", "guest ok" and a "comment" may be specified.
 The same result may be obtained by a sequence of "net conf setparm"
 commands.
-</p></div><div class="refsect3" lang="en"><a name="id2527485"></a><h4>CONF DELSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527333"></a><h4>CONF DELSHARE <em class="replaceable"><code>sharename</code></em></h4><p>
 Delete a share definition from registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527498"></a><h4>CONF SETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em> <em class="replaceable"><code>value</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527346"></a><h4>CONF SETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em> <em class="replaceable"><code>value</code></em></h4><p>
 Store a parameter in registry. The section may be global or a sharename.
 The section is created if it does not exist yet.
-</p></div><div class="refsect3" lang="en"><a name="id2527520"></a><h4>CONF GETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527367"></a><h4>CONF GETPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
 Show a parameter stored in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527537"></a><h4>CONF DELPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527384"></a><h4>CONF DELPARM <em class="replaceable"><code>section</code></em> <em class="replaceable"><code>parameter</code></em></h4><p>
 Delete a parameter stored in registry.
-</p></div><div class="refsect3" lang="en"><a name="id2527553"></a><h4>CONF GETINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527401"></a><h4>CONF GETINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
 Get the list of includes for the provided section (global or share).
 </p><p>
 Note that due to the nature of the registry database and the nature of include directives,
@@ -428,14 +426,14 @@ per share, and this list is evaluated after all the parameters of the share.
 Further note that currently, only files can be included from registry
 configuration. In the future, there will be the ability to include configuration
 data from other registry keys.
-</p></div><div class="refsect3" lang="en"><a name="id2527589"></a><h4>CONF SETINCLUDES <em class="replaceable"><code>section</code></em> [<em class="replaceable"><code>filename</code></em>]+</h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527436"></a><h4>CONF SETINCLUDES <em class="replaceable"><code>section</code></em> [<em class="replaceable"><code>filename</code></em>]+</h4><p>
 Set the list of includes for the provided section (global or share) to the given
 list of one or more filenames. The filenames may contain the usual smb.conf
 macros like %I.
-</p></div><div class="refsect3" lang="en"><a name="id2527609"></a><h4>CONF DELINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2527456"></a><h4>CONF DELINCLUDES <em class="replaceable"><code>section</code></em></h4><p>
 Delete the list of includes from the provided section (global or share).
-</p></div></div><div class="refsect2" lang="en"><a name="id2527624"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2527636"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
-	suite.</p></div><div class="refsect1" lang="en"><a name="id2527647"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></div></div><div class="refsect2" lang="en"><a name="id2527471"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2527483"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
+	suite.</p></div><div class="refsect1" lang="en"><a name="id2527494"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The net manpage was written by Jelmer Vernooij.</p></div></div></body></html>

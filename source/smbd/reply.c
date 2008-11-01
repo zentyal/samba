@@ -32,6 +32,7 @@ extern int max_recv;
 unsigned int smb_echo_count = 0;
 extern uint32 global_client_caps;
 
+extern struct current_user current_user;
 extern bool global_encrypted_passwords_negotiated;
 
 /****************************************************************************
@@ -326,13 +327,13 @@ size_t srvstr_get_path(TALLOC_CTX *ctx,
 ****************************************************************************/
 
 bool check_fsp_open(connection_struct *conn, struct smb_request *req,
-		    files_struct *fsp)
+	       files_struct *fsp, struct current_user *user)
 {
 	if (!(fsp) || !(conn)) {
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return False;
 	}
-	if (((conn) != (fsp)->conn) || req->vuid != (fsp)->vuid) {
+	if (((conn) != (fsp)->conn) || user->vuid != (fsp)->vuid) {
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return False;
 	}
@@ -345,9 +346,9 @@ bool check_fsp_open(connection_struct *conn, struct smb_request *req,
 ****************************************************************************/
 
 bool check_fsp(connection_struct *conn, struct smb_request *req,
-	       files_struct *fsp)
+	       files_struct *fsp, struct current_user *user)
 {
-	if (!check_fsp_open(conn, req, fsp)) {
+	if (!check_fsp_open(conn, req, fsp, user)) {
 		return False;
 	}
 	if ((fsp)->is_directory) {
@@ -363,45 +364,14 @@ bool check_fsp(connection_struct *conn, struct smb_request *req,
 }
 
 /****************************************************************************
- Check if we have a correct fsp pointing to a quota fake file. Replacement for
- the CHECK_NTQUOTA_HANDLE_OK macro.
-****************************************************************************/
-
-bool check_fsp_ntquota_handle(connection_struct *conn, struct smb_request *req,
-			      files_struct *fsp)
-{
-	if (!check_fsp_open(conn, req, fsp)) {
-		return false;
-	}
-
-	if (fsp->is_directory) {
-		return false;
-	}
-
-	if (fsp->fake_file_handle == NULL) {
-		return false;
-	}
-
-	if (fsp->fake_file_handle->type != FAKE_FILE_TYPE_QUOTA) {
-		return false;
-	}
-
-	if (fsp->fake_file_handle->private_data == NULL) {
-		return false;
-	}
-
-	return true;
-}
-
-/****************************************************************************
  Check if we have a correct fsp. Replacement for the FSP_BELONGS_CONN macro
 ****************************************************************************/
 
 bool fsp_belongs_conn(connection_struct *conn, struct smb_request *req,
-		      files_struct *fsp)
+		      files_struct *fsp, struct current_user *user)
 {
 	if ((fsp) && (conn) && ((conn)==(fsp)->conn)
-	    && (req->vuid == (fsp)->vuid)) {
+	    && (current_user.vuid==(fsp)->vuid)) {
 		return True;
 	}
 
@@ -2131,7 +2101,7 @@ void reply_ctemp(struct smb_request *req)
 		return;
 	}
 
-	status = check_name(conn, fname);
+	status = check_name(conn, CONST_DISCARD(char *,fname));
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
 		END_PROFILE(SMBctemp);
@@ -2358,13 +2328,13 @@ static NTSTATUS do_unlink(connection_struct *conn,
 		 &sbuf);		/* psbuf */
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("create_file_unixpath failed: %s\n",
+		DEBUG(10, ("open_file_ntcreate failed: %s\n",
 			   nt_errstr(status)));
 		return status;
 	}
 
 	/* The set is across all open files on this dev/inode pair. */
-	if (!set_delete_on_close(fsp, True, &conn->server_info->utok)) {
+	if (!set_delete_on_close(fsp, True, &current_user.ut)) {
 		close_file(fsp, NORMAL_CLOSE);
 		return NT_STATUS_ACCESS_DENIED;
 	}
@@ -2819,7 +2789,7 @@ void reply_readbraw(struct smb_request *req)
 	 */
 
 	if (!fsp || !conn || conn != fsp->conn ||
-			req->vuid != fsp->vuid ||
+			current_user.vuid != fsp->vuid ||
 			fsp->is_directory || fsp->fh->fd == -1) {
 		/*
 		 * fsp could be NULL here so use the value from the packet. JRA.
@@ -2954,7 +2924,7 @@ void reply_lockread(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBlockread);
 		return;
 	}
@@ -3062,7 +3032,7 @@ void reply_read(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBread);
 		return;
 	}
@@ -3318,7 +3288,7 @@ void reply_read_and_X(struct smb_request *req)
 		return;
 	}
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBreadX);
 		return;
 	}
@@ -3456,7 +3426,7 @@ void reply_writebraw(struct smb_request *req)
 	}
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		error_to_writebrawerr(req);
 		END_PROFILE(SMBwritebraw);
 		return;
@@ -3662,7 +3632,7 @@ void reply_writeunlock(struct smb_request *req)
 	
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBwriteunlock);
 		return;
 	}
@@ -3769,7 +3739,7 @@ void reply_write(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBwrite);
 		return;
 	}
@@ -4001,7 +3971,7 @@ void reply_write_and_X(struct smb_request *req)
 	startpos = IVAL_TO_SMB_OFF_T(req->inbuf,smb_vwv3);
 	write_through = BITSETW(req->inbuf+smb_vwv7,0);
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBwriteX);
 		return;
 	}
@@ -4120,7 +4090,7 @@ void reply_lseek(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		return;
 	}
 
@@ -4206,7 +4176,7 @@ void reply_flush(struct smb_request *req)
 	fnum = SVAL(req->inbuf,smb_vwv0);
 	fsp = file_fsp(fnum);
 
-	if ((fnum != 0xFFFF) && !check_fsp(conn, req, fsp)) {
+	if ((fnum != 0xFFFF) && !check_fsp(conn, req, fsp, &current_user)) {
 		return;
 	}
 	
@@ -4279,7 +4249,7 @@ void reply_close(struct smb_request *req)
 	 * We can only use CHECK_FSP if we know it's not a directory.
 	 */
 
-	if(!fsp || (fsp->conn != conn) || (fsp->vuid != req->vuid)) {
+	if(!fsp || (fsp->conn != conn) || (fsp->vuid != current_user.vuid)) {
 		reply_doserror(req, ERRDOS, ERRbadfid);
 		END_PROFILE(SMBclose);
 		return;
@@ -4353,7 +4323,7 @@ void reply_writeclose(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBwriteclose);
 		return;
 	}
@@ -4440,7 +4410,7 @@ void reply_lock(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBlock);
 		return;
 	}
@@ -4499,7 +4469,7 @@ void reply_unlock(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBunlock);
 		return;
 	}
@@ -4645,7 +4615,7 @@ void reply_printopen(struct smb_request *req)
 	}
 
 	/* Open for exclusive use, write only. */
-	status = print_fsp_open(conn, NULL, req->vuid, &fsp);
+	status = print_fsp_open(conn, NULL, &fsp);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
@@ -4683,7 +4653,7 @@ void reply_printclose(struct smb_request *req)
 
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBsplclose);
                 return;
         }
@@ -4825,7 +4795,7 @@ void reply_printwrite(struct smb_request *req)
   
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBsplwr);
                 return;
         }
@@ -5586,9 +5556,9 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		DEBUG(3,("rename_internals_fsp: succeeded doing rename on %s -> %s\n",
 			fsp->fsp_name,newname));
 
-		notify_rename(conn, fsp->is_directory, fsp->fsp_name, newname);
-
 		rename_open_files(conn, lck, newname);
+
+		notify_rename(conn, fsp->is_directory, fsp->fsp_name, newname);
 
 		/*
 		 * A rename acts as a new file create w.r.t. allowing an initial delete
@@ -6659,7 +6629,7 @@ void reply_lockingX(struct smb_request *req)
 	lock_timeout = IVAL(req->inbuf,smb_vwv4);
 	large_file_format = (locktype & LOCKING_ANDX_LARGE_FILES)?True:False;
 
-	if (!check_fsp(conn, req, fsp)) {
+	if (!check_fsp(conn, req, fsp, &current_user)) {
 		END_PROFILE(SMBlockingX);
 		return;
 	}

@@ -675,7 +675,7 @@ NTSTATUS local_password_change(const char *user_name,
 				return NT_STATUS_NO_MEMORY;
 			}
 
-			result = samu_alloc_rid_unix( sam_pass, pwd );
+			result = samu_set_unix( sam_pass, pwd );
 
 			DEBUGLEVEL = tmp_debug;
 
@@ -1517,9 +1517,11 @@ bool pdb_increment_bad_password_count(struct samu *sampass)
 	return True;
 }
 
-bool is_dc_trusted_domain_situation(const char *domain_name)
+bool is_trusted_domain_situation(const char *domain_name)
 {
-	return IS_DC && !strequal(domain_name, lp_workgroup());
+	return IS_DC &&
+		lp_allow_trusted_domains() &&
+		!strequal(domain_name, lp_workgroup());
 }
 
 /*******************************************************************
@@ -1537,11 +1539,7 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
 	/* if we are a DC and this is not our domain, then lookup an account
 	 * for the domain trust */
 
-	if (is_dc_trusted_domain_situation(domain)) {
-		if (!lp_allow_trusted_domains()) {
-			return false;
-		}
-
+	if (is_trusted_domain_situation(domain)) {
 		if (!pdb_get_trusteddom_pw(domain, ret_pwd, NULL,
 					   &last_set_time))
 		{
@@ -1562,22 +1560,8 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
 		return true;
 	}
 
-	/*
-	 * Since we can only be member of one single domain, we are now
-	 * in a member situation:
-	 *
-	 *  -  Either we are a DC (selfjoined) and the domain is our
-	 *     own domain.
-	 *  -  Or we are on a member and the domain is our own or some
-	 *     other (potentially trusted) domain.
-	 *
-	 * In both cases, we can only get the machine account password
-	 * for our own domain to connect to our own dc. (For a member,
-	 * request to trusted domains are performed through our dc.)
-	 *
-	 * So we simply use our own domain name to retrieve the
-	 * machine account passowrd and ignore the request domain here.
-	 */
+	/* Here we are a domain member server.  We can only be a member
+	   of one domain so ignore the request domain and assume our own */
 
 	pwd = secrets_fetch_machine_password(lp_workgroup(), &last_set_time, channel);
 
@@ -1610,7 +1594,7 @@ bool get_trust_pw_hash(const char *domain, uint8 ret_pwd[16],
 		E_md4hash(pwd, ret_pwd);
 		SAFE_FREE(pwd);
 		return true;
-	} else if (is_dc_trusted_domain_situation(domain)) {
+	} else if (is_trusted_domain_situation(domain)) {
 		return false;
 	}
 

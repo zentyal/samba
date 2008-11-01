@@ -26,6 +26,7 @@ NTSTATUS rpccli_wkssvc_NetWkstaGetInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETWKSTAGETINFO,
 				&r);
@@ -76,6 +77,7 @@ NTSTATUS rpccli_wkssvc_NetWkstaSetInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETWKSTASETINFO,
 				&r);
@@ -127,6 +129,7 @@ NTSTATUS rpccli_wkssvc_NetWkstaEnumUsers(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETWKSTAENUMUSERS,
 				&r);
@@ -178,6 +181,7 @@ NTSTATUS rpccli_wkssvc_NetrWkstaUserGetInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRWKSTAUSERGETINFO,
 				&r);
@@ -228,6 +232,7 @@ NTSTATUS rpccli_wkssvc_NetrWkstaUserSetInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRWKSTAUSERSETINFO,
 				&r);
@@ -281,6 +286,7 @@ NTSTATUS rpccli_wkssvc_NetWkstaTransportEnum(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETWKSTATRANSPORTENUM,
 				&r);
@@ -335,6 +341,7 @@ NTSTATUS rpccli_wkssvc_NetrWkstaTransportAdd(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRWKSTATRANSPORTADD,
 				&r);
@@ -385,6 +392,7 @@ NTSTATUS rpccli_wkssvc_NetrWkstaTransportDel(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRWKSTATRANSPORTDEL,
 				&r);
@@ -434,6 +442,7 @@ NTSTATUS rpccli_wkssvc_NetrUseAdd(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUSEADD,
 				&r);
@@ -485,6 +494,7 @@ NTSTATUS rpccli_wkssvc_NetrUseGetInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUSEGETINFO,
 				&r);
@@ -533,6 +543,7 @@ NTSTATUS rpccli_wkssvc_NetrUseDel(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUSEDEL,
 				&r);
@@ -583,6 +594,7 @@ NTSTATUS rpccli_wkssvc_NetrUseEnum(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUSEENUM,
 				&r);
@@ -639,6 +651,7 @@ NTSTATUS rpccli_wkssvc_NetrMessageBufferSend(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRMESSAGEBUFFERSEND,
 				&r);
@@ -689,6 +702,7 @@ NTSTATUS rpccli_wkssvc_NetrWorkstationStatisticsGet(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRWORKSTATIONSTATISTICSGET,
 				&r);
@@ -733,6 +747,7 @@ NTSTATUS rpccli_wkssvc_NetrLogonDomainNameAdd(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRLOGONDOMAINNAMEADD,
 				&r);
@@ -776,6 +791,7 @@ NTSTATUS rpccli_wkssvc_NetrLogonDomainNameDel(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRLOGONDOMAINNAMEDEL,
 				&r);
@@ -829,6 +845,7 @@ NTSTATUS rpccli_wkssvc_NetrJoinDomain(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRJOINDOMAIN,
 				&r);
@@ -878,6 +895,7 @@ NTSTATUS rpccli_wkssvc_NetrUnjoinDomain(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUNJOINDOMAIN,
 				&r);
@@ -929,6 +947,7 @@ NTSTATUS rpccli_wkssvc_NetrRenameMachineInDomain(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRRENAMEMACHINEINDOMAIN,
 				&r);
@@ -980,6 +999,7 @@ NTSTATUS rpccli_wkssvc_NetrValidateName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRVALIDATENAME,
 				&r);
@@ -1026,6 +1046,7 @@ NTSTATUS rpccli_wkssvc_NetrGetJoinInformation(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRGETJOININFORMATION,
 				&r);
@@ -1080,6 +1101,7 @@ NTSTATUS rpccli_wkssvc_NetrGetJoinableOus(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRGETJOINABLEOUS,
 				&r);
@@ -1135,6 +1157,7 @@ NTSTATUS rpccli_wkssvc_NetrJoinDomain2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRJOINDOMAIN2,
 				&r);
@@ -1184,6 +1207,7 @@ NTSTATUS rpccli_wkssvc_NetrUnjoinDomain2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRUNJOINDOMAIN2,
 				&r);
@@ -1235,6 +1259,7 @@ NTSTATUS rpccli_wkssvc_NetrRenameMachineInDomain2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRRENAMEMACHINEINDOMAIN2,
 				&r);
@@ -1286,6 +1311,7 @@ NTSTATUS rpccli_wkssvc_NetrValidateName2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRVALIDATENAME2,
 				&r);
@@ -1338,6 +1364,7 @@ NTSTATUS rpccli_wkssvc_NetrGetJoinableOus2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRGETJOINABLEOUS2,
 				&r);
@@ -1391,6 +1418,7 @@ NTSTATUS rpccli_wkssvc_NetrAddAlternateComputerName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRADDALTERNATECOMPUTERNAME,
 				&r);
@@ -1442,6 +1470,7 @@ NTSTATUS rpccli_wkssvc_NetrRemoveAlternateComputerName(struct rpc_pipe_client *c
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRREMOVEALTERNATECOMPUTERNAME,
 				&r);
@@ -1493,6 +1522,7 @@ NTSTATUS rpccli_wkssvc_NetrSetPrimaryComputername(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRSETPRIMARYCOMPUTERNAME,
 				&r);
@@ -1541,6 +1571,7 @@ NTSTATUS rpccli_wkssvc_NetrEnumerateComputerNames(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_WKSSVC,
 				&ndr_table_wkssvc,
 				NDR_WKSSVC_NETRENUMERATECOMPUTERNAMES,
 				&r);

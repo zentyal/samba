@@ -24,7 +24,6 @@
 #define _WINBINDD_H
 
 #include "nsswitch/winbind_struct_protocol.h"
-#include "nsswitch/libwbclient/wbclient.h"
 
 #ifdef HAVE_LIBNSCD
 #include <libnscd.h>
@@ -196,15 +195,7 @@ struct winbindd_domain {
 
 	void *private_data;
 
-	/*
-	 * idmap config settings, used to tell the idmap child which
-	 * special domain config to use for a mapping
-	 */
-	bool have_idmap_config;
-	uint32_t id_range_low, id_range_high;
-
 	/* A working DC */
-	pid_t dc_probe_pid; /* Child we're using to detect the DC. */
 	fstring dcname;
 	struct sockaddr_storage dcaddr;
 
@@ -387,6 +378,4 @@ enum ent_type {
 #define IS_DOMAIN_OFFLINE(x) ( lp_winbind_offline_logon() && \
 			       ( get_global_winbindd_state_offline() \
 				 || !(x)->online ) )
-#define IS_DOMAIN_ONLINE(x) (!IS_DOMAIN_OFFLINE(x))
-
 #endif /* _WINBINDD_H */

@@ -49,43 +49,33 @@ struct print_job_info {
 struct cli_pipe_auth_data {
 	enum pipe_auth_type auth_type; /* switch for the union below. Defined in ntdomain.h */
 	enum pipe_auth_level auth_level; /* defined in ntdomain.h */
-
-	char *domain;
-	char *user_name;
-
 	union {
 		struct schannel_auth_struct *schannel_auth;
 		NTLMSSP_STATE *ntlmssp_state;
 		struct kerberos_auth_struct *kerberos_auth;
 	} a_u;
+	void (*cli_auth_data_free_func)(struct cli_pipe_auth_data *);
 };
 
 struct rpc_pipe_client {
 	struct rpc_pipe_client *prev, *next;
 
-	enum dcerpc_transport_t transport_type;
+	TALLOC_CTX *mem_ctx;
 
-	union {
-		struct {
-			struct cli_state *cli;
-			const char *pipe_name;
-			uint16 fnum;
-		} np;
-		struct {
-			int fd;
-		} sock;
-	} trans ;
+	struct cli_state *cli;
 
-	struct ndr_syntax_id abstract_syntax;
-	struct ndr_syntax_id transfer_syntax;
+	int pipe_idx;
+	const char *pipe_name;
+	uint16 fnum;
 
-	char *desthost;
-	char *srv_name_slash;
+	const char *domain;
+	const char *user_name;
+	struct pwd_info pwd;
 
 	uint16 max_xmit_frag;
 	uint16 max_recv_frag;
 
-	struct cli_pipe_auth_data *auth;
+	struct cli_pipe_auth_data auth;
 
 	/* The following is only non-null on a netlogon pipe. */
 	struct dcinfo *dc;
@@ -133,6 +123,7 @@ struct cli_state {
 	int privileges;
 
 	fstring desthost;
+	fstring srv_name_slash;
 
 	/* The credentials used to open the cli_state connection. */
 	fstring domain;

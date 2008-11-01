@@ -163,10 +163,9 @@ static bool get_rpc_shares(struct cli_state *cli,
 		return False;
 	}
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
-					  &pipe_hnd);
+	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
 
-	if (!NT_STATUS_IS_OK(status)) {
+	if (pipe_hnd == NULL) {
 		DEBUG(10, ("Could not connect to srvsvc pipe: %s\n",
 			   nt_errstr(status)));
 		TALLOC_FREE(mem_ctx);
@@ -180,7 +179,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 	info_ctr.ctr.ctr1 = &ctr1;
 
 	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, mem_ctx,
-					       pipe_hnd->desthost,
+					       pipe_hnd->cli->desthost,
 					       &info_ctr,
 					       0xffffffff,
 					       &total_entries,
@@ -189,7 +188,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
 		TALLOC_FREE(mem_ctx);
-		TALLOC_FREE(pipe_hnd);
+		cli_rpc_pipe_close(pipe_hnd);
 		return False;
 	}
 
@@ -199,7 +198,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 	}
 
 	TALLOC_FREE(mem_ctx);
-	TALLOC_FREE(pipe_hnd);
+	cli_rpc_pipe_close(pipe_hnd);
 	return True;
 }
 

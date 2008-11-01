@@ -152,7 +152,7 @@ static NTSTATUS read_packet_remainder(int fd, char *buffer,
 				1 /* pad byte */)
 
 static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
-						    const char *lenbuf,
+						    const char lenbuf[4],
 						    int fd, char **buffer,
 						    unsigned int timeout,
 						    size_t *p_unread,
@@ -1245,8 +1245,7 @@ static const struct smb_message_struct {
  allocate and initialize a reply packet
 ********************************************************************/
 
-bool create_outbuf(TALLOC_CTX *mem_ctx, const char *inbuf, char **outbuf,
-		   uint8_t num_words, uint32_t num_bytes)
+void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
 {
 	/*
          * Protect against integer wrap
@@ -1261,33 +1260,23 @@ bool create_outbuf(TALLOC_CTX *mem_ctx, const char *inbuf, char **outbuf,
 		smb_panic(msg);
 	}
 
-	*outbuf = TALLOC_ARRAY(mem_ctx, char,
-			       smb_size + num_words*2 + num_bytes);
-	if (*outbuf == NULL) {
-		return false;
+	if (!(req->outbuf = TALLOC_ARRAY(
+		      req, uint8,
+		      smb_size + num_words*2 + num_bytes))) {
+		smb_panic("could not allocate output buffer\n");
 	}
 
-	construct_reply_common(inbuf, *outbuf);
-	srv_set_message(*outbuf, num_words, num_bytes, false);
+	construct_reply_common((char *)req->inbuf, (char *)req->outbuf);
+	srv_set_message((char *)req->outbuf, num_words, num_bytes, false);
 	/*
 	 * Zero out the word area, the caller has to take care of the bcc area
 	 * himself
 	 */
 	if (num_words != 0) {
-		memset(*outbuf + smb_vwv0, 0, num_words*2);
+		memset(req->outbuf + smb_vwv0, 0, num_words*2);
 	}
 
-	return true;
-}
-
-void reply_outbuf(struct smb_request *req, uint8 num_words, uint32 num_bytes)
-{
-	char *outbuf;
-	if (!create_outbuf(req, (char *)req->inbuf, &outbuf, num_words,
-			   num_bytes)) {
-		smb_panic("could not allocate output buffer\n");
-	}
-	req->outbuf = (uint8_t *)outbuf;
+	return;
 }
 
 
@@ -1392,13 +1381,7 @@ static connection_struct *switch_message(uint8 type, struct smb_request *req, in
 		if(session_tag != UID_FIELD_INVALID) {
 			vuser = get_valid_user_struct(session_tag);
 			if (vuser) {
-				set_current_user_info(
-					vuser->server_info->sanitized_username,
-					vuser->server_info->unix_name,
-					pdb_get_fullname(vuser->server_info
-							 ->sam_account),
-					pdb_get_domain(vuser->server_info
-						       ->sam_account));
+				set_current_user_info(&vuser->user);
 			}
 		}
 	}

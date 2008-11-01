@@ -273,9 +273,8 @@ net_share_enum_rpc(struct cli_state *cli,
 	uint32_t total_entries = 0;
 
         /* Open the server service pipe */
-        nt_status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
-					     &pipe_hnd);
-        if (!NT_STATUS_IS_OK(nt_status)) {
+        pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &nt_status);
+        if (!pipe_hnd) {
                 DEBUG(1, ("net_share_enum_rpc pipe open fail!\n"));
                 return -1;
         }
@@ -288,7 +287,7 @@ net_share_enum_rpc(struct cli_state *cli,
 
         /* Issue the NetShareEnum RPC call and retrieve the response */
 	nt_status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, talloc_tos(),
-						  pipe_hnd->desthost,
+						  pipe_hnd->cli->desthost,
 						  &info_ctr,
 						  preferred_len,
 						  &total_entries,
@@ -320,7 +319,7 @@ net_share_enum_rpc(struct cli_state *cli,
 
 done:
         /* Close the server service pipe */
-        TALLOC_FREE(pipe_hnd);
+        cli_rpc_pipe_close(pipe_hnd);
 
         /* Tell 'em if it worked */
         return W_ERROR_IS_OK(result) ? 0 : -1;

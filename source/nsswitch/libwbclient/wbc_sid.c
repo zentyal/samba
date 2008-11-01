@@ -102,7 +102,8 @@ wbcErr wbcStringToSid(const char *str,
 
 	if (!str
 	    || (str[0]!='S' && str[0]!='s')
-	    || (str[1]!='-'))
+	    || (str[1]!='-')
+	    || (strlen(str)<2))
 	{
 		wbc_status = WBC_ERR_INVALID_PARAM;
 		BAIL_ON_WBC_ERROR(wbc_status);
@@ -142,13 +143,9 @@ wbcErr wbcStringToSid(const char *str,
 		x=(uint32_t)strtoul(p, &q, 10);
 		if (p == q)
 			break;
-		if (q == NULL) {
-			wbc_status = WBC_ERR_INVALID_SID;
-			BAIL_ON_WBC_ERROR(wbc_status);
-		}
 		sid->sub_auths[sid->num_auths++] = x;
 
-		if ((*q!='-') || (*q=='\0'))
+		if (q && ((*q!='-') || (*q=='\0')))
 			break;
 		p = q + 1;
 	}
@@ -223,9 +220,9 @@ wbcErr wbcLookupName(const char *domain,
 /** @brief Convert a SID to a domain and name
  *
  * @param *sid        Pointer to the domain SID to be resolved
- * @param pdomain     Resolved Domain name (possibly "")
- * @param pname       Resolved User or group name
- * @param *pname_type Pointet to the resolved SID type
+ * @param domain      Resolved Domain name (possibly "")
+ * @param name        Resolved User or group name
+ * @param *name_type  Pointet to the resolved SID type
  *
  * @return #wbcErr
  *
@@ -242,7 +239,7 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 	char *sid_string = NULL;
 	char *domain = NULL;
 	char *name = NULL;
-	enum wbcSidType name_type = WBC_SID_NAME_USE_NONE;
+	enum wbcSidType name_type;
 
 	if (!sid) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
@@ -294,18 +291,9 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 		}
 	}
 	else {
-#if 0
-		/*
-		 * Found by Coverity: In this particular routine we can't end
-		 * up here with a non-NULL name. Further up there are just two
-		 * exit paths that lead here, neither of which leave an
-		 * allocated name. If you add more paths up there, re-activate
-		 * this.
-		 */
 		if (name != NULL) {
 			talloc_free(name);
 		}
-#endif
 		if (domain != NULL) {
 			talloc_free(domain);
 		}

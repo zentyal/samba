@@ -804,7 +804,7 @@ static bool tdbsam_convert(struct db_context *db, int32 from)
 
 	if (db->transaction_commit(db) != 0) {
 		DEBUG(0, ("Could not commit transaction\n"));
-		return false;
+		goto cancel;
 	}
 
 	return true;
@@ -834,7 +834,7 @@ static bool tdbsam_open( const char *name )
 
 	/* Try to open tdb passwd.  Create a new one if necessary */
 
-	db_sam = db_open(NULL, name, 0, TDB_DEFAULT, O_CREAT|O_RDWR, 0600);
+	db_sam = db_open_trans(NULL, name, 0, TDB_DEFAULT, O_CREAT|O_RDWR, 0600);
 	if (db_sam == NULL) {
 		DEBUG(0, ("tdbsam_open: Failed to open/create TDB passwd "
 			  "[%s]\n", name));
@@ -1064,7 +1064,7 @@ static NTSTATUS tdbsam_delete_sam_account(struct pdb_methods *my_methods,
 
 	if (db_sam->transaction_commit(db_sam) != 0) {
 		DEBUG(0, ("Could not commit transaction\n"));
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		goto cancel;
 	}
 
 	return NT_STATUS_OK;
@@ -1191,7 +1191,7 @@ static bool tdb_update_sam(struct pdb_methods *my_methods, struct samu* newpwd,
 
 	if (db_sam->transaction_commit(db_sam) != 0) {
 		DEBUG(0, ("Could not commit transaction\n"));
-		return false;
+		goto cancel;
 	}
 
 	return true;
@@ -1344,8 +1344,7 @@ static NTSTATUS tdbsam_rename_sam_account(struct pdb_methods *my_methods,
 		 * account back?
 		 */
 		DEBUG(0, ("transaction_commit failed\n"));
-		TALLOC_FREE(new_acct);
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;	
+		goto cancel;
 	}
 
 	TALLOC_FREE(new_acct );

@@ -28,6 +28,7 @@ NTSTATUS rpccli_netr_LogonUasLogon(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONUASLOGON,
 				&r);
@@ -77,6 +78,7 @@ NTSTATUS rpccli_netr_LogonUasLogoff(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONUASLOGOFF,
 				&r);
@@ -134,6 +136,7 @@ NTSTATUS rpccli_netr_LogonSamLogon(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONSAMLOGON,
 				&r);
@@ -187,6 +190,7 @@ NTSTATUS rpccli_netr_LogonSamLogoff(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONSAMLOGOFF,
 				&r);
@@ -233,6 +237,7 @@ NTSTATUS rpccli_netr_ServerReqChallenge(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERREQCHALLENGE,
 				&r);
@@ -281,6 +286,7 @@ NTSTATUS rpccli_netr_ServerAuthenticate(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERAUTHENTICATE,
 				&r);
@@ -331,6 +337,7 @@ NTSTATUS rpccli_netr_ServerPasswordSet(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERPASSWORDSET,
 				&r);
@@ -383,6 +390,7 @@ NTSTATUS rpccli_netr_DatabaseDeltas(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DATABASEDELTAS,
 				&r);
@@ -437,6 +445,7 @@ NTSTATUS rpccli_netr_DatabaseSync(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DATABASESYNC,
 				&r);
@@ -496,6 +505,7 @@ NTSTATUS rpccli_netr_AccountDeltas(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_ACCOUNTDELTAS,
 				&r);
@@ -557,6 +567,7 @@ NTSTATUS rpccli_netr_AccountSync(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_ACCOUNTSYNC,
 				&r);
@@ -605,6 +616,7 @@ NTSTATUS rpccli_netr_GetDcName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_GETDCNAME,
 				&r);
@@ -654,6 +666,7 @@ NTSTATUS rpccli_netr_LogonControl(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONCONTROL,
 				&r);
@@ -701,6 +714,7 @@ NTSTATUS rpccli_netr_GetAnyDCName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_GETANYDCNAME,
 				&r);
@@ -752,6 +766,7 @@ NTSTATUS rpccli_netr_LogonControl2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONCONTROL2,
 				&r);
@@ -806,6 +821,7 @@ NTSTATUS rpccli_netr_ServerAuthenticate2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERAUTHENTICATE2,
 				&r);
@@ -861,6 +877,7 @@ NTSTATUS rpccli_netr_DatabaseSync2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DATABASESYNC2,
 				&r);
@@ -913,6 +930,7 @@ NTSTATUS rpccli_netr_DatabaseRedo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DATABASEREDO,
 				&r);
@@ -961,6 +979,7 @@ NTSTATUS rpccli_netr_LogonControl2Ex(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONCONTROL2EX,
 				&r);
@@ -1006,6 +1025,7 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomains(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRENUMERATETRUSTEDDOMAINS,
 				&r);
@@ -1059,6 +1079,7 @@ NTSTATUS rpccli_netr_DsRGetDCName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETDCNAME,
 				&r);
@@ -1101,6 +1122,7 @@ NTSTATUS rpccli_netr_NETRLOGONDUMMYROUTINE1(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONDUMMYROUTINE1,
 				&r);
@@ -1142,6 +1164,7 @@ NTSTATUS rpccli_netr_NETRLOGONSETSERVICEBITS(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONSETSERVICEBITS,
 				&r);
@@ -1188,6 +1211,7 @@ NTSTATUS rpccli_netr_LogonGetTrustRid(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONGETTRUSTRID,
 				&r);
@@ -1230,6 +1254,7 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTESERVERDIGEST(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONCOMPUTESERVERDIGEST,
 				&r);
@@ -1271,6 +1296,7 @@ NTSTATUS rpccli_netr_NETRLOGONCOMPUTECLIENTDIGEST(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONCOMPUTECLIENTDIGEST,
 				&r);
@@ -1324,6 +1350,7 @@ NTSTATUS rpccli_netr_ServerAuthenticate3(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERAUTHENTICATE3,
 				&r);
@@ -1375,6 +1402,7 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETDCNAMEEX,
 				&r);
@@ -1420,6 +1448,7 @@ NTSTATUS rpccli_netr_DsRGetSiteName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETSITENAME,
 				&r);
@@ -1474,6 +1503,7 @@ NTSTATUS rpccli_netr_LogonGetDomainInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONGETDOMAININFO,
 				&r);
@@ -1525,6 +1555,7 @@ NTSTATUS rpccli_netr_ServerPasswordSet2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERPASSWORDSET2,
 				&r);
@@ -1575,6 +1606,7 @@ NTSTATUS rpccli_netr_ServerPasswordGet(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERPASSWORDGET,
 				&r);
@@ -1618,6 +1650,7 @@ NTSTATUS rpccli_netr_NETRLOGONSENDTOSAM(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONSENDTOSAM,
 				&r);
@@ -1666,6 +1699,7 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesW(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRADDRESSTOSITENAMESW,
 				&r);
@@ -1723,6 +1757,7 @@ NTSTATUS rpccli_netr_DsRGetDCNameEx2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETDCNAMEEX2,
 				&r);
@@ -1765,6 +1800,7 @@ NTSTATUS rpccli_netr_NETRLOGONGETTIMESERVICEPARENTDOMAIN(struct rpc_pipe_client 
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRLOGONGETTIMESERVICEPARENTDOMAIN,
 				&r);
@@ -1809,6 +1845,7 @@ NTSTATUS rpccli_netr_NetrEnumerateTrustedDomainsEx(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRENUMERATETRUSTEDDOMAINSEX,
 				&r);
@@ -1858,6 +1895,7 @@ NTSTATUS rpccli_netr_DsRAddressToSitenamesExW(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRADDRESSTOSITENAMESEXW,
 				&r);
@@ -1903,6 +1941,7 @@ NTSTATUS rpccli_netr_DsrGetDcSiteCoverageW(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETDCSITECOVERAGEW,
 				&r);
@@ -1958,6 +1997,7 @@ NTSTATUS rpccli_netr_LogonSamLogonEx(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONSAMLOGONEX,
 				&r);
@@ -2003,6 +2043,7 @@ NTSTATUS rpccli_netr_DsrEnumerateDomainTrusts(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRENUMERATEDOMAINTRUSTS,
 				&r);
@@ -2055,6 +2096,7 @@ NTSTATUS rpccli_netr_DsrDeregisterDNSHostRecords(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRDEREGISTERDNSHOSTRECORDS,
 				&r);
@@ -2108,6 +2150,7 @@ NTSTATUS rpccli_netr_ServerTrustPasswordsGet(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_SERVERTRUSTPASSWORDSGET,
 				&r);
@@ -2155,6 +2198,7 @@ NTSTATUS rpccli_netr_DsRGetForestTrustInformation(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_DSRGETFORESTTRUSTINFORMATION,
 				&r);
@@ -2207,6 +2251,7 @@ NTSTATUS rpccli_netr_GetForestTrustInformation(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_GETFORESTTRUSTINFORMATION,
 				&r);
@@ -2267,6 +2312,7 @@ NTSTATUS rpccli_netr_LogonSamLogonWithFlags(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_LOGONSAMLOGONWITHFLAGS,
 				&r);
@@ -2310,6 +2356,7 @@ NTSTATUS rpccli_netr_NETRSERVERGETTRUSTINFO(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NETLOGON,
 				&ndr_table_netlogon,
 				NDR_NETR_NETRSERVERGETTRUSTINFO,
 				&r);

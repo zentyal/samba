@@ -27,6 +27,8 @@
  * + and & may be combined
  */
 
+extern userdom_struct current_user_info;
+
 static bool do_group_checks(const char **name, const char **pattern)
 {
 	if ((*name)[0] == '@') {
@@ -64,7 +66,6 @@ static bool do_group_checks(const char **name, const char **pattern)
 
 static bool token_contains_name(TALLOC_CTX *mem_ctx,
 				const char *username,
-				const char *domain,
 				const char *sharename,
 				const struct nt_user_token *token,
 				const char *name)
@@ -74,7 +75,8 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
 	enum lsa_SidType type;
 
 	if (username != NULL) {
-		name = talloc_sub_basic(mem_ctx, username, domain, name);
+		name = talloc_sub_basic(mem_ctx, username,
+					current_user_info.domain, name);
 	}
 	if (sharename != NULL) {
 		name = talloc_string_sub(mem_ctx, name, "%S", sharename);
@@ -150,7 +152,6 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
  */
 
 bool token_contains_name_in_list(const char *username,
-				 const char *domain,
 				 const char *sharename,
 				 const struct nt_user_token *token,
 				 const char **list)
@@ -166,8 +167,7 @@ bool token_contains_name_in_list(const char *username,
 	}
 
 	while (*list != NULL) {
-		if (token_contains_name(mem_ctx, username, domain, sharename,
-					token, *list)) {
+		if (token_contains_name(mem_ctx, username, sharename,token, *list)) {
 			TALLOC_FREE(mem_ctx);
 			return True;
 		}
@@ -191,12 +191,10 @@ bool token_contains_name_in_list(const char *username,
  * The other use is the netgroup check when using @group or &group.
  */
 
-bool user_ok_token(const char *username, const char *domain,
-		   struct nt_user_token *token, int snum)
+bool user_ok_token(const char *username, struct nt_user_token *token, int snum)
 {
 	if (lp_invalid_users(snum) != NULL) {
-		if (token_contains_name_in_list(username, domain,
-						lp_servicename(snum),
+		if (token_contains_name_in_list(username, lp_servicename(snum),
 						token,
 						lp_invalid_users(snum))) {
 			DEBUG(10, ("User %s in 'invalid users'\n", username));
@@ -205,7 +203,7 @@ bool user_ok_token(const char *username, const char *domain,
 	}
 
 	if (lp_valid_users(snum) != NULL) {
-		if (!token_contains_name_in_list(username, domain,
+		if (!token_contains_name_in_list(username,
 						 lp_servicename(snum), token,
 						 lp_valid_users(snum))) {
 			DEBUG(10, ("User %s not in 'valid users'\n",
@@ -222,8 +220,7 @@ bool user_ok_token(const char *username, const char *domain,
 			DEBUG(0, ("'only user = yes' and no 'username ='\n"));
 			return False;
 		}
-		if (!token_contains_name_in_list(NULL, domain,
-						 lp_servicename(snum),
+		if (!token_contains_name_in_list(NULL, lp_servicename(snum),
 						 token, list)) {
 			DEBUG(10, ("%s != 'username'\n", username));
 			return False;
@@ -251,13 +248,12 @@ bool user_ok_token(const char *username, const char *domain,
  */
 
 bool is_share_read_only_for_token(const char *username,
-				  const char *domain,
 				  struct nt_user_token *token, int snum)
 {
 	bool result = lp_readonly(snum);
 
 	if (lp_readlist(snum) != NULL) {
-		if (token_contains_name_in_list(username, domain,
+		if (token_contains_name_in_list(username,
 						lp_servicename(snum), token,
 						lp_readlist(snum))) {
 			result = True;
@@ -265,7 +261,7 @@ bool is_share_read_only_for_token(const char *username,
 	}
 
 	if (lp_writelist(snum) != NULL) {
-		if (token_contains_name_in_list(username, domain,
+		if (token_contains_name_in_list(username,
 						lp_servicename(snum), token,
 						lp_writelist(snum))) {
 			result = False;

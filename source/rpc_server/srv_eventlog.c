@@ -106,8 +106,7 @@ struct api_struct api_eventlog_cmds[] =
 NTSTATUS rpc_eventlog2_init(void)
 {
 	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, 
-		"eventlog", "eventlog", &ndr_table_eventlog.syntax_id,
-		api_eventlog_cmds,
+		"eventlog", "eventlog", api_eventlog_cmds,
 		sizeof(api_eventlog_cmds)/sizeof(struct api_struct));
 }
 

@@ -25,12 +25,48 @@
 
 #ifdef HAVE_ADS
 
+int net_ads_usage(int argc, const char **argv)
+{
+	d_printf("join [createupn[=principal]] [createcomputer=<org_unit>]\n");
+	d_printf("    Join the local machine to a ADS realm\n");
+	d_printf("leave\n");
+	d_printf("    Remove the local machine from a ADS realm\n");
+	d_printf("testjoin\n");
+	d_printf("    Validates the machine account in the domain\n");
+	d_printf("user\n");
+	d_printf("    List, add, or delete users in the realm\n");
+	d_printf("group\n");
+	d_printf("    List, add, or delete groups in the realm\n");
+	d_printf("info\n");
+	d_printf("    Displays details regarding a specific AD server\n");
+	d_printf("status\n");
+	d_printf("    Display details regarding the machine's account in AD\n");
+	d_printf("lookup\n");
+	d_printf("    Performs CLDAP query of AD domain controllers\n");
+	d_printf("password <username@realm> <password> -Uadmin_username@realm%%admin_pass\n");
+	d_printf("    Change a user's password using an admin account\n");
+	d_printf("    (note: use realm in UPPERCASE, prompts if password is obmitted)\n");
+	d_printf("changetrustpw\n");
+	d_printf("    Change the trust account password of this machine in the AD tree\n");
+	d_printf("printer [info | publish | remove] <printername> <servername>\n");
+	d_printf("    Lookup, add, or remove directory entry for a printer\n");
+	d_printf("{search,dn,sid}\n");
+	d_printf("    Issue LDAP search queries using a general filter, by DN, or by SID\n");
+	d_printf("keytab\n");
+	d_printf("    Manage a local keytab file based on the machine account in AD\n");
+	d_printf("dns\n");
+	d_printf("    Issue a dynamic DNS update request the server's hostname\n");
+	d_printf("    (using the machine credentials)\n");
+
+	return -1;
+}
+
 /* when we do not have sufficient input parameters to contact a remote domain
  * we always fall back to our own realm - Guenther*/
 
-static const char *assume_own_realm(struct net_context *c)
+static const char *assume_own_realm(void)
 {
-	if (!c->opt_host && strequal(lp_workgroup(), c->opt_target_workgroup)) {
+	if (!opt_host && strequal(lp_workgroup(), opt_target_workgroup)) {
 		return lp_realm();
 	}
 
@@ -40,7 +76,7 @@ static const char *assume_own_realm(struct net_context *c)
 /*
   do a cldap netlogon query
 */
-static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
+static int net_ads_cldap_netlogon(ADS_STRUCT *ads)
 {
 	char addr[INET6_ADDRSTRLEN];
 	struct nbt_cldap_netlogon_5 reply;
@@ -79,9 +115,7 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 		 "\tIs the closest DC:                          %s\n"
 		 "\tIs writable:                                %s\n"
 		 "\tHas a hardware clock:                       %s\n"
-		 "\tIs a non-domain NC serviced by LDAP server: %s\n"
-		 "\tIs NT6 DC that has some secrets:            %s\n"
-		 "\tIs NT6 DC that has all secrets:             %s\n",
+		 "\tIs a non-domain NC serviced by LDAP server: %s\n",
 		 (reply.server_type & NBT_SERVER_PDC) ? "yes" : "no",
 		 (reply.server_type & NBT_SERVER_GC) ? "yes" : "no",
 		 (reply.server_type & NBT_SERVER_LDAP) ? "yes" : "no",
@@ -91,10 +125,7 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 		 (reply.server_type & NBT_SERVER_CLOSEST) ? "yes" : "no",
 		 (reply.server_type & NBT_SERVER_WRITABLE) ? "yes" : "no",
 		 (reply.server_type & NBT_SERVER_GOOD_TIMESERV) ? "yes" : "no",
-		 (reply.server_type & NBT_SERVER_NDNC) ? "yes" : "no",
-		 (reply.server_type & NBT_SERVER_SELECT_SECRET_DOMAIN_6) ? "yes" : "no",
-		 (reply.server_type & NBT_SERVER_FULL_SECRET_DOMAIN_6) ? "yes" : "no");
-
+		 (reply.server_type & DS_SERVER_NDNC) ? "yes" : "no");
 
 	printf("Forest:\t\t\t%s\n", reply.forest);
 	printf("Domain:\t\t\t%s\n", reply.dns_domain);
@@ -119,46 +150,31 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
   this implements the CLDAP based netlogon lookup requests
   for finding the domain controller of a ADS domain
 */
-static int net_ads_lookup(struct net_context *c, int argc, const char **argv)
+static int net_ads_lookup(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads lookup\n"
-			 "    Find the ADS DC using CLDAP lookup.\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup_nobind(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup_nobind(False, &ads))) {
 		d_fprintf(stderr, "Didn't find the cldap server!\n");
 		return -1;
 	}
 
 	if (!ads->config.realm) {
-		ads->config.realm = CONST_DISCARD(char *, c->opt_target_workgroup);
+		ads->config.realm = CONST_DISCARD(char *, opt_target_workgroup);
 		ads->ldap.port = 389;
 	}
 
-	return net_ads_cldap_netlogon(c, ads);
+	return net_ads_cldap_netlogon(ads);
 }
 
 
 
-static int net_ads_info(struct net_context *c, int argc, const char **argv)
+static int net_ads_info(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	char addr[INET6_ADDRSTRLEN];
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads info\n"
-			 "    Display information about an Active Directory "
-			 "server.\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup_nobind(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup_nobind(False, &ads))) {
 		d_fprintf(stderr, "Didn't find the ldap server!\n");
 		return -1;
 	}
@@ -196,16 +212,15 @@ static void use_in_memory_ccache(void) {
 	setenv(KRB5_ENV_CCNAME, "MEMORY:net_ads", 1);
 }
 
-static ADS_STATUS ads_startup_int(struct net_context *c, bool only_own_domain,
-				  uint32 auth_flags, ADS_STRUCT **ads_ret)
+static ADS_STATUS ads_startup_int(bool only_own_domain, uint32 auth_flags, ADS_STRUCT **ads_ret)
 {
 	ADS_STRUCT *ads = NULL;
 	ADS_STATUS status;
-	bool need_password = false;
-	bool second_time = false;
+	bool need_password = False;
+	bool second_time = False;
 	char *cp;
 	const char *realm = NULL;
-	bool tried_closest_dc = false;
+	bool tried_closest_dc = False;
 
 	/* lp_realm() should be handled by a command line param,
 	   However, the join requires that realm be set in smb.conf
@@ -218,37 +233,37 @@ retry_connect:
  	if (only_own_domain) {
 		realm = lp_realm();
 	} else {
-		realm = assume_own_realm(c);
+		realm = assume_own_realm();
 	}
 
-	ads = ads_init(realm, c->opt_target_workgroup, c->opt_host);
+	ads = ads_init(realm, opt_target_workgroup, opt_host);
 
-	if (!c->opt_user_name) {
-		c->opt_user_name = "administrator";
+	if (!opt_user_name) {
+		opt_user_name = "administrator";
 	}
 
-	if (c->opt_user_specified) {
-		need_password = true;
+	if (opt_user_specified) {
+		need_password = True;
 	}
 
 retry:
-	if (!c->opt_password && need_password && !c->opt_machine_pass) {
-		c->opt_password = net_prompt_pass(c, c->opt_user_name);
-		if (!c->opt_password) {
+	if (!opt_password && need_password && !opt_machine_pass) {
+		opt_password = net_prompt_pass(opt_user_name);
+		if (!opt_password) {
 			ads_destroy(&ads);
 			return ADS_ERROR(LDAP_NO_MEMORY);
 		}
 	}
 
-	if (c->opt_password) {
+	if (opt_password) {
 		use_in_memory_ccache();
 		SAFE_FREE(ads->auth.password);
-		ads->auth.password = smb_xstrdup(c->opt_password);
+		ads->auth.password = smb_xstrdup(opt_password);
 	}
 
 	ads->auth.flags |= auth_flags;
 	SAFE_FREE(ads->auth.user_name);
-	ads->auth.user_name = smb_xstrdup(c->opt_user_name);
+	ads->auth.user_name = smb_xstrdup(opt_user_name);
 
        /*
         * If the username is of the form "name@realm",
@@ -274,8 +289,8 @@ retry:
 		}
 
 		if (!need_password && !second_time && !(auth_flags & ADS_AUTH_NO_BIND)) {
-			need_password = true;
-			second_time = true;
+			need_password = True;
+			second_time = True;
 			goto retry;
 		} else {
 			ads_destroy(&ads);
@@ -287,9 +302,9 @@ retry:
 	 * This is done by reconnecting to ADS because only the first call to
 	 * ads_connect will give us our own sitename */
 
-	if ((only_own_domain || !c->opt_host) && !tried_closest_dc) {
+	if ((only_own_domain || !opt_host) && !tried_closest_dc) {
 
-		tried_closest_dc = true; /* avoid loop */
+		tried_closest_dc = True; /* avoid loop */
 
 		if (!ads->config.tried_closest_dc) {
 
@@ -307,14 +322,14 @@ retry:
 	return status;
 }
 
-ADS_STATUS ads_startup(struct net_context *c, bool only_own_domain, ADS_STRUCT **ads)
+ADS_STATUS ads_startup(bool only_own_domain, ADS_STRUCT **ads)
 {
-	return ads_startup_int(c, only_own_domain, 0, ads);
+	return ads_startup_int(only_own_domain, 0, ads);
 }
 
-ADS_STATUS ads_startup_nobind(struct net_context *c, bool only_own_domain, ADS_STRUCT **ads)
+ADS_STATUS ads_startup_nobind(bool only_own_domain, ADS_STRUCT **ads)
 {
-	return ads_startup_int(c, only_own_domain, ADS_AUTH_NO_BIND, ads);
+	return ads_startup_int(only_own_domain, ADS_AUTH_NO_BIND, ads);
 }
 
 /*
@@ -342,39 +357,32 @@ static int net_ads_check_int(const char *realm, const char *workgroup, const cha
 	return 0;
 }
 
-int net_ads_check_our_domain(struct net_context *c)
+int net_ads_check_our_domain(void)
 {
 	return net_ads_check_int(lp_realm(), lp_workgroup(), NULL);
 }
 
-int net_ads_check(struct net_context *c)
+int net_ads_check(void)
 {
-	return net_ads_check_int(NULL, c->opt_workgroup, c->opt_host);
+	return net_ads_check_int(NULL, opt_workgroup, opt_host);
 }
 
 /*
    determine the netbios workgroup name for a domain
  */
-static int net_ads_workgroup(struct net_context *c, int argc, const char **argv)
+static int net_ads_workgroup(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	char addr[INET6_ADDRSTRLEN];
 	struct nbt_cldap_netlogon_5 reply;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads workgroup\n"
-			 "    Print the workgroup name\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup_nobind(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup_nobind(False, &ads))) {
 		d_fprintf(stderr, "Didn't find the cldap server!\n");
 		return -1;
 	}
 
 	if (!ads->config.realm) {
-		ads->config.realm = CONST_DISCARD(char *, c->opt_target_workgroup);
+		ads->config.realm = CONST_DISCARD(char *, opt_target_workgroup);
 		ads->ldap.port = 389;
 	}
 
@@ -409,24 +417,24 @@ static bool usergrp_display(ADS_STRUCT *ads, char *field, void **values, void *d
 		}
 		SAFE_FREE(disp_fields[0]);
 		SAFE_FREE(disp_fields[1]);
-		return true;
+		return True;
 	}
 	if (!values) /* must be new field, indicate string field */
-		return true;
+		return True;
 	if (StrCaseCmp(field, "sAMAccountName") == 0) {
 		disp_fields[0] = SMB_STRDUP((char *) values[0]);
 	}
 	if (StrCaseCmp(field, "description") == 0)
 		disp_fields[1] = SMB_STRDUP((char *) values[0]);
-	return true;
+	return True;
 }
 
-static int net_ads_user_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_user_usage(int argc, const char **argv)
 {
-	return net_user_usage(c, argc, argv);
+	return net_help_user(argc, argv);
 }
 
-static int ads_user_add(struct net_context *c, int argc, const char **argv)
+static int ads_user_add(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS status;
@@ -435,10 +443,9 @@ static int ads_user_add(struct net_context *c, int argc, const char **argv)
 	int rc = -1;
 	char *ou_str = NULL;
 
-	if (argc < 1 || c->display_usage)
-		return net_ads_user_usage(c, argc, argv);
+	if (argc < 1) return net_ads_user_usage(argc, argv);
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -454,13 +461,13 @@ static int ads_user_add(struct net_context *c, int argc, const char **argv)
 		goto done;
 	}
 
-	if (c->opt_container) {
-		ou_str = SMB_STRDUP(c->opt_container);
+	if (opt_container) {
+		ou_str = SMB_STRDUP(opt_container);
 	} else {
 		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
 	}
 
-	status = ads_add_user_acct(ads, argv[0], ou_str, c->opt_comment);
+	status = ads_add_user_acct(ads, argv[0], ou_str, opt_comment);
 
 	if (!ADS_ERR_OK(status)) {
 		d_fprintf(stderr, "Could not add user %s: %s\n", argv[0],
@@ -505,7 +512,7 @@ static int ads_user_add(struct net_context *c, int argc, const char **argv)
 	return rc;
 }
 
-static int ads_user_info(struct net_context *c, int argc, const char **argv)
+static int ads_user_info(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -515,8 +522,8 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 	char **grouplist;
 	char *escaped_user;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_user_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_user_usage(argc, argv);
 	}
 
 	escaped_user = escape_ldap_string_alloc(argv[0]);
@@ -526,7 +533,7 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		SAFE_FREE(escaped_user);
 		return -1;
 	}
@@ -562,7 +569,7 @@ static int ads_user_info(struct net_context *c, int argc, const char **argv)
 	return 0;
 }
 
-static int ads_user_delete(struct net_context *c, int argc, const char **argv)
+static int ads_user_delete(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -570,10 +577,10 @@ static int ads_user_delete(struct net_context *c, int argc, const char **argv)
 	char *userdn;
 
 	if (argc < 1) {
-		return net_ads_user_usage(c, argc, argv);
+		return net_ads_user_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -599,34 +606,13 @@ static int ads_user_delete(struct net_context *c, int argc, const char **argv)
 	return -1;
 }
 
-int net_ads_user(struct net_context *c, int argc, const char **argv)
+int net_ads_user(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"add",
-			ads_user_add,
-			NET_TRANSPORT_ADS,
-			"Add an AD user",
-			"net ads user add\n"
-			"    Add an AD user"
-		},
-		{
-			"info",
-			ads_user_info,
-			NET_TRANSPORT_ADS,
-			"Display information about an AD user",
-			"net ads user info\n"
-			"    Display information about an AD user"
-		},
-		{
-			"delete",
-			ads_user_delete,
-			NET_TRANSPORT_ADS,
-			"Delete an AD user",
-			"net ads user delete\n"
-			"    Delete an AD user"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"ADD", ads_user_add},
+		{"INFO", ads_user_info},
+		{"DELETE", ads_user_delete},
+		{NULL, NULL}
 	};
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -635,41 +621,33 @@ int net_ads_user(struct net_context *c, int argc, const char **argv)
 	char *disp_fields[2] = {NULL, NULL};
 
 	if (argc == 0) {
-		if (c->display_usage) {
-			d_printf("Usage:\n");
-			d_printf("net ads user\n"
-				 "    List AD users\n");
-			net_display_usage_from_functable(func);
-			return 0;
-		}
-
-		if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+		if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 			return -1;
 		}
 
-		if (c->opt_long_list_entries)
-			d_printf("\nUser name             Comment"
+		if (opt_long_list_entries)
+			d_printf("\nUser name             Comment"\
 				 "\n-----------------------------\n");
 
 		rc = ads_do_search_all_fn(ads, ads->config.bind_path,
 					  LDAP_SCOPE_SUBTREE,
 					  "(objectCategory=user)",
-					  c->opt_long_list_entries ? longattrs :
+					  opt_long_list_entries ? longattrs :
 					  shortattrs, usergrp_display,
 					  disp_fields);
 		ads_destroy(&ads);
 		return ADS_ERR_OK(rc) ? 0 : -1;
 	}
 
-	return net_run_function(c, argc, argv, "net ads user", func);
+	return net_run_function(argc, argv, func, net_ads_user_usage);
 }
 
-static int net_ads_group_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_group_usage(int argc, const char **argv)
 {
-	return net_group_usage(c, argc, argv);
+	return net_help_group(argc, argv);
 }
 
-static int ads_group_add(struct net_context *c, int argc, const char **argv)
+static int ads_group_add(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS status;
@@ -677,11 +655,11 @@ static int ads_group_add(struct net_context *c, int argc, const char **argv)
 	int rc = -1;
 	char *ou_str = NULL;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_group_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_group_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -697,13 +675,13 @@ static int ads_group_add(struct net_context *c, int argc, const char **argv)
 		goto done;
 	}
 
-	if (c->opt_container) {
-		ou_str = SMB_STRDUP(c->opt_container);
+	if (opt_container) {
+		ou_str = SMB_STRDUP(opt_container);
 	} else {
 		ou_str = ads_default_ou_string(ads, WELL_KNOWN_GUID_USERS);
 	}
 
-	status = ads_add_group_acct(ads, argv[0], ou_str, c->opt_comment);
+	status = ads_add_group_acct(ads, argv[0], ou_str, opt_comment);
 
 	if (ADS_ERR_OK(status)) {
 		d_printf("Group %s added\n", argv[0]);
@@ -721,18 +699,18 @@ static int ads_group_add(struct net_context *c, int argc, const char **argv)
 	return rc;
 }
 
-static int ads_group_delete(struct net_context *c, int argc, const char **argv)
+static int ads_group_delete(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
 	LDAPMessage *res = NULL;
 	char *groupdn;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_group_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_group_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -758,26 +736,12 @@ static int ads_group_delete(struct net_context *c, int argc, const char **argv)
 	return -1;
 }
 
-int net_ads_group(struct net_context *c, int argc, const char **argv)
+int net_ads_group(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"add",
-			ads_group_add,
-			NET_TRANSPORT_ADS,
-			"Add an AD group",
-			"net ads group add\n"
-			"    Add an AD group"
-		},
-		{
-			"delete",
-			ads_group_delete,
-			NET_TRANSPORT_ADS,
-			"Delete an AD group",
-			"net ads group delete\n"
-			"    Delete an AD group"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"ADD", ads_group_add},
+		{"DELETE", ads_group_delete},
+		{NULL, NULL}
 	};
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -786,48 +750,33 @@ int net_ads_group(struct net_context *c, int argc, const char **argv)
 	char *disp_fields[2] = {NULL, NULL};
 
 	if (argc == 0) {
-		if (c->display_usage) {
-			d_printf("Usage:\n");
-			d_printf("net ads group\n"
-				 "    List AD groups\n");
-			net_display_usage_from_functable(func);
-			return 0;
-		}
-
-		if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+		if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 			return -1;
 		}
 
-		if (c->opt_long_list_entries)
-			d_printf("\nGroup name            Comment"
+		if (opt_long_list_entries)
+			d_printf("\nGroup name            Comment"\
 				 "\n-----------------------------\n");
 		rc = ads_do_search_all_fn(ads, ads->config.bind_path,
 					  LDAP_SCOPE_SUBTREE,
 					  "(objectCategory=group)",
-					  c->opt_long_list_entries ? longattrs :
+					  opt_long_list_entries ? longattrs :
 					  shortattrs, usergrp_display,
 					  disp_fields);
 
 		ads_destroy(&ads);
 		return ADS_ERR_OK(rc) ? 0 : -1;
 	}
-	return net_run_function(c, argc, argv, "net ads group", func);
+	return net_run_function(argc, argv, func, net_ads_group_usage);
 }
 
-static int net_ads_status(struct net_context *c, int argc, const char **argv)
+static int net_ads_status(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
 	LDAPMessage *res;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads status\n"
-			 "    Display machine account details\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 
@@ -856,18 +805,11 @@ static int net_ads_status(struct net_context *c, int argc, const char **argv)
  with full control to the computer object's ACL.
 *******************************************************************/
 
-static int net_ads_leave(struct net_context *c, int argc, const char **argv)
+static int net_ads_leave(int argc, const char **argv)
 {
 	TALLOC_CTX *ctx;
 	struct libnet_UnjoinCtx *r = NULL;
 	WERROR werr;
-
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads leave\n"
-			 "    Leave an AD domain\n");
-		return 0;
-	}
 
 	if (!*lp_realm()) {
 		d_fprintf(stderr, "No realm set, are we joined ?\n");
@@ -879,9 +821,7 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	if (!c->opt_kerberos) {
-		use_in_memory_ccache();
-	}
+	use_in_memory_ccache();
 
 	werr = libnet_init_UnjoinCtx(ctx, &r);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -890,11 +830,10 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 	}
 
 	r->in.debug		= true;
-	r->in.use_kerberos	= c->opt_kerberos;
-	r->in.dc_name		= c->opt_host;
+	r->in.dc_name		= opt_host;
 	r->in.domain_name	= lp_realm();
-	r->in.admin_account	= c->opt_user_name;
-	r->in.admin_password	= net_prompt_pass(c, c->opt_user_name);
+	r->in.admin_account	= opt_user_name;
+	r->in.admin_password	= net_prompt_pass(opt_user_name);
 	r->in.modify_config	= lp_config_backend_is_registry();
 	r->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
@@ -935,7 +874,7 @@ static int net_ads_leave(struct net_context *c, int argc, const char **argv)
 	return -1;
 }
 
-static NTSTATUS net_ads_join_ok(struct net_context *c)
+static NTSTATUS net_ads_join_ok(void)
 {
 	ADS_STRUCT *ads = NULL;
 	ADS_STATUS status;
@@ -945,9 +884,9 @@ static NTSTATUS net_ads_join_ok(struct net_context *c)
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	net_use_krb_machine_account(c);
+	net_use_krb_machine_account();
 
-	status = ads_startup(c, true, &ads);
+	status = ads_startup(True, &ads);
 	if (!ADS_ERR_OK(status)) {
 		return ads_ntstatus(status);
 	}
@@ -959,20 +898,13 @@ static NTSTATUS net_ads_join_ok(struct net_context *c)
 /*
   check that an existing join is OK
  */
-int net_ads_testjoin(struct net_context *c, int argc, const char **argv)
+int net_ads_testjoin(int argc, const char **argv)
 {
 	NTSTATUS status;
 	use_in_memory_ccache();
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads testjoin\n"
-			 "    Test if the existing join is ok\n");
-		return 0;
-	}
-
 	/* Display success or failure */
-	status = net_ads_join_ok(c);
+	status = net_ads_join_ok();
 	if (!NT_STATUS_IS_OK(status)) {
 		fprintf(stderr,"Join to domain is not valid: %s\n",
 			get_friendly_nt_error_msg(status));
@@ -1140,7 +1072,7 @@ static NTSTATUS net_update_dns(TALLOC_CTX *mem_ctx, ADS_STRUCT *ads)
 /*******************************************************************
  ********************************************************************/
 
-static int net_ads_join_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_join_usage(int argc, const char **argv)
 {
 	d_printf("net ads join [options]\n");
 	d_printf("Valid options:\n");
@@ -1163,22 +1095,19 @@ static int net_ads_join_usage(struct net_context *c, int argc, const char **argv
 /*******************************************************************
  ********************************************************************/
 
-int net_ads_join(struct net_context *c, int argc, const char **argv)
+int net_ads_join(int argc, const char **argv)
 {
 	TALLOC_CTX *ctx = NULL;
 	struct libnet_JoinCtx *r = NULL;
 	const char *domain = lp_realm();
 	WERROR werr = WERR_SETUP_NOT_JOINED;
-	bool createupn = false;
+	bool createupn = False;
 	const char *machineupn = NULL;
 	const char *create_in_ou = NULL;
 	int i;
 	const char *os_name = NULL;
 	const char *os_version = NULL;
 	bool modify_config = lp_config_backend_is_registry();
-
-	if (c->display_usage)
-		return net_ads_join_usage(c, argc, argv);
 
 	if (!modify_config) {
 
@@ -1195,9 +1124,7 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 		goto fail;
 	}
 
-	if (!c->opt_kerberos) {
-		use_in_memory_ccache();
-	}
+	use_in_memory_ccache();
 
 	werr = libnet_init_JoinCtx(ctx, &r);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -1208,7 +1135,7 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 
 	for ( i=0; i<argc; i++ ) {
 		if ( !StrnCaseCmp(argv[i], "createupn", strlen("createupn")) ) {
-			createupn = true;
+			createupn = True;
 			machineupn = get_string_param(argv[i]);
 		}
 		else if ( !StrnCaseCmp(argv[i], "createcomputer", strlen("createcomputer")) ) {
@@ -1251,11 +1178,10 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	r->in.account_ou	= create_in_ou;
 	r->in.os_name		= os_name;
 	r->in.os_version	= os_version;
-	r->in.dc_name		= c->opt_host;
-	r->in.admin_account	= c->opt_user_name;
-	r->in.admin_password	= net_prompt_pass(c, c->opt_user_name);
+	r->in.dc_name		= opt_host;
+	r->in.admin_account	= opt_user_name;
+	r->in.admin_password	= net_prompt_pass(opt_user_name);
 	r->in.debug		= true;
-	r->in.use_kerberos	= c->opt_kerberos;
 	r->in.modify_config	= modify_config;
 	r->in.join_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
@@ -1329,7 +1255,24 @@ fail:
 /*******************************************************************
  ********************************************************************/
 
-static int net_ads_dns_register(struct net_context *c, int argc, const char **argv)
+static int net_ads_dns_usage(int argc, const char **argv)
+{
+#if defined(WITH_DNS_UPDATES)
+	d_printf("net ads dns <command>\n");
+	d_printf("Valid commands:\n");
+	d_printf("   register         Issue a dynamic DNS update request for our hostname\n");
+
+	return 0;
+#else
+	d_fprintf(stderr, "DNS update support not enabled at compile time!\n");
+	return -1;
+#endif
+}
+
+/*******************************************************************
+ ********************************************************************/
+
+static int net_ads_dns_register(int argc, const char **argv)
 {
 #if defined(WITH_DNS_UPDATES)
 	ADS_STRUCT *ads;
@@ -1340,10 +1283,8 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 	talloc_enable_leak_report();
 #endif
 
-	if (argc > 0 || c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads dns register\n"
-			 "    Register hostname with DNS\n");
+	if (argc > 0) {
+		d_fprintf(stderr, "net ads dns register\n");
 		return -1;
 	}
 
@@ -1352,7 +1293,7 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 		return -1;
 	}
 
-	status = ads_startup(c, true, &ads);
+	status = ads_startup(True, &ads);
 	if ( !ADS_ERR_OK(status) ) {
 		DEBUG(1, ("error on ads_startup: %s\n", ads_errstr(status)));
 		TALLOC_FREE(ctx);
@@ -1382,7 +1323,7 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 DNS_ERROR do_gethostbyname(const char *server, const char *host);
 #endif
 
-static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char **argv)
+static int net_ads_dns_gethostbyname(int argc, const char **argv)
 {
 #if defined(WITH_DNS_UPDATES)
 	DNS_ERROR err;
@@ -1391,12 +1332,9 @@ static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char
 	talloc_enable_leak_report();
 #endif
 
-	if (argc != 2 || c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads dns gethostbyname <server> <name>\n"
-			 "  Look up hostname from the AD\n"
-			 "    server\tName server to use\n"
-			 "    name\tName to look up\n");
+	if (argc != 2) {
+		d_fprintf(stderr, "net ads dns gethostbyname <server> "
+			  "<name>\n");
 		return -1;
 	}
 
@@ -1407,35 +1345,21 @@ static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char
 	return 0;
 }
 
-static int net_ads_dns(struct net_context *c, int argc, const char *argv[])
+static int net_ads_dns(int argc, const char *argv[])
 {
 	struct functable func[] = {
-		{
-			"register",
-			net_ads_dns_register,
-			NET_TRANSPORT_ADS,
-			"Add host dns entry to AD",
-			"net ads dns register\n"
-			"    Add host dns entry to AD"
-		},
-		{
-			"gethostbyname",
-			net_ads_dns_gethostbyname,
-			NET_TRANSPORT_ADS,
-			"Look up host",
-			"net ads dns gethostbyname\n"
-			"    Look up host"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"REGISTER", net_ads_dns_register},
+		{"GETHOSTBYNAME", net_ads_dns_gethostbyname},
+		{NULL, NULL}
 	};
 
-	return net_run_function(c, argc, argv, "net ads dns", func);
+	return net_run_function(argc, argv, func, net_ads_dns_usage);
 }
 
 /*******************************************************************
  ********************************************************************/
 
-int net_ads_printer_usage(struct net_context *c, int argc, const char **argv)
+int net_ads_printer_usage(int argc, const char **argv)
 {
 	d_printf(
 "\nnet ads printer search <printer>"
@@ -1455,20 +1379,13 @@ int net_ads_printer_usage(struct net_context *c, int argc, const char **argv)
 /*******************************************************************
  ********************************************************************/
 
-static int net_ads_printer_search(struct net_context *c, int argc, const char **argv)
+static int net_ads_printer_search(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
 	LDAPMessage *res = NULL;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads printer search\n"
-			 "    List printers in the AD\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -1494,23 +1411,14 @@ static int net_ads_printer_search(struct net_context *c, int argc, const char **
 	return 0;
 }
 
-static int net_ads_printer_info(struct net_context *c, int argc, const char **argv)
+static int net_ads_printer_info(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
 	const char *servername, *printername;
 	LDAPMessage *res = NULL;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads printer info [printername [servername]]\n"
-			 "  Display printer info from AD\n"
-			 "    printername\tPrinter name or wildcard\n"
-			 "    servername\tName of the print server\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -1550,7 +1458,7 @@ static int net_ads_printer_info(struct net_context *c, int argc, const char **ar
 	return 0;
 }
 
-static int net_ads_printer_publish(struct net_context *c, int argc, const char **argv)
+static int net_ads_printer_publish(int argc, const char **argv)
 {
         ADS_STRUCT *ads;
         ADS_STATUS rc;
@@ -1565,19 +1473,14 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 	char *srv_cn_escaped = NULL, *printername_escaped = NULL;
 	LDAPMessage *res = NULL;
 
-	if (argc < 1 || c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads printer publish <printername> [servername]\n"
-			 "  Publish printer in AD\n"
-			 "    printername\tName of the printer\n"
-			 "    servername\tName of the print server\n");
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		talloc_destroy(mem_ctx);
 		return -1;
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (argc < 1) {
 		talloc_destroy(mem_ctx);
-		return -1;
+		return net_ads_printer_usage(argc, argv);
 	}
 
 	printername = argv[0];
@@ -1595,8 +1498,8 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 	nt_status = cli_full_connection(&cli, global_myname(), servername,
 					&server_ss, 0,
 					"IPC$", "IPC",
-					c->opt_user_name, c->opt_workgroup,
-					c->opt_password ? c->opt_password : "",
+					opt_user_name, opt_workgroup,
+					opt_password ? opt_password : "",
 					CLI_FULL_CONNECTION_USE_KERBEROS,
 					Undefined, NULL);
 
@@ -1639,8 +1542,8 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 	SAFE_FREE(srv_cn_escaped);
 	SAFE_FREE(printername_escaped);
 
-	nt_status = cli_rpc_pipe_open_noauth(cli, &syntax_spoolss, &pipe_hnd);
-	if (!NT_STATUS_IS_OK(nt_status)) {
+	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SPOOLSS, &nt_status);
+	if (!pipe_hnd) {
 		d_fprintf(stderr, "Unable to open a connnection to the spoolss pipe on %s\n",
 			 servername);
 		SAFE_FREE(prt_dn);
@@ -1674,7 +1577,7 @@ static int net_ads_printer_publish(struct net_context *c, int argc, const char *
 	return 0;
 }
 
-static int net_ads_printer_remove(struct net_context *c, int argc, const char **argv)
+static int net_ads_printer_remove(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -1682,17 +1585,12 @@ static int net_ads_printer_remove(struct net_context *c, int argc, const char **
 	char *prt_dn;
 	LDAPMessage *res = NULL;
 
-	if (argc < 1 || c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads printer remove <printername> [servername]\n"
-			 "  Remove a printer from the AD\n"
-			 "    printername\tName of the printer\n"
-			 "    servername\tName of the print server\n");
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
-		return -1;
+	if (argc < 1) {
+		return net_ads_printer_usage(argc, argv);
 	}
 
 	if (argc > 1) {
@@ -1732,68 +1630,32 @@ static int net_ads_printer_remove(struct net_context *c, int argc, const char **
 	return 0;
 }
 
-static int net_ads_printer(struct net_context *c, int argc, const char **argv)
+static int net_ads_printer(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"search",
-			net_ads_printer_search,
-			NET_TRANSPORT_ADS,
-			"Search for a printer",
-			"net ads printer search\n"
-			"    Search for a printer"
-		},
-		{
-			"info",
-			net_ads_printer_info,
-			NET_TRANSPORT_ADS,
-			"Display printer information",
-			"net ads printer info\n"
-			"    Display printer information"
-		},
-		{
-			"publish",
-			net_ads_printer_publish,
-			NET_TRANSPORT_ADS,
-			"Publish a printer",
-			"net ads printer publish\n"
-			"    Publish a printer"
-		},
-		{
-			"remove",
-			net_ads_printer_remove,
-			NET_TRANSPORT_ADS,
-			"Delete a printer",
-			"net ads printer remove\n"
-			"    Delete a printer"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"SEARCH", net_ads_printer_search},
+		{"INFO", net_ads_printer_info},
+		{"PUBLISH", net_ads_printer_publish},
+		{"REMOVE", net_ads_printer_remove},
+		{NULL, NULL}
 	};
 
-	return net_run_function(c, argc, argv, "net ads printer", func);
+	return net_run_function(argc, argv, func, net_ads_printer_usage);
 }
 
 
-static int net_ads_password(struct net_context *c, int argc, const char **argv)
+static int net_ads_password(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
-	const char *auth_principal = c->opt_user_name;
-	const char *auth_password = c->opt_password;
+	const char *auth_principal = opt_user_name;
+	const char *auth_password = opt_password;
 	char *realm = NULL;
 	char *new_password = NULL;
-	char *chr, *prompt;
+	char *c, *prompt;
 	const char *user;
 	ADS_STATUS ret;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads password <username>\n"
-			 "  Change password for user\n"
-			 "    username\tName of user to change password for\n");
-		return 0;
-	}
-
-	if (c->opt_user_name == NULL || c->opt_password == NULL) {
+	if (opt_user_name == NULL || opt_password == NULL) {
 		d_fprintf(stderr, "You must supply an administrator username/password\n");
 		return -1;
 	}
@@ -1805,21 +1667,21 @@ static int net_ads_password(struct net_context *c, int argc, const char **argv)
 
 	user = argv[0];
 	if (!strchr_m(user, '@')) {
-		asprintf(&chr, "%s@%s", argv[0], lp_realm());
-		user = chr;
+		asprintf(&c, "%s@%s", argv[0], lp_realm());
+		user = c;
 	}
 
 	use_in_memory_ccache();
-	chr = strchr_m(auth_principal, '@');
-	if (chr) {
-		realm = ++chr;
+	c = strchr_m(auth_principal, '@');
+	if (c) {
+		realm = ++c;
 	} else {
 		realm = lp_realm();
 	}
 
 	/* use the realm so we can eventually change passwords for users
 	in realms other than default */
-	if (!(ads = ads_init(realm, c->opt_workgroup, c->opt_host))) {
+	if (!(ads = ads_init(realm, opt_workgroup, opt_host))) {
 		return -1;
 	}
 
@@ -1854,30 +1716,23 @@ static int net_ads_password(struct net_context *c, int argc, const char **argv)
 	return 0;
 }
 
-int net_ads_changetrustpw(struct net_context *c, int argc, const char **argv)
+int net_ads_changetrustpw(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	char *host_principal;
 	fstring my_name;
 	ADS_STATUS ret;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads changetrustpw\n"
-			 "    Change the machine account's trust password\n");
-		return 0;
-	}
-
 	if (!secrets_init()) {
 		DEBUG(1,("Failed to initialise secrets database\n"));
 		return -1;
 	}
 
-	net_use_krb_machine_account(c);
+	net_use_krb_machine_account();
 
 	use_in_memory_ccache();
 
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 
@@ -1913,16 +1768,16 @@ int net_ads_changetrustpw(struct net_context *c, int argc, const char **argv)
 /*
   help for net ads search
 */
-static int net_ads_search_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_search_usage(int argc, const char **argv)
 {
 	d_printf(
-		"\nnet ads search <expression> <attributes...>\n"
-		"\nPerform a raw LDAP search on a ADS server and dump the results.\n"
-		"The expression is a standard LDAP search expression, and the\n"
-		"attributes are a list of LDAP fields to show in the results.\n\n"
+		"\nnet ads search <expression> <attributes...>\n"\
+		"\nperform a raw LDAP search on a ADS server and dump the results\n"\
+		"The expression is a standard LDAP search expression, and the\n"\
+		"attributes are a list of LDAP fields to show in the results\n\n"\
 		"Example: net ads search '(objectCategory=group)' sAMAccountName\n\n"
 		);
-	net_common_flags_usage(c, argc, argv);
+	net_common_flags_usage(argc, argv);
 	return -1;
 }
 
@@ -1930,7 +1785,7 @@ static int net_ads_search_usage(struct net_context *c, int argc, const char **ar
 /*
   general ADS search function. Useful in diagnosing problems in ADS
 */
-static int net_ads_search(struct net_context *c, int argc, const char **argv)
+static int net_ads_search(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -1938,11 +1793,11 @@ static int net_ads_search(struct net_context *c, int argc, const char **argv)
 	const char **attrs;
 	LDAPMessage *res = NULL;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_search_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_search_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -1973,17 +1828,17 @@ static int net_ads_search(struct net_context *c, int argc, const char **argv)
 /*
   help for net ads search
 */
-static int net_ads_dn_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_dn_usage(int argc, const char **argv)
 {
 	d_printf(
-		"\nnet ads dn <dn> <attributes...>\n"
-		"\nperform a raw LDAP search on a ADS server and dump the results\n"
-		"The DN standard LDAP DN, and the attributes are a list of LDAP fields \n"
-		"to show in the results\n\n"
+		"\nnet ads dn <dn> <attributes...>\n"\
+		"\nperform a raw LDAP search on a ADS server and dump the results\n"\
+		"The DN standard LDAP DN, and the attributes are a list of LDAP fields \n"\
+		"to show in the results\n\n"\
 		"Example: net ads dn 'CN=administrator,CN=Users,DC=my,DC=domain' sAMAccountName\n\n"
 		"Note: the DN must be provided properly escaped. See RFC 4514 for details\n\n"
 		);
-	net_common_flags_usage(c, argc, argv);
+	net_common_flags_usage(argc, argv);
 	return -1;
 }
 
@@ -1991,7 +1846,7 @@ static int net_ads_dn_usage(struct net_context *c, int argc, const char **argv)
 /*
   general ADS search function. Useful in diagnosing problems in ADS
 */
-static int net_ads_dn(struct net_context *c, int argc, const char **argv)
+static int net_ads_dn(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -1999,11 +1854,11 @@ static int net_ads_dn(struct net_context *c, int argc, const char **argv)
 	const char **attrs;
 	LDAPMessage *res = NULL;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_dn_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_dn_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -2033,16 +1888,16 @@ static int net_ads_dn(struct net_context *c, int argc, const char **argv)
 /*
   help for net ads sid search
 */
-static int net_ads_sid_usage(struct net_context *c, int argc, const char **argv)
+static int net_ads_sid_usage(int argc, const char **argv)
 {
 	d_printf(
-		"\nnet ads sid <sid> <attributes...>\n"
-		"\nperform a raw LDAP search on a ADS server and dump the results\n"
-		"The SID is in string format, and the attributes are a list of LDAP fields \n"
-		"to show in the results\n\n"
+		"\nnet ads sid <sid> <attributes...>\n"\
+		"\nperform a raw LDAP search on a ADS server and dump the results\n"\
+		"The SID is in string format, and the attributes are a list of LDAP fields \n"\
+		"to show in the results\n\n"\
 		"Example: net ads sid 'S-1-5-32' distinguishedName\n\n"
 		);
-	net_common_flags_usage(c, argc, argv);
+	net_common_flags_usage(argc, argv);
 	return -1;
 }
 
@@ -2050,7 +1905,7 @@ static int net_ads_sid_usage(struct net_context *c, int argc, const char **argv)
 /*
   general ADS search function. Useful in diagnosing problems in ADS
 */
-static int net_ads_sid(struct net_context *c, int argc, const char **argv)
+static int net_ads_sid(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS rc;
@@ -2059,11 +1914,11 @@ static int net_ads_sid(struct net_context *c, int argc, const char **argv)
 	LDAPMessage *res = NULL;
 	DOM_SID sid;
 
-	if (argc < 1 || c->display_usage) {
-		return net_ads_sid_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_ads_sid_usage(argc, argv);
 	}
 
-	if (!ADS_ERR_OK(ads_startup(c, false, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(False, &ads))) {
 		return -1;
 	}
 
@@ -2094,19 +1949,35 @@ static int net_ads_sid(struct net_context *c, int argc, const char **argv)
 	return 0;
 }
 
-static int net_ads_keytab_flush(struct net_context *c, int argc, const char **argv)
+
+static int net_ads_keytab_usage(int argc, const char **argv)
+{
+	d_printf(
+		"net ads keytab <COMMAND>\n"\
+"<COMMAND> can be either:\n"\
+"  ADD       Adds new service principal\n"\
+"  CREATE    Creates a fresh keytab\n"\
+"  FLUSH     Flushes out all keytab entries\n"\
+"  HELP      Prints this help message\n"\
+"  LIST      List the keytab\n"\
+"The ADD and LIST command will take arguments, the other commands\n"\
+"will not take any arguments.   The arguments given to ADD\n"\
+"should be a list of principals to add.  For example, \n"\
+"   net ads keytab add srv1 srv2\n"\
+"will add principals for the services srv1 and srv2 to the\n"\
+"system's keytab.\n"\
+"The LIST command takes a keytabname.\n"\
+"\n"
+		);
+	return -1;
+}
+
+static int net_ads_keytab_flush(int argc, const char **argv)
 {
 	int ret;
 	ADS_STRUCT *ads;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads keytab flush\n"
-			 "    Delete the whole keytab\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 	ret = ads_keytab_flush(ads);
@@ -2114,23 +1985,14 @@ static int net_ads_keytab_flush(struct net_context *c, int argc, const char **ar
 	return ret;
 }
 
-static int net_ads_keytab_add(struct net_context *c, int argc, const char **argv)
+static int net_ads_keytab_add(int argc, const char **argv)
 {
 	int i;
 	int ret = 0;
 	ADS_STRUCT *ads;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads keytab add <principal> [principal ...]\n"
-			 "  Add principals to local keytab\n"
-			 "    principal\tKerberos principal to add to "
-			 "keytab\n");
-		return 0;
-	}
-
 	d_printf("Processing principals to add...\n");
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 	for (i = 0; i < argc; i++) {
@@ -2140,19 +2002,12 @@ static int net_ads_keytab_add(struct net_context *c, int argc, const char **argv
 	return ret;
 }
 
-static int net_ads_keytab_create(struct net_context *c, int argc, const char **argv)
+static int net_ads_keytab_create(int argc, const char **argv)
 {
 	ADS_STRUCT *ads;
 	int ret;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads keytab create\n"
-			 "    Create new default keytab\n");
-		return 0;
-	}
-
-	if (!ADS_ERR_OK(ads_startup(c, true, &ads))) {
+	if (!ADS_ERR_OK(ads_startup(True, &ads))) {
 		return -1;
 	}
 	ret = ads_keytab_create_default(ads);
@@ -2160,17 +2015,9 @@ static int net_ads_keytab_create(struct net_context *c, int argc, const char **a
 	return ret;
 }
 
-static int net_ads_keytab_list(struct net_context *c, int argc, const char **argv)
+static int net_ads_keytab_list(int argc, const char **argv)
 {
 	const char *keytab = NULL;
-
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads keytab list [keytab]\n"
-			 "  List a local keytab\n"
-			 "    keytab\tKeytab to list\n");
-		return 0;
-	}
 
 	if (argc >= 1) {
 		keytab = argv[0];
@@ -2180,42 +2027,15 @@ static int net_ads_keytab_list(struct net_context *c, int argc, const char **arg
 }
 
 
-int net_ads_keytab(struct net_context *c, int argc, const char **argv)
+int net_ads_keytab(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"add",
-			net_ads_keytab_add,
-			NET_TRANSPORT_ADS,
-			"Add a service principal",
-			"net ads keytab add\n"
-			"    Add a service principal"
-		},
-		{
-			"create",
-			net_ads_keytab_create,
-			NET_TRANSPORT_ADS,
-			"Create a fresh keytab",
-			"net ads keytab create\n"
-			"    Create a fresh keytab"
-		},
-		{
-			"flush",
-			net_ads_keytab_flush,
-			NET_TRANSPORT_ADS,
-			"Remove all keytab entries",
-			"net ads keytab flush\n"
-			"    Remove all keytab entries"
-		},
-		{
-			"list",
-			net_ads_keytab_list,
-			NET_TRANSPORT_ADS,
-			"List a keytab",
-			"net ads keytab list\n"
-			"    List a keytab"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"ADD", net_ads_keytab_add},
+		{"CREATE", net_ads_keytab_create},
+		{"FLUSH", net_ads_keytab_flush},
+		{"HELP", net_ads_keytab_usage},
+		{"LIST", net_ads_keytab_list},
+		{NULL, NULL}
 	};
 
 	if (!lp_use_kerberos_keytab()) {
@@ -2223,21 +2043,26 @@ int net_ads_keytab(struct net_context *c, int argc, const char **argv)
 use keytab functions.\n");
 	}
 
-	return net_run_function(c, argc, argv, "net ads keytab", func);
+	return net_run_function(argc, argv, func, net_ads_keytab_usage);
 }
 
-static int net_ads_kerberos_renew(struct net_context *c, int argc, const char **argv)
+static int net_ads_kerberos_usage(int argc, const char **argv)
 {
-	int ret = -1;
+	d_printf(
+		"net ads kerberos <COMMAND>\n"\
+		"<COMMAND> can be either:\n"\
+		"  RENEW     Renew TGT from existing credential cache\n"\
+		"  PAC       Dumps the Kerberos PAC\n"\
+		"  KINIT     Retrieve Ticket Granting Ticket (TGT)\n"\
+		"\n"
+	);
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads kerberos renew\n"
-			 "    Renew TGT from existing credential cache\n");
-		return 0;
-	}
+	return -1;
+}
 
-	ret = smb_krb5_renew_ticket(NULL, NULL, NULL, NULL);
+static int net_ads_kerberos_renew(int argc, const char **argv)
+{
+	int ret = smb_krb5_renew_ticket(NULL, NULL, NULL, NULL);
 	if (ret) {
 		d_printf("failed to renew kerberos ticket: %s\n",
 			error_message(ret));
@@ -2245,7 +2070,7 @@ static int net_ads_kerberos_renew(struct net_context *c, int argc, const char **
 	return ret;
 }
 
-static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **argv)
+static int net_ads_kerberos_pac(int argc, const char **argv)
 {
 	struct PAC_DATA *pac = NULL;
 	struct PAC_LOGON_INFO *info = NULL;
@@ -2253,29 +2078,22 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 	NTSTATUS status;
 	int ret = -1;
 
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads kerberos pac\n"
-			 "    Dump the Kerberos PAC\n");
-		return 0;
-	}
-
 	mem_ctx = talloc_init("net_ads_kerberos_pac");
 	if (!mem_ctx) {
 		goto out;
 	}
 
-	c->opt_password = net_prompt_pass(c, c->opt_user_name);
+	opt_password = net_prompt_pass(opt_user_name);
 
 	status = kerberos_return_pac(mem_ctx,
-				     c->opt_user_name,
-				     c->opt_password,
+				     opt_user_name,
+				     opt_password,
 			     	     0,
 				     NULL,
 				     NULL,
 				     NULL,
-				     true,
-				     true,
+				     True,
+				     True,
 				     2592000, /* one month */
 				     &pac);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2297,34 +2115,27 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 	return ret;
 }
 
-static int net_ads_kerberos_kinit(struct net_context *c, int argc, const char **argv)
+static int net_ads_kerberos_kinit(int argc, const char **argv)
 {
 	TALLOC_CTX *mem_ctx = NULL;
 	int ret = -1;
 	NTSTATUS status;
-
-	if (c->display_usage) {
-		d_printf("Usage:\n"
-			 "net ads kerberos kinit\n"
-			 "    Get Ticket Granting Ticket (TGT) for the user\n");
-		return 0;
-	}
 
 	mem_ctx = talloc_init("net_ads_kerberos_kinit");
 	if (!mem_ctx) {
 		goto out;
 	}
 
-	c->opt_password = net_prompt_pass(c, c->opt_user_name);
+	opt_password = net_prompt_pass(opt_user_name);
 
-	ret = kerberos_kinit_password_ext(c->opt_user_name,
-					  c->opt_password,
+	ret = kerberos_kinit_password_ext(opt_user_name,
+					  opt_password,
 					  0,
 					  NULL,
 					  NULL,
 					  NULL,
-					  true,
-					  true,
+					  True,
+					  True,
 					  2592000, /* one month */
 					  &status);
 	if (ret) {
@@ -2335,198 +2146,67 @@ static int net_ads_kerberos_kinit(struct net_context *c, int argc, const char **
 	return ret;
 }
 
-int net_ads_kerberos(struct net_context *c, int argc, const char **argv)
+int net_ads_kerberos(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"kinit",
-			net_ads_kerberos_kinit,
-			NET_TRANSPORT_ADS,
-			"Retrieve Ticket Granting Ticket (TGT)",
-			"net ads kerberos kinit\n"
-			"    Receive Ticket Granting Ticket (TGT)"
-		},
-		{
-			"renew",
-			net_ads_kerberos_renew,
-			NET_TRANSPORT_ADS,
-			"Renew Ticket Granting Ticket from credential cache"
-			"net ads kerberos renew\n"
-			"    Renew Ticket Granting Ticket from credential cache"
-		},
-		{
-			"pac",
-			net_ads_kerberos_pac,
-			NET_TRANSPORT_ADS,
-			"Dump Kerberos PAC",
-			"net ads kerberos pac\n"
-			"    Dump Kerberos PAC"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"KINIT", net_ads_kerberos_kinit},
+		{"RENEW", net_ads_kerberos_renew},
+		{"PAC", net_ads_kerberos_pac},
+		{"HELP", net_ads_kerberos_usage},
+		{NULL, NULL}
 	};
 
-	return net_run_function(c, argc, argv, "net ads kerberos", func);
+	return net_run_function(argc, argv, func, net_ads_kerberos_usage);
 }
 
-int net_ads(struct net_context *c, int argc, const char **argv)
+
+int net_ads_help(int argc, const char **argv)
 {
 	struct functable func[] = {
-		{
-			"info",
-			net_ads_info,
-			NET_TRANSPORT_ADS,
-			"Display details on remote ADS server",
-			"net ads info\n"
-			"    Display details on remote ADS server"
-		},
-		{
-			"join",
-			net_ads_join,
-			NET_TRANSPORT_ADS,
-			"Join the local machine to ADS realm",
-			"net ads join\n"
-			"    Join the local machine to ADS realm"
-		},
-		{
-			"testjoin",
-			net_ads_testjoin,
-			NET_TRANSPORT_ADS,
-			"Validate machine account",
-			"net ads testjoin\n"
-			"    Validate machine account"
-		},
-		{
-			"leave",
-			net_ads_leave,
-			NET_TRANSPORT_ADS,
-			"Remove the local machine from ADS",
-			"net ads leave\n"
-			"    Remove the local machine from ADS"
-		},
-		{
-			"status",
-			net_ads_status,
-			NET_TRANSPORT_ADS,
-			"Display machine account details",
-			"net ads status\n"
-			"    Display machine account details"
-		},
-		{
-			"user",
-			net_ads_user,
-			NET_TRANSPORT_ADS,
-			"List/modify users",
-			"net ads user\n"
-			"    List/modify users"
-		},
-		{
-			"group",
-			net_ads_group,
-			NET_TRANSPORT_ADS,
-			"List/modify groups",
-			"net ads group\n"
-			"    List/modify groups"
-		},
-		{
-			"dns",
-			net_ads_dns,
-			NET_TRANSPORT_ADS,
-			"Issue dynamic DNS update",
-			"net ads dns\n"
-			"    Issue dynamic DNS update"
-		},
-		{
-			"password",
-			net_ads_password,
-			NET_TRANSPORT_ADS,
-			"Change user passwords",
-			"net ads password\n"
-			"    Change user passwords"
-		},
-		{
-			"changetrustpw",
-			net_ads_changetrustpw,
-			NET_TRANSPORT_ADS,
-			"Change trust account password",
-			"net ads changetrustpw\n"
-			"    Change trust account password"
-		},
-		{
-			"printer",
-			net_ads_printer,
-			NET_TRANSPORT_ADS,
-			"List/modify printer entries",
-			"net ads printer\n"
-			"    List/modify printer entries"
-		},
-		{
-			"search",
-			net_ads_search,
-			NET_TRANSPORT_ADS,
-			"Issue LDAP search using filter",
-			"net ads search\n"
-			"    Issue LDAP search using filter"
-		},
-		{
-			"dn",
-			net_ads_dn,
-			NET_TRANSPORT_ADS,
-			"Issue LDAP search by DN",
-			"net ads dn\n"
-			"    Issue LDAP search by DN"
-		},
-		{
-			"sid",
-			net_ads_sid,
-			NET_TRANSPORT_ADS,
-			"Issue LDAP search by SID",
-			"net ads sid\n"
-			"    Issue LDAP search by SID"
-		},
-		{
-			"workgroup",
-			net_ads_workgroup,
-			NET_TRANSPORT_ADS,
-			"Display workgroup name",
-			"net ads workgroup\n"
-			"    Display the workgroup name"
-		},
-		{
-			"lookup",
-			net_ads_lookup,
-			NET_TRANSPORT_ADS,
-			"Perfom CLDAP query on DC",
-			"net ads lookup\n"
-			"    Find the ADS DC using CLDAP lookups"
-		},
-		{
-			"keytab",
-			net_ads_keytab,
-			NET_TRANSPORT_ADS,
-			"Manage local keytab file",
-			"net ads keytab\n"
-			"    Manage local keytab file"
-		},
-		{
-			"gpo",
-			net_ads_gpo,
-			NET_TRANSPORT_ADS,
-			"Manage group policy objects",
-			"net ads gpo\n"
-			"    Manage group policy objects"
-		},
-		{
-			"kerberos",
-			net_ads_kerberos,
-			NET_TRANSPORT_ADS,
-			"Manage kerberos keytab",
-			"net ads kerberos\n"
-			"    Manage kerberos keytab"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"USER", net_ads_user_usage},
+		{"GROUP", net_ads_group_usage},
+		{"PRINTER", net_ads_printer_usage},
+		{"SEARCH", net_ads_search_usage},
+		{"INFO", net_ads_info},
+		{"JOIN", net_ads_join_usage},
+		{"DNS", net_ads_dns_usage},
+		{"LEAVE", net_ads_leave},
+		{"STATUS", net_ads_status},
+		{"PASSWORD", net_ads_password},
+		{"CHANGETRUSTPW", net_ads_changetrustpw},
+		{NULL, NULL}
 	};
 
-	return net_run_function(c, argc, argv, "net ads", func);
+	return net_run_function(argc, argv, func, net_ads_usage);
+}
+
+int net_ads(int argc, const char **argv)
+{
+	struct functable func[] = {
+		{"INFO", net_ads_info},
+		{"JOIN", net_ads_join},
+		{"TESTJOIN", net_ads_testjoin},
+		{"LEAVE", net_ads_leave},
+		{"STATUS", net_ads_status},
+		{"USER", net_ads_user},
+		{"GROUP", net_ads_group},
+		{"DNS", net_ads_dns},
+		{"PASSWORD", net_ads_password},
+		{"CHANGETRUSTPW", net_ads_changetrustpw},
+		{"PRINTER", net_ads_printer},
+		{"SEARCH", net_ads_search},
+		{"DN", net_ads_dn},
+		{"SID", net_ads_sid},
+		{"WORKGROUP", net_ads_workgroup},
+		{"LOOKUP", net_ads_lookup},
+		{"KEYTAB", net_ads_keytab},
+		{"GPO", net_ads_gpo},
+		{"KERBEROS", net_ads_kerberos},
+		{"HELP", net_ads_help},
+		{NULL, NULL}
+	};
+
+	return net_run_function(argc, argv, func, net_ads_usage);
 }
 
 #else
@@ -2537,50 +2217,60 @@ static int net_ads_noads(void)
 	return -1;
 }
 
-int net_ads_keytab(struct net_context *c, int argc, const char **argv)
+int net_ads_keytab(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
-int net_ads_kerberos(struct net_context *c, int argc, const char **argv)
+int net_ads_kerberos(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
-int net_ads_changetrustpw(struct net_context *c, int argc, const char **argv)
+int net_ads_usage(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
-int net_ads_join(struct net_context *c, int argc, const char **argv)
+int net_ads_help(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
-int net_ads_user(struct net_context *c, int argc, const char **argv)
+int net_ads_changetrustpw(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
-int net_ads_group(struct net_context *c, int argc, const char **argv)
+int net_ads_join(int argc, const char **argv)
+{
+	return net_ads_noads();
+}
+
+int net_ads_user(int argc, const char **argv)
+{
+	return net_ads_noads();
+}
+
+int net_ads_group(int argc, const char **argv)
 {
 	return net_ads_noads();
 }
 
 /* this one shouldn't display a message */
-int net_ads_check(struct net_context *c)
+int net_ads_check(void)
 {
 	return -1;
 }
 
-int net_ads_check_our_domain(struct net_context *c)
+int net_ads_check_our_domain(void)
 {
 	return -1;
 }
 
-int net_ads(struct net_context *c, int argc, const char **argv)
+int net_ads(int argc, const char **argv)
 {
-	return net_ads_noads();
+	return net_ads_usage(argc, argv);
 }
 
 #endif	/* WITH_ADS */

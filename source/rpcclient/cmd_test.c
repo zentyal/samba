@@ -30,19 +30,11 @@ static NTSTATUS cmd_testme(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 
 	d_printf("testme\n");
 
-	status = cli_rpc_pipe_open_noauth(rpc_pipe_np_smb_conn(cli),
-					  &ndr_table_lsarpc.syntax_id,
-					  &lsa_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+	lsa_pipe = cli_rpc_pipe_open_noauth(cli->cli, PI_LSARPC, &status);
+	if (lsa_pipe == NULL) goto done;
 
-	status = cli_rpc_pipe_open_noauth(rpc_pipe_np_smb_conn(cli),
-					  &ndr_table_samr.syntax_id,
-					  &samr_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
+	samr_pipe = cli_rpc_pipe_open_noauth(cli->cli, PI_SAMR, &status);
+	if (samr_pipe == NULL) goto done;
 
 	status = rpccli_lsa_open_policy(lsa_pipe, mem_ctx, False,
 					SEC_RIGHTS_QUERY_VALUE, &pol);
@@ -56,8 +48,8 @@ static NTSTATUS cmd_testme(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx,
 		goto done;
 
  done:
-	TALLOC_FREE(lsa_pipe);
-	TALLOC_FREE(samr_pipe);
+	if (lsa_pipe != NULL) cli_rpc_pipe_close(lsa_pipe);
+	if (samr_pipe != NULL) cli_rpc_pipe_close(samr_pipe);
 
 	return status;
 }
@@ -69,7 +61,7 @@ struct cmd_set test_commands[] = {
 	{ "TESTING" },
 
 	{ "testme", RPC_RTYPE_NTSTATUS, cmd_testme, NULL,
-	  NULL, NULL, "Sample test", "testme" },
+	  -1, NULL, "Sample test", "testme" },
 
 	{ NULL }
 };

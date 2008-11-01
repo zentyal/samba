@@ -27,6 +27,16 @@
 
 #ifdef HAVE_KRB5
 
+#ifdef HAVE_KRB5_KEYBLOCK_KEYVALUE /* Heimdal */
+#define KRB5_KEY_TYPE(k)	((k)->keytype) 
+#define KRB5_KEY_LENGTH(k)	((k)->keyvalue.length)
+#define KRB5_KEY_DATA(k)	((k)->keyvalue.data)
+#else /* MIT */
+#define	KRB5_KEY_TYPE(k)	((k)->enctype)
+#define KRB5_KEY_LENGTH(k)	((k)->length)
+#define KRB5_KEY_DATA(k)	((k)->contents)
+#endif /* HAVE_KRB5_KEYBLOCK_KEYVALUE */
+
 #define GSSAPI_CHECKSUM      0x8003             /* Checksum type value for Kerberos */
 #define GSSAPI_BNDLENGTH     16                 /* Bind Length (rfc-1964 pg.3) */
 #define GSSAPI_CHECKSUM_SIZE (12+GSSAPI_BNDLENGTH)
@@ -54,9 +64,8 @@ static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
 {
 	krb5_error_code ret;
 	char *utf8_name;
-	size_t converted_size;
 
-	if (!push_utf8_allocate(&utf8_name, name, &converted_size)) {
+	if (push_utf8_allocate(&utf8_name, name) == (size_t)-1) {
 		return ENOMEM;
 	}
 
@@ -76,10 +85,9 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 {
 	krb5_error_code ret;
 	char *utf8_name;
-	size_t converted_size;
 
 	*principal = NULL;
-	if (!push_utf8_allocate(&utf8_name, name, &converted_size)) {
+	if (push_utf8_allocate(&utf8_name, name) == (size_t)-1) {
 		return ENOMEM;
 	}
 
@@ -100,7 +108,6 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 {
 	krb5_error_code ret;
 	char *utf8_name;
-	size_t converted_size;
 
 	*unix_name = NULL;
 	ret = krb5_unparse_name(context, principal, &utf8_name);
@@ -108,7 +115,7 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 		return ret;
 	}
 
-	if (!pull_utf8_allocate(unix_name, utf8_name, &converted_size)) {
+	if (pull_utf8_allocate(unix_name, utf8_name)==-1) {
 		krb5_free_unparsed_name(context, utf8_name);
 		return ENOMEM;
 	}
@@ -212,13 +219,13 @@ static krb5_error_code smb_krb5_parse_name_norealm_conv(krb5_context context,
 #endif
 
 #if defined(HAVE_KRB5_PRINCIPAL2SALT) && defined(HAVE_KRB5_USE_ENCTYPE) && defined(HAVE_KRB5_STRING_TO_KEY) && defined(HAVE_KRB5_ENCRYPT_BLOCK)
-static int create_kerberos_key_from_string_direct(krb5_context context,
-						  krb5_principal host_princ,
-						  krb5_data *password,
-						  krb5_keyblock *key,
-						  krb5_enctype enctype)
+ int create_kerberos_key_from_string_direct(krb5_context context,
+					krb5_principal host_princ,
+					krb5_data *password,
+					krb5_keyblock *key,
+					krb5_enctype enctype)
 {
-	int ret = 0;
+	int ret;
 	krb5_data salt;
 	krb5_encrypt_block eblock;
 
@@ -230,15 +237,14 @@ static int create_kerberos_key_from_string_direct(krb5_context context,
 	krb5_use_enctype(context, &eblock, enctype);
 	ret = krb5_string_to_key(context, &eblock, key, password, &salt);
 	SAFE_FREE(salt.data);
-
 	return ret;
 }
 #elif defined(HAVE_KRB5_GET_PW_SALT) && defined(HAVE_KRB5_STRING_TO_KEY_SALT)
-static int create_kerberos_key_from_string_direct(krb5_context context,
-						  krb5_principal host_princ,
-						  krb5_data *password,
-						  krb5_keyblock *key,
-						  krb5_enctype enctype)
+ int create_kerberos_key_from_string_direct(krb5_context context,
+					krb5_principal host_princ,
+					krb5_data *password,
+					krb5_keyblock *key,
+					krb5_enctype enctype)
 {
 	int ret;
 	krb5_salt salt;
@@ -248,10 +254,9 @@ static int create_kerberos_key_from_string_direct(krb5_context context,
 		DEBUG(1,("krb5_get_pw_salt failed (%s)\n", error_message(ret)));
 		return ret;
 	}
-
+	
 	ret = krb5_string_to_key_salt(context, enctype, (const char *)password->data, salt, key);
 	krb5_free_salt(context, salt);
-
 	return ret;
 }
 #else
@@ -262,8 +267,7 @@ static int create_kerberos_key_from_string_direct(krb5_context context,
 					krb5_principal host_princ,
 					krb5_data *password,
 					krb5_keyblock *key,
-					krb5_enctype enctype,
-					bool no_salt)
+					krb5_enctype enctype)
 {
 	krb5_principal salt_princ = NULL;
 	int ret;
@@ -272,16 +276,6 @@ static int create_kerberos_key_from_string_direct(krb5_context context,
 	 * principal/enctype in a non-obvious way.  If it is, try to match
 	 * its behavior.
 	 */
-	if (no_salt) {
-		KRB5_KEY_DATA(key) = (KRB5_KEY_DATA_CAST *)SMB_MALLOC(password->length);
-		if (!KRB5_KEY_DATA(key)) {
-			return ENOMEM;
-		}
-		memcpy(KRB5_KEY_DATA(key), password->data, password->length);
-		KRB5_KEY_LENGTH(key) = password->length;
-		KRB5_KEY_TYPE(key) = enctype;
-		return 0;
-	}
 	salt_princ = kerberos_fetch_salt_princ_for_host_princ(context, host_princ, enctype);
 	ret = create_kerberos_key_from_string_direct(context, salt_princ ? salt_princ : host_princ, password, key, enctype);
 	if (salt_princ) {
@@ -749,8 +743,7 @@ static krb5_error_code ads_krb5_mk_req(krb5_context context,
 						ccache,
 						&in_data );
 		if (retval) {
-			DEBUG( 3, ("ads_krb5_get_fwd_ticket failed (%s)\n",
-				   error_message( retval ) ) );
+			DEBUG( 3, ("ads_krb5_get_fwd_ticket failed (%s)\n", error_message( retval ) ) );
 
 			/*
 			 * This is not fatal. Delete the *auth_context and continue
@@ -1051,7 +1044,6 @@ get_key_from_keytab(krb5_context context,
 	krb5_error_code ret;
 	krb5_keytab keytab;
 	char *name = NULL;
-	krb5_keyblock *keyp;
 
 	/* We have to open a new keytab handle here, as MIT does
 	   an implicit open/getnext/close on krb5_kt_get_entry. We
@@ -1084,9 +1076,14 @@ get_key_from_keytab(krb5_context context,
 		goto out;
 	}
 
-	keyp = KRB5_KT_KEY(&entry);
+#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK /* Heimdal */
+	ret = krb5_copy_keyblock(context, &entry.keyblock, out_key);
+#elif defined(HAVE_KRB5_KEYTAB_ENTRY_KEY) /* MIT */
+	ret = krb5_copy_keyblock(context, &entry.key, out_key);
+#else
+#error UNKNOWN_KRB5_KEYTAB_ENTRY_FORMAT
+#endif
 
-	ret = krb5_copy_keyblock(context, keyp, out_key);
 	if (ret) {
 		DEBUG(0,("get_key_from_keytab: failed to copy key: %s\n", error_message(ret)));
 		goto out;
@@ -1574,9 +1571,15 @@ done:
 #endif /* HAVE_KRB5_GET_INIT_CREDS_OPT_FREE */
 }
 
- krb5_enctype smb_get_enctype_from_kt_entry(krb5_keytab_entry *kt_entry)
+ krb5_enctype smb_get_enctype_from_kt_entry(const krb5_keytab_entry *kt_entry)
 {
-	return KRB5_KEY_TYPE(KRB5_KT_KEY(kt_entry));
+#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEY		/* MIT */
+	return kt_entry->key.enctype;
+#elif defined(HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK)	/* Heimdal */
+	return kt_entry->keyblock.keytype;
+#else
+#error UNKNOWN_KRB5_KEYTAB_ENTRY_KEYBLOCK_FORMAT
+#endif
 }
 
 
@@ -1773,28 +1776,6 @@ done:
  out:
  	TALLOC_FREE(mem_ctx);
  	return ret;
-}
-
-krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
-				     krb5_context context,
-				     krb5_keytab keytab,
-				     const char **keytab_name)
-{
-	char keytab_string[MAX_KEYTAB_NAME_LEN];
-	krb5_error_code ret = 0;
-
-	ret = krb5_kt_get_name(context, keytab,
-			       keytab_string, MAX_KEYTAB_NAME_LEN - 2);
-	if (ret) {
-		return ret;
-	}
-
-	*keytab_name = talloc_strdup(mem_ctx, keytab_string);
-	if (!*keytab_name) {
-		return ENOMEM;
-	}
-
-	return ret;
 }
 
 #if defined(TKT_FLG_OK_AS_DELEGATE ) && defined(HAVE_KRB5_FWD_TGT_CREDS) && defined(HAVE_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE) && defined(KRB5_AUTH_CONTEXT_USE_SUBKEY)

@@ -13,7 +13,19 @@
 			winbindd can allocate for users and groups.  If the parameter
 			is absent, Winbind fail over to use the "idmap uid"
 			and "idmap gid" options from smb.conf.
-                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2479169"></a><h2>AUTHOR</h2><p>
+                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2479169"></a><h2>EXAMPLES</h2><p>
+	The following example is equivalent to the pre-3.0.25 default idmap
+	configuration using the "idmap backend = tdb" setting.
+	</p><pre class="programlisting">
+	[global]
+	    idmap domains = ALLDOMAINS
+	    idmap config ALLDOMAINS:default = yes
+	    idmap config ALLDOMAINS:backend = tdb
+	    idmap config ALLDOMAINS:range   = 10000 - 50000
+
+	    idmap alloc backend = tdb
+	    idmap alloc config:range = 10000 - 50000
+	</pre></div><div class="refsect1" lang="en"><a name="id2479191"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

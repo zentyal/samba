@@ -1,11 +1,11 @@
 .\"     Title: smb.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 10/02/2008
+.\"      Date: 09/18/2008
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.2
 .\"
-.TH "SMB\.CONF" "5" "10/02/2008" "Samba 3\.2" "File Formats and Conventions"
+.TH "SMB\.CONF" "5" "09/18/2008" "Samba 3\.2" "File Formats and Conventions"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -3444,11 +3444,9 @@ Example:
 idmap alloc backend (G)
 .PP
 .RS 4
-The idmap alloc backend provides a plugin interface for Winbind to use when allocating Unix uids/gids for Windows SIDs\. This option refers to the name of the idmap module which will provide the id allocation functionality\. Please refer to the man page for each idmap plugin to determine whether or not the module implements the allocation feature\. The most common plugins are the tdb (\fBidmap_tdb\fR(8)) and ldap (\fBidmap_ldap\fR(8)) libraries\.
-.sp
-This parameter defaults to the value
-\fIidmap backend\fR
-was set to, so by default winbind will allocate Unix IDs from the default backend\. You will only need to set this parameter explicitly if you have an external source for Unix IDs, like a central database service somewhere in your company\.
+The idmap alloc backend provides a plugin interface for Winbind to use when allocating Unix uids/gids for Windows SIDs\. This option is to be used in conjunction with the
+\fIidmap domains\fR
+parameter and refers to the name of the idmap module which will provide the id allocation functionality\. Please refer to the man page for each idmap plugin to determine whether or not the module implements the allocation feature\. The most common plugins are the tdb (\fBidmap_tdb\fR(8)) and ldap (\fBidmap_ldap\fR(8)) libraries\.
 .sp
 Also refer to the
 \fIidmap alloc config\fR
@@ -3473,28 +3471,11 @@ parameter\. Refer to the man page for each idmap plugin regarding specific confi
 idmap backend (G)
 .PP
 .RS 4
-The idmap backend provides a plugin interface for Winbind to use varying backends to store SID/uid/gid mapping tables\.
+The idmap backend provides a plugin interface for Winbind to use varying backends to store SID/uid/gid mapping tables\. This option is mutually exclusive with the newer and more flexible
+\fIidmap domains\fR
+parameter\. The main difference between the "idmap backend" and the "idmap domains" is that the former only allows one backend for all domains while the latter supports configuring backends on a per domain basis\.
 .sp
-This option specifies the default backend that is used when no special configuration set by
-\fIidmap config\fR
-matches the specific request\.
-.sp
-This default backend also specifies the place where winbind\-generated idmap entries will be stored\. So it is highly recommended that you specify a writable backend like
-\fBidmap_tdb\fR(8)
-or
-\fBidmap_ldap\fR(8)
-as the idmap backend\. The
-\fBidmap_rid\fR(8)
-and
-\fBidmap_ad\fR(8)
-backends are not writable and thus will generate unexpected results if set as idmap backend\.
-.sp
-To use the rid and ad backends, please specify them via the
-\fIidmap config\fR
-parameter, possibly also for the domain your machine is member of, specified by
-\fIworkgroup\fR\.
-.sp
-Examples of SID/uid/gid backends include tdb (\fBidmap_tdb\fR(8)), ldap (\fBidmap_ldap\fR(8)), rid (\fBidmap_rid\fR(8)), and ad (\fBidmap_ad\fR(8))\.
+Examples of SID/uid/gid backends include tdb (\fBidmap_tdb\fR(8)), ldap (\fBidmap_ldap\fR(8)), rid (\fBidmap_rid\fR(8)), and ad (\fBidmap_tdb\fR(8))\.
 .sp
 Default:
 \fI\fIidmap backend\fR\fR\fI = \fR\fItdb\fR\fI \fR
@@ -3506,47 +3487,71 @@ idmap cache time (G)
 This parameter specifies the number of seconds that Winbind\'s idmap interface will cache positive SID/uid/gid query results\.
 .sp
 Default:
-\fI\fIidmap cache time\fR\fR\fI = \fR\fI604800 (one week)\fR\fI \fR
+\fI\fIidmap cache time\fR\fR\fI = \fR\fI900\fR\fI \fR
 .RE
 
 idmap config (G)
 .PP
 .RS 4
-The idmap config prefix provides a means of managing each trusted domain separately\. The idmap config prefix should be followed by the name of the domain, a colon, and a setting specific to the chosen backend\. There are three options available for all domains:
+The idmap config prefix provides a means of managing each domain defined by the
+\fIidmap domains\fR
+option using Samba\'s parametric option support\. The idmap config prefix should be followed by the name of the domain, a colon, and a setting specific to the chosen backend\. There are three options available for all domains:
 .PP
 backend = backend_name
 .RS 4
 Specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\.
 .RE
 .PP
-range = low \- high
+default = [yes|no]
 .RS 4
-Defines the available matching uid and gid range for which the backend is authoritative\. Note that the range commonly matches the allocation range due to the fact that the same backend will store and retrieve SID/uid/gid mapping entries\.
-.sp
-winbind uses this parameter to find the backend that is authoritative for a unix ID to SID mapping, so it must be set for each individually configured domain, and it must be disjoint from the ranges set via
-\fIidmap uid\fR
-and
-\fIidmap gid\fR\.
+The default domain/backend will be used for searching for users and groups not belonging to one of the explicitly listed domains (matched by comparing the account SID and the domain SID)\.
+.RE
+.PP
+readonly = [yes|no]
+.RS 4
+Mark the domain as readonly which means that no attempts to allocate a uid or gid (by the
+\fIidmap alloc backend\fR) for any user or group in that domain will be attempted\.
 .RE
 .sp
 The following example illustrates how to configure the
 \fBidmap_ad\fR(8)
 for the CORP domain and the
 \fBidmap_tdb\fR(8)
-backend for all other domains\. This configuration assumes that the admin of CORP assigns unix ids below 1000000 via the SFU extensions, and winbind is supposed to use the next million entries for its own mappings from trusted domains and for local groups for example\.
+backend for all other domains\. The TRUSTEDDOMAINS string is simply an arbitrary key used to reference the "idmap config" settings and does not represent the actual name of a domain\. It is a catchall domain backend for any domain not explicitly listed\.
 .sp
 .RS 4
 .nf
-	idmap backend = tdb
-	idmap uid = 1000000\-1999999
-	idmap gid = 1000000\-1999999
+	idmap domains = CORP TRUSTEDDOMAINS
 
-	idmap config CORP : backend  = ad
-	idmap config CORP : range = 1000\-999999
+	idmap config CORP:backend  = ad
+	idmap config CORP:readonly = yes
+
+	idmap config TRUSTEDDOMAINS:backend = tdb
+	idmap config TRUSTEDDOMAINS:default = yes
+	idmap config TRUSTEDDOMAINS:range   = 1000 \- 9999
 	
 .fi
 .RE
 \fINo default\fR
+.RE
+
+idmap domains (G)
+.PP
+.RS 4
+The idmap domains option defines a list of Windows domains which will each have a separately configured backend for managing Winbind\'s SID/uid/gid tables\. This parameter is mutually exclusive with the older
+\fIidmap backend\fR
+option\.
+.sp
+Values consist of the short domain name for Winbind\'s primary or collection of trusted domains\. You may also use an arbitrary string to represent a catchall domain backend for any domain not explicitly listed\.
+.sp
+Refer to the
+\fIidmap config\fR
+for details about managing the SID/uid/gid backend for each domain\.
+.sp
+\fINo default\fR
+.sp
+Example:
+\fI\fIidmap domains\fR\fR\fI = \fR\fIdefault AD CORP\fR\fI \fR
 .RE
 
 winbind gid
@@ -3562,7 +3567,8 @@ idmap gid (G)
 The idmap gid parameter specifies the range of group ids that are allocated for the purpose of mapping UNX groups to NT group SIDs\. This range of group ids should have no existing local or NIS groups within it as strange conflicts can occur otherwise\.
 .sp
 See also the
-\fIidmap backend\fR, and
+\fIidmap backend\fR,
+\fIidmap domains\fR, and
 \fIidmap config\fR
 options\.
 .sp
@@ -3595,8 +3601,8 @@ idmap uid (G)
 The idmap uid parameter specifies the range of user ids that are allocated for use in mapping UNIX users to NT user SIDs\. This range of ids should have no existing local or NIS users within it as strange conflicts can occur otherwise\.
 .sp
 See also the
-\fIidmap backend\fR
-and
+\fIidmap backend\fR,
+\fIidmap domains\fR, and
 \fIidmap config\fR
 options\.
 .sp
@@ -3681,32 +3687,6 @@ This can be particularly useful on large systems with many users, perhaps severa
 .sp
 Default:
 \fI\fIinherit permissions\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
-init logon delayed hosts (G)
-.PP
-.RS 4
-This parameter takes a list of host names, addresses or networks for which the initial samlogon reply should be delayed (so other DCs get preferred by XP workstations if there are any)\.
-.sp
-The length of the delay can be specified with the
-\fIinit logon delay\fR
-parameter\.
-.sp
-Default:
-\fI\fIinit logon delayed hosts\fR\fR\fI = \fR\fI\fR\fI \fR
-.sp
-Example:
-\fI\fIinit logon delayed hosts\fR\fR\fI = \fR\fI150\.203\.5\. myhost\.mynet\.de\fR\fI \fR
-.RE
-
-init logon delay (G)
-.PP
-.RS 4
-This parameter specifies a delay in milliseconds for the hosts configured for delayed initial samlogon with
-\fIinit logon delayed hosts\fR\.
-.sp
-Default:
-\fI\fIinit logon delay\fR\fR\fI = \fR\fI100\fR\fI \fR
 .RE
 
 interfaces (G)
@@ -9171,9 +9151,7 @@ Default:
 winbind normalize names (G)
 .PP
 .RS 4
-This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\. If your domain possesses names containing the underscore character, this option may cause problems unless the name aliasing feature is supported by your nss_info plugin\.
-.sp
-This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qlaified version\. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\.
+This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\. Do not enable this option if the underscore character is used in account names within your domain
 .sp
 Default:
 \fI\fIwinbind normalize names\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -9240,17 +9218,6 @@ Example:
 \fI\fIwinbind offline logon\fR\fR\fI = \fR\fItrue\fR\fI \fR
 .RE
 
-winbind reconnect delay (G)
-.PP
-.RS 4
-This parameter specifies the number of seconds the
-\fBwinbindd\fR(8)
-daemon will wait between attempts to contact a Domain controller for a domain that is determined to be down or not contactable\.
-.sp
-Default:
-\fI\fIwinbind reconnect delay\fR\fR\fI = \fR\fI30\fR\fI \fR
-.RE
-
 winbind refresh tickets (G)
 .PP
 .RS 4
@@ -9303,6 +9270,8 @@ DOMAIN\euser1
 would be mapped to the account user1 in /etc/passwd instead of allocating a new uid for him or her\.
 .sp
 This parameter is now deprecated in favor of the newer idmap_nss backend\. Refer to the
+\fIidmap domains\fR
+smb\.conf option and the
 \fBidmap_nss\fR(8)
 man page for more information\.
 .sp

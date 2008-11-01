@@ -35,17 +35,15 @@
 #include "librpc/gen_ndr/cli_netlogon.h"
 #include "librpc/gen_ndr/cli_dssetup.h"
 #include "librpc/gen_ndr/cli_ntsvcs.h"
-#include "librpc/gen_ndr/cli_epmapper.h"
-#include "librpc/gen_ndr/cli_drsuapi.h"
 
 #define prs_init_empty( _ps_, _ctx_, _io_ ) (void) prs_init((_ps_), 0, (_ctx_), (_io_))
 
 /* macro to expand cookie-cutter code in cli_xxx() using rpc_api_pipe_req() */
 
-#define CLI_DO_RPC_INTERNAL( pcli, ctx, interface, opnum, q_in, r_out, \
+#define CLI_DO_RPC_INTERNAL( pcli, ctx, p_idx, opnum, q_in, r_out, \
                              q_ps, r_ps, q_io_fn, r_io_fn, default_error, copy_sess_key ) \
 {\
-	SMB_ASSERT(ndr_syntax_id_equal(&pcli->abstract_syntax, interface)); \
+	SMB_ASSERT(pcli->pipe_idx == p_idx); \
 	if (!prs_init( &q_ps, RPC_MAX_PDU_FRAG_LEN, ctx, MARSHALL )) { \
 		return NT_STATUS_NO_MEMORY;\
 	}\
@@ -90,10 +88,10 @@
 
 /* Arrrgg. Same but with WERRORS. Needed for registry code. */
 
-#define CLI_DO_RPC_WERR( pcli, ctx, interface, opnum, q_in, r_out, \
+#define CLI_DO_RPC_WERR( pcli, ctx, p_idx, opnum, q_in, r_out, \
                              q_ps, r_ps, q_io_fn, r_io_fn, default_error ) \
 {\
-	SMB_ASSERT(ndr_syntax_id_equal(&pcli->abstract_syntax, interface)); \
+	SMB_ASSERT(pcli->pipe_idx == p_idx); \
 	if (!prs_init( &q_ps, RPC_MAX_PDU_FRAG_LEN, ctx, MARSHALL )) { \
 		return WERR_NOMEM;\
 	}\

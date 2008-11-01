@@ -56,10 +56,6 @@
  #endif /* _SAMBA_BUILD_ */
 #endif /* MOUNT_CIFS_VENDOR_SUFFIX */
 
-#ifdef _SAMBA_BUILD_
-#include "include/config.h"
-#endif
-
 #ifndef MS_MOVE 
 #define MS_MOVE 8192 
 #endif 
@@ -98,8 +94,6 @@ char * prefixpath = NULL;
 
 /* like strncpy but does not 0 fill the buffer and always null
  *    terminates. bufsize is the size of the destination buffer */
-
-#ifndef HAVE_STRLCPY
 static size_t strlcpy(char *d, const char *s, size_t bufsize)
 {
 	size_t len = strlen(s);
@@ -110,13 +104,10 @@ static size_t strlcpy(char *d, const char *s, size_t bufsize)
 	d[len] = 0;
 	return ret;
 }
-#endif
 
 /* like strncat but does not 0 fill the buffer and always null
  *    terminates. bufsize is the length of the buffer, which should
  *       be one more than the maximum resulting string length */
-
-#ifndef HAVE_STRLCAT
 static size_t strlcat(char *d, const char *s, size_t bufsize)
 {
 	size_t len1 = strlen(d);
@@ -135,7 +126,6 @@ static size_t strlcat(char *d, const char *s, size_t bufsize)
 	}
 	return ret;
 }
-#endif
 
 /* BB finish BB
 
@@ -483,8 +473,7 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 			}
 		} else if (strncmp(data, "sec", 3) == 0) {
 			if (value) {
-				if (!strncmp(value, "none", 4) ||
-				    !strncmp(value, "krb5", 4))
+				if (!strcmp(value, "none"))
 					got_password = 1;
 			}
 		} else if (strncmp(data, "ip", 2) == 0) {
@@ -528,11 +517,8 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 				printf("CIFS: UNC name too long\n");
 				return 1;
 			}
-		} else if ((strncmp(data, "dom" /* domain */, 3) == 0)
-			   || (strncmp(data, "workg", 5) == 0)) {
-			/* note this allows for synonyms of "domain"
-			   such as "DOM" and "dom" and "workgroup"
-			   and "WORKGRP" etc. */
+		} else if ((strncmp(data, "domain", 3) == 0)
+			   || (strncmp(data, "workgroup", 5) == 0)) {
 			if (!value || !*value) {
 				printf("CIFS: invalid domain name\n");
 				return 1;	/* needs_arg; */

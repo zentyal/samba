@@ -1,21 +1,21 @@
-/*
-   Samba Unix/Linux SMB client library
-   Distributed SMB/CIFS Server Management Utility
+/* 
+   Samba Unix/Linux SMB client library 
+   Distributed SMB/CIFS Server Management Utility 
    Copyright (C) 2006 Volker Lendecke (vl@samba.org)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+ 
 #include "includes.h"
 #include "utils/net.h"
 
@@ -25,13 +25,11 @@
  * it has modified, it can return 0 for no change.
  */
 
-static NTSTATUS rpc_sh_acct_do(struct net_context *c,
-			       TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_do(TALLOC_CTX *mem_ctx,
 			       struct rpc_sh_ctx *ctx,
 			       struct rpc_pipe_client *pipe_hnd,
 			       int argc, const char **argv,
-			       int (*fn)(struct net_context *c,
-					  TALLOC_CTX *mem_ctx,
+			       int (*fn)(TALLOC_CTX *mem_ctx,
 					  struct rpc_sh_ctx *ctx,
 					  struct samr_DomInfo1 *i1,
 					  struct samr_DomInfo3 *i3,
@@ -51,13 +49,13 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 	/* Get sam policy handle */
 
 	result = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
-				      pipe_hnd->desthost,
+				      pipe_hnd->cli->desthost,
 				      MAXIMUM_ALLOWED_ACCESS,
 				      &connect_pol);
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
-
+	
 	/* Get domain policy handle */
 
 	result = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
@@ -102,7 +100,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 		goto done;
 	}
 
-	store = fn(c, mem_ctx, ctx, &info1->info1, &info3->info3,
+	store = fn(mem_ctx, ctx, &info1->info1, &info3->info3,
 		   &info12->info12, argc, argv);
 
 	if (store <= 0) {
@@ -146,8 +144,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 	return result;
 }
 
-static int account_show(struct net_context *c,
-			TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
+static int account_show(TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
 			struct samr_DomInfo1 *i1,
 			struct samr_DomInfo3 *i3,
 			struct samr_DomInfo12 *i12,
@@ -203,21 +200,19 @@ static int account_show(struct net_context *c,
 
 	d_printf("User must logon to change password: %s\n",
 		 (i1->password_properties & 0x2) ? "yes" : "no");
-
+	
 	return 0;		/* Don't save */
 }
 
-static NTSTATUS rpc_sh_acct_pol_show(struct net_context *c,
-				     TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_pol_show(TALLOC_CTX *mem_ctx,
 				     struct rpc_sh_ctx *ctx,
 				     struct rpc_pipe_client *pipe_hnd,
 				     int argc, const char **argv) {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_show);
 }
 
-static int account_set_badpw(struct net_context *c,
-			     TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
+static int account_set_badpw(TALLOC_CTX *mem_ctx, struct rpc_sh_ctx *ctx,
 			     struct samr_DomInfo1 *i1,
 			     struct samr_DomInfo3 *i3,
 			     struct samr_DomInfo12 *i12,
@@ -235,18 +230,16 @@ static int account_set_badpw(struct net_context *c,
 	return 12;
 }
 
-static NTSTATUS rpc_sh_acct_set_badpw(struct net_context *c,
-				      TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_badpw(TALLOC_CTX *mem_ctx,
 				      struct rpc_sh_ctx *ctx,
 				      struct rpc_pipe_client *pipe_hnd,
 				      int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_badpw);
 }
 
-static int account_set_lockduration(struct net_context *c,
-				    TALLOC_CTX *mem_ctx,
+static int account_set_lockduration(TALLOC_CTX *mem_ctx,
 				    struct rpc_sh_ctx *ctx,
 				    struct samr_DomInfo1 *i1,
 				    struct samr_DomInfo3 *i3,
@@ -265,18 +258,16 @@ static int account_set_lockduration(struct net_context *c,
 	return 12;
 }
 
-static NTSTATUS rpc_sh_acct_set_lockduration(struct net_context *c,
-					     TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_lockduration(TALLOC_CTX *mem_ctx,
 					     struct rpc_sh_ctx *ctx,
 					     struct rpc_pipe_client *pipe_hnd,
 					     int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_lockduration);
 }
 
-static int account_set_resetduration(struct net_context *c,
-				     TALLOC_CTX *mem_ctx,
+static int account_set_resetduration(TALLOC_CTX *mem_ctx,
 				     struct rpc_sh_ctx *ctx,
 				     struct samr_DomInfo1 *i1,
 				     struct samr_DomInfo3 *i3,
@@ -295,18 +286,16 @@ static int account_set_resetduration(struct net_context *c,
 	return 12;
 }
 
-static NTSTATUS rpc_sh_acct_set_resetduration(struct net_context *c,
-					      TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_resetduration(TALLOC_CTX *mem_ctx,
 					      struct rpc_sh_ctx *ctx,
 					      struct rpc_pipe_client *pipe_hnd,
 					      int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_resetduration);
 }
 
-static int account_set_minpwage(struct net_context *c,
-				TALLOC_CTX *mem_ctx,
+static int account_set_minpwage(TALLOC_CTX *mem_ctx,
 				struct rpc_sh_ctx *ctx,
 				struct samr_DomInfo1 *i1,
 				struct samr_DomInfo3 *i3,
@@ -325,18 +314,16 @@ static int account_set_minpwage(struct net_context *c,
 	return 1;
 }
 
-static NTSTATUS rpc_sh_acct_set_minpwage(struct net_context *c,
-					 TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_minpwage(TALLOC_CTX *mem_ctx,
 					 struct rpc_sh_ctx *ctx,
 					 struct rpc_pipe_client *pipe_hnd,
 					 int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_minpwage);
 }
 
-static int account_set_maxpwage(struct net_context *c,
-				TALLOC_CTX *mem_ctx,
+static int account_set_maxpwage(TALLOC_CTX *mem_ctx,
 				struct rpc_sh_ctx *ctx,
 				struct samr_DomInfo1 *i1,
 				struct samr_DomInfo3 *i3,
@@ -355,18 +342,16 @@ static int account_set_maxpwage(struct net_context *c,
 	return 1;
 }
 
-static NTSTATUS rpc_sh_acct_set_maxpwage(struct net_context *c,
-					 TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_maxpwage(TALLOC_CTX *mem_ctx,
 					 struct rpc_sh_ctx *ctx,
 					 struct rpc_pipe_client *pipe_hnd,
 					 int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_maxpwage);
 }
 
-static int account_set_minpwlen(struct net_context *c,
-				TALLOC_CTX *mem_ctx,
+static int account_set_minpwlen(TALLOC_CTX *mem_ctx,
 				struct rpc_sh_ctx *ctx,
 				struct samr_DomInfo1 *i1,
 				struct samr_DomInfo3 *i3,
@@ -385,18 +370,16 @@ static int account_set_minpwlen(struct net_context *c,
 	return 1;
 }
 
-static NTSTATUS rpc_sh_acct_set_minpwlen(struct net_context *c,
-					 TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_minpwlen(TALLOC_CTX *mem_ctx,
 					 struct rpc_sh_ctx *ctx,
 					 struct rpc_pipe_client *pipe_hnd,
 					 int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_minpwlen);
 }
 
-static int account_set_pwhistlen(struct net_context *c,
-				 TALLOC_CTX *mem_ctx,
+static int account_set_pwhistlen(TALLOC_CTX *mem_ctx,
 				 struct rpc_sh_ctx *ctx,
 				 struct samr_DomInfo1 *i1,
 				 struct samr_DomInfo3 *i3,
@@ -415,36 +398,35 @@ static int account_set_pwhistlen(struct net_context *c,
 	return 1;
 }
 
-static NTSTATUS rpc_sh_acct_set_pwhistlen(struct net_context *c,
-					  TALLOC_CTX *mem_ctx,
+static NTSTATUS rpc_sh_acct_set_pwhistlen(TALLOC_CTX *mem_ctx,
 					  struct rpc_sh_ctx *ctx,
 					  struct rpc_pipe_client *pipe_hnd,
 					  int argc, const char **argv)
 {
-	return rpc_sh_acct_do(c, mem_ctx, ctx, pipe_hnd, argc, argv,
+	return rpc_sh_acct_do(mem_ctx, ctx, pipe_hnd, argc, argv,
 			      account_set_pwhistlen);
 }
 
-struct rpc_sh_cmd *net_rpc_acct_cmds(struct net_context *c, TALLOC_CTX *mem_ctx,
+struct rpc_sh_cmd *net_rpc_acct_cmds(TALLOC_CTX *mem_ctx,
 				     struct rpc_sh_ctx *ctx)
 {
 	static struct rpc_sh_cmd cmds[9] = {
-		{ "show", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_pol_show,
+		{ "show", NULL, PI_SAMR, rpc_sh_acct_pol_show,
 		  "Show current account policy settings" },
-		{ "badpw", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_badpw,
+		{ "badpw", NULL, PI_SAMR, rpc_sh_acct_set_badpw,
 		  "Set bad password count before lockout" },
-		{ "lockduration", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_lockduration,
+		{ "lockduration", NULL, PI_SAMR, rpc_sh_acct_set_lockduration,
 		  "Set account lockout duration" },
-		{ "resetduration", NULL, &ndr_table_samr.syntax_id,
+		{ "resetduration", NULL, PI_SAMR,
 		  rpc_sh_acct_set_resetduration,
 		  "Set bad password count reset duration" },
-		{ "minpwage", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_minpwage,
+		{ "minpwage", NULL, PI_SAMR, rpc_sh_acct_set_minpwage,
 		  "Set minimum password age" },
-		{ "maxpwage", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_maxpwage,
+		{ "maxpwage", NULL, PI_SAMR, rpc_sh_acct_set_maxpwage,
 		  "Set maximum password age" },
-		{ "minpwlen", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_minpwlen,
+		{ "minpwlen", NULL, PI_SAMR, rpc_sh_acct_set_minpwlen,
 		  "Set minimum password length" },
-		{ "pwhistlen", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_pwhistlen,
+		{ "pwhistlen", NULL, PI_SAMR, rpc_sh_acct_set_pwhistlen,
 		  "Set the password history length" },
 		{ NULL, NULL, 0, NULL, NULL }
 	};

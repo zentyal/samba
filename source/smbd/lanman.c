@@ -27,6 +27,9 @@
 
 #include "includes.h"
 
+extern struct current_user current_user;
+extern userdom_struct current_user_info;
+
 #ifdef CHECK_TYPES
 #undef CHECK_TYPES
 #endif
@@ -98,11 +101,11 @@ static int CopyExpanded(connection_struct *conn,
 	}
 	buf = talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->user,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
+				conn->gid,
+				get_current_username(),
+				current_user_info.domain,
 				buf);
 	if (!buf) {
 		*p_space_remaining = 0;
@@ -149,11 +152,11 @@ static int StrlenExpanded(connection_struct *conn, int snum, char *s)
 	}
 	buf = talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->user,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
+				conn->gid,
+				get_current_username(),
+				current_user_info.domain,
 				buf);
 	if (!buf) {
 		return 0;
@@ -179,11 +182,11 @@ static char *Expand(connection_struct *conn, int snum, char *s)
 	}
 	return talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
+				conn->user,
 				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
+				conn->gid,
+				get_current_username(),
+				current_user_info.domain,
 				buf);
 }
 
@@ -1893,7 +1896,6 @@ static bool api_RNetShareAdd(connection_struct *conn,uint16 vuid,
 	unsigned int offset;
 	int snum;
 	int res = ERRunsup;
-	size_t converted_size;
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -1954,13 +1956,7 @@ static bool api_RNetShareAdd(connection_struct *conn,uint16 vuid,
 		return False;
 	}
 
-	if (!pull_ascii_talloc(talloc_tos(), &pathname,
-			       offset ? (data+offset) : "", &converted_size))
-	{
-		DEBUG(0,("api_RNetShareAdd: pull_ascii_talloc failed: %s",
-			 strerror(errno)));
-	}
-
+	pull_ascii_talloc(talloc_tos(), &pathname, offset? (data+offset) : "");
 	if (!pathname) {
 		return false;
 	}
@@ -2680,15 +2676,15 @@ static bool api_RDosPrintJobDel(connection_struct *conn,uint16 vuid,
 	
 	switch (function) {
 	case 81:		/* delete */ 
-		if (print_job_delete(conn->server_info, snum, jobid, &werr))
+		if (print_job_delete(&current_user, snum, jobid, &werr)) 
 			errcode = NERR_Success;
 		break;
 	case 82:		/* pause */
-		if (print_job_pause(conn->server_info, snum, jobid, &werr))
+		if (print_job_pause(&current_user, snum, jobid, &werr)) 
 			errcode = NERR_Success;
 		break;
 	case 83:		/* resume */
-		if (print_job_resume(conn->server_info, snum, jobid, &werr))
+		if (print_job_resume(&current_user, snum, jobid, &werr)) 
 			errcode = NERR_Success;
 		break;
 	}
@@ -2749,19 +2745,13 @@ static bool api_WPrintQueueCtrl(connection_struct *conn,uint16 vuid,
 
 	switch (function) {
 	case 74: /* Pause queue */
-		if (print_queue_pause(conn->server_info, snum, &werr)) {
-			errcode = NERR_Success;
-		}
+		if (print_queue_pause(&current_user, snum, &werr)) errcode = NERR_Success;
 		break;
 	case 75: /* Resume queue */
-		if (print_queue_resume(conn->server_info, snum, &werr)) {
-			errcode = NERR_Success;
-		}
+		if (print_queue_resume(&current_user, snum, &werr)) errcode = NERR_Success;
 		break;
 	case 103: /* Purge */
-		if (print_queue_purge(conn->server_info, snum, &werr)) {
-			errcode = NERR_Success;
-		}
+		if (print_queue_purge(&current_user, snum, &werr)) errcode = NERR_Success;
 		break;
 	}
 
@@ -3008,15 +2998,14 @@ static bool api_RNetServerGetInfo(connection_struct *conn,uint16 vuid,
 			SIVAL(p,6,0);
 		} else {
 			SIVAL(p,6,PTR_DIFF(p2,*rdata));
-			comment = talloc_sub_advanced(
-				ctx,
-				lp_servicename(SNUM(conn)),
-				conn->server_info->unix_name,
-				conn->connectpath,
-				conn->server_info->utok.gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
-				comment);
+			comment = talloc_sub_advanced(ctx,
+						lp_servicename(SNUM(conn)),
+						conn->user,
+						conn->connectpath,
+						conn->gid,
+						get_current_username(),
+						current_user_info.domain,
+						comment);
 			if (comment) {
 				return false;
 			}
@@ -3115,7 +3104,7 @@ static bool api_NetWkstaGetInfo(connection_struct *conn,uint16 vuid,
 	p += 4;
 
 	SIVAL(p,0,PTR_DIFF(p2,*rdata));
-	strlcpy(p2,conn->server_info->sanitized_username,PTR_DIFF(endp,p2));
+	strlcpy(p2,current_user_info.smb_name,PTR_DIFF(endp,p2));
 	p2 = skip_string(*rdata,*rdata_len,p2);
 	if (!p2) {
 		return False;
@@ -3349,9 +3338,8 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 	   Don't depend on vuser being non-null !!. JRA */
 	user_struct *vuser = get_valid_user_struct(vuid);
 	if(vuser != NULL) {
-		DEBUG(3,("  Username of UID %d is %s\n",
-			 (int)vuser->server_info->utok.uid,
-			 vuser->server_info->unix_name));
+		DEBUG(3,("  Username of UID %d is %s\n", (int)vuser->uid,
+			vuser->user.unix_name));
 	}
 
 	if (!str1 || !str2 || !UserName || !p) {
@@ -3424,9 +3412,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 
 		/* EEK! the cifsrap.txt doesn't have this in!!!! */
 		SIVAL(p,usri11_full_name,PTR_DIFF(p2,p)); /* full name */
-		strlcpy(p2,((vuser != NULL)
-			    ? pdb_get_fullname(vuser->server_info->sam_account)
-			    : UserName),PTR_DIFF(endp,p2));
+		strlcpy(p2,((vuser != NULL) ? vuser->user.full_name : UserName),PTR_DIFF(endp,p2));
 		p2 = skip_string(*rdata,*rdata_len,p2);
 		if (!p2) {
 			return False;
@@ -3434,17 +3420,12 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 	}
 
 	if (uLevel == 11) {
-		const char *homedir = "";
-		if (vuser != NULL) {
-			homedir = pdb_get_homedir(
-				vuser->server_info->sam_account);
-		}
 		/* modelled after NTAS 3.51 reply */
 		SSVAL(p,usri11_priv,conn->admin_user?USER_PRIV_ADMIN:USER_PRIV_USER); 
 		SIVAL(p,usri11_auth_flags,AF_OP_PRINT);		/* auth flags */
 		SIVALS(p,usri11_password_age,-1);		/* password age */
 		SIVAL(p,usri11_homedir,PTR_DIFF(p2,p)); /* home dir */
-		strlcpy(p2, homedir, PTR_DIFF(endp,p2));
+		strlcpy(p2, vuser && vuser->homedir ? vuser->homedir : "",PTR_DIFF(endp,p2));
 		p2 = skip_string(*rdata,*rdata_len,p2);
 		if (!p2) {
 			return False;
@@ -3495,9 +3476,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 		SSVAL(p,42,
 		conn->admin_user?USER_PRIV_ADMIN:USER_PRIV_USER);
 		SIVAL(p,44,PTR_DIFF(p2,*rdata)); /* home dir */
-		strlcpy(p2, vuser ? pdb_get_homedir(
-				vuser->server_info->sam_account) : "",
-			PTR_DIFF(endp,p2));
+		strlcpy(p2, vuser && vuser->homedir ? vuser->homedir : "",PTR_DIFF(endp,p2));
 		p2 = skip_string(*rdata,*rdata_len,p2);
 		if (!p2) {
 			return False;
@@ -3506,9 +3485,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 		*p2++ = 0;
 		SSVAL(p,52,0);		/* flags */
 		SIVAL(p,54,PTR_DIFF(p2,*rdata));		/* script_path */
-		strlcpy(p2, vuser ? pdb_get_logon_script(
-				vuser->server_info->sam_account) : "",
-			PTR_DIFF(endp,p2));
+		strlcpy(p2,vuser && vuser->logon_script ? vuser->logon_script : "",PTR_DIFF(endp,p2));
 		p2 = skip_string(*rdata,*rdata_len,p2);
 		if (!p2) {
 			return False;
@@ -3516,9 +3493,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 		if (uLevel == 2) {
 			SIVAL(p,60,0);		/* auth_flags */
 			SIVAL(p,64,PTR_DIFF(p2,*rdata)); /* full_name */
-			strlcpy(p2,((vuser != NULL)
-				    ? pdb_get_fullname(vuser->server_info->sam_account)
-				    : UserName),PTR_DIFF(endp,p2));
+   			strlcpy(p2,((vuser != NULL) ? vuser->user.full_name : UserName),PTR_DIFF(endp,p2));
 			p2 = skip_string(*rdata,*rdata_len,p2);
 			if (!p2) {
 				return False;
@@ -3605,9 +3580,8 @@ static bool api_WWkstaUserLogon(connection_struct *conn,uint16 vuid,
 	}
 
 	if(vuser != NULL) {
-		DEBUG(3,("  Username of UID %d is %s\n",
-			 (int)vuser->server_info->utok.uid,
-			 vuser->server_info->unix_name));
+		DEBUG(3,("  Username of UID %d is %s\n", (int)vuser->uid, 
+			vuser->user.unix_name));
 	}
 
 	uLevel = get_safe_SVAL(param,tpscnt,p,0,-1);
@@ -3664,8 +3638,7 @@ static bool api_WWkstaUserLogon(connection_struct *conn,uint16 vuid,
 		}
 
 		PACKS(&desc,"z",lp_workgroup());/* domain */
-		PACKS(&desc,"z", vuser ? pdb_get_logon_script(
-			      vuser->server_info->sam_account) : ""); /* script path */
+		PACKS(&desc,"z", vuser && vuser->logon_script ? vuser->logon_script :""); /* script path */
 		PACKI(&desc,"D",0x00000000);		/* reserved */
 	}
 
@@ -4587,7 +4560,7 @@ void api_reply(connection_struct *conn, uint16 vuid,
 	if (api_commands[i].auth_user && lp_restrict_anonymous()) {
 		user_struct *user = get_valid_user_struct(vuid);
 
-		if (!user || user->server_info->guest) {
+		if (!user || user->guest) {
 			reply_nterror(req, NT_STATUS_ACCESS_DENIED);
 			return;
 		}
@@ -4632,7 +4605,7 @@ void api_reply(connection_struct *conn, uint16 vuid,
 
 	/* If api_Unsupported returns false we can't return anything. */
 	if (reply) {
-		send_trans_reply(conn, req->inbuf, rparam, rparam_len,
+		send_trans_reply(conn, req, rparam, rparam_len,
 				 rdata, rdata_len, False);
 	}
 

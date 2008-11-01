@@ -91,15 +91,16 @@ WERROR registry_pull_value(TALLOC_CTX *mem_ctx,
 			goto error;
 		}
 
-		if (!convert_string_talloc(value, CH_UTF16LE, CH_UNIX, tmp,
-					   length+2, &value->v.sz.str,
-					   &value->v.sz.len, False)) {
-			SAFE_FREE(tmp);
+		value->v.sz.len = convert_string_talloc(
+			value, CH_UTF16LE, CH_UNIX, tmp, length+2,
+			&value->v.sz.str, False);
+
+		SAFE_FREE(tmp);
+
+		if (value->v.sz.len == (size_t)-1) {
 			err = WERR_INVALID_PARAM;
 			goto error;
 		}
-
-		SAFE_FREE(tmp);
 		break;
 	}
 	case REG_MULTI_SZ:
@@ -142,13 +143,11 @@ WERROR registry_push_value(TALLOC_CTX *mem_ctx,
 	}
 	case REG_SZ:
 	case REG_EXPAND_SZ: {
-		if (!convert_string_talloc(mem_ctx, CH_UNIX, CH_UTF16LE,
-					   value->v.sz.str,
-					   MIN(value->v.sz.len,
-					       strlen(value->v.sz.str)+1),
-					   (void *)&(presult->data),
-					   &presult->length, False))
-		{
+		presult->length = convert_string_talloc(
+			mem_ctx, CH_UNIX, CH_UTF16LE, value->v.sz.str,
+			MIN(value->v.sz.len, strlen(value->v.sz.str)+1),
+			(void *)&(presult->data), False);
+		if (presult->length == (size_t)-1) {
 			return WERR_NOMEM;
 		}
 		break;
@@ -177,13 +176,12 @@ WERROR registry_push_value(TALLOC_CTX *mem_ctx,
 		/* convert the single strings */
 		for (count = 0; count < value->v.multi_sz.num_strings; count++)
 		{
-			if (!convert_string_talloc(strings, CH_UNIX,
-				CH_UTF16LE, value->v.multi_sz.strings[count],
+			string_lengths[count] = convert_string_talloc(
+				strings, CH_UNIX, CH_UTF16LE,
+				value->v.multi_sz.strings[count],
 				strlen(value->v.multi_sz.strings[count])+1,
-				(void *)&strings[count],
-				&string_lengths[count], false))
-			{
-
+				(void *)&strings[count], false);
+			if (string_lengths[count] == (size_t)-1) {
 				TALLOC_FREE(tmp_ctx);
 				return WERR_NOMEM;
 			}

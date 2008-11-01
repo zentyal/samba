@@ -68,12 +68,13 @@
 
 	<programlisting>
 	[global]
-	idmap backend = tdb
-	idmap uid = 1000000-1999999
-	idmap gid = 1000000-1999999
+	idmap domains = ALLDOMAINS
+	idmap config ALLDOMAINS:backend      = ad
+	idmap config ALLDOMAINS:default      = yes
+	idmap config ALLDOMAINS:range        = 10000 - 300000000
 
-	idmap config CORP : backend  = ad
-	idmap config CORP : range = 1000-999999
+	idmap alloc backend = tdb
+	idmap alloc config:range        = 5000 - 9999
 	</programlisting>
 </refsect1>
 

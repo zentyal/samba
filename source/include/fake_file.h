@@ -31,9 +31,19 @@ we now get the unix name --metze
 #define FAKE_FILE_NAME_QUOTA_WIN32	"\\$Extend\\$Quota:$Q:$INDEX_ALLOCATION"
 #define FAKE_FILE_NAME_QUOTA_UNIX	"$Extend/$Quota:$Q:$INDEX_ALLOCATION"
 
-struct fake_file_handle {
+typedef struct _FAKE_FILE_HANDLE {
 	enum FAKE_FILE_TYPE type;
-	void *private_data;
-};
+	TALLOC_CTX *mem_ctx;
+	void *pd; /* for private data */
+	void (*free_pd)(void **pd); /* free private_data */
+} FAKE_FILE_HANDLE;
+
+typedef struct _FAKE_FILE {
+	const char *name;
+	enum FAKE_FILE_TYPE type;
+	void *(*init_pd)(TALLOC_CTX *men_ctx);
+	void (*free_pd)(void **pd);
+} FAKE_FILE;
+
 
 #endif /* _FAKE_FILE_H */

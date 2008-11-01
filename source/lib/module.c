@@ -118,7 +118,7 @@ NTSTATUS smb_probe_module(const char *subsystem, const char *module)
 
 	full_path = talloc_asprintf(ctx,
 			"%s/%s.%s",
-			modules_path(subsystem),
+			lib_path(subsystem),
 			module,
 			shlib_ext());
 	if (!full_path) {

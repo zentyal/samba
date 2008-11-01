@@ -213,6 +213,8 @@ char *afs_createtoken_str(const char *username, const char *cell)
 
 bool afs_login(connection_struct *conn)
 {
+	extern userdom_struct current_user_info;
+	extern struct current_user current_user;
 	DATA_BLOB ticket;
 	char *afs_username = NULL;
 	char *cell = NULL;
@@ -232,14 +234,14 @@ bool afs_login(connection_struct *conn)
 	afs_username = talloc_sub_advanced(ctx,
 				SNUM(conn), conn->user,
 				conn->connectpath, conn->gid,
-				conn->server_info->sanitized_username,
-				pdb_get_domain(conn->server_info->sam_account),
+				get_current_username(),
+				current_user_info.domain,
 				afs_username);
 	if (!afs_username) {
 		return false;
 	}
 
-	user_sid = &conn->server_info->ptok->user_sids[0];
+	user_sid = &current_user.nt_user_token->user_sids[0];
 	afs_username = talloc_string_sub(talloc_tos(),
 					afs_username,
 					"%s",
@@ -292,7 +294,7 @@ bool afs_login(connection_struct *conn)
 
 char *afs_createtoken_str(const char *username, const char *cell)
 {
-	return NULL;
+	return False;
 }
 
 #endif /* WITH_FAKE_KASERVER */

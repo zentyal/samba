@@ -21,6 +21,7 @@ NTSTATUS rpccli_PNP_Disconnect(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DISCONNECT,
 				&r);
@@ -62,6 +63,7 @@ NTSTATUS rpccli_PNP_Connect(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_CONNECT,
 				&r);
@@ -104,6 +106,7 @@ NTSTATUS rpccli_PNP_GetVersion(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETVERSION,
 				&r);
@@ -146,6 +149,7 @@ NTSTATUS rpccli_PNP_GetGlobalState(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETGLOBALSTATE,
 				&r);
@@ -187,6 +191,7 @@ NTSTATUS rpccli_PNP_InitDetection(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_INITDETECTION,
 				&r);
@@ -228,6 +233,7 @@ NTSTATUS rpccli_PNP_ReportLogOn(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REPORTLOGON,
 				&r);
@@ -273,6 +279,7 @@ NTSTATUS rpccli_PNP_ValidateDeviceInstance(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_VALIDATEDEVICEINSTANCE,
 				&r);
@@ -314,6 +321,7 @@ NTSTATUS rpccli_PNP_GetRootDeviceInstance(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETROOTDEVICEINSTANCE,
 				&r);
@@ -355,6 +363,7 @@ NTSTATUS rpccli_PNP_GetRelatedDeviceInstance(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETRELATEDDEVICEINSTANCE,
 				&r);
@@ -396,6 +405,7 @@ NTSTATUS rpccli_PNP_EnumerateSubKeys(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_ENUMERATESUBKEYS,
 				&r);
@@ -437,6 +447,7 @@ NTSTATUS rpccli_PNP_GetDeviceList(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETDEVICELIST,
 				&r);
@@ -483,6 +494,7 @@ NTSTATUS rpccli_PNP_GetDeviceListSize(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETDEVICELISTSIZE,
 				&r);
@@ -525,6 +537,7 @@ NTSTATUS rpccli_PNP_GetDepth(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETDEPTH,
 				&r);
@@ -553,25 +566,12 @@ NTSTATUS rpccli_PNP_GetDepth(struct rpc_pipe_client *cli,
 
 NTSTATUS rpccli_PNP_GetDeviceRegProp(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
-				     const char *devicepath /* [in] [ref,charset(UTF16)] */,
-				     uint32_t property /* [in]  */,
-				     uint32_t *unknown1 /* [in,out] [ref] */,
-				     uint8_t *buffer /* [out] [ref,length_is(*buffer_size),size_is(*buffer_size)] */,
-				     uint32_t *buffer_size /* [in,out] [ref] */,
-				     uint32_t *needed /* [in,out] [ref] */,
-				     uint32_t unknown3 /* [in]  */,
 				     WERROR *werror)
 {
 	struct PNP_GetDeviceRegProp r;
 	NTSTATUS status;
 
 	/* In parameters */
-	r.in.devicepath = devicepath;
-	r.in.property = property;
-	r.in.unknown1 = unknown1;
-	r.in.buffer_size = buffer_size;
-	r.in.needed = needed;
-	r.in.unknown3 = unknown3;
 
 	if (DEBUGLEVEL >= 10) {
 		NDR_PRINT_IN_DEBUG(PNP_GetDeviceRegProp, &r);
@@ -579,6 +579,7 @@ NTSTATUS rpccli_PNP_GetDeviceRegProp(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETDEVICEREGPROP,
 				&r);
@@ -596,10 +597,6 @@ NTSTATUS rpccli_PNP_GetDeviceRegProp(struct rpc_pipe_client *cli,
 	}
 
 	/* Return variables */
-	*unknown1 = *r.out.unknown1;
-	memcpy(buffer, r.out.buffer, *r.in.buffer_size * sizeof(*buffer));
-	*buffer_size = *r.out.buffer_size;
-	*needed = *r.out.needed;
 
 	/* Return result */
 	if (werror) {
@@ -624,6 +621,7 @@ NTSTATUS rpccli_PNP_SetDeviceRegProp(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_SETDEVICEREGPROP,
 				&r);
@@ -665,6 +663,7 @@ NTSTATUS rpccli_PNP_GetClassInstance(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETCLASSINSTANCE,
 				&r);
@@ -706,6 +705,7 @@ NTSTATUS rpccli_PNP_CreateKey(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_CREATEKEY,
 				&r);
@@ -747,6 +747,7 @@ NTSTATUS rpccli_PNP_DeleteRegistryKey(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DELETEREGISTRYKEY,
 				&r);
@@ -788,6 +789,7 @@ NTSTATUS rpccli_PNP_GetClassCount(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETCLASSCOUNT,
 				&r);
@@ -829,6 +831,7 @@ NTSTATUS rpccli_PNP_GetClassName(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETCLASSNAME,
 				&r);
@@ -870,6 +873,7 @@ NTSTATUS rpccli_PNP_DeleteClassKey(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DELETECLASSKEY,
 				&r);
@@ -911,6 +915,7 @@ NTSTATUS rpccli_PNP_GetInterfaceDeviceAlias(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETINTERFACEDEVICEALIAS,
 				&r);
@@ -952,6 +957,7 @@ NTSTATUS rpccli_PNP_GetInterfaceDeviceList(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETINTERFACEDEVICELIST,
 				&r);
@@ -993,6 +999,7 @@ NTSTATUS rpccli_PNP_GetInterfaceDeviceListSize(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETINTERFACEDEVICELISTSIZE,
 				&r);
@@ -1034,6 +1041,7 @@ NTSTATUS rpccli_PNP_RegisterDeviceClassAssociation(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REGISTERDEVICECLASSASSOCIATION,
 				&r);
@@ -1075,6 +1083,7 @@ NTSTATUS rpccli_PNP_UnregisterDeviceClassAssociation(struct rpc_pipe_client *cli
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_UNREGISTERDEVICECLASSASSOCIATION,
 				&r);
@@ -1116,6 +1125,7 @@ NTSTATUS rpccli_PNP_GetClassRegProp(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETCLASSREGPROP,
 				&r);
@@ -1157,6 +1167,7 @@ NTSTATUS rpccli_PNP_SetClassRegProp(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_SETCLASSREGPROP,
 				&r);
@@ -1198,6 +1209,7 @@ NTSTATUS rpccli_PNP_CreateDevInst(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_CREATEDEVINST,
 				&r);
@@ -1239,6 +1251,7 @@ NTSTATUS rpccli_PNP_DeviceInstanceAction(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DEVICEINSTANCEACTION,
 				&r);
@@ -1280,6 +1293,7 @@ NTSTATUS rpccli_PNP_GetDeviceStatus(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETDEVICESTATUS,
 				&r);
@@ -1321,6 +1335,7 @@ NTSTATUS rpccli_PNP_SetDeviceProblem(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_SETDEVICEPROBLEM,
 				&r);
@@ -1362,6 +1377,7 @@ NTSTATUS rpccli_PNP_DisableDevInst(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DISABLEDEVINST,
 				&r);
@@ -1403,6 +1419,7 @@ NTSTATUS rpccli_PNP_UninstallDevInst(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_UNINSTALLDEVINST,
 				&r);
@@ -1444,6 +1461,7 @@ NTSTATUS rpccli_PNP_AddID(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_ADDID,
 				&r);
@@ -1485,6 +1503,7 @@ NTSTATUS rpccli_PNP_RegisterDriver(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REGISTERDRIVER,
 				&r);
@@ -1526,6 +1545,7 @@ NTSTATUS rpccli_PNP_QueryRemove(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_QUERYREMOVE,
 				&r);
@@ -1567,6 +1587,7 @@ NTSTATUS rpccli_PNP_RequestDeviceEject(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REQUESTDEVICEEJECT,
 				&r);
@@ -1608,6 +1629,7 @@ NTSTATUS rpccli_PNP_IsDockStationPresent(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_ISDOCKSTATIONPRESENT,
 				&r);
@@ -1649,6 +1671,7 @@ NTSTATUS rpccli_PNP_RequestEjectPC(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REQUESTEJECTPC,
 				&r);
@@ -1707,6 +1730,7 @@ NTSTATUS rpccli_PNP_HwProfFlags(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_HWPROFFLAGS,
 				&r);
@@ -1763,6 +1787,7 @@ NTSTATUS rpccli_PNP_GetHwProfInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETHWPROFINFO,
 				&r);
@@ -1805,6 +1830,7 @@ NTSTATUS rpccli_PNP_AddEmptyLogConf(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_ADDEMPTYLOGCONF,
 				&r);
@@ -1846,6 +1872,7 @@ NTSTATUS rpccli_PNP_FreeLogConf(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_FREELOGCONF,
 				&r);
@@ -1887,6 +1914,7 @@ NTSTATUS rpccli_PNP_GetFirstLogConf(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETFIRSTLOGCONF,
 				&r);
@@ -1928,6 +1956,7 @@ NTSTATUS rpccli_PNP_GetNextLogConf(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETNEXTLOGCONF,
 				&r);
@@ -1969,6 +1998,7 @@ NTSTATUS rpccli_PNP_GetLogConfPriority(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETLOGCONFPRIORITY,
 				&r);
@@ -2010,6 +2040,7 @@ NTSTATUS rpccli_PNP_AddResDes(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_ADDRESDES,
 				&r);
@@ -2051,6 +2082,7 @@ NTSTATUS rpccli_PNP_FreeResDes(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_FREERESDES,
 				&r);
@@ -2092,6 +2124,7 @@ NTSTATUS rpccli_PNP_GetNextResDes(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETNEXTRESDES,
 				&r);
@@ -2133,6 +2166,7 @@ NTSTATUS rpccli_PNP_GetResDesData(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETRESDESDATA,
 				&r);
@@ -2174,6 +2208,7 @@ NTSTATUS rpccli_PNP_GetResDesDataSize(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETRESDESDATASIZE,
 				&r);
@@ -2215,6 +2250,7 @@ NTSTATUS rpccli_PNP_ModifyResDes(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_MODIFYRESDES,
 				&r);
@@ -2256,6 +2292,7 @@ NTSTATUS rpccli_PNP_DetectResourceLimit(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_DETECTRESOURCELIMIT,
 				&r);
@@ -2297,6 +2334,7 @@ NTSTATUS rpccli_PNP_QueryResConfList(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_QUERYRESCONFLIST,
 				&r);
@@ -2338,6 +2376,7 @@ NTSTATUS rpccli_PNP_SetHwProf(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_SETHWPROF,
 				&r);
@@ -2379,6 +2418,7 @@ NTSTATUS rpccli_PNP_QueryArbitratorFreeData(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_QUERYARBITRATORFREEDATA,
 				&r);
@@ -2420,6 +2460,7 @@ NTSTATUS rpccli_PNP_QueryArbitratorFreeSize(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_QUERYARBITRATORFREESIZE,
 				&r);
@@ -2461,6 +2502,7 @@ NTSTATUS rpccli_PNP_RunDetection(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_RUNDETECTION,
 				&r);
@@ -2502,6 +2544,7 @@ NTSTATUS rpccli_PNP_RegisterNotification(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_REGISTERNOTIFICATION,
 				&r);
@@ -2543,6 +2586,7 @@ NTSTATUS rpccli_PNP_UnregisterNotification(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_UNREGISTERNOTIFICATION,
 				&r);
@@ -2584,6 +2628,7 @@ NTSTATUS rpccli_PNP_GetCustomDevProp(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETCUSTOMDEVPROP,
 				&r);
@@ -2625,6 +2670,7 @@ NTSTATUS rpccli_PNP_GetVersionInternal(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETVERSIONINTERNAL,
 				&r);
@@ -2666,6 +2712,7 @@ NTSTATUS rpccli_PNP_GetBlockedDriverInfo(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETBLOCKEDDRIVERINFO,
 				&r);
@@ -2707,6 +2754,7 @@ NTSTATUS rpccli_PNP_GetServerSideDeviceInstallFlags(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_NTSVCS,
 				&ndr_table_ntsvcs,
 				NDR_PNP_GETSERVERSIDEDEVICEINSTALLFLAGS,
 				&r);

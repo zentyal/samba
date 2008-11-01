@@ -129,3 +129,5 @@ char *guid_binstring(const struct GUID *guid)
 
 	return binary_string_rfc2254((char *)guid_flat.info, UUID_FLAT_SIZE);
 }
+
+

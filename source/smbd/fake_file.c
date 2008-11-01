@@ -19,52 +19,54 @@
 
 #include "includes.h"
 
-struct fake_file_type {
-	const char *name;
-	enum FAKE_FILE_TYPE type;
-	void *(*init_pd)(TALLOC_CTX *mem_ctx);
-};
+extern struct current_user current_user;
 
-static struct fake_file_type fake_files[] = {
+static FAKE_FILE fake_files[] = {
 #ifdef WITH_QUOTAS
-	{FAKE_FILE_NAME_QUOTA_UNIX, FAKE_FILE_TYPE_QUOTA, init_quota_handle},
+	{FAKE_FILE_NAME_QUOTA_UNIX,	FAKE_FILE_TYPE_QUOTA,	init_quota_handle,	destroy_quota_handle},
 #endif /* WITH_QUOTAS */
-	{NULL, FAKE_FILE_TYPE_NONE, NULL}
+	{NULL,				FAKE_FILE_TYPE_NONE,	NULL,			NULL }
 };
 
 /****************************************************************************
  Create a fake file handle
 ****************************************************************************/
 
-static struct fake_file_handle *init_fake_file_handle(enum FAKE_FILE_TYPE type)
+static struct _FAKE_FILE_HANDLE *init_fake_file_handle(enum FAKE_FILE_TYPE type)
 {
-	struct fake_file_handle *fh = NULL;
+	TALLOC_CTX *mem_ctx = NULL;
+	FAKE_FILE_HANDLE *fh = NULL;
 	int i;
 
-	for (i=0; fake_files[i].name!=NULL; i++) {
+	for (i=0;fake_files[i].name!=NULL;i++) {
 		if (fake_files[i].type==type) {
-			break;
+			DEBUG(5,("init_fake_file_handle: for [%s]\n",fake_files[i].name));
+
+			if ((mem_ctx=talloc_init("fake_file_handle"))==NULL) {
+				DEBUG(0,("talloc_init(fake_file_handle) failed.\n"));
+				return NULL;	
+			}
+
+			if ((fh =TALLOC_ZERO_P(mem_ctx, FAKE_FILE_HANDLE))==NULL) {
+				DEBUG(0,("TALLOC_ZERO() failed.\n"));
+				talloc_destroy(mem_ctx);
+				return NULL;
+			}
+
+			fh->type = type;
+			fh->mem_ctx = mem_ctx;
+
+			if (fake_files[i].init_pd) {
+				fh->pd = fake_files[i].init_pd(fh->mem_ctx);
+			}
+
+			fh->free_pd = fake_files[i].free_pd;
+
+			return fh;
 		}
 	}
 
-	if (fake_files[i].name == NULL) {
-		return NULL;
-	}
-
-	DEBUG(5,("init_fake_file_handle: for [%s]\n",fake_files[i].name));
-
-	fh = talloc(NULL, struct fake_file_handle);
-	if (fh == NULL) {
-		DEBUG(0,("TALLOC_ZERO() failed.\n"));
-		return NULL;
-	}
-
-	fh->type = type;
-
-	if (fake_files[i].init_pd) {
-		fh->private_data = fake_files[i].init_pd(fh);
-	}
-	return fh;
+	return NULL;	
 }
 
 /****************************************************************************
@@ -99,7 +101,6 @@ enum FAKE_FILE_TYPE is_fake_file(const char *fname)
 ****************************************************************************/
 
 NTSTATUS open_fake_file(connection_struct *conn,
-				uint16_t current_vuid,
 				enum FAKE_FILE_TYPE fake_file_type,
 				const char *fname,
 				uint32 access_mask,
@@ -109,11 +110,10 @@ NTSTATUS open_fake_file(connection_struct *conn,
 	NTSTATUS status;
 
 	/* access check */
-	if (conn->server_info->utok.uid != 0) {
+	if (current_user.ut.uid != 0) {
 		DEBUG(3, ("open_fake_file_shared: access_denied to "
 			  "service[%s] file[%s] user[%s]\n",
-			  lp_servicename(SNUM(conn)), fname,
-			  conn->server_info->unix_name));
+			  lp_servicename(SNUM(conn)),fname,conn->user));
 		return NT_STATUS_ACCESS_DENIED;
 
 	}
@@ -128,7 +128,7 @@ NTSTATUS open_fake_file(connection_struct *conn,
 
 	fsp->conn = conn;
 	fsp->fh->fd = -1;
-	fsp->vuid = current_vuid;
+	fsp->vuid = current_user.vuid;
 	fsp->fh->pos = -1;
 	fsp->can_lock = False; /* Should this be true ? - No, JRA */
 	fsp->access_mask = access_mask;
@@ -146,12 +146,18 @@ NTSTATUS open_fake_file(connection_struct *conn,
 	return NT_STATUS_OK;
 }
 
-void destroy_fake_file_handle(struct fake_file_handle **fh)
+void destroy_fake_file_handle(FAKE_FILE_HANDLE **fh)
 {
-	if (!fh) {
+	if (!fh||!(*fh)) {
 		return;
 	}
-	TALLOC_FREE(*fh);
+
+	if ((*fh)->free_pd) {
+		(*fh)->free_pd(&(*fh)->pd);		
+	}
+
+	talloc_destroy((*fh)->mem_ctx);
+	(*fh) = NULL;
 }
 
 NTSTATUS close_fake_file(files_struct *fsp)

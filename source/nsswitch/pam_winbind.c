@@ -12,86 +12,6 @@
 
 #include "pam_winbind.h"
 
-static const char *_pam_error_code_str(int err)
-{
-	switch (err) {
-		case PAM_SUCCESS:
-			return "PAM_SUCCESS";
-		case PAM_OPEN_ERR:
-			return "PAM_OPEN_ERR";
-		case PAM_SYMBOL_ERR:
-			return "PAM_SYMBOL_ERR";
-		case PAM_SERVICE_ERR:
-			return "PAM_SERVICE_ERR";
-		case PAM_SYSTEM_ERR:
-			return "PAM_SYSTEM_ERR";
-		case PAM_BUF_ERR:
-			return "PAM_BUF_ERR";
-		case PAM_PERM_DENIED:
-			return "PAM_PERM_DENIED";
-		case PAM_AUTH_ERR:
-			return "PAM_AUTH_ERR";
-		case PAM_CRED_INSUFFICIENT:
-			return "PAM_CRED_INSUFFICIENT";
-		case PAM_AUTHINFO_UNAVAIL:
-			return "PAM_AUTHINFO_UNAVAIL";
-		case PAM_USER_UNKNOWN:
-			return "PAM_USER_UNKNOWN";
-		case PAM_MAXTRIES:
-			return "PAM_MAXTRIES";
-		case PAM_NEW_AUTHTOK_REQD:
-			return "PAM_NEW_AUTHTOK_REQD";
-		case PAM_ACCT_EXPIRED:
-			return "PAM_ACCT_EXPIRED";
-		case PAM_SESSION_ERR:
-			return "PAM_SESSION_ERR";
-		case PAM_CRED_UNAVAIL:
-			return "PAM_CRED_UNAVAIL";
-		case PAM_CRED_EXPIRED:
-			return "PAM_CRED_EXPIRED";
-		case PAM_CRED_ERR:
-			return "PAM_CRED_ERR";
-		case PAM_NO_MODULE_DATA:
-			return "PAM_NO_MODULE_DATA";
-		case PAM_CONV_ERR:
-			return "PAM_CONV_ERR";
-		case PAM_AUTHTOK_ERR:
-			return "PAM_AUTHTOK_ERR";
-		case PAM_AUTHTOK_RECOVERY_ERR:
-			return "PAM_AUTHTOK_RECOVERY_ERR";
-		case PAM_AUTHTOK_LOCK_BUSY:
-			return "PAM_AUTHTOK_LOCK_BUSY";
-		case PAM_AUTHTOK_DISABLE_AGING:
-			return "PAM_AUTHTOK_DISABLE_AGING";
-		case PAM_TRY_AGAIN:
-			return "PAM_TRY_AGAIN";
-		case PAM_IGNORE:
-			return "PAM_IGNORE";
-		case PAM_ABORT:
-			return "PAM_ABORT";
-		case PAM_AUTHTOK_EXPIRED:
-			return "PAM_AUTHTOK_EXPIRED";
-#ifdef PAM_MODULE_UNKNOWN
-		case PAM_MODULE_UNKNOWN:
-			return "PAM_MODULE_UNKNOWN";
-#endif
-#ifdef PAM_BAD_ITEM
-		case PAM_BAD_ITEM:
-			return "PAM_BAD_ITEM";
-#endif
-#ifdef PAM_CONV_AGAIN
-		case PAM_CONV_AGAIN:
-			return "PAM_CONV_AGAIN";
-#endif
-#ifdef PAM_INCOMPLETE
-		case PAM_INCOMPLETE:
-			return "PAM_INCOMPLETE";
-#endif
-		default:
-			return NULL;
-	}
-}
-
 #define _PAM_LOG_FUNCTION_ENTER(function, ctx) \
 	do { \
 		_pam_log_debug(ctx, LOG_DEBUG, "[pamh: %p] ENTER: " \
@@ -102,8 +22,7 @@ static const char *_pam_error_code_str(int err)
 #define _PAM_LOG_FUNCTION_LEAVE(function, ctx, retval) \
 	do { \
 		_pam_log_debug(ctx, LOG_DEBUG, "[pamh: %p] LEAVE: " \
-			       function " returning %d (%s)", ctx->pamh, retval, \
-			       _pam_error_code_str(retval)); \
+			       function " returning %d", ctx->pamh, retval); \
 		_pam_log_state(ctx); \
 	} while (0)
 
@@ -779,7 +698,8 @@ static int pam_winbind_request_log(struct pwb_context *ctx,
 /**
  * send a password expiry message if required
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param next_change expected (calculated) next expiry date.
  * @param already_expired pointer to a boolean to indicate if the password is
  *        already expired.
@@ -840,7 +760,8 @@ static bool _pam_send_password_expiry_message(struct pwb_context *ctx,
 /**
  * Send a warning if the password expires in the near future
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param response The full authentication response structure.
  * @param already_expired boolean, is the pwd already expired?
  *
@@ -929,7 +850,8 @@ static bool safe_append_string(char *dest,
 /**
  * Convert a names into a SID string, appending it to a buffer.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param user User in PAM request.
  * @param name Name to convert.
  * @param sid_list_buffer Where to append the string sid.
@@ -984,7 +906,8 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 /**
  * Convert a list of names into a list of sids.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param user User in PAM request.
  * @param name_list List of names or string sids, separated by commas.
  * @param sid_list_buffer Where to put the list of string sids.
@@ -1048,7 +971,8 @@ out:
 /**
  * put krb5ccname variable into environment
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param krb5ccname env variable retrieved from winbindd.
  *
  * @return void.
@@ -1086,7 +1010,8 @@ static void _pam_setup_krb5_env(struct pwb_context *ctx,
 /**
  * Set string into the PAM stack.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param data_name Key name for pam_set_data.
  * @param value String value.
  *
@@ -1117,7 +1042,8 @@ static void _pam_set_data_string(struct pwb_context *ctx,
 /**
  * Set info3 strings into the PAM stack.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param data_name Key name for pam_set_data.
  * @param value String value.
  *
@@ -1156,7 +1082,8 @@ static void _pam_free_data_info3(pam_handle_t *pamh)
 /**
  * Send PAM_ERROR_MSG for cached or grace logons.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param username User in PAM request.
  * @param info3_user_flgs Info3 flags containing logon type bits.
  *
@@ -1193,7 +1120,8 @@ static void _pam_warn_logon_type(struct pwb_context *ctx,
 /**
  * Send PAM_ERROR_MSG for krb5 errors.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param username User in PAM request.
  * @param info3_user_flgs Info3 flags containing logon type bits.
  *
@@ -1941,7 +1869,8 @@ static int get_warn_pwd_expire_from_config(struct pwb_context *ctx)
 /**
  * Retrieve the winbind separator.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  *
  * @return string separator character. NULL on failure.
  */
@@ -1965,7 +1894,8 @@ static char winbind_get_separator(struct pwb_context *ctx)
 /**
  * Convert a upn to a name.
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param upn  USer UPN to be trabslated.
  *
  * @return converted name. NULL pointer on failure. Caller needs to free.
@@ -2440,7 +2370,8 @@ out:
  * evaluate whether we need to re-authenticate with kerberos after a
  * password change
  *
- * @param ctx PAM winbind context.
+ * @param pamh PAM handle
+ * @param ctrl PAM winbind options.
  * @param user The username
  *
  * @return boolean Returns true if required, false if not.

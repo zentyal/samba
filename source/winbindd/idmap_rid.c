@@ -36,8 +36,7 @@ struct idmap_rid_context {
   we support multiple domains in the new idmap
  *****************************************************************************/
 
-static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom,
-				     const char *params)
+static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom)
 {
 	NTSTATUS ret;
 	struct idmap_rid_context *ctx;
@@ -96,6 +95,7 @@ static NTSTATUS idmap_rid_initialize(struct idmap_domain *dom,
 	ctx->domain_name = talloc_strdup( ctx, dom->name );
 	
 	dom->private_data = ctx;
+	dom->initialized = True;
 
 	talloc_free(config_option);
 	return NT_STATUS_OK;
@@ -171,6 +171,14 @@ static NTSTATUS idmap_rid_unixids_to_sids(struct idmap_domain *dom, struct id_ma
 	NTSTATUS ret;
 	int i;
 
+	/* Initilization my have been deferred because of an error, retry or fail */
+	if ( ! dom->initialized) {
+		ret = idmap_rid_initialize(dom);
+		if ( ! NT_STATUS_IS_OK(ret)) {
+			return ret;
+		}
+	}
+
 	ridctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
 
 	ctx = talloc_new(dom);
@@ -204,6 +212,14 @@ static NTSTATUS idmap_rid_sids_to_unixids(struct idmap_domain *dom, struct id_ma
 	TALLOC_CTX *ctx;
 	NTSTATUS ret;
 	int i;
+
+	/* Initilization my have been deferred because of an error, retry or fail */
+	if ( ! dom->initialized) {
+		ret = idmap_rid_initialize(dom);
+		if ( ! NT_STATUS_IS_OK(ret)) {
+			return ret;
+		}
+	}
 
 	ridctx = talloc_get_type(dom->private_data, struct idmap_rid_context);
 

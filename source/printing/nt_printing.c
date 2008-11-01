@@ -21,6 +21,8 @@
 
 #include "includes.h"
 
+extern struct current_user current_user;
+
 static TDB_CONTEXT *tdb_forms; /* used for forms files */
 static TDB_CONTEXT *tdb_drivers; /* used for driver files */
 static TDB_CONTEXT *tdb_printers; /* used for printers files */
@@ -1377,7 +1379,6 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		}
 	}
 	close_file(fsp, NORMAL_CLOSE);
-	fsp = NULL;
 
 	/* Get file version info (if available) for new file */
 	filepath = driver_unix_convert(conn,new_file,&stat_buf);
@@ -1418,7 +1419,6 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		}
 	}
 	close_file(fsp, NORMAL_CLOSE);
-	fsp = NULL;
 
 	if (use_version && (new_major != old_major || new_minor != old_minor)) {
 		/* Compare versions and choose the larger version number */
@@ -3242,7 +3242,6 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 	const char *attrs[] = {"objectGUID", NULL};
 	struct GUID guid;
 	WERROR win_rc = WERR_OK;
-	size_t converted_size;
 
 	DEBUG(5, ("publishing printer %s\n", printer->info_2->printername));
 
@@ -3265,13 +3264,13 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 		return WERR_SERVER_UNAVAILABLE;
 	}
 	/* Now convert to CH_UNIX. */
-	if (!pull_utf8_allocate(&srv_dn, srv_dn_utf8, &converted_size)) {
+	if (pull_utf8_allocate(&srv_dn, srv_dn_utf8) == (size_t)-1) {
 		ldap_memfree(srv_dn_utf8);
 		ldap_memfree(srv_cn_utf8);
 		ads_destroy(&ads);
 		return WERR_SERVER_UNAVAILABLE;
 	}
-	if (!pull_utf8_allocate(&srv_cn_0, srv_cn_utf8[0], &converted_size)) {
+	if (pull_utf8_allocate(&srv_cn_0, srv_cn_utf8[0]) == (size_t)-1) {
 		ldap_memfree(srv_dn_utf8);
 		ldap_memfree(srv_cn_utf8);
 		ads_destroy(&ads);
@@ -5763,8 +5762,7 @@ void map_job_permissions(SEC_DESC *sd)
     3)  "printer admins" (may result in numerous calls to winbind)
 
  ****************************************************************************/
-bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
-			int access_type)
+bool print_access_check(struct current_user *user, int snum, int access_type)
 {
 	SEC_DESC_BUF *secdesc = NULL;
 	uint32 access_granted;
@@ -5776,10 +5774,12 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 	
 	/* If user is NULL then use the current_user structure */
 
+	if (!user)
+		user = &current_user;
+
 	/* Always allow root or SE_PRINT_OPERATROR to do anything */
 
-	if (server_info->utok.uid == 0
-	    || user_has_privileges(server_info->ptok, &se_printop ) ) {
+	if ( user->ut.uid == 0 || user_has_privileges(user->nt_user_token, &se_printop ) ) {
 		return True;
 	}
 
@@ -5826,7 +5826,7 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 	}
 
 	/* Check access */
-	result = se_access_check(secdesc->sd, server_info->ptok, access_type,
+	result = se_access_check(secdesc->sd, user->nt_user_token, access_type,
 				 &access_granted, &status);
 
 	DEBUG(4, ("access check was %s\n", result ? "SUCCESS" : "FAILURE"));
@@ -5834,8 +5834,8 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
         /* see if we need to try the printer admin list */
 
         if ((access_granted == 0) &&
-	    (token_contains_name_in_list(uidtoname(server_info->utok.uid),
-					 NULL, NULL, server_info->ptok,
+	    (token_contains_name_in_list(uidtoname(user->ut.uid), NULL,
+					 user->nt_user_token,
 					 lp_printer_admin(snum)))) {
 		talloc_destroy(mem_ctx);
 		return True;

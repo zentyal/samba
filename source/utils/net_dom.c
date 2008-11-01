@@ -20,38 +20,47 @@
 #include "includes.h"
 #include "utils/net.h"
 
-int net_dom_usage(struct net_context *c, int argc, const char **argv)
+static int net_dom_usage(int argc, const char **argv)
 {
 	d_printf("usage: net dom join "
-		 "<domain=DOMAIN> <ou=OU> <account=ACCOUNT> "
-		 "<password=PASSWORD> <reboot>\n  Join a remote machine\n");
+		 "<domain=DOMAIN> <ou=OU> <account=ACCOUNT> <password=PASSWORD> <reboot>\n");
 	d_printf("usage: net dom unjoin "
-		 "<account=ACCOUNT> <password=PASSWORD> <reboot>\n"
-		 "  Unjoin a remote machine\n");
+		 "<account=ACCOUNT> <password=PASSWORD> <reboot>\n");
 
 	return -1;
 }
 
-static int net_dom_unjoin(struct net_context *c, int argc, const char **argv)
+int net_help_dom(int argc, const char **argv)
 {
+	d_printf("net dom join"\
+		"\n  Join a remote machine\n");
+	d_printf("net dom unjoin"\
+		"\n  Unjoin a remote machine\n");
+
+	return -1;
+}
+
+static int net_dom_unjoin(int argc, const char **argv)
+{
+	struct libnetapi_ctx *ctx = NULL;
 	const char *server_name = NULL;
 	const char *account = NULL;
 	const char *password = NULL;
-	uint32_t unjoin_flags = NETSETUP_ACCT_DELETE |
-				NETSETUP_JOIN_DOMAIN;
+	uint32_t unjoin_flags = WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE |
+				WKSSVC_JOIN_FLAGS_JOIN_TYPE;
 	struct cli_state *cli = NULL;
-	bool do_reboot = false;
+	bool reboot = false;
 	NTSTATUS ntstatus;
 	NET_API_STATUS status;
 	int ret = -1;
 	int i;
 
-	if (argc < 1 || c->display_usage) {
-		return net_dom_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_dom_usage(argc, argv);
 	}
 
-	if (c->opt_host) {
-		server_name = c->opt_host;
+	if (opt_host) {
+		server_name = opt_host;
 	}
 
 	for (i=0; i<argc; i++) {
@@ -68,41 +77,46 @@ static int net_dom_unjoin(struct net_context *c, int argc, const char **argv)
 			}
 		}
 		if (strequal(argv[i], "reboot")) {
-			do_reboot = true;
+			reboot = true;
 		}
 	}
 
-	if (do_reboot) {
-		ntstatus = net_make_ipc_connection_ex(c, c->opt_workgroup,
-						      server_name, NULL, 0,
-						      &cli);
+	if (reboot) {
+		ntstatus = net_make_ipc_connection_ex(opt_workgroup, server_name,
+						      NULL, 0, &cli);
 		if (!NT_STATUS_IS_OK(ntstatus)) {
 			return -1;
 		}
 	}
 
+	status = libnetapi_init(&ctx);
+	if (status != 0) {
+		return -1;
+	}
+
+	libnetapi_set_username(ctx, opt_user_name);
+	libnetapi_set_password(ctx, opt_password);
+
 	status = NetUnjoinDomain(server_name, account, password, unjoin_flags);
 	if (status != 0) {
 		printf("Failed to unjoin domain: %s\n",
-			libnetapi_get_error_string(c->netapi_ctx, status));
+			libnetapi_get_error_string(ctx, status));
 		goto done;
 	}
 
-	if (do_reboot) {
-		c->opt_comment = "Shutting down due to a domain membership "
-				 "change";
-		c->opt_reboot = true;
-		c->opt_timeout = 30;
+	if (reboot) {
+		opt_comment = "Shutting down due to a domain membership change";
+		opt_reboot = true;
+		opt_timeout = 30;
 
-		ret = run_rpc_command(c, cli,
-				      &ndr_table_initshutdown.syntax_id,
-				      0, rpc_init_shutdown_internals,
+		ret = run_rpc_command(cli, PI_INITSHUTDOWN, 0,
+				      rpc_init_shutdown_internals,
 				      argc, argv);
 		if (ret == 0) {
 			goto done;
 		}
 
-		ret = run_rpc_command(c, cli, &ndr_table_winreg.syntax_id, 0,
+		ret = run_rpc_command(cli, PI_WINREG, 0,
 				      rpc_reg_shutdown_internals,
 				      argc, argv);
 		goto done;
@@ -118,32 +132,33 @@ static int net_dom_unjoin(struct net_context *c, int argc, const char **argv)
 	return ret;
 }
 
-static int net_dom_join(struct net_context *c, int argc, const char **argv)
+static int net_dom_join(int argc, const char **argv)
 {
+	struct libnetapi_ctx *ctx = NULL;
 	const char *server_name = NULL;
 	const char *domain_name = NULL;
 	const char *account_ou = NULL;
 	const char *Account = NULL;
 	const char *password = NULL;
-	uint32_t join_flags = NETSETUP_ACCT_CREATE |
-			      NETSETUP_JOIN_DOMAIN;
+	uint32_t join_flags = WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
+			      WKSSVC_JOIN_FLAGS_JOIN_TYPE;
 	struct cli_state *cli = NULL;
-	bool do_reboot = false;
+	bool reboot = false;
 	NTSTATUS ntstatus;
 	NET_API_STATUS status;
 	int ret = -1;
 	int i;
 
-	if (argc < 1 || c->display_usage) {
-		return net_dom_usage(c, argc, argv);
+	if (argc < 1) {
+		return net_dom_usage(argc, argv);
 	}
 
-	if (c->opt_host) {
-		server_name = c->opt_host;
+	if (opt_host) {
+		server_name = opt_host;
 	}
 
-	if (c->opt_force) {
-		join_flags |= NETSETUP_DOMAIN_JOIN_IF_JOINED;
+	if (opt_force) {
+		join_flags |= WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED;
 	}
 
 	for (i=0; i<argc; i++) {
@@ -172,14 +187,13 @@ static int net_dom_join(struct net_context *c, int argc, const char **argv)
 			}
 		}
 		if (strequal(argv[i], "reboot")) {
-			do_reboot = true;
+			reboot = true;
 		}
 	}
 
-	if (do_reboot) {
-		ntstatus = net_make_ipc_connection_ex(c, c->opt_workgroup,
-						      server_name, NULL, 0,
-						      &cli);
+	if (reboot) {
+		ntstatus = net_make_ipc_connection_ex(opt_workgroup, server_name,
+						      NULL, 0, &cli);
 		if (!NT_STATUS_IS_OK(ntstatus)) {
 			return -1;
 		}
@@ -187,28 +201,35 @@ static int net_dom_join(struct net_context *c, int argc, const char **argv)
 
 	/* check if domain is a domain or a workgroup */
 
+	status = libnetapi_init(&ctx);
+	if (status != 0) {
+		return -1;
+	}
+
+	libnetapi_set_username(ctx, opt_user_name);
+	libnetapi_set_password(ctx, opt_password);
+
 	status = NetJoinDomain(server_name, domain_name, account_ou,
 			       Account, password, join_flags);
 	if (status != 0) {
 		printf("Failed to join domain: %s\n",
-			libnetapi_get_error_string(c->netapi_ctx, status));
+			libnetapi_get_error_string(ctx, status));
 		goto done;
 	}
 
-	if (do_reboot) {
-		c->opt_comment = "Shutting down due to a domain membership "
-				 "change";
-		c->opt_reboot = true;
-		c->opt_timeout = 30;
+	if (reboot) {
+		opt_comment = "Shutting down due to a domain membership change";
+		opt_reboot = true;
+		opt_timeout = 30;
 
-		ret = run_rpc_command(c, cli, &ndr_table_initshutdown.syntax_id, 0,
+		ret = run_rpc_command(cli, PI_INITSHUTDOWN, 0,
 				      rpc_init_shutdown_internals,
 				      argc, argv);
 		if (ret == 0) {
 			goto done;
 		}
 
-		ret = run_rpc_command(c, cli, &ndr_table_winreg.syntax_id, 0,
+		ret = run_rpc_command(cli, PI_WINREG, 0,
 				      rpc_reg_shutdown_internals,
 				      argc, argv);
 		goto done;
@@ -224,42 +245,14 @@ static int net_dom_join(struct net_context *c, int argc, const char **argv)
 	return ret;
 }
 
-int net_dom(struct net_context *c, int argc, const char **argv)
+int net_dom(int argc, const char **argv)
 {
-	NET_API_STATUS status;
-
 	struct functable func[] = {
-		{
-			"join",
-			net_dom_join,
-			NET_TRANSPORT_LOCAL,
-			"Join a remote machine",
-			"net dom join <domain=DOMAIN> <ou=OU> "
-			"<account=ACCOUNT> <password=PASSWORD> <reboot>\n"
-			"  Join a remote machine"
-		},
-		{
-			"unjoin",
-			net_dom_unjoin,
-			NET_TRANSPORT_LOCAL,
-			"Unjoin a remote machine",
-			"net dom unjoin <account=ACCOUNT> <password=PASSWORD> "
-			"<reboot>\n"
-			"  Unjoin a remote machine"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+		{"JOIN", net_dom_join},
+		{"UNJOIN", net_dom_unjoin},
+		{"HELP", net_help_dom},
+		{NULL, NULL}
 	};
 
-	status = libnetapi_init(&c->netapi_ctx);
-	if (status != 0) {
-		return -1;
-	}
-
-	libnetapi_set_username(c->netapi_ctx, c->opt_user_name);
-	libnetapi_set_password(c->netapi_ctx, c->opt_password);
-	if (c->opt_kerberos) {
-		libnetapi_set_use_kerberos(c->netapi_ctx);
-	}
-
-	return net_run_function(c, argc, argv, "net dom", func);
+	return net_run_function(argc, argv, func, net_dom_usage);
 }

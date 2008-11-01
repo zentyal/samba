@@ -173,7 +173,7 @@ bool ads_closest_dc(ADS_STRUCT *ads)
   try a connection to a given ldap server, returning True and setting the servers IP
   in the ads struct if successful
  */
-static bool ads_try_connect(ADS_STRUCT *ads, const char *server, bool gc)
+bool ads_try_connect(ADS_STRUCT *ads, const char *server )
 {
 	char *srv;
 	struct nbt_cldap_netlogon_5 cldap_reply;
@@ -238,7 +238,7 @@ static bool ads_try_connect(ADS_STRUCT *ads, const char *server, bool gc)
 	}
 	ads->server.workgroup          = SMB_STRDUP(cldap_reply.domain);
 
-	ads->ldap.port = gc ? LDAP_GC_PORT : LDAP_PORT;
+	ads->ldap.port = LDAP_PORT;
 	if (!interpret_string_addr(&ads->ldap.ss, srv, 0)) {
 		DEBUG(1,("ads_try_connect: unable to convert %s "
 			"to an address\n",
@@ -358,7 +358,7 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 			}
 		}
 
-		if ( ads_try_connect(ads, server, false) ) {
+		if ( ads_try_connect(ads, server) ) {
 			SAFE_FREE(ip_list);
 			SAFE_FREE(sitename);
 			return NT_STATUS_OK;
@@ -383,138 +383,6 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 	}
 
 	return NT_STATUS_NO_LOGON_SERVERS;
-}
-
-/*********************************************************************
- *********************************************************************/
-
-static NTSTATUS ads_lookup_site(void)
-{
-	ADS_STRUCT *ads = NULL;
-	ADS_STATUS ads_status;
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-
-	ads = ads_init(lp_realm(), NULL, NULL);
-	if (!ads) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* The NO_BIND here will find a DC and set the client site
-	   but not establish the TCP connection */
-
-	ads->auth.flags = ADS_AUTH_NO_BIND;
-	ads_status = ads_connect(ads);
-	if (!ADS_ERR_OK(ads_status)) {
-		DEBUG(4, ("ads_lookup_site: ads_connect to our realm failed! (%s)\n",
-			  ads_errstr(ads_status)));
-	}
-	nt_status = ads_ntstatus(ads_status);
-
-	if (ads) {
-		ads_destroy(&ads);
-	}
-
-	return nt_status;
-}
-
-/*********************************************************************
- *********************************************************************/
-
-static const char* host_dns_domain(const char *fqdn)
-{
-	const char *p = fqdn;
-
-	/* go to next char following '.' */
-
-	if ((p = strchr_m(fqdn, '.')) != NULL) {
-		p++;
-	}
-
-	return p;
-}
-
-
-/**
- * Connect to the Global Catalog server
- * @param ads Pointer to an existing ADS_STRUCT
- * @return status of connection
- *
- * Simple wrapper around ads_connect() that fills in the
- * GC ldap server information
- **/
-
-ADS_STATUS ads_connect_gc(ADS_STRUCT *ads)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct dns_rr_srv *gcs_list;
-	int num_gcs;
-	char *realm = ads->server.realm;
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	ADS_STATUS ads_status = ADS_ERROR_NT(NT_STATUS_UNSUCCESSFUL);
-	int i;
-	bool done = false;
-	char *sitename = NULL;
-
-	if (!realm)
-		realm = lp_realm();
-
-	if ((sitename = sitename_fetch(realm)) == NULL) {
-		ads_lookup_site();
-		sitename = sitename_fetch(realm);
-	}
-
-	do {
-		/* We try once with a sitename and once without
-		   (unless we don't have a sitename and then we're
-		   done */
-
-		if (sitename == NULL)
-			done = true;
-
-		nt_status = ads_dns_query_gcs(frame, realm, sitename,
-					      &gcs_list, &num_gcs);
-
-		SAFE_FREE(sitename);
-
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			ads_status = ADS_ERROR_NT(nt_status);
-			goto done;
-		}
-
-		/* Loop until we get a successful connection or have gone
-		   through them all.  When connecting a GC server, make sure that
-		   the realm is the server's DNS name and not the forest root */
-
-		for (i=0; i<num_gcs; i++) {
-			ads->server.gc = true;
-			ads->server.ldap_server = SMB_STRDUP(gcs_list[i].hostname);
-			ads->server.realm = SMB_STRDUP(host_dns_domain(ads->server.ldap_server));
-			ads_status = ads_connect(ads);
-			if (ADS_ERR_OK(ads_status)) {
-				/* Reset the bind_dn to "".  A Global Catalog server
-				   may host  multiple domain trees in a forest.
-				   Windows 2003 GC server will accept "" as the search
-				   path to imply search all domain trees in the forest */
-
-				SAFE_FREE(ads->config.bind_path);
-				ads->config.bind_path = SMB_STRDUP("");
-
-
-				goto done;
-			}
-			SAFE_FREE(ads->server.ldap_server);
-			SAFE_FREE(ads->server.realm);
-		}
-
-	        TALLOC_FREE(gcs_list);
-		num_gcs = 0;
-	} while (!done);
-
-done:
-	SAFE_FREE(sitename);
-	talloc_destroy(frame);
-
-	return ads_status;
 }
 
 
@@ -544,7 +412,7 @@ ADS_STATUS ads_connect(ADS_STRUCT *ads)
 	}
 
 	if (ads->server.ldap_server &&
-	    ads_try_connect(ads, ads->server.ldap_server, ads->server.gc)) {
+	    ads_try_connect(ads, ads->server.ldap_server)) {
 		goto got_connection;
 	}
 
@@ -604,7 +472,7 @@ got_connection:
 	/* Otherwise setup the TCP LDAP session */
 
 	ads->ldap.ld = ldap_open_with_timeout(ads->config.ldap_server_name,
-					      ads->ldap.port, lp_ldap_timeout());
+					      LDAP_PORT, lp_ldap_timeout());
 	if (ads->ldap.ld == NULL) {
 		status = ADS_ERROR(LDAP_OPERATIONS_ERROR);
 		goto out;
@@ -656,18 +524,6 @@ got_connection:
 	}
 
 	return status;
-}
-
-/**
- * Connect to the LDAP server using given credentials
- * @param ads Pointer to an existing ADS_STRUCT
- * @return status of connection
- **/
-ADS_STATUS ads_connect_user_creds(ADS_STRUCT *ads)
-{
-	ads->auth.flags |= ADS_AUTH_USER_CREDS;
-
-	return ads_connect(ads);
 }
 
 /**
@@ -737,8 +593,7 @@ static char **ads_push_strvals(TALLOC_CTX *ctx, const char **in_vals)
 {
 	char **values;
 	int i;
-	size_t size;
-
+       
 	if (!in_vals) return NULL;
 	for (i=0; in_vals[i]; i++)
 		; /* count values */
@@ -746,7 +601,7 @@ static char **ads_push_strvals(TALLOC_CTX *ctx, const char **in_vals)
 	if (!values) return NULL;
 
 	for (i=0; in_vals[i]; i++) {
-		if (!push_utf8_talloc(ctx, &values[i], in_vals[i], &size)) {
+		if (push_utf8_talloc(ctx, &values[i], in_vals[i]) == (size_t) -1) {
 			TALLOC_FREE(values);
 			return NULL;
 		}
@@ -761,7 +616,6 @@ static char **ads_pull_strvals(TALLOC_CTX *ctx, const char **in_vals)
 {
 	char **values;
 	int i;
-	size_t converted_size;
        
 	if (!in_vals) return NULL;
 	for (i=0; in_vals[i]; i++)
@@ -770,11 +624,7 @@ static char **ads_pull_strvals(TALLOC_CTX *ctx, const char **in_vals)
 	if (!values) return NULL;
 
 	for (i=0; in_vals[i]; i++) {
-		if (!pull_utf8_talloc(ctx, &values[i], in_vals[i],
-				      &converted_size)) {
-			DEBUG(0,("ads_pull_strvals: pull_utf8_talloc failed: "
-				 "%s", strerror(errno)));
-		}
+		pull_utf8_talloc(ctx, &values[i], in_vals[i]);
 	}
 	return values;
 }
@@ -802,7 +652,6 @@ static ADS_STATUS ads_do_paged_search_args(ADS_STRUCT *ads,
 {
 	int rc, i, version;
 	char *utf8_expr, *utf8_path, **search_attrs;
-	size_t converted_size;
 	LDAPControl PagedResults, NoReferrals, ExternalCtrl, *controls[4], **rcontrols;
 	BerElement *cookie_be = NULL;
 	struct berval *cookie_bv= NULL;
@@ -820,9 +669,8 @@ static ADS_STATUS ads_do_paged_search_args(ADS_STRUCT *ads,
 	/* 0 means the conversion worked but the result was empty 
 	   so we only fail if it's -1.  In any case, it always 
 	   at least nulls out the dest */
-	if (!push_utf8_talloc(ctx, &utf8_expr, expr, &converted_size) ||
-	    !push_utf8_talloc(ctx, &utf8_path, bind_path, &converted_size))
-	{
+	if ((push_utf8_talloc(ctx, &utf8_expr, expr) == (size_t)-1) ||
+	    (push_utf8_talloc(ctx, &utf8_path, bind_path) == (size_t)-1)) {
 		rc = LDAP_NO_MEMORY;
 		goto done;
 	}
@@ -1119,7 +967,6 @@ ADS_STATUS ads_do_search_all_fn(ADS_STRUCT *ads, const char *bind_path,
 {
 	int rc;
 	char *utf8_expr, *utf8_path, **search_attrs = NULL;
-	size_t converted_size;
 	TALLOC_CTX *ctx;
 
 	*res = NULL;
@@ -1131,9 +978,8 @@ ADS_STATUS ads_do_search_all_fn(ADS_STRUCT *ads, const char *bind_path,
 	/* 0 means the conversion worked but the result was empty 
 	   so we only fail if it's negative.  In any case, it always 
 	   at least nulls out the dest */
-	if (!push_utf8_talloc(ctx, &utf8_expr, expr, &converted_size) ||
-	    !push_utf8_talloc(ctx, &utf8_path, bind_path, &converted_size))
-	{
+	if ((push_utf8_talloc(ctx, &utf8_expr, expr) == (size_t)-1) ||
+	    (push_utf8_talloc(ctx, &utf8_path, bind_path) == (size_t)-1)) {
 		DEBUG(1,("ads_do_search: push_utf8_talloc() failed!"));
 		rc = LDAP_NO_MEMORY;
 		goto done;
@@ -1231,7 +1077,6 @@ void ads_memfree(ADS_STRUCT *ads, void *mem)
  char *ads_get_dn(ADS_STRUCT *ads, LDAPMessage *msg)
 {
 	char *utf8_dn, *unix_dn;
-	size_t converted_size;
 
 	utf8_dn = ldap_get_dn(ads->ldap.ld, msg);
 
@@ -1240,7 +1085,7 @@ void ads_memfree(ADS_STRUCT *ads, void *mem)
 		return NULL;
 	}
 
-	if (!pull_utf8_allocate(&unix_dn, utf8_dn, &converted_size)) {
+	if (pull_utf8_allocate(&unix_dn, utf8_dn) == (size_t)-1) {
 		DEBUG(0,("ads_get_dn: string conversion failure utf8 [%s]\n",
 			utf8_dn ));
 		return NULL;
@@ -1442,7 +1287,6 @@ ADS_STATUS ads_gen_mod(ADS_STRUCT *ads, const char *mod_dn, ADS_MODLIST mods)
 {
 	int ret,i;
 	char *utf8_dn = NULL;
-	size_t converted_size;
 	/* 
 	   this control is needed to modify that contains a currently 
 	   non-existent attribute (but allowable for the object) to run
@@ -1456,7 +1300,7 @@ ADS_STATUS ads_gen_mod(ADS_STRUCT *ads, const char *mod_dn, ADS_MODLIST mods)
 	controls[0] = &PermitModify;
 	controls[1] = NULL;
 
-	if (!push_utf8_allocate(&utf8_dn, mod_dn, &converted_size)) {
+	if (push_utf8_allocate(&utf8_dn, mod_dn) == -1) {
 		return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 	}
 
@@ -1481,9 +1325,8 @@ ADS_STATUS ads_gen_add(ADS_STRUCT *ads, const char *new_dn, ADS_MODLIST mods)
 {
 	int ret, i;
 	char *utf8_dn = NULL;
-	size_t converted_size;
 
-	if (!push_utf8_allocate(&utf8_dn, new_dn, &converted_size)) {
+	if (push_utf8_allocate(&utf8_dn, new_dn) == -1) {
 		DEBUG(1, ("ads_gen_add: push_utf8_allocate failed!"));
 		return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 	}
@@ -1508,8 +1351,7 @@ ADS_STATUS ads_del_dn(ADS_STRUCT *ads, char *del_dn)
 {
 	int ret;
 	char *utf8_dn = NULL;
-	size_t converted_size;
-	if (!push_utf8_allocate(&utf8_dn, del_dn, &converted_size)) {
+	if (push_utf8_allocate(&utf8_dn, del_dn) == -1) {
 		DEBUG(1, ("ads_del_dn: push_utf8_allocate failed!"));
 		return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
 	}
@@ -1660,13 +1502,13 @@ ADS_STATUS ads_add_strlist(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 }
 
 /**
- * Determines the an account's current KVNO via an LDAP lookup
+ * Determines the computer account's current KVNO via an LDAP lookup
  * @param ads An initialized ADS_STRUCT
- * @param account_name the NT samaccountname.
- * @return the kvno for the account, or -1 in case of a failure.
+ * @param machine_name the NetBIOS name of the computer, which is used to identify the computer account.
+ * @return the kvno for the computer account, or -1 in case of a failure.
  **/
 
-uint32 ads_get_kvno(ADS_STRUCT *ads, const char *account_name)
+uint32 ads_get_kvno(ADS_STRUCT *ads, const char *machine_name)
 {
 	LDAPMessage *res = NULL;
 	uint32 kvno = (uint32)-1;      /* -1 indicates a failure */
@@ -1675,14 +1517,14 @@ uint32 ads_get_kvno(ADS_STRUCT *ads, const char *account_name)
 	char *dn_string = NULL;
 	ADS_STATUS ret = ADS_ERROR(LDAP_SUCCESS);
 
-	DEBUG(5,("ads_get_kvno: Searching for account %s\n", account_name));
-	if (asprintf(&filter, "(samAccountName=%s)", account_name) == -1) {
+	DEBUG(5,("ads_get_kvno: Searching for host %s\n", machine_name));
+	if (asprintf(&filter, "(samAccountName=%s$)", machine_name) == -1) {
 		return kvno;
 	}
 	ret = ads_search(ads, &res, filter, attrs);
 	SAFE_FREE(filter);
-	if (!ADS_ERR_OK(ret) || (ads_count_replies(ads, res) != 1)) {
-		DEBUG(1,("ads_get_kvno: Account for %s not found.\n", account_name));
+	if (!ADS_ERR_OK(ret) && ads_count_replies(ads, res)) {
+		DEBUG(1,("ads_get_kvno: Computer Account For %s not found.\n", machine_name));
 		ads_msgfree(ads, res);
 		return kvno;
 	}
@@ -1714,28 +1556,6 @@ uint32 ads_get_kvno(ADS_STRUCT *ads, const char *account_name)
 	/* Success */
 	DEBUG(5,("ads_get_kvno: Looked Up KVNO of: %d\n", kvno));
 	ads_msgfree(ads, res);
-	return kvno;
-}
-
-/**
- * Determines the computer account's current KVNO via an LDAP lookup
- * @param ads An initialized ADS_STRUCT
- * @param machine_name the NetBIOS name of the computer, which is used to identify the computer account.
- * @return the kvno for the computer account, or -1 in case of a failure.
- **/
-
-uint32_t ads_get_machine_kvno(ADS_STRUCT *ads, const char *machine_name)
-{
-	char *computer_account = NULL;
-	uint32_t kvno = -1;
-
-	if (asprintf(&computer_account, "%s$", machine_name) < 0) {
-		return kvno;
-	}
-
-	kvno = ads_get_kvno(ads, computer_account);
-	free(computer_account);
-
 	return kvno;
 }
 
@@ -2192,7 +2012,6 @@ static bool ads_dump_field(ADS_STRUCT *ads, char *field, void **values, void *da
 {
 	LDAPMessage *msg;
 	TALLOC_CTX *ctx;
-	size_t converted_size;
 
 	if (!(ctx = talloc_init("ads_process_results")))
 		return;
@@ -2212,14 +2031,7 @@ static bool ads_dump_field(ADS_STRUCT *ads, char *field, void **values, void *da
 			char *field;
 			bool string; 
 
-			if (!pull_utf8_talloc(ctx, &field, utf8_field,
-					      &converted_size))
-			{
-				DEBUG(0,("ads_process_results: "
-					 "pull_utf8_talloc failed: %s",
-					 strerror(errno)));
-			}
-
+			pull_utf8_talloc(ctx, &field, utf8_field);
 			string = fn(ads, field, NULL, data_area);
 
 			if (string) {
@@ -2315,16 +2127,18 @@ int ads_count_replies(ADS_STRUCT *ads, void *res)
 	char **values;
 	char *ret = NULL;
 	char *ux_string;
-	size_t converted_size;
+	size_t rc;
 
 	values = ldap_get_values(ads->ldap.ld, msg, field);
 	if (!values)
 		return NULL;
 	
-	if (values[0] && pull_utf8_talloc(mem_ctx, &ux_string, values[0],
-					  &converted_size))
-	{
-		ret = ux_string;
+	if (values[0]) {
+		rc = pull_utf8_talloc(mem_ctx, &ux_string, 
+				      values[0]);
+		if (rc != (size_t)-1)
+			ret = ux_string;
+		
 	}
 	ldap_value_free(values);
 	return ret;
@@ -2345,7 +2159,6 @@ int ads_count_replies(ADS_STRUCT *ads, void *res)
 	char **values;
 	char **ret = NULL;
 	int i;
-	size_t converted_size;
 
 	values = ldap_get_values(ads->ldap.ld, msg, field);
 	if (!values)
@@ -2360,9 +2173,7 @@ int ads_count_replies(ADS_STRUCT *ads, void *res)
 	}
 
 	for (i=0;i<*num_values;i++) {
-		if (!pull_utf8_talloc(mem_ctx, &ret[i], values[i],
-				      &converted_size))
-		{
+		if (pull_utf8_talloc(mem_ctx, &ret[i], values[i]) == -1) {
 			ldap_value_free(values);
 			return NULL;
 		}

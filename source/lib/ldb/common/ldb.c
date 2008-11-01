@@ -787,7 +787,6 @@ int ldb_search(struct ldb_context *ldb,
 done:
 	if (ret != LDB_SUCCESS) {
 		talloc_free(res);
-		res = NULL;
 	}
 
 	*_res = res;

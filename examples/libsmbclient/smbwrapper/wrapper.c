@@ -1109,7 +1109,7 @@ int utimes(const char *name, const struct timeval *tvp)
         return (* smbw_libc.utimes)((char *) name, (struct timeval *) tvp);
 }
 
-ssize_t readlink(const char *path, char *buf, size_t bufsize)
+int readlink(const char *path, char *buf, size_t bufsize)
 {
         check_init("readlink");
         

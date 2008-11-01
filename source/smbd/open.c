@@ -22,6 +22,8 @@
 #include "includes.h"
 
 extern const struct generic_mapping file_generic_mapping;
+extern struct current_user current_user;
+extern userdom_struct current_user_info;
 extern bool global_client_failed_oplock_break;
 
 struct deferred_open_record {
@@ -321,7 +323,7 @@ static NTSTATUS open_file(files_struct *fsp,
 
 			/* Inherit the ACL if required */
 			if (lp_inherit_perms(SNUM(conn))) {
-				inherit_access_posix_acl(conn, parent_dir, path,
+				inherit_access_acl(conn, parent_dir, path,
 						   unx_mode);
 			}
 
@@ -389,6 +391,7 @@ static NTSTATUS open_file(files_struct *fsp,
 	fsp->modified = False;
 	fsp->sent_oplock_break = NO_BREAK_SENT;
 	fsp->is_directory = False;
+	fsp->is_stat = False;
 	if (conn->aio_write_behind_list &&
 	    is_in_path(path, conn->aio_write_behind_list, conn->case_sensitive)) {
 		fsp->aio_write_behind = True;
@@ -398,8 +401,8 @@ static NTSTATUS open_file(files_struct *fsp,
 	fsp->wcp = NULL; /* Write cache pointer. */
 
 	DEBUG(2,("%s opened file %s read=%s write=%s (numopen=%d)\n",
-		 conn->server_info->unix_name,
-		 fsp->fsp_name,
+		 *current_user_info.smb_name ?
+		 current_user_info.smb_name : conn->user,fsp->fsp_name,
 		 BOOLSTR(fsp->can_read), BOOLSTR(fsp->can_write),
 		 conn->num_files_open + 1));
 
@@ -1178,7 +1181,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 		DEBUG(10, ("open_file_ntcreate: printer open fname=%s\n", fname));
 
-		return print_fsp_open(conn, fname, req->vuid, result);
+		return print_fsp_open(conn, fname, result);
 	}
 
 	if (!parent_dirname_talloc(talloc_tos(), fname, &parent_dir,
@@ -1568,7 +1571,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			}
 
 			if (((can_access_mask & FILE_WRITE_DATA) && !CAN_WRITE(conn)) ||
-			    !can_access_file_data(conn,fname,psbuf,can_access_mask)) {
+			    !can_access_file(conn,fname,psbuf,can_access_mask)) {
 				can_access = False;
 			}
 
@@ -1847,8 +1850,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		new_file_created = True;
 	}
 
-	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0,
-		       fsp->oplock_type, new_file_created);
+	set_share_mode(lck, fsp, current_user.ut.uid, 0, fsp->oplock_type, new_file_created);
 
 	/* Handle strange delete on close create semantics. */
 	if ((create_options & FILE_DELETE_ON_CLOSE)
@@ -2057,7 +2059,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 	}
 
 	if (lp_inherit_perms(SNUM(conn))) {
-		inherit_access_posix_acl(conn, parent_dir, name, mode);
+		inherit_access_acl(conn, parent_dir, name, mode);
 	}
 
 	if (!(file_attributes & FILE_FLAG_POSIX_SEMANTICS)) {
@@ -2224,6 +2226,7 @@ NTSTATUS open_directory(connection_struct *conn,
 	fsp->oplock_type = NO_OPLOCK;
 	fsp->sent_oplock_break = NO_BREAK_SENT;
 	fsp->is_directory = True;
+	fsp->is_stat = False;
 	fsp->posix_open = (file_attributes & FILE_FLAG_POSIX_SEMANTICS) ? True : False;
 
 	string_set(&fsp->fsp_name,fname);
@@ -2250,8 +2253,7 @@ NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
-	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0, NO_OPLOCK,
-		       True);
+	set_share_mode(lck, fsp, current_user.ut.uid, 0, NO_OPLOCK, True);
 
 	/* For directories the delete on close bit at open time seems
 	   always to be honored on close... See test 19 in Samba4 BASE-DELETE. */
@@ -2304,6 +2306,58 @@ NTSTATUS create_directory(connection_struct *conn, struct smb_request *req, cons
 	}
 
 	return status;
+}
+
+/****************************************************************************
+ Open a pseudo-file (no locking checks - a 'stat' open).
+****************************************************************************/
+
+NTSTATUS open_file_stat(connection_struct *conn, struct smb_request *req,
+			const char *fname, SMB_STRUCT_STAT *psbuf,
+			files_struct **result)
+{
+	files_struct *fsp = NULL;
+	NTSTATUS status;
+
+	if (!VALID_STAT(*psbuf)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	/* Can't 'stat' open directories. */
+	if(S_ISDIR(psbuf->st_mode)) {
+		return NT_STATUS_FILE_IS_A_DIRECTORY;
+	}
+
+	status = file_new(conn, &fsp);
+	if(!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	DEBUG(5,("open_file_stat: 'opening' file %s\n", fname));
+
+	/*
+	 * Setup the files_struct for it.
+	 */
+	
+	fsp->mode = psbuf->st_mode;
+	fsp->file_id = vfs_file_id_from_sbuf(conn, psbuf);
+	fsp->vuid = req ? req->vuid : UID_FIELD_INVALID;
+	fsp->file_pid = req ? req->smbpid : 0;
+	fsp->can_lock = False;
+	fsp->can_read = False;
+	fsp->can_write = False;
+	fsp->print_file = False;
+	fsp->modified = False;
+	fsp->oplock_type = NO_OPLOCK;
+	fsp->sent_oplock_break = NO_BREAK_SENT;
+	fsp->is_directory = False;
+	fsp->is_stat = True;
+	string_set(&fsp->fsp_name,fname);
+
+	conn->num_files_open++;
+
+	*result = fsp;
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -2608,7 +2662,9 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 	    && (create_disposition != FILE_CREATE)
 	    && (share_access & FILE_SHARE_DELETE)
 	    && (access_mask & DELETE_ACCESS)
-	    && (!can_delete_file_in_directory(conn, fname))) {
+	    && (((dos_mode(conn, fname, &sbuf) & FILE_ATTRIBUTE_READONLY)
+		 && !lp_delete_readonly(SNUM(conn)))
+		|| !can_delete_file_in_directory(conn, fname))) {
 		status = NT_STATUS_ACCESS_DENIED;
 		goto fail;
 	}
@@ -2996,8 +3052,7 @@ NTSTATUS create_file(connection_struct *conn,
 			 * also tries a QUERY_FILE_INFO on the file and then
 			 * close it
 			 */
-			status = open_fake_file(conn, req->vuid,
-						fake_file_type, fname,
+			status = open_fake_file(conn, fake_file_type, fname,
 						access_mask, &fsp);
 			if (!NT_STATUS_IS_OK(status)) {
 				goto fail;

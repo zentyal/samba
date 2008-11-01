@@ -23,6 +23,7 @@ NTSTATUS rpccli_echo_AddOne(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_ADDONE,
 				&r);
@@ -65,6 +66,7 @@ NTSTATUS rpccli_echo_EchoData(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_ECHODATA,
 				&r);
@@ -106,6 +108,7 @@ NTSTATUS rpccli_echo_SinkData(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_SINKDATA,
 				&r);
@@ -145,6 +148,7 @@ NTSTATUS rpccli_echo_SourceData(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_SOURCEDATA,
 				&r);
@@ -185,6 +189,7 @@ NTSTATUS rpccli_echo_TestCall(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTCALL,
 				&r);
@@ -225,6 +230,7 @@ NTSTATUS rpccli_echo_TestCall2(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTCALL2,
 				&r);
@@ -264,6 +270,7 @@ NTSTATUS rpccli_echo_TestSleep(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTSLEEP,
 				&r);
@@ -306,6 +313,7 @@ NTSTATUS rpccli_echo_TestEnum(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTENUM,
 				&r);
@@ -347,6 +355,7 @@ NTSTATUS rpccli_echo_TestSurrounding(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTSURROUNDING,
 				&r);
@@ -386,6 +395,7 @@ NTSTATUS rpccli_echo_TestDoublePointer(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
+				PI_RPCECHO,
 				&ndr_table_rpcecho,
 				NDR_ECHO_TESTDOUBLEPOINTER,
 				&r);

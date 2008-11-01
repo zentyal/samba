@@ -294,7 +294,8 @@ static bool is_8_3(const char *fname, bool check_case, bool allow_wildcards,
 	if (strlen(f) > 12)
 		return False;
 
-	if (!push_ucs2_allocate(&ucs2name, f, &size)) {
+	size = push_ucs2_allocate(&ucs2name, f);
+	if (size == (size_t)-1) {
 		DEBUG(0,("is_8_3: internal error push_ucs2_allocate() failed!\n"));
 		goto done;
 	}
@@ -603,11 +604,9 @@ static bool must_mangle(const char *name,
 {
 	smb_ucs2_t *name_ucs2 = NULL;
 	NTSTATUS status;
-	size_t converted_size;
-
 	magic_char = lp_magicchar(p);
 
-	if (!push_ucs2_allocate(&name_ucs2, name, &converted_size)) {
+	if (push_ucs2_allocate(&name_ucs2, name) == (size_t)-1) {
 		DEBUG(0, ("push_ucs2_allocate failed!\n"));
 		return False;
 	}
@@ -638,14 +637,12 @@ static bool hash_name_to_8_3(const char *in,
 			const struct share_params *p)
 {
 	smb_ucs2_t *in_ucs2 = NULL;
-	size_t converted_size;
-
 	magic_char = lp_magicchar(p);
 
 	DEBUG(5,("hash_name_to_8_3( %s, cache83 = %s)\n", in,
 		 cache83 ? "True" : "False"));
 
-	if (!push_ucs2_allocate(&in_ucs2, in, &converted_size)) {
+	if (push_ucs2_allocate(&in_ucs2, in) == (size_t)-1) {
 		DEBUG(0, ("push_ucs2_allocate failed!\n"));
 		return False;
 	}

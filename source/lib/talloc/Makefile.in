@@ -17,7 +17,6 @@ EXTRA_TARGETS = @DOC_TARGET@
 PICFLAG = @PICFLAG@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 SHLIBEXT = @SHLIBEXT@
-SHLD = @SHLD@
 SHLD_FLAGS = @SHLD_FLAGS@
 tallocdir = @tallocdir@
 
@@ -28,8 +27,8 @@ all:: showflags $(EXTRA_TARGETS)
 include $(tallocdir)/rules.mk
 include $(tallocdir)/talloc.mk
 
-$(TALLOC_SOLIB): $(LIBOBJ)
-	$(SHLD) $(SHLD_FLAGS) -o $@ $(LIBOBJ) @SONAMEFLAG@$(TALLOC_SONAME)
+$(SOLIB): $(LIBOBJ)
+	$(CC) $(SHLD_FLAGS) -o $@ $(LIBOBJ) @SONAMEFLAG@$(SONAME)
 
 check: test
 

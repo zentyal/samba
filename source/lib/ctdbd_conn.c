@@ -43,7 +43,7 @@ struct ctdbd_connection {
 
 static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 			      uint32_t vnn, uint32 opcode, 
-			      uint64_t srvid, uint32_t flags, TDB_DATA data, 
+			      uint64_t srvid, TDB_DATA data, 
 			      TALLOC_CTX *mem_ctx, TDB_DATA *outdata,
 			      int *cstatus);
 
@@ -83,7 +83,7 @@ static NTSTATUS register_with_ctdbd(struct ctdbd_connection *conn,
 
 	int cstatus;
 	return ctdbd_control(conn, CTDB_CURRENT_NODE,
-			     CTDB_CONTROL_REGISTER_SRVID, srvid, 0,
+			     CTDB_CONTROL_REGISTER_SRVID, srvid,
 			     tdb_null, NULL, NULL, &cstatus);
 }
 
@@ -95,7 +95,7 @@ static NTSTATUS get_cluster_vnn(struct ctdbd_connection *conn, uint32 *vnn)
 	int32_t cstatus=-1;
 	NTSTATUS status;
 	status = ctdbd_control(conn,
-			       CTDB_CURRENT_NODE, CTDB_CONTROL_GET_PNN, 0, 0,
+			       CTDB_CURRENT_NODE, CTDB_CONTROL_GET_PNN, 0,
 			       tdb_null, NULL, NULL, &cstatus);
 	if (!NT_STATUS_IS_OK(status)) {
 		cluster_fatal("ctdbd_control failed\n");
@@ -136,7 +136,7 @@ static NTSTATUS ctdbd_connect(TALLOC_CTX *mem_ctx,
 	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
 
 	if (sys_connect(fd, (struct sockaddr *)&addr) == -1) {
-		DEBUG(1, ("connect(%s) failed: %s\n", sockname,
+		DEBUG(0, ("connect(%s) failed: %s\n", sockname,
 			  strerror(errno)));
 		close(fd);
 		return map_nt_error_from_unix(errno);
@@ -349,14 +349,6 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			DEBUG(10, ("received CTDB_SRVID_RELEASE_IP\n"));
 			conn->release_ip_handler((const char *)msg->data,
 						 conn->release_ip_priv);
-			TALLOC_FREE(hdr);
-			goto next_pkt;
-		}
-
-		if (msg->srvid == CTDB_SRVID_RECONFIGURE) {
-			DEBUG(0,("Got cluster reconfigure message in ctdb_read_req\n"));
-			messaging_send(conn->msg_ctx, procid_self(),
-				       MSG_SMB_BRL_VALIDATE, &data_blob_null);
 			TALLOC_FREE(hdr);
 			goto next_pkt;
 		}
@@ -688,8 +680,7 @@ NTSTATUS ctdbd_messaging_send(struct ctdbd_connection *conn,
  */
 static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 			      uint32_t vnn, uint32 opcode, 
-			      uint64_t srvid, uint32_t flags, 
-			      TDB_DATA data, 
+			      uint64_t srvid, TDB_DATA data, 
 			      TALLOC_CTX *mem_ctx, TDB_DATA *outdata,
 			      int *cstatus)
 {
@@ -697,9 +688,6 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 	struct ctdb_reply_control *reply = NULL;
 	struct ctdbd_connection *new_conn = NULL;
 	NTSTATUS status;
-
-	/* the samba3 ctdb code can't handle NOREPLY yet */
-	flags &= ~CTDB_CTRL_FLAG_NOREPLY;
 
 	if (conn == NULL) {
 		status = ctdbd_init_connection(NULL, &new_conn);
@@ -742,11 +730,6 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("write to ctdbd failed: %s\n", nt_errstr(status)));
 		cluster_fatal("cluster dispatch daemon control write error\n");
-	}
-
-	if (flags & CTDB_CTRL_FLAG_NOREPLY) {
-		TALLOC_FREE(new_conn);
-		return NT_STATUS_OK;
 	}
 
 	status = ctdb_read_req(conn, req.hdr.reqid, NULL, (void *)&reply);
@@ -793,7 +776,7 @@ bool ctdbd_process_exists(struct ctdbd_connection *conn, uint32 vnn, pid_t pid)
 	data.dptr = (uint8_t*)&pid;
 	data.dsize = sizeof(pid);
 
-	status = ctdbd_control(conn, vnn, CTDB_CONTROL_PROCESS_EXISTS, 0, 0,
+	status = ctdbd_control(conn, vnn, CTDB_CONTROL_PROCESS_EXISTS, 0,
 			       data, NULL, NULL, &cstatus);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, (__location__ " ctdb_control for process_exists "
@@ -818,7 +801,7 @@ char *ctdbd_dbpath(struct ctdbd_connection *conn,
 	data.dsize = sizeof(db_id);
 
 	status = ctdbd_control(conn, CTDB_CURRENT_NODE,
-			       CTDB_CONTROL_GETDBPATH, 0, 0, data, 
+			       CTDB_CONTROL_GETDBPATH, 0, data, 
 			       mem_ctx, &data, &cstatus);
 	if (!NT_STATUS_IS_OK(status) || cstatus != 0) {
 		DEBUG(0,(__location__ " ctdb_control for getdbpath failed\n"));
@@ -846,7 +829,7 @@ NTSTATUS ctdbd_db_attach(struct ctdbd_connection *conn,
 			       persistent
 			       ? CTDB_CONTROL_DB_ATTACH_PERSISTENT
 			       : CTDB_CONTROL_DB_ATTACH,
-			       0, 0, data, NULL, &data, &cstatus);
+			       0, data, NULL, &data, &cstatus);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, (__location__ " ctdb_control for db_attach "
 			  "failed: %s\n", nt_errstr(status)));
@@ -869,7 +852,7 @@ NTSTATUS ctdbd_db_attach(struct ctdbd_connection *conn,
 	data.dsize = sizeof(*db_id);
 
 	status = ctdbd_control(conn, CTDB_CURRENT_NODE,
-			       CTDB_CONTROL_ENABLE_SEQNUM, 0, 0, data, 
+			       CTDB_CONTROL_ENABLE_SEQNUM, 0, data, 
 			       NULL, NULL, &cstatus);
 	if (!NT_STATUS_IS_OK(status) || cstatus != 0) {
 		DEBUG(0,(__location__ " ctdb_control for enable seqnum "
@@ -1104,7 +1087,7 @@ NTSTATUS ctdbd_traverse(uint32 db_id,
 	data.dsize = sizeof(t);
 
 	status = ctdbd_control(conn, CTDB_CURRENT_NODE,
-			       CTDB_CONTROL_TRAVERSE_START, conn->rand_srvid, 0,
+			       CTDB_CONTROL_TRAVERSE_START, conn->rand_srvid,
 			       data, NULL, NULL, &cstatus);
 
 	if (!NT_STATUS_IS_OK(status) || (cstatus != 0)) {
@@ -1190,8 +1173,6 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 	 */
 	SMB_ASSERT(conn->release_ip_handler == NULL);
 
-	conn->release_ip_handler = release_ip_handler;
-
 	/*
 	 * We want to be told about IP releases
 	 */
@@ -1213,7 +1194,7 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 	data.dsize = sizeof(p);
 
 	return ctdbd_control(conn, CTDB_CURRENT_NODE, 
-			     CTDB_CONTROL_TCP_CLIENT, 0,
+			     CTDB_CONTROL_TCP_CLIENT, 
 			     CTDB_CTRL_FLAG_NOREPLY, data, NULL, NULL, NULL);
 }
 
@@ -1226,15 +1207,40 @@ NTSTATUS ctdbd_register_reconfigure(struct ctdbd_connection *conn)
 }
 
 /*
-  call a control on the local node
+  persstent store. Used when we update a record in a persistent database
  */
-NTSTATUS ctdbd_control_local(struct ctdbd_connection *conn, uint32 opcode, 
-			     uint64_t srvid, uint32_t flags, TDB_DATA data, 
-			     TALLOC_CTX *mem_ctx, TDB_DATA *outdata,
-			     int *cstatus)
+NTSTATUS ctdbd_persistent_store(struct ctdbd_connection *conn, uint32_t db_id, TDB_DATA key, TDB_DATA data)
 {
-	return ctdbd_control(conn, CTDB_CURRENT_NODE, opcode, srvid, flags, data, mem_ctx, outdata, cstatus);
+       int cstatus=0;
+       struct ctdb_rec_data *rec;
+       TDB_DATA recdata;
+       size_t length;
+       NTSTATUS status;
+
+       length = offsetof(struct ctdb_rec_data, data) + key.dsize + data.dsize;
+
+       rec = (struct ctdb_rec_data *)talloc_size(conn, length);
+       NT_STATUS_HAVE_NO_MEMORY(rec);
+
+       rec->length = length;
+       rec->reqid  = db_id;
+       rec->keylen = key.dsize;
+       rec->datalen= data.dsize;
+       memcpy(&rec->data[0], key.dptr, key.dsize);
+       memcpy(&rec->data[key.dsize], data.dptr, data.dsize);
+
+       recdata.dptr  = (uint8_t *)rec;
+       recdata.dsize = length;
+
+       status = ctdbd_control(conn, CTDB_CURRENT_NODE, 
+                              CTDB_CONTROL_PERSISTENT_STORE, 
+                              0, recdata, NULL, NULL, &cstatus);
+       if (cstatus != 0) {
+               return NT_STATUS_INTERNAL_DB_CORRUPTION;
+       }
+       return status;
 }
+
 
 #else
 

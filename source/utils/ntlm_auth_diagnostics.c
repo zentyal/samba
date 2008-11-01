@@ -445,7 +445,6 @@ static bool test_plaintext(enum ntlm_break break_which)
 	DATA_BLOB lm_response = data_blob_null;
 	char *password;
 	smb_ucs2_t *nt_response_ucs2;
-	size_t converted_size;
 
 	uchar user_session_key[16];
 	uchar lm_key[16];
@@ -458,9 +457,7 @@ static bool test_plaintext(enum ntlm_break break_which)
 	flags |= WBFLAG_PAM_LMKEY;
 	flags |= WBFLAG_PAM_USER_SESSION_KEY;
 
-	if (!push_ucs2_allocate(&nt_response_ucs2, opt_password,
-				&converted_size))
-	{
+	if ((push_ucs2_allocate(&nt_response_ucs2, opt_password)) == -1) {
 		DEBUG(0, ("push_ucs2_allocate failed!\n"));
 		exit(1);
 	}

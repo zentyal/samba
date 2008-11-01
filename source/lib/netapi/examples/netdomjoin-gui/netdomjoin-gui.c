@@ -38,6 +38,14 @@
 #define SAMBA_IMAGE_PATH "/usr/share/pixmaps/samba/logo.png"
 #define SAMBA_IMAGE_PATH_SMALL "/usr/share/pixmaps/samba/logo-small.png"
 
+#define WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED ( 0x00000020 )
+#define WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE ( 0x00000004 )
+#define WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE ( 0x00000002 )
+#define WKSSVC_JOIN_FLAGS_JOIN_TYPE ( 0x00000001 )
+
+#define NetSetupWorkgroupName ( 2 )
+#define NetSetupDomainName ( 3 )
+
 #define SAFE_FREE(x) do { if ((x) != NULL) {free(x); x=NULL;} } while(0)
 
 static gboolean verbose = FALSE;
@@ -77,7 +85,6 @@ typedef struct join_state {
 	gboolean settings_changed;
 	gboolean hostname_changed;
 	uint32_t stored_num_ous;
-	char *target_hostname;
 } join_state;
 
 static void debug(const char *format, ...)
@@ -101,23 +108,14 @@ static gboolean callback_delete_event(GtkWidget *widget,
 	return FALSE;
 }
 
-static void callback_do_close_data(GtkWidget *widget,
-				   gpointer data)
+static void callback_do_close(GtkWidget *widget,
+			      gpointer data)
 {
-	debug("callback_do_close_data called\n");
+	debug("callback_do_close called\n");
 
 	if (data) {
 		gtk_widget_destroy(GTK_WIDGET(data));
-	}
-}
-
-static void callback_do_close_widget(GtkWidget *widget,
-				     gpointer data)
-{
-	debug("callback_do_close_widget called\n");
-
-	if (widget) {
-		gtk_widget_destroy(widget);
+		data = NULL;
 	}
 }
 
@@ -187,10 +185,7 @@ static void callback_apply_description_change(GtkWidget *widget,
 
 	info1005.sv1005_comment = state->comment_new;
 
-	status = NetServerSetInfo(state->target_hostname,
-				  1005,
-				  (uint8_t *)&info1005,
-				  &parm_err);
+	status = NetServerSetInfo(NULL, 1005, (uint8_t *)&info1005, &parm_err); 
 	if (status) {
 		debug("NetServerSetInfo failed with: %s\n",
 			libnetapi_errstr(status));
@@ -201,7 +196,6 @@ static void callback_apply_description_change(GtkWidget *widget,
 						"Failed to change computer description: %s.",
 						libnetapi_get_error_string(state->ctx, status));
 		gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-		gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_main));
 
 		g_signal_connect_swapped(dialog, "response",
 					 G_CALLBACK(gtk_widget_destroy),
@@ -273,7 +267,6 @@ static void callback_do_reboot(GtkWidget *widget,
 					GTK_BUTTONS_OK,
 					"You must restart this computer for the changes to take effect.");
 	gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 #if 0
 	g_signal_connect_swapped(dialog, "response",
 				 G_CALLBACK(gtk_widget_destroy),
@@ -297,9 +290,7 @@ static void callback_do_reboot(GtkWidget *widget,
 		const char *buffer;
 		uint16_t type;
 
-		status = NetGetJoinInformation(state->target_hostname,
-					       &buffer,
-					       &type);
+		status = NetGetJoinInformation(NULL, &buffer, &type);
 		if (status != 0) {
 			g_print("failed to query status\n");
 			return;
@@ -475,7 +466,6 @@ static void callback_do_hostname_change(GtkWidget *widget,
 					str);
 
 	gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_main));
 	g_signal_connect_swapped(dialog, "response",
 				 G_CALLBACK(gtk_widget_destroy),
 				 dialog);
@@ -505,11 +495,9 @@ static void callback_creds_prompt(GtkWidget *widget,
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	gtk_widget_set_size_request(GTK_WIDGET(window), 380, 280);
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), SAMBA_ICON_PATH, NULL);
-	gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(state->window_do_change));
-	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ALWAYS);
 
 	g_signal_connect(G_OBJECT(window), "delete_event",
-			 G_CALLBACK(callback_do_close_widget), NULL);
+			 G_CALLBACK(callback_do_close), window);
 
 	state->window_creds_prompt = window;
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
@@ -643,9 +631,9 @@ static void callback_do_join(GtkWidget *widget,
 	if (state->name_type_new == NetSetupDomainName) {
 		domain_join = TRUE;
 		join_creds_required = TRUE;
-		join_flags = NETSETUP_JOIN_DOMAIN |
-			     NETSETUP_ACCT_CREATE |
-			     NETSETUP_DOMAIN_JOIN_IF_JOINED; /* for testing */
+		join_flags = WKSSVC_JOIN_FLAGS_JOIN_TYPE |
+			     WKSSVC_JOIN_FLAGS_ACCOUNT_CREATE |
+			     WKSSVC_JOIN_FLAGS_DOMAIN_JOIN_IF_JOINED; /* for testing */
 	}
 
 	if ((state->name_type_initial == NetSetupDomainName) &&
@@ -653,8 +641,8 @@ static void callback_do_join(GtkWidget *widget,
 		try_unjoin = TRUE;
 		unjoin_creds_required = TRUE;
 		join_creds_required = FALSE;
-		unjoin_flags = NETSETUP_JOIN_DOMAIN |
-			       NETSETUP_ACCT_DELETE;
+		unjoin_flags = WKSSVC_JOIN_FLAGS_JOIN_TYPE |
+			       WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 	}
 
 	if (try_unjoin) {
@@ -675,7 +663,7 @@ static void callback_do_join(GtkWidget *widget,
 			}
 		}
 
-		status = NetUnjoinDomain(state->target_hostname,
+		status = NetUnjoinDomain(NULL,
 					 state->account,
 					 state->password,
 					 unjoin_flags);
@@ -729,7 +717,6 @@ static void callback_do_join(GtkWidget *widget,
 							err_str);
 
 			gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-			gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 			g_signal_connect_swapped(dialog, "response",
 						 G_CALLBACK(gtk_widget_destroy),
 						 dialog);
@@ -766,7 +753,7 @@ static void callback_do_join(GtkWidget *widget,
 	}
 	debug("\n");
 
-	status = NetJoinDomain(state->target_hostname,
+	status = NetJoinDomain(NULL,
 			       state->name_buffer_new,
 			       account_ou,
 			       state->account,
@@ -787,7 +774,6 @@ static void callback_do_join(GtkWidget *widget,
 						err_str);
 
 		gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-		gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 		g_signal_connect_swapped(dialog, "response",
 					 G_CALLBACK(gtk_widget_destroy),
 					 dialog);
@@ -810,7 +796,6 @@ static void callback_do_join(GtkWidget *widget,
 					new_workgroup_type);
 
 	gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 	gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_destroy(dialog);
 
@@ -834,19 +819,13 @@ static void callback_enter_hostname_and_unlock(GtkWidget *widget,
 	if (strcasecmp(state->my_hostname, entry_text) == 0) {
 		state->hostname_changed = FALSE;
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
-		/* return; */
-	} else {
-		state->hostname_changed = TRUE;
+		return;
 	}
-
+	state->hostname_changed = TRUE;
 	if (state->name_type_initial == NetSetupDomainName) {
-		if (asprintf(&str, "%s.%s", entry_text, state->my_dnsdomain) == -1) {
-			return;
-		}
+		asprintf(&str, "%s.%s", entry_text, state->my_dnsdomain);
 	} else {
-		if (asprintf(&str, "%s.", entry_text) == -1) {
-			return;
-		}
+		asprintf(&str, "%s.", entry_text);
 	}
 	gtk_label_set_text(GTK_LABEL(state->label_full_computer_name), str);
 	free(str);
@@ -861,7 +840,7 @@ static void callback_enter_computer_description_and_unlock(GtkWidget *widget,
 {
 	const gchar *entry_text = NULL;
 	struct join_state *state = (struct join_state *)data;
-	int string_unchanged = FALSE;
+	int string_unchanged = 0;
 
 	entry_text = gtk_entry_get_text(GTK_ENTRY(widget));
 	debug("callback_enter_computer_description_and_unlock: %s\n",
@@ -874,8 +853,8 @@ static void callback_enter_computer_description_and_unlock(GtkWidget *widget,
 		return;
 	}
 #endif
-	if (entry_text && state->comment && strcasecmp(state->comment, entry_text) == 0) {
-		string_unchanged = TRUE;
+	if (entry_text && strcasecmp(state->comment, entry_text) == 0) {
+		string_unchanged = 1;
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_apply),
 					 FALSE);
 		return;
@@ -1004,7 +983,6 @@ static void callback_do_getous(GtkWidget *widget,
 						err_str);
 
 		gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-		gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 		g_signal_connect_swapped(dialog, "response",
 					 G_CALLBACK(gtk_widget_destroy),
 					 dialog);
@@ -1026,8 +1004,7 @@ static void callback_do_getous(GtkWidget *widget,
 		return;
 	}
 
-	status = NetGetJoinableOUs(state->target_hostname,
-				   domain,
+	status = NetGetJoinableOUs(NULL, domain,
 				   state->account,
 				   state->password,
 				   &num_ous, &ous);
@@ -1042,7 +1019,6 @@ static void callback_do_getous(GtkWidget *widget,
 						"Failed to query joinable OUs: %s",
 						libnetapi_get_error_string(state->ctx, status));
 		gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-		gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(state->window_do_change));
 		gtk_dialog_run(GTK_DIALOG(dialog));
 		gtk_widget_destroy(dialog);
 		return;
@@ -1108,11 +1084,9 @@ static void callback_do_change(GtkWidget *widget,
 	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
 	gtk_widget_set_size_request(GTK_WIDGET(window), 480, 650);
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), SAMBA_ICON_PATH, NULL);
-	gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(state->window_main));
-	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ALWAYS);
 
 	g_signal_connect(G_OBJECT(window), "delete_event",
-			 G_CALLBACK(callback_do_close_widget), NULL);
+			 G_CALLBACK(callback_do_close), window);
 
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
@@ -1158,14 +1132,10 @@ static void callback_do_change(GtkWidget *widget,
 		char *str = NULL;
 		entry_text = gtk_entry_get_text(GTK_ENTRY(entry));
 		if (state->name_type_initial == NetSetupDomainName) {
-			if (asprintf(&str, "%s.%s", entry_text,
-				 state->my_dnsdomain) == -1) {
-				return;
-			}
+			asprintf(&str, "%s.%s", entry_text,
+				 state->my_dnsdomain);
 		} else {
-			if (asprintf(&str, "%s.", entry_text) == -1) {
-				return;
-			}
+			asprintf(&str, "%s.", entry_text);
 		}
 		gtk_label_set_text(GTK_LABEL(state->label_full_computer_name),
 				   str);
@@ -1310,8 +1280,6 @@ static void callback_do_about(GtkWidget *widget,
 	GError    *error = NULL;
 	GtkWidget *about;
 
-	struct join_state *state = (struct join_state *)data;
-
 	debug("callback_do_about called\n");
 
 	logo = gdk_pixbuf_new_from_file(SAMBA_IMAGE_PATH,
@@ -1335,7 +1303,6 @@ static void callback_do_about(GtkWidget *widget,
 	}
 	gtk_about_dialog_set_comments(GTK_ABOUT_DIALOG(about), "Samba gtk domain join utility");
 	gtk_window_set_modal(GTK_WINDOW(about), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(about), GTK_WINDOW(state->window_main));
 	g_signal_connect_swapped(about, "response",
 				 G_CALLBACK(gtk_widget_destroy),
 				 about);
@@ -1382,7 +1349,6 @@ static int draw_main_window(struct join_state *state)
 	gtk_widget_set_size_request(GTK_WIDGET(window), 600, 600);
 	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), SAMBA_ICON_PATH, NULL);
-	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ALWAYS);
 
 	g_signal_connect(G_OBJECT(window), "delete_event",
 			 G_CALLBACK(callback_delete_event), NULL);
@@ -1470,14 +1436,10 @@ static int draw_main_window(struct join_state *state)
 		/* Label */
 		char *str = NULL;
 		if (state->name_type_initial == NetSetupDomainName) {
-			if (asprintf(&str, "%s.%s", state->my_hostname,
-				 state->my_dnsdomain) == -1) {
-				return -1;
-			}
+			asprintf(&str, "%s.%s", state->my_hostname,
+				 state->my_dnsdomain);
 		} else {
-			if (asprintf(&str, "%s.", state->my_hostname) == -1) {
-				return -1;
-			}
+			asprintf(&str, "%s.", state->my_hostname);
 		}
 
 		label = gtk_label_new(str);
@@ -1577,7 +1539,7 @@ static int draw_main_window(struct join_state *state)
 		gtk_container_add(GTK_CONTAINER(bbox2), button2);
 		g_signal_connect(G_OBJECT(button2), "clicked",
 				 G_CALLBACK(callback_do_about),
-				 state);
+				 window);
 #if 0
 		button2 = gtk_button_new_from_stock(GTK_STOCK_HELP);
 		gtk_container_add(GTK_CONTAINER(bbox2), button2);
@@ -1609,55 +1571,8 @@ static int init_join_state(struct join_state **state)
 	return 0;
 }
 
-static NET_API_STATUS get_server_comment(struct join_state *state)
-{
-	struct SERVER_INFO_101 *info101 = NULL;
-	struct SERVER_INFO_1005 *info1005 = NULL;
-	NET_API_STATUS status;
-
-	status = NetServerGetInfo(state->target_hostname,
-				  101,
-				  (uint8_t **)&info101);
-	if (status == 0) {
-		state->comment = strdup(info101->sv101_comment);
-		if (!state->comment) {
-			return -1;
-		}
-		NetApiBufferFree(info101);
-		return NET_API_STATUS_SUCCESS;
-	}
-
-	switch (status) {
-		case 124: /* WERR_UNKNOWN_LEVEL */
-		case 50: /* WERR_NOT_SUPPORTED */
-			break;
-		default:
-			goto failed;
-	}
-
-	status = NetServerGetInfo(state->target_hostname,
-				  1005,
-				  (uint8_t **)&info1005);
-	if (status == 0) {
-		state->comment = strdup(info1005->sv1005_comment);
-		if (!state->comment) {
-			return -1;
-		}
-		NetApiBufferFree(info1005);
-		return NET_API_STATUS_SUCCESS;
-	}
-
- failed:
-	printf("NetServerGetInfo failed with: %s\n",
-		libnetapi_get_error_string(state->ctx, status));
-
-	return status;
-}
-
 static int initialize_join_state(struct join_state *state,
-				 const char *debug_level,
-				 const char *target_hostname,
-				 const char *target_username)
+				 const char *debug_level)
 {
 	struct libnetapi_ctx *ctx = NULL;
 	NET_API_STATUS status = 0;
@@ -1669,30 +1584,6 @@ static int initialize_join_state(struct join_state *state,
 
 	if (debug_level) {
 		libnetapi_set_debuglevel(ctx, debug_level);
-	}
-
-	if (target_hostname) {
-		state->target_hostname = strdup(target_hostname);
-		if (!state->target_hostname) {
-			return -1;
-		}
-	}
-
-	if (target_username) {
-		char *puser = strdup(target_username);
-		char *p = NULL;
-
-		if ((p = strchr(puser,'%'))) {
-			size_t len;
-			*p = 0;
-			libnetapi_set_username(ctx, puser);
-			libnetapi_set_password(ctx, p+1);
-			len = strlen(p+1);
-			memset(strchr(target_username,'%')+1,'X',len);
-		} else {
-			libnetapi_set_username(ctx, puser);
-		}
-		free(puser);
 	}
 
 	{
@@ -1741,9 +1632,7 @@ static int initialize_join_state(struct join_state *state,
 	{
 		const char *buffer = NULL;
 		uint16_t type = 0;
-		status = NetGetJoinInformation(state->target_hostname,
-					       &buffer,
-					       &type);
+		status = NetGetJoinInformation(NULL, &buffer, &type);
 		if (status != 0) {
 			printf("NetGetJoinInformation failed with: %s\n",
 				libnetapi_get_error_string(state->ctx, status));
@@ -1758,10 +1647,43 @@ static int initialize_join_state(struct join_state *state,
 		NetApiBufferFree((void *)buffer);
 	}
 
-	status = get_server_comment(state);
-	if (status != 0) {
-		return -1;
+	{
+		struct SERVER_INFO_1005 *info1005 = NULL;
+		uint8_t *buffer = NULL;
+
+		status = NetServerGetInfo(NULL, 1005, &buffer);
+		if (status != 0) {
+			printf("NetServerGetInfo failed with: %s\n",
+				libnetapi_get_error_string(state->ctx, status));
+			return status;
+		}
+
+		info1005 = (struct SERVER_INFO_1005 *)buffer;
+
+		state->comment = strdup(info1005->sv1005_comment);
+		if (!state->comment) {
+			return -1;
+		}
+		NetApiBufferFree(buffer);
 	}
+#if 0
+	{
+		struct srvsvc_NetSrvInfo100 *info100 = NULL;
+		uint8_t *buffer = NULL;
+
+		status = NetServerGetInfo(NULL, 100, &buffer);
+		if (status) {
+			return status;
+		}
+
+		info100 = (struct srvsvc_NetSrvInfo100 *)buffer;
+
+		state->comment = strdup(info100->comment);
+		if (!state->comment) {
+			return -1;
+		}
+	}
+#endif
 
 	state->ctx = ctx;
 
@@ -1772,8 +1694,6 @@ int main(int argc, char **argv)
 {
 	GOptionContext *context = NULL;
 	static const char *debug_level = NULL;
-	static const char *target_hostname = NULL;
-	static const char *target_username = NULL;
 	struct join_state *state = NULL;
 	GError *error = NULL;
 	int ret = 0;
@@ -1781,8 +1701,6 @@ int main(int argc, char **argv)
 	static GOptionEntry entries[] = {
 		{ "debug", 'd', 0, G_OPTION_ARG_STRING, &debug_level, "Debug level (for samba)", "N" },
 		{ "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Verbose output", 0 },
-		{ "target", 'S', 0, G_OPTION_ARG_STRING, &target_hostname, "Target hostname", 0 },
-		{ "username", 'U', 0, G_OPTION_ARG_STRING, &target_username, "Target hostname", 0 },
 		{ NULL }
 	};
 
@@ -1800,9 +1718,7 @@ int main(int argc, char **argv)
 		return ret;
 	}
 
-	ret = initialize_join_state(state, debug_level,
-				    target_hostname,
-				    target_username);
+	ret = initialize_join_state(state, debug_level);
 	if (ret) {
 		return ret;
 	}

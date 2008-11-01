@@ -42,10 +42,7 @@ enum _wbcErrType {
 	WBC_ERR_DOMAIN_NOT_FOUND,        /**< Domain is not trusted or cannot be found **/
 	WBC_ERR_INVALID_RESPONSE,        /**< Winbind returned an invalid response **/
 	WBC_ERR_NSS_ERROR,            /**< NSS_STATUS error **/
-	WBC_ERR_AUTH_ERROR,        /**< Authentication failed **/
-	WBC_ERR_UNKNOWN_USER,      /**< User account cannot be found */
-	WBC_ERR_UNKNOWN_GROUP,     /**< Group account cannot be found */
-	WBC_ERR_PWD_CHANGE_FAILED  /**< Password Change has failed */
+	WBC_ERR_AUTH_ERROR        /**< Authentication failed **/
 };
 
 typedef enum _wbcErrType wbcErr;
@@ -205,41 +202,6 @@ struct wbcAuthUserParams {
 	} password;
 };
 
-/**
- * @brief ChangePassword Parameters
- **/
-
-struct wbcChangePasswordParams {
-	const char *account_name;
-	const char *domain_name;
-
-	uint32_t flags;
-
-	enum wbcChangePasswordLevel {
-		WBC_CHANGE_PASSWORD_LEVEL_PLAIN = 1,
-		WBC_CHANGE_PASSWORD_LEVEL_RESPONSE = 2
-	} level;
-
-	union {
-		const char *plaintext;
-		struct {
-			uint32_t old_nt_hash_enc_length;
-			uint8_t *old_nt_hash_enc_data;
-			uint32_t old_lm_hash_enc_length;
-			uint8_t *old_lm_hash_enc_data;
-		} response;
-	} old_password;
-	union {
-		const char *plaintext;
-		struct {
-			uint32_t nt_length;
-			uint8_t *nt_data;
-			uint32_t lm_length;
-			uint8_t *lm_data;
-		} response;
-	} new_password;
-};
-
 /* wbcAuthUserParams->parameter_control */
 
 #define WBC_MSV1_0_CLEARTEXT_PASSWORD_ALLOWED		0x00000002
@@ -339,47 +301,6 @@ struct wbcAuthErrorInfo {
 	int32_t pam_error;
 	char *display_string;
 };
-
-/**
- * @brief User Password Policy Information
- **/
-
-/* wbcUserPasswordPolicyInfo->password_properties */
-
-#define WBC_DOMAIN_PASSWORD_COMPLEX		0x00000001
-#define WBC_DOMAIN_PASSWORD_NO_ANON_CHANGE	0x00000002
-#define WBC_DOMAIN_PASSWORD_NO_CLEAR_CHANGE	0x00000004
-#define WBC_DOMAIN_PASSWORD_LOCKOUT_ADMINS	0x00000008
-#define WBC_DOMAIN_PASSWORD_STORE_CLEARTEXT	0x00000010
-#define WBC_DOMAIN_REFUSE_PASSWORD_CHANGE	0x00000020
-
-struct wbcUserPasswordPolicyInfo {
-	uint32_t min_length_password;
-	uint32_t password_history;
-	uint32_t password_properties;
-	uint64_t expire;
-	uint64_t min_passwordage;
-};
-
-/**
- * @brief Change Password Reject Reason
- **/
-
-enum wbcPasswordChangeRejectReason {
-	WBC_PWD_CHANGE_REJECT_OTHER=0,
-	WBC_PWD_CHANGE_REJECT_TOO_SHORT=1,
-	WBC_PWD_CHANGE_REJECT_IN_HISTORY=2,
-	WBC_PWD_CHANGE_REJECT_COMPLEXITY=5
-};
-
-/*
- * DomainControllerInfo struct
- */
-struct wbcDomainControllerInfo {
-	char *dc_name;
-};
-
-
 
 /*
  * Memory Management
@@ -505,31 +426,6 @@ wbcErr wbcDomainInfo(const char *domain,
 wbcErr wbcListTrusts(struct wbcDomainInfo **domains, 
 		     size_t *num_domains);
 
-/* Flags for wbcLookupDomainController */
-
-#define WBC_LOOKUP_DC_FORCE_REDISCOVERY        0x00000001
-#define WBC_LOOKUP_DC_DS_REQUIRED              0x00000010
-#define WBC_LOOKUP_DC_DS_PREFERRED             0x00000020
-#define WBC_LOOKUP_DC_GC_SERVER_REQUIRED       0x00000040
-#define WBC_LOOKUP_DC_PDC_REQUIRED             0x00000080
-#define WBC_LOOKUP_DC_BACKGROUND_ONLY          0x00000100
-#define WBC_LOOKUP_DC_IP_REQUIRED              0x00000200
-#define WBC_LOOKUP_DC_KDC_REQUIRED             0x00000400
-#define WBC_LOOKUP_DC_TIMESERV_REQUIRED        0x00000800
-#define WBC_LOOKUP_DC_WRITABLE_REQUIRED        0x00001000
-#define WBC_LOOKUP_DC_GOOD_TIMESERV_PREFERRED  0x00002000
-#define WBC_LOOKUP_DC_AVOID_SELF               0x00004000
-#define WBC_LOOKUP_DC_ONLY_LDAP_NEEDED         0x00008000
-#define WBC_LOOKUP_DC_IS_FLAT_NAME             0x00010000
-#define WBC_LOOKUP_DC_IS_DNS_NAME              0x00020000
-#define WBC_LOOKUP_DC_TRY_NEXTCLOSEST_SITE     0x00040000
-#define WBC_LOOKUP_DC_DS_6_REQUIRED            0x00080000
-#define WBC_LOOKUP_DC_RETURN_DNS_NAME          0x40000000
-#define WBC_LOOKUP_DC_RETURN_FLAT_NAME         0x80000000
-
-wbcErr wbcLookupDomainController(const char *domain,
-				 uint32_t flags,
-				 struct wbcDomainControllerInfo **dc_info);
 
 /*
  * Athenticate functions
@@ -542,19 +438,6 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 			     struct wbcAuthUserInfo **info,
 			     struct wbcAuthErrorInfo **error);
 
-wbcErr wbcLogoffUser(const char *username,
-		     uid_t uid,
-		     const char *ccfilename);
-
-wbcErr wbcChangeUserPassword(const char *username,
-			     const char *old_password,
-			     const char *new_password);
-
-wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
-			       struct wbcAuthErrorInfo **error,
-			       enum wbcPasswordChangeRejectReason *reject_reason,
-			       struct wbcUserPasswordPolicyInfo **policy);
-
 /*
  * Resolve functions
  */
@@ -566,6 +449,5 @@ wbcErr wbcResolveWinsByIP(const char *ip, char **name);
  */
 wbcErr wbcCheckTrustCredentials(const char *domain,
 				struct wbcAuthErrorInfo **error);
-
 
 #endif      /* _WBCLIENT_H */

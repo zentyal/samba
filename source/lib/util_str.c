@@ -208,14 +208,16 @@ int StrCaseCmp(const char *s, const char *t)
 			return +1;
 	}
 
-	if (!push_ucs2_allocate(&buffer_s, ps, &size)) {
+	size = push_ucs2_allocate(&buffer_s, ps);
+	if (size == (size_t)-1) {
 		return strcmp(ps, pt);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive, and it's pretty
 		   close */
 	}
 
-	if (!push_ucs2_allocate(&buffer_t, pt, &size)) {
+	size = push_ucs2_allocate(&buffer_t, pt);
+	if (size == (size_t)-1) {
 		SAFE_FREE(buffer_s);
 		return strcmp(ps, pt);
 		/* Not quite the right answer, but finding the right one
@@ -269,14 +271,16 @@ int StrnCaseCmp(const char *s, const char *t, size_t len)
 		return 0;
 	}
 
-	if (!push_ucs2_allocate(&buffer_s, ps, &size)) {
+	size = push_ucs2_allocate(&buffer_s, ps);
+	if (size == (size_t)-1) {
 		return strncmp(ps, pt, len-n);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive,
 		   and it's pretty close */
 	}
 
-	if (!push_ucs2_allocate(&buffer_t, pt, &size)) {
+	size = push_ucs2_allocate(&buffer_t, pt);
+	if (size == (size_t)-1) {
 		SAFE_FREE(buffer_s);
 		return strncmp(ps, pt, len-n);
 		/* Not quite the right answer, but finding the right one
@@ -476,9 +480,9 @@ char *skip_string(const char *base, size_t len, char *buf)
 
 size_t str_charnum(const char *s)
 {
-	size_t ret, converted_size;
+	size_t ret;
 	smb_ucs2_t *tmpbuf2 = NULL;
-	if (!push_ucs2_allocate(&tmpbuf2, s, &converted_size)) {
+	if (push_ucs2_allocate(&tmpbuf2, s) == (size_t)-1) {
 		return 0;
 	}
 	ret = strlen_w(tmpbuf2);
@@ -494,9 +498,9 @@ size_t str_charnum(const char *s)
 
 size_t str_ascii_charnum(const char *s)
 {
-	size_t ret, converted_size;
+	size_t ret;
 	char *tmpbuf2 = NULL;
-	if (!push_ascii_allocate(&tmpbuf2, s, &converted_size)) {
+	if (push_ascii_allocate(&tmpbuf2, s) == (size_t)-1) {
 		return 0;
 	}
 	ret = strlen(tmpbuf2);
@@ -606,9 +610,8 @@ bool strhasupper(const char *s)
 {
 	smb_ucs2_t *tmp, *p;
 	bool ret;
-	size_t converted_size;
 
-	if (!push_ucs2_allocate(&tmp, s, &converted_size)) {
+	if (push_ucs2_allocate(&tmp, s) == -1) {
 		return false;
 	}
 
@@ -631,9 +634,8 @@ bool strhaslower(const char *s)
 {
 	smb_ucs2_t *tmp, *p;
 	bool ret;
-	size_t converted_size;
 
-	if (!push_ucs2_allocate(&tmp, s, &converted_size)) {
+	if (push_ucs2_allocate(&tmp, s) == -1) {
 		return false;
 	}
 
@@ -657,9 +659,8 @@ size_t count_chars(const char *s,char c)
 	smb_ucs2_t *ptr;
 	int count;
 	smb_ucs2_t *alloc_tmpbuf = NULL;
-	size_t converted_size;
 
-	if (!push_ucs2_allocate(&alloc_tmpbuf, s, &converted_size)) {
+	if (push_ucs2_allocate(&alloc_tmpbuf, s) == (size_t)-1) {
 		return 0;
 	}
 
@@ -1409,7 +1410,6 @@ char *strchr_m(const char *src, char c)
 	smb_ucs2_t *p;
 	const char *s;
 	char *ret;
-	size_t converted_size;
 
 	/* characters below 0x3F are guaranteed to not appear in
 	   non-initial position in multi-byte charsets */
@@ -1435,7 +1435,7 @@ char *strchr_m(const char *src, char c)
 	s = src;
 #endif
 
-	if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+	if (push_ucs2_allocate(&ws, s)==(size_t)-1) {
 		/* Wrong answer, but what can we do... */
 		return strchr(src, c);
 	}
@@ -1445,7 +1445,7 @@ char *strchr_m(const char *src, char c)
 		return NULL;
 	}
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
+	if (pull_ucs2_allocate(&s2, ws)==(size_t)-1) {
 		SAFE_FREE(ws);
 		/* Wrong answer, but what can we do... */
 		return strchr(src, c);
@@ -1504,9 +1504,8 @@ char *strrchr_m(const char *s, char c)
 		char *s2 = NULL;
 		smb_ucs2_t *p;
 		char *ret;
-		size_t converted_size;
 
-		if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+		if (push_ucs2_allocate(&ws,s)==(size_t)-1) {
 			/* Wrong answer, but what can we do. */
 			return strrchr(s, c);
 		}
@@ -1516,7 +1515,7 @@ char *strrchr_m(const char *s, char c)
 			return NULL;
 		}
 		*p = 0;
-		if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
+		if (pull_ucs2_allocate(&s2,ws)==(size_t)-1) {
 			SAFE_FREE(ws);
 			/* Wrong answer, but what can we do. */
 			return strrchr(s, c);
@@ -1539,9 +1538,8 @@ char *strnrchr_m(const char *s, char c, unsigned int n)
 	char *s2 = NULL;
 	smb_ucs2_t *p;
 	char *ret;
-	size_t converted_size;
 
-	if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+	if (push_ucs2_allocate(&ws,s)==(size_t)-1) {
 		/* Too hard to try and get right. */
 		return NULL;
 	}
@@ -1551,7 +1549,7 @@ char *strnrchr_m(const char *s, char c, unsigned int n)
 		return NULL;
 	}
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
+	if (pull_ucs2_allocate(&s2,ws)==(size_t)-1) {
 		SAFE_FREE(ws);
 		/* Too hard to try and get right. */
 		return NULL;
@@ -1574,7 +1572,7 @@ char *strstr_m(const char *src, const char *findstr)
 	char *s2;
 	char *retp;
 
-	size_t converted_size, findstr_len = 0;
+	size_t findstr_len = 0;
 
 	/* for correctness */
 	if (!findstr[0]) {
@@ -1610,12 +1608,12 @@ char *strstr_m(const char *src, const char *findstr)
 	s = src;
 #endif
 
-	if (!push_ucs2_allocate(&src_w, src, &converted_size)) {
+	if (push_ucs2_allocate(&src_w, src) == (size_t)-1) {
 		DEBUG(0,("strstr_m: src malloc fail\n"));
 		return NULL;
 	}
 
-	if (!push_ucs2_allocate(&find_w, findstr, &converted_size)) {
+	if (push_ucs2_allocate(&find_w, findstr) == (size_t)-1) {
 		SAFE_FREE(src_w);
 		DEBUG(0,("strstr_m: find malloc fail\n"));
 		return NULL;
@@ -1630,7 +1628,7 @@ char *strstr_m(const char *src, const char *findstr)
 	}
 
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, src_w, &converted_size)) {
+	if (pull_ucs2_allocate(&s2, src_w) == (size_t)-1) {
 		SAFE_FREE(src_w);
 		SAFE_FREE(find_w);
 		DEBUG(0,("strstr_m: dest malloc fail\n"));
@@ -2617,23 +2615,6 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...)
 	strupper_m(ret);
 	return ret;
 }
-
-char *talloc_asprintf_strlower_m(TALLOC_CTX *t, const char *fmt, ...)
-{
-	va_list ap;
-	char *ret;
-
-	va_start(ap, fmt);
-	ret = talloc_vasprintf(t, fmt, ap);
-	va_end(ap);
-
-	if (ret == NULL) {
-		return NULL;
-	}
-	strlower_m(ret);
-	return ret;
-}
-
 
 /*
    Returns the substring from src between the first occurrence of

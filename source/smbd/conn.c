@@ -91,6 +91,7 @@ thinking the server is still available.
 ****************************************************************************/
 connection_struct *conn_new(void)
 {
+	TALLOC_CTX *mem_ctx;
 	connection_struct *conn;
 	int i;
         int find_offset = 1;
@@ -138,18 +139,25 @@ find_again:
 		return NULL;
 	}
 
-	if (!(conn=TALLOC_ZERO_P(NULL, connection_struct)) ||
-	    !(conn->params = TALLOC_P(conn, struct share_params))) {
-		DEBUG(0,("TALLOC_ZERO() failed!\n"));
-		TALLOC_FREE(conn);
+	if ((mem_ctx=talloc_init("connection_struct"))==NULL) {
+		DEBUG(0,("talloc_init(connection_struct) failed!\n"));
 		return NULL;
 	}
+
+	if (!(conn=TALLOC_ZERO_P(mem_ctx, connection_struct)) ||
+	    !(conn->params = TALLOC_P(mem_ctx, struct share_params))) {
+		DEBUG(0,("TALLOC_ZERO() failed!\n"));
+		TALLOC_FREE(mem_ctx);
+		return NULL;
+	}
+	conn->mem_ctx = mem_ctx;
 	conn->cnum = i;
 
 	bitmap_set(bmap, i);
 
 	num_open++;
 
+	string_set(&conn->user,"");
 	string_set(&conn->dirpath,"");
 	string_set(&conn->connectpath,"");
 	string_set(&conn->origpath,"");
@@ -161,19 +169,16 @@ find_again:
 
 /****************************************************************************
  Close all conn structures.
-return true if any were closed
 ****************************************************************************/
-bool conn_close_all(void)
+
+void conn_close_all(void)
 {
 	connection_struct *conn, *next;
-	bool ret = false;
 	for (conn=Connections;conn;conn=next) {
 		next=conn->next;
 		set_current_service(conn, 0, True);
 		close_cnum(conn, conn->vuid);
-		ret = true;
 	}
-	return ret;
 }
 
 /****************************************************************************
@@ -228,15 +233,24 @@ bool conn_idle_all(time_t t)
  Clear a vuid out of the validity cache, and as the 'owner' of a connection.
 ****************************************************************************/
 
-void conn_clear_vuid_caches(uint16_t vuid)
+void conn_clear_vuid_cache(uint16 vuid)
 {
 	connection_struct *conn;
+	unsigned int i;
 
 	for (conn=Connections;conn;conn=conn->next) {
 		if (conn->vuid == vuid) {
 			conn->vuid = UID_FIELD_INVALID;
 		}
-		conn_clear_vuid_cache(conn, vuid);
+
+		for (i=0;i<conn->vuid_cache.entries && i< VUID_CACHE_SIZE;i++) {
+			if (conn->vuid_cache.array[i].vuid == vuid) {
+				struct vuid_cache_entry *ent = &conn->vuid_cache.array[i];
+				ent->vuid = UID_FIELD_INVALID;
+				ent->read_only = False;
+				ent->admin_user = False;
+			}
+		}
 	}
 }
 
@@ -247,13 +261,14 @@ void conn_clear_vuid_caches(uint16_t vuid)
 void conn_free_internal(connection_struct *conn)
 {
  	vfs_handle_struct *handle = NULL, *thandle = NULL;
+ 	TALLOC_CTX *mem_ctx = NULL;
 	struct trans_state *state = NULL;
 
 	/* Free vfs_connection_struct */
 	handle = conn->vfs_handles;
 	while(handle) {
-		thandle = handle->next;
 		DLIST_REMOVE(conn->vfs_handles, handle);
+		thandle = handle->next;
 		if (handle->free_data)
 			handle->free_data(&handle->data);
 		handle = thandle;
@@ -271,12 +286,14 @@ void conn_free_internal(connection_struct *conn)
 	free_namearray(conn->veto_oplock_list);
 	free_namearray(conn->aio_write_behind_list);
 	
+	string_free(&conn->user);
 	string_free(&conn->dirpath);
 	string_free(&conn->connectpath);
 	string_free(&conn->origpath);
 
+	mem_ctx = conn->mem_ctx;
 	ZERO_STRUCTP(conn);
-	talloc_destroy(conn);
+	talloc_destroy(mem_ctx);
 }
 
 /****************************************************************************

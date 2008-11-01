@@ -47,7 +47,7 @@ static bool reg_hive_key(TALLOC_CTX *ctx, const char *fullname,
 	{
 		(*reg_type) = HKEY_LOCAL_MACHINE;
 	} else if (strequal(hivename, "HKCR") ||
-		   strequal(hivename, "HKEY_CLASSES_ROOT"))
+		   strequal(hivename, "HKEY_CLASSES_ROOT")) 
 	{
 		(*reg_type) = HKEY_CLASSES_ROOT;
 	} else if (strequal(hivename, "HKU") ||
@@ -172,7 +172,7 @@ static NTSTATUS registry_enumkeys(TALLOC_CTX *ctx,
 		status = rpccli_winreg_EnumKey(pipe_hnd, mem_ctx, key_hnd,
 					       i, &name_buf, &class_buf,
 					       &modtime, &werr);
-
+		
 		if (W_ERROR_EQUAL(werr,
 				  WERR_NO_MORE_ITEMS) ) {
 			status = NT_STATUS_OK;
@@ -369,12 +369,11 @@ static NTSTATUS registry_setvalue(TALLOC_CTX *mem_ctx,
 	return result;
 }
 
-static NTSTATUS rpc_registry_setvalue_internal(struct net_context *c,
-					       const DOM_SID *domain_sid,
-					       const char *domain_name,
+static NTSTATUS rpc_registry_setvalue_internal(const DOM_SID *domain_sid,
+					       const char *domain_name, 
 					       struct cli_state *cli,
 					       struct rpc_pipe_client *pipe_hnd,
-					       TALLOC_CTX *mem_ctx,
+					       TALLOC_CTX *mem_ctx, 
 					       int argc,
 					       const char **argv )
 {
@@ -382,7 +381,7 @@ static NTSTATUS rpc_registry_setvalue_internal(struct net_context *c,
 	NTSTATUS status;
 	struct registry_value value;
 
-	status = registry_openkey(mem_ctx, pipe_hnd, argv[0],
+	status = registry_openkey(mem_ctx, pipe_hnd, argv[0], 
 				  SEC_RIGHTS_MAXIMUM_ALLOWED,
 				  &hive_hnd, &key_hnd);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -426,25 +425,23 @@ static NTSTATUS rpc_registry_setvalue_internal(struct net_context *c,
 	return NT_STATUS_OK;
 }
 
-static int rpc_registry_setvalue(struct net_context *c, int argc,
-				 const char **argv )
+static int rpc_registry_setvalue( int argc, const char **argv )
 {
-	if (argc < 4 || c->display_usage) {
+	if (argc < 4) {
 		d_fprintf(stderr, "usage: net rpc registry setvalue <key> "
 			  "<valuename> <type> [<val>]+\n");
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_setvalue_internal, argc, argv );
 }
 
-static NTSTATUS rpc_registry_deletevalue_internal(struct net_context *c,
-						  const DOM_SID *domain_sid,
-						  const char *domain_name,
+static NTSTATUS rpc_registry_deletevalue_internal(const DOM_SID *domain_sid,
+						  const char *domain_name, 
 						  struct cli_state *cli,
 						  struct rpc_pipe_client *pipe_hnd,
-						  TALLOC_CTX *mem_ctx,
+						  TALLOC_CTX *mem_ctx, 
 						  int argc,
 						  const char **argv )
 {
@@ -479,26 +476,23 @@ static NTSTATUS rpc_registry_deletevalue_internal(struct net_context *c,
 	return status;
 }
 
-static int rpc_registry_deletevalue(struct net_context *c, int argc,
-				    const char **argv )
+static int rpc_registry_deletevalue( int argc, const char **argv )
 {
-	if (argc != 2 || c->display_usage) {
+	if (argc != 2) {
 		d_fprintf(stderr, "usage: net rpc registry deletevalue <key> "
 			  "<valuename>\n");
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_deletevalue_internal, argc, argv );
 }
 
-static NTSTATUS rpc_registry_getvalue_internal(struct net_context *c,
-					       const DOM_SID *domain_sid,
+static NTSTATUS rpc_registry_getvalue_internal(const DOM_SID *domain_sid,
 					       const char *domain_name,
 					       struct cli_state *cli,
 					       struct rpc_pipe_client *pipe_hnd,
 					       TALLOC_CTX *mem_ctx,
-					       bool raw,
 					       int argc,
 					       const char **argv)
 {
@@ -569,7 +563,7 @@ static NTSTATUS rpc_registry_getvalue_internal(struct net_context *c,
 		goto done;
 	}
 
-	print_registry_value(value, raw);
+	print_registry_value(value);
 
 done:
 	rpccli_winreg_CloseKey(pipe_hnd, tmp_ctx, &key_hnd, NULL);
@@ -580,66 +574,23 @@ done:
 	return status;
 }
 
-static NTSTATUS rpc_registry_getvalue_full(struct net_context *c,
-					   const DOM_SID *domain_sid,
-					   const char *domain_name,
-					   struct cli_state *cli,
-					   struct rpc_pipe_client *pipe_hnd,
-					   TALLOC_CTX *mem_ctx,
-					   int argc,
-					   const char **argv)
+static int rpc_registry_getvalue(int argc, const char **argv)
 {
-	return rpc_registry_getvalue_internal(c, domain_sid, domain_name,
-					      cli, pipe_hnd, mem_ctx, false,
-					      argc, argv);
-}
-
-static int rpc_registry_getvalue(struct net_context *c, int argc,
-				 const char **argv)
-{
-	if (argc != 2 || c->display_usage) {
-		d_fprintf(stderr, "usage: net rpc registry getvalue <key> "
+	if (argc != 2) {
+		d_fprintf(stderr, "usage: net rpc registry deletevalue <key> "
 			  "<valuename>\n");
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
-		rpc_registry_getvalue_full, argc, argv);
+	return run_rpc_command(NULL, PI_WINREG, 0,
+		rpc_registry_getvalue_internal, argc, argv);
 }
 
-static NTSTATUS rpc_registry_getvalue_raw(struct net_context *c,
-					  const DOM_SID *domain_sid,
-					  const char *domain_name,
-					  struct cli_state *cli,
-					  struct rpc_pipe_client *pipe_hnd,
-					  TALLOC_CTX *mem_ctx,
-					  int argc,
-					  const char **argv)
-{
-	return rpc_registry_getvalue_internal(c, domain_sid, domain_name,
-					      cli, pipe_hnd, mem_ctx, true,
-					      argc, argv);
-}
-
-static int rpc_registry_getvalueraw(struct net_context *c, int argc,
-				    const char **argv)
-{
-	if (argc != 2 || c->display_usage) {
-		d_fprintf(stderr, "usage: net rpc registry getvalue <key> "
-			  "<valuename>\n");
-		return -1;
-	}
-
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
-		rpc_registry_getvalue_raw, argc, argv);
-}
-
-static NTSTATUS rpc_registry_createkey_internal(struct net_context *c,
-						const DOM_SID *domain_sid,
-						const char *domain_name,
+static NTSTATUS rpc_registry_createkey_internal(const DOM_SID *domain_sid,
+						const char *domain_name, 
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
-						TALLOC_CTX *mem_ctx,
+						TALLOC_CTX *mem_ctx, 
 						int argc,
 						const char **argv )
 {
@@ -694,24 +645,22 @@ static NTSTATUS rpc_registry_createkey_internal(struct net_context *c,
 	return status;
 }
 
-static int rpc_registry_createkey(struct net_context *c, int argc,
-				  const char **argv )
+static int rpc_registry_createkey( int argc, const char **argv )
 {
-	if (argc != 1 || c->display_usage) {
+	if (argc != 1) {
 		d_fprintf(stderr, "usage: net rpc registry createkey <key>\n");
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_createkey_internal, argc, argv );
 }
 
-static NTSTATUS rpc_registry_deletekey_internal(struct net_context *c,
-						const DOM_SID *domain_sid,
-						const char *domain_name,
+static NTSTATUS rpc_registry_deletekey_internal(const DOM_SID *domain_sid,
+						const char *domain_name, 
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
-						TALLOC_CTX *mem_ctx,
+						TALLOC_CTX *mem_ctx, 
 						int argc,
 						const char **argv )
 {
@@ -744,30 +693,29 @@ static NTSTATUS rpc_registry_deletekey_internal(struct net_context *c,
 	return status;
 }
 
-static int rpc_registry_deletekey(struct net_context *c, int argc, const char **argv )
+static int rpc_registry_deletekey( int argc, const char **argv )
 {
-	if (argc != 1 || c->display_usage) {
+	if (argc != 1) {
 		d_fprintf(stderr, "usage: net rpc registry deletekey <key>\n");
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_deletekey_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_registry_enumerate_internal(struct net_context *c,
-						const DOM_SID *domain_sid,
-						const char *domain_name,
+static NTSTATUS rpc_registry_enumerate_internal(const DOM_SID *domain_sid,
+						const char *domain_name, 
 						struct cli_state *cli,
 						struct rpc_pipe_client *pipe_hnd,
-						TALLOC_CTX *mem_ctx,
+						TALLOC_CTX *mem_ctx, 
 						int argc,
 						const char **argv )
 {
-	POLICY_HND pol_hive, pol_key;
+	POLICY_HND pol_hive, pol_key; 
 	NTSTATUS status;
 	uint32 num_subkeys = 0;
 	uint32 num_values = 0;
@@ -775,9 +723,9 @@ static NTSTATUS rpc_registry_enumerate_internal(struct net_context *c,
 	NTTIME **modtimes = NULL;
 	uint32 i;
 	struct registry_value **values = NULL;
-
-	if (argc != 1 || c->display_usage) {
-		d_printf("Usage:    net rpc registry enumerate <path>\n");
+	
+	if (argc != 1 ) {
+		d_printf("Usage:    net rpc registry enumerate <path> [recurse]\n");
 		d_printf("Example:  net rpc registry enumerate 'HKLM\\Software\\Samba'\n");
 		return NT_STATUS_INVALID_PARAMETER;
 	}
@@ -823,35 +771,33 @@ static NTSTATUS rpc_registry_enumerate_internal(struct net_context *c,
 /********************************************************************
 ********************************************************************/
 
-static int rpc_registry_enumerate(struct net_context *c, int argc,
-				  const char **argv )
+static int rpc_registry_enumerate( int argc, const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_enumerate_internal, argc, argv );
 }
 
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_registry_save_internal(struct net_context *c,
-					const DOM_SID *domain_sid,
-					const char *domain_name,
+static NTSTATUS rpc_registry_save_internal(const DOM_SID *domain_sid,
+					const char *domain_name, 
 					struct cli_state *cli,
 					struct rpc_pipe_client *pipe_hnd,
-					TALLOC_CTX *mem_ctx,
+					TALLOC_CTX *mem_ctx, 
 					int argc,
 					const char **argv )
 {
 	WERROR result = WERR_GENERAL_FAILURE;
-	POLICY_HND pol_hive, pol_key;
+	POLICY_HND pol_hive, pol_key; 
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	struct winreg_String filename;
-
-	if (argc != 2 || c->display_usage) {
+	
+	if (argc != 2 ) {
 		d_printf("Usage:    net rpc registry backup <path> <file> \n");
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-
+	
 	status = registry_openkey(mem_ctx, pipe_hnd, argv[0], REG_KEY_ALL,
 				  &pol_hive, &pol_key);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -865,9 +811,9 @@ static NTSTATUS rpc_registry_save_internal(struct net_context *c,
 	if ( !W_ERROR_IS_OK(result) ) {
 		d_fprintf(stderr, "Unable to save [%s] to %s:%s\n", argv[0], cli->desthost, argv[1]);
 	}
-
+	
 	/* cleanup */
-
+	
 	rpccli_winreg_CloseKey(pipe_hnd, mem_ctx, &pol_key, NULL);
 	rpccli_winreg_CloseKey(pipe_hnd, mem_ctx, &pol_hive, NULL);
 
@@ -877,9 +823,9 @@ static NTSTATUS rpc_registry_save_internal(struct net_context *c,
 /********************************************************************
 ********************************************************************/
 
-static int rpc_registry_save(struct net_context *c, int argc, const char **argv )
+static int rpc_registry_save( int argc, const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command( NULL, PI_WINREG, 0, 
 		rpc_registry_save_internal, argc, argv );
 }
 
@@ -959,13 +905,13 @@ static bool dump_registry_tree( REGF_FILE *file, REGF_NK_REC *nk, const char *pa
 		SAFE_FREE(regpath);
 	}
 
-	return true;
+	return True;
 }
 
 /********************************************************************
 ********************************************************************/
 
-static bool write_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
+static bool write_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk, 
                                  REGF_NK_REC *parent, REGF_FILE *outfile,
 			         const char *parentpath )
 {
@@ -977,13 +923,13 @@ static bool write_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 
 	if ( !( subkeys = TALLOC_ZERO_P( infile->mem_ctx, REGSUBKEY_CTR )) ) {
 		DEBUG(0,("write_registry_tree: talloc() failed!\n"));
-		return false;
+		return False;
 	}
 
 	if ( !(values = TALLOC_ZERO_P( subkeys, REGVAL_CTR )) ) {
 		DEBUG(0,("write_registry_tree: talloc() failed!\n"));
 		TALLOC_FREE(subkeys);
-		return false;
+		return False;
 	}
 
 	/* copy values into the REGVAL_CTR */
@@ -1021,31 +967,31 @@ static bool write_registry_tree( REGF_FILE *infile, REGF_NK_REC *nk,
 	d_printf("[%s]\n", path );
 	TALLOC_FREE(subkeys);
 
-	return true;
+	return True;
 }
 
 /********************************************************************
 ********************************************************************/
 
-static int rpc_registry_dump(struct net_context *c, int argc, const char **argv)
+static int rpc_registry_dump( int argc, const char **argv )
 {
 	REGF_FILE   *registry;
 	REGF_NK_REC *nk;
-
-	if (argc != 1 || c->display_usage) {
+	
+	if (argc != 1 ) {
 		d_printf("Usage:    net rpc registry dump <file> \n");
 		return -1;
 	}
-
+	
 	d_printf("Opening %s....", argv[0]);
 	if ( !(registry = regfio_open( argv[0], O_RDONLY, 0)) ) {
 		d_fprintf(stderr, "Failed to open %s for reading\n", argv[0]);
 		return 1;
 	}
 	d_printf("ok\n");
-
+	
 	/* get the root of the registry file */
-
+	
 	if ((nk = regfio_rootkey( registry )) == NULL) {
 		d_fprintf(stderr, "Could not get rootkey\n");
 		regfio_close( registry );
@@ -1059,7 +1005,7 @@ static int rpc_registry_dump(struct net_context *c, int argc, const char **argv)
 
 #if 0
 	talloc_report_full( registry->mem_ctx, stderr );
-#endif
+#endif	
 	d_printf("Closing registry...");
 	regfio_close( registry );
 	d_printf("ok\n");
@@ -1070,17 +1016,17 @@ static int rpc_registry_dump(struct net_context *c, int argc, const char **argv)
 /********************************************************************
 ********************************************************************/
 
-static int rpc_registry_copy(struct net_context *c, int argc, const char **argv )
+static int rpc_registry_copy( int argc, const char **argv )
 {
 	REGF_FILE   *infile = NULL, *outfile = NULL;
 	REGF_NK_REC *nk;
 	int result = 1;
-
-	if (argc != 2 || c->display_usage) {
+	
+	if (argc != 2 ) {
 		d_printf("Usage:    net rpc registry copy <srcfile> <newfile>\n");
 		return -1;
 	}
-
+	
 	d_printf("Opening %s....", argv[0]);
 	if ( !(infile = regfio_open( argv[0], O_RDONLY, 0 )) ) {
 		d_fprintf(stderr, "Failed to open %s for reading\n", argv[0]);
@@ -1094,9 +1040,9 @@ static int rpc_registry_copy(struct net_context *c, int argc, const char **argv 
 		goto out;
 	}
 	d_printf("ok\n");
-
+	
 	/* get the root of the registry file */
-
+	
 	if ((nk = regfio_rootkey( infile )) == NULL) {
 		d_fprintf(stderr, "Could not get rootkey\n");
 		goto out;
@@ -1127,8 +1073,7 @@ out:
 /********************************************************************
 ********************************************************************/
 
-static NTSTATUS rpc_registry_getsd_internal(struct net_context *c,
-					    const DOM_SID *domain_sid,
+static NTSTATUS rpc_registry_getsd_internal(const DOM_SID *domain_sid,
 					    const char *domain_name,
 					    struct cli_state *cli,
 					    struct rpc_pipe_client *pipe_hnd,
@@ -1147,7 +1092,7 @@ static NTSTATUS rpc_registry_getsd_internal(struct net_context *c,
 			       SEC_RIGHT_MAXIMUM_ALLOWED |
 			       SEC_RIGHT_SYSTEM_SECURITY;
 
-	if (argc <1 || argc > 2 || c->display_usage) {
+	if (argc <1 || argc > 2) {
 		d_printf("Usage:    net rpc registry getsd <path> <secinfo>\n");
 		d_printf("Example:  net rpc registry getsd 'HKLM\\Software\\Samba'\n");
 		return NT_STATUS_INVALID_PARAMETER;
@@ -1204,108 +1149,40 @@ static NTSTATUS rpc_registry_getsd_internal(struct net_context *c,
 }
 
 
-static int rpc_registry_getsd(struct net_context *c, int argc, const char **argv)
+static int rpc_registry_getsd(int argc, const char **argv)
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(NULL, PI_WINREG, 0,
 		rpc_registry_getsd_internal, argc, argv);
 }
 
 /********************************************************************
 ********************************************************************/
 
-int net_rpc_registry(struct net_context *c, int argc, const char **argv)
+int net_rpc_registry(int argc, const char **argv) 
 {
-	struct functable func[] = {
-		{
-			"enumerate",
-			rpc_registry_enumerate,
-			NET_TRANSPORT_RPC,
-			"Enumerate registry keys and values",
-			"net rpc registry enumerate\n"
-			"    Enumerate registry keys and values"
-		},
-		{
-			"createkey",
-			rpc_registry_createkey,
-			NET_TRANSPORT_RPC,
-			"Create a new registry key",
-			"net rpc registry createkey\n"
-			"    Create a new registry key"
-		},
-		{
-			"deletekey",
-			rpc_registry_deletekey,
-			NET_TRANSPORT_RPC,
-			"Delete a registry key",
-			"net rpc registry deletekey\n"
-			"    Delete a registry key"
-		},
-		{
-			"getvalue",
-			rpc_registry_getvalue,
-			NET_TRANSPORT_RPC,
-			"Print a registry value",
-			"net rpc registry getvalue\n"
-			"    Print a registry value"
-		},
-		{
-			"getvalueraw",
-			rpc_registry_getvalueraw,
-			NET_TRANSPORT_RPC,
-			"Print a registry value",
-			"net rpc registry getvalueraw\n"
-			"    Print a registry value (raw version)"
-		},
-		{
-			"setvalue",
-			rpc_registry_setvalue,
-			NET_TRANSPORT_RPC,
-			"Set a new registry value",
-			"net rpc registry setvalue\n"
-			"    Set a new registry value"
-		},
-		{
-			"deletevalue",
-			rpc_registry_deletevalue,
-			NET_TRANSPORT_RPC,
-			"Delete a registry value",
-			"net rpc registry deletevalue\n"
-			"    Delete a registry value"
-		},
-		{
-			"save",
-			rpc_registry_save,
-			NET_TRANSPORT_RPC,
-			"Save a registry file",
-			"net rpc registry save\n"
-			"    Save a registry file"
-		},
-		{
-			"dump",
-			rpc_registry_dump,
-			NET_TRANSPORT_RPC,
-			"Dump a registry file",
-			"net rpc registry dump\n"
-			"    Dump a registry file"
-		},
-		{
-			"copy",
-			rpc_registry_copy,
-			NET_TRANSPORT_RPC,
-			"Copy a registry file",
-			"net rpc registry copy\n"
-			"    Copy a registry file"
-		},
-		{
-			"getsd",
-			rpc_registry_getsd,
-			NET_TRANSPORT_RPC,
-			"Get security descriptor",
-			"net rpc registry getsd\n"
-			"    Get security descriptior"
-		},
-		{NULL, NULL, 0, NULL, NULL}
+	struct functable2 func[] = {
+		{ "enumerate", rpc_registry_enumerate,
+		  "Enumerate registry keys and values" },
+		{ "createkey",  rpc_registry_createkey,
+		  "Create a new registry key" },
+		{ "deletekey",  rpc_registry_deletekey,
+		  "Delete a registry key" },
+		{ "getvalue", rpc_registry_getvalue,
+		  "Print a registry value" },
+		{ "setvalue",  rpc_registry_setvalue,
+		  "Set a new registry value" },
+		{ "deletevalue",  rpc_registry_deletevalue,
+		  "Delete a registry value" },
+		{ "save", rpc_registry_save,
+		  "Save a registry file" },
+		{ "dump", rpc_registry_dump,
+		  "Dump a registry file" },
+		{ "copy", rpc_registry_copy,
+		  "Copy a registry file" },
+		{ "getsd", rpc_registry_getsd,
+		  "Get security descriptor" },
+		{NULL, NULL, NULL}
 	};
-
-	return net_run_function(c, argc, argv, "net rpc registry", func);
+	
+	return net_run_function2(argc, argv, "net rpc registry", func);
 }

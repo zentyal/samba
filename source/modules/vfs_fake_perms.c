@@ -23,6 +23,8 @@
 
 #include "includes.h"
 
+extern struct current_user current_user;
+
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
@@ -37,8 +39,8 @@ static int fake_perms_stat(vfs_handle_struct *handle, const char *fname, SMB_STR
 		} else {
 			sbuf->st_mode = S_IRWXU;
 		}
-		sbuf->st_uid = handle->conn->server_info->utok.uid;
-		sbuf->st_gid = handle->conn->server_info->utok.gid;
+		sbuf->st_uid = current_user.ut.uid;
+		sbuf->st_gid = current_user.ut.gid;
 	}
 
 	return ret;
@@ -55,8 +57,8 @@ static int fake_perms_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_ST
 		} else {
 			sbuf->st_mode = S_IRWXU;
 		}
-		sbuf->st_uid = handle->conn->server_info->utok.uid;
-		sbuf->st_gid = handle->conn->server_info->utok.gid;
+		sbuf->st_uid = current_user.ut.uid;
+		sbuf->st_gid = current_user.ut.gid;
 	}
 	return ret;
 }

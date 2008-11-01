@@ -20,14 +20,13 @@
 
 #include "includes.h"
 
+extern struct current_user current_user;
+
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_ACLS
 
-/**
- * Security descriptor / NT Token level access check function.
- */
-bool can_access_file_acl(struct connection_struct *conn,
-				const char * fname,
+static bool can_access_file_acl(struct connection_struct *conn,
+				const char * fname, SMB_STRUCT_STAT *psbuf,
 				uint32_t access_mask)
 {
 	bool result;
@@ -45,7 +44,7 @@ bool can_access_file_acl(struct connection_struct *conn,
 		return false;
 	}
 
-	result = se_access_check(secdesc, conn->server_info->ptok,
+	result = se_access_check(secdesc, current_user.nt_user_token,
 				 access_mask, &access_granted, &status);
 	TALLOC_FREE(secdesc);
 	return result;
@@ -82,9 +81,14 @@ bool can_delete_file_in_directory(connection_struct *conn, const char *fname)
 	if (!S_ISDIR(sbuf.st_mode)) {
 		return False;
 	}
-	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+	if (current_user.ut.uid == 0 || conn->admin_user) {
 		/* I'm sorry sir, I didn't know you were root... */
 		return True;
+	}
+
+	/* Check primary owner write access. */
+	if (current_user.ut.uid == sbuf.st_uid) {
+		return (sbuf.st_mode & S_IWUSR) ? True : False;
 	}
 
 #ifdef S_ISVTX
@@ -104,7 +108,7 @@ bool can_delete_file_in_directory(connection_struct *conn, const char *fname)
 		 * for bug #3348. Don't assume owning sticky bit
 		 * directory means write access allowed.
 		 */
-		if (conn->server_info->utok.uid != sbuf_file.st_uid) {
+		if (current_user.ut.uid != sbuf_file.st_uid) {
 			return False;
 		}
 	}
@@ -112,21 +116,7 @@ bool can_delete_file_in_directory(connection_struct *conn, const char *fname)
 
 	/* now for ACL checks */
 
-	/*
-	 * There's two ways to get the permission to delete a file: First by
-	 * having the DELETE bit on the file itself and second if that does
-	 * not help, by the DELETE_CHILD bit on the containing directory.
-	 *
-	 * Here we check the other way round because with just posix
-	 * permissions looking at the file itself will never grant DELETE, so
-	 * by looking at the directory first we save one get_acl call.
-	 */
-
-	if (can_access_file_acl(conn, dname, FILE_DELETE_CHILD)) {
-		return true;
-	}
-
-	return can_access_file_acl(conn, fname, DELETE_ACCESS);
+	return can_access_file_acl(conn, dname, &sbuf, FILE_WRITE_DATA);
 }
 
 /****************************************************************************
@@ -135,7 +125,7 @@ bool can_delete_file_in_directory(connection_struct *conn, const char *fname)
  Note this doesn't take into account share write permissions.
 ****************************************************************************/
 
-bool can_access_file_data(connection_struct *conn, const char *fname, SMB_STRUCT_STAT *psbuf, uint32 access_mask)
+bool can_access_file(connection_struct *conn, const char *fname, SMB_STRUCT_STAT *psbuf, uint32 access_mask)
 {
 	if (!(access_mask & (FILE_READ_DATA|FILE_WRITE_DATA))) {
 		return False;
@@ -144,10 +134,10 @@ bool can_access_file_data(connection_struct *conn, const char *fname, SMB_STRUCT
 
 	/* some fast paths first */
 
-	DEBUG(10,("can_access_file_data: requesting 0x%x on file %s\n",
+	DEBUG(10,("can_access_file: requesting 0x%x on file %s\n",
 		(unsigned int)access_mask, fname ));
 
-	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+	if (current_user.ut.uid == 0 || conn->admin_user) {
 		/* I'm sorry sir, I didn't know you were root... */
 		return True;
 	}
@@ -160,7 +150,7 @@ bool can_access_file_data(connection_struct *conn, const char *fname, SMB_STRUCT
 	}
 
 	/* Check primary owner access. */
-	if (conn->server_info->utok.uid == psbuf->st_uid) {
+	if (current_user.ut.uid == psbuf->st_uid) {
 		switch (access_mask) {
 			case FILE_READ_DATA:
 				return (psbuf->st_mode & S_IRUSR) ? True : False;
@@ -180,7 +170,7 @@ bool can_access_file_data(connection_struct *conn, const char *fname, SMB_STRUCT
 
 	/* now for ACL checks */
 
-	return can_access_file_acl(conn, fname, access_mask);
+	return can_access_file_acl(conn, fname, psbuf, access_mask);
 }
 
 /****************************************************************************
@@ -190,33 +180,6 @@ bool can_access_file_data(connection_struct *conn, const char *fname, SMB_STRUCT
 
 bool can_write_to_file(connection_struct *conn, const char *fname, SMB_STRUCT_STAT *psbuf)
 {
-	return can_access_file_data(conn, fname, psbuf, FILE_WRITE_DATA);
+	return can_access_file(conn, fname, psbuf, FILE_WRITE_DATA);
 }
 
-/****************************************************************************
- Check for an existing default Windows ACL on a directory.
-****************************************************************************/
-
-bool directory_has_default_acl(connection_struct *conn, const char *fname)
-{
-	/* returns talloced off tos. */
-	struct security_descriptor *secdesc = NULL;
-	unsigned int i;
-	NTSTATUS status = SMB_VFS_GET_NT_ACL(conn, fname,
-				DACL_SECURITY_INFORMATION, &secdesc);
-
-	if (!NT_STATUS_IS_OK(status) || secdesc == NULL) {
-		return false;
-	}
-
-	for (i = 0; i < secdesc->dacl->num_aces; i++) {
-		struct security_ace *psa = &secdesc->dacl->aces[i];
-		if (psa->flags & (SEC_ACE_FLAG_OBJECT_INHERIT|
-				SEC_ACE_FLAG_CONTAINER_INHERIT)) {
-			TALLOC_FREE(secdesc);
-			return true;
-		}
-	}
-	TALLOC_FREE(secdesc);
-	return false;
-}

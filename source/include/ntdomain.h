@@ -157,7 +157,7 @@ typedef struct pipe_rpc_fns {
 	
 	/* RPC function table associated with the current rpc_bind (associated by context) */
 	
-	const struct api_struct *cmds;
+	struct api_struct *cmds;
 	int n_cmds;
 	uint32 context_id;
 	
@@ -211,9 +211,8 @@ struct pipe_auth_data {
 typedef struct pipes_struct {
 	struct pipes_struct *next, *prev;
 
-	char client_address[INET6_ADDRSTRLEN];
-
-	struct auth_serversupplied_info *server_info;
+	connection_struct *conn;
+	uint16 vuid; /* points to the unauthenticated user that opened this pipe. */
 
 	fstring name;
 	fstring pipe_srv_name;
@@ -226,15 +225,27 @@ typedef struct pipes_struct {
 	RPC_HDR hdr; /* Incoming RPC header. */
 	RPC_HDR_REQ hdr_req; /* Incoming request header. */
 
+	/* This context is used for pipe state storage and is freed when the pipe is closed. */
+	TALLOC_CTX *pipe_state_mem_ctx;
+
 	struct pipe_auth_data auth;
 
 	struct dcinfo *dc; /* Keeps the creds data from netlogon. */
 
 	/*
+	 * Windows user info.
+	 */
+	fstring user_name;
+	fstring domain;
+	fstring wks;
+
+	/*
 	 * Unix user name and credentials used when a pipe is authenticated.
 	 */
 
+	fstring pipe_user_name;
 	struct current_user pipe_user;
+	DATA_BLOB session_key;
  
 	/*
 	 * Set to true when an RPC bind has been done on this pipe.
@@ -303,8 +314,10 @@ typedef struct smb_np_struct {
 
 	/*
 	 * NamedPipe state information.
+	 *
+	 * (e.g. typecast a np_struct, above).
 	 */
-	struct pipes_struct *np_state;
+	void *np_state;
 
 	/*
 	 * NamedPipe functions, to be called to perform
@@ -316,16 +329,24 @@ typedef struct smb_np_struct {
 	 * returns: state information representing the connection.
 	 *          is stored in np_state, above.
 	 */
-	struct pipes_struct *(*namedpipe_create)(
-		const char *pipe_name,
-		const char *client_address,
-		struct auth_serversupplied_info *server_info,
-		uint16_t vuid);
+	void *   (*namedpipe_create)(const char *pipe_name, 
+					  connection_struct *conn, uint16 vuid);
+
+	/* call to perform a write / read namedpipe transaction.
+	 * TransactNamedPipe is weird: it returns whether there
+	 * is more data outstanding to be read, and the
+	 * caller is expected to take note and follow up with
+	 * read requests.
+	 */
+	ssize_t  (*namedpipe_transact)(void *np_state,
+	                               char *data, int len,
+	                               char *rdata, int rlen,
+	                               bool *pipe_outstanding);
 
 	/* call to perform a write namedpipe operation
 	 */
-	ssize_t (*namedpipe_write)(struct pipes_struct *p,
-				   char *data, size_t n);
+	ssize_t  (*namedpipe_write)(void * np_state,
+	                            char *data, size_t n);
 
 	/* call to perform a read namedpipe operation.
 	 *
@@ -338,9 +359,18 @@ typedef struct smb_np_struct {
 	 * when samba is modified to use namedpipe_transact,
 	 * the pipe_outstanding argument may be removed.
 	 */
-	ssize_t (*namedpipe_read)(struct pipes_struct *p,
-				  char *data, size_t max_len,
-				  bool *pipe_outstanding);
+	ssize_t  (*namedpipe_read)(void * np_state,
+	                           char *data, size_t max_len,
+	                           bool *pipe_outstanding);
+
+	/* call to close a namedpipe.
+	 * function is expected to perform all cleanups
+	 * necessary, free all memory etc.
+	 *
+	 * returns True if cleanup was successful (not that
+	 * we particularly care).
+	 */
+	bool     (*namedpipe_close)(void * np_state);
 
 } smb_np_struct;
 

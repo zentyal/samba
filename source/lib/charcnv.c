@@ -515,7 +515,7 @@ size_t convert_string(charset_t from, charset_t to,
  * true
  * @note -1 is not accepted for srclen.
  *
- * @return true if new buffer was correctly allocated, and string was
+ * @return True if new buffer was correctly allocated, and string was
  * converted.
  *
  * Ensure the srclen contains the terminating zero.
@@ -749,22 +749,24 @@ bool convert_string_allocate(TALLOC_CTX *ctx, charset_t from, charset_t to,
  *
  * @param srclen length of source buffer.
  * @param dest always set at least to NULL
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  * @note -1 is not accepted for srclen.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
- */
-bool convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
-			   void const *src, size_t srclen, void *dst,
-			   size_t *converted_size, bool allow_bad_conv)
+ * @returns Size in bytes of the converted string; or -1 in case of error.
+ **/
+size_t convert_string_talloc(TALLOC_CTX *ctx, charset_t from, charset_t to,
+			     void const *src, size_t srclen, void *dst,
+			     bool allow_bad_conv)
 {
 	void **dest = (void **)dst;
+	size_t dest_len;
 
 	*dest = NULL;
-	return convert_string_allocate(ctx, from, to, src, srclen, dest,
-				       converted_size, allow_bad_conv);
+	if (!convert_string_allocate(ctx, from, to, src, srclen, dest,
+		&dest_len, allow_bad_conv))
+		return (size_t)-1;
+	if (*dest == NULL)
+		return (size_t)-1;
+	return dest_len;
 }
 
 size_t unix_strupper(const char *src, size_t srclen, char *dest, size_t destlen)
@@ -772,10 +774,10 @@ size_t unix_strupper(const char *src, size_t srclen, char *dest, size_t destlen)
 	size_t size;
 	smb_ucs2_t *buffer;
 
-	if (!push_ucs2_allocate(&buffer, src, &size)) {
+	size = push_ucs2_allocate(&buffer, src);
+	if (size == (size_t)-1) {
 		return (size_t)-1;
 	}
-
 	if (!strupper_w(buffer) && (dest == src)) {
 		free(buffer);
 		return srclen;
@@ -814,25 +816,20 @@ char *strdup_upper(const char *s)
 
 	if (*p) {
 		/* MB case. */
-		size_t converted_size, converted_size2;
+		size_t size, size2;
 		smb_ucs2_t *buffer = NULL;
 
 		SAFE_FREE(out_buffer);
 		if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE, s,
-					     strlen(s) + 1,
-					     (void **)(void *)&buffer,
-					     &converted_size, True))
-		{
+			strlen(s) + 1, (void **)(void *)&buffer, &size,
+			True)) {
 			return NULL;
 		}
 
 		strupper_w(buffer);
 
 		if (!convert_string_allocate(NULL, CH_UTF16LE, CH_UNIX, buffer,
-					     converted_size,
-					     (void **)(void *)&out_buffer,
-					     &converted_size2, True))
-		{
+			size, (void **)(void *)&out_buffer, &size2, True)) {
 			TALLOC_FREE(buffer);
 			return NULL;
 		}
@@ -874,33 +871,36 @@ char *talloc_strdup_upper(TALLOC_CTX *ctx, const char *s)
 
 	if (*p) {
 		/* MB case. */
-		size_t converted_size, converted_size2;
+		size_t size;
 		smb_ucs2_t *ubuf = NULL;
 
 		/* We're not using the ascii buffer above. */
 		TALLOC_FREE(out_buffer);
 
-		if (!convert_string_talloc(ctx, CH_UNIX, CH_UTF16LE, s,
-					   strlen(s)+1, (void *)&ubuf,
-					   &converted_size, True))
-		{
+		size = convert_string_talloc(ctx, CH_UNIX, CH_UTF16LE,
+				s, strlen(s)+1,
+				(void *)&ubuf,
+				True);
+		if (size == (size_t)-1) {
 			return NULL;
 		}
 
 		strupper_w(ubuf);
 
-		if (!convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX, ubuf,
-					   converted_size, (void *)&out_buffer,
-					   &converted_size2, True))
-		{
-			TALLOC_FREE(ubuf);
-			return NULL;
-		}
+		size = convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX,
+				ubuf, size,
+				(void *)&out_buffer,
+				True);
 
 		/* Don't need the intermediate buffer
  		 * anymore.
  		 */
+
 		TALLOC_FREE(ubuf);
+
+		if (size == (size_t)-1) {
+			return NULL;
+		}
 	}
 
 	return out_buffer;
@@ -912,9 +912,7 @@ size_t unix_strlower(const char *src, size_t srclen, char *dest, size_t destlen)
 	smb_ucs2_t *buffer = NULL;
 
 	if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE, src, srclen,
-				     (void **)(void *)&buffer, &size,
-				     True))
-	{
+		(void **)(void *)&buffer, &size, True)) {
 		smb_panic("failed to create UCS2 buffer");
 	}
 	if (!strlower_w(buffer) && (dest == src)) {
@@ -932,44 +930,48 @@ size_t unix_strlower(const char *src, size_t srclen, char *dest, size_t destlen)
 
 char *strdup_lower(const char *s)
 {
-	size_t converted_size;
+	size_t size;
 	smb_ucs2_t *buffer = NULL;
 	char *out_buffer;
 
-	if (!push_ucs2_allocate(&buffer, s, &converted_size)) {
+	size = push_ucs2_allocate(&buffer, s);
+	if (size == -1 || !buffer) {
 		return NULL;
 	}
 
 	strlower_w(buffer);
 
-	if (!pull_ucs2_allocate(&out_buffer, buffer, &converted_size)) {
-		SAFE_FREE(buffer);
+	size = pull_ucs2_allocate(&out_buffer, buffer);
+	SAFE_FREE(buffer);
+
+	if (size == (size_t)-1) {
 		return NULL;
 	}
-
-	SAFE_FREE(buffer);
 
 	return out_buffer;
 }
 
 char *talloc_strdup_lower(TALLOC_CTX *ctx, const char *s)
 {
-	size_t converted_size;
+	size_t size;
 	smb_ucs2_t *buffer = NULL;
 	char *out_buffer;
 
-	if (!push_ucs2_talloc(ctx, &buffer, s, &converted_size)) {
+	size = push_ucs2_talloc(ctx, &buffer, s);
+	if (size == -1 || !buffer) {
+		TALLOC_FREE(buffer);
 		return NULL;
 	}
 
 	strlower_w(buffer);
 
-	if (!pull_ucs2_talloc(ctx, &out_buffer, buffer, &converted_size)) {
-		TALLOC_FREE(buffer);
+	size = pull_ucs2_talloc(ctx, &out_buffer, buffer);
+	TALLOC_FREE(buffer);
+
+	if (size == (size_t)-1) {
+		TALLOC_FREE(out_buffer);
 		return NULL;
 	}
-
-	TALLOC_FREE(buffer);
 
 	return out_buffer;
 }
@@ -1047,7 +1049,8 @@ size_t push_ascii_nstring(void *dest, const char *src)
 	smb_ucs2_t *buffer;
 
 	conv_silent = True;
-	if (!push_ucs2_allocate(&buffer, src, &buffer_len)) {
+	buffer_len = push_ucs2_allocate(&buffer, src);
+	if (buffer_len == (size_t)-1) {
 		smb_panic("failed to create UCS2 buffer");
 	}
 
@@ -1078,13 +1081,16 @@ size_t push_ascii_nstring(void *dest, const char *src)
  Push and malloc an ascii string. src and dest null terminated.
 ********************************************************************/
 
-bool push_ascii_allocate(char **dest, const char *src, size_t *converted_size)
+size_t push_ascii_allocate(char **dest, const char *src)
 {
-	size_t src_len = strlen(src)+1;
+	size_t dest_len, src_len = strlen(src)+1;
 
 	*dest = NULL;
-	return convert_string_allocate(NULL, CH_UNIX, CH_DOS, src, src_len,
-				       (void **)dest, converted_size, True);
+	if (!convert_string_allocate(NULL, CH_UNIX, CH_DOS, src, src_len,
+		(void **)dest, &dest_len, True))
+		return (size_t)-1;
+	else
+		return dest_len;
 }
 
 /**
@@ -1166,7 +1172,7 @@ static size_t pull_ascii_base_talloc(TALLOC_CTX *ctx,
 					int flags)
 {
 	char *dest = NULL;
-	size_t converted_size;
+	size_t dest_len = 0;
 
 #ifdef DEVELOPER
 	/* Ensure we never use the braindead "malloc" varient. */
@@ -1197,15 +1203,13 @@ static size_t pull_ascii_base_talloc(TALLOC_CTX *ctx,
 	}
 
 	if (!convert_string_allocate(ctx, CH_DOS, CH_UNIX, src, src_len, &dest,
-				     &converted_size, True))
-	{
-		converted_size = 0;
-	}
+		&dest_len, True))
+		dest_len = 0;
 
-	if (converted_size && dest) {
+	if (dest_len && dest) {
 		/* Did we already process the terminating zero ? */
-		if (dest[converted_size - 1] != 0) {
-			dest[converted_size - 1] = 0;
+		if (dest[dest_len-1] != 0) {
+			dest[dest_len-1] = 0;
 		}
 	} else if (dest) {
 		dest[0] = 0;
@@ -1307,20 +1311,16 @@ size_t push_ucs2(const void *base_ptr, void *dest, const char *src, size_t dest_
  * allocating a buffer using talloc().
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
+ *         or -1 in case of error.
  **/
-bool push_ucs2_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src,
-		      size_t *converted_size)
+size_t push_ucs2_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src)
 {
 	size_t src_len = strlen(src)+1;
 
 	*dest = NULL;
-	return convert_string_talloc(ctx, CH_UNIX, CH_UTF16LE, src, src_len,
-				     (void **)dest, converted_size, True);
+	return convert_string_talloc(ctx, CH_UNIX, CH_UTF16LE, src, src_len, (void **)dest, True);
 }
 
 
@@ -1328,21 +1328,21 @@ bool push_ucs2_talloc(TALLOC_CTX *ctx, smb_ucs2_t **dest, const char *src,
  * Copy a string from a unix char* src to a UCS2 destination, allocating a buffer
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
+ *         or -1 in case of error.
  **/
 
-bool push_ucs2_allocate(smb_ucs2_t **dest, const char *src,
-			size_t *converted_size)
+size_t push_ucs2_allocate(smb_ucs2_t **dest, const char *src)
 {
-	size_t src_len = strlen(src)+1;
+	size_t dest_len, src_len = strlen(src)+1;
 
 	*dest = NULL;
-	return convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE, src, src_len,
-				       (void **)dest, converted_size, True);
+	if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF16LE, src, src_len,
+		(void **)dest, &dest_len, True))
+		return (size_t)-1;
+	else
+		return dest_len;
 }
 
 /**
@@ -1394,41 +1394,36 @@ size_t push_utf8_fstring(void *dest, const char *src)
  * Copy a string from a unix char* src to a UTF-8 destination, allocating a buffer using talloc
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool push_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src,
-		      size_t *converted_size)
+size_t push_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src)
 {
 	size_t src_len = strlen(src)+1;
 
 	*dest = NULL;
-	return convert_string_talloc(ctx, CH_UNIX, CH_UTF8, src, src_len,
-				     (void**)dest, converted_size, True);
+	return convert_string_talloc(ctx, CH_UNIX, CH_UTF8, src, src_len, (void**)dest, True);
 }
 
 /**
  * Copy a string from a unix char* src to a UTF-8 destination, allocating a buffer
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool push_utf8_allocate(char **dest, const char *src, size_t *converted_size)
+size_t push_utf8_allocate(char **dest, const char *src)
 {
-	size_t src_len = strlen(src)+1;
+	size_t dest_len, src_len = strlen(src)+1;
 
 	*dest = NULL;
-	return convert_string_allocate(NULL, CH_UNIX, CH_UTF8, src, src_len,
-				       (void **)dest, converted_size, True);
+	if (!convert_string_allocate(NULL, CH_UNIX, CH_UTF8, src, src_len,
+		(void **)dest, &dest_len, True))
+		return (size_t)-1;
+	else
+		return dest_len;
 }
 
 /**
@@ -1569,8 +1564,14 @@ size_t pull_ucs2_base_talloc(TALLOC_CTX *ctx,
 		src_len &= ~1;
 	}
 
-	if (!convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX, src, src_len,
-				   (void *)&dest, &dest_len, True)) {
+	dest_len = convert_string_talloc(ctx,
+					CH_UTF16LE,
+					CH_UNIX,
+					src,
+					src_len,
+					(void *)&dest,
+					True);
+	if (dest_len == (size_t)-1) {
 		dest_len = 0;
 	}
 
@@ -1613,103 +1614,83 @@ size_t pull_ucs2_fstring(char *dest, const void *src)
  * Copy a string from a UCS2 src to a unix char * destination, allocating a buffer using talloc
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool pull_ucs2_talloc(TALLOC_CTX *ctx, char **dest, const smb_ucs2_t *src,
-		      size_t *converted_size)
+size_t pull_ucs2_talloc(TALLOC_CTX *ctx, char **dest, const smb_ucs2_t *src)
 {
 	size_t src_len = (strlen_w(src)+1) * sizeof(smb_ucs2_t);
-
 	*dest = NULL;
-	return convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX, src, src_len,
-				     (void **)dest, converted_size, True);
+	return convert_string_talloc(ctx, CH_UTF16LE, CH_UNIX, src, src_len, (void **)dest, True);
 }
 
 /**
  * Copy a string from a UCS2 src to a unix char * destination, allocating a buffer
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ *
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool pull_ucs2_allocate(char **dest, const smb_ucs2_t *src,
-			size_t *converted_size)
+size_t pull_ucs2_allocate(char **dest, const smb_ucs2_t *src)
 {
-	size_t src_len = (strlen_w(src)+1) * sizeof(smb_ucs2_t);
-
+	size_t dest_len, src_len = (strlen_w(src)+1) * sizeof(smb_ucs2_t);
 	*dest = NULL;
-	return convert_string_allocate(NULL, CH_UTF16LE, CH_UNIX, src, src_len,
-				       (void **)dest, converted_size, True);
+	if (!convert_string_allocate(NULL, CH_UTF16LE, CH_UNIX, src, src_len,
+		(void **)dest, &dest_len, True))
+		return (size_t)-1;
+	else
+		return dest_len;
 }
 
 /**
  * Copy a string from a UTF-8 src to a unix char * destination, allocating a buffer using talloc
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool pull_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src,
-		      size_t *converted_size)
+size_t pull_utf8_talloc(TALLOC_CTX *ctx, char **dest, const char *src)
 {
 	size_t src_len = strlen(src)+1;
-
 	*dest = NULL;
-	return convert_string_talloc(ctx, CH_UTF8, CH_UNIX, src, src_len,
-				     (void **)dest, converted_size, True);
+	return convert_string_talloc(ctx, CH_UTF8, CH_UNIX, src, src_len, (void **)dest, True);
 }
 
 /**
  * Copy a string from a UTF-8 src to a unix char * destination, allocating a buffer
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool pull_utf8_allocate(char **dest, const char *src, size_t *converted_size)
+size_t pull_utf8_allocate(char **dest, const char *src)
 {
-	size_t src_len = strlen(src)+1;
-
+	size_t dest_len, src_len = strlen(src)+1;
 	*dest = NULL;
-	return convert_string_allocate(NULL, CH_UTF8, CH_UNIX, src, src_len,
-				       (void **)dest, converted_size, True);
+	if (!convert_string_allocate(NULL, CH_UTF8, CH_UNIX, src, src_len,
+		(void **)dest, &dest_len, True))
+		return (size_t)-1;
+	else
+		return dest_len;
 }
  
 /**
  * Copy a string from a DOS src to a unix char * destination, allocating a buffer using talloc
  *
  * @param dest always set at least to NULL 
- * @parm converted_size set to the number of bytes occupied by the string in
- * the destination on success.
  *
- * @return true if new buffer was correctly allocated, and string was
- * converted.
+ * @returns The number of bytes occupied by the string in the destination
  **/
 
-bool pull_ascii_talloc(TALLOC_CTX *ctx, char **dest, const char *src,
-		       size_t *converted_size)
+size_t pull_ascii_talloc(TALLOC_CTX *ctx, char **dest, const char *src)
 {
 	size_t src_len = strlen(src)+1;
-
 	*dest = NULL;
-	return convert_string_talloc(ctx, CH_DOS, CH_UNIX, src, src_len,
-				     (void **)dest, converted_size, True);
+	return convert_string_talloc(ctx, CH_DOS, CH_UNIX, src, src_len, (void **)dest, True);
 }
 
 /**

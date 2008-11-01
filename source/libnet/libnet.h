@@ -20,9 +20,6 @@
 #ifndef __LIBNET_H__
 #define __LIBNET_H__
 
-#include "libnet/libnet_keytab.h"
-#include "libnet/libnet_samsync.h"
-#include "libnet/libnet_dssync.h"
 #include "librpc/gen_ndr/libnet_join.h"
 #include "libnet/libnet_proto.h"
 

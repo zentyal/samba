@@ -329,7 +329,7 @@ SMBC_read_ctx(SMBCCTX *context,
 ssize_t
 SMBC_write_ctx(SMBCCTX *context,
                SMBCFILE *file,
-               const void *buf,
+               void *buf,
                size_t count)
 {
 	int ret;

@@ -1,8 +1,8 @@
-samba (2:3.3.0~pre2-1) UNRELEASED; urgency=low
+samba (2:3.3.0~pre2-1) experimental; urgency=low
 
   * New upstream release.
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 04 Oct 2008 11:09:50 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 07 Nov 2008 20:52:36 +0100
 
 samba (2:3.2.4-1) unstable; urgency=low
 

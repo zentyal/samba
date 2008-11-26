@@ -4,6 +4,7 @@ samba (2:3.2.4-2) UNRELEASED; urgency=low
     is a bad idea. Closes: #483187
   * Insert example "add machine script" and "add group script" scripts
     in the default smb.conf. Closes: #349049
+  * Move homepage URL to Homepage filed in debian/control
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 19 Oct 2008 18:34:22 +0200
 

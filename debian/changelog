@@ -1,12 +1,15 @@
-samba (2:3.2.4-2) UNRELEASED; urgency=low
+samba (2:3.2.5-1) unstable; urgency=high
 
+  * New upstream version. Security-only release.
+    This addresses CVE-2008-4314: potentially leaking
+    arbitrary memory contents to malicious clients.
   * Better document cases where using a "master" file for smb.conf
     is a bad idea. Closes: #483187
   * Insert example "add machine script" and "add group script" scripts
     in the default smb.conf. Closes: #349049
   * Move homepage URL to Homepage filed in debian/control
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 19 Oct 2008 18:34:22 +0200
+ -- Christian Perrier <bubulle@debian.org>  Thu, 27 Nov 2008 11:36:35 +0100
 
 samba (2:3.2.4-1) unstable; urgency=low
 

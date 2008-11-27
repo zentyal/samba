@@ -1,0 +1,4043 @@
+This is pdfTeXk, Version 3.141592-1.40.3 (Web2C 7.5.6) (format=pdflatex 2007.9.22)  20 NOV 2008 15:40
+entering extended mode
+ file:line:error style messages enabled.
+**Samba3-ByExample.tex
+(./Samba3-ByExample.tex
+LaTeX2e <2005/12/01>
+Babel <v3.8h> and hyphenation patterns for english, usenglishmax, dumylang, noh
+yphenation, basque, bulgarian, coptic, welsh, czech, slovak, german, ngerman, d
+anish, esperanto, spanish, catalan, galician, estonian, finnish, french, greek,
+ monogreek, ancientgreek, croatian, hungarian, interlingua, ibycus, indonesian,
+ icelandic, italian, latin, mongolian, dutch, norsk, polish, portuguese, pinyin
+, romanian, russian, slovenian, uppersorbian, serbian, swedish, turkish, ukengl
+ish, ukrainian, loaded.
+(xslt/latex/sambadoc.cls
+Document Class: sambadoc 2005/06/13 Samba Documentation class
+(/usr/share/texmf/tex/latex/base/report.cls
+Document Class: report 2005/09/16 v1.4f Standard LaTeX document class
+(/usr/share/texmf/tex/latex/base/size11.clo
+File: size11.clo 2005/09/16 v1.4f Standard LaTeX file (size option)
+)
+\c@part=\count79
+\c@chapter=\count80
+\c@section=\count81
+\c@subsection=\count82
+\c@subsubsection=\count83
+\c@paragraph=\count84
+\c@subparagraph=\count85
+\c@figure=\count86
+\c@table=\count87
+\abovecaptionskip=\skip41
+\belowcaptionskip=\skip42
+\bibindent=\dimen102
+)
+\captsize=\skip43
+\captwidth=\skip44
+\beforetableskip=\skip45
+
+(/usr/share/texmf/tex/latex/fancyhdr/fancyhdr.sty
+\fancy@headwidth=\skip46
+\f@ncyO@elh=\skip47
+\f@ncyO@erh=\skip48
+\f@ncyO@olh=\skip49
+\f@ncyO@orh=\skip50
+\f@ncyO@elf=\skip51
+\f@ncyO@erf=\skip52
+\f@ncyO@olf=\skip53
+\f@ncyO@orf=\skip54
+)
+(/usr/share/texmf/tex/latex/listings/listings.sty
+(/usr/share/texmf/tex/latex/graphics/keyval.sty
+Package: keyval 1999/03/16 v1.13 key=value parser (DPC)
+\KV@toks@=\toks14
+)
+\lst@mode=\count88
+\lst@gtempboxa=\box26
+\lst@token=\toks15
+\lst@length=\count89
+\lst@currlwidth=\dimen103
+\lst@column=\count90
+\lst@pos=\count91
+\lst@lostspace=\dimen104
+\lst@width=\dimen105
+\lst@newlines=\count92
+\lst@lineno=\count93
+\c@lstlisting=\count94
+\lst@maxwidth=\dimen106
+
+(/usr/share/texmf/tex/latex/listings/lstpatch.sty
+File: lstpatch.sty 2004/10/17 1.3b (Carsten Heinz)
+)
+(/usr/share/texmf/tex/latex/listings/lstmisc.sty
+File: lstmisc.sty 2004/09/07 1.3 (Carsten Heinz)
+\c@lstnumber=\count95
+\lst@skipnumbers=\count96
+\lst@framebox=\box27
+)
+(/usr/share/texmf/tex/latex/listings/listings.cfg
+File: listings.cfg 2004/09/05 1.3 listings configuration
+))
+Package: listings 2004/10/17 1.3b (Carsten Heinz)
+
+(/usr/share/texmf/tex/latex/xcolor/xcolor.sty
+Package: xcolor 2007/01/21 v2.11 LaTeX color extensions (UK)
+
+(/usr/share/texmf/tex/latex/config/color.cfg
+File: color.cfg 2007/01/18 v1.5 color configuration of teTeX/TeXLive
+)
+Package xcolor Info: Driver file: pdftex.def on input line 225.
+
+(/usr/share/texmf/tex/latex/pdftex-def/pdftex.def
+File: pdftex.def 2007/01/08 v0.04d Graphics/color for pdfTeX
+\Gread@gobject=\count97
+)
+Package xcolor Info: Model `cmy' substituted by `cmy0' on input line 1337.
+Package xcolor Info: Model `hsb' substituted by `rgb' on input line 1341.
+Package xcolor Info: Model `RGB' extended on input line 1353.
+Package xcolor Info: Model `HTML' substituted by `rgb' on input line 1355.
+Package xcolor Info: Model `Hsb' substituted by `hsb' on input line 1356.
+Package xcolor Info: Model `tHsb' substituted by `hsb' on input line 1357.
+Package xcolor Info: Model `HSB' substituted by `hsb' on input line 1358.
+Package xcolor Info: Model `Gray' substituted by `gray' on input line 1359.
+Package xcolor Info: Model `wave' substituted by `hsb' on input line 1360.
+))
+(/usr/share/texmf/tex/latex/base/ifthen.sty
+Package: ifthen 2001/05/26 v1.1c Standard LaTeX ifthen package (DPC)
+)
+(/usr/share/texmf/tex/latex/graphics/graphicx.sty
+Package: graphicx 1999/02/16 v1.0f Enhanced LaTeX Graphics (DPC,SPQR)
+
+(/usr/share/texmf/tex/latex/graphics/graphics.sty
+Package: graphics 2006/02/20 v1.0o Standard LaTeX Graphics (DPC,SPQR)
+
+(/usr/share/texmf/tex/latex/graphics/trig.sty
+Package: trig 1999/03/16 v1.09 sin cos tan (DPC)
+)
+(/usr/share/texmf/tex/latex/config/graphics.cfg
+File: graphics.cfg 2007/01/18 v1.5 graphics configuration of teTeX/TeXLive
+)
+Package graphics Info: Driver file: pdftex.def on input line 90.
+)
+\Gin@req@height=\dimen107
+\Gin@req@width=\dimen108
+)
+(/usr/share/texmf/tex/latex/base/latexsym.sty
+Package: latexsym 1998/08/17 v2.2e Standard LaTeX package (lasy symbols)
+\symlasy=\mathgroup4
+LaTeX Font Info:    Overwriting symbol font `lasy' in version `bold'
+(Font)                  U/lasy/m/n --> U/lasy/b/n on input line 47.
+)
+(/usr/share/texmf/tex/latex/tools/enumerate.sty
+Package: enumerate 1999/03/05 v3.00 enumerate extensions (DPC)
+\@enLab=\toks16
+)
+(/usr/share/texmf/tex/latex/fancybox/fancybox.sty
+Package: fancybox 2000/09/19 1.3
+
+Style option: `fancybox' v1.3 <2000/09/19> (tvz)
+\@fancybox=\box28
+\shadowsize=\dimen109
+\@Sbox=\box29
+\do@VerbBox=\toks17
+\the@fancyput=\toks18
+\this@fancyput=\toks19
+\EndVerbatimTokens=\toks20
+\Verbatim@Outfile=\write3
+\Verbatim@Infile=\read1
+) (/usr/share/texmf/tex/latex/float/float.sty
+Package: float 2001/11/08 v1.3d Float enhancements (AL)
+\c@float@type=\count98
+\float@exts=\toks21
+\float@box=\box30
+\@float@everytoks=\toks22
+\@floatcapt=\box31
+)
+(/usr/share/texmf/tex/latex/ragged2e.sty
+Package: ragged2e 2003/03/25 v2.04 ragged2e Package (MS)
+
+(/usr/share/texmf/tex/latex/everysel/everysel.sty
+Package: everysel 1999/06/08 v1.03 EverySelectfont Package (MS)
+)
+\CenteringLeftskip=\skip55
+\RaggedLeftLeftskip=\skip56
+\RaggedRightLeftskip=\skip57
+\CenteringRightskip=\skip58
+\RaggedLeftRightskip=\skip59
+\RaggedRightRightskip=\skip60
+\CenteringParfillskip=\skip61
+\RaggedLeftParfillskip=\skip62
+\RaggedRightParfillskip=\skip63
+\JustifyingParfillskip=\skip64
+\CenteringParindent=\skip65
+\RaggedLeftParindent=\skip66
+\RaggedRightParindent=\skip67
+\JustifyingParindent=\skip68
+)
+(/usr/share/texmf/tex/latex/fancyvrb/fancyvrb.sty
+Package: fancyvrb 1998/07/17
+
+Style option: `fancyvrb' v2.6, with DG/SPQR fixes <1998/07/17> (tvz)
+\FV@CodeLineNo=\count99
+\FV@InFile=\read2
+\FV@TabBox=\box32
+\c@FancyVerbLine=\count100
+\FV@StepNumber=\count101
+\FV@OutFile=\write4
+
+No file fancyvrb.cfg.
+) (/usr/share/texmf/tex/latex/ltxmisc/parskip.sty
+Package: parskip 2001/04/09 non-zero parskip adjustments
+)
+(/usr/share/texmf/tex/latex/rotating/rotating.sty
+Package: rotating 1997/09/26, v2.13 Rotation package
+\c@r@tfl@t=\count102
+\rot@float@box=\box33
+)
+(/usr/share/texmf/tex/latex/subfigure/subfigure.sty
+Package: subfigure 2002/03/15 v2.1.5 subfigure package
+\subfigtopskip=\skip69
+\subfigcapskip=\skip70
+\subfigcaptopadj=\dimen110
+\subfigbottomskip=\skip71
+\subfigcapmargin=\dimen111
+\subfiglabelskip=\skip72
+\c@subfigure=\count103
+\c@lofdepth=\count104
+\c@subtable=\count105
+\c@lotdepth=\count106
+
+****************************************
+* Local config file subfigure.cfg used *
+****************************************
+(/usr/share/texmf/tex/latex/subfigure/subfigure.cfg)
+\subfig@top=\skip73
+\subfig@bottom=\skip74
+)
+(/usr/share/texmf/tex/latex/tools/tabularx.sty
+Package: tabularx 1999/01/07 v2.07 `tabularx' package (DPC)
+
+(/usr/share/texmf/tex/latex/tools/array.sty
+Package: array 2005/08/23 v2.4b Tabular extension package (FMi)
+\col@sep=\dimen112
+\extrarowheight=\dimen113
+\NC@list=\toks23
+\extratabsurround=\skip75
+\backup@length=\skip76
+)
+\TX@col@width=\dimen114
+\TX@old@table=\dimen115
+\TX@old@col=\dimen116
+\TX@target=\dimen117
+\TX@delta=\dimen118
+\TX@cols=\count107
+\TX@ftn=\toks24
+)
+(/usr/share/texmf/tex/latex/ltxmisc/url.sty
+\Urlmuskip=\muskip10
+Package: url 2005/06/27  ver 3.2  Verb mode for urls, etc.
+)
+(/usr/share/texmf/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2000/07/18 v2.13 AMS math features
+\@mathmargin=\skip77
+
+For additional information on amsmath, use the `?' option.
+(/usr/share/texmf/tex/latex/amsmath/amstext.sty
+Package: amstext 2000/06/29 v2.01
+
+(/usr/share/texmf/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0
+\@emptytoks=\toks25
+\ex@=\dimen119
+))
+(/usr/share/texmf/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d
+\pmbraise@=\dimen120
+)
+(/usr/share/texmf/tex/latex/amsmath/amsopn.sty
+Package: amsopn 1999/12/14 v2.01 operator names
+)
+\inf@bad=\count108
+LaTeX Info: Redefining \frac on input line 211.
+\uproot@=\count109
+\leftroot@=\count110
+LaTeX Info: Redefining \overline on input line 307.
+\classnum@=\count111
+\DOTSCASE@=\count112
+LaTeX Info: Redefining \ldots on input line 379.
+LaTeX Info: Redefining \dots on input line 382.
+LaTeX Info: Redefining \cdots on input line 467.
+\Mathstrutbox@=\box34
+\strutbox@=\box35
+\big@size=\dimen121
+LaTeX Font Info:    Redeclaring font encoding OML on input line 567.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 568.
+\macc@depth=\count113
+\c@MaxMatrixCols=\count114
+\dotsspace@=\muskip11
+\c@parentequation=\count115
+\dspbrk@lvl=\count116
+\tag@help=\toks26
+\row@=\count117
+\column@=\count118
+\maxfields@=\count119
+\andhelp@=\toks27
+\eqnshift@=\dimen122
+\alignsep@=\dimen123
+\tagshift@=\dimen124
+\tagwidth@=\dimen125
+\totwidth@=\dimen126
+\lineht@=\dimen127
+\@envbody=\toks28
+\multlinegap=\skip78
+\multlinetaggap=\skip79
+\mathdisplay@stack=\toks29
+LaTeX Info: Redefining \[ on input line 2666.
+LaTeX Info: Redefining \] on input line 2667.
+)
+(/usr/share/texmf/tex/latex/amscls/amsthm.sty
+Package: amsthm 2004/08/06 v2.20
+\thm@style=\toks30
+\thm@bodyfont=\toks31
+\thm@headfont=\toks32
+\thm@notefont=\toks33
+\thm@headpunct=\toks34
+\thm@preskip=\skip80
+\thm@postskip=\skip81
+\thm@headsep=\skip82
+\dth@everypar=\toks35
+)
+(/usr/share/texmf/tex/latex/amsfonts/amsfonts.sty
+Package: amsfonts 2001/10/25 v2.2f
+\symAMSa=\mathgroup5
+\symAMSb=\mathgroup6
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 132.
+)
+(/usr/share/texmf/tex/latex/amsfonts/amssymb.sty
+Package: amssymb 2002/01/22 v2.2d
+)
+(/usr/share/texmf/tex/latex/amsmath/amsxtra.sty
+Package: amsxtra 1999/11/15 v1.2c
+LaTeX Info: Redefining \nobreakspace on input line 77.
+)
+(/usr/share/texmf/tex/latex/hyperref/hyperref.sty
+Package: hyperref 2007/02/07 v6.75r Hypertext links for LaTeX
+\@linkdim=\dimen128
+\Hy@linkcounter=\count120
+\Hy@pagecounter=\count121
+
+(/usr/share/texmf/tex/latex/hyperref/pd1enc.def
+File: pd1enc.def 2007/02/07 v6.75r Hyperref: PDFDocEncoding definition (HO)
+)
+(/usr/share/texmf/tex/latex/config/hyperref.cfg
+File: hyperref.cfg 2002/06/06 v1.2 hyperref configuration of TeXLive
+)
+(/usr/share/texmf/tex/latex/oberdiek/kvoptions.sty
+Package: kvoptions 2006/08/22 v2.4 Connects package keyval with LaTeX options (
+HO)
+)
+Package hyperref Info: Option `bookmarksnumbered' set `true' on input line 2238
+.
+Package hyperref Info: Option `colorlinks' set `true' on input line 2238.
+Package hyperref Info: Option `bookmarks' set `true' on input line 2238.
+Package hyperref Info: Option `breaklinks' set `true' on input line 2238.
+Package hyperref Info: Option `linktocpage' set `true' on input line 2238.
+Package hyperref Info: Option `plainpages' set `false' on input line 2238.
+Package hyperref Info: Option `hyperfigures' set `true' on input line 2238.
+Package hyperref Info: Option `hyperindex' set `true' on input line 2238.
+Package hyperref Info: Hyper figures ON on input line 2286.
+Package hyperref Info: Link nesting OFF on input line 2293.
+Package hyperref Info: Hyper index ON on input line 2296.
+Package hyperref Info: Plain pages OFF on input line 2303.
+Package hyperref Info: Backreferencing ON on input line 2306.
+
+Implicit mode ON; LaTeX internals redefined
+Package hyperref Info: Bookmarks ON on input line 2444.
+(/usr/share/texmf/tex/latex/hyperref/backref.sty
+Package: backref 2006/10/06 v1.27 Bibliographical back referencing
+)
+LaTeX Info: Redefining \url on input line 2599.
+\Fld@menulength=\count122
+\Field@Width=\dimen129
+\Fld@charsize=\dimen130
+\Choice@toks=\toks36
+\Field@toks=\toks37
+Package hyperref Info: Hyper figures ON on input line 3100.
+Package hyperref Info: Link nesting OFF on input line 3107.
+Package hyperref Info: Hyper index ON on input line 3110.
+Package hyperref Info: backreferencing ON on input line 3115.
+Package hyperref Info: Link coloring ON on input line 3120.
+\Hy@abspage=\count123
+\c@Item=\count124
+)
+*hyperref using driver hpdftex*
+(/usr/share/texmf/tex/latex/hyperref/hpdftex.def
+File: hpdftex.def 2007/02/07 v6.75r Hyperref driver for pdfTeX
+\Fld@listcount=\count125
+)
+\admlength=\skip83
+\@float@every@figure=\toks38
+\@float@every@table=\toks39
+\@float@every@program=\toks40
+\c@program=\count126
+\@float@every@example=\toks41
+\c@example=\count127
+\@float@every@dbequation=\toks42
+\c@dbequation=\count128
+\@float@every@algorithm=\toks43
+\c@algorithm=\count129
+\docbooktolatextempskip=\skip84
+
+(/usr/share/texmf/tex/generic/babel/babel.sty
+Package: babel 2005/11/23 v3.8h The Babel package
+
+(/usr/share/texmf/tex/generic/babel/english.ldf
+Language: english 2005/03/30 v3.3o English support from the babel system
+
+(/usr/share/texmf/tex/generic/babel/babel.def
+File: babel.def 2005/11/23 v3.8h Babel common definitions
+\babel@savecnt=\count130
+\U@D=\dimen131
+)
+\l@canadian = a dialect from \language\l@american 
+\l@australian = a dialect from \language\l@british 
+\l@newzealand = a dialect from \language\l@british 
+))
+\docbooktolatexoldparskip=\skip85
+
+(/usr/share/texmf/tex/latex/ucs/ucs.sty
+Package: ucs 2004/10/17 UCS: Unicode input support
+
+(/usr/share/texmf/tex/latex/ucs/data/uni-global.def
+File: uni-global.def 2004/10/17 UCS: Unicode global data
+)
+\uc@secondtry=\count131
+\uc@combtoks=\toks44
+\uc@combtoksb=\toks45
+\uc@temptokena=\toks46
+)
+(/usr/share/texmf/tex/latex/base/inputenc.sty
+Package: inputenc 2006/05/05 v1.1b Input encoding file
+\inpenc@prehook=\toks47
+\inpenc@posthook=\toks48
+
+(/usr/share/texmf/tex/latex/base/utf8.def
+File: utf8.def 2006/03/30 v1.1i UTF-8 support for inputenc
+Now handling font encoding OML ...
+... no UTF-8 mapping file for font encoding OML
+Now handling font encoding T1 ...
+... processing UTF-8 mapping file for font encodingT1
+
+(/usr/share/texmf/tex/latex/base/t1enc.dfu
+File: t1enc.dfu 2006/03/30 v1.1i UTF-8 support for inputenc
+   defining Unicode char U+00A1 (decimal 161)
+   defining Unicode char U+00A3 (decimal 163)
+   defining Unicode char U+00AB (decimal 171)
+   defining Unicode char U+00BB (decimal 187)
+   defining Unicode char U+00BF (decimal 191)
+   defining Unicode char U+00C0 (decimal 192)
+   defining Unicode char U+00C1 (decimal 193)
+   defining Unicode char U+00C2 (decimal 194)
+   defining Unicode char U+00C3 (decimal 195)
+   defining Unicode char U+00C4 (decimal 196)
+   defining Unicode char U+00C5 (decimal 197)
+   defining Unicode char U+00C6 (decimal 198)
+   defining Unicode char U+00C7 (decimal 199)
+   defining Unicode char U+00C8 (decimal 200)
+   defining Unicode char U+00C9 (decimal 201)
+   defining Unicode char U+00CA (decimal 202)
+   defining Unicode char U+00CB (decimal 203)
+   defining Unicode char U+00CC (decimal 204)
+   defining Unicode char U+00CD (decimal 205)
+   defining Unicode char U+00CE (decimal 206)
+   defining Unicode char U+00CF (decimal 207)
+   defining Unicode char U+00D0 (decimal 208)
+   defining Unicode char U+00D1 (decimal 209)
+   defining Unicode char U+00D2 (decimal 210)
+   defining Unicode char U+00D3 (decimal 211)
+   defining Unicode char U+00D4 (decimal 212)
+   defining Unicode char U+00D5 (decimal 213)
+   defining Unicode char U+00D6 (decimal 214)
+   defining Unicode char U+00D8 (decimal 216)
+   defining Unicode char U+00D9 (decimal 217)
+   defining Unicode char U+00DA (decimal 218)
+   defining Unicode char U+00DB (decimal 219)
+   defining Unicode char U+00DC (decimal 220)
+   defining Unicode char U+00DD (decimal 221)
+   defining Unicode char U+00DE (decimal 222)
+   defining Unicode char U+00DF (decimal 223)
+   defining Unicode char U+00E0 (decimal 224)
+   defining Unicode char U+00E1 (decimal 225)
+   defining Unicode char U+00E2 (decimal 226)
+   defining Unicode char U+00E3 (decimal 227)
+   defining Unicode char U+00E4 (decimal 228)
+   defining Unicode char U+00E5 (decimal 229)
+   defining Unicode char U+00E6 (decimal 230)
+   defining Unicode char U+00E7 (decimal 231)
+   defining Unicode char U+00E8 (decimal 232)
+   defining Unicode char U+00E9 (decimal 233)
+   defining Unicode char U+00EA (decimal 234)
+   defining Unicode char U+00EB (decimal 235)
+   defining Unicode char U+00EC (decimal 236)
+   defining Unicode char U+00ED (decimal 237)
+   defining Unicode char U+00EE (decimal 238)
+   defining Unicode char U+00EF (decimal 239)
+   defining Unicode char U+00F0 (decimal 240)
+   defining Unicode char U+00F1 (decimal 241)
+   defining Unicode char U+00F2 (decimal 242)
+   defining Unicode char U+00F3 (decimal 243)
+   defining Unicode char U+00F4 (decimal 244)
+   defining Unicode char U+00F5 (decimal 245)
+   defining Unicode char U+00F6 (decimal 246)
+   defining Unicode char U+00F8 (decimal 248)
+   defining Unicode char U+00F9 (decimal 249)
+   defining Unicode char U+00FA (decimal 250)
+   defining Unicode char U+00FB (decimal 251)
+   defining Unicode char U+00FC (decimal 252)
+   defining Unicode char U+00FD (decimal 253)
+   defining Unicode char U+00FE (decimal 254)
+   defining Unicode char U+00FF (decimal 255)
+   defining Unicode char U+0102 (decimal 258)
+   defining Unicode char U+0103 (decimal 259)
+   defining Unicode char U+0104 (decimal 260)
+   defining Unicode char U+0105 (decimal 261)
+   defining Unicode char U+0106 (decimal 262)
+   defining Unicode char U+0107 (decimal 263)
+   defining Unicode char U+010C (decimal 268)
+   defining Unicode char U+010D (decimal 269)
+   defining Unicode char U+010E (decimal 270)
+   defining Unicode char U+010F (decimal 271)
+   defining Unicode char U+0110 (decimal 272)
+   defining Unicode char U+0111 (decimal 273)
+   defining Unicode char U+0118 (decimal 280)
+   defining Unicode char U+0119 (decimal 281)
+   defining Unicode char U+011A (decimal 282)
+   defining Unicode char U+011B (decimal 283)
+   defining Unicode char U+011E (decimal 286)
+   defining Unicode char U+011F (decimal 287)
+   defining Unicode char U+0130 (decimal 304)
+   defining Unicode char U+0131 (decimal 305)
+   defining Unicode char U+0132 (decimal 306)
+   defining Unicode char U+0133 (decimal 307)
+   defining Unicode char U+0139 (decimal 313)
+   defining Unicode char U+013A (decimal 314)
+   defining Unicode char U+013D (decimal 317)
+   defining Unicode char U+013E (decimal 318)
+   defining Unicode char U+0141 (decimal 321)
+   defining Unicode char U+0142 (decimal 322)
+   defining Unicode char U+0143 (decimal 323)
+   defining Unicode char U+0144 (decimal 324)
+   defining Unicode char U+0147 (decimal 327)
+   defining Unicode char U+0148 (decimal 328)
+   defining Unicode char U+014A (decimal 330)
+   defining Unicode char U+014B (decimal 331)
+   defining Unicode char U+0150 (decimal 336)
+   defining Unicode char U+0151 (decimal 337)
+   defining Unicode char U+0152 (decimal 338)
+   defining Unicode char U+0153 (decimal 339)
+   defining Unicode char U+0154 (decimal 340)
+   defining Unicode char U+0155 (decimal 341)
+   defining Unicode char U+0158 (decimal 344)
+   defining Unicode char U+0159 (decimal 345)
+   defining Unicode char U+015A (decimal 346)
+   defining Unicode char U+015B (decimal 347)
+   defining Unicode char U+015E (decimal 350)
+   defining Unicode char U+015F (decimal 351)
+   defining Unicode char U+0160 (decimal 352)
+   defining Unicode char U+0161 (decimal 353)
+   defining Unicode char U+0162 (decimal 354)
+   defining Unicode char U+0163 (decimal 355)
+   defining Unicode char U+0164 (decimal 356)
+   defining Unicode char U+0165 (decimal 357)
+   defining Unicode char U+016E (decimal 366)
+   defining Unicode char U+016F (decimal 367)
+   defining Unicode char U+0170 (decimal 368)
+   defining Unicode char U+0171 (decimal 369)
+   defining Unicode char U+0178 (decimal 376)
+   defining Unicode char U+0179 (decimal 377)
+   defining Unicode char U+017A (decimal 378)
+   defining Unicode char U+017B (decimal 379)
+   defining Unicode char U+017C (decimal 380)
+   defining Unicode char U+017D (decimal 381)
+   defining Unicode char U+017E (decimal 382)
+   defining Unicode char U+200C (decimal 8204)
+   defining Unicode char U+2013 (decimal 8211)
+   defining Unicode char U+2014 (decimal 8212)
+   defining Unicode char U+2018 (decimal 8216)
+   defining Unicode char U+2019 (decimal 8217)
+   defining Unicode char U+201A (decimal 8218)
+   defining Unicode char U+201C (decimal 8220)
+   defining Unicode char U+201D (decimal 8221)
+   defining Unicode char U+201E (decimal 8222)
+   defining Unicode char U+2030 (decimal 8240)
+   defining Unicode char U+2031 (decimal 8241)
+   defining Unicode char U+2039 (decimal 8249)
+   defining Unicode char U+203A (decimal 8250)
+   defining Unicode char U+2423 (decimal 9251)
+)
+Now handling font encoding OT1 ...
+... processing UTF-8 mapping file for font encodingOT1
+
+(/usr/share/texmf/tex/latex/base/ot1enc.dfu
+File: ot1enc.dfu 2006/03/30 v1.1i UTF-8 support for inputenc
+   defining Unicode char U+00A1 (decimal 161)
+   defining Unicode char U+00A3 (decimal 163)
+   defining Unicode char U+00B8 (decimal 184)
+   defining Unicode char U+00BF (decimal 191)
+   defining Unicode char U+00C5 (decimal 197)
+   defining Unicode char U+00C6 (decimal 198)
+   defining Unicode char U+00D8 (decimal 216)
+   defining Unicode char U+00DF (decimal 223)
+   defining Unicode char U+00E6 (decimal 230)
+   defining Unicode char U+00EC (decimal 236)
+   defining Unicode char U+00ED (decimal 237)
+   defining Unicode char U+00EE (decimal 238)
+   defining Unicode char U+00EF (decimal 239)
+   defining Unicode char U+00F8 (decimal 248)
+   defining Unicode char U+0131 (decimal 305)
+   defining Unicode char U+0141 (decimal 321)
+   defining Unicode char U+0142 (decimal 322)
+   defining Unicode char U+0152 (decimal 338)
+   defining Unicode char U+0153 (decimal 339)
+   defining Unicode char U+2013 (decimal 8211)
+   defining Unicode char U+2014 (decimal 8212)
+   defining Unicode char U+2018 (decimal 8216)
+   defining Unicode char U+2019 (decimal 8217)
+   defining Unicode char U+201C (decimal 8220)
+   defining Unicode char U+201D (decimal 8221)
+)
+Now handling font encoding OMS ...
+... processing UTF-8 mapping file for font encodingOMS
+
+(/usr/share/texmf/tex/latex/base/omsenc.dfu
+File: omsenc.dfu 2006/03/30 v1.1i UTF-8 support for inputenc
+   defining Unicode char U+00A7 (decimal 167)
+   defining Unicode char U+00B6 (decimal 182)
+   defining Unicode char U+00B7 (decimal 183)
+   defining Unicode char U+2020 (decimal 8224)
+   defining Unicode char U+2021 (decimal 8225)
+   defining Unicode char U+2022 (decimal 8226)
+)
+Now handling font encoding OMX ...
+... no UTF-8 mapping file for font encoding OMX
+Now handling font encoding U ...
+... no UTF-8 mapping file for font encoding U
+Now handling font encoding PD1 ...
+... no UTF-8 mapping file for font encoding PD1
+   defining Unicode char U+00A9 (decimal 169)
+   defining Unicode char U+00AA (decimal 170)
+   defining Unicode char U+00AE (decimal 174)
+   defining Unicode char U+00BA (decimal 186)
+   defining Unicode char U+02C6 (decimal 710)
+   defining Unicode char U+02DC (decimal 732)
+   defining Unicode char U+200C (decimal 8204)
+   defining Unicode char U+2026 (decimal 8230)
+   defining Unicode char U+2122 (decimal 8482)
+   defining Unicode char U+2423 (decimal 9251)
+))
+\saveparskip=\skip86
+\saveparindent=\skip87
+\tempparskip=\skip88
+\tempparindent=\skip89
+\@indexfile=\write5
+\openout5 = `Samba3-ByExample.idx'.
+
+
+Writing index file Samba3-ByExample.idx
+\@glossaryfile=\write6
+\openout6 = `Samba3-ByExample.glo'.
+
+Writing glossary file Samba3-ByExample.glo 
+(./Samba3-ByExample.aux)
+\openout1 = `Samba3-ByExample.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 373.
+LaTeX Font Info:    ... okay on input line 373.
+LaTeX Info: Redefining \selectfont on input line 373.
+Package hyperref Info: Link coloring ON on input line 373.
+ (/usr/share/texmf/tex/latex/hyperref/nameref.sty
+Package: nameref 2006/12/27 v2.28 Cross-referencing by name of section
+
+(/usr/share/texmf/tex/latex/oberdiek/refcount.sty
+Package: refcount 2006/02/20 v3.0 Data extraction from references (HO)
+)
+\c@section@level=\count132
+)
+LaTeX Info: Redefining \ref on input line 373.
+LaTeX Info: Redefining \pageref on input line 373.
+ (./Samba3-ByExample.out)
+(./Samba3-ByExample.out)
+\@outlinefile=\write7
+\openout7 = `Samba3-ByExample.out'.
+
+LaTeX Info: Redefining \ref on input line 373.
+LaTeX Info: Redefining \pageref on input line 373.
+ (/usr/share/texmf/tex/latex/ucs/ucsencs.def
+File: ucsencs.def 2003/11/29 Fixes to fontencodings LGR, T3
+)
+
+Package ucs Warning: ***************************
+(ucs)                You seem to have loaded inputencoding utf8
+(ucs)                (LaTeX kernel UTF-8) instead of utf8x (ucs.sty UTF-8).
+(ucs)                Probably you are compiling a document written for a
+(ucs)                pre-august-2004 ucs.sty.
+(ucs)                ***************************
+(ucs)                Please use \usepackage[utf8x]{inputenc} instead of
+(ucs)                \usepackage[utf8]{inputenc}.
+(ucs)                ***************************
+(ucs)                If you should really want to use ucs.sty and kernel's
+(ucs)                utf8.def together, use \usepackage[utf8x,utf8]{inputenc}
+(ucs)                to disable compatibility mode
+(ucs)                ***************************
+(ucs)                Activating compatibility mode.
+(ucs)                ***************************
+(ucs)                 on input line 373.
+
+(/usr/share/texmf/tex/latex/ucs/utf8x.def
+File: utf8x.def 2004/10/17 UCS: Input encoding UTF-8
+)
+LaTeX Font Info:    Try loading font information for U+lasy on input line 374.
+
+(/usr/share/texmf/tex/latex/base/ulasy.fd
+File: ulasy.fd 1998/08/17 v2.2e LaTeX symbol font definitions
+)
+LaTeX Font Info:    Try loading font information for U+msa on input line 374.
+
+(/usr/share/texmf/tex/latex/amsfonts/umsa.fd
+File: umsa.fd 2002/01/19 v2.2g AMS font definitions
+)
+LaTeX Font Info:    Try loading font information for U+msb on input line 374.
+
+(/usr/share/texmf/tex/latex/amsfonts/umsb.fd
+File: umsb.fd 2002/01/19 v2.2g AMS font definitions
+) [1
+
+
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}]
+
+Package hyperref Warning: No destination for bookmark of \addcontentsline,
+(hyperref)                destination is added on input line 379.
+
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 379.
+
+
+Package Fancyhdr Warning: \headheight is too small (12.0pt): 
+ Make it at least 13.59999pt.
+ We now make it that large for the rest of the document.
+ This may cause the page layout to be inconsistent, however.
+
+[7
+
+
+]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 392.
+
+(/usr/share/texmf/tex/latex/ucs/data/uni-0.def
+File: uni-0.def 2004/10/17 UCS: Unicode data U+0000..U+00FF
+) [8
+
+] (./Samba3-ByExample.toc
+
+./Samba3-ByExample.toc:2: LaTeX Error: Something's wrong--perhaps a missing \it
+em.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.2 ...{About the Cover Artwork}}{vii}{section*.1}
+                                                  
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+[9
+
+] [10]
+Overfull \hbox (2.44447pt too wide) in paragraph at lines 93--93
+ [][] []\OT1/cmr/m/n/10.95 Installing smbldap-tools from the RPM Pack- 
+ []
+
+[11] [12]
+Overfull \hbox (1.65483pt too wide) in paragraph at lines 161--161
+ [][] []\OT1/cmr/m/n/10.95 Updating from Samba Ver-sions be-tween 3.0.6 
+ []
+
+
+Underfull \vbox (badness 1360) has occurred while \output is active []
+
+ [13]
+[14] [15] [16])
+\tf@toc=\write8
+\openout8 = `Samba3-ByExample.toc'.
+
+ [17] [18
+
+]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 422.
+
+(./Samba3-ByExample.loe
+Overfull \hbox (5.475pt too wide) detected at line 4
+ [][][]\OT1/cmr/m/n/10.95 7[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 5
+ [][][]\OT1/cmr/m/n/10.95 15[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 6
+ [][][]\OT1/cmr/m/n/10.95 16[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 7
+ [][][]\OT1/cmr/m/n/10.95 17[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 8
+ [][][]\OT1/cmr/m/n/10.95 24[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 12
+ [][][]\OT1/cmr/m/n/10.95 37[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 13
+ [][][]\OT1/cmr/m/n/10.95 49[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 14
+ [][][]\OT1/cmr/m/n/10.95 50[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 15
+ [][][]\OT1/cmr/m/n/10.95 51[][]
+ []
+
+
+Overfull \hbox (5.36554pt too wide) in paragraph at lines 15--15
+ [][] []\OT1/cmr/m/n/10.95 Accounting Of-fice Net-work smb.conf File --- Ser-vi
+ces and Shares 
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 19
+ [][][]\OT1/cmr/m/n/10.95 59[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 20
+ [][][]\OT1/cmr/m/n/10.95 60[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 21
+ [][][]\OT1/cmr/m/n/10.95 93[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 22
+ [][][]\OT1/cmr/m/n/10.95 94[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 23
+ [][][]\OT1/cmr/m/n/10.95 95[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 24
+ [][][]\OT1/cmr/m/n/10.95 96[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 25
+ [][][]\OT1/cmr/m/n/10.95 96[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 26
+ [][][]\OT1/cmr/m/n/10.95 97[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 27
+ [][][]\OT1/cmr/m/n/10.95 98[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 28
+ [][][]\OT1/cmr/m/n/10.95 99[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 29
+ [][][]\OT1/cmr/m/n/10.95 100[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 30
+ [][][]\OT1/cmr/m/n/10.95 101[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 31
+ [][][]\OT1/cmr/m/n/10.95 101[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 32
+ [][][]\OT1/cmr/m/n/10.95 102[][]
+ []
+
+[19
+
+]
+Overfull \hbox (16.42502pt too wide) detected at line 33
+ [][][]\OT1/cmr/m/n/10.95 103[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 37
+ [][][]\OT1/cmr/m/n/10.95 121[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 38
+ [][][]\OT1/cmr/m/n/10.95 122[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 39
+ [][][]\OT1/cmr/m/n/10.95 123[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 40
+ [][][]\OT1/cmr/m/n/10.95 124[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 41
+ [][][]\OT1/cmr/m/n/10.95 124[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 42
+ [][][]\OT1/cmr/m/n/10.95 124[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 43
+ [][][]\OT1/cmr/m/n/10.95 131[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 44
+ [][][]\OT1/cmr/m/n/10.95 132[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 45
+ [][][]\OT1/cmr/m/n/10.95 133[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 46
+ [][][]\OT1/cmr/m/n/10.95 134[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 47
+ [][][]\OT1/cmr/m/n/10.95 135[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 48
+ [][][]\OT1/cmr/m/n/10.95 136[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 49
+ [][][]\OT1/cmr/m/n/10.95 137[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 50
+ [][][]\OT1/cmr/m/n/10.95 138[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 51
+ [][][]\OT1/cmr/m/n/10.95 139[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 52
+ [][][]\OT1/cmr/m/n/10.95 140[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 53
+ [][][]\OT1/cmr/m/n/10.95 141[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 57
+ [][][]\OT1/cmr/m/n/10.95 170[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 58
+ [][][]\OT1/cmr/m/n/10.95 223[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 59
+ [][][]\OT1/cmr/m/n/10.95 224[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 60
+ [][][]\OT1/cmr/m/n/10.95 225[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 61
+ [][][]\OT1/cmr/m/n/10.95 226[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 62
+ [][][]\OT1/cmr/m/n/10.95 227[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 63
+ [][][]\OT1/cmr/m/n/10.95 228[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 64
+ [][][]\OT1/cmr/m/n/10.95 229[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 65
+ [][][]\OT1/cmr/m/n/10.95 230[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 66
+ [][][]\OT1/cmr/m/n/10.95 231[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 67
+ [][][]\OT1/cmr/m/n/10.95 232[][]
+ []
+
+[20]
+Overfull \hbox (16.42502pt too wide) detected at line 68
+ [][][]\OT1/cmr/m/n/10.95 232[][]
+ []
+
+
+Overfull \hbox (7.27939pt too wide) in paragraph at lines 68--68
+ [][] []\OT1/cmr/m/n/10.95 LDIF IDMAP Add-On Load File --- File: /etc/openl-dap
+/idmap.LDIF [][]  
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 72
+ [][][]\OT1/cmr/m/n/10.95 255[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 73
+ [][][]\OT1/cmr/m/n/10.95 256[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 74
+ [][][]\OT1/cmr/m/n/10.95 257[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 75
+ [][][]\OT1/cmr/m/n/10.95 258[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 76
+ [][][]\OT1/cmr/m/n/10.95 259[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 77
+ [][][]\OT1/cmr/m/n/10.95 260[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 78
+ [][][]\OT1/cmr/m/n/10.95 261[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 82
+ [][][]\OT1/cmr/m/n/10.95 314[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 83
+ [][][]\OT1/cmr/m/n/10.95 315[][]
+ []
+
+
+Overfull \hbox (7.27939pt too wide) in paragraph at lines 83--83
+ [][] []\OT1/cmr/m/n/10.95 LDIF IDMAP Add-On Load File --- File: /etc/openl-dap
+/idmap.LDIF [][]  
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 84
+ [][][]\OT1/cmr/m/n/10.95 315[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 85
+ [][][]\OT1/cmr/m/n/10.95 316[][]
+ []
+
+
+Overfull \hbox (5.66728pt too wide) in paragraph at lines 85--85
+ [][] []\OT1/cmr/m/n/10.95 NSS us-ing LDAP for Iden-tity Res-o-lu-tion --- File
+: /etc/nsswitch. 
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 86
+ [][][]\OT1/cmr/m/n/10.95 317[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 87
+ [][][]\OT1/cmr/m/n/10.95 318[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 88
+ [][][]\OT1/cmr/m/n/10.95 319[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 89
+ [][][]\OT1/cmr/m/n/10.95 320[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 90
+ [][][]\OT1/cmr/m/n/10.95 320[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 91
+ [][][]\OT1/cmr/m/n/10.95 321[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 92
+ [][][]\OT1/cmr/m/n/10.95 321[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 93
+ [][][]\OT1/cmr/m/n/10.95 322[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 94
+ [][][]\OT1/cmr/m/n/10.95 322[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 101
+ [][][]\OT1/cmr/m/n/10.95 377[][]
+ []
+
+[21]
+Overfull \hbox (16.42502pt too wide) detected at line 102
+ [][][]\OT1/cmr/m/n/10.95 378[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 103
+ [][][]\OT1/cmr/m/n/10.95 379[][]
+ []
+
+
+Overfull \hbox (12.66437pt too wide) in paragraph at lines 103--103
+ [][] []\OT1/cmr/m/n/10.95 NT4 Mi-gra-tion LDAP Server Con-fig-u-ra-tion File: 
+/etc/openldap/ 
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 104
+ [][][]\OT1/cmr/m/n/10.95 380[][]
+ []
+
+
+Overfull \hbox (12.66437pt too wide) in paragraph at lines 104--104
+ [][] []\OT1/cmr/m/n/10.95 NT4 Mi-gra-tion LDAP Server Con-fig-u-ra-tion File: 
+/etc/openldap/ 
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 105
+ [][][]\OT1/cmr/m/n/10.95 381[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 106
+ [][][]\OT1/cmr/m/n/10.95 382[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 107
+ [][][]\OT1/cmr/m/n/10.95 383[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 111
+ [][][]\OT1/cmr/m/n/10.95 390[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 112
+ [][][]\OT1/cmr/m/n/10.95 407[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 113
+ [][][]\OT1/cmr/m/n/10.95 408[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 114
+ [][][]\OT1/cmr/m/n/10.95 409[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 115
+ [][][]\OT1/cmr/m/n/10.95 410[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 116
+ [][][]\OT1/cmr/m/n/10.95 411[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 117
+ [][][]\OT1/cmr/m/n/10.95 412[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 118
+ [][][]\OT1/cmr/m/n/10.95 413[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 119
+ [][][]\OT1/cmr/m/n/10.95 414[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 120
+ [][][]\OT1/cmr/m/n/10.95 415[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 121
+ [][][]\OT1/cmr/m/n/10.95 416[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 122
+ [][][]\OT1/cmr/m/n/10.95 417[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 123
+ [][][]\OT1/cmr/m/n/10.95 418[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 124
+ [][][]\OT1/cmr/m/n/10.95 419[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 125
+ [][][]\OT1/cmr/m/n/10.95 420[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 126
+ [][][]\OT1/cmr/m/n/10.95 421[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 127
+ [][][]\OT1/cmr/m/n/10.95 422[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 128
+ [][][]\OT1/cmr/m/n/10.95 423[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 129
+ [][][]\OT1/cmr/m/n/10.95 424[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 136
+ [][][]\OT1/cmr/m/n/10.95 463[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 137
+ [][][]\OT1/cmr/m/n/10.95 467[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 138
+ [][][]\OT1/cmr/m/n/10.95 467[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 139
+ [][][]\OT1/cmr/m/n/10.95 469[][]
+ []
+
+[22]
+Overfull \hbox (16.42502pt too wide) detected at line 140
+ [][][]\OT1/cmr/m/n/10.95 469[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 150
+ [][][]\OT1/cmr/m/n/10.95 519[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 151
+ [][][]\OT1/cmr/m/n/10.95 520[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 152
+ [][][]\OT1/cmr/m/n/10.95 521[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 153
+ [][][]\OT1/cmr/m/n/10.95 521[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 154
+ [][][]\OT1/cmr/m/n/10.95 522[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 155
+ [][][]\OT1/cmr/m/n/10.95 523[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 156
+ [][][]\OT1/cmr/m/n/10.95 524[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 157
+ [][][]\OT1/cmr/m/n/10.95 525[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 158
+ [][][]\OT1/cmr/m/n/10.95 526[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 159
+ [][][]\OT1/cmr/m/n/10.95 527[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 160
+ [][][]\OT1/cmr/m/n/10.95 528[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 161
+ [][][]\OT1/cmr/m/n/10.95 528[][]
+ []
+
+)
+\tf@loe=\write9
+\openout9 = `Samba3-ByExample.loe'.
+
+ [23] [24
+
+]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 423.
+
+(./Samba3-ByExample.lof
+Overfull \hbox (10.95001pt too wide) detected at line 4
+ [][][]\OT1/cmr/m/n/10.95 12[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 5
+ [][][]\OT1/cmr/m/n/10.95 21[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 8
+ [][][]\OT1/cmr/m/n/10.95 34[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 11
+ [][][]\OT1/cmr/m/n/10.95 56[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 14
+ [][][]\OT1/cmr/m/n/10.95 111[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 17
+ [][][]\OT1/cmr/m/n/10.95 153[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 18
+ [][][]\OT1/cmr/m/n/10.95 167[][]
+ []
+
+
+Overfull \hbox (1.62428pt too wide) in paragraph at lines 18--18
+ [][] []\OT1/cmr/m/n/10.95 Network Topol-ogy --- 500 User Net-work Us-ing ldap-
+sam passdb 
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 19
+ [][][]\OT1/cmr/m/n/10.95 211[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 22
+ [][][]\OT1/cmr/m/n/10.95 243[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 23
+ [][][]\OT1/cmr/m/n/10.95 244[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 24
+ [][][]\OT1/cmr/m/n/10.95 244[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 25
+ [][][]\OT1/cmr/m/n/10.95 245[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 26
+ [][][]\OT1/cmr/m/n/10.95 245[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 27
+ [][][]\OT1/cmr/m/n/10.95 262[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 28
+ [][][]\OT1/cmr/m/n/10.95 263[][]
+ []
+
+[25
+
+]
+Overfull \hbox (16.42502pt too wide) detected at line 31
+ [][][]\OT1/cmr/m/n/10.95 268[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 32
+ [][][]\OT1/cmr/m/n/10.95 275[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 33
+ [][][]\OT1/cmr/m/n/10.95 286[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 38
+ [][][]\OT1/cmr/m/n/10.95 350[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 39
+ [][][]\OT1/cmr/m/n/10.95 351[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 52
+ [][][]\OT1/cmr/m/n/10.95 492[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 53
+ [][][]\OT1/cmr/m/n/10.95 493[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 54
+ [][][]\OT1/cmr/m/n/10.95 494[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 55
+ [][][]\OT1/cmr/m/n/10.95 494[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 56
+ [][][]\OT1/cmr/m/n/10.95 495[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 57
+ [][][]\OT1/cmr/m/n/10.95 508[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 58
+ [][][]\OT1/cmr/m/n/10.95 509[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 59
+ [][][]\OT1/cmr/m/n/10.95 510[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 60
+ [][][]\OT1/cmr/m/n/10.95 511[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 61
+ [][][]\OT1/cmr/m/n/10.95 512[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 62
+ [][][]\OT1/cmr/m/n/10.95 513[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 63
+ [][][]\OT1/cmr/m/n/10.95 514[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 66
+ [][][]\OT1/cmr/m/n/10.95 535[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 67
+ [][][]\OT1/cmr/m/n/10.95 536[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 68
+ [][][]\OT1/cmr/m/n/10.95 540[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 69
+ [][][]\OT1/cmr/m/n/10.95 542[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 70
+ [][][]\OT1/cmr/m/n/10.95 543[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 71
+ [][][]\OT1/cmr/m/n/10.95 546[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 72
+ [][][]\OT1/cmr/m/n/10.95 547[][]
+ []
+
+)
+\tf@lof=\write10
+\openout10 = `Samba3-ByExample.lof'.
+
+ [26]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 424.
+
+(./Samba3-ByExample.lot
+Overfull \hbox (14.9042pt too wide) detected at line 2
+ [][][]\OT1/cmr/m/n/10.95 xlii[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 5
+ [][][]\OT1/cmr/m/n/10.95 21[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 10
+ [][][]\OT1/cmr/m/n/10.95 55[][]
+ []
+
+
+Overfull \hbox (10.95001pt too wide) detected at line 11
+ [][][]\OT1/cmr/m/n/10.95 71[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 14
+ [][][]\OT1/cmr/m/n/10.95 112[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 17
+ [][][]\OT1/cmr/m/n/10.95 154[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 18
+ [][][]\OT1/cmr/m/n/10.95 168[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 19
+ [][][]\OT1/cmr/m/n/10.95 185[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 20
+ [][][]\OT1/cmr/m/n/10.95 211[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 29
+ [][][]\OT1/cmr/m/n/10.95 354[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 38
+ [][][]\OT1/cmr/m/n/10.95 475[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 45
+ [][][]\OT1/cmr/m/n/10.95 537[][]
+ []
+
+
+Overfull \hbox (16.42502pt too wide) detected at line 46
+ [][][]\OT1/cmr/m/n/10.95 539[][]
+ []
+
+)
+\tf@lot=\write11
+\openout11 = `Samba3-ByExample.lot'.
+
+ [27
+
+] [28
+
+]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 429.
+
+[29
+
+] [30] [31]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 461.
+
+[32
+
+] (/usr/share/texmf/tex/latex/base/omscmr.fd)
+
+LaTeX Warning: Float too large for page by 24.73318pt on input line 512.
+
+
+Underfull \vbox (badness 2894) has occurred while \output is active []
+
+ [33]
+[34] [35]
+Overfull \hbox (4.1547pt too wide) in paragraph at lines 575--576
+[]\OT1/cmr/m/n/10.95 Abmas is a suc-cess-ful com-pany
+ []
+
+
+Overfull \hbox (0.2745pt too wide) in paragraph at lines 577--579
+\OT1/cmtt/m/it/10.95 users \OT1/cmr/m/n/10.95 and \OT1/cmtt/m/it/10.95 valid gr
+oups \OT1/cmr/m/n/10.95 to re-strict share ac-cess. The Win-dows clients
+ []
+
+
+Overfull \hbox (9.13542pt too wide) in paragraph at lines 580--581
+[]\OT1/cmr/m/n/10.95 Abmas is grow-ing rapidly now.
+ []
+
+
+Overfull \hbox (0.4683pt too wide) in paragraph at lines 585--586
+[]\OT1/cmr/m/n/10.95 The two-year pro-jec-tions were met.
+ []
+
+[36] [37]
+Overfull \hbox (2.03546pt too wide) in paragraph at lines 600--601
+[]\OT1/cmr/m/n/10.95 Well done,
+ []
+
+LaTeX Font Info:    Try loading font information for OML+cmr on input line 602.
+
+(/usr/share/texmf/tex/latex/base/omlcmr.fd
+File: omlcmr.fd 1999/05/25 v2.5h Standard LaTeX font definitions
+)
+LaTeX Font Info:    Font shape `OML/cmr/m/n' in size <9> not available
+(Font)              Font shape `OML/cmm/m/it' tried instead on input line 602.
+
+Overfull \hbox (4.54427pt too wide) in paragraph at lines 602--603
+[]\OT1/cmr/m/n/10.95 This chap-ter has been con-tributed by Mark Tay-lor mark.t
+aylor@siriusit.
+ []
+
+[38]
+Overfull \hbox (15.40074pt too wide) in paragraph at lines 612--613
+[]\OT1/cmr/m/n/10.95 Another six months
+ []
+
+
+Overfull \hbox (31.0803pt too wide) in paragraph at lines 617--618
+[]\OT1/cmr/m/n/10.95 Misty Stanley-
+ []
+
+
+Overfull \hbox (5.58508pt too wide) in paragraph at lines 622--623
+[]\OT1/cmr/m/n/10.95 Abmas has
+ []
+
+[39] [40] [41] [42]pdfTeX warning (ext4): destination with the same identifier 
+(name{page.xli}) has been already used, duplicate ignored
+<to be read again> 
+                   \relax 
+l.689 \part{Example Network Configurations}
+                                            [41
+
+]pdfTeX warning (ext4): destination with the same identifier (name{page.xlii}) 
+has been already used, duplicate ignored
+<to be read again> 
+                   \relax 
+l.689 \part{Example Network Configurations}
+                                            [42]
+
+Package hyperref Warning: The anchor of a bookmark and its parent's must not
+(hyperref)                be the same. Added a new anchor on input line 695.
+
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 695.
+
+[1
+
+] [2
+
+]
+Chapter 1.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 709.
+
+[3
+
+] [4] [5]
+Package hyperref Info: bookmark level for unknown example defaults to 0 on inpu
+t line 800.
+ [6] [7] [8] [9] [10]
+<Samba3-ByExample/images/Charity-Network.pdf, id=2046, 317.185pt x 244.915pt>
+File: Samba3-ByExample/images/Charity-Network.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/Charity-Network.pdf> [11] [12 <./Samba3-ByExample/
+images/Charity-Network.pdf>] [13] [14] [15] [16] [17]
+LaTeX Font Info:    Try loading font information for OMS+cmtt on input line 116
+5.
+LaTeX Font Info:    No file OMScmtt.fd. on input line 1165.
+
+
+LaTeX Font Warning: Font shape `OMS/cmtt/m/n' undefined
+(Font)              using `OMS/cmsy/m/n' instead
+(Font)              for symbol `textbackslash' on input line 1165.
+
+
+Overfull \hbox (12.90692pt too wide) in paragraph at lines 1175--1176
+\OT1/cmr/m/n/10.95 ers: panel, se-lect the printer called \OT1/cmtt/m/n/10.95 H
+P Laser-Jet 5/5M Postscript\OT1/cmr/m/n/10.95 .
+ []
+
+[18]
+Underfull \vbox (badness 7631) has occurred while \output is active []
+
+ [19]
+<Samba3-ByExample/images/AccountingNetwork.pdf, id=2210, 355.3275pt x 234.8775p
+t>
+File: Samba3-ByExample/images/AccountingNetwork.pdf Graphic file (type pdf)
+ <use Samba3-ByExample/images/AccountingNetwork.pdf>
+Overfull \hbox (74.08519pt too wide) in paragraph at lines 1229--1252
+ [] 
+ []
+
+
+Overfull \hbox (9.31792pt too wide) in paragraph at lines 1259--1260
+[]\OT1/cmr/m/n/10.95 Name the new server \OT1/cmtt/m/n/10.95 CASH-POOL \OT1/cmr
+/m/n/10.95 us-ing the stan-dard con-fig-u-ra-tion method.
+ []
+
+[20] [21 <./Samba3-ByExample/images/AccountingNetwork.pdf>] [22] [23]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [24]
+[25] [26]
+Overfull \hbox (1.01563pt too wide) in paragraph at lines 1489--1493
+\OT1/cmr/bx/n/10.95 A:  \OT1/cmr/m/n/10.95 Set-ting this pa-ram-e-ter to \OT1/c
+mtt/m/n/10.95 Yes \OT1/cmr/m/n/10.95 dis-ables Samba's sup-port for the SPOOLSS
+
+ []
+
+
+Overfull \hbox (18.07848pt too wide) in paragraph at lines 1494--1495
+[]\OT1/cmr/m/n/10.95 The al-ter-nate pa-ram-e-ter \OT1/cmtt/m/it/10.95 use clie
+nt driver \OT1/cmr/m/n/10.95 ap-plies only to Win-dows NT/200x
+ []
+
+[27] [28]
+Chapter 2.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 1520.
+
+[29
+
+
+] [30] [31] <xslt/figures/note.pdf, id=2328, 28.105pt x 28.105pt>
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf> [32 <./xslt/figures/note.pdf>] [33]
+<Samba3-ByExample/images/acct2net.pdf, id=2350, 318.18875pt x 175.65625pt>
+File: Samba3-ByExample/images/acct2net.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/acct2net.pdf> [34 <./Samba3-ByExample/images/acct2
+net.pdf>]
+Overfull \hbox (2.0044pt too wide) in paragraph at lines 1674--1675
+\OT1/cmr/m/n/10.95 this ac-count from the pass-word back-end af-ter Win-dows Do
+-main Groups
+ []
+
+[35] [36] [37]
+Overfull \hbox (5.42638pt too wide) in paragraph at lines 1769--1770
+[]\OT1/cmr/m/n/10.95 Create the di-rec-tory mount point for the disk sub-sys-te
+m that is mounted
+ []
+
+[38]
+
+LaTeX Warning: Float too large for page by 77.55pt on input line 1862.
+
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 1896.
+
+[39] [40] [41] [42] [43] [44] [45]
+Underfull \vbox (badness 1859) has occurred while \output is active []
+
+ [46]
+
+LaTeX Font Warning: Font shape `OT1/cmss/m/it' in size <10.95> not available
+(Font)              Font shape `OT1/cmss/m/sl' tried instead on input line 2224
+.
+
+
+LaTeX Font Warning: Font shape `OT1/cmss/bx/it' undefined
+(Font)              using `OT1/cmss/bx/n' instead on input line 2224.
+
+[47] [48] [49] [50] [51] [52
+
+]
+Chapter 3.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 2253.
+
+[53
+
+] [54]
+<Samba3-ByExample/images/chap4-net.pdf, id=2565, 563.10374pt x 314.17375pt>
+File: Samba3-ByExample/images/chap4-net.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/chap4-net.pdf>
+Overfull \hbox (6.01309pt too wide) in paragraph at lines 2315--2317
+ [] 
+ []
+
+[55] [56 <./Samba3-ByExample/images/chap4-net.pdf>] [57]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [58]
+[59]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [60]
+[61] [62] [63] [64]
+
+LaTeX Warning: Float too large for page by 76.33334pt on input line 2659.
+
+[65]
+
+LaTeX Warning: Float too large for page by 44.69977pt on input line 2757.
+
+[66] [67] [68] [69]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [70]
+
+LaTeX Warning: Float too large for page by 91.15001pt on input line 3056.
+
+
+LaTeX Warning: Float too large for page by 102.01253pt on input line 3143.
+
+[71] [72] [73] [74] [75] [76] [77] [78] [79] [80] [81] [82] [83] [84] [85]
+[86]
+Overfull \hbox (7.55544pt too wide) in paragraph at lines 3843--3844
+\OT1/cmr/m/n/10.95 clude Adobe Ac-ro-bat, NTP-based time syn-chro-niza-tion sof
+t-ware, drivers
+ []
+
+[87] [88] [89] [90]
+Underfull \vbox (badness 5008) has occurred while \output is active []
+
+ [91]
+[92] [93] [94] [95] [96] [97] [98] [99] [100] [101] [102] [103] [104
+
+]
+Chapter 4.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 4021.
+
+[105
+
+] [106] [107] [108] [109]
+<Samba3-ByExample/images/chap5-net.pdf, id=3046, 721.69624pt x 511.9125pt>
+File: Samba3-ByExample/images/chap5-net.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/chap5-net.pdf>
+Overfull \hbox (0.84724pt too wide) in paragraph at lines 4156--4158
+ [] 
+ []
+
+
+Overfull \hbox (79.62495pt too wide) in paragraph at lines 4173--4218
+ [] 
+ []
+
+[110] [111 <./Samba3-ByExample/images/chap5-net.pdf>] [112] [113] [114]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf> [115] [116] [117] [118] [119]
+
+LaTeX Warning: Float too large for page by 103.53336pt on input line 4832.
+
+
+LaTeX Warning: Float too large for page by 49.13333pt on input line 4919.
+
+
+LaTeX Warning: Float too large for page by 91.15001pt on input line 5035.
+
+
+LaTeX Warning: Float too large for page by 77.55pt on input line 5089.
+
+[120]
+Underfull \vbox (badness 1675) has occurred while \output is active []
+
+ [121]
+Underfull \vbox (badness 3189) has occurred while \output is active []
+
+ [122]
+Underfull \vbox (badness 2334) has occurred while \output is active []
+
+ [123]
+[124]
+Overfull \hbox (7.55544pt too wide) in paragraph at lines 5168--5169
+\OT1/cmr/m/n/10.95 clude Adobe Ac-ro-bat, NTP-based time syn-chro-niza-tion sof
+t-ware, drivers
+ []
+
+[125] [126] [127] [128] [129] [130] [131] [132] [133] [134] [135] [136]
+[137] [138] [139] [140] [141] [142
+
+]
+Chapter 5.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 5337.
+
+<xslt/figures/caution.pdf, id=3431, 29.10875pt x 29.10875pt>
+File: xslt/figures/caution.pdf Graphic file (type pdf)
+
+<use xslt/figures/caution.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [143
+
+]
+Overfull \hbox (6.70447pt too wide) in paragraph at lines 5353--5354
+[]\OT1/cmr/m/n/10.95 When a Win-
+ []
+
+
+Underfull \vbox (badness 2772) has occurred while \output is active []
+
+ [144 <./xslt/figures/caution.pdf>]
+Overfull \hbox (0.70601pt too wide) in paragraph at lines 5358--5359
+[]\OT1/cmr/m/n/10.95 Slow lo-gons and log-offs may be caused by many
+ []
+
+
+Overfull \hbox (6.50679pt too wide) in paragraph at lines 5388--5389
+[]\OT1/cmr/m/n/10.95 Loss of ac-cess
+ []
+
+[145]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [146]
+[147] [148] [149]
+Underfull \hbox (badness 10000) in paragraph at lines 5506--5506
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . sun . com / software
+ / software / products / identity _ srvr / home _
+ []
+
+[150]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [151]
+[152]
+Overfull \hbox (0.25304pt too wide) in paragraph at lines 5555--5556
+[]\OT1/cmr/m/n/10.95 Mapping In-for-ma-tion be-tween UNIX Groups and Win-dows N
+T Groups 
+ []
+
+
+<Samba3-ByExample/images/UNIX-Samba-and-LDAP.pdf, id=3501, 478.78876pt x 278.03
+876pt>
+File: Samba3-ByExample/images/UNIX-Samba-and-LDAP.pdf Graphic file (type pdf)
+ <use Samba3-ByExample/images/UNIX-Samba-and-LDAP.pdf> [153 <./Samba3-ByExample
+/images/UNIX-Samba-and-LDAP.pdf>] [154]
+Overfull \hbox (30.03255pt too wide) in paragraph at lines 5620--5621
+\OT1/cmr/m/n/10.95 NT/200x/XPP, all this data is copied to the lo-cal ma-chine 
+un-der the \OT1/cmtt/m/n/10.95 C:\Documents
+ []
+
+[155] [156] [157] <xslt/figures/warning.pdf, id=3542, 33.12375pt x 33.12375pt>
+File: xslt/figures/warning.pdf Graphic file (type pdf)
+
+<use xslt/figures/warning.pdf>
+Underfull \vbox (badness 5696) has occurred while \output is active []
+
+ [158]
+Overfull \hbox (3.95308pt too wide) in paragraph at lines 5686--5687
+ \sfbpara The Name Ser-vice Caching Dae-mon \OT1/cmr/m/n/10.95 The name ser-vic
+e caching dae-mon (nscd)
+ []
+
+[159 <./xslt/figures/warning.pdf>]
+Underfull \vbox (badness 1460) has occurred while \output is active []
+
+ [160]
+[161]
+./Samba3-ByExample.tex:5788: Missing $ inserted.
+<inserted text> 
+                $
+l.5788 NSS_
+           LDAP Diagnostic Steps\begin{enumerate}
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+./Samba3-ByExample.tex:5789: Missing $ inserted.
+<inserted text> 
+                $
+l.5789 
+       
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+./Samba3-ByExample.tex:5789: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.5789 
+       
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+Overfull \hbox (4.5685pt too wide) in paragraph at lines 5787--5789
+[]\OT1/cmr/m/n/10.95 The di-ag-nos-tic pro-cess should fol-low these steps: NSS
+$[]\OML/cmm/m/it/10.95 DAPDiagnosticSteps$ 
+ []
+
+
+./Samba3-ByExample.tex:5790: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.5790 \item{
+             Verify the {\texttt{\docbookhyphenatedot{nss\_base\_passwd, nss...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 5790
+[][]
+ []
+
+
+Overfull \hbox (17.1904pt too wide) in paragraph at lines 5805--5806
+\OT1/cmr/m/n/10.95 groups. The cor-rect en-try for the \OT1/cmtt/m/n/10.95 /etc
+/ldap.conf \OT1/cmr/m/n/10.95 for the \OT1/cmtt/m/n/10.95 nss[]base[]group
+ []
+
+[162]
+Overfull \hbox (3.11465pt too wide) in paragraph at lines 5831--5832
+[]\OT1/cmr/m/n/10.95 Computer ac-counts are un-der the DIT: ou=Computers, ou=Us
+ers,
+ []
+
+
+./Samba3-ByExample.tex:5843: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.5843 \item{
+             Perform lookups such as:
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 5843
+[][]
+ []
+
+
+./Samba3-ByExample.tex:5851: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.5851 \item{
+             For additional diagnostic information, check the contents of th...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 5851
+[][]
+ []
+
+[163]
+
+./Samba3-ByExample.tex:5885: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.5885 \item{
+             Check that the bindpw entry in the {\texttt{\docbookhyphenatefi...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 5885
+[][]
+ []
+
+
+./Samba3-ByExample.tex:5886: LaTeX Error: \begin{document} ended by \end{enumer
+ate}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.5886 \end{enumerate}
+                      
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+./Samba3-ByExample.tex:5886: Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.5886 \end{enumerate}
+                      
+Things are pretty mixed up, but I think the worst is over.
+
+[164] [165] [166]
+<Samba3-ByExample/images/chap6-net.pdf, id=3626, 657.45625pt x 454.69875pt>
+File: Samba3-ByExample/images/chap6-net.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/chap6-net.pdf>
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Overfull \hbox (20.06299pt too wide) in paragraph at lines 6096--6097
+\OT1/cmtt/m/n/10.95 dn=sambaDomainName=MEGANET2,dc=abmas,dc=org\OT1/cmss/m/n/10
+.95 .
+ []
+
+
+Underfull \vbox (badness 2142) has occurred while \output is active []
+
+ [167 <./Samba3-ByExample/images/chap6-net.pdf>] [168]
+
+LaTeX Warning: Float too large for page by 61.21251pt on input line 6218.
+
+
+Underfull \vbox (badness 3482) has occurred while \output is active []
+
+ [169]
+[170]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \hbox (badness 1297) in paragraph at lines 6338--6339
+\OT1/cmss/m/n/10.95 in this book. It is ad-vis-able to com-
+ []
+
+[171] [172] [173] [174] [175]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \vbox (badness 5260) has occurred while \output is active []
+
+ [176]
+[177] [178] [179]
+Overfull \hbox (0.28511pt too wide) in paragraph at lines 6689--6690
+[]\OT1/cmr/m/n/10.95 Change into the di-rec-tory that con-tains the \OT1/cmtt/m
+/n/10.95 configure.pl \OT1/cmr/m/n/10.95 script. 
+ []
+
+[180] [181]
+Underfull \vbox (badness 3919) has occurred while \output is active []
+
+ [182]
+Overfull \hbox (7.97224pt too wide) in paragraph at lines 6824--6825
+\OT1/cmr/m/n/10.95 add user and group ac-counts that Samba can use. You use the
+ \OT1/cmr/bx/n/10.95 smbldap-
+ []
+
+[183]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \vbox (badness 3364) has occurred while \output is active []
+
+ [184]
+[185] [186] [187] [188] [189] [190] [191] [192]
+Overfull \hbox (5.57837pt too wide) in paragraph at lines 7179--7180
+\OT1/cmr/m/n/10.95 The well-known spe-cial ac-counts (Do-main Ad-mins, Do-main 
+Users,
+ []
+
+[193] [194] [195] [196] [197] [198] [199] [200] [201] [202] [203] [204]
+[205] [206] [207]
+Underfull \vbox (badness 1038) has occurred while \output is active []
+
+ [208]
+Overfull \hbox (9.39046pt too wide) in paragraph at lines 7901--7902
+[]\OT1/cmr/m/n/10.95 Launch the Reg-istry Ed-i-tor. Click \OT1/cmss/bx/it/10.95
+ Start $\OMS/cmtt/m/n/10.95 !$ \OT1/cmss/bx/it/10.95 Run\OT1/cmr/m/n/10.95 . Ke
+y in \OT1/cmr/bx/n/10.95 regedt32\OT1/cmr/m/n/10.95 ,
+ []
+
+[209]
+<Samba3-ByExample/images/XP-screen001.png, id=3979, 509.905pt x 385.44pt>
+File: Samba3-ByExample/images/XP-screen001.png Graphic file (type png)
+
+<use Samba3-ByExample/images/XP-screen001.png>
+Overfull \hbox (49.9866pt too wide) in paragraph at lines 7973--7994
+ [] 
+ []
+
+[210] [211 <./Samba3-ByExample/images/XP-screen001.png (PNG copy)>]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf>
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [212]
+Underfull \hbox (badness 10000) in paragraph at lines 8042--8042
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . windowsitpro . com /
+ Windows / Article / ArticleID / 48228 / 48228 .
+ []
+
+[213] [214] [215] [216] [217] [218] [219] [220] [221] [222] [223] [224]
+[225] [226] [227] [228] [229] [230] [231] [232]
+Chapter 6.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 8272.
+
+[233
+
+
+] [234] [235] [236]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [237]
+[238] [239] [240] [241] [242]
+<Samba3-ByExample/images/chap7-idresol.pdf, id=4344, 203.76125pt x 153.57375pt>
+File: Samba3-ByExample/images/chap7-idresol.pdf Graphic file (type pdf)
+<use Samba3-ByExample/images/chap7-idresol.pdf> [243 <./Samba3-ByExample/images
+/chap7-idresol.pdf>]
+<Samba3-ByExample/images/ch7-singleLDAP.pdf, id=4360, 122.4575pt x 19.07124pt>
+File: Samba3-ByExample/images/ch7-singleLDAP.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/ch7-singleLDAP.pdf>
+<Samba3-ByExample/images/ch7-fail-overLDAP.pdf, id=4362, 245.91875pt x 86.3225p
+t>
+File: Samba3-ByExample/images/ch7-fail-overLDAP.pdf Graphic file (type pdf)
+ <use Samba3-ByExample/images/ch7-fail-overLDAP.pdf> [244 <./Samba3-ByExample/i
+mages/ch7-singleLDAP.pdf> <./Samba3-ByExample/images/ch7-fail-overLDAP.pdf>]
+<Samba3-ByExample/images/ch7-dual-additive-LDAP.pdf, id=4386, 316.18124pt x 163
+.61125pt>
+File: Samba3-ByExample/images/ch7-dual-additive-LDAP.pdf Graphic file (type pdf
+)
+ <use Samba3-ByExample/images/ch7-dual-additive-LDAP.pdf>
+<Samba3-ByExample/images/ch7-dual-additive-LDAP-Ok.pdf, id=4388, 311.1625pt x 1
+54.5775pt>
+File: Samba3-ByExample/images/ch7-dual-additive-LDAP-Ok.pdf Graphic file (type 
+pdf)
+ <use Samba3-ByExample/images/ch7-dual-additive-LDAP-Ok.pdf>
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf> [245 <./Samba3-ByExample/images/ch7-dual-additive-L
+DAP.pdf> <./Samba3-ByExample/images/ch7-dual-additive-LDAP-Ok.pdf>] [246]
+[247] [248]
+Overfull \hbox (7.47313pt too wide) in paragraph at lines 8664--8665
+\OT1/cmr/m/n/10.95 On Red Hat Linux, check the equiv-a-lent com-mand to start \
+OT1/cmr/bx/n/10.95 slurpd\OT1/cmr/m/n/10.95 . 
+ []
+
+[249]
+
+LaTeX Warning: Float too large for page by 76.94168pt on input line 8760.
+
+
+LaTeX Warning: Float too large for page by 20.41249pt on input line 8809.
+
+
+LaTeX Warning: Float too large for page by 91.48311pt on input line 8859.
+
+LaTeX Font Info:    Font shape `OMS/cmr/m/it' in size <10> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 8936.
+
+<Samba3-ByExample/images/chap7-net-Ar.png, id=4447, 474.77374pt x 692.5875pt>
+File: Samba3-ByExample/images/chap7-net-Ar.png Graphic file (type png)
+
+<use Samba3-ByExample/images/chap7-net-Ar.png>
+Overfull \hbox (19.8195pt too wide) in paragraph at lines 9053--9055
+ [] 
+ []
+
+
+LaTeX Warning: Float too large for page by 46.60382pt on input line 9056.
+
+<Samba3-ByExample/images/chap7-net2-Br.png, id=4448, 474.77374pt x 694.595pt>
+File: Samba3-ByExample/images/chap7-net2-Br.png Graphic file (type png)
+
+<use Samba3-ByExample/images/chap7-net2-Br.png>
+Overfull \hbox (19.8195pt too wide) in paragraph at lines 9063--9065
+ [] 
+ []
+
+
+LaTeX Warning: Float too large for page by 48.20984pt on input line 9066.
+
+[250]
+Underfull \vbox (badness 1983) has occurred while \output is active []
+
+ [251]
+Overfull \hbox (0.45955pt too wide) in paragraph at lines 9121--9125
+\OT1/cmr/m/n/10.95 4. \OT1/cmr/bx/n/10.95 Q: []\OT1/cmr/m/it/10.95 Can Ac-tive 
+Di-rec-tory ob-tain ac-count in-for-ma-tion from an OpenL-
+ []
+
+
+Overfull \hbox (6.41905pt too wide) in paragraph at lines 9137--9138
+\OT1/cmtt/m/n/10.95 cal Set-tings, \OT1/cmr/m/n/10.95 and more. See [][]Chap-te
+r 5[], ``Mak-ing Happy Users''[][],
+ []
+
+[252]
+Overfull \hbox (47.21597pt too wide) in paragraph at lines 9153--9154
+[]\OT1/cmr/m/n/10.95 Microsoft Out-look PST files may be stored in the \OT1/cmt
+t/m/n/10.95 Lo-cal Set-tings\OMS/cmtt/m/n/10.95 n\OT1/cmtt/m/n/10.95 Applicatio
+n
+ []
+
+[253] [254] [255] [256] [257] [258] [259] [260] [261] [262 <./Samba3-ByExample/
+images/chap7-net-Ar.png (PNG copy)>] [263 <./Samba3-ByExample/images/chap7-net2
+-Br.png (PNG copy)>] [264
+
+]pdfTeX warning (ext4): destination with the same identifier (name{page.263}) h
+as been already used, duplicate ignored
+<to be read again> 
+                   \relax 
+l.9206 ...n Members, Updating Samba and Migration}
+                                                   [263
+
+]pdfTeX warning (ext4): destination with the same identifier (name{page.264}) h
+as been already used, duplicate ignored
+<to be read again> 
+                   \relax 
+l.9206 ...n Members, Updating Samba and Migration}
+                                                   [264]
+
+Package hyperref Warning: The anchor of a bookmark and its parent's must not
+(hyperref)                be the same. Added a new anchor on input line 9212.
+
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 9212.
+
+[265
+
+] [266
+
+]
+Chapter 7.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 9222.
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 9225--9225
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . open-[]mag . com / c
+gi-[]bin / opencgi / surveys / survey . cgi ? survey _
+ []
+
+<Samba3-ByExample/images/openmag.png, id=4718, 664.4825pt x 405.515pt>
+File: Samba3-ByExample/images/openmag.png Graphic file (type png)
+
+<use Samba3-ByExample/images/openmag.png>
+Overfull \hbox (38.69257pt too wide) in paragraph at lines 9231--9233
+ [] 
+ []
+
+[267
+
+] [268 <./Samba3-ByExample/images/openmag.png (PNG copy)>] [269]
+Overfull \hbox (2.32257pt too wide) in paragraph at lines 9292--9293
+[]\OT1/cmr/m/n/10.95 Performing, via NSS, a di-rect LDAP search (where an LDAP
+ []
+
+
+Overfull \hbox (20.15965pt too wide) in paragraph at lines 9299--9300
+[]\OT1/cmr/m/n/10.95 If the pa-ram-e-ter []\OT1/cmr/m/it/10.95 idmap back-end \
+OT1/cmr/m/n/10.95 = ldap:ldap://myserver.domain
+ []
+
+[270]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [271]
+[272] [273]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+<Samba3-ByExample/images/chap9-SambaDC.pdf, id=4759, 495.8525pt x 414.54875pt>
+File: Samba3-ByExample/images/chap9-SambaDC.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/chap9-SambaDC.pdf> [274]
+./Samba3-ByExample.tex:9388: Missing $ inserted.
+<inserted text> 
+                $
+l.9388 Configuration of NSS_
+                            LDAP-Based Identity Resolution\begin{enumerate}
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+./Samba3-ByExample.tex:9389: Missing $ inserted.
+<inserted text> 
+                $
+l.9389 
+       
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+./Samba3-ByExample.tex:9389: Missing } inserted.
+<inserted text> 
+                }
+l.9389 
+       
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+./Samba3-ByExample.tex:9389: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.9389 
+       
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+./Samba3-ByExample.tex:9389: Too many }'s.
+\@par ... \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.9389 
+       
+You've closed more groups than you opened.
+Such booboos are generally harmless, so keep going.
+
+
+./Samba3-ByExample.tex:9390: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9390 \item{
+             Create the {\texttt{\docbookhyphenatefilename{smb.\dbz{}conf}}}...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9390
+[][]
+ []
+
+
+./Samba3-ByExample.tex:9392: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9392 \item{
+             \index{ldap.conf} Configure the file that will be used by {\tex...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9392
+[][]
+ []
+
+[275 <./Samba3-ByExample/images/chap9-SambaDC.pdf>]
+
+./Samba3-ByExample.tex:9401: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9401 \item{
+             Configure the NSS control file so it matches the one shown in \...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9401
+[][]
+ []
+
+
+./Samba3-ByExample.tex:9403: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9403 \item{
+             \index{Identity resolution} \index{getent} Before proceeding to...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9403
+[][]
+ []
+
+[276]
+
+./Samba3-ByExample.tex:9438: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9438 \item{
+             \index{slapcat} The LDAP directory must have a container object...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9438
+[][]
+ []
+
+[277]
+
+./Samba3-ByExample.tex:9455: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9455 \item{
+             Samba automatically populates the LDAP directory container when...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9455
+[][]
+ []
+
+
+./Samba3-ByExample.tex:9463: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9463 \item{
+             \index{net!rpc!join} \index{Domain join} The system is ready to...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9463
+[][]
+ []
+
+[278]
+Overfull \hbox (4.84842pt too wide) in paragraph at lines 9508--9509
+\OT1/cmr/m/n/10.95 com-mand above,it is time to call in the Net-work-ing Super-
+Snooper
+ []
+
+
+./Samba3-ByExample.tex:9517: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9517 \item{
+             \index{wbinfo} Just joining the domain is not quite enough; you...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9517
+[][]
+ []
+
+
+./Samba3-ByExample.tex:9525: LaTeX Error: Lonely \item--perhaps a missing list 
+environment.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9525 \item{
+             You may now start Samba in the usual manner, and your Samba dom...
+
+Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+
+Underfull \hbox (badness 10000) detected at line 9525
+[][]
+ []
+
+
+./Samba3-ByExample.tex:9526: LaTeX Error: \begin{document} ended by \end{enumer
+ate}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.9526 \end{enumerate}
+                      
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+./Samba3-ByExample.tex:9526: Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.9526 \end{enumerate}
+                      
+Things are pretty mixed up, but I think the worst is over.
+
+
+LaTeX Warning: Float too large for page by 6.95395pt on input line 9576.
+
+
+Underfull \vbox (badness 1178) has occurred while \output is active []
+
+ [279]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [280]
+[281] [282]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [283]
+[284] [285]
+<Samba3-ByExample/images/chap9-ADSDC.pdf, id=4850, 495.8525pt x 414.54875pt>
+File: Samba3-ByExample/images/chap9-ADSDC.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/chap9-ADSDC.pdf> [286 <./Samba3-ByExample/images/c
+hap9-ADSDC.pdf>] [287] [288] [289]
+Overfull \hbox (3.90553pt too wide) in paragraph at lines 10024--10025
+[]\OT1/cmr/m/n/10.95 Restrictive se-cu-rity set-tings on the Win-dows 200x ADS
+ []
+
+[290] [291] [292] [293] [294] [295] [296]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [297]
+[298] [299] [300]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \vbox (badness 1490) has occurred while \output is active []
+
+ [301]
+[302]
+Overfull \hbox (17.49997pt too wide) in paragraph at lines 10609--10610
+[]\OT1/cmr/m/n/10.95 Store the LDAP server ac-cess pass-word in the Samba \OT1/
+cmtt/m/n/10.95 secrets.
+ []
+
+[303]
+Overfull \hbox (28.72177pt too wide) in paragraph at lines 10621--10621
+[]\sfbsubsub IDMAP and NSS Us-ing LDAP from ADS with RFC2307bis
+ []
+
+[304]
+Underfull \hbox (badness 10000) in paragraph at lines 10683--10683
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . geekcomix . com / cg
+i-[]bin / classnotes / wiki . pl ? LDAP01 / An _
+ []
+
+[305]
+Overfull \hbox (13.94298pt too wide) in paragraph at lines 10737--10738
+[]\OT1/cmr/m/n/10.95 The fol-low-ing guide-lines are per-ti-nent to the de-ploy
+-ment of winbind-
+ []
+
+
+Underfull \vbox (badness 6944) has occurred while \output is active []
+
+ [306]
+[307] [308] [309]
+Overfull \hbox (5.0309pt too wide) in paragraph at lines 10925--10929
+\OT1/cmr/m/n/10.95 Work-sta-tions (Win-dows client ma-chines) pe-ri-od-i-cally 
+change their
+ []
+
+
+Overfull \hbox (2.74966pt too wide) in paragraph at lines 10930--10931
+\OT1/cmr/m/n/10.95 and ma-chine ac-counts) to-gether with all in-for-ma-tion Sa
+mba needs
+ []
+
+[310]
+Overfull \hbox (4.7876pt too wide) in paragraph at lines 10942--10943
+[]\OT1/cmr/m/n/10.95 From ex-pe-ri-ence, it is my rec-om-men-da-tion to keep ge
+n-eral system-
+ []
+
+[311]
+Overfull \hbox (2.02217pt too wide) in paragraph at lines 10975--10979
+\OT1/cmr/m/n/10.95 7. \OT1/cmr/bx/n/10.95 Q: \OT1/cmr/m/it/10.95 Is proper DNS 
+op-er-a-tion nec-es-sary for Samba-3 plus LDAP?
+ []
+
+
+Overfull \hbox (64.24388pt too wide) in paragraph at lines 10975--10979
+\OT1/cmr/m/n/10.95 calls, but rather redi-rects all name-to-address calls via t
+he \OT1/cmr/bx/n/10.95 getXXXbyXXX()
+ []
+
+[312] [313] [314] [315] [316] [317] [318] [319] [320] [321] [322]
+Chapter 8.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 11010.
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [323
+
+
+]
+File: xslt/figures/warning.pdf Graphic file (type pdf)
+
+<use xslt/figures/warning.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [324]
+[325]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [326]
+Overfull \hbox (4.23798pt too wide) in paragraph at lines 11098--11099
+[]\OT1/cmr/m/n/10.95 Samba 1.9.x stored the ma-chine SID in the the file \OT1/c
+mtt/m/n/10.95 /etc/MACHINE.
+ []
+
+
+Overfull \hbox (4.23808pt too wide) in paragraph at lines 11098--11099
+\OT1/cmtt/m/n/10.95 SID \OT1/cmr/m/n/10.95 from which it could be re-cov-ered a
+nd stored into the \OT1/cmtt/m/n/10.95 secrets.
+ []
+
+[327] [328]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [329] [330] [331] [332] [333] [334]
+[335] [336] [337] [338] [339] [340]
+Overfull \hbox (4.29509pt too wide) in paragraph at lines 11497--11497
+[]\sfbsubsec Samba-3 to Samba-3 Up-dates on the Same Server 
+ []
+
+
+Overfull \hbox (3.41885pt too wide) in paragraph at lines 11508--11509
+\OT1/cmr/m/n/10.95 When up-dat-ing ver-sions of Samba-3 prior to 3.0.6 to 3.0.6
+ through
+ []
+
+[341]
+Overfull \hbox (15.34222pt too wide) in paragraph at lines 11520--11521
+\OT1/cmr/m/n/10.95 fol-low-ing in-for-ma-tion has been ex-tracted from the WHAT
+-SNEW.txt
+ []
+
+[342] [343]
+Overfull \hbox (1.89583pt too wide) in paragraph at lines 11561--11562
+\OT1/cmr/m/n/10.95 in the sys-tem \OT1/cmtt/m/n/10.95 /etc/passwd\OT1/cmr/m/n/1
+0.95 , \OT1/cmtt/m/n/10.95 /etc/shadow\OT1/cmr/m/n/10.95 , and \OT1/cmtt/m/n/10
+.95 /etc/group
+ []
+
+[344]
+Overfull \hbox (1.98685pt too wide) in paragraph at lines 11596--11597
+[]\OT1/cmr/m/n/10.95 Administrator pass-word must be THE SAME on the Samba
+ []
+
+[345] [346]
+Chapter 9.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 11634.
+
+[347
+
+
+]
+Overfull \hbox (2.81055pt too wide) in paragraph at lines 11663--11664
+\OT1/cmr/m/n/10.95 That in-for-ma-tion re-sides in the Se-cu-rity Ac-count Man-
+ager (SAM)
+ []
+
+File: xslt/figures/warning.pdf Graphic file (type pdf)
+<use xslt/figures/warning.pdf> [348]
+<Samba3-ByExample/images/ch8-migration.pdf, id=5457, 377.41pt x 248.93pt>
+File: Samba3-ByExample/images/ch8-migration.pdf Graphic file (type pdf)
+
+<use Samba3-ByExample/images/ch8-migration.pdf>
+Overfull \hbox (4.35158pt too wide) in paragraph at lines 11689--11690
+\OT1/cmr/m/n/10.95 database files. You must start each mi-gra-tion with a new d
+atabase
+ []
+
+[349] <Samba3-ByExample/images/UserMgrNT4.png, id=5464, 690.58pt x 732.7375pt>
+File: Samba3-ByExample/images/UserMgrNT4.png Graphic file (type png)
+
+<use Samba3-ByExample/images/UserMgrNT4.png>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [350 <./Samba3-ByExample/images/ch8-migration.pdf>]
+Underfull \vbox (badness 7722) has occurred while \output is active []
+
+ [351 <./Samba3-ByExample/images/UserMgrNT4.png (PNG copy)>]
+Overfull \hbox (14.33727pt too wide) in paragraph at lines 11722--11723
+\OT1/cmr/m/n/10.95 com-puter names, do-main names, work-group names --- ALL nam
+es!). 
+ []
+
+[352]
+File: xslt/figures/warning.pdf Graphic file (type pdf)
+ <use xslt/figures/warning.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [353]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+
+<use xslt/figures/note.pdf>
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [354]
+
+LaTeX Warning: Float too large for page by 91.48311pt on input line 11854.
+
+[355] [356]
+Underfull \vbox (badness 3919) has occurred while \output is active []
+
+ [357]
+[358]
+Overfull \hbox (6.46046pt too wide) in paragraph at lines 12202--12203
+\OT1/cmr/m/n/10.95 ob-ject was spec-i-fied as sam-baDo-main-Name=DAMNATION.
+ []
+
+
+Overfull \hbox (27.0717pt too wide) in paragraph at lines 12202--12203
+\OT1/cmr/m/n/10.95 nix-Id-Pooldn DIT lo-ca-tion cn=NextFreeUnixId. Where smblda
+p-
+ []
+
+[359] [360] [361] [362] [363] [364] [365] [366] [367] [368] [369] [370]
+[371] [372]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [373]
+Underfull \vbox (badness 1859) has occurred while \output is active []
+
+ [374]
+[375] [376] [377] [378] [379] [380] [381] [382] [383] [384
+
+]
+Chapter 10.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 12828.
+
+
+Overfull \hbox (7.82925pt too wide) in paragraph at lines 12833--12834
+[]\OT1/cmr/m/n/10.95 Whatever fla-vor of Linux is pre-ferred in your en-vi-ron-
+ment, whether
+ []
+
+[385
+
+] [386] [387] [388]
+Overfull \hbox (8.91287pt too wide) in paragraph at lines 12952--12953
+\OT1/cmr/m/n/10.95 nec-es-sary to re-solve Courier-specific LDAP di-rec-tory ne
+eds. Where
+ []
+
+File: xslt/figures/note.pdf Graphic file (type pdf)
+<use xslt/figures/note.pdf>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [389]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [390]
+[391] [392] [393] [394]
+
+LaTeX Warning: Float too large for page by 9.54997pt on input line 13264.
+
+[395]
+Overfull \hbox (124.79727pt too wide) in paragraph at lines 13342--13356
+[]\OT1/cmr/m/n/10.95 The fol-low-ing ser-vices au-then-ti-cate us-ing LDAP: [][
+][] [] 
+ []
+
+
+LaTeX Warning: Float too large for page by 19.48311pt on input line 13407.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+(/usr/share/texmf/tex/latex/ucs/data/uni-255.def
+File: uni-255.def 2004/10/17 UCS: Unicode data U+FF00..U+FFFF
+)
+(/usr/share/texmf/tex/latex/ucs/data/uninames.dat
+File: uninames.dat 2004/10/17 UCS: Unicode character names, compressed
+)
+(/usr/share/texmf/tex/latex/ucs/data/uni-255.def
+File: uni-255.def 2004/10/17 UCS: Unicode data U+FF00..U+FFFF
+)
+
+./Samba3-ByExample.tex:13513: Package ucs Error: Unknown Unicode character 6553
+3 = U+FFFD,
+(ucs)                possibly declared in uni-255.def.
+(ucs)                Type H to see if it is available with options.
+
+See the ucs package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Unicode character 65533 = U+FFFD:
+REPLACEMENT CHARACTER
+Character is not defined in uni-*.def files.
+Enter I!<RET> to define the glyph.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character162appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+
+Package ucs Warning: Unknown character 65533 = 0xFFFD appeared again. on input 
+line 13513.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character128appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+
+Package ucs Warning: Unknown character 65533 = 0xFFFD appeared again. on input 
+line 13513.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character157appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+
+Package ucs Warning: Unknown character 65533 = 0xFFFD appeared again. on input 
+line 13513.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character162appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+
+Package ucs Warning: Unknown character 65533 = 0xFFFD appeared again. on input 
+line 13513.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character128appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: MalformedUTF-8sequence.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Ifthecharacterisanargument,putitin{}
+
+
+Package ucs Warning: Unknown character 65533 = 0xFFFD appeared again. on input 
+line 13513.
+
+
+./Samba3-ByExample.tex:13513: Package utf8x Error: Character157appearedalone.
+
+See the utf8x package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.13513  	valid users = @âacct_adminâ
+                                               
+Characters128-191areonlyallowedasargumentstocharacters194-244
+
+[396]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+
+LaTeX Warning: Float too large for page by 103.53336pt on input line 13699.
+
+
+LaTeX Warning: Float too large for page by 35.53333pt on input line 13798.
+
+
+LaTeX Warning: Float too large for page by 89.93335pt on input line 13853.
+
+[397]
+Overfull \hbox (5.18292pt too wide) in paragraph at lines 13858--13859
+[]\OT1/cmr/m/n/10.95 The \OT1/cmtt/m/n/10.95 /etc/smbldap-tools/smbldap[]bind.c
+onf \OT1/cmr/m/n/10.95 file is shown here: 
+ []
+
+[398]
+Underfull \vbox (badness 3919) has occurred while \output is active []
+
+ [399]
+[400]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [401]
+Overfull \hbox (20.51178pt too wide) in paragraph at lines 14025--14026
+[]\OT1/cmr/m/n/10.95 So now I could log on with a test user from the ma-chine w
+2kengrspare.
+ []
+
+[402]
+
+LaTeX Warning: Float too large for page by 103.53336pt on input line 14173.
+
+[403]
+LaTeX Font Info:    Font shape `OML/cmr/m/n' in size <10.95> not available
+(Font)              Font shape `OML/cmm/m/it' tried instead on input line 14273
+.
+
+Overfull \hbox (66.8681pt too wide) in paragraph at lines 14273--14274
+\OT1/cmr/m/n/10.95 the Samba server (in my case \OMS/cmtt/m/n/10.95 nn\OT1/cmr/
+m/n/10.95 PDCname\OMS/cmtt/m/n/10.95 n\OT1/cmr/m/n/10.95 profiles\OMS/cmtt/m/n/
+10.95 n\OT1/cmr/m/n/10.95 user\OMS/cmtt/m/n/10.95 n\OML/cmm/m/it/10.95 <\OT1/cm
+r/m/n/10.95 architecture\OML/cmm/m/it/10.95 >\OT1/cmr/m/n/10.95 .
+ []
+
+
+Overfull \hbox (41.68307pt too wide) in paragraph at lines 14273--14274
+\OT1/cmr/m/n/10.95 user (e.g., Win-dows Ex-plorer type \OMS/cmtt/m/n/10.95 nn\O
+T1/cmr/m/n/10.95 PDCname\OMS/cmtt/m/n/10.95 n\OT1/cmr/m/n/10.95 profiles\OMS/cm
+tt/m/n/10.95 n\OT1/cmr/m/n/10.95 username). 
+ []
+
+[404] [405] [406] [407] [408] [409] [410] [411] [412] [413] [414] [415]
+[416] [417] [418] [419] [420] [421] [422] [423] [424]pdfTeX warning (ext4): des
+tination with the same identifier (name{page.423}) has been already used, dupli
+cate ignored
+<to be read again> 
+                   \relax 
+l.14320 \part{Reference Section}
+                                 [423
+
+
+]pdfTeX warning (ext4): destination with the same identifier (name{page.424}) h
+as been already used, duplicate ignored
+<to be read again> 
+                   \relax 
+l.14320 \part{Reference Section}
+                                 [424]
+
+Package hyperref Warning: The anchor of a bookmark and its parent's must not
+(hyperref)                be the same. Added a new anchor on input line 14326.
+
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 14326.
+
+[425
+
+] [426
+
+]
+Chapter 11.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 14334.
+
+[427
+
+] [428]
+Overfull \hbox (3.54057pt too wide) in paragraph at lines 14365--14366
+[]\OT1/cmr/m/n/10.95 The re-cently in-stalled Linux file and ap-pli-ca-tion ser
+ver
+ []
+
+[429] [430] [431] [432]
+Overfull \hbox (0.43704pt too wide) in paragraph at lines 14421--14422
+[]\OT1/cmr/m/n/10.95 Windows net-work ad-min-is-tra-tors may
+ []
+
+
+Overfull \hbox (2.64828pt too wide) in paragraph at lines 14427--14428
+\OT1/cmr/m/n/10.95 cu-rity con-trols have not been prop-erly im-ple-mented. Sam
+ba
+ []
+
+[433] [434]
+Overfull \hbox (3.75348pt too wide) in paragraph at lines 14461--14462
+\OT1/cmr/m/n/10.95 net-work-ing ought not to ex-pose the un-der-ly-ing UNIX/Lin
+ux
+ []
+
+[435]
+Overfull \hbox (6.35054pt too wide) in paragraph at lines 14472--14473
+[]\OT1/cmr/m/n/10.95 The re-port
+ []
+
+[436] [437] [438]
+Underfull \hbox (badness 10000) in paragraph at lines 14502--14502
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . idg . com . sg / idg
+www . nsf / 0 / 5DDA8D153A7505A748256BAB000D992A ?
+ []
+
+[439]
+Underfull \hbox (badness 10000) in paragraph at lines 14512--14512
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . microsoft . com / te
+chnet / itsolutions / interop / mgmt / kerberos .
+ []
+
+[440] [441]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+LaTeX Font Info:    Try loading font information for OMS+cmss on input line 145
+89.
+LaTeX Font Info:    No file OMScmss.fd. on input line 14589.
+
+
+LaTeX Font Warning: Font shape `OMS/cmss/m/n' undefined
+(Font)              using `OMS/cmsy/m/n' instead
+(Font)              for symbol `textbackslash' on input line 14589.
+
+
+Underfull \hbox (badness 1005) in paragraph at lines 14589--14590
+\OT1/cmss/m/n/10.95 when the \OT1/cmtt/m/it/10.95 win-bind use de-fault do-main
+
+ []
+
+[442] [443] [444] [445] [446] [447] [448]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [449]
+Overfull \hbox (0.25925pt too wide) in paragraph at lines 14762--14763
+\OT1/cmss/bx/it/10.95 work $\OMS/cmtt/m/n/10.95 !$ \OT1/cmss/bx/it/10.95 [+] Mi
+-crosoft Win-dows Net-work $\OMS/cmtt/m/n/10.95 !$ \OT1/cmss/bx/it/10.95 [+] Me
+ganet
+ []
+
+[450]
+Underfull \vbox (badness 1163) has occurred while \output is active []
+
+ [451]
+Overfull \hbox (12.33093pt too wide) in paragraph at lines 14838--14839
+[]\OT1/cmr/m/n/10.95 The com-bi-na-tion of Ker-beros 5, plus OpenL-DAP, plus Sa
+mba,
+ []
+
+[452] [453] [454]
+
+LaTeX Font Warning: Font shape `OMS/cmtt/m/it' undefined
+(Font)              using `OMS/cmtt/m/n' instead
+(Font)              for symbol `textbackslash' on input line 14940.
+
+[455] [456
+
+]
+Chapter 12.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 14948.
+
+[457
+
+] [458] [459] [460]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \vbox (badness 1681) has occurred while \output is active []
+
+ [461]
+Overfull \hbox (14.06166pt too wide) in paragraph at lines 15125--15127
+\OT1/cmr/m/n/10.95 mains au-to-mat-i-cally cre-ate SRV records in the DNS zone 
+\OT1/cmtt/m/n/10.95 Kerberos.
+ []
+
+[462] [463]
+Overfull \hbox (1.52669pt too wide) in paragraph at lines 15179--15180
+\OT1/cmr/m/n/10.95 from the of-fi-cial Samba Team FTP site.[][][] The of-fi-cia
+l Samba
+ []
+
+
+Overfull \hbox (15.63951pt too wide) in paragraph at lines 15179--15180
+\OT1/cmr/m/n/10.95 Team RPMs for Red Hat Fe-dora Linux con-tain the \OT1/cmr/bx
+/n/10.95 ntlm[]auth
+ []
+
+[464] [465] [466] [467] [468] [469] [470] [471] [472]
+Chapter 13.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 15466.
+
+[473
+
+
+]
+Underfull \hbox (badness 10000) in paragraph at lines 15483--15483
+[][]\OML/cmm/m/it/9 <[][]$\OT1/cmtt/m/n/9 http : / / www . google . com / searc
+h ? hl = en&lr = &ie = ISO-[]8859-[]1&q = samba +
+ []
+
+[474]
+Underfull \vbox (badness 2846) has occurred while \output is active []
+
+ [475]
+Overfull \hbox (20.32698pt too wide) in paragraph at lines 15572--15573
+\OT1/cmr/m/n/10.95 DNS name lookups for \OT1/cmtt/m/n/10.95 fred.parrots.com \O
+T1/cmr/m/n/10.95 and \OT1/cmtt/m/n/10.95 collision.parrots.
+ []
+
+[476]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf>
+Underfull \hbox (badness 10000) in paragraph at lines 15576--15577
+[]\OT1/cmss/m/n/10.95 An Ac-tive Di-rec-tory realm called
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 15576--15577
+\OT1/cmtt/m/n/10.95 collision.parrots.com \OT1/cmss/m/n/10.95 is per-fectly
+ []
+
+
+Underfull \hbox (badness 1107) in paragraph at lines 15576--15577
+\OT1/cmss/m/n/10.95 be-ing re-solved via DNS, some-thing that
+ []
+
+
+Overfull \hbox (2.74849pt too wide) in paragraph at lines 15584--15585
+\OT1/cmr/m/n/10.95 that Net-BIOS broadcast-based net-work-ing can-not func-tion
+ across
+ []
+
+
+Overfull \hbox (23.43094pt too wide) in paragraph at lines 15589--15590
+\OT1/cmr/m/n/10.95 (lo-cated in the di-rec-tory \OT1/cmtt/m/n/10.95 C:\windows\
+system32\drivers\etc\OT1/cmr/m/n/10.95 ).
+ []
+
+File: xslt/figures/note.pdf Graphic file (type pdf)
+<use xslt/figures/note.pdf> [477]
+Overfull \hbox (4.72676pt too wide) in paragraph at lines 15608--15609
+\OT1/cmr/m/n/10.95 broad-cast traf-fic, as out-lined in [][]Chap-ter 16[], ``Ne
+t-work-ing Primer''[][]. 
+ []
+
+[478] [479]
+Overfull \hbox (3.02242pt too wide) in paragraph at lines 15656--15657
+\OT1/cmr/m/n/10.95 The \OT1/cmtt/m/it/10.95 socket op-tions \OT1/cmr/m/n/10.95 
+pa-ram-e-ter was of-ten nec-es-sary when Samba
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [480]
+Overfull \hbox (10.86514pt too wide) in paragraph at lines 15673--15673
+[]\sfbsubsec For Scal-a-bil-ity, Use SAN-Based Stor-age on Samba
+ []
+
+[481]
+Overfull \hbox (4.82841pt too wide) in paragraph at lines 15685--15685
+[]\sfbsubsec Replicate Data to Con-serve Peak-Demand Wide-
+ []
+
+[482] [483] [484] [485] [486
+
+]
+Chapter 14.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 15742.
+
+[487
+
+] [488]
+Overfull \hbox (3.5101pt too wide) in paragraph at lines 15811--15812
+[]\OT1/cmr/m/n/10.95 Information re-gard-ing com-pa-nies that pro-vide pro-fes-
+sional Samba
+ []
+
+[489] [490]
+Chapter 15.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 15820.
+
+
+Overfull \hbox (1.77512pt too wide) in paragraph at lines 15830--15832
+\OT1/cmr/m/n/10.95 Microsoft Win-dows NT/200x/XP Pro-fes-sional plat-forms can 
+par-
+ []
+
+<Samba3-ByExample/images/wxpp001.png, id=6596, 420.57124pt x 487.8225pt>
+File: Samba3-ByExample/images/wxpp001.png Graphic file (type png)
+
+<use Samba3-ByExample/images/wxpp001.png>
+<Samba3-ByExample/images/wxpp004.png, id=6598, 420.57124pt x 487.8225pt>
+File: Samba3-ByExample/images/wxpp004.png Graphic file (type png)
+
+<use Samba3-ByExample/images/wxpp004.png> [491
+
+
+]
+<Samba3-ByExample/images/wxpp006.png, id=6608, 328.22626pt x 392.46625pt>
+File: Samba3-ByExample/images/wxpp006.png Graphic file (type png)
+
+<use Samba3-ByExample/images/wxpp006.png>
+<Samba3-ByExample/images/wxpp007.png, id=6610, 328.22626pt x 392.46625pt>
+File: Samba3-ByExample/images/wxpp007.png Graphic file (type png)
+
+<use Samba3-ByExample/images/wxpp007.png>
+<Samba3-ByExample/images/wxpp008.png, id=6612, 327.2225pt x 275.0275pt>
+File: Samba3-ByExample/images/wxpp008.png Graphic file (type png)
+
+<use Samba3-ByExample/images/wxpp008.png> [492 <./Samba3-ByExample/images/wxpp0
+01.png (PNG copy)>] [493 <./Samba3-ByExample/images/wxpp004.png (PNG copy)>]
+[494 <./Samba3-ByExample/images/wxpp006.png (PNG copy)> <./Samba3-ByExample/ima
+ges/wxpp007.png (PNG copy)>] [495 <./Samba3-ByExample/images/wxpp008.png (PNG c
+opy)>]
+Overfull \hbox (24.80179pt too wide) in paragraph at lines 15925--15926
+[]\OT1/cmr/m/n/10.95 One way to find the Samba files that are in-stalled on you
+r UNIX/Linux
+ []
+
+[496]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [497]
+
+LaTeX Warning: Float too large for page by 89.93335pt on input line 16097.
+
+[498]
+
+LaTeX Warning: Float too large for page by 102.01253pt on input line 16213.
+
+[499]
+Overfull \hbox (9.12454pt too wide) in paragraph at lines 16242--16243
+\OT1/cmtt/m/n/10.95 SambaInit/SMBLDAP-ldif-preconfig.sh. \OT1/cmr/m/n/10.95 The
+se three files
+ []
+
+
+Overfull \hbox (3.6622pt too wide) in paragraph at lines 16244--16245
+[]\OT1/cmr/m/n/10.95 Install the files shown in [][]Ex-am-ple 15.5.4[][][] and 
+[][]Ex-am-ple 15.5.5[][][]
+ []
+
+[500] [501] [502] [503]
+Underfull \hbox (badness 3746) in paragraph at lines 16395--16395
+[]\OT1/cmr/bx/n/10.95 Example 15.5.1 \OT1/cmr/m/n/10.95 LDAP Pre-configuration 
+Script: SMBLDAP-ldif-
+ []
+
+
+LaTeX Warning: Float too large for page by 49.13333pt on input line 16441.
+
+
+Underfull \hbox (badness 3746) in paragraph at lines 16446--16446
+[]\OT1/cmr/bx/n/10.95 Example 15.5.2 \OT1/cmr/m/n/10.95 LDAP Pre-configuration 
+Script: SMBLDAP-ldif-
+ []
+
+
+LaTeX Warning: Float too large for page by 35.53333pt on input line 16491.
+
+
+Underfull \hbox (badness 3746) in paragraph at lines 16496--16496
+[]\OT1/cmr/bx/n/10.95 Example 15.5.3 \OT1/cmr/m/n/10.95 LDAP Pre-configuration 
+Script: SMBLDAP-ldif-
+ []
+
+
+LaTeX Warning: Float too large for page by 87.80418pt on input line 16592.
+
+[504] [505] [506]
+<Samba3-ByExample/images/lam-login.png, id=6731, 662.475pt x 571.13374pt>
+File: Samba3-ByExample/images/lam-login.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-login.png>
+<Samba3-ByExample/images/lam-config.png, id=6733, 635.37375pt x 505.89pt>
+File: Samba3-ByExample/images/lam-config.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-config.png> [507]
+<Samba3-ByExample/images/lam-users.png, id=6744, 630.355pt x 661.47125pt>
+File: Samba3-ByExample/images/lam-users.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-users.png>
+<Samba3-ByExample/images/lam-groups.png, id=6747, 628.3475pt x 538.01pt>
+File: Samba3-ByExample/images/lam-groups.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-groups.png>
+<Samba3-ByExample/images/lam-group-members.png, id=6748, 626.34pt x 449.68pt>
+File: Samba3-ByExample/images/lam-group-members.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-group-members.png> [508 <./Samba3-ByExample/im
+ages/lam-login.png>]
+<Samba3-ByExample/images/lam-hosts.png, id=6757, 631.35875pt x 430.60875pt>
+File: Samba3-ByExample/images/lam-hosts.png Graphic file (type png)
+
+<use Samba3-ByExample/images/lam-hosts.png> [509 <./Samba3-ByExample/images/lam
+-config.png (PNG copy)>] [510 <./Samba3-ByExample/images/lam-users.png>]
+<Samba3-ByExample/images/imc-usermanager2.png, id=6772, 986.7264pt x 740.0448pt
+>
+File: Samba3-ByExample/images/imc-usermanager2.png Graphic file (type png)
+ <use Samba3-ByExample/images/imc-usermanager2.png>
+Overfull \hbox (34.68356pt too wide) in paragraph at lines 16914--16916
+ [] 
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [511 <./Samba3-ByExample/images/lam-groups.png>] [512 <./Samba3-ByExample/imag
+es/lam-group-members.png>] [513 <./Samba3-ByExample/images/lam-hosts.png>] [514
+ <./Samba3-ByExample/images/imc-usermanager2.png (PNG copy)>] [515]
+Overfull \hbox (33.9573pt too wide) in paragraph at lines 17035--17036
+[]\OT1/cmr/m/n/10.95 http://support.microsoft.com/default.aspx?scid=kb;en-us;20
+8778 
+ []
+
+
+Overfull \hbox (33.9573pt too wide) in paragraph at lines 17040--17041
+[]\OT1/cmr/m/n/10.95 http://support.microsoft.com/default.aspx?scid=kb;en-us;29
+9373 
+ []
+
+
+Overfull \hbox (12.17883pt too wide) in paragraph at lines 17069--17070
+\OT1/cmr/m/n/10.95 Where the server shar-ing the ACT! database(s) is run-ning S
+amba,or
+ []
+
+[516] [517] [518] [519] [520] [521] [522] [523] [524] [525] [526] [527]
+[528]
+Chapter 16.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 17119.
+
+[529
+
+
+]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [530]
+Overfull \hbox (13.516pt too wide) in paragraph at lines 17162--17163
+[]\OT1/cmr/m/n/10.95 Recommended prepara-tory read-ing: \OT1/cmr/m/it/10.95 The
+ Of-fi-cial Samba-3 HOWTO
+ []
+
+[531] [532] [533]
+<Samba3-ByExample/images/WINREPRESSME-Capture.png, id=6902, 712.6625pt x 1022.8
+2124pt>
+File: Samba3-ByExample/images/WINREPRESSME-Capture.png Graphic file (type png)
+ <use Samba3-ByExample/images/WINREPRESSME-Capture.png>
+<Samba3-ByExample/images/WINREPRESSME-Capture2.png, id=6903, 685.56125pt x 810.
+02625pt>
+File: Samba3-ByExample/images/WINREPRESSME-Capture2.png Graphic file (type png)
+
+ <use Samba3-ByExample/images/WINREPRESSME-Capture2.png>
+Overfull \hbox (7.58594pt too wide) in paragraph at lines 17328--17329
+\OT1/cmr/m/n/10.95 The Com-mon In-ter-net File Sys-tem,'' by Christo-pher Her-t
+el, (Pren-
+ []
+
+[534]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [535 <./Samba3-ByExample/images/WINREPRESSME-Capture.png>] [536 <./Samba3-ByEx
+ample/images/WINREPRESSME-Capture2.png>] [537]
+<Samba3-ByExample/images/HostAnnouncment.png, id=6942, 687.56876pt x 1003.75pt>
+File: Samba3-ByExample/images/HostAnnouncment.png Graphic file (type png)
+<use Samba3-ByExample/images/HostAnnouncment.png> [538]
+Overfull \hbox (23.82846pt too wide) in paragraph at lines 17430--17431
+[]\OT1/cmr/m/n/10.95 Configure an-other Win-dows 9x/Me ma-chine (WINE-PRESSME)
+ []
+
+
+Underfull \vbox (badness 1097) has occurred while \output is active []
+
+ [539]
+Overfull \hbox (103.7592pt too wide) in paragraph at lines 17440--17441
+\OT1/cmtt/m/n/10.95 AndX, User: anony-mous; Tree Con-nect AndX, Path: \OMS/cmtt
+/m/n/10.95 nn\OT1/cmtt/m/n/10.95 MILGATE98\OMS/cmtt/m/n/10.95 n\OT1/cmtt/m/n/10
+.95 IPC$\OT1/cmr/m/n/10.95 . 
+ []
+
+
+Overfull \hbox (9.55957pt too wide) in paragraph at lines 17442--17443
+\OT1/cmtt/m/n/10.95 sion Setup AndX Re-quest, and Tree Con-nect AndX Re-
+ []
+
+[540 <./Samba3-ByExample/images/HostAnnouncment.png>]
+Overfull \hbox (1.13757pt too wide) in paragraph at lines 17446--17447
+\OT1/cmr/m/n/10.95 should have a pass-word length of 24 (char-ac-ters) and shou
+ld
+ []
+
+<Samba3-ByExample/images/NullConnect.png, id=6972, 589.20125pt x 694.595pt>
+File: Samba3-ByExample/images/NullConnect.png Graphic file (type png)
+
+<use Samba3-ByExample/images/NullConnect.png> [541]
+<Samba3-ByExample/images/UserConnect.png, id=6982, 589.20125pt x 683.55376pt>
+File: Samba3-ByExample/images/UserConnect.png Graphic file (type png)
+
+<use Samba3-ByExample/images/UserConnect.png>
+Overfull \hbox (12.11032pt too wide) in paragraph at lines 17482--17482
+[]\sfbsubsec Windows 200x/XP Client In-ter-ac-tion with Samba-
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [542 <./Samba3-ByExample/images/NullConnect.png>] [543 <./Samba3-ByExample/ima
+ges/UserConnect.png>]
+
+LaTeX Font Warning: Font shape `OMS/cmss/bx/n' undefined
+(Font)              using `OMS/cmss/m/n' instead
+(Font)              for symbol `textbraceleft' on input line 17529.
+
+[544]
+LaTeX Font Info:    Try loading font information for OML+cmtt on input line 175
+37.
+LaTeX Font Info:    No file OMLcmtt.fd. on input line 17537.
+
+
+LaTeX Font Warning: Font shape `OML/cmtt/m/n' undefined
+(Font)              using `OML/cmm/m/it' instead
+(Font)              for symbol `textgreater' on input line 17537.
+
+
+Overfull \hbox (4.17677pt too wide) in paragraph at lines 17537--17538
+\OT1/cmr/m/n/10.95 pand the \OT1/cmtt/m/n/10.95 GSS-API -\OML/cmtt/m/n/10.95 > 
+\OT1/cmtt/m/n/10.95 SP-NEGO -\OML/cmtt/m/n/10.95 > \OT1/cmtt/m/n/10.95 net-To-k
+en-Targ -\OML/cmtt/m/n/10.95 > \OT1/cmtt/m/n/10.95 re-
+ []
+
+
+Overfull \hbox (4.17677pt too wide) in paragraph at lines 17541--17542
+\OT1/cmr/m/n/10.95 pand the \OT1/cmtt/m/n/10.95 GSS-API -\OML/cmtt/m/n/10.95 > 
+\OT1/cmtt/m/n/10.95 SP-NEGO -\OML/cmtt/m/n/10.95 > \OT1/cmtt/m/n/10.95 net-To-k
+en-Targ -\OML/cmtt/m/n/10.95 > \OT1/cmtt/m/n/10.95 re-
+ []
+
+
+Overfull \hbox (1.25754pt too wide) in paragraph at lines 17541--17542
+\OT1/cmr/m/n/10.95 de-code in-cludes the \OT1/cmtt/m/n/10.95 Lan Man-ager Re-sp
+onse: \OT1/cmr/m/n/10.95 and the \OT1/cmtt/m/n/10.95 NTLM
+ []
+
+
+Overfull \hbox (2.6178pt too wide) in paragraph at lines 17543--17544
+[]\OT1/cmr/m/n/10.95 The pass-words are 24-character hex-adec-i-mal num-bers. T
+his
+ []
+
+
+<Samba3-ByExample/images/WindowsXP-NullConnection.png, id=7010, 541.02126pt x 6
+94.595pt>
+File: Samba3-ByExample/images/WindowsXP-NullConnection.png Graphic file (type p
+ng)
+ <use Samba3-ByExample/images/WindowsXP-NullConnection.png>
+<Samba3-ByExample/images/WindowsXP-UserConnection.png, id=7011, 548.0475pt x 68
+8.5725pt>
+File: Samba3-ByExample/images/WindowsXP-UserConnection.png Graphic file (type p
+ng)
+ <use Samba3-ByExample/images/WindowsXP-UserConnection.png>
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [545]
+Underfull \vbox (badness 1102) has occurred while \output is active []
+
+ [546 <./Samba3-ByExample/images/WindowsXP-NullConnection.png>] [547 <./Samba3-
+ByExample/images/WindowsXP-UserConnection.png>]
+Overfull \hbox (11.33226pt too wide) in paragraph at lines 17603--17604
+\OT1/cmr/m/n/10.95 types should re-fer to the Mi-crosoft knowl-edge-base ar-ti-
+cle Q102878.[][][] 
+ []
+
+
+Overfull \hbox (0.10219pt too wide) in paragraph at lines 17607--17608
+\OT1/cmr/m/n/10.95 Network brows-ing in-volves SMB broad-cast an-nounce-ments, 
+SMB
+ []
+
+
+Underfull \vbox (badness 1354) has occurred while \output is active []
+
+ [548]
+LaTeX Font Info:    Font shape `OML/cmr/m/it' in size <10.95> not available
+(Font)              Font shape `OML/cmm/m/it' tried instead on input line 17621
+.
+
+Overfull \hbox (96.75659pt too wide) in paragraph at lines 17666--17670
+\OT1/cmr/m/n/10.95 3. \OT1/cmr/bx/n/10.95 Q: \OT1/cmr/m/it/10.95 What is the ro
+le and sig-nif-i-cance of the \OML/cmm/m/it/10.95 <\OT1/cmr/m/it/10.95 01\OML/c
+mm/m/it/10.95 ><\OT1/cmr/m/it/10.95 02\OML/cmm/m/it/10.95 >[][]\OT1/cmr/m/it/10
+.95 MSBROWSE[][]\OML/cmm/m/it/10.95 <\OT1/cmr/m/it/10.95 02\OML/cmm/m/it/10.95 
+><\OT1/cmr/m/it/10.95 01\OML/cmm/m/it/10.95 >
+ []
+
+[549]
+Overfull \hbox (2.6085pt too wide) in paragraph at lines 17682--17686
+\OT1/cmr/m/n/10.95 5. \OT1/cmr/bx/n/10.95 Q: []\OT1/cmr/m/it/10.95 What is the 
+sig-nif-i-cance of the \OT1/cmtt/m/it/10.95 guest ac-count \OT1/cmr/m/it/10.95 
+in smb.conf? 
+ []
+
+[550]
+File: xslt/figures/note.pdf Graphic file (type pdf)
+ <use xslt/figures/note.pdf> [551] [552]
+Appendix A.
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 17757.
+
+(/usr/share/texmf/tex/latex/ucs/data/uni-32.def
+File: uni-32.def 2004/10/17 UCS: Unicode data U+2000..U+20FF
+) [553
+
+
+]
+Overfull \hbox (12.48302pt too wide) in paragraph at lines 17784--17785
+[]\OT1/cmr/m/n/10.95 Finally, ev-ery pro-gram is threat-ened con-stantly by sof
+t-ware patents.
+ []
+
+[554] [555] [556] [557]
+Overfull \hbox (42.11305pt too wide) in paragraph at lines 17832--17832
+[]\sfbsection 3. Pro-tect-ing Users' Le-gal Rights From Anti-Circumvention
+ []
+
+
+Underfull \vbox (badness 3849) has occurred while \output is active []
+
+ [558]
+Underfull \vbox (badness 5592) has occurred while \output is active []
+
+ [559]
+[560] [561] [562] [563] [564] [565]
+Overfull \hbox (0.8638pt too wide) in paragraph at lines 17989--17990
+\OT1/cmr/m/n/10.95 free patent li-cense un-der the con-trib-u-tor's es-sen-tial
+ patent claims,
+ []
+
+[566]
+Underfull \vbox (badness 3861) has occurred while \output is active []
+
+ [567]
+Overfull \hbox (13.43393pt too wide) in paragraph at lines 18021--18022
+\OT1/cmr/m/n/10.95 PER-FOR-MANCE OF THE PRO-GRAM IS WITH YOU. SHOULD
+ []
+
+[568]
+Overfull \hbox (11.98912pt too wide) in paragraph at lines 18025--18026
+\OT1/cmr/m/n/10.95 HOLDER, OR ANY OTHER PARTY WHO MOD-I-FIES AND/OR
+ []
+
+
+Overfull \hbox (5.60516pt too wide) in paragraph at lines 18025--18026
+\OT1/cmr/m/n/10.95 ERAL, SPE-CIAL, IN-CI-DEN-TAL OR CON-SE-QUEN-TIAL DAM-
+ []
+
+
+Overfull \hbox (3.47127pt too wide) in paragraph at lines 18025--18026
+\OT1/cmr/m/n/10.95 THE PRO-GRAM (IN-CLUD-ING BUT NOT LIM-ITED TO LOSS
+ []
+
+
+Overfull \hbox (0.96309pt too wide) in paragraph at lines 18025--18026
+\OT1/cmr/m/n/10.95 OTHER PRO-GRAMS), EVEN IF SUCH HOLDER OR OTHER
+ []
+
+[569] [570] [571] [572
+
+]
+
+Package hyperref Warning: Token not allowed in a PDFDocEncoded string,
+(hyperref)                removing `\uppercase' on input line 18086.
+
+[573
+
+] [574] [575]
+Overfull \hbox (10.72394pt too wide) in paragraph at lines 18180--18181
+[]\OT1/cmr/m/n/10.95 ( \OT1/cmtt/m/n/10.95 SP-NEGO
+ []
+
+
+Overfull \hbox (81.1077pt too wide) in paragraph at lines 18185--18186
+[]
+ []
+
+
+Overfull \hbox (2.7801pt too wide) in paragraph at lines 18187--18188
+[]\OT1/cmr/m/n/10.95 This book makes re-peated ref-er-ence to ``The Of-fi-cial 
+Samba-
+ []
+
+[576] [577] [578
+
+] (./Samba3-ByExample.ind [579
+
+
+
+] [580] [581] [582] [583]
+[584] [585] [586] [587] [588] [589] [590] [591] [592] [593] [594]) [595]
+(./Samba3-ByExample.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ ) 
+Here is how much of TeX's memory you used:
+ 13124 strings out of 94079
+ 170828 string characters out of 1165775
+ 682462 words of memory out of 3500000
+ 12771 multiletter control sequences out of 10000+50000
+ 24822 words of font info for 99 fonts, out of 1200000 for 2000
+ 645 hyphenation exceptions out of 8191
+ 33i,13n,45p,1700b,1911s stack positions out of 5000i,500n,6000p,200000b,5000s
+pdfTeX warning (dest): name{473} has been referenced but does not exist, repl
+aced by a fixed one
+
+pdfTeX warning (dest): name{529} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{491} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{347} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{267} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{233} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{143} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{105} has been referenced but does not exist, replac
+ed by a fixed one
+
+pdfTeX warning (dest): name{53} has been referenced but does not exist, replace
+d by a fixed one
+
+pdfTeX warning (dest): name{29} has been referenced but does not exist, replace
+d by a fixed one
+
+pdfTeX warning (dest): name{3} has been referenced but does not exist, replaced
+ by a fixed one
+
+pdfTeX warning (dest): name{id2408022} has been referenced but does not exist, 
+replaced by a fixed one
+
+</usr/share/texmf/fonts/type1/bluesky/cm/cmbx10.pfb></usr/share/texmf/fonts/typ
+e1/bluesky/cm/cmbx12.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmbx9.pfb></u
+sr/share/texmf/fonts/type1/bluesky/cm/cmbxti10.pfb></usr/share/texmf/fonts/type
+1/bluesky/cm/cmcsc10.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmitt10.pfb><
+/usr/share/texmf/fonts/type1/bluesky/cm/cmmi10.pfb></usr/share/texmf/fonts/type
+1/bluesky/cm/cmmi8.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmmi9.pfb></usr
+/share/texmf/fonts/type1/bluesky/cm/cmr10.pfb></usr/share/texmf/fonts/type1/blu
+esky/cm/cmr12.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmr6.pfb></usr/share
+/texmf/fonts/type1/bluesky/cm/cmr8.pfb></usr/share/texmf/fonts/type1/bluesky/cm
+/cmr9.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmsltt10.pfb></usr/share/tex
+mf/fonts/type1/bluesky/cm/cmss10.pfb></usr/share/texmf/fonts/type1/bluesky/cm/c
+mss17.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmss8.pfb></usr/share/texmf/
+fonts/type1/bluesky/cm/cmssbx10.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cm
+ssi10.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmsy10.pfb></usr/share/texmf
+/fonts/type1/bluesky/cm/cmti10.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmt
+i7.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmti8.pfb></usr/share/texmf/fon
+ts/type1/bluesky/cm/cmti9.pfb></usr/share/texmf/fonts/type1/bluesky/cm/cmtt10.p
+fb></usr/share/texmf/fonts/type1/bluesky/cm/cmtt9.pfb></usr/share/texmf/fonts/t
+ype1/bluesky/latex-fonts/lcircle1.pfb>
+Output written on Samba3-ByExample.pdf (638 pages, 3754781 bytes).
+PDF statistics:
+ 10096 PDF objects out of 10688 (max. 8388607)
+ 3372 named destinations out of 3580 (max. 131072)
+ 2451 words of extra memory for PDF output out of 10000 (max. 10000000)
+

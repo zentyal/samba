@@ -1,0 +1,135 @@
+\select@language {english}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {1}How to Install and Test SAMBA}{}{3}}
+\contentsline {table}{\numberline {1.1}{\ignorespaces Persistent TDB File Descriptions}}{6}{table.1.1}
+\contentsline {table}{\numberline {1.2}{\ignorespaces Temporary TDB File Descriptions}}{14}{table.1.2}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {2}Fast Start: Cure for Impatience}{}{15}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {3}Server Types and Security Modes}{}{43}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {4}Domain Control}{}{59}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {5}Backup Domain Control}{}{85}}
+\contentsline {table}{\numberline {5.1}{\ignorespaces Domain Backend Account Distribution Options}}{87}{table.5.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {6}Domain Membership}{}{99}}
+\contentsline {table}{\numberline {6.1}{\ignorespaces Assumptions}}{108}{table.6.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {7}Standalone Servers}{}{121}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {8}MS Windows Network Configuration Guide}{}{127}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {9}Important and Critical Change Notes for the Samba 3.x Series}{}{149}}
+\contentsline {table}{\numberline {9.1}{\ignorespaces Essential Domain Group Mappings}}{152}{table.9.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {10}Network Browsing}{}{153}}
+\contentsline {table}{\numberline {10.1}{\ignorespaces Browse Subnet Example 1}}{181}{table.10.1}
+\contentsline {table}{\numberline {10.2}{\ignorespaces Browse Subnet Example 2}}{182}{table.10.2}
+\contentsline {table}{\numberline {10.3}{\ignorespaces Browse Subnet Example 3}}{182}{table.10.3}
+\contentsline {table}{\numberline {10.4}{\ignorespaces Browse Subnet Example 4}}{183}{table.10.4}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {11}Account Information Databases}{}{189}}
+\contentsline {table}{\numberline {11.1}{\ignorespaces NT4 Domain v's Samba Policy Controls}}{204}{table.11.1}
+\contentsline {table}{\numberline {11.2}{\ignorespaces Samba SAM Account Control Block Flags}}{210}{table.11.2}
+\contentsline {table}{\numberline {11.3}{\ignorespaces Attributes in the sambaSamAccount ObjectClass (LDAP), Part A}}{229}{table.11.3}
+\contentsline {table}{\numberline {11.4}{\ignorespaces Attributes in the sambaSamAccount ObjectClass (LDAP), Part B}}{230}{table.11.4}
+\contentsline {table}{\numberline {11.5}{\ignorespaces Possible ldap passwd sync Values}}{230}{table.11.5}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {12}Group Mapping: MS Windows and UNIX}{}{231}}
+\contentsline {table}{\numberline {12.1}{\ignorespaces Well-Known User Default RIDs}}{240}{table.12.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {13}Remote and Local Management: The Net Command}{}{245}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {14}Identity Mapping (IDMAP)}{}{285}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {15}User Rights and Privileges}{}{303}}
+\contentsline {table}{\numberline {15.1}{\ignorespaces Current Privilege Capabilities}}{305}{table.15.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {16}File, Directory, and Share Access Controls}{}{313}}
+\contentsline {table}{\numberline {16.1}{\ignorespaces Managing Directories with UNIX and Windows}}{318}{table.16.1}
+\contentsline {table}{\numberline {16.2}{\ignorespaces User- and Group-Based Controls}}{323}{table.16.2}
+\contentsline {table}{\numberline {16.3}{\ignorespaces File and Directory Permission-Based Controls}}{324}{table.16.3}
+\contentsline {table}{\numberline {16.4}{\ignorespaces Other Controls}}{341}{table.16.4}
+\contentsline {table}{\numberline {16.5}{\ignorespaces How Windows File ACLs Map to UNIX POSIX File ACLs}}{342}{table.16.5}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {17}File and Record Locking}{}{343}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {18}Securing Samba}{}{363}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {19}Interdomain Trust Relationships}{}{371}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {20}Hosting a Microsoft Distributed File System Tree}{}{381}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {21}Classical Printing Support}{}{385}}
+\contentsline {table}{\numberline {21.1}{\ignorespaces Default Printing Settings}}{401}{table.21.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {22}CUPS Printing Support}{}{447}}
+\contentsline {table}{\numberline {22.1}{\ignorespaces PPDs Shipped with CUPS}}{480}{table.22.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {23}Stackable VFS modules}{}{551}}
+\contentsline {table}{\numberline {23.1}{\ignorespaces Extended Auditing Log Information}}{555}{table.23.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {24}Winbind: Use of Domain Accounts}{}{567}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {25}Advanced Network Management}{}{593}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {26}System and Account Policies}{}{603}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {27}Desktop Profile Management}{}{613}}
+\contentsline {table}{\numberline {27.1}{\ignorespaces User Shell Folder Registry Keys Default Values}}{630}{table.27.1}
+\contentsline {table}{\numberline {27.2}{\ignorespaces Defaults of Profile Settings Registry Keys}}{630}{table.27.2}
+\contentsline {table}{\numberline {27.3}{\ignorespaces Defaults of Default User Profile Paths Registry Keys}}{633}{table.27.3}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {28}PAM-Based Distributed Authentication}{}{639}}
+\contentsline {table}{\numberline {28.1}{\ignorespaces Options recognized by pam\_smbpass}}{653}{table.28.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {29}Integrating MS Windows Networks with Samba}{}{659}}
+\contentsline {table}{\numberline {29.1}{\ignorespaces Unique NetBIOS Names}}{664}{table.29.1}
+\contentsline {table}{\numberline {29.2}{\ignorespaces Group Names}}{664}{table.29.2}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {30}Unicode/Charsets}{}{673}}
+\contentsline {table}{\numberline {30.1}{\ignorespaces Japanese Character Sets in Samba-2.2 and Samba-3}}{681}{table.30.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {31}Backup Techniques}{}{683}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {32}High Availability}{}{687}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {33}Handling Large Directories}{}{695}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {34}Advanced Configuration Techniques}{}{697}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {35}Updating and Upgrading Samba}{}{705}}
+\contentsline {table}{\numberline {35.1}{\ignorespaces Samba-2.2.x TDB File Descriptions}}{716}{table.35.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {36}Migration from NT4 PDC to Samba-3 PDC}{}{721}}
+\contentsline {table}{\numberline {36.1}{\ignorespaces The Three Major Site Types}}{727}{table.36.1}
+\contentsline {table}{\numberline {36.2}{\ignorespaces Nature of the Conversion Choices}}{728}{table.36.2}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {37}SWAT: The Samba Web Administration Tool}{}{731}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {38}The Samba Checklist}{}{743}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {39}Analyzing and Solving Samba Problems}{}{753}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {40}Reporting Bugs}{}{761}}
+\contentsline {table}{\numberline {40.1}{\ignorespaces Debuggable Functions}}{763}{table.40.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {41}Managing TDB Files}{}{767}}
+\contentsline {table}{\numberline {41.1}{\ignorespaces Samba's Trivial Database Files}}{769}{table.41.1}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {42}How to Compile Samba}{}{771}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {43}Portability}{}{783}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {44}Samba and Other CIFS Clients}{}{789}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {45}Samba Performance Tuning}{}{797}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {46}LDAP and Transport Layer Security}{}{803}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {47}Samba Support}{}{813}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {48}DNS and DHCP Configuration Guide}{}{817}}
+\addvspace {10pt}
+\def \the@l@figure@leader {\pagebreak [0]\contentsline {chapter}{\numberline {A}GNU General Public License version 3}{}{825}}

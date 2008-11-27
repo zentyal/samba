@@ -331,7 +331,7 @@ Copyright (C) 2006 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/data/git/samba/samba-3.2.4/docs-xml'
+ac_pwd='/data/git/samba/samba-3.2.5/docs-xml'
 srcdir='.'
 # If no file are specified by the user, then we need to provide default
 # value.  By we need to know if files were specified by the user.
@@ -504,7 +504,7 @@ s,@build_alias@,|#_!!_#|,g
 s,@host_alias@,|#_!!_#|,g
 s,@target_alias@,|#_!!_#|,g
 s,@LATEX_DOCUMENTCLASS_OPTIONS@,|#_!!_#|letterpaper\,11pt\,openright\,twoside,g
-s,@DOC_BUILD_DATE@,|#_!!_#|18-09-2008,g
+s,@DOC_BUILD_DATE@,|#_!!_#|20-11-2008,g
 s,@SAMBASOURCEDIR@,|#_!!_#|,g
 s,@XSLTPROC@,|#_!!_#|xsltproc,g
 s,@RM@,|#_!!_#|rm,g

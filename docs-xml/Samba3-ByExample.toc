@@ -1,0 +1,278 @@
+\select@language {english}
+\contentsline {chapter}{\uppercase {About the Cover Artwork}}{vii}{section*.1}
+\contentsline {chapter}{\uppercase {Acknowledgments}}{viii}{chapter*.2}
+\contentsline {chapter}{\uppercase {List of Examples}}{xix}{chapter*.3}
+\contentsline {chapter}{\uppercase {List of Figures}}{xxv}{chapter*.4}
+\contentsline {chapter}{\uppercase {List of Tables}}{xxvii}{chapter*.5}
+\contentsline {chapter}{\uppercase {Foreword}}{xxix}{chapter*.6}
+\contentsline {chapter}{\uppercase {Preface}}{xxxii}{section*.8}
+\contentsline {part}{Part I\hspace {1em}Example Network Configurations}{xli}{part.1}
+\contentsline {chapter}{\uppercase {Example Network Configurations}}{1}{section*.16}
+\contentsline {chapter}{Chapter~\numberline {1}\uppercase {No-Frills Samba Servers}}{3}{chapter.1}
+\contentsline {section}{\numberline {1.1}Introduction}{3}{section.1.1}
+\contentsline {section}{\numberline {1.2}Assignment Tasks}{4}{section.1.2}
+\contentsline {subsection}{\numberline {1.2.1}Drafting Office}{4}{subsection.1.2.1}
+\contentsline {subsubsection}{\numberline {1.2.1.1}Dissection and Discussion}{5}{subsubsection.1.2.1.1}
+\contentsline {subsubsection}{\numberline {1.2.1.2}Implementation}{6}{subsubsection.1.2.1.2}
+\contentsline {subsubsection}{\numberline {1.2.1.3}Validation}{7}{subsubsection.1.2.1.3}
+\contentsline {subsection}{\numberline {1.2.2}Charity Administration Office}{9}{subsection.1.2.2}
+\contentsline {subsubsection}{\numberline {1.2.2.1}Dissection and Discussion}{10}{subsubsection.1.2.2.1}
+\contentsline {subsubsection}{\numberline {1.2.2.2}Implementation}{11}{subsubsection.1.2.2.2}
+\contentsline {subsubsection}{\numberline {1.2.2.3}Validation}{19}{subsubsection.1.2.2.3}
+\contentsline {subsection}{\numberline {1.2.3}Accounting Office}{19}{subsection.1.2.3}
+\contentsline {subsubsection}{\numberline {1.2.3.1}Dissection and Discussion}{20}{subsubsection.1.2.3.1}
+\contentsline {subsubsection}{\numberline {1.2.3.2}Implementation}{20}{subsubsection.1.2.3.2}
+\contentsline {section}{\numberline {1.3}Questions and Answers}{25}{section.1.3}
+\contentsline {chapter}{Chapter~\numberline {2}\uppercase {Small Office Networking}}{29}{chapter.2}
+\contentsline {section}{\numberline {2.1}Introduction}{30}{section.2.1}
+\contentsline {subsection}{\numberline {2.1.1}Assignment Tasks}{30}{subsection.2.1.1}
+\contentsline {section}{\numberline {2.2}Dissection and Discussion}{31}{section.2.2}
+\contentsline {subsection}{\numberline {2.2.1}Technical Issues}{31}{subsection.2.2.1}
+\contentsline {subsection}{\numberline {2.2.2}Political Issues}{33}{subsection.2.2.2}
+\contentsline {section}{\numberline {2.3}Implementation}{33}{section.2.3}
+\contentsline {subsection}{\numberline {2.3.1}Validation}{39}{subsection.2.3.1}
+\contentsline {subsection}{\numberline {2.3.2}Notebook Computers: A Special Case}{44}{subsection.2.3.2}
+\contentsline {subsection}{\numberline {2.3.3}Key Points Learned}{44}{subsection.2.3.3}
+\contentsline {section}{\numberline {2.4}Questions and Answers}{45}{section.2.4}
+\contentsline {chapter}{Chapter~\numberline {3}\uppercase {Secure Office Networking}}{53}{chapter.3}
+\contentsline {section}{\numberline {3.1}Introduction}{53}{section.3.1}
+\contentsline {subsection}{\numberline {3.1.1}Assignment Tasks}{54}{subsection.3.1.1}
+\contentsline {section}{\numberline {3.2}Dissection and Discussion}{56}{section.3.2}
+\contentsline {subsection}{\numberline {3.2.1}Technical Issues}{56}{subsection.3.2.1}
+\contentsline {subsubsection}{\numberline {3.2.1.1}Hardware Requirements}{59}{subsubsection.3.2.1.1}
+\contentsline {subsection}{\numberline {3.2.2}Political Issues}{61}{subsection.3.2.2}
+\contentsline {section}{\numberline {3.3}Implementation}{61}{section.3.3}
+\contentsline {subsection}{\numberline {3.3.1}Basic System Configuration}{63}{subsection.3.3.1}
+\contentsline {subsection}{\numberline {3.3.2}Samba Configuration}{66}{subsection.3.3.2}
+\contentsline {subsection}{\numberline {3.3.3}Configuration of DHCP and DNS Servers}{71}{subsection.3.3.3}
+\contentsline {subsection}{\numberline {3.3.4}Printer Configuration}{72}{subsection.3.3.4}
+\contentsline {subsection}{\numberline {3.3.5}Process Startup Configuration}{74}{subsection.3.3.5}
+\contentsline {subsection}{\numberline {3.3.6}Validation}{75}{subsection.3.3.6}
+\contentsline {subsection}{\numberline {3.3.7}Application Share Configuration}{84}{subsection.3.3.7}
+\contentsline {subsubsection}{\numberline {3.3.7.1}Comments Regarding Software Terms of Use}{85}{subsubsection.3.3.7.1}
+\contentsline {subsection}{\numberline {3.3.8}Windows Client Configuration}{86}{subsection.3.3.8}
+\contentsline {subsection}{\numberline {3.3.9}Key Points Learned}{88}{subsection.3.3.9}
+\contentsline {section}{\numberline {3.4}Questions and Answers}{89}{section.3.4}
+\contentsline {chapter}{Chapter~\numberline {4}\uppercase {The 500-User Office}}{105}{chapter.4}
+\contentsline {section}{\numberline {4.1}Introduction}{106}{section.4.1}
+\contentsline {subsection}{\numberline {4.1.1}Assignment Tasks}{107}{subsection.4.1.1}
+\contentsline {section}{\numberline {4.2}Dissection and Discussion}{108}{section.4.2}
+\contentsline {subsection}{\numberline {4.2.1}Technical Issues}{108}{subsection.4.2.1}
+\contentsline {subsection}{\numberline {4.2.2}Political Issues}{110}{subsection.4.2.2}
+\contentsline {section}{\numberline {4.3}Implementation}{110}{section.4.3}
+\contentsline {subsection}{\numberline {4.3.1}Installation of DHCP, DNS, and Samba Control Files}{110}{subsection.4.3.1}
+\contentsline {subsection}{\numberline {4.3.2}Server Preparation: All Servers}{110}{subsection.4.3.2}
+\contentsline {subsection}{\numberline {4.3.3}Server-Specific Preparation}{115}{subsection.4.3.3}
+\contentsline {subsubsection}{\numberline {4.3.3.1}Configuration for Server: MASSIVE}{116}{subsubsection.4.3.3.1}
+\contentsline {subsubsection}{\numberline {4.3.3.2}Configuration Specific to Domain Member Servers: BLDG1, BLDG2}{120}{subsubsection.4.3.3.2}
+\contentsline {subsection}{\numberline {4.3.4}Process Startup Configuration}{121}{subsection.4.3.4}
+\contentsline {subsection}{\numberline {4.3.5}Windows Client Configuration}{125}{subsection.4.3.5}
+\contentsline {subsection}{\numberline {4.3.6}Key Points Learned}{127}{subsection.4.3.6}
+\contentsline {section}{\numberline {4.4}Questions and Answers}{128}{section.4.4}
+\contentsline {chapter}{Chapter~\numberline {5}\uppercase {Making Happy Users}}{143}{chapter.5}
+\contentsline {section}{\numberline {5.1}Regarding LDAP Directories and Windows Computer Accounts}{147}{section.5.1}
+\contentsline {section}{\numberline {5.2}Introduction}{147}{section.5.2}
+\contentsline {subsection}{\numberline {5.2.1}Assignment Tasks}{149}{subsection.5.2.1}
+\contentsline {section}{\numberline {5.3}Dissection and Discussion}{149}{section.5.3}
+\contentsline {subsection}{\numberline {5.3.1}Technical Issues}{152}{subsection.5.3.1}
+\contentsline {subsubsection}{\numberline {5.3.1.1}Addition of Machines to the Domain}{154}{subsubsection.5.3.1.1}
+\contentsline {subsubsection}{\numberline {5.3.1.2}Roaming Profile Background}{155}{subsubsection.5.3.1.2}
+\contentsline {subsubsection}{\numberline {5.3.1.3}The Local Group Policy}{156}{subsubsection.5.3.1.3}
+\contentsline {subsubsection}{\numberline {5.3.1.4}Profile Changes}{156}{subsubsection.5.3.1.4}
+\contentsline {subsubsection}{\numberline {5.3.1.5}Using a Network Default User Profile}{156}{subsubsection.5.3.1.5}
+\contentsline {subsubsection}{\numberline {5.3.1.6}Installation of Printer Driver Auto-Download}{157}{subsubsection.5.3.1.6}
+\contentsline {subsubsection}{\numberline {5.3.1.7}Avoiding Failures: Solving Problems Before They Happen}{158}{subsubsection.5.3.1.7}
+\contentsline {subsection}{\numberline {5.3.2}Political Issues}{165}{subsection.5.3.2}
+\contentsline {subsection}{\numberline {5.3.3}Installation Checklist}{165}{subsection.5.3.3}
+\contentsline {section}{\numberline {5.4}Samba Server Implementation}{167}{section.5.4}
+\contentsline {subsection}{\numberline {5.4.1}OpenLDAP Server Configuration}{168}{subsection.5.4.1}
+\contentsline {subsection}{\numberline {5.4.2}PAM and NSS Client Configuration}{170}{subsection.5.4.2}
+\contentsline {subsection}{\numberline {5.4.3}Samba-3 PDC Configuration}{173}{subsection.5.4.3}
+\contentsline {subsection}{\numberline {5.4.4}Install and Configure Idealx smbldap-tools Scripts}{176}{subsection.5.4.4}
+\contentsline {subsubsection}{\numberline {5.4.4.1}Installation of smbldap-tools from the Tarball}{177}{subsubsection.5.4.4.1}
+\contentsline {subsubsection}{\numberline {5.4.4.2}Installing smbldap-tools from the RPM Package}{178}{subsubsection.5.4.4.2}
+\contentsline {subsubsection}{\numberline {5.4.4.3}Configuration of smbldap-tools}{180}{subsubsection.5.4.4.3}
+\contentsline {subsection}{\numberline {5.4.5}LDAP Initialization and Creation of User and Group Accounts}{183}{subsection.5.4.5}
+\contentsline {subsection}{\numberline {5.4.6}Printer Configuration}{196}{subsection.5.4.6}
+\contentsline {section}{\numberline {5.5}Samba-3 BDC Configuration}{198}{section.5.5}
+\contentsline {section}{\numberline {5.6}Miscellaneous Server Preparation Tasks}{203}{section.5.6}
+\contentsline {subsection}{\numberline {5.6.1}Configuring Directory Share Point Roots}{203}{subsection.5.6.1}
+\contentsline {subsection}{\numberline {5.6.2}Configuring Profile Directories}{204}{subsection.5.6.2}
+\contentsline {subsection}{\numberline {5.6.3}Preparation of Logon Scripts}{205}{subsection.5.6.3}
+\contentsline {subsection}{\numberline {5.6.4}Assigning User Rights and Privileges}{206}{subsection.5.6.4}
+\contentsline {section}{\numberline {5.7}Windows Client Configuration}{208}{section.5.7}
+\contentsline {subsection}{\numberline {5.7.1}Configuration of Default Profile with Folder Redirection}{209}{subsection.5.7.1}
+\contentsline {subsection}{\numberline {5.7.2}Configuration of MS Outlook to Relocate PST File}{210}{subsection.5.7.2}
+\contentsline {subsection}{\numberline {5.7.3}Configure Delete Cached Profiles on Logout}{214}{subsection.5.7.3}
+\contentsline {subsection}{\numberline {5.7.4}Uploading Printer Drivers to Samba Servers}{214}{subsection.5.7.4}
+\contentsline {subsection}{\numberline {5.7.5}Software Installation}{216}{subsection.5.7.5}
+\contentsline {subsection}{\numberline {5.7.6}Roll-out Image Creation}{217}{subsection.5.7.6}
+\contentsline {section}{\numberline {5.8}Key Points Learned}{217}{section.5.8}
+\contentsline {section}{\numberline {5.9}Questions and Answers}{218}{section.5.9}
+\contentsline {chapter}{Chapter~\numberline {6}\uppercase {A Distributed 2000-User Network}}{233}{chapter.6}
+\contentsline {section}{\numberline {6.1}Introduction}{234}{section.6.1}
+\contentsline {subsection}{\numberline {6.1.1}Assignment Tasks}{234}{subsection.6.1.1}
+\contentsline {section}{\numberline {6.2}Dissection and Discussion}{235}{section.6.2}
+\contentsline {subsection}{\numberline {6.2.1}Technical Issues}{236}{subsection.6.2.1}
+\contentsline {subsubsection}{\numberline {6.2.1.1}User Needs}{237}{subsubsection.6.2.1.1}
+\contentsline {subsubsection}{\numberline {6.2.1.2}The Nature of Windows Networking Protocols}{238}{subsubsection.6.2.1.2}
+\contentsline {subsubsection}{\numberline {6.2.1.3}Identity Management Needs}{240}{subsubsection.6.2.1.3}
+\contentsline {subsection}{\numberline {6.2.2}Political Issues}{243}{subsection.6.2.2}
+\contentsline {section}{\numberline {6.3}Implementation}{243}{section.6.3}
+\contentsline {subsection}{\numberline {6.3.1}Key Points Learned}{250}{subsection.6.3.1}
+\contentsline {section}{\numberline {6.4}Questions and Answers}{250}{section.6.4}
+\contentsline {part}{Part II\hspace {1em}Domain Members, Updating Samba and Migration}{263}{part.2}
+\contentsline {chapter}{\uppercase {Domain Members, Updating Samba and Migration}}{265}{section*.30}
+\contentsline {chapter}{Chapter~\numberline {7}\uppercase {Adding Domain Member Servers and Clients}}{267}{chapter.7}
+\contentsline {section}{\numberline {7.1}Introduction}{267}{section.7.1}
+\contentsline {subsection}{\numberline {7.1.1}Assignment Tasks}{268}{subsection.7.1.1}
+\contentsline {section}{\numberline {7.2}Dissection and Discussion}{269}{section.7.2}
+\contentsline {subsection}{\numberline {7.2.1}Technical Issues}{269}{subsection.7.2.1}
+\contentsline {subsection}{\numberline {7.2.2}Political Issues}{272}{subsection.7.2.2}
+\contentsline {section}{\numberline {7.3}Implementation}{272}{section.7.3}
+\contentsline {subsection}{\numberline {7.3.1}Samba Domain with Samba Domain Member Server --- Using NSS LDAP}{273}{subsection.7.3.1}
+\contentsline {subsection}{\numberline {7.3.2}NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind}{280}{subsection.7.3.2}
+\contentsline {subsection}{\numberline {7.3.3}NT4/Samba Domain with Samba Domain Member Server without NSS Support}{284}{subsection.7.3.3}
+\contentsline {subsection}{\numberline {7.3.4}Active Directory Domain with Samba Domain Member Server}{285}{subsection.7.3.4}
+\contentsline {subsubsection}{\numberline {7.3.4.1}IDMAP\_RID with Winbind}{298}{subsubsection.7.3.4.1}
+\contentsline {subsubsection}{\numberline {7.3.4.2}IDMAP Storage in LDAP using Winbind}{300}{subsubsection.7.3.4.2}
+\contentsline {subsubsection}{\numberline {7.3.4.3}IDMAP and NSS Using LDAP from ADS with RFC2307bis Schema Extension}{304}{subsubsection.7.3.4.3}
+\contentsline {subsection}{\numberline {7.3.5}UNIX/Linux Client Domain Member}{305}{subsection.7.3.5}
+\contentsline {subsubsection}{\numberline {7.3.5.1}NT4 Domain Member}{307}{subsubsection.7.3.5.1}
+\contentsline {subsubsection}{\numberline {7.3.5.2}ADS Domain Member}{307}{subsubsection.7.3.5.2}
+\contentsline {subsection}{\numberline {7.3.6}Key Points Learned}{308}{subsection.7.3.6}
+\contentsline {section}{\numberline {7.4}Questions and Answers}{309}{section.7.4}
+\contentsline {chapter}{Chapter~\numberline {8}\uppercase {Updating Samba-3}}{323}{chapter.8}
+\contentsline {section}{\numberline {8.1}Introduction}{324}{section.8.1}
+\contentsline {subsection}{\numberline {8.1.1}Cautions and Notes}{325}{subsection.8.1.1}
+\contentsline {subsubsection}{\numberline {8.1.1.1}Security Identifiers (SIDs)}{325}{subsubsection.8.1.1.1}
+\contentsline {subsubsection}{\numberline {8.1.1.2}Change of hostname}{329}{subsubsection.8.1.1.2}
+\contentsline {subsubsection}{\numberline {8.1.1.3}Change of Workgroup (Domain) Name}{330}{subsubsection.8.1.1.3}
+\contentsline {subsubsection}{\numberline {8.1.1.4}Location of config files}{330}{subsubsection.8.1.1.4}
+\contentsline {subsubsection}{\numberline {8.1.1.5}International Language Support}{332}{subsubsection.8.1.1.5}
+\contentsline {subsubsection}{\numberline {8.1.1.6}Updates and Changes in Idealx smbldap-tools}{332}{subsubsection.8.1.1.6}
+\contentsline {section}{\numberline {8.2}Upgrading from Samba 1.x and 2.x to Samba-3}{333}{section.8.2}
+\contentsline {subsection}{\numberline {8.2.1}Samba 1.9.x and 2.x Versions Without LDAP}{333}{subsection.8.2.1}
+\contentsline {subsection}{\numberline {8.2.2}Applicable to All Samba 2.x to Samba-3 Upgrades}{335}{subsection.8.2.2}
+\contentsline {subsection}{\numberline {8.2.3}Samba-2.x with LDAP Support}{336}{subsection.8.2.3}
+\contentsline {section}{\numberline {8.3}Updating a Samba-3 Installation}{340}{section.8.3}
+\contentsline {subsection}{\numberline {8.3.1}Samba-3 to Samba-3 Updates on the Same Server}{341}{subsection.8.3.1}
+\contentsline {subsubsection}{\numberline {8.3.1.1}Updating from Samba Versions Earlier than 3.0.5}{341}{subsubsection.8.3.1.1}
+\contentsline {subsubsection}{\numberline {8.3.1.2}Updating from Samba Versions between 3.0.6 and 3.0.10}{341}{subsubsection.8.3.1.2}
+\contentsline {subsubsection}{\numberline {8.3.1.3}Updating from Samba Versions after 3.0.6 to a Current Release}{342}{subsubsection.8.3.1.3}
+\contentsline {subsection}{\numberline {8.3.2}Migrating Samba-3 to a New Server}{342}{subsection.8.3.2}
+\contentsline {subsubsection}{\numberline {8.3.2.1}Replacing a Domain Member Server}{343}{subsubsection.8.3.2.1}
+\contentsline {subsubsection}{\numberline {8.3.2.2}Replacing a Domain Controller}{343}{subsubsection.8.3.2.2}
+\contentsline {subsection}{\numberline {8.3.3}Migration of Samba Accounts to Active Directory}{345}{subsection.8.3.3}
+\contentsline {chapter}{Chapter~\numberline {9}\uppercase {Migrating NT4 Domain to Samba-3}}{347}{chapter.9}
+\contentsline {section}{\numberline {9.1}Introduction}{347}{section.9.1}
+\contentsline {subsection}{\numberline {9.1.1}Assignment Tasks}{348}{subsection.9.1.1}
+\contentsline {section}{\numberline {9.2}Dissection and Discussion}{348}{section.9.2}
+\contentsline {subsection}{\numberline {9.2.1}Technical Issues}{349}{subsection.9.2.1}
+\contentsline {subsection}{\numberline {9.2.2}Political Issues}{351}{subsection.9.2.2}
+\contentsline {section}{\numberline {9.3}Implementation}{352}{section.9.3}
+\contentsline {subsection}{\numberline {9.3.1}NT4 Migration Using LDAP Backend}{353}{subsection.9.3.1}
+\contentsline {subsubsection}{\numberline {9.3.1.1}Migration Log Validation}{366}{subsubsection.9.3.1.1}
+\contentsline {subsection}{\numberline {9.3.2}NT4 Migration Using tdbsam Backend}{368}{subsection.9.3.2}
+\contentsline {subsection}{\numberline {9.3.3}Key Points Learned}{372}{subsection.9.3.3}
+\contentsline {section}{\numberline {9.4}Questions and Answers}{372}{section.9.4}
+\contentsline {chapter}{Chapter~\numberline {10}\uppercase {Migrating NetWare Server to Samba-3}}{385}{chapter.10}
+\contentsline {section}{\numberline {10.1}Introduction}{386}{section.10.1}
+\contentsline {subsection}{\numberline {10.1.1}Assignment Tasks}{387}{subsection.10.1.1}
+\contentsline {section}{\numberline {10.2}Dissection and Discussion}{388}{section.10.2}
+\contentsline {subsection}{\numberline {10.2.1}Technical Issues}{388}{subsection.10.2.1}
+\contentsline {section}{\numberline {10.3}Implementation}{390}{section.10.3}
+\contentsline {subsection}{\numberline {10.3.1}NetWare Migration Using LDAP Backend}{390}{subsection.10.3.1}
+\contentsline {subsubsection}{\numberline {10.3.1.1}LDAP Server Configuration}{391}{subsubsection.10.3.1.1}
+\contentsline {part}{Part III\hspace {1em}Reference Section}{423}{part.3}
+\contentsline {chapter}{\uppercase {Reference Section}}{425}{section*.36}
+\contentsline {chapter}{Chapter~\numberline {11}\uppercase {Active Directory, Kerberos, and Security}}{427}{chapter.11}
+\contentsline {section}{\numberline {11.1}Introduction}{428}{section.11.1}
+\contentsline {subsection}{\numberline {11.1.1}Assignment Tasks}{431}{subsection.11.1.1}
+\contentsline {section}{\numberline {11.2}Dissection and Discussion}{432}{section.11.2}
+\contentsline {subsection}{\numberline {11.2.1}Technical Issues}{433}{subsection.11.2.1}
+\contentsline {subsubsection}{\numberline {11.2.1.1}Kerberos Exposed}{438}{subsubsection.11.2.1.1}
+\contentsline {section}{\numberline {11.3}Implementation}{440}{section.11.3}
+\contentsline {subsection}{\numberline {11.3.1}Share Access Controls}{440}{subsection.11.3.1}
+\contentsline {subsection}{\numberline {11.3.2}Share Definition Controls}{441}{subsection.11.3.2}
+\contentsline {subsubsection}{\numberline {11.3.2.1}Checkpoint Controls}{442}{subsubsection.11.3.2.1}
+\contentsline {subsubsection}{\numberline {11.3.2.2}Override Controls}{445}{subsubsection.11.3.2.2}
+\contentsline {subsection}{\numberline {11.3.3}Share Point Directory and File Permissions}{446}{subsection.11.3.3}
+\contentsline {subsection}{\numberline {11.3.4}Managing Windows 200x ACLs}{448}{subsection.11.3.4}
+\contentsline {subsubsection}{\numberline {11.3.4.1}Using the MMC Computer Management Interface}{448}{subsubsection.11.3.4.1}
+\contentsline {subsubsection}{\numberline {11.3.4.2}Using MS Windows Explorer (File Manager)}{450}{subsubsection.11.3.4.2}
+\contentsline {subsubsection}{\numberline {11.3.4.3}Setting Posix ACLs in UNIX/Linux}{450}{subsubsection.11.3.4.3}
+\contentsline {subsection}{\numberline {11.3.5}Key Points Learned}{452}{subsection.11.3.5}
+\contentsline {section}{\numberline {11.4}Questions and Answers}{453}{section.11.4}
+\contentsline {chapter}{Chapter~\numberline {12}\uppercase {Integrating Additional Services}}{457}{chapter.12}
+\contentsline {section}{\numberline {12.1}Introduction}{457}{section.12.1}
+\contentsline {subsection}{\numberline {12.1.1}Assignment Tasks}{458}{subsection.12.1.1}
+\contentsline {section}{\numberline {12.2}Dissection and Discussion}{459}{section.12.2}
+\contentsline {subsection}{\numberline {12.2.1}Technical Issues}{459}{subsection.12.2.1}
+\contentsline {subsection}{\numberline {12.2.2}Political Issues}{460}{subsection.12.2.2}
+\contentsline {section}{\numberline {12.3}Implementation}{460}{section.12.3}
+\contentsline {subsection}{\numberline {12.3.1}Removal of Pre-Existing Conflicting RPMs}{461}{subsection.12.3.1}
+\contentsline {subsection}{\numberline {12.3.2}Kerberos Configuration}{462}{subsection.12.3.2}
+\contentsline {subsubsection}{\numberline {12.3.2.1}Samba Configuration}{463}{subsubsection.12.3.2.1}
+\contentsline {subsubsection}{\numberline {12.3.2.2}NSS Configuration}{466}{subsubsection.12.3.2.2}
+\contentsline {subsubsection}{\numberline {12.3.2.3}Squid Configuration}{467}{subsubsection.12.3.2.3}
+\contentsline {subsection}{\numberline {12.3.3}Configuration}{467}{subsection.12.3.3}
+\contentsline {subsection}{\numberline {12.3.4}Key Points Learned}{469}{subsection.12.3.4}
+\contentsline {section}{\numberline {12.4}Questions and Answers}{470}{section.12.4}
+\contentsline {chapter}{Chapter~\numberline {13}\uppercase {Performance, Reliability, and Availability}}{473}{chapter.13}
+\contentsline {section}{\numberline {13.1}Introduction}{473}{section.13.1}
+\contentsline {section}{\numberline {13.2}Dissection and Discussion}{474}{section.13.2}
+\contentsline {section}{\numberline {13.3}Guidelines for Reliable Samba Operation}{476}{section.13.3}
+\contentsline {subsection}{\numberline {13.3.1}Name Resolution}{476}{subsection.13.3.1}
+\contentsline {subsubsection}{\numberline {13.3.1.1}Bad Hostnames}{476}{subsubsection.13.3.1.1}
+\contentsline {subsubsection}{\numberline {13.3.1.2}Routed Networks}{477}{subsubsection.13.3.1.2}
+\contentsline {subsubsection}{\numberline {13.3.1.3}Network Collisions}{478}{subsubsection.13.3.1.3}
+\contentsline {subsection}{\numberline {13.3.2}Samba Configuration}{478}{subsection.13.3.2}
+\contentsline {subsection}{\numberline {13.3.3}Use and Location of BDCs}{481}{subsection.13.3.3}
+\contentsline {subsection}{\numberline {13.3.4}Use One Consistent Version of MS Windows Client}{481}{subsection.13.3.4}
+\contentsline {subsection}{\numberline {13.3.5}For Scalability, Use SAN-Based Storage on Samba Servers}{481}{subsection.13.3.5}
+\contentsline {subsection}{\numberline {13.3.6}Distribute Network Load with MSDFS}{482}{subsection.13.3.6}
+\contentsline {subsection}{\numberline {13.3.7}Replicate Data to Conserve Peak-Demand Wide-Area Bandwidth}{482}{subsection.13.3.7}
+\contentsline {subsection}{\numberline {13.3.8}Hardware Problems}{482}{subsection.13.3.8}
+\contentsline {subsection}{\numberline {13.3.9}Large Directories}{483}{subsection.13.3.9}
+\contentsline {section}{\numberline {13.4}Key Points Learned}{484}{section.13.4}
+\contentsline {chapter}{Chapter~\numberline {14}\uppercase {Samba Support}}{487}{chapter.14}
+\contentsline {section}{\numberline {14.1}Free Support}{488}{section.14.1}
+\contentsline {section}{\numberline {14.2}Commercial Support}{489}{section.14.2}
+\contentsline {chapter}{Chapter~\numberline {15}\uppercase {A Collection of Useful Tidbits}}{491}{chapter.15}
+\contentsline {section}{\numberline {15.1}Joining a Domain: Windows 200x/XP Professional}{491}{section.15.1}
+\contentsline {section}{\numberline {15.2}Samba System File Location}{495}{section.15.2}
+\contentsline {section}{\numberline {15.3}Starting Samba}{498}{section.15.3}
+\contentsline {section}{\numberline {15.4}DNS Configuration Files}{499}{section.15.4}
+\contentsline {subsection}{\numberline {15.4.1}The Forward Zone File for the Loopback Adaptor}{499}{subsection.15.4.1}
+\contentsline {subsection}{\numberline {15.4.2}The Reverse Zone File for the Loopback Adaptor}{499}{subsection.15.4.2}
+\contentsline {subsection}{\numberline {15.4.3}DNS Root Server Hint File}{499}{subsection.15.4.3}
+\contentsline {section}{\numberline {15.5}Alternative LDAP Database Initialization}{500}{section.15.5}
+\contentsline {subsection}{\numberline {15.5.1}Initialization of the LDAP Database}{500}{subsection.15.5.1}
+\contentsline {section}{\numberline {15.6}The LDAP Account Manager}{504}{section.15.6}
+\contentsline {section}{\numberline {15.7}IDEALX Management Console}{510}{section.15.7}
+\contentsline {section}{\numberline {15.8}Effect of Setting File and Directory SUID/SGID Permissions Explained}{512}{section.15.8}
+\contentsline {section}{\numberline {15.9}Shared Data Integrity}{515}{section.15.9}
+\contentsline {subsection}{\numberline {15.9.1}Microsoft Access}{516}{subsection.15.9.1}
+\contentsline {subsection}{\numberline {15.9.2}Act! Database Sharing}{517}{subsection.15.9.2}
+\contentsline {subsection}{\numberline {15.9.3}Opportunistic Locking Controls}{517}{subsection.15.9.3}
+\contentsline {chapter}{Chapter~\numberline {16}\uppercase {Networking Primer}}{529}{chapter.16}
+\contentsline {section}{\numberline {16.1}Requirements and Notes}{529}{section.16.1}
+\contentsline {section}{\numberline {16.2}Introduction}{531}{section.16.2}
+\contentsline {subsection}{\numberline {16.2.1}Assignment Tasks}{532}{subsection.16.2.1}
+\contentsline {section}{\numberline {16.3}Exercises}{532}{section.16.3}
+\contentsline {subsection}{\numberline {16.3.1}Single-Machine Broadcast Activity}{533}{subsection.16.3.1}
+\contentsline {subsubsection}{\numberline {16.3.1.1}Findings}{534}{subsubsection.16.3.1.1}
+\contentsline {subsection}{\numberline {16.3.2}Second Machine Startup Broadcast Interaction}{536}{subsection.16.3.2}
+\contentsline {subsubsection}{\numberline {16.3.2.1}Findings}{538}{subsubsection.16.3.2.1}
+\contentsline {subsection}{\numberline {16.3.3}Simple Windows Client Connection Characteristics}{538}{subsection.16.3.3}
+\contentsline {subsubsection}{\numberline {16.3.3.1}Findings and Comments}{541}{subsubsection.16.3.3.1}
+\contentsline {subsection}{\numberline {16.3.4}Windows 200x/XP Client Interaction with Samba-3}{543}{subsection.16.3.4}
+\contentsline {subsubsection}{\numberline {16.3.4.1}Discussion}{546}{subsubsection.16.3.4.1}
+\contentsline {subsection}{\numberline {16.3.5}Conclusions to Exercises}{547}{subsection.16.3.5}
+\contentsline {section}{\numberline {16.4}Dissection and Discussion}{548}{section.16.4}
+\contentsline {subsection}{\numberline {16.4.1}Technical Issues}{548}{subsection.16.4.1}
+\contentsline {section}{\numberline {16.5}Questions and Answers}{549}{section.16.5}
+\contentsline {chapter}{Chapter~\numberline {A}\uppercase {GNU General Public License version 3}}{553}{appendix.A}
+\contentsline {chapter}{\uppercase {Glossary}}{573}{section*.62}
+\contentsline {chapter}{SUBJECT INDEX}{579}{appendix*.63}

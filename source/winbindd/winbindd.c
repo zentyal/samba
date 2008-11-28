@@ -59,7 +59,7 @@ struct messaging_context *winbind_messaging_context(void)
 
 /* Reload configuration */
 
-static bool reload_services_file(const char *logfile)
+static bool reload_services_file(const char *lfile)
 {
 	bool ret;
 
@@ -73,8 +73,8 @@ static bool reload_services_file(const char *logfile)
 
 	/* if this is a child, restore the logfile to the special
 	   name - <domain>, idmap, etc. */
-	if (logfile && *logfile) {
-		lp_set_logfile(logfile);
+	if (lfile && *lfile) {
+		lp_set_logfile(lfile);
 	}
 
 	reopen_logs();
@@ -343,6 +343,7 @@ static struct winbindd_dispatch_table {
 	{ WINBINDD_ALLOCATE_UID, winbindd_allocate_uid, "ALLOCATE_UID" },
 	{ WINBINDD_ALLOCATE_GID, winbindd_allocate_gid, "ALLOCATE_GID" },
 	{ WINBINDD_SET_MAPPING, winbindd_set_mapping, "SET_MAPPING" },
+	{ WINBINDD_REMOVE_MAPPING, winbindd_remove_mapping, "REMOVE_MAPPING" },
 	{ WINBINDD_SET_HWM, winbindd_set_hwm, "SET_HWMS" },
 
 	/* Miscellaneous */
@@ -367,7 +368,7 @@ static struct winbindd_dispatch_table {
 
 	{ WINBINDD_WINS_BYNAME, winbindd_wins_byname, "WINS_BYNAME" },
 	{ WINBINDD_WINS_BYIP, winbindd_wins_byip, "WINS_BYIP" },
-	
+
 	/* End of list */
 
 	{ WINBINDD_NUM_CMDS, NULL, "NONE" }
@@ -727,12 +728,17 @@ static void new_connection(int listen_sock, bool privileged)
 
 static void remove_client(struct winbindd_cli_state *state)
 {
+	char c = 0;
+
 	/* It's a dead client - hold a funeral */
 	
 	if (state == NULL) {
 		return;
 	}
-		
+
+	/* tell client, we are closing ... */
+	write(state->sock, &c, sizeof(c));
+
 	/* Close socket */
 		
 	close(state->sock);
@@ -787,14 +793,14 @@ static bool remove_idle_client(void)
 }
 
 /* check if HUP has been received and reload files */
-void winbind_check_sighup(const char *logfile)
+void winbind_check_sighup(const char *lfile)
 {
 	if (do_sighup) {
 
 		DEBUG(3, ("got SIGHUP\n"));
 
 		flush_caches();
-		reload_services_file(logfile);
+		reload_services_file(lfile);
 
 		do_sighup = False;
 	}
@@ -1091,11 +1097,11 @@ int main(int argc, char **argv, char **envp)
 	poptFreeContext(pc);
 
 	if (!override_logfile) {
-		char *logfile = NULL;
-		if (asprintf(&logfile,"%s/log.winbindd",
+		char *lfile = NULL;
+		if (asprintf(&lfile,"%s/log.winbindd",
 				get_dyn_LOGFILEBASE()) > 0) {
-			lp_set_logfile(logfile);
-			SAFE_FREE(logfile);
+			lp_set_logfile(lfile);
+			SAFE_FREE(lfile);
 		}
 	}
 	setup_logging("winbindd", log_stdout);

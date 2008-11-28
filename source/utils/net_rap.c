@@ -612,7 +612,7 @@ int net_rap_printq_usage(struct net_context *c, int argc, const char **argv)
 	d_printf(
 	 "net rap printq [misc. options] [targets]\n"
 	 "\tor\n"
-	 "net rap printq list [<queue_name>] [misc. options] [targets]\n"
+	 "net rap printq info [<queue_name>] [misc. options] [targets]\n"
 	 "\tlists the specified queue and jobs on the target server.\n"
 	 "\tIf the queue name is not specified, all queues are listed.\n\n");
 	d_printf(
@@ -726,9 +726,10 @@ int net_rap_printq(struct net_context *c, int argc, const char **argv)
 			"info",
 			rap_printq_info,
 			NET_TRANSPORT_RAP,
-			"Display info about print job",
-			"net rap printq info\n"
-			"    Display info about print job"
+			"Display info about print queues and jobs",
+			"net rap printq info [queue]\n"
+			"    Display info about print jobs in queue.\n"
+			"    If queue is not specified, all queues are listed"
 		},
 		{
 			"delete",
@@ -1024,7 +1025,7 @@ int net_rap_groupmember_usage(struct net_context *c, int argc, const char **argv
 	 "net rap groupmember LIST <group> [misc. options] [targets]"
 	 "\n\t Enumerate users in a group\n"
 	 "\nnet rap groupmember DELETE <group> <user> [misc. options] "
-	 "[targets]\n\t Delete sepcified user from specified group\n"
+	 "[targets]\n\t Delete specified user from specified group\n"
 	 "\nnet rap groupmember ADD <group> <user> [misc. options] [targets]"
 	 "\n\t Add specified user to specified group\n");
 

@@ -59,21 +59,20 @@ static void display_account_info(uint32_t rid,
 				 struct netr_DELTA_USER *r)
 {
 	fstring hex_nt_passwd, hex_lm_passwd;
-	uchar lm_passwd[16], nt_passwd[16];
-	static uchar zero_buf[16];
+	uchar zero_buf[16];
+
+	memset(zero_buf, '\0', sizeof(zero_buf));
 
 	/* Decode hashes from password hash (if they are not NULL) */
 
 	if (memcmp(r->lmpassword.hash, zero_buf, 16) != 0) {
-		sam_pwd_hash(r->rid, r->lmpassword.hash, lm_passwd, 0);
-		pdb_sethexpwd(hex_lm_passwd, lm_passwd, r->acct_flags);
+		pdb_sethexpwd(hex_lm_passwd, r->lmpassword.hash, r->acct_flags);
 	} else {
 		pdb_sethexpwd(hex_lm_passwd, NULL, 0);
 	}
 
 	if (memcmp(r->ntpassword.hash, zero_buf, 16) != 0) {
-		sam_pwd_hash(r->rid, r->ntpassword.hash, nt_passwd, 0);
-		pdb_sethexpwd(hex_nt_passwd, nt_passwd, r->acct_flags);
+		pdb_sethexpwd(hex_nt_passwd, r->ntpassword.hash, r->acct_flags);
 	} else {
 		pdb_sethexpwd(hex_nt_passwd, NULL, 0);
 	}
@@ -164,7 +163,6 @@ static void display_rename_alias(uint32_t rid, struct netr_DELTA_RENAME *r)
 static NTSTATUS display_sam_entry(TALLOC_CTX *mem_ctx,
 				  enum netr_SamDatabaseID database_id,
 				  struct netr_DELTA_ENUM *r,
-				  bool last_query,
 				  struct samsync_context *ctx)
 {
 	union netr_DELTA_UNION u = r->delta_union;
@@ -286,18 +284,22 @@ static NTSTATUS display_sam_entry(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-NTSTATUS display_sam_entries(TALLOC_CTX *mem_ctx,
-			     enum netr_SamDatabaseID database_id,
-			     struct netr_DELTA_ENUM_ARRAY *r,
-			     bool last_query,
-			     struct samsync_context *ctx)
+static NTSTATUS display_sam_entries(TALLOC_CTX *mem_ctx,
+				    enum netr_SamDatabaseID database_id,
+				    struct netr_DELTA_ENUM_ARRAY *r,
+				    uint64_t *sequence_num,
+				    struct samsync_context *ctx)
 {
 	int i;
 
 	for (i = 0; i < r->num_deltas; i++) {
 		display_sam_entry(mem_ctx, database_id, &r->delta_enum[i],
-				  last_query, ctx);
+				  ctx);
 	}
 
 	return NT_STATUS_OK;
 }
+
+const struct samsync_ops libnet_samsync_display_ops = {
+	.process_objects	= display_sam_entries,
+};

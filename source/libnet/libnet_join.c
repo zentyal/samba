@@ -357,10 +357,15 @@ static ADS_STATUS libnet_join_set_machine_spn(TALLOC_CTX *mem_ctx,
 	strupper_m(spn);
 	spn_array[0] = spn;
 
-	if (name_to_fqdn(my_fqdn, r->in.machine_name) &&
-	    !strequal(my_fqdn, r->in.machine_name)) {
+	if (!name_to_fqdn(my_fqdn, r->in.machine_name)
+	    || (strchr(my_fqdn, '.') == NULL)) {
+		fstr_sprintf(my_fqdn, "%s.%s", r->in.machine_name,
+			r->out.dns_domain_name);
+	}
 
-		strlower_m(my_fqdn);
+	strlower_m(my_fqdn);
+
+	if (!strequal(my_fqdn, r->in.machine_name)) {
 		spn = talloc_asprintf(mem_ctx, "HOST/%s", my_fqdn);
 		if (!spn) {
 			return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
@@ -1633,24 +1638,31 @@ WERROR libnet_init_UnjoinCtx(TALLOC_CTX *mem_ctx,
 static WERROR libnet_join_check_config(TALLOC_CTX *mem_ctx,
 				       struct libnet_JoinCtx *r)
 {
+	bool valid_security = false;
+	bool valid_workgroup = false;
+	bool valid_realm = false;
+
 	/* check if configuration is already set correctly */
+
+	valid_workgroup = strequal(lp_workgroup(), r->out.netbios_domain_name);
 
 	switch (r->out.domain_is_ad) {
 		case false:
-			if ((strequal(lp_workgroup(),
-				      r->out.netbios_domain_name)) &&
-			    (lp_security() == SEC_DOMAIN)) {
+			valid_security = (lp_security() == SEC_DOMAIN);
+			if (valid_workgroup && valid_security) {
 				/* nothing to be done */
 				return WERR_OK;
 			}
 			break;
 		case true:
-			if ((strequal(lp_workgroup(),
-				      r->out.netbios_domain_name)) &&
-			    (strequal(lp_realm(),
-				      r->out.dns_domain_name)) &&
-			    ((lp_security() == SEC_ADS) ||
-			     (lp_security() == SEC_DOMAIN))) {
+			valid_realm = strequal(lp_realm(), r->out.dns_domain_name);
+			switch (lp_security()) {
+			case SEC_DOMAIN:
+			case SEC_ADS:
+				valid_security = true;
+			}
+
+			if (valid_workgroup && valid_realm && valid_security) {
 				/* nothing to be done */
 				return WERR_OK;
 			}
@@ -1660,9 +1672,41 @@ static WERROR libnet_join_check_config(TALLOC_CTX *mem_ctx,
 	/* check if we are supposed to manipulate configuration */
 
 	if (!r->in.modify_config) {
+
+		char *wrong_conf = talloc_strdup(mem_ctx, "");
+
+		if (!valid_workgroup) {
+			wrong_conf = talloc_asprintf_append(wrong_conf,
+				"\"workgroup\" set to '%s', should be '%s'",
+				lp_workgroup(), r->out.netbios_domain_name);
+			W_ERROR_HAVE_NO_MEMORY(wrong_conf);
+		}
+
+		if (!valid_realm) {
+			wrong_conf = talloc_asprintf_append(wrong_conf,
+				"\"realm\" set to '%s', should be '%s'",
+				lp_realm(), r->out.dns_domain_name);
+			W_ERROR_HAVE_NO_MEMORY(wrong_conf);
+		}
+
+		if (!valid_security) {
+			const char *sec = NULL;
+			switch (lp_security()) {
+			case SEC_SHARE: sec = "share"; break;
+			case SEC_USER:  sec = "user"; break;
+			case SEC_DOMAIN: sec = "domain"; break;
+			case SEC_ADS: sec = "ads"; break;
+			}
+			wrong_conf = talloc_asprintf_append(wrong_conf,
+				"\"security\" set to '%s', should be %s",
+				sec, r->out.domain_is_ad ?
+				"either 'domain' or 'ads'" : "'domain'");
+			W_ERROR_HAVE_NO_MEMORY(wrong_conf);
+		}
+
 		libnet_join_set_error_string(mem_ctx, r,
-			"Invalid configuration and configuration modification "
-			"was not requested");
+			"Invalid configuration (%s) and configuration modification "
+			"was not requested", wrong_conf);
 		return WERR_CAN_NOT_COMPLETE;
 	}
 

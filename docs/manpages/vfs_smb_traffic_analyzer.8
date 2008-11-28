@@ -1,11 +1,11 @@
 .\"     Title: smb_traffic_analyzer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 10/02/2008
+.\"      Date: 11/27/2008
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.3
 .\"
-.TH "SMB_TRAFFIC_ANALYZER" "8" "10/02/2008" "Samba 3\.3" "System Administration tools"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "11/27/2008" "Samba 3\.3" "System Administration tools"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -148,7 +148,12 @@ The module will send the data to the system named with the hostname STRING\.
 .PP
 smb_traffic_analyzer:port = STRING
 .RS 4
-The module will send the data using the TCP port given in STRING
+The module will send the data using the TCP port given in STRING\.
+.RE
+.PP
+smb_traffic_analyzer:anonymize_prefix = STRING
+.RS 4
+The module will replace the user names with a prefix given by STRING and a simple hash number\.
 .RE
 .SH "EXAMPLES"
 .PP
@@ -164,7 +169,7 @@ The module running on share "example_share", using a unix domain socket
 .fi
 .RE
 .PP
-The module running on share "example_share", using an internet domain socket, connecting to host "examplehost" on port 3491\.
+The module running on share "example_share", using an internet socket, connecting to host "examplehost" on port 3491\.
 .sp
 .RS 4
 .nf
@@ -172,7 +177,21 @@ The module running on share "example_share", using an internet domain socket, co
 	\fIpath = /data/example\fR
 	\fIvfs objects = smb_traffic_analyzer\fR
 	\fIsmb_traffic_analyzer:host = examplehost\fR
-	\fIsmb_traffic_analyzer:port = 3490\fR
+	\fIsmb_traffic_analyzer:port = 3491\fR
+	
+.fi
+.RE
+.PP
+The module running on share "example_share", using an internet socket, connecting to host "examplehost" on port 3491, anonymizing user names with the prefix "User"\.
+.sp
+.RS 4
+.nf
+	\fI[example_share]\fR
+	\fIpath = /data/example\fR
+	\fIvfs objects = smb_traffic_analyzer\fR
+	\fIsmb_traffic_analyzer:host = examplehost\fR
+	\fIsmb_traffic_analyzer:port = 3491\fR
+	\fIsmb_traffic_analyzer:anonymize_prefix = User\fR
 	
 .fi
 .RE

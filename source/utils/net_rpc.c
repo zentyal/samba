@@ -3956,17 +3956,6 @@ static void free_user_token(NT_USER_TOKEN *token)
 	SAFE_FREE(token->user_sids);
 }
 
-static bool is_sid_in_token(NT_USER_TOKEN *token, DOM_SID *sid)
-{
-	int i;
-
-	for (i=0; i<token->num_sids; i++) {
-		if (sid_compare(sid, &token->user_sids[i]) == 0)
-			return true;
-	}
-	return false;
-}
-
 static void add_sid_to_token(NT_USER_TOKEN *token, DOM_SID *sid)
 {
 	if (is_sid_in_token(token, sid))
@@ -4296,16 +4285,15 @@ static void show_userlist(struct rpc_pipe_client *pipe_hnd,
 		uint32 acc_granted;
 
 		if (share_sd != NULL) {
-			if (!se_access_check(share_sd, &tokens[i].token,
-					     1, &acc_granted, &status)) {
+			status = se_access_check(share_sd, &tokens[i].token,
+					     1, &acc_granted);
+
+			if (!NT_STATUS_IS_OK(status)) {
 				DEBUG(1, ("Could not check share_sd for "
 					  "user %s\n",
 					  tokens[i].name));
 				continue;
 			}
-
-			if (!NT_STATUS_IS_OK(status))
-				continue;
 		}
 
 		if (root_sd == NULL) {
@@ -4313,16 +4301,13 @@ static void show_userlist(struct rpc_pipe_client *pipe_hnd,
 			continue;
 		}
 
-		if (!se_access_check(root_sd, &tokens[i].token,
-				     1, &acc_granted, &status)) {
+		status = se_access_check(root_sd, &tokens[i].token,
+				     1, &acc_granted);
+		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(1, ("Could not check root_sd for user %s\n",
 				  tokens[i].name));
 			continue;
 		}
-
-		if (!NT_STATUS_IS_OK(status))
-			continue;
-
 		d_printf(" %s\n", tokens[i].name);
 	}
 
@@ -6132,7 +6117,7 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	/* SamrConnect2 */
 	nt_status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 					 pipe_hnd->desthost,
-					 SA_RIGHT_SAM_OPEN_DOMAIN,
+					 SAMR_ACCESS_OPEN_DOMAIN,
 					 &connect_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't open SAMR policy handle. Error was %s\n",
@@ -6146,7 +6131,7 @@ static int rpc_trustdom_list(struct net_context *c, int argc, const char **argv)
 	   able to enumerate accounts*/
 	nt_status = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					   &connect_hnd,
-					   SA_RIGHT_DOMAIN_ENUM_ACCOUNTS,
+					   SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS,
 					   queried_dom_sid,
 					   &domain_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
@@ -6388,6 +6373,14 @@ static int rpc_vampire(struct net_context *c, int argc, const char **argv)
 			"Dump remote SAM database to Kerberos Keytab",
 			"net rpc vampire keytab\n"
 			"    Dump remote SAM database to Kerberos keytab file"
+		},
+		{
+			"passdb",
+			rpc_vampire_passdb,
+			NET_TRANSPORT_RPC,
+			"Dump remote SAM database to passdb",
+			"net rpc vampire passdb\n"
+			"    Dump remote SAM database to passdb"
 		},
 
 		{NULL, NULL, 0, NULL, NULL}

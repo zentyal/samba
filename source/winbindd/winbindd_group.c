@@ -35,7 +35,11 @@ static void add_member(const char *domain, const char *user,
 {
 	fstring name;
 
-	fill_domain_username(name, domain, user, True);
+	if (domain != NULL) {
+		fill_domain_username(name, domain, user, True);
+	} else {
+		fstrcpy(name, user);
+	}
 	safe_strcat(name, ",", sizeof(name)-1);
 	string_append(pp_members, name);
 	*p_num_members += 1;
@@ -136,7 +140,7 @@ static void add_expanded_sid(const DOM_SID *sid,
 			continue;
 		}
 
-		add_member(domain->name, names[i], pp_members, p_num_members);
+		add_member(NULL, names[i], pp_members, p_num_members);
 	}
 
  done:
@@ -378,6 +382,24 @@ static int namecmp( const void *a, const void *b )
 	return StrCaseCmp( * (char * const *) a, * (char * const *) b);
 }
 
+static void sort_unique_list(char ***list, uint32 *n_list)
+{
+	uint32_t i;
+
+	/* search for duplicates for sorting and looking for matching
+	   neighbors */
+
+	qsort(*list, *n_list, sizeof(char*), QSORT_CAST namecmp);
+
+	for (i=1; i < *n_list; i++) {
+		if (strcmp((*list)[i-1], (*list)[i]) == 0) {
+			memmove(&((*list)[i-1]), &((*list)[i]),
+				 sizeof(char*)*((*n_list)-i));
+			(*n_list)--;
+		}
+	}
+}
+
 static NTSTATUS add_names_to_list( TALLOC_CTX *ctx,
 				   char ***list, uint32 *n_list,
 				   char **names, uint32 n_names )
@@ -408,19 +430,6 @@ static NTSTATUS add_names_to_list( TALLOC_CTX *ctx,
 
 	for ( i=*n_list, j=0; i<n_new_list; i++, j++ ) {
 		new_list[i] = talloc_strdup( new_list, names[j] );
-	}
-
-	/* search for duplicates for sorting and looking for matching
-	   neighbors */
-
-	qsort( new_list, n_new_list, sizeof(char*), QSORT_CAST namecmp );
-
-	for ( i=1; i<n_new_list; i++ ) {
-		if ( strcmp( new_list[i-1], new_list[i] ) == 0 ) {
-			memmove( &new_list[i-1], &new_list[i],
-				 sizeof(char*)*(n_new_list-i) );
-			n_new_list--;
-		}
 	}
 
 	*list = new_list;
@@ -576,7 +585,7 @@ static bool fill_grent_mem(struct winbindd_domain *domain,
 	}
 
 	/* Real work goes here.  Create a list of group names to
-	   expand startign with the initial one.  Pass that to
+	   expand starting with the initial one.  Pass that to
 	   expand_groups() which returns a list of more group names
 	   to expand.  Do this up to the max search depth. */
 
@@ -658,6 +667,8 @@ static bool fill_grent_mem(struct winbindd_domain *domain,
 		n_glist = n_new_glist;
 	}
 	TALLOC_FREE( glist );
+
+	sort_unique_list(&names, &num_names);
 
 	DEBUG(10, ("looked up %d names\n", num_names));
 
@@ -911,7 +922,7 @@ static void getgrsid_lookupsid_recv( void *private_data, bool success,
 	nt_status = normalize_name_unmap(s->state->mem_ctx, raw_name,
 					 &mapped_name);
 
-	/* basiuc whitespace reversal */
+	/* basic whitespace reversal */
 	if (NT_STATUS_IS_OK(nt_status)) {
 		s->group_name = talloc_asprintf(s->state->mem_ctx,
 						"%s%c%s",

@@ -791,7 +791,7 @@ static NTSTATUS cmd_lsa_add_acct_rights(struct rpc_pipe_client *cli,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	for (i=0; i<argc-1; i++) {
+	for (i=0; i<argc-2; i++) {
 		init_lsa_StringLarge(&rights.names[i], argv[i+2]);
 	}
 
@@ -1184,7 +1184,8 @@ static NTSTATUS cmd_lsa_get_username(struct rpc_pipe_client *cli,
 	/* Print results */
 
 	printf("Account Name: %s, Authority Name: %s\n",
-		account_name->string, authority_name->string);
+		account_name->string, authority_name ? authority_name->string :
+		"");
 
 	rpccli_lsa_Close(cli, mem_ctx, &pol);
  done:

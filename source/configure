@@ -1496,6 +1496,7 @@ Optional Packages:
                           Which directory to use for PAM modules
                           ($ac_default_prefix/$libdir/security)
   --with-mandir=DIR       Where to put man pages ($mandir)
+  --with-localedir=DIR    Where to put po files ($ac_default_prefix/share/locale)
   --with-selftest-prefix=DIR
                           The prefix where make test will be run
                           ($selftest_prefix)
@@ -1526,6 +1527,7 @@ Optional Packages:
                           backends (default=no)
   --with-nisplus-home     Include NISPLUS_HOME support (default=no)
   --with-syslog           Include experimental SYSLOG support (default=no)
+  --with-syslog-facility  Use a custom syslog facility (default=none)
   --with-quotas           Include disk-quota support (default=no)
   --with-sys-quotas       Include lib/sysquotas.c support (default=auto)
   --with-utmp             Include utmp accounting (default, if supported by
@@ -2244,6 +2246,7 @@ swatdir="\${prefix}/swat"
 codepagedir="\${MODULESDIR}"
 statedir="\${LOCKDIR}"
 cachedir="\${LOCKDIR}"
+localedir="\${prefix}/share/locale"
 
 
 # Check whether --with-fhs was given.
@@ -2488,6 +2491,28 @@ echo "$as_me: WARNING: --with-mandir without argument - will use default" >&2;}
     ;;
   esac
 fi
+
+
+################################################
+# set locale directory location
+
+# Check whether --with-localedir was given.
+if test "${with_localedir+set}" = set; then
+  withval=$with_localedir;  case "$withval" in
+  yes|no)
+    #
+    # Just in case anybody does it
+    #
+    { echo "$as_me:$LINENO: WARNING: --with-localedir called without argument - will use default" >&5
+echo "$as_me: WARNING: --with-localedir called without argument - will use default" >&2;}
+  ;;
+  *)
+  localedir="$withval"
+  ;;
+  esac
+fi
+
+
 
 
 
@@ -12840,7 +12865,7 @@ DYNEXP=
 
 default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
 
-default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr vfs_acl_xattr vfs_smb_traffic_analyzer"
+default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr vfs_acl_xattr vfs_acl_tdb vfs_smb_traffic_analyzer"
 
 if test "x$developer" = xyes; then
    default_static_modules="$default_static_modules rpc_rpcecho"
@@ -27205,7 +27230,8 @@ done
 
 
 
-for ac_header in limits.h float.h pthread.h
+
+for ac_header in limits.h float.h pthread.h libintl.h
 do
 as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -38514,6 +38540,101 @@ fi
 done
 
 
+
+for ac_func in gettext dgettext
+do
+as_ac_var=`echo "ac_cv_func_$ac_func" | $as_tr_sh`
+{ echo "$as_me:$LINENO: checking for $ac_func" >&5
+echo $ECHO_N "checking for $ac_func... $ECHO_C" >&6; }
+if { as_var=$as_ac_var; eval "test \"\${$as_var+set}\" = set"; }; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define $ac_func to an innocuous variant, in case <limits.h> declares $ac_func.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define $ac_func innocuous_$ac_func
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char $ac_func (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef $ac_func
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char $ac_func ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_$ac_func || defined __stub___$ac_func
+choke me
+#endif
+
+int
+main ()
+{
+return $ac_func ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  eval "$as_ac_var=yes"
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	eval "$as_ac_var=no"
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+ac_res=`eval echo '${'$as_ac_var'}'`
+	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+echo "${ECHO_T}$ac_res" >&6; }
+if test `eval echo '${'$as_ac_var'}'` = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `echo "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+done
+
+
 # Find a method of generating a stack trace
 
 
@@ -38661,6 +38782,90 @@ _ACEOF
 fi
 
 done
+
+# libexecinfo provides backtrace_symbols on FreeBSD
+{ echo "$as_me:$LINENO: checking for library containing backtrace_symbols" >&5
+echo $ECHO_N "checking for library containing backtrace_symbols... $ECHO_C" >&6; }
+if test "${ac_cv_search_backtrace_symbols+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char backtrace_symbols ();
+int
+main ()
+{
+return backtrace_symbols ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' execinfo; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_search_backtrace_symbols=$ac_res
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext
+  if test "${ac_cv_search_backtrace_symbols+set}" = set; then
+  break
+fi
+done
+if test "${ac_cv_search_backtrace_symbols+set}" = set; then
+  :
+else
+  ac_cv_search_backtrace_symbols=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_search_backtrace_symbols" >&5
+echo "${ECHO_T}$ac_cv_search_backtrace_symbols" >&6; }
+ac_res=$ac_cv_search_backtrace_symbols
+if test "$ac_res" != no; then
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+fi
 
 
 for ac_func in backtrace_symbols
@@ -50504,7 +50709,8 @@ else
 
 
 
-for ac_header in linux/inotify.h asm/unistd.h
+
+for ac_header in linux/inotify.h asm/unistd.h sys/inotify.h
 do
 as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -65329,6 +65535,32 @@ fi
 
 
 #################################################
+# check for custom syslog facility
+{ echo "$as_me:$LINENO: checking whether to use a custom syslog facility" >&5
+echo $ECHO_N "checking whether to use a custom syslog facility... $ECHO_C" >&6; }
+
+# Check whether --with-syslog-facility was given.
+if test "${with_syslog_facility+set}" = set; then
+  withval=$with_syslog_facility;
+  if test "$withval" = "no" ; then
+    { { echo "$as_me:$LINENO: error: argument to --with-syslog-facility must be a string" >&5
+echo "$as_me: error: argument to --with-syslog-facility must be a string" >&2;}
+   { (exit 1); exit 1; }; }
+  else
+     if test "$withval" != "yes" ; then
+        syslog_facility="$withval"
+
+cat >>confdefs.h <<_ACEOF
+#define SYSLOG_FACILITY $syslog_facility
+_ACEOF
+
+     fi
+  fi
+
+fi
+
+
+#################################################
 # check for experimental disk-quotas support
 
 samba_cv_WITH_QUOTAS=auto
@@ -75738,6 +75970,43 @@ echo "${ECHO_T}shared" >&6; }
 echo "${ECHO_T}static" >&6; }
 	else
 	    string_ignored_modules="$string_ignored_modules vfs_acl_xattr"
+		{ echo "$as_me:$LINENO: result: not" >&5
+echo "${ECHO_T}not" >&6; }
+	fi
+
+
+	{ echo "$as_me:$LINENO: checking how to build vfs_acl_tdb" >&5
+echo $ECHO_N "checking how to build vfs_acl_tdb... $ECHO_C" >&6; }
+	if test "$MODULE_vfs_acl_tdb"; then
+		DEST=$MODULE_vfs_acl_tdb
+	elif test "$MODULE_vfs" -a "$MODULE_DEFAULT_vfs_acl_tdb"; then
+		DEST=$MODULE_vfs
+	else
+		DEST=$MODULE_DEFAULT_vfs_acl_tdb
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define vfs_acl_tdb_init init_samba_module
+_ACEOF
+
+		VFS_MODULES="$VFS_MODULES "bin/acl_tdb.$SHLIBEXT""
+		{ echo "$as_me:$LINENO: result: shared" >&5
+echo "${ECHO_T}shared" >&6; }
+
+		string_shared_modules="$string_shared_modules vfs_acl_tdb"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_vfs="$init_static_modules_vfs  vfs_acl_tdb_init();"
+ 		decl_static_modules_vfs="$decl_static_modules_vfs extern NTSTATUS vfs_acl_tdb_init(void);"
+		string_static_modules="$string_static_modules vfs_acl_tdb"
+		VFS_STATIC="$VFS_STATIC \$(VFS_ACL_TDB_OBJ)"
+
+
+		{ echo "$as_me:$LINENO: result: static" >&5
+echo "${ECHO_T}static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules vfs_acl_tdb"
 		{ echo "$as_me:$LINENO: result: not" >&5
 echo "${ECHO_T}not" >&6; }
 	fi

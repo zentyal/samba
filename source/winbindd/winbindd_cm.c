@@ -225,10 +225,10 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 	close_conns_after_fork();
 
 	if (!override_logfile) {
-		char *logfile;
-		if (asprintf(&logfile, "%s/log.winbindd-dc-connect", get_dyn_LOGFILEBASE()) > 0) {
-			lp_set_logfile(logfile);
-			SAFE_FREE(logfile);
+		char *lfile;
+		if (asprintf(&lfile, "%s/log.winbindd-dc-connect", get_dyn_LOGFILEBASE()) > 0) {
+			lp_set_logfile(lfile);
+			SAFE_FREE(lfile);
 			reopen_logs();
 		}
 	}
@@ -1080,7 +1080,7 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 		fstring name )
 {
 	struct ip_service ip_list;
-	uint32_t nt_version = NETLOGON_VERSION_1;
+	uint32_t nt_version = NETLOGON_NT_VERSION_1;
 
 	ip_list.ss = *pss;
 	ip_list.port = 0;

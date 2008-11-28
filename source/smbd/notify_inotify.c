@@ -25,6 +25,10 @@
 
 #ifdef HAVE_INOTIFY
 
+#if HAVE_SYS_INOTIFY_H
+#include <sys/inotify.h>
+#else
+
 #ifdef HAVE_ASM_TYPES_H
 #include <asm/types.h>
 #endif
@@ -57,7 +61,7 @@ static int inotify_rm_watch(int fd, int wd)
 #include <sys/inotify.h>
 
 #endif
-
+#endif
 
 /* older glibc headers don't have these defines either */
 #ifndef IN_ONLYDIR
@@ -243,14 +247,14 @@ static void inotify_handler(struct event_context *ev, struct fd_event *fde,
 	e0 = e = (struct inotify_event *)TALLOC_SIZE(in, bufsize);
 	if (e == NULL) return;
 
-	if (read(in->fd, e0, bufsize) != bufsize) {
+	if (sys_read(in->fd, e0, bufsize) != bufsize) {
 		DEBUG(0,("Failed to read all inotify data\n"));
 		talloc_free(e0);
 		return;
 	}
 
 	/* we can get more than one event in the buffer */
-	while (bufsize >= sizeof(*e)) {
+	while (e && (bufsize >= sizeof(*e))) {
 		struct inotify_event *e2 = NULL;
 		bufsize -= e->len + sizeof(*e);
 		if (bufsize >= sizeof(*e)) {

@@ -22,6 +22,7 @@
 
 extern int max_send;
 extern enum protocol_types Protocol;
+extern const struct generic_mapping file_generic_mapping;
 
 static char *nttrans_realloc(char **ptr, size_t size)
 {
@@ -726,17 +727,20 @@ static NTSTATUS set_sd(files_struct *fsp, uint8 *data, uint32 sd_len,
 		return status;
 	}
 
-	if (psd->owner_sid==0) {
+	if (psd->owner_sid == NULL) {
 		security_info_sent &= ~OWNER_SECURITY_INFORMATION;
 	}
-	if (psd->group_sid==0) {
+	if (psd->group_sid == NULL) {
 		security_info_sent &= ~GROUP_SECURITY_INFORMATION;
 	}
-	if (psd->sacl==0) {
-		security_info_sent &= ~SACL_SECURITY_INFORMATION;
-	}
-	if (psd->dacl==0) {
-		security_info_sent &= ~DACL_SECURITY_INFORMATION;
+
+	/* Convert all the generic bits. */
+	security_acl_map_generic(psd->dacl, &file_generic_mapping);
+	security_acl_map_generic(psd->sacl, &file_generic_mapping);
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("set_sd for file %s\n", fsp->fsp_name ));
+		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
 	status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
@@ -1599,6 +1603,11 @@ static void call_nt_transact_query_security_desc(connection_struct *conn,
 	sd_size = ndr_size_security_descriptor(psd, 0);
 
 	DEBUG(3,("call_nt_transact_query_security_desc: sd_size = %lu.\n",(unsigned long)sd_size));
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("call_nt_transact_query_security_desc for file %s\n", fsp->fsp_name ));
+		NDR_PRINT_DEBUG(security_descriptor, psd);
+	}
 
 	SIVAL(params,0,(uint32)sd_size);
 
@@ -2808,10 +2817,10 @@ void reply_nttranss(struct smb_request *req)
 			goto bad_param;
 		}
 
-		if (ddisp > av_size ||
+		if (doff > av_size ||
 				dcnt > av_size ||
-				ddisp+dcnt > av_size ||
-				ddisp+dcnt < ddisp) {
+				doff+dcnt > av_size ||
+				doff+dcnt < doff) {
 			goto bad_param;
 		}
 

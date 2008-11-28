@@ -29,7 +29,6 @@
 /* look in server.c for some explanation of these variables */
 extern enum protocol_types Protocol;
 extern int max_recv;
-unsigned int smb_echo_count = 0;
 extern uint32 global_client_caps;
 
 extern bool global_encrypted_passwords_negotiated;
@@ -340,8 +339,7 @@ bool check_fsp_open(connection_struct *conn, struct smb_request *req,
 }
 
 /****************************************************************************
- Check if we have a correct fsp pointing to a file. Replacement for the
- CHECK_FSP macro.
+ Check if we have a correct fsp pointing to a file.
 ****************************************************************************/
 
 bool check_fsp(connection_struct *conn, struct smb_request *req,
@@ -4276,7 +4274,7 @@ void reply_close(struct smb_request *req)
 	fsp = file_fsp(SVAL(req->inbuf,smb_vwv0));
 
 	/*
-	 * We can only use CHECK_FSP if we know it's not a directory.
+	 * We can only use check_fsp if we know it's not a directory.
 	 */
 
 	if(!fsp || (fsp->conn != conn) || (fsp->vuid != req->vuid)) {
@@ -4614,8 +4612,6 @@ void reply_echo(struct smb_request *req)
 
 	TALLOC_FREE(req->outbuf);
 
-	smb_echo_count++;
-
 	END_PROFILE(SMBecho);
 	return;
 }
@@ -4629,7 +4625,7 @@ void reply_printopen(struct smb_request *req)
 	connection_struct *conn = req->conn;
 	files_struct *fsp;
 	NTSTATUS status;
-	
+
 	START_PROFILE(SMBsplopen);
 
 	if (req->wct < 2) {
@@ -4644,10 +4640,18 @@ void reply_printopen(struct smb_request *req)
 		return;
 	}
 
+	status = file_new(conn, &fsp);
+	if(!NT_STATUS_IS_OK(status)) {
+		reply_nterror(req, status);
+		END_PROFILE(SMBsplopen);
+		return;
+	}
+
 	/* Open for exclusive use, write only. */
-	status = print_fsp_open(conn, NULL, req->vuid, &fsp);
+	status = print_fsp_open(conn, NULL, req->vuid, fsp);
 
 	if (!NT_STATUS_IS_OK(status)) {
+		file_free(fsp);
 		reply_nterror(req, status);
 		END_PROFILE(SMBsplopen);
 		return;
@@ -4655,7 +4659,7 @@ void reply_printopen(struct smb_request *req)
 
 	reply_outbuf(req, 1, 0);
 	SSVAL(req->outbuf,smb_vwv0,fsp->fnum);
-  
+
 	DEBUG(3,("openprint fd=%d fnum=%d\n",
 		 fsp->fh->fd, fsp->fnum));
 
@@ -5076,8 +5080,16 @@ NTSTATUS rmdir_internals(TALLOC_CTX *ctx,
 			}
 		}
 
-		/* We only have veto files/directories. Recursive delete. */
+		/* We only have veto files/directories.
+		 * Are we allowed to delete them ? */
 
+		if(!lp_recursive_veto_delete(SNUM(conn))) {
+			TALLOC_FREE(dir_hnd);
+			errno = ENOTEMPTY;
+			goto err;
+		}
+
+		/* Do a recursive delete. */
 		RewindDir(dir_hnd,&dirpos);
 		while ((dname = ReadDirName(dir_hnd,&dirpos))) {
 			char *fullname = NULL;
@@ -5103,9 +5115,8 @@ NTSTATUS rmdir_internals(TALLOC_CTX *ctx,
 				break;
 			}
 			if(st.st_mode & S_IFDIR) {
-				if(lp_recursive_veto_delete(SNUM(conn))) {
-					if(!recursive_rmdir(ctx, conn, fullname))
-						break;
+				if(!recursive_rmdir(ctx, conn, fullname)) {
+					break;
 				}
 				if(SMB_VFS_RMDIR(conn,fullname) != 0) {
 					break;

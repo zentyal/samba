@@ -42,6 +42,7 @@ static enum sock_type smb_traffic_analyzer_connMode(vfs_handle_struct *handle)
 	}
 }
 
+
 /* Connect to an internet socket */
 
 static int smb_traffic_analyzer_connect_inet_socket(vfs_handle_struct *handle,
@@ -122,6 +123,7 @@ static int smb_traffic_analyzer_connect_unix_socket(vfs_handle_struct *handle,
 		DEBUG(1, ("smb_traffic_analyzer_connect_unix_socket: "
 			"Couldn't create socket, "
 			"make sure stad is running!\n"));
+		return -1;
 	}
 	remote.sun_family = AF_UNIX;
 	strlcpy(remote.sun_path, name,
@@ -156,9 +158,12 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 {
 	struct refcounted_sock *rf_sock = NULL;
 	struct timeval tv;
+	time_t tv_sec;
 	struct tm *tm = NULL;
 	int seconds;
 	char *str = NULL;
+	char *username = NULL;
+	const char *anon_prefix = NULL;
 	size_t len;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, rf_sock, struct refcounted_sock, return);
@@ -170,17 +175,36 @@ static void smb_traffic_analyzer_send_data(vfs_handle_struct *handle,
 	}
 
 	GetTimeOfDay(&tv);
-	tm=localtime(&tv.tv_sec);
+	tv_sec = convert_timespec_to_time_t(convert_timeval_to_timespec(tv));
+	tm = localtime(&tv_sec);
 	if (!tm) {
 		return;
 	}
 	seconds=(float) (tv.tv_usec / 1000);
 
+	/* check if anonymization is required */
+
+	anon_prefix=lp_parm_const_string(SNUM(handle->conn),"smb_traffic_analyzer",\
+					"anonymize_prefix", NULL );
+	if (anon_prefix!=NULL) {
+		username = talloc_asprintf(talloc_tos(),
+			"%s%i",
+			anon_prefix,
+			str_checksum(
+				handle->conn->server_info->sanitized_username )	); 
+	} else {
+		username = handle->conn->server_info->sanitized_username;
+	}
+
+	if (!username) {
+		return;
+	}
+
 	str = talloc_asprintf(talloc_tos(),
 			"V1,%u,\"%s\",\"%s\",\"%c\",\"%s\",\"%s\","
 			"\"%04d-%02d-%02d %02d:%02d:%02d.%03d\"\n",
 			(unsigned int)result,
-			handle->conn->server_info->sanitized_username,
+			username,
 			pdb_get_domain(handle->conn->server_info->sam_account),
 			Write ? 'W' : 'R',
 			handle->conn->connectpath,

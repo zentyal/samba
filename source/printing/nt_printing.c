@@ -5493,7 +5493,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 {
 	SEC_ACE ace[5];	/* max number of ace entries */
 	int i = 0;
-	SEC_ACCESS sa;
+	uint32_t sa;
 	SEC_ACL *psa = NULL;
 	SEC_DESC_BUF *sdb = NULL;
 	SEC_DESC *psd = NULL;
@@ -5502,7 +5502,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 
 	/* Create an ACE where Everyone is allowed to print */
 
-	init_sec_access(&sa, PRINTER_ACE_PRINT);
+	sa = PRINTER_ACE_PRINT;
 	init_sec_ace(&ace[i++], &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED,
 		     sa, SEC_ACE_FLAG_CONTAINER_INHERIT);
 
@@ -5514,7 +5514,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 		sid_copy(&domadmins_sid, get_global_sam_sid());
 		sid_append_rid(&domadmins_sid, DOMAIN_GROUP_RID_ADMINS);
 		
-		init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+		sa = PRINTER_ACE_FULL_CONTROL;
 		init_sec_ace(&ace[i++], &domadmins_sid, 
 			SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 			SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5524,7 +5524,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 	else if (secrets_fetch_domain_sid(lp_workgroup(), &adm_sid)) {
 		sid_append_rid(&adm_sid, DOMAIN_USER_RID_ADMIN);
 
-		init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+		sa = PRINTER_ACE_FULL_CONTROL;
 		init_sec_ace(&ace[i++], &adm_sid, 
 			SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 			SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5534,7 +5534,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 
 	/* add BUILTIN\Administrators as FULL CONTROL */
 
-	init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+	sa = PRINTER_ACE_FULL_CONTROL;
 	init_sec_ace(&ace[i++], &global_sid_Builtin_Administrators, 
 		SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 		SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5769,7 +5769,6 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 	SEC_DESC_BUF *secdesc = NULL;
 	uint32 access_granted;
 	NTSTATUS status;
-	bool result;
 	const char *pname;
 	TALLOC_CTX *mem_ctx = NULL;
 	SE_PRIV se_printop = SE_PRINT_OPERATOR;
@@ -5812,11 +5811,11 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 		   against.  This is because print jobs are child objects
 		   objects of a printer. */
 
-		secdesc = se_create_child_secdesc(mem_ctx, parent_secdesc->sd, False);
+		status = se_create_child_secdesc_buf(mem_ctx, &secdesc, parent_secdesc->sd, False);
 
-		if (!secdesc) {
+		if (!NT_STATUS_IS_OK(status)) {
 			talloc_destroy(mem_ctx);
-			errno = ENOMEM;
+			errno = map_errno_from_nt_status(status);
 			return False;
 		}
 
@@ -5826,10 +5825,10 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 	}
 
 	/* Check access */
-	result = se_access_check(secdesc->sd, server_info->ptok, access_type,
-				 &access_granted, &status);
+	status = se_access_check(secdesc->sd, server_info->ptok, access_type,
+				 &access_granted);
 
-	DEBUG(4, ("access check was %s\n", result ? "SUCCESS" : "FAILURE"));
+	DEBUG(4, ("access check was %s\n", NT_STATUS_IS_OK(status) ? "SUCCESS" : "FAILURE"));
 
         /* see if we need to try the printer admin list */
 
@@ -5843,11 +5842,11 @@ bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
 
 	talloc_destroy(mem_ctx);
 	
-	if (!result) {
+	if (!NT_STATUS_IS_OK(status)) {
 		errno = EACCES;
 	}
 
-	return result;
+	return NT_STATUS_IS_OK(status);
 }
 
 /****************************************************************************

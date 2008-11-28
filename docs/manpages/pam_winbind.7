@@ -1,11 +1,11 @@
 .\"     Title: pam_winbind
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 10/02/2008
+.\"      Date: 11/27/2008
 .\"    Manual: 7
 .\"    Source: Samba 3.2
 .\"
-.TH "PAM_WINBIND" "7" "10/02/2008" "Samba 3\.2" "7"
+.TH "PAM_WINBIND" "7" "11/27/2008" "Samba 3\.2" "7"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -81,6 +81,11 @@ is enabled\. To use this feature from the PAM module this option must be set\.
 silent
 .RS 4
 Do not emit any messages\.
+.RE
+.PP
+mkhomedir
+.RS 4
+Create homedirectory for a user on\-the\-fly, option is valid in PAM session block\.
 .RE
 .SH "SEE ALSO"
 .PP

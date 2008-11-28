@@ -357,6 +357,9 @@
 /* Define to 1 if you have the <devnm.h> header file. */
 #undef HAVE_DEVNM_H
 
+/* Define to 1 if you have the `dgettext' function. */
+#undef HAVE_DGETTEXT
+
 /* Define to 1 if you have the <direct.h> header file. */
 #undef HAVE_DIRECT_H
 
@@ -678,6 +681,9 @@
 
 /* Whether getspnam is available */
 #undef HAVE_GETSPNAM
+
+/* Define to 1 if you have the `gettext' function. */
+#undef HAVE_GETTEXT
 
 /* Whether gettimeofday takes a tz argument */
 #undef HAVE_GETTIMEOFDAY_TZ
@@ -1091,6 +1097,9 @@
 
 /* Define to 1 if you have the `inet' library (-linet). */
 #undef HAVE_LIBINET
+
+/* Define to 1 if you have the <libintl.h> header file. */
+#undef HAVE_LIBINTL_H
 
 /* Define to 1 if you have the `ipv6' library (-lipv6). */
 #undef HAVE_LIBIPV6
@@ -1934,6 +1943,9 @@
 /* Define to 1 if you have the <sys/id.h> header file. */
 #undef HAVE_SYS_ID_H
 
+/* Define to 1 if you have the <sys/inotify.h> header file. */
+#undef HAVE_SYS_INOTIFY_H
+
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
 
@@ -2659,6 +2671,9 @@
 /* Whether sysconf(_SC_PAGESIZE) is available */
 #undef SYSCONF_SC_PAGESIZE
 
+/* syslog facility to log to */
+#undef SYSLOG_FACILITY
+
 /* Whether this is a system V system */
 #undef SYSV
 
@@ -3067,6 +3082,9 @@
 
 /* Define to `unsigned long long' if <sys/types.h> does not define. */
 #undef uintptr_t
+
+/* Whether to build vfs_acl_tdb as shared module */
+#undef vfs_acl_tdb_init
 
 /* Whether to build vfs_acl_xattr as shared module */
 #undef vfs_acl_xattr_init

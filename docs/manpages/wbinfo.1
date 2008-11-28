@@ -1,11 +1,11 @@
 .\"     Title: wbinfo
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
-.\"      Date: 10/02/2008
+.\"      Date: 11/27/2008
 .\"    Manual: User Commands
 .\"    Source: Samba 3.2
 .\"
-.TH "WBINFO" "1" "10/02/2008" "Samba 3\.2" "User Commands"
+.TH "WBINFO" "1" "11/27/2008" "Samba 3\.2" "User Commands"
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -14,7 +14,7 @@
 wbinfo - Query information from winbind daemon
 .SH "SYNOPSIS"
 .HP 1
-wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
+wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -241,6 +241,26 @@ Print additional information about the query results\.
 Convert a SID to a UNIX group id\. If the SID does not correspond to a UNIX group mapped by
 \fBwinbindd\fR(8)
 then the operation will fail\.
+.RE
+.PP
+\-\-remove\-uid\-mapping uid,sid
+.RS 4
+Remove an existing uid to sid mapping entry from the IDmap backend\.
+.RE
+.PP
+\-\-remove\-gid\-mapping gid,sid
+.RS 4
+Remove an existing gid to sid mapping entry from the IDmap backend\.
+.RE
+.PP
+\-\-set\-uid\-mapping uid,sid
+.RS 4
+Create a new or modify an existing uid to sid mapping in the IDmap backend\.
+.RE
+.PP
+\-\-set\-gid\-mapping gid,sid
+.RS 4
+Create a new or modify an existing gid to sid mapping in the IDmap backend\.
 .RE
 .PP
 \-V

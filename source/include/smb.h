@@ -391,6 +391,7 @@ struct idle_event;
 struct share_mode_entry;
 struct uuid;
 struct named_mutex;
+struct pcap_cache;
 
 struct vfs_fsp_data {
     struct vfs_fsp_data *next;
@@ -1238,7 +1239,7 @@ struct bitmap {
 #define FILE_GENERIC_WRITE (STD_RIGHT_READ_CONTROL_ACCESS|FILE_WRITE_DATA|FILE_WRITE_ATTRIBUTES|\
 							FILE_WRITE_EA|FILE_APPEND_DATA|SYNCHRONIZE_ACCESS)
 
-#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|\
+#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|FILE_READ_ATTRIBUTES|\
 								FILE_EXECUTE|SYNCHRONIZE_ACCESS)
 
 /* Share specific rights. */

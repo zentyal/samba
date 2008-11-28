@@ -30,6 +30,56 @@ struct deferred_open_record {
 };
 
 /****************************************************************************
+ SMB1 file varient of se_access_check. Never test FILE_READ_ATTRIBUTES.
+****************************************************************************/
+
+NTSTATUS smb1_file_se_access_check(const struct security_descriptor *sd,
+                          const NT_USER_TOKEN *token,
+                          uint32_t access_desired,
+                          uint32_t *access_granted)
+{
+	return se_access_check(sd,
+				token,
+				(access_desired & ~FILE_READ_ATTRIBUTES),
+				access_granted);
+}
+
+/****************************************************************************
+ Check if we have open rights.
+****************************************************************************/
+
+static NTSTATUS check_open_rights(struct connection_struct *conn,
+				const char *fname,
+				uint32_t access_mask)
+{
+	/* Check if we have rights to open. */
+	NTSTATUS status;
+	uint32_t access_granted = 0;
+	struct security_descriptor *sd;
+
+	status = SMB_VFS_GET_NT_ACL(conn, fname,
+			(OWNER_SECURITY_INFORMATION |
+			GROUP_SECURITY_INFORMATION |
+			DACL_SECURITY_INFORMATION),&sd);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("check_open_rights: Could not get acl "
+			"on %s: %s\n",
+			fname,
+			nt_errstr(status)));
+		return status;
+	}
+
+	status = smb1_file_se_access_check(sd,
+				conn->server_info->ptok,
+				access_mask,
+				&access_granted);
+
+	TALLOC_FREE(sd);
+	return status;
+}
+
+/****************************************************************************
  fd support routines - attempt to do a dos_open.
 ****************************************************************************/
 
@@ -337,6 +387,17 @@ static NTSTATUS open_file(files_struct *fsp,
 
 	} else {
 		fsp->fh->fd = -1; /* What we used to call a stat open. */
+		if (file_existed) {
+			status = check_open_rights(conn,
+					path,
+					access_mask);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(10, ("open_file: Access denied on "
+					"file %s\n",
+					path));
+				return status;
+			}
+		}
 	}
 
 	if (!file_existed) {
@@ -401,7 +462,7 @@ static NTSTATUS open_file(files_struct *fsp,
 		 conn->server_info->unix_name,
 		 fsp->fsp_name,
 		 BOOLSTR(fsp->can_read), BOOLSTR(fsp->can_write),
-		 conn->num_files_open + 1));
+		 conn->num_files_open));
 
 	errno = 0;
 	return NT_STATUS_OK;
@@ -890,7 +951,8 @@ static bool open_match_attributes(connection_struct *conn,
  Try and find a duplicated file handle.
 ****************************************************************************/
 
-static files_struct *fcb_or_dos_open(connection_struct *conn,
+static NTSTATUS fcb_or_dos_open(connection_struct *conn,
+				     files_struct *fsp_to_dup_into,
 				     const char *fname, 
 				     struct file_id id,
 				     uint16 file_pid,
@@ -900,7 +962,6 @@ static files_struct *fcb_or_dos_open(connection_struct *conn,
 				     uint32 create_options)
 {
 	files_struct *fsp;
-	files_struct *dup_fsp;
 
 	DEBUG(5,("fcb_or_dos_open: attempting old open semantics for "
 		 "file %s.\n", fname ));
@@ -929,23 +990,21 @@ static files_struct *fcb_or_dos_open(connection_struct *conn,
 	}
 
 	if (!fsp) {
-		return NULL;
+		return NT_STATUS_NOT_FOUND;
 	}
 
 	/* quite an insane set of semantics ... */
 	if (is_executable(fname) &&
 	    (fsp->fh->private_options & NTCREATEX_OPTIONS_PRIVATE_DENY_DOS)) {
 		DEBUG(10,("fcb_or_dos_open: file fail due to is_executable.\n"));
-		return NULL;
+		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	/* We need to duplicate this fsp. */
-	if (!NT_STATUS_IS_OK(dup_file_fsp(fsp, access_mask, share_access,
-					  create_options, &dup_fsp))) {
-		return NULL;
-	}
+	dup_file_fsp(fsp, access_mask, share_access,
+			  create_options, fsp_to_dup_into);
 
-	return dup_fsp;
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -1125,10 +1184,72 @@ static void schedule_defer_open(struct share_mode_lock *lck,
 }
 
 /****************************************************************************
- Open a file with a share mode.
+ Work out what access_mask to use from what the client sent us.
 ****************************************************************************/
 
-NTSTATUS open_file_ntcreate(connection_struct *conn,
+static NTSTATUS calculate_access_mask(connection_struct *conn,
+					const char *fname,
+					bool file_existed,
+					uint32_t access_mask,
+					uint32_t *access_mask_out)
+{
+	NTSTATUS status;
+
+	/*
+	 * Convert GENERIC bits to specific bits.
+	 */
+
+	se_map_generic(&access_mask, &file_generic_mapping);
+
+	/* Calculate MAXIMUM_ALLOWED_ACCESS if requested. */
+	if (access_mask & MAXIMUM_ALLOWED_ACCESS) {
+		if (file_existed) {
+
+			struct security_descriptor *sd;
+			uint32_t access_granted = 0;
+
+			status = SMB_VFS_GET_NT_ACL(conn, fname,
+					(OWNER_SECURITY_INFORMATION |
+					GROUP_SECURITY_INFORMATION |
+					DACL_SECURITY_INFORMATION),&sd);
+
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(10, ("calculate_access_mask: Could not get acl "
+					"on file %s: %s\n",
+					fname,
+					nt_errstr(status)));
+				return NT_STATUS_ACCESS_DENIED;
+			}
+
+			status = smb1_file_se_access_check(sd,
+					conn->server_info->ptok,
+					access_mask,
+					&access_granted);
+
+			TALLOC_FREE(sd);
+
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(10, ("calculate_access_mask: Access denied on "
+					"file %s: when calculating maximum access\n",
+					fname));
+				return NT_STATUS_ACCESS_DENIED;
+			}
+
+			access_mask = access_granted;
+		} else {
+			access_mask = FILE_GENERIC_ALL;
+		}
+	}
+
+	*access_mask_out = access_mask;
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ Open a file with a share mode. Passed in an already created files_struct *.
+****************************************************************************/
+
+static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 			    struct smb_request *req,
 			    const char *fname,
 			    SMB_STRUCT_STAT *psbuf,
@@ -1140,7 +1261,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			    int oplock_request, 	/* internal Samba oplock codes. */
 				 			/* Information (FILE_EXISTS etc.) */
 			    int *pinfo,
-			    files_struct **result)
+			    files_struct *fsp)
 {
 	int flags=0;
 	int flags2=0;
@@ -1150,7 +1271,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	bool new_file_created = False;
 	struct file_id id;
 	NTSTATUS fsp_open = NT_STATUS_ACCESS_DENIED;
-	files_struct *fsp = NULL;
 	mode_t new_unx_mode = (mode_t)0;
 	mode_t unx_mode = (mode_t)0;
 	int info;
@@ -1167,7 +1287,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	ZERO_STRUCT(id);
 
 	if (conn->printer) {
-		/* 
+		/*
 		 * Printers are handled completely differently.
 		 * Most of the passed parameters are ignored.
 		 */
@@ -1178,7 +1298,7 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 		DEBUG(10, ("open_file_ntcreate: printer open fname=%s\n", fname));
 
-		return print_fsp_open(conn, fname, req->vuid, result);
+		return print_fsp_open(conn, fname, req->vuid, fsp);
 	}
 
 	if (!parent_dirname_talloc(talloc_tos(), fname, &parent_dir,
@@ -1360,16 +1480,17 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 	}
 
-	/* This is a nasty hack - must fix... JRA. */
-	if (access_mask == MAXIMUM_ALLOWED_ACCESS) {
-		open_access_mask = access_mask = FILE_GENERIC_ALL;
+	status = calculate_access_mask(conn, fname, file_existed,
+					access_mask,
+					&access_mask); 
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("open_file_ntcreate: calculate_access_mask "
+			"on file %s returned %s\n",
+			fname,
+			nt_errstr(status)));
+		return status;
 	}
 
-	/*
-	 * Convert GENERIC bits to specific bits.
-	 */
-
-	se_map_generic(&access_mask, &file_generic_mapping);
 	open_access_mask = access_mask;
 
 	if ((flags2 & O_TRUNC) || (oplock_request & FORCE_OPLOCK_BREAK_TO_NONE)) {
@@ -1435,11 +1556,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	status = file_new(conn, &fsp);
-	if(!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
 	fsp->file_id = vfs_file_id_from_sbuf(conn, psbuf);
 	fsp->share_access = share_access;
 	fsp->fh->private_options = create_options;
@@ -1464,7 +1580,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 					  fname, &old_write_time);
 
 		if (lck == NULL) {
-			file_free(fsp);
 			DEBUG(0, ("Could not get share mode lock\n"));
 			return NT_STATUS_SHARING_VIOLATION;
 		}
@@ -1475,7 +1590,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 					 oplock_request)) {
 			schedule_defer_open(lck, request_time, req);
 			TALLOC_FREE(lck);
-			file_free(fsp);
 			return NT_STATUS_SHARING_VIOLATION;
 		}
 
@@ -1495,7 +1609,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 						  oplock_request)) {
 				schedule_defer_open(lck, request_time, req);
 				TALLOC_FREE(lck);
-				file_free(fsp);
 				return NT_STATUS_SHARING_VIOLATION;
 			}
 		}
@@ -1503,7 +1616,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		if (NT_STATUS_EQUAL(status, NT_STATUS_DELETE_PENDING)) {
 			/* DELETE_PENDING is not deferred for a second */
 			TALLOC_FREE(lck);
-			file_free(fsp);
 			return status;
 		}
 
@@ -1518,33 +1630,30 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			if (create_options &
 			    (NTCREATEX_OPTIONS_PRIVATE_DENY_DOS|
 			     NTCREATEX_OPTIONS_PRIVATE_DENY_FCB)) {
-				files_struct *fsp_dup;
-
 				if (req == NULL) {
 					DEBUG(0, ("DOS open without an SMB "
 						  "request!\n"));
 					TALLOC_FREE(lck);
-					file_free(fsp);
 					return NT_STATUS_INTERNAL_ERROR;
 				}
 
 				/* Use the client requested access mask here,
 				 * not the one we open with. */
-				fsp_dup = fcb_or_dos_open(conn, fname, id,
+				status = fcb_or_dos_open(conn,
+							  fsp,
+							  fname,
+							  id,
 							  req->smbpid,
 							  req->vuid,
 							  access_mask,
 							  share_access,
 							  create_options);
 
-				if (fsp_dup) {
+				if (NT_STATUS_IS_OK(status)) {
 					TALLOC_FREE(lck);
-					file_free(fsp);
 					if (pinfo) {
 						*pinfo = FILE_WAS_OPENED;
 					}
-					conn->num_files_open++;
-					*result = fsp_dup;
 					return NT_STATUS_OK;
 				}
 			}
@@ -1625,7 +1734,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			} else {
 				status = NT_STATUS_ACCESS_DENIED;
 			}
-			file_free(fsp);
 			return status;
 		}
 
@@ -1663,7 +1771,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 		if (lck != NULL) {
 			TALLOC_FREE(lck);
 		}
-		file_free(fsp);
 		return fsp_open;
 	}
 
@@ -1694,7 +1801,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			DEBUG(0, ("open_file_ntcreate: Could not get share "
 				  "mode lock for %s\n", fname));
 			fd_close(fsp);
-			file_free(fsp);
 			return NT_STATUS_SHARING_VIOLATION;
 		}
 
@@ -1705,7 +1811,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			schedule_defer_open(lck, request_time, req);
 			TALLOC_FREE(lck);
 			fd_close(fsp);
-			file_free(fsp);
 			return NT_STATUS_SHARING_VIOLATION;
 		}
 
@@ -1724,7 +1829,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 				schedule_defer_open(lck, request_time, req);
 				TALLOC_FREE(lck);
 				fd_close(fsp);
-				file_free(fsp);
 				return NT_STATUS_SHARING_VIOLATION;
 			}
 		}
@@ -1733,7 +1837,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			struct deferred_open_record state;
 
 			fd_close(fsp);
-			file_free(fsp);
 
 			state.delayed_for_oplocks = False;
 			state.id = id;
@@ -1775,7 +1878,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 			TALLOC_FREE(lck);
 			fd_close(fsp);
-			file_free(fsp);
 
 			return NT_STATUS_SHARING_VIOLATION;
 		}
@@ -1801,7 +1903,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			status = map_nt_error_from_unix(errno);
 			TALLOC_FREE(lck);
 			fd_close(fsp);
-			file_free(fsp);
 			return status;
 		}
 	}
@@ -1809,7 +1910,10 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	/* Record the options we were opened with. */
 	fsp->share_access = share_access;
 	fsp->fh->private_options = create_options;
-	fsp->access_mask = access_mask;
+	/*
+	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
+	 */
+	fsp->access_mask = access_mask | FILE_READ_ATTRIBUTES;
 
 	if (file_existed) {
 		/* stat opens on existing files don't get oplocks. */
@@ -1862,7 +1966,6 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 			del_share_mode(lck, fsp);
 			TALLOC_FREE(lck);
 			fd_close(fsp);
-			file_free(fsp);
 			return status;
 		}
 		/* Note that here we set the *inital* delete on close flag,
@@ -1938,10 +2041,57 @@ NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 	TALLOC_FREE(lck);
 
-	conn->num_files_open++;
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ Open a file with a share mode.
+****************************************************************************/
+
+NTSTATUS open_file_ntcreate(connection_struct *conn,
+			    struct smb_request *req,
+			    const char *fname,
+			    SMB_STRUCT_STAT *psbuf,
+			    uint32 access_mask,		/* access bits (FILE_READ_DATA etc.) */
+			    uint32 share_access,	/* share constants (FILE_SHARE_READ etc) */
+			    uint32 create_disposition,	/* FILE_OPEN_IF etc. */
+			    uint32 create_options,	/* options such as delete on close. */
+			    uint32 new_dos_attributes,	/* attributes used for new file. */
+			    int oplock_request, 	/* internal Samba oplock codes. */
+				 			/* Information (FILE_EXISTS etc.) */
+			    int *pinfo,
+			    files_struct **result)
+{
+	NTSTATUS status;
+	files_struct *fsp = NULL;
+
+	*result = NULL;
+
+	status = file_new(conn, &fsp);
+	if(!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = open_file_ntcreate_internal(conn,
+					req,
+					fname,
+					psbuf,
+					access_mask,
+					share_access,
+					create_disposition,
+					create_options,
+					new_dos_attributes,
+					oplock_request,
+					pinfo,
+					fsp);
+
+	if(!NT_STATUS_IS_OK(status)) {
+		file_free(fsp);
+		return status;
+	}
 
 	*result = fsp;
-	return NT_STATUS_OK;
+	return status;
 }
 
 /****************************************************************************
@@ -1968,10 +2118,9 @@ NTSTATUS open_file_fchmod(connection_struct *conn, const char *fname,
 	status = open_file(fsp, conn, NULL, NULL, NULL, fname, psbuf, O_WRONLY,
 			   0, FILE_WRITE_DATA, FILE_WRITE_DATA);
 
-	/* 
+	/*
 	 * This is not a user visible file open.
-	 * Don't set a share mode and don't increment
-	 * the conn->num_files_open.
+	 * Don't set a share mode.
 	 */
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2124,6 +2273,17 @@ NTSTATUS open_directory(connection_struct *conn,
 		return NT_STATUS_NOT_A_DIRECTORY;
 	}
 
+	status = calculate_access_mask(conn, fname, dir_existed,
+					access_mask,
+					&access_mask); 
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("open_directory: calculate_access_mask "
+			"on file %s returned %s\n",
+			fname,
+			nt_errstr(status)));
+		return status;
+	}
+
 	switch( create_disposition ) {
 		case FILE_OPEN:
 
@@ -2198,6 +2358,19 @@ NTSTATUS open_directory(connection_struct *conn,
 		return NT_STATUS_NOT_A_DIRECTORY;
 	}
 
+	if (info == FILE_WAS_OPENED) {
+		status = check_open_rights(conn,
+					fname,
+					access_mask);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("open_directory: check_open_rights on "
+				"file  %s failed with %s\n",
+				fname,
+				nt_errstr(status)));
+			return status;
+		}
+	}
+
 	status = file_new(conn, &fsp);
 	if(!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -2217,8 +2390,10 @@ NTSTATUS open_directory(connection_struct *conn,
 
 	fsp->share_access = share_access;
 	fsp->fh->private_options = create_options;
-	fsp->access_mask = access_mask;
-
+	/*
+	 * According to Samba4, SEC_FILE_READ_ATTRIBUTE is always granted,
+	 */
+	fsp->access_mask = access_mask | FILE_READ_ATTRIBUTES;
 	fsp->print_file = False;
 	fsp->modified = False;
 	fsp->oplock_type = NO_OPLOCK;
@@ -2275,8 +2450,6 @@ NTSTATUS open_directory(connection_struct *conn,
 	if (pinfo) {
 		*pinfo = info;
 	}
-
-	conn->num_files_open++;
 
 	*result = fsp;
 	return NT_STATUS_OK;
@@ -2702,10 +2875,42 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 		 * Ordinary file case.
 		 */
 
-		status = open_file_ntcreate(
-			conn, req, fname, &sbuf, access_mask, share_access,
-			create_disposition, create_options, file_attributes,
-			oplock_request, &info, &fsp);
+		if (base_fsp) {
+			/*
+			 * We're opening the stream element of a base_fsp
+			 * we already opened. We need to initialize
+			 * the fsp first, and set up the base_fsp pointer.
+			 */
+			status = file_new(conn, &fsp);
+			if(!NT_STATUS_IS_OK(status)) {
+				goto fail;
+			}
+
+			fsp->base_fsp = base_fsp;
+
+			status = open_file_ntcreate_internal(conn,
+						req,
+						fname,
+						&sbuf,
+						access_mask,
+						share_access,
+						create_disposition,
+						create_options,
+						file_attributes,
+						oplock_request,
+						&info,
+						fsp);
+
+			if(!NT_STATUS_IS_OK(status)) {
+				file_free(fsp);
+				fsp = NULL;
+			}
+		} else {
+			status = open_file_ntcreate(
+				conn, req, fname, &sbuf, access_mask, share_access,
+				create_disposition, create_options, file_attributes,
+				oplock_request, &info, &fsp);
+		}
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_FILE_IS_A_DIRECTORY)) {
 
@@ -2731,6 +2936,8 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
 	}
+
+	fsp->base_fsp = base_fsp;
 
 	/*
 	 * According to the MS documentation, the only time the security
@@ -2764,7 +2971,16 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 
 		fsp->access_mask = FILE_GENERIC_ALL;
 
-		status = SMB_VFS_FSET_NT_ACL(fsp, sec_info_sent, sd);
+		/* Convert all the generic bits. */
+		security_acl_map_generic(sd->dacl, &file_generic_mapping);
+		security_acl_map_generic(sd->sacl, &file_generic_mapping);
+
+		if (sec_info_sent & (OWNER_SECURITY_INFORMATION|
+					GROUP_SECURITY_INFORMATION|
+					DACL_SECURITY_INFORMATION|
+					SACL_SECURITY_INFORMATION)) {
+			status = SMB_VFS_FSET_NT_ACL(fsp, sec_info_sent, sd);
+		}
 
 		fsp->access_mask = saved_access_mask;
 
@@ -2809,16 +3025,6 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 
 	DEBUG(10, ("create_file_unixpath: info=%d\n", info));
 
-	/*
-	 * Set fsp->base_fsp late enough that we can't "goto fail" anymore. In
-	 * the fail: branch we call close_file(fsp, ERROR_CLOSE) which would
-	 * also close fsp->base_fsp which we have to also do explicitly in
-	 * this routine here, as not in all "goto fail:" we have the fsp set
-	 * up already to be initialized with the base_fsp.
-	 */
-
-	fsp->base_fsp = base_fsp;
-
 	*result = fsp;
 	if (pinfo != NULL) {
 		*pinfo = info;
@@ -2837,6 +3043,13 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 	DEBUG(10, ("create_file_unixpath: %s\n", nt_errstr(status)));
 
 	if (fsp != NULL) {
+		if (base_fsp && fsp->base_fsp == base_fsp) {
+			/*
+			 * The close_file below will close
+			 * fsp->base_fsp.
+			 */
+			base_fsp = NULL;
+		}
 		close_file(fsp, ERROR_CLOSE);
 		fsp = NULL;
 	}

@@ -1,1 +1,0 @@
-^\w{3} [ :[:digit:]]{11} [._[:alnum:]-]+ PAM_smbpass\[[[:digit:]]+\]: username \[[^]]+\] obtained$

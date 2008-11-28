@@ -1,0 +1,3 @@
+debian/wins2dns.awk
+source/smbadduser
+examples/*

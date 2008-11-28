@@ -1,0 +1,250 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-13 06:13+0800\n"
+"Last-Translator: eric pareja <xenos@upm.edu.ph>\n"
+"Language-Team: Tagalog <debian-tl@banwa.upm.edu.ph>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Baguhin ang smb.conf upang gumamit ng WINS setting mula sa DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Kung ang computer ninyo ay kumukuha ng IP address mula sa DHCP server sa "
+"network, ang DHCP server ay maaaring magbigay ng impormasyon tungkol sa mga "
+"WINS server (\"NetBIOS name server\") na nasa network. Kinakailangan nito ng "
+"pagbabago sa inyong talaksang smb.conf upang ang bigay-ng-DHCP na WINS "
+"setting ay awtomatikong babasahin mula sa /etc/samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Ang paketeng dhcp3-client ay dapat nakaluklok upang mapakinabangan ang "
+"feature na ito."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Awtomatikong isaayos ang smb.conf?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Ang natitirang pagsasaayos ng Samba ay may mga katanungan tungkol sa mga "
+"parameter sa /etc/samba/smb.conf, na siyang talaksan na ginagamit sa "
+"pagsaayos ng mga programang Samba (nmbd at smbd). Ang kasalukuyang smb.conf "
+"ninyo ay naglalaman ng 'include' na linya o opsiyon na labis sa isang linya, "
+"na maaaring makalito  sa prosesong pagsaayos na awtomatiko at kakailanganin "
+"ninyong i-edit ang inyong smb.conf ng de kamay upang ito'y umandar muli. "
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Kung hindi ninyo pinili ang opsiyon na ito, kakailanganin ninyong ayusin ang "
+"anumang pagbabagong pagsasaayos, at hindi ninyo mapapakinabangan ang mga "
+"paminsanang pagpapahusay ng pagsasaayos."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Pangalan ng Workgroup/Domain:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Pakibigay ang workgroup ng server na ito kapag ito ay tinanong ng mga "
+"client. Ang parameter na ito ang siyang nag-co-control ng Domain name na "
+"ginagamit sa security=domain na setting."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Gumamit ng encryption sa kontrasenyas?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Lahat ng mga bagong mga Windows client ay nakikipag-usap sa mga SMB server "
+"na naka-encrypt ang mga kontrasenyas. Kung nais niyong gumamit ng \"clear "
+"text\" na kontrasenyas, kailangan ninyong baguhin ang isang parameter sa "
+"inyong Windows registry."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Ang pag-enable ng opsiyon na ito ay rekomendado. Kung gawin niyo ito, "
+"tiyakin na ang inyong talaksang /etc/samba/smbpasswd ay valid at may "
+"nakatakda kayong kontrasenyas para sa bawat gumagamit na ginamitan ng "
+"smbpasswd na utos."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr ""
+"Likhain ang talaan ng kontrasenyas ng samba, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Upang makibagay sa mga default ng karamihan ng bersiyon ng Windows, "
+"kailangan na nakasaayos ang Samba na gumamit ng encrypted na kontrasenyas. "
+"Kinakailangan na ang mga kontrasenyas ng mga gumagamit ay nakatago sa "
+"talaksang hiwalay sa /etc/passwd. Maaaring likhain ang talaksang ito na "
+"awtomatiko, ngunit ang mga kontrasenyas dito ay kinakailangang idagdag ng "
+"mano-mano sa pagpapatakbo ng smbpasswd at kailangan na sariwain ito sa "
+"hinaharap."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Kung hindi ito likhain, kailangan ninyong isaayos muli ang Samba (at "
+"malamang ang inyong mga makinang client) na gumamit ng plaintext na "
+"kontrasenyas."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Basahin ang /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html mula sa "
+"paketeng samba-doc para sa karagdagang detalye."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "mga daemon"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Paano ninyo gustong patakbuhin ang Samba?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Ang daemon na smbd ng Samba ay maaaring patakbuhin bilang normal na daemon o "
+"mula sa inetd. Pagpapatakbo nito bilang daemon ang rekomendado."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Ang pagdudugtong ng mga backend ng passdb ay hindi suportado"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Simula sa bersiyon 3.0.23, hindi na suportado ng samba ang pagdudugtong "
+#~ "ng multiple backend sa parameter na \"passdb backend\".  Mukhang ang "
+#~ "talaksang smb.conf ay naglalaman ng passdb backend parameter na "
+#~ "naglilista ng mga backend. Ang bagong bersiyon ng samba ay hindi aandar "
+#~ "ng wasto hanggang ito ay ayusin."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ilipat ang /etc/samba/smbpasswd sa /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Ipinakilala ng Samba 3.0 ang mas-kumpletong SAM database interface na "
+#~ "siyang pumalit sa talaksang /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Pakitiyak kung inyong nais na mailipat ng awtomatiko ang kasalukuyang "
+#~ "talaksang smbpasswd patungong /var/lib/samba/passdb.tdb. Huwag piliin ang "
+#~ "opsiyon na ito kung balak ninyong gumamit ng ibang pdb backend (hal., "
+#~ "LDAP)."

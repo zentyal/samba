@@ -1,0 +1,259 @@
+# translation of samba_el.po to
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
+#    Developers do not need to manually edit POT or PO files.
+#
+# QUAD-nrg.net <yodesy@quad-nrg.net>, 2006.
+msgid ""
+msgstr ""
+"Project-Id-Version: samba_el\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-16 11:29+0200\n"
+"Last-Translator: galaxico\n"
+"Language-Team:  <en@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr ""
+"Τροποποίηση του smb.conf ώστε να χρησιμοποιεί τις ρυθμίσεις WINS από τον "
+"server DHCP;"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Αν ο υπολογιστής σας παίρνει πληροφορίες για την διεύθυνση IP από έναν "
+"server DHCP στο δίκτυο, ο server DHCP μπορεί επίσης να δώσει πληροφορίες "
+"σχετικά με server WINS (\"NetBIOS name servers\") που υπάρχουν στο δίκτυο. "
+"Αυτό απαιτεί μια αλλαγή στο αρχείο σας smb.conf ώστε ρυθμίσεις για τον "
+"server WINS που παρέχονται από τον εξυπηρετητή DHCP να διαβάζονται αυτόματα "
+"από από το αρχείο /etc/samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Για να εκμεταλλευτείτε αυτό το γνώρισμα θα πρέπει να εγκαταστήσετε το πακέτο "
+"dhcp3-client."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Αυτόματη ρύθμιση του αρχείου smb.conf;"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Το υπόλοιπο της ρύθμισης της υπηρεσίας Samba έχει να κάνει με ερωτήσεις που "
+"επηρεάζουν παραμέτρους στο αρχείο etc/samba/smb.conf, που είναι το αρχείο "
+"που χρησιμοποιείται για την ρύθμιση των προγραμμάτων της Samba (nmbd και "
+"smbd). To παρόν αρχείο σας smb.conf περιέχει μια γραμμή 'include' ή μια "
+"επιλογή που εκτείνεται σε πολλαπλές γραμμές, που θα μπορούσαν να μπερδέψουν "
+"την διαδικασία της αυτόματης ρύθμισης και απαιτούν την διόρθωση του αρχείου "
+"smb.conf από σας με το χέρι ώστε να ξαναγίνει λειτουργικό."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Αν δεν διαλέξετε αυτή την επιλογή , θα πρέπει να χειριστείτε τις όποιες "
+"αλλαγές στις ρυθμίσεις μόνοι σας και δεν θα είστε σε θέση να εκμεταλλευτείτε "
+"τις βελτιώσεις που κατά καιρούς γίνονται σε αυτές."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Όνομα Ομάδας Εργασίας/Τομέα:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) στην οποία "
+"θέλετε να εμφανίζει αυτός ο εξυπηρετητής ότι ανήκει όταν ερωτάται από τους "
+"πελάτες. Σημειώστε ότι αυτή η παράμετρος ελέγχει επίσης το όνομα του τομέα "
+"που χρησιμοποιείται στην ρύθμιση security=domain."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Να χρησιμοποιηθεί κρυπτογράφηση των κωδικών πρόσβασης;"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Όλες οι πρόσφατες εκδόσεις των πελατών Windows επικοινωνούν με τους "
+"εξυπηρετητές SMB χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. Αν "
+"θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
+"αλλάξετε μια παράμετρο στο registry των Windows."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα. Αν την κάνετε, "
+"βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/smbpasswd και ότι ορίζετε "
+"κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη που χρησιμοποιεί την εντολή "
+"smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr ""
+"Να δημιουργηθεί η βάση δεδομένων των κωδικών πρόσβασης samba, /var/lib/samba/"
+"passdb.tdb;"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Για να είναι συμβατή με τις προεπιλογές στις περισσότερες εκδόσεις των "
+"Windows, η υπηρεσία Samba θα πρέπει να ρυθμιστεί ώστε να χρησιμοποιεί "
+"κρυπτογραφημένους κωδικούς πρόσβασης. Αυτό απαιτεί την φύλαξη των κωδικών "
+"πρόσβασης σε ένα αρχείο ξεχωριστά από το /etc/passwd. Αυτό το αρχείο μπορεί "
+"να δημιουργηθεί αυτόματα, αλλά οι κωδικοί πρόσβασης θα πρέπει να προστεθούν "
+"με το χέρι εκτελώντας την εντολή smbpasswd και να διατηρούνται πάντα "
+"ενημερωμένα στο μέλλον."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Αν δεν δημιουργήσετε το αρχείο, θα πρέπει να ξαναρυθμίσετε την υπηρεσία "
+"Samba (και πιθανόν τα μηχανήματα πελάτης της υπηρεσίας) ώστε βα "
+"χρησιμοποιούν μη κρυπτογραφημένους κωδικούς πρόσβασης."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Δείτε το αρχείο usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html από το "
+"πακέτο samba-doc για περισσότερες λεπτομέρειες."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "δαίμονες"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Πώς θέλετε να εκτελείται η υπηρεσία Samba;"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Ο δαίμονας της υπηρεσίας Samba μπορεί να τρέχει σαν ένας συνηθισμένος "
+"δαίμονας ή από τον inetd. Η εκτέλεσή του σαν συνηθισμένου δαίμονα είναι η "
+"συνιστώμενη προσέγγιση."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Η αλύσωση των backend των passdb δεν υποστηρίζεται"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Αρχίζοντας με την έκδοση 3.0.23, η samba δεν υποστηρίζει πλέον την "
+#~ "αλύσωση πολλαπλών backend για την παράμετρο \"passdb backend\". Φαίνεται "
+#~ "ότι το αρχείο σας smb.conf περιέχει μια παράμετρο backend passdb "
+#~ "αποτελούμενη από μια λίστα τέτοιων backend. Η καινούρια έκδοση της samba "
+#~ "δεν θα δουλέψει μέχρι να διορθώσετε αυτή τη ρύθμιση."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Μετακίνηση του αρχείου /etc/samba/smbpasswd στο /var/lib/samba/passdb.tdb;"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Η έκδοση 3.0 της Samba εισήγαγε μια πιο ολοκληρωμένη διεπαφή για την βάση "
+#~ "δεδομένων SAM που αντικαθιστά το αρχείο /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Παρακαλώ επιβεβαιώστε αν θέλετε το υπάρχον αρχείο smbpasswd να μεταβεί "
+#~ "αυτόματα στο /var/lib/samba/passdb.tdb. Μην κάνετε αυτή την επιλογή αν "
+#~ "σκοπεύετε αντί γι αυτό να χρησιμοποιήσετε ένα άλλο pdb backend (πχ. LDAP)."

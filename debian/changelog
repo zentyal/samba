@@ -1,3 +1,10 @@
+samba (2:3.2.5-2) UNRELEASED; urgency=low
+
+  * Fix typo in bug number in a comment for the default smb.conf file
+    Closes: #507620
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 03 Dec 2008 07:31:56 +0100
+
 samba (2:3.2.5-1) unstable; urgency=high
 
   * New upstream version. Security-only release.

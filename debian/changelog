@@ -1,3 +1,10 @@
+samba (2:3.3.0~rc1-2) experimental; urgency=low
+
+  * Provide idmap_adex and idmap_hash in winbind.
+    Thanks to Jelmer Jaarsma for reporting and providing a patch
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
+
 samba (2:3.3.0~rc1-1) experimental; urgency=low
 
   * New upstream release

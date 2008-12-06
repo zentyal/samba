@@ -3,6 +3,8 @@ usr/bin/wbinfo
 usr/bin/ntlm_auth
 usr/lib/samba/idmap/rid.so
 usr/lib/samba/idmap/ad.so
+usr/lib/samba/idmap/adex.so
+usr/lib/samba/idmap/hash.so
 usr/share/man/man1/wbinfo.1
 usr/share/man/man1/ntlm_auth.1
 usr/share/man/man7/pam_winbind.7
@@ -12,6 +14,8 @@ usr/share/man/man8/idmap_ldap.8
 usr/share/man/man8/idmap_nss.8
 usr/share/man/man8/idmap_rid.8
 usr/share/man/man8/idmap_tdb.8
+usr/share/man/man8/idmap_adex.8
+usr/share/man/man8/idmap_hash.8
 lib/security/pam_winbind.so
 lib/libnss_winbind.so.2
 lib/libnss_wins.so.2

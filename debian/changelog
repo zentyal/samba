@@ -2,6 +2,10 @@ samba (2:3.2.5-2) UNRELEASED; urgency=low
 
   * Fix typo in bug number in a comment for the default smb.conf file
     Closes: #507620
+  * Add missing rfc2307.so and sfu*.so links that prevent using the
+    'winbind nss info' feature properly
+    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
+    the patch. Closes: #506109
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 03 Dec 2008 07:31:56 +0100
 

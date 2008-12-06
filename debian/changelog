@@ -2,6 +2,11 @@ samba (2:3.3.0~rc1-2) experimental; urgency=low
 
   * Provide idmap_adex and idmap_hash in winbind.
     Thanks to Jelmer Jaarsma for reporting and providing a patch
+  * Merged from unstable (needed for the above to work):
+    Add missing rfc2307.so and sfu*.so links that prevent using the
+    'winbind nss info' feature properly
+    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
+    the patch. Closes: #506109
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
 

@@ -2,6 +2,10 @@ samba (2:3.2.5-2) UNRELEASED; urgency=low
 
   * Fix typo in bug number in a comment for the default smb.conf file
     Closes: #507620
+  * Document the need to set appropriate permissions on the printer
+    drivers directory, in the default smb.conf file. Also change
+    the example group from ntadmin to lpadmin
+    Closes: #459243
   * Add missing rfc2307.so and sfu*.so links that prevent using the
     'winbind nss info' feature properly
     Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for

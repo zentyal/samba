@@ -1,0 +1,205 @@
+.\"     Title: smb_traffic_analyzer
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
+.\"      Date: 12/10/2008
+.\"    Manual: System Administration tools
+.\"    Source: Samba 3.2
+.\"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "12/10/2008" "Samba 3\.2" "System Administration tools"
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+vfs_smb_traffic_analyzer - log Samba VFS read and write operations through a socket to a helper application
+.SH "SYNOPSIS"
+.HP 1
+vfs objects = smb_traffic_analyzer
+.SH "DESCRIPTION"
+.PP
+This VFS module is part of the
+\fBsamba\fR(7)
+suite\.
+.PP
+The
+vfs_smb_traffic_analyzer
+VFS module logs client write and read operations on a Samba server and sends this data over a socket to a helper program, which feeds a SQL database\. More information on the helper programs can be obtained from the homepage of the project at: http://holger123\.wordpress\.com/smb\-traffic\-analyzer/
+.PP
+vfs_smb_traffic_analyzer
+currently is aware of the following VFS operations:
+.IP "" 4
+write
+.IP "" 4
+pwrite
+.IP "" 4
+read
+.IP "" 4
+pread
+.PP
+vfs_smb_traffic_analyzer
+sends the following data in a fixed format seperated by a comma through either an internet or a unix domain socket:
+.sp
+.RS 4
+.nf
+	BYTES|USER|DOMAIN|READ/WRITE|SHARE|FILENAME|TIMESTAMP
+	
+.fi
+.RE
+.PP
+Description of the records:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+BYTES
+\- the length in bytes of the VFS operation
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+USER
+\- the user who initiated the operation
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+DOMAIN
+\- the domain of the user
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+READ/WRITE
+\- either "W" for a write operation or "R" for read
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+SHARE
+\- the name of the share on which the VFS operation occured
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+FILENAME
+\- the name of the file that was used by the VFS operation
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TIMESTAMP
+\- a timestamp, formatted as "yyyy\-mm\-dd hh\-mm\-ss\.ms" indicating when the VFS operation occured
+.sp
+.RE
+.PP
+This module is stackable\.
+.SH "OPTIONS"
+.PP
+smb_traffic_analyzer:mode = STRING
+.RS 4
+If STRING matches to "unix_domain_socket", the module will use a unix domain socket located at /var/tmp/stadsocket, if STRING contains an different string or is not defined, the module will use an internet domain socket for data transfer\.
+.RE
+.PP
+smb_traffic_analyzer:host = STRING
+.RS 4
+The module will send the data to the system named with the hostname STRING\.
+.RE
+.PP
+smb_traffic_analyzer:port = STRING
+.RS 4
+The module will send the data using the TCP port given in STRING\.
+.RE
+.PP
+smb_traffic_analyzer:anonymize_prefix = STRING
+.RS 4
+The module will replace the user names with a prefix given by STRING and a simple hash number\.
+.RE
+.SH "EXAMPLES"
+.PP
+The module running on share "example_share", using a unix domain socket
+.sp
+.RS 4
+.nf
+	\fI[example_share]\fR
+	\fIpath = /data/example\fR
+	\fIvfs objects = smb_traffic_analyzer\fR
+	\fIsmb_traffic_analyzer:mode = unix_domain_socket\fR
+	
+.fi
+.RE
+.PP
+The module running on share "example_share", using an internet socket, connecting to host "examplehost" on port 3491\.
+.sp
+.RS 4
+.nf
+	\fI[example_share]\fR
+	\fIpath = /data/example\fR
+	\fIvfs objects = smb_traffic_analyzer\fR
+	\fIsmb_traffic_analyzer:host = examplehost\fR
+	\fIsmb_traffic_analyzer:port = 3491\fR
+	
+.fi
+.RE
+.PP
+The module running on share "example_share", using an internet socket, connecting to host "examplehost" on port 3491, anonymizing user names with the prefix "User"\.
+.sp
+.RS 4
+.nf
+	\fI[example_share]\fR
+	\fIpath = /data/example\fR
+	\fIvfs objects = smb_traffic_analyzer\fR
+	\fIsmb_traffic_analyzer:host = examplehost\fR
+	\fIsmb_traffic_analyzer:port = 3491\fR
+	\fIsmb_traffic_analyzer:anonymize_prefix = User\fR
+	
+.fi
+.RE
+.SH "VERSION"
+.PP
+This man page is correct for version 3\.2\.0 of the Samba suite\.
+.SH "AUTHOR"
+.PP
+The original Samba software and related utilities were created by Andrew Tridgell\. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\.
+.PP
+The original version of the VFS module and the helper tools were created by Holger Hetterich\.

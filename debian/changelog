@@ -1,3 +1,10 @@
+samba (2:3.2.5-3) UNRELEASED; urgency=low
+
+  * Fix links in HTML documentation index file.
+    Closes: #508388
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 14 Dec 2008 08:49:10 +0100
+
 samba (2:3.2.5-2) unstable; urgency=low
 
   * Fix typo in bug number in a comment for the default smb.conf file

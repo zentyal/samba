@@ -332,6 +332,7 @@ static NTSTATUS open_file(files_struct *fsp,
 	if ((open_access_mask & (FILE_READ_DATA|FILE_WRITE_DATA|FILE_APPEND_DATA|FILE_EXECUTE)) ||
 	    (!file_existed && (local_flags & O_CREAT)) ||
 	    ((local_flags & O_TRUNC) == O_TRUNC) ) {
+		const char *wild;
 
 		/*
 		 * We can't actually truncate here as the file may be locked.
@@ -353,8 +354,17 @@ static NTSTATUS open_file(files_struct *fsp,
 #endif
 
 		/* Don't create files with Microsoft wildcard characters. */
+		if (fsp->base_fsp) {
+			/*
+			 * wildcard characters are allowed in stream names
+			 * only test the basefilename
+			 */
+			wild = fsp->base_fsp->fsp_name;
+		} else {
+			wild = path;
+		}
 		if ((local_flags & O_CREAT) && !file_existed &&
-		    ms_has_wild(path))  {
+		    ms_has_wild(wild))  {
 			return NT_STATUS_OBJECT_NAME_INVALID;
 		}
 
@@ -1020,7 +1030,7 @@ bool map_open_params_to_ntcreate(const char *fname, int deny_mode, int open_func
 	uint32 access_mask;
 	uint32 share_mode;
 	uint32 create_disposition;
-	uint32 create_options = 0;
+	uint32 create_options = FILE_NON_DIRECTORY_FILE;
 
 	DEBUG(10,("map_open_params_to_ntcreate: fname = %s, deny_mode = 0x%x, "
 		  "open_func = 0x%x\n",
@@ -1952,13 +1962,11 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 	}
 
 	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0,
-		       fsp->oplock_type, new_file_created);
+		       fsp->oplock_type);
 
 	/* Handle strange delete on close create semantics. */
-	if ((create_options & FILE_DELETE_ON_CLOSE)
-	    && (((conn->fs_capabilities & FILE_NAMED_STREAMS)
-			&& is_ntfs_stream_name(fname))
-		|| can_set_initial_delete_on_close(lck))) {
+	if (create_options & FILE_DELETE_ON_CLOSE) {
+
 		status = can_set_delete_on_close(fsp, True, new_dos_attributes);
 
 		if (!NT_STATUS_IS_OK(status)) {
@@ -2425,8 +2433,7 @@ NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
-	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0, NO_OPLOCK,
-		       True);
+	set_share_mode(lck, fsp, conn->server_info->utok.uid, 0, NO_OPLOCK);
 
 	/* For directories the delete on close bit at open time seems
 	   always to be honored on close... See test 19 in Samba4 BASE-DELETE. */
@@ -2839,6 +2846,8 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 				   "%s\n", base, nt_errstr(status)));
 			goto fail;
 		}
+		/* we don't need to low level fd */
+		fd_close(base_fsp);
 	}
 
 	/*
@@ -2913,6 +2922,13 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 		}
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_FILE_IS_A_DIRECTORY)) {
+
+			/* A stream open never opens a directory */
+
+			if (base_fsp) {
+				status = NT_STATUS_FILE_IS_A_DIRECTORY;
+				goto fail;
+			}
 
 			/*
 			 * Fail the open if it was explicitly a non-directory

@@ -52,11 +52,45 @@ static NTSTATUS check_path_syntax_internal(char *path,
 	const char *s = path;
 	NTSTATUS ret = NT_STATUS_OK;
 	bool start_of_name_component = True;
+	bool stream_started = false;
 
 	*p_last_component_contains_wcard = False;
 
 	while (*s) {
-		if (IS_PATH_SEP(*s,posix_path)) {
+		if (stream_started) {
+			switch (*s) {
+			case '/':
+			case '\\':
+				return NT_STATUS_OBJECT_NAME_INVALID;
+			case ':':
+				if (s[1] == '\0') {
+					return NT_STATUS_OBJECT_NAME_INVALID;
+				}
+				if (strchr_m(&s[1], ':')) {
+					return NT_STATUS_OBJECT_NAME_INVALID;
+				}
+				if (StrCaseCmp(s, ":$DATA") != 0) {
+					return NT_STATUS_INVALID_PARAMETER;
+				}
+				break;
+			}
+		}
+
+		if (!stream_started && *s == ':') {
+			if (*p_last_component_contains_wcard) {
+				return NT_STATUS_OBJECT_NAME_INVALID;
+			}
+			/* stream names allow more characters than file names */
+			stream_started = true;
+			start_of_name_component = false;
+			posix_path = true;
+
+			if (s[1] == '\0') {
+				return NT_STATUS_OBJECT_NAME_INVALID;
+			}
+		}
+
+		if (!stream_started && IS_PATH_SEP(*s,posix_path)) {
 			/*
 			 * Safe to assume is not the second part of a mb char
 			 * as this is handled below.
@@ -119,7 +153,7 @@ static NTSTATUS check_path_syntax_internal(char *path,
 
 		if (!(*s & 0x80)) {
 			if (!posix_path) {
-				if (*s <= 0x1f) {
+				if (*s <= 0x1f || *s == '|') {
 					return NT_STATUS_OBJECT_NAME_INVALID;
 				}
 				switch (*s) {
@@ -5547,6 +5581,12 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		return NT_STATUS_OBJECT_NAME_COLLISION;
 	}
 
+	if(replace_if_exists && dst_exists) {
+		if (is_ntfs_stream_name(newname)) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+	}
+
 	if (dst_exists) {
 		struct file_id fileid = vfs_file_id_from_sbuf(conn, &sbuf1);
 		files_struct *dst_fsp = file_find_di_first(fileid);
@@ -5609,8 +5649,6 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		 * but will work for the CIFSFS client which in non-posix mode
 		 * depends on these semantics. JRA.
 		 */
-
-		set_allow_initial_delete_on_close(lck, fsp, True);
 
 		if (create_options & FILE_DELETE_ON_CLOSE) {
 			status = can_set_delete_on_close(fsp, True, 0);

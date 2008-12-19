@@ -5254,10 +5254,11 @@ static NTSTATUS rpc_trustdom_add_internals(struct net_context *c,
 				      notime, notime, notime,
 				      NULL, NULL, NULL, NULL, NULL,
 				      NULL, NULL, NULL, NULL, &parameters,
-				      0, 0, ACB_DOMTRUST, SAMR_FIELD_ACCT_FLAGS,
+				      0, 0, ACB_DOMTRUST,
+				      SAMR_FIELD_ACCT_FLAGS | SAMR_FIELD_NT_PASSWORD_PRESENT,
 				      hours,
 				      0, 0, 0, 0, 0, 0, 0,
-				      crypt_pwd.data, 24);
+				      &crypt_pwd);
 
 		result = rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
 						  &user_pol,

@@ -1087,15 +1087,13 @@ static bool exact_match(connection_struct *conn,
 {
 	if (mask[0] == '.' && mask[1] == 0)
 		return False;
-	if (conn->case_sensitive)
-		return strcmp(str,mask)==0;
-	if (StrCaseCmp(str,mask) != 0) {
-		return False;
-	}
 	if (dptr_has_wild(conn->dirptr)) {
 		return False;
 	}
-	return True;
+	if (conn->case_sensitive)
+		return strcmp(str,mask)==0;
+	else
+		return StrCaseCmp(str,mask) == 0;
 }
 
 /****************************************************************************
@@ -1129,7 +1127,7 @@ static uint32 unix_filetype(mode_t mode)
 		return UNIX_TYPE_SOCKET;
 #endif
 
-	DEBUG(0,("unix_filetype: unknown filetype %u", (unsigned)mode));
+	DEBUG(0,("unix_filetype: unknown filetype %u\n", (unsigned)mode));
 	return UNIX_TYPE_UNKNOWN;
 }
 
@@ -3993,6 +3991,46 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			return;
 		}
 
+		if ((conn->fs_capabilities & FILE_NAMED_STREAMS)
+		    && is_ntfs_stream_name(fname)) {
+			char *base;
+			SMB_STRUCT_STAT bsbuf;
+
+			status = split_ntfs_stream_name(talloc_tos(), fname,
+							&base, NULL);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(10, ("create_file_unixpath: "
+					"split_ntfs_stream_name failed: %s\n",
+					nt_errstr(status)));
+				reply_nterror(req, status);
+				return;
+			}
+
+			SMB_ASSERT(!is_ntfs_stream_name(base));	/* paranoia.. */
+
+			if (INFO_LEVEL_IS_UNIX(info_level)) {
+				/* Always do lstat for UNIX calls. */
+				if (SMB_VFS_LSTAT(conn,base,&bsbuf)) {
+					DEBUG(3,("call_trans2qfilepathinfo: SMB_VFS_LSTAT of %s failed (%s)\n",base,strerror(errno)));
+					reply_unixerror(req,ERRDOS,ERRbadpath);
+					return;
+				}
+			} else {
+				if (SMB_VFS_STAT(conn,base,&bsbuf) != 0) {
+					DEBUG(3,("call_trans2qfilepathinfo: fileinfo of %s failed (%s)\n",base,strerror(errno)));
+					reply_unixerror(req,ERRDOS,ERRbadpath);
+					return;
+				}
+			}
+
+			fileid = vfs_file_id_from_sbuf(conn, &bsbuf);
+			get_file_infos(fileid, &delete_pending, NULL);
+			if (delete_pending) {
+				reply_nterror(req, NT_STATUS_DELETE_PENDING);
+				return;
+			}
+		}
+
 		if (INFO_LEVEL_IS_UNIX(info_level)) {
 			/* Always do lstat for UNIX calls. */
 			if (SMB_VFS_LSTAT(conn,fname,&sbuf)) {
@@ -4911,7 +4949,11 @@ NTSTATUS smb_set_file_time(connection_struct *conn,
 			  time_to_asc(convert_timespec_to_time_t(ts[1])) ));
 
 		if (fsp != NULL) {
-			set_sticky_write_time_fsp(fsp, ts[1]);
+			if (fsp->base_fsp) {
+				set_sticky_write_time_fsp(fsp->base_fsp, ts[1]);
+			} else {
+				set_sticky_write_time_fsp(fsp, ts[1]);
+			}
 		} else {
 			set_sticky_write_time_path(conn, fname,
 					    vfs_file_id_from_sbuf(conn, psbuf),
@@ -4920,6 +4962,10 @@ NTSTATUS smb_set_file_time(connection_struct *conn,
 	}
 
 	DEBUG(10,("smb_set_file_time: setting utimes to modified values.\n"));
+
+	if (fsp && fsp->base_fsp) {
+		fname = fsp->base_fsp->fsp_name;
+	}
 
 	if(file_ntimes(conn, fname, ts)!=0) {
 		return map_nt_error_from_unix(errno);
@@ -5347,26 +5393,42 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	/* Create the base directory. */
-	base_name = talloc_strdup(ctx, fname);
-	if (!base_name) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	p = strrchr_m(base_name, '/');
-	if (p) {
-		p[1] = '\0';
-	} else {
-		base_name = talloc_strdup(ctx, "./");
+	if (fsp && fsp->base_fsp) {
+		if (newname[0] != ':') {
+			return NT_STATUS_NOT_SUPPORTED;
+		}
+		base_name = talloc_asprintf(ctx, "%s%s",
+					   fsp->base_fsp->fsp_name,
+					   newname);
 		if (!base_name) {
 			return NT_STATUS_NO_MEMORY;
 		}
-	}
-	/* Append the new name. */
-	base_name = talloc_asprintf_append(base_name,
-			"%s",
-			newname);
-	if (!base_name) {
-		return NT_STATUS_NO_MEMORY;
+	} else {
+		if (is_ntfs_stream_name(newname)) {
+			return NT_STATUS_NOT_SUPPORTED;
+		}
+
+		/* Create the base directory. */
+		base_name = talloc_strdup(ctx, fname);
+		if (!base_name) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		p = strrchr_m(base_name, '/');
+		if (p) {
+			p[1] = '\0';
+		} else {
+			base_name = talloc_strdup(ctx, "./");
+			if (!base_name) {
+				return NT_STATUS_NO_MEMORY;
+			}
+		}
+		/* Append the new name. */
+		base_name = talloc_asprintf_append(base_name,
+				"%s",
+				newname);
+		if (!base_name) {
+			return NT_STATUS_NO_MEMORY;
+		}
 	}
 
 	if (fsp) {

@@ -121,7 +121,7 @@ NTSTATUS make_serverinfo_from_username(TALLOC_CTX *mem_ctx,
 				       bool is_guest,
 				       struct auth_serversupplied_info **presult);
 struct auth_serversupplied_info *copy_serverinfo(TALLOC_CTX *mem_ctx,
-						 auth_serversupplied_info *src);
+						 const auth_serversupplied_info *src);
 bool init_guest_info(void);
 bool server_info_set_session_key(struct auth_serversupplied_info *info,
 				 DATA_BLOB session_key);
@@ -1538,14 +1538,14 @@ bool is_loopback_addr(const struct sockaddr_storage *pss);
 bool is_zero_ip_v4(struct in_addr ip);
 bool is_zero_addr(const struct sockaddr_storage *pss);
 void zero_ip_v4(struct in_addr *ip);
-void zero_addr(struct sockaddr_storage *pss);
+void zero_sockaddr(struct sockaddr_storage *pss);
 bool same_net_v4(struct in_addr ip1,struct in_addr ip2,struct in_addr mask);
 void in_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 		struct in_addr ip);
 bool same_net(const struct sockaddr_storage *ip1,
 		const struct sockaddr_storage *ip2,
 		const struct sockaddr_storage *mask);
-bool addr_equal(const struct sockaddr_storage *ip1,
+bool sockaddr_equal(const struct sockaddr_storage *ip1,
 		const struct sockaddr_storage *ip2);
 bool is_address_any(const struct sockaddr_storage *psa);
 uint16_t get_sockaddr_port(const struct sockaddr_storage *pss);
@@ -4742,6 +4742,7 @@ bool namecache_status_fetch(const char *keyname,
 /* The following definitions come from libsmb/namequery.c  */
 
 bool saf_store( const char *domain, const char *servername );
+bool saf_join_store( const char *domain, const char *servername );
 bool saf_delete( const char *domain );
 char *saf_fetch( const char *domain );
 NODE_STATUS_STRUCT *node_status_query(int fd,
@@ -5213,7 +5214,7 @@ bool is_valid_share_mode_entry(const struct share_mode_entry *e);
 bool is_deferred_open_entry(const struct share_mode_entry *e);
 bool is_unused_share_mode_entry(const struct share_mode_entry *e);
 void set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
-			uid_t uid, uint16 mid, uint16 op_type, bool initial_delete_on_close_allowed);
+		    uid_t uid, uint16 mid, uint16 op_type);
 void add_deferred_open(struct share_mode_lock *lck, uint16 mid,
 		       struct timeval request_time,
 		       struct file_id id);
@@ -5223,11 +5224,9 @@ bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
 bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
 NTSTATUS can_set_delete_on_close(files_struct *fsp, bool delete_on_close,
 				 uint32 dosmode);
-bool can_set_initial_delete_on_close(const struct share_mode_lock *lck);
 void set_delete_on_close_token(struct share_mode_lock *lck, UNIX_USER_TOKEN *tok);
 void set_delete_on_close_lck(struct share_mode_lock *lck, bool delete_on_close, UNIX_USER_TOKEN *tok);
 bool set_delete_on_close(files_struct *fsp, bool delete_on_close, UNIX_USER_TOKEN *tok);
-bool set_allow_initial_delete_on_close(struct share_mode_lock *lck, files_struct *fsp, bool delete_on_close);
 bool set_sticky_write_time(struct file_id fileid, struct timespec write_time);
 bool set_write_time(struct file_id fileid, struct timespec write_time);
 int share_mode_forall(void (*fn)(const struct share_mode_entry *, const char *,
@@ -5681,7 +5680,7 @@ char *lp_remote_announce(void);
 char *lp_remote_browse_sync(void);
 const char **lp_wins_server_list(void);
 const char **lp_interfaces(void);
-char *lp_socket_address(void);
+const char *lp_socket_address(void);
 char *lp_nis_home_map_name(void);
 const char **lp_netbios_aliases(void);
 const char *lp_passdb_backend(void);
@@ -7398,6 +7397,25 @@ void init_samr_alias_info1(struct samr_AliasInfoAll *r,
 			   const char *description);
 void init_samr_alias_info3(struct lsa_String *r,
 			   const char *description);
+void init_samr_user_info5(struct samr_UserInfo5 *r,
+			  const char *account_name,
+			  const char *full_name,
+			  uint32_t rid,
+			  uint32_t primary_gid,
+			  const char *home_directory,
+			  const char *home_drive,
+			  const char *logon_script,
+			  const char *profile_path,
+			  const char *description,
+			  const char *workstations,
+			  NTTIME last_logon,
+			  NTTIME last_logoff,
+			  struct samr_LogonHours logon_hours,
+			  uint16_t bad_password_count,
+			  uint16_t logon_count,
+			  NTTIME last_password_change,
+			  NTTIME acct_expiry,
+			  uint32_t acct_flags);
 void init_samr_user_info7(struct samr_UserInfo7 *r,
 			  const char *account_name);
 void init_samr_user_info9(struct samr_UserInfo9 *r,
@@ -7406,7 +7424,8 @@ void init_samr_user_info16(struct samr_UserInfo16 *r,
 			   uint32_t acct_flags);
 void init_samr_user_info18(struct samr_UserInfo18 *r,
 			   const uint8 lm_pwd[16],
-			   const uint8 nt_pwd[16]);
+			   const uint8 nt_pwd[16],
+			   uint8_t password_expired);
 void init_samr_user_info20(struct samr_UserInfo20 *r,
 			   struct lsa_BinaryString *parameters);
 void init_samr_user_info21(struct samr_UserInfo21 *r,
@@ -7467,11 +7486,43 @@ void init_samr_user_info23(struct samr_UserInfo23 *r,
 			   uint8_t nt_password_set,
 			   uint8_t lm_password_set,
 			   uint8_t password_expired,
-			   uint8_t data[516],
-			   uint8_t pw_len);
+			   struct samr_CryptPassword *pwd_buf);
 void init_samr_user_info24(struct samr_UserInfo24 *r,
-			   uint8_t data[516],
-			   uint8_t pw_len);
+			   struct samr_CryptPassword *pwd_buf,
+			   uint8_t password_expired);
+void init_samr_user_info25(struct samr_UserInfo25 *r,
+			   NTTIME last_logon,
+			   NTTIME last_logoff,
+			   NTTIME last_password_change,
+			   NTTIME acct_expiry,
+			   NTTIME allow_password_change,
+			   NTTIME force_password_change,
+			   const char *account_name,
+			   const char *full_name,
+			   const char *home_directory,
+			   const char *home_drive,
+			   const char *logon_script,
+			   const char *profile_path,
+			   const char *description,
+			   const char *workstations,
+			   const char *comment,
+			   struct lsa_BinaryString *parameters,
+			   uint32_t rid,
+			   uint32_t primary_gid,
+			   uint32_t acct_flags,
+			   uint32_t fields_present,
+			   struct samr_LogonHours logon_hours,
+			   uint16_t bad_password_count,
+			   uint16_t logon_count,
+			   uint16_t country_code,
+			   uint16_t code_page,
+			   uint8_t nt_password_set,
+			   uint8_t lm_password_set,
+			   uint8_t password_expired,
+			   struct samr_CryptPasswordEx *pwd_buf);
+void init_samr_user_info26(struct samr_UserInfo26 *r,
+			   struct samr_CryptPasswordEx *pwd_buf,
+			   uint8_t password_expired);
 void init_samr_CryptPasswordEx(const char *pwd,
 			       DATA_BLOB *session_key,
 			       struct samr_CryptPasswordEx *pwd_buf);
@@ -9613,6 +9664,9 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 			char **pp_saved_last_component,
 			SMB_STRUCT_STAT *pst);
 NTSTATUS check_name(connection_struct *conn, const char *name);
+int get_real_filename(connection_struct *conn, const char *path,
+		      const char *name, TALLOC_CTX *mem_ctx,
+		      char **found_name);
 
 /* The following definitions come from smbd/files.c  */
 
@@ -10214,10 +10268,10 @@ bool token_contains_name_in_list(const char *username,
 				 const struct nt_user_token *token,
 				 const char **list);
 bool user_ok_token(const char *username, const char *domain,
-		   struct nt_user_token *token, int snum);
+		   const struct nt_user_token *token, int snum);
 bool is_share_read_only_for_token(const char *username,
 				  const char *domain,
-				  struct nt_user_token *token,
+				  const struct nt_user_token *token,
 				  connection_struct *conn);
 
 /* The following definitions come from smbd/srvstr.c  */

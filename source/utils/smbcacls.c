@@ -735,6 +735,8 @@ static int owner_set(struct cli_state *cli, enum chown_mode change_mode,
 
 	if (!cli_set_secdesc(cli, fnum, sd)) {
 		printf("ERROR: secdesc set failed: %s\n", cli_errstr(cli));
+		cli_close(cli, fnum);
+		return EXIT_FAILED;
 	}
 
 	cli_close(cli, fnum);
@@ -956,7 +958,7 @@ static struct cli_state *connect_one(const char *server, const char *share)
 	NTSTATUS nt_status;
 	uint32_t flags = 0;
 
-	zero_addr(&ss);
+	zero_sockaddr(&ss);
 
 	if (get_cmdline_auth_info_use_kerberos()) {
 		flags |= CLI_FULL_CONNECTION_USE_KERBEROS |

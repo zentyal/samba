@@ -1,0 +1,3 @@
+usr/lib/samba/idmap/ad.so usr/lib/samba/nss_info/rfc2307.so
+usr/lib/samba/idmap/ad.so usr/lib/samba/nss_info/sfu.so
+usr/lib/samba/idmap/ad.so usr/lib/samba/nss_info/sfu20.so

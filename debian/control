@@ -1,0 +1,225 @@
+Source: samba
+Section: net
+Priority: optional
+Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
+Uploaders: Eloy A. Paris <peloy@debian.org>, Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Adam Conrad <adconrad@0c3.net>
+Build-Depends: debhelper, libpam0g-dev, libreadline5-dev, libcups2-dev | libcupsys2-dev, libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev, libtalloc-dev (>= 1.2.0~git20080616), libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc]
+Build-Conflicts: libfam-dev
+Standards-Version: 3.8.0
+Homepage: http://www.samba.org
+
+Package: samba
+Architecture: any
+Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd, adduser
+Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools
+Replaces: samba-common (<= 2.0.5a-2)
+Description: a LanManager-like file and printer server for Unix
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains all the components necessary to turn your
+ Debian GNU/Linux box into a powerful file and printer server.
+ .
+ Currently, the Samba Debian packages consist of the following:
+ .
+  samba - LanManager-like file and printer server for Unix.
+  samba-common - Samba common files used by both the server and the client.
+  smbclient - LanManager-like simple client for Unix.
+  swat - Samba Web Administration Tool
+  samba-doc - Samba documentation.
+  samba-doc-pdf - Samba documentation in PDF format.
+  smbfs - Mount and umount commands for the smbfs (kernels 2.2.x and above).
+  libpam-smbpass - pluggable authentication module for SMB/CIFS password 
+                   database
+  libsmbclient - Shared library that allows applications to talk to SMB/CIFS
+                 servers
+  libsmbclient-dev - libsmbclient shared libraries
+  libwbclient0 - Shared library for interfacing with the winbind service
+  winbind - Service to resolve user and group information from Windows NT 
+            servers
+ .
+ It is possible to install a subset of these packages depending on
+ your particular needs. For example, to access other SMB/CIFS servers you
+ should only need the smbclient and samba-common packages.
+
+Package: samba-common
+Architecture: any
+Depends: libpam-modules, ucf, ${shlibs:Depends}, ${misc:Depends}
+Replaces: samba (<< 3.0.20b-1)
+Description: Samba common files used by both the server and the client
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains the common files that are used by both the server
+ (provided in the samba package) and the client (provided in the smbclient
+ package).
+
+Package: samba-tools
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: tools provided by the Samba suite
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains tools such as smbtorture which may help
+ testing the performance of CIFS servers or clients.
+
+Package: smbclient
+Architecture: any
+Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}
+Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
+Provides: samba-client
+Suggests: smbfs
+Description: a LanManager-like simple client for Unix
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains some client components of the Samba suite. In
+ particular it includes the command line utilities smbclient, smbtar,
+ and smbspool. If you want to mount shares exported from Microsoft
+ Windows machines or a Samba server you must install the smbfs package.
+
+Package: swat
+Architecture: any
+Depends: samba (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
+Recommends: samba-doc (= ${source:Version})
+Description: Samba Web Administration Tool
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains the components of the Samba suite that are needed
+ for Web administration of the Samba server.
+ .
+ SWAT will rewrite the smb.conf file. It will rearrange the entries and
+ delete all comments, include= and copy= options. If you use a carefully
+ crafted smb.conf, you should probably avoid using SWAT.
+
+Package: samba-doc
+Section: doc
+Architecture: all
+Suggests: samba-doc-pdf
+Description: Samba documentation
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains all the documentation that comes in the original
+ tarball, except in PDF format.
+
+Package: samba-doc-pdf
+Section: doc
+Architecture: all
+Description: Samba documentation (PDF format)
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains all the documentation that comes in the original
+ tarball in PDF format.
+
+Package: smbfs
+Section: otherosfs
+Priority: optional
+Architecture: any
+Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}
+Suggests: smbclient
+Replaces: smbfsx
+Description: mount and umount commands for the smbfs (for kernels >= than 2.2.x)
+ Smbfs is a filesystem which understands the SMB/CIFS protocol.
+ This is the protocol Windows for Workgroups, Windows NT or
+ LAN Manager use to talk to each other. It was inspired by
+ samba, the program by Andrew Tridgell that turns any unix
+ site into a file server for DOS or Windows clients.
+ .
+ If you want to use command-line utilities like smbclient, smbtar
+ and/or smbspool you just need to install the smbclient package.
+
+Package: libpam-smbpass
+Section: admin
+Priority: extra
+Architecture: any
+Depends: ${shlibs:Depends}, samba-common (= ${binary:Version})
+Suggests: samba
+Description: pluggable authentication module for SMB/CIFS password database
+ This is a stackable PAM module that allows a system administrator to easily
+ migrate to using encrypted passwords for Samba and to keep smb passwords in
+ sync with unix passwords.  Unlike other solutions, it does this without
+ requiring users to change their existing passwords or login to Samba using
+ cleartext passwords.
+
+Package: libsmbclient
+Section: libs
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: shared library that allows applications to talk to SMB/CIFS servers
+ libsmbclient allows to write applications that use the SMB/CIFS protocol.
+ This gives applications the ability to talk to Microsoft Windows servers
+ and Unix servers running Samba.
+ .
+ This package contains the libsmbclient shared library.
+
+Package: libsmbclient-dev
+Section: libdevel
+Priority: extra
+Architecture: any
+Depends: libsmbclient (= ${binary:Version})
+Description: libsmbclient static libraries and headers
+ libsmbclient allows to write applications that use the SMB/CIFS protocol.
+ This gives applications the ability to talk to Microsoft Windows servers
+ and Unix servers running Samba.
+ .
+ This package contains libraries and headers needed to build applications
+ that use SMB/CIFS services.
+
+Package: winbind
+Section: net
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (= ${binary:Version}), lsb-base (>= 3.0-6), adduser
+Replaces: samba (<= 2.2.3-2)
+Description: service to resolve user and group information from Windows NT servers
+ This package provides the winbindd daemon, which provides a
+ service for the Name Service Switch capability that is present
+ in most modern C libraries (like the GNU C Library - glibc.)
+ .
+ The service provided by winbindd is called `winbind' and
+ can be used to resolve user and group information from a
+ Windows NT server. The service can also provide authentication
+ services via an associated PAM module.
+
+Package: samba-dbg
+Section: devel
+Priority: extra
+Architecture: any
+Depends: samba (= ${binary:Version})
+Description: Samba debugging symbols
+ The Samba software suite is a collection of programs that
+ implements the SMB/CIFS protocol for unix systems, allowing you to serve
+ files and printers to Windows, NT, OS/2 and DOS clients. This protocol
+ is sometimes also referred to as the LanManager or NetBIOS protocol.
+ .
+ This package contains debugging symbols for the programs included in
+ the samba and smbclient packages.
+
+Package: libwbclient0
+Section: libs
+Priority: optional
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: client library for interfacing with winbind service
+ libwbclient is an API for client interactions with the winbind service.
+ This library abstracts the winbind pipe protocol into a stable API that
+ allows the winbind server to be independently upgraded.

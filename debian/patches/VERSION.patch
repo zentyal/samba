@@ -1,0 +1,21 @@
+Goal: Add "Debian" as vendor suffix
+
+Fixes: nothing
+
+Status wrt upstream: Debian specific
+
+Note: Should be kept
+
+Index: samba-3.3.0rc2/source/VERSION
+===================================================================
+--- samba-3.3.0rc2.orig/source/VERSION
++++ samba-3.3.0rc2/source/VERSION
+@@ -84,7 +84,7 @@
+ #       SAMBA_VERSION_VENDOR_FUNCTION                  #
+ #                                                      #
+ ########################################################
+-SAMBA_VERSION_VENDOR_SUFFIX=
++SAMBA_VERSION_VENDOR_SUFFIX="Debian"
+ SAMBA_VERSION_VENDOR_PATCH=
+ 
+ ########################################################

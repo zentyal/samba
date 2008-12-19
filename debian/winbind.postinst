@@ -1,0 +1,16 @@
+#! /bin/sh
+
+set -e
+
+getent group winbindd_priv >/dev/null 2>&1 ||
+	addgroup --system --force-badname --quiet winbindd_priv
+
+# move a tdb that should have been in /var/cache all along
+if dpkg --compare-versions "$2" lt-nl 3.0.25b-2 \
+   && [ -e /var/run/samba/idmap_cache.tdb ] \
+   && ! [ -e /var/cache/samba/idmap_cache.tdb ]
+then
+        mv /var/run/samba/idmap_cache.tdb /var/cache/samba/idmap_cache.tdb
+fi
+
+#DEBHELPER#

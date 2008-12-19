@@ -1,0 +1,232 @@
+# Translation of samba_po.po to finnish.
+#
+# Tapio Lehtonen <tale@debian.org>, 2006.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Samba fi\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-13 18:35+0200\n"
+"Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
+"Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=ISO-8859-15\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Muokataanko smb.conf käyttämään DHCP:ltä saatua WINS-asetusta?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Jos tietokone saa verkkoasetukset verkon DHCP-palvelimelta, saattaa DHCP-"
+"palvelin tarjota tietoa myös verkon WINS-palvelimista (\"NetBIOS-"
+"nimipalvelimista\"). Tällöin on tiedostoa smb.conf muutettava, jotta DHCP:n "
+"tarjoamat WINS-asetukset luetaan automaattisesti tiedostosta /etc/samba/dhcp."
+"conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Tätä ominaisuutta voi käyttää vain jos paketti dhcp3-client on asennettu."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Tehdäänkö asetukset tiedostoon smb.conf automaattisesti?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Loput Samban asetuksista ovat kysymyksiä jotka vaikuttavat parametreihin "
+"Samban ohjelmien (nmbd ja smbd) asetustiedostossa /etc/samba/smb.conf. Nyt "
+"tiedostossa smb.conf on \"include\"-rivi tai useita rivejä pitkä valitsin, "
+"mikä sotkee automatisoidun asetukset tekevän ohjelman ja pakottaa "
+"muokkaamaan tiedostoa smb.conf käsin, jotta se taas toimisi."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Jos et valitse tätä toimintoa, on kaikki asetusten muutokset tehtävä itse, "
+"etkä pääse hyötymään julkaistavista asetusten parannuksista."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Työryhmän/Verkkoalueen nimi:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Anna sen verkkoalueen nimi, johon tämä palvelin ilmoittaa kuuluvansa "
+"asiakaskoneiden kysyessä. Huomaa, että tämä parametri on myös asetuksen "
+"security=domain kanssa käytettävä verkkoalueen nimi."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Salataanko salasanat?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Kaikki viime aikoina julkistetut Windows-asiakkaat salaavat salasanat "
+"liikennöitäessä SMB-palvelimien kanssa. Jos halutaan käyttää selväkielisiä "
+"salasanoja, on Windows registryssä olevaa parametria muutettava."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Tämän valitsimen pitämistä päällä suositellaan suuresti. Jos se on päällä, "
+"on varmistuttava tiedoston /etc/samba/smbpasswd kelvollisuudesta ja että "
+"siellä on jokaiselle käyttäjälle tehty salasana komennolla smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Luodaanko samban salasanatietokanta, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Jotta Samba olisi yhteensopiva useimpien Windows-versioiden oletusten "
+"kanssa, on Samban käytettävä salattuja salasanoja. Tällöin on salasanat "
+"tallennettava muualle kuin tiedostoon /etc/passwd. Tallennustiedosto voidaan "
+"luoda automaattisesti, mutta salasanat on itse lisättävä komennolla "
+"smbpasswd ja ne on itse pidettävä ajan tasalla jatkossa."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Jos tiedostoa ei luoda, on Samba asetettava käyttämään selväkielisiä "
+"salasanoja (kuten asiakaskoneetkin)."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Katso lisätietoja paketin samba-doc tiedostosta /usr/share/doc/samba-doc/"
+"htmldocs/ENCRYPTION.html."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "palvelinprosessit"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Kuinka Samba käynnistetään?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samban palvelinprosessi smbd voi toimia tavallisena prosessina tai inetd voi "
+"käynnistää sen. Tavallisen prosessin käyttämistä suositellaan."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "passdb:n taustaosien ketjuttamista ei tueta"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Versiosta 3.0.23 alkaen samba ei enää tue useiden taustaosien "
+#~ "ketjuttamista \"passdb backend\" -parametrissa. Tämän koneen smb.conf-"
+#~ "tiedostossa vaikuttaa olevan bassdb backend -parametri jossa on luettelo "
+#~ "taustaosista. Samban uusi versio ei toimi ennen kuin tämä korjataan."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Siirretäänkö tiedosto /etc/samba/smbpasswd tiedostoksi /var/lib/samba/"
+#~ "passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samban versiossa 3.0 tuli mukaan täydellisempi SAM-tietokantarajapinta "
+#~ "joka korvaa tiedoston /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Vahvista, että olemassa oleva tiedosto smbpasswd siirretään "
+#~ "automaattisesti tiedostoksi /var/lib/samba/passdb.tdb. Älä valitse tätä "
+#~ "jos aiot käyttää jotain muuta pdb-taustaosaa (esim. LDAP)."

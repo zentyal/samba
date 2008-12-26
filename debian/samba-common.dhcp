@@ -5,12 +5,13 @@ SAMBA_DHCP_CONF=/etc/samba/dhcp.conf
 netbios_setup() {
 	# No need to continue if we're called with an unsupported option
 
-	if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
-	   && [ "$reason" != REBIND ] && [ "$reason" != REBOOT ] \
-	   && [ "$reason" != EXPIRE ] && [ "$reason" != FAIL ]
-	then
+	case $reason in
+	BOUND|RENEW|REBIND|REBOOT|EXPIRE|FAIL|RELEASE|STOP)
+		;;
+	*)
 		return
-	fi
+		;;
+	esac
 
 	umask 022
 

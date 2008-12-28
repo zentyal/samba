@@ -1,7 +1,12 @@
 samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Handle clearing out netbios settings whenever the DHCP server has gone
     away.  Closes: #299618.
+
+  [ Christian Perrier ]
+  * Point the correct document about password encryption in debconf templates
+    Corrected in translations as well. Closes: #502838
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
 

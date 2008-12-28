@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2008-12-28 19:02+0100\n"
 "PO-Revision-Date: 2007-09-25 21:03+0200\n"
 "Last-Translator: Katriel Traum <katriel.traum@gmail.com>\n"
 "Language-Team: Hebrew <debian-hebrew-common@lists.alioth.debian.org>\n"
@@ -165,11 +165,11 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
-"ראה עוד מידע בקובץ /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html מתוך "
-"החבילה samba-doc."
+"ראה עוד מידע בקובץ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+"pwencrypt.html מתוך החבילה samba-doc."
 
 #. Type: select
 #. Choices

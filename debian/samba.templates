@@ -11,8 +11,9 @@ _Description: Create samba password database, /var/lib/samba/passdb.tdb?
  If you do not create it, you will have to reconfigure Samba (and probably
  your client machines) to use plaintext passwords.
  .
- See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the
- samba-doc package for more details.
+ See
+ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html
+ from the samba-doc package for more details.
 
 Template: samba/run_mode
 Type: select

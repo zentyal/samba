@@ -13,8 +13,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba 3.0.20b-3\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2008-12-28 19:02+0100\n"
 "PO-Revision-Date: 2007-03-12 20:57+0100\n"
 "Last-Translator: Daniel Nylander <po@danielnylander.se>\n"
 "Language-Team: Swedish <tp-sv@listor.tp-sv.se>\n"
@@ -172,11 +172,11 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
-"Se /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html från paketet samba-doc "
-"för mer information."
+"Se /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"från paketet samba-doc för mer information."
 
 #. Type: select
 #. Choices

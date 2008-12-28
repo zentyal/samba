@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2008-12-28 19:02+0100\n"
 "PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
@@ -200,11 +200,11 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
-"សម្រាប់​សេចក្តី​លម្អិត​បន្ថែម​សូម​មើល  /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html ពី​"
-"កញ្ចប់ samba-doc ។"
+"សម្រាប់​សេចក្តី​លម្អិត​បន្ថែម​សូម​មើល  /usr/share/doc/samba-doc/htmldocs/Samba3-"
+"Developers-Guide/pwencrypt.html ពី​កញ្ចប់ samba-doc ។"
 
 #. Type: select
 #. Choices

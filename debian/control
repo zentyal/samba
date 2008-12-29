@@ -13,46 +13,30 @@ Architecture: any
 Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.0-6), procps, update-inetd, adduser
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools
 Replaces: samba-common (<= 2.0.5a-2)
-Description: a LanManager-like file and printer server for Unix
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+Description: SMB/CIFS file, print, and login server for Unix
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
- This package contains all the components necessary to turn your
- Debian GNU/Linux box into a powerful file and printer server.
+ This package provides the components necessary to use Samba as a
+ stand-alone file and print server.  For use in an NT4 domain or Active
+ Directory realm, you will also need the winbind package.
  .
- Currently, the Samba Debian packages consist of the following:
- .
-  samba - LanManager-like file and printer server for Unix.
-  samba-common - Samba common files used by both the server and the client.
-  smbclient - LanManager-like simple client for Unix.
-  swat - Samba Web Administration Tool
-  samba-doc - Samba documentation.
-  samba-doc-pdf - Samba documentation in PDF format.
-  smbfs - Mount and umount commands for the smbfs (kernels 2.2.x and above).
-  libpam-smbpass - pluggable authentication module for SMB/CIFS password 
-                   database
-  libsmbclient - Shared library that allows applications to talk to SMB/CIFS
-                 servers
-  libsmbclient-dev - libsmbclient shared libraries
-  libwbclient0 - Shared library for interfacing with the winbind service
-  winbind - Service to resolve user and group information from Windows NT 
-            servers
- .
- It is possible to install a subset of these packages depending on
- your particular needs. For example, to access other SMB/CIFS servers you
- should only need the smbclient and samba-common packages.
+ This package is not required for connecting to existing SMB/CIFS servers
+ (see smbclient) or for mounting remote filesystems (see smbfs).
 
 Package: samba-common
 Architecture: any
 Depends: libpam-modules, ucf, ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 3.0.20b-1)
 Description: Samba common files used by both the server and the client
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains the common files that are used by both the server
  (provided in the samba package) and the client (provided in the smbclient
@@ -62,10 +46,11 @@ Package: samba-tools
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: tools provided by the Samba suite
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains tools such as smbtorture which may help
  testing the performance of CIFS servers or clients.
@@ -77,10 +62,11 @@ Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: smbfs
 Description: a LanManager-like simple client for Unix
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains some client components of the Samba suite. In
  particular it includes the command line utilities smbclient, smbtar,
@@ -92,10 +78,11 @@ Architecture: any
 Depends: samba (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
 Recommends: samba-doc (= ${source:Version})
 Description: Samba Web Administration Tool
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains the components of the Samba suite that are needed
  for Web administration of the Samba server.
@@ -109,10 +96,11 @@ Section: doc
 Architecture: all
 Suggests: samba-doc-pdf
 Description: Samba documentation
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains all the documentation that comes in the original
  tarball, except in PDF format.
@@ -121,10 +109,11 @@ Package: samba-doc-pdf
 Section: doc
 Architecture: all
 Description: Samba documentation (PDF format)
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
  This package contains all the documentation that comes in the original
  tarball in PDF format.
@@ -207,13 +196,15 @@ Priority: extra
 Architecture: any
 Depends: samba (= ${binary:Version})
 Description: Samba debugging symbols
- The Samba software suite is a collection of programs that
- implements the SMB/CIFS protocol for unix systems, allowing you to serve
- files and printers to Windows, NT, OS/2 and DOS clients. This protocol
- is sometimes also referred to as the LanManager or NetBIOS protocol.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
- This package contains debugging symbols for the programs included in
- the samba and smbclient packages.
+ This package provides debugging information for the software in the
+ Samba suite. Install it to get a better backtrace in the event of a
+ crash.
 
 Package: libwbclient0
 Section: libs

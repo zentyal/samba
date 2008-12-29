@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2008-12-28 19:02+0100\n"
+"POT-Creation-Date: 2008-12-29 11:50+0100\n"
 "PO-Revision-Date: 2007-03-13 10:05+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <l10n@opentle.org>\n"
@@ -85,10 +85,16 @@ msgstr "เวร์กกรุ๊ป/ชื่อโดเมน:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the workgroup you want this server to appear to be in when "
+#| "queried by clients. Note that this parameter also controls the domain "
+#| "name used with the security=domain setting."
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the 'security=domain' setting."
 msgstr ""
 "กรุณาระบุเวิร์กกรุ๊ปที่คุณต้องการให้เซิร์ฟเวอร์นี้ประกาศเป็นสมาชิกเมื่อถูกถามโดยเครื่องลูก สังเกตว่า "
 "ค่านี้จะควบคุมชื่อโดเมนที่ใช้กับกรณีที่ตั้งค่า security=domain ด้วย"
@@ -102,10 +108,15 @@ msgstr "ใช้การเข้ารหัสลับกับรหัส
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "All recent Windows clients communicate with SMB servers using encrypted "
+#| "passwords. If you want to use clear text passwords you will need to "
+#| "change a parameter in your Windows registry."
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
+"parameter in the Windows registry."
 msgstr ""
 "เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB โดยใช้รหัสผ่านที่เข้ารหัสลับ "
 "ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
@@ -113,10 +124,16 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "Enabling this option is highly recommended. If you do, make sure you have "
+#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#| "each user using the smbpasswd command."
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
 "ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/"
 "samba/smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง "

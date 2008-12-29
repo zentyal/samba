@@ -17,7 +17,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2008-12-28 19:02+0100\n"
+"POT-Creation-Date: 2008-12-29 11:50+0100\n"
 "PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
@@ -113,10 +113,16 @@ msgstr "ឈ្មោះ​ក្រុមការងារ/ដែន ៖"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the workgroup you want this server to appear to be in when "
+#| "queried by clients. Note that this parameter also controls the domain "
+#| "name used with the security=domain setting."
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the 'security=domain' setting."
 msgstr ""
 "សូម​បញ្ជាក់​ក្រុម​ការងារ​ដែល​អ្នក​ចង់​ឲ្យ​ម៉ាស៊ីន​បម្រើ​នេះ​បង្ហាញ​នៅ​ពេល​ដែល​បាន​សួរ ដោយ​ម៉ាស៊ីន​ភ្ញៀវ ។ ចំណាំ​ថា "
 "ប៉ារ៉ាម៉ែត្រ​នេះ​ក៏​ត្រួត​ពិនិត្យ​ឈ្មោះ​ដែន ដែល​បាន​ប្រើ​ដោយ​សុវត្ថិភាព=ការ​កំណត់​ដែន ។"
@@ -134,10 +140,15 @@ msgstr "ប្រើ​ការ​អ៊ិនគ្រីប​ពាក្យ
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "All recent Windows clients communicate with SMB servers using encrypted "
+#| "passwords. If you want to use clear text passwords you will need to "
+#| "change a parameter in your Windows registry."
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
+"parameter in the Windows registry."
 msgstr ""
 "គ្រប់​ម៉ាស៊ីន​ភ្ញៀវ​ដែល​ប្រើ​វីនដូ​ថ្មីៗ​ទាំង​អស់​ទាក់ទង​ជា​មួយ​ម៉ាស៊ីន​បម្រើ SMB ដោយ​ប្រើ​ពាក្យសម្ងាត់​ដែល​បាន​"
 "អ៊ិនគ្រីប ។ ប្រសិន​បើ​អ្នក​ចង់​ជម្រះ​ពាក្យសម្ងាត់​អត្ថបទ អ្នក​នឹង​ត្រូវតែ​ផ្លាស់ប្ដូរ​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង បញ្ជី​ឈ្មោះ​"
@@ -148,10 +159,16 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "Enabling this option is highly recommended. If you do, make sure you have "
+#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#| "each user using the smbpasswd command."
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
 "បាន​ផ្ដល់​អនុសាសន៍​យ៉ាង​ខ្លាំង​ឲ្យ​អនុញ្ញាត​ជម្រើស​នេះ ។ ប្រសិន​បើ​អ្នក​ធ្វើ​ដូច្នេះ សូម​ប្រាកដ​ថា អ្នក​មាន​"
 "ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"

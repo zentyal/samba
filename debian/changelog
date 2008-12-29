@@ -13,6 +13,9 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
     - replace "SMB" by "SMB/CIFS"
     - more strongly discouraging the use of plain text passwords
     - unpersonnalization
+  * Reword the libpam-smbpass package description
+    Thanks to Justin B. Rye for the very useful suggestions
+    Closes: #496196
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
 

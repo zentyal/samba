@@ -152,12 +152,13 @@ Priority: extra
 Architecture: any
 Depends: ${shlibs:Depends}, samba-common (= ${binary:Version})
 Suggests: samba
-Description: pluggable authentication module for SMB/CIFS password database
- This is a stackable PAM module that allows a system administrator to easily
- migrate to using encrypted passwords for Samba and to keep smb passwords in
- sync with unix passwords.  Unlike other solutions, it does this without
- requiring users to change their existing passwords or login to Samba using
- cleartext passwords.
+Description: pluggable authentication module for Samba
+ This is a module for PAM that enables a system administrator to migrate
+ user passwords from the Unix password database to the SMB password
+ database as used by Samba, and to subsequently keep the two databases in
+ sync.  Unlike other solutions, it does this without needing users to log
+ in to Samba using cleartext passwords, or requiring them to change their
+ existing passwords.
 
 Package: libsmbclient
 Section: libs

@@ -31,16 +31,15 @@ Package: samba-common
 Architecture: any
 Depends: libpam-modules, ucf, ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 3.0.20b-1)
-Description: Samba common files used by both the server and the client
+Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
  Microsoft Windows, OS X, and other Unix systems.  Samba can also function
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package contains the common files that are used by both the server
- (provided in the samba package) and the client (provided in the smbclient
- package).
+ This package contains files and programs needed by Samba when used as
+ either a client or a server.
 
 Package: samba-tools
 Architecture: any

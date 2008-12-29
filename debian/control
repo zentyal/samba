@@ -125,7 +125,7 @@ Architecture: any
 Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}
 Suggests: smbclient
 Replaces: smbfsx
-Description: mount and umount commands for the smbfs (for kernels >= than 2.2.x)
+Description: Samba file system utilities
  Smbfs is a filesystem which understands the SMB/CIFS protocol.
  This is the protocol Windows for Workgroups, Windows NT or
  LAN Manager use to talk to each other. It was inspired by

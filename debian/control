@@ -179,15 +179,19 @@ Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (= ${binary:Version}), lsb-base (>= 3.0-6), adduser
 Replaces: samba (<= 2.2.3-2)
-Description: service to resolve user and group information from Windows NT servers
- This package provides the winbindd daemon, which provides a
- service for the Name Service Switch capability that is present
- in most modern C libraries (like the GNU C Library - glibc.)
+Description: Samba nameservice integration server
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
  .
- The service provided by winbindd is called `winbind' and
- can be used to resolve user and group information from a
- Windows NT server. The service can also provide authentication
- services via an associated PAM module.
+ This package provides winbindd, a daemon which can integrate the
+ user/group lookup and authentication mechanisms from a Windows domain
+ with their equivalents on the Samba side. Thus for example users who
+ have Active Directory accounts can automatically be given working
+ /etc/password logins and vice versa, once /etc/nsswitch.conf and the
+ winbind module for PAM are configured appropriately.
 
 Package: samba-dbg
 Section: devel

@@ -1,4 +1,4 @@
-samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
+samba (2:3.3.0~rc2-2) experimental; urgency=low
 
   [ Steve Langasek ]
   * Handle clearing out netbios settings whenever the DHCP server has gone
@@ -30,8 +30,9 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
   * Improve swat package description. Closes: #496207
   * Improve winbind package description. Closes: #496208
   * Improve samba-doc-pdf package description. Closes: #496211
+  * Update French debconf translation
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
+ -- Christian Perrier <bubulle@debian.org>  Mon, 29 Dec 2008 11:50:04 +0100
 
 samba (2:3.3.0~rc2-1) experimental; urgency=low
 

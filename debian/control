@@ -34,9 +34,7 @@ Replaces: samba (<< 3.0.20b-1)
 Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package contains files and programs needed by Samba when used as
  either a client or a server.

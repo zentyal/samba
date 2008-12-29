@@ -2,6 +2,8 @@ samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
 
   * Fix around the libsmbclient/libsmbclient-dev descriptions, which got
     swapped in the last upload.
+  * Drop an extra sentence from the samba-common description that's not
+    relevant for this package.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 29 Dec 2008 13:11:16 -0600
 

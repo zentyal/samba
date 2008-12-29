@@ -8,7 +8,7 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
   * Point the correct document about password encryption in debconf templates
     Corrected in translations as well. Closes: #502838
   * Reword debconf templates to avoid mentioning the local host as a "server".
-    Closes: #171777
+    Closes: #171177
   * Use this opportunity for other minor rewording:
     - replace "SMB" by "SMB/CIFS"
     - more strongly discouraging the use of plain text passwords

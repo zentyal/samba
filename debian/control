@@ -153,24 +153,21 @@ Section: libs
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: development files for libsmbclient
- This package provides the development files (static library and headers)
- required for building applications against libsmbclient, a library that
- enables client applications to talk to Microsoft Windows and Samba servers
- using the SMB/CIFS protocol.
+Description: shared library for communication with SMB/CIFS servers
+ This package provides a shared library that enables client applications
+ to talk to Microsoft Windows and Samba servers using the SMB/CIFS
+ protocol.
 
 Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
 Depends: libsmbclient (= ${binary:Version})
-Description: libsmbclient static libraries and headers
- libsmbclient allows to write applications that use the SMB/CIFS protocol.
- This gives applications the ability to talk to Microsoft Windows servers
- and Unix servers running Samba.
- .
- This package contains libraries and headers needed to build applications
- that use SMB/CIFS services.
+Description: development files for libsmbclient
+ This package provides the development files (static library and headers)
+ required for building applications against libsmbclient, a library that
+ enables client applications to talk to Microsoft Windows and Samba servers
+ using the SMB/CIFS protocol.
 
 Package: winbind
 Section: net

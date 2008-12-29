@@ -210,7 +210,12 @@ Section: libs
 Priority: optional
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: client library for interfacing with winbind service
- libwbclient is an API for client interactions with the winbind service.
- This library abstracts the winbind pipe protocol into a stable API that
- allows the winbind server to be independently upgraded.
+Description: Samba winbind client library
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.  Samba can also function
+ as an NT4-style domain controller, and can integrate with both NT4 domains
+ and Active Directory realms as a member server.
+ .
+ This package provides a library for client applications that interact
+ via the winbind pipe protocol with a Samba winbind server.

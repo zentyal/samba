@@ -21,6 +21,7 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
     Thanks again to Justin B. Rye for the invaluable help
     Closes: #496200
   * Improve libsmbclient package description. Closes: #496197
+  * Improve libwbclient0 package description. Closes: #496199
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
 

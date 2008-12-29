@@ -82,12 +82,14 @@ Description: Samba Web Administration Tool
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package contains the components of the Samba suite that are needed
- for Web administration of the Samba server.
+ This package gives a Samba server an administrative interface accessible
+ via a web browser.
  .
- SWAT will rewrite the smb.conf file. It will rearrange the entries and
- delete all comments, include= and copy= options. If you use a carefully
- crafted smb.conf, you should probably avoid using SWAT.
+ SWAT is no longer actively maintained, and its default configuration is
+ not secure for use over an untrusted network. You should also avoid
+ using it if you have a carefully crafted Samba configuration file; SWAT
+ will rewrite smb.conf, rearranging the entries and deleting all comments
+ as well as include= and copy= options.
 
 Package: samba-doc
 Section: doc

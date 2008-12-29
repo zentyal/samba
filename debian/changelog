@@ -29,6 +29,7 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
   * Improve smbfs package description. Closes: #496206
   * Improve swat package description. Closes: #496207
   * Improve winbind package description. Closes: #496208
+  * Improve samba-doc-pdf package description. Closes: #496211
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
 

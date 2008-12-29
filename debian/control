@@ -108,15 +108,14 @@ Description: Samba documentation
 Package: samba-doc-pdf
 Section: doc
 Architecture: all
-Description: Samba documentation (PDF format)
+Description: Samba documentation in PDF format
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
  Microsoft Windows, OS X, and other Unix systems.  Samba can also function
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package contains all the documentation that comes in the original
- tarball in PDF format.
+ This package contains all the PDF documentation for the Samba suite.
 
 Package: smbfs
 Section: otherosfs

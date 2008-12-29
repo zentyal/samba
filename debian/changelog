@@ -25,6 +25,8 @@ samba (2:3.3.0~rc2-2) UNRELEASED; urgency=low
   * Improve samba-doc package description. Closes: #496202
   * Improve samba-tools package description. Closes: #496203
   * Improve samba-common package description. Closes: #496204
+  * Improve smbclient package description. Closes: #496205
+  * Improve smbfs package description. Closes: #496206
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 26 Dec 2008 12:23:23 -0600
 

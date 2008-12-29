@@ -67,10 +67,9 @@ Description: a LanManager-like simple client for Unix
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package contains some client components of the Samba suite. In
- particular it includes the command line utilities smbclient, smbtar,
- and smbspool. If you want to mount shares exported from Microsoft
- Windows machines or a Samba server you must install the smbfs package.
+ This package provides mount and umount utilities for the cifs and
+ (deprecated) smbfs network file systems. Other command line utilities such
+ as smbclient, smbtar and smbspool are in the package smbclient.
 
 Package: swat
 Architecture: any

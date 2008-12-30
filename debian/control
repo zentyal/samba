@@ -74,9 +74,7 @@ Recommends: samba-doc (= ${source:Version})
 Description: Samba Web Administration Tool
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package gives a Samba server an administrative interface accessible
  via a web browser.
@@ -94,9 +92,7 @@ Suggests: samba-doc-pdf
 Description: Samba documentation
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package contains all the non-PDF documentation for the Samba
  suite. See also samba-doc-pdf.
@@ -107,9 +103,7 @@ Architecture: all
 Description: Samba documentation in PDF format
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package contains all the PDF documentation for the Samba suite.
 

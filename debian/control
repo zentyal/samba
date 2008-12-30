@@ -121,14 +121,13 @@ Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends
 Suggests: smbclient
 Replaces: smbfsx
 Description: Samba file system utilities
- Smbfs is a filesystem which understands the SMB/CIFS protocol.
- This is the protocol Windows for Workgroups, Windows NT or
- LAN Manager use to talk to each other. It was inspired by
- samba, the program by Andrew Tridgell that turns any unix
- site into a file server for DOS or Windows clients.
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file and printer sharing with
+ Microsoft Windows, OS X, and other Unix systems.
  .
- If you want to use command-line utilities like smbclient, smbtar
- and/or smbspool you just need to install the smbclient package.
+ This package provides utilities for mounting and unmounting cifs network
+ file systems. Other command-line utilities such as smbclient, smbtar
+ and smbspool are in the package smbclient.
 
 Package: libpam-smbpass
 Section: admin

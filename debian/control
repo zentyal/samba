@@ -49,7 +49,7 @@ Description: Samba testing utilities
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package contains command line tools such as smbtorture for
+ This package contains command-line tools such as smbtorture for
  performance-testing CIFS servers or clients.
 
 Package: smbclient
@@ -64,7 +64,7 @@ Description: command-line SMB/CIFS clients for Unix
  Microsoft Windows, OS X, and other Unix systems.
  .
  This package provides mount and umount utilities for the cifs and
- (deprecated) smbfs network file systems. Other command line utilities such
+ (deprecated) smbfs network file systems. Other command-line utilities such
  as smbclient, smbtar and smbspool are in the package smbclient.
 
 Package: swat

@@ -58,12 +58,10 @@ Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: smbfs
-Description: command line SMB/CIFS clients for Unix
+Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package provides mount and umount utilities for the cifs and
  (deprecated) smbfs network file systems. Other command line utilities such

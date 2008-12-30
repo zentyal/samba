@@ -63,9 +63,9 @@ Description: command-line SMB/CIFS clients for Unix
  providing support for cross-platform file and printer sharing with
  Microsoft Windows, OS X, and other Unix systems.
  .
- This package provides mount and umount utilities for the cifs and
- (deprecated) smbfs network file systems. Other command-line utilities such
- as smbclient, smbtar and smbspool are in the package smbclient.
+ This package contains command-line utilities for accessing Microsoft
+ Windows and Samba servers, including smbclient, smbtar, and smbspool.
+ Utilities for mounting shares locally are found in the package smbfs.
 
 Package: swat
 Architecture: any

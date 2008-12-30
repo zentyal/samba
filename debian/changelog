@@ -5,6 +5,7 @@ samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
   * Drop a boilerplate sentence from the samba-common and smbclient
     descriptions that's not relevant for these packages.
   * Hyphenate "command-line" in the smbclient short description.
+  * Fix up the smbclient description, which got crossed with the smbfs one.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 29 Dec 2008 13:11:16 -0600
 

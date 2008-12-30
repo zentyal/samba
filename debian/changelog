@@ -3,8 +3,8 @@ samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
   * Fix around the libsmbclient/libsmbclient-dev descriptions, which got
     swapped in the last upload.
   * Drop a boilerplate sentence from the samba-common, smbclient, swat, 
-    samba-doc, and samba-doc-pdf descriptions that's not relevant for
-    these packages.
+    samba-doc, samba-doc-pdf, samba-dbg, and libwbclient0 descriptions
+    that's not relevant for these packages.
   * Hyphenate "command-line" in the smbclient short description.
   * Fix up the smbclient description, which got crossed with the smbfs one.
   * Fix the smbfs description, which was not actually fixed in the previous

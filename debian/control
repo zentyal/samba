@@ -186,9 +186,7 @@ Depends: samba (= ${binary:Version})
 Description: Samba debugging symbols
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package provides debugging information for the software in the
  Samba suite. Install it to get a better backtrace in the event of a
@@ -202,9 +200,7 @@ Depends: ${shlibs:Depends}
 Description: Samba winbind client library
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
  This package provides a library for client applications that interact
  via the winbind pipe protocol with a Samba winbind server.

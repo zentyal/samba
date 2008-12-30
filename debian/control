@@ -76,14 +76,14 @@ Description: Samba Web Administration Tool
  providing support for cross-platform file and printer sharing with
  Microsoft Windows, OS X, and other Unix systems.
  .
- This package gives a Samba server an administrative interface accessible
- via a web browser.
+ This package allows you to administer a Samba server via a web browser.
  .
  SWAT is no longer actively maintained, and its default configuration is
- not secure for use over an untrusted network. You should also avoid
- using it if you have a carefully crafted Samba configuration file; SWAT
- will rewrite smb.conf, rearranging the entries and deleting all comments
- as well as include= and copy= options.
+ not secure for use over an untrusted network.  SWAT will also rewrite
+ smb.conf, rearranging the entries and deleting all comments as well as
+ include= and copy= options, so is not suitable for use in conjunction
+ with hand-edited smb.conf files or the default package-managed
+ configuration.
 
 Package: samba-doc
 Section: doc

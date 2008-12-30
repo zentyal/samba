@@ -9,6 +9,7 @@ samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
   * Fix up the smbclient description, which got crossed with the smbfs one.
   * Fix the smbfs description, which was not actually fixed in the previous
     upload.  Really closes: #496206.
+  * Further minor adjustments to the description of the swat package.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 29 Dec 2008 13:11:16 -0600
 

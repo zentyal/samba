@@ -1,4 +1,4 @@
-samba (2:3.3.0~rc2-2ubuntu1) experimental; urgency=low
+samba (2:3.3.0~rc2-3) experimental; urgency=low
 
   * Fix around the libsmbclient/libsmbclient-dev descriptions, which got
     swapped in the last upload.

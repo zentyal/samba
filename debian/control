@@ -45,12 +45,10 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Samba testing utilities
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.  Samba can also function
- as an NT4-style domain controller, and can integrate with both NT4 domains
- and Active Directory realms as a member server.
+ Microsoft Windows, OS X, and other Unix systems.
  .
- This package contains command-line tools such as smbtorture for
- performance-testing CIFS servers or clients.
+ This package contains extra command-line tools such as smbtorture for
+ performance-testing CIFS servers and clients.
 
 Package: smbclient
 Architecture: any

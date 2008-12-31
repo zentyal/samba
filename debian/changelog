@@ -1,4 +1,4 @@
-samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
+samba (2:3.3.0~rc2-2ubuntu1) experimental; urgency=low
 
   * Fix around the libsmbclient/libsmbclient-dev descriptions, which got
     swapped in the last upload.
@@ -14,7 +14,7 @@ samba (2:3.3.0~rc2-2ubuntu1) UNRELEASED; urgency=low
   * Clarify in the description that samba-tools are extra, only useful for
     testing.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 29 Dec 2008 13:11:16 -0600
+ -- Steve Langasek <vorlon@debian.org>  Tue, 30 Dec 2008 18:42:05 -0800
 
 samba (2:3.3.0~rc2-2) experimental; urgency=low
 

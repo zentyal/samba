@@ -51,8 +51,10 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
-msgid "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Le paquet dhcp3-client doit être installé pour utiliser cette fonctionnalité."
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Le paquet dhcp3-client doit être installé pour utiliser cette fonctionnalité."
 
 #. Type: boolean
 #. Description
@@ -99,17 +101,16 @@ msgstr "Nom de domaine ou de groupe de travail :"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the 'security=domain' setting."
 msgstr ""
-"Veuillez indiquer le groupe de travail pour ce système. Ce réglage définit le groupe de travail où le système apparaîtra s'il est utilisé comme serveur, le groupe de travail utilisé par défaut avec les divers outils de Samba ainsi que le nom de domaine utilisé le cas échéant avec le paramètre "
+"Veuillez indiquer le groupe de travail pour ce système. Ce réglage définit "
+"le groupe de travail où le système apparaîtra s'il est utilisé comme "
+"serveur, le groupe de travail utilisé par défaut avec les divers outils de "
+"Samba ainsi que le nom de domaine utilisé le cas échéant avec le paramètre "
 "« security=domain »."
 
 #. Type: boolean
@@ -121,10 +122,6 @@ msgstr "Voulez-vous chiffrer les mots de passe ?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
@@ -138,19 +135,17 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Il est fortement recommandé d'utiliser des mots de passe chiffrés car les mots de passe en clair ne sont plus gérés dans les produits Microsoft Windows. Si vous le faites, "
-"n'oubliez pas de créer un fichier /etc/samba/smbpasswd et d'y établir les "
-"mots de passe de tous les utilisateurs, à l'aide de la commande « smbpasswd »."
+"Il est fortement recommandé d'utiliser des mots de passe chiffrés car les "
+"mots de passe en clair ne sont plus gérés dans les produits Microsoft "
+"Windows. Si vous le faites, n'oubliez pas de créer un fichier /etc/samba/"
+"smbpasswd et d'y établir les mots de passe de tous les utilisateurs, à "
+"l'aide de la commande « smbpasswd »."
 
 #. Type: boolean
 #. Description
@@ -223,4 +218,3 @@ msgid ""
 msgstr ""
 "Le service de Samba smbd peut s'exécuter en tant que démon classique ou bien "
 "être lancé par inetd. Il est recommandé de l'exécuter en tant que démon."
-

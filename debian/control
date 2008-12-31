@@ -171,12 +171,11 @@ Description: Samba nameservice integration server
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package provides winbindd, a daemon which can integrate the
- user/group lookup and authentication mechanisms from a Windows domain
- with their equivalents on the Samba side. Thus for example users who
- have Active Directory accounts can automatically be given working
- /etc/password logins and vice versa, once /etc/nsswitch.conf and the
- winbind module for PAM are configured appropriately.
+ This package provides winbindd, a daemon which integrates authentication
+ and directory service (user/group lookup) mechanisms from a Windows
+ domain on a Linux system.  User/group lookups are configured via
+ /etc/nsswitch.conf, and authentication is integrated using the winbind
+ module for PAM.
 
 Package: samba-dbg
 Section: devel

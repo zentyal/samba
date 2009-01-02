@@ -1,18 +1,7 @@
-# translation of fr.po to French
+# samba debconf screens: French translation.
+# Copyright (C) 2006-2009, Christian Perrier <bubulle@debian.org>
+# This file is distributed under the same license as the samba package.
 #
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
-#
-#    Developers do not need to manually edit POT or PO files.
-#
-# Christian Perrier <bubulle@debian.org>, 2006, 2007, 2008.
 msgid ""
 msgstr ""
 "Project-Id-Version: fr\n"
@@ -65,14 +54,6 @@ msgstr "Voulez-vous configurer smb.conf automatiquement ?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "The rest of the configuration of Samba deals with questions that affect "
-#| "parameters in /etc/samba/smb.conf, which is the file used to configure "
-#| "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
-#| "'include' line or an option that spans multiple lines, which could "
-#| "confuse the automated configuration process and require you to edit your "
-#| "smb.conf by hand to get it working again."
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -109,12 +90,6 @@ msgstr "Nom de domaine ou de groupe de travail :"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup for this system.  This setting controls "
-#| "which workgroup the system will appear in when used as a server, the "
-#| "default workgroup to be used when browsing with various frontends, and "
-#| "the domain name used with the 'security=domain' setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
@@ -136,11 +111,6 @@ msgstr "Voulez-vous chiffrer les mots de passe ?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB/CIFS servers using "
-#| "encrypted passwords. If you want to use clear text passwords you will "
-#| "need to change a parameter in the Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "

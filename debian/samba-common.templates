@@ -18,7 +18,7 @@ _Description: Configure smb.conf automatically?
  The rest of the configuration of Samba deals with questions that
  affect parameters in /etc/samba/smb.conf, which is the file used to
  configure the Samba programs (nmbd and smbd). Your current smb.conf
- contains an 'include' line or an option that spans multiple lines,
+ contains an "include" line or an option that spans multiple lines,
  which could confuse the automated configuration process and require
  you to edit your smb.conf by hand to get it working again.
  .
@@ -33,7 +33,7 @@ _Description: Workgroup/Domain Name:
  Please specify the workgroup for this system.  This setting controls which
  workgroup the system will appear in when used as a server, the default
  workgroup to be used when browsing with various frontends, and the domain
- name used with the 'security=domain' setting.
+ name used with the "security=domain" setting.
 
 Template: samba-common/encrypt_passwords
 Type: boolean

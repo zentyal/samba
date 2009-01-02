@@ -1,7 +1,11 @@
 samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Revert one of the template depersonalization changes from the -2 upload,
     because it loses important context
+
+  [ Christian Perrier ]
+  * Use double quotation marks in debconf templates
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 02 Jan 2009 11:00:32 -0800
 

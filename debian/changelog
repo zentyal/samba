@@ -1,3 +1,10 @@
+samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
+
+  * Revert one of the template depersonalization changes from the -2 upload,
+    because it loses important context
+
+ -- Steve Langasek <vorlon@debian.org>  Fri, 02 Jan 2009 11:00:32 -0800
+
 samba (2:3.3.0~rc2-3) experimental; urgency=low
 
   * Fix around the libsmbclient/libsmbclient-dev descriptions, which got

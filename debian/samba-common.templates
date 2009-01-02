@@ -41,7 +41,7 @@ Default: true
 _Description: Use password encryption?
  All recent Windows clients communicate with SMB/CIFS servers using encrypted
  passwords. If you want to use clear text passwords you will need to change
- a parameter in the Windows registry.
+ a parameter in your Windows registry.
  .
  Enabling this option is highly recommended as support for plain text
  passwords is no longer maintained in Microsoft Windows products. If

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2009-01-02 20:32+0100\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
 "PO-Revision-Date: 2007-04-04 17:14+0200\n"
 "Last-Translator: Serge Leblanc <serge.leblanc@wanadoo.fr>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
@@ -53,14 +53,6 @@ msgstr "Akomodu mem la 'smb.conf'-dosieron?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "The rest of the configuration of Samba deals with questions that affect "
-#| "parameters in /etc/samba/smb.conf, which is the file used to configure "
-#| "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
-#| "'include' line or an option that spans multiple lines, which could "
-#| "confuse the automated configuration process and require you to edit your "
-#| "smb.conf by hand to get it working again."
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "

@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2009-01-02 20:32+0100\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -68,14 +68,6 @@ msgstr "smb.conf འདི་རང་བཞིན་གྱིས་རིམ་
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "The rest of the configuration of Samba deals with questions that affect "
-#| "parameters in /etc/samba/smb.conf, which is the file used to configure "
-#| "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
-#| "'include' line or an option that spans multiple lines, which could "
-#| "confuse the automated configuration process and require you to edit your "
-#| "smb.conf by hand to get it working again."
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "

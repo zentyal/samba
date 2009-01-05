@@ -1,11 +1,14 @@
-samba (2:3.2.5-3) UNRELEASED; urgency=low
+samba (2:3.2.5-3) unstable; urgency=high
 
+  * Security update
+  * Fix Potential access to "/" in setups with registry shares enabled
+    This fixes CVE-2009-0022, backported from 3.2.7
   * Fix links in HTML documentation index file.
     Closes: #508388
   * Drop spurious docs-xml/smbdotconf/parameters.global.xml.new
     file in the diff. Thanks to the release managers for spotting it
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 18 Dec 2008 06:42:37 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sun, 21 Dec 2008 08:09:31 +0100
 
 samba (2:3.2.5-2) unstable; urgency=low
 

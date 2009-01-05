@@ -1,0 +1,25 @@
+Goal: Fix Potential access to "/" in setups with registry shares enabled
+
+Fixes: CVE-2009-0022
+
+Status wrt upstream: Fixed in 3.2.7
+
+Author: Michael Adam <obnox@samba.org>
+
+Note: 
+
+Index: samba-3.2.5/source/smbd/service.c
+===================================================================
+--- samba-3.2.5.orig/source/smbd/service.c
++++ samba-3.2.5/source/smbd/service.c
+@@ -235,6 +235,10 @@
+ 		return -1;
+ 	}
+ 
++	if ((servicename == NULL) || (*servicename == '\0')) {
++		return -1;
++	}
++
+ 	if (strequal(servicename, GLOBAL_NAME)) {
+ 		return -2;
+ 	}

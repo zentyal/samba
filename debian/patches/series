@@ -20,3 +20,4 @@ no-unnecessary-cups.patch
 shrink-dead-code.patch
 documentation-links.patch
 documentation-links-debian.patch
+smbd-prevent-access-to-root-filesystem-when-connect.patch

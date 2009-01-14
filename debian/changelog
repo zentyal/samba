@@ -7,6 +7,9 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * Use double quotation marks in debconf templates
 
+  [ Debcofn translations ]
+  * Asturian added. Closes: #511730
+
  -- Steve Langasek <vorlon@debian.org>  Fri, 02 Jan 2009 11:00:32 -0800
 
 samba (2:3.3.0~rc2-3) experimental; urgency=low

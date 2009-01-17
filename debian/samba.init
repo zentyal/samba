@@ -98,8 +98,22 @@ case "$1" in
 		sleep 1
 		$0 start
 		;;
+        status)
+		status="0"
+		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		if [ "$NMBD_DISABLED" != "Yes" ]; then
+			status_of_proc -p $NMBDPID /usr/sbin/nmbd nmbd || status=$?
+		fi
+		if [ "$RUN_MODE" != "inetd" ]; then
+			status_of_proc -p $SMBDPID /usr/sbin/smbd smbd || status=$?
+		fi
+		if [ "$NMBD_DISABLED" = "Yes" -a "$RUN_MODE" = "inetd" ]; then
+			status="4"
+		fi
+		exit $status
+		;;
 	*)
-		echo "Usage: /etc/init.d/samba {start|stop|reload|restart|force-reload}"
+		echo "Usage: /etc/init.d/samba {start|stop|reload|restart|force-reload|status}"
 		exit 1
 		;;
 esac

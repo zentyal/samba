@@ -6,6 +6,8 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Use double quotation marks in debconf templates
+  * Add 'status" option to init scripts. Thansk to Dustin Kirkland for
+    providing the patch. Closes: #488275
 
   [ Debconf translations ]
   * Asturian added. Closes: #511730

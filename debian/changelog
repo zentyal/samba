@@ -8,6 +8,7 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
   * Use double quotation marks in debconf templates
   * Add 'status" option to init scripts. Thansk to Dustin Kirkland for
     providing the patch. Closes: #488275
+  * Move WHATSNEW.txt, README, Roadmap to samba-common. Closes: #491997
 
   [ Debconf translations ]
   * Asturian added. Closes: #511730

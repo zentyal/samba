@@ -9,6 +9,9 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
   * Add 'status" option to init scripts. Thansk to Dustin Kirkland for
     providing the patch. Closes: #488275
   * Move WHATSNEW.txt, README, Roadmap to samba-common. Closes: #491997
+  * [Lintian] Add ${misc:Depends} to dependencies of binary packages
+    that didn't have it already as we're using debhelper in the source
+    package
 
   [ Debconf translations ]
   * Asturian added. Closes: #511730

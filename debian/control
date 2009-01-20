@@ -52,7 +52,7 @@ Description: Samba testing utilities
 
 Package: smbclient
 Architecture: any
-Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}
+Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: smbfs
@@ -87,6 +87,7 @@ Package: samba-doc
 Section: doc
 Architecture: all
 Suggests: samba-doc-pdf
+Depends: ${misc:Depends}
 Description: Samba documentation
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -98,6 +99,7 @@ Description: Samba documentation
 Package: samba-doc-pdf
 Section: doc
 Architecture: all
+Depends: ${misc:Depends}
 Description: Samba documentation in PDF format
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -109,7 +111,7 @@ Package: smbfs
 Section: otherosfs
 Priority: optional
 Architecture: any
-Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}
+Depends: netbase (>= 2.02), samba-common (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Suggests: smbclient
 Replaces: smbfsx
 Description: Samba file system utilities
@@ -125,7 +127,7 @@ Package: libpam-smbpass
 Section: admin
 Priority: extra
 Architecture: any
-Depends: ${shlibs:Depends}, samba-common (= ${binary:Version})
+Depends: ${shlibs:Depends}, samba-common (= ${binary:Version}), ${misc:Depends}
 Suggests: samba
 Description: pluggable authentication module for Samba
  This is a module for PAM that enables a system administrator to migrate
@@ -139,7 +141,7 @@ Package: libsmbclient
 Section: libs
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: shared library for communication with SMB/CIFS servers
  This package provides a shared library that enables client applications
  to talk to Microsoft Windows and Samba servers using the SMB/CIFS
@@ -149,7 +151,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${binary:Version})
+Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)
  required for building applications against libsmbclient, a library that
@@ -179,7 +181,7 @@ Package: samba-dbg
 Section: devel
 Priority: extra
 Architecture: any
-Depends: samba (= ${binary:Version})
+Depends: samba (= ${binary:Version}), ${misc:Depends}
 Description: Samba debugging symbols
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -193,7 +195,7 @@ Package: libwbclient0
 Section: libs
 Priority: optional
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Samba winbind client library
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with

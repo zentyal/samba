@@ -50,7 +50,7 @@ case "$1" in
 
 	status)
 		status_of_proc -p $WINBINDPID $DAEMON winbind && exit 0 || exit $?
-
+		;;
 	*)
 		echo "Usage: /etc/init.d/winbind {start|stop|restart|force-reload|status}"
 		exit 1

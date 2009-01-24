@@ -1,4 +1,4 @@
-samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
+samba (2:3.3.0~rc2-4) experimental; urgency=low
 
   [ Steve Langasek ]
   * Revert one of the template depersonalization changes from the -2 upload,
@@ -21,7 +21,7 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Asturian added. Closes: #511730
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 02 Jan 2009 11:00:32 -0800
+ -- Christian Perrier <bubulle@debian.org>  Sat, 24 Jan 2009 16:04:57 +0100
 
 samba (2:3.3.0~rc2-3) experimental; urgency=low
 

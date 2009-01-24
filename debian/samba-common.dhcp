@@ -15,8 +15,10 @@ netbios_setup() {
 
 	umask 022
 
-	local other_servers=""
-	local serverlist=""
+	local other_servers
+	other_servers==""
+	local serverlist
+	serverlist==""
 
 	# the destination file won't exist yet on the first run after 
 	# installing samba

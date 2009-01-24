@@ -13,6 +13,8 @@ samba (2:3.3.0~rc2-4) UNRELEASED; urgency=low
     that didn't have it already as we're using debhelper in the source
     package
   * [Lintian] Don't ignore errors in swat.postrm
+  * smb.conf.5-undefined-configure.patch: fix syntax error in smb.conf(5)
+    Closes: #512843
 
   [ Debconf translations ]
   * Asturian added. Closes: #511730

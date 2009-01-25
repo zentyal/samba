@@ -140,6 +140,7 @@ install: build
 	# Rename to *.samba3 for alternatives
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
 	mv $(DESTDIR)/usr/bin/nmblookup $(DESTDIR)/usr/bin/nmblookup.samba3
+	mv $(DESTDIR)/usr/bin/net $(DESTDIR)/usr/bin/net.samba3
 
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the

@@ -5,6 +5,7 @@ set -e
 if [ "$1" = "configure" ]
 then
 	update-alternatives --remove nmblookup /usr/bin/nmblookup.samba3
+	update-alternatives --remove net /usr/bin/net.samba3
 fi
 
 #DEBHELPER#

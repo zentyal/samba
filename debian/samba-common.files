@@ -1,8 +1,8 @@
 etc/samba/
 etc/dhcp3/
 etc/pam.d/
-usr/bin/net
-usr/bin/nmblookup.samba-common
+usr/bin/net.samba3
+usr/bin/nmblookup.samba3
 usr/bin/smbpasswd
 usr/bin/testparm
 usr/share/man/man1/nmblookup.1

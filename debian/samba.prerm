@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e 
+
+if [ "$1" = "configure" ]
+then
+	update-alternatives --remove smbstatus /usr/bin/smbstatus.samba3
+fi
+
+#DEBHELPER#
+
+exit 0

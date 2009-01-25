@@ -4,6 +4,11 @@
 
 set -e
 
+if [ "$1" = "configure" ]
+then
+	update-alternatives --install /usr/bin/nmblookup nmblookup /usr/bin/nmblookup.samba3
+fi
+
 # Do debconf stuff here
 . /usr/share/debconf/confmodule
 

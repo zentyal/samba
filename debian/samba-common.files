@@ -2,7 +2,7 @@ etc/samba/
 etc/dhcp3/
 etc/pam.d/
 usr/bin/net
-usr/bin/nmblookup
+usr/bin/nmblookup.samba-common
 usr/bin/smbpasswd
 usr/bin/testparm
 usr/share/man/man1/nmblookup.1

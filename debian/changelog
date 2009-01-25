@@ -1,7 +1,8 @@
 samba (2:3.3.0~rc2-5) experimental; urgency=low
 
-  * Use alternatives for nsstest, locktest, masktest, smbtatus, nmblookup,
-  net and smbtorture to allow installation of Samba 3 together with Samba 4. 
+  * Use alternatives for the nsstest, locktest, masktest, smbtatus, nmblookup,
+  net and smbtorture binaries and various data files in samba-common to allow 
+  installation of Samba 3 together with Samba 4. 
   * Add myself to uploaders.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 25 Jan 2009 20:32:34 +0100

@@ -8,6 +8,11 @@ if [ "$1" = "configure" ]
 then
 	update-alternatives --install /usr/bin/nmblookup nmblookup /usr/bin/nmblookup.samba3
 	update-alternatives --install /usr/bin/net net /usr/bin/net.samba3
+	for N in valid.dat upcase.dat lowcase.dat
+	do
+		update-alternatives --install /usr/share/samba/$N $N /usr/share/samba/$N.samba3
+	done
+	update-alternatives --install /usr/share/samba/panic-action samba-panic-action /usr/share/samba/panic-action.samba3
 fi
 
 # Do debconf stuff here

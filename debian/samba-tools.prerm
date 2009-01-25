@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if [ "$1" = "configure" ]
+then
+	update-alternatives --remove locktest /usr/bin/locktest.samba3
+	update-alternatives --remove nsstest nsstest /usr/bin/nsstest.samba3
+	update-alternatives --remove masktest /usr/bin/masktest.samba3
+	update-alternatives --remove smbtorture /usr/bin/smbtorture.samba3
+fi
+
+#DEBHELPER#
+
+exit 0

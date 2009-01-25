@@ -43,7 +43,7 @@ Description: common files used by both the Samba server and client
 Package: samba-tools
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Conflicts: samba4 (<< 4.0.0~alpha6-2), samba4-testsuite (<< 4.0.0~alpha6-2)
+Conflicts: samba4, samba4-testsuite
 Description: Samba testing utilities
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -58,7 +58,7 @@ Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: smbfs
-Conflicts: samba4-clients (<< 4.0.0~alpha6-2)
+Conflicts: samba4-clients
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with

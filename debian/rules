@@ -140,8 +140,11 @@ install: build
 	# Rename to *.samba3 for alternatives
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
 	mv $(DESTDIR)/usr/bin/nmblookup $(DESTDIR)/usr/bin/nmblookup.samba3
+	mv $(DESTDIR)/usr/share/man/man1/nmblookup $(DESTDIR)/usr/share/man/man1/nmblookup.samba3.1
 	mv $(DESTDIR)/usr/bin/net $(DESTDIR)/usr/bin/net.samba3
+	mv $(DESTDIR)/usr/share/man/man1/net.1 $(DESTDIR)/usr/share/man/man1/net.samba3.1
 	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
+	mv $(DESTDIR)/usr/share/man/man1/testparm $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
 
 	mv $(DESTDIR)/usr/share/samba/lowcase.dat $(DESTDIR)/usr/share/samba/lowcase.dat.samba3
 	mv $(DESTDIR)/usr/share/samba/upcase.dat $(DESTDIR)/usr/share/samba/upcase.dat.samba3
@@ -161,12 +164,12 @@ install: build
 	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
 	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
 	# Install torture stuff
-	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture.samba3
+	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
 	install -m 0755 source/bin/msgtest $(DESTDIR)/usr/bin/msgtest
-	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest.samba3
-	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest.samba3
+	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest
+	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest
 	install -m 0755 source/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
-	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest.samba3
+	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest
 	install -m 0755 source/bin/vfstest $(DESTDIR)/usr/bin/vfstest
 	install -m 0755 source/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
 	install -m 0755 source/bin/talloctort $(DESTDIR)/usr/bin/talloctort

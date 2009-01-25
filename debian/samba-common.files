@@ -4,7 +4,7 @@ etc/pam.d/
 usr/bin/net.samba3
 usr/bin/nmblookup.samba3
 usr/bin/smbpasswd
-usr/bin/testparm
+usr/bin/testparm.samba3
 usr/share/man/man1/nmblookup.1
 usr/share/man/man1/testparm.1
 usr/share/man/man5/lmhosts.5

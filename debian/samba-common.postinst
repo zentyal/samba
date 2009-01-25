@@ -8,6 +8,7 @@ if [ "$1" = "configure" ]
 then
 	update-alternatives --install /usr/bin/nmblookup nmblookup /usr/bin/nmblookup.samba3
 	update-alternatives --install /usr/bin/net net /usr/bin/net.samba3
+	update-alternatives --install /usr/bin/testparm testparm /usr/bin/testparm.samba3
 	for N in valid.dat upcase.dat lowcase.dat
 	do
 		update-alternatives --install /usr/share/samba/$N $N /usr/share/samba/$N.samba3

@@ -141,6 +141,7 @@ install: build
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
 	mv $(DESTDIR)/usr/bin/nmblookup $(DESTDIR)/usr/bin/nmblookup.samba3
 	mv $(DESTDIR)/usr/bin/net $(DESTDIR)/usr/bin/net.samba3
+	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
 
 	mv $(DESTDIR)/usr/share/samba/lowcase.dat $(DESTDIR)/usr/share/samba/lowcase.dat.samba3
 	mv $(DESTDIR)/usr/share/samba/upcase.dat $(DESTDIR)/usr/share/samba/upcase.dat.samba3

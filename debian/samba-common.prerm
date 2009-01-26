@@ -2,8 +2,8 @@
 
 set -e 
 
-if [ "$1" = "configure" ]
-then
+case "$1" in
+    remove|upgrade|deconfigure)
 	update-alternatives --remove nmblookup /usr/bin/nmblookup.samba3
 	update-alternatives --remove net /usr/bin/net.samba3
 	update-alternatives --remove testparm /usr/bin/testparm.samba3
@@ -12,7 +12,8 @@ then
 		update-alternatives --remove $N /usr/share/samba/$N.samba3
 	done
 	update-alternatives --remove samba-panic-action /usr/share/samba/panic-action.samba3
-fi
+		;;
+esac
 
 #DEBHELPER#
 

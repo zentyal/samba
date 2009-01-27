@@ -581,9 +581,20 @@ ADS_STATUS ads_connect(ADS_STRUCT *ads)
 		TALLOC_FREE(s);
 	}
 
-	if (ads->server.ldap_server &&
-	    ads_try_connect(ads, ads->server.ldap_server, ads->server.gc)) {
-		goto got_connection;
+	if (ads->server.ldap_server)
+	{
+		if (ads_try_connect(ads, ads->server.ldap_server, ads->server.gc)) {			
+			goto got_connection;
+		}
+		
+		/* The choice of which GC use is handled one level up in
+		   ads_connect_gc().  If we continue on from here with
+		   ads_find_dc() we will get GC searches on port 389 which
+		   doesn't work.   --jerry */
+
+		if (ads->server.gc == true) {
+			return ADS_ERROR(LDAP_OPERATIONS_ERROR);
+		}
 	}
 
 	ntstatus = ads_find_dc(ads);
@@ -603,7 +614,10 @@ got_connection:
 		/* Must use the userPrincipalName value here or sAMAccountName
 		   and not servicePrincipalName; found by Guenther Deschner */
 
-		asprintf(&ads->auth.user_name, "%s$", global_myname() );
+		if (asprintf(&ads->auth.user_name, "%s$", global_myname() ) == -1) {
+			DEBUG(0,("ads_connect: asprintf fail.\n"));
+			ads->auth.user_name = NULL;
+		}
 	}
 
 	if (!ads->auth.realm) {
@@ -619,10 +633,11 @@ got_connection:
 	/* this is a really nasty hack to avoid ADS DNS problems. It needs a patch
 	   to MIT kerberos to work (tridge) */
 	{
-		char *env;
-		asprintf(&env, "KRB5_KDC_ADDRESS_%s", ads->config.realm);
-		setenv(env, ads->auth.kdc_server, 1);
-		free(env);
+		char *env = NULL;
+		if (asprintf(&env, "KRB5_KDC_ADDRESS_%s", ads->config.realm) > 0) {
+			setenv(env, ads->auth.kdc_server, 1);
+			free(env);
+		}
 	}
 #endif
 

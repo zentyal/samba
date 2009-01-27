@@ -718,24 +718,17 @@ static const struct enum_list enum_ldap_sasl_wrapping[] = {
 
 static const struct enum_list enum_ldap_ssl[] = {
 	{LDAP_SSL_OFF, "no"},
-	{LDAP_SSL_OFF, "No"},
 	{LDAP_SSL_OFF, "off"},
-	{LDAP_SSL_OFF, "Off"},
 	{LDAP_SSL_START_TLS, "start tls"},
-	{LDAP_SSL_START_TLS, "Start_tls"},
+	{LDAP_SSL_START_TLS, "start_tls"},
 	{-1, NULL}
 };
 
 static const struct enum_list enum_ldap_passwd_sync[] = {
 	{LDAP_PASSWD_SYNC_OFF, "no"},
-	{LDAP_PASSWD_SYNC_OFF, "No"},
 	{LDAP_PASSWD_SYNC_OFF, "off"},
-	{LDAP_PASSWD_SYNC_OFF, "Off"},
-	{LDAP_PASSWD_SYNC_ON, "Yes"},
 	{LDAP_PASSWD_SYNC_ON, "yes"},
 	{LDAP_PASSWD_SYNC_ON, "on"},
-	{LDAP_PASSWD_SYNC_ON, "On"},
-	{LDAP_PASSWD_SYNC_ONLY, "Only"},
 	{LDAP_PASSWD_SYNC_ONLY, "only"},
 	{-1, NULL}
 };
@@ -3487,7 +3480,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.bShareModes,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_SHARE | FLAG_GLOBAL,
+		.flags		= FLAG_ADVANCED | FLAG_SHARE | FLAG_GLOBAL | FLAG_DEPRECATED,
 	},
 
 	{N_("Ldap Options"), P_SEP, P_SEPARATOR},
@@ -4790,7 +4783,7 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szLdapIdmapSuffix, "");
 
 	string_set(&Globals.szLdapAdminDn, "");
-	Globals.ldap_ssl = LDAP_SSL_ON;
+	Globals.ldap_ssl = LDAP_SSL_START_TLS;
 	Globals.ldap_passwd_sync = LDAP_PASSWD_SYNC_OFF;
 	Globals.ldap_delete_dn = False;
 	Globals.ldap_replication_sleep = 1000; /* wait 1 sec for replication */

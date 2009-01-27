@@ -4184,9 +4184,10 @@ static char *get_ldap_filter(TALLOC_CTX *mem_ctx, const char *username)
 	char *escaped = NULL;
 	char *result = NULL;
 
-	asprintf(&filter, "(&%s(objectclass=%s))",
-			  "(uid=%u)", LDAP_OBJ_SAMBASAMACCOUNT);
-	if (filter == NULL) goto done;
+	if (asprintf(&filter, "(&%s(objectclass=%s))",
+			  "(uid=%u)", LDAP_OBJ_SAMBASAMACCOUNT) < 0) {
+		goto done;
+	}
 
 	escaped = escape_ldap_string_alloc(username);
 	if (escaped == NULL) goto done;
@@ -4220,6 +4221,7 @@ const char **talloc_attrs(TALLOC_CTX *mem_ctx, ...)
 		result[i] = talloc_strdup(result, va_arg(ap, const char*));
 		if (result[i] == NULL) {
 			talloc_free(result);
+			va_end(ap);
 			return NULL;
 		}
 	}

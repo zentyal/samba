@@ -460,7 +460,7 @@ int32_t dbwrap_fetch_int32(struct db_context *db, const char *keystr);
 int dbwrap_store_int32(struct db_context *db, const char *keystr, int32_t v);
 bool dbwrap_fetch_uint32(struct db_context *db, const char *keystr,
 			 uint32_t *val);
-bool dbwrap_store_uint32(struct db_context *db, const char *keystr, uint32_t v);
+int dbwrap_store_uint32(struct db_context *db, const char *keystr, uint32_t v);
 uint32_t dbwrap_change_uint32_atomic(struct db_context *db, const char *keystr,
 				     uint32_t *oldval, uint32_t change_val);
 int32 dbwrap_change_int32_atomic(struct db_context *db, const char *keystr,
@@ -518,46 +518,6 @@ void display_set_stderr(void);
 
 NTSTATUS map_nt_error_from_unix(int unix_error);
 int map_errno_from_nt_status(NTSTATUS status);
-
-/* The following definitions come from lib/events.c  */
-
-struct timed_event *event_add_timed(struct event_context *event_ctx,
-				TALLOC_CTX *mem_ctx,
-				struct timeval when,
-				const char *event_name,
-				void (*handler)(struct event_context *event_ctx,
-						struct timed_event *te,
-						const struct timeval *now,
-						void *private_data),
-				void *private_data);
-struct fd_event *event_add_fd(struct event_context *event_ctx,
-			      TALLOC_CTX *mem_ctx,
-			      int fd, uint16_t flags,
-			      void (*handler)(struct event_context *event_ctx,
-					      struct fd_event *event,
-					      uint16 flags,
-					      void *private_data),
-			      void *private_data);
-void event_fd_set_writeable(struct fd_event *fde);
-void event_fd_set_not_writeable(struct fd_event *fde);
-void event_fd_set_readable(struct fd_event *fde);
-void event_fd_set_not_readable(struct fd_event *fde);
-bool event_add_to_select_args(struct event_context *event_ctx,
-			      const struct timeval *now,
-			      fd_set *read_fds, fd_set *write_fds,
-			      struct timeval *timeout, int *maxfd);
-bool events_pending(struct event_context *event_ctx);
-bool run_events(struct event_context *event_ctx,
-		int selrtn, fd_set *read_fds, fd_set *write_fds);
-struct timeval *get_timed_events_timeout(struct event_context *event_ctx,
-					 struct timeval *to_ret);
-int event_loop_once(struct event_context *ev);
-struct event_context *event_context_init(TALLOC_CTX *mem_ctx);
-int set_event_dispatch_time(struct event_context *event_ctx,
-			    const char *event_name, struct timeval when);
-int cancel_named_event(struct event_context *event_ctx,
-		       const char *event_name);
-void dump_event_list(struct event_context *event_ctx);
 
 /* The following definitions come from lib/fault.c  */
 
@@ -1037,6 +997,7 @@ void *sys_memalign( size_t align, size_t size );
 int sys_usleep(long usecs);
 ssize_t sys_read(int fd, void *buf, size_t count);
 ssize_t sys_write(int fd, const void *buf, size_t count);
+ssize_t sys_writev(int fd, const struct iovec *iov, int iovcnt);
 ssize_t sys_pread(int fd, void *buf, size_t count, SMB_OFF_T off);
 ssize_t sys_pwrite(int fd, const void *buf, size_t count, SMB_OFF_T off);
 ssize_t sys_send(int s, const void *msg, size_t len, int flags);
@@ -1296,6 +1257,7 @@ int set_blocking(int fd, bool set);
 void smb_msleep(unsigned int t);
 void become_daemon(bool Fork, bool no_process_group);
 bool reinit_after_fork(struct messaging_context *msg_ctx,
+		       struct event_context *ev_ctx,
 		       bool parent_longlived);
 bool yesno(const char *p);
 void *malloc_(size_t size);
@@ -1575,6 +1537,7 @@ NTSTATUS read_socket_with_timeout(int fd, char *buf,
 				  size_t *size_ret);
 NTSTATUS read_data(int fd, char *buffer, size_t N);
 ssize_t write_data(int fd, const char *buffer, size_t N);
+ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt);
 bool send_keepalive(int client);
 NTSTATUS read_smb_length_return_keepalive(int fd, char *inbuf,
 					  unsigned int timeout,
@@ -6173,8 +6136,9 @@ NTSTATUS local_password_change(const char *user_name,
 				const char *new_passwd, 
 				char **pp_err_str,
 				char **pp_msg_str);
-bool init_sam_from_buffer_v3(struct samu *sampass, uint8 *buf, uint32 buflen);
-uint32 init_buffer_from_sam_v3 (uint8 **buf, struct samu *sampass, bool size_only);
+bool init_samu_from_buffer(struct samu *sampass, uint32_t level,
+			   uint8 *buf, uint32 buflen);
+uint32 init_buffer_from_samu (uint8 **buf, struct samu *sampass, bool size_only);
 bool pdb_copy_sam_account(struct samu *dst, struct samu *src );
 bool pdb_update_bad_password_count(struct samu *sampass, bool *updated);
 bool pdb_update_autolock_flag(struct samu *sampass, bool *updated);
@@ -6622,7 +6586,8 @@ bool sysv_cache_reload(void);
 /* The following definitions come from printing/printfsp.c  */
 
 NTSTATUS print_fsp_open(connection_struct *conn, const char *fname,
-			uint16_t current_vuid, files_struct *fsp);
+			uint16_t current_vuid, files_struct *fsp,
+			SMB_STRUCT_STAT *psbuf);
 void print_fsp_end(files_struct *fsp, enum file_close_type close_type);
 
 /* The following definitions come from printing/printing.c  */
@@ -7667,7 +7632,7 @@ NTSTATUS cli_do_rpc_ndr(struct rpc_pipe_client *cli,
 
 /* The following definitions come from rpc_parse/parse_buffer.c  */
 
-void rpcbuf_init(RPC_BUFFER *buffer, uint32 size, TALLOC_CTX *ctx);
+bool rpcbuf_init(RPC_BUFFER *buffer, uint32 size, TALLOC_CTX *ctx);
 bool prs_rpcbuffer(const char *desc, prs_struct *ps, int depth, RPC_BUFFER *buffer);
 bool prs_rpcbuffer_p(const char *desc, prs_struct *ps, int depth, RPC_BUFFER **buffer);
 bool rpcbuf_alloc_size(RPC_BUFFER *buffer, uint32 buffer_size);
@@ -10220,7 +10185,6 @@ void init_sec_ctx(void);
 
 int smbd_server_fd(void);
 int get_client_fd(void);
-int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client);
 struct event_context *smbd_event_context(void);
 struct messaging_context *smbd_messaging_context(void);
 struct memcache *smbd_memcache(void);

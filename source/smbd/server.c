@@ -59,7 +59,9 @@ int get_client_fd(void)
 	return server_fd;
 }
 
-int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client)
+#ifdef CLUSTER_SUPPORT
+static int client_get_tcp_info(struct sockaddr_storage *server,
+			       struct sockaddr_storage *client)
 {
 	socklen_t length;
 	if (server_fd == -1) {
@@ -75,6 +77,7 @@ int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client)
 	}
 	return 0;
 }
+#endif
 
 struct event_context *smbd_event_context(void)
 {
@@ -750,7 +753,9 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 								false);
 
 				if (!reinit_after_fork(
-					    smbd_messaging_context(), true)) {
+					    smbd_messaging_context(),
+					    smbd_event_context(),
+					    true)) {
 					DEBUG(0,("reinit_after_fork() failed\n"));
 					smb_panic("reinit_after_fork() failed");
 				}
@@ -1324,7 +1329,8 @@ extern void build_options(bool screen);
 	if (is_daemon)
 		pidfile_create("smbd");
 
-	if (!reinit_after_fork(smbd_messaging_context(), false)) {
+	if (!reinit_after_fork(smbd_messaging_context(),
+			       smbd_event_context(), false)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
@@ -1466,7 +1472,7 @@ extern void build_options(bool screen);
 		 * client.
 		 */
 
-		struct sockaddr_in srv, clnt;
+		struct sockaddr_storage srv, clnt;
 
 		if (client_get_tcp_info(&srv, &clnt) == 0) {
 

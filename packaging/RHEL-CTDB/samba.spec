@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.3.0rc2
+Version:      3.3.0
 Release:      ctdb.1
 Epoch:        0
 License: GNU GPL version 3
@@ -139,6 +139,8 @@ else
 	CC="gcc"
 fi
 
+export CC
+
 ## always run autogen.sh
 ./autogen.sh
 
@@ -191,12 +193,6 @@ fi
 
 make CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE" %{?_smp_mflags} \
 	all modules pam_smbpass
-
-## build the cifs fs mount helper
-cd client
-gcc  -o mount.cifs $RPM_OPT_FLAGS  -D_GNU_SOURCE -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE mount.cifs.c
-gcc  -o umount.cifs $RPM_OPT_FLAGS  -D_GNU_SOURCE -Wall -D_GNU_SOURCE -D_LARGEFILE64_SOURCE umount.cifs.c
-cd ..
 
 # Remove some permission bits to avoid to many dependencies
 cd ..
@@ -257,8 +253,8 @@ install -m644 setup/samba.pamd $RPM_BUILD_ROOT%{_sysconfdir}/pam.d/samba
 install -m755 setup/smbprint $RPM_BUILD_ROOT%{_bindir}
 install -m644 setup/smbusers $RPM_BUILD_ROOT%{_sysconfdir}/samba/smbusers
 install -m644 setup/smb.conf $RPM_BUILD_ROOT%{_sysconfdir}/samba/smb.conf
-install -m755 source/client/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
-install -m755 source/client/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
+install -m755 source/bin/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
+install -m755 source/bin/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
 install -m755 source/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
 
 /bin/rm $RPM_BUILD_ROOT%{_sbindir}/*mount.cifs

@@ -6,18 +6,18 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.3.0rc2/docs/manpages/smb.conf.5
+Index: samba-3.3.0/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.3.0rc2.orig/docs/manpages/smb.conf.5
-+++ samba-3.3.0rc2/docs/manpages/smb.conf.5
-@@ -750,8 +750,8 @@
+--- samba-3.3.0.orig/docs/manpages/smb.conf.5
++++ samba-3.3.0/docs/manpages/smb.conf.5
+@@ -1141,8 +1141,8 @@
  Default:
- \fI\fIadd machine script\fR\fR\fI = \fR\fI\fR\fI \fR
+ \fI\fIadd machine script\fR\fR\fI = \fR\fI\FC\F[]\fR\fI \fR
  .sp
 -Example:
--\fI\fIadd machine script\fR\fR\fI = \fR\fI/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/nobody \-s /bin/false %u\fR\fI \fR
+-\fI\fIadd machine script\fR\fR\fI = \fR\fI\FC/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/nobody \-s /bin/false %u\F[]\fR\fI \fR
 +Example for Debian:
-+\fB\fIadd machine script\fR = /usr/sbin/adduser -n -g machines -c Machine -d /var/lib/samba -s /bin/false %u \fR
++\fI\fIadd machine script\fR\fR\fI = \fR\fI\FC/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/samba \-s /bin/false %u\F[]\fR\fI \fR
  .RE
  
  add port command (G)

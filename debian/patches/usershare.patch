@@ -8,105 +8,27 @@ Authors: Mathias Gug <mathiaz@ubuntu.com>,
 
 Status wrt upstream: Debian-specific
 
-Index: samba-3.3.0rc2/docs/manpages/smb.conf.5
+Index: samba-3.3.0/docs/manpages/net.8
 ===================================================================
---- samba-3.3.0rc2.orig/docs/manpages/smb.conf.5
-+++ samba-3.3.0rc2/docs/manpages/smb.conf.5
-@@ -269,7 +269,7 @@
- .PP
- usershare path
- .RS 4
--Points to the directory containing the user defined share definitions\. The filesystem permissions on this directory control who can create user defined shares\.
-+Points to the directory containing the user-defined share definitions. The filesystem permissions on this directory control who can create user-defined shares.
- .RE
- .PP
- usershare prefix allow list
-@@ -287,31 +287,7 @@
- Names a pre\-existing share used as a template for creating new usershares\. All other share parameters not specified in the user defined share definition are copied from this named share\.
- .RE
- .PP
--To allow members of the UNIX group
--foo
--to create user defined shares, create the directory to contain the share definitions as follows:
--.PP
--Become root:
--.sp
--.RS 4
--.nf
--mkdir /usr/local/samba/lib/usershares
--chgrp foo /usr/local/samba/lib/usershares
--chmod 1770 /usr/local/samba/lib/usershares
--.fi
--.RE
--.PP
--Then add the parameters
--.sp
--.RS 4
--.nf
--	\fIusershare path = /usr/local/samba/lib/usershares\fR
--	\fIusershare max shares = 10\fR # (or the desired number of shares)
--.fi
--.RE
--.sp
--to the global section of your
--\fIsmb\.conf\fR\. Members of the group foo may then manipulate the user defined shares using the following commands\.
-+Members of the \fBsambashare\fR group can manipulate the user-defined shares using the following commands:
- .PP
- net usershare add sharename path [comment] [acl] [guest_ok=[y|n]]
- .RS 4
-@@ -8841,25 +8817,25 @@
- usershare path (G)
- .PP
- .RS 4
--This parameter specifies the absolute path of the directory on the filesystem used to store the user defined share definition files\. This directory must be owned by root, and have no access for other, and be writable only by the group owner\. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured)\. Members of the group owner of this directory are the users allowed to create usershares\. If this parameter is undefined then no user defined shares are allowed\.
-+This parameter specifies the absolute path of the directory on the filesystem used to store the user-defined share definition files. This directory must be owned by root, and have no access for other, and be writable only by the group owner. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured). Members of the group owner of this directory are the users allowed to create usershares. If this parameter is undefined then no user-defined shares are allowed.
- .sp
--For example, a valid usershare directory might be /usr/local/samba/lib/usershares, set up as follows\.
-+For example, on Debian the default usershare directory of /var/lib/samba/usershares is set up as follows.
- .sp
- 
- .sp
- .RS 4
- .nf
--	ls \-ld /usr/local/samba/lib/usershares/
--	drwxrwx\-\-T  2 root power_users 4096 2006\-05\-05 12:27 /usr/local/samba/lib/usershares/
-+	ls -ld /var/lib/samba/usershares/
-+	drwxrwx--T  2 root sambashare 4096 2006-05-05 12:27 /var/lib/samba/usershares/
- 	
- .fi
- .RE
- .sp
- .sp
--In this case, only members of the group "power_users" can create user defined shares\.
-+In this case, only members of the group "sambashare" can create user defined shares.
- .sp
- Default:
--\fI\fIusershare path\fR\fR\fI = \fR\fINULL\fR\fI \fR
-+\fB\fIusershare path\fR = /var/lib/samba/usershares \fR
- .RE
- 
- usershare prefix allow list (G)
-Index: samba-3.3.0rc2/docs/manpages/net.8
-===================================================================
---- samba-3.3.0rc2.orig/docs/manpages/net.8
-+++ samba-3.3.0rc2/docs/manpages/net.8
-@@ -666,9 +666,9 @@
- Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\. In this case the secret is used as the password for the user DN used to bind to the ldap server\.
+--- samba-3.3.0.orig/docs/manpages/net.8
++++ samba-3.3.0/docs/manpages/net.8
+@@ -903,9 +903,9 @@
+ Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\&. In this case the secret is used as the password for the user DN used to bind to the ldap server\&.
  .SS "USERSHARE"
  .PP
--Starting with version 3\.0\.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\.
-+Starting with version 3\.0\.23, a Samba server now supports the ability for non\-root users to add user-defined shares to be exported using the "net usershare" commands\.
+-Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\&.
++Starting with version 3\&.0\&.23, a Samba server now supports the ability for non\-root users to add user-defined shares to be exported using the "net usershare" commands\&.
  .PP
--To set this up, first set up your smb\.conf by adding to the [global] section: usershare path = /usr/local/samba/lib/usershares Next create the directory /usr/local/samba/lib/usershares, change the owner to root and set the group owner to the UNIX group who should have the ability to create usershares, for example a group called "serverops"\. Set the permissions on /usr/local/samba/lib/usershares to 01770\. (Owner and group all access, no access for others, plus the sticky bit, which means that a file in that directory can be renamed or deleted only by the owner of the file)\. Finally, tell smbd how many usershares you will allow by adding to the [global] section of smb\.conf a line such as : usershare max shares = 100\. To allow 100 usershare definitions\. Now, members of the UNIX group "serverops" can create user defined shares on demand using the commands below\.
-+Members of the UNIX group "sambashare" can create user-defined shares on demand using the commands below.
+-To set this up, first set up your smb\&.conf by adding to the [global] section: usershare path = /usr/local/samba/lib/usershares Next create the directory /usr/local/samba/lib/usershares, change the owner to root and set the group owner to the UNIX group who should have the ability to create usershares, for example a group called "serverops"\&. Set the permissions on /usr/local/samba/lib/usershares to 01770\&. (Owner and group all access, no access for others, plus the sticky bit, which means that a file in that directory can be renamed or deleted only by the owner of the file)\&. Finally, tell smbd how many usershares you will allow by adding to the [global] section of smb\&.conf a line such as : usershare max shares = 100\&. To allow 100 usershare definitions\&. Now, members of the UNIX group "serverops" can create user defined shares on demand using the commands below\&.
++Members of the UNIX group "sambashare" can create user-defined shares on demand using the commands below\&.
  .PP
  The usershare commands are:
- .IP "" 4
-Index: samba-3.3.0rc2/source/param/loadparm.c
+ .RS 4
+Index: samba-3.3.0/source/param/loadparm.c
 ===================================================================
---- samba-3.3.0rc2.orig/source/param/loadparm.c
-+++ samba-3.3.0rc2/source/param/loadparm.c
-@@ -4913,7 +4913,7 @@
+--- samba-3.3.0.orig/source/param/loadparm.c
++++ samba-3.3.0/source/param/loadparm.c
+@@ -4906,7 +4906,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

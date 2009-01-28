@@ -1,5 +1,6 @@
-samba (2:3.3.0~rc2-5) UNRELEASED; urgency=low
+samba (2:3.3.0-1) UNRELEASED; urgency=low
 
+  * New upstream release
   * Use alternatives for the smbtatus, nmblookup, net and 
     testparm binaries and various data files in samba-common 
     to allow installation of Samba 3 together with Samba 4. 

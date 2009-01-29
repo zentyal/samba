@@ -1,12 +1,22 @@
 samba (2:3.3.0-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. Fixes the following bugs:
+    - smb file deletion gvfs. Closes: #510564
+    - smbclient du command does not recuse properly. Closes: #509258
+    - mention possible workgroup field in credential files in mount.cifs(8)
+      Closes: #400734
+    - bashism in /usr/share/doc/samba-doc/examples/perfcounter/perfcountd.init
+      Closes: #489656
+    - describe '-g' option in smbclient man page. Closes: #510812
+    - fix swat status table layout. Closes: #511275
+
+  [ Jelmer Vernooij ]
   * Use alternatives for the smbtatus, nmblookup, net and 
     testparm binaries and various data files in samba-common 
     to allow installation of Samba 3 together with Samba 4. 
   * Add myself to uploaders.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sun, 25 Jan 2009 20:32:34 +0100
+ -- Christian Perrier <bubulle@debian.org>  Wed, 28 Jan 2009 20:05:46 +0100
 
 samba (2:3.3.0~rc2-4) experimental; urgency=low
 

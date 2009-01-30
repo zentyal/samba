@@ -40,3 +40,22 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcSidToUid@Base 2:3.2.0
  wbcStringToSid@Base 2:3.2.0
  wbcUidToSid@Base 2:3.2.0
+ wbcAddNamedBlob@Base 2:3.3.0
+ wbcChangeUserPassword@Base 2:3.3.0
+ wbcChangeUserPasswordEx@Base 2:3.3.0
+ wbcCredentialCache@Base 2:3.3.0
+ wbcGetDisplayName@Base 2:3.3.0
+ wbcGetgrlist@Base 2:3.3.0
+ wbcGuidToString@Base 2:3.3.0
+ wbcLogoffUser@Base 2:3.3.0
+ wbcLogoffUserEx@Base 2:3.3.0
+ wbcLogonUser@Base 2:3.3.0
+ wbcLookupDomainController@Base 2:3.3.0
+ wbcLookupDomainControllerEx@Base 2:3.3.0
+ wbcQueryGidToSid@Base 2:3.3.0
+ wbcQuerySidToGid@Base 2:3.3.0
+ wbcQuerySidToUid@Base 2:3.3.0
+ wbcQueryUidToSid@Base 2:3.3.0
+ wbcRemoveGidMapping@Base 2:3.3.0
+ wbcRemoveUidMapping@Base 2:3.3.0
+ wbcStringToGuid@Base 2:3.3.0

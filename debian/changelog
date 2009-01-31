@@ -1,4 +1,4 @@
-samba (2:3.3.0-1) UNRELEASED; urgency=low
+samba (2:3.3.0-1) experimental; urgency=low
 
   * New upstream release. Fixes the following bugs:
     - smb file deletion gvfs. Closes: #510564
@@ -23,7 +23,7 @@ samba (2:3.3.0-1) UNRELEASED; urgency=low
   * Also add 18 symbols to libwbclient0's symbols file with 3.3.0 as
     version number
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 29 Jan 2009 22:32:55 +0100
+ -- Christian Perrier <bubulle@debian.org>  Fri, 30 Jan 2009 21:41:49 +0100
 
 samba (2:3.3.0~rc2-4) experimental; urgency=low
 

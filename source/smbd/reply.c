@@ -2362,7 +2362,7 @@ static NTSTATUS do_unlink(connection_struct *conn,
 		 &sbuf);		/* psbuf */
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("open_file_ntcreate failed: %s\n",
+		DEBUG(10, ("create_file_unixpath failed: %s\n",
 			   nt_errstr(status)));
 		return status;
 	}
@@ -3202,9 +3202,9 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 		setup_readX_header((char *)headerbuf, smb_maxcnt);
 
 		if ((nread = SMB_VFS_SENDFILE(smbd_server_fd(), fsp, &header, startpos, smb_maxcnt)) == -1) {
-			/* Returning ENOSYS or EINVAL means no data at all was sent. 
+			/* Returning ENOSYS means no data at all was sent.
 			   Do this as a normal read. */
-			if (errno == ENOSYS || errno == EINVAL) {
+			if (errno == ENOSYS) {
 				goto normal_read;
 			}
 
@@ -3891,6 +3891,10 @@ bool is_valid_writeX_buffer(const uint8_t *inbuf)
 	}
 	if (IS_IPC(conn)) {
 		DEBUG(10,("is_valid_writeX_buffer: IPC$ tid\n"));
+		return false;
+	}
+	if (IS_PRINT(conn)) {
+		DEBUG(10,("is_valid_writeX_buffer: printing tid\n"));
 		return false;
 	}
 	doff = SVAL(inbuf,smb_vwv11);
@@ -4633,6 +4637,7 @@ void reply_printopen(struct smb_request *req)
 	connection_struct *conn = req->conn;
 	files_struct *fsp;
 	NTSTATUS status;
+	SMB_STRUCT_STAT sbuf;
 
 	START_PROFILE(SMBsplopen);
 
@@ -4656,7 +4661,7 @@ void reply_printopen(struct smb_request *req)
 	}
 
 	/* Open for exclusive use, write only. */
-	status = print_fsp_open(conn, NULL, fsp);
+	status = print_fsp_open(conn, NULL, fsp, &sbuf);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		file_free(fsp);
@@ -5475,7 +5480,7 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 	SMB_STRUCT_STAT sbuf, sbuf1;
 	NTSTATUS status = NT_STATUS_OK;
 	struct share_mode_lock *lck = NULL;
-	bool dst_exists;
+	bool dst_exists, old_is_stream, new_is_stream;
 
 	ZERO_STRUCT(sbuf);
 
@@ -5544,6 +5549,18 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		return NT_STATUS_OK;
 	}
 
+	old_is_stream = is_ntfs_stream_name(fsp->fsp_name);
+	new_is_stream = is_ntfs_stream_name(newname);
+
+	/* Return the correct error code if both names aren't streams. */
+	if (!old_is_stream && new_is_stream) {
+		return NT_STATUS_OBJECT_NAME_INVALID;
+	}
+
+	if (old_is_stream && !new_is_stream) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
 	/*
 	 * Have vfs_object_exist also fill sbuf1
 	 */
@@ -5555,16 +5572,11 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		return NT_STATUS_OBJECT_NAME_COLLISION;
 	}
 
-	if(replace_if_exists && dst_exists) {
-		if (is_ntfs_stream_name(newname)) {
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-	}
-
 	if (dst_exists) {
 		struct file_id fileid = vfs_file_id_from_sbuf(conn, &sbuf1);
 		files_struct *dst_fsp = file_find_di_first(fileid);
-		if (dst_fsp) {
+		/* The file can be open when renaming a stream */
+		if (dst_fsp && !new_is_stream) {
 			DEBUG(3, ("rename_internals_fsp: Target file open\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
@@ -5623,8 +5635,6 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		 * but will work for the CIFSFS client which in non-posix mode
 		 * depends on these semantics. JRA.
 		 */
-
-		set_allow_initial_delete_on_close(lck, fsp, True);
 
 		if (create_options & FILE_DELETE_ON_CLOSE) {
 			status = can_set_delete_on_close(fsp, True, 0);

@@ -1,8 +1,8 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>idmap_ldap</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="idmap_ldap.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>idmap_ldap &#8212; Samba's idmap_ldap Backend for Winbind</p></div><div class="refsynopsisdiv"><h2>DESCRIPTION</h2><p>The idmap_ldap plugin provides a means for Winbind to
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>idmap_ldap</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="idmap_ldap.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>idmap_ldap &#8212; Samba's idmap_ldap Backend for Winbind</p></div><div class="refsynopsisdiv"><h2>DESCRIPTION</h2><p>The idmap_ldap plugin provides a means for Winbind to
 	store and retrieve SID/uid/gid mapping tables in an LDAP directory
 	service.  The module implements both the "idmap" and
 	"idmap alloc" APIs.
-	</p></div><div class="refsect1" lang="en"><a name="id2518307"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2522929"></a><h2>IDMAP OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
 			Defines the directory base suffix to use when searching for
 			SID/uid/gid mapping entries.  If not defined, idmap_ldap will default
 			to using the "ldap idmap suffix" option from smb.conf.
@@ -20,7 +20,7 @@
 			store and retrieve SID/uid/gid mapping entries.  If the parameter
 			is absent, Winbind fail over to use the "idmap uid" and
 			"idmap gid" options from smb.conf.
-                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2480156"></a><h2>IDMAP ALLOC OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
+                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483371"></a><h2>IDMAP ALLOC OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">ldap_base_dn = DN</span></dt><dd><p>
 			Defines the directory base suffix under which new SID/uid/gid mapping
 			entries should be stored.  If not defined, idmap_ldap will default
 			to using the "ldap idmap suffix" option from smb.conf.
@@ -36,7 +36,7 @@
 			winbindd can allocate for users and groups.  If the parameter
 			is absent, Winbind fail over to use the "idmap uid"
 			and "idmap gid" options from smb.conf.
-                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2482460"></a><h2>EXAMPLES</h2><p>
+                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483555"></a><h2>EXAMPLES</h2><p>
 	The follow sets of a LDAP configuration which uses a slave server
 	running on localhost for fast fetching SID/gid/uid mappings, it
 	implies correct configuration of referrals.
@@ -61,7 +61,7 @@
 	in plain text in the configuration file we store it into a security
 	store. The "net idmap " command is used to store a secret
 	for the DN specified in a specific idmap domain.
-	</p></div><div class="refsect1" lang="en"><a name="id2482506"></a><h2>AUTHOR</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2483598"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar

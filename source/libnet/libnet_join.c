@@ -761,7 +761,8 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 				      pipe_hnd->cli->desthost,
-				      SEC_RIGHTS_MAXIMUM_ALLOWED,
+				      SAMR_ACCESS_ENUM_DOMAINS
+				      | SAMR_ACCESS_OPEN_DOMAIN,
 				      &sam_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
@@ -769,7 +770,9 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 
 	status = rpccli_samr_OpenDomain(pipe_hnd, mem_ctx,
 					&sam_pol,
-					SEC_RIGHTS_MAXIMUM_ALLOWED,
+					SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1
+					| SAMR_DOMAIN_ACCESS_CREATE_USER
+					| SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
 					r->out.domain_sid,
 					&domain_pol);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1463,9 +1466,25 @@ static WERROR libnet_join_post_processing(TALLOC_CTX *mem_ctx,
 		return werr;
 	}
 
-	if (r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_TYPE) {
-		saf_store(r->in.domain_name, r->in.dc_name);
+	if (!(r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_TYPE)) {
+		return WERR_OK;
 	}
+
+	saf_join_store(r->out.netbios_domain_name, r->in.dc_name);
+	if (r->out.dns_domain_name) {
+		saf_join_store(r->out.dns_domain_name, r->in.dc_name);
+	}
+
+#ifdef WITH_ADS
+	if (r->out.domain_is_ad) {
+		ADS_STATUS ads_status;
+
+		ads_status  = libnet_join_post_processing_ads(mem_ctx, r);
+		if (!ADS_ERR_OK(ads_status)) {
+			return WERR_GENERAL_FAILURE;
+		}
+	}
+#endif /* WITH_ADS */
 
 	return WERR_OK;
 }
@@ -1644,6 +1663,7 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 				     r->in.domain_name,
 				     NULL,
 				     NULL,
+				     DS_FORCE_REDISCOVERY |
 				     DS_DIRECTORY_SERVICE_REQUIRED |
 				     DS_WRITABLE_REQUIRED |
 				     DS_RETURN_DNS_NAME,
@@ -1711,16 +1731,6 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 		werr = WERR_SETUP_NOT_JOINED;
 		goto done;
 	}
-
-#ifdef WITH_ADS
-	if (r->out.domain_is_ad) {
-		ads_status  = libnet_join_post_processing_ads(mem_ctx, r);
-		if (!ADS_ERR_OK(ads_status)) {
-			werr = WERR_GENERAL_FAILURE;
-			goto done;
-		}
-	}
-#endif /* WITH_ADS */
 
 	werr = WERR_OK;
 

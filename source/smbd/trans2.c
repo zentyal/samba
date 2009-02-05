@@ -3663,7 +3663,7 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 	unsigned int i;
 	unsigned int ofs = 0;
 
-	for (i=0; i<num_streams; i++) {
+	for (i = 0; i < num_streams && ofs <= max_data_bytes; i++) {
 		unsigned int next_offset;
 		size_t namelen;
 		smb_ucs2_t *namebuf;
@@ -3682,11 +3682,6 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 
 		namelen -= 2;
 
-		if (ofs + 24 + namelen > max_data_bytes) {
-			TALLOC_FREE(namebuf);
-			return NT_STATUS_BUFFER_TOO_SMALL;
-		}
-
 		SIVAL(data, ofs+4, namelen);
 		SOFF_T(data, ofs+8, streams[i].size);
 		SOFF_T(data, ofs+16, streams[i].alloc_size);
@@ -3700,10 +3695,6 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 		}
 		else {
 			unsigned int align = ndr_align_size(next_offset, 8);
-
-			if (next_offset + align > max_data_bytes) {
-				return NT_STATUS_BUFFER_TOO_SMALL;
-			}
 
 			memset(data+next_offset, 0, align);
 			next_offset += align;
@@ -5333,6 +5324,8 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 	char *newname = NULL;
 	char *base_name = NULL;
 	bool dest_has_wcard = False;
+	SMB_STRUCT_STAT sbuf;
+	char *newname_last_component = NULL;
 	NTSTATUS status = NT_STATUS_OK;
 	char *p;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -5340,6 +5333,8 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 	if (total_data < 13) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
+
+	ZERO_STRUCT(sbuf);
 
 	overwrite = (CVAL(pdata,0) ? True : False);
 	root_fid = IVAL(pdata,4);
@@ -5374,6 +5369,7 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 	}
 
 	if (fsp && fsp->base_fsp) {
+		/* newname must be a stream name. */
 		if (newname[0] != ':') {
 			return NT_STATUS_NOT_SUPPORTED;
 		}
@@ -5384,6 +5380,7 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 			return NT_STATUS_NO_MEMORY;
 		}
 	} else {
+		/* newname must *not* be a stream name. */
 		if (is_ntfs_stream_name(newname)) {
 			return NT_STATUS_NOT_SUPPORTED;
 		}
@@ -5409,18 +5406,11 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 		if (!base_name) {
 			return NT_STATUS_NO_MEMORY;
 		}
-	}
-
-	if (fsp) {
-		SMB_STRUCT_STAT sbuf;
-		char *newname_last_component = NULL;
-
-		ZERO_STRUCT(sbuf);
 
 		status = unix_convert(ctx, conn, newname, False,
-					&newname,
-					&newname_last_component,
-					&sbuf);
+				&newname,
+				&newname_last_component,
+				&sbuf);
 
 		/* If an error we expect this to be
 		 * NT_STATUS_OBJECT_PATH_NOT_FOUND */
@@ -5430,7 +5420,9 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 					status)) {
 			return status;
 		}
+	}
 
+	if (fsp) {
 		DEBUG(10,("smb_file_rename_information: SMB_FILE_RENAME_INFORMATION (fnum %d) %s -> %s\n",
 			fsp->fnum, fsp->fsp_name, base_name ));
 		status = rename_internals_fsp(conn, fsp, base_name,

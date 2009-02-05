@@ -63,7 +63,9 @@ static int timed_event_destructor(struct timed_event *te)
 {
 	DEBUG(10, ("Destroying timed event %lx \"%s\"\n", (unsigned long)te,
 		te->event_name));
-	DLIST_REMOVE(te->event_ctx->timed_events, te);
+	if (te->event_ctx) {
+		DLIST_REMOVE(te->event_ctx->timed_events, te);
+	}
 	return 0;
 }
 
@@ -133,7 +135,9 @@ static int fd_event_destructor(struct fd_event *fde)
 {
 	struct event_context *event_ctx = fde->event_ctx;
 
-	DLIST_REMOVE(event_ctx->fd_events, fde);
+	if (event_ctx) {
+		DLIST_REMOVE(event_ctx->fd_events, fde);
+	}
 	return 0;
 }
 
@@ -241,22 +245,13 @@ bool events_pending(struct event_context *event_ctx)
 bool run_events(struct event_context *event_ctx,
 		int selrtn, fd_set *read_fds, fd_set *write_fds)
 {
-	bool fired = False;
-	struct fd_event *fde, *next;
+	struct fd_event *fde;
+	struct timeval now;
 
-	/* Run all events that are pending, not just one (as we
-	   did previously. */
+	GetTimeOfDay(&now);
 
-	while (event_ctx->timed_events) {
-		struct timeval now;
-		GetTimeOfDay(&now);
-
-		if (timeval_compare(
-			    &now, &event_ctx->timed_events->when) < 0) {
-			/* Nothing to do yet */
-			DEBUG(11, ("run_events: Nothing to do\n"));
-			break;
-		}
+	if ((event_ctx->timed_events != NULL)
+	    && (timeval_compare(&now, &event_ctx->timed_events->when) >= 0)) {
 
 		DEBUG(10, ("Running event \"%s\" %lx\n",
 			   event_ctx->timed_events->event_name,
@@ -267,38 +262,29 @@ bool run_events(struct event_context *event_ctx,
 			event_ctx->timed_events, &now,
 			event_ctx->timed_events->private_data);
 
-		fired = True;
-	}
-
-	if (fired) {
-		/*
-		 * We might have changed the socket status during the timed
-		 * events, return to run select again.
-		 */
-		return True;
+		return true;
 	}
 
 	if (selrtn == 0) {
 		/*
 		 * No fd ready
 		 */
-		return fired;
+		return false;
 	}
 
-	for (fde = event_ctx->fd_events; fde; fde = next) {
+	for (fde = event_ctx->fd_events; fde; fde = fde->next) {
 		uint16 flags = 0;
 
-		next = fde->next;
 		if (FD_ISSET(fde->fd, read_fds)) flags |= EVENT_FD_READ;
 		if (FD_ISSET(fde->fd, write_fds)) flags |= EVENT_FD_WRITE;
 
 		if (flags) {
 			fde->handler(event_ctx, fde, flags, fde->private_data);
-			fired = True;
+			return true;
 		}
 	}
 
-	return fired;
+	return false;
 }
 
 
@@ -354,41 +340,36 @@ int event_loop_once(struct event_context *ev)
 	return 0;
 }
 
+static int event_context_destructor(struct event_context *ev)
+{
+	while (ev->fd_events != NULL) {
+		ev->fd_events->event_ctx = NULL;
+		DLIST_REMOVE(ev->fd_events, ev->fd_events);
+	}
+	while (ev->timed_events != NULL) {
+		ev->timed_events->event_ctx = NULL;
+		DLIST_REMOVE(ev->timed_events, ev->timed_events);
+	}
+	return 0;
+}
+
+void event_context_reinit(struct event_context *ev)
+{
+	event_context_destructor(ev);
+	return;
+}
+
 struct event_context *event_context_init(TALLOC_CTX *mem_ctx)
 {
-	return TALLOC_ZERO_P(NULL, struct event_context);
-}
+	struct event_context *result;
 
-int set_event_dispatch_time(struct event_context *event_ctx,
-			    const char *event_name, struct timeval when)
-{
-	struct timed_event *te;
-
-	for (te = event_ctx->timed_events; te; te = te->next) {
-		if (strcmp(event_name, te->event_name) == 0) {
-			DLIST_REMOVE(event_ctx->timed_events, te);
-			te->when = when;
-			add_event_by_time(te);
-			return 1;
-		}
+	result = TALLOC_ZERO_P(mem_ctx, struct event_context);
+	if (result == NULL) {
+		return NULL;
 	}
-	return 0;
-}
 
-/* Returns 1 if event was found and cancelled, 0 otherwise. */
-
-int cancel_named_event(struct event_context *event_ctx,
-		       const char *event_name)
-{
-	struct timed_event *te;
-
-	for (te = event_ctx->timed_events; te; te = te->next) {
-		if (strcmp(event_name, te->event_name) == 0) {
-			TALLOC_FREE(te);
-			return 1;
-		}
-	}
-	return 0;
+	talloc_set_destructor(result, event_context_destructor);
+	return result;
 }
 
 void dump_event_list(struct event_context *event_ctx)

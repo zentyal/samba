@@ -388,7 +388,10 @@ static bool cups_pcap_load_async(int *pfd)
 	}
 
 	/* Child. */
-	if (!reinit_after_fork(smbd_messaging_context(), true)) {
+	close_all_print_db();
+
+	if (!reinit_after_fork(smbd_messaging_context(),
+			smbd_event_context(), true)) {
 		DEBUG(0,("cups_pcap_load_async: reinit_after_fork() failed\n"));
 		smb_panic("cups_pcap_load_async: reinit_after_fork() failed");
 	}
@@ -1709,6 +1712,10 @@ bool cups_pull_comment_location(NT_PRINTER_INFO_LEVEL_2 *printer)
  out:
 	if (response)
 		ippDelete(response);
+
+	if (request) {
+		ippDelete(request);
+	}
 
 	if (language)
 		cupsLangFree(language);

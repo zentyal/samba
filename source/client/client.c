@@ -728,11 +728,11 @@ static void do_list_helper(const char *mntpoint, file_info *f, const char *mask,
 				return;
 			}
 			p = strrchr_m(mask2,CLI_DIRSEP_CHAR);
-			if (!p) {
-				TALLOC_FREE(dir);
-				return;
+			if (p) {
+				p[1] = 0;
+			} else {
+				mask2[0] = '\0';
 			}
-			p[1] = 0;
 			mask2 = talloc_asprintf_append(mask2,
 					"%s%s*",
 					f->name,
@@ -1324,6 +1324,11 @@ static int cmd_mget(void)
 			return 1;
 		}
 		do_list(mget_mask, attribute, do_mget, false, true);
+	}
+
+	if (mget_mask == NULL) {
+		d_printf("nothing to mget\n");
+		return 0;
 	}
 
 	if (!*mget_mask) {

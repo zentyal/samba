@@ -8,10 +8,10 @@ Author: Jelmer Vernooij <jelmer@samba.org>
 
 Note:
 
-Index: samba/source/script/smbtar
+Index: samba-3.3.0rc1/source/script/smbtar
 ===================================================================
---- samba/source/script/smbtar	(Revision 1955)
-+++ samba/source/script/smbtar	(Arbeitskopie)
+--- samba-3.3.0rc1.orig/source/script/smbtar
++++ samba-3.3.0rc1/source/script/smbtar
 @@ -151,7 +151,7 @@
  if [ -z "$verbose" ]; then
        echo "server    is $server"

@@ -6,14 +6,16 @@ Status wrt upstream: Debian specific
 
 Note: Should be kept
 
-Index: samba-3.2.0rc1/source/VERSION
+Index: samba-3.3.0rc1/source/VERSION
 ===================================================================
---- samba-3.2.0rc1.orig/source/VERSION
-+++ samba-3.2.0rc1/source/VERSION
-@@ -95,5 +95,5 @@
- # e.g. SAMBA_VERSION_VENDOR_SUFFIX=vendor_version()    #
- #  ->  "CVS 3.0.0rc2-VendorVersion"                    #
+--- samba-3.3.0rc1.orig/source/VERSION
++++ samba-3.3.0rc1/source/VERSION
+@@ -84,7 +84,7 @@
+ #       SAMBA_VERSION_VENDOR_FUNCTION                  #
+ #                                                      #
  ########################################################
 -SAMBA_VERSION_VENDOR_SUFFIX=
 +SAMBA_VERSION_VENDOR_SUFFIX="Debian"
  SAMBA_VERSION_VENDOR_PATCH=
+ 
+ ########################################################

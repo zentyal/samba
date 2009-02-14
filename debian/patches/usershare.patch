@@ -8,10 +8,10 @@ Authors: Mathias Gug <mathiaz@ubuntu.com>,
 
 Status wrt upstream: Debian-specific
 
-Index: samba-3.2.0rc1/docs/manpages/smb.conf.5
+Index: samba-3.3.0rc1/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/smb.conf.5
-+++ samba-3.2.0rc1/docs/manpages/smb.conf.5
+--- samba-3.3.0rc1.orig/docs/manpages/smb.conf.5
++++ samba-3.3.0rc1/docs/manpages/smb.conf.5
 @@ -269,7 +269,7 @@
  .PP
  usershare path
@@ -54,7 +54,7 @@ Index: samba-3.2.0rc1/docs/manpages/smb.conf.5
  .PP
  net usershare add sharename path [comment] [acl] [guest_ok=[y|n]]
  .RS 4
-@@ -8804,25 +8780,25 @@
+@@ -8839,25 +8815,25 @@
  usershare path (G)
  .PP
  .RS 4
@@ -86,11 +86,11 @@ Index: samba-3.2.0rc1/docs/manpages/smb.conf.5
  .RE
  
  usershare prefix allow list (G)
-Index: samba-3.2.0rc1/docs/manpages/net.8
+Index: samba-3.3.0rc1/docs/manpages/net.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/net.8
-+++ samba-3.2.0rc1/docs/manpages/net.8
-@@ -660,9 +660,9 @@
+--- samba-3.3.0rc1.orig/docs/manpages/net.8
++++ samba-3.3.0rc1/docs/manpages/net.8
+@@ -666,9 +666,9 @@
  Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\. In this case the secret is used as the password for the user DN used to bind to the ldap server\.
  .SS "USERSHARE"
  .PP
@@ -102,11 +102,11 @@ Index: samba-3.2.0rc1/docs/manpages/net.8
  .PP
  The usershare commands are:
  .IP "" 4
-Index: samba-3.2.0rc1/source/param/loadparm.c
+Index: samba-3.3.0rc1/source/param/loadparm.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/param/loadparm.c
-+++ samba-3.2.0rc1/source/param/loadparm.c
-@@ -4879,7 +4879,7 @@
+--- samba-3.3.0rc1.orig/source/param/loadparm.c
++++ samba-3.3.0rc1/source/param/loadparm.c
+@@ -4913,7 +4913,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

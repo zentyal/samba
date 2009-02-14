@@ -48,7 +48,7 @@ conf_args = \
 		--with-pam_smbpass \
 		--with-libsmbclient \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash \
 		--with-automount \
 		--with-ldap \
 		--with-ads \

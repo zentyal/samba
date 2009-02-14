@@ -9,16 +9,16 @@ for it.
 
 Note: 
 
-Index: samba-3.2.1/source/Makefile.in
+Index: samba-3.3.0rc1/source/Makefile.in
 ===================================================================
---- samba-3.2.1.orig/source/Makefile.in
-+++ samba-3.2.1/source/Makefile.in
-@@ -1661,7 +1661,7 @@
+--- samba-3.3.0rc1.orig/source/Makefile.in
++++ samba-3.3.0rc1/source/Makefile.in
+@@ -1962,7 +1962,7 @@
  
- bin/libsmbclient.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
+ $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
  	@echo Linking shared library $@
 -	@$(SHLD_DSO) $(LIBSMBCLIENT_OBJ) \
 +	@$(SHLD_DSO) -Wl,-z,defs $(LIBSMBCLIENT_OBJ) \
  		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
  		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
- 		@SONAMEFLAG@`basename $@`.$(SONAME_VER)
+ 		@SONAMEFLAG@`basename $@`

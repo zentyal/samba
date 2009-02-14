@@ -1,8 +1,8 @@
-Index: samba.deb/source/Makefile.in
+Index: samba-3.3.0rc1/source/Makefile.in
 ===================================================================
---- samba.deb.orig/source/Makefile.in
-+++ samba.deb/source/Makefile.in
-@@ -1261,37 +1261,47 @@
+--- samba-3.3.0rc1.orig/source/Makefile.in
++++ samba-3.3.0rc1/source/Makefile.in
+@@ -1321,37 +1321,47 @@
  
  bin/smbd@EXEEXT@: $(BINARY_PREREQS) $(SMBD_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @BUILD_POPT@
  	@echo Linking $@
@@ -55,7 +55,7 @@ Index: samba.deb/source/Makefile.in
  
  bin/net@EXEEXT@: $(BINARY_PREREQS) $(NET_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @LIBNETAPI_SHARED@
  	@echo Linking $@
-@@ -1302,220 +1312,295 @@
+@@ -1362,220 +1372,295 @@
  
  bin/profiles@EXEEXT@: $(BINARY_PREREQS) $(PROFILES_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@
@@ -390,7 +390,7 @@ Index: samba.deb/source/Makefile.in
  
  
  #####################################################################
-@@ -2096,16 +2181,20 @@
+@@ -2168,16 +2253,20 @@
  
  bin/winbindd@EXEEXT@: $(BINARY_PREREQS) $(WINBINDD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
  	@echo "Linking $@"
@@ -413,7 +413,7 @@ Index: samba.deb/source/Makefile.in
  
  @WINBIND_NSS@: $(BINARY_PREREQS) $(WINBIND_NSS_OBJ)
  	@echo "Linking $@"
-@@ -2352,9 +2441,11 @@
+@@ -2456,9 +2545,11 @@
  
  bin/wbinfo@EXEEXT@: $(BINARY_PREREQS) $(WBINFO_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
  	@echo Linking $@
@@ -426,7 +426,7 @@ Index: samba.deb/source/Makefile.in
  
  bin/ntlm_auth@EXEEXT@: $(BINARY_PREREQS) $(NTLM_AUTH_OBJ) $(PARAM_OBJ) \
  	$(LIB_NONSMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
-@@ -2372,23 +2463,31 @@
+@@ -2476,23 +2567,31 @@
  
  bin/tdbbackup@EXEEXT@: $(BINARY_PREREQS) $(TDBBACKUP_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@

@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: Some part should maybe go in the FHS patch
 
-Index: samba-3.2.0rc1/docs/manpages/swat.8
+Index: samba-3.3.0rc1/docs/manpages/swat.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/swat.8
-+++ samba-3.2.0rc1/docs/manpages/swat.8
+--- samba-3.3.0rc1.orig/docs/manpages/swat.8
++++ samba-3.3.0rc1/docs/manpages/swat.8
 @@ -103,85 +103,6 @@
  .RS 4
  Print a summary of command line options\.
@@ -113,10 +113,10 @@ Index: samba-3.2.0rc1/docs/manpages/swat.8
  .RE
  .SH "WARNINGS"
  .PP
-Index: samba-3.2.0rc1/docs/manpages/nmbd.8
+Index: samba-3.3.0rc1/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/nmbd.8
-+++ samba-3.2.0rc1/docs/manpages/nmbd.8
+--- samba-3.3.0rc1.orig/docs/manpages/nmbd.8
++++ samba-3.3.0rc1/docs/manpages/nmbd.8
 @@ -107,11 +107,9 @@
  to answer any name queries\. Adding a line to this file affects name NetBIOS resolution from this host
  \fIONLY\fR\.
@@ -162,10 +162,10 @@ Index: samba-3.2.0rc1/docs/manpages/nmbd.8
  nmbd
  to dump out its server database in the
  \fIlog\.nmb\fR
-Index: samba-3.2.0rc1/docs/manpages/smbd.8
+Index: samba-3.3.0rc1/docs/manpages/smbd.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/smbd.8
-+++ samba-3.2.0rc1/docs/manpages/smbd.8
+--- samba-3.3.0rc1.orig/docs/manpages/smbd.8
++++ samba-3.3.0rc1/docs/manpages/smbd.8
 @@ -161,14 +161,11 @@
  inetd, this file must contain a mapping of service name (e\.g\., netbios\-ssn) to service port (e\.g\., 139) and protocol type (e\.g\., tcp)\.
  .RE
@@ -183,10 +183,10 @@ Index: samba-3.2.0rc1/docs/manpages/smbd.8
  .sp
  This file describes all the services the server is to make available to clients\. See
  \fBsmb.conf\fR(5)
-Index: samba-3.2.0rc1/docs/manpages/lmhosts.5
+Index: samba-3.3.0rc1/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/lmhosts.5
-+++ samba-3.2.0rc1/docs/manpages/lmhosts.5
+--- samba-3.3.0rc1.orig/docs/manpages/lmhosts.5
++++ samba-3.3.0rc1/docs/manpages/lmhosts.5
 @@ -83,10 +83,8 @@
  file\.
  .SH "FILES"
@@ -200,10 +200,10 @@ Index: samba-3.2.0rc1/docs/manpages/lmhosts.5
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\.
-Index: samba-3.2.0rc1/docs/manpages/ntlm_auth.1
+Index: samba-3.3.0rc1/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/ntlm_auth.1
-+++ samba-3.2.0rc1/docs/manpages/ntlm_auth.1
+--- samba-3.3.0rc1.orig/docs/manpages/ntlm_auth.1
++++ samba-3.3.0rc1/docs/manpages/ntlm_auth.1
 @@ -35,7 +35,7 @@
  Some of these commands also require access to the directory
  \fIwinbindd_privileged\fR
@@ -231,10 +231,10 @@ Index: samba-3.2.0rc1/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss\-spnego\-client
-Index: samba-3.2.0rc1/docs/manpages/tdbbackup.8
+Index: samba-3.3.0rc1/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/tdbbackup.8
-+++ samba-3.2.0rc1/docs/manpages/tdbbackup.8
+--- samba-3.3.0rc1.orig/docs/manpages/tdbbackup.8
++++ samba-3.3.0rc1/docs/manpages/tdbbackup.8
 @@ -69,7 +69,7 @@
  .\}
  
@@ -262,11 +262,11 @@ Index: samba-3.2.0rc1/docs/manpages/tdbbackup.8
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\.
-Index: samba-3.2.0rc1/docs/manpages/winbindd.8
+Index: samba-3.3.0rc1/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.2.0rc1.orig/docs/manpages/winbindd.8
-+++ samba-3.2.0rc1/docs/manpages/winbindd.8
-@@ -521,16 +521,16 @@
+--- samba-3.3.0rc1.orig/docs/manpages/winbindd.8
++++ samba-3.3.0rc1/docs/manpages/winbindd.8
+@@ -513,16 +513,16 @@
  file are owned by root\.
  .RE
  .PP
@@ -287,7 +287,7 @@ Index: samba-3.2.0rc1/docs/manpages/winbindd.8
  file are owned by root\.
  .RE
  .PP
-@@ -539,15 +539,12 @@
+@@ -531,15 +531,12 @@
  Implementation of name service switch library\.
  .RE
  .PP

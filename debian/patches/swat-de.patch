@@ -5,10 +5,10 @@ Fixes: bug #487681
 Upstream status: should be forwarded (however, a translation round
                  was made a while ago, which is rotting in upstream's BTS)
 
-Index: samba-3.0.30/source/po/de.msg
+Index: samba-3.3.0rc1/source/po/de.msg
 ===================================================================
---- samba-3.0.30.orig/source/po/de.msg
-+++ samba-3.0.30/source/po/de.msg
+--- samba-3.3.0rc1.orig/source/po/de.msg
++++ samba-3.3.0rc1/source/po/de.msg
 @@ -1,5 +1,6 @@
  # German messages for international release of SWAT.
  # Copyright (C) 2001 Andreas Moroder
@@ -16,7 +16,7 @@ Index: samba-3.0.30/source/po/de.msg
  #
  #   This program is free software; you can redistribute it and/or modify
  #   it under the terms of the GNU General Public License as published by
-@@ -17,577 +18,600 @@
+@@ -16,577 +17,600 @@
  #
  msgid ""
  msgstr ""

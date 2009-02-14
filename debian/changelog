@@ -47,6 +47,19 @@ samba (2:3.2.5-1) unstable; urgency=high
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 27 Nov 2008 11:36:35 +0100
 
+samba (2:3.3.0~rc1-2) experimental; urgency=low
+
+  * Provide idmap_adex and idmap_hash in winbind.
+    Thanks to Jelmer Jaarsma for reporting and providing a patch
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
+
+samba (2:3.3.0~rc1-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 28 Nov 2008 10:51:32 +0100
+
 samba (2:3.3.0~pre2-1) experimental; urgency=low
 
   * New upstream release.

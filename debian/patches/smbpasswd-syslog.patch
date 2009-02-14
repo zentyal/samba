@@ -4,10 +4,10 @@ Fixes: bug #434372
 
 Upstream status: submitted as bugzilla bug #4831
 
-Index: samba.deb/source/pam_smbpass/support.c
+Index: samba-3.3.0rc1/source/pam_smbpass/support.c
 ===================================================================
---- samba.deb.orig/source/pam_smbpass/support.c
-+++ samba.deb/source/pam_smbpass/support.c
+--- samba-3.3.0rc1.orig/source/pam_smbpass/support.c
++++ samba-3.3.0rc1/source/pam_smbpass/support.c
 @@ -14,6 +14,7 @@
   * this program; if not, see <http://www.gnu.org/licenses/>.
   */
@@ -281,10 +281,10 @@ Index: samba.deb/source/pam_smbpass/support.c
  	}
  	make_remark( pamh, ctrl, PAM_ERROR_MSG, pass_new == NULL ?
  				"No password supplied" : "Password unchanged" );
-Index: samba.deb/source/pam_smbpass/pam_smb_auth.c
+Index: samba-3.3.0rc1/source/pam_smbpass/pam_smb_auth.c
 ===================================================================
---- samba.deb.orig/source/pam_smbpass/pam_smb_auth.c
-+++ samba.deb/source/pam_smbpass/pam_smb_auth.c
+--- samba-3.3.0rc1.orig/source/pam_smbpass/pam_smb_auth.c
++++ samba-3.3.0rc1/source/pam_smbpass/pam_smb_auth.c
 @@ -81,10 +81,9 @@
  
  	/* Samba initialization. */
@@ -359,10 +359,10 @@ Index: samba.deb/source/pam_smbpass/pam_smb_auth.c
  			, "pam_get_item returned error to pam_sm_authenticate" );
  		return PAM_AUTHTOK_RECOVER_ERR;
  	} else if (pass == NULL) {
-Index: samba.deb/source/pam_smbpass/pam_smb_acct.c
+Index: samba-3.3.0rc1/source/pam_smbpass/pam_smb_acct.c
 ===================================================================
---- samba.deb.orig/source/pam_smbpass/pam_smb_acct.c
-+++ samba.deb/source/pam_smbpass/pam_smb_acct.c
+--- samba-3.3.0rc1.orig/source/pam_smbpass/pam_smb_acct.c
++++ samba-3.3.0rc1/source/pam_smbpass/pam_smb_acct.c
 @@ -58,26 +58,25 @@
  
  	/* Samba initialization. */
@@ -423,10 +423,10 @@ Index: samba.deb/source/pam_smbpass/pam_smb_acct.c
  		}
  		make_remark( pamh, ctrl, PAM_ERROR_MSG
  			, "Your account has been disabled; "
-Index: samba.deb/source/pam_smbpass/pam_smb_passwd.c
+Index: samba-3.3.0rc1/source/pam_smbpass/pam_smb_passwd.c
 ===================================================================
---- samba.deb.orig/source/pam_smbpass/pam_smb_passwd.c
-+++ samba.deb/source/pam_smbpass/pam_smb_passwd.c
+--- samba-3.3.0rc1.orig/source/pam_smbpass/pam_smb_passwd.c
++++ samba-3.3.0rc1/source/pam_smbpass/pam_smb_passwd.c
 @@ -106,10 +106,9 @@
  
      /* Samba initialization. */
@@ -563,10 +563,10 @@ Index: samba.deb/source/pam_smbpass/pam_smb_passwd.c
          retval = PAM_ABORT;
  
      }
-Index: samba.deb/source/pam_smbpass/support.h
+Index: samba-3.3.0rc1/source/pam_smbpass/support.h
 ===================================================================
---- samba.deb.orig/source/pam_smbpass/support.h
-+++ samba.deb/source/pam_smbpass/support.h
+--- samba-3.3.0rc1.orig/source/pam_smbpass/support.h
++++ samba-3.3.0rc1/source/pam_smbpass/support.h
 @@ -1,8 +1,8 @@
  /* syslogging function for errors and other information */
 -extern void _log_err(int, const char *, ...);

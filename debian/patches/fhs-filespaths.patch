@@ -50,11 +50,11 @@ Note: Use dedicated directories for:
       grep -r lp_lockdir source/ | grep -vE \
          '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm|smbd/oplock_irix)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: b/source/passdb/pdb_tdb.c
+Index: samba-3.3.0rc1/source/passdb/pdb_tdb.c
 ===================================================================
---- a/source/passdb/pdb_tdb.c
-+++ b/source/passdb/pdb_tdb.c
-@@ -1612,7 +1612,7 @@
+--- samba-3.3.0rc1.orig/source/passdb/pdb_tdb.c
++++ samba-3.3.0rc1/source/passdb/pdb_tdb.c
+@@ -1613,7 +1613,7 @@
  	/* save the path for later */
  
  	if (!location) {
@@ -63,10 +63,10 @@ Index: b/source/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: b/source/modules/vfs_xattr_tdb.c
+Index: samba-3.3.0rc1/source/modules/vfs_xattr_tdb.c
 ===================================================================
---- a/source/modules/vfs_xattr_tdb.c
-+++ b/source/modules/vfs_xattr_tdb.c
+--- samba-3.3.0rc1.orig/source/modules/vfs_xattr_tdb.c
++++ samba-3.3.0rc1/source/modules/vfs_xattr_tdb.c
 @@ -576,7 +576,7 @@
  	const char *dbname;
  
@@ -76,10 +76,10 @@ Index: b/source/modules/vfs_xattr_tdb.c
  
  	if (dbname == NULL) {
  		errno = ENOSYS;
-Index: b/source/passdb/secrets.c
+Index: samba-3.3.0rc1/source/passdb/secrets.c
 ===================================================================
---- a/source/passdb/secrets.c
-+++ b/source/passdb/secrets.c
+--- samba-3.3.0rc1.orig/source/passdb/secrets.c
++++ samba-3.3.0rc1/source/passdb/secrets.c
 @@ -59,7 +59,7 @@
  		return True;
  
@@ -89,7 +89,7 @@ Index: b/source/passdb/secrets.c
  	if (fname == NULL) {
  		return false;
  	}
-@@ -1112,7 +1112,7 @@
+@@ -1113,7 +1113,7 @@
  	TDB_DATA vers;
  	uint32 ver;
  	TDB_CONTEXT *tdb_sc = NULL;

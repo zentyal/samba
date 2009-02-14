@@ -105,12 +105,10 @@ WERROR NetJoinDomain_r(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	unsigned int old_timeout = 0;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_WKSSVC, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server,
+				   &ndr_table_wkssvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -236,12 +234,10 @@ WERROR NetUnjoinDomain_r(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	unsigned int old_timeout = 0;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_WKSSVC, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_wkssvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -288,12 +284,10 @@ WERROR NetGetJoinInformation_r(struct libnetapi_ctx *ctx,
 	WERROR werr;
 	const char *buffer = NULL;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_WKSSVC, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_wkssvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -370,7 +364,7 @@ WERROR NetGetJoinableOUs_l(struct libnetapi_ctx *ctx,
 
 	dc = strip_hostname(info->dc_unc);
 
-	ads = ads_init(r->in.domain, r->in.domain, dc);
+	ads = ads_init(info->domain_name, info->domain_name, dc);
 	if (!ads) {
 		return WERR_GENERAL_FAILURE;
 	}
@@ -389,7 +383,7 @@ WERROR NetGetJoinableOUs_l(struct libnetapi_ctx *ctx,
 		ads->auth.password = SMB_STRDUP(ctx->password);
 	}
 
-	ads_status = ads_connect(ads);
+	ads_status = ads_connect_user_creds(ads);
 	if (!ADS_ERR_OK(ads_status)) {
 		ads_destroy(&ads);
 		return WERR_DEFAULT_JOIN_REQUIRED;
@@ -422,12 +416,10 @@ WERROR NetGetJoinableOUs_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_WKSSVC, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_wkssvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -453,9 +445,57 @@ WERROR NetGetJoinableOUs_r(struct libnetapi_ctx *ctx,
 	}
 
  done:
-	if (cli) {
-		cli_shutdown(cli);
+	return werr;
+}
+
+/****************************************************************
+****************************************************************/
+
+WERROR NetRenameMachineInDomain_r(struct libnetapi_ctx *ctx,
+				  struct NetRenameMachineInDomain *r)
+{
+	struct cli_state *cli = NULL;
+	struct rpc_pipe_client *pipe_cli = NULL;
+	struct wkssvc_PasswordBuffer *encrypted_password = NULL;
+	NTSTATUS status;
+	WERROR werr;
+
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_wkssvc.syntax_id,
+				   &cli,
+				   &pipe_cli);
+	if (!W_ERROR_IS_OK(werr)) {
+		goto done;
 	}
 
+	if (r->in.password) {
+		encode_wkssvc_join_password_buffer(ctx,
+						   r->in.password,
+						   &cli->user_session_key,
+						   &encrypted_password);
+	}
+
+	status = rpccli_wkssvc_NetrRenameMachineInDomain2(pipe_cli, ctx,
+							  r->in.server_name,
+							  r->in.new_machine_name,
+							  r->in.account,
+							  encrypted_password,
+							  r->in.rename_options,
+							  &werr);
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+		goto done;
+	}
+
+ done:
 	return werr;
+}
+
+/****************************************************************
+****************************************************************/
+
+WERROR NetRenameMachineInDomain_l(struct libnetapi_ctx *ctx,
+				  struct NetRenameMachineInDomain *r)
+{
+	LIBNETAPI_REDIRECT_TO_LOCALHOST(ctx, r, NetRenameMachineInDomain);
 }

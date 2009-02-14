@@ -21,8 +21,6 @@
 
 #include "includes.h"
 
-extern struct current_user current_user;
-
 static TDB_CONTEXT *tdb_forms; /* used for forms files */
 static TDB_CONTEXT *tdb_drivers; /* used for driver files */
 static TDB_CONTEXT *tdb_printers; /* used for printers files */
@@ -1379,6 +1377,7 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		}
 	}
 	close_file(fsp, NORMAL_CLOSE);
+	fsp = NULL;
 
 	/* Get file version info (if available) for new file */
 	filepath = driver_unix_convert(conn,new_file,&stat_buf);
@@ -1419,6 +1418,7 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		}
 	}
 	close_file(fsp, NORMAL_CLOSE);
+	fsp = NULL;
 
 	if (use_version && (new_major != old_major || new_minor != old_minor)) {
 		/* Compare versions and choose the larger version number */
@@ -3163,7 +3163,9 @@ static bool map_nt_printer_info2_to_dsspooler(NT_PRINTER_INFO_LEVEL_2 *info2)
 
 	map_sz_into_ctr(ctr, SPOOL_REG_SERVERNAME, longname);
 
-	asprintf(&allocated_string, "\\\\%s\\%s", longname, info2->sharename);
+	if (asprintf(&allocated_string, "\\\\%s\\%s", longname, info2->sharename) == -1) {
+		return false;
+	}
 	map_sz_into_ctr(ctr, SPOOL_REG_UNCNAME, allocated_string);
 	SAFE_FREE(allocated_string);
 
@@ -3242,6 +3244,8 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 	const char *attrs[] = {"objectGUID", NULL};
 	struct GUID guid;
 	WERROR win_rc = WERR_OK;
+	size_t converted_size;
+	int ret;
 
 	DEBUG(5, ("publishing printer %s\n", printer->info_2->printername));
 
@@ -3253,27 +3257,23 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 
 	srv_dn_utf8 = ldap_get_dn((LDAP *)ads->ldap.ld, (LDAPMessage *)res);
 	if (!srv_dn_utf8) {
-		ads_destroy(&ads);
 		return WERR_SERVER_UNAVAILABLE;
 	}
 	ads_msgfree(ads, res);
 	srv_cn_utf8 = ldap_explode_dn(srv_dn_utf8, 1);
 	if (!srv_cn_utf8) {
 		ldap_memfree(srv_dn_utf8);
-		ads_destroy(&ads);
 		return WERR_SERVER_UNAVAILABLE;
 	}
 	/* Now convert to CH_UNIX. */
-	if (pull_utf8_allocate(&srv_dn, srv_dn_utf8) == (size_t)-1) {
+	if (!pull_utf8_allocate(&srv_dn, srv_dn_utf8, &converted_size)) {
 		ldap_memfree(srv_dn_utf8);
 		ldap_memfree(srv_cn_utf8);
-		ads_destroy(&ads);
 		return WERR_SERVER_UNAVAILABLE;
 	}
-	if (pull_utf8_allocate(&srv_cn_0, srv_cn_utf8[0]) == (size_t)-1) {
+	if (!pull_utf8_allocate(&srv_cn_0, srv_cn_utf8[0], &converted_size)) {
 		ldap_memfree(srv_dn_utf8);
 		ldap_memfree(srv_cn_utf8);
-		ads_destroy(&ads);
 		SAFE_FREE(srv_dn);
 		return WERR_SERVER_UNAVAILABLE;
 	}
@@ -3284,26 +3284,27 @@ static WERROR nt_printer_publish_ads(ADS_STRUCT *ads,
 	srv_cn_escaped = escape_rdn_val_string_alloc(srv_cn_0);
 	if (!srv_cn_escaped) {
 		SAFE_FREE(srv_cn_0);
-		ldap_memfree(srv_dn_utf8);
-		ads_destroy(&ads);
+		SAFE_FREE(srv_dn);
 		return WERR_SERVER_UNAVAILABLE;
 	}
 	sharename_escaped = escape_rdn_val_string_alloc(printer->info_2->sharename);
 	if (!sharename_escaped) {
 		SAFE_FREE(srv_cn_escaped);
 		SAFE_FREE(srv_cn_0);
-		ldap_memfree(srv_dn_utf8);
-		ads_destroy(&ads);
+		SAFE_FREE(srv_dn);
 		return WERR_SERVER_UNAVAILABLE;
 	}
 
-
-	asprintf(&prt_dn, "cn=%s-%s,%s", srv_cn_escaped, sharename_escaped, srv_dn);
+	ret = asprintf(&prt_dn, "cn=%s-%s,%s", srv_cn_escaped, sharename_escaped, srv_dn);
 
 	SAFE_FREE(srv_dn);
 	SAFE_FREE(srv_cn_0);
 	SAFE_FREE(srv_cn_escaped);
 	SAFE_FREE(sharename_escaped);
+
+	if (ret == -1) {
+		return WERR_NOMEM;
+	}
 
 	/* build the ads mods */
 	ctx = talloc_init("nt_printer_publish_ads");
@@ -5492,7 +5493,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 {
 	SEC_ACE ace[5];	/* max number of ace entries */
 	int i = 0;
-	SEC_ACCESS sa;
+	uint32_t sa;
 	SEC_ACL *psa = NULL;
 	SEC_DESC_BUF *sdb = NULL;
 	SEC_DESC *psd = NULL;
@@ -5501,7 +5502,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 
 	/* Create an ACE where Everyone is allowed to print */
 
-	init_sec_access(&sa, PRINTER_ACE_PRINT);
+	sa = PRINTER_ACE_PRINT;
 	init_sec_ace(&ace[i++], &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED,
 		     sa, SEC_ACE_FLAG_CONTAINER_INHERIT);
 
@@ -5513,7 +5514,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 		sid_copy(&domadmins_sid, get_global_sam_sid());
 		sid_append_rid(&domadmins_sid, DOMAIN_GROUP_RID_ADMINS);
 		
-		init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+		sa = PRINTER_ACE_FULL_CONTROL;
 		init_sec_ace(&ace[i++], &domadmins_sid, 
 			SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 			SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5523,7 +5524,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 	else if (secrets_fetch_domain_sid(lp_workgroup(), &adm_sid)) {
 		sid_append_rid(&adm_sid, DOMAIN_USER_RID_ADMIN);
 
-		init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+		sa = PRINTER_ACE_FULL_CONTROL;
 		init_sec_ace(&ace[i++], &adm_sid, 
 			SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 			SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5533,7 +5534,7 @@ static SEC_DESC_BUF *construct_default_printer_sdb(TALLOC_CTX *ctx)
 
 	/* add BUILTIN\Administrators as FULL CONTROL */
 
-	init_sec_access(&sa, PRINTER_ACE_FULL_CONTROL);
+	sa = PRINTER_ACE_FULL_CONTROL;
 	init_sec_ace(&ace[i++], &global_sid_Builtin_Administrators, 
 		SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 
 		SEC_ACE_FLAG_OBJECT_INHERIT | SEC_ACE_FLAG_INHERIT_ONLY);
@@ -5762,24 +5763,22 @@ void map_job_permissions(SEC_DESC *sd)
     3)  "printer admins" (may result in numerous calls to winbind)
 
  ****************************************************************************/
-bool print_access_check(struct current_user *user, int snum, int access_type)
+bool print_access_check(struct auth_serversupplied_info *server_info, int snum,
+			int access_type)
 {
 	SEC_DESC_BUF *secdesc = NULL;
 	uint32 access_granted;
 	NTSTATUS status;
-	bool result;
 	const char *pname;
 	TALLOC_CTX *mem_ctx = NULL;
 	SE_PRIV se_printop = SE_PRINT_OPERATOR;
 	
 	/* If user is NULL then use the current_user structure */
 
-	if (!user)
-		user = &current_user;
-
 	/* Always allow root or SE_PRINT_OPERATROR to do anything */
 
-	if ( user->ut.uid == 0 || user_has_privileges(user->nt_user_token, &se_printop ) ) {
+	if (server_info->utok.uid == 0
+	    || user_has_privileges(server_info->ptok, &se_printop ) ) {
 		return True;
 	}
 
@@ -5812,11 +5811,11 @@ bool print_access_check(struct current_user *user, int snum, int access_type)
 		   against.  This is because print jobs are child objects
 		   objects of a printer. */
 
-		secdesc = se_create_child_secdesc(mem_ctx, parent_secdesc->sd, False);
+		status = se_create_child_secdesc_buf(mem_ctx, &secdesc, parent_secdesc->sd, False);
 
-		if (!secdesc) {
+		if (!NT_STATUS_IS_OK(status)) {
 			talloc_destroy(mem_ctx);
-			errno = ENOMEM;
+			errno = map_errno_from_nt_status(status);
 			return False;
 		}
 
@@ -5826,16 +5825,16 @@ bool print_access_check(struct current_user *user, int snum, int access_type)
 	}
 
 	/* Check access */
-	result = se_access_check(secdesc->sd, user->nt_user_token, access_type,
-				 &access_granted, &status);
+	status = se_access_check(secdesc->sd, server_info->ptok, access_type,
+				 &access_granted);
 
-	DEBUG(4, ("access check was %s\n", result ? "SUCCESS" : "FAILURE"));
+	DEBUG(4, ("access check was %s\n", NT_STATUS_IS_OK(status) ? "SUCCESS" : "FAILURE"));
 
         /* see if we need to try the printer admin list */
 
         if ((access_granted == 0) &&
-	    (token_contains_name_in_list(uidtoname(user->ut.uid), NULL,
-					 user->nt_user_token,
+	    (token_contains_name_in_list(uidtoname(server_info->utok.uid),
+					 NULL, NULL, server_info->ptok,
 					 lp_printer_admin(snum)))) {
 		talloc_destroy(mem_ctx);
 		return True;
@@ -5843,11 +5842,11 @@ bool print_access_check(struct current_user *user, int snum, int access_type)
 
 	talloc_destroy(mem_ctx);
 	
-	if (!result) {
+	if (!NT_STATUS_IS_OK(status)) {
 		errno = EACCES;
 	}
 
-	return result;
+	return NT_STATUS_IS_OK(status);
 }
 
 /****************************************************************************

@@ -41,7 +41,7 @@ static WERROR cmd_wkssvc_wkstagetinfo(struct rpc_pipe_client *cli,
 		level = atoi(argv[1]);
 	}
 
-	server_name = cli->cli->desthost;
+	server_name = cli->desthost;
 
 	status = rpccli_wkssvc_NetWkstaGetInfo(cli, mem_ctx,
 					       server_name,
@@ -66,7 +66,7 @@ static WERROR cmd_wkssvc_getjoininformation(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werr;
 
-	server_name = cli->cli->desthost;
+	server_name = cli->desthost;
 	name_buffer = "";
 
 	status = rpccli_wkssvc_NetrGetJoinInformation(cli, mem_ctx,
@@ -90,9 +90,9 @@ static WERROR cmd_wkssvc_messagebuffersend(struct rpc_pipe_client *cli,
 					   int argc,
 					   const char **argv)
 {
-	const char *server_name = cli->cli->desthost;
-	const char *message_name = cli->cli->desthost;
-	const char *message_sender_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
+	const char *message_name = cli->desthost;
+	const char *message_sender_name = cli->desthost;
 	smb_ucs2_t *message_buffer = NULL;
 	size_t message_size = 0;
 	const char *message = "my message";
@@ -103,10 +103,9 @@ static WERROR cmd_wkssvc_messagebuffersend(struct rpc_pipe_client *cli,
 		message = argv[1];
 	}
 
-	message_size = push_ucs2_talloc(mem_ctx,
-					&message_buffer,
-					message);
-	if (message_size == -1) {
+	if (!push_ucs2_talloc(mem_ctx, &message_buffer, message,
+			      &message_size))
+	{
 		return WERR_NOMEM;
 	}
 
@@ -135,7 +134,7 @@ static WERROR cmd_wkssvc_enumeratecomputernames(struct rpc_pipe_client *cli,
 	struct wkssvc_ComputerNamesCtr *ctr = NULL;
 	WERROR werr;
 
-	server_name = cli->cli->desthost;
+	server_name = cli->desthost;
 
 	if (argc >= 2) {
 		name_type = atoi(argv[1]);
@@ -163,9 +162,9 @@ static WERROR cmd_wkssvc_enumeratecomputernames(struct rpc_pipe_client *cli,
 struct cmd_set wkssvc_commands[] = {
 
 	{ "WKSSVC" },
-	{ "wkssvc_wkstagetinfo", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_wkstagetinfo, PI_WKSSVC, NULL, "Query WKSSVC Workstation Information", "" },
-	{ "wkssvc_getjoininformation", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_getjoininformation, PI_WKSSVC, NULL, "Query WKSSVC Join Information", "" },
-	{ "wkssvc_messagebuffersend", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_messagebuffersend, PI_WKSSVC, NULL, "Send WKSSVC message", "" },
-	{ "wkssvc_enumeratecomputernames", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_enumeratecomputernames, PI_WKSSVC, NULL, "Enumerate WKSSVC computer names", "" },
+	{ "wkssvc_wkstagetinfo", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_wkstagetinfo, &ndr_table_wkssvc.syntax_id, NULL, "Query WKSSVC Workstation Information", "" },
+	{ "wkssvc_getjoininformation", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_getjoininformation, &ndr_table_wkssvc.syntax_id, NULL, "Query WKSSVC Join Information", "" },
+	{ "wkssvc_messagebuffersend", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_messagebuffersend, &ndr_table_wkssvc.syntax_id, NULL, "Send WKSSVC message", "" },
+	{ "wkssvc_enumeratecomputernames", RPC_RTYPE_WERROR, NULL, cmd_wkssvc_enumeratecomputernames, &ndr_table_wkssvc.syntax_id, NULL, "Enumerate WKSSVC computer names", "" },
 	{ NULL }
 };

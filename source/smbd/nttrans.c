@@ -22,28 +22,7 @@
 
 extern int max_send;
 extern enum protocol_types Protocol;
-extern struct current_user current_user;
-
-static const char *known_nt_pipes[] = {
-	"\\LANMAN",
-	"\\srvsvc",
-	"\\samr",
-	"\\wkssvc",
-	"\\NETLOGON",
-	"\\ntlsa",
-	"\\ntsvcs",
-	"\\lsass",
-	"\\lsarpc",
-	"\\winreg",
-	"\\initshutdown",
-	"\\spoolss",
-	"\\netdfs",
-	"\\rpcecho",
-        "\\svcctl",
-	"\\eventlog",
-	"\\unixinfo",
-	NULL
-};
+extern const struct generic_mapping file_generic_mapping;
 
 static char *nttrans_realloc(char **ptr, size_t size)
 {
@@ -290,25 +269,12 @@ static void nt_open_pipe(char *fname, connection_struct *conn,
 			 struct smb_request *req, int *ppnum)
 {
 	smb_np_struct *p = NULL;
-	int i;
 
 	DEBUG(4,("nt_open_pipe: Opening pipe %s.\n", fname));
 
 	/* See if it is one we want to handle. */
 
-	if (lp_disable_spoolss() && strequal(fname, "\\spoolss")) {
-		reply_botherror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND,
-				ERRDOS, ERRbadpipe);
-		return;
-	}
-
-	for( i = 0; known_nt_pipes[i]; i++ ) {
-		if( strequal(fname,known_nt_pipes[i])) {
-			break;
-		}
-	}
-
-	if ( known_nt_pipes[i] == NULL ) {
+	if (!is_known_pipename(fname)) {
 		reply_botherror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND,
 				ERRDOS, ERRbadpipe);
 		return;
@@ -761,26 +727,23 @@ static NTSTATUS set_sd(files_struct *fsp, uint8 *data, uint32 sd_len,
 		return status;
 	}
 
-	if (psd->owner_sid==0) {
+	if (psd->owner_sid == NULL) {
 		security_info_sent &= ~OWNER_SECURITY_INFORMATION;
 	}
-	if (psd->group_sid==0) {
+	if (psd->group_sid == NULL) {
 		security_info_sent &= ~GROUP_SECURITY_INFORMATION;
 	}
-	if (psd->sacl==0) {
-		security_info_sent &= ~SACL_SECURITY_INFORMATION;
-	}
-	if (psd->dacl==0) {
-		security_info_sent &= ~DACL_SECURITY_INFORMATION;
+
+	/* Convert all the generic bits. */
+	security_acl_map_generic(psd->dacl, &file_generic_mapping);
+	security_acl_map_generic(psd->sacl, &file_generic_mapping);
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("set_sd for file %s\n", fsp->fsp_name ));
+		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
-	if (fsp->fh->fd != -1) {
-		status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
-	}
-	else {
-		status = SMB_VFS_SET_NT_ACL(fsp, fsp->fsp_name,
-					    security_info_sent, psd);
-	}
+	status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
 
 	TALLOC_FREE(psd);
 
@@ -1300,13 +1263,6 @@ void reply_ntrename(struct smb_request *req)
 		return;
 	}
 
-	if( is_ntfs_stream_name(oldname)) {
-		/* Can't rename a stream. */
-		reply_nterror(req, NT_STATUS_ACCESS_DENIED);
-		END_PROFILE(SMBntrename);
-		return;
-	}
-
 	if (ms_has_wild(oldname)) {
 		reply_nterror(req, NT_STATUS_OBJECT_PATH_SYNTAX_BAD);
 		END_PROFILE(SMBntrename);
@@ -1351,6 +1307,13 @@ void reply_ntrename(struct smb_request *req)
 			return;
 		}
 		reply_nterror(req, status);
+		END_PROFILE(SMBntrename);
+		return;
+	}
+
+	/* The new name must begin with a ':' if the old name is a stream. */
+	if (is_ntfs_stream_name(oldname) && (newname[0] != ':')) {
+		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		END_PROFILE(SMBntrename);
 		return;
 	}
@@ -1536,7 +1499,7 @@ static void call_nt_transact_rename(connection_struct *conn,
 	}
 
 	fsp = file_fsp(SVAL(params, 0));
-	if (!check_fsp(conn, req, fsp, &current_user)) {
+	if (!check_fsp(conn, req, fsp)) {
 		return;
 	}
 	srvstr_get_path_wcard(ctx, params, req->flags2, &new_name, params+4,
@@ -1628,24 +1591,31 @@ static void call_nt_transact_query_security_desc(connection_struct *conn,
 	if (!lp_nt_acl_support(SNUM(conn))) {
 		status = get_null_nt_acl(talloc_tos(), &psd);
 	} else {
-		if (fsp->fh->fd != -1) {
-			status = SMB_VFS_FGET_NT_ACL(
-				fsp, security_info_wanted, &psd);
-		}
-		else {
-			status = SMB_VFS_GET_NT_ACL(
-				conn, fsp->fsp_name, security_info_wanted, &psd);
-		}
+		status = SMB_VFS_FGET_NT_ACL(
+			fsp, security_info_wanted, &psd);
 	}
-
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
 		return;
 	}
 
+	/* If the SACL/DACL is NULL, but was requested, we mark that it is
+	 * present in the reply to match Windows behavior */
+	if (psd->sacl == NULL &&
+	    security_info_wanted & SACL_SECURITY_INFORMATION)
+		psd->type |= SEC_DESC_SACL_PRESENT;
+	if (psd->dacl == NULL &&
+	    security_info_wanted & DACL_SECURITY_INFORMATION)
+		psd->type |= SEC_DESC_DACL_PRESENT;
+
 	sd_size = ndr_size_security_descriptor(psd, 0);
 
 	DEBUG(3,("call_nt_transact_query_security_desc: sd_size = %lu.\n",(unsigned long)sd_size));
+
+	if (DEBUGLEVEL >= 10) {
+		DEBUG(10,("call_nt_transact_query_security_desc for file %s\n", fsp->fsp_name ));
+		NDR_PRINT_DEBUG(security_descriptor, psd);
+	}
 
 	SIVAL(params,0,(uint32)sd_size);
 
@@ -1795,7 +1765,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 
 		DEBUG(10,("FSCTL_CREATE_OR_GET_OBJECT_ID: called on FID[0x%04X]\n",fidnum));
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -1850,7 +1820,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 		uint32 i;
 		char *cur_pdata;
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -1973,7 +1943,7 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 
 		DEBUG(10,("FSCTL_FIND_FILES_BY_SID: called on FID[0x%04X]\n",fidnum));
 
-		if (!fsp_belongs_conn(conn, req, fsp, &current_user)) {
+		if (!fsp_belongs_conn(conn, req, fsp)) {
 			return;
 		}
 
@@ -2058,9 +2028,10 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 	ZERO_STRUCT(qt);
 
 	/* access check */
-	if (current_user.ut.uid != 0) {
-		DEBUG(1,("get_user_quota: access_denied service [%s] user [%s]\n",
-			lp_servicename(SNUM(conn)),conn->user));
+	if (conn->server_info->utok.uid != 0) {
+		DEBUG(1,("get_user_quota: access_denied service [%s] user "
+			 "[%s]\n", lp_servicename(SNUM(conn)),
+			 conn->server_info->unix_name));
 		reply_doserror(req, ERRDOS, ERRnoaccess);
 		return;
 	}
@@ -2077,7 +2048,7 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 
 	/* maybe we can check the quota_fnum */
 	fsp = file_fsp(SVAL(params,0));
-	if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+	if (!check_fsp_ntquota_handle(conn, req, fsp)) {
 		DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return;
@@ -2086,7 +2057,7 @@ static void call_nt_transact_get_user_quota(connection_struct *conn,
 	/* the NULL pointer checking for fsp->fake_file_handle->pd
 	 * is done by CHECK_NTQUOTA_HANDLE_OK()
 	 */
-	qt_handle = (SMB_NTQUOTA_HANDLE *)fsp->fake_file_handle->pd;
+	qt_handle = (SMB_NTQUOTA_HANDLE *)fsp->fake_file_handle->private_data;
 
 	level = SVAL(params,2);
 
@@ -2324,9 +2295,10 @@ static void call_nt_transact_set_user_quota(connection_struct *conn,
 	ZERO_STRUCT(qt);
 
 	/* access check */
-	if (current_user.ut.uid != 0) {
-		DEBUG(1,("set_user_quota: access_denied service [%s] user [%s]\n",
-			lp_servicename(SNUM(conn)),conn->user));
+	if (conn->server_info->utok.uid != 0) {
+		DEBUG(1,("set_user_quota: access_denied service [%s] user "
+			 "[%s]\n", lp_servicename(SNUM(conn)),
+			 conn->server_info->unix_name));
 		reply_doserror(req, ERRDOS, ERRnoaccess);
 		return;
 	}
@@ -2343,7 +2315,7 @@ static void call_nt_transact_set_user_quota(connection_struct *conn,
 
 	/* maybe we can check the quota_fnum */
 	fsp = file_fsp(SVAL(params,0));
-	if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+	if (!check_fsp_ntquota_handle(conn, req, fsp)) {
 		DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 		reply_nterror(req, NT_STATUS_INVALID_HANDLE);
 		return;
@@ -2605,7 +2577,7 @@ void reply_nttrans(struct smb_request *req)
 		return;
 	}
 
-	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
+	if ((state = TALLOC_P(conn, struct trans_state)) == NULL) {
 		reply_doserror(req, ERRSRV, ERRaccess);
 		END_PROFILE(SMBnttrans);
 		return;

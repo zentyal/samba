@@ -54,10 +54,13 @@ bool init_pipe_handle_list(pipes_struct *p, const char *pipe_name)
 				(is_samr_lsa_pipe(plist->name) && is_samr_lsa_pipe(pipe_name))) {
 			if (!plist->pipe_handles) {
 				char *msg;
-				asprintf(&msg, "init_pipe_handles: NULL "
-					 "pipe_handle pointer in pipe %s",
-					 pipe_name);
-				smb_panic(msg);
+				if (asprintf(&msg, "init_pipe_handles: NULL "
+						 "pipe_handle pointer in pipe %s",
+						 pipe_name) != -1) {
+					smb_panic(msg);
+				} else {
+					smb_panic("init_pipe_handle_list");
+				}
 			}
 			hl = plist->pipe_handles;
 			break;
@@ -256,19 +259,13 @@ bool pipe_access_check(pipes_struct *p)
 	   anonymous > 0 */
 
 	if (lp_restrict_anonymous() > 0) {
-		user_struct *user = get_valid_user_struct(p->vuid);
 
 		/* schannel, so we must be ok */
 		if (p->pipe_bound && (p->auth.auth_type == PIPE_AUTH_TYPE_SCHANNEL)) {
 			return True;
 		}
 
-		if (!user) {
-			DEBUG(3, ("invalid vuid %d\n", p->vuid));
-			return False;
-		}
-
-		if (user->guest) {
+		if (p->server_info->guest) {
 			return False;
 		}
 	}

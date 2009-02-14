@@ -329,7 +329,7 @@ SMBC_read_ctx(SMBCCTX *context,
 ssize_t
 SMBC_write_ctx(SMBCCTX *context,
                SMBCFILE *file,
-               void *buf,
+               const void *buf,
                size_t count)
 {
 	int ret;
@@ -518,7 +518,7 @@ SMBC_getatr(SMBCCTX * context,
                 
 		errno = EINVAL;
 		TALLOC_FREE(frame);
- 		return -1;
+ 		return false;
  	}
         
 	/* path fixup for . and .. */
@@ -527,14 +527,14 @@ SMBC_getatr(SMBCCTX * context,
 		if (!fixedpath) {
 			errno = ENOMEM;
 			TALLOC_FREE(frame);
-			return -1;
+			return false;
 		}
 	} else {
 		fixedpath = talloc_strdup(frame, path);
 		if (!fixedpath) {
 			errno = ENOMEM;
 			TALLOC_FREE(frame);
-			return -1;
+			return false;
 		}
 		trim_string(fixedpath, NULL, "\\..");
 		trim_string(fixedpath, NULL, "\\.");

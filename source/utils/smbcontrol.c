@@ -65,9 +65,9 @@ static bool send_message(struct messaging_context *msg_ctx,
 	return ret;
 }
 
-static void timeout_handler(struct event_context *event_ctx,
+static void smbcontrol_timeout(struct event_context *event_ctx,
 			    struct timed_event *te,
-			    const struct timeval *now,
+			    struct timeval now,
 			    void *private_data)
 {
 	bool *timed_out = (bool *)private_data;
@@ -85,8 +85,7 @@ static void wait_replies(struct messaging_context *msg_ctx,
 
 	if (!(te = event_add_timed(messaging_event_context(msg_ctx), NULL,
 				   timeval_current_ofs(timeout, 0),
-				   "smbcontrol_timeout",
-				   timeout_handler, (void *)&timed_out))) {
+				   smbcontrol_timeout, (void *)&timed_out))) {
 		DEBUG(0, ("event_add_timed failed\n"));
 		return;
 	}
@@ -865,13 +864,6 @@ static bool do_winbind_online(struct messaging_context *msg_ctx,
 		return False;
 	}
 
-	if (!lp_winbind_offline_logon()) {
-		fprintf(stderr, "The parameter \"winbind offline logon\" must "
-			"be set in the [global] section of smb.conf for this "
-			"command to be allowed.\n");
-		return False;
-	}
-
 	/* Remove the entry in the winbindd_cache tdb to tell a later
 	   starting winbindd that we're online. */
 
@@ -898,13 +890,6 @@ static bool do_winbind_offline(struct messaging_context *msg_ctx,
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd offline\n");
-		return False;
-	}
-
-	if (!lp_winbind_offline_logon()) {
-		fprintf(stderr, "The parameter \"winbind offline logon\" must "
-			"be set in the [global] section of smb.conf for this "
-			"command to be allowed.\n");
 		return False;
 	}
 
@@ -1242,9 +1227,9 @@ static struct server_id parse_dest(const char *dest)
 	struct server_id result = {-1};
 	pid_t pid;
 
-	/* Zero is a special return value for broadcast smbd */
+	/* Zero is a special return value for broadcast to all processes */
 
-	if (strequal(dest, "smbd")) {
+	if (strequal(dest, "all")) {
 		return interpret_pid(MSG_BROADCAST_PID_STR);
 	}
 
@@ -1259,7 +1244,6 @@ static struct server_id parse_dest(const char *dest)
 		dest = "winbindd";
 	}
 
-	
 	if (!(strequal(dest, "winbindd") || strequal(dest, "nmbd"))) {
 		/* Check for numeric pid number */
 
@@ -1280,7 +1264,7 @@ static struct server_id parse_dest(const char *dest)
 	fprintf(stderr,"Can't find pid for destination '%s'\n", dest);
 
 	return result;
-}	
+}
 
 /* Execute smbcontrol command */
 

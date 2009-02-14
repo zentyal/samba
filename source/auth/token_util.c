@@ -77,7 +77,7 @@ bool nt_token_check_domain_rid( NT_USER_TOKEN *token, uint32 rid )
 
 NT_USER_TOKEN *get_root_nt_token( void )
 {
-	struct nt_user_token *token = NULL;
+	struct nt_user_token *token, *for_cache;
 	DOM_SID u_sid, g_sid;
 	struct passwd *pw;
 	void *cache_data;
@@ -102,14 +102,16 @@ NT_USER_TOKEN *get_root_nt_token( void )
 	uid_to_sid(&u_sid, pw->pw_uid);
 	gid_to_sid(&g_sid, pw->pw_gid);
 
-	token = create_local_nt_token(NULL, &u_sid, False,
+	token = create_local_nt_token(talloc_autofree_context(), &u_sid, False,
 				      1, &global_sid_Builtin_Administrators);
 
 	token->privileges = se_disk_operators;
 
+	for_cache = token;
+
 	memcache_add_talloc(
 		NULL, SINGLETON_CACHE_TALLOC,
-		data_blob_string_const("root_nt_token"), token);
+		data_blob_string_const("root_nt_token"), &for_cache);
 
 	return token;
 }
@@ -165,7 +167,8 @@ done:
 /*******************************************************************
 *******************************************************************/
 
-static NTSTATUS add_builtin_administrators( struct nt_user_token *token )
+static NTSTATUS add_builtin_administrators(struct nt_user_token *token,
+					   const DOM_SID *dom_sid)
 {
 	DOM_SID domadm;
 	NTSTATUS status;
@@ -181,8 +184,7 @@ static NTSTATUS add_builtin_administrators( struct nt_user_token *token )
 	if ( IS_DC ) {
 		sid_copy( &domadm, get_global_sam_sid() );
 	} else {
-		if ( !secrets_fetch_domain_sid( lp_workgroup(), &domadm ) )
-			return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
+		sid_copy(&domadm, dom_sid);
 	}
 	sid_append_rid( &domadm, DOMAIN_GROUP_RID_ADMINS );
 
@@ -200,15 +202,74 @@ static NTSTATUS add_builtin_administrators( struct nt_user_token *token )
 	return NT_STATUS_OK;
 }
 
+/**
+ * Create the requested BUILTIN if it doesn't already exist.  This requires
+ * winbindd to be running.
+ *
+ * @param[in] rid BUILTIN rid to create
+ * @return Normal NTSTATUS return.
+ */
+static NTSTATUS create_builtin(uint32 rid)
+{
+	NTSTATUS status = NT_STATUS_OK;
+	DOM_SID sid;
+	gid_t gid;
+
+	if (!sid_compose(&sid, &global_sid_Builtin, rid)) {
+		return NT_STATUS_NO_SUCH_ALIAS;
+	}
+
+	if (!sid_to_gid(&sid, &gid)) {
+		if (!lp_winbind_nested_groups() || !winbind_ping()) {
+			return NT_STATUS_PROTOCOL_UNREACHABLE;
+		}
+		status = pdb_create_builtin_alias(rid);
+	}
+	return status;
+}
+
+/**
+ * Add sid as a member of builtin_sid.
+ *
+ * @param[in] builtin_sid	An existing builtin group.
+ * @param[in] dom_sid		sid to add as a member of builtin_sid.
+ * @return Normal NTSTATUS return
+ */
+static NTSTATUS add_sid_to_builtin(const DOM_SID *builtin_sid,
+				   const DOM_SID *dom_sid)
+{
+	NTSTATUS status = NT_STATUS_OK;
+
+	if (!dom_sid || !builtin_sid) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	status = pdb_add_aliasmem(builtin_sid, dom_sid);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_MEMBER_IN_ALIAS)) {
+		DEBUG(5, ("add_sid_to_builtin %s is already a member of %s\n",
+			  sid_string_dbg(dom_sid),
+			  sid_string_dbg(builtin_sid)));
+		return NT_STATUS_OK;
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(4, ("add_sid_to_builtin %s could not be added to %s: "
+			  "%s\n", sid_string_dbg(dom_sid),
+			  sid_string_dbg(builtin_sid), nt_errstr(status)));
+	}
+	return status;
+}
+
 /*******************************************************************
 *******************************************************************/
 
-static NTSTATUS create_builtin_users( void )
+NTSTATUS create_builtin_users(const DOM_SID *dom_sid)
 {
 	NTSTATUS status;
 	DOM_SID dom_users;
 
-	status = pdb_create_builtin_alias( BUILTIN_ALIAS_RID_USERS );
+	status = create_builtin(BUILTIN_ALIAS_RID_USERS);
 	if ( !NT_STATUS_IS_OK(status) ) {
 		DEBUG(5,("create_builtin_users: Failed to create Users\n"));
 		return status;
@@ -216,24 +277,19 @@ static NTSTATUS create_builtin_users( void )
 
 	/* add domain users */
 	if ((IS_DC || (lp_server_role() == ROLE_DOMAIN_MEMBER))
-		&& secrets_fetch_domain_sid(lp_workgroup(), &dom_users))
+		&& sid_compose(&dom_users, dom_sid, DOMAIN_GROUP_RID_USERS))
 	{
-		sid_append_rid(&dom_users, DOMAIN_GROUP_RID_USERS );
-		status = pdb_add_aliasmem( &global_sid_Builtin_Users, &dom_users);
-		if ( !NT_STATUS_IS_OK(status) ) {
-			DEBUG(4,("create_builtin_administrators: Failed to add Domain Users to"
-				" Users\n"));
-			return status;
-		}
+		status = add_sid_to_builtin(&global_sid_Builtin_Users,
+					    &dom_users);
 	}
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 /*******************************************************************
 *******************************************************************/
 
-static NTSTATUS create_builtin_administrators( void )
+NTSTATUS create_builtin_administrators(const DOM_SID *dom_sid)
 {
 	NTSTATUS status;
 	DOM_SID dom_admins, root_sid;
@@ -242,7 +298,7 @@ static NTSTATUS create_builtin_administrators( void )
 	TALLOC_CTX *ctx;
 	bool ret;
 
-	status = pdb_create_builtin_alias( BUILTIN_ALIAS_RID_ADMINS );
+	status = create_builtin(BUILTIN_ALIAS_RID_ADMINS);
 	if ( !NT_STATUS_IS_OK(status) ) {
 		DEBUG(5,("create_builtin_administrators: Failed to create Administrators\n"));
 		return status;
@@ -250,13 +306,11 @@ static NTSTATUS create_builtin_administrators( void )
 
 	/* add domain admins */
 	if ((IS_DC || (lp_server_role() == ROLE_DOMAIN_MEMBER))
-		&& secrets_fetch_domain_sid(lp_workgroup(), &dom_admins))
+		&& sid_compose(&dom_admins, dom_sid, DOMAIN_GROUP_RID_ADMINS))
 	{
-		sid_append_rid(&dom_admins, DOMAIN_GROUP_RID_ADMINS);
-		status = pdb_add_aliasmem( &global_sid_Builtin_Administrators, &dom_admins );
-		if ( !NT_STATUS_IS_OK(status) ) {
-			DEBUG(4,("create_builtin_administrators: Failed to add Domain Admins"
-				" Administrators\n"));
+		status = add_sid_to_builtin(&global_sid_Builtin_Administrators,
+					    &dom_admins);
+		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 	}
@@ -271,15 +325,11 @@ static NTSTATUS create_builtin_administrators( void )
 	TALLOC_FREE( ctx );
 
 	if ( ret ) {
-		status = pdb_add_aliasmem( &global_sid_Builtin_Administrators, &root_sid );
-		if ( !NT_STATUS_IS_OK(status) ) {
-			DEBUG(4,("create_builtin_administrators: Failed to add root"
-				" Administrators\n"));
-			return status;
-		}
+		status = add_sid_to_builtin(&global_sid_Builtin_Administrators,
+					    &root_sid);
 	}
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 
@@ -297,6 +347,7 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	int i;
 	NTSTATUS status;
 	gid_t gid;
+	DOM_SID dom_sid;
 
 	DEBUG(10, ("Create local NT token for %s\n",
 		   sid_string_dbg(user_sid)));
@@ -373,27 +424,30 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	   be resolved then assume that the add_aliasmem( S-1-5-32 )
 	   handled it. */
 
-	if ( !sid_to_gid( &global_sid_Builtin_Administrators, &gid ) ) {
-		/* We can only create a mapping if winbind is running
-		   and the nested group functionality has been enabled */
+	if (!sid_to_gid(&global_sid_Builtin_Administrators, &gid)) {
 
-		if ( lp_winbind_nested_groups() && winbind_ping() ) {
-			become_root();
-			status = create_builtin_administrators( );
-			if ( !NT_STATUS_IS_OK(status) ) {
-				DEBUG(2,("WARNING: Failed to create BUILTIN\\Administrators "
-					 "group!  Can Winbind allocate gids?\n"));
-				/* don't fail, just log the message */
-			}
-			unbecome_root();
+		become_root();
+		if (!secrets_fetch_domain_sid(lp_workgroup(), &dom_sid)) {
+			status = NT_STATUS_OK;
+			DEBUG(3, ("Failed to fetch domain sid for %s\n",
+				  lp_workgroup()));
+		} else {
+			status = create_builtin_administrators(&dom_sid);
 		}
-		else {
-			status = add_builtin_administrators( result );
+		unbecome_root();
+
+		if (NT_STATUS_EQUAL(status, NT_STATUS_PROTOCOL_UNREACHABLE)) {
+			/* Add BUILTIN\Administrators directly to token. */
+			status = add_builtin_administrators(result, &dom_sid);
 			if ( !NT_STATUS_IS_OK(status) ) {
-				/* just log a complaint but do not fail */
-				DEBUG(3,("create_local_nt_token: failed to check for local Administrators"
-					" membership (%s)\n", nt_errstr(status)));
+				DEBUG(3, ("Failed to check for local "
+					  "Administrators membership (%s)\n",
+					  nt_errstr(status)));
 			}
+		} else if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(2, ("WARNING: Failed to create "
+				  "BUILTIN\\Administrators group!  Can "
+				  "Winbind allocate gids?\n"));
 		}
 	}
 
@@ -401,19 +455,23 @@ struct nt_user_token *create_local_nt_token(TALLOC_CTX *mem_ctx,
 	   be resolved then assume that the add_aliasmem( S-1-5-32 )
 	   handled it. */
 
-	if ( !sid_to_gid( &global_sid_Builtin_Users, &gid ) ) {
-		/* We can only create a mapping if winbind is running
-		   and the nested group functionality has been enabled */
+	if (!sid_to_gid(&global_sid_Builtin_Users, &gid)) {
 
-		if ( lp_winbind_nested_groups() && winbind_ping() ) {
-			become_root();
-			status = create_builtin_users( );
-			if ( !NT_STATUS_IS_OK(status) ) {
-				DEBUG(2,("WARNING: Failed to create BUILTIN\\Users group! "
-					 "Can Winbind allocate gids?\n"));
-				/* don't fail, just log the message */
-			}
-			unbecome_root();
+		become_root();
+		if (!secrets_fetch_domain_sid(lp_workgroup(), &dom_sid)) {
+			status = NT_STATUS_OK;
+			DEBUG(3, ("Failed to fetch domain sid for %s\n",
+				  lp_workgroup()));
+		} else {
+			status = create_builtin_users(&dom_sid);
+		}
+		unbecome_root();
+
+		if (!NT_STATUS_EQUAL(status, NT_STATUS_PROTOCOL_UNREACHABLE) &&
+		    !NT_STATUS_IS_OK(status))
+		{
+			DEBUG(2, ("WARNING: Failed to create BUILTIN\\Users group! "
+				  "Can Winbind allocate gids?\n"));
 		}
 	}
 

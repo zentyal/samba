@@ -323,6 +323,11 @@ int ads_kinit_password(ADS_STRUCT *ads)
 	const char *account_name;
 	fstring acct_name;
 
+	if (ads->auth.flags & ADS_AUTH_USER_CREDS) {
+		account_name = ads->auth.user_name;
+		goto got_accountname;
+	}
+
 	if ( IS_DC ) {
 		/* this will end up getting a ticket for DOMAIN@RUSTED.REA.LM */
 		account_name = lp_workgroup();
@@ -338,6 +343,7 @@ int ads_kinit_password(ADS_STRUCT *ads)
 			account_name = ads->auth.user_name;
 	}
 
+ got_accountname:
 	if (asprintf(&s, "%s@%s", account_name, ads->auth.realm) == -1) {
 		return KRB5_CC_NOMEM;
 	}
@@ -735,6 +741,9 @@ static char *print_kdc_line(char *mem_ctx,
 /************************************************************************
  Create a string list of available kdc's, possibly searching by sitename.
  Does DNS queries.
+
+ If "sitename" is given, the DC's in that site are listed first.
+
 ************************************************************************/
 
 static char *get_kdc_ip_string(char *mem_ctx,
@@ -753,14 +762,17 @@ static char *get_kdc_ip_string(char *mem_ctx,
 		return NULL;
 	}
 
-	/* Get the KDC's only in this site. */
+	/*
+	 * First get the KDC's only in this site, the rest will be
+	 * appended later
+	 */
 
 	if (sitename) {
 
 		get_kdc_list(realm, sitename, &ip_srv_site, &count_site);
 
 		for (i = 0; i < count_site; i++) {
-			if (addr_equal(&ip_srv_site[i].ss, pss)) {
+			if (sockaddr_equal(&ip_srv_site[i].ss, pss)) {
 				continue;
 			}
 			/* Append to the string - inefficient
@@ -782,13 +794,13 @@ static char *get_kdc_ip_string(char *mem_ctx,
 	for (i = 0; i < count_nonsite; i++) {
 		int j;
 
-		if (addr_equal(&ip_srv_nonsite[i].ss, pss)) {
+		if (sockaddr_equal(&ip_srv_nonsite[i].ss, pss)) {
 			continue;
 		}
 
 		/* Ensure this isn't an IP already seen (YUK! this is n*n....) */
 		for (j = 0; j < count_site; j++) {
-			if (addr_equal(&ip_srv_nonsite[i].ss,
+			if (sockaddr_equal(&ip_srv_nonsite[i].ss,
 						&ip_srv_site[j].ss)) {
 				break;
 			}

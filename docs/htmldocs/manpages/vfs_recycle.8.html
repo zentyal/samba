@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_recycle</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="vfs_recycle.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_recycle &#8212; Samba VFS recycle bin</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = recycle</code></p></div></div><div class="refsect1" lang="en"><a name="id2518310"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_recycle</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="vfs_recycle.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_recycle &#8212; Samba VFS recycle bin</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = recycle</code></p></div></div><div class="refsect1" lang="en"><a name="id2522928"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
 	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The <code class="literal">vfs_recycle</code> intercepts file deletion
 	requests and moves the affected files to a temporary repository
 	rather than deleting them immediately. This gives the same effect
@@ -10,7 +10,7 @@
 	of the created directory depends on recycle:repository. Users
 	can recover files from the recycle bin. If the recycle:keeptree
 	option has been specified, deleted files will be found in a path
-	identical with that from which the file was deleted.  </p><p>This module is stackable.</p></div><div class="refsect1" lang="en"><a name="id2480135"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">recycle:repository = PATH</span></dt><dd><p>Path of the directory where deleted files should be moved.
+	identical with that from which the file was deleted.  </p><p>This module is stackable.</p></div><div class="refsect1" lang="en"><a name="id2483347"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">recycle:repository = PATH</span></dt><dd><p>Path of the directory where deleted files should be moved.
 		</p><p>If this option is not set, the default path .recycle
 		is used. </p></dd><dt><span class="term">recycle:directory_mode = MODE</span></dt><dd><p>Set MODE to the octal mode the recycle repository
 		should be created with.  The recycle repository will be
@@ -47,14 +47,17 @@
 		</p></dd><dt><span class="term">recycle:noversions = LIST</span></dt><dd><p>Specifies a list of paths (wildcards such as *
 		and ? are supported) for which no versioning should
 		be used. Only useful when recycle:versions is enabled.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2482588"></a><h2>EXAMPLES</h2><p>Log operations on all shares using the LOCAL1 facility
-	and NOTICE priority:</p><pre class="programlisting">
-        <em class="parameter"><code>[global]</code></em>
-	<a class="link" href="smb.conf.5.html#VFSOBJECTS">vfs objects = recycle</a>
-	<a class="link" href="smb.conf.5.html#RECYCLE:FACILITY">recycle:facility = LOCAL1</a>
-	<a class="link" href="smb.conf.5.html#RECYCLE:PRIORITY">recycle:priority = NOTICE</a>
-</pre></div><div class="refsect1" lang="en"><a name="id2482649"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
-	</p></div><div class="refsect1" lang="en"><a name="id2482660"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483670"></a><h2>EXAMPLES</h2><p>Move files "deleted" on <em class="parameter"><code>share</code></em> to
+	<em class="parameter"><code>/data/share/.recycle</code></em> instead of deleting them:
+	</p><pre class="programlisting">
+        <em class="parameter"><code>[share]</code></em>
+	<a class="link" href="smb.conf.5.html#PATH" target="_top">path = /data/share</a>
+	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = recycle</a>
+	<a class="link" href="smb.conf.5.html#RECYCLE:REPOSITORY" target="_top">recycle:repository = .recycle</a>
+	<a class="link" href="smb.conf.5.html#RECYCLE:KEEPTREE" target="_top">recycle:keeptree = yes</a>
+	<a class="link" href="smb.conf.5.html#RECYCLE:VERSIONS" target="_top">recycle:versions = yes</a>
+</pre></div><div class="refsect1" lang="en"><a name="id2481527"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
+	</p></div><div class="refsect1" lang="en"><a name="id2481538"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar
 	to the way the Linux kernel is developed.</p></div></div></body></html>

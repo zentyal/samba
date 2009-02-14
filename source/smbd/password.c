@@ -27,7 +27,7 @@ static char *session_workgroup = NULL;
 
 /* this holds info on user ids that are already validated for this VC */
 static user_struct *validated_users;
-static int next_vuid = VUID_OFFSET;
+static uint16_t next_vuid = VUID_OFFSET;
 static int num_validated_vuids;
 
 enum server_allocated_state { SERVER_ALLOCATED_REQUIRED_YES,
@@ -119,8 +119,6 @@ void invalidate_vuid(uint16 vuid)
 
 	session_yield(vuser);
 
-	data_blob_free(&vuser->session_key);
-
 	if (vuser->auth_ntlmssp_state) {
 		auth_ntlmssp_end(&vuser->auth_ntlmssp_state);
 	}
@@ -129,7 +127,7 @@ void invalidate_vuid(uint16 vuid)
 
 	/* clear the vuid from the 'cache' on each connection, and
 	   from the vuid 'owner' of connections */
-	conn_clear_vuid_cache(vuid);
+	conn_clear_vuid_caches(vuid);
 
 	TALLOC_FREE(vuser);
 	num_validated_vuids--;
@@ -146,6 +144,16 @@ void invalidate_all_vuids(void)
 	for (usp=validated_users;usp;usp=next) {
 		next = usp->next;
 		invalidate_vuid(usp->vuid);
+	}
+}
+
+static void increment_next_vuid(uint16_t *vuid)
+{
+	*vuid += 1;
+
+	/* Check for vuid wrap. */
+	if (*vuid == UID_FIELD_INVALID) {
+		*vuid = VUID_OFFSET;
 	}
 }
 
@@ -177,11 +185,7 @@ int register_initial_vuid(void)
 	/* Allocate a free vuid. Yes this is a linear search... */
 	while( get_valid_user_struct_internal(next_vuid,
 			SERVER_ALLOCATED_REQUIRED_ANY) != NULL ) {
-		next_vuid++;
-		/* Check for vuid wrap. */
-		if (next_vuid == UID_FIELD_INVALID) {
-			next_vuid = VUID_OFFSET;
-		}
+		increment_next_vuid(&next_vuid);
 	}
 
 	DEBUG(10,("register_initial_vuid: allocated vuid = %u\n",
@@ -194,11 +198,42 @@ int register_initial_vuid(void)
 	 * need to allocate a vuid between the first and second calls
 	 * to NTLMSSP.
 	 */
-	next_vuid++;
+	increment_next_vuid(&next_vuid);
 	num_validated_vuids++;
 
 	DLIST_ADD(validated_users, vuser);
 	return vuser->vuid;
+}
+
+static int register_homes_share(const char *username)
+{
+	int result;
+	struct passwd *pwd;
+
+	result = lp_servicenumber(username);
+	if (result != -1) {
+		DEBUG(3, ("Using static (or previously created) service for "
+			  "user '%s'; path = '%s'\n", username,
+			  lp_pathname(result)));
+		return result;
+	}
+
+	pwd = getpwnam_alloc(talloc_tos(), username);
+
+	if ((pwd == NULL) || (pwd->pw_dir[0] == '\0')) {
+		DEBUG(3, ("No home directory defined for user '%s'\n",
+			  username));
+		TALLOC_FREE(pwd);
+		return -1;
+	}
+
+	DEBUG(3, ("Adding homes service for user '%s' using home directory: "
+		  "'%s'\n", username, pwd->pw_dir));
+
+	result = add_home_service(username, username, pwd->pw_dir);
+
+	TALLOC_FREE(pwd);
+	return result;
 }
 
 /**
@@ -221,112 +256,47 @@ int register_initial_vuid(void)
 
 int register_existing_vuid(uint16 vuid,
 			auth_serversupplied_info *server_info,
-			DATA_BLOB session_key,
 			DATA_BLOB response_blob,
 			const char *smb_name)
 {
-	user_struct *vuser = get_partial_auth_user_struct(vuid);
+	fstring tmp;
+	user_struct *vuser;
+
+	vuser = get_partial_auth_user_struct(vuid);
 	if (!vuser) {
 		goto fail;
 	}
 
 	/* Use this to keep tabs on all our info from the authentication */
-	vuser->server_info = server_info;
-
-	/* Ensure that the server_info will disappear with
-	 * the vuser it is now attached to */
-
-	talloc_steal(vuser, vuser->server_info);
-
-	/* the next functions should be done by a SID mapping system (SMS) as
-	 * the new real sam db won't have reference to unix uids or gids
-	 */
-
-	vuser->uid = server_info->uid;
-	vuser->gid = server_info->gid;
-
-	vuser->n_groups = server_info->n_groups;
-	if (vuser->n_groups) {
-		if (!(vuser->groups = (gid_t *)talloc_memdup(vuser,
-					server_info->groups,
-					sizeof(gid_t)*vuser->n_groups))) {
-			DEBUG(0,("register_existing_vuid: "
-				"failed to talloc_memdup vuser->groups\n"));
-			goto fail;
-		}
-	}
-
-	vuser->guest = server_info->guest;
-	fstrcpy(vuser->user.unix_name, server_info->unix_name);
+	vuser->server_info = talloc_move(vuser, &server_info);
 
 	/* This is a potentially untrusted username */
-	alpha_strcpy(vuser->user.smb_name, smb_name, ". _-$",
-		sizeof(vuser->user.smb_name));
+	alpha_strcpy(tmp, smb_name, ". _-$", sizeof(tmp));
 
-	fstrcpy(vuser->user.domain, pdb_get_domain(server_info->sam_account));
-	fstrcpy(vuser->user.full_name,
-	pdb_get_fullname(server_info->sam_account));
-
-	{
-		/* Keep the homedir handy */
-		const char *homedir =
-			pdb_get_homedir(server_info->sam_account);
-		const char *logon_script =
-			pdb_get_logon_script(server_info->sam_account);
-
-		if (!IS_SAM_DEFAULT(server_info->sam_account,
-					PDB_UNIXHOMEDIR)) {
-			const char *unix_homedir =
-				pdb_get_unix_homedir(server_info->sam_account);
-			if (unix_homedir) {
-				vuser->unix_homedir = unix_homedir;
-			}
-		} else {
-			struct passwd *passwd =
-				getpwnam_alloc(vuser, vuser->user.unix_name);
-			if (passwd) {
-				vuser->unix_homedir = passwd->pw_dir;
-				/* Ensure that the unix_homedir now
-				 * belongs to vuser, so it goes away
-				 * with it, not with passwd below: */
-				talloc_steal(vuser, vuser->unix_homedir);
-				TALLOC_FREE(passwd);
-			}
-		}
-
-		if (homedir) {
-			vuser->homedir = homedir;
-		}
-		if (logon_script) {
-			vuser->logon_script = logon_script;
-		}
-	}
-	vuser->session_key = session_key;
+	vuser->server_info->sanitized_username = talloc_strdup(
+		vuser->server_info, tmp);
 
 	DEBUG(10,("register_existing_vuid: (%u,%u) %s %s %s guest=%d\n",
-			(unsigned int)vuser->uid,
-			(unsigned int)vuser->gid,
-			vuser->user.unix_name, vuser->user.smb_name,
-			vuser->user.domain, vuser->guest ));
+		  (unsigned int)vuser->server_info->utok.uid,
+		  (unsigned int)vuser->server_info->utok.gid,
+		  vuser->server_info->unix_name,
+		  vuser->server_info->sanitized_username,
+		  pdb_get_domain(vuser->server_info->sam_account),
+		  vuser->server_info->guest ));
 
 	DEBUG(3, ("register_existing_vuid: User name: %s\t"
-		"Real name: %s\n", vuser->user.unix_name,
-		vuser->user.full_name));
+		  "Real name: %s\n", vuser->server_info->unix_name,
+		  pdb_get_fullname(vuser->server_info->sam_account)));
 
-	if (server_info->ptok) {
-		vuser->nt_user_token = dup_nt_token(vuser, server_info->ptok);
-	} else {
+	if (!vuser->server_info->ptok) {
 		DEBUG(1, ("register_existing_vuid: server_info does not "
 			"contain a user_token - cannot continue\n"));
 		goto fail;
 	}
 
 	DEBUG(3,("register_existing_vuid: UNIX uid %d is UNIX user %s, "
-		"and will be vuid %u\n",
-		(int)vuser->uid,vuser->user.unix_name, vuser->vuid));
-
-	next_vuid++;
-	num_validated_vuids++;
+		"and will be vuid %u\n", (int)vuser->server_info->utok.uid,
+		 vuser->server_info->unix_name, vuser->vuid));
 
 	if (!session_claim(vuser)) {
 		DEBUG(1, ("register_existing_vuid: Failed to claim session "
@@ -342,34 +312,26 @@ int register_existing_vuid(uint16 vuid,
 	If a share exists by this name (autoloaded or not) reuse it . */
 
 	vuser->homes_snum = -1;
-	if ( (!vuser->guest) && vuser->unix_homedir && *(vuser->unix_homedir)) {
-		int servicenumber = lp_servicenumber(vuser->user.unix_name);
-		if ( servicenumber == -1 ) {
-			DEBUG(3, ("Adding homes service for user '%s' using "
-				"home directory: '%s'\n",
-				vuser->user.unix_name, vuser->unix_homedir));
-			vuser->homes_snum =
-				add_home_service(vuser->user.unix_name,
-						vuser->user.unix_name,
-						vuser->unix_homedir);
-		} else {
-			DEBUG(3, ("Using static (or previously created) "
-				"service for user '%s'; path = '%s'\n",
-				vuser->user.unix_name,
-				lp_pathname(servicenumber) ));
-			vuser->homes_snum = servicenumber;
-		}
+
+	if (!vuser->server_info->guest) {
+		vuser->homes_snum = register_homes_share(
+			vuser->server_info->unix_name);
 	}
 
-	if (srv_is_signing_negotiated() && !vuser->guest &&
+	if (srv_is_signing_negotiated() && !vuser->server_info->guest &&
 			!srv_signing_started()) {
 		/* Try and turn on server signing on the first non-guest
 		 * sessionsetup. */
-		srv_set_signing(vuser->session_key, response_blob);
+		srv_set_signing(vuser->server_info->user_session_key, response_blob);
 	}
 
 	/* fill in the current_user_info struct */
-	set_current_user_info( &vuser->user );
+	set_current_user_info(
+		vuser->server_info->sanitized_username,
+		vuser->server_info->unix_name,
+		pdb_get_fullname(vuser->server_info->sam_account),
+		pdb_get_domain(vuser->server_info->sam_account));
+
 	return vuser->vuid;
 
   fail:

@@ -64,8 +64,8 @@ bool secrets_init(void)
 		return false;
 	}
 
-	db_ctx = db_open_trans(NULL, fname, 0,
-			       TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	db_ctx = db_open(NULL, fname, 0,
+			 TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 
 	if (db_ctx == NULL) {
 		DEBUG(0,("Failed to open %s\n", fname));
@@ -686,6 +686,7 @@ bool secrets_store_trusted_domain_password(const char* domain, const char* pwd,
 {
 	smb_ucs2_t *uni_dom_name;
 	bool ret;
+	size_t converted_size;
 
 	/* packing structures */
 	uint8 *pass_buf = NULL;
@@ -694,7 +695,7 @@ bool secrets_store_trusted_domain_password(const char* domain, const char* pwd,
 	struct trusted_dom_pass pass;
 	ZERO_STRUCT(pass);
 
-	if (push_ucs2_allocate(&uni_dom_name, domain) == (size_t)-1) {
+	if (!push_ucs2_allocate(&uni_dom_name, domain, &converted_size)) {
 		DEBUG(0, ("Could not convert domain name %s to unicode\n",
 			  domain));
 		return False;
@@ -928,7 +929,7 @@ struct list_trusted_domains_state {
 static int list_trusted_domain(struct db_record *rec, void *private_data)
 {
 	const size_t prefix_len = strlen(SECRETS_DOMTRUST_ACCT_PASS);
-	size_t packed_size = 0;
+	size_t converted_size, packed_size = 0;
 	struct trusted_dom_pass pass;
 	struct trustdom_info *dom_info;
 
@@ -962,8 +963,8 @@ static int list_trusted_domain(struct db_record *rec, void *private_data)
 		return 0;
 	}
 
-	if (pull_ucs2_talloc(dom_info, &dom_info->name,
-			     pass.uni_name) == (size_t)-1) {
+	if (!pull_ucs2_talloc(dom_info, &dom_info->name, pass.uni_name,
+			      &converted_size)) {
 		DEBUG(2, ("pull_ucs2_talloc failed\n"));
 		TALLOC_FREE(dom_info);
 		return 0;

@@ -39,7 +39,7 @@ extern bool override_logfile;
 static void set_logfile(poptContext con, const char * arg)
 {
 
-	char *logfile = NULL;
+	char *lfile = NULL;
 	const char *pname;
 
 	/* Find out basename of current program */
@@ -50,11 +50,11 @@ static void set_logfile(poptContext con, const char * arg)
 	else
 		pname++;
 
-	if (asprintf(&logfile, "%s/log.%s", arg, pname) < 0) {
+	if (asprintf(&lfile, "%s/log.%s", arg, pname) < 0) {
 		return;
 	}
-	lp_set_logfile(logfile);
-	SAFE_FREE(logfile);
+	lp_set_logfile(lfile);
+	SAFE_FREE(lfile);
 }
 
 static bool PrintSambaVersionString;
@@ -166,8 +166,14 @@ struct poptOption popt_common_configfile[] = {
 };
 
 struct poptOption popt_common_version[] = {
-	{ NULL, 0, POPT_ARG_CALLBACK, (void *)popt_common_callback },
+	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_POST, (void *)popt_common_callback },
 	{ "version", 'V', POPT_ARG_NONE, NULL, 'V', "Print version" },
+	POPT_TABLEEND
+};
+
+struct poptOption popt_common_debuglevel[] = {
+	{ NULL, 0, POPT_ARG_CALLBACK, (void *)popt_common_callback },
+	{ "debuglevel", 'd', POPT_ARG_STRING, NULL, 'd', "Set debug level", "DEBUGLEVEL" },
 	POPT_TABLEEND
 };
 
@@ -178,6 +184,7 @@ struct poptOption popt_common_version[] = {
  *		--swatdir
  *		--lmhostsfile
  *		--libdir
+ *		--modulesdir
  *		--shlibext
  *		--lockdir
  *		--piddir
@@ -191,6 +198,7 @@ enum dyn_item{
 	DYN_SWATDIR,
 	DYN_LMHOSTSFILE,
 	DYN_LIBDIR,
+	DYN_MODULESDIR,
 	DYN_SHLIBEXT,
 	DYN_LOCKDIR,
 	DYN_PIDDIR,
@@ -233,6 +241,12 @@ static void popt_dynconfig_callback(poptContext con,
 	case DYN_LIBDIR:
 		if (arg) {
 			set_dyn_LIBDIR(arg);
+		}
+		break;
+
+	case DYN_MODULESDIR:
+		if (arg) {
+			set_dyn_MODULESDIR(arg);
 		}
 		break;
 
@@ -283,6 +297,8 @@ const struct poptOption popt_common_dynconfig[] = {
 	    "Path to lmhosts file", "LMHOSTSFILE" },
 	{ "libdir", '\0' , POPT_ARG_STRING, NULL, DYN_LIBDIR,
 	    "Path to shared library directory", "LIBDIR" },
+	{ "modulesdir", '\0' , POPT_ARG_STRING, NULL, DYN_MODULESDIR,
+	    "Path to shared modules directory", "MODULESDIR" },
 	{ "shlibext", '\0' , POPT_ARG_STRING, NULL, DYN_SHLIBEXT,
 	    "Shared library extension", "SHLIBEXT" },
 	{ "lockdir", '\0' , POPT_ARG_STRING, NULL, DYN_LOCKDIR,

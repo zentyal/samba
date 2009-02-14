@@ -38,7 +38,7 @@ static bool init_group_mapping(void)
 		return true;
 	}
 
-	db = db_open_trans(NULL, state_path("group_mapping.tdb"), 0,
+	db = db_open(NULL, state_path("group_mapping.tdb"), 0,
 			   TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (db == NULL) {
 		DEBUG(0, ("Failed to open group mapping database: %s\n",
@@ -521,7 +521,7 @@ static NTSTATUS add_aliasmem(const DOM_SID *alias, const DOM_SID *member)
 	if (db->transaction_commit(db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
 		status = NT_STATUS_INTERNAL_DB_CORRUPTION;
-		goto cancel;
+		return status;
 	}
 
 	return NT_STATUS_OK;
@@ -705,7 +705,7 @@ static NTSTATUS del_aliasmem(const DOM_SID *alias, const DOM_SID *member)
 	if (db->transaction_commit(db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
 		status = NT_STATUS_INTERNAL_DB_CORRUPTION;
-		goto cancel;
+		return status;
 	}
 
 	return NT_STATUS_OK;

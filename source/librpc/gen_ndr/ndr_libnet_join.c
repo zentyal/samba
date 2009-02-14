@@ -41,6 +41,7 @@ _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, 
 		ndr_print_ads_struct(ndr, "ads", r->in.ads);
 		ndr->depth--;
 		ndr_print_uint8(ndr, "debug", r->in.debug);
+		ndr_print_uint8(ndr, "use_kerberos", r->in.use_kerberos);
 		ndr_print_netr_SchannelType(ndr, "secure_channel_type", r->in.secure_channel_type);
 		ndr->depth--;
 	}
@@ -50,6 +51,7 @@ _PUBLIC_ void ndr_print_libnet_JoinCtx(struct ndr_print *ndr, const char *name, 
 		ndr_print_string(ndr, "account_name", r->out.account_name);
 		ndr_print_string(ndr, "netbios_domain_name", r->out.netbios_domain_name);
 		ndr_print_string(ndr, "dns_domain_name", r->out.dns_domain_name);
+		ndr_print_string(ndr, "forest_name", r->out.forest_name);
 		ndr_print_string(ndr, "dn", r->out.dn);
 		ndr_print_ptr(ndr, "domain_sid", r->out.domain_sid);
 		ndr->depth++;
@@ -97,6 +99,7 @@ _PUBLIC_ void ndr_print_libnet_UnjoinCtx(struct ndr_print *ndr, const char *name
 		ndr_print_ads_struct(ndr, "ads", r->in.ads);
 		ndr->depth--;
 		ndr_print_uint8(ndr, "debug", r->in.debug);
+		ndr_print_uint8(ndr, "use_kerberos", r->in.use_kerberos);
 		ndr->depth--;
 	}
 	if (flags & NDR_OUT) {
@@ -104,6 +107,7 @@ _PUBLIC_ void ndr_print_libnet_UnjoinCtx(struct ndr_print *ndr, const char *name
 		ndr->depth++;
 		ndr_print_string(ndr, "netbios_domain_name", r->out.netbios_domain_name);
 		ndr_print_string(ndr, "dns_domain_name", r->out.dns_domain_name);
+		ndr_print_string(ndr, "forest_name", r->out.forest_name);
 		ndr_print_uint8(ndr, "modified_config", r->out.modified_config);
 		ndr_print_string(ndr, "error_string", r->out.error_string);
 		ndr_print_uint8(ndr, "disabled_machine_account", r->out.disabled_machine_account);

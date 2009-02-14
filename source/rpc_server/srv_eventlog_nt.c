@@ -71,8 +71,7 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 {
 	char *tdbname = elog_tdbname(talloc_tos(), info->logname );
 	SEC_DESC *sec_desc;
-	bool ret;
-	NTSTATUS ntstatus;
+	NTSTATUS status;
 	
 	if ( !tdbname ) 
 		return False;
@@ -80,7 +79,7 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 	/* get the security descriptor for the file */
 	
 	sec_desc = get_nt_acl_no_snum( info, tdbname );
-	SAFE_FREE( tdbname );
+	TALLOC_FREE( tdbname );
 	
 	if ( !sec_desc ) {
 		DEBUG(5,("elog_check_access: Unable to get NT ACL for %s\n", 
@@ -97,15 +96,15 @@ static bool elog_check_access( EVENTLOG_INFO *info, NT_USER_TOKEN *token )
 
 	/* run the check, try for the max allowed */
 	
-	ret = se_access_check( sec_desc, token, MAXIMUM_ALLOWED_ACCESS,
-		&info->access_granted, &ntstatus );
+	status = se_access_check( sec_desc, token, MAXIMUM_ALLOWED_ACCESS,
+		&info->access_granted);
 		
 	if ( sec_desc )
 		TALLOC_FREE( sec_desc );
 		
-	if ( !ret ) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(8,("elog_check_access: se_access_check() return %s\n",
-			nt_errstr( ntstatus)));
+			nt_errstr(status)));
 		return False;
 	}
 	
@@ -291,8 +290,8 @@ static Eventlog_entry *get_eventlog_record(prs_struct *ps,
 	Eventlog_entry *ee = NULL;
 	TDB_DATA ret, key;
 
-	int srecno;
-	int reclen;
+	int32_t srecno;
+	int32_t reclen;
 	int len;
 
 	char *wpsource = NULL;
@@ -301,10 +300,10 @@ static Eventlog_entry *get_eventlog_record(prs_struct *ps,
 	char *wpstrs = NULL;
 	char *puserdata = NULL;
 
-	key.dsize = sizeof(int32);
+	key.dsize = sizeof(int32_t);
 
 	srecno = recno;
-	key.dptr = ( uint8 * ) &srecno;
+	key.dptr = (unsigned char *)&srecno;
 
 	ret = tdb_fetch( tdb, key );
 
@@ -427,14 +426,14 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 	struct registry_value *value;
 	WERROR wresult;
 	char *elogname = info->logname;
-	TALLOC_CTX *ctx = talloc_tos();
+	TALLOC_CTX *ctx = talloc_stackframe();
 	bool ret = false;
 
 	DEBUG( 4, ( "sync_eventlog_params with %s\n", elogname ) );
 
 	if ( !info->etdb ) {
 		DEBUG( 4, ( "No open tdb! (%s)\n", info->logname ) );
-		return False;
+		goto done;
 	}
 	/* set resonable defaults.  512Kb on size and 1 week on time */
 
@@ -448,7 +447,7 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 
 	path = talloc_asprintf(ctx, "%s/%s", KEY_EVENTLOG, elogname );
 	if (!path) {
-		return false;
+		goto done;
 	}
 
 	wresult = reg_open_path(ctx, path, REG_KEY_READ, get_root_nt_token(),
@@ -458,14 +457,13 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 		DEBUG( 4,
 		       ( "sync_eventlog_params: Failed to open key [%s] (%s)\n",
 			 path, dos_errstr( wresult ) ) );
-		return false;
+		goto done;
 	}
 
 	wresult = reg_queryvalue(key, key, "Retention", &value);
 	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(4, ("Failed to query value \"Retention\": %s\n",
 			  dos_errstr(wresult)));
-		ret = false;
 		goto done;
 	}
 	uiRetention = value->v.dword;
@@ -474,7 +472,6 @@ static bool sync_eventlog_params( EVENTLOG_INFO *info )
 	if (!W_ERROR_IS_OK(wresult)) {
 		DEBUG(4, ("Failed to query value \"MaxSize\": %s\n",
 			  dos_errstr(wresult)));
-		ret = false;
 		goto done;
 	}
 	uiMaxSize = value->v.dword;
@@ -545,30 +542,30 @@ static Eventlog_entry *read_package_entry( prs_struct * ps,
 		return NULL;
 	}
 	offset = entry->data;
-	memcpy( offset, &( entry->data_record.source_name ),
+	memcpy( offset, entry->data_record.source_name,
 		entry->data_record.source_name_len );
 	offset += entry->data_record.source_name_len;
-	memcpy( offset, &( entry->data_record.computer_name ),
+	memcpy( offset, entry->data_record.computer_name,
 		entry->data_record.computer_name_len );
 	offset += entry->data_record.computer_name_len;
 	/* SID needs to be DWORD-aligned */
 	offset += entry->data_record.sid_padding;
 	entry->record.user_sid_offset =
 		sizeof( Eventlog_record ) + ( offset - entry->data );
-	memcpy( offset, &( entry->data_record.sid ),
+	memcpy( offset, entry->data_record.sid,
 		entry->record.user_sid_length );
 	offset += entry->record.user_sid_length;
 	/* Now do the strings */
 	entry->record.string_offset =
 		sizeof( Eventlog_record ) + ( offset - entry->data );
-	memcpy( offset, &( entry->data_record.strings ),
+	memcpy( offset, entry->data_record.strings,
 		entry->data_record.strings_len );
 	offset += entry->data_record.strings_len;
 	/* Now do the data */
 	entry->record.data_length = entry->data_record.user_data_len;
 	entry->record.data_offset =
 		sizeof( Eventlog_record ) + ( offset - entry->data );
-	memcpy( offset, &( entry->data_record.user_data ),
+	memcpy( offset, entry->data_record.user_data,
 		entry->data_record.user_data_len );
 	offset += entry->data_record.user_data_len;
 

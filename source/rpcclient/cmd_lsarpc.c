@@ -791,7 +791,7 @@ static NTSTATUS cmd_lsa_add_acct_rights(struct rpc_pipe_client *cli,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	for (i=0; i<argc-1; i++) {
+	for (i=0; i<argc-2; i++) {
 		init_lsa_StringLarge(&rights.names[i], argv[i+2]);
 	}
 
@@ -948,7 +948,8 @@ static NTSTATUS cmd_lsa_query_secobj(struct rpc_pipe_client *cli,
 	return result;
 }
 
-static void display_trust_dom_info_4(struct lsa_TrustDomainInfoPassword *p, const char *password)
+static void display_trust_dom_info_4(struct lsa_TrustDomainInfoPassword *p,
+				     uint8_t nt_hash[16])
 {
 	char *pwd, *pwd_old;
 	
@@ -958,8 +959,8 @@ static void display_trust_dom_info_4(struct lsa_TrustDomainInfoPassword *p, cons
 	memcpy(data.data, p->password->data, p->password->length);
 	memcpy(data_old.data, p->old_password->data, p->old_password->length);
 	
-	pwd 	= decrypt_trustdom_secret(password, &data);
-	pwd_old = decrypt_trustdom_secret(password, &data_old);
+	pwd 	= decrypt_trustdom_secret(nt_hash, &data);
+	pwd_old = decrypt_trustdom_secret(nt_hash, &data_old);
 	
 	d_printf("Password:\t%s\n", pwd);
 	d_printf("Old Password:\t%s\n", pwd_old);
@@ -974,11 +975,11 @@ static void display_trust_dom_info_4(struct lsa_TrustDomainInfoPassword *p, cons
 static void display_trust_dom_info(TALLOC_CTX *mem_ctx,
 				   union lsa_TrustedDomainInfo *info,
 				   enum lsa_TrustDomInfoEnum info_class,
-				   const char *pass)
+				   uint8_t nt_hash[16])
 {
 	switch (info_class) {
 		case LSA_TRUSTED_DOMAIN_INFO_PASSWORD:
-			display_trust_dom_info_4(&info->password, pass);
+			display_trust_dom_info_4(&info->password, nt_hash);
 			break;
 		default: {
 			const char *str = NULL;
@@ -1003,6 +1004,7 @@ static NTSTATUS cmd_lsa_query_trustdominfobysid(struct rpc_pipe_client *cli,
 	uint32 access_mask = SEC_RIGHTS_MAXIMUM_ALLOWED;
 	union lsa_TrustedDomainInfo *info = NULL;
 	enum lsa_TrustDomInfoEnum info_class = 1;
+	uint8_t nt_hash[16];
 
 	if (argc > 3 || argc < 2) {
 		printf("Usage: %s [sid] [info_class]\n", argv[0]);
@@ -1028,7 +1030,12 @@ static NTSTATUS cmd_lsa_query_trustdominfobysid(struct rpc_pipe_client *cli,
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
 
-	display_trust_dom_info(mem_ctx, info, info_class, cli->pwd.password);
+	if (!rpccli_get_pwd_hash(cli, nt_hash)) {
+		d_fprintf(stderr, "Could not get pwd hash\n");
+		goto done;
+	}
+
+	display_trust_dom_info(mem_ctx, info, info_class, nt_hash);
 
  done:
 	rpccli_lsa_Close(cli, mem_ctx, &pol);
@@ -1046,6 +1053,7 @@ static NTSTATUS cmd_lsa_query_trustdominfobyname(struct rpc_pipe_client *cli,
 	union lsa_TrustedDomainInfo *info = NULL;
 	enum lsa_TrustDomInfoEnum info_class = 1;
 	struct lsa_String trusted_domain;
+	uint8_t nt_hash[16];
 
 	if (argc > 3 || argc < 2) {
 		printf("Usage: %s [name] [info_class]\n", argv[0]);
@@ -1070,7 +1078,12 @@ static NTSTATUS cmd_lsa_query_trustdominfobyname(struct rpc_pipe_client *cli,
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
 
-	display_trust_dom_info(mem_ctx, info, info_class, cli->pwd.password);
+	if (!rpccli_get_pwd_hash(cli, nt_hash)) {
+		d_fprintf(stderr, "Could not get pwd hash\n");
+		goto done;
+	}
+
+	display_trust_dom_info(mem_ctx, info, info_class, nt_hash);
 
  done:
 	rpccli_lsa_Close(cli, mem_ctx, &pol);
@@ -1088,6 +1101,7 @@ static NTSTATUS cmd_lsa_query_trustdominfo(struct rpc_pipe_client *cli,
 	union lsa_TrustedDomainInfo *info = NULL;
 	DOM_SID dom_sid;
 	enum lsa_TrustDomInfoEnum info_class = 1;
+	uint8_t nt_hash[16];
 
 	if (argc > 3 || argc < 2) {
 		printf("Usage: %s [sid] [info_class]\n", argv[0]);
@@ -1123,7 +1137,12 @@ static NTSTATUS cmd_lsa_query_trustdominfo(struct rpc_pipe_client *cli,
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
 
-	display_trust_dom_info(mem_ctx, info, info_class, cli->pwd.password);
+	if (!rpccli_get_pwd_hash(cli, nt_hash)) {
+		d_fprintf(stderr, "Could not get pwd hash\n");
+		goto done;
+	}
+
+	display_trust_dom_info(mem_ctx, info, info_class, nt_hash);
 
  done:
 	rpccli_lsa_Close(cli, mem_ctx, &pol);
@@ -1137,7 +1156,7 @@ static NTSTATUS cmd_lsa_get_username(struct rpc_pipe_client *cli,
 {
 	POLICY_HND pol;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	const char *servername = cli->cli->desthost;
+	const char *servername = cli->desthost;
 	struct lsa_String *account_name = NULL;
 	struct lsa_String *authority_name = NULL;
 
@@ -1165,7 +1184,8 @@ static NTSTATUS cmd_lsa_get_username(struct rpc_pipe_client *cli,
 	/* Print results */
 
 	printf("Account Name: %s, Authority Name: %s\n",
-		account_name->string, authority_name->string);
+		account_name->string, authority_name ? authority_name->string :
+		"");
 
 	rpccli_lsa_Close(cli, mem_ctx, &pol);
  done:
@@ -1349,27 +1369,27 @@ struct cmd_set lsarpc_commands[] = {
 
 	{ "LSARPC" },
 
-	{ "lsaquery", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_query_info_policy,  NULL, PI_LSARPC, NULL, "Query info policy",                    "" },
-	{ "lookupsids",          RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_sids,        NULL, PI_LSARPC, NULL, "Convert SIDs to names",                "" },
-	{ "lookupnames",         RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names,       NULL, PI_LSARPC, NULL, "Convert names to SIDs",                "" },
-	{ "lookupnames_level",   RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names_level, NULL, PI_LSARPC, NULL, "Convert names to SIDs",                "" },
-	{ "enumtrust", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_trust_dom,     NULL, PI_LSARPC, NULL, "Enumerate trusted domains",            "Usage: [preferred max number] [enum context (0)]" },
-	{ "enumprivs", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_privilege,     NULL, PI_LSARPC, NULL, "Enumerate privileges",                 "" },
-	{ "getdispname",         RPC_RTYPE_NTSTATUS, cmd_lsa_get_dispname,       NULL, PI_LSARPC, NULL, "Get the privilege name",               "" },
-	{ "lsaenumsid",          RPC_RTYPE_NTSTATUS, cmd_lsa_enum_sids,          NULL, PI_LSARPC, NULL, "Enumerate the LSA SIDS",               "" },
-	{ "lsacreateaccount",    RPC_RTYPE_NTSTATUS, cmd_lsa_create_account,     NULL, PI_LSARPC, NULL, "Create a new lsa account",   "" },
-	{ "lsaenumprivsaccount", RPC_RTYPE_NTSTATUS, cmd_lsa_enum_privsaccounts, NULL, PI_LSARPC, NULL, "Enumerate the privileges of an SID",   "" },
-	{ "lsaenumacctrights",   RPC_RTYPE_NTSTATUS, cmd_lsa_enum_acct_rights,   NULL, PI_LSARPC, NULL, "Enumerate the rights of an SID",   "" },
-	{ "lsaaddpriv",          RPC_RTYPE_NTSTATUS, cmd_lsa_add_priv,           NULL, PI_LSARPC, NULL, "Assign a privilege to a SID", "" },
-	{ "lsadelpriv",          RPC_RTYPE_NTSTATUS, cmd_lsa_del_priv,           NULL, PI_LSARPC, NULL, "Revoke a privilege from a SID", "" },
-	{ "lsaaddacctrights",    RPC_RTYPE_NTSTATUS, cmd_lsa_add_acct_rights,    NULL, PI_LSARPC, NULL, "Add rights to an account",   "" },
-	{ "lsaremoveacctrights", RPC_RTYPE_NTSTATUS, cmd_lsa_remove_acct_rights, NULL, PI_LSARPC, NULL, "Remove rights from an account",   "" },
-	{ "lsalookupprivvalue",  RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_priv_value,  NULL, PI_LSARPC, NULL, "Get a privilege value given its name", "" },
-	{ "lsaquerysecobj",      RPC_RTYPE_NTSTATUS, cmd_lsa_query_secobj,       NULL, PI_LSARPC, NULL, "Query LSA security object", "" },
-	{ "lsaquerytrustdominfo",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfo, NULL, PI_LSARPC, NULL, "Query LSA trusted domains info (given a SID)", "" },
-	{ "lsaquerytrustdominfobyname",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobyname, NULL, PI_LSARPC, NULL, "Query LSA trusted domains info (given a name), only works for Windows > 2k", "" },
-	{ "lsaquerytrustdominfobysid",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobysid, NULL, PI_LSARPC, NULL, "Query LSA trusted domains info (given a SID)", "" },
-	{ "getusername",          RPC_RTYPE_NTSTATUS, cmd_lsa_get_username, NULL, PI_LSARPC, NULL, "Get username", "" },
+	{ "lsaquery", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_query_info_policy,  NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query info policy",                    "" },
+	{ "lookupsids",          RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_sids,        NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert SIDs to names",                "" },
+	{ "lookupnames",         RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names,       NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert names to SIDs",                "" },
+	{ "lookupnames_level",   RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_names_level, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Convert names to SIDs",                "" },
+	{ "enumtrust", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_trust_dom,     NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate trusted domains",            "Usage: [preferred max number] [enum context (0)]" },
+	{ "enumprivs", 	         RPC_RTYPE_NTSTATUS, cmd_lsa_enum_privilege,     NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate privileges",                 "" },
+	{ "getdispname",         RPC_RTYPE_NTSTATUS, cmd_lsa_get_dispname,       NULL, &ndr_table_lsarpc.syntax_id, NULL, "Get the privilege name",               "" },
+	{ "lsaenumsid",          RPC_RTYPE_NTSTATUS, cmd_lsa_enum_sids,          NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate the LSA SIDS",               "" },
+	{ "lsacreateaccount",    RPC_RTYPE_NTSTATUS, cmd_lsa_create_account,     NULL, &ndr_table_lsarpc.syntax_id, NULL, "Create a new lsa account",   "" },
+	{ "lsaenumprivsaccount", RPC_RTYPE_NTSTATUS, cmd_lsa_enum_privsaccounts, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate the privileges of an SID",   "" },
+	{ "lsaenumacctrights",   RPC_RTYPE_NTSTATUS, cmd_lsa_enum_acct_rights,   NULL, &ndr_table_lsarpc.syntax_id, NULL, "Enumerate the rights of an SID",   "" },
+	{ "lsaaddpriv",          RPC_RTYPE_NTSTATUS, cmd_lsa_add_priv,           NULL, &ndr_table_lsarpc.syntax_id, NULL, "Assign a privilege to a SID", "" },
+	{ "lsadelpriv",          RPC_RTYPE_NTSTATUS, cmd_lsa_del_priv,           NULL, &ndr_table_lsarpc.syntax_id, NULL, "Revoke a privilege from a SID", "" },
+	{ "lsaaddacctrights",    RPC_RTYPE_NTSTATUS, cmd_lsa_add_acct_rights,    NULL, &ndr_table_lsarpc.syntax_id, NULL, "Add rights to an account",   "" },
+	{ "lsaremoveacctrights", RPC_RTYPE_NTSTATUS, cmd_lsa_remove_acct_rights, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Remove rights from an account",   "" },
+	{ "lsalookupprivvalue",  RPC_RTYPE_NTSTATUS, cmd_lsa_lookup_priv_value,  NULL, &ndr_table_lsarpc.syntax_id, NULL, "Get a privilege value given its name", "" },
+	{ "lsaquerysecobj",      RPC_RTYPE_NTSTATUS, cmd_lsa_query_secobj,       NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA security object", "" },
+	{ "lsaquerytrustdominfo",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfo, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA trusted domains info (given a SID)", "" },
+	{ "lsaquerytrustdominfobyname",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobyname, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA trusted domains info (given a name), only works for Windows > 2k", "" },
+	{ "lsaquerytrustdominfobysid",RPC_RTYPE_NTSTATUS, cmd_lsa_query_trustdominfobysid, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Query LSA trusted domains info (given a SID)", "" },
+	{ "getusername",          RPC_RTYPE_NTSTATUS, cmd_lsa_get_username, NULL, &ndr_table_lsarpc.syntax_id, NULL, "Get username", "" },
 
 	{ NULL }
 };

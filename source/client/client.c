@@ -364,7 +364,7 @@ static int do_cd(const char *new_dir)
 
 	/* Ensure cur_dir ends in a DIRSEP */
 	if ((new_cd[0] != '\0') && (*(new_cd+strlen(new_cd)-1) != CLI_DIRSEP_CHAR)) {
-		new_cd = talloc_asprintf_append(new_cd, CLI_DIRSEP_STR);
+		new_cd = talloc_asprintf_append(new_cd, "%s", CLI_DIRSEP_STR);
 		if (!new_cd) {
 			goto out;
 		}
@@ -728,11 +728,11 @@ static void do_list_helper(const char *mntpoint, file_info *f, const char *mask,
 				return;
 			}
 			p = strrchr_m(mask2,CLI_DIRSEP_CHAR);
-			if (!p) {
-				TALLOC_FREE(dir);
-				return;
+			if (p) {
+				p[1] = 0;
+			} else {
+				mask2[0] = '\0';
 			}
-			p[1] = 0;
 			mask2 = talloc_asprintf_append(mask2,
 					"%s%s*",
 					f->name,
@@ -871,7 +871,7 @@ static int cmd_dir(void)
 		if (*buf == CLI_DIRSEP_CHAR) {
 			mask = talloc_strdup(ctx, buf);
 		} else {
-			mask = talloc_asprintf_append(mask, buf);
+			mask = talloc_asprintf_append(mask, "%s", buf);
 		}
 	} else {
 		mask = talloc_asprintf_append(mask, "*");
@@ -912,7 +912,7 @@ static int cmd_du(void)
 		return 1;
 	}
 	if ((mask[0] != '\0') && (mask[strlen(mask)-1]!=CLI_DIRSEP_CHAR)) {
-		mask = talloc_asprintf_append(mask, CLI_DIRSEP_STR);
+		mask = talloc_asprintf_append(mask, "%s", CLI_DIRSEP_STR);
 		if (!mask) {
 			return 1;
 		}
@@ -923,7 +923,7 @@ static int cmd_du(void)
 		if (*buf == CLI_DIRSEP_CHAR) {
 			mask = talloc_strdup(ctx, buf);
 		} else {
-			mask = talloc_asprintf_append(mask, buf);
+			mask = talloc_asprintf_append(mask, "%s", buf);
 		}
 	} else {
 		mask = talloc_strdup(ctx, "*");
@@ -1107,7 +1107,7 @@ static int cmd_get(void)
 		d_printf("get <filename> [localname]\n");
 		return 1;
 	}
-	rname = talloc_asprintf_append(rname, fname);
+	rname = talloc_asprintf_append(rname, "%s", fname);
 	if (!rname) {
 		return 1;
 	}
@@ -1223,7 +1223,10 @@ static void do_mget(file_info *finfo, const char *dir)
 	}
 
 	do_list(mget_mask, aSYSTEM | aHIDDEN | aDIR,do_mget,false, true);
-	chdir("..");
+	if (chdir("..") == -1) {
+		d_printf("do_mget: failed to chdir to .. (error %s)\n",
+			strerror(errno) );
+	}
 	client_set_cur_dir(saved_curdir);
 	TALLOC_FREE(mget_mask);
 	TALLOC_FREE(saved_curdir);
@@ -1266,7 +1269,7 @@ static int cmd_more(void)
 		unlink(lname);
 		return 1;
 	}
-	rname = talloc_asprintf_append(rname, fname);
+	rname = talloc_asprintf_append(rname, "%s", fname);
 	if (!rname) {
 		return 1;
 	}
@@ -1286,7 +1289,10 @@ static int cmd_more(void)
 	if (!pager_cmd) {
 		return 1;
 	}
-	system(pager_cmd);
+	if (system(pager_cmd) == -1) {
+		d_printf("system command '%s' returned -1\n",
+			pager_cmd);
+	}
 	unlink(lname);
 
 	return rc;
@@ -1318,12 +1324,17 @@ static int cmd_mget(void)
 			mget_mask = talloc_strdup(ctx, buf);
 		} else {
 			mget_mask = talloc_asprintf_append(mget_mask,
-							buf);
+							"%s", buf);
 		}
 		if (!mget_mask) {
 			return 1;
 		}
 		do_list(mget_mask, attribute, do_mget, false, true);
+	}
+
+	if (mget_mask == NULL) {
+		d_printf("nothing to mget\n");
+		return 0;
 	}
 
 	if (!*mget_mask) {
@@ -1414,7 +1425,7 @@ static int cmd_mkdir(void)
 		}
 		return 1;
 	}
-	mask = talloc_asprintf_append(mask, buf);
+	mask = talloc_asprintf_append(mask, "%s", buf);
 	if (!mask) {
 		return 1;
 	}
@@ -1443,14 +1454,14 @@ static int cmd_mkdir(void)
 		trim_char(ddir,'.','\0');
 		p = strtok_r(ddir, "/\\", &saveptr);
 		while (p) {
-			ddir2 = talloc_asprintf_append(ddir2, p);
+			ddir2 = talloc_asprintf_append(ddir2, "%s", p);
 			if (!ddir2) {
 				return 1;
 			}
 			if (!cli_chkpath(targetcli, ddir2)) {
 				do_mkdir(ddir2);
 			}
-			ddir2 = talloc_asprintf_append(ddir2, CLI_DIRSEP_STR);
+			ddir2 = talloc_asprintf_append(ddir2, "%s", CLI_DIRSEP_STR);
 			if (!ddir2) {
 				return 1;
 			}
@@ -1482,7 +1493,7 @@ static int cmd_altname(void)
 		d_printf("altname <file>\n");
 		return 1;
 	}
-	name = talloc_asprintf_append(name, buf);
+	name = talloc_asprintf_append(name, "%s", buf);
 	if (!name) {
 		return 1;
 	}
@@ -1566,7 +1577,7 @@ static int cmd_allinfo(void)
 		d_printf("allinfo <file>\n");
 		return 1;
 	}
-	name = talloc_asprintf_append(name, buf);
+	name = talloc_asprintf_append(name, "%s", buf);
 	if (!name) {
 		return 1;
 	}
@@ -1733,9 +1744,9 @@ static int cmd_put(void)
 	}
 
 	if (next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
-		rname = talloc_asprintf_append(rname, buf);
+		rname = talloc_asprintf_append(rname, "%s", buf);
 	} else {
-		rname = talloc_asprintf_append(rname, lname);
+		rname = talloc_asprintf_append(rname, "%s", lname);
 	}
 	if (!rname) {
 		return 1;
@@ -2132,7 +2143,7 @@ static int cmd_del(void)
 		d_printf("del <filename>\n");
 		return 1;
 	}
-	mask = talloc_asprintf_append(mask, buf);
+	mask = talloc_asprintf_append(mask, "%s", buf);
 	if (!mask) {
 		return 1;
 	}
@@ -3493,7 +3504,10 @@ static int cmd_lcd(void)
 	char *d;
 
 	if (next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
-		chdir(buf);
+		if (chdir(buf) == -1) {
+			d_printf("chdir to %s failed (%s)\n",
+				buf, strerror(errno));
+		}
 	}
 	d = TALLOC_ARRAY(ctx, char, PATH_MAX+1);
 	if (!d) {
@@ -3524,7 +3538,7 @@ static int cmd_reget(void)
 		d_printf("reget <filename>\n");
 		return 1;
 	}
-	remote_name = talloc_asprintf_append(remote_name, fname);
+	remote_name = talloc_asprintf_append(remote_name, "%s", fname);
 	if (!remote_name) {
 		return 1;
 	}
@@ -3571,10 +3585,10 @@ static int cmd_reput(void)
 
 	if (next_token_talloc(ctx, &cmd_ptr, &buf, NULL)) {
 		remote_name = talloc_asprintf_append(remote_name,
-						buf);
+						"%s", buf);
 	} else {
 		remote_name = talloc_asprintf_append(remote_name,
-						local_name);
+						"%s", local_name);
 	}
 	if (!remote_name) {
 		return 1;
@@ -3634,9 +3648,10 @@ static bool browse_host_rpc(bool sort)
 	uint32_t total_entries = 0;
 	int i;
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
+					  &pipe_hnd);
 
-	if (pipe_hnd == NULL) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("Could not connect to srvsvc pipe: %s\n",
 			   nt_errstr(status)));
 		TALLOC_FREE(frame);
@@ -3650,7 +3665,7 @@ static bool browse_host_rpc(bool sort)
 	info_ctr.ctr.ctr1 = &ctr1;
 
 	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, frame,
-					      pipe_hnd->cli->desthost,
+					      pipe_hnd->desthost,
 					      &info_ctr,
 					      0xffffffff,
 					      &total_entries,
@@ -3658,7 +3673,7 @@ static bool browse_host_rpc(bool sort)
 					      &werr);
 
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
-		cli_rpc_pipe_close(pipe_hnd);
+		TALLOC_FREE(pipe_hnd);
 		TALLOC_FREE(frame);
 		return false;
 	}
@@ -3668,7 +3683,7 @@ static bool browse_host_rpc(bool sort)
 		browse_fn(info.name, info.type, info.comment, NULL);
 	}
 
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 	TALLOC_FREE(frame);
 	return true;
 }
@@ -4107,13 +4122,13 @@ static void completion_remote_filter(const char *mnt,
 				TALLOC_FREE(ctx);
 				return;
 			}
-			tmp = talloc_asprintf_append(tmp, f->name);
+			tmp = talloc_asprintf_append(tmp, "%s", f->name);
 			if (!tmp) {
 				TALLOC_FREE(ctx);
 				return;
 			}
 			if (f->mode & aDIR) {
-				tmp = talloc_asprintf_append(tmp, CLI_DIRSEP_STR);
+				tmp = talloc_asprintf_append(tmp, "%s", CLI_DIRSEP_STR);
 			}
 			if (!tmp) {
 				TALLOC_FREE(ctx);
@@ -4342,6 +4357,8 @@ cleanup:
 	}
 }
 
+static bool finished;
+
 /****************************************************************************
  Make sure we swallow keepalives during idle time.
 ****************************************************************************/
@@ -4388,6 +4405,8 @@ static void readline_callback(void)
 			DEBUG(0, ("Read from server failed, maybe it closed "
 				  "the connection\n"));
 
+			finished = true;
+			smb_readline_done();
 			if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
 				set_smb_read_error(&cli->smb_rw_error,
 						   SMB_READ_EOF);
@@ -4416,7 +4435,12 @@ static void readline_callback(void)
 	{
 		unsigned char garbage[16];
 		memset(garbage, 0xf0, sizeof(garbage));
-		cli_echo(cli, 1, garbage, sizeof(garbage));
+		if (!cli_echo(cli, 1, garbage, sizeof(garbage))) {
+			DEBUG(0, ("SMBecho failed. Maybe server has closed "
+				  "the connection\n"));
+			smb_readline_done();
+			finished = true;
+		}
 	}
 }
 
@@ -4428,7 +4452,7 @@ static int process_stdin(void)
 {
 	int rc = 0;
 
-	while (1) {
+	while (!finished) {
 		TALLOC_CTX *frame = talloc_stackframe();
 		char *tok = NULL;
 		char *the_prompt = NULL;
@@ -4449,7 +4473,10 @@ static int process_stdin(void)
 
 		/* special case - first char is ! */
 		if (*line == '!') {
-			system(line + 1);
+			if (system(line + 1) == -1) {
+				d_printf("system() command %s failed.\n",
+					line+1);
+			}
 			SAFE_FREE(line);
 			TALLOC_FREE(frame);
 			continue;
@@ -4605,7 +4632,7 @@ static int do_message_op(void)
 	snprintf(name_type_hex, sizeof(name_type_hex), "#%X", name_type);
 	fstrcat(server_name, name_type_hex);
 
-        zero_addr(&ss);
+        zero_sockaddr(&ss);
 	if (have_ip)
 		ss = dest_ss;
 

@@ -63,6 +63,7 @@ typedef int (*smb_pam_conv_fn)(int, const struct pam_message **, struct pam_resp
  *  Macros to help make life easy
  */
 #define COPY_STRING(s) (s) ? SMB_STRDUP(s) : NULL
+#define COPY_FSTRING(s) (s[0]) ? SMB_STRDUP(s) : NULL
 
 /*******************************************************************
  PAM error handler.
@@ -327,7 +328,7 @@ static int smb_pam_passchange_conv(int num_msg,
 					DEBUG(100,("smb_pam_passchange_conv: PAM_PROMPT_ECHO_ON: We actualy sent: %s\n", current_reply));
 #endif
 					reply[replies].resp_retcode = PAM_SUCCESS;
-					reply[replies].resp = COPY_STRING(current_reply);
+					reply[replies].resp = COPY_FSTRING(current_reply);
 					found = True;
 					break;
 				}
@@ -355,7 +356,7 @@ static int smb_pam_passchange_conv(int num_msg,
 					DEBUG(10,("smb_pam_passchange_conv: PAM_PROMPT_ECHO_OFF: We sent: %s\n", current_reply));
 					pwd_sub(current_reply, udp->PAM_username, udp->PAM_password, udp->PAM_newpassword);
 					reply[replies].resp_retcode = PAM_SUCCESS;
-					reply[replies].resp = COPY_STRING(current_reply);
+					reply[replies].resp = COPY_FSTRING(current_reply);
 #ifdef DEBUG_PASSWORD
 					DEBUG(100,("smb_pam_passchange_conv: PAM_PROMPT_ECHO_OFF: We actualy sent: %s\n", current_reply));
 #endif
@@ -461,7 +462,9 @@ static bool smb_pam_end(pam_handle_t *pamh, struct pam_conv *smb_pam_conv_ptr)
 static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rhost, struct pam_conv *pconv)
 {
 	int pam_error;
+#ifdef PAM_RHOST
 	const char *our_rhost;
+#endif
 	char addr[INET6_ADDRSTRLEN];
 
 	*pamh = (pam_handle_t *)NULL;
@@ -474,6 +477,7 @@ static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rho
 		return False;
 	}
 
+#ifdef PAM_RHOST
 	if (rhost == NULL) {
 		our_rhost = client_name(get_client_fd());
 		if (strequal(our_rhost,"UNKNOWN"))
@@ -482,7 +486,6 @@ static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rho
 		our_rhost = rhost;
 	}
 
-#ifdef PAM_RHOST
 	DEBUG(4,("smb_pam_start: PAM: setting rhost to: %s\n", our_rhost));
 	pam_error = pam_set_item(*pamh, PAM_RHOST, our_rhost);
 	if(!smb_pam_error_handler(*pamh, pam_error, "set rhost failed", 0)) {

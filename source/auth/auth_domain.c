@@ -26,6 +26,71 @@
 extern bool global_machine_password_needs_changing;
 static struct named_mutex *mutex;
 
+/*
+ * Change machine password (called from main loop
+ * idle timeout. Must be done as root.
+ */
+
+void attempt_machine_password_change(void)
+{
+	unsigned char trust_passwd_hash[16];
+	time_t lct;
+	void *lock;
+
+	if (!global_machine_password_needs_changing) {
+		return;
+	}
+
+	if (lp_security() != SEC_DOMAIN) {
+		return;
+	}
+
+	/*
+	 * We're in domain level security, and the code that
+	 * read the machine password flagged that the machine
+	 * password needs changing.
+	 */
+
+	/*
+	 * First, open the machine password file with an exclusive lock.
+	 */
+
+	lock = secrets_get_trust_account_lock(NULL, lp_workgroup());
+
+	if (lock == NULL) {
+		DEBUG(0,("attempt_machine_password_change: unable to lock "
+			"the machine account password for machine %s in "
+			"domain %s.\n",
+			global_myname(), lp_workgroup() ));
+		return;
+	}
+
+	if(!secrets_fetch_trust_account_password(lp_workgroup(),
+			trust_passwd_hash, &lct, NULL)) {
+		DEBUG(0,("attempt_machine_password_change: unable to read the "
+			"machine account password for %s in domain %s.\n",
+			global_myname(), lp_workgroup()));
+		TALLOC_FREE(lock);
+		return;
+	}
+
+	/*
+	 * Make sure someone else hasn't already done this.
+	 */
+
+	if(time(NULL) < lct + lp_machine_password_timeout()) {
+		global_machine_password_needs_changing = false;
+		TALLOC_FREE(lock);
+		return;
+	}
+
+	/* always just contact the PDC here */
+
+	change_trust_account_password( lp_workgroup(), NULL);
+	global_machine_password_needs_changing = false;
+	TALLOC_FREE(lock);
+}
+
 /**
  * Connect to a remote server for (inter)domain security authenticaion.
  *
@@ -109,13 +174,15 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 	/* open the netlogon pipe. */
 	if (lp_client_schannel()) {
 		/* We also setup the creds chain in the open_schannel call. */
-		netlogon_pipe = cli_rpc_pipe_open_schannel(*cli, PI_NETLOGON,
-					PIPE_AUTH_LEVEL_PRIVACY, domain, &result);
+		result = cli_rpc_pipe_open_schannel(
+			*cli, &ndr_table_netlogon.syntax_id,
+			PIPE_AUTH_LEVEL_PRIVACY, domain, &netlogon_pipe);
 	} else {
-		netlogon_pipe = cli_rpc_pipe_open_noauth(*cli, PI_NETLOGON, &result);
+		result = cli_rpc_pipe_open_noauth(
+			*cli, &ndr_table_netlogon.syntax_id, &netlogon_pipe);
 	}
 
-	if(!netlogon_pipe) {
+	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0,("connect_to_domain_password_server: unable to open the domain client session to \
 machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 		cli_shutdown(*cli);
@@ -270,9 +337,7 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 						info3);
 
 		if (NT_STATUS_IS_OK(nt_status)) {
-			if (user_info->was_mapped) {
-				(*server_info)->was_mapped = user_info->was_mapped;
-			}
+			(*server_info)->nss_token |= user_info->was_mapped;
 
 			if ( ! (*server_info)->guest) {
 				/* if a real user check pam account restrictions */

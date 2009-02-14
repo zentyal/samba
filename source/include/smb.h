@@ -27,7 +27,7 @@
 #define _SMB_H
 
 /* logged when starting the various Samba daemons */
-#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2008"
+#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2009"
 
 
 #if defined(LARGE_SMB_OFF_T)
@@ -173,40 +173,6 @@ typedef uint32 codepoint_t;
 
 /* pipe string names */
 #define PIPE_LANMAN   "\\PIPE\\LANMAN"
-#define PIPE_SRVSVC   "\\PIPE\\srvsvc"
-#define PIPE_SAMR     "\\PIPE\\samr"
-#define PIPE_WINREG   "\\PIPE\\winreg"
-#define PIPE_WKSSVC   "\\PIPE\\wkssvc"
-#define PIPE_NETLOGON "\\PIPE\\NETLOGON"
-#define PIPE_NTLSA    "\\PIPE\\ntlsa"
-#define PIPE_NTSVCS   "\\PIPE\\ntsvcs"
-#define PIPE_LSASS    "\\PIPE\\lsass"
-#define PIPE_LSARPC   "\\PIPE\\lsarpc"
-#define PIPE_SPOOLSS  "\\PIPE\\spoolss"
-#define PIPE_NETDFS   "\\PIPE\\netdfs"
-#define PIPE_ECHO     "\\PIPE\\rpcecho"
-#define PIPE_SHUTDOWN "\\PIPE\\initshutdown"
-#define PIPE_EPM      "\\PIPE\\epmapper"
-#define PIPE_SVCCTL   "\\PIPE\\svcctl"
-#define PIPE_EVENTLOG "\\PIPE\\eventlog"
-
-#define PIPE_NETLOGON_PLAIN "\\NETLOGON"
-
-#define PI_LSARPC		0
-#define PI_DSSETUP		1
-#define PI_SAMR			2
-#define PI_NETLOGON		3
-#define PI_SRVSVC		4
-#define PI_WKSSVC		5
-#define PI_WINREG		6
-#define PI_SPOOLSS		7
-#define PI_NETDFS		8
-#define PI_RPCECHO 		9
-#define PI_INITSHUTDOWN		10
-#define PI_SVCCTL		11
-#define PI_EVENTLOG 		12
-#define PI_NTSVCS		13
-#define PI_MAX_PIPES		14
 
 /* 64 bit time (100usec) since ????? - cifs6.txt, section 3.5, page 30 */
 typedef uint64_t NTTIME;
@@ -307,10 +273,13 @@ extern const DATA_BLOB data_blob_null;
 #include "librpc/gen_ndr/netlogon.h"
 #include "librpc/gen_ndr/samr.h"
 #include "librpc/gen_ndr/dssetup.h"
+#include "librpc/gen_ndr/epmapper.h"
 #include "librpc/gen_ndr/libnet_join.h"
 #include "librpc/gen_ndr/krb5pac.h"
 #include "librpc/gen_ndr/ntsvcs.h"
 #include "librpc/gen_ndr/nbt.h"
+#include "librpc/gen_ndr/drsuapi.h"
+#include "librpc/gen_ndr/drsblobs.h"
 
 struct lsa_dom_info {
 	bool valid;
@@ -372,10 +341,10 @@ typedef struct nt_user_token {
 	SE_PRIV privileges;
 } NT_USER_TOKEN;
 
-typedef struct _unix_token {
+typedef struct unix_user_token {
 	uid_t uid;
 	gid_t gid;
-	int ngroups;
+	size_t ngroups;
 	gid_t *groups;
 } UNIX_USER_TOKEN;
 
@@ -415,13 +384,11 @@ struct fd_handle {
 	unsigned long gen_id;
 };
 
-struct event_context;
-struct fd_event;
-struct timed_event;
 struct idle_event;
 struct share_mode_entry;
 struct uuid;
 struct named_mutex;
+struct pcap_cache;
 
 struct vfs_fsp_data {
     struct vfs_fsp_data *next;
@@ -508,7 +475,6 @@ typedef struct files_struct {
 	bool print_file;
 	bool modified;
 	bool is_directory;
-	bool is_stat;
 	bool aio_write_behind;
 	bool lockdb_clean;
 	bool initial_delete_on_close; /* Only set at NTCreateX if file was created. */
@@ -516,7 +482,7 @@ typedef struct files_struct {
 	char *fsp_name;
 
 	struct vfs_fsp_data *vfs_extension;
- 	FAKE_FILE_HANDLE *fake_file_handle;
+	struct fake_file_handle *fake_file_handle;
 
 	struct notify_change_buf *notify;
 
@@ -526,24 +492,15 @@ typedef struct files_struct {
 #include "ntquotas.h"
 #include "sysquotas.h"
 
-/*
- * Structure used to keep directory state information around.
- * Used in NT change-notify code.
- */
-
-typedef struct {
-	time_t modify_time;
-	time_t status_time;
-} dir_status_struct;
-
 struct vuid_cache_entry {
-	uint16 vuid;
+	struct auth_serversupplied_info *server_info;
+	uint16_t vuid;
 	bool read_only;
 	bool admin_user;
 };
 
 struct vuid_cache {
-	unsigned int entries;
+	unsigned int next_entry;
 	struct vuid_cache_entry array[VUID_CACHE_SIZE];
 };
 
@@ -617,11 +574,9 @@ struct share_iterator {
 
 typedef struct connection_struct {
 	struct connection_struct *next, *prev;
-	TALLOC_CTX *mem_ctx; /* long-lived memory context for things hanging off this struct. */
 	unsigned cnum; /* an index passed over the wire */
 	struct share_params *params;
 	bool force_user;
-	bool force_group;
 	struct vuid_cache vuid_cache;
 	struct dptr_struct *dirptr;
 	bool printer;
@@ -636,20 +591,16 @@ typedef struct connection_struct {
 	struct vfs_ops vfs_opaque;			/* OPAQUE Filesystem operations */
 	struct vfs_handle_struct *vfs_handles;		/* for the new plugins */
 
-	char *user; /* name of user who *opened* this connection */
-	uid_t uid; /* uid of user who *opened* this connection */
-	gid_t gid; /* gid of user who *opened* this connection */
+	/*
+	 * This represents the user information on this connection. Depending
+	 * on the vuid using this tid, this might change per SMB request.
+	 */
+	struct auth_serversupplied_info *server_info;
+
 	char client_address[INET6_ADDRSTRLEN]; /* String version of client IP address. */
 
 	uint16 vuid; /* vuid of user who *opened* this connection, or UID_FIELD_INVALID */
 
-	/* following groups stuff added by ih */
-
-	/* This groups info is valid for the user that *opened* the connection */
-	size_t ngroups;
-	gid_t *groups;
-	NT_USER_TOKEN *nt_user_token;
-	
 	time_t lastused;
 	time_t lastused_count;
 	bool used;
@@ -763,7 +714,6 @@ struct pending_message_list {
 };
 
 #define SHARE_MODE_FLAG_POSIX_OPEN	0x1
-#define SHARE_MODE_ALLOW_INITIAL_DELETE_ON_CLOSE      0x2
 
 /* struct returned by get_share_modes */
 struct share_mode_entry {
@@ -1285,7 +1235,7 @@ struct bitmap {
 #define FILE_GENERIC_WRITE (STD_RIGHT_READ_CONTROL_ACCESS|FILE_WRITE_DATA|FILE_WRITE_ATTRIBUTES|\
 							FILE_WRITE_EA|FILE_APPEND_DATA|SYNCHRONIZE_ACCESS)
 
-#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|\
+#define FILE_GENERIC_EXECUTE (STANDARD_RIGHTS_EXECUTE_ACCESS|FILE_READ_ATTRIBUTES|\
 								FILE_EXECUTE|SYNCHRONIZE_ACCESS)
 
 /* Share specific rights. */
@@ -1579,7 +1529,7 @@ enum printing_types {PRINT_BSD,PRINT_SYSV,PRINT_AIX,PRINT_HPUX,
 enum schema_types {SCHEMA_COMPAT, SCHEMA_AD, SCHEMA_SAMBA};
 
 /* LDAP SSL options */
-enum ldap_ssl_types {LDAP_SSL_ON, LDAP_SSL_OFF, LDAP_SSL_START_TLS};
+enum ldap_ssl_types {LDAP_SSL_OFF, LDAP_SSL_START_TLS};
 
 /* LDAP PASSWD SYNC methods */
 enum ldap_passwd_sync_types {LDAP_PASSWD_SYNC_ON, LDAP_PASSWD_SYNC_OFF, LDAP_PASSWD_SYNC_ONLY};
@@ -1787,24 +1737,6 @@ struct pending_auth_data {
 typedef struct user_struct {
 	struct user_struct *next, *prev;
 	uint16 vuid; /* Tag for this entry. */
-	uid_t uid; /* uid of a validated user */
-	gid_t gid; /* gid of a validated user */
-
-	userdom_struct user;
-	const char *homedir;
-	const char *unix_homedir;
-	const char *logon_script;
-	
-	bool guest;
-
-	/* following groups stuff added by ih */
-	/* This groups info is needed for when we become_user() for this uid */
-	int n_groups;
-	gid_t *groups;
-
-	NT_USER_TOKEN *nt_user_token;
-
-	DATA_BLOB session_key;
 
 	char *session_keystr; /* used by utmp and pam session code.  
 				 TDB key string */
@@ -1882,6 +1814,7 @@ typedef struct _smb_iconv_t {
 #ifndef LDAP_PORT
 #define LDAP_PORT	389
 #endif
+#define LDAP_GC_PORT    3268
 
 /* used by the IP comparison function */
 struct ip_service {

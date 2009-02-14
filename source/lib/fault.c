@@ -119,7 +119,18 @@ void dump_core_setup(const char *progname)
 		SAFE_FREE(logbase);
 		return;
 	}
-	mkdir(corepath,0700);
+	if (mkdir(corepath,0700) == -1) {
+		if (errno != EEXIST) {
+			SAFE_FREE(corepath);
+			SAFE_FREE(logbase);
+			return;
+		}
+	}
+	if (chmod(corepath,0700) == -1) {
+		SAFE_FREE(corepath);
+		SAFE_FREE(logbase);
+		return;
+	}
 
 	SAFE_FREE(corepath);
 	if (asprintf(&corepath, "%s/cores/%s",
@@ -127,11 +138,26 @@ void dump_core_setup(const char *progname)
 		SAFE_FREE(logbase);
 		return;
 	}
-	mkdir(corepath,0700);
+	if (mkdir(corepath,0700) == -1) {
+		if (errno != EEXIST) {
+			SAFE_FREE(corepath);
+			SAFE_FREE(logbase);
+			return;
+		}
+	}
 
-	sys_chown(corepath,getuid(),getgid());
-	chmod(corepath,0700);
+	if (sys_chown(corepath,getuid(),getgid()) == -1) {
+		SAFE_FREE(corepath);
+		SAFE_FREE(logbase);
+		return;
+	}
+	if (chmod(corepath,0700) == -1) {
+		SAFE_FREE(corepath);
+		SAFE_FREE(logbase);
+		return;
+	}
 
+	SAFE_FREE(corepath);
 	SAFE_FREE(logbase);
 
 #ifdef HAVE_GETRLIMIT
@@ -186,6 +212,11 @@ void dump_core_setup(const char *progname)
 	 * we call abort(). */
 	if (geteuid() != 0) {
 		become_root();
+	}
+
+	if (corepath == NULL) {
+		DEBUG(0, ("Can not dump core: corepath not set up\n"));
+		exit(1);
 	}
 
 	if (*corepath != '\0') {

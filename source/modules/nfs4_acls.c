@@ -44,11 +44,6 @@ typedef struct _SMB_ACL4_INT_T
 	SMB_ACE4_INT_T	*last;
 } SMB_ACL4_INT_T;
 
-extern struct current_user current_user;
-extern int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid);
-extern NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp,
-	uint32 security_info_sent, SEC_DESC *psd);
-
 static SMB_ACL4_INT_T *get_validated_aclint(SMB4ACL_T *acl)
 {
 	SMB_ACL4_INT_T *aclint = (SMB_ACL4_INT_T *)acl;
@@ -226,7 +221,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *acl, /* in */
 	}
 
 	for (aceint=aclint->first; aceint!=NULL; aceint=(SMB_ACE4_INT_T *)aceint->next) {
-		SEC_ACCESS mask;
+		uint32_t mask;
 		DOM_SID sid;
 		SMB_ACE4PROP_T	*ace = &aceint->prop;
 
@@ -261,7 +256,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx, SMB4ACL_T *acl, /* in */
 		DEBUG(10, ("mapped %d to %s\n", ace->who.id,
 			   sid_string_dbg(&sid)));
 
-		init_sec_access(&mask, ace->aceMask);
+		mask = ace->aceMask;
 		init_sec_ace(&nt_ace_list[good_aces++], &sid,
 			ace->aceType, mask,
 			ace->aceFlags & 0xf);
@@ -519,7 +514,7 @@ static bool smbacl4_fill_ace4(
 	smbacl4_vfs_params *params,
 	uid_t ownerUID,
 	gid_t ownerGID,
-	SEC_ACE *ace_nt, /* input */
+	const SEC_ACE *ace_nt, /* input */
 	SMB_ACE4PROP_T *ace_v4 /* output */
 )
 {
@@ -651,7 +646,7 @@ static int smbacl4_MergeIgnoreReject(
 
 static SMB4ACL_T *smbacl4_win2nfs4(
 	const char *filename,
-	SEC_ACL *dacl,
+	const SEC_ACL *dacl,
 	smbacl4_vfs_params *pparams,
 	uid_t ownerUID,
 	gid_t ownerGID
@@ -695,7 +690,7 @@ static SMB4ACL_T *smbacl4_win2nfs4(
 
 NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 	uint32 security_info_sent,
-	SEC_DESC *psd,
+	const SEC_DESC *psd,
 	set_nfs4acl_native_fn_t set_nfs4_native)
 {
 	smbacl4_vfs_params params;
@@ -703,9 +698,10 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 	bool	result;
 
 	SMB_STRUCT_STAT sbuf;
-	bool need_chown = False;
+	bool set_acl_as_root = false;
 	uid_t newUID = (uid_t)-1;
 	gid_t newGID = (gid_t)-1;
+	int saved_errno;
 
 	DEBUG(10, ("smb_set_nt_acl_nfs4 invoked for %s\n", fsp->fsp_name));
 
@@ -733,58 +729,48 @@ NTSTATUS smb_set_nt_acl_nfs4(files_struct *fsp,
 		}
 		if (((newUID != (uid_t)-1) && (sbuf.st_uid != newUID)) ||
 		    ((newGID != (gid_t)-1) && (sbuf.st_gid != newGID))) {
-			need_chown = True;
-		}
-		if (need_chown) {
-			if ((newUID == (uid_t)-1 || newUID == current_user.ut.uid)) {
-				if(try_chown(fsp->conn, fsp->fsp_name, newUID, newGID)) {
-					DEBUG(3,("chown %s, %u, %u failed. Error = %s.\n",
-						 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID, 
-						 strerror(errno)));
-					return map_nt_error_from_unix(errno);
-				}
-
-				DEBUG(10,("chown %s, %u, %u succeeded.\n",
-					  fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID));
-				if (smbacl4_GetFileOwner(fsp->conn, fsp->fsp_name, &sbuf))
-					return map_nt_error_from_unix(errno);
-				need_chown = False;
-			} else { /* chown is needed, but _after_ changing acl */
-				sbuf.st_uid = newUID; /* OWNER@ in case of e_special */
-				sbuf.st_gid = newGID; /* GROUP@ in case of e_special */
+			if(try_chown(fsp->conn, fsp->fsp_name, newUID, newGID)) {
+				DEBUG(3,("chown %s, %u, %u failed. Error = %s.\n",
+					 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID, 
+					 strerror(errno)));
+				return map_nt_error_from_unix(errno);
 			}
+
+			DEBUG(10,("chown %s, %u, %u succeeded.\n",
+				  fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID));
+			if (smbacl4_GetFileOwner(fsp->conn, fsp->fsp_name, &sbuf))
+				return map_nt_error_from_unix(errno);
+
+			/* If we successfully chowned, we know we must
+			 * be able to set the acl, so do it as root.
+			 */
+			set_acl_as_root = true;
 		}
 	}
 
-	if ((security_info_sent & DACL_SECURITY_INFORMATION)!=0 && psd->dacl!=NULL)
-	{
-		acl = smbacl4_win2nfs4(fsp->fsp_name, psd->dacl, &params, sbuf.st_uid, sbuf.st_gid);
-		if (!acl)
-			return map_nt_error_from_unix(errno);
-
-		smbacl4_dump_nfs4acl(10, acl);
-
-		result = set_nfs4_native(fsp, acl);
-		if (result!=True)
-		{
-			DEBUG(10, ("set_nfs4_native failed with %s\n", strerror(errno)));
-			return map_nt_error_from_unix(errno);
-		}
-	} else
+	if (!(security_info_sent & DACL_SECURITY_INFORMATION) || psd->dacl ==NULL) {
 		DEBUG(10, ("no dacl found; security_info_sent = 0x%x\n", security_info_sent));
+		return NT_STATUS_OK;
+	}
 
-	/* Any chown pending? */
-	if (need_chown) {
-		DEBUG(3,("chown#2 %s. uid = %u, gid = %u.\n",
-			 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID));
-		if (try_chown(fsp->conn, fsp->fsp_name, newUID, newGID)) {
-			DEBUG(2,("chown#2 %s, %u, %u failed. Error = %s.\n",
-				 fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID,
-				 strerror(errno)));
-			return map_nt_error_from_unix(errno);
-		}
-		DEBUG(10,("chown#2 %s, %u, %u succeeded.\n",
-			  fsp->fsp_name, (unsigned int)newUID, (unsigned int)newGID));
+	acl = smbacl4_win2nfs4(fsp->fsp_name, psd->dacl, &params, sbuf.st_uid, sbuf.st_gid);
+	if (!acl)
+		return map_nt_error_from_unix(errno);
+
+	smbacl4_dump_nfs4acl(10, acl);
+
+	if (set_acl_as_root) {
+		become_root();
+	}
+	result = set_nfs4_native(fsp, acl);
+	saved_errno = errno;
+	if (set_acl_as_root) {
+		unbecome_root();
+	}
+	if (result!=True) {
+		errno = saved_errno;
+		DEBUG(10, ("set_nfs4_native failed with %s\n", strerror(errno)));
+		return map_nt_error_from_unix(errno);
 	}
 
 	DEBUG(10, ("smb_set_nt_acl_nfs4 succeeded\n"));

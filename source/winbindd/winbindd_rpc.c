@@ -265,13 +265,13 @@ static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
 }
 
 /* convert a single name to a sid in a domain */
-NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
-			   TALLOC_CTX *mem_ctx,
-			   enum winbindd_cmd original_cmd,
-			   const char *domain_name,
-			   const char *name,
-			   DOM_SID *sid,
-			   enum lsa_SidType *type)
+static NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
+				  TALLOC_CTX *mem_ctx,
+				  enum winbindd_cmd original_cmd,
+				  const char *domain_name,
+				  const char *name,
+				  DOM_SID *sid,
+				  enum lsa_SidType *type)
 {
 	NTSTATUS result;
 	DOM_SID *sids = NULL;
@@ -279,6 +279,8 @@ NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 	char *full_name = NULL;
 	struct rpc_pipe_client *cli;
 	POLICY_HND lsa_policy;
+	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
+	char *mapped_name = NULL;
 
 	if (name == NULL || *name=='\0') {
 		full_name = talloc_asprintf(mem_ctx, "%s", domain_name);
@@ -294,9 +296,19 @@ NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 
 	DEBUG(3,("rpc: name_to_sid name=%s\n", full_name));
 
-	ws_name_return( full_name, WB_REPLACE_CHAR );
+	name_map_status = normalize_name_unmap(mem_ctx, full_name,
+					       &mapped_name);
 
-	DEBUG(3,("name_to_sid [rpc] %s for domain %s\n", full_name?full_name:"", domain_name ));
+	/* Reset the full_name pointer if we mapped anytthing */
+
+	if (NT_STATUS_IS_OK(name_map_status) ||
+	    NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED))
+	{
+		full_name = mapped_name;
+	}
+
+	DEBUG(3,("name_to_sid [rpc] %s for domain %s\n",
+		 full_name?full_name:"", domain_name ));
 
 	result = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
 	if (!NT_STATUS_IS_OK(result))
@@ -319,12 +331,12 @@ NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 /*
   convert a domain SID to a user or group name
 */
-NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
-			    TALLOC_CTX *mem_ctx,
-			    const DOM_SID *sid,
-			    char **domain_name,
-			    char **name,
-			    enum lsa_SidType *type)
+static NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
+				  TALLOC_CTX *mem_ctx,
+				  const DOM_SID *sid,
+				  char **domain_name,
+				  char **name,
+				  enum lsa_SidType *type)
 {
 	char **domains;
 	char **names;
@@ -332,6 +344,8 @@ NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
 	NTSTATUS result;
 	struct rpc_pipe_client *cli;
 	POLICY_HND lsa_policy;
+	NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
+	char *mapped_name = NULL;
 
 	DEBUG(3,("sid_to_name [rpc] %s for domain %s\n", sid_string_dbg(sid),
 		 domain->name ));
@@ -356,20 +370,28 @@ NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
 	*domain_name = domains[0];
 	*name = names[0];
 
-	ws_name_replace( *name, WB_REPLACE_CHAR );	
-		
 	DEBUG(5,("Mapped sid to [%s]\\[%s]\n", domains[0], *name));
+
+	name_map_status = normalize_name_map(mem_ctx, domain, *name,
+					     &mapped_name);
+	if (NT_STATUS_IS_OK(name_map_status) ||
+	    NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED))
+	{
+		*name = mapped_name;
+		DEBUG(5,("returning mapped name -- %s\n", *name));
+	}
+
 	return NT_STATUS_OK;
 }
 
-NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
-			     TALLOC_CTX *mem_ctx,
-			     const DOM_SID *sid,
-			     uint32 *rids,
-			     size_t num_rids,
-			     char **domain_name,
-			     char ***names,
-			     enum lsa_SidType **types)
+static NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
+				    TALLOC_CTX *mem_ctx,
+				    const DOM_SID *sid,
+				    uint32 *rids,
+				    size_t num_rids,
+				    char **domain_name,
+				    char ***names,
+				    enum lsa_SidType **types)
 {
 	char **domains;
 	NTSTATUS result;
@@ -411,8 +433,20 @@ NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
 
 	ret_names = *names;
 	for (i=0; i<num_rids; i++) {
+		NTSTATUS name_map_status = NT_STATUS_UNSUCCESSFUL;
+		char *mapped_name = NULL;
+
 		if ((*types)[i] != SID_NAME_UNKNOWN) {
-			ws_name_replace( ret_names[i], WB_REPLACE_CHAR );
+			name_map_status = normalize_name_map(mem_ctx,
+							     domain,
+							     ret_names[i],
+							     &mapped_name);
+			if (NT_STATUS_IS_OK(name_map_status) ||
+			    NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED))
+			{
+				ret_names[i] = mapped_name;
+			}
+
 			*domain_name = domains[i];
 		}
 	}
@@ -602,10 +636,11 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 	return NT_STATUS_OK;
 }
 
-NTSTATUS msrpc_lookup_useraliases(struct winbindd_domain *domain,
-				  TALLOC_CTX *mem_ctx,
-				  uint32 num_sids, const DOM_SID *sids,
-				  uint32 *num_aliases, uint32 **alias_rids)
+static NTSTATUS msrpc_lookup_useraliases(struct winbindd_domain *domain,
+					 TALLOC_CTX *mem_ctx,
+					 uint32 num_sids, const DOM_SID *sids,
+					 uint32 *num_aliases,
+					 uint32 **alias_rids)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	POLICY_HND dom_pol;
@@ -750,14 +785,14 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 	/* This call can take a long time - allow the server to time out.
 	   35 seconds should do it. */
 
-	orig_timeout = cli_set_timeout(cli->cli, 35000);
+	orig_timeout = rpccli_set_timeout(cli, 35000);
 
         result = rpccli_samr_QueryGroupMember(cli, mem_ctx,
 					      &group_pol,
 					      &rids);
 
 	/* And restore our original timeout. */
-	cli_set_timeout(cli->cli, orig_timeout);
+	rpccli_set_timeout(cli, orig_timeout);
 
 	rpccli_samr_Close(cli, mem_ctx, &group_pol);
 
@@ -820,7 +855,10 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 		}
 
 		for (r=0; r<tmp_names.count; r++) {
-			(*names)[i+r] = CONST_DISCARD(char *, tmp_names.names[r].string);
+			(*names)[i+r] = fill_domain_username_talloc(mem_ctx,
+						domain->name,
+						tmp_names.names[r].string,
+						true);
 			(*name_types)[i+r] = tmp_types.ids[r];
 		}
 
@@ -1065,9 +1103,9 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 }
 
 /* find the lockout policy for a domain */
-NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
-			      TALLOC_CTX *mem_ctx,
-			      struct samr_DomInfo12 *lockout_policy)
+static NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
+				     TALLOC_CTX *mem_ctx,
+				     struct samr_DomInfo12 *lockout_policy)
 {
 	NTSTATUS result;
 	struct rpc_pipe_client *cli;
@@ -1106,9 +1144,9 @@ NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
 }
 
 /* find the password policy for a domain */
-NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
-			       TALLOC_CTX *mem_ctx,
-			       struct samr_DomInfo1 *password_policy)
+static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
+				      TALLOC_CTX *mem_ctx,
+				      struct samr_DomInfo1 *password_policy)
 {
 	NTSTATUS result;
 	struct rpc_pipe_client *cli;

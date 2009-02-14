@@ -3750,7 +3750,7 @@ static bool api_samr_QueryUserInfo2(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.info = talloc_zero(r, union samr_UserInfo);
+	r->out.info = talloc_zero(r, union samr_UserInfo *);
 	if (r->out.info == NULL) {
 		talloc_free(r);
 		return false;
@@ -5355,7 +5355,7 @@ static bool api_samr_ValidatePassword(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.rep = talloc_zero(r, union samr_ValidatePasswordRep);
+	r->out.rep = talloc_zero(r, union samr_ValidatePasswordRep *);
 	if (r->out.rep == NULL) {
 		talloc_free(r);
 		return false;
@@ -5478,5 +5478,5 @@ void samr_get_pipe_fns(struct api_struct **fns, int *n_fns)
 
 NTSTATUS rpc_samr_init(void)
 {
-	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "samr", "samr", api_samr_cmds, sizeof(api_samr_cmds) / sizeof(struct api_struct));
+	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "samr", "samr", &ndr_table_samr.syntax_id, api_samr_cmds, sizeof(api_samr_cmds) / sizeof(struct api_struct));
 }

@@ -22,12 +22,14 @@ test "${mandir}" || mandir="\${prefix}/man"
 logfilebase="\${VARDIR}"
 privatedir="\${prefix}/private"
 test "${libdir}" || libdir="\${prefix}/lib"
-pammodulesdir="\${LIBDIR}/security"
-configdir="\${LIBDIR}"
+modulesdir="${libdir}"
+pammodulesdir="${libdir}/security"
+configdir="${libdir}"
 swatdir="\${prefix}/swat"
-codepagedir="\${LIBDIR}"
+codepagedir="\${MODULESDIR}"
 statedir="\${LOCKDIR}"
 cachedir="\${LOCKDIR}"
+localedir="\${prefix}/share/locale"
 
 AC_ARG_WITH(fhs,
 [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
@@ -38,10 +40,11 @@ AC_ARG_WITH(fhs,
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
     privatedir="\${CONFIGDIR}/private"
-    test "${libdir}" || libdir="\${prefix}/lib/samba"
+    test "${libdir}" || libdir="\${prefix}/lib"
+    modulesdir="${libdir}/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${LIBDIR}"
+    codepagedir="\${MODULESDIR}"
     statedir="\${VARDIR}/lib/samba"
     cachedir="\${VARDIR}/lib/samba"
     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
@@ -175,18 +178,18 @@ AC_ARG_WITH(ctdb,
   esac])
 
 #################################################
-# set lib directory location
-AC_ARG_WITH(libdir,
-[AS_HELP_STRING([--with-libdir=DIR], [Where to put libdir ($libdir)])],
+# set shared modules (internal lib) directory location
+AC_ARG_WITH(modulesdir,
+[AS_HELP_STRING([--with-modulesdir=DIR], [Where to put shared modules ($libdir)])],
 [ case "$withval" in
   yes|no)
   #
   # Just in case anybody does it
   #
-    AC_MSG_WARN([--with-libdir without argument - will use default])
+    AC_MSG_WARN([--with-modulesdir without argument - will use default])
   ;;
   * )
-    libdir="$withval"
+    modulesdir="$withval"
     ;;
   esac])
 
@@ -222,6 +225,23 @@ AC_ARG_WITH(mandir,
     ;;
   esac])
 
+################################################
+# set locale directory location
+AC_ARG_WITH(localedir,
+[  --with-localedir=DIR    Where to put po files ($ac_default_prefix/share/locale)],
+[ case "$withval" in
+  yes|no)
+    #
+    # Just in case anybody does it
+    #
+    AC_MSG_WARN([--with-localedir called without argument - will use default])
+  ;;
+  *)
+  localedir="$withval"
+  ;;
+  esac])
+
+
 AC_SUBST(configdir)
 AC_SUBST(lockdir)
 AC_SUBST(piddir)
@@ -236,6 +256,8 @@ AC_SUBST(statedir)
 AC_SUBST(cachedir)
 AC_SUBST(rootsbindir)
 AC_SUBST(pammodulesdir)
+AC_SUBST(modulesdir)
+AC_SUBST(localedir)
 
 #################################################
 # set prefix for 'make test'
@@ -294,6 +316,14 @@ AC_ARG_ENABLE(krb5developer, [AS_HELP_STRING([--enable-krb5developer], [Turn on 
         debug=yes
         developer=yes
 	krb5_developer=yes
+    fi])
+
+picky_developer=no
+AC_ARG_ENABLE(picky-developer, [AS_HELP_STRING([--enable-picky-developer], [Halt compilation on warnings])],
+    [if eval "test x$enable_picky_developer = xyes"; then
+        debug=yes
+        developer=yes
+        picky_developer=yes
     fi])
 
 AC_ARG_WITH(cfenc,

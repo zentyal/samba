@@ -337,7 +337,7 @@ static int process_root(int local_flags)
 		load_interfaces();
 	}
 
-	if (!user_name[0] && (pwd = getpwuid_alloc(NULL, geteuid()))) {
+	if (!user_name[0] && (pwd = getpwuid_alloc(talloc_autofree_context(), geteuid()))) {
 		fstrcpy(user_name, pwd->pw_name);
 		TALLOC_FREE(pwd);
 	} 
@@ -430,6 +430,15 @@ static int process_root(int local_flags)
 		}
 		
 		if((local_flags & LOCAL_SET_PASSWORD) && (new_passwd == NULL)) {
+			struct passwd *passwd = getpwnam_alloc(NULL, user_name);
+
+			if (!passwd) {
+				fprintf(stderr, "Cannot locate Unix account for "
+					"'%s'!\n", user_name);
+				exit(1);
+			}
+			TALLOC_FREE(passwd);
+
 			new_passwd = prompt_for_new_password(stdin_passwd_get);
 			
 			if(!new_passwd) {
@@ -498,7 +507,7 @@ static int process_nonroot(int local_flags)
 	}
 
 	if (!user_name[0]) {
-		pwd = getpwuid_alloc(NULL, getuid());
+		pwd = getpwuid_alloc(talloc_autofree_context(), getuid());
 		if (pwd) {
 			fstrcpy(user_name,pwd->pw_name);
 			TALLOC_FREE(pwd);

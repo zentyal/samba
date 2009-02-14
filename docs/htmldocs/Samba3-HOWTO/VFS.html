@@ -1,51 +1,51 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 23. Stackable VFS modules</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"><link rel="start" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="CUPS-printing.html" title="Chapter 22. CUPS Printing Support"><link rel="next" href="winbind.html" title="Chapter 24. Winbind: Use of Domain Accounts"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 23. Stackable VFS modules</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="CUPS-printing.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="winbind.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="VFS"></a>Chapter 23. Stackable VFS modules</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Tim</span> <span class="surname">Potter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tpot@samba.org">tpot@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Simo</span> <span class="surname">Sorce</span></h3><span class="contrib">original vfs_skel README</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Alexander</span> <span class="surname">Bokovoy</span></h3><span class="contrib">original vfs_netatalk docs</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Stefan</span> <span class="surname">Metzmacher</span></h3><span class="contrib">Update for multiple modules</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Ed</span> <span class="surname">Riddle</span></h3><span class="contrib">original shadow_copy docs</span> </div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="VFS.html#id2643343">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="VFS.html#id2643381">Discussion</a></span></dt><dt><span class="sect1"><a href="VFS.html#id2643777">Included Modules</a></span></dt><dd><dl><dt><span class="sect2"><a href="VFS.html#id2643783">audit</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2643824">default_quota</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2644041">extd_audit</a></span></dt><dt><span class="sect2"><a href="VFS.html#fakeperms">fake_perms</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2644367">recycle</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2644764">netatalk</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2644814">shadow_copy</a></span></dt></dl></dd><dt><span class="sect1"><a href="VFS.html#id2645720">VFS Modules Available Elsewhere</a></span></dt><dd><dl><dt><span class="sect2"><a href="VFS.html#id2645746">DatabaseFS</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2645805">vscan</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2645845">vscan-clamav</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2643343"></a>Features and Benefits</h2></div></div></div><p>
-<a class="indexterm" name="id2643351"></a>
-<a class="indexterm" name="id2643360"></a>
-<a class="indexterm" name="id2643367"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 23. Stackable VFS modules</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="CUPS-printing.html" title="Chapter 22. CUPS Printing Support"><link rel="next" href="winbind.html" title="Chapter 24. Winbind: Use of Domain Accounts"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 23. Stackable VFS modules</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="CUPS-printing.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="winbind.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="VFS"></a>Chapter 23. Stackable VFS modules</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Tim</span> <span class="orgname">Samba Team</span> <span class="surname">Potter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tpot@samba.org">tpot@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Simo</span> <span class="surname">Sorce</span></h3><span class="contrib">original vfs_skel README</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Alexander</span> <span class="surname">Bokovoy</span></h3><span class="contrib">original vfs_netatalk docs</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Stefan</span> <span class="surname">Metzmacher</span></h3><span class="contrib">Update for multiple modules</span> </div></div><div><div class="author"><h3 class="author"><span class="firstname">Ed</span> <span class="surname">Riddle</span></h3><span class="contrib">original shadow_copy docs</span> </div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="VFS.html#id2650312">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="VFS.html#id2650350">Discussion</a></span></dt><dt><span class="sect1"><a href="VFS.html#id2650745">Included Modules</a></span></dt><dd><dl><dt><span class="sect2"><a href="VFS.html#id2650751">audit</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2650792">default_quota</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2651009">extd_audit</a></span></dt><dt><span class="sect2"><a href="VFS.html#fakeperms">fake_perms</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2651336">recycle</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2651733">netatalk</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2651783">shadow_copy</a></span></dt></dl></dd><dt><span class="sect1"><a href="VFS.html#id2652691">VFS Modules Available Elsewhere</a></span></dt><dd><dl><dt><span class="sect2"><a href="VFS.html#id2652716">DatabaseFS</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2652776">vscan</a></span></dt><dt><span class="sect2"><a href="VFS.html#id2652815">vscan-clamav</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2650312"></a>Features and Benefits</h2></div></div></div><p>
+<a class="indexterm" name="id2650320"></a>
+<a class="indexterm" name="id2650329"></a>
+<a class="indexterm" name="id2650336"></a>
 Stackable VFS (Virtual File System) modules support was new to Samba-3 and has proven quite popular. Samba
 passes each request to access the UNIX file system through the loaded VFS modules. This chapter covers the
 modules that come with the Samba source and provides references to some external modules.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2643381"></a>Discussion</h2></div></div></div><p>
-<a class="indexterm" name="id2643389"></a>
-<a class="indexterm" name="id2643396"></a>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2650350"></a>Discussion</h2></div></div></div><p>
+<a class="indexterm" name="id2650358"></a>
+<a class="indexterm" name="id2650365"></a>
 If not supplied with your platform distribution binary Samba package, you may have problems compiling these
 modules, as shared libraries are compiled and linked in different ways on different systems. They currently
 have been tested against GNU/Linux and IRIX.
 </p><p>
-<a class="indexterm" name="id2643410"></a>
-<a class="indexterm" name="id2643417"></a>
-<a class="indexterm" name="id2643424"></a>
-To use the VFS modules, create a share similar to the one below. The important parameter is the <a class="link" href="smb.conf.5.html#VFSOBJECTS">vfs objects</a> parameter where you can list one or more VFS modules by name. For example, to log all
+<a class="indexterm" name="id2650379"></a>
+<a class="indexterm" name="id2650386"></a>
+<a class="indexterm" name="id2650393"></a>
+To use the VFS modules, create a share similar to the one below. The important parameter is the <a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects</a> parameter where you can list one or more VFS modules by name. For example, to log all
 access to files and put deleted files in a recycle bin, see <a class="link" href="VFS.html#vfsrecyc" title="Example 23.1. smb.conf with VFS modules">the smb.conf with VFS
 modules example</a>:
-</p><div class="example"><a name="vfsrecyc"></a><p class="title"><b>Example 23.1. smb.conf with VFS modules</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[audit]</code></em></td></tr><tr><td><a class="indexterm" name="id2643479"></a><em class="parameter"><code>comment = Audited /data directory</code></em></td></tr><tr><td><a class="indexterm" name="id2643491"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2643503"></a><em class="parameter"><code>vfs objects = audit recycle</code></em></td></tr><tr><td><a class="indexterm" name="id2643514"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2643526"></a><em class="parameter"><code>browseable = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
-<a class="indexterm" name="id2643541"></a>
-<a class="indexterm" name="id2643548"></a>
-<a class="indexterm" name="id2643555"></a>
+</p><div class="example"><a name="vfsrecyc"></a><p class="title"><b>Example 23.1. smb.conf with VFS modules</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[audit]</code></em></td></tr><tr><td><a class="indexterm" name="id2650448"></a><em class="parameter"><code>comment = Audited /data directory</code></em></td></tr><tr><td><a class="indexterm" name="id2650460"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2650471"></a><em class="parameter"><code>vfs objects = audit recycle</code></em></td></tr><tr><td><a class="indexterm" name="id2650483"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2650495"></a><em class="parameter"><code>browseable = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+<a class="indexterm" name="id2650510"></a>
+<a class="indexterm" name="id2650516"></a>
+<a class="indexterm" name="id2650523"></a>
 The modules are used in the order in which they are specified.  Let's say that you want to both have a virus
 scanner module and a recycle bin module. It is wise to put the virus scanner module as the first one so that
 it is the first to get run and may detect a virus immediately, before any action is performed on that file.
-<a class="link" href="smb.conf.5.html#VFSOBJECTS">vfs objects = vscan-clamav recycle</a>
+<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = vscan-clamav recycle</a>
 </p><p>
-<a class="indexterm" name="id2643583"></a>
-<a class="indexterm" name="id2643589"></a>
+<a class="indexterm" name="id2650551"></a>
+<a class="indexterm" name="id2650558"></a>
 Samba will attempt to load modules from the <code class="filename">/lib</code> directory in the root directory of the
 Samba installation (usually <code class="filename">/usr/lib/samba/vfs</code> or
 <code class="filename">/usr/local/samba/lib/vfs</code>).
 </p><p>
-<a class="indexterm" name="id2643619"></a>
-<a class="indexterm" name="id2643626"></a>
-<a class="indexterm" name="id2643633"></a>
-<a class="indexterm" name="id2643640"></a>
+<a class="indexterm" name="id2650588"></a>
+<a class="indexterm" name="id2650595"></a>
+<a class="indexterm" name="id2650602"></a>
+<a class="indexterm" name="id2650608"></a>
 Some modules can be used twice for the same share.  This can be done using a configuration similar to the one
 shown in <a class="link" href="VFS.html#multimodule" title="Example 23.2. smb.conf with multiple VFS modules">the smb.conf with multiple VFS modules</a>.
 
-</p><div class="example"><a name="multimodule"></a><p class="title"><b>Example 23.2. smb.conf with multiple VFS modules</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[test]</code></em></td></tr><tr><td><a class="indexterm" name="id2643680"></a><em class="parameter"><code>comment = VFS TEST</code></em></td></tr><tr><td><a class="indexterm" name="id2643691"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2643703"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2643714"></a><em class="parameter"><code>browseable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2643726"></a><em class="parameter"><code>vfs objects = example:example1 example example:test</code></em></td></tr><tr><td><a class="indexterm" name="id2643738"></a><em class="parameter"><code>example1: parameter = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2643750"></a><em class="parameter"><code>example:  parameter = 5</code></em></td></tr><tr><td><a class="indexterm" name="id2643762"></a><em class="parameter"><code>test:     parameter = 7</code></em></td></tr></table></div></div><p><br class="example-break">
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2643777"></a>Included Modules</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2643783"></a>audit</h3></div></div></div><p>
-<a class="indexterm" name="id2643790"></a>
+</p><div class="example"><a name="multimodule"></a><p class="title"><b>Example 23.2. smb.conf with multiple VFS modules</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[test]</code></em></td></tr><tr><td><a class="indexterm" name="id2650648"></a><em class="parameter"><code>comment = VFS TEST</code></em></td></tr><tr><td><a class="indexterm" name="id2650660"></a><em class="parameter"><code>path = /data</code></em></td></tr><tr><td><a class="indexterm" name="id2650671"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2650683"></a><em class="parameter"><code>browseable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2650694"></a><em class="parameter"><code>vfs objects = example:example1 example example:test</code></em></td></tr><tr><td><a class="indexterm" name="id2650706"></a><em class="parameter"><code>example1: parameter = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2650718"></a><em class="parameter"><code>example:  parameter = 5</code></em></td></tr><tr><td><a class="indexterm" name="id2650730"></a><em class="parameter"><code>test:     parameter = 7</code></em></td></tr></table></div></div><p><br class="example-break">
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2650745"></a>Included Modules</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2650751"></a>audit</h3></div></div></div><p>
+<a class="indexterm" name="id2650759"></a>
 		A simple module to audit file access to the syslog facility. The following operations are logged:
 		</p><div class="itemizedlist"><ul type="disc"><li><p>share</p></li><li><p>connect/disconnect</p></li><li><p>directory opens/create/remove</p></li><li><p>file open/close/rename/unlink/chmod</p></li></ul></div><p>
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2643824"></a>default_quota</h3></div></div></div><p>
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2650792"></a>default_quota</h3></div></div></div><p>
 	This module allows the default quota values, in the windows explorer GUI, to be stored on a Samba-3 server.
 	The challenge is that linux filesystems only store quotas for users and groups, but no default quotas.
 	</p><p>
@@ -117,17 +117,17 @@ quotasettings:	gid = 65534
 quotasettings:	gid nolimit = no
 ...
 </pre><p>
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2644041"></a>extd_audit</h3></div></div></div><p>
-<a class="indexterm" name="id2644049"></a>
-<a class="indexterm" name="id2644056"></a>
-<a class="indexterm" name="id2644063"></a>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2651009"></a>extd_audit</h3></div></div></div><p>
+<a class="indexterm" name="id2651017"></a>
+<a class="indexterm" name="id2651024"></a>
+<a class="indexterm" name="id2651031"></a>
 		This module is identical with the <code class="literal">audit</code> module above except
 		that it sends audit logs to both syslog as well as the <code class="literal">smbd</code> log files. The 
-		<a class="link" href="smb.conf.5.html#LOGLEVEL">log level</a> for this module is set in the <code class="filename">smb.conf</code> file. 
+		<a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> for this module is set in the <code class="filename">smb.conf</code> file. 
 		</p><p>
 		Valid settings and the information that will be recorded are shown in <a class="link" href="VFS.html#xtdaudit" title="Table 23.1. Extended Auditing Log Information">the next table</a>.
-		</p><div class="table"><a name="xtdaudit"></a><p class="title"><b>Table 23.1. Extended Auditing Log Information</b></p><div class="table-contents"><table summary="Extended Auditing Log Information" border="1"><colgroup><col><col></colgroup><thead><tr><th align="center">Log Level</th><th align="center">Log Details - File and Directory Operations</th></tr></thead><tbody><tr><td align="center">0</td><td align="left">Make Directory, Remove Directory, Unlink</td></tr><tr><td align="center">1</td><td align="left">Open Directory, Rename File, Change Permissions/ACLs</td></tr><tr><td align="center">2</td><td align="left">Open &amp; Close File</td></tr><tr><td align="center">10</td><td align="left">Maximum Debug Level</td></tr></tbody></table></div></div><br class="table-break"><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2644198"></a>Configuration of Auditing</h4></div></div></div><p>
-<a class="indexterm" name="id2644206"></a>
+		</p><div class="table"><a name="xtdaudit"></a><p class="title"><b>Table 23.1. Extended Auditing Log Information</b></p><div class="table-contents"><table summary="Extended Auditing Log Information" border="1"><colgroup><col><col></colgroup><thead><tr><th align="center">Log Level</th><th align="center">Log Details - File and Directory Operations</th></tr></thead><tbody><tr><td align="center">0</td><td align="left">Make Directory, Remove Directory, Unlink</td></tr><tr><td align="center">1</td><td align="left">Open Directory, Rename File, Change Permissions/ACLs</td></tr><tr><td align="center">2</td><td align="left">Open &amp; Close File</td></tr><tr><td align="center">10</td><td align="left">Maximum Debug Level</td></tr></tbody></table></div></div><br class="table-break"><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2651166"></a>Configuration of Auditing</h4></div></div></div><p>
+<a class="indexterm" name="id2651174"></a>
 		This auditing tool is more felxible than most people readily will recognize. There are a number of ways
 		by which useful logging information can be recorded.
 		</p><div class="itemizedlist"><ul type="disc"><li><p>Syslog can be used to record all transaction. This can be disabled by setting
@@ -139,32 +139,32 @@ quotasettings:	gid nolimit = no
 					This requires the above together with the creative use of the
 					<em class="parameter"><code>log file</code></em> settings.</p><p>An example of detailed per-user and per-machine logging can
 					be obtained by setting 
-					<a class="link" href="smb.conf.5.html#LOGFILE">log file = /var/log/samba/%U.%m.log</a>.
+					<a class="link" href="smb.conf.5.html#LOGFILE" target="_top">log file = /var/log/samba/%U.%m.log</a>.
 					</p></li></ul></div><p>
 		Auditing information often must be preserved for a long time. So that the log files do not get rotated
-		it is essential that the <a class="link" href="smb.conf.5.html#MAXLOGSIZE">max log size = 0</a> be set
+		it is essential that the <a class="link" href="smb.conf.5.html#MAXLOGSIZE" target="_top">max log size = 0</a> be set
 		in the <code class="filename">smb.conf</code> file.
 		</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="fakeperms"></a>fake_perms</h3></div></div></div><p>
-<a class="indexterm" name="id2644331"></a>
-<a class="indexterm" name="id2644338"></a>
-<a class="indexterm" name="id2644345"></a>
-<a class="indexterm" name="id2644352"></a>
+<a class="indexterm" name="id2651300"></a>
+<a class="indexterm" name="id2651307"></a>
+<a class="indexterm" name="id2651314"></a>
+<a class="indexterm" name="id2651320"></a>
 		This module was created to allow Roaming Profile files and directories to be set (on the Samba server
 		under UNIX) as read only. This module will, if installed on the Profiles share, report to the client
 		that the Profile files and directories are writeable. This satisfies the client even though the files
 		will never be overwritten as the client logs out or shuts down.
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2644367"></a>recycle</h3></div></div></div><p>
-<a class="indexterm" name="id2644375"></a>
-<a class="indexterm" name="id2644382"></a>
-<a class="indexterm" name="id2644389"></a>
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2651336"></a>recycle</h3></div></div></div><p>
+<a class="indexterm" name="id2651344"></a>
+<a class="indexterm" name="id2651350"></a>
+<a class="indexterm" name="id2651357"></a>
 		A Recycle Bin-like module. Where used, unlink calls will be intercepted and files moved
 		to the recycle directory instead of being deleted. This gives the same effect as the
 		<span class="guiicon">Recycle Bin</span> on Windows computers.
 		</p><p>
-<a class="indexterm" name="id2644408"></a>
-<a class="indexterm" name="id2644415"></a>
-<a class="indexterm" name="id2644422"></a>
-<a class="indexterm" name="id2644429"></a>
+<a class="indexterm" name="id2651377"></a>
+<a class="indexterm" name="id2651384"></a>
+<a class="indexterm" name="id2651390"></a>
+<a class="indexterm" name="id2651397"></a>
 		The <span class="guiicon">Recycle Bin</span> will not appear in
 		<span class="application">Windows Explorer</span> views of the network
 		file system (share) nor on any mapped drive. Instead, a directory
@@ -179,10 +179,10 @@ quotasettings:	gid nolimit = no
 		file was deleted.
 		</p><p>Supported options for the <code class="literal">recycle</code> module are as follow:
 		</p><div class="variablelist"><dl><dt><span class="term">recycle:repository</span></dt><dd><p>
-<a class="indexterm" name="id2644507"></a>
+<a class="indexterm" name="id2651475"></a>
 				Path of the directory where deleted files should be moved.
 				</p></dd><dt><span class="term">recycle:directory_mode</span></dt><dd><p>
-<a class="indexterm" name="id2644526"></a>
+<a class="indexterm" name="id2651494"></a>
 				Set it to the octal mode you want for the recycle directory. With
 				this mode the recycle directory	will be created if it not
 				exists and the first file is deleted.
@@ -191,7 +191,7 @@ quotasettings:	gid nolimit = no
 				If <em class="parameter"><code>directory_mode</code></em> not exists, the default
 				mode 0700 is used.
 				</p></dd><dt><span class="term">recycle:subdir_mode</span></dt><dd><p>
-<a class="indexterm" name="id2644561"></a>
+<a class="indexterm" name="id2651530"></a>
 				Set it to the octal mode you want for the sub directories of
 				the recycle directory. With this mode	the sub directories will
 				be created.
@@ -199,48 +199,48 @@ quotasettings:	gid nolimit = no
 				sub directories will be created with the mode from
 				<em class="parameter"><code>directory_mode</code></em>.
 				</p></dd><dt><span class="term">recycle:keeptree</span></dt><dd><p>
-<a class="indexterm" name="id2644596"></a>
+<a class="indexterm" name="id2651564"></a>
 				Specifies whether the directory structure should be kept or if the files in the directory that is being 
 				deleted should be kept separately in the recycle bin.
 				</p></dd><dt><span class="term">recycle:versions</span></dt><dd><p>
-<a class="indexterm" name="id2644617"></a>
+<a class="indexterm" name="id2651585"></a>
 				If this option is set, two files 
 				with the same name that are deleted will both 
 				be kept in the recycle bin. Newer deleted versions 
 				of a file will be called &#8220;<span class="quote">Copy #x of <em class="replaceable"><code>filename</code></em></span>&#8221;.
 				</p></dd><dt><span class="term">recycle:touch</span></dt><dd><p>
-<a class="indexterm" name="id2644644"></a>
+<a class="indexterm" name="id2651613"></a>
 				Specifies whether a file's access date should be touched when the file is moved to the recycle bin.
 				</p></dd><dt><span class="term">recycle:touch_mtime</span></dt><dd><p>
-<a class="indexterm" name="id2644664"></a>
+<a class="indexterm" name="id2651633"></a>
 				Specifies whether a file's last modify date date should be touched when the file is moved to the recycle bin.
 				</p></dd><dt><span class="term">recycle:maxsize</span></dt><dd><p>
-<a class="indexterm" name="id2644684"></a>
+<a class="indexterm" name="id2651653"></a>
 				Files that are larger than the number of bytes specified by this parameter will not be put into the recycle bin.
 				</p></dd><dt><span class="term">recycle:exclude</span></dt><dd><p>
-<a class="indexterm" name="id2644704"></a>
+<a class="indexterm" name="id2651673"></a>
 				List of files that should not be put into the recycle bin when deleted, but deleted in the regular way.
 				</p></dd><dt><span class="term">recycle:exclude_dir</span></dt><dd><p>
-<a class="indexterm" name="id2644724"></a>
+<a class="indexterm" name="id2651693"></a>
 				Contains a list of directories. When files from these directories are
 				deleted, they are not put into the
 				recycle bin but are deleted in the
 				regular way.
 				</p></dd><dt><span class="term">recycle:noversions</span></dt><dd><p>
-<a class="indexterm" name="id2644746"></a>
+<a class="indexterm" name="id2651714"></a>
 				Specifies a list of paths (wildcards such as * and ? are supported) for which no versioning
 				should be used. Only useful when <span class="emphasis"><em>recycle:versions</em></span> is enabled.
 				</p></dd></dl></div><p>
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2644764"></a>netatalk</h3></div></div></div><p>
-<a class="indexterm" name="id2644772"></a>
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2651733"></a>netatalk</h3></div></div></div><p>
+<a class="indexterm" name="id2651740"></a>
 		A netatalk module will ease co-existence of Samba and netatalk file sharing services.
 		</p><p>Advantages compared to the old netatalk module:
-		</p><div class="itemizedlist"><a class="indexterm" name="id2644787"></a><ul type="disc"><li><p>Does not care about creating .AppleDouble forks, just keeps them in sync.</p></li><li><p>If a share in <code class="filename">smb.conf</code> does not contain .AppleDouble item in hide or veto list, it will be added automatically.</p></li></ul></div><p>
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2644814"></a>shadow_copy</h3></div></div></div><div class="warning" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Warning</h3><p>
-<a class="indexterm" name="id2644823"></a>
+		</p><div class="itemizedlist"><a class="indexterm" name="id2651755"></a><ul type="disc"><li><p>Does not care about creating .AppleDouble forks, just keeps them in sync.</p></li><li><p>If a share in <code class="filename">smb.conf</code> does not contain .AppleDouble item in hide or veto list, it will be added automatically.</p></li></ul></div><p>
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2651783"></a>shadow_copy</h3></div></div></div><div class="warning" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Warning</h3><p>
+<a class="indexterm" name="id2651792"></a>
 	<span class="emphasis"><em>THIS IS NOT A BACKUP, ARCHIVAL, OR VERSION CONTROL SOLUTION!</em></span>
 	</p><p>
-<a class="indexterm" name="id2644838"></a>
+<a class="indexterm" name="id2651806"></a>
 	With Samba or Windows servers, shadow_copy is designed to be an end-user tool only.  It does not replace or
 	enhance your backup and archival solutions and should in no way be considered as such.  Additionally, if you
 	need version control, implement a version control system.  You have been warned.
@@ -251,12 +251,12 @@ quotasettings:	gid nolimit = no
 	additional requirements for pre-Windows XP clients.  I did not test this functionality with any pre-Windows XP
 	clients.  You should be able to get more information about MS Shadow Copy <a class="ulink" href="http://www.microsoft.com/windowsserver2003/techinfo/overview/scr.mspx" target="_top">from the Microsoft's site</a>.
 	</p><p>
-<a class="indexterm" name="id2644882"></a>
-<a class="indexterm" name="id2644889"></a>
-<a class="indexterm" name="id2644895"></a>
-<a class="indexterm" name="id2644902"></a>
-<a class="indexterm" name="id2644909"></a>
-<a class="indexterm" name="id2644916"></a>
+<a class="indexterm" name="id2651851"></a>
+<a class="indexterm" name="id2651858"></a>
+<a class="indexterm" name="id2651865"></a>
+<a class="indexterm" name="id2651872"></a>
+<a class="indexterm" name="id2651878"></a>
+<a class="indexterm" name="id2651885"></a>
 	The shadow_copy VFS module requires some underlying file system setup with some sort of Logical Volume Manager
 	(LVM) such as LVM1, LVM2, or EVMS.  Setting up LVM is beyond the scope of this document; however, we will
 	outline the steps we took to test this functionality for <span class="emphasis"><em>example purposes only.</em></span> You need
@@ -269,9 +269,9 @@ quotasettings:	gid nolimit = no
 	      See <a class="ulink" href="http://www-106.ibm.com/developerworks/linux/library/l-lvm/" target="_top">Learning
 	      Linux LVM, Part 1</a> and <a class="ulink" href="http://www-106.ibm.com/developerworks/library/l-lvm2.html" target="_top">Learning
 	      Linux LWM, Part 2</a> for Daniel Robbins' well-written, two part tutorial on Linux and LVM using LVM
-	      source code and reiserfs.</p></li></ul></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2645002"></a>Shadow Copy Setup</h4></div></div></div><p>
-<a class="indexterm" name="id2645010"></a>
-<a class="indexterm" name="id2645016"></a>
+	      source code and reiserfs.</p></li></ul></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2651971"></a>Shadow Copy Setup</h4></div></div></div><p>
+<a class="indexterm" name="id2651979"></a>
+<a class="indexterm" name="id2651986"></a>
 	At the time of this writing, not much testing has been done.  I tested the shadow copy VFS module with a
 	specific scenario which was not deployed in a production environment, but more as a proof of concept.  The
 	scenario involved a Samba-3 file server on Debian Sarge with an XFS file system and LVM1.  I do NOT recommend
@@ -286,8 +286,8 @@ quotasettings:	gid nolimit = no
 		It doesn't matter if it is a Domain Controller or Member File Server, but it is assumed that you have a
 		working Samba 3.0.3 or later server running.
 		</p></li><li><p><b>Install &amp; Configure LVM. </b>
-<a class="indexterm" name="id2645095"></a>
-<a class="indexterm" name="id2645102"></a>
+<a class="indexterm" name="id2652066"></a>
+<a class="indexterm" name="id2652072"></a>
 		Before you can make shadow copies available to the client, you have to create the shadow copies.  This is
 		done by taking some sort of file system snapshot.  Snapshots are a typical feature of Logical Volume
 		Managers such as LVM, so we first need to have that setup.
@@ -295,69 +295,69 @@ quotasettings:	gid nolimit = no
 		The following is provided as an example and will be most helpful for Debian users.  Again, this was tested
 		using the "testing" or "Sarge" distribution.
 		</p><ul type="disc"><li><p>
-<a class="indexterm" name="id2645127"></a>
-<a class="indexterm" name="id2645134"></a>
-<a class="indexterm" name="id2645140"></a>
-<a class="indexterm" name="id2645147"></a>
-<a class="indexterm" name="id2645154"></a>
+<a class="indexterm" name="id2652097"></a>
+<a class="indexterm" name="id2652104"></a>
+<a class="indexterm" name="id2652111"></a>
+<a class="indexterm" name="id2652118"></a>
+<a class="indexterm" name="id2652124"></a>
 			Install lvm10 and devfsd packages if you have not done so already.  On Debian systems, you are warned of the
 			interaction of devfs and lvm1 which requires the use of devfs filenames.  Running <code class="literal">apt-get update
 			&amp;&amp; apt-get install lvm10 devfsd xfsprogs</code> should do the trick for this example.
 			</p></li><li><p>
-<a class="indexterm" name="id2645178"></a>
-<a class="indexterm" name="id2645184"></a>
-<a class="indexterm" name="id2645191"></a>
-<a class="indexterm" name="id2645198"></a>
-<a class="indexterm" name="id2645205"></a>
+<a class="indexterm" name="id2652148"></a>
+<a class="indexterm" name="id2652155"></a>
+<a class="indexterm" name="id2652162"></a>
+<a class="indexterm" name="id2652169"></a>
+<a class="indexterm" name="id2652175"></a>
 			Now you need to create a volume.  You will need to create a partition (or partitions) to add to your volume.
 			Use your favorite partitioning tool (e.g., Linux fdisk, cfdisk, etc.).  The partition type should be set to
 			0x8e for "Linux LVM."  In this example, we will use /dev/hdb1.
 			</p><p>
-<a class="indexterm" name="id2645220"></a>
-<a class="indexterm" name="id2645227"></a>
-<a class="indexterm" name="id2645234"></a>
+<a class="indexterm" name="id2652190"></a>
+<a class="indexterm" name="id2652197"></a>
+<a class="indexterm" name="id2652204"></a>
 			Once you have the Linux LVM partition (type 0x8e), you can run a series of commands to create the LVM volume.
 			You can use several disks and/or partitions, but we will use only one in this example.  You may also need to
 			load the kernel module with something like <code class="literal">modprobe lvm-mod</code> and set your system up to load
 			it on reboot by adding it to (<code class="filename">/etc/modules</code>).
 			</p></li><li><p>
-<a class="indexterm" name="id2645263"></a>
+<a class="indexterm" name="id2652233"></a>
 			Create the physical volume with <code class="literal">pvcreate /dev/hdb1</code>
 			</p></li><li><p>
-<a class="indexterm" name="id2645280"></a>
-<a class="indexterm" name="id2645287"></a>
+<a class="indexterm" name="id2652251"></a>
+<a class="indexterm" name="id2652258"></a>
 			Create the volume group and add /dev/hda1 to it with <code class="literal">vgcreate shadowvol /dev/hdb1</code>
 			</p><p>
-<a class="indexterm" name="id2645305"></a>
+<a class="indexterm" name="id2652275"></a>
 			You can use <code class="literal">vgdisplay</code> to review information about the volume group.
 			</p></li><li><p>
-<a class="indexterm" name="id2645323"></a>
+<a class="indexterm" name="id2652293"></a>
 			Now you can create the logical volume with something like <code class="literal">lvcreate -L400M -nsh_test shadowvol</code>
 			</p><p>
-<a class="indexterm" name="id2645340"></a>
+<a class="indexterm" name="id2652310"></a>
 			This creates the logical volume of 400 MBs named "sh_test" in the volume group we created called shadowvol.
 			If everything is working so far, you should see them in <code class="filename">/dev/shadowvol</code>.
 			</p></li><li><p>
-<a class="indexterm" name="id2645360"></a>
+<a class="indexterm" name="id2652331"></a>
 			Now we should be ready to format the logical volume we named sh_test with <code class="literal">mkfs.xfs
 			/dev/shadowvol/sh_test</code>
 			</p><p>
-<a class="indexterm" name="id2645378"></a>
-<a class="indexterm" name="id2645385"></a>
-<a class="indexterm" name="id2645391"></a>
-<a class="indexterm" name="id2645398"></a>
-<a class="indexterm" name="id2645405"></a>
+<a class="indexterm" name="id2652348"></a>
+<a class="indexterm" name="id2652355"></a>
+<a class="indexterm" name="id2652362"></a>
+<a class="indexterm" name="id2652369"></a>
+<a class="indexterm" name="id2652375"></a>
 			You can format the logical volume with any file system you choose, but make sure to use one that allows you to
 			take advantage of the additional features of LVM such as freezing, resizing, and growing your file systems.
 			</p><p>
-<a class="indexterm" name="id2645419"></a>
-<a class="indexterm" name="id2645426"></a>
-<a class="indexterm" name="id2645433"></a>
+<a class="indexterm" name="id2652389"></a>
+<a class="indexterm" name="id2652396"></a>
+<a class="indexterm" name="id2652403"></a>
 			Now we have an LVM volume where we can play with the shadow_copy VFS module.
 			</p></li><li><p>
-<a class="indexterm" name="id2645445"></a>
-<a class="indexterm" name="id2645452"></a>
-<a class="indexterm" name="id2645459"></a>
+<a class="indexterm" name="id2652416"></a>
+<a class="indexterm" name="id2652422"></a>
+<a class="indexterm" name="id2652429"></a>
 			Now we need to prepare the directory with something like
 </p><pre class="screen">
 <code class="prompt">root# </code> mkdir -p /data/shadow_share
@@ -366,19 +366,19 @@ quotasettings:	gid nolimit = no
 			you can use it.  If in doubt, use <code class="literal">chmod 777 /data/shadow_share</code> and tighten the permissions
 			once you get things working.
 			</p></li><li><p>
-<a class="indexterm" name="id2645493"></a>
+<a class="indexterm" name="id2652464"></a>
 			Mount the LVM volume using something like <code class="literal">mount /dev/shadowvol/sh_test /data/shadow_share</code>
 			</p><p>
-<a class="indexterm" name="id2645510"></a>
+<a class="indexterm" name="id2652481"></a>
 			You may also want to edit your <code class="filename">/etc/fstab</code> so that this partition mounts during the system boot.
 			</p></li></ul></div></li><li><p><b>Install &amp; Configure the shadow_copy VFS Module. </b>
 		Finally we get to the actual shadow_copy VFS module.  The shadow_copy VFS module should be available in Samba
 		3.0.3 and higher.  The smb.conf configuration is pretty standard.  Here is our example of a share configured
 		with the shadow_copy VFS module:
-		</p><div class="example"><a name="vfsshadow"></a><p class="title"><b>Example 23.3. Share With shadow_copy VFS</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[shadow_share]</code></em></td></tr><tr><td><a class="indexterm" name="id2645568"></a><em class="parameter"><code>comment = Shadow Copy Enabled Share</code></em></td></tr><tr><td><a class="indexterm" name="id2645580"></a><em class="parameter"><code>path = /data/shadow_share</code></em></td></tr><tr><td><a class="indexterm" name="id2645592"></a><em class="parameter"><code>vfs objects = shadow_copy</code></em></td></tr><tr><td><a class="indexterm" name="id2645603"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2645615"></a><em class="parameter"><code>browseable = yes</code></em></td></tr></table></div></div><br class="example-break"></li><li><p><b>Create Snapshots and Make Them Available to shadow_copy.so. </b>
-<a class="indexterm" name="id2645638"></a>
-<a class="indexterm" name="id2645645"></a>
-<a class="indexterm" name="id2645652"></a>
+		</p><div class="example"><a name="vfsshadow"></a><p class="title"><b>Example 23.3. Share With shadow_copy VFS</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[shadow_share]</code></em></td></tr><tr><td><a class="indexterm" name="id2652538"></a><em class="parameter"><code>comment = Shadow Copy Enabled Share</code></em></td></tr><tr><td><a class="indexterm" name="id2652550"></a><em class="parameter"><code>path = /data/shadow_share</code></em></td></tr><tr><td><a class="indexterm" name="id2652562"></a><em class="parameter"><code>vfs objects = shadow_copy</code></em></td></tr><tr><td><a class="indexterm" name="id2652574"></a><em class="parameter"><code>writeable = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2652585"></a><em class="parameter"><code>browseable = yes</code></em></td></tr></table></div></div><br class="example-break"></li><li><p><b>Create Snapshots and Make Them Available to shadow_copy.so. </b>
+<a class="indexterm" name="id2652609"></a>
+<a class="indexterm" name="id2652615"></a>
+<a class="indexterm" name="id2652622"></a>
 		Before you can browse the shadow copies, you must create them and mount them.  This will most likely be done
 		with a script that runs as a cron job.  With this particular solution, the shadow_copy VFS module is used to
 		browse LVM snapshots.  Those snapshots are not created by the module.  They are not made available by the
@@ -404,15 +404,15 @@ mount /dev/shadowvol/$SNAPNAME \
 		your XP client you can right-click on specific files or in the empty space of the shadow_share and view the
 		"properties."  If anything has changed, then you will see it on the "Previous Versions" tab of the properties
 		window.
-		</p></li></ol></div></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2645720"></a>VFS Modules Available Elsewhere</h2></div></div></div><p>
-<a class="indexterm" name="id2645729"></a>
+		</p></li></ol></div></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2652691"></a>VFS Modules Available Elsewhere</h2></div></div></div><p>
+<a class="indexterm" name="id2652699"></a>
 This section contains a listing of various other VFS modules that have been posted but do not currently reside
 in the Samba CVS tree for one reason or another (e.g., it is easy for the maintainer to have his or her own
 CVS tree).
 </p><p>
 No statements about the stability or functionality of any module should be implied due to its presence here.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2645746"></a>DatabaseFS</h3></div></div></div><p>
-<a class="indexterm" name="id2645753"></a>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2652716"></a>DatabaseFS</h3></div></div></div><p>
+<a class="indexterm" name="id2652724"></a>
 URL: <a class="ulink" href="http://www.css.tayloru.edu/~elorimer/databasefs/index.php" target="_top">
 Taylors University DatabaeFS</a>
 </p><p>By <a class="ulink" href="mailto:elorimer@css.tayloru.edu" target="_top">Eric Lorimer.</a></p><p>
@@ -425,13 +425,13 @@ beyond the table it requires to run.
 </p><p>
 Any feedback would be appreciated: comments, suggestions, patches, and so on. If nothing else, it
 might prove useful for someone else who wishes to create a virtual filesystem.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2645805"></a>vscan</h3></div></div></div><a class="indexterm" name="id2645811"></a><p>URL: <a class="ulink" href="http://www.openantivirus.org/projects.php#samba-vscan" target="_top">
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2652776"></a>vscan</h3></div></div></div><a class="indexterm" name="id2652781"></a><p>URL: <a class="ulink" href="http://www.openantivirus.org/projects.php#samba-vscan" target="_top">
 Open Anti-Virus vscan</a>
 </p><p>
-<a class="indexterm" name="id2645832"></a>
+<a class="indexterm" name="id2652802"></a>
 samba-vscan is a proof-of-concept module for Samba, which provides on-access anti-virus support for files
 shared using Samba.  samba-vscan supports various virus scanners and is maintained by Rainer Link.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2645845"></a>vscan-clamav</h3></div></div></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2652815"></a>vscan-clamav</h3></div></div></div><p>
 Samba users have been using the RPMS from SerNet without a problem.
 OpenSUSE Linux users have also used the vscan scanner for quite some time
 with excellent results. It does impact overall write performance though.

@@ -412,8 +412,6 @@ static void recycle_do_touch(vfs_handle_struct *handle, const char *fname,
 	}
 }
 
-extern userdom_struct current_user_info;
-
 /**
  * Check if file should be recycled
  **/
@@ -432,10 +430,11 @@ static int recycle_unlink(vfs_handle_struct *handle, const char *file_name)
 	int rc = -1;
 
 	repository = talloc_sub_advanced(NULL, lp_servicename(SNUM(conn)),
-					conn->user,
-					conn->connectpath, conn->gid,
-					get_current_username(),
-					current_user_info.domain,
+					conn->server_info->unix_name,
+					conn->connectpath,
+					conn->server_info->utok.gid,
+					conn->server_info->sanitized_username,
+					pdb_get_domain(conn->server_info->sam_account),
 					recycle_repository(handle));
 	ALLOC_CHECK(repository, done);
 	/* shouldn't we allow absolute path names here? --metze */
@@ -526,7 +525,9 @@ static int recycle_unlink(vfs_handle_struct *handle, const char *file_name)
 	}
 
 	if (recycle_keep_dir_tree(handle) == True) {
-		asprintf(&temp_name, "%s/%s", repository, path_name);
+		if (asprintf(&temp_name, "%s/%s", repository, path_name) == -1) {
+			ALLOC_CHECK(temp_name, done);
+		}
 	} else {
 		temp_name = SMB_STRDUP(repository);
 	}
@@ -544,8 +545,9 @@ static int recycle_unlink(vfs_handle_struct *handle, const char *file_name)
 		}
 	}
 
-	asprintf(&final_name, "%s/%s", temp_name, base);
-	ALLOC_CHECK(final_name, done);
+	if (asprintf(&final_name, "%s/%s", temp_name, base) == -1) {
+		ALLOC_CHECK(final_name, done);
+	}
 	DEBUG(10, ("recycle: recycled file name: %s\n", final_name));		/* new filename with path */
 
 	/* check if we should delete file from recycle bin */
@@ -562,7 +564,9 @@ static int recycle_unlink(vfs_handle_struct *handle, const char *file_name)
 	i = 1;
 	while (recycle_file_exist(handle, final_name)) {
 		SAFE_FREE(final_name);
-		asprintf(&final_name, "%s/Copy #%d of %s", temp_name, i++, base);
+		if (asprintf(&final_name, "%s/Copy #%d of %s", temp_name, i++, base) == -1) {
+			ALLOC_CHECK(final_name, done);
+		}
 	}
 
 	DEBUG(10, ("recycle: Moving %s to %s\n", file_name, final_name));

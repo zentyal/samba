@@ -50,49 +50,56 @@ $(DOCBOOKDIR)/Samba3-Developers-Guide.xml: $(filter-out Samba3-Developers-Guide/
 $(DOCBOOKDIR)/Samba4-HOWTO.xml: $(filter-out Samba4-HOWTO/index.xml,$(wildcard Samba4-HOWTO/*.xml)) Samba4-HOWTO-attributions.xml
 
 # Pseudo targets 
-all: $(TARGETS)
-everything: manpages3 pdf html-single html htmlman3 txt ps fo htmlhelp pearson 
-release: manpages3 htmlman3 html pdf 
-clean:
+all:: $(TARGETS)
+everything:: manpages3 pdf html-single html htmlman3 txt ps fo htmlhelp pearson 
+release:: manpages3 htmlman3 html pdf 
+clean::
 	@echo "Cleaning up..." 
 	rm -rf $(OUTPUTDIR)/* $(DOCBOOKDIR)
 	rm -f $(patsubst %.svg,%.png,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-dia))) \
 			$(patsubst %.svg,%.pdf,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg))) \
-			$(patsubst %.svg,%.eps,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg)))
+			$(patsubst %.svg,%.eps,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg))) \
+			$(patsubst %.svg,%.png,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg)))
 	rm -f *-attributions.xml *.d *.tpt *.tex *.loc *.toc *.lof *.glo *.idx *.aux
 	rm -f *-images-html*
-	rm -f *-images-latex-* latexfigures
+	rm -f *-images-latex-* $(LATEX_FIGURES)
 	rm -f xslt/figures/*pdf
 	rm -f $(SMBDOTCONFDOC)/parameters.*.xml
 	rm -f $(addsuffix .*,$(MAIN_DOCS))
+	rm -f build/catalog.xml
 
 # Output format targets
-pdf: $(patsubst %,$(PDFDIR)/%.pdf,$(MAIN_DOCS))
-dvi: $(patsubst %,$(DVIDIR)/%.dvi,$(MAIN_DOCS))
-ps: $(patsubst %,$(PSDIR)/%.ps,$(MAIN_DOCS))
-txt: $(patsubst %,$(TXTDIR)/%.txt,$(MAIN_DOCS))
-txt-chunks: $(addsuffix -txt-chunks,$(MAIN_DOCS))
-fo: $(patsubst %,$(FODIR)/%.fo,$(MAIN_DOCS))
-fo-pdf: $(patsubst %,$(FOPDFDIR)/%.pdf,$(MAIN_DOCS))
-tex: $(addsuffix .tex,$(MAIN_DOCS))
-texi: $(patsubst %,$(TEXINFODIR)/%.texi,$(MAIN_DOCS))
-texiinfo: $(patsubst %,$(TEXINFODIR)/%.info,$(MAIN_DOCS))
-manpages3: $(patsubst $(MANPAGEDIR3)/%.xml,$(OUTPUTDIR)/manpages-3/%,$(MANPAGES3))
-pearson: $(PEARSONDIR)/Samba3-HOWTO.xml
-pearson-verify: $(PEARSONDIR)/Samba3-HOWTO.report.html
-plucker: $(patsubst %,$(PLUCKERDIR)/%.pdb,$(MAIN_DOCS))
-htmlman3: $(patsubst $(MANPAGEDIR3)/%.xml,$(HTMLDIR)/manpages-3/%.html,$(MANPAGES3)) $(HTMLDIR)/manpages-3/index.html
-html-single: $(patsubst %,$(HTMLDIR)/%.html,$(MAIN_DOCS))
-html: $(patsubst %,$(HTMLDIR)/%/index.html,$(MAIN_DOCS)) $(HTMLDIR)/index.html
-htmlhelp: $(addprefix $(HTMLHELPDIR)/,$(MAIN_DOCS))
-validate: $(addsuffix -validate,$(MAIN_DOCS))
+pdf:: $(patsubst %,$(PDFDIR)/%.pdf,$(MAIN_DOCS))
+dvi:: $(patsubst %,$(DVIDIR)/%.dvi,$(MAIN_DOCS))
+ps:: $(patsubst %,$(PSDIR)/%.ps,$(MAIN_DOCS))
+txt:: $(patsubst %,$(TXTDIR)/%.txt,$(MAIN_DOCS))
+txt-chunks:: $(addsuffix -txt-chunks,$(MAIN_DOCS))
+fo:: $(patsubst %,$(FODIR)/%.fo,$(MAIN_DOCS))
+fo-pdf:: $(patsubst %,$(FOPDFDIR)/%.pdf,$(MAIN_DOCS))
+tex:: $(addsuffix .tex,$(MAIN_DOCS))
+texi:: $(patsubst %,$(TEXINFODIR)/%.texi,$(MAIN_DOCS))
+texiinfo:: $(patsubst %,$(TEXINFODIR)/%.info,$(MAIN_DOCS))
+manpages3:: $(patsubst $(MANPAGEDIR3)/%.xml,$(OUTPUTDIR)/manpages-3/%,$(MANPAGES3))
+pearson:: $(PEARSONDIR)/Samba3-HOWTO.xml
+pearson-verify:: $(PEARSONDIR)/Samba3-HOWTO.report.html
+plucker:: $(patsubst %,$(PLUCKERDIR)/%.pdb,$(MAIN_DOCS))
+htmlman3:: $(patsubst $(MANPAGEDIR3)/%.xml,$(HTMLDIR)/manpages-3/%.html,$(MANPAGES3)) $(HTMLDIR)/manpages-3/index.html
+html-single:: $(patsubst %,$(HTMLDIR)/%.html,$(MAIN_DOCS))
+html:: $(patsubst %,$(HTMLDIR)/%/index.html,$(MAIN_DOCS)) $(HTMLDIR)/index.html
+htmlhelp:: $(addprefix $(HTMLHELPDIR)/,$(MAIN_DOCS))
+validate:: $(addsuffix -validate,$(MAIN_DOCS))
+
+test:: validate
+check:: validate
+
+.PHONY: test check validate
 
 # Intermediate docbook docs
 #
 $(DOCBOOKDIR)/%.xml: %/index.xml xslt/expand-sambadoc.xsl
 	@echo "Converting Samba-specific tags for $*..."
 	@mkdir -p $(@D)
-	$(XSLTPROC) --stringparam latex.imagebasedir "$*/"  --stringparam noreference 0  --xinclude --output $@ xslt/expand-sambadoc.xsl $<
+	@$(XSLTPROC) --stringparam latex.imagebasedir "$*/"  --stringparam noreference 0  --xinclude --output $@ xslt/expand-sambadoc.xsl $<
 
 $(DOCBOOKDIR)/manpages-3/%.xml: $(MANPAGEDIR3)/%.xml xslt/expand-sambadoc.xsl
 	@mkdir -p $(@D)
@@ -105,7 +112,6 @@ $(DOCBOOKDIR)/manpages-3/index.xml: $(MANPAGES3) xslt/manpage-summary.xsl
 	@echo "</variablelist></article>" >> $@
 
 # HTML docs
-
 $(HTMLDIR)/index.html: htmldocs.html
 	@mkdir -p $(@D)
 	cp $< $@
@@ -128,7 +134,7 @@ $(HTMLDIR)/%.html: $(DOCBOOKDIR)/%.xml $(HTMLDIR)/samba.css xslt/html.xsl
 %-attributions.xml: 
 	@echo "Generating attributions file $@ from $*/"
 	@cp -f templates/attributions.xml $@
-	$(XSLTPROC) --xinclude -o $@ xslt/generate-attributions.xsl $*/index.xml 
+	@$(XSLTPROC) --xinclude -o $@ xslt/generate-attributions.xsl $*/index.xml 
 
 # Text files
 $(TXTDIR)/%.txt: $(HTMLDIR)/%.html
@@ -139,15 +145,13 @@ $(TXTDIR)/%.txt: $(HTMLDIR)/%.html
 %.tex: %/index.xml xslt/latex.xsl
 	@echo "Generating $@..."
 	@mkdir -p $(@D)
-	$(XSLTPROC) $(DB2LATEX_ARGS) --stringparam latex.imagebasedir "$*/" --xinclude --output $@ xslt/latex.xsl $<
-
-latexfigures: $(LATEX_FIGURES)
+	@$(XSLTPROC) $(DB2LATEX_ARGS) --stringparam latex.imagebasedir "$*/" --xinclude --output $@ xslt/latex.xsl $<
 
 $(PDFDIR)/%.pdf: %.pdf
 	@mkdir -p $(@D)
 	cp $< $@
 
-%.idx: %.tex latexfigures
+%.idx: %.tex $(LATEX_FIGURES)
 	-$(PDFLATEX) $<
 
 %.ind: %.idx
@@ -156,8 +160,7 @@ $(PDFDIR)/%.pdf: %.pdf
 # Dependency files
 %.d: $(DOCBOOKDIR)/%.xml xslt/generate-dependencies.xsl
 	@echo "Generating dependency file for $*" 
-	$(XSLTPROC) \
-		--novalid \
+	@$(XSLTPROC) --novalid \
 		--stringparam txtbasedir "$(TXTDIR)/$*/" \
 		--stringparam target "$*" \
 		-o $@ xslt/generate-dependencies.xsl $<
@@ -190,7 +193,7 @@ endif
 endif
 
 # Adobe PDF files
-%.pdf: %.tex %.ind latexfigures %-images-latex-png %-images-latex-pdf
+%.pdf: %.tex %.ind $(LATEX_FIGURES) %-images-latex-png %-images-latex-pdf
 	-$(PDFLATEX) $<
 	-$(PDFLATEX) $<
 	-$(PDFLATEX) $<
@@ -318,12 +321,15 @@ xslt/generate-attributions.xsl:
 xslt/man.xsl:
 xslt/pearson.xsl:
 
-distclean clobber: clean
-	rm Makefile.settings config.status config.log configure
+distclean clobber:: clean
+	rm -f Makefile.settings config.status config.log
+
+realdistclean:: distclean
+	rm -f configure
 	rm -rf autom4te.cache
 
 
 # Always keep intermediate files if we can
 .SECONDARY:
-.PHONY: clean clobber archive release everything all $(TARGETS) latexfigures
+.PHONY: clean clobber archive release everything all 
 

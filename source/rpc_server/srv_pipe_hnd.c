@@ -24,9 +24,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
 
-#define	PIPE		"\\PIPE\\"
-#define	PIPELEN		strlen(PIPE)
-
 static smb_np_struct *chain_p;
 static int pipes_open;
 
@@ -61,12 +58,7 @@ static struct bitmap *bmap;
  * system _anyway_.  so that's the next step...
  */
 
-static ssize_t read_from_internal_pipe(void *np_conn, char *data, size_t n,
-		bool *is_data_outstanding);
-static ssize_t write_to_internal_pipe(void *np_conn, char *data, size_t n);
-static bool close_internal_rpc_pipe_hnd(void *np_conn);
-static void *make_internal_rpc_pipe_p(const char *pipe_name, 
-			      connection_struct *conn, uint16 vuid);
+static int close_internal_rpc_pipe_hnd(struct pipes_struct *p);
 
 /****************************************************************************
  Internal Pipe iterator functions.
@@ -215,13 +207,13 @@ smb_np_struct *open_rpc_pipe_p(const char *pipe_name,
 	p->namedpipe_create = make_internal_rpc_pipe_p;
 	p->namedpipe_read = read_from_internal_pipe;
 	p->namedpipe_write = write_to_internal_pipe;
-	p->namedpipe_close = close_internal_rpc_pipe_hnd;
 
-	p->np_state = p->namedpipe_create(pipe_name, conn, vuid);
+	p->np_state = p->namedpipe_create(pipe_name, conn->client_address,
+					  conn->server_info, vuid);
 
 	if (p->np_state == NULL) {
 		DEBUG(0,("open_rpc_pipe_p: make_internal_rpc_pipe_p failed.\n"));
-		SAFE_FREE(p);
+		TALLOC_FREE(p);
 		return NULL;
 	}
 
@@ -266,46 +258,32 @@ smb_np_struct *open_rpc_pipe_p(const char *pipe_name,
  Make an internal namedpipes structure
 ****************************************************************************/
 
-static void *make_internal_rpc_pipe_p(const char *pipe_name, 
-			      connection_struct *conn, uint16 vuid)
+struct pipes_struct *make_internal_rpc_pipe_p(const char *pipe_name,
+					      const char *client_address,
+					      struct auth_serversupplied_info *server_info,
+					      uint16_t vuid)
 {
 	pipes_struct *p;
-	user_struct *vuser = get_valid_user_struct(vuid);
 
 	DEBUG(4,("Create pipe requested %s\n", pipe_name));
 
-	if (!vuser && vuid != UID_FIELD_INVALID) {
-		DEBUG(0,("ERROR! vuid %d did not map to a valid vuser struct!\n", vuid));
-		return NULL;
-	}
-
-	p = SMB_MALLOC_P(pipes_struct);
+	p = TALLOC_ZERO_P(NULL, pipes_struct);
 
 	if (!p) {
 		DEBUG(0,("ERROR! no memory for pipes_struct!\n"));
 		return NULL;
 	}
 
-	ZERO_STRUCTP(p);
-
 	if ((p->mem_ctx = talloc_init("pipe %s %p", pipe_name, p)) == NULL) {
 		DEBUG(0,("open_rpc_pipe_p: talloc_init failed.\n"));
-		SAFE_FREE(p);
-		return NULL;
-	}
-
-	if ((p->pipe_state_mem_ctx = talloc_init("pipe_state %s %p", pipe_name, p)) == NULL) {
-		DEBUG(0,("open_rpc_pipe_p: talloc_init failed.\n"));
-		talloc_destroy(p->mem_ctx);
-		SAFE_FREE(p);
+		TALLOC_FREE(p);
 		return NULL;
 	}
 
 	if (!init_pipe_handle_list(p, pipe_name)) {
 		DEBUG(0,("open_rpc_pipe_p: init_pipe_handles failed.\n"));
 		talloc_destroy(p->mem_ctx);
-		talloc_destroy(p->pipe_state_mem_ctx);
-		SAFE_FREE(p);
+		TALLOC_FREE(p);
 		return NULL;
 	}
 
@@ -319,31 +297,32 @@ static void *make_internal_rpc_pipe_p(const char *pipe_name,
 	if(!prs_init(&p->in_data.data, RPC_MAX_PDU_FRAG_LEN, p->mem_ctx, MARSHALL)) {
 		DEBUG(0,("open_rpc_pipe_p: malloc fail for in_data struct.\n"));
 		talloc_destroy(p->mem_ctx);
-		talloc_destroy(p->pipe_state_mem_ctx);
 		close_policy_by_pipe(p);
-		SAFE_FREE(p);
+		TALLOC_FREE(p);
+		return NULL;
+	}
+
+	p->server_info = copy_serverinfo(p, server_info);
+	if (p->server_info == NULL) {
+		DEBUG(0, ("open_rpc_pipe_p: copy_serverinfo failed\n"));
+		talloc_destroy(p->mem_ctx);
+		close_policy_by_pipe(p);
+		TALLOC_FREE(p);
 		return NULL;
 	}
 
 	DLIST_ADD(InternalPipes, p);
 
-	p->conn = conn;
-
-	p->vuid  = vuid;
+	memcpy(p->client_address, client_address, sizeof(p->client_address));
 
 	p->endian = RPC_LITTLE_ENDIAN;
 
 	ZERO_STRUCT(p->pipe_user);
 
+	p->pipe_user.vuid = vuid;
 	p->pipe_user.ut.uid = (uid_t)-1;
 	p->pipe_user.ut.gid = (gid_t)-1;
-	
-	/* Store the session key and NT_TOKEN */
-	if (vuser) {
-		p->session_key = data_blob(vuser->session_key.data, vuser->session_key.length);
-		p->pipe_user.nt_user_token = dup_nt_token(
-			NULL, vuser->nt_user_token);
-	}
+	p->pipe_user.nt_user_token = dup_nt_token(NULL, server_info->ptok);
 
 	/*
 	 * Initialize the outgoing RPC data buffer with no memory.
@@ -355,7 +334,9 @@ static void *make_internal_rpc_pipe_p(const char *pipe_name,
 	DEBUG(4,("Created internal pipe %s (pipes_open=%d)\n",
 		 pipe_name, pipes_open));
 
-	return (void*)p;
+	talloc_set_destructor(p, close_internal_rpc_pipe_hnd);
+
+	return p;
 }
 
 /****************************************************************************
@@ -368,8 +349,8 @@ static void set_incoming_fault(pipes_struct *p)
 	p->in_data.pdu_needed_len = 0;
 	p->in_data.pdu_received_len = 0;
 	p->fault_state = True;
-	DEBUG(10,("set_incoming_fault: Setting fault state on pipe %s : vuid = 0x%x\n",
-		p->name, p->vuid ));
+	DEBUG(10, ("set_incoming_fault: Setting fault state on pipe %s\n",
+		   p->name));
 }
 
 /****************************************************************************
@@ -938,9 +919,8 @@ ssize_t write_to_pipe(smb_np_struct *p, char *data, size_t n)
  Accepts incoming data on an internal rpc pipe.
 ****************************************************************************/
 
-static ssize_t write_to_internal_pipe(void *np_conn, char *data, size_t n)
+ssize_t write_to_internal_pipe(struct pipes_struct *p, char *data, size_t n)
 {
-	pipes_struct *p = (pipes_struct*)np_conn;
 	size_t data_left = n;
 
 	while(data_left) {
@@ -998,10 +978,9 @@ ssize_t read_from_pipe(smb_np_struct *p, char *data, size_t n,
  have been prepared into arrays of headers + data stream sections.
 ****************************************************************************/
 
-static ssize_t read_from_internal_pipe(void *np_conn, char *data, size_t n,
-		bool *is_data_outstanding)
+ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data, size_t n,
+				bool *is_data_outstanding)
 {
-	pipes_struct *p = (pipes_struct*)np_conn;
 	uint32 pdu_remaining = 0;
 	ssize_t data_returned = 0;
 
@@ -1150,7 +1129,7 @@ bool close_rpc_pipe_hnd(smb_np_struct *p)
 		return False;
 	}
 
-	p->namedpipe_close(p->np_state);
+	TALLOC_FREE(p->np_state);
 
 	bitmap_clear(bmap, p->pnum - pipe_handle_offset);
 
@@ -1193,9 +1172,8 @@ void pipe_close_conn(connection_struct *conn)
  Close an rpc pipe.
 ****************************************************************************/
 
-static bool close_internal_rpc_pipe_hnd(void *np_conn)
+static int close_internal_rpc_pipe_hnd(struct pipes_struct *p)
 {
-	pipes_struct *p = (pipes_struct *)np_conn;
 	if (!p) {
 		DEBUG(0,("Invalid pipe in close_internal_rpc_pipe_hnd\n"));
 		return False;
@@ -1212,24 +1190,19 @@ static bool close_internal_rpc_pipe_hnd(void *np_conn)
 		talloc_destroy(p->mem_ctx);
 	}
 
-	if (p->pipe_state_mem_ctx) {
-		talloc_destroy(p->pipe_state_mem_ctx);
-	}
-
 	free_pipe_rpc_context( p->contexts );
 
 	/* Free the handles database. */
 	close_policy_by_pipe(p);
 
 	TALLOC_FREE(p->pipe_user.nt_user_token);
-	data_blob_free(&p->session_key);
 	SAFE_FREE(p->pipe_user.ut.groups);
 
 	DLIST_REMOVE(InternalPipes, p);
 
 	ZERO_STRUCTP(p);
 
-	SAFE_FREE(p);
+	TALLOC_FREE(p);
 	
 	return True;
 }

@@ -52,9 +52,12 @@ struct messaging_context *nmbd_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   nmbd_event_context()))) {
-		smb_panic("Could not init nmbd messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     nmbd_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init nmbd messaging context.\n"));
 	}
 	return ctx;
 }
@@ -762,8 +765,6 @@ static bool open_sockets(bool isdaemon, int port)
 	};
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
-	db_tdb2_setup_messaging(NULL, false);
-
 	load_case_tables();
 
 	global_nmb_port = NMB_PORT;
@@ -802,12 +803,12 @@ static bool open_sockets(bool isdaemon, int port)
 	sys_srandom(time(NULL) ^ sys_getpid());
 	
 	if (!override_logfile) {
-		char *logfile = NULL;
-		if (asprintf(&logfile, "%s/log.nmbd", get_dyn_LOGFILEBASE()) < 0) {
+		char *lfile = NULL;
+		if (asprintf(&lfile, "%s/log.nmbd", get_dyn_LOGFILEBASE()) < 0) {
 			exit(1);
 		}
-		lp_set_logfile(logfile);
-		SAFE_FREE(logfile);
+		lp_set_logfile(lfile);
+		SAFE_FREE(lfile);
 	}
 	
 	fault_setup((void (*)(void *))fault_continue );
@@ -857,8 +858,6 @@ static bool open_sockets(bool isdaemon, int port)
 	if (nmbd_messaging_context() == NULL) {
 		return 1;
 	}
-
-	db_tdb2_setup_messaging(nmbd_messaging_context(), true);
 
 	if ( !reload_nmbd_services(False) )
 		return(-1);
@@ -912,7 +911,8 @@ static bool open_sockets(bool isdaemon, int port)
 
 	pidfile_create("nmbd");
 
-	if (!reinit_after_fork(nmbd_messaging_context(), false)) {
+	if (!reinit_after_fork(nmbd_messaging_context(),
+			       nmbd_event_context(), false)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}

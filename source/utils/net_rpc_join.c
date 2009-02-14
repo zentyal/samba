@@ -1,6 +1,6 @@
-/* 
-   Samba Unix/Linux SMB client library 
-   Distributed SMB/CIFS Server Management Utility 
+/*
+   Samba Unix/Linux SMB client library
+   Distributed SMB/CIFS Server Management Utility
    Copyright (C) 2001 Andrew Bartlett (abartlet@samba.org)
    Copyright (C) Tim Potter     2001
    Copyright (C) 2008 Guenther Deschner
@@ -9,15 +9,15 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
- 
+
 #include "includes.h"
 #include "utils/net.h"
 
@@ -41,8 +41,8 @@
  * @return A shell status integer (0 for success)
  *
  **/
-NTSTATUS net_rpc_join_ok(const char *domain, const char *server,
-			 struct sockaddr_storage *pss)
+NTSTATUS net_rpc_join_ok(struct net_context *c, const char *domain,
+			 const char *server, struct sockaddr_storage *pss)
 {
 	enum security_types sec;
 	unsigned int conn_flags = NET_FLAGS_PDC;
@@ -57,7 +57,7 @@ NTSTATUS net_rpc_join_ok(const char *domain, const char *server,
 	if (sec == SEC_ADS) {
 		/* Connect to IPC$ using machine account's credentials. We don't use anonymous
 		   connection here, as it may be denied by server's local policy. */
-		net_use_machine_account();
+		net_use_machine_account(c);
 
 	} else {
 		/* some servers (e.g. WinNT) don't accept machine-authenticated
@@ -66,18 +66,20 @@ NTSTATUS net_rpc_join_ok(const char *domain, const char *server,
 	}
 
 	/* Connect to remote machine */
-	ntret = net_make_ipc_connection_ex(domain, server, pss, conn_flags, &cli);
+	ntret = net_make_ipc_connection_ex(c, domain, server, pss, conn_flags,
+					   &cli);
 	if (!NT_STATUS_IS_OK(ntret)) {
 		return ntret;
 	}
 
 	/* Setup the creds as though we're going to do schannel... */
-        netlogon_pipe = get_schannel_session_key(cli, domain, &neg_flags, &ntret);
+	ntret = get_schannel_session_key(cli, domain, &neg_flags,
+					 &netlogon_pipe);
 
 	/* We return NT_STATUS_INVALID_NETWORK_RESPONSE if the server is refusing
 	   to negotiate schannel, but the creds were set up ok. That'll have to do. */
 
-        if (!netlogon_pipe) {
+        if (!NT_STATUS_IS_OK(ntret)) {
 		if (NT_STATUS_EQUAL(ntret, NT_STATUS_INVALID_NETWORK_RESPONSE)) {
 			cli_shutdown(cli);
 			return NT_STATUS_OK;
@@ -97,11 +99,11 @@ NTSTATUS net_rpc_join_ok(const char *domain, const char *server,
 		return ntret;
 	}
 
-	pipe_hnd = cli_rpc_pipe_open_schannel_with_key(cli, PI_NETLOGON,
-				PIPE_AUTH_LEVEL_PRIVACY,
-				domain, netlogon_pipe->dc, &ntret);
+	ntret = cli_rpc_pipe_open_schannel_with_key(
+		cli, &ndr_table_netlogon.syntax_id, PIPE_AUTH_LEVEL_PRIVACY,
+		domain, netlogon_pipe->dc, &pipe_hnd);
 
-	if (!pipe_hnd) {
+	if (!NT_STATUS_IS_OK(ntret)) {
 		DEBUG(0,("net_rpc_join_ok: failed to open schannel session "
 				"on netlogon pipe to server %s for domain %s. Error was %s\n",
 			cli->desthost, domain, nt_errstr(ntret) ));
@@ -125,7 +127,7 @@ NTSTATUS net_rpc_join_ok(const char *domain, const char *server,
  *
  **/
 
-int net_rpc_join_newstyle(int argc, const char **argv) 
+int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 {
 
 	/* libsmb variables */
@@ -146,7 +148,7 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 	/* Password stuff */
 
 	char *clear_trust_password = NULL;
-	uchar pwbuf[516];
+	struct samr_CryptPassword crypt_pwd;
 	uchar md4_trust_password[16];
 	union samr_UserInfo set_info;
 
@@ -186,7 +188,7 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 
 	/* Make authenticated connection to remote machine */
 
-	result = net_make_ipc_connection(NET_FLAGS_PDC, &cli);
+	result = net_make_ipc_connection(c, NET_FLAGS_PDC, &cli);
 	if (!NT_STATUS_IS_OK(result)) {
 		return 1;
 	}
@@ -198,15 +200,16 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 
 	/* Fetch domain sid */
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_LSARPC, &result);
-	if (!pipe_hnd) {
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+					  &pipe_hnd);
+	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0, ("Error connecting to LSA pipe. Error was %s\n",
 			nt_errstr(result) ));
 		goto done;
 	}
 
 
-	CHECK_RPC_ERR(rpccli_lsa_open_policy(pipe_hnd, mem_ctx, True,
+	CHECK_RPC_ERR(rpccli_lsa_open_policy(pipe_hnd, mem_ctx, true,
 					  SEC_RIGHTS_MAXIMUM_ALLOWED,
 					  &lsa_pol),
 		      "error opening lsa policy handle");
@@ -221,7 +224,7 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 	domain_sid = info->account_domain.sid;
 
 	rpccli_lsa_Close(pipe_hnd, mem_ctx, &lsa_pol);
-	cli_rpc_pipe_close(pipe_hnd); /* Done with this pipe */
+	TALLOC_FREE(pipe_hnd); /* Done with this pipe */
 
 	/* Bail out if domain didn't get set. */
 	if (!domain) {
@@ -230,15 +233,16 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 	}
 
 	/* Create domain user */
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SAMR, &result);
-	if (!pipe_hnd) {
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_samr.syntax_id,
+					  &pipe_hnd);
+	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0, ("Error connecting to SAM pipe. Error was %s\n",
 			nt_errstr(result) ));
 		goto done;
 	}
 
 	CHECK_RPC_ERR(rpccli_samr_Connect2(pipe_hnd, mem_ctx,
-					   pipe_hnd->cli->desthost,
+					   pipe_hnd->desthost,
 					   SEC_RIGHTS_MAXIMUM_ALLOWED,
 					   &sam_pol),
 		      "could not connect to SAM database");
@@ -333,14 +337,14 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 		E_md4hash(clear_trust_password, md4_trust_password);
 	}
 
-	encode_pw_buffer(pwbuf, clear_trust_password, STR_UNICODE);
-
 	/* Set password on machine account */
 
-	init_samr_user_info24(&set_info.info24, pwbuf, 24);
+	init_samr_CryptPassword(clear_trust_password,
+				&cli->user_session_key,
+				&crypt_pwd);
 
-	SamOEMhashBlob(set_info.info24.password.data, 516,
-		       &cli->user_session_key);
+	init_samr_user_info24(&set_info.info24, &crypt_pwd,
+			      PASS_DONT_CHANGE_AT_NEXT_LOGON);
 
 	CHECK_RPC_ERR(rpccli_samr_SetUserInfo2(pipe_hnd, mem_ctx,
 					       &user_pol,
@@ -368,12 +372,13 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 					 &set_info);
 
 	rpccli_samr_Close(pipe_hnd, mem_ctx, &user_pol);
-	cli_rpc_pipe_close(pipe_hnd); /* Done with this pipe */
+	TALLOC_FREE(pipe_hnd); /* Done with this pipe */
 
 	/* Now check the whole process from top-to-bottom */
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_NETLOGON, &result);
-	if (!pipe_hnd) {
+	result = cli_rpc_pipe_open_noauth(cli, &ndr_table_netlogon.syntax_id,
+					  &pipe_hnd);
+	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0,("Error connecting to NETLOGON pipe. Error was %s\n",
 			nt_errstr(result) ));
 		goto done;
@@ -408,13 +413,12 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 	   do the same again (setup creds) in net_rpc_join_ok(). JRA. */
 
 	if (lp_client_schannel() && (neg_flags & NETLOGON_NEG_SCHANNEL)) {
-		struct rpc_pipe_client *netlogon_schannel_pipe = 
-						cli_rpc_pipe_open_schannel_with_key(cli,
-							PI_NETLOGON,
-							PIPE_AUTH_LEVEL_PRIVACY,
-							domain,
-							pipe_hnd->dc,
-							&result);
+		struct rpc_pipe_client *netlogon_schannel_pipe;
+
+		result = cli_rpc_pipe_open_schannel_with_key(
+			cli, &ndr_table_netlogon.syntax_id,
+			PIPE_AUTH_LEVEL_PRIVACY, domain, pipe_hnd->dc,
+			&netlogon_schannel_pipe);
 
 		if (!NT_STATUS_IS_OK(result)) {
 			DEBUG(0, ("Error in domain join verification (schannel setup failed): %s\n\n",
@@ -429,10 +433,10 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 
 			goto done;
 		}
-		cli_rpc_pipe_close(netlogon_schannel_pipe);
+		TALLOC_FREE(netlogon_schannel_pipe);
 	}
 
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 
 	/* Now store the secret in the secrets database */
 
@@ -448,7 +452,7 @@ int net_rpc_join_newstyle(int argc, const char **argv)
 	}
 
 	/* double-check, connection from scratch */
-	result = net_rpc_join_ok(domain, cli->desthost, &cli->dest_ss);
+	result = net_rpc_join_ok(c, domain, cli->desthost, &cli->dest_ss);
 	retval = NT_STATUS_IS_OK(result) ? 0 : -1;
 
 done:
@@ -462,7 +466,7 @@ done:
 			printf("Joined domain %s.\n",domain);
 		}
 	}
-	
+
 	cli_shutdown(cli);
 
 	SAFE_FREE(clear_trust_password);
@@ -476,13 +480,20 @@ done:
  * @return A shell status integer (0 for success)
  *
  **/
-int net_rpc_testjoin(int argc, const char **argv) 
+int net_rpc_testjoin(struct net_context *c, int argc, const char **argv)
 {
-	char *domain = smb_xstrdup(opt_target_workgroup);
+	char *domain = smb_xstrdup(c->opt_target_workgroup);
 	NTSTATUS nt_status;
 
+	if (c->display_usage) {
+		d_printf("Usage\n"
+			 "net rpc testjoin\n"
+			 "    Test if a join is OK\n");
+		return 0;
+	}
+
 	/* Display success or failure */
-	nt_status = net_rpc_join_ok(domain, NULL, NULL);
+	nt_status = net_rpc_join_ok(c, domain, NULL, NULL);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		fprintf(stderr,"Join to domain '%s' is not valid: %s\n",
 			domain, nt_errstr(nt_status));

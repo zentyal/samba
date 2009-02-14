@@ -130,7 +130,7 @@ NTSTATUS make_pdb_method_name(struct pdb_methods **methods, const char *selected
 	trim_char(module_name, ' ', ' ');
 
 
-	DEBUG(5,("Attempting to find an passdb backend to match %s (%s)\n", selected, module_name));
+	DEBUG(5,("Attempting to find a passdb backend to match %s (%s)\n", selected, module_name));
 
 	entry = pdb_find_backend_entry(module_name);
 	
@@ -179,20 +179,26 @@ static struct pdb_methods *pdb_get_methods_reload( bool reload )
 		pdb->free_private_data( &(pdb->private_data) );
 		if ( !NT_STATUS_IS_OK( make_pdb_method_name( &pdb, lp_passdb_backend() ) ) ) {
 			char *msg = NULL;
-			asprintf(&msg, "pdb_get_methods_reload: "
-				"failed to get pdb methods for backend %s\n",
-				lp_passdb_backend());
-			smb_panic(msg);
+			if (asprintf(&msg, "pdb_get_methods_reload: "
+					"failed to get pdb methods for backend %s\n",
+					lp_passdb_backend()) > 0) {
+				smb_panic(msg);
+			} else {
+				smb_panic("pdb_get_methods_reload");
+			}
 		}
 	}
 
 	if ( !pdb ) {
 		if ( !NT_STATUS_IS_OK( make_pdb_method_name( &pdb, lp_passdb_backend() ) ) ) {
 			char *msg = NULL;
-			asprintf(&msg, "pdb_get_methods_reload: "
-				"failed to get pdb methods for backend %s\n",
-				lp_passdb_backend());
-			smb_panic(msg);
+			if (asprintf(&msg, "pdb_get_methods_reload: "
+					"failed to get pdb methods for backend %s\n",
+					lp_passdb_backend()) > 0) {
+				smb_panic(msg);
+			} else {
+				smb_panic("pdb_get_methods_reload");
+			}
 		}
 	}
 
@@ -207,28 +213,28 @@ static struct pdb_methods *pdb_get_methods(void)
 bool pdb_getsampwnam(struct samu *sam_acct, const char *username) 
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	struct samu *cache_copy;
+	struct samu *for_cache;
 	const struct dom_sid *user_sid;
 
 	if (!NT_STATUS_IS_OK(pdb->getsampwnam(pdb, sam_acct, username))) {
 		return False;
 	}
 
-	cache_copy = samu_new(NULL);
-	if (cache_copy == NULL) {
+	for_cache = samu_new(NULL);
+	if (for_cache == NULL) {
 		return False;
 	}
 
-	if (!pdb_copy_sam_account(cache_copy, sam_acct)) {
-		TALLOC_FREE(cache_copy);
+	if (!pdb_copy_sam_account(for_cache, sam_acct)) {
+		TALLOC_FREE(for_cache);
 		return False;
 	}
 
-	user_sid = pdb_get_user_sid(cache_copy);
+	user_sid = pdb_get_user_sid(for_cache);
 
 	memcache_add_talloc(NULL, PDB_GETPWSID_CACHE,
 			    data_blob_const(user_sid, sizeof(*user_sid)),
-			    cache_copy);
+			    &for_cache);
 
 	return True;
 }
@@ -242,7 +248,7 @@ bool guest_user_info( struct samu *user )
 	NTSTATUS result;
 	const char *guestname = lp_guestaccount();
 	
-	if ( !(pwd = getpwnam_alloc( NULL, guestname ) ) ) {
+	if ( !(pwd = getpwnam_alloc(talloc_autofree_context(), guestname ) ) ) {
 		DEBUG(0,("guest_user_info: Unable to locate guest account [%s]!\n", 
 			guestname));
 		return False;
@@ -599,6 +605,9 @@ static NTSTATUS pdb_default_delete_dom_group(struct pdb_methods *methods,
 	struct group *grp;
 	const char *grp_name;
 
+	/* coverity */
+	map.gid = (gid_t) -1;
+
 	sid_compose(&group_sid, get_global_sam_sid(), rid);
 
 	if (!get_domain_group_from_sid(group_sid, &map)) {
@@ -773,6 +782,9 @@ static NTSTATUS pdb_default_add_groupmem(struct pdb_methods *methods,
 	struct passwd *pwd;
 	const char *group_name;
 	uid_t uid;
+
+	/* coverity */
+	map.gid = (gid_t) -1;
 
 	sid_compose(&group_sid, get_global_sam_sid(), group_rid);
 	sid_compose(&member_sid, get_global_sam_sid(), member_rid);
@@ -1150,7 +1162,9 @@ static NTSTATUS pdb_default_rename_sam_account (struct pdb_methods *methods, str
 
 static NTSTATUS pdb_default_update_login_attempts (struct pdb_methods *methods, struct samu *newpwd, bool success)
 {
-	return NT_STATUS_NOT_IMPLEMENTED;
+	/* Only the pdb_nds backend implements this, by
+	 * default just return ok. */
+	return NT_STATUS_OK;
 }
 
 static NTSTATUS pdb_default_get_account_policy(struct pdb_methods *methods, int policy_index, uint32 *value)
@@ -2014,7 +2028,7 @@ NTSTATUS make_pdb_method( struct pdb_methods **methods )
 {
 	/* allocate memory for the structure as its own talloc CTX */
 
-	if ( !(*methods = TALLOC_ZERO_P(NULL, struct pdb_methods) ) ) {
+	if ( !(*methods = TALLOC_ZERO_P(talloc_autofree_context(), struct pdb_methods) ) ) {
 		return NT_STATUS_NO_MEMORY;
 	}
 

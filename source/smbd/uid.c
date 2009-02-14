@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    uid/user handling
    Copyright (C) Andrew Tridgell 1992-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -21,29 +21,6 @@
 
 /* what user is current? */
 extern struct current_user current_user;
-
-/****************************************************************************
- Iterator functions for getting all gid's from current_user.
-****************************************************************************/
-
-gid_t get_current_user_gid_first(int *piterator)
-{
-	*piterator = 0;
-	return current_user.ut.gid;
-}
-
-gid_t get_current_user_gid_next(int *piterator)
-{
-	gid_t ret;
-
-	if (!current_user.ut.groups || *piterator >= current_user.ut.ngroups) {
-		return (gid_t)-1;
-	}
-
-	ret = current_user.ut.groups[*piterator];
-	(*piterator) += 1;
-	return ret;
-}
 
 /****************************************************************************
  Become the guest user without changing the security context stack.
@@ -55,60 +32,72 @@ bool change_to_guest(void)
 
 	if (!pass) {
 		/* Don't need to free() this as its stored in a static */
-		pass = getpwnam_alloc(NULL, lp_guestaccount());
+		pass = getpwnam_alloc(talloc_autofree_context(), lp_guestaccount());
 		if (!pass)
 			return(False);
 	}
-	
+
 #ifdef AIX
 	/* MWW: From AIX FAQ patch to WU-ftpd: call initgroups before 
 	   setting IDs */
 	initgroups(pass->pw_name, pass->pw_gid);
 #endif
-	
+
 	set_sec_ctx(pass->pw_uid, pass->pw_gid, 0, NULL, NULL);
-	
+
 	current_user.conn = NULL;
 	current_user.vuid = UID_FIELD_INVALID;
 
 	TALLOC_FREE(pass);
 	pass = NULL;
-	
+
 	return True;
 }
 
 /*******************************************************************
  Check if a username is OK.
+
+ This sets up conn->server_info with a copy related to this vuser that
+ later code can then mess with.
 ********************************************************************/
 
-static bool check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
+static bool check_user_ok(connection_struct *conn,
+			uint16_t vuid,
+			const struct auth_serversupplied_info *server_info,
+			int snum)
 {
+	bool valid_vuid = (vuid != UID_FIELD_INVALID);
 	unsigned int i;
-	struct vuid_cache_entry *ent = NULL;
 	bool readonly_share;
-	NT_USER_TOKEN *token;
+	bool admin_user;
 
-	for (i=0;i<conn->vuid_cache.entries && i< VUID_CACHE_SIZE;i++) {
-		if (conn->vuid_cache.array[i].vuid == vuser->vuid) {
+	if (valid_vuid) {
+		struct vuid_cache_entry *ent;
+
+		for (i=0; i<VUID_CACHE_SIZE; i++) {
 			ent = &conn->vuid_cache.array[i];
-			conn->read_only = ent->read_only;
-			conn->admin_user = ent->admin_user;
-			return(True);
+			if (ent->vuid == vuid) {
+				conn->server_info = ent->server_info;
+				conn->read_only = ent->read_only;
+				conn->admin_user = ent->admin_user;
+				return(True);
+			}
 		}
 	}
 
-	if (!user_ok_token(vuser->user.unix_name, vuser->nt_user_token, snum))
+	if (!user_ok_token(server_info->unix_name,
+			   pdb_get_domain(server_info->sam_account),
+			   server_info->ptok, snum))
 		return(False);
 
-	readonly_share = is_share_read_only_for_token(vuser->user.unix_name,
-						      vuser->nt_user_token,
-						      SNUM(conn));
-
-	token = conn->nt_user_token ?
-		conn->nt_user_token : vuser->nt_user_token;
+	readonly_share = is_share_read_only_for_token(
+		server_info->unix_name,
+		pdb_get_domain(server_info->sam_account),
+		server_info->ptok,
+		conn);
 
 	if (!readonly_share &&
-	    !share_access_check(token, lp_servicename(snum),
+	    !share_access_check(server_info->ptok, lp_servicename(snum),
 				FILE_WRITE_DATA)) {
 		/* smb.conf allows r/w, but the security descriptor denies
 		 * write. Fall back to looking at readonly. */
@@ -117,28 +106,71 @@ static bool check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 			 "security descriptor\n"));
 	}
 
-	if (!share_access_check(token, lp_servicename(snum),
+	if (!share_access_check(server_info->ptok, lp_servicename(snum),
 				readonly_share ?
 				FILE_READ_DATA : FILE_WRITE_DATA)) {
 		return False;
 	}
 
-	i = conn->vuid_cache.entries % VUID_CACHE_SIZE;
-	if (conn->vuid_cache.entries < VUID_CACHE_SIZE)
-		conn->vuid_cache.entries++;
+	admin_user = token_contains_name_in_list(
+		server_info->unix_name,
+		pdb_get_domain(server_info->sam_account),
+		NULL, server_info->ptok, lp_admin_users(snum));
 
-	ent = &conn->vuid_cache.array[i];
-	ent->vuid = vuser->vuid;
-	ent->read_only = readonly_share;
+	if (valid_vuid) {
+		struct vuid_cache_entry *ent =
+			&conn->vuid_cache.array[conn->vuid_cache.next_entry];
 
-	ent->admin_user = token_contains_name_in_list(
-		vuser->user.unix_name, NULL, vuser->nt_user_token,
-		lp_admin_users(SNUM(conn)));
+		conn->vuid_cache.next_entry =
+			(conn->vuid_cache.next_entry + 1) % VUID_CACHE_SIZE;
 
-	conn->read_only = ent->read_only;
-	conn->admin_user = ent->admin_user;
+		TALLOC_FREE(ent->server_info);
+
+		/*
+		 * If force_user was set, all server_info's are based on the same
+		 * username-based faked one.
+		 */
+
+		ent->server_info = copy_serverinfo(
+			conn, conn->force_user ? conn->server_info : server_info);
+
+		if (ent->server_info == NULL) {
+			ent->vuid = UID_FIELD_INVALID;
+			return false;
+		}
+
+		ent->vuid = vuid;
+		ent->read_only = readonly_share;
+		ent->admin_user = admin_user;
+		conn->server_info = ent->server_info;
+	}
+
+	conn->read_only = readonly_share;
+	conn->admin_user = admin_user;
 
 	return(True);
+}
+
+/****************************************************************************
+ Clear a vuid out of the connection's vuid cache
+****************************************************************************/
+
+void conn_clear_vuid_cache(connection_struct *conn, uint16_t vuid)
+{
+	int i;
+
+	for (i=0; i<VUID_CACHE_SIZE; i++) {
+		struct vuid_cache_entry *ent;
+
+		ent = &conn->vuid_cache.array[i];
+
+		if (ent->vuid == vuid) {
+			ent->vuid = UID_FIELD_INVALID;
+			TALLOC_FREE(ent->server_info);
+			ent->read_only = False;
+			ent->admin_user = False;
+		}
+	}
 }
 
 /****************************************************************************
@@ -148,16 +180,15 @@ static bool check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 
 bool change_to_user(connection_struct *conn, uint16 vuid)
 {
+	const struct auth_serversupplied_info *server_info = NULL;
 	user_struct *vuser = get_valid_user_struct(vuid);
 	int snum;
 	gid_t gid;
 	uid_t uid;
 	char group_c;
-	bool must_free_token = False;
-	NT_USER_TOKEN *token = NULL;
 	int num_groups = 0;
 	gid_t *group_list = NULL;
-	
+
 	if (!conn) {
 		DEBUG(2,("change_to_user: Connection not open\n"));
 		return(False);
@@ -171,13 +202,13 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 	 */
 
 	if((lp_security() == SEC_SHARE) && (current_user.conn == conn) &&
-	   (current_user.ut.uid == conn->uid)) {
+	   (current_user.ut.uid == conn->server_info->utok.uid)) {
 		DEBUG(4,("change_to_user: Skipping user change - already "
 			 "user\n"));
 		return(True);
 	} else if ((current_user.conn == conn) && 
-		   (vuser != 0) && (current_user.vuid == vuid) && 
-		   (current_user.ut.uid == vuser->uid)) {
+		   (vuser != NULL) && (current_user.vuid == vuid) &&
+		   (current_user.ut.uid == vuser->server_info->utok.uid)) {
 		DEBUG(4,("change_to_user: Skipping user change - already "
 			 "user\n"));
 		return(True);
@@ -185,26 +216,32 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 
 	snum = SNUM(conn);
 
-	if ((vuser) && !check_user_ok(conn, vuser, snum)) {
+	server_info = vuser ? vuser->server_info : conn->server_info;
+
+	if (!check_user_ok(conn, vuid, server_info, snum)) {
 		DEBUG(2,("change_to_user: SMB user %s (unix user %s, vuid %d) "
 			 "not permitted access to share %s.\n",
-			 vuser->user.smb_name, vuser->user.unix_name, vuid,
+			 server_info->sanitized_username,
+			 server_info->unix_name, vuid,
 			 lp_servicename(snum)));
-		return False;
+		return false;
 	}
 
+	/*
+	 * conn->server_info is now correctly set up with a copy we can mess
+	 * with for force_group etc.
+	 */
+
 	if (conn->force_user) /* security = share sets this too */ {
-		uid = conn->uid;
-		gid = conn->gid;
-	        group_list = conn->groups;
-		num_groups = conn->ngroups;
-		token = conn->nt_user_token;
+		uid = conn->server_info->utok.uid;
+		gid = conn->server_info->utok.gid;
+	        group_list = conn->server_info->utok.groups;
+		num_groups = conn->server_info->utok.ngroups;
 	} else if (vuser) {
-		uid = conn->admin_user ? 0 : vuser->uid;
-		gid = vuser->gid;
-		num_groups = vuser->n_groups;
-		group_list  = vuser->groups;
-		token = vuser->nt_user_token;
+		uid = conn->admin_user ? 0 : vuser->server_info->utok.uid;
+		gid = conn->server_info->utok.gid;
+		num_groups = conn->server_info->utok.ngroups;
+		group_list  = conn->server_info->utok.groups;
 	} else {
 		DEBUG(2,("change_to_user: Invalid vuid used %d in accessing "
 			 "share %s.\n",vuid, lp_servicename(snum) ));
@@ -219,13 +256,6 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 
 	if((group_c = *lp_force_group(snum))) {
 
-		token = dup_nt_token(NULL, token);
-		if (token == NULL) {
-			DEBUG(0, ("dup_nt_token failed\n"));
-			return False;
-		}
-		must_free_token = True;
-
 		if(group_c == '+') {
 
 			/*
@@ -237,18 +267,21 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 
 			int i;
 			for (i = 0; i < num_groups; i++) {
-				if (group_list[i] == conn->gid) {
-					gid = conn->gid;
-					gid_to_sid(&token->user_sids[1], gid);
+				if (group_list[i]
+				    == conn->server_info->utok.gid) {
+					gid = conn->server_info->utok.gid;
+					gid_to_sid(&conn->server_info->ptok
+						   ->user_sids[1], gid);
 					break;
 				}
 			}
 		} else {
-			gid = conn->gid;
-			gid_to_sid(&token->user_sids[1], gid);
+			gid = conn->server_info->utok.gid;
+			gid_to_sid(&conn->server_info->ptok->user_sids[1],
+				   gid);
 		}
 	}
-	
+
 	/* Now set current_user since we will immediately also call
 	   set_sec_ctx() */
 
@@ -256,21 +289,14 @@ bool change_to_user(connection_struct *conn, uint16 vuid)
 	current_user.ut.groups  = group_list;	
 
 	set_sec_ctx(uid, gid, current_user.ut.ngroups, current_user.ut.groups,
-		    token);
-
-	/*
-	 * Free the new token (as set_sec_ctx copies it).
-	 */
-
-	if (must_free_token)
-		TALLOC_FREE(token);
+		    conn->server_info->ptok);
 
 	current_user.conn = conn;
 	current_user.vuid = vuid;
 
 	DEBUG(5,("change_to_user uid=(%d,%d) gid=(%d,%d)\n",
 		 (int)getuid(),(int)geteuid(),(int)getgid(),(int)getegid()));
-  
+
 	return(True);
 }
 
@@ -330,29 +356,29 @@ struct conn_ctx {
 	connection_struct *conn;
 	uint16 vuid;
 };
- 
+
 /* A stack of current_user connection contexts. */
- 
+
 static struct conn_ctx conn_ctx_stack[MAX_SEC_CTX_DEPTH];
 static int conn_ctx_stack_ndx;
 
 static void push_conn_ctx(void)
 {
 	struct conn_ctx *ctx_p;
- 
+
 	/* Check we don't overflow our stack */
- 
+
 	if (conn_ctx_stack_ndx == MAX_SEC_CTX_DEPTH) {
 		DEBUG(0, ("Connection context stack overflow!\n"));
 		smb_panic("Connection context stack overflow!\n");
 	}
- 
+
 	/* Store previous user context */
 	ctx_p = &conn_ctx_stack[conn_ctx_stack_ndx];
- 
+
 	ctx_p->conn = current_user.conn;
 	ctx_p->vuid = current_user.vuid;
- 
+
 	DEBUG(3, ("push_conn_ctx(%u) : conn_ctx_stack_ndx = %d\n",
 		(unsigned int)ctx_p->vuid, conn_ctx_stack_ndx ));
 
@@ -362,7 +388,7 @@ static void push_conn_ctx(void)
 static void pop_conn_ctx(void)
 {
 	struct conn_ctx *ctx_p;
- 
+
 	/* Check for stack underflow. */
 
 	if (conn_ctx_stack_ndx == 0) {

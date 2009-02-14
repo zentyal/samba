@@ -219,9 +219,8 @@ static void display_sam_dom_info_13(struct samr_DomInfo13 *info13)
 	printf("Sequence No:\t%llu\n", (unsigned long long)info13->sequence_num);
 	printf("Domain Create Time:\t%s\n",
 		http_timestring(nt_time_to_unix(info13->domain_create_time)));
-	printf("Unknown1:\t%d\n", info13->unknown1);
-	printf("Unknown2:\t%d\n", info13->unknown2);
-
+	printf("Sequence No at last promotion:\t%llu\n",
+		(unsigned long long)info13->modified_count_at_last_promotion);
 }
 
 static void display_sam_info_1(struct samr_DispEntryGeneral *r)
@@ -735,13 +734,14 @@ static NTSTATUS cmd_samr_query_groupmem(struct rpc_pipe_client *cli,
 		goto done;
 
 	/* Make sure to wait for our DC's reply */
-	old_timeout = cli_set_timeout(cli->cli, MAX(cli->cli->timeout,30000)); /* 30 seconds. */
+	old_timeout = rpccli_set_timeout(cli, 30000); /* 30 seconds. */
+	rpccli_set_timeout(cli, MAX(30000, old_timeout)); /* At least 30 sec */
 
 	result = rpccli_samr_QueryGroupMember(cli, mem_ctx,
 					      &group_pol,
 					      &rids);
 
-	cli_set_timeout(cli->cli, old_timeout);
+	rpccli_set_timeout(cli, old_timeout);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2423,6 +2423,98 @@ done:
 
 /* Change user password */
 
+static NTSTATUS cmd_samr_chgpasswd(struct rpc_pipe_client *cli,
+				   TALLOC_CTX *mem_ctx,
+				   int argc, const char **argv)
+{
+	POLICY_HND connect_pol, domain_pol, user_pol;
+	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
+	const char *user, *oldpass, *newpass;
+	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
+	struct samr_Ids rids, types;
+	struct lsa_String lsa_acct_name;
+
+	if (argc < 3) {
+		printf("Usage: %s username oldpass newpass\n", argv[0]);
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	user = argv[1];
+	oldpass = argv[2];
+	newpass = argv[3];
+
+	/* Get sam policy handle */
+
+	result = rpccli_try_samr_connects(cli, mem_ctx,
+					  MAXIMUM_ALLOWED_ACCESS,
+					  &connect_pol);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+	/* Get domain policy handle */
+
+	result = rpccli_samr_OpenDomain(cli, mem_ctx,
+					&connect_pol,
+					access_mask,
+					&domain_sid,
+					&domain_pol);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+	init_lsa_String(&lsa_acct_name, user);
+
+	result = rpccli_samr_LookupNames(cli, mem_ctx,
+					 &domain_pol,
+					 1,
+					 &lsa_acct_name,
+					 &rids,
+					 &types);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+	result = rpccli_samr_OpenUser(cli, mem_ctx,
+				      &domain_pol,
+				      access_mask,
+				      rids.ids[0],
+				      &user_pol);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+	/* Change user password */
+	result = rpccli_samr_chgpasswd_user(cli, mem_ctx,
+					    &user_pol,
+					    newpass,
+					    oldpass);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+ done:
+	if (is_valid_policy_hnd(&user_pol)) {
+		rpccli_samr_Close(cli, mem_ctx, &user_pol);
+	}
+	if (is_valid_policy_hnd(&domain_pol)) {
+		rpccli_samr_Close(cli, mem_ctx, &domain_pol);
+	}
+	if (is_valid_policy_hnd(&connect_pol)) {
+		rpccli_samr_Close(cli, mem_ctx, &connect_pol);
+	}
+
+	return result;
+}
+
+
+/* Change user password */
+
 static NTSTATUS cmd_samr_chgpasswd2(struct rpc_pipe_client *cli,
 				    TALLOC_CTX *mem_ctx,
 				    int argc, const char **argv)
@@ -2462,7 +2554,7 @@ static NTSTATUS cmd_samr_chgpasswd2(struct rpc_pipe_client *cli,
 		goto done;
 
 	/* Change user password */
-	result = rpccli_samr_chgpasswd_user(cli, mem_ctx, user, newpass, oldpass);
+	result = rpccli_samr_chgpasswd_user2(cli, mem_ctx, user, newpass, oldpass);
 
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
@@ -2521,12 +2613,12 @@ static NTSTATUS cmd_samr_chgpasswd3(struct rpc_pipe_client *cli,
 		goto done;
 
 	/* Change user password */
-	result = rpccli_samr_chgpasswd3(cli, mem_ctx,
-					user,
-					newpass,
-					oldpass,
-					&info,
-					&reject);
+	result = rpccli_samr_chgpasswd_user3(cli, mem_ctx,
+					     user,
+					     newpass,
+					     oldpass,
+					     &info,
+					     &reject);
 
 	if (NT_STATUS_EQUAL(result, NT_STATUS_PASSWORD_RESTRICTION)) {
 
@@ -2633,37 +2725,38 @@ struct cmd_set samr_commands[] = {
 
 	{ "SAMR" },
 
-	{ "queryuser", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_user, 		NULL, PI_SAMR, NULL,	"Query user info",         "" },
-	{ "querygroup", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_group, 		NULL, PI_SAMR, NULL,	"Query group info",        "" },
-	{ "queryusergroups", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_usergroups, 	NULL, PI_SAMR, NULL,	"Query user groups",       "" },
-	{ "queryuseraliases", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_useraliases, 	NULL, PI_SAMR, NULL,	"Query user aliases",      "" },
-	{ "querygroupmem", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_groupmem, 	NULL, PI_SAMR, NULL,	"Query group membership",  "" },
-	{ "queryaliasmem", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_aliasmem, 	NULL, PI_SAMR, NULL,	"Query alias membership",  "" },
-	{ "queryaliasinfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_aliasinfo, 	NULL, PI_SAMR, NULL,	"Query alias info",       "" },
-	{ "deletealias", 	RPC_RTYPE_NTSTATUS, cmd_samr_delete_alias, 	NULL, PI_SAMR, NULL,	"Delete an alias",  "" },
-	{ "querydispinfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo, 	NULL, PI_SAMR, NULL,	"Query display info",      "" },
-	{ "querydispinfo2", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo2, 	NULL, PI_SAMR, NULL,	"Query display info",      "" },
-	{ "querydispinfo3", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo3, 	NULL, PI_SAMR, NULL,	"Query display info",      "" },
-	{ "querydominfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dominfo, 	NULL, PI_SAMR, NULL,	"Query domain info",       "" },
-	{ "enumdomusers",       RPC_RTYPE_NTSTATUS, cmd_samr_enum_dom_users,       NULL, PI_SAMR, NULL,	"Enumerate domain users", "" },
-	{ "enumdomgroups",      RPC_RTYPE_NTSTATUS, cmd_samr_enum_dom_groups,       NULL, PI_SAMR, NULL,	"Enumerate domain groups", "" },
-	{ "enumalsgroups",      RPC_RTYPE_NTSTATUS, cmd_samr_enum_als_groups,       NULL, PI_SAMR, NULL,	"Enumerate alias groups",  "" },
-	{ "enumdomains",        RPC_RTYPE_NTSTATUS, cmd_samr_enum_domains,          NULL, PI_SAMR, NULL,	"Enumerate domains",  "" },
+	{ "queryuser", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_user, 		NULL, &ndr_table_samr.syntax_id, NULL,	"Query user info",         "" },
+	{ "querygroup", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_group, 		NULL, &ndr_table_samr.syntax_id, NULL,	"Query group info",        "" },
+	{ "queryusergroups", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_usergroups, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query user groups",       "" },
+	{ "queryuseraliases", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_useraliases, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query user aliases",      "" },
+	{ "querygroupmem", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_groupmem, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query group membership",  "" },
+	{ "queryaliasmem", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_aliasmem, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query alias membership",  "" },
+	{ "queryaliasinfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_aliasinfo, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query alias info",       "" },
+	{ "deletealias", 	RPC_RTYPE_NTSTATUS, cmd_samr_delete_alias, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Delete an alias",  "" },
+	{ "querydispinfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query display info",      "" },
+	{ "querydispinfo2", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo2, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query display info",      "" },
+	{ "querydispinfo3", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dispinfo3, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query display info",      "" },
+	{ "querydominfo", 	RPC_RTYPE_NTSTATUS, cmd_samr_query_dominfo, 	NULL, &ndr_table_samr.syntax_id, NULL,	"Query domain info",       "" },
+	{ "enumdomusers",       RPC_RTYPE_NTSTATUS, cmd_samr_enum_dom_users,       NULL, &ndr_table_samr.syntax_id, NULL,	"Enumerate domain users", "" },
+	{ "enumdomgroups",      RPC_RTYPE_NTSTATUS, cmd_samr_enum_dom_groups,       NULL, &ndr_table_samr.syntax_id, NULL,	"Enumerate domain groups", "" },
+	{ "enumalsgroups",      RPC_RTYPE_NTSTATUS, cmd_samr_enum_als_groups,       NULL, &ndr_table_samr.syntax_id, NULL,	"Enumerate alias groups",  "" },
+	{ "enumdomains",        RPC_RTYPE_NTSTATUS, cmd_samr_enum_domains,          NULL, &ndr_table_samr.syntax_id, NULL,	"Enumerate domains",  "" },
 
-	{ "createdomuser",      RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_user,       NULL, PI_SAMR, NULL,	"Create domain user",      "" },
-	{ "createdomgroup",     RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_group,      NULL, PI_SAMR, NULL,	"Create domain group",     "" },
-	{ "createdomalias",     RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_alias,      NULL, PI_SAMR, NULL,	"Create domain alias",     "" },
-	{ "samlookupnames",     RPC_RTYPE_NTSTATUS, cmd_samr_lookup_names,          NULL, PI_SAMR, NULL,	"Look up names",           "" },
-	{ "samlookuprids",      RPC_RTYPE_NTSTATUS, cmd_samr_lookup_rids,           NULL, PI_SAMR, NULL,	"Look up names",           "" },
-	{ "deletedomgroup",     RPC_RTYPE_NTSTATUS, cmd_samr_delete_dom_group,      NULL, PI_SAMR, NULL,	"Delete domain group",     "" },
-	{ "deletedomuser",      RPC_RTYPE_NTSTATUS, cmd_samr_delete_dom_user,       NULL, PI_SAMR, NULL,	"Delete domain user",      "" },
-	{ "samquerysecobj",     RPC_RTYPE_NTSTATUS, cmd_samr_query_sec_obj,         NULL, PI_SAMR, NULL, "Query SAMR security object",   "" },
-	{ "getdompwinfo",       RPC_RTYPE_NTSTATUS, cmd_samr_get_dom_pwinfo,        NULL, PI_SAMR, NULL, "Retrieve domain password info", "" },
-	{ "getusrdompwinfo",    RPC_RTYPE_NTSTATUS, cmd_samr_get_usrdom_pwinfo,     NULL, PI_SAMR, NULL, "Retrieve user domain password info", "" },
+	{ "createdomuser",      RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_user,       NULL, &ndr_table_samr.syntax_id, NULL,	"Create domain user",      "" },
+	{ "createdomgroup",     RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_group,      NULL, &ndr_table_samr.syntax_id, NULL,	"Create domain group",     "" },
+	{ "createdomalias",     RPC_RTYPE_NTSTATUS, cmd_samr_create_dom_alias,      NULL, &ndr_table_samr.syntax_id, NULL,	"Create domain alias",     "" },
+	{ "samlookupnames",     RPC_RTYPE_NTSTATUS, cmd_samr_lookup_names,          NULL, &ndr_table_samr.syntax_id, NULL,	"Look up names",           "" },
+	{ "samlookuprids",      RPC_RTYPE_NTSTATUS, cmd_samr_lookup_rids,           NULL, &ndr_table_samr.syntax_id, NULL,	"Look up names",           "" },
+	{ "deletedomgroup",     RPC_RTYPE_NTSTATUS, cmd_samr_delete_dom_group,      NULL, &ndr_table_samr.syntax_id, NULL,	"Delete domain group",     "" },
+	{ "deletedomuser",      RPC_RTYPE_NTSTATUS, cmd_samr_delete_dom_user,       NULL, &ndr_table_samr.syntax_id, NULL,	"Delete domain user",      "" },
+	{ "samquerysecobj",     RPC_RTYPE_NTSTATUS, cmd_samr_query_sec_obj,         NULL, &ndr_table_samr.syntax_id, NULL, "Query SAMR security object",   "" },
+	{ "getdompwinfo",       RPC_RTYPE_NTSTATUS, cmd_samr_get_dom_pwinfo,        NULL, &ndr_table_samr.syntax_id, NULL, "Retrieve domain password info", "" },
+	{ "getusrdompwinfo",    RPC_RTYPE_NTSTATUS, cmd_samr_get_usrdom_pwinfo,     NULL, &ndr_table_samr.syntax_id, NULL, "Retrieve user domain password info", "" },
 
-	{ "lookupdomain",       RPC_RTYPE_NTSTATUS, cmd_samr_lookup_domain,         NULL, PI_SAMR, NULL, "Lookup Domain Name", "" },
-	{ "chgpasswd2",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd2,            NULL, PI_SAMR, NULL, "Change user password", "" },
-	{ "chgpasswd3",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd3,            NULL, PI_SAMR, NULL, "Change user password", "" },
-	{ "getdispinfoidx",     RPC_RTYPE_NTSTATUS, cmd_samr_get_dispinfo_idx,      NULL, PI_SAMR, NULL, "Get Display Information Index", "" },
+	{ "lookupdomain",       RPC_RTYPE_NTSTATUS, cmd_samr_lookup_domain,         NULL, &ndr_table_samr.syntax_id, NULL, "Lookup Domain Name", "" },
+	{ "chgpasswd",          RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd,             NULL, &ndr_table_samr.syntax_id, NULL, "Change user password", "" },
+	{ "chgpasswd2",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd2,            NULL, &ndr_table_samr.syntax_id, NULL, "Change user password", "" },
+	{ "chgpasswd3",         RPC_RTYPE_NTSTATUS, cmd_samr_chgpasswd3,            NULL, &ndr_table_samr.syntax_id, NULL, "Change user password", "" },
+	{ "getdispinfoidx",     RPC_RTYPE_NTSTATUS, cmd_samr_get_dispinfo_idx,      NULL, &ndr_table_samr.syntax_id, NULL, "Get Display Information Index", "" },
 	{ NULL }
 };

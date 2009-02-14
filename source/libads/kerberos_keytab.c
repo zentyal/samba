@@ -32,9 +32,14 @@
 /**********************************************************************
 **********************************************************************/
 
-static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
-                                  krb5_kvno kvno, const char *princ_s, 
-				  krb5_enctype *enctypes, krb5_data password )
+int smb_krb5_kt_add_entry_ext(krb5_context context,
+			      krb5_keytab keytab,
+			      krb5_kvno kvno,
+			      const char *princ_s,
+			      krb5_enctype *enctypes,
+			      krb5_data password,
+			      bool no_salt,
+			      bool keep_old_entries)
 {
 	krb5_error_code ret = 0;
 	krb5_kt_cursor cursor;
@@ -48,20 +53,20 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 	
 	ret = smb_krb5_parse_name(context, princ_s, &princ);
 	if (ret) {
-		DEBUG(1,("smb_krb5_kt_add_entry: smb_krb5_parse_name(%s) failed (%s)\n", princ_s, error_message(ret)));
+		DEBUG(1,("smb_krb5_kt_add_entry_ext: smb_krb5_parse_name(%s) failed (%s)\n", princ_s, error_message(ret)));
 		goto out;
 	}
 
 	/* Seek and delete old keytab entries */
 	ret = krb5_kt_start_seq_get(context, keytab, &cursor);
 	if (ret != KRB5_KT_END && ret != ENOENT ) {
-		DEBUG(3,("smb_krb5_kt_add_entry: Will try to delete old keytab entries\n"));
+		DEBUG(3,("smb_krb5_kt_add_entry_ext: Will try to delete old keytab entries\n"));
 		while(!krb5_kt_next_entry(context, keytab, &kt_entry, &cursor)) {
 			bool compare_name_ok = False;
 
 			ret = smb_krb5_unparse_name(context, kt_entry.principal, &ktprinc);
 			if (ret) {
-				DEBUG(1,("smb_krb5_kt_add_entry: smb_krb5_unparse_name failed (%s)\n",
+				DEBUG(1,("smb_krb5_kt_add_entry_ext: smb_krb5_unparse_name failed (%s)\n",
 					error_message(ret)));
 				goto out;
 			}
@@ -82,7 +87,7 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 #endif
 
 			if (!compare_name_ok) {
-				DEBUG(10,("smb_krb5_kt_add_entry: ignoring keytab entry principal %s, kvno = %d\n",
+				DEBUG(10,("smb_krb5_kt_add_entry_ext: ignoring keytab entry principal %s, kvno = %d\n",
 					ktprinc, kt_entry.vno));
 			}
 
@@ -90,39 +95,38 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 
 			if (compare_name_ok) {
 				if (kt_entry.vno == kvno - 1) {
-					DEBUG(5,("smb_krb5_kt_add_entry: Saving previous (kvno %d) entry for principal: %s.\n",
+					DEBUG(5,("smb_krb5_kt_add_entry_ext: Saving previous (kvno %d) entry for principal: %s.\n",
 						kvno - 1, princ_s));
-				} else {
-
-					DEBUG(5,("smb_krb5_kt_add_entry: Found old entry for principal: %s (kvno %d) - trying to remove it.\n",
+				} else if (!keep_old_entries) {
+					DEBUG(5,("smb_krb5_kt_add_entry_ext: Found old entry for principal: %s (kvno %d) - trying to remove it.\n",
 						princ_s, kt_entry.vno));
 					ret = krb5_kt_end_seq_get(context, keytab, &cursor);
 					ZERO_STRUCT(cursor);
 					if (ret) {
-						DEBUG(1,("smb_krb5_kt_add_entry: krb5_kt_end_seq_get() failed (%s)\n",
+						DEBUG(1,("smb_krb5_kt_add_entry_ext: krb5_kt_end_seq_get() failed (%s)\n",
 							error_message(ret)));
 						goto out;
 					}
 					ret = krb5_kt_remove_entry(context, keytab, &kt_entry);
 					if (ret) {
-						DEBUG(1,("smb_krb5_kt_add_entry: krb5_kt_remove_entry failed (%s)\n",
+						DEBUG(1,("smb_krb5_kt_add_entry_ext: krb5_kt_remove_entry failed (%s)\n",
 							error_message(ret)));
 						goto out;
 					}
 
-					DEBUG(5,("smb_krb5_kt_add_entry: removed old entry for principal: %s (kvno %d).\n",
+					DEBUG(5,("smb_krb5_kt_add_entry_ext: removed old entry for principal: %s (kvno %d).\n",
 						princ_s, kt_entry.vno));
 
 					ret = krb5_kt_start_seq_get(context, keytab, &cursor);
 					if (ret) {
-						DEBUG(1,("smb_krb5_kt_add_entry: krb5_kt_start_seq failed (%s)\n",
+						DEBUG(1,("smb_krb5_kt_add_entry_ext: krb5_kt_start_seq failed (%s)\n",
 							error_message(ret)));
 						goto out;
 					}
 					ret = smb_krb5_kt_free_entry(context, &kt_entry);
 					ZERO_STRUCT(kt_entry);
 					if (ret) {
-						DEBUG(1,("smb_krb5_kt_add_entry: krb5_kt_remove_entry failed (%s)\n",
+						DEBUG(1,("smb_krb5_kt_add_entry_ext: krb5_kt_remove_entry failed (%s)\n",
 							error_message(ret)));
 						goto out;
 					}
@@ -134,7 +138,7 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 			ret = smb_krb5_kt_free_entry(context, &kt_entry);
 			ZERO_STRUCT(kt_entry);
 			if (ret) {
-				DEBUG(1,("smb_krb5_kt_add_entry: smb_krb5_kt_free_entry failed (%s)\n", error_message(ret)));
+				DEBUG(1,("smb_krb5_kt_add_entry_ext: smb_krb5_kt_free_entry failed (%s)\n", error_message(ret)));
 				goto out;
 			}
 		}
@@ -142,7 +146,7 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 		ret = krb5_kt_end_seq_get(context, keytab, &cursor);
 		ZERO_STRUCT(cursor);
 		if (ret) {
-			DEBUG(1,("smb_krb5_kt_add_entry: krb5_kt_end_seq_get failed (%s)\n",error_message(ret)));
+			DEBUG(1,("smb_krb5_kt_add_entry_ext: krb5_kt_end_seq_get failed (%s)\n",error_message(ret)));
 			goto out;
 		}
 	}
@@ -157,29 +161,22 @@ static int smb_krb5_kt_add_entry( krb5_context context, krb5_keytab keytab,
 	for (i = 0; enctypes[i]; i++) {
 		krb5_keyblock *keyp;
 
-#if !defined(HAVE_KRB5_KEYTAB_ENTRY_KEY) && !defined(HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK)
-#error krb5_keytab_entry has no key or keyblock member
-#endif
-#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEY               /* MIT */
-		keyp = &kt_entry.key;
-#endif
-#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK          /* Heimdal */
-		keyp = &kt_entry.keyblock;
-#endif
-		if (create_kerberos_key_from_string(context, princ, &password, keyp, enctypes[i])) {
+		keyp = KRB5_KT_KEY(&kt_entry);
+
+		if (create_kerberos_key_from_string(context, princ, &password, keyp, enctypes[i], no_salt)) {
 			continue;
 		}
 
 		kt_entry.principal = princ;
 		kt_entry.vno       = kvno;
 
-		DEBUG(3,("smb_krb5_kt_add_entry: adding keytab entry for (%s) with encryption type (%d) and version (%d)\n",
+		DEBUG(3,("smb_krb5_kt_add_entry_ext: adding keytab entry for (%s) with encryption type (%d) and version (%d)\n",
 			princ_s, enctypes[i], kt_entry.vno));
 		ret = krb5_kt_add_entry(context, keytab, &kt_entry);
 		krb5_free_keyblock_contents(context, keyp);
 		ZERO_STRUCT(kt_entry);
 		if (ret) {
-			DEBUG(1,("smb_krb5_kt_add_entry: adding entry to keytab failed (%s)\n", error_message(ret)));
+			DEBUG(1,("smb_krb5_kt_add_entry_ext: adding entry to keytab failed (%s)\n", error_message(ret)));
 			goto out;
 		}
 	}
@@ -208,6 +205,22 @@ out:
 	return (int)ret;
 }
 
+static int smb_krb5_kt_add_entry(krb5_context context,
+				 krb5_keytab keytab,
+				 krb5_kvno kvno,
+				 const char *princ_s,
+				 krb5_enctype *enctypes,
+				 krb5_data password)
+{
+	return smb_krb5_kt_add_entry_ext(context,
+					 keytab,
+					 kvno,
+					 princ_s,
+					 enctypes,
+					 password,
+					 false,
+					 false);
+}
 
 /**********************************************************************
  Adds a single service principal, i.e. 'host' to the system keytab
@@ -286,17 +299,29 @@ int ads_keytab_add_entry(ADS_STRUCT *ads, const char *srvPrinc)
 
 	if (strchr_m(srvPrinc, '@')) {
 		/* It's a fully-named principal. */
-		asprintf(&princ_s, "%s", srvPrinc);
+		if (asprintf(&princ_s, "%s", srvPrinc) == -1) {
+			ret = -1;
+			goto out;
+		}
 	} else if (srvPrinc[strlen(srvPrinc)-1] == '$') {
 		/* It's the machine account, as used by smbclient clients. */
-		asprintf(&princ_s, "%s@%s", srvPrinc, lp_realm());
+		if (asprintf(&princ_s, "%s@%s", srvPrinc, lp_realm()) == -1) {
+			ret = -1;
+			goto out;
+		}
 	} else {
 		/* It's a normal service principal.  Add the SPN now so that we
 		 * can obtain credentials for it and double-check the salt value
 		 * used to generate the service's keys. */
 		 
-		asprintf(&princ_s, "%s/%s@%s", srvPrinc, my_fqdn, lp_realm());
-		asprintf(&short_princ_s, "%s/%s@%s", srvPrinc, machine_name, lp_realm());
+		if (asprintf(&princ_s, "%s/%s@%s", srvPrinc, my_fqdn, lp_realm()) == -1) {
+			ret = -1;
+			goto out;
+		}
+		if (asprintf(&short_princ_s, "%s/%s@%s", srvPrinc, machine_name, lp_realm()) == -1) {
+			ret = -1;
+			goto out;
+		}
 		
 		/* According to http://support.microsoft.com/kb/326985/en-us, 
 		   certain principal names are automatically mapped to the host/...
@@ -313,9 +338,9 @@ int ads_keytab_add_entry(ADS_STRUCT *ads, const char *srvPrinc)
 		}
 	}
 
-	kvno = (krb5_kvno) ads_get_kvno(ads, global_myname());
+	kvno = (krb5_kvno) ads_get_machine_kvno(ads, global_myname());
 	if (kvno == -1) {       /* -1 indicates failure, everything else is OK */
-		DEBUG(1,("ads_keytab_add_entry: ads_get_kvno failed to determine the system's kvno.\n"));
+		DEBUG(1,("ads_keytab_add_entry: ads_get_machine_kvno failed to determine the system's kvno.\n"));
 		ret = -1;
 		goto out;
 	}
@@ -381,7 +406,7 @@ int ads_keytab_flush(ADS_STRUCT *ads)
 		goto out;
 	}
 
-	kvno = (krb5_kvno) ads_get_kvno(ads, global_myname());
+	kvno = (krb5_kvno) ads_get_machine_kvno(ads, global_myname());
 	if (kvno == -1) {       /* -1 indicates a failure */
 		DEBUG(1,("ads_keytab_flush: Error determining the system's kvno.\n"));
 		goto out;
@@ -528,9 +553,9 @@ int ads_keytab_create_default(ADS_STRUCT *ads)
 
 	/* Now loop through the keytab and update any other existing entries... */
 	
-	kvno = (krb5_kvno) ads_get_kvno(ads, machine_name);
+	kvno = (krb5_kvno) ads_get_machine_kvno(ads, machine_name);
 	if (kvno == -1) {
-		DEBUG(1,("ads_keytab_create_default: ads_get_kvno failed to determine the system's kvno.\n"));
+		DEBUG(1,("ads_keytab_create_default: ads_get_machine_kvno failed to determine the system's kvno.\n"));
 		return -1;
 	}
 	
@@ -712,8 +737,11 @@ int ads_keytab_list(const char *keytab_name)
 
 		ret = smb_krb5_enctype_to_string(context, enctype, &etype_s);
 		if (ret) {
-			SAFE_FREE(princ_s);
-			goto out;
+			if (asprintf(&etype_s, "UNKNOWN: %d\n", enctype) == -1)
+			{
+				SAFE_FREE(princ_s);
+				goto out;
+			}
 		}
 
 		printf("%3d  %s\t\t %s\n", kt_entry.vno, etype_s, princ_s);

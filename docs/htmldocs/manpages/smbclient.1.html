@@ -1,11 +1,11 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>smbclient</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="smbclient.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>smbclient &#8212; ftp-like client to access SMB/CIFS resources 
-	on servers</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">smbclient</code> [-b &lt;buffer size&gt;] [-d debuglevel] [-e] [-L &lt;netbios name&gt;] [-U username] [-I destinationIP] [-M &lt;netbios name&gt;] [-m maxprotocol] [-A authfile] [-N] [-i scope] [-O &lt;socket options&gt;] [-p port] [-R &lt;name resolve order&gt;] [-s &lt;smb config file&gt;] [-k] [-P] [-c &lt;command&gt;]</p></div><div class="cmdsynopsis"><p><code class="literal">smbclient</code> {servicename} [password] [-b &lt;buffer size&gt;] [-d debuglevel] [-e] [-D Directory] [-U username] [-W workgroup] [-M &lt;netbios name&gt;] [-m maxprotocol] [-A authfile] [-N] [-l log-basename] [-I destinationIP] [-E] [-c &lt;command string&gt;] [-i scope] [-O &lt;socket options&gt;] [-p port] [-R &lt;name resolve order&gt;] [-s &lt;smb config file&gt;] [-T&lt;c|x&gt;IXFqgbNan] [-k]</p></div></div><div class="refsect1" lang="en"><a name="id2479452"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">smbclient</code> is a client that can 
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>smbclient</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="smbclient.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>smbclient &#8212; ftp-like client to access SMB/CIFS resources
+	on servers</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">smbclient</code> [-b &lt;buffer size&gt;] [-d debuglevel] [-e] [-L &lt;netbios name&gt;] [-U username] [-I destinationIP] [-M &lt;netbios name&gt;] [-m maxprotocol] [-A authfile] [-N] [-g] [-i scope] [-O &lt;socket options&gt;] [-p port] [-R &lt;name resolve order&gt;] [-s &lt;smb config file&gt;] [-k] [-P] [-c &lt;command&gt;]</p></div><div class="cmdsynopsis"><p><code class="literal">smbclient</code> {servicename} [password] [-b &lt;buffer size&gt;] [-d debuglevel] [-e] [-D Directory] [-U username] [-W workgroup] [-M &lt;netbios name&gt;] [-m maxprotocol] [-A authfile] [-N] [-g] [-l log-basename] [-I destinationIP] [-E] [-c &lt;command string&gt;] [-i scope] [-O &lt;socket options&gt;] [-p port] [-R &lt;name resolve order&gt;] [-s &lt;smb config file&gt;] [-T&lt;c|x&gt;IXFqgbNan] [-k]</p></div></div><div class="refsect1" lang="en"><a name="id2483769"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">smbclient</code> is a client that can 
 	'talk' to an SMB/CIFS server. It offers an interface
 	similar to that of the ftp program (see <a class="citerefentry" href="ftp.1.html"><span class="citerefentry"><span class="refentrytitle">ftp</span>(1)</span></a>).  
 	Operations include things like getting files from the server 
 	to the local machine, putting files from the local machine to 
 	the server, retrieving directory information from the server 
-	and so on. </p></div><div class="refsect1" lang="en"><a name="id2479492"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">servicename</span></dt><dd><p>servicename is the name of the service 
+	and so on. </p></div><div class="refsect1" lang="en"><a name="id2483808"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">servicename</span></dt><dd><p>servicename is the name of the service 
 		you want to use on the server. A service name takes the form
 		<code class="filename">//server/service</code> where <em class="parameter"><code>server
 		</code></em> is the NetBIOS name of the SMB/CIFS server 
@@ -85,10 +85,13 @@
 		messages. </p></dd><dt><span class="term">-p port</span></dt><dd><p>This number is the TCP port number that will be used 
 		when making connections to the server. The standard (well-known)
 		TCP port number for an SMB/CIFS server is 139, which is the 
-		default. </p></dd><dt><span class="term">-P</span></dt><dd><p>
+		default. </p></dd><dt><span class="term">-g</span></dt><dd><p>This parameter provides combined with
+		<em class="parameter"><code>-L</code></em> easy parseable output	that allows processing
+		with utilities such as grep and cut.
+		</p></dd><dt><span class="term">-P</span></dt><dd><p>
 		Make queries to the external server using the machine account of the local server.
 		</p></dd><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
-</p></dd><dt><span class="term">-I IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to. 
+</p></dd><dt><span class="term">-I IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to.
 		It should be specified in standard "a.b.c.d" notation. </p><p>Normally the client would attempt to locate a named 
 		SMB/CIFS server by looking it up via the NetBIOS name resolution 
 		mechanism described above in the <em class="parameter"><code>name resolve order</code></em> 
@@ -137,7 +140,7 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL">log level</a> parameter
+override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
 in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
 </p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
@@ -182,7 +185,7 @@ via the <code class="literal">ps</code> command.  To be safe always allow
 <code class="literal">rpcclient</code> to prompt for a password and type
 it in directly. </p></dd><dt><span class="term">-n &lt;primary NetBIOS name&gt;</span></dt><dd><p>This option allows you to override
 the NetBIOS name that Samba uses for itself. This is identical
-to setting the <a class="link" href="smb.conf.5.html#NETBIOSNAME">netbios name</a> parameter in the <code class="filename">smb.conf</code> file. 
+to setting the <a class="link" href="smb.conf.5.html#NETBIOSNAME" target="_top">netbios name</a> parameter in the <code class="filename">smb.conf</code> file. 
 However, a command
 line setting will take precedence over settings in
 <code class="filename">smb.conf</code>.</p></dd><dt><span class="term">-i &lt;scope&gt;</span></dt><dd><p>This specifies a NetBIOS scope that
@@ -267,7 +270,7 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 		only of any use with the tar -T option. </p></dd><dt><span class="term">-c command string</span></dt><dd><p>command string is a semicolon-separated list of 
 		commands to be executed instead of prompting from stdin. <em class="parameter"><code>
 		-N</code></em> is implied by <em class="parameter"><code>-c</code></em>.</p><p>This is particularly useful in scripts and for printing stdin 
-		to the server, e.g. <code class="literal">-c 'print -'</code>. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2526294"></a><h2>OPERATIONS</h2><p>Once the client is running, the user is presented with 
+		to the server, e.g. <code class="literal">-c 'print -'</code>. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2533319"></a><h2>OPERATIONS</h2><p>Once the client is running, the user is presented with 
 	a prompt : </p><p><code class="prompt">smb:\&gt; </code></p><p>The backslash ("\\") indicates the current working directory 
 	on the server, and will change if the current working directory 
 	is changed. </p><p>The prompt indicates that the client is ready and waiting to 
@@ -465,14 +468,14 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 		</p></dd><dt><span class="term">vuid &lt;number&gt;</span></dt><dd><p>Changes the currently used vuid in the protocol to
 		the given arbitrary number. Without an argument prints out the current
 		vuid being used. Used for internal Samba testing purposes.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2527418"></a><h2>NOTES</h2><p>Some servers are fussy about the case of supplied usernames,
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2534409"></a><h2>NOTES</h2><p>Some servers are fussy about the case of supplied usernames,
 	passwords, share names (AKA service names) and machine names.
 	If you fail to connect try giving all parameters in uppercase.
 	</p><p>It is often necessary to use the -n option when connecting
 	to some types of servers. For example OS/2 LanManager insists
 	on a valid NetBIOS name being used, so you need to supply a valid
 	name that would be known to the server.</p><p>smbclient supports long file names where the server 
-	supports the LANMAN2 protocol or above. </p></div><div class="refsect1" lang="en"><a name="id2527443"></a><h2>ENVIRONMENT VARIABLES</h2><p>The variable <code class="envar">USER</code> may contain the 
+	supports the LANMAN2 protocol or above. </p></div><div class="refsect1" lang="en"><a name="id2534434"></a><h2>ENVIRONMENT VARIABLES</h2><p>The variable <code class="envar">USER</code> may contain the 
 	username of the person  using the client. This information is 
 	used only if the protocol  level is high enough to support 
 	session-level passwords.</p><p>The variable <code class="envar">PASSWD</code> may contain 
@@ -482,7 +485,7 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 	the path, executed with system(), which the client should connect 
         to instead of connecting to a server.  This functionality is primarily
         intended as a development aid, and works best when using a LMHOSTS 
-        file</p></div><div class="refsect1" lang="en"><a name="id2527481"></a><h2>INSTALLATION</h2><p>The location of the client program is a matter for 
+        file</p></div><div class="refsect1" lang="en"><a name="id2534470"></a><h2>INSTALLATION</h2><p>The location of the client program is a matter for 
 	individual system administrators. The following are thus
 	suggestions only. </p><p>It is recommended that the smbclient software be installed
 	in the <code class="filename">/usr/local/samba/bin/</code> or <code class="filename">
@@ -493,11 +496,11 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 	and writeable only by the user. </p><p>To test the client, you will need to know the name of a 
 	running SMB/CIFS server. It is possible to run <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> as an ordinary user - running that server as a daemon 
 	on a user-accessible port (typically any port number over 1024)
-	would provide a suitable test server. </p></div><div class="refsect1" lang="en"><a name="id2527537"></a><h2>DIAGNOSTICS</h2><p>Most diagnostics issued by the client are logged in a 
+	would provide a suitable test server. </p></div><div class="refsect1" lang="en"><a name="id2534523"></a><h2>DIAGNOSTICS</h2><p>Most diagnostics issued by the client are logged in a 
 	specified log file. The log file name is specified at compile time, 
 	but may be overridden on the command line. </p><p>The number and nature of diagnostics available depends 
 	on the debug level used by the client. If you have problems, 
-	set the debug level to 3 and peruse the log files. </p></div><div class="refsect1" lang="en"><a name="id2527556"></a><h2>VERSION</h2><p>This man page is correct for version 3.2 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2527567"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	set the debug level to 3 and peruse the log files. </p></div><div class="refsect1" lang="en"><a name="id2534541"></a><h2>VERSION</h2><p>This man page is correct for version 3.2 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2534552"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 

@@ -31,7 +31,7 @@
 WERROR NetGetDCName_l(struct libnetapi_ctx *ctx,
 		      struct NetGetDCName *r)
 {
-	return WERR_NOT_SUPPORTED;
+	LIBNETAPI_REDIRECT_TO_LOCALHOST(ctx, r, NetGetDCName);
 }
 
 /********************************************************************
@@ -45,12 +45,10 @@ WERROR NetGetDCName_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_NETLOGON, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_netlogon.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -60,6 +58,11 @@ WERROR NetGetDCName_r(struct libnetapi_ctx *ctx,
 				       r->in.domain_name,
 				       (const char **)r->out.buffer,
 				       &werr);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		werr = ntstatus_to_werror(status);
+	}
+
  done:
 
 	return werr;
@@ -71,7 +74,7 @@ WERROR NetGetDCName_r(struct libnetapi_ctx *ctx,
 WERROR NetGetAnyDCName_l(struct libnetapi_ctx *ctx,
 			 struct NetGetAnyDCName *r)
 {
-	return WERR_NOT_SUPPORTED;
+	LIBNETAPI_REDIRECT_TO_LOCALHOST(ctx, r, NetGetAnyDCName);
 }
 
 /********************************************************************
@@ -85,12 +88,10 @@ WERROR NetGetAnyDCName_r(struct libnetapi_ctx *ctx,
 	NTSTATUS status;
 	WERROR werr;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_NETLOGON, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_netlogon.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}
@@ -144,12 +145,10 @@ WERROR DsGetDcName_r(struct libnetapi_ctx *ctx,
 	struct cli_state *cli = NULL;
 	struct rpc_pipe_client *pipe_cli = NULL;
 
-	werr = libnetapi_open_ipc_connection(ctx, r->in.server_name, &cli);
-	if (!W_ERROR_IS_OK(werr)) {
-		goto done;
-	}
-
-	werr = libnetapi_open_pipe(ctx, cli, PI_NETLOGON, &pipe_cli);
+	werr = libnetapi_open_pipe(ctx, r->in.server_name,
+				   &ndr_table_netlogon.syntax_id,
+				   &cli,
+				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
 	}

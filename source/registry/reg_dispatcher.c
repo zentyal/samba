@@ -37,7 +37,6 @@ static const struct generic_mapping reg_generic_map =
 static WERROR construct_registry_sd(TALLOC_CTX *ctx, SEC_DESC **psd)
 {
 	SEC_ACE ace[3];
-	SEC_ACCESS mask;
 	size_t i = 0;
 	SEC_DESC *sd;
 	SEC_ACL *acl;
@@ -45,21 +44,18 @@ static WERROR construct_registry_sd(TALLOC_CTX *ctx, SEC_DESC **psd)
 
 	/* basic access for Everyone */
 
-	init_sec_access(&mask, REG_KEY_READ);
 	init_sec_ace(&ace[i++], &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED,
-		     mask, 0);
+		     REG_KEY_READ, 0);
 
 	/* Full Access 'BUILTIN\Administrators' */
 
-	init_sec_access(&mask, REG_KEY_ALL);
 	init_sec_ace(&ace[i++], &global_sid_Builtin_Administrators,
-		     SEC_ACE_TYPE_ACCESS_ALLOWED, mask, 0);
+		     SEC_ACE_TYPE_ACCESS_ALLOWED, REG_KEY_ALL, 0);
 
 	/* Full Access 'NT Authority\System' */
 
-	init_sec_access(&mask, REG_KEY_ALL );
 	init_sec_ace(&ace[i++], &global_sid_System, SEC_ACE_TYPE_ACCESS_ALLOWED,
-		     mask, 0);
+		     REG_KEY_ALL, 0);
 
 	/* create the security descriptor */
 
@@ -174,7 +170,8 @@ bool regkey_access_check( REGISTRY_KEY *key, uint32 requested, uint32 *granted,
 
 	se_map_generic( &requested, &reg_generic_map );
 
-	if (!se_access_check(sec_desc, token, requested, granted, &status)) {
+	status =se_access_check(sec_desc, token, requested, granted);
+	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(mem_ctx);
 		return false;
 	}

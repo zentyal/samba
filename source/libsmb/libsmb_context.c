@@ -69,6 +69,7 @@ smbc_new_context(void)
         smbc_setOptionFullTimeNames(context, False);
         smbc_setOptionOpenShareMode(context, SMBC_SHAREMODE_DENY_NONE);
         smbc_setOptionSmbEncryptionLevel(context, SMBC_ENCRYPTLEVEL_NONE);
+        smbc_setOptionCaseSensitive(context, False);
         smbc_setOptionBrowseMaxLmbCount(context, 3);    /* # LMBs to query */
         smbc_setOptionUrlEncodeReaddirEntries(context, False);
         smbc_setOptionOneSharePerServer(context, False);
@@ -619,7 +620,27 @@ smbc_init_context(SMBCCTX *context)
 const char *
 smbc_version(void)
 {
-        return samba_version_string();
+        return SAMBA_VERSION_STRING;
 }
 
 
+/*
+ * Set the credentials so DFS will work when following referrals.
+ */
+void
+smbc_set_credentials(char *workgroup,
+                     char *user,
+                     char *password,
+                     smbc_bool use_kerberos,
+                     char *signing_state)
+{
+        
+        set_cmdline_auth_info_username(user);
+        set_cmdline_auth_info_password(password);
+        set_cmdline_auth_info_use_kerberos(use_kerberos);
+        if (! set_cmdline_auth_info_signing_state(signing_state)) {
+                DEBUG(0, ("Invalid signing state: %s", signing_state));
+        }
+        set_global_myworkgroup(workgroup);
+        cli_cm_set_credentials();
+}

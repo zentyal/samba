@@ -43,9 +43,10 @@ static void initPid2Machine (void)
 {
 	/* show machine name rather PID on table "Open Files"? */
 	if (PID_or_Machine) {
-		PIDMAP *p;
+		PIDMAP *p, *next;
 
-		for (p = pidmap; p != NULL; ) {
+		for (p = pidmap; p != NULL; p = next) {
+			next = p->next;
 			DLIST_REMOVE(pidmap, p);
 			SAFE_FREE(p->machine);
 			SAFE_FREE(p);
@@ -123,6 +124,7 @@ static void print_share_mode(const struct share_mode_entry *e,
 {
 	char           *utf8_fname;
 	int deny_mode;
+	size_t converted_size;
 
 	if (!is_valid_share_mode_entry(e)) {
 		return;
@@ -169,7 +171,7 @@ static void print_share_mode(const struct share_mode_entry *e,
 		printf("NONE            ");
 	printf("</td>");
 
-	push_utf8_allocate(&utf8_fname, fname);
+	push_utf8_allocate(&utf8_fname, fname, &converted_size);
 	printf("<td>%s</td><td>%s</td></tr>\n",
 	       utf8_fname,tstring(talloc_tos(),e->time.tv_sec));
 	SAFE_FREE(utf8_fname);
@@ -425,7 +427,8 @@ void status_page(void)
 
 	printf("<h3>%s</h3>\n", _("Open Files"));
 	printf("<table border=1>\n");
-	printf("<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>\n", _("PID"), _("Sharing"), _("R/W"), _("Oplock"), _("File"), _("Date"));
+	printf("<tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr>\n",
+		_("PID"), _("UID"), _("Sharing"), _("R/W"), _("Oplock"), _("File"), _("Date"));
 
 	locking_init_readonly();
 	share_mode_forall(print_share_mode, NULL);

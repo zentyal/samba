@@ -39,7 +39,8 @@ find_lsa_pipe_hnd(struct cli_state *ipc_cli)
              pipe_hnd;
              pipe_hnd = pipe_hnd->next) {
                 
-		if (pipe_hnd->pipe_idx == PI_LSARPC) {
+		if (ndr_syntax_id_equal(&pipe_hnd->abstract_syntax,
+					&ndr_table_lsarpc.syntax_id)) {
 			return pipe_hnd;
 		}
 	}
@@ -198,12 +199,13 @@ convert_sid_to_string(struct cli_state *ipc_cli,
 		return;
 	}
         
-	TALLOC_FREE(ctx);
 	/* Converted OK */
         
 	slprintf(str, sizeof(fstring) - 1, "%s%s%s",
 		 domains[0], lp_winbind_separator(),
 		 names[0]);
+
+	TALLOC_FREE(ctx);
 }
 
 /* convert a string to a SID, either numeric or username/group */
@@ -265,7 +267,7 @@ parse_ace(struct cli_state *ipc_cli,
         unsigned int aflags;
         unsigned int amask;
 	DOM_SID sid;
-	SEC_ACCESS mask;
+	uint32_t mask;
 	const struct perm_value *v;
         struct perm_value {
                 const char *perm;

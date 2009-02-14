@@ -53,7 +53,9 @@ typedef struct ads_struct {
 		char *realm;
 		char *workgroup;
 		char *ldap_server;
-		int foreign; /* set to 1 if connecting to a foreign realm */
+		int foreign; /* set to 1 if connecting to a foreign
+			      * realm */
+		bool gc;     /* Is this a global catalog server? */
 	} server;
 
 	/* info needed to authenticate */
@@ -78,7 +80,6 @@ typedef struct ads_struct {
 		char *server_site_name;
 		char *client_site_name;
 		time_t current_time;
-		int tried_closest_dc;
 		char *schema_path;
 		char *config_path;
 	} config;
@@ -131,6 +132,7 @@ struct posix_schema {
 	char *posix_uidnumber_attr;
 	char *posix_gidnumber_attr;
 	char *posix_gecos_attr;
+	char *posix_uid_attr;
 };
 
 
@@ -177,6 +179,7 @@ typedef void **ADS_MODLIST;
 #define ADS_ATTR_SFU_HOMEDIR_OID 	"1.2.840.113556.1.6.18.1.344"
 #define ADS_ATTR_SFU_SHELL_OID 		"1.2.840.113556.1.6.18.1.312"
 #define ADS_ATTR_SFU_GECOS_OID 		"1.2.840.113556.1.6.18.1.337"
+#define ADS_ATTR_SFU_UID_OID            "1.2.840.113556.1.6.18.1.309"
 
 /* ldap attribute oids (Services for Unix 2.0) */
 #define ADS_ATTR_SFU20_UIDNUMBER_OID	"1.2.840.113556.1.4.7000.187.70"
@@ -184,6 +187,8 @@ typedef void **ADS_MODLIST;
 #define ADS_ATTR_SFU20_HOMEDIR_OID	"1.2.840.113556.1.4.7000.187.106"
 #define ADS_ATTR_SFU20_SHELL_OID	"1.2.840.113556.1.4.7000.187.72"
 #define ADS_ATTR_SFU20_GECOS_OID 	"1.2.840.113556.1.4.7000.187.97"
+#define ADS_ATTR_SFU20_UID_OID          "1.2.840.113556.1.4.7000.187.102"
+
 
 /* ldap attribute oids (RFC2307) */
 #define ADS_ATTR_RFC2307_UIDNUMBER_OID	"1.3.6.1.1.1.1.0"
@@ -191,6 +196,7 @@ typedef void **ADS_MODLIST;
 #define ADS_ATTR_RFC2307_HOMEDIR_OID	"1.3.6.1.1.1.1.3"
 #define ADS_ATTR_RFC2307_SHELL_OID	"1.3.6.1.1.1.1.4"
 #define ADS_ATTR_RFC2307_GECOS_OID	"1.3.6.1.1.1.1.2"
+#define ADS_ATTR_RFC2307_UID_OID        "0.9.2342.19200300.100.1.1"
 
 /* ldap bitwise searches */
 #define ADS_LDAP_MATCHING_RULE_BIT_AND	"1.2.840.113556.1.4.803"
@@ -320,14 +326,15 @@ typedef void **ADS_MODLIST;
 #define ADS_DNS_FOREST     0x80000000  /* DnsForestName is a DNS name */
 
 /* ads auth control flags */
-#define ADS_AUTH_DISABLE_KERBEROS 0x01
-#define ADS_AUTH_NO_BIND          0x02
-#define ADS_AUTH_ANON_BIND        0x04
-#define ADS_AUTH_SIMPLE_BIND      0x08
-#define ADS_AUTH_ALLOW_NTLMSSP    0x10
-#define ADS_AUTH_SASL_SIGN        0x20
-#define ADS_AUTH_SASL_SEAL        0x40
-#define ADS_AUTH_SASL_FORCE       0x80
+#define ADS_AUTH_DISABLE_KERBEROS 0x0001
+#define ADS_AUTH_NO_BIND          0x0002
+#define ADS_AUTH_ANON_BIND        0x0004
+#define ADS_AUTH_SIMPLE_BIND      0x0008
+#define ADS_AUTH_ALLOW_NTLMSSP    0x0010
+#define ADS_AUTH_SASL_SIGN        0x0020
+#define ADS_AUTH_SASL_SEAL        0x0040
+#define ADS_AUTH_SASL_FORCE       0x0080
+#define ADS_AUTH_USER_CREDS       0x0100
 
 /* Kerberos environment variable names */
 #define KRB5_ENV_CCNAME "KRB5CCNAME"
@@ -369,9 +376,30 @@ typedef struct {
 	krb5_addresses *addrs;
 #else
 #error UNKNOWN_KRB5_ADDRESS_TYPE
-#endif
+#endif /* defined(HAVE_MAGIC_IN_KRB5_ADDRESS) && defined(HAVE_ADDRTYPE_IN_KRB5_ADDRESS) */
 } smb_krb5_addresses;
-#endif
+
+#ifdef HAVE_KRB5_KEYBLOCK_KEYVALUE /* Heimdal */
+#define KRB5_KEY_TYPE(k)	((k)->keytype)
+#define KRB5_KEY_LENGTH(k)	((k)->keyvalue.length)
+#define KRB5_KEY_DATA(k)	((k)->keyvalue.data)
+#define KRB5_KEY_DATA_CAST	void
+#else /* MIT */
+#define KRB5_KEY_TYPE(k)	((k)->enctype)
+#define KRB5_KEY_LENGTH(k)	((k)->length)
+#define KRB5_KEY_DATA(k)	((k)->contents)
+#define KRB5_KEY_DATA_CAST	krb5_octet
+#endif /* HAVE_KRB5_KEYBLOCK_KEYVALUE */
+
+#ifdef HAVE_KRB5_KEYTAB_ENTRY_KEY               /* MIT */
+#define KRB5_KT_KEY(k)		(&(k)->key)
+#elif HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK          /* Heimdal */
+#define KRB5_KT_KEY(k)		(&(k)->keyblock)
+#else
+#error krb5_keytab_entry has no key or keyblock member
+#endif /* HAVE_KRB5_KEYTAB_ENTRY_KEY */
+
+#endif /* HAVE_KRB5 */
 
 enum ads_extended_dn_flags {
 	ADS_EXTENDED_DN_HEX_STRING	= 0,

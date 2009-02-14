@@ -22,97 +22,6 @@
 
 #include "includes.h"
 
-/* LSA Request Challenge. Sends our challenge to server, then gets
-   server response. These are used to generate the credentials.
- The sent and received challenges are stored in the netlog pipe
- private data. Only call this via rpccli_netlogon_setup_creds(). JRA.
-*/
-
-/* instead of rpccli_net_req_chal() we use rpccli_netr_ServerReqChallenge() now - gd */
-
-#if 0
-/****************************************************************************
-LSA Authenticate 2
-
-Send the client credential, receive back a server credential.
-Ensure that the server credential returned matches the session key
-encrypt of the server challenge originally received. JRA.
-****************************************************************************/
-
-  NTSTATUS rpccli_net_auth2(struct rpc_pipe_client *cli,
-		       uint16 sec_chan,
-		       uint32 *neg_flags, DOM_CHAL *srv_chal)
-{
-        prs_struct qbuf, rbuf;
-        NET_Q_AUTH_2 q;
-        NET_R_AUTH_2 r;
-        NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	fstring machine_acct;
-
-	if ( sec_chan == SEC_CHAN_DOMAIN )
-		fstr_sprintf( machine_acct, "%s$", lp_workgroup() );
-	else
-		fstrcpy( machine_acct, cli->mach_acct );
-
-        /* create and send a MSRPC command with api NET_AUTH2 */
-
-        DEBUG(4,("cli_net_auth2: srv:%s acct:%s sc:%x mc: %s chal %s neg: %x\n",
-                 cli->srv_name_slash, machine_acct, sec_chan, global_myname(),
-                 credstr(cli->clnt_cred.challenge.data), *neg_flags));
-
-        /* store the parameters */
-
-        init_q_auth_2(&q, cli->srv_name_slash, machine_acct,
-                      sec_chan, global_myname(), &cli->clnt_cred.challenge,
-                      *neg_flags);
-
-        /* turn parameters into data stream */
-
-	CLI_DO_RPC(cli, mem_ctx, PI_NETLOGON, NET_AUTH2,
-		q, r,
-		qbuf, rbuf,
-		net_io_q_auth_2,
-		net_io_r_auth_2,
-		NT_STATUS_UNSUCCESSFUL);
-
-        result = r.status;
-
-        if (NT_STATUS_IS_OK(result)) {
-                UTIME zerotime;
-
-                /*
-                 * Check the returned value using the initial
-                 * server received challenge.
-                 */
-
-                zerotime.time = 0;
-                if (cred_assert( &r.srv_chal, cli->sess_key, srv_chal, zerotime) == 0) {
-
-                        /*
-                         * Server replied with bad credential. Fail.
-                         */
-                        DEBUG(0,("cli_net_auth2: server %s replied with bad credential (bad machine \
-password ?).\n", cli->cli->desthost ));
-			return NT_STATUS_ACCESS_DENIED;
-                }
-		*neg_flags = r.srv_flgs.neg_flags;
-        }
-
-        return result;
-}
-#endif
-
-/****************************************************************************
- LSA Authenticate 2
-
- Send the client credential, receive back a server credential.
- The caller *must* ensure that the server credential returned matches the session key
- encrypt of the server challenge originally received. JRA.
-****************************************************************************/
-
-/* instead of rpccli_net_auth2() we use rpccli_netr_ServerAuthenticate2() now -  gd */
-
-
 /****************************************************************************
  Wrapper function that uses the auth and auth2 calls to set up a NETLOGON
  credentials chain. Stores the credentials in the struct dcinfo in the
@@ -134,15 +43,15 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	struct dcinfo *dc;
 	bool retried = false;
 
-	SMB_ASSERT(cli->pipe_idx == PI_NETLOGON);
+	SMB_ASSERT(ndr_syntax_id_equal(&cli->abstract_syntax,
+				       &ndr_table_netlogon.syntax_id));
 
-	dc = cli->dc;
-	if (!dc) {
-		return NT_STATUS_INVALID_PARAMETER;
+	TALLOC_FREE(cli->dc);
+	cli->dc = talloc_zero(cli, struct dcinfo);
+	if (cli->dc == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
-
-	/* Ensure we don't reuse any of this state. */
-	ZERO_STRUCTP(dc);
+	dc = cli->dc;
 
 	/* Store the machine account password we're going to use. */
 	memcpy(dc->mach_pw, machine_pwd, 16);
@@ -159,7 +68,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	generate_random_buffer(clnt_chal_send.data, 8);
 
 	/* Get the server challenge. */
-	result = rpccli_netr_ServerReqChallenge(cli, cli->mem_ctx,
+	result = rpccli_netr_ServerReqChallenge(cli, talloc_tos(),
 						dc->remote_machine,
 						clnt_name,
 						&clnt_chal_send,
@@ -180,7 +89,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	 * Send client auth-2 challenge and receive server repy.
 	 */
 
-	result = rpccli_netr_ServerAuthenticate2(cli, cli->mem_ctx,
+	result = rpccli_netr_ServerAuthenticate2(cli, talloc_tos(),
 						 dc->remote_machine,
 						 dc->mach_acct,
 						 sec_chan_type,
@@ -212,13 +121,13 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 		 */
 		DEBUG(0,("rpccli_netlogon_setup_creds: server %s "
 			"replied with bad credential\n",
-			cli->cli->desthost ));
+			cli->desthost ));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	DEBUG(5,("rpccli_netlogon_setup_creds: server %s credential "
 		"chain established.\n",
-		cli->cli->desthost ));
+		cli->desthost ));
 
 	return NT_STATUS_OK;
 }
@@ -629,3 +538,94 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 
 	return result;
 }
+
+/*********************************************************
+ Change the domain password on the PDC.
+
+ Just changes the password betwen the two values specified.
+
+ Caller must have the cli connected to the netlogon pipe
+ already.
+**********************************************************/
+
+NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
+					    TALLOC_CTX *mem_ctx,
+					    const unsigned char orig_trust_passwd_hash[16],
+					    const char *new_trust_pwd_cleartext,
+					    const unsigned char new_trust_passwd_hash[16],
+					    uint32_t sec_channel_type)
+{
+	NTSTATUS result;
+	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
+	struct netr_Authenticator clnt_creds, srv_cred;
+
+	result = rpccli_netlogon_setup_creds(cli,
+					     cli->desthost, /* server name */
+					     lp_workgroup(), /* domain */
+					     global_myname(), /* client name */
+					     global_myname(), /* machine account name */
+					     orig_trust_passwd_hash,
+					     sec_channel_type,
+					     &neg_flags);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(3,("rpccli_netlogon_set_trust_password: unable to setup creds (%s)!\n",
+			 nt_errstr(result)));
+		return result;
+	}
+
+	netlogon_creds_client_step(cli->dc, &clnt_creds);
+
+	if (neg_flags & NETLOGON_NEG_PASSWORD_SET2) {
+
+		struct netr_CryptPassword new_password;
+
+		init_netr_CryptPassword(new_trust_pwd_cleartext,
+					cli->dc->sess_key,
+					&new_password);
+
+		result = rpccli_netr_ServerPasswordSet2(cli, mem_ctx,
+							cli->dc->remote_machine,
+							cli->dc->mach_acct,
+							sec_channel_type,
+							global_myname(),
+							&clnt_creds,
+							&srv_cred,
+							&new_password);
+		if (!NT_STATUS_IS_OK(result)) {
+			DEBUG(0,("rpccli_netr_ServerPasswordSet2 failed: %s\n",
+				nt_errstr(result)));
+			return result;
+		}
+	} else {
+
+		struct samr_Password new_password;
+
+		cred_hash3(new_password.hash,
+			   new_trust_passwd_hash,
+			   cli->dc->sess_key, 1);
+
+		result = rpccli_netr_ServerPasswordSet(cli, mem_ctx,
+						       cli->dc->remote_machine,
+						       cli->dc->mach_acct,
+						       sec_channel_type,
+						       global_myname(),
+						       &clnt_creds,
+						       &srv_cred,
+						       &new_password);
+		if (!NT_STATUS_IS_OK(result)) {
+			DEBUG(0,("rpccli_netr_ServerPasswordSet failed: %s\n",
+				nt_errstr(result)));
+			return result;
+		}
+	}
+
+	/* Always check returned credentials. */
+	if (!netlogon_creds_client_check(cli->dc, &srv_cred.cred)) {
+		DEBUG(0,("credentials chain check failed\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	return result;
+}
+

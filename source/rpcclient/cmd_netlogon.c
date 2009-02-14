@@ -28,7 +28,7 @@ static WERROR cmd_netlogon_logon_ctrl2(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr;
-	const char *logon_server = cli->cli->desthost;
+	const char *logon_server = cli->desthost;
 	enum netr_LogonControlCode function_code = NETLOGON_CONTROL_REDISCOVER;
 	uint32_t level = 1;
 	union netr_CONTROL_DATA_INFORMATION data;
@@ -101,14 +101,15 @@ static WERROR cmd_netlogon_getanydcname(struct rpc_pipe_client *cli,
 	}
 
 	/* Make sure to wait for our DC's reply */
-	old_timeout = cli_set_timeout(cli->cli, MAX(cli->cli->timeout,30000)); /* 30 seconds. */
+	old_timeout = rpccli_set_timeout(cli, 30000); /* 30 seconds. */
+	rpccli_set_timeout(cli, MAX(old_timeout, 30000)); /* At least 30 sec */
 
 	status = rpccli_netr_GetAnyDCName(cli, mem_ctx,
-					  cli->cli->desthost,
+					  cli->desthost,
 					  argv[1],
 					  &dcname,
 					  &werr);
-	cli_set_timeout(cli->cli, old_timeout);
+	rpccli_set_timeout(cli, old_timeout);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return ntstatus_to_werror(status);
@@ -140,14 +141,15 @@ static WERROR cmd_netlogon_getdcname(struct rpc_pipe_client *cli,
 	}
 
 	/* Make sure to wait for our DC's reply */
-	old_timeout = cli_set_timeout(cli->cli, MAX(cli->cli->timeout,30000)); /* 30 seconds. */
+	old_timeout = rpccli_set_timeout(cli, 30000); /* 30 seconds. */
+	rpccli_set_timeout(cli, MAX(30000, old_timeout)); /* At least 30 sec */
 
 	status = rpccli_netr_GetDcName(cli, mem_ctx,
-				       cli->cli->desthost,
+				       cli->desthost,
 				       argv[1],
 				       &dcname,
 				       &werr);
-	cli_set_timeout(cli->cli, old_timeout);
+	rpccli_set_timeout(cli, old_timeout);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return ntstatus_to_werror(status);
@@ -171,7 +173,7 @@ static WERROR cmd_netlogon_dsr_getdcname(struct rpc_pipe_client *cli,
 	NTSTATUS result;
 	WERROR werr = WERR_OK;
 	uint32 flags = DS_RETURN_DNS_NAME;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *domain_name;
 	struct GUID domain_guid = GUID_zero();
 	struct GUID site_guid = GUID_zero();
@@ -231,7 +233,7 @@ static WERROR cmd_netlogon_dsr_getdcnameex(struct rpc_pipe_client *cli,
 	WERROR result;
 	NTSTATUS status;
 	uint32_t flags = DS_RETURN_DNS_NAME;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *domain_name;
 	const char *site_name = NULL;
 	struct GUID domain_guid = GUID_zero();
@@ -290,7 +292,7 @@ static WERROR cmd_netlogon_dsr_getdcnameex2(struct rpc_pipe_client *cli,
 	WERROR result;
 	NTSTATUS status;
 	uint32_t flags = DS_RETURN_DNS_NAME;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *domain_name = NULL;
 	const char *client_account = NULL;
 	uint32_t mask = 0;
@@ -396,7 +398,7 @@ static WERROR cmd_netlogon_logon_ctrl(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr;
-	const char *logon_server = cli->cli->desthost;
+	const char *logon_server = cli->desthost;
 	enum netr_LogonControlCode function_code = 1;
 	uint32_t level = 1;
 	union netr_CONTROL_QUERY_INFORMATION info;
@@ -560,7 +562,7 @@ static NTSTATUS cmd_netlogon_sam_sync(struct rpc_pipe_client *cli,
                                       const char **argv)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	const char *logon_server = cli->cli->desthost;
+	const char *logon_server = cli->desthost;
 	const char *computername = global_myname();
 	struct netr_Authenticator credential;
 	struct netr_Authenticator return_authenticator;
@@ -625,7 +627,7 @@ static NTSTATUS cmd_netlogon_sam_deltas(struct rpc_pipe_client *cli,
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	uint32_t tmp;
-	const char *logon_server = cli->cli->desthost;
+	const char *logon_server = cli->desthost;
 	const char *computername = global_myname();
 	struct netr_Authenticator credential;
 	struct netr_Authenticator return_authenticator;
@@ -759,7 +761,7 @@ static WERROR cmd_netlogon_gettrustrid(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *domain_name = lp_workgroup();
 	uint32_t rid = 0;
 
@@ -799,7 +801,7 @@ static WERROR cmd_netlogon_dsr_enumtrustdom(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	uint32_t trust_flags = NETR_TRUST_FLAG_IN_FOREST;
 	struct netr_DomainTrustList trusts;
 
@@ -847,7 +849,7 @@ static WERROR cmd_netlogon_deregisterdnsrecords(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *domain = lp_workgroup();
 	const char *dns_host = NULL;
 
@@ -893,7 +895,7 @@ static WERROR cmd_netlogon_dsr_getforesttrustinfo(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	const char *trusted_domain_name = NULL;
 	struct lsa_ForestTrustInformation *info = NULL;
 	uint32_t flags = 0;
@@ -939,7 +941,7 @@ static WERROR cmd_netlogon_enumtrusteddomains(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	struct netr_Blob blob;
 
 
@@ -974,7 +976,7 @@ static WERROR cmd_netlogon_enumtrusteddomainsex(struct rpc_pipe_client *cli,
 {
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	WERROR werr = WERR_GENERAL_FAILURE;
-	const char *server_name = cli->cli->desthost;
+	const char *server_name = cli->desthost;
 	struct netr_DomainTrustList list;
 
 	if (argc < 1 || argc > 3) {
@@ -1008,25 +1010,25 @@ struct cmd_set netlogon_commands[] = {
 
 	{ "NETLOGON" },
 
-	{ "logonctrl2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl2, PI_NETLOGON, NULL, "Logon Control 2",     "" },
-	{ "getanydcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getanydcname, PI_NETLOGON, NULL, "Get trusted DC name",     "" },
-	{ "getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcname, PI_NETLOGON, NULL, "Get trusted PDC name",     "" },
-	{ "dsr_getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcname, PI_NETLOGON, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getdcnameex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex, PI_NETLOGON, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getdcnameex2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex2, PI_NETLOGON, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getsitename", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getsitename, PI_NETLOGON, NULL, "Get sitename",     "" },
-	{ "dsr_getforesttrustinfo", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getforesttrustinfo, PI_NETLOGON, NULL, "Get Forest Trust Info",     "" },
-	{ "logonctrl",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl, PI_NETLOGON, NULL, "Logon Control",       "" },
-	{ "samsync",    RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_sync,    NULL, PI_NETLOGON, NULL, "Sam Synchronisation", "" },
-	{ "samdeltas",  RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_deltas,  NULL, PI_NETLOGON, NULL, "Query Sam Deltas",    "" },
-	{ "samlogon",   RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_logon,   NULL, PI_NETLOGON, NULL, "Sam Logon",           "" },
-	{ "change_trust_pw",   RPC_RTYPE_NTSTATUS, cmd_netlogon_change_trust_pw,   NULL, PI_NETLOGON, NULL, "Change Trust Account Password",           "" },
-	{ "gettrustrid", RPC_RTYPE_WERROR, NULL, cmd_netlogon_gettrustrid, PI_NETLOGON, NULL, "Get trust rid",     "" },
-	{ "dsr_enumtrustdom", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, PI_NETLOGON, NULL, "Enumerate trusted domains",     "" },
-	{ "dsenumdomtrusts",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, PI_NETLOGON, NULL, "Enumerate all trusted domains in an AD forest",     "" },
-	{ "deregisterdnsrecords", RPC_RTYPE_WERROR, NULL, cmd_netlogon_deregisterdnsrecords, PI_NETLOGON, NULL, "Deregister DNS records",     "" },
-	{ "netrenumtrusteddomains", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomains, PI_NETLOGON, NULL, "Enumerate trusted domains",     "" },
-	{ "netrenumtrusteddomainsex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomainsex, PI_NETLOGON, NULL, "Enumerate trusted domains",     "" },
+	{ "logonctrl2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl2, &ndr_table_netlogon.syntax_id, NULL, "Logon Control 2",     "" },
+	{ "getanydcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getanydcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
+	{ "getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted PDC name",     "" },
+	{ "dsr_getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getdcnameex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getdcnameex2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex2, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getsitename", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getsitename, &ndr_table_netlogon.syntax_id, NULL, "Get sitename",     "" },
+	{ "dsr_getforesttrustinfo", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getforesttrustinfo, &ndr_table_netlogon.syntax_id, NULL, "Get Forest Trust Info",     "" },
+	{ "logonctrl",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl, &ndr_table_netlogon.syntax_id, NULL, "Logon Control",       "" },
+	{ "samsync",    RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_sync,    NULL, &ndr_table_netlogon.syntax_id, NULL, "Sam Synchronisation", "" },
+	{ "samdeltas",  RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_deltas,  NULL, &ndr_table_netlogon.syntax_id, NULL, "Query Sam Deltas",    "" },
+	{ "samlogon",   RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_logon,   NULL, &ndr_table_netlogon.syntax_id, NULL, "Sam Logon",           "" },
+	{ "change_trust_pw",   RPC_RTYPE_NTSTATUS, cmd_netlogon_change_trust_pw,   NULL, &ndr_table_netlogon.syntax_id, NULL, "Change Trust Account Password",           "" },
+	{ "gettrustrid", RPC_RTYPE_WERROR, NULL, cmd_netlogon_gettrustrid, &ndr_table_netlogon.syntax_id, NULL, "Get trust rid",     "" },
+	{ "dsr_enumtrustdom", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
+	{ "dsenumdomtrusts",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon.syntax_id, NULL, "Enumerate all trusted domains in an AD forest",     "" },
+	{ "deregisterdnsrecords", RPC_RTYPE_WERROR, NULL, cmd_netlogon_deregisterdnsrecords, &ndr_table_netlogon.syntax_id, NULL, "Deregister DNS records",     "" },
+	{ "netrenumtrusteddomains", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomains, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
+	{ "netrenumtrusteddomainsex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomainsex, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
 
 	{ NULL }
 };

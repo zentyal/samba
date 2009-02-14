@@ -31,6 +31,40 @@ struct sam_database_info {
         uint32 date_lo, date_hi;
 };
 
+/**
+ * check whether the client belongs to the hosts
+ * for which initial logon should be delayed...
+ */
+static bool delay_logon(const char *peer_name, const char *peer_addr)
+{
+	const char **delay_list = lp_init_logon_delayed_hosts();
+	const char *peer[2];
+
+	if (delay_list == NULL) {
+		return False;
+	}
+
+	peer[0] = peer_name;
+	peer[1] = peer_addr;
+
+	return list_match(delay_list, (const char *)peer, client_match);
+}
+
+static void delayed_init_logon_handler(struct event_context *event_ctx,
+				       struct timed_event *te,
+				       struct timeval now,
+				       void *private_data)
+{
+	struct packet_struct *p = (struct packet_struct *)private_data;
+
+	DEBUG(10, ("delayed_init_logon_handler (%lx): re-queuing packet.\n",
+		   (unsigned long)te));
+
+	queue_packet(p);
+
+	TALLOC_FREE(te);
+}
+
 /****************************************************************************
 Process a domain logon packet
 **************************************************************************/
@@ -144,7 +178,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 				break;
 			}
 
-		case QUERYFORPDC:
+		case LOGON_PRIMARY_QUERY:
 			{
 				fstring mach_str, getdc_str;
 				fstring source_name;
@@ -219,7 +253,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 
 				/* Construct reply. */
 				q = outbuf;
-				SSVAL(q, 0, QUERYFORPDC_R);
+				SSVAL(q, 0, NETLOGON_RESPONSE_FROM_PDC);
 				q += 2;
 
 				fstrcpy(reply_name,my_name);
@@ -258,7 +292,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 				DEBUG(5,("process_logon_packet: GETDC request from %s at IP %s, \
 reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 					mach_str,inet_ntoa(p->ip), reply_name, lp_workgroup(),
-					QUERYFORPDC_R, (uint32)ntversion, (uint32)lmnttoken,
+					NETLOGON_RESPONSE_FROM_PDC, (uint32)ntversion, (uint32)lmnttoken,
 					(uint32)lm20token ));
 
 				dump_data(4, (uint8 *)outbuf, PTR_DIFF(q, outbuf));
@@ -275,11 +309,12 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 				return;
 			}
 
-		case SAMLOGON:
+		case LOGON_SAM_LOGON_REQUEST:
 
 			{
 				fstring getdc_str;
 				fstring source_name;
+				char *source_addr;
 				char *q = buf + 2;
 				fstring asccomp;
 
@@ -316,7 +351,7 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 				domainsidsize = IVAL(q, 0);
 				q += 4;
 
-				DEBUG(5,("process_logon_packet: SAMLOGON sidsize %d, len = %d\n", domainsidsize, len));
+				DEBUG(5,("process_logon_packet: LOGON_SAM_LOGON_REQUEST sidsize %d, len = %d\n", domainsidsize, len));
 
 				if (domainsidsize < (len - PTR_DIFF(q, buf)) && (domainsidsize != 0)) {
 					q += domainsidsize;
@@ -348,7 +383,7 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 				lm20token = SVAL(q, 6);
 				q += 8;
 
-				DEBUG(3,("process_logon_packet: SAMLOGON sidsize %d ntv %d\n", domainsidsize, ntversion));
+				DEBUG(3,("process_logon_packet: LOGON_SAM_LOGON_REQUEST sidsize %d ntv %d\n", domainsidsize, ntversion));
 
 				/*
 				 * we respond regadless of whether the machine is in our password 
@@ -357,14 +392,14 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 				 */
 				pull_ucs2_fstring(ascuser, uniuser);
 				pull_ucs2_fstring(asccomp, unicomp);
-				DEBUG(5,("process_logon_packet: SAMLOGON user %s\n", ascuser));
+				DEBUG(5,("process_logon_packet: LOGON_SAM_LOGON_REQUEST user %s\n", ascuser));
 
 				fstrcpy(reply_name, "\\\\"); /* Here it wants \\LOGONSERVER. */
 				fstrcat(reply_name, my_name);
 
-				DEBUG(5,("process_logon_packet: SAMLOGON request from %s(%s) for %s, returning logon svr %s domain %s code %x token=%x\n",
+				DEBUG(5,("process_logon_packet: LOGON_SAM_LOGON_REQUEST request from %s(%s) for %s, returning logon svr %s domain %s code %x token=%x\n",
 					asccomp,inet_ntoa(p->ip), ascuser, reply_name, lp_workgroup(),
-				SAMLOGON_R ,lmnttoken));
+				LOGON_SAM_LOGON_RESPONSE ,lmnttoken));
 
 				/* Construct reply. */
 
@@ -373,9 +408,9 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 				/* never, at least for now */
 				if ((ntversion < 11) || (SEC_ADS != lp_security()) || (ROLE_DOMAIN_PDC != lp_server_role())) {
 					if (SVAL(uniuser, 0) == 0) {
-						SSVAL(q, 0, SAMLOGON_UNK_R);	/* user unknown */
+						SSVAL(q, 0, LOGON_SAM_LOGON_USER_UNKNOWN);	/* user unknown */
 					} else {
-						SSVAL(q, 0, SAMLOGON_R);
+						SSVAL(q, 0, LOGON_SAM_LOGON_RESPONSE);
 					}
 
 					q += 2;
@@ -418,9 +453,9 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 						return;
 					}
 					if (SVAL(uniuser, 0) == 0) {
-						SIVAL(q, 0, SAMLOGON_AD_UNK_R);	/* user unknown */
+						SIVAL(q, 0, LOGON_SAM_LOGON_USER_UNKNOWN_EX);	/* user unknown */
 					} else {
-						SIVAL(q, 0, SAMLOGON_AD_R);
+						SIVAL(q, 0, LOGON_SAM_LOGON_RESPONSE_EX);
 					}
 					q += 4;
 
@@ -591,21 +626,65 @@ reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 
 				pull_ascii_fstring(getdc_str, getdc);
 				pull_ascii_nstring(source_name, sizeof(source_name), dgram->source_name.name);
+				source_addr = SMB_STRDUP(inet_ntoa(dgram->header.source_ip));
+				if (source_addr == NULL) {
+					DEBUG(3, ("out of memory copying client"
+						  " address string\n"));
+					return;
+				}
 
-				send_mailslot(True, getdc,
-					outbuf,PTR_DIFF(q,outbuf),
-					global_myname(), 0x0,
-					source_name,
-					dgram->source_name.name_type,
-					p->ip, ip, p->port);
+				/*
+				 * handle delay.
+				 * packets requeued after delay are marked as
+				 * locked.
+				 */
+				if ((p->locked == False) &&
+				    (strlen(ascuser) == 0) &&
+				    delay_logon(source_name, source_addr))
+				{
+					struct timeval when;
+
+					DEBUG(3, ("process_logon_packet: "
+						  "delaying initial logon "
+						  "reply for client %s(%s) for "
+						  "%u milliseconds\n",
+						  source_name, source_addr,
+						  lp_init_logon_delay()));
+
+					when = timeval_current_ofs(0,
+						lp_init_logon_delay() * 1000);
+					p->locked = true;
+					event_add_timed(nmbd_event_context(),
+							NULL,
+							when,
+							delayed_init_logon_handler,
+							p);
+				} else {
+					DEBUG(3, ("process_logon_packet: "
+						  "processing delayed initial "
+						  "logon reply for client "
+						  "%s(%s)\n",
+						  source_name, source_addr));
+
+					p->locked = false;
+					send_mailslot(true, getdc,
+						outbuf,PTR_DIFF(q,outbuf),
+						global_myname(), 0x0,
+						source_name,
+						dgram->source_name.name_type,
+						p->ip, ip, p->port);
+				}
+
+				SAFE_FREE(source_addr);
+
 				break;
 			}
 
 		/* Announce change to UAS or SAM.  Send by the domain controller when a
 		replication event is required. */
 
-		case SAM_UAS_CHANGE:
-			DEBUG(5, ("Got SAM_UAS_CHANGE\n"));
+		case NETLOGON_ANNOUNCE_UAS:
+			DEBUG(5, ("Got NETLOGON_ANNOUNCE_UAS\n"));
 			break;
 
 		default:

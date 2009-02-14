@@ -551,6 +551,27 @@ void
 smbc_setOptionSmbEncryptionLevel(SMBCCTX *c, smbc_smb_encrypt_level level);
 
 /**
+ * Get whether to treat file names as case-sensitive if we can't determine
+ * when connecting to the remote share whether the file system is case
+ * sensitive. This defaults to FALSE since it's most likely that if we can't
+ * retrieve the file system attributes, it's a very old file system that does
+ * not support case sensitivity.
+ */
+smbc_bool
+smbc_getOptionCaseSensitive(SMBCCTX *c);
+
+/**
+ * Set whether to treat file names as case-sensitive if we can't determine
+ * when connecting to the remote share whether the file system is case
+ * sensitive. This defaults to FALSE since it's most likely that if we can't
+ * retrieve the file system attributes, it's a very old file system that does
+ * not support case sensitivity.
+ */
+void
+smbc_setOptionCaseSensitive(SMBCCTX *c, smbc_bool b);
+
+
+/**
  * Get from how many local master browsers should the list of workgroups be
  * retrieved.  It can take up to 12 minutes or longer after a server becomes a
  * local master browser, for it to have the entire browse list (the list of
@@ -796,7 +817,7 @@ void smbc_setFunctionRead(SMBCCTX *c, smbc_read_fn fn);
 
 typedef ssize_t (*smbc_write_fn)(SMBCCTX *c,
                                  SMBCFILE *file,
-                                 void *buf,
+                                 const void *buf,
                                  size_t count);
 smbc_write_fn smbc_getFunctionWrite(SMBCCTX *c);
 void smbc_setFunctionWrite(SMBCCTX *c, smbc_write_fn fn);
@@ -1240,7 +1261,7 @@ ssize_t smbc_read(int fd, void *buf, size_t bufsize);
  * @see             smbc_open(), smbc_read()
  *
  */
-ssize_t smbc_write(int fd, void *buf, size_t bufsize);
+ssize_t smbc_write(int fd, const void *buf, size_t bufsize);
 
 
 /**@ingroup file
@@ -2560,6 +2581,33 @@ smbc_version(void);
 #ifdef __cplusplus
 }
 #endif
+
+/**@ingroup misc
+ * Set the users credentials globally so they can be used for DFS
+ * referrals. Probably best to use this function in the smbc_get_auth_data_fn
+ * callback.
+ *
+ * @param workgroup      Workgroup of the user.
+ *
+ * @param user           Username of user.
+ *
+ * @param password       Password of user.
+ *
+ * @param use_kerberos   Whether to use Kerberos
+ *
+ * @param signing_state  One of these strings (all equivalents on same line):
+ *                         "off", "no", "false"
+ *                         "on", "yes", "true", "auto"
+ *                         "force", "required", "forced"
+ */
+
+void
+smbc_set_credentials(char *workgroup,
+                     char *user,
+                     char *password,
+                     smbc_bool use_kerberos,
+                     char *signing_state);
+
 
 /**
  * @ingroup structure

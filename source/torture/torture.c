@@ -158,7 +158,7 @@ static struct cli_state *open_nbt_connection(void)
 	make_nmb_name(&calling, myname, 0x0);
 	make_nmb_name(&called , host, 0x20);
 
-        zero_addr(&ss);
+        zero_sockaddr(&ss);
 
 	if (!(c = cli_initialise())) {
 		printf("Failed initialize cli_struct to connect with %s\n", host);
@@ -1221,7 +1221,9 @@ static bool run_tcon2_test(int dummy)
 
 	printf("starting tcon2 test\n");
 
-	asprintf(&service, "\\\\%s\\%s", host, share);
+	if (asprintf(&service, "\\\\%s\\%s", host, share) == -1) {
+		return false;
+	}
 
 	status = cli_raw_tcon(cli, service, password, "?????", &max_xmit, &cnum);
 
@@ -3685,7 +3687,8 @@ static bool run_rename(int dummy)
 	}
 
 	if (!cli_rename(cli1, fname, fname1)) {
-		printf("Fifth rename failed (SHARE_READ | SHARE_WRITE | SHARE_DELETE) - this should have succeeded - %s\n", cli_errstr(cli1));
+		printf("Fifth rename failed (SHARE_READ | SHARE_WRITE | SHARE_DELETE) - this should have succeeded - %s ! \n",
+			cli_errstr(cli1));
 		correct = False;
 	} else {
 		printf("Fifth rename succeeded (SHARE_READ | SHARE_WRITE | SHARE_DELETE) (this is correct) - %s\n", cli_errstr(cli1));
@@ -5070,8 +5073,13 @@ static bool run_local_rbtree(int dummy)
 	for (i=0; i<1000; i++) {
 		char *key, *value;
 
-		asprintf(&key, "key%ld", random());
-		asprintf(&value, "value%ld", random());
+		if (asprintf(&key, "key%ld", random()) == -1) {
+			goto done;
+		}
+		if (asprintf(&value, "value%ld", random()) == -1) {
+			SAFE_FREE(key);
+			goto done;
+		}
 
 		if (!rbt_testval(db, key, value)) {
 			SAFE_FREE(key);
@@ -5080,7 +5088,10 @@ static bool run_local_rbtree(int dummy)
 		}
 
 		SAFE_FREE(value);
-		asprintf(&value, "value%ld", random());
+		if (asprintf(&value, "value%ld", random()) == -1) {
+			SAFE_FREE(key);
+			goto done;
+		}
 
 		if (!rbt_testval(db, key, value)) {
 			SAFE_FREE(key);
@@ -5188,6 +5199,11 @@ static bool run_local_memcache(int dummy)
 	DATA_BLOB d1, d2, d3;
 	DATA_BLOB v1, v2, v3;
 
+	TALLOC_CTX *mem_ctx;
+	char *str1, *str2;
+	size_t size1, size2;
+	bool ret = false;
+
 	cache = memcache_init(NULL, 100);
 
 	if (cache == NULL) {
@@ -5239,7 +5255,33 @@ static bool run_local_memcache(int dummy)
 	}
 
 	TALLOC_FREE(cache);
-	return true;
+
+	cache = memcache_init(NULL, 0);
+
+	mem_ctx = talloc_init("foo");
+
+	str1 = talloc_strdup(mem_ctx, "string1");
+	str2 = talloc_strdup(mem_ctx, "string2");
+
+	memcache_add_talloc(cache, SINGLETON_CACHE_TALLOC,
+			    data_blob_string_const("torture"), &str1);
+	size1 = talloc_total_size(cache);
+
+	memcache_add_talloc(cache, SINGLETON_CACHE_TALLOC,
+			    data_blob_string_const("torture"), &str2);
+	size2 = talloc_total_size(cache);
+
+	printf("size1=%d, size2=%d\n", (int)size1, (int)size2);
+
+	if (size2 > size1) {
+		printf("memcache leaks memory!\n");
+		goto fail;
+	}
+
+	ret = true;
+ fail:
+	TALLOC_FREE(cache);
+	return ret;
 }
 
 static double create_procs(bool (*fn)(int), bool *result)

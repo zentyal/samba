@@ -1,8 +1,8 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ldbedit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="ldbedit.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ldbedit &#8212; Edit LDB databases using your preferred editor</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">ldbedit</code> [-?] [--usage] [-s base|one|sub] [-b basedn] [-a] [-e editor] [-H LDB-URL] [expression] [attributes...]</p></div></div><div class="refsect1" lang="en"><a name="id2479185"></a><h2>DESCRIPTION</h2><p>ldbedit is a utility that allows you to edit LDB entries (in 
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ldbedit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="ldbedit.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ldbedit &#8212; Edit LDB databases using your preferred editor</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">ldbedit</code> [-?] [--usage] [-s base|one|sub] [-b basedn] [-a] [-e editor] [-H LDB-URL] [expression] [attributes...]</p></div></div><div class="refsect1" lang="en"><a name="id2483370"></a><h2>DESCRIPTION</h2><p>ldbedit is a utility that allows you to edit LDB entries (in 
 	    tdb files, sqlite files or LDAP servers) using your preferred editor.
 	    ldbedit generates an LDIF file based on your query, allows you to edit
 	    the LDIF, and then merges that LDIF back into the LDB backend.
-	</p></div><div class="refsect1" lang="en"><a name="id2479200"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-?, </span><span class="term">--help</span></dt><dd><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2483385"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-?, </span><span class="term">--help</span></dt><dd><p>
 			Show list of available options, and a phrase describing what that option
 			does.
 		    </p></dd><dt><span class="term">--usage</span></dt><dd><p>
@@ -34,14 +34,14 @@
 			operations that are being performed. Without
 			this option, ldbedit will only provide a
 			summary change line.
-		    </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2479360"></a><h2>ENVIRONMENT</h2><div class="variablelist"><dl><dt><span class="term">LDB_URL</span></dt><dd><p>LDB URL to connect to. This can be
+		    </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483662"></a><h2>ENVIRONMENT</h2><div class="variablelist"><dl><dt><span class="term">LDB_URL</span></dt><dd><p>LDB URL to connect to. This can be
 		    overridden by using the -H command-line option.)
 		    </p></dd><dt><span class="term">VISUAL and EDITOR</span></dt><dd><p>
 			Environment variables used to determine what 
 			editor to use. VISUAL takes precedence over
 			EDITOR, and both are overridden by the
 			-e command-line option.
-		    </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2479401"></a><h2>VERSION</h2><p>This man page is correct for version 4.0 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2479412"></a><h2>SEE ALSO</h2><p>ldb(7), ldbmodify(1), ldbdel(1), ldif(5), vi(1)</p></div><div class="refsect1" lang="en"><a name="id2479423"></a><h2>AUTHOR</h2><p>
+		    </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483702"></a><h2>VERSION</h2><p>This man page is correct for version 4.0 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2483714"></a><h2>SEE ALSO</h2><p>ldb(7), ldbmodify(1), ldbdel(1), ldif(5), vi(1)</p></div><div class="refsect1" lang="en"><a name="id2483724"></a><h2>AUTHOR</h2><p>
 	    ldb was written by 
 	    <a class="ulink" href="http://samba.org/~tridge/" target="_top">Andrew Tridgell</a>.
 	</p><p>

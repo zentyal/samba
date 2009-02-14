@@ -1,6 +1,6 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>pam_winbind</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="pam_winbind.7"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>pam_winbind &#8212; PAM module for Winbind</p></div><div class="refsect1" lang="en"><a name="id2518297"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>pam_winbind</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="pam_winbind.7"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>pam_winbind &#8212; PAM module for Winbind</p></div><div class="refsect1" lang="en"><a name="id2522915"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>
 	pam_winbind is a PAM module that can authenticate users against the local domain by talking to the Winbind daemon.
-	</p></div><div class="refsect1" lang="en"><a name="id2518320"></a><h2>OPTIONS</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2522939"></a><h2>OPTIONS</h2><p>
 	
 		pam_winbind supports several options which can either be set in
 		the PAM configuration files or in the pam_winbind configuration
@@ -52,10 +52,13 @@
 		Winbind allows to logon using cached credentials when <em class="parameter"><code>winbind offline logon</code></em> is enabled. To use this feature from the PAM module this option must be set.
 		</p></dd><dt><span class="term">silent</span></dt><dd><p>
 		Do not emit any messages.
+		</p></dd><dt><span class="term">mkhomedir</span></dt><dd><p>
+		Create homedirectory for a user on-the-fly, option is valid in
+		PAM session block.
 		</p></dd></dl></div><p>
 
 
-	</p></div><div class="refsect1" lang="en"><a name="id2482548"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id2482583"></a><h2>VERSION</h2><p>This man page is correct for version 3 of Samba.</p></div><div class="refsect1" lang="en"><a name="id2482593"></a><h2>AUTHOR</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2483647"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id2483683"></a><h2>VERSION</h2><p>This man page is correct for version 3 of Samba.</p></div><div class="refsect1" lang="en"><a name="id2483694"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities were created by Andrew Tridgell. Samba is now developed by
 	the Samba Team as an Open Source project similar to the way the Linux kernel is developed.
 	</p><p>This manpage was written by Jelmer Vernooij and Guenther Deschner.</p></div></div></body></html>

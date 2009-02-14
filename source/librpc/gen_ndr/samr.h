@@ -8,6 +8,31 @@
 #ifndef _HEADER_samr
 #define _HEADER_samr
 
+#define SAMR_ACCESS_ALL_ACCESS	( 0x0000003F )
+#define GENERIC_RIGHTS_SAM_ALL_ACCESS	( (STANDARD_RIGHTS_REQUIRED_ACCESS|SAMR_ACCESS_ALL_ACCESS) )
+#define GENERIC_RIGHTS_SAM_READ	( (STANDARD_RIGHTS_READ_ACCESS|SAMR_ACCESS_ENUM_DOMAINS) )
+#define GENERIC_RIGHTS_SAM_WRITE	( (STANDARD_RIGHTS_WRITE_ACCESS|SAMR_ACCESS_CREATE_DOMAIN|SAMR_ACCESS_INITIALIZE_SERVER|SAMR_ACCESS_SHUTDOWN_SERVER) )
+#define GENERIC_RIGHTS_SAM_EXECUTE	( (STANDARD_RIGHTS_EXECUTE_ACCESS|SAMR_ACCESS_OPEN_DOMAIN|SAMR_ACCESS_CONNECT_TO_SERVER) )
+#define SAMR_USER_ACCESS_ALL_ACCESS	( 0x000007FF )
+#define GENERIC_RIGHTS_USER_ALL_ACCESS	( (STANDARD_RIGHTS_REQUIRED_ACCESS|SAMR_USER_ACCESS_ALL_ACCESS) )
+#define GENERIC_RIGHTS_USER_READ	( (STANDARD_RIGHTS_READ_ACCESS|SAMR_USER_ACCESS_GET_GROUP_MEMBERSHIP|SAMR_USER_ACCESS_GET_GROUPS|SAMR_USER_ACCESS_GET_ATTRIBUTES|SAMR_USER_ACCESS_GET_LOGONINFO|SAMR_USER_ACCESS_GET_LOCALE) )
+#define GENERIC_RIGHTS_USER_WRITE	( (STANDARD_RIGHTS_WRITE_ACCESS|SAMR_USER_ACCESS_CHANGE_PASSWORD|SAMR_USER_ACCESS_SET_LOC_COM|SAMR_USER_ACCESS_SET_ATTRIBUTES|SAMR_USER_ACCESS_SET_PASSWORD|SAMR_USER_ACCESS_CHANGE_GROUP_MEMBERSHIP) )
+#define GENERIC_RIGHTS_USER_EXECUTE	( (STANDARD_RIGHTS_EXECUTE_ACCESS|SAMR_USER_ACCESS_CHANGE_PASSWORD|SAMR_USER_ACCESS_GET_NAME_ETC) )
+#define SAMR_DOMAIN_ACCESS_ALL_ACCESS	( 0x000007FF )
+#define GENERIC_RIGHTS_DOMAIN_ALL_ACCESS	( (STANDARD_RIGHTS_REQUIRED_ACCESS|SAMR_DOMAIN_ACCESS_ALL_ACCESS) )
+#define GENERIC_RIGHTS_DOMAIN_READ	( (STANDARD_RIGHTS_READ_ACCESS|SAMR_DOMAIN_ACCESS_LOOKUP_ALIAS|SAMR_DOMAIN_ACCESS_LOOKUP_INFO_2) )
+#define GENERIC_RIGHTS_DOMAIN_WRITE	( (STANDARD_RIGHTS_WRITE_ACCESS|SAMR_DOMAIN_ACCESS_SET_INFO_3|SAMR_DOMAIN_ACCESS_CREATE_ALIAS|SAMR_DOMAIN_ACCESS_CREATE_GROUP|SAMR_DOMAIN_ACCESS_CREATE_USER|SAMR_DOMAIN_ACCESS_SET_INFO_2|SAMR_DOMAIN_ACCESS_SET_INFO_1) )
+#define GENERIC_RIGHTS_DOMAIN_EXECUTE	( (STANDARD_RIGHTS_EXECUTE_ACCESS|SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT|SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS|SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1) )
+#define SAMR_GROUP_ACCESS_ALL_ACCESS	( 0x0000001F )
+#define GENERIC_RIGHTS_GROUP_ALL_ACCESS	( (STANDARD_RIGHTS_REQUIRED_ACCESS|SAMR_GROUP_ACCESS_ALL_ACCESS) )
+#define GENERIC_RIGHTS_GROUP_READ	( (STANDARD_RIGHTS_READ_ACCESS|SAMR_GROUP_ACCESS_GET_MEMBERS) )
+#define GENERIC_RIGHTS_GROUP_WRITE	( (STANDARD_RIGHTS_WRITE_ACCESS|SAMR_GROUP_ACCESS_REMOVE_MEMBER|SAMR_GROUP_ACCESS_ADD_MEMBER|SAMR_GROUP_ACCESS_SET_INFO) )
+#define GENERIC_RIGHTS_GROUP_EXECUTE	( (STANDARD_RIGHTS_EXECUTE_ACCESS|SAMR_GROUP_ACCESS_LOOKUP_INFO) )
+#define SAMR_ALIAS_ACCESS_ALL_ACCESS	( 0x0000001F )
+#define GENERIC_RIGHTS_ALIAS_ALL_ACCESS	( (STANDARD_RIGHTS_REQUIRED_ACCESS|SAMR_ALIAS_ACCESS_ALL_ACCESS) )
+#define GENERIC_RIGHTS_ALIAS_READ	( (STANDARD_RIGHTS_READ_ACCESS|SAMR_ALIAS_ACCESS_GET_MEMBERS) )
+#define GENERIC_RIGHTS_ALIAS_WRITE	( (STANDARD_RIGHTS_WRITE_ACCESS|SAMR_ALIAS_ACCESS_REMOVE_MEMBER|SAMR_ALIAS_ACCESS_ADD_MEMBER|SAMR_ALIAS_ACCESS_SET_INFO) )
+#define GENERIC_RIGHTS_ALIAS_EXECUTE	( (STANDARD_RIGHTS_EXECUTE_ACCESS|SAMR_ALIAS_ACCESS_LOOKUP_INFO) )
 #define MAX_SAM_ENTRIES_W2K	( 0x400 )
 #define MAX_SAM_ENTRIES_W95	( 50 )
 #define SAMR_ENUM_USERS_MULTIPLIER	( 54 )
@@ -184,8 +209,7 @@ struct samr_DomInfo12 {
 struct samr_DomInfo13 {
 	uint64_t sequence_num;
 	NTTIME domain_create_time;
-	uint32_t unknown1;
-	uint32_t unknown2;
+	uint64_t modified_count_at_last_promotion;
 };
 
 union samr_DomainInfo {
@@ -409,10 +433,11 @@ struct samr_Password {
 }/* [public,flag(LIBNDR_PRINT_ARRAY_HEX)] */;
 
 struct samr_UserInfo18 {
-	struct samr_Password lm_pwd;
 	struct samr_Password nt_pwd;
-	uint8_t lm_pwd_active;
+	struct samr_Password lm_pwd;
 	uint8_t nt_pwd_active;
+	uint8_t lm_pwd_active;
+	uint8_t password_expired;
 };
 
 struct samr_UserInfo20 {
@@ -444,8 +469,8 @@ struct samr_UserInfo20 {
 #define SAMR_FIELD_PARAMETERS ( 0x00200000 )
 #define SAMR_FIELD_COUNTRY_CODE ( 0x00400000 )
 #define SAMR_FIELD_CODE_PAGE ( 0x00800000 )
-#define SAMR_FIELD_PASSWORD ( 0x01000000 )
-#define SAMR_FIELD_PASSWORD2 ( 0x02000000 )
+#define SAMR_FIELD_NT_PASSWORD_PRESENT ( 0x01000000 )
+#define SAMR_FIELD_LM_PASSWORD_PRESENT ( 0x02000000 )
 #define SAMR_FIELD_PRIVATE_DATA ( 0x04000000 )
 #define SAMR_FIELD_EXPIRED_FLAG ( 0x08000000 )
 #define SAMR_FIELD_SEC_DESC ( 0x10000000 )
@@ -468,8 +493,8 @@ struct samr_UserInfo21 {
 	struct lsa_String workstations;
 	struct lsa_String comment;
 	struct lsa_BinaryString parameters;
-	struct lsa_String unknown1;
-	struct lsa_String unknown2;
+	struct lsa_BinaryString lm_owf_password;
+	struct lsa_BinaryString nt_owf_password;
 	struct lsa_String unknown3;
 	uint32_t buf_count;
 	uint8_t *buffer;/* [unique,size_is(buf_count)] */
@@ -482,8 +507,8 @@ struct samr_UserInfo21 {
 	uint16_t logon_count;
 	uint16_t country_code;
 	uint16_t code_page;
-	uint8_t nt_password_set;
 	uint8_t lm_password_set;
+	uint8_t nt_password_set;
 	uint8_t password_expired;
 	uint8_t unknown4;
 };
@@ -499,7 +524,7 @@ struct samr_UserInfo23 {
 
 struct samr_UserInfo24 {
 	struct samr_CryptPassword password;
-	uint8_t pw_len;
+	uint8_t password_expired;
 };
 
 struct samr_CryptPasswordEx {
@@ -513,7 +538,7 @@ struct samr_UserInfo25 {
 
 struct samr_UserInfo26 {
 	struct samr_CryptPasswordEx password;
-	uint8_t pw_len;
+	uint8_t password_expired;
 };
 
 union samr_UserInfo {
@@ -1440,7 +1465,7 @@ struct samr_QueryUserInfo2 {
 	} in;
 
 	struct {
-		union samr_UserInfo *info;/* [ref,switch_is(level)] */
+		union samr_UserInfo **info;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 
@@ -1746,11 +1771,11 @@ struct samr_SetDsrmPassword {
 struct samr_ValidatePassword {
 	struct {
 		enum samr_ValidatePasswordLevel level;
-		union samr_ValidatePasswordReq req;/* [switch_is(level)] */
+		union samr_ValidatePasswordReq *req;/* [ref,switch_is(level)] */
 	} in;
 
 	struct {
-		union samr_ValidatePasswordRep *rep;/* [ref,switch_is(level)] */
+		union samr_ValidatePasswordRep **rep;/* [ref,switch_is(level)] */
 		NTSTATUS result;
 	} out;
 

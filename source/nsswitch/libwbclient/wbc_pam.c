@@ -4,6 +4,7 @@
    Winbind client API
 
    Copyright (C) Gerald (Jerry) Carter 2007
+   Copyright (C) Guenther Deschner 2008
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -236,6 +237,74 @@ done:
 	return wbc_status;
 }
 
+static wbcErr wbc_create_password_policy_info(TALLOC_CTX *mem_ctx,
+					      const struct winbindd_response *resp,
+					      struct wbcUserPasswordPolicyInfo **_i)
+{
+	wbcErr wbc_status = WBC_ERR_SUCCESS;
+	struct wbcUserPasswordPolicyInfo *i;
+
+	i = talloc(mem_ctx, struct wbcUserPasswordPolicyInfo);
+	BAIL_ON_PTR_ERROR(i, wbc_status);
+
+	i->min_passwordage	= resp->data.auth.policy.min_passwordage;
+	i->min_length_password	= resp->data.auth.policy.min_length_password;
+	i->password_history	= resp->data.auth.policy.password_history;
+	i->password_properties	= resp->data.auth.policy.password_properties;
+	i->expire		= resp->data.auth.policy.expire;
+
+	*_i = i;
+	i = NULL;
+
+done:
+	talloc_free(i);
+	return wbc_status;
+}
+
+static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
+				    const struct winbindd_response *resp,
+				    struct wbcLogonUserInfo **_i)
+{
+	wbcErr wbc_status = WBC_ERR_SUCCESS;
+	struct wbcLogonUserInfo *i;
+
+	i = talloc_zero(mem_ctx, struct wbcLogonUserInfo);
+	BAIL_ON_PTR_ERROR(i, wbc_status);
+
+	wbc_status = wbc_create_auth_info(i, resp, &i->info);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	if (resp->data.auth.krb5ccname) {
+		wbc_status = wbcAddNamedBlob(&i->num_blobs,
+					     &i->blobs,
+					     "krb5ccname",
+					     0,
+					     (uint8_t *)resp->data.auth.krb5ccname,
+					     strlen(resp->data.auth.krb5ccname)+1);
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if (resp->data.auth.unix_username) {
+		wbc_status = wbcAddNamedBlob(&i->num_blobs,
+					     &i->blobs,
+					     "unix_username",
+					     0,
+					     (uint8_t *)resp->data.auth.unix_username,
+					     strlen(resp->data.auth.unix_username)+1);
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	*_i = i;
+	i = NULL;
+done:
+	if (!WBC_ERROR_IS_OK(wbc_status) && i) {
+		wbcFreeMemory(i->blobs);
+	}
+
+	talloc_free(i);
+	return wbc_status;
+}
+
 /** @brief Authenticate with more detailed information
  *
  * @param params       Input parameters, WBC_AUTH_USER_LEVEL_HASH
@@ -307,9 +376,10 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 				params->account_name,
 				sizeof(request.data.auth.user)-1);
 		}
+
 		strncpy(request.data.auth.pass,
 			params->password.plaintext,
-			sizeof(request.data.auth.user)-1);
+			sizeof(request.data.auth.pass)-1);
 		break;
 
 	case WBC_AUTH_USER_LEVEL_HASH:
@@ -392,6 +462,10 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
+	if (params->flags) {
+		request.flags |= params->flags;
+	}
+
 	wbc_status = wbcRequestResponse(cmd,
 					&request,
 					&response);
@@ -471,4 +545,568 @@ wbcErr wbcCheckTrustCredentials(const char *domain,
 
  done:
 	return wbc_status;
+}
+
+/** @brief Trigger an extended logoff notification to Winbind for a specific user
+ *
+ * @param params      A wbcLogoffUserParams structure
+ * @param error       User output details on error
+ *
+ * @return #wbcErr
+ *
+ **/
+
+wbcErr wbcLogoffUserEx(const struct wbcLogoffUserParams *params,
+		       struct wbcAuthErrorInfo **error)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	int i;
+
+	/* validate input */
+
+	if (!params || !params->username) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if ((params->num_blobs > 0) && (params->blobs == NULL)) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+	if ((params->num_blobs == 0) && (params->blobs != NULL)) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	strncpy(request.data.logoff.user, params->username,
+		sizeof(request.data.logoff.user)-1);
+
+	for (i=0; i<params->num_blobs; i++) {
+
+		if (strcasecmp(params->blobs[i].name, "ccfilename") == 0) {
+			if (params->blobs[i].blob.data) {
+				strncpy(request.data.logoff.krb5ccname,
+					(const char *)params->blobs[i].blob.data,
+					sizeof(request.data.logoff.krb5ccname) - 1);
+			}
+			continue;
+		}
+
+		if (strcasecmp(params->blobs[i].name, "user_uid") == 0) {
+			if (params->blobs[i].blob.data) {
+				memcpy(&request.data.logoff.uid,
+					params->blobs[i].blob.data,
+					MIN(params->blobs[i].blob.length,
+					    sizeof(request.data.logoff.uid)));
+			}
+			continue;
+		}
+
+		if (strcasecmp(params->blobs[i].name, "flags") == 0) {
+			if (params->blobs[i].blob.data) {
+				memcpy(&request.flags,
+					params->blobs[i].blob.data,
+					MIN(params->blobs[i].blob.length,
+					    sizeof(request.flags)));
+			}
+			continue;
+		}
+	}
+
+	/* Send request */
+
+	wbc_status = wbcRequestResponse(WINBINDD_PAM_LOGOFF,
+					&request,
+					&response);
+
+	/* Take the response above and return it to the caller */
+	if (response.data.auth.nt_status != 0) {
+		if (error) {
+			wbc_status = wbc_create_error_info(NULL,
+							   &response,
+							   error);
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		wbc_status = WBC_ERR_AUTH_ERROR;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/** @brief Trigger a logoff notification to Winbind for a specific user
+ *
+ * @param username    Name of user to remove from Winbind's list of
+ *                    logged on users.
+ * @param uid         Uid assigned to the username
+ * @param ccfilename  Absolute path to the Krb5 credentials cache to
+ *                    be removed
+ *
+ * @return #wbcErr
+ *
+ **/
+
+wbcErr wbcLogoffUser(const char *username,
+		     uid_t uid,
+		     const char *ccfilename)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+
+	/* validate input */
+
+	if (!username) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	strncpy(request.data.logoff.user, username,
+		sizeof(request.data.logoff.user)-1);
+	request.data.logoff.uid = uid;
+
+	if (ccfilename) {
+		strncpy(request.data.logoff.krb5ccname, ccfilename,
+			sizeof(request.data.logoff.krb5ccname)-1);
+	}
+
+	/* Send request */
+
+	wbc_status = wbcRequestResponse(WINBINDD_PAM_LOGOFF,
+					&request,
+					&response);
+
+	/* Take the response above and return it to the caller */
+
+ done:
+	return wbc_status;
+}
+
+/** @brief Change a password for a user with more detailed information upon
+ * 	   failure
+ * @param params                Input parameters
+ * @param error                 User output details on WBC_ERR_PWD_CHANGE_FAILED
+ * @param reject_reason         New password reject reason on WBC_ERR_PWD_CHANGE_FAILED
+ * @param policy                Password policy output details on WBC_ERR_PWD_CHANGE_FAILED
+ *
+ * @return #wbcErr
+ **/
+
+wbcErr wbcChangeUserPasswordEx(const struct wbcChangePasswordParams *params,
+			       struct wbcAuthErrorInfo **error,
+			       enum wbcPasswordChangeRejectReason *reject_reason,
+			       struct wbcUserPasswordPolicyInfo **policy)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	int cmd = 0;
+
+	/* validate input */
+
+	if (!params->account_name) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if (error) {
+		*error = NULL;
+	}
+
+	if (policy) {
+		*policy = NULL;
+	}
+
+	if (reject_reason) {
+		*reject_reason = -1;
+	}
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	switch (params->level) {
+	case WBC_CHANGE_PASSWORD_LEVEL_PLAIN:
+		cmd = WINBINDD_PAM_CHAUTHTOK;
+
+		if (!params->account_name) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		strncpy(request.data.chauthtok.user, params->account_name,
+			sizeof(request.data.chauthtok.user) - 1);
+
+		if (params->old_password.plaintext) {
+			strncpy(request.data.chauthtok.oldpass,
+				params->old_password.plaintext,
+				sizeof(request.data.chauthtok.oldpass) - 1);
+		}
+
+		if (params->new_password.plaintext) {
+			strncpy(request.data.chauthtok.newpass,
+				params->new_password.plaintext,
+				sizeof(request.data.chauthtok.newpass) - 1);
+		}
+		break;
+
+	case WBC_CHANGE_PASSWORD_LEVEL_RESPONSE:
+		cmd = WINBINDD_PAM_CHNG_PSWD_AUTH_CRAP;
+
+		if (!params->account_name || !params->domain_name) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->old_password.response.old_lm_hash_enc_length &&
+		    !params->old_password.response.old_lm_hash_enc_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->old_password.response.old_lm_hash_enc_length == 0 &&
+		    params->old_password.response.old_lm_hash_enc_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->old_password.response.old_nt_hash_enc_length &&
+		    !params->old_password.response.old_nt_hash_enc_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->old_password.response.old_nt_hash_enc_length == 0 &&
+		    params->old_password.response.old_nt_hash_enc_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->new_password.response.lm_length &&
+		    !params->new_password.response.lm_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->new_password.response.lm_length == 0 &&
+		    params->new_password.response.lm_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->new_password.response.nt_length &&
+		    !params->new_password.response.nt_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		if (params->new_password.response.nt_length == 0 &&
+		    params->new_password.response.nt_data) {
+			wbc_status = WBC_ERR_INVALID_PARAM;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		strncpy(request.data.chng_pswd_auth_crap.user,
+			params->account_name,
+			sizeof(request.data.chng_pswd_auth_crap.user) - 1);
+
+		strncpy(request.data.chng_pswd_auth_crap.domain,
+			params->domain_name,
+			sizeof(request.data.chng_pswd_auth_crap.domain) - 1);
+
+		if (params->new_password.response.nt_data) {
+			memcpy(request.data.chng_pswd_auth_crap.new_nt_pswd,
+			       params->new_password.response.nt_data,
+			       request.data.chng_pswd_auth_crap.new_nt_pswd_len);
+			request.data.chng_pswd_auth_crap.new_nt_pswd_len =
+				params->new_password.response.nt_length;
+		}
+
+		if (params->new_password.response.lm_data) {
+			memcpy(request.data.chng_pswd_auth_crap.new_lm_pswd,
+			       params->new_password.response.lm_data,
+			       request.data.chng_pswd_auth_crap.new_lm_pswd_len);
+			request.data.chng_pswd_auth_crap.new_lm_pswd_len =
+				params->new_password.response.lm_length;
+		}
+
+		if (params->old_password.response.old_nt_hash_enc_data) {
+			memcpy(request.data.chng_pswd_auth_crap.old_nt_hash_enc,
+			       params->old_password.response.old_nt_hash_enc_data,
+			       request.data.chng_pswd_auth_crap.old_nt_hash_enc_len);
+			request.data.chng_pswd_auth_crap.old_nt_hash_enc_len =
+				params->old_password.response.old_nt_hash_enc_length;
+		}
+
+		if (params->old_password.response.old_lm_hash_enc_data) {
+			memcpy(request.data.chng_pswd_auth_crap.old_lm_hash_enc,
+			       params->old_password.response.old_lm_hash_enc_data,
+			       request.data.chng_pswd_auth_crap.old_lm_hash_enc_len);
+			request.data.chng_pswd_auth_crap.old_lm_hash_enc_len =
+				params->old_password.response.old_lm_hash_enc_length;
+		}
+
+		break;
+	default:
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+		break;
+	}
+
+	if (cmd == 0) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	/* Send request */
+
+	wbc_status = wbcRequestResponse(cmd,
+					&request,
+					&response);
+	if (WBC_ERROR_IS_OK(wbc_status)) {
+		goto done;
+	}
+
+	/* Take the response above and return it to the caller */
+
+	if (response.data.auth.nt_status != 0) {
+		if (error) {
+			wbc_status = wbc_create_error_info(NULL,
+							   &response,
+							   error);
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+	}
+
+	if (policy) {
+		wbc_status = wbc_create_password_policy_info(NULL,
+							     &response,
+							     policy);
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if (reject_reason) {
+		*reject_reason = response.data.auth.reject_reason;
+	}
+
+	wbc_status = WBC_ERR_PWD_CHANGE_FAILED;
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/** @brief Change a password for a user
+ *
+ * @param username		Name of user to authenticate
+ * @param old_password		Old clear text password of user
+ * @param new_password		New clear text password of user
+ *
+ * @return #wbcErr
+ **/
+
+wbcErr wbcChangeUserPassword(const char *username,
+			     const char *old_password,
+			     const char *new_password)
+{
+	wbcErr wbc_status = WBC_ERR_SUCCESS;
+	struct wbcChangePasswordParams params;
+
+	ZERO_STRUCT(params);
+
+	params.account_name		= username;
+	params.level			= WBC_CHANGE_PASSWORD_LEVEL_PLAIN;
+	params.old_password.plaintext	= old_password;
+	params.new_password.plaintext	= new_password;
+
+	wbc_status = wbcChangeUserPasswordEx(&params,
+					     NULL,
+					     NULL,
+					     NULL);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+done:
+	return wbc_status;
+}
+
+/** @brief Logon a User
+ *
+ * @param[in]  params      Pointer to a wbcLogonUserParams structure
+ * @param[out] info        Pointer to a pointer to a wbcLogonUserInfo structure
+ * @param[out] error       Pointer to a pointer to a wbcAuthErrorInfo structure
+ * @param[out] policy      Pointer to a pointer to a wbcUserPasswordPolicyInfo structure
+ *
+ * @return #wbcErr
+ *
+ **/
+
+wbcErr wbcLogonUser(const struct wbcLogonUserParams *params,
+		    struct wbcLogonUserInfo **info,
+		    struct wbcAuthErrorInfo **error,
+		    struct wbcUserPasswordPolicyInfo **policy)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	int cmd = 0;
+	struct winbindd_request request;
+	struct winbindd_response response;
+	uint32_t i;
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	if (info) {
+		*info = NULL;
+	}
+	if (error) {
+		*error = NULL;
+	}
+	if (policy) {
+		*policy = NULL;
+	}
+
+	if (!params) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if (!params->username) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if ((params->num_blobs > 0) && (params->blobs == NULL)) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+	if ((params->num_blobs == 0) && (params->blobs != NULL)) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	/* Initialize request */
+
+	cmd = WINBINDD_PAM_AUTH;
+	request.flags = WBFLAG_PAM_INFO3_TEXT |
+			WBFLAG_PAM_USER_SESSION_KEY |
+			WBFLAG_PAM_LMKEY;
+
+	if (!params->password) {
+		wbc_status = WBC_ERR_INVALID_PARAM;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	strncpy(request.data.auth.user,
+		params->username,
+		sizeof(request.data.auth.user)-1);
+
+	strncpy(request.data.auth.pass,
+		params->password,
+		sizeof(request.data.auth.pass)-1);
+
+	for (i=0; i<params->num_blobs; i++) {
+
+		if (strcasecmp(params->blobs[i].name, "krb5_cc_type") == 0) {
+			if (params->blobs[i].blob.data) {
+				strncpy(request.data.auth.krb5_cc_type,
+					(const char *)params->blobs[i].blob.data,
+					sizeof(request.data.auth.krb5_cc_type) - 1);
+			}
+			continue;
+		}
+
+		if (strcasecmp(params->blobs[i].name, "user_uid") == 0) {
+			if (params->blobs[i].blob.data) {
+				memcpy(&request.data.auth.uid,
+					params->blobs[i].blob.data,
+					MIN(sizeof(request.data.auth.uid),
+					    params->blobs[i].blob.length));
+			}
+			continue;
+		}
+
+		if (strcasecmp(params->blobs[i].name, "flags") == 0) {
+			if (params->blobs[i].blob.data) {
+				uint32_t flags;
+				memcpy(&flags,
+					params->blobs[i].blob.data,
+					MIN(sizeof(flags),
+					    params->blobs[i].blob.length));
+				request.flags |= flags;
+			}
+			continue;
+		}
+
+		if (strcasecmp(params->blobs[i].name, "membership_of") == 0) {
+			if (params->blobs[i].blob.data &&
+			    params->blobs[i].blob.data[0] > 0) {
+				strncpy(request.data.auth.require_membership_of_sid,
+					(const char *)params->blobs[i].blob.data,
+					sizeof(request.data.auth.require_membership_of_sid) - 1);
+			}
+			continue;
+		}
+	}
+
+	wbc_status = wbcRequestResponse(cmd,
+					&request,
+					&response);
+
+	if (response.data.auth.nt_status != 0) {
+		if (error) {
+			wbc_status = wbc_create_error_info(NULL,
+							   &response,
+							   error);
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		wbc_status = WBC_ERR_AUTH_ERROR;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	if (info) {
+		wbc_status = wbc_create_logon_info(NULL,
+						   &response,
+						   info);
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+	if (policy) {
+		wbc_status = wbc_create_password_policy_info(NULL,
+							     &response,
+							     policy);
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+
+done:
+	if (response.extra_data.data)
+		free(response.extra_data.data);
+
+	return wbc_status;
+}
+
+/** @brief Authenticate a user with cached credentials
+ *
+ * @param *params    Pointer to a wbcCredentialCacheParams structure
+ * @param **info     Pointer to a pointer to a wbcCredentialCacheInfo structure
+ * @param **error    Pointer to a pointer to a wbcAuthErrorInfo structure
+ *
+ * @return #wbcErr
+ **/
+wbcErr wbcCredentialCache(struct wbcCredentialCacheParams *params,
+                          struct wbcCredentialCacheInfo **info,
+                          struct wbcAuthErrorInfo **error)
+{
+	return WBC_ERR_NOT_IMPLEMENTED;
 }

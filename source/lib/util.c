@@ -60,8 +60,6 @@ enum protocol_types Protocol = PROTOCOL_COREPLUS;
 /* this is used by the chaining code */
 int chain_size = 0;
 
-int trans_num = 0;
-
 static enum remote_arch_types ra_type = RA_UNKNOWN;
 
 /***********************************************************************
@@ -348,6 +346,11 @@ bool set_cmdline_auth_info_signing_state(const char *arg)
 int get_cmdline_auth_info_signing_state(void)
 {
 	return cmdline_auth_info.signing_state;
+}
+
+void set_cmdline_auth_info_use_kerberos(bool b)
+{
+        cmdline_auth_info.use_kerberos = b;
 }
 
 bool get_cmdline_auth_info_use_kerberos(void)
@@ -1035,6 +1038,7 @@ void become_daemon(bool Fork, bool no_process_group)
 }
 
 bool reinit_after_fork(struct messaging_context *msg_ctx,
+		       struct event_context *ev_ctx,
 		       bool parent_longlived)
 {
 	NTSTATUS status;
@@ -1051,15 +1055,21 @@ bool reinit_after_fork(struct messaging_context *msg_ctx,
 		return false;
 	}
 
-	/*
-	 * For clustering, we need to re-init our ctdbd connection after the
-	 * fork
-	 */
-	status = messaging_reinit(msg_ctx);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("messaging_reinit() failed: %s\n",
-			 nt_errstr(status)));
-		return false;
+	if (ev_ctx) {
+		event_context_reinit(ev_ctx);
+	}
+
+	if (msg_ctx) {
+		/*
+		 * For clustering, we need to re-init our ctdbd connection after the
+		 * fork
+		 */
+		status = messaging_reinit(msg_ctx);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("messaging_reinit() failed: %s\n",
+				 nt_errstr(status)));
+			return false;
+		}
 	}
 
 	return true;
@@ -1605,7 +1615,7 @@ uid_t nametouid(const char *name)
 	char *p;
 	uid_t u;
 
-	pass = getpwnam_alloc(NULL, name);
+	pass = getpwnam_alloc(talloc_autofree_context(), name);
 	if (pass) {
 		u = pass->pw_uid;
 		TALLOC_FREE(pass);
@@ -1904,10 +1914,10 @@ bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensit
  if possible.
 ********************************************************************/
  
-void set_namearray(name_compare_entry **ppname_array, char *namelist)
+void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 {
 	char *name_end;
-	char *nameptr = namelist;
+	const char *nameptr = namelist;
 	int num_entries = 0;
 	int i;
 
@@ -2538,8 +2548,8 @@ char *myhostname(void)
 	static char *ret;
 	if (ret == NULL) {
 		/* This is cached forever so
-		 * use NULL talloc ctx. */
-		ret = get_myname(NULL);
+		 * use autofree talloc ctx. */
+		ret = get_myname(talloc_autofree_context());
 	}
 	return ret;
 }
@@ -2597,6 +2607,19 @@ char *pid_path(const char *name)
 char *lib_path(const char *name)
 {
 	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_LIBDIR(), name);
+}
+
+/**
+ * @brief Returns an absolute path to a file in the Samba modules directory.
+ *
+ * @param name File to find, relative to MODULESDIR.
+ *
+ * @retval Pointer to a string containing the full path.
+ **/
+
+char *modules_path(const char *name)
+{
+	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_MODULESDIR(), name);
 }
 
 /**
@@ -3071,7 +3094,7 @@ struct server_id interpret_pid(const char *pid_string)
 		result.pid = pid;
 	}
 	else if (sscanf(pid_string, "%u", &pid) == 1) {
-		result.vnn = NONCLUSTER_VNN;
+		result.vnn = get_my_vnn();
 		result.pid = pid;
 	}
 	else {
@@ -3448,6 +3471,16 @@ bool is_valid_policy_hnd(const POLICY_HND *hnd)
 	POLICY_HND tmp;
 	ZERO_STRUCT(tmp);
 	return (memcmp(&tmp, hnd, sizeof(tmp)) != 0);
+}
+
+bool policy_hnd_equal(const struct policy_handle *hnd1,
+		      const struct policy_handle *hnd2)
+{
+	if (!hnd1 || !hnd2) {
+		return false;
+	}
+
+	return (memcmp(hnd1, hnd2, sizeof(*hnd1)) == 0);
 }
 
 /****************************************************************

@@ -1,0 +1,83 @@
+Goal: Change install paths to better respect FHS. This needs fhs-newpaths.patch
+      to introduce new path variables and fhs-filespaths.patch to
+      associate files with these
+
+Fixes: #49011
+
+Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
+                     change their default behaviour
+
+Index: samba-3.2.0rc1/source/param/loadparm.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/param/loadparm.c
++++ samba-3.2.0rc1/source/param/loadparm.c
+@@ -121,6 +121,9 @@
+ 	char *szAddPrinterCommand;
+ 	char *szDeletePrinterCommand;
+ 	char *szOs2DriverMap;
++#ifdef FHS_COMPATIBLE
++	char *szLockDirStub;
++#endif
+ 	char *szLockDir;
+ 	char *szPidDir;
+ 	char *szRootdir;
+@@ -3677,6 +3680,26 @@
+ 		.enum_list	= NULL,
+ 		.flags		= FLAG_ADVANCED,
+ 	},
++#ifdef FHS_COMPATIBLE
++	{
++		.label		= "lock directory",
++		.type		= P_STRING,
++		.p_class	= P_GLOBAL,
++		.ptr		= &Globals.szLockDirStub,
++		.special	= NULL,
++		.enum_list	= NULL,
++		.flags		= 0,
++	},
++	{
++		.label		= "lock dir",
++		.type		= P_STRING,
++		.p_class	= P_GLOBAL,
++		.ptr		= &Globals.szLockDirStub,
++		.special	= NULL,
++		.enum_list	= NULL,
++		.flags		= 0,
++	},
++#else
+ 	{
+ 		.label		= "lock directory",
+ 		.type		= P_STRING,
+@@ -3695,6 +3718,7 @@
+ 		.enum_list	= NULL,
+ 		.flags		= FLAG_HIDE,
+ 	},
++#endif
+ 	{
+ 		.label		= "pid directory",
+ 		.type		= P_STRING,
+Index: samba-3.2.0rc1/source/m4/check_path.m4
+===================================================================
+--- samba-3.2.0rc1.orig/source/m4/check_path.m4
++++ samba-3.2.0rc1/source/m4/check_path.m4
+@@ -33,7 +33,7 @@
+ [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
+ [ case "$withval" in
+   yes)
+-    lockdir="\${VARDIR}/lib/samba"
++    lockdir="\${VARDIR}/run/samba"
+     piddir="\${VARDIR}/run"
+     mandir="\${prefix}/share/man"
+     logfilebase="\${VARDIR}/log/samba"
+@@ -41,9 +41,9 @@
+     test "${libdir}" || libdir="\${prefix}/lib/samba"
+     configdir="\${sysconfdir}/samba"
+     swatdir="\${DATADIR}/samba/swat"
+-    codepagedir="\${LIBDIR}"
++    codepagedir="\${DATADIR}/samba"
+     statedir="\${VARDIR}/lib/samba"
+-    cachedir="\${VARDIR}/lib/samba"
++    cachedir="\${VARDIR}/cache/samba"
+     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
+     ;;
+   esac])

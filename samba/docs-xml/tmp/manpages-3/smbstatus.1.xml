@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+<refentry id="smbstatus.1">
+
+<refmeta>
+	<refentrytitle>smbstatus</refentrytitle>
+	<manvolnum>1</manvolnum>
+	<refmiscinfo class="source">Samba</refmiscinfo>
+	<refmiscinfo class="manual">User Commands</refmiscinfo>
+	<refmiscinfo class="version">3.2</refmiscinfo>
+</refmeta>
+
+
+<refnamediv>
+	<refname>smbstatus</refname>
+	<refpurpose>report on current Samba connections</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv>
+	<cmdsynopsis sepchar=" ">
+		<literal>smbstatus</literal>
+		<arg choice="opt" rep="norepeat">-P</arg>
+		<arg choice="opt" rep="norepeat">-b</arg>
+		<arg choice="opt" rep="norepeat">-d &lt;debug level&gt;</arg>
+		<arg choice="opt" rep="norepeat">-v</arg>
+		<arg choice="opt" rep="norepeat">-L</arg>
+		<arg choice="opt" rep="norepeat">-B</arg>
+		<arg choice="opt" rep="norepeat">-p</arg>
+		<arg choice="opt" rep="norepeat">-S</arg>
+		<arg choice="opt" rep="norepeat">-s &lt;configuration file&gt;</arg>
+		<arg choice="opt" rep="norepeat">-u &lt;username&gt;</arg>
+	</cmdsynopsis>
+</refsynopsisdiv>
+
+<refsect1>
+	<title>DESCRIPTION</title>
+
+	<para>This tool is part of the <citerefentry><refentrytitle>samba</refentrytitle>
+	<manvolnum>7</manvolnum></citerefentry> suite.</para>
+
+	<para><literal>smbstatus</literal> is a very simple program to 
+	list the current Samba connections.</para>
+</refsect1>
+
+<refsect1>
+	<title>OPTIONS</title>
+
+	<variablelist>
+		<varlistentry>
+		<term>-P|--profile</term>
+		<listitem><para>If samba has been compiled with the 
+		profiling option, print only the contents of the profiling 
+		shared memory area.</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>-b|--brief</term>
+		<listitem><para>gives brief output.</para></listitem>
+		</varlistentry>
+
+		
+<varlistentry>
+<term>-d|--debuglevel=level</term>
+<listitem>
+<para><replaceable>level</replaceable> is an integer 
+from 0 to 10. The default value if this parameter is 
+not specified is 0.</para>
+
+<para>The higher this value, the more detail will be 
+logged to the log files about the activities of the 
+server. At level 0, only critical errors and serious 
+warnings will be logged. Level 1 is a reasonable level for
+day-to-day running - it generates a small amount of 
+information about operations carried out.</para>
+
+<para>Levels above 1 will generate considerable 
+amounts of log data, and should only be used when 
+investigating a problem. Levels above 3 are designed for 
+use only by developers and generate HUGE amounts of log
+data, most of which is extremely cryptic.</para>
+
+<para>Note that specifying this parameter here will 
+override the <link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="LOGLEVEL" xlink:href="smb.conf.5.html#LOGLEVEL">log level</link> parameter
+in the <filename moreinfo="none">smb.conf</filename> file.</para>
+</listitem>
+</varlistentry>
+		
+
+<varlistentry>
+<term>-V</term>
+<listitem><para>Prints the program version number.
+</para></listitem>
+</varlistentry>
+
+<varlistentry>
+<term>-s &lt;configuration file&gt;</term>
+<listitem><para>The file specified contains the 
+configuration details required by the server.  The 
+information in this file includes server-specific
+information such as what printcap file to use, as well 
+as descriptions of all the services that the server is 
+to provide. See <filename moreinfo="none">smb.conf</filename> for more information.
+The default configuration file name is determined at 
+compile time.</para></listitem>
+</varlistentry>
+
+<varlistentry>
+<term>-l|--log-basename=logdirectory</term>
+<listitem><para>Base directory name for log/debug files. The extension
+<constant>".progname"</constant> will be appended (e.g. log.smbclient, 
+log.smbd, etc...). The log file is never removed by the client.
+</para></listitem>
+</varlistentry>
+
+	
+		<varlistentry>
+		<term>-v|--verbose</term>
+		<listitem><para>gives verbose output.</para></listitem>
+		</varlistentry>
+
+
+		<varlistentry>
+		<term>-L|--locks</term>
+		<listitem><para>causes smbstatus to only list locks.</para>
+		</listitem>
+		</varlistentry>
+
+		
+		<varlistentry>
+		<term>-B|--byterange</term>
+		<listitem><para>causes smbstatus to include byte range locks.
+		</para></listitem>
+		</varlistentry>
+
+
+		<varlistentry>
+		<term>-p|--processes</term>
+		<listitem><para>print a list of <citerefentry><refentrytitle>smbd</refentrytitle>
+		<manvolnum>8</manvolnum></citerefentry> processes and exit. 
+		Useful for scripting.</para></listitem>
+		</varlistentry>
+		
+		
+		<varlistentry>
+		<term>-S|--shares</term>
+		<listitem><para>causes smbstatus to only list shares.</para>
+		</listitem>
+		</varlistentry>
+
+		
+<varlistentry>
+<term>-h|--help</term>
+<listitem><para>Print a summary of command line options.
+</para></listitem>
+</varlistentry>
+
+		<varlistentry>
+		<term>-u|--user=&lt;username&gt;</term>
+		<listitem><para>selects information relevant to <parameter moreinfo="none">username</parameter> only.</para>
+		</listitem>
+		</varlistentry>
+
+	</variablelist>
+</refsect1>
+
+<refsect1>
+	<title>VERSION</title>
+
+	<para>This man page is correct for version 3 of 
+	the Samba suite.</para>
+</refsect1>
+
+<refsect1>
+	<title>SEE ALSO</title>
+	<para><citerefentry><refentrytitle>smbd</refentrytitle>
+	<manvolnum>8</manvolnum></citerefentry> and <citerefentry><refentrytitle>smb.conf</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry>.</para>
+</refsect1>
+
+<refsect1>
+	<title>AUTHOR</title>
+	
+	<para>The original Samba software and related utilities 
+	were created by Andrew Tridgell. Samba is now developed
+	by the Samba Team as an Open Source project similar 
+	to the way the Linux kernel is developed.</para>
+	
+	<para>The original Samba man pages were written by Karl Auer. 
+	The man page sources were converted to YODL format (another 
+	excellent piece of Open Source software, available at <ulink url="ftp://ftp.icce.rug.nl/pub/unix/">
+	ftp://ftp.icce.rug.nl/pub/unix/</ulink>) and updated for the Samba 2.0 
+	release by Jeremy Allison.  The conversion to DocBook for 
+	Samba 2.2 was done by Gerald Carter. The conversion to DocBook XML 4.2
+	for Samba 3.0 was done by Alexander Bokovoy.</para>
+</refsect1>
+
+</refentry>

@@ -1,0 +1,156 @@
+<article><variablelist>
+<varlistentry><term><ulink url="cifs.upcall.8.html">cifs.upcall(8)</ulink></term><listitem><para>Userspace upcall helper for Common Internet File System (CIFS)
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="eventlogadm.8.html">eventlogadm(8)</ulink></term><listitem><para>push records into the Samba event log store
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="findsmb.1.html">findsmb(1)</ulink></term><listitem><para>list info about machines that respond to SMB 
+	name queries on a subnet
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="idmap_ad.8.html">idmap_ad(8)</ulink></term><listitem><para>Samba's idmap_ad Backend for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="idmap_ldap.8.html">idmap_ldap(8)</ulink></term><listitem><para>Samba's idmap_ldap Backend for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="idmap_nss.8.html">idmap_nss(8)</ulink></term><listitem><para>Samba's idmap_nss Backend for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="idmap_rid.8.html">idmap_rid(8)</ulink></term><listitem><para>Samba's idmap_rid Backend for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="idmap_tdb.8.html">idmap_tdb(8)</ulink></term><listitem><para>Samba's idmap_tdb Backend for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldb.3.html">ldb(3)</ulink></term><listitem><para>A light-weight database library
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldbadd.1.html">ldbadd(1)</ulink></term><listitem><para>Command-line utility for adding records to an LDB
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldbdel.1.html">ldbdel(1)</ulink></term><listitem><para>Command-line program for deleting LDB records
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldbedit.1.html">ldbedit(1)</ulink></term><listitem><para>Edit LDB databases using your preferred editor
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldbmodify.1.html">ldbmodify(1)</ulink></term><listitem><para>Modify records in a LDB database
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ldbsearch.1.html">ldbsearch(1)</ulink></term><listitem><para>Search for records in a LDB database
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="libsmbclient.7.html">libsmbclient(7)</ulink></term><listitem><para>An extension library for browsers and that can be used as a generic browsing API.
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="lmhosts.5.html">lmhosts(5)</ulink></term><listitem><para>The Samba NetBIOS hosts file
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="log2pcap.1.html">log2pcap(1)</ulink></term><listitem><para>Extract network traces from Samba log files
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="mount.cifs.8.html">mount.cifs(8)</ulink></term><listitem><para>mount using the Common Internet File System (CIFS)
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="net.8.html">net(8)</ulink></term><listitem><para>Tool for administration of Samba and remote
+	CIFS servers.
+	
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="nmbd.8.html">nmbd(8)</ulink></term><listitem><para>NetBIOS name server to provide NetBIOS 
+	over IP naming services to clients
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="nmblookup.1.html">nmblookup(1)</ulink></term><listitem><para>NetBIOS over TCP/IP client used to lookup NetBIOS 
+	names
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="ntlm_auth.1.html">ntlm_auth(1)</ulink></term><listitem><para>tool to allow external access to Winbind's NTLM authentication function
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="pam_winbind.7.html">pam_winbind(7)</ulink></term><listitem><para>PAM module for Winbind
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="pdbedit.8.html">pdbedit(8)</ulink></term><listitem><para>manage the SAM database (Database of Samba Users)
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="profiles.1.html">profiles(1)</ulink></term><listitem><para>A utility to report and change SIDs in registry files
+	
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="rpcclient.1.html">rpcclient(1)</ulink></term><listitem><para>tool for executing client side 
+	MS-RPC functions
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="samba.7.html">samba(7)</ulink></term><listitem><para>A Windows SMB/CIFS fileserver for UNIX
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbcacls.1.html">smbcacls(1)</ulink></term><listitem><para>Set or get ACLs on an NT file or directory names
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbclient.1.html">smbclient(1)</ulink></term><listitem><para>ftp-like client to access SMB/CIFS resources 
+	on servers
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smb.conf.5.html">smb.conf(5)</ulink></term><listitem><para>The configuration file for the Samba suite
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbcontrol.1.html">smbcontrol(1)</ulink></term><listitem><para>send messages to smbd, nmbd or winbindd processes
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbcquotas.1.html">smbcquotas(1)</ulink></term><listitem><para>Set or get QUOTAs of NTFS 5 shares
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbd.8.html">smbd(8)</ulink></term><listitem><para>server to provide SMB/CIFS services to clients
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbget.1.html">smbget(1)</ulink></term><listitem><para>wget-like utility for download files over SMB
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbgetrc.5.html">smbgetrc(5)</ulink></term><listitem><para>configuration file for smbget
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbpasswd.5.html">smbpasswd(5)</ulink></term><listitem><para>The Samba encrypted password file
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbpasswd.8.html">smbpasswd(8)</ulink></term><listitem><para>change a user's SMB password
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbspool.8.html">smbspool(8)</ulink></term><listitem><para>send a print file to an SMB printer
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbstatus.1.html">smbstatus(1)</ulink></term><listitem><para>report on current Samba connections
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbtar.1.html">smbtar(1)</ulink></term><listitem><para>shell script for backing up SMB/CIFS shares 
+	directly to UNIX tape drives
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="smbtree.1.html">smbtree(1)</ulink></term><listitem><para>A text based smb network browser
+	
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="swat.8.html">swat(8)</ulink></term><listitem><para>Samba Web Administration Tool
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="tdbbackup.8.html">tdbbackup(8)</ulink></term><listitem><para>tool for backing up and for validating the integrity of samba .tdb files
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="tdbdump.8.html">tdbdump(8)</ulink></term><listitem><para>tool for printing the contents of a TDB file
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="tdbtool.8.html">tdbtool(8)</ulink></term><listitem><para>manipulate the contents TDB files
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="testparm.1.html">testparm(1)</ulink></term><listitem><para>check an smb.conf configuration file for 
+	internal correctness
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="umount.cifs.8.html">umount.cifs(8)</ulink></term><listitem><para>for normal, non-root users, to unmount their own Common Internet File System (CIFS) mounts
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_audit.8.html">vfs_audit(8)</ulink></term><listitem><para>record selected Samba VFS operations in the system log
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_cacheprime.8.html">vfs_cacheprime(8)</ulink></term><listitem><para>prime the kernel file data cache
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_cap.8.html">vfs_cap(8)</ulink></term><listitem><para>CAP encode filenames
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_catia.8.html">vfs_catia(8)</ulink></term><listitem><para>translate illegal characters in Catia filenames
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_commit.8.html">vfs_commit(8)</ulink></term><listitem><para>flush dirty data at specified intervals
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_default_quota.8.html">vfs_default_quota(8)</ulink></term><listitem><para>store default quota records for Windows clients
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_extd_audit.8.html">vfs_extd_audit(8)</ulink></term><listitem><para>record selected Samba VFS operations
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_fake_perms.8.html">vfs_fake_perms(8)</ulink></term><listitem><para>enable read only Roaming Profiles
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_full_audit.8.html">vfs_full_audit(8)</ulink></term><listitem><para>record Samba VFS operations in the system log
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_gpfs.8.html">vfs_gpfs(8)</ulink></term><listitem><para>gpfs specific samba extensions like acls and prealloc
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_netatalk.8.html">vfs_netatalk(8)</ulink></term><listitem><para>hide .AppleDouble files from CIFS clients
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_notify_fam.8.html">vfs_notify_fam(8)</ulink></term><listitem><para>FAM support for file change notifications
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_prealloc.8.html">vfs_prealloc(8)</ulink></term><listitem><para>preallocate matching files to a predetermined size
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_readahead.8.html">vfs_readahead(8)</ulink></term><listitem><para>pre-load the kernel buffer cache
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_readonly.8.html">vfs_readonly(8)</ulink></term><listitem><para>make a Samba share read only for a specified time period
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_recycle.8.html">vfs_recycle(8)</ulink></term><listitem><para>Samba VFS recycle bin
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_shadow_copy.8.html">vfs_shadow_copy(8)</ulink></term><listitem><para>Make a Samba share read only for a specified time period
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_streams_depot.8.html">vfs_streams_depot(8)</ulink></term><listitem><para>EXPERIMENTAL module to store alternate data streams in a
+	central directory.
+	
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_streams_xattr.8.html">vfs_streams_xattr(8)</ulink></term><listitem><para>Store alternate data streams in posix xattrs
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfstest.1.html">vfstest(1)</ulink></term><listitem><para>tool for testing samba VFS modules 
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="vfs_xattr_tdb.8.html">vfs_xattr_tdb(8)</ulink></term><listitem><para>Save Extended Attributes (EAs) in a tdb file
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="wbinfo.1.html">wbinfo(1)</ulink></term><listitem><para>Query information from winbind daemon
+</para></listitem></varlistentry>
+<varlistentry><term><ulink url="winbindd.8.html">winbindd(8)</ulink></term><listitem><para>Name Service Switch daemon for resolving names
+	from NT servers
+</para></listitem></varlistentry>
+</variablelist></article>

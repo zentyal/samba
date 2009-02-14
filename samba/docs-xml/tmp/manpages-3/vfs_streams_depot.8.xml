@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+<refentry id="vfs_streams_depot.8">
+
+<refmeta>
+	<refentrytitle>vfs_streams_depot</refentrytitle>
+	<manvolnum>8</manvolnum>
+	<refmiscinfo class="source">Samba</refmiscinfo>
+	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
+	<refmiscinfo class="version">3.2</refmiscinfo>
+</refmeta>
+
+
+<refnamediv>
+	<refname>vfs_streams_depot</refname> 
+	<refpurpose>EXPERIMENTAL module to store alternate data streams in a
+	central directory.
+	</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv>
+	<cmdsynopsis sepchar=" ">
+		<literal>vfs objects = streams_depot</literal>
+	</cmdsynopsis>
+</refsynopsisdiv>
+
+<refsect1>
+	<title>DESCRIPTION</title>
+
+	<para>This <emphasis>EXPERIMENTAL</emphasis> VFS module is part of the
+	<citerefentry><refentrytitle>samba</refentrytitle>
+	<manvolnum>7</manvolnum></citerefentry> suite.</para>
+
+	<para>The <literal>vfs_streams_depot</literal> enables storing of NTFS
+	alternate data streams in the file system. As a normal posix file
+	system does not support the concept of multiple data streams per file,
+	the streams_depot module stores the data in files in a separate
+	directory.</para>
+
+</refsect1>
+
+<refsect1>
+	<title>OPTIONS</title>
+
+	<variablelist>
+
+		<varlistentry>
+		<term>streams_depot:directory = PATH</term>
+		<listitem>
+		<para>Path of the directory where the alternate data streams
+		should be stored. Defaults to the sharepath/.streams.</para>
+		</listitem>
+		</varlistentry>
+
+	</variablelist>
+</refsect1>
+
+<refsect1>
+	<title>EXAMPLES</title>
+
+<programlisting format="linespecific">
+        <parameter>[share]</parameter>
+	<link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="VFSOBJECTS" xlink:href="smb.conf.5.html#VFSOBJECTS">vfs objects = streams_depot</link>
+</programlisting>
+
+</refsect1>
+
+<refsect1>
+	<title>AUTHOR</title>
+
+	<para>The original Samba software and related utilities
+	were created by Andrew Tridgell. Samba is now developed
+	by the Samba Team as an Open Source project similar
+	to the way the Linux kernel is developed.</para>
+
+</refsect1>
+
+</refentry>

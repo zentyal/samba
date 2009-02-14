@@ -1,0 +1,923 @@
+\select@language {english}
+\contentsline {chapter}{\uppercase {About the Cover Artwork}}{v}{section*.1}
+\contentsline {chapter}{\uppercase {Attribution}}{vii}{chapter*.2}
+\contentsline {chapter}{\uppercase {List of Examples}}{xliii}{chapter*.3}
+\contentsline {chapter}{\uppercase {List of Figures}}{xlix}{chapter*.4}
+\contentsline {chapter}{\uppercase {List of Tables}}{lii}{chapter*.5}
+\contentsline {chapter}{\uppercase {Foreword}}{lv}{chapter*.6}
+\contentsline {chapter}{\uppercase {Preface}}{lvii}{chapter*.7}
+\contentsline {chapter}{\uppercase {Introduction}}{lix}{section*.9}
+\contentsline {part}{Part I\hspace {1em}General Installation}{lxi}{part.1}
+\contentsline {chapter}{\uppercase {Preparing Samba for Configuration}}{1}{section*.14}
+\contentsline {chapter}{Chapter~\numberline {1}\uppercase {How to Install and Test SAMBA}}{3}{chapter.1}
+\contentsline {section}{\numberline {1.1}Obtaining and Installing Samba}{3}{section.1.1}
+\contentsline {section}{\numberline {1.2}Configuring Samba (smb.conf)}{3}{section.1.2}
+\contentsline {subsection}{\numberline {1.2.1}Configuration File Syntax}{3}{subsection.1.2.1}
+\contentsline {subsection}{\numberline {1.2.2}TDB Database File Information}{5}{subsection.1.2.2}
+\contentsline {subsection}{\numberline {1.2.3}Starting Samba}{5}{subsection.1.2.3}
+\contentsline {subsection}{\numberline {1.2.4}Example Configuration}{7}{subsection.1.2.4}
+\contentsline {subsubsection}{\numberline {1.2.4.1}Test Your Config File with testparm}{8}{subsubsection.1.2.4.1}
+\contentsline {subsection}{\numberline {1.2.5}SWAT}{9}{subsection.1.2.5}
+\contentsline {section}{\numberline {1.3}List Shares Available on the Server}{9}{section.1.3}
+\contentsline {section}{\numberline {1.4}Connect with a UNIX Client}{10}{section.1.4}
+\contentsline {section}{\numberline {1.5}Connect from a Remote SMB Client}{10}{section.1.5}
+\contentsline {subsection}{\numberline {1.5.1}What If Things Don't Work?}{11}{subsection.1.5.1}
+\contentsline {subsection}{\numberline {1.5.2}Still Stuck?}{11}{subsection.1.5.2}
+\contentsline {section}{\numberline {1.6}Common Errors}{12}{section.1.6}
+\contentsline {subsection}{\numberline {1.6.1}Large Number of smbd Processes}{12}{subsection.1.6.1}
+\contentsline {subsection}{\numberline {1.6.2}Error Message: open\_oplock\_ipc}{12}{subsection.1.6.2}
+\contentsline {subsection}{\numberline {1.6.3}{``}The network name cannot be found{''}}{12}{subsection.1.6.3}
+\contentsline {chapter}{Chapter~\numberline {2}\uppercase {Fast Start: Cure for Impatience}}{15}{chapter.2}
+\contentsline {section}{\numberline {2.1}Features and Benefits}{16}{section.2.1}
+\contentsline {section}{\numberline {2.2}Description of Example Sites}{16}{section.2.2}
+\contentsline {section}{\numberline {2.3}Worked Examples}{17}{section.2.3}
+\contentsline {subsection}{\numberline {2.3.1}Standalone Server}{17}{subsection.2.3.1}
+\contentsline {subsubsection}{\numberline {2.3.1.1}Anonymous Read-Only Document Server}{17}{subsubsection.2.3.1.1}
+\contentsline {subsubsection}{\numberline {2.3.1.2}Anonymous Read-Write Document Server}{20}{subsubsection.2.3.1.2}
+\contentsline {subsubsection}{\numberline {2.3.1.3}Anonymous Print Server}{20}{subsubsection.2.3.1.3}
+\contentsline {subsubsection}{\numberline {2.3.1.4}Secure Read-Write File and Print Server}{23}{subsubsection.2.3.1.4}
+\contentsline {subsection}{\numberline {2.3.2}Domain Member Server}{27}{subsection.2.3.2}
+\contentsline {subsubsection}{\numberline {2.3.2.1}Example Configuration}{28}{subsubsection.2.3.2.1}
+\contentsline {subsection}{\numberline {2.3.3}Domain Controller}{31}{subsection.2.3.3}
+\contentsline {subsubsection}{\numberline {2.3.3.1}Example: Engineering Office}{32}{subsubsection.2.3.3.1}
+\contentsline {subsubsection}{\numberline {2.3.3.2}A Big Organization}{34}{subsubsection.2.3.3.2}
+\contentsline {part}{Part II\hspace {1em}Server Configuration Basics}{39}{part.2}
+\contentsline {chapter}{\uppercase {First Steps in Server Configuration}}{41}{section*.18}
+\contentsline {chapter}{Chapter~\numberline {3}\uppercase {Server Types and Security Modes}}{43}{chapter.3}
+\contentsline {section}{\numberline {3.1}Features and Benefits}{43}{section.3.1}
+\contentsline {section}{\numberline {3.2}Server Types}{44}{section.3.2}
+\contentsline {section}{\numberline {3.3}Samba Security Modes}{45}{section.3.3}
+\contentsline {subsection}{\numberline {3.3.1}User Level Security}{46}{subsection.3.3.1}
+\contentsline {subsubsection}{\numberline {3.3.1.1}Example Configuration}{47}{subsubsection.3.3.1.1}
+\contentsline {subsection}{\numberline {3.3.2}Share-Level Security}{47}{subsection.3.3.2}
+\contentsline {subsubsection}{\numberline {3.3.2.1}Example Configuration}{48}{subsubsection.3.3.2.1}
+\contentsline {subsection}{\numberline {3.3.3}Domain Security Mode (User-Level Security)}{48}{subsection.3.3.3}
+\contentsline {subsubsection}{\numberline {3.3.3.1}Example Configuration}{49}{subsubsection.3.3.3.1}
+\contentsline {subsection}{\numberline {3.3.4}ADS Security Mode (User-Level Security)}{51}{subsection.3.3.4}
+\contentsline {subsubsection}{\numberline {3.3.4.1}Example Configuration}{51}{subsubsection.3.3.4.1}
+\contentsline {subsection}{\numberline {3.3.5}Server Security (User Level Security)}{51}{subsection.3.3.5}
+\contentsline {subsubsection}{\numberline {3.3.5.1}Example Configuration}{53}{subsubsection.3.3.5.1}
+\contentsline {section}{\numberline {3.4}Password Checking}{54}{section.3.4}
+\contentsline {section}{\numberline {3.5}Common Errors}{55}{section.3.5}
+\contentsline {subsection}{\numberline {3.5.1}What Makes Samba a Server?}{56}{subsection.3.5.1}
+\contentsline {subsection}{\numberline {3.5.2}What Makes Samba a Domain Controller?}{56}{subsection.3.5.2}
+\contentsline {subsection}{\numberline {3.5.3}What Makes Samba a Domain Member?}{56}{subsection.3.5.3}
+\contentsline {subsection}{\numberline {3.5.4}Constantly Losing Connections to Password Server}{56}{subsection.3.5.4}
+\contentsline {subsection}{\numberline {3.5.5}Stand-alone Server is converted to Domain Controller --- Now User accounts don't work}{57}{subsection.3.5.5}
+\contentsline {chapter}{Chapter~\numberline {4}\uppercase {Domain Control}}{59}{chapter.4}
+\contentsline {section}{\numberline {4.1}Features and Benefits}{60}{section.4.1}
+\contentsline {section}{\numberline {4.2}Single Sign-On and Domain Security}{64}{section.4.2}
+\contentsline {section}{\numberline {4.3}Basics of Domain Control}{67}{section.4.3}
+\contentsline {subsection}{\numberline {4.3.1}Domain Controller Types}{67}{subsection.4.3.1}
+\contentsline {subsection}{\numberline {4.3.2}Preparing for Domain Control}{70}{subsection.4.3.2}
+\contentsline {section}{\numberline {4.4}Domain Control: Example Configuration}{73}{section.4.4}
+\contentsline {section}{\numberline {4.5}Samba ADS Domain Control}{75}{section.4.5}
+\contentsline {section}{\numberline {4.6}Domain and Network Logon Configuration}{76}{section.4.6}
+\contentsline {subsection}{\numberline {4.6.1}Domain Network Logon Service}{76}{subsection.4.6.1}
+\contentsline {subsubsection}{\numberline {4.6.1.1}Example Configuration}{76}{subsubsection.4.6.1.1}
+\contentsline {subsubsection}{\numberline {4.6.1.2}The Special Case of MS Windows XP Home Edition}{76}{subsubsection.4.6.1.2}
+\contentsline {subsubsection}{\numberline {4.6.1.3}The Special Case of Windows 9x/Me}{77}{subsubsection.4.6.1.3}
+\contentsline {subsection}{\numberline {4.6.2}Security Mode and Master Browsers}{79}{subsection.4.6.2}
+\contentsline {section}{\numberline {4.7}Common Errors}{81}{section.4.7}
+\contentsline {subsection}{\numberline {4.7.1}{``}\${''} Cannot Be Included in Machine Name}{81}{subsection.4.7.1}
+\contentsline {subsection}{\numberline {4.7.2}Joining Domain Fails Because of Existing Machine Account}{81}{subsection.4.7.2}
+\contentsline {subsection}{\numberline {4.7.3}The System Cannot Log You On (C000019B)}{82}{subsection.4.7.3}
+\contentsline {subsection}{\numberline {4.7.4}The Machine Trust Account Is Not Accessible}{83}{subsection.4.7.4}
+\contentsline {subsection}{\numberline {4.7.5}Account Disabled}{83}{subsection.4.7.5}
+\contentsline {subsection}{\numberline {4.7.6}Domain Controller Unavailable}{83}{subsection.4.7.6}
+\contentsline {subsection}{\numberline {4.7.7}Cannot Log onto Domain Member Workstation After Joining Domain}{84}{subsection.4.7.7}
+\contentsline {chapter}{Chapter~\numberline {5}\uppercase {Backup Domain Control}}{85}{chapter.5}
+\contentsline {section}{\numberline {5.1}Features and Benefits}{85}{section.5.1}
+\contentsline {section}{\numberline {5.2}Essential Background Information}{86}{section.5.2}
+\contentsline {subsection}{\numberline {5.2.1}MS Windows NT4-style Domain Control}{87}{subsection.5.2.1}
+\contentsline {subsubsection}{\numberline {5.2.1.1}Example PDC Configuration}{89}{subsubsection.5.2.1.1}
+\contentsline {subsection}{\numberline {5.2.2}LDAP Configuration Notes}{90}{subsection.5.2.2}
+\contentsline {subsection}{\numberline {5.2.3}Active Directory Domain Control}{91}{subsection.5.2.3}
+\contentsline {subsection}{\numberline {5.2.4}What Qualifies a Domain Controller on the Network?}{92}{subsection.5.2.4}
+\contentsline {subsection}{\numberline {5.2.5}How Does a Workstation find its Domain Controller?}{92}{subsection.5.2.5}
+\contentsline {subsubsection}{\numberline {5.2.5.1}NetBIOS Over TCP/IP Enabled}{92}{subsubsection.5.2.5.1}
+\contentsline {subsubsection}{\numberline {5.2.5.2}NetBIOS Over TCP/IP Disabled}{93}{subsubsection.5.2.5.2}
+\contentsline {section}{\numberline {5.3}Backup Domain Controller Configuration}{93}{section.5.3}
+\contentsline {subsection}{\numberline {5.3.1}Example Configuration}{94}{subsection.5.3.1}
+\contentsline {section}{\numberline {5.4}Common Errors}{96}{section.5.4}
+\contentsline {subsection}{\numberline {5.4.1}Machine Accounts Keep Expiring}{96}{subsection.5.4.1}
+\contentsline {subsection}{\numberline {5.4.2}Can Samba Be a Backup Domain Controller to an NT4 PDC?}{97}{subsection.5.4.2}
+\contentsline {subsection}{\numberline {5.4.3}How Do I Replicate the smbpasswd File?}{97}{subsection.5.4.3}
+\contentsline {subsection}{\numberline {5.4.4}Can I Do This All with LDAP?}{98}{subsection.5.4.4}
+\contentsline {chapter}{Chapter~\numberline {6}\uppercase {Domain Membership}}{99}{chapter.6}
+\contentsline {section}{\numberline {6.1}Features and Benefits}{99}{section.6.1}
+\contentsline {section}{\numberline {6.2}MS Windows Workstation/Server Machine Trust Accounts}{100}{section.6.2}
+\contentsline {subsection}{\numberline {6.2.1}Manual Creation of Machine Trust Accounts}{102}{subsection.6.2.1}
+\contentsline {subsection}{\numberline {6.2.2}Managing Domain Machine Accounts using NT4 Server Manager}{104}{subsection.6.2.2}
+\contentsline {subsection}{\numberline {6.2.3}On-the-Fly Creation of Machine Trust Accounts}{105}{subsection.6.2.3}
+\contentsline {subsection}{\numberline {6.2.4}Making an MS Windows Workstation or Server a Domain Member}{105}{subsection.6.2.4}
+\contentsline {subsubsection}{\numberline {6.2.4.1}Windows 200x/XP Professional Client}{106}{subsubsection.6.2.4.1}
+\contentsline {subsubsection}{\numberline {6.2.4.2}Windows NT4 Client}{106}{subsubsection.6.2.4.2}
+\contentsline {subsubsection}{\numberline {6.2.4.3}Samba Client}{106}{subsubsection.6.2.4.3}
+\contentsline {section}{\numberline {6.3}Domain Member Server}{107}{section.6.3}
+\contentsline {subsection}{\numberline {6.3.1}Joining an NT4-type Domain with Samba-3}{107}{subsection.6.3.1}
+\contentsline {subsection}{\numberline {6.3.2}Why Is This Better Than security = server?}{110}{subsection.6.3.2}
+\contentsline {section}{\numberline {6.4}Samba ADS Domain Membership}{111}{section.6.4}
+\contentsline {subsection}{\numberline {6.4.1}Configure smb.\penalty \z@ {}conf}{111}{subsection.6.4.1}
+\contentsline {subsection}{\numberline {6.4.2}Configure /\penalty \z@ {}etc/\penalty \z@ {}krb5.\penalty \z@ {}conf}{112}{subsection.6.4.2}
+\contentsline {subsection}{\numberline {6.4.3}Create the Computer Account}{115}{subsection.6.4.3}
+\contentsline {subsubsection}{\numberline {6.4.3.1}Possible Errors}{116}{subsubsection.6.4.3.1}
+\contentsline {subsection}{\numberline {6.4.4}Testing Server Setup}{116}{subsection.6.4.4}
+\contentsline {subsection}{\numberline {6.4.5}Testing with smbclient}{117}{subsection.6.4.5}
+\contentsline {subsection}{\numberline {6.4.6}Notes}{117}{subsection.6.4.6}
+\contentsline {section}{\numberline {6.5}Sharing User ID Mappings between Samba Domain Members}{117}{section.6.5}
+\contentsline {section}{\numberline {6.6}Common Errors}{118}{section.6.6}
+\contentsline {subsection}{\numberline {6.6.1}Cannot Add Machine Back to Domain}{118}{subsection.6.6.1}
+\contentsline {subsection}{\numberline {6.6.2}Adding Machine to Domain Fails}{118}{subsection.6.6.2}
+\contentsline {subsection}{\numberline {6.6.3}I Can't Join a Windows 2003 PDC}{119}{subsection.6.6.3}
+\contentsline {chapter}{Chapter~\numberline {7}\uppercase {Standalone Servers}}{121}{chapter.7}
+\contentsline {section}{\numberline {7.1}Features and Benefits}{121}{section.7.1}
+\contentsline {section}{\numberline {7.2}Background}{122}{section.7.2}
+\contentsline {section}{\numberline {7.3}Example Configuration}{122}{section.7.3}
+\contentsline {subsection}{\numberline {7.3.1}Reference Documentation Server}{122}{subsection.7.3.1}
+\contentsline {subsection}{\numberline {7.3.2}Central Print Serving}{123}{subsection.7.3.2}
+\contentsline {section}{\numberline {7.4}Common Errors}{126}{section.7.4}
+\contentsline {chapter}{Chapter~\numberline {8}\uppercase {MS Windows Network Configuration Guide}}{127}{chapter.8}
+\contentsline {section}{\numberline {8.1}Features and Benefits}{127}{section.8.1}
+\contentsline {section}{\numberline {8.2}Technical Details}{127}{section.8.2}
+\contentsline {subsection}{\numberline {8.2.1}TCP/IP Configuration}{128}{subsection.8.2.1}
+\contentsline {subsubsection}{\numberline {8.2.1.1}MS Windows XP Professional}{128}{subsubsection.8.2.1.1}
+\contentsline {subsubsection}{\numberline {8.2.1.2}MS Windows 2000}{130}{subsubsection.8.2.1.2}
+\contentsline {subsubsection}{\numberline {8.2.1.3}MS Windows Me}{132}{subsubsection.8.2.1.3}
+\contentsline {subsection}{\numberline {8.2.2}Joining a Domain: Windows 2000/XP Professional}{134}{subsection.8.2.2}
+\contentsline {subsection}{\numberline {8.2.3}Domain Logon Configuration: Windows 9x/Me}{136}{subsection.8.2.3}
+\contentsline {section}{\numberline {8.3}Common Errors}{138}{section.8.3}
+\contentsline {part}{Part III\hspace {1em}Advanced Configuration}{145}{part.3}
+\contentsline {chapter}{\uppercase {Valuable Nuts and Bolts Information}}{147}{section*.20}
+\contentsline {chapter}{Chapter~\numberline {9}\uppercase {Important and Critical Change Notes for the Samba 3.x Series}}{149}{chapter.9}
+\contentsline {section}{\numberline {9.1}Important Samba-3.2.x Change Notes}{149}{section.9.1}
+\contentsline {section}{\numberline {9.2}Important Samba-3.0.x Change Notes}{149}{section.9.2}
+\contentsline {subsection}{\numberline {9.2.1}User and Group Changes}{150}{subsection.9.2.1}
+\contentsline {subsection}{\numberline {9.2.2}Essential Group Mappings}{151}{subsection.9.2.2}
+\contentsline {subsection}{\numberline {9.2.3}Passdb Changes}{152}{subsection.9.2.3}
+\contentsline {subsection}{\numberline {9.2.4}Group Mapping Changes in Samba-3.0.23}{152}{subsection.9.2.4}
+\contentsline {subsection}{\numberline {9.2.5}LDAP Changes in Samba-3.0.23}{152}{subsection.9.2.5}
+\contentsline {chapter}{Chapter~\numberline {10}\uppercase {Network Browsing}}{153}{chapter.10}
+\contentsline {section}{\numberline {10.1}Features and Benefits}{154}{section.10.1}
+\contentsline {section}{\numberline {10.2}What Is Browsing?}{155}{section.10.2}
+\contentsline {section}{\numberline {10.3}Discussion}{156}{section.10.3}
+\contentsline {subsection}{\numberline {10.3.1}NetBIOS over TCP/IP}{157}{subsection.10.3.1}
+\contentsline {subsection}{\numberline {10.3.2}TCP/IP without NetBIOS}{159}{subsection.10.3.2}
+\contentsline {subsection}{\numberline {10.3.3}DNS and Active Directory}{160}{subsection.10.3.3}
+\contentsline {section}{\numberline {10.4}How Browsing Functions}{162}{section.10.4}
+\contentsline {subsection}{\numberline {10.4.1}Configuring Workgroup Browsing}{164}{subsection.10.4.1}
+\contentsline {subsection}{\numberline {10.4.2}Domain Browsing Configuration}{165}{subsection.10.4.2}
+\contentsline {subsection}{\numberline {10.4.3}Forcing Samba to Be the Master}{166}{subsection.10.4.3}
+\contentsline {subsection}{\numberline {10.4.4}Making Samba the Domain Master}{167}{subsection.10.4.4}
+\contentsline {subsection}{\numberline {10.4.5}Note about Broadcast Addresses}{168}{subsection.10.4.5}
+\contentsline {subsection}{\numberline {10.4.6}Multiple Interfaces}{168}{subsection.10.4.6}
+\contentsline {subsection}{\numberline {10.4.7}Use of the Remote Announce Parameter}{169}{subsection.10.4.7}
+\contentsline {subsection}{\numberline {10.4.8}Use of the Remote Browse Sync Parameter}{170}{subsection.10.4.8}
+\contentsline {section}{\numberline {10.5}WINS: The Windows Internetworking Name Server}{170}{section.10.5}
+\contentsline {subsection}{\numberline {10.5.1}WINS Server Configuration}{171}{subsection.10.5.1}
+\contentsline {subsection}{\numberline {10.5.2}WINS Replication}{173}{subsection.10.5.2}
+\contentsline {subsection}{\numberline {10.5.3}Static WINS Entries}{173}{subsection.10.5.3}
+\contentsline {section}{\numberline {10.6}Helpful Hints}{174}{section.10.6}
+\contentsline {subsection}{\numberline {10.6.1}Windows Networking Protocols}{174}{subsection.10.6.1}
+\contentsline {subsection}{\numberline {10.6.2}Name Resolution Order}{175}{subsection.10.6.2}
+\contentsline {section}{\numberline {10.7}Technical Overview of Browsing}{176}{section.10.7}
+\contentsline {subsection}{\numberline {10.7.1}Browsing Support in Samba}{177}{subsection.10.7.1}
+\contentsline {subsection}{\numberline {10.7.2}Problem Resolution}{178}{subsection.10.7.2}
+\contentsline {subsection}{\numberline {10.7.3}Cross-Subnet Browsing}{179}{subsection.10.7.3}
+\contentsline {subsubsection}{\numberline {10.7.3.1}Behavior of Cross-Subnet Browsing}{179}{subsubsection.10.7.3.1}
+\contentsline {section}{\numberline {10.8}Common Errors}{183}{section.10.8}
+\contentsline {subsection}{\numberline {10.8.1}Flushing the Samba NetBIOS Name Cache}{183}{subsection.10.8.1}
+\contentsline {subsection}{\numberline {10.8.2}Server Resources Cannot Be Listed}{184}{subsection.10.8.2}
+\contentsline {subsection}{\numberline {10.8.3}I Get an "Unable to browse the network" Error}{184}{subsection.10.8.3}
+\contentsline {subsection}{\numberline {10.8.4}Browsing of Shares and Directories is Very Slow}{184}{subsection.10.8.4}
+\contentsline {subsection}{\numberline {10.8.5}Invalid Cached Share References Affects Network Browsing}{186}{subsection.10.8.5}
+\contentsline {chapter}{Chapter~\numberline {11}\uppercase {Account Information Databases}}{189}{chapter.11}
+\contentsline {section}{\numberline {11.1}Features and Benefits}{190}{section.11.1}
+\contentsline {subsection}{\numberline {11.1.1}Backward Compatibility Account Storage Systems}{190}{subsection.11.1.1}
+\contentsline {subsection}{\numberline {11.1.2}New Account Storage Systems}{191}{subsection.11.1.2}
+\contentsline {section}{\numberline {11.2}Technical Information}{192}{section.11.2}
+\contentsline {subsection}{\numberline {11.2.1}Important Notes About Security}{192}{subsection.11.2.1}
+\contentsline {subsubsection}{\numberline {11.2.1.1}Advantages of Encrypted Passwords}{195}{subsubsection.11.2.1.1}
+\contentsline {subsubsection}{\numberline {11.2.1.2}Advantages of Non-Encrypted Passwords}{195}{subsubsection.11.2.1.2}
+\contentsline {subsection}{\numberline {11.2.2}Mapping User Identifiers between MS Windows and UNIX}{196}{subsection.11.2.2}
+\contentsline {subsection}{\numberline {11.2.3}Mapping Common UIDs/GIDs on Distributed Machines}{196}{subsection.11.2.3}
+\contentsline {subsection}{\numberline {11.2.4}Comments Regarding LDAP}{197}{subsection.11.2.4}
+\contentsline {subsubsection}{\numberline {11.2.4.1}Caution Regarding LDAP and Samba}{198}{subsubsection.11.2.4.1}
+\contentsline {subsection}{\numberline {11.2.5}LDAP Directories and Windows Computer Accounts}{199}{subsection.11.2.5}
+\contentsline {section}{\numberline {11.3}Account Management Tools}{200}{section.11.3}
+\contentsline {subsection}{\numberline {11.3.1}The smbpasswd Tool}{200}{subsection.11.3.1}
+\contentsline {subsection}{\numberline {11.3.2}The pdbedit Tool}{202}{subsection.11.3.2}
+\contentsline {subsubsection}{\numberline {11.3.2.1}User Account Management}{203}{subsubsection.11.3.2.1}
+\contentsline {subsubsection}{\numberline {11.3.2.2}Account Import/Export}{213}{subsubsection.11.3.2.2}
+\contentsline {section}{\numberline {11.4}Password Backends}{213}{section.11.4}
+\contentsline {subsection}{\numberline {11.4.1}Plaintext}{214}{subsection.11.4.1}
+\contentsline {subsection}{\numberline {11.4.2}smbpasswd: Encrypted Password Database}{214}{subsection.11.4.2}
+\contentsline {subsection}{\numberline {11.4.3}tdbsam}{215}{subsection.11.4.3}
+\contentsline {subsection}{\numberline {11.4.4}ldapsam}{215}{subsection.11.4.4}
+\contentsline {subsubsection}{\numberline {11.4.4.1}Supported LDAP Servers}{217}{subsubsection.11.4.4.1}
+\contentsline {subsubsection}{\numberline {11.4.4.2}Schema and Relationship to the RFC 2307 posixAccount}{217}{subsubsection.11.4.4.2}
+\contentsline {subsubsection}{\numberline {11.4.4.3}OpenLDAP Configuration}{218}{subsubsection.11.4.4.3}
+\contentsline {subsubsection}{\numberline {11.4.4.4}Initialize the LDAP Database}{220}{subsubsection.11.4.4.4}
+\contentsline {subsubsection}{\numberline {11.4.4.5}Configuring Samba}{222}{subsubsection.11.4.4.5}
+\contentsline {subsubsection}{\numberline {11.4.4.6}Accounts and Groups Management}{223}{subsubsection.11.4.4.6}
+\contentsline {subsubsection}{\numberline {11.4.4.7}Security and sambaSamAccount}{223}{subsubsection.11.4.4.7}
+\contentsline {subsubsection}{\numberline {11.4.4.8}LDAP Special Attributes for sambaSamAccounts}{225}{subsubsection.11.4.4.8}
+\contentsline {subsubsection}{\numberline {11.4.4.9}Example LDIF Entries for a sambaSamAccount}{226}{subsubsection.11.4.4.9}
+\contentsline {subsubsection}{\numberline {11.4.4.10}Password Synchronization}{227}{subsubsection.11.4.4.10}
+\contentsline {subsubsection}{\numberline {11.4.4.11}Using OpenLDAP Overlay for Password Syncronization}{227}{subsubsection.11.4.4.11}
+\contentsline {section}{\numberline {11.5}Common Errors}{228}{section.11.5}
+\contentsline {subsection}{\numberline {11.5.1}Users Cannot Logon}{228}{subsection.11.5.1}
+\contentsline {subsection}{\numberline {11.5.2}Configuration of auth methods}{228}{subsection.11.5.2}
+\contentsline {chapter}{Chapter~\numberline {12}\uppercase {Group Mapping: MS Windows and UNIX}}{231}{chapter.12}
+\contentsline {section}{\numberline {12.1}Features and Benefits}{232}{section.12.1}
+\contentsline {section}{\numberline {12.2}Discussion}{234}{section.12.2}
+\contentsline {subsection}{\numberline {12.2.1}Warning: User Private Group Problems}{235}{subsection.12.2.1}
+\contentsline {subsection}{\numberline {12.2.2}Nested Groups: Adding Windows Domain Groups to Windows Local Groups}{236}{subsection.12.2.2}
+\contentsline {subsection}{\numberline {12.2.3}Important Administrative Information}{238}{subsection.12.2.3}
+\contentsline {subsubsection}{\numberline {12.2.3.1}Applicable Only to Versions Earlier than 3.0.11}{238}{subsubsection.12.2.3.1}
+\contentsline {subsection}{\numberline {12.2.4}Default Users, Groups, and Relative Identifiers}{239}{subsection.12.2.4}
+\contentsline {subsection}{\numberline {12.2.5}Example Configuration}{240}{subsection.12.2.5}
+\contentsline {section}{\numberline {12.3}Configuration Scripts}{241}{section.12.3}
+\contentsline {subsection}{\numberline {12.3.1}Sample smb.\penalty \z@ {}conf Add Group Script}{241}{subsection.12.3.1}
+\contentsline {subsection}{\numberline {12.3.2}Script to Configure Group Mapping}{242}{subsection.12.3.2}
+\contentsline {section}{\numberline {12.4}Common Errors}{243}{section.12.4}
+\contentsline {subsection}{\numberline {12.4.1}Adding Groups Fails}{243}{subsection.12.4.1}
+\contentsline {subsection}{\numberline {12.4.2}Adding Domain Users to the Workstation Power Users Group}{243}{subsection.12.4.2}
+\contentsline {chapter}{Chapter~\numberline {13}\uppercase {Remote and Local Management: The Net Command}}{245}{chapter.13}
+\contentsline {section}{\numberline {13.1}Overview}{246}{section.13.1}
+\contentsline {section}{\numberline {13.2}Administrative Tasks and Methods}{246}{section.13.2}
+\contentsline {section}{\numberline {13.3}UNIX and Windows Group Management}{247}{section.13.3}
+\contentsline {subsection}{\numberline {13.3.1}Adding, Renaming, or Deletion of Group Accounts}{247}{subsection.13.3.1}
+\contentsline {subsubsection}{\numberline {13.3.1.1}Adding or Creating a New Group}{248}{subsubsection.13.3.1.1}
+\contentsline {subsubsection}{\numberline {13.3.1.2}Mapping Windows Groups to UNIX Groups}{250}{subsubsection.13.3.1.2}
+\contentsline {subsubsection}{\numberline {13.3.1.3}Deleting a Group Account}{252}{subsubsection.13.3.1.3}
+\contentsline {subsubsection}{\numberline {13.3.1.4}Rename Group Accounts}{252}{subsubsection.13.3.1.4}
+\contentsline {subsection}{\numberline {13.3.2}Manipulating Group Memberships}{253}{subsection.13.3.2}
+\contentsline {subsection}{\numberline {13.3.3}Nested Group Support}{256}{subsection.13.3.3}
+\contentsline {subsubsection}{\numberline {13.3.3.1}Managing Nest Groups on Workstations from the Samba Server}{257}{subsubsection.13.3.3.1}
+\contentsline {section}{\numberline {13.4}UNIX and Windows User Management}{258}{section.13.4}
+\contentsline {subsection}{\numberline {13.4.1}Adding User Accounts}{259}{subsection.13.4.1}
+\contentsline {subsection}{\numberline {13.4.2}Deletion of User Accounts}{259}{subsection.13.4.2}
+\contentsline {subsection}{\numberline {13.4.3}Managing User Accounts}{260}{subsection.13.4.3}
+\contentsline {subsection}{\numberline {13.4.4}User Mapping}{260}{subsection.13.4.4}
+\contentsline {section}{\numberline {13.5}Administering User Rights and Privileges}{261}{section.13.5}
+\contentsline {section}{\numberline {13.6}Managing Trust Relationships}{264}{section.13.6}
+\contentsline {subsection}{\numberline {13.6.1}Machine Trust Accounts}{265}{subsection.13.6.1}
+\contentsline {subsection}{\numberline {13.6.2}Interdomain Trusts}{267}{subsection.13.6.2}
+\contentsline {section}{\numberline {13.7}Managing Security Identifiers (SIDS)}{270}{section.13.7}
+\contentsline {section}{\numberline {13.8}Share Management}{271}{section.13.8}
+\contentsline {subsection}{\numberline {13.8.1}Creating, Editing, and Removing Shares}{272}{subsection.13.8.1}
+\contentsline {subsection}{\numberline {13.8.2}Creating and Changing Share ACLs}{273}{subsection.13.8.2}
+\contentsline {subsection}{\numberline {13.8.3}Share, Directory, and File Migration}{273}{subsection.13.8.3}
+\contentsline {subsubsection}{\numberline {13.8.3.1}Share Migration}{274}{subsubsection.13.8.3.1}
+\contentsline {subsubsection}{\numberline {13.8.3.2}File and Directory Migration}{276}{subsubsection.13.8.3.2}
+\contentsline {subsubsection}{\numberline {13.8.3.3}Share-ACL Migration}{278}{subsubsection.13.8.3.3}
+\contentsline {subsubsection}{\numberline {13.8.3.4}Simultaneous Share and File Migration}{278}{subsubsection.13.8.3.4}
+\contentsline {subsection}{\numberline {13.8.4}Printer Migration}{278}{subsection.13.8.4}
+\contentsline {section}{\numberline {13.9}Controlling Open Files}{281}{section.13.9}
+\contentsline {section}{\numberline {13.10}Session and Connection Management}{281}{section.13.10}
+\contentsline {section}{\numberline {13.11}Printers and ADS}{281}{section.13.11}
+\contentsline {section}{\numberline {13.12}Manipulating the Samba Cache}{282}{section.13.12}
+\contentsline {section}{\numberline {13.13}Managing IDMAP UID/SID Mappings}{282}{section.13.13}
+\contentsline {subsection}{\numberline {13.13.1}Creating an IDMAP Database Dump File}{283}{subsection.13.13.1}
+\contentsline {subsection}{\numberline {13.13.2}Restoring the IDMAP Database Dump File}{283}{subsection.13.13.2}
+\contentsline {section}{\numberline {13.14}Other Miscellaneous Operations}{283}{section.13.14}
+\contentsline {chapter}{Chapter~\numberline {14}\uppercase {Identity Mapping (IDMAP)}}{285}{chapter.14}
+\contentsline {section}{\numberline {14.1}Samba Server Deployment Types and IDMAP}{286}{section.14.1}
+\contentsline {subsection}{\numberline {14.1.1}Standalone Samba Server}{286}{subsection.14.1.1}
+\contentsline {subsection}{\numberline {14.1.2}Domain Member Server or Domain Member Client}{286}{subsection.14.1.2}
+\contentsline {subsection}{\numberline {14.1.3}Primary Domain Controller}{290}{subsection.14.1.3}
+\contentsline {subsection}{\numberline {14.1.4}Backup Domain Controller}{290}{subsection.14.1.4}
+\contentsline {section}{\numberline {14.2}Examples of IDMAP Backend Usage}{291}{section.14.2}
+\contentsline {subsection}{\numberline {14.2.1}Default Winbind TDB}{291}{subsection.14.2.1}
+\contentsline {subsubsection}{\numberline {14.2.1.1}NT4-Style Domains (Includes Samba Domains)}{291}{subsubsection.14.2.1.1}
+\contentsline {subsubsection}{\numberline {14.2.1.2}ADS Domains}{293}{subsubsection.14.2.1.2}
+\contentsline {subsection}{\numberline {14.2.2}IDMAP\_RID with Winbind}{294}{subsection.14.2.2}
+\contentsline {subsection}{\numberline {14.2.3}IDMAP Storage in LDAP Using Winbind}{296}{subsection.14.2.3}
+\contentsline {subsection}{\numberline {14.2.4}IDMAP and NSS Using LDAP from ADS with RFC2307bis Schema Extension}{301}{subsection.14.2.4}
+\contentsline {subsubsection}{\numberline {14.2.4.1}IDMAP, Active Directory, and MS Services for UNIX 3.5}{302}{subsubsection.14.2.4.1}
+\contentsline {subsubsection}{\numberline {14.2.4.2}IDMAP, Active Directory and AD4UNIX}{302}{subsubsection.14.2.4.2}
+\contentsline {chapter}{Chapter~\numberline {15}\uppercase {User Rights and Privileges}}{303}{chapter.15}
+\contentsline {section}{\numberline {15.1}Rights Management Capabilities}{304}{section.15.1}
+\contentsline {subsection}{\numberline {15.1.1}Using the {``}net rpc rights{''} Utility}{305}{subsection.15.1.1}
+\contentsline {subsection}{\numberline {15.1.2}Description of Privileges}{307}{subsection.15.1.2}
+\contentsline {subsection}{\numberline {15.1.3}Privileges Suppored by Windows 2000 Domain Controllers}{308}{subsection.15.1.3}
+\contentsline {section}{\numberline {15.2}The Administrator Domain SID}{309}{section.15.2}
+\contentsline {section}{\numberline {15.3}Common Errors}{310}{section.15.3}
+\contentsline {subsection}{\numberline {15.3.1}What Rights and Privileges Will Permit Windows Client Administration?}{310}{subsection.15.3.1}
+\contentsline {chapter}{Chapter~\numberline {16}\uppercase {File, Directory, and Share Access Controls}}{313}{chapter.16}
+\contentsline {section}{\numberline {16.1}Features and Benefits}{314}{section.16.1}
+\contentsline {section}{\numberline {16.2}File System Access Controls}{315}{section.16.2}
+\contentsline {subsection}{\numberline {16.2.1}MS Windows NTFS Comparison with UNIX File Systems}{315}{subsection.16.2.1}
+\contentsline {subsection}{\numberline {16.2.2}Managing Directories}{317}{subsection.16.2.2}
+\contentsline {subsection}{\numberline {16.2.3}File and Directory Access Control}{318}{subsection.16.2.3}
+\contentsline {subsubsection}{\numberline {16.2.3.1}Protecting Directories and Files from Deletion}{320}{subsubsection.16.2.3.1}
+\contentsline {section}{\numberline {16.3}Share Definition Access Controls}{322}{section.16.3}
+\contentsline {subsection}{\numberline {16.3.1}User- and Group-Based Controls}{322}{subsection.16.3.1}
+\contentsline {subsection}{\numberline {16.3.2}File and Directory Permissions-Based Controls}{322}{subsection.16.3.2}
+\contentsline {subsection}{\numberline {16.3.3}Miscellaneous Controls}{322}{subsection.16.3.3}
+\contentsline {section}{\numberline {16.4}Access Controls on Shares}{323}{section.16.4}
+\contentsline {subsection}{\numberline {16.4.1}Share Permissions Management}{325}{subsection.16.4.1}
+\contentsline {subsubsection}{\numberline {16.4.1.1}Windows NT4 Workstation/Server}{325}{subsubsection.16.4.1.1}
+\contentsline {subsubsection}{\numberline {16.4.1.2}Windows 200x/XP}{325}{subsubsection.16.4.1.2}
+\contentsline {section}{\numberline {16.5}MS Windows Access Control Lists and UNIX Interoperability}{327}{section.16.5}
+\contentsline {subsection}{\numberline {16.5.1}Managing UNIX Permissions Using NT Security Dialogs}{327}{subsection.16.5.1}
+\contentsline {subsection}{\numberline {16.5.2}Viewing File Security on a Samba Share}{327}{subsection.16.5.2}
+\contentsline {subsection}{\numberline {16.5.3}Viewing File Ownership}{328}{subsection.16.5.3}
+\contentsline {subsection}{\numberline {16.5.4}Viewing File or Directory Permissions}{328}{subsection.16.5.4}
+\contentsline {subsubsection}{\numberline {16.5.4.1}File Permissions}{329}{subsubsection.16.5.4.1}
+\contentsline {subsubsection}{\numberline {16.5.4.2}Directory Permissions}{329}{subsubsection.16.5.4.2}
+\contentsline {subsection}{\numberline {16.5.5}Modifying File or Directory Permissions}{330}{subsection.16.5.5}
+\contentsline {subsection}{\numberline {16.5.6}Interaction with the Standard Samba {``}create mask{''} Parameters}{332}{subsection.16.5.6}
+\contentsline {subsection}{\numberline {16.5.7}Interaction with the Standard Samba File Attribute Mapping}{334}{subsection.16.5.7}
+\contentsline {subsection}{\numberline {16.5.8}Windows NT/200X ACLs and POSIX ACLs Limitations}{334}{subsection.16.5.8}
+\contentsline {subsubsection}{\numberline {16.5.8.1}UNIX POSIX ACL Overview}{335}{subsubsection.16.5.8.1}
+\contentsline {subsubsection}{\numberline {16.5.8.2}Mapping of Windows File ACLs to UNIX POSIX ACLs}{336}{subsubsection.16.5.8.2}
+\contentsline {subsubsection}{\numberline {16.5.8.3}Mapping of Windows Directory ACLs to UNIX POSIX ACLs}{337}{subsubsection.16.5.8.3}
+\contentsline {section}{\numberline {16.6}Common Errors}{337}{section.16.6}
+\contentsline {subsection}{\numberline {16.6.1}Users Cannot Write to a Public Share}{337}{subsection.16.6.1}
+\contentsline {subsection}{\numberline {16.6.2}File Operations Done as {\em {root}} with {\em {force user}} Set}{339}{subsection.16.6.2}
+\contentsline {subsection}{\numberline {16.6.3}MS Word with Samba Changes Owner of File}{339}{subsection.16.6.3}
+\contentsline {chapter}{Chapter~\numberline {17}\uppercase {File and Record Locking}}{343}{chapter.17}
+\contentsline {section}{\numberline {17.1}Features and Benefits}{343}{section.17.1}
+\contentsline {section}{\numberline {17.2}Discussion}{344}{section.17.2}
+\contentsline {subsection}{\numberline {17.2.1}Opportunistic Locking Overview}{345}{subsection.17.2.1}
+\contentsline {subsubsection}{\numberline {17.2.1.1}Exclusively Accessed Shares}{348}{subsubsection.17.2.1.1}
+\contentsline {subsubsection}{\numberline {17.2.1.2}Multiple-Accessed Shares or Files}{348}{subsubsection.17.2.1.2}
+\contentsline {subsubsection}{\numberline {17.2.1.3}UNIX or NFS Client-Accessed Files}{348}{subsubsection.17.2.1.3}
+\contentsline {subsubsection}{\numberline {17.2.1.4}Slow and/or Unreliable Networks}{349}{subsubsection.17.2.1.4}
+\contentsline {subsubsection}{\numberline {17.2.1.5}Multiuser Databases}{349}{subsubsection.17.2.1.5}
+\contentsline {subsubsection}{\numberline {17.2.1.6}PDM Data Shares}{349}{subsubsection.17.2.1.6}
+\contentsline {subsubsection}{\numberline {17.2.1.7}Beware of Force User}{350}{subsubsection.17.2.1.7}
+\contentsline {subsubsection}{\numberline {17.2.1.8}Advanced Samba Oplocks Parameters}{350}{subsubsection.17.2.1.8}
+\contentsline {subsubsection}{\numberline {17.2.1.9}Mission-Critical, High-Availability}{350}{subsubsection.17.2.1.9}
+\contentsline {section}{\numberline {17.3}Samba Oplocks Control}{351}{section.17.3}
+\contentsline {subsection}{\numberline {17.3.1}Example Configuration}{352}{subsection.17.3.1}
+\contentsline {subsubsection}{\numberline {17.3.1.1}Disabling Oplocks}{352}{subsubsection.17.3.1.1}
+\contentsline {subsubsection}{\numberline {17.3.1.2}Disabling Kernel Oplocks}{353}{subsubsection.17.3.1.2}
+\contentsline {section}{\numberline {17.4}MS Windows Oplocks and Caching Controls}{354}{section.17.4}
+\contentsline {subsection}{\numberline {17.4.1}Workstation Service Entries}{357}{subsection.17.4.1}
+\contentsline {subsection}{\numberline {17.4.2}Server Service Entries}{358}{subsection.17.4.2}
+\contentsline {section}{\numberline {17.5}Persistent Data Corruption}{359}{section.17.5}
+\contentsline {section}{\numberline {17.6}Common Errors}{359}{section.17.6}
+\contentsline {subsection}{\numberline {17.6.1}locking.tdb Error Messages}{360}{subsection.17.6.1}
+\contentsline {subsection}{\numberline {17.6.2}Problems Saving Files in MS Office on Windows XP}{360}{subsection.17.6.2}
+\contentsline {subsection}{\numberline {17.6.3}Long Delays Deleting Files over Network with XP SP1}{360}{subsection.17.6.3}
+\contentsline {section}{\numberline {17.7}Additional Reading}{361}{section.17.7}
+\contentsline {chapter}{Chapter~\numberline {18}\uppercase {Securing Samba}}{363}{chapter.18}
+\contentsline {section}{\numberline {18.1}Introduction}{363}{section.18.1}
+\contentsline {section}{\numberline {18.2}Features and Benefits}{363}{section.18.2}
+\contentsline {section}{\numberline {18.3}Technical Discussion of Protective Measures and Issues}{364}{section.18.3}
+\contentsline {subsection}{\numberline {18.3.1}Using Host-Based Protection}{364}{subsection.18.3.1}
+\contentsline {subsection}{\numberline {18.3.2}User-Based Protection}{365}{subsection.18.3.2}
+\contentsline {subsection}{\numberline {18.3.3}Using Interface Protection}{365}{subsection.18.3.3}
+\contentsline {subsection}{\numberline {18.3.4}Using a Firewall}{366}{subsection.18.3.4}
+\contentsline {subsection}{\numberline {18.3.5}Using IPC\$ Share-Based Denials}{366}{subsection.18.3.5}
+\contentsline {subsection}{\numberline {18.3.6}NTLMv2 Security}{367}{subsection.18.3.6}
+\contentsline {section}{\numberline {18.4}Upgrading Samba}{368}{section.18.4}
+\contentsline {section}{\numberline {18.5}Common Errors}{368}{section.18.5}
+\contentsline {subsection}{\numberline {18.5.1}Smbclient Works on Localhost, but the Network Is Dead}{368}{subsection.18.5.1}
+\contentsline {subsection}{\numberline {18.5.2}Why Can Users Access Other Users' Home Directories?}{368}{subsection.18.5.2}
+\contentsline {chapter}{Chapter~\numberline {19}\uppercase {Interdomain Trust Relationships}}{371}{chapter.19}
+\contentsline {section}{\numberline {19.1}Features and Benefits}{372}{section.19.1}
+\contentsline {section}{\numberline {19.2}Trust Relationship Background}{372}{section.19.2}
+\contentsline {section}{\numberline {19.3}Native MS Windows NT4 Trusts Configuration}{373}{section.19.3}
+\contentsline {subsection}{\numberline {19.3.1}Creating an NT4 Domain Trust}{373}{subsection.19.3.1}
+\contentsline {subsection}{\numberline {19.3.2}Completing an NT4 Domain Trust}{374}{subsection.19.3.2}
+\contentsline {subsection}{\numberline {19.3.3}Interdomain Trust Facilities}{374}{subsection.19.3.3}
+\contentsline {section}{\numberline {19.4}Configuring Samba NT-Style Domain Trusts}{375}{section.19.4}
+\contentsline {subsection}{\numberline {19.4.1}Samba as the Trusted Domain}{376}{subsection.19.4.1}
+\contentsline {subsection}{\numberline {19.4.2}Samba as the Trusting Domain}{377}{subsection.19.4.2}
+\contentsline {section}{\numberline {19.5}NT4-Style Domain Trusts with Windows 2000}{378}{section.19.5}
+\contentsline {section}{\numberline {19.6}Common Errors}{378}{section.19.6}
+\contentsline {subsection}{\numberline {19.6.1}Browsing of Trusted Domain Fails}{378}{subsection.19.6.1}
+\contentsline {subsection}{\numberline {19.6.2}Problems with LDAP ldapsam and Older Versions of smbldap-tools}{379}{subsection.19.6.2}
+\contentsline {chapter}{Chapter~\numberline {20}\uppercase {Hosting a Microsoft Distributed File System Tree}}{381}{chapter.20}
+\contentsline {section}{\numberline {20.1}Features and Benefits}{381}{section.20.1}
+\contentsline {section}{\numberline {20.2}Common Errors}{382}{section.20.2}
+\contentsline {subsection}{\numberline {20.2.1}MSDFS UNIX Path Is Case-Critical}{383}{subsection.20.2.1}
+\contentsline {chapter}{Chapter~\numberline {21}\uppercase {Classical Printing Support}}{385}{chapter.21}
+\contentsline {section}{\numberline {21.1}Features and Benefits}{385}{section.21.1}
+\contentsline {section}{\numberline {21.2}Technical Introduction}{386}{section.21.2}
+\contentsline {subsection}{\numberline {21.2.1}Client to Samba Print Job Processing}{387}{subsection.21.2.1}
+\contentsline {subsection}{\numberline {21.2.2}Printing-Related Configuration Parameters}{387}{subsection.21.2.2}
+\contentsline {section}{\numberline {21.3}Simple Print Configuration}{388}{section.21.3}
+\contentsline {subsection}{\numberline {21.3.1}Verifying Configuration with testparm}{389}{subsection.21.3.1}
+\contentsline {subsection}{\numberline {21.3.2}Rapid Configuration Validation}{390}{subsection.21.3.2}
+\contentsline {section}{\numberline {21.4}Extended Printing Configuration}{393}{section.21.4}
+\contentsline {subsection}{\numberline {21.4.1}Detailed Explanation Settings}{393}{subsection.21.4.1}
+\contentsline {subsubsection}{\numberline {21.4.1.1}The [global] Section}{394}{subsubsection.21.4.1.1}
+\contentsline {subsubsection}{\numberline {21.4.1.2}The [printers] Section}{396}{subsubsection.21.4.1.2}
+\contentsline {subsubsection}{\numberline {21.4.1.3}Any [my\_printer\_name] Section}{398}{subsubsection.21.4.1.3}
+\contentsline {subsubsection}{\numberline {21.4.1.4}Print Commands}{399}{subsubsection.21.4.1.4}
+\contentsline {subsubsection}{\numberline {21.4.1.5}Default UNIX System Printing Commands}{400}{subsubsection.21.4.1.5}
+\contentsline {subsubsection}{\numberline {21.4.1.6}Custom Print Commands}{400}{subsubsection.21.4.1.6}
+\contentsline {section}{\numberline {21.5}Printing Developments Since Samba-2.2}{402}{section.21.5}
+\contentsline {subsection}{\numberline {21.5.1}Point'n'Print Client Drivers on Samba Servers}{404}{subsection.21.5.1}
+\contentsline {subsection}{\numberline {21.5.2}The Obsoleted [printer\$] Section}{404}{subsection.21.5.2}
+\contentsline {subsection}{\numberline {21.5.3}Creating the [print\$] Share}{405}{subsection.21.5.3}
+\contentsline {subsection}{\numberline {21.5.4}[print\$] Stanza Parameters}{405}{subsection.21.5.4}
+\contentsline {subsection}{\numberline {21.5.5}The [print\$] Share Directory}{408}{subsection.21.5.5}
+\contentsline {section}{\numberline {21.6}Installing Drivers into [print\$]}{409}{section.21.6}
+\contentsline {subsection}{\numberline {21.6.1}Add Printer Wizard Driver Installation}{409}{subsection.21.6.1}
+\contentsline {subsection}{\numberline {21.6.2}Installing Print Drivers Using rpcclient}{410}{subsection.21.6.2}
+\contentsline {subsubsection}{\numberline {21.6.2.1}Identifying Driver Files}{411}{subsubsection.21.6.2.1}
+\contentsline {subsubsection}{\numberline {21.6.2.2}Obtaining Driver Files from Windows Client [print\$] Shares}{413}{subsubsection.21.6.2.2}
+\contentsline {subsubsection}{\numberline {21.6.2.3}Installing Driver Files into [print\$]}{414}{subsubsection.21.6.2.3}
+\contentsline {subsubsection}{\numberline {21.6.2.4}smbclient to Confirm Driver Installation}{415}{subsubsection.21.6.2.4}
+\contentsline {subsubsection}{\numberline {21.6.2.5}Running rpcclient with adddriver}{417}{subsubsection.21.6.2.5}
+\contentsline {subsubsection}{\numberline {21.6.2.6}Checking adddriver Completion}{418}{subsubsection.21.6.2.6}
+\contentsline {subsubsection}{\numberline {21.6.2.7}Check Samba for Driver Recognition}{419}{subsubsection.21.6.2.7}
+\contentsline {subsubsection}{\numberline {21.6.2.8}Specific Driver Name Flexibility}{420}{subsubsection.21.6.2.8}
+\contentsline {subsubsection}{\numberline {21.6.2.9}Running rpcclient with setdriver}{421}{subsubsection.21.6.2.9}
+\contentsline {section}{\numberline {21.7}Client Driver Installation Procedure}{422}{section.21.7}
+\contentsline {subsection}{\numberline {21.7.1}First Client Driver Installation}{422}{subsection.21.7.1}
+\contentsline {subsection}{\numberline {21.7.2}Setting Device Modes on New Printers}{423}{subsection.21.7.2}
+\contentsline {subsection}{\numberline {21.7.3}Additional Client Driver Installation}{425}{subsection.21.7.3}
+\contentsline {subsection}{\numberline {21.7.4}Always Make First Client Connection as root or {``}printer admin{''}}{426}{subsection.21.7.4}
+\contentsline {section}{\numberline {21.8}Other Gotchas}{427}{section.21.8}
+\contentsline {subsection}{\numberline {21.8.1}Setting Default Print Options for Client Drivers}{427}{subsection.21.8.1}
+\contentsline {subsection}{\numberline {21.8.2}Supporting Large Numbers of Printers}{429}{subsection.21.8.2}
+\contentsline {subsection}{\numberline {21.8.3}Adding New Printers with the Windows NT APW}{431}{subsection.21.8.3}
+\contentsline {subsection}{\numberline {21.8.4}Error Message: {``}Cannot connect under a different Name{''}}{433}{subsection.21.8.4}
+\contentsline {subsection}{\numberline {21.8.5}Take Care When Assembling Driver Files}{434}{subsection.21.8.5}
+\contentsline {subsection}{\numberline {21.8.6}Samba and Printer Ports}{437}{subsection.21.8.6}
+\contentsline {subsection}{\numberline {21.8.7}Avoiding Common Client Driver Misconfiguration}{438}{subsection.21.8.7}
+\contentsline {section}{\numberline {21.9}The Imprints Toolset}{438}{section.21.9}
+\contentsline {subsection}{\numberline {21.9.1}What Is Imprints?}{438}{subsection.21.9.1}
+\contentsline {subsection}{\numberline {21.9.2}Creating Printer Driver Packages}{439}{subsection.21.9.2}
+\contentsline {subsection}{\numberline {21.9.3}The Imprints Server}{439}{subsection.21.9.3}
+\contentsline {subsection}{\numberline {21.9.4}The Installation Client}{439}{subsection.21.9.4}
+\contentsline {section}{\numberline {21.10}Adding Network Printers without User Interaction}{440}{section.21.10}
+\contentsline {section}{\numberline {21.11}The addprinter Command}{442}{section.21.11}
+\contentsline {section}{\numberline {21.12}Migration of Classical Printing to Samba}{443}{section.21.12}
+\contentsline {section}{\numberline {21.13}Publishing Printer Information in Active Directory or LDAP}{444}{section.21.13}
+\contentsline {section}{\numberline {21.14}Common Errors}{444}{section.21.14}
+\contentsline {subsection}{\numberline {21.14.1}I Give My Root Password but I Do Not Get Access}{444}{subsection.21.14.1}
+\contentsline {subsection}{\numberline {21.14.2}My Print Jobs Get Spooled into the Spooling Directory, but Then Get Lost}{444}{subsection.21.14.2}
+\contentsline {chapter}{Chapter~\numberline {22}\uppercase {CUPS Printing Support}}{447}{chapter.22}
+\contentsline {section}{\numberline {22.1}Introduction}{447}{section.22.1}
+\contentsline {subsection}{\numberline {22.1.1}Features and Benefits}{447}{subsection.22.1.1}
+\contentsline {subsection}{\numberline {22.1.2}Overview}{447}{subsection.22.1.2}
+\contentsline {section}{\numberline {22.2}Basic CUPS Support Configuration}{448}{section.22.2}
+\contentsline {subsection}{\numberline {22.2.1}Linking smbd with libcups.so}{448}{subsection.22.2.1}
+\contentsline {subsection}{\numberline {22.2.2}Simple smb.\penalty \z@ {}conf Settings for CUPS}{449}{subsection.22.2.2}
+\contentsline {subsection}{\numberline {22.2.3}More Complex CUPS smb.\penalty \z@ {}conf Settings}{450}{subsection.22.2.3}
+\contentsline {section}{\numberline {22.3}Advanced Configuration}{451}{section.22.3}
+\contentsline {subsection}{\numberline {22.3.1}Central Spooling vs. {``}Peer-to-Peer{''} Printing}{452}{subsection.22.3.1}
+\contentsline {subsection}{\numberline {22.3.2}Raw Print Serving: Vendor Drivers on Windows Clients}{452}{subsection.22.3.2}
+\contentsline {subsection}{\numberline {22.3.3}Installation of Windows Client Drivers}{453}{subsection.22.3.3}
+\contentsline {subsection}{\numberline {22.3.4}Explicitly Enable {``}raw{''} Printing for {\em {application/octet-stream}}}{454}{subsection.22.3.4}
+\contentsline {subsection}{\numberline {22.3.5}Driver Upload Methods}{455}{subsection.22.3.5}
+\contentsline {section}{\numberline {22.4}Advanced Intelligent Printing with PostScript Driver Download}{456}{section.22.4}
+\contentsline {subsection}{\numberline {22.4.1}GDI on Windows, PostScript on UNIX}{456}{subsection.22.4.1}
+\contentsline {subsection}{\numberline {22.4.2}Windows Drivers, GDI, and EMF}{457}{subsection.22.4.2}
+\contentsline {subsection}{\numberline {22.4.3}UNIX Printfile Conversion and GUI Basics}{457}{subsection.22.4.3}
+\contentsline {subsection}{\numberline {22.4.4}PostScript and Ghostscript}{459}{subsection.22.4.4}
+\contentsline {subsection}{\numberline {22.4.5}Ghostscript: The Software RIP for Non-PostScript Printers}{460}{subsection.22.4.5}
+\contentsline {subsection}{\numberline {22.4.6}PostScript Printer Description (PPD) Specification}{461}{subsection.22.4.6}
+\contentsline {subsection}{\numberline {22.4.7}Using Windows-Formatted Vendor PPDs}{462}{subsection.22.4.7}
+\contentsline {subsection}{\numberline {22.4.8}CUPS Also Uses PPDs for Non-PostScript Printers}{463}{subsection.22.4.8}
+\contentsline {section}{\numberline {22.5}The CUPS Filtering Architecture}{464}{section.22.5}
+\contentsline {subsection}{\numberline {22.5.1}MIME Types and CUPS Filters}{465}{subsection.22.5.1}
+\contentsline {subsection}{\numberline {22.5.2}MIME Type Conversion Rules}{466}{subsection.22.5.2}
+\contentsline {subsection}{\numberline {22.5.3}Filtering Overview}{467}{subsection.22.5.3}
+\contentsline {subsubsection}{\numberline {22.5.3.1}Filter Requirements}{467}{subsubsection.22.5.3.1}
+\contentsline {subsection}{\numberline {22.5.4}Prefilters}{468}{subsection.22.5.4}
+\contentsline {subsection}{\numberline {22.5.5}pstops}{468}{subsection.22.5.5}
+\contentsline {subsection}{\numberline {22.5.6}pstoraster}{469}{subsection.22.5.6}
+\contentsline {subsection}{\numberline {22.5.7}imagetops and imagetoraster}{471}{subsection.22.5.7}
+\contentsline {subsection}{\numberline {22.5.8}rasterto [printers specific]}{471}{subsection.22.5.8}
+\contentsline {subsection}{\numberline {22.5.9}CUPS Backends}{472}{subsection.22.5.9}
+\contentsline {subsection}{\numberline {22.5.10}The Role of cupsomatic/foomatic}{475}{subsection.22.5.10}
+\contentsline {subsection}{\numberline {22.5.11}The Complete Picture}{476}{subsection.22.5.11}
+\contentsline {subsection}{\numberline {22.5.12}mime.\penalty \z@ {}convs}{476}{subsection.22.5.12}
+\contentsline {subsection}{\numberline {22.5.13}{``}Raw{''} Printing}{477}{subsection.22.5.13}
+\contentsline {subsection}{\numberline {22.5.14}application/octet-stream Printing}{477}{subsection.22.5.14}
+\contentsline {subsection}{\numberline {22.5.15}PostScript Printer Descriptions for Non-PostScript Printers}{479}{subsection.22.5.15}
+\contentsline {subsection}{\numberline {22.5.16}{\em {cupsomatic/foomatic-rip}} Versus {\em {Native CUPS}} Printing}{479}{subsection.22.5.16}
+\contentsline {subsection}{\numberline {22.5.17}Examples for Filtering Chains}{482}{subsection.22.5.17}
+\contentsline {subsection}{\numberline {22.5.18}Sources of CUPS Drivers/PPDs}{483}{subsection.22.5.18}
+\contentsline {subsection}{\numberline {22.5.19}Printing with Interface Scripts}{484}{subsection.22.5.19}
+\contentsline {section}{\numberline {22.6}Network Printing (Purely Windows)}{485}{section.22.6}
+\contentsline {subsection}{\numberline {22.6.1}From Windows Clients to an NT Print Server}{485}{subsection.22.6.1}
+\contentsline {subsection}{\numberline {22.6.2}Driver Execution on the Client}{485}{subsection.22.6.2}
+\contentsline {subsection}{\numberline {22.6.3}Driver Execution on the Server}{486}{subsection.22.6.3}
+\contentsline {section}{\numberline {22.7}Network Printing (Windows Clients and UNIX/Samba Print Servers)}{487}{section.22.7}
+\contentsline {subsection}{\numberline {22.7.1}From Windows Clients to a CUPS/Samba Print Server}{487}{subsection.22.7.1}
+\contentsline {subsection}{\numberline {22.7.2}Samba Receiving Job-Files and Passing Them to CUPS}{488}{subsection.22.7.2}
+\contentsline {section}{\numberline {22.8}Network PostScript RIP}{489}{section.22.8}
+\contentsline {subsection}{\numberline {22.8.1}PPDs for Non-PS Printers on UNIX}{489}{subsection.22.8.1}
+\contentsline {subsection}{\numberline {22.8.2}PPDs for Non-PS Printers on Windows}{490}{subsection.22.8.2}
+\contentsline {section}{\numberline {22.9}Windows Terminal Servers (WTS) as CUPS Clients}{490}{section.22.9}
+\contentsline {subsection}{\numberline {22.9.1}Printer Drivers Running in {``}Kernel Mode{''} Cause Many Problems}{490}{subsection.22.9.1}
+\contentsline {subsection}{\numberline {22.9.2}Workarounds Impose Heavy Limitations}{491}{subsection.22.9.2}
+\contentsline {subsection}{\numberline {22.9.3}CUPS: A {``}Magical Stone{''}?}{491}{subsection.22.9.3}
+\contentsline {subsection}{\numberline {22.9.4}PostScript Drivers with No Major Problems, Even in Kernel Mode}{491}{subsection.22.9.4}
+\contentsline {section}{\numberline {22.10}Configuring CUPS for Driver Download}{492}{section.22.10}
+\contentsline {subsection}{\numberline {22.10.1}{\em {cupsaddsmb}}: The Unknown Utility}{492}{subsection.22.10.1}
+\contentsline {subsection}{\numberline {22.10.2}Prepare Your smb.\penalty \z@ {}conf for cupsaddsmb}{493}{subsection.22.10.2}
+\contentsline {subsection}{\numberline {22.10.3}CUPS {``}PostScript Driver for Windows NT/200x/XP{''}}{493}{subsection.22.10.3}
+\contentsline {subsection}{\numberline {22.10.4}Recognizing Different Driver Files}{495}{subsection.22.10.4}
+\contentsline {subsection}{\numberline {22.10.5}Acquiring the Adobe Driver Files}{496}{subsection.22.10.5}
+\contentsline {subsection}{\numberline {22.10.6}ESP Print Pro PostScript Driver for Windows NT/200x/XP}{496}{subsection.22.10.6}
+\contentsline {subsection}{\numberline {22.10.7}Caveats to Be Considered}{497}{subsection.22.10.7}
+\contentsline {subsection}{\numberline {22.10.8}Windows CUPS PostScript Driver Versus Adobe Driver}{500}{subsection.22.10.8}
+\contentsline {subsection}{\numberline {22.10.9}Run cupsaddsmb (Quiet Mode)}{501}{subsection.22.10.9}
+\contentsline {subsection}{\numberline {22.10.10}Run cupsaddsmb with Verbose Output}{501}{subsection.22.10.10}
+\contentsline {subsection}{\numberline {22.10.11}Understanding cupsaddsmb}{503}{subsection.22.10.11}
+\contentsline {subsection}{\numberline {22.10.12}How to Recognize If cupsaddsmb Completed Successfully}{504}{subsection.22.10.12}
+\contentsline {subsection}{\numberline {22.10.13}cupsaddsmb with a Samba PDC}{505}{subsection.22.10.13}
+\contentsline {subsection}{\numberline {22.10.14}cupsaddsmb Flowchart}{506}{subsection.22.10.14}
+\contentsline {subsection}{\numberline {22.10.15}Installing the PostScript Driver on a Client}{507}{subsection.22.10.15}
+\contentsline {subsection}{\numberline {22.10.16}Avoiding Critical PostScript Driver Settings on the Client}{507}{subsection.22.10.16}
+\contentsline {section}{\numberline {22.11}Installing PostScript Driver Files Manually Using rpcclient}{508}{section.22.11}
+\contentsline {subsection}{\numberline {22.11.1}A Check of the rpcclient man Page}{509}{subsection.22.11.1}
+\contentsline {subsection}{\numberline {22.11.2}Understanding the rpcclient man Page}{510}{subsection.22.11.2}
+\contentsline {subsection}{\numberline {22.11.3}Producing an Example by Querying a Windows Box}{510}{subsection.22.11.3}
+\contentsline {subsection}{\numberline {22.11.4}Requirements for adddriver and setdriver to Succeed}{511}{subsection.22.11.4}
+\contentsline {subsection}{\numberline {22.11.5}Manual Driver Installation in 15 Steps}{512}{subsection.22.11.5}
+\contentsline {subsection}{\numberline {22.11.6}Troubleshooting Revisited}{519}{subsection.22.11.6}
+\contentsline {section}{\numberline {22.12}The Printing *.\penalty \z@ {}tdb Files}{520}{section.22.12}
+\contentsline {subsection}{\numberline {22.12.1}Trivial Database Files}{520}{subsection.22.12.1}
+\contentsline {subsection}{\numberline {22.12.2}Binary Format}{520}{subsection.22.12.2}
+\contentsline {subsection}{\numberline {22.12.3}Losing *.\penalty \z@ {}tdb Files}{521}{subsection.22.12.3}
+\contentsline {subsection}{\numberline {22.12.4}Using tdbbackup}{521}{subsection.22.12.4}
+\contentsline {section}{\numberline {22.13}CUPS Print Drivers from Linuxprinting.org}{522}{section.22.13}
+\contentsline {subsection}{\numberline {22.13.1}foomatic-rip and Foomatic Explained}{523}{subsection.22.13.1}
+\contentsline {subsubsection}{\numberline {22.13.1.1}690 {``}Perfect{''} Printers}{524}{subsubsection.22.13.1.1}
+\contentsline {subsubsection}{\numberline {22.13.1.2}How the Printing HOWTO Started It All}{524}{subsubsection.22.13.1.2}
+\contentsline {subsubsection}{\numberline {22.13.1.3}Foomatic's Strange Name}{524}{subsubsection.22.13.1.3}
+\contentsline {subsubsection}{\numberline {22.13.1.4}cupsomatic, pdqomatic, lpdomatic, directomatic}{525}{subsubsection.22.13.1.4}
+\contentsline {subsubsection}{\numberline {22.13.1.5}The {\em {Grand Unification}} Achieved}{526}{subsubsection.22.13.1.5}
+\contentsline {subsubsection}{\numberline {22.13.1.6}Driver Development Outside}{527}{subsubsection.22.13.1.6}
+\contentsline {subsubsection}{\numberline {22.13.1.7}Forums, Downloads, Tutorials, Howtos (Also for Mac OS X and Commercial UNIX)}{528}{subsubsection.22.13.1.7}
+\contentsline {subsubsection}{\numberline {22.13.1.8}Foomatic Database-Generated PPDs}{528}{subsubsection.22.13.1.8}
+\contentsline {subsection}{\numberline {22.13.2}foomatic-rip and Foomatic PPD Download and Installation}{529}{subsection.22.13.2}
+\contentsline {section}{\numberline {22.14}Page Accounting with CUPS}{532}{section.22.14}
+\contentsline {subsection}{\numberline {22.14.1}Setting Up Quotas}{533}{subsection.22.14.1}
+\contentsline {subsection}{\numberline {22.14.2}Correct and Incorrect Accounting}{533}{subsection.22.14.2}
+\contentsline {subsection}{\numberline {22.14.3}Adobe and CUPS PostScript Drivers for Windows Clients}{534}{subsection.22.14.3}
+\contentsline {subsection}{\numberline {22.14.4}The page\_log File Syntax}{534}{subsection.22.14.4}
+\contentsline {subsection}{\numberline {22.14.5}Possible Shortcomings}{535}{subsection.22.14.5}
+\contentsline {subsection}{\numberline {22.14.6}Future Developments}{536}{subsection.22.14.6}
+\contentsline {subsection}{\numberline {22.14.7}Other Accounting Tools}{536}{subsection.22.14.7}
+\contentsline {section}{\numberline {22.15}Additional Material}{536}{section.22.15}
+\contentsline {section}{\numberline {22.16}Autodeletion or Preservation of CUPS Spool Files}{538}{section.22.16}
+\contentsline {subsection}{\numberline {22.16.1}CUPS Configuration Settings Explained}{538}{subsection.22.16.1}
+\contentsline {subsection}{\numberline {22.16.2}Preconditions}{539}{subsection.22.16.2}
+\contentsline {subsection}{\numberline {22.16.3}Manual Configuration}{539}{subsection.22.16.3}
+\contentsline {section}{\numberline {22.17}Printing from CUPS to Windows-Attached Printers}{540}{section.22.17}
+\contentsline {section}{\numberline {22.18}More CUPS Filtering Chains}{542}{section.22.18}
+\contentsline {section}{\numberline {22.19}Common Errors}{542}{section.22.19}
+\contentsline {subsection}{\numberline {22.19.1}Windows 9x/Me Client Can't Install Driver}{542}{subsection.22.19.1}
+\contentsline {subsection}{\numberline {22.19.2}{``}cupsaddsmb{''} Keeps Asking for Root Password in Never-ending Loop}{543}{subsection.22.19.2}
+\contentsline {subsection}{\numberline {22.19.3}{``}cupsaddsmb{''} or {``}rpcclient addriver{''} Emit Error}{543}{subsection.22.19.3}
+\contentsline {subsection}{\numberline {22.19.4}{``}cupsaddsmb{''} Errors}{543}{subsection.22.19.4}
+\contentsline {subsection}{\numberline {22.19.5}Client Can't Connect to Samba Printer}{543}{subsection.22.19.5}
+\contentsline {subsection}{\numberline {22.19.6}New Account Reconnection from Windows 200x/XP Troubles}{544}{subsection.22.19.6}
+\contentsline {subsection}{\numberline {22.19.7}Avoid Being Connected to the Samba Server as the Wrong User}{544}{subsection.22.19.7}
+\contentsline {subsection}{\numberline {22.19.8}Upgrading to CUPS Drivers from Adobe Drivers}{544}{subsection.22.19.8}
+\contentsline {subsection}{\numberline {22.19.9}Can't Use {``}cupsaddsmb{''} on Samba Server, Which Is a PDC}{545}{subsection.22.19.9}
+\contentsline {subsection}{\numberline {22.19.10}Deleted Windows 200x Printer Driver Is Still Shown}{545}{subsection.22.19.10}
+\contentsline {subsection}{\numberline {22.19.11}Windows 200x/XP Local Security Policies}{545}{subsection.22.19.11}
+\contentsline {subsection}{\numberline {22.19.12}Administrator Cannot Install Printers for All Local Users}{545}{subsection.22.19.12}
+\contentsline {subsection}{\numberline {22.19.13}Print Change, Notify Functions on NT Clients}{545}{subsection.22.19.13}
+\contentsline {subsection}{\numberline {22.19.14}Windows XP SP1}{546}{subsection.22.19.14}
+\contentsline {subsection}{\numberline {22.19.15}Print Options for All Users Can't Be Set on Windows 200x/XP}{546}{subsection.22.19.15}
+\contentsline {subsection}{\numberline {22.19.16}Most Common Blunders in Driver Settings on Windows Clients}{547}{subsection.22.19.16}
+\contentsline {subsection}{\numberline {22.19.17}cupsaddsmb Does Not Work with Newly Installed Printer}{547}{subsection.22.19.17}
+\contentsline {subsection}{\numberline {22.19.18}Permissions on /\penalty \z@ {}var/\penalty \z@ {}spool/\penalty \z@ {}samba/\penalty \z@ {} Get Reset After Each Reboot}{548}{subsection.22.19.18}
+\contentsline {subsection}{\numberline {22.19.19}Print Queue Called {``}lp{''} Mishandles Print Jobs}{548}{subsection.22.19.19}
+\contentsline {subsection}{\numberline {22.19.20}Location of Adobe PostScript Driver Files for {``}cupsaddsmb{''}}{548}{subsection.22.19.20}
+\contentsline {section}{\numberline {22.20}Overview of the CUPS Printing Processes}{548}{section.22.20}
+\contentsline {chapter}{Chapter~\numberline {23}\uppercase {Stackable VFS modules}}{551}{chapter.23}
+\contentsline {section}{\numberline {23.1}Features and Benefits}{551}{section.23.1}
+\contentsline {section}{\numberline {23.2}Discussion}{551}{section.23.2}
+\contentsline {section}{\numberline {23.3}Included Modules}{552}{section.23.3}
+\contentsline {subsection}{\numberline {23.3.1}audit}{552}{subsection.23.3.1}
+\contentsline {subsection}{\numberline {23.3.2}default\_quota}{553}{subsection.23.3.2}
+\contentsline {subsection}{\numberline {23.3.3}extd\_audit}{555}{subsection.23.3.3}
+\contentsline {subsubsection}{\numberline {23.3.3.1}Configuration of Auditing}{555}{subsubsection.23.3.3.1}
+\contentsline {subsection}{\numberline {23.3.4}fake\_perms}{556}{subsection.23.3.4}
+\contentsline {subsection}{\numberline {23.3.5}recycle}{556}{subsection.23.3.5}
+\contentsline {subsection}{\numberline {23.3.6}netatalk}{558}{subsection.23.3.6}
+\contentsline {subsection}{\numberline {23.3.7}shadow\_copy}{558}{subsection.23.3.7}
+\contentsline {subsubsection}{\numberline {23.3.7.1}Shadow Copy Setup}{559}{subsubsection.23.3.7.1}
+\contentsline {section}{\numberline {23.4}VFS Modules Available Elsewhere}{563}{section.23.4}
+\contentsline {subsection}{\numberline {23.4.1}DatabaseFS}{563}{subsection.23.4.1}
+\contentsline {subsection}{\numberline {23.4.2}vscan}{563}{subsection.23.4.2}
+\contentsline {subsection}{\numberline {23.4.3}vscan-clamav}{564}{subsection.23.4.3}
+\contentsline {chapter}{Chapter~\numberline {24}\uppercase {Winbind: Use of Domain Accounts}}{567}{chapter.24}
+\contentsline {section}{\numberline {24.1}Features and Benefits}{567}{section.24.1}
+\contentsline {section}{\numberline {24.2}Introduction}{569}{section.24.2}
+\contentsline {section}{\numberline {24.3}What Winbind Provides}{569}{section.24.3}
+\contentsline {subsection}{\numberline {24.3.1}Target Uses}{570}{subsection.24.3.1}
+\contentsline {subsection}{\numberline {24.3.2}Handling of Foreign SIDs}{570}{subsection.24.3.2}
+\contentsline {section}{\numberline {24.4}How Winbind Works}{571}{section.24.4}
+\contentsline {subsection}{\numberline {24.4.1}Microsoft Remote Procedure Calls}{571}{subsection.24.4.1}
+\contentsline {subsection}{\numberline {24.4.2}Microsoft Active Directory Services}{572}{subsection.24.4.2}
+\contentsline {subsection}{\numberline {24.4.3}Name Service Switch}{572}{subsection.24.4.3}
+\contentsline {subsection}{\numberline {24.4.4}Pluggable Authentication Modules}{573}{subsection.24.4.4}
+\contentsline {subsection}{\numberline {24.4.5}User and Group ID Allocation}{574}{subsection.24.4.5}
+\contentsline {subsection}{\numberline {24.4.6}Result Caching}{574}{subsection.24.4.6}
+\contentsline {section}{\numberline {24.5}Installation and Configuration}{575}{section.24.5}
+\contentsline {subsection}{\numberline {24.5.1}Introduction}{575}{subsection.24.5.1}
+\contentsline {subsection}{\numberline {24.5.2}Requirements}{575}{subsection.24.5.2}
+\contentsline {subsection}{\numberline {24.5.3}Testing Things Out}{576}{subsection.24.5.3}
+\contentsline {subsubsection}{\numberline {24.5.3.1}Configure nsswitch.\penalty \z@ {}conf and the Winbind Libraries on Linux and Solaris}{576}{subsubsection.24.5.3.1}
+\contentsline {subsubsection}{\numberline {24.5.3.2}NSS Winbind on AIX}{578}{subsubsection.24.5.3.2}
+\contentsline {subsubsection}{\numberline {24.5.3.3}Configure smb.conf}{579}{subsubsection.24.5.3.3}
+\contentsline {subsubsection}{\numberline {24.5.3.4}Join the Samba Server to the PDC Domain}{579}{subsubsection.24.5.3.4}
+\contentsline {subsubsection}{\numberline {24.5.3.5}Starting and Testing the winbindd Daemon}{580}{subsubsection.24.5.3.5}
+\contentsline {subsubsection}{\numberline {24.5.3.6}Fix the init.d Startup Scripts}{582}{subsubsection.24.5.3.6}
+\contentsline {subsubsection}{\numberline {24.5.3.7}Configure Winbind and PAM}{586}{subsubsection.24.5.3.7}
+\contentsline {section}{\numberline {24.6}Conclusion}{590}{section.24.6}
+\contentsline {section}{\numberline {24.7}Common Errors}{591}{section.24.7}
+\contentsline {subsection}{\numberline {24.7.1}NSCD Problem Warning}{591}{subsection.24.7.1}
+\contentsline {subsection}{\numberline {24.7.2}Winbind Is Not Resolving Users and Groups}{591}{subsection.24.7.2}
+\contentsline {chapter}{Chapter~\numberline {25}\uppercase {Advanced Network Management}}{593}{chapter.25}
+\contentsline {section}{\numberline {25.1}Features and Benefits}{593}{section.25.1}
+\contentsline {section}{\numberline {25.2}Remote Server Administration}{593}{section.25.2}
+\contentsline {section}{\numberline {25.3}Remote Desktop Management}{594}{section.25.3}
+\contentsline {subsection}{\numberline {25.3.1}Remote Management from NoMachine.Com}{594}{subsection.25.3.1}
+\contentsline {subsection}{\numberline {25.3.2}Remote Management with ThinLinc}{596}{subsection.25.3.2}
+\contentsline {section}{\numberline {25.4}Network Logon Script Magic}{597}{section.25.4}
+\contentsline {subsection}{\numberline {25.4.1}Adding Printers without User Intervention}{599}{subsection.25.4.1}
+\contentsline {subsection}{\numberline {25.4.2}Limiting Logon Connections}{600}{subsection.25.4.2}
+\contentsline {chapter}{Chapter~\numberline {26}\uppercase {System and Account Policies}}{603}{chapter.26}
+\contentsline {section}{\numberline {26.1}Features and Benefits}{603}{section.26.1}
+\contentsline {section}{\numberline {26.2}Creating and Managing System Policies}{604}{section.26.2}
+\contentsline {subsection}{\numberline {26.2.1}Windows 9x/ME Policies}{605}{subsection.26.2.1}
+\contentsline {subsection}{\numberline {26.2.2}Windows NT4-Style Policy Files}{605}{subsection.26.2.2}
+\contentsline {subsubsection}{\numberline {26.2.2.1}Registry Spoiling}{606}{subsubsection.26.2.2.1}
+\contentsline {subsection}{\numberline {26.2.3}MS Windows 200x/XP Professional Policies}{606}{subsection.26.2.3}
+\contentsline {subsubsection}{\numberline {26.2.3.1}Administration of Windows 200x/XP Policies}{607}{subsubsection.26.2.3.1}
+\contentsline {subsubsection}{\numberline {26.2.3.2}Custom System Policy Templates}{608}{subsubsection.26.2.3.2}
+\contentsline {section}{\numberline {26.3}Managing Account/User Policies}{609}{section.26.3}
+\contentsline {section}{\numberline {26.4}Management Tools}{610}{section.26.4}
+\contentsline {subsection}{\numberline {26.4.1}Samba Editreg Toolset}{610}{subsection.26.4.1}
+\contentsline {subsection}{\numberline {26.4.2}Windows NT4/200x}{611}{subsection.26.4.2}
+\contentsline {subsection}{\numberline {26.4.3}Samba PDC}{611}{subsection.26.4.3}
+\contentsline {section}{\numberline {26.5}System Startup and Logon Processing Overview}{611}{section.26.5}
+\contentsline {section}{\numberline {26.6}Common Errors}{612}{section.26.6}
+\contentsline {subsection}{\numberline {26.6.1}Policy Does Not Work}{612}{subsection.26.6.1}
+\contentsline {chapter}{Chapter~\numberline {27}\uppercase {Desktop Profile Management}}{613}{chapter.27}
+\contentsline {section}{\numberline {27.1}Features and Benefits}{613}{section.27.1}
+\contentsline {section}{\numberline {27.2}Roaming Profiles}{613}{section.27.2}
+\contentsline {subsection}{\numberline {27.2.1}Samba Configuration for Profile Handling}{614}{subsection.27.2.1}
+\contentsline {subsubsection}{\numberline {27.2.1.1}NT4/200x User Profiles}{614}{subsubsection.27.2.1.1}
+\contentsline {subsubsection}{\numberline {27.2.1.2}Windows 9x/Me User Profiles}{615}{subsubsection.27.2.1.2}
+\contentsline {subsubsection}{\numberline {27.2.1.3}Mixed Windows Windows 9x/Me and NT4/200x User Profiles}{615}{subsubsection.27.2.1.3}
+\contentsline {subsubsection}{\numberline {27.2.1.4}Disabling Roaming Profile Support}{616}{subsubsection.27.2.1.4}
+\contentsline {subsection}{\numberline {27.2.2}Windows Client Profile Configuration Information}{617}{subsection.27.2.2}
+\contentsline {subsubsection}{\numberline {27.2.2.1}Windows 9x/Me Profile Setup}{617}{subsubsection.27.2.2.1}
+\contentsline {subsubsection}{\numberline {27.2.2.2}Windows NT4 Workstation}{620}{subsubsection.27.2.2.2}
+\contentsline {subsubsection}{\numberline {27.2.2.3}Windows 2000/XP Professional}{620}{subsubsection.27.2.2.3}
+\contentsline {subsection}{\numberline {27.2.3}User Profile Hive Cleanup Service}{623}{subsection.27.2.3}
+\contentsline {subsection}{\numberline {27.2.4}Sharing Profiles between Windows 9x/Me and NT4/200x/XP Workstations}{623}{subsection.27.2.4}
+\contentsline {subsection}{\numberline {27.2.5}Profile Migration from Windows NT4/200x Server to Samba}{623}{subsection.27.2.5}
+\contentsline {subsubsection}{\numberline {27.2.5.1}Windows NT4 Profile Management Tools}{624}{subsubsection.27.2.5.1}
+\contentsline {subsubsection}{\numberline {27.2.5.2}Side Bar Notes}{624}{subsubsection.27.2.5.2}
+\contentsline {subsubsection}{\numberline {27.2.5.3}moveuser.exe}{625}{subsubsection.27.2.5.3}
+\contentsline {subsubsection}{\numberline {27.2.5.4}Get SID}{625}{subsubsection.27.2.5.4}
+\contentsline {section}{\numberline {27.3}Mandatory Profiles}{625}{section.27.3}
+\contentsline {section}{\numberline {27.4}Creating and Managing Group Profiles}{626}{section.27.4}
+\contentsline {section}{\numberline {27.5}Default Profile for Windows Users}{627}{section.27.5}
+\contentsline {subsection}{\numberline {27.5.1}MS Windows 9x/Me}{627}{subsection.27.5.1}
+\contentsline {subsubsection}{\numberline {27.5.1.1}User Profile Handling with Windows 9x/Me}{627}{subsubsection.27.5.1.1}
+\contentsline {subsection}{\numberline {27.5.2}MS Windows NT4 Workstation}{628}{subsection.27.5.2}
+\contentsline {subsection}{\numberline {27.5.3}MS Windows 200x/XP}{631}{subsection.27.5.3}
+\contentsline {section}{\numberline {27.6}Common Errors}{634}{section.27.6}
+\contentsline {subsection}{\numberline {27.6.1}Configuring Roaming Profiles for a Few Users or Groups}{634}{subsection.27.6.1}
+\contentsline {subsection}{\numberline {27.6.2}Cannot Use Roaming Profiles}{634}{subsection.27.6.2}
+\contentsline {subsection}{\numberline {27.6.3}Changing the Default Profile}{636}{subsection.27.6.3}
+\contentsline {subsection}{\numberline {27.6.4}Debugging Roaming Profiles and NT4-style Domain Policies}{637}{subsection.27.6.4}
+\contentsline {chapter}{Chapter~\numberline {28}\uppercase {PAM-Based Distributed Authentication}}{639}{chapter.28}
+\contentsline {section}{\numberline {28.1}Features and Benefits}{639}{section.28.1}
+\contentsline {section}{\numberline {28.2}Technical Discussion}{641}{section.28.2}
+\contentsline {subsection}{\numberline {28.2.1}PAM Configuration Syntax}{641}{subsection.28.2.1}
+\contentsline {subsubsection}{\numberline {28.2.1.1}Anatomy of /\penalty \z@ {}etc/\penalty \z@ {}pam.\penalty \z@ {}d Entries}{642}{subsubsection.28.2.1.1}
+\contentsline {subsection}{\numberline {28.2.2}Example System Configurations}{647}{subsection.28.2.2}
+\contentsline {subsubsection}{\numberline {28.2.2.1}PAM: Original Login Config}{648}{subsubsection.28.2.2.1}
+\contentsline {subsubsection}{\numberline {28.2.2.2}PAM: Login Using pam\_\penalty \z@ {}smbpass}{648}{subsubsection.28.2.2.2}
+\contentsline {subsection}{\numberline {28.2.3}smb.\penalty \z@ {}conf PAM Configuration}{650}{subsection.28.2.3}
+\contentsline {subsection}{\numberline {28.2.4}Remote CIFS Authentication Using winbindd.\penalty \z@ {}so}{651}{subsection.28.2.4}
+\contentsline {subsection}{\numberline {28.2.5}Password Synchronization Using pam\_\penalty \z@ {}smbpass.\penalty \z@ {}so}{652}{subsection.28.2.5}
+\contentsline {subsubsection}{\numberline {28.2.5.1}Password Synchronization Configuration}{652}{subsubsection.28.2.5.1}
+\contentsline {subsubsection}{\numberline {28.2.5.2}Password Migration Configuration}{653}{subsubsection.28.2.5.2}
+\contentsline {subsubsection}{\numberline {28.2.5.3}Mature Password Configuration}{654}{subsubsection.28.2.5.3}
+\contentsline {subsubsection}{\numberline {28.2.5.4}Kerberos Password Integration Configuration}{654}{subsubsection.28.2.5.4}
+\contentsline {section}{\numberline {28.3}Common Errors}{655}{section.28.3}
+\contentsline {subsection}{\numberline {28.3.1}pam\_winbind Problem}{655}{subsection.28.3.1}
+\contentsline {subsection}{\numberline {28.3.2}Winbind Is Not Resolving Users and Groups}{656}{subsection.28.3.2}
+\contentsline {chapter}{Chapter~\numberline {29}\uppercase {Integrating MS Windows Networks with Samba}}{659}{chapter.29}
+\contentsline {section}{\numberline {29.1}Features and Benefits}{659}{section.29.1}
+\contentsline {section}{\numberline {29.2}Background Information}{660}{section.29.2}
+\contentsline {section}{\numberline {29.3}Name Resolution in a Pure UNIX/Linux World}{660}{section.29.3}
+\contentsline {subsection}{\numberline {29.3.1}/\penalty \z@ {}etc/\penalty \z@ {}hosts}{661}{subsection.29.3.1}
+\contentsline {subsection}{\numberline {29.3.2}/\penalty \z@ {}etc/\penalty \z@ {}resolv.\penalty \z@ {}conf}{662}{subsection.29.3.2}
+\contentsline {subsection}{\numberline {29.3.3}/\penalty \z@ {}etc/\penalty \z@ {}host.\penalty \z@ {}conf}{662}{subsection.29.3.3}
+\contentsline {subsection}{\numberline {29.3.4}/\penalty \z@ {}etc/\penalty \z@ {}nsswitch.\penalty \z@ {}conf}{663}{subsection.29.3.4}
+\contentsline {section}{\numberline {29.4}Name Resolution as Used within MS Windows Networking}{664}{section.29.4}
+\contentsline {subsection}{\numberline {29.4.1}The NetBIOS Name Cache}{666}{subsection.29.4.1}
+\contentsline {subsection}{\numberline {29.4.2}The LMHOSTS File}{666}{subsection.29.4.2}
+\contentsline {subsection}{\numberline {29.4.3}HOSTS File}{668}{subsection.29.4.3}
+\contentsline {subsection}{\numberline {29.4.4}DNS Lookup}{668}{subsection.29.4.4}
+\contentsline {subsection}{\numberline {29.4.5}WINS Lookup}{669}{subsection.29.4.5}
+\contentsline {section}{\numberline {29.5}Common Errors}{669}{section.29.5}
+\contentsline {subsection}{\numberline {29.5.1}Pinging Works Only One Way}{670}{subsection.29.5.1}
+\contentsline {subsection}{\numberline {29.5.2}Very Slow Network Connections}{670}{subsection.29.5.2}
+\contentsline {subsection}{\numberline {29.5.3}Samba Server Name-Change Problem}{670}{subsection.29.5.3}
+\contentsline {chapter}{Chapter~\numberline {30}\uppercase {Unicode/Charsets}}{673}{chapter.30}
+\contentsline {section}{\numberline {30.1}Features and Benefits}{673}{section.30.1}
+\contentsline {section}{\numberline {30.2}What Are Charsets and Unicode?}{673}{section.30.2}
+\contentsline {section}{\numberline {30.3}Samba and Charsets}{674}{section.30.3}
+\contentsline {section}{\numberline {30.4}Conversion from Old Names}{675}{section.30.4}
+\contentsline {section}{\numberline {30.5}Japanese Charsets}{675}{section.30.5}
+\contentsline {subsection}{\numberline {30.5.1}Basic Parameter Setting}{676}{subsection.30.5.1}
+\contentsline {subsection}{\numberline {30.5.2}Individual Implementations}{679}{subsection.30.5.2}
+\contentsline {subsection}{\numberline {30.5.3}Migration from Samba-2.2 Series}{680}{subsection.30.5.3}
+\contentsline {section}{\numberline {30.6}Common Errors}{681}{section.30.6}
+\contentsline {subsection}{\numberline {30.6.1}CP850.so Can't Be Found}{681}{subsection.30.6.1}
+\contentsline {chapter}{Chapter~\numberline {31}\uppercase {Backup Techniques}}{683}{chapter.31}
+\contentsline {section}{\numberline {31.1}Features and Benefits}{683}{section.31.1}
+\contentsline {section}{\numberline {31.2}Discussion of Backup Solutions}{683}{section.31.2}
+\contentsline {subsection}{\numberline {31.2.1}BackupPC}{684}{subsection.31.2.1}
+\contentsline {subsection}{\numberline {31.2.2}Rsync}{684}{subsection.31.2.2}
+\contentsline {subsection}{\numberline {31.2.3}Amanda}{685}{subsection.31.2.3}
+\contentsline {subsection}{\numberline {31.2.4}BOBS: Browseable Online Backup System}{685}{subsection.31.2.4}
+\contentsline {chapter}{Chapter~\numberline {32}\uppercase {High Availability}}{687}{chapter.32}
+\contentsline {section}{\numberline {32.1}Features and Benefits}{687}{section.32.1}
+\contentsline {section}{\numberline {32.2}Technical Discussion}{688}{section.32.2}
+\contentsline {subsection}{\numberline {32.2.1}The Ultimate Goal}{688}{subsection.32.2.1}
+\contentsline {subsection}{\numberline {32.2.2}Why Is This So Hard?}{688}{subsection.32.2.2}
+\contentsline {subsubsection}{\numberline {32.2.2.1}The Front-End Challenge}{689}{subsubsection.32.2.2.1}
+\contentsline {subsubsection}{\numberline {32.2.2.2}Demultiplexing SMB Requests}{689}{subsubsection.32.2.2.2}
+\contentsline {subsubsection}{\numberline {32.2.2.3}The Distributed File System Challenge}{690}{subsubsection.32.2.2.3}
+\contentsline {subsubsection}{\numberline {32.2.2.4}Restrictive Constraints on Distributed File Systems}{690}{subsubsection.32.2.2.4}
+\contentsline {subsubsection}{\numberline {32.2.2.5}Server Pool Communications}{691}{subsubsection.32.2.2.5}
+\contentsline {subsubsection}{\numberline {32.2.2.6}Server Pool Communications Demands}{691}{subsubsection.32.2.2.6}
+\contentsline {subsubsection}{\numberline {32.2.2.7}Required Modifications to Samba}{691}{subsubsection.32.2.2.7}
+\contentsline {subsection}{\numberline {32.2.3}A Simple Solution}{692}{subsection.32.2.3}
+\contentsline {subsection}{\numberline {32.2.4}High-Availability Server Products}{692}{subsection.32.2.4}
+\contentsline {subsection}{\numberline {32.2.5}MS-DFS: The Poor Man's Cluster}{693}{subsection.32.2.5}
+\contentsline {subsection}{\numberline {32.2.6}Conclusions}{693}{subsection.32.2.6}
+\contentsline {chapter}{Chapter~\numberline {33}\uppercase {Handling Large Directories}}{695}{chapter.33}
+\contentsline {chapter}{Chapter~\numberline {34}\uppercase {Advanced Configuration Techniques}}{697}{chapter.34}
+\contentsline {section}{\numberline {34.1}Implementation}{698}{section.34.1}
+\contentsline {subsection}{\numberline {34.1.1}Multiple Server Hosting}{698}{subsection.34.1.1}
+\contentsline {subsection}{\numberline {34.1.2}Multiple Virtual Server Personalities}{699}{subsection.34.1.2}
+\contentsline {subsection}{\numberline {34.1.3}Multiple Virtual Server Hosting}{701}{subsection.34.1.3}
+\contentsline {part}{Part IV\hspace {1em}Migration and Updating}{703}{part.4}
+\contentsline {chapter}{Chapter~\numberline {35}\uppercase {Updating and Upgrading Samba}}{705}{chapter.35}
+\contentsline {section}{\numberline {35.1}Key Update Requirements}{705}{section.35.1}
+\contentsline {subsection}{\numberline {35.1.1}Upgrading from Samba-3.0.x to Samba-3.2.0}{706}{subsection.35.1.1}
+\contentsline {subsection}{\numberline {35.1.2}Upgrading from Samba-2.x to Samba-3.0.25}{706}{subsection.35.1.2}
+\contentsline {subsection}{\numberline {35.1.3}Quick Migration Guide}{706}{subsection.35.1.3}
+\contentsline {section}{\numberline {35.2}New Featuers in Samba-3.x Series}{706}{section.35.2}
+\contentsline {subsection}{\numberline {35.2.1}New Features in Samba-3.2.x Series}{706}{subsection.35.2.1}
+\contentsline {subsection}{\numberline {35.2.2}New Features in Samba-3.0.x}{706}{subsection.35.2.2}
+\contentsline {subsubsection}{\numberline {35.2.2.1}Configuration Parameter Changes}{708}{subsubsection.35.2.2.1}
+\contentsline {subsubsection}{\numberline {35.2.2.2}Removed Parameters}{708}{subsubsection.35.2.2.2}
+\contentsline {subsubsection}{\numberline {35.2.2.3}New Parameters}{709}{subsubsection.35.2.2.3}
+\contentsline {subsubsection}{\numberline {35.2.2.4}Modified Parameters (Changes in Behavior)}{714}{subsubsection.35.2.2.4}
+\contentsline {subsection}{\numberline {35.2.3}New Functionality}{715}{subsection.35.2.3}
+\contentsline {subsubsection}{\numberline {35.2.3.1}TDB Data Files}{715}{subsubsection.35.2.3.1}
+\contentsline {subsubsection}{\numberline {35.2.3.2}Changes in Behavior}{715}{subsubsection.35.2.3.2}
+\contentsline {subsubsection}{\numberline {35.2.3.3}Passdb Backends and Authentication}{716}{subsubsection.35.2.3.3}
+\contentsline {subsubsection}{\numberline {35.2.3.4}LDAP}{717}{subsubsection.35.2.3.4}
+\contentsline {chapter}{Chapter~\numberline {36}\uppercase {Migration from NT4 PDC to Samba-3 PDC}}{721}{chapter.36}
+\contentsline {section}{\numberline {36.1}Planning and Getting Started}{721}{section.36.1}
+\contentsline {subsection}{\numberline {36.1.1}Objectives}{721}{subsection.36.1.1}
+\contentsline {subsubsection}{\numberline {36.1.1.1}Domain Layout}{723}{subsubsection.36.1.1.1}
+\contentsline {subsubsection}{\numberline {36.1.1.2}Server Share and Directory Layout}{724}{subsubsection.36.1.1.2}
+\contentsline {subsubsection}{\numberline {36.1.1.3}Logon Scripts}{724}{subsubsection.36.1.1.3}
+\contentsline {subsubsection}{\numberline {36.1.1.4}Profile Migration/Creation}{725}{subsubsection.36.1.1.4}
+\contentsline {subsubsection}{\numberline {36.1.1.5}User and Group Accounts}{725}{subsubsection.36.1.1.5}
+\contentsline {subsection}{\numberline {36.1.2}Steps in Migration Process}{725}{subsection.36.1.2}
+\contentsline {section}{\numberline {36.2}Migration Options}{726}{section.36.2}
+\contentsline {subsection}{\numberline {36.2.1}Planning for Success}{727}{subsection.36.2.1}
+\contentsline {subsection}{\numberline {36.2.2}Samba-3 Implementation Choices}{727}{subsection.36.2.2}
+\contentsline {chapter}{Chapter~\numberline {37}\uppercase {SWAT: The Samba Web Administration Tool}}{731}{chapter.37}
+\contentsline {section}{\numberline {37.1}Features and Benefits}{731}{section.37.1}
+\contentsline {section}{\numberline {37.2}Guidelines and Technical Tips}{732}{section.37.2}
+\contentsline {subsection}{\numberline {37.2.1}Validate SWAT Installation}{732}{subsection.37.2.1}
+\contentsline {subsubsection}{\numberline {37.2.1.1}Locating the SWAT File}{733}{subsubsection.37.2.1.1}
+\contentsline {subsubsection}{\numberline {37.2.1.2}Locating the SWAT Support Files}{733}{subsubsection.37.2.1.2}
+\contentsline {subsection}{\numberline {37.2.2}Enabling SWAT for Use}{735}{subsection.37.2.2}
+\contentsline {subsection}{\numberline {37.2.3}Securing SWAT through SSL}{737}{subsection.37.2.3}
+\contentsline {subsection}{\numberline {37.2.4}Enabling SWAT Internationalization Support}{737}{subsection.37.2.4}
+\contentsline {section}{\numberline {37.3}Overview and Quick Tour}{738}{section.37.3}
+\contentsline {subsection}{\numberline {37.3.1}The SWAT Home Page}{738}{subsection.37.3.1}
+\contentsline {subsection}{\numberline {37.3.2}Global Settings}{739}{subsection.37.3.2}
+\contentsline {subsection}{\numberline {37.3.3}Share Settings}{740}{subsection.37.3.3}
+\contentsline {subsection}{\numberline {37.3.4}Printers Settings}{740}{subsection.37.3.4}
+\contentsline {subsection}{\numberline {37.3.5}The SWAT Wizard}{740}{subsection.37.3.5}
+\contentsline {subsection}{\numberline {37.3.6}The Status Page}{741}{subsection.37.3.6}
+\contentsline {subsection}{\numberline {37.3.7}The View Page}{741}{subsection.37.3.7}
+\contentsline {subsection}{\numberline {37.3.8}The Password Change Page}{741}{subsection.37.3.8}
+\contentsline {part}{Part V\hspace {1em}Troubleshooting}{741}{part.5}
+\contentsline {chapter}{Chapter~\numberline {38}\uppercase {The Samba Checklist}}{743}{chapter.38}
+\contentsline {section}{\numberline {38.1}Introduction}{743}{section.38.1}
+\contentsline {section}{\numberline {38.2}Assumptions}{743}{section.38.2}
+\contentsline {section}{\numberline {38.3}The Tests}{744}{section.38.3}
+\contentsline {chapter}{Chapter~\numberline {39}\uppercase {Analyzing and Solving Samba Problems}}{753}{chapter.39}
+\contentsline {section}{\numberline {39.1}Diagnostics Tools}{753}{section.39.1}
+\contentsline {subsection}{\numberline {39.1.1}Debugging with Samba Itself}{753}{subsection.39.1.1}
+\contentsline {subsection}{\numberline {39.1.2}Tcpdump}{754}{subsection.39.1.2}
+\contentsline {subsection}{\numberline {39.1.3}Ethereal}{754}{subsection.39.1.3}
+\contentsline {subsection}{\numberline {39.1.4}The Windows Network Monitor}{754}{subsection.39.1.4}
+\contentsline {subsubsection}{\numberline {39.1.4.1}Installing Network Monitor on an NT Workstation}{755}{subsubsection.39.1.4.1}
+\contentsline {subsubsection}{\numberline {39.1.4.2}Installing Network Monitor on Windows 9x/Me}{757}{subsubsection.39.1.4.2}
+\contentsline {section}{\numberline {39.2}Useful URLs}{757}{section.39.2}
+\contentsline {section}{\numberline {39.3}Getting Mailing List Help}{757}{section.39.3}
+\contentsline {section}{\numberline {39.4}How to Get Off the Mailing Lists}{759}{section.39.4}
+\contentsline {chapter}{Chapter~\numberline {40}\uppercase {Reporting Bugs}}{761}{chapter.40}
+\contentsline {section}{\numberline {40.1}Introduction}{761}{section.40.1}
+\contentsline {section}{\numberline {40.2}General Information}{761}{section.40.2}
+\contentsline {section}{\numberline {40.3}Debug Levels}{762}{section.40.3}
+\contentsline {subsection}{\numberline {40.3.1}Debugging-Specific Operations}{763}{subsection.40.3.1}
+\contentsline {section}{\numberline {40.4}Internal Errors}{763}{section.40.4}
+\contentsline {section}{\numberline {40.5}Attaching to a Running Process}{764}{section.40.5}
+\contentsline {section}{\numberline {40.6}Patches}{765}{section.40.6}
+\contentsline {chapter}{Chapter~\numberline {41}\uppercase {Managing TDB Files}}{767}{chapter.41}
+\contentsline {section}{\numberline {41.1}Features and Benefits}{767}{section.41.1}
+\contentsline {section}{\numberline {41.2}Managing TDB Files}{767}{section.41.2}
+\contentsline {part}{Part VI\hspace {1em}Reference Section}{769}{part.6}
+\contentsline {chapter}{Chapter~\numberline {42}\uppercase {How to Compile Samba}}{771}{chapter.42}
+\contentsline {section}{\numberline {42.1}Access Samba Source Code via Subversion}{771}{section.42.1}
+\contentsline {subsection}{\numberline {42.1.1}Introduction}{771}{subsection.42.1.1}
+\contentsline {subsection}{\numberline {42.1.2}Subversion Access to samba.org}{771}{subsection.42.1.2}
+\contentsline {subsubsection}{\numberline {42.1.2.1}Access via ViewCVS}{772}{subsubsection.42.1.2.1}
+\contentsline {subsubsection}{\numberline {42.1.2.2}Access via Subversion}{772}{subsubsection.42.1.2.2}
+\contentsline {section}{\numberline {42.2}Accessing the Samba Sources via rsync and ftp}{773}{section.42.2}
+\contentsline {section}{\numberline {42.3}Verifying Samba's PGP Signature}{773}{section.42.3}
+\contentsline {section}{\numberline {42.4}Building the Binaries}{774}{section.42.4}
+\contentsline {subsection}{\numberline {42.4.1}Compiling Samba with Active Directory Support}{776}{subsection.42.4.1}
+\contentsline {subsubsection}{\numberline {42.4.1.1}Installing the Required Packages for Debian}{776}{subsubsection.42.4.1.1}
+\contentsline {subsubsection}{\numberline {42.4.1.2}Installing the Required Packages for Red Hat Linux}{776}{subsubsection.42.4.1.2}
+\contentsline {subsubsection}{\numberline {42.4.1.3}SuSE Linux Package Requirements}{777}{subsubsection.42.4.1.3}
+\contentsline {section}{\numberline {42.5}Starting the smbd nmbd and winbindd}{777}{section.42.5}
+\contentsline {subsection}{\numberline {42.5.1}Starting from inetd.conf}{777}{subsection.42.5.1}
+\contentsline {subsection}{\numberline {42.5.2}Alternative: Starting smbd as a Daemon}{779}{subsection.42.5.2}
+\contentsline {subsubsection}{\numberline {42.5.2.1}Starting Samba for Red Hat Linux}{780}{subsubsection.42.5.2.1}
+\contentsline {subsubsection}{\numberline {42.5.2.2}Starting Samba for Novell SUSE Linux}{781}{subsubsection.42.5.2.2}
+\contentsline {chapter}{Chapter~\numberline {43}\uppercase {Portability}}{783}{chapter.43}
+\contentsline {section}{\numberline {43.1}HPUX}{783}{section.43.1}
+\contentsline {section}{\numberline {43.2}SCO UNIX}{784}{section.43.2}
+\contentsline {section}{\numberline {43.3}DNIX}{784}{section.43.3}
+\contentsline {section}{\numberline {43.4}Red Hat Linux}{786}{section.43.4}
+\contentsline {section}{\numberline {43.5}AIX: Sequential Read Ahead}{786}{section.43.5}
+\contentsline {section}{\numberline {43.6}Solaris}{787}{section.43.6}
+\contentsline {subsection}{\numberline {43.6.1}Locking Improvements}{787}{subsection.43.6.1}
+\contentsline {subsection}{\numberline {43.6.2}Winbind on Solaris 9}{787}{subsection.43.6.2}
+\contentsline {chapter}{Chapter~\numberline {44}\uppercase {Samba and Other CIFS Clients}}{789}{chapter.44}
+\contentsline {section}{\numberline {44.1}Macintosh Clients}{789}{section.44.1}
+\contentsline {section}{\numberline {44.2}OS2 Client}{790}{section.44.2}
+\contentsline {subsection}{\numberline {44.2.1}Configuring OS/2 Warp Connect or OS/2 Warp 4}{790}{subsection.44.2.1}
+\contentsline {subsection}{\numberline {44.2.2}Configuring Other Versions of OS/2}{790}{subsection.44.2.2}
+\contentsline {subsection}{\numberline {44.2.3}Printer Driver Download for OS/2 Clients}{791}{subsection.44.2.3}
+\contentsline {section}{\numberline {44.3}Windows for Workgroups}{791}{section.44.3}
+\contentsline {subsection}{\numberline {44.3.1}Latest TCP/IP Stack from Microsoft}{791}{subsection.44.3.1}
+\contentsline {subsection}{\numberline {44.3.2}Delete .pwl Files After Password Change}{792}{subsection.44.3.2}
+\contentsline {subsection}{\numberline {44.3.3}Configuring Windows for Workgroups Password Handling}{792}{subsection.44.3.3}
+\contentsline {subsection}{\numberline {44.3.4}Password Case Sensitivity}{792}{subsection.44.3.4}
+\contentsline {subsection}{\numberline {44.3.5}Use TCP/IP as Default Protocol}{793}{subsection.44.3.5}
+\contentsline {subsection}{\numberline {44.3.6}Speed Improvement}{793}{subsection.44.3.6}
+\contentsline {section}{\numberline {44.4}Windows 95/98}{793}{section.44.4}
+\contentsline {subsection}{\numberline {44.4.1}Speed Improvement}{794}{subsection.44.4.1}
+\contentsline {section}{\numberline {44.5}Windows 2000 Service Pack 2}{794}{section.44.5}
+\contentsline {section}{\numberline {44.6}Windows NT 3.1}{795}{section.44.6}
+\contentsline {chapter}{Chapter~\numberline {45}\uppercase {Samba Performance Tuning}}{797}{chapter.45}
+\contentsline {section}{\numberline {45.1}Comparisons}{797}{section.45.1}
+\contentsline {section}{\numberline {45.2}Socket Options}{797}{section.45.2}
+\contentsline {section}{\numberline {45.3}Read Size}{798}{section.45.3}
+\contentsline {section}{\numberline {45.4}Max Xmit}{799}{section.45.4}
+\contentsline {section}{\numberline {45.5}Log Level}{799}{section.45.5}
+\contentsline {section}{\numberline {45.6}Read Raw}{799}{section.45.6}
+\contentsline {section}{\numberline {45.7}Write Raw}{799}{section.45.7}
+\contentsline {section}{\numberline {45.8}Slow Logins}{800}{section.45.8}
+\contentsline {section}{\numberline {45.9}Client Tuning}{800}{section.45.9}
+\contentsline {section}{\numberline {45.10}Samba Performance Problem Due to Changing Linux Kernel}{800}{section.45.10}
+\contentsline {section}{\numberline {45.11}Corrupt tdb Files}{801}{section.45.11}
+\contentsline {section}{\numberline {45.12}Samba Performance is Very Slow}{801}{section.45.12}
+\contentsline {chapter}{Chapter~\numberline {46}\uppercase {LDAP and Transport Layer Security}}{803}{chapter.46}
+\contentsline {section}{\numberline {46.1}Introduction}{803}{section.46.1}
+\contentsline {section}{\numberline {46.2}Configuring}{804}{section.46.2}
+\contentsline {subsection}{\numberline {46.2.1}Generating the Certificate Authority}{804}{subsection.46.2.1}
+\contentsline {subsection}{\numberline {46.2.2}Generating the Server Certificate}{806}{subsection.46.2.2}
+\contentsline {subsection}{\numberline {46.2.3}Installing the Certificates}{808}{subsection.46.2.3}
+\contentsline {section}{\numberline {46.3}Testing}{809}{section.46.3}
+\contentsline {section}{\numberline {46.4}Troubleshooting}{811}{section.46.4}
+\contentsline {chapter}{Chapter~\numberline {47}\uppercase {Samba Support}}{813}{chapter.47}
+\contentsline {section}{\numberline {47.1}Free Support}{814}{section.47.1}
+\contentsline {section}{\numberline {47.2}Commercial Support}{815}{section.47.2}
+\contentsline {chapter}{Chapter~\numberline {48}\uppercase {DNS and DHCP Configuration Guide}}{817}{chapter.48}
+\contentsline {section}{\numberline {48.1}Features and Benefits}{817}{section.48.1}
+\contentsline {section}{\numberline {48.2}Example Configuration}{818}{section.48.2}
+\contentsline {subsection}{\numberline {48.2.1}Dynamic DNS}{819}{subsection.48.2.1}
+\contentsline {subsection}{\numberline {48.2.2}DHCP Server}{823}{subsection.48.2.2}
+\contentsline {chapter}{Chapter~\numberline {A}\uppercase {GNU General Public License version 3}}{825}{appendix.A}
+\contentsline {chapter}{\uppercase {Glossary}}{843}{section*.58}
+\contentsline {chapter}{SUBJECT INDEX}{849}{appendix*.59}

@@ -1,0 +1,227 @@
+# translation of bg.po to Bulgarian
+#
+# Damyan Ivanov <dam@modsoftsys.com>, 2006, 2007.
+msgid ""
+msgstr ""
+"Project-Id-Version: samba_3.0.23c-1_bg\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-12 22:58+0200\n"
+"Last-Translator: Damyan Ivanov <dam@modsoftsys.com>\n"
+"Language-Team: Bulgarian <dict@fsa-bg.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.11.4\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Да се промени ли smb.conf да взима настройките за WINS от DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Ако компютърът получава информация за мрежовите настройки от DHCP-сървър, "
+"този метод може да се използва и за получаване на информация за наличните "
+"WINS-сървъри (сървъри за имена NetBIOS). За целта е необходимо да се промени "
+"файлът с настройки smb.conf, така че WINS-настройките да се взимат от /etc/"
+"samba.dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "Тази настройки изисква инсталирането на пакета dhcp3-client."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Автоматична настройка на smb.conf?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Останалата част от настройката на Samba изисква промени на параметри в smb."
+"conf (файлът с настройки за smbd и nmbd). В момента smb.conf съдържа "
+"директива „include“, която може да обърка процеса на автоматична настройка. "
+"Ако това се случи ще се наложи ръчно да поправите smb.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Ако не изберете тази настройка, няма да можете да се възползвате от "
+"автоматичните промени на файла с настройки при обновяване на пакета."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Работна група/домейн:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Въведете името на работната група, от която ще бъде част компютъра. Този "
+"параметър контролира и името на домейна, което ще се използва при "
+"настройката „security=domain“."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Шифриране на паролите?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Всички съвременни версии на Windows използват шифрирани пароли за връзка със "
+"SMB-сървъри. Използването на пароли без шифриране е възможно само след "
+"промени в регистъра."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr "Използването на шифрирани пароли е силно препоръчително."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Създаване на базата данни с пароли, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"За съвместимост с повечето версии на Windows, Samba трябва да използва "
+"шифрирани пароли. Това изисква паролите да се съхраняват във файл, отделен "
+"от /etc/passwd. Този файл може да бъде създаден автоматично, но "
+"потребителите и паролите трябва да се добавят ръчно чрез командата smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Ако не създадете този файл, трябва да настроите Samba (а вероятно и "
+"компютрите с Windows) да не използват шифрирани пароли."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"За повече информация вижте /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "фонов процес"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "при нужда"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Как да се стартира Samba?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Основният процес на Samba, smbd, може да бъде изпълняван при нужда или като "
+"фонов процес (със зареждането на операционната система). Препоръчителният "
+"начин за изпълнение е като фонов процес."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "Новата версия на samba не поддържа работа с няколко бази данни с пароли"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
+#~ "пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
+#~ "„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
+#~ "Новата версия на samba няма да работи докато не коригирате това."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Да се премести ли /etc/samba/smbpasswd във /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 въвежда по-пълна база с потребители, която прави излишен /etc/"
+#~ "samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Потвърдете дали желаете съществуващият /etc/samba/smbpasswd да бъде "
+#~ "мигриран автоматично към /var/lib/samba/passdb.tdb. Не избирайте тази "
+#~ "настройка ако планирате да използвате друг начин на удостоверяване "
+#~ "(например LDAP)."

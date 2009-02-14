@@ -1,0 +1,48 @@
+Template: samba-common/dhcp
+Type: boolean
+Default: false
+_Description: Modify smb.conf to use WINS settings from DHCP?
+ If your computer gets IP address information from a DHCP server on the
+ network, the DHCP server may also provide information about WINS servers
+ ("NetBIOS name servers") present on the network.  This requires a
+ change to your smb.conf file so that DHCP-provided WINS settings will
+ automatically be read from /etc/samba/dhcp.conf.
+ .
+ The dhcp3-client package must be installed to take advantage of this
+ feature.
+
+Template: samba-common/do_debconf
+Type: boolean
+Default: true
+_Description: Configure smb.conf automatically?
+ The rest of the configuration of Samba deals with questions that
+ affect parameters in /etc/samba/smb.conf, which is the file used to
+ configure the Samba programs (nmbd and smbd). Your current smb.conf
+ contains an 'include' line or an option that spans multiple lines,
+ which could confuse the automated configuration process and require
+ you to edit your smb.conf by hand to get it working again.
+ .
+ If you do not choose this option, you will have to handle
+ any configuration changes yourself, and will not be able to take
+ advantage of periodic configuration enhancements.
+
+Template: samba-common/workgroup
+Type: string
+Default: WORKGROUP
+_Description: Workgroup/Domain Name:
+ Please specify the workgroup you want this server to appear to be in
+ when queried by clients. Note that this parameter also controls the
+ domain name used with the security=domain setting.
+
+Template: samba-common/encrypt_passwords
+Type: boolean
+Default: true
+_Description: Use password encryption?
+ All recent Windows clients communicate with SMB servers using encrypted
+ passwords. If you want to use clear text passwords you will need to change
+ a parameter in your Windows registry. 
+ .
+ Enabling this option is highly recommended. If you do, make sure you
+ have a valid /etc/samba/smbpasswd file and that you set passwords in
+ there for each user using the smbpasswd command.
+

@@ -1,0 +1,6 @@
+# These are *not* configure-generated files
+samba source: configure-generated-file-in-source debian/config.cache
+# Those aren't even part of the diff.gz
+samba source: configure-generated-file-in-source packaging/Debian/debian-sarge/config.cache
+samba source: configure-generated-file-in-source packaging/Debian/debian-unstable/config.cache
+samba source: configure-generated-file-in-source packaging/Debian/debian-woody/config.cache

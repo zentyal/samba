@@ -1,0 +1,2 @@
+smbfs: setuid-binary sbin/mount.cifs 4755 root/root
+smbfs: setuid-binary sbin/umount.cifs 4755 root/root

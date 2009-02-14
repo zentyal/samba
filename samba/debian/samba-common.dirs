@@ -1,0 +1,6 @@
+etc/samba
+etc/dhcp3/dhclient-enter-hooks.d
+var/cache/samba
+var/lib/samba
+var/log/samba
+var/run/samba

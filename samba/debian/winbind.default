@@ -1,0 +1,11 @@
+# Defaults for winbind initscript
+# sourced by /etc/init.d/winbind
+#
+
+#
+# This is a POSIX shell fragment
+#
+
+
+# Winbind configuration
+#WINBINDD_OPTS="-n"

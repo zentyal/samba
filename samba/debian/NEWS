@@ -1,0 +1,46 @@
+samba (3.0.27a-2) unstable; urgency=low
+
+  * Weak authentication methods are disabled by default
+
+    Beginning with this version, plaintext authentication is disabled for
+    clients and lanman authentication is disabled for both clients and
+    servers.  Lanman authentication is not needed for Windows
+    NT/2000/XP/Vista, Mac OS X or Samba, but if you still have Windows
+    95/98/ME clients (or servers) you may need to set lanman auth (or client
+    lanman auth) to yes in your smb.conf.
+
+    The "lanman auth = no" setting will also cause lanman password hashes to
+    be deleted from smbpasswd and prevent new ones from being written, so
+    that these can't be subjected to brute-force password attacks.  This
+    means that re-enabling lanman auth after it has been disabled is more
+    difficult; it is therefore advisable that you re-enable the option as
+    soon as possible if you think you will need to support Win9x clients.
+
+    Client support for plaintext passwords is not needed for recent Windows
+    servers, and in fact this behavior change makes the Samba client behave
+    in a manner consistent with all Windows clients later than Windows 98.
+    However, if you need to connect to a Samba server that does not have
+    encrypted password support enabled, or to another server that does not
+    support NTLM authentication, you will need to set
+    "client plaintext auth = yes" and "client lanman auth = yes" in smb.conf.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 24 Nov 2007 00:23:37 -0800
+
+samba (3.0.26a-2) unstable; urgency=low
+
+  * Default printing system has changed from BSD to CUPS
+
+    Previous versions of this package were configured to use BSD lpr as the
+    default printing system.  With this version of Samba, the default has
+    been changed to CUPS for consistency with the current default printer
+    handling in the rest of the system.
+
+    If you wish to continue using the BSD printing interface from Samba, you
+    will need to set "printing = bsd" manually in /etc/samba/smb.conf.  If
+    you wish to use CUPS printing but have previously set any of the
+    "print command", "lpq command", or "lprm command" options in smb.conf,
+    you will want to remove these settings from your config.  Otherwise, if
+    you have the cupsys package installed, Samba should begin to use it
+    automatically with no action on your part.
+
+ -- Steve Langasek <vorlon@debian.org>  Wed, 14 Nov 2007 17:19:36 -0800

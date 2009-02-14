@@ -1,0 +1,297 @@
+Goal: Prepare the sources to better respect FHS
+      New configurable paths are introduced in fhs-newpaths.patch
+      This patch associates files with the new paths
+      This part is debated with upstream
+
+Fixes: #49011
+
+Status wrt upstream: Mean to be forwarded upstream (a good rationale 
+                     about FHS is probably recommended)
+
+Note: Use dedicated directories for:
+      - discardable cache data (/var/cache/samba): 
+          browse.dat, printers.tbd, <printer>.tdb
+      - non discardable state data:
+          all TDB files that may need to be backed up
+      - shared data (/usr/share/samba):
+          codepage stuff
+
+      This patch needs work to be cleaner wrt people who want to run
+      multiple instances of samba
+
+      The patch *must* be reviewed after every new upstream release.
+      FAILURE TO DO SO MAY RESULT IN DATA LOSS FOR OUR USERS!
+
+      export QUILT_PATCHES=debian/patches
+      quilt push fhs.patch
+      grep -r lock_path source/ | grep -vE \
+         '"((brlock|connections|gencache|locking|messages|notify|sessionid|unexpected|wins)\.tdb|namelist.debug|lang_)|char \*lock_path|WINBINDD_PRIV_SOCKET_SUBDIR'
+
+      - This will get you the list of any new, unexpected references to
+        lock_path.  The files mentioned above are the known good uses of
+        lock_path; everything else needs to be investigated.
+      - If the file name occurs elsewhere in the fhs.patch, update the
+        patch to fix these new references to the same place (either
+        cache_path or state_path)
+      - If the file is a tdb file, and the code that opens it uses
+        TDB_CLEAR_IF_FIRST, lock_path is correct; just update the query
+        above with the new filename, no other changes are needed.
+      - Otherwise, if this is the first use of the file, you must
+        determine where the file belongs -- i.e., whether it's
+        persistent data, a cache, or runtime-only data.  Consult
+        upstream if necessary.
+      - Repeat these steps for lp_lockdir(), which is less common but
+        still used in the code.
+
+      grep -r lp_lockdir source/ | grep -vE \
+         '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
+
+Index: samba-3.2.0rc1/source/lib/util.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/lib/util.c
++++ samba-3.2.0rc1/source/lib/util.c
+@@ -2624,6 +2624,15 @@
+ 	return xx_path(name, get_dyn_STATEDIR());
+ }
+ 
++
++/*****************************************************************
++a useful function for returning a path in the Samba cache directory
++ *****************************************************************/
++char *cache_path(char *name)
++{
++	return xx_path(name, get_dyn_CACHEDIR());
++}
++
+ /**
+  * @brief Returns the platform specific shared library extension.
+  *
+Index: samba-3.2.0rc1/source/libsmb/samlogon_cache.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/libsmb/samlogon_cache.c
++++ samba-3.2.0rc1/source/libsmb/samlogon_cache.c
+@@ -34,7 +34,7 @@
+ bool netsamlogon_cache_init(void)
+ {
+ 	if (!netsamlogon_tdb) {
+-		netsamlogon_tdb = tdb_open_log(lock_path(NETSAMLOGON_TDB), 0,
++		netsamlogon_tdb = tdb_open_log(cache_path(NETSAMLOGON_TDB), 0,
+ 					       TDB_DEFAULT, O_RDWR | O_CREAT, 0600);
+ 	}
+ 
+Index: samba-3.2.0rc1/source/nmbd/nmbd_serverlistdb.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/nmbd/nmbd_serverlistdb.c
++++ samba-3.2.0rc1/source/nmbd/nmbd_serverlistdb.c
+@@ -326,7 +326,7 @@
+ 
+ 	updatecount++;
+ 
+-	fname = talloc_strdup(ctx, lp_lockdir());
++	fname = talloc_strdup(ctx, get_dyn_CACHEDIR());
+ 	if (!fname) {
+ 		return;
+ 	}
+Index: samba-3.2.0rc1/source/passdb/login_cache.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/passdb/login_cache.c
++++ samba-3.2.0rc1/source/passdb/login_cache.c
+@@ -35,7 +35,7 @@
+ 	/* skip file open if it's already opened */
+ 	if (cache) return True;
+ 
+-	asprintf(&cache_fname, "%s/%s", lp_lockdir(), LOGIN_CACHE_FILE);
++	asprintf(&cache_fname, "%s/%s", get_dyn_CACHEDIR(), LOGIN_CACHE_FILE);
+ 	if (cache_fname)
+ 		DEBUG(5, ("Opening cache file at %s\n", cache_fname));
+ 	else {
+Index: samba-3.2.0rc1/source/printing/printing.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/printing/printing.c
++++ samba-3.2.0rc1/source/printing/printing.c
+@@ -183,8 +183,8 @@
+ 	int services = lp_numservices();
+ 	int snum;
+ 
+-	unlink(lock_path("printing.tdb"));
+-	mkdir(lock_path("printing"),0755);
++	unlink(cache_path("printing.tdb"));
++	mkdir(cache_path("printing"),0755);
+ 
+ 	/* handle a Samba upgrade */
+ 
+Index: samba-3.2.0rc1/source/printing/printing_db.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/printing/printing_db.c
++++ samba-3.2.0rc1/source/printing/printing_db.c
+@@ -91,7 +91,7 @@
+ 	}
+ 
+ 	if (asprintf(&printdb_path, "%s%s.tdb",
+-				lock_path("printing/"),
++				cache_path("printing/"),
+ 				printername) < 0) {
+ 		DLIST_REMOVE(print_db_head, p);
+ 		SAFE_FREE(p);
+Index: samba-3.2.0rc1/source/smbd/lanman.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/smbd/lanman.c
++++ samba-3.2.0rc1/source/smbd/lanman.c
+@@ -1157,9 +1157,9 @@
+ 	bool local_list_only;
+ 	int i;
+ 
+-	lines = file_lines_load(lock_path(SERVER_LIST), NULL, 0);
++	lines = file_lines_load(cache_path(SERVER_LIST), NULL, 0);
+ 	if (!lines) {
+-		DEBUG(4,("Can't open %s - %s\n",lock_path(SERVER_LIST),strerror(errno)));
++		DEBUG(4,("Can't open %s - %s\n",cache_path(SERVER_LIST),strerror(errno)));
+ 		return 0;
+ 	}
+ 
+Index: samba-3.2.0rc1/source/utils/smbcontrol.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/utils/smbcontrol.c
++++ samba-3.2.0rc1/source/utils/smbcontrol.c
+@@ -875,10 +875,10 @@
+ 	/* Remove the entry in the winbindd_cache tdb to tell a later
+ 	   starting winbindd that we're online. */
+ 
+-	tdb = tdb_open_log(lock_path("winbindd_cache.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
++	tdb = tdb_open_log(cache_path("winbindd_cache.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
+ 	if (!tdb) {
+ 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
+-			lock_path("winbindd_cache.tdb"));
++			cache_path("winbindd_cache.tdb"));
+ 		return False;
+ 	}
+ 
+@@ -912,13 +912,13 @@
+ 	   starting winbindd that we're offline. We may actually create
+ 	   it here... */
+ 
+-	tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
++	tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+ 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
+ 				TDB_DEFAULT /* TDB_CLEAR_IF_FIRST */, O_RDWR|O_CREAT, 0600);
+ 
+ 	if (!tdb) {
+ 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
+-			lock_path("winbindd_cache.tdb"));
++			cache_path("winbindd_cache.tdb"));
+ 		return False;
+ 	}
+ 
+Index: samba-3.2.0rc1/source/libgpo/gpo_fetch.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/libgpo/gpo_fetch.c
++++ samba-3.2.0rc1/source/libgpo/gpo_fetch.c
+@@ -59,7 +59,7 @@
+ 
+ 	if ((path = talloc_asprintf(mem_ctx,
+ 					"%s/%s",
+-					lock_path(GPO_CACHE_DIR),
++					cache_path(GPO_CACHE_DIR),
+ 					file_sys_path)) == NULL) {
+ 		return NT_STATUS_NO_MEMORY;
+ 	}
+@@ -82,7 +82,7 @@
+ static NTSTATUS gpo_prepare_local_store(TALLOC_CTX *mem_ctx,
+ 					const char *unix_path)
+ {
+-	const char *top_dir = lock_path(GPO_CACHE_DIR);
++	const char *top_dir = cache_path(GPO_CACHE_DIR);
+ 	char *current_dir;
+ 	char *tok;
+ 
+Index: samba-3.2.0rc1/source/winbindd/idmap_cache.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/winbindd/idmap_cache.c
++++ samba-3.2.0rc1/source/winbindd/idmap_cache.c
+@@ -54,7 +54,7 @@
+ 		return NULL;
+ 	}
+ 
+-	cache_fname = lock_path("idmap_cache.tdb");
++	cache_fname = cache_path("idmap_cache.tdb");
+ 
+ 	DEBUG(10, ("Opening cache file at %s\n", cache_fname));
+ 
+Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/winbindd/winbindd_cache.c
++++ samba-3.2.0rc1/source/winbindd/winbindd_cache.c
+@@ -2310,7 +2310,7 @@
+ 		return true;
+ 
+ 	/* when working offline we must not clear the cache on restart */
+-	wcache->tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
++	wcache->tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+ 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
+ 				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
+ 				O_RDWR|O_CREAT, 0600);
+@@ -2353,9 +2353,9 @@
+ 		tdb_close(wcache->tdb);
+ 		wcache->tdb = NULL;
+ 
+-		if (unlink(lock_path("winbindd_cache.tdb")) == -1) {
++		if (unlink(cache_path("winbindd_cache.tdb")) == -1) {
+ 			DEBUG(0,("initialize_winbindd_cache: unlink %s failed %s ",
+-				lock_path("winbindd_cache.tdb"),
++				cache_path("winbindd_cache.tdb"),
+ 				strerror(errno) ));
+ 			return false;
+ 		}
+@@ -2637,7 +2637,7 @@
+ 		return;
+ 
+ 	/* when working offline we must not clear the cache on restart */
+-	wcache->tdb = tdb_open_log(lock_path("winbindd_cache.tdb"),
++	wcache->tdb = tdb_open_log(cache_path("winbindd_cache.tdb"),
+ 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
+ 				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
+ 				O_RDWR|O_CREAT, 0600);
+@@ -3422,7 +3422,7 @@
+ int winbindd_validate_cache(void)
+ {
+ 	int ret = -1;
+-	const char *tdb_path = lock_path("winbindd_cache.tdb");
++	const char *tdb_path = cache_path("winbindd_cache.tdb");
+ 	TDB_CONTEXT *tdb = NULL;
+ 
+ 	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
+@@ -3464,7 +3464,7 @@
+ int winbindd_validate_cache_nobackup(void)
+ {
+ 	int ret = -1;
+-	const char *tdb_path = lock_path("winbindd_cache.tdb");
++	const char *tdb_path = cache_path("winbindd_cache.tdb");
+ 
+ 	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
+ 	smb_panic_fn = validate_panic;
+Index: samba-3.2.0rc1/source/printing/nt_printing.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/printing/nt_printing.c
++++ samba-3.2.0rc1/source/printing/nt_printing.c
+@@ -2552,7 +2552,7 @@
+ 
+ 	if (geteuid() == 0) {
+ 		if (asprintf(&printdb_path, "%s%s.tdb",
+-				lock_path("printing/"),
++				cache_path("printing/"),
+ 				sharename) < 0) {
+ 			return (uint32)-1;
+ 		}
+Index: samba-3.2.0rc1/source/winbindd/idmap_tdb2.c
+===================================================================
+--- samba-3.2.0rc1.orig/source/winbindd/idmap_tdb2.c
++++ samba-3.2.0rc1/source/winbindd/idmap_tdb2.c
+@@ -68,7 +68,7 @@
+ 		return NT_STATUS_OK;
+ 	}
+ 
+-	db_path = lock_path("idmap2_cache.tdb");
++	db_path = cache_path("idmap2_cache.tdb");
+ 
+ 	/* Open idmap repository */
+ 	if (!(idmap_tdb2_tmp = tdb_open_log(db_path, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644))) {

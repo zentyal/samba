@@ -1,0 +1,242 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+# Miroslav Kure <kurem@debian.cz>, 2006
+# Peter Mann <Peter.Mann@tuke.sk>, 2006
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: samba\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2007-03-13 07:17+0100\n"
+"Last-Translator: Peter Mann <Peter.Mann@tuke.sk>\n"
+"Language-Team: Slovak <sk-i18n@lists.linux.sk>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Upraviť smb.conf, aby používal WINS nastavenie z DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Ak váš počítač získava IP adresu z DHCP servera, môže vám tento server "
+"ponúkať aj údaje o WINS serveroch (menných serveroch NetBIOS-u), ktoré sa "
+"nachádzajú na vašej sieti. To vyžaduje zásah do súboru smb.conf, kde sa "
+"nastaví načítavanie údajov o WINS serveroch zo súboru /etc/samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"Na využitie tejto vlastnosti musíte mať nainštalovaný balík dhcp3-client."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Automaticky nastaviť smb.conf?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Zvyšok nastavenia Samby sa zaoberá otázkami, ktoré ovplyvňujú parametre "
+"uvedené v /etc/samba/smb.conf, čo je konfiguračný súbor pre Samba programy "
+"(nmbd a smbd). Váš súčasný súbor smb.conf obsahuje riadok 'include' alebo "
+"voľbu, ktorá presahuje viac riadkov. Toto môže zapríčiniť zlé automatické "
+"nastavenie, takže pre správnu funkčnosť možno budete musieť upraviť smb.conf "
+"manuálne."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Ak si nezvolíte túto možnosť, budete musieť sami zvládnuť všetky nastavenia "
+"a nebudete môcť využívať výhody pravidelných vylepšení tohto súboru."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Pracovná skupina/Názov domény:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"Zadajte názov pracovnej skupiny, v ktorej sa má objaviť server pri prístupe "
+"klientov. Tento parameter zároveň určuje názov domény, ktorá sa používa pri "
+"nastavení security=domain."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Použiť šifrovanie hesiel?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Všetky súčasné Windows počítače používajú na komunikáciu so SMB servermi "
+"šifrované heslá. Ak chcete použiť nešifrované heslá, musíte zmeniť parameter "
+"v registroch systému Windows."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"Povolenie tejto voľby sa veľmi odporúča. V tom prípade sa uistite, že máte "
+"platný súbor /etc/samba/smbpasswd a že v ňom nastavíte heslá všetkým "
+"používateľom príkazom smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Vytvoriť databázu hesiel /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Kvôli kompatibilite s predvoleným nastavením väčšiny verzií Windows sa musí "
+"Samba nastaviť na používanie šifrovaných hesiel. To vyžaduje uloženie "
+"používateľských hesiel v inom súbore ako /etc/passwd. Tento súbor sa môže "
+"vytvoriť automaticky, ale heslá do neho musíte pridať manuálne programom "
+"smbpasswd a taktiež ho musíte neustále aktualizovať."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Ak tento súbor nevytvoríte, budete musieť nastaviť Sambu (a zrejme aj "
+"počítače klientov) na použitie nešifrovaných hesiel."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"Podrobnosti nájdete v súbore /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
+"html z balíka samba-doc."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "daemons"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Ako chcete spúšťať Sambu?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba server smbd sa môže spúšťať ako obyčajný daemon (odporúča sa), alebo "
+"sa môže spúšťať z inetd."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "Zreťazenie rôznych formátov passdb nie je podporované"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Samba už od verzie 3.0.23 nepodporuje zreťazenie viacerých formátov pri "
+#~ "nastavení parametra \"passdb backend\". Vyzerá to tak, že váš súbor smb."
+#~ "conf obsahuje parameter passdb backend pozostávajúci zo zoznamu formátov. "
+#~ "Táto nová verzia samby nebude funkčná, kým to neopravíte."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Presunúť /etc/samba/smbpasswd do /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 zaviedla nové, kompletnejšie rozhranie k SAM databáze, ktoré "
+#~ "nahradzuje pôvodný súbor /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Rozhodnite sa, či chcete automaticky previesť aktuálny súbor smbpasswd "
+#~ "do /var/lib/samba/passwd.tdb. Ak chcete použiť inú pdb databázu (napr. "
+#~ "LDAP), zamietnite túto voľbu."

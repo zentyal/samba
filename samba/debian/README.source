@@ -1,0 +1,24 @@
+Merging upstream releases
+=========================
+
+$ svn-load -t tags/samba/upstream_${version} \
+svn+ssh://svn.debian.org/svn/pkg-samba branches/samba/upstream .
+
+The svn-load command is in the aptly-named "svn-load" package.  The 
+above is the simplest use of svn-load to merge a new upstream version
+into the "upstream" branch and copy it to a per-version tag directory;
+please see "svn-load --help" for a list of other options that are of
+interest.  In particular, you may find that the --wc option saves time
+if you're on a slow connection, and the "-m" option may be needed if
+files are moved around in the upstream repository and this needs to be
+indicated to prevent subversion treating this as addition and deletion
+of unrelated files.
+
+Note that this only imports the new upstream version into the branch, it
+doesn't merge it onto the trunk.  For this, you should go to your
+(clean) working copy of the trunk and run:
+
+$ svn merge \
+svn+ssh://svn.debian.org/svn/pkg-samba/tags/samba/upstream_{prev_version,new_version}
+$ svn diff # (to make sure the diff makes sense)
+$ svn commit -m "merge upstream $version"

@@ -1,0 +1,7 @@
+sbin/mount.smbfs
+sbin/mount.cifs
+sbin/umount.cifs
+usr/sbin/cifs.upcall
+usr/share/man/man8/mount.cifs.8
+usr/share/man/man8/umount.cifs.8
+usr/share/man/man8/cifs.upcall.8

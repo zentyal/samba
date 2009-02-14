@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+<refentry id="nmbd.8">
+
+<refmeta>
+	<refentrytitle>nmbd</refentrytitle>
+	<manvolnum>8</manvolnum>
+	<refmiscinfo class="source">Samba</refmiscinfo>
+	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
+	<refmiscinfo class="version">3.2</refmiscinfo>
+</refmeta>
+
+
+<refnamediv>
+	<refname>nmbd</refname>
+	<refpurpose>NetBIOS name server to provide NetBIOS 
+	over IP naming services to clients</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv>
+	<cmdsynopsis sepchar=" ">
+		<literal>nmbd</literal>
+		<arg choice="opt" rep="norepeat">-D</arg>
+		<arg choice="opt" rep="norepeat">-F</arg>
+		<arg choice="opt" rep="norepeat">-S</arg>
+		<arg choice="opt" rep="norepeat">-a</arg>
+		<arg choice="opt" rep="norepeat">-i</arg>
+		<arg choice="opt" rep="norepeat">-o</arg>
+		<arg choice="opt" rep="norepeat">-h</arg>
+		<arg choice="opt" rep="norepeat">-V</arg>
+		<arg choice="opt" rep="norepeat">-d &lt;debug level&gt;</arg>
+		<arg choice="opt" rep="norepeat">-H &lt;lmhosts file&gt;</arg>
+		<arg choice="opt" rep="norepeat">-l &lt;log directory&gt;</arg>
+		<arg choice="opt" rep="norepeat">-p &lt;port number&gt;</arg>
+		<arg choice="opt" rep="norepeat">-s &lt;configuration file&gt;</arg>
+	</cmdsynopsis>
+</refsynopsisdiv>
+
+<refsect1>
+	<title>DESCRIPTION</title>
+	<para>This program is part of the <citerefentry><refentrytitle>samba</refentrytitle>
+	<manvolnum>7</manvolnum></citerefentry> suite.</para>
+
+	<para><literal>nmbd</literal> is a server that understands 
+	and can reply to NetBIOS over IP name service requests, like 
+	those produced by SMB/CIFS clients such as Windows 95/98/ME, 
+	Windows NT, Windows 2000, Windows XP and LanManager clients. It also
+	participates in the browsing protocols which make up the 
+	Windows "Network Neighborhood" view.</para>
+
+	<para>SMB/CIFS clients, when they start up, may wish to 
+	locate an SMB/CIFS server. That is, they wish to know what 
+	IP number a specified host is using.</para>
+
+	<para>Amongst other services, <literal>nmbd</literal> will 
+	listen for such requests, and if its own NetBIOS name is 
+	specified it will respond with the IP number of the host it 
+	is running on.  Its "own NetBIOS name" is by
+	default the primary DNS name of the host it is running on, 
+	but this can be overridden by the <link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="NETBIOSNAME" xlink:href="smb.conf.5.html#NETBIOSNAME">netbios name</link>
+	in <filename moreinfo="none">smb.conf</filename>. Thus <literal>nmbd</literal> will 
+	reply to broadcast queries for its own name(s). Additional
+	names for <literal>nmbd</literal> to respond on can be set 
+	via parameters in the <citerefentry><refentrytitle>smb.conf</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry> configuration file.</para>
+
+	<para><literal>nmbd</literal> can also be used as a WINS 
+	(Windows Internet Name Server) server. What this basically means 
+	is that it will act as a WINS database server, creating a 
+	database from name registration requests that it receives and 
+	replying to queries from clients for these names.</para>
+
+	<para>In addition, <literal>nmbd</literal> can act as a WINS 
+	proxy, relaying broadcast queries from clients that do 
+	not understand how to talk the WINS protocol to a WINS 
+	server.</para>
+</refsect1>
+
+<refsect1>
+	<title>OPTIONS</title>
+
+	<variablelist>
+		<varlistentry>
+		<term>-D</term>
+		<listitem><para>If specified, this parameter causes 
+		<literal>nmbd</literal> to operate as a daemon. That is, 
+		it detaches itself and runs in the background, fielding 
+		requests on the appropriate port. By default, <literal>nmbd</literal> 
+		will operate as a daemon if launched from a command shell. 
+		nmbd can also be operated from the <literal>inetd</literal> 
+		meta-daemon, although this is not recommended.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>-F</term>
+		<listitem><para>If specified, this parameter causes
+		the main <literal>nmbd</literal> process to not daemonize,
+		i.e. double-fork and disassociate with the terminal.
+		Child processes are still created as normal to service
+		each connection request, but the main process does not
+		exit. This operation mode is suitable for running
+		<literal>nmbd</literal> under process supervisors such
+		as <literal>supervise</literal> and <literal>svscan</literal>
+		from Daniel J. Bernstein's <literal>daemontools</literal>
+		package, or the AIX process monitor.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>-S</term>
+		<listitem><para>If specified, this parameter causes
+		<literal>nmbd</literal> to log to standard output rather
+		than a file.</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>-i</term>
+		<listitem><para>If this parameter is specified it causes the
+		server to run "interactively", not as a daemon, even if the
+		server is executed on the command line of a shell. Setting this
+		parameter negates the implicit daemon mode when run from the
+		command line. <literal>nmbd</literal> also logs to standard
+		output, as if the <constant>-S</constant> parameter had been
+		given. </para></listitem>
+		</varlistentry>
+
+		
+<varlistentry>
+<term>-h|--help</term>
+<listitem><para>Print a summary of command line options.
+</para></listitem>
+</varlistentry>
+		
+		<varlistentry>
+		<term>-H &lt;filename&gt;</term>
+		<listitem><para>NetBIOS lmhosts file.  The lmhosts 
+		file is a list of NetBIOS names to IP addresses that 
+		is loaded by the nmbd server and used via the name 
+		resolution mechanism <link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="NAMERESOLVEORDER" xlink:href="smb.conf.5.html#NAMERESOLVEORDER">name resolve order</link> described in <citerefentry><refentrytitle>smb.conf</refentrytitle>
+		<manvolnum>5</manvolnum></citerefentry> to resolve any 
+		NetBIOS name queries needed by the server. Note 
+		that the contents of this file are <emphasis>NOT</emphasis> 
+		used by <literal>nmbd</literal> to answer any name queries. 
+		Adding a line to this file affects name NetBIOS resolution 
+		from this host <emphasis>ONLY</emphasis>.</para>
+
+		<para>The default path to this file is compiled into 
+		Samba as part of the build process. Common defaults 
+		are <filename moreinfo="none">/usr/local/samba/lib/lmhosts</filename>,
+		<filename moreinfo="none">/usr/samba/lib/lmhosts</filename> or
+		<filename moreinfo="none">/etc/samba/lmhosts</filename>. See the <citerefentry><refentrytitle>lmhosts</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry> man page for details on the contents of this file.</para></listitem>
+		</varlistentry>
+
+		
+<varlistentry>
+<term>-d|--debuglevel=level</term>
+<listitem>
+<para><replaceable>level</replaceable> is an integer 
+from 0 to 10. The default value if this parameter is 
+not specified is 0.</para>
+
+<para>The higher this value, the more detail will be 
+logged to the log files about the activities of the 
+server. At level 0, only critical errors and serious 
+warnings will be logged. Level 1 is a reasonable level for
+day-to-day running - it generates a small amount of 
+information about operations carried out.</para>
+
+<para>Levels above 1 will generate considerable 
+amounts of log data, and should only be used when 
+investigating a problem. Levels above 3 are designed for 
+use only by developers and generate HUGE amounts of log
+data, most of which is extremely cryptic.</para>
+
+<para>Note that specifying this parameter here will 
+override the <link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="LOGLEVEL" xlink:href="smb.conf.5.html#LOGLEVEL">log level</link> parameter
+in the <filename moreinfo="none">smb.conf</filename> file.</para>
+</listitem>
+</varlistentry>
+		
+
+<varlistentry>
+<term>-V</term>
+<listitem><para>Prints the program version number.
+</para></listitem>
+</varlistentry>
+
+<varlistentry>
+<term>-s &lt;configuration file&gt;</term>
+<listitem><para>The file specified contains the 
+configuration details required by the server.  The 
+information in this file includes server-specific
+information such as what printcap file to use, as well 
+as descriptions of all the services that the server is 
+to provide. See <filename moreinfo="none">smb.conf</filename> for more information.
+The default configuration file name is determined at 
+compile time.</para></listitem>
+</varlistentry>
+
+<varlistentry>
+<term>-l|--log-basename=logdirectory</term>
+<listitem><para>Base directory name for log/debug files. The extension
+<constant>".progname"</constant> will be appended (e.g. log.smbclient, 
+log.smbd, etc...). The log file is never removed by the client.
+</para></listitem>
+</varlistentry>
+
+		
+		<varlistentry>
+		<term>-p &lt;UDP port number&gt;</term>
+		<listitem><para>UDP port number is a positive integer value.
+		This option changes the default UDP port number (normally 137)
+		that <literal>nmbd</literal> responds to name queries on. Don't
+		use this option unless you are an expert, in which case you
+		won't need help!</para></listitem>
+		</varlistentry>
+
+	</variablelist>
+</refsect1>
+
+<refsect1>
+	<title>FILES</title>
+
+	<variablelist>
+		<varlistentry>
+		<term><filename moreinfo="none">/etc/inetd.conf</filename></term>
+		<listitem><para>If the server is to be run by the
+		<literal>inetd</literal> meta-daemon, this file
+		must contain suitable startup information for the
+		meta-daemon. 
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term><filename moreinfo="none">/etc/rc</filename></term>
+		<listitem><para>or whatever initialization script your
+		system uses).</para>
+
+		<para>If running the server as a daemon at startup,
+		this file will need to contain an appropriate startup
+		sequence for the server.</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term><filename moreinfo="none">/etc/services</filename></term>
+		<listitem><para>If running the server via the
+		meta-daemon <literal>inetd</literal>, this file
+		must contain a mapping of service name (e.g., netbios-ssn)
+		to service port (e.g., 139) and protocol type (e.g., tcp).
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term><filename moreinfo="none">/usr/local/samba/lib/smb.conf</filename></term>
+		<listitem><para>This is the default location of 
+		the <citerefentry><refentrytitle>smb.conf</refentrytitle>
+		<manvolnum>5</manvolnum></citerefentry> server
+		configuration file. Other common places that systems
+		install this file are <filename moreinfo="none">/usr/samba/lib/smb.conf</filename>
+		and <filename moreinfo="none">/etc/samba/smb.conf</filename>.</para>
+
+		<para>When run as a WINS server (see the
+			<link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="WINSSUPPORT" xlink:href="smb.conf.5.html#WINSSUPPORT">wins support</link>
+		parameter in the <citerefentry><refentrytitle>smb.conf</refentrytitle>
+		<manvolnum>5</manvolnum></citerefentry> man page),
+		<literal>nmbd</literal>
+		will store the WINS database in the file <filename moreinfo="none">wins.dat</filename>
+		in the <filename moreinfo="none">var/locks</filename> directory configured under
+		wherever Samba was configured to install itself.</para>
+
+		<para>If <literal>nmbd</literal> is acting as a <emphasis>
+				browse master</emphasis> (see the <link xmlns:xlink="http://www.w3.org/1999/xlink" linkend="LOCALMASTER" xlink:href="smb.conf.5.html#LOCALMASTER">local master</link>
+		parameter in the <citerefentry><refentrytitle>smb.conf</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry> man page, <literal>nmbd</literal>
+		will store the browsing database in the file <filename moreinfo="none">browse.dat
+		</filename> in the <filename moreinfo="none">var/locks</filename> directory
+		configured under wherever Samba was configured to install itself.
+		</para></listitem>
+		</varlistentry>
+	</variablelist>
+</refsect1>
+
+<refsect1>
+	<title>SIGNALS</title>
+
+	<para>To shut down an <literal>nmbd</literal> process it is recommended
+	that SIGKILL (-9) <emphasis>NOT</emphasis> be used, except as a last
+	resort, as this may leave the name database in an inconsistent state.
+	The correct way to terminate <literal>nmbd</literal> is to send it
+	a SIGTERM (-15) signal and wait for it to die on its own.</para>
+
+	<para><literal>nmbd</literal> will accept SIGHUP, which will cause
+	it to dump out its namelists into the file <filename moreinfo="none">namelist.debug
+	</filename> in the <filename moreinfo="none">/usr/local/samba/var/locks</filename>
+	directory (or the <filename moreinfo="none">var/locks</filename> directory configured
+	under wherever Samba was configured to install itself). This will also
+	cause <literal>nmbd</literal> to dump out its server database in
+	the <filename moreinfo="none">log.nmb</filename> file.</para>
+
+	<para>The debug log level of nmbd may be raised or lowered
+	using <citerefentry><refentrytitle>smbcontrol</refentrytitle>
+	<manvolnum>1</manvolnum></citerefentry> (SIGUSR[1|2] signals
+	are no longer used since Samba 2.2). This is to allow
+	transient problems to be diagnosed, whilst still running 
+	at a normally low log level.</para>
+</refsect1>
+
+
+<refsect1>
+	<title>VERSION</title>
+
+	<para>This man page is correct for version 3 of 
+	the Samba suite.</para>
+</refsect1>
+
+<refsect1>
+	<title>SEE ALSO</title>
+	<para>
+	<citerefentry><refentrytitle>inetd</refentrytitle>
+	<manvolnum>8</manvolnum></citerefentry>, <citerefentry><refentrytitle>smbd</refentrytitle>
+	<manvolnum>8</manvolnum></citerefentry>, <citerefentry><refentrytitle>smb.conf</refentrytitle>
+	<manvolnum>5</manvolnum></citerefentry>, <citerefentry><refentrytitle>smbclient</refentrytitle>
+	<manvolnum>1</manvolnum></citerefentry>, <citerefentry><refentrytitle>testparm</refentrytitle>
+	<manvolnum>1</manvolnum></citerefentry>, <citerefentry><refentrytitle>testprns</refentrytitle>
+	<manvolnum>1</manvolnum></citerefentry>, and the Internet 
+	RFC's <filename moreinfo="none">rfc1001.txt</filename>, <filename moreinfo="none">rfc1002.txt</filename>. 
+	In addition the CIFS (formerly SMB) specification is available 
+	as a link from the Web page <ulink noescape="1" url="http://samba.org/cifs/"> 
+	http://samba.org/cifs/</ulink>.</para>
+</refsect1>
+
+<refsect1>
+	<title>AUTHOR</title>
+	
+	<para>The original Samba software and related utilities 
+	were created by Andrew Tridgell. Samba is now developed
+	by the Samba Team as an Open Source project similar 
+	to the way the Linux kernel is developed.</para>
+	
+	<para>The original Samba man pages were written by Karl Auer. 
+	The man page sources were converted to YODL format (another 
+	excellent piece of Open Source software, available at <ulink url="ftp://ftp.icce.rug.nl/pub/unix/">
+	ftp://ftp.icce.rug.nl/pub/unix/</ulink>) and updated for the Samba 2.0 
+	release by Jeremy Allison.  The conversion to DocBook for 
+	Samba 2.2 was done by Gerald Carter. The conversion to DocBook
+	XML 4.2 for Samba 3.0 was done by Alexander Bokovoy.</para>
+</refsect1>
+
+</refentry>

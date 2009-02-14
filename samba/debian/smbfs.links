@@ -1,0 +1,5 @@
+sbin/mount.smbfs usr/bin/smbmount
+sbin/umount.cifs usr/bin/smbumount
+usr/share/man/man8/umount.cifs.8 usr/share/man/man8/smbumount.8
+usr/share/man/man8/mount.cifs.8 usr/share/man/man8/smbmount.8
+usr/share/man/man8/mount.cifs.8 usr/share/man/man8/mount.smbfs.8

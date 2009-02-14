@@ -1,0 +1,86 @@
+This is makeindex, version 2.14 [02-Oct-2002] (kpathsea + Thai support).
+Scanning input file Samba3-HOWTO.idx....
+!! Input index error (file = Samba3-HOWTO.idx, line = 260):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 261):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 372):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 700):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 767):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 786):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 910):
+   -- Illegal null field.
+..
+!! Input index error (file = Samba3-HOWTO.idx, line = 2510):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 2716):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 2794):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 2914):
+   -- Illegal null field.
+.
+!! Input index error (file = Samba3-HOWTO.idx, line = 3464):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 3465):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 3466):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 3471):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 3472):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 3473):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 3667):
+   -- Illegal null field.
+.
+!! Input index error (file = Samba3-HOWTO.idx, line = 4568):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 4569):
+   -- Illegal null field.
+!! Input index error (file = Samba3-HOWTO.idx, line = 4570):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 4613):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 4646):
+   -- Illegal null field.
+.
+!! Input index error (file = Samba3-HOWTO.idx, line = 5026):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 5268):
+   -- Illegal null field.
+
+!! Input index error (file = Samba3-HOWTO.idx, line = 5343):
+   -- Illegal null field.
+done (5831 entries accepted, 26 rejected).
+Sorting entries............................................................done (85153 comparisons).
+Generating output file Samba3-HOWTO.ind....
+## Warning (input = Samba3-HOWTO.idx, line = 850; output = Samba3-HOWTO.ind, line = 209):
+   -- Conflicting entries: multiple encaps for the same page under same key.
+...
+## Warning (input = Samba3-HOWTO.idx, line = 3795; output = Samba3-HOWTO.ind, line = 2199):
+   -- Conflicting entries: multiple encaps for the same page under same key.
+
+## Warning (input = Samba3-HOWTO.idx, line = 2061; output = Samba3-HOWTO.ind, line = 2430):
+   -- Conflicting entries: multiple encaps for the same page under same key.
+..done (3308 lines written, 3 warnings).
+Output written in Samba3-HOWTO.ind.
+Transcript written in Samba3-HOWTO.ilg.

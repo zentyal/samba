@@ -1,0 +1,24 @@
+Goal:  Fix missing symbols in libsmbclient (and libnss_wins), and add
+       -Wl,-z,defs to the libsmbclient link options to prevent future
+       instances of undefined symbols
+
+Fixes: #281181
+
+Status wrt upstream: Not forwarded. Should be once there is a configure test 
+for it.
+
+Note: 
+
+Index: samba-3.2.1/source/Makefile.in
+===================================================================
+--- samba-3.2.1.orig/source/Makefile.in
++++ samba-3.2.1/source/Makefile.in
+@@ -1661,7 +1661,7 @@
+ 
+ bin/libsmbclient.@SHLIBEXT@: $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBSMBCLIENT_OBJ) \
++	@$(SHLD_DSO) -Wl,-z,defs $(LIBSMBCLIENT_OBJ) \
+ 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
+ 		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
+ 		@SONAMEFLAG@`basename $@`.$(SONAME_VER)

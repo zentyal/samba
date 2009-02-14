@@ -1,0 +1,57 @@
+.\"     Title: ldbdel
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.1 <http://docbook.sf.net/>
+.\"      Date: 11/20/2008
+.\"    Manual: User Commands
+.\"    Source: Samba 3.2
+.\"
+.TH "LDBDEL" "1" "11/20/2008" "Samba 3\.2" "User Commands"
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+ldbdel - Command-line program for deleting LDB records
+.SH "SYNOPSIS"
+.HP 1
+ldbdel [\-h] [\-H\ LDB\-URL] [dn] [\.\.\.]
+.SH "DESCRIPTION"
+.PP
+ldbdel deletes records from an ldb(7) database\. It deletes the records identified by the dn\'s specified on the command\-line\.
+.PP
+ldbdel uses either the database that is specified with the \-H option or the database specified by the LDB_URL environment variable\.
+.SH "OPTIONS"
+.PP
+\-h
+.RS 4
+Show list of available options\.
+.RE
+.PP
+\-H <ldb\-url>
+.RS 4
+LDB URL to connect to\. See ldb(7) for details\.
+.RE
+.SH "ENVIRONMENT"
+.PP
+LDB_URL
+.RS 4
+LDB URL to connect to (can be overrided by using the \-H command\-line option\.)
+.RE
+.SH "VERSION"
+.PP
+This man page is correct for version 4\.0 of the Samba suite\.
+.SH "SEE ALSO"
+.PP
+ldb(7), ldbmodify, ldbadd, ldif(5)
+.SH "AUTHOR"
+.PP
+ldb was written by
+Andrew Tridgell\.
+.PP
+If you wish to report a problem or make a suggestion then please see the
+: http://ldb.samba.org/
+web site for current contact and maintainer information\.
+.PP
+ldbdel was written by Andrew Tridgell\.
+.PP
+This manpage was written by Jelmer Vernooij\.

@@ -1,0 +1,199 @@
+# Georgian translation of samba.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Aiet Kolkhi <aietkolkhi@gmail.com>, 2008.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
+"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"PO-Revision-Date: 2008-09-10 01:45+0400\n"
+"Last-Translator: Aiet Kolkhi <aietkolkhi@gmail.com>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "გსურთ smb.conf-ის შეცვლა WINS პარამეტრების DHCP-დან გამოსაყენებლად?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"თუ თქვენი კომპიუტერი IP მისამართს ქსელის DHCP სერვერიდან იღებს, მაშინ DHCP "
+"სერვერს შეიძლება ასევე გააჩნდეს ინფორმაცია ქსელში არსებულ WINS სერვერების "
+"(„NetBIOS name servers“) შესახებ.  ამისათვის საჭიროა ცვლილება smb.conf "
+"ფაილში, რათა DHCP-ს მოწოდებული WINS პარამეტრები ავტომატურად ამოიკითხოს /etc/"
+"samba/dhcp.conf-დან."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"ამ ფუნქციის გამოსაყენებლად აუცილებელია დაყენებული იყოს dhcp3-client პაკეტი."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "გსურთ smb.conf-ის ავტომატური კონფიგურაცი?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
+"line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"დარჩენილი Samba-ს კონფიგურაცია ეხება საკითხებს, რომლებსაც ზეგავლენა აქვს /"
+"etc/samba/smb.conf-ზე. ეს ფაილი Samba-ს პროგრამების (nmbd და smbd) "
+"კონფიგურაციისათვის გამოიყენება. თქვენი ამჟამინდელი smb.conf ფაილი შეიცავს "
+"'include' სტრიქონს, ან პარამეტრს, რომელის მრავალ სტრიქონს მიმოიხილავს, რამაც "
+"შესაძლოა ავტომატური კონფიგურაციის პროცესი დააბნიოს და თქვენ smb.conf-ის "
+"ხელით დამუშავება მოგიწიოთ მის კვლავ ასამუშAვებლად."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"თუ ამ პარამეტრს არ ამოირჩებთ, ნებისმიერი კონფიგურაციის ცვლილებების გატარება "
+"ხელით მოგიწევთ. ასევე ვერ გამოიყენებთ კნფიგურაციის პერიოდულ გაუმჯობესებებს."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "სამუშაო ჯგუფის/დომენის სახელი:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup you want this server to appear to be in when "
+"queried by clients. Note that this parameter also controls the domain name "
+"used with the security=domain setting."
+msgstr ""
+"მიუთითეთ სამუშაო ჯგუფი (workgroup), რომელსაც სერვერმა თავი უნდა მიაკუთვნოს "
+"კლიენტების მიერ მოთხოვნის გამოგზავნისას. გაითვალისწინეთ, რომ ეს პარამეტრი "
+"ასევე აკონტროლებს security=domain პარამეტრზე გამოყენებულ დომენის სახელს."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "გსურთ პაროლის დაშიფვრის გმაოყენება?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Windows-ის ყველა ახალი კლიენტი SMB სერვერთან კავშირს შიფრირებული პაროლით "
+"ამყარებს. თუ გსურთ დაუშიფრავი პაროლის გამოყენება, მოგიწევთ შეცვალოთ "
+"პარამეტრი Windows-ის რეგისტრში."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended. If you do, make sure you have a "
+"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
+"user using the smbpasswd command."
+msgstr ""
+"ამ პარამეტრის გააქტიურება რეკომენდირებულია. თუ ამას გააკეთებთ, დარწმუნდით, "
+"რომ გაგაჩნიათ გამართული /etc/samba/smbpasswd ფაილი და რომ იქ ყოველ "
+"მომხმარებელზე პაროლი გქონდეთ დაყენებული smbpasswd ბრძანებით."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "გსურთ samba-ს პაროლთა ბაზის, /var/lib/samba/passdb.tdb-ს შექმნა?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Windows-ის უმეტეს ვერსიების ნაგულისხმევ პარამეტრებთან თავსებადობისათვის, "
+"Samba-მ დაშიფრული პაროლები უნდა გამოიყენოს. ეს საჭიროებს, რომ მომხმარებელთა "
+"პაროლები /etc/passwd-ისაგან განცხალკევებით იქნას შენახული.  ამ ფაილის შექმნა "
+"ავტომატურად არის შესაძლებელი, თუმცა პაროლების ჩამატება ხელით უნდა მოხდეს "
+"smbpasswd ბრძანებით და სამომავლოდ მუდამ განახლებული უნდა იყოს."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"თუ მას არ შექმნით, Samba-ს (და სავარაუდოდ თქვენი კლიენტისაც) ხელახალი "
+"კონფიგურაცია მოგიწევთ დაუშიფრავი პაროლების გამოსაყენებლად."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+"package for more details."
+msgstr ""
+"დამატებითი ინფორმაციისათვის იხილეთ /usr/share/doc/samba-doc/htmldocs/"
+"ENCRYPTION.html სტატია samba-doc პაკეტიდან."
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "დემონები"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "როგორ გსურთ Samba-ს გაშვება?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba-ს დემონი smbd შეიძლება გაეშვას როგორც ჩვეულებრივი დემო inetd-დან. "
+"დემონად გაშვება რეკომენდირებული მიდგომაა."

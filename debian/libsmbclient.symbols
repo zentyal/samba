@@ -155,3 +155,8 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_utimes@Base 3.0.24
  smbc_version@Base 3.0.24
  smbc_write@Base 3.0.24
+ smbc_getOptionCaseSensitive@Base 2:3.3.0
+ smbc_setOptionCaseSensitive@Base 2:3.3.0
+ smbc_set_credentials@Base 2:3.3.0
+ smbc_urldecode@Base 2:3.3.0
+ smbc_urlencode@Base 2:3.3.0

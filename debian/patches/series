@@ -18,5 +18,4 @@ swat-de.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 shrink-dead-code.patch
-smb.conf.5-undefined-configure.patch
-swat-status-page.patch
+fix-manpages-warnings.patch

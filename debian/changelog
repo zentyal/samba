@@ -47,14 +47,32 @@ samba (2:3.2.5-1) unstable; urgency=high
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 27 Nov 2008 11:36:35 +0100
 
-samba (2:3.3.0~rc2-5) experimental; urgency=low
+samba (2:3.3.0-1) experimental; urgency=low
 
+  * New upstream release. Fixes the following bugs:
+    - smb file deletion gvfs. Closes: #510564
+    - smbclient du command does not recuse properly. Closes: #509258
+    - mention possible workgroup field in credential files in mount.cifs(8)
+      Closes: #400734
+    - bashism in /usr/share/doc/samba-doc/examples/perfcounter/perfcountd.init
+      Closes: #489656
+    - describe '-g' option in smbclient man page. Closes: #510812
+    - fix swat status table layout. Closes: #511275
+
+  [ Jelmer Vernooij ]
   * Use alternatives for the smbstatus, nmblookup, net and 
     testparm binaries and various data files in samba-common 
     to allow installation of Samba 3 together with Samba 4. 
   * Add myself to uploaders.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sun, 25 Jan 2009 20:32:34 +0100
+  [ Christian Perrier ]
+  * Add mbc_getOptionCaseSensitive@Base, smbc_setOptionCaseSensitive@Base,
+    smbc_set_credentials@Base, smbc_urldecode@Base and smbc_urlencode@Base to
+    libsmbclient's symbols file with 3.3.0 as version number
+  * Also add 18 symbols to libwbclient0's symbols file with 3.3.0 as
+    version number
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 30 Jan 2009 21:41:49 +0100
 
 samba (2:3.3.0~rc2-4) experimental; urgency=low
 

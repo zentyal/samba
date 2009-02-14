@@ -1,0 +1,2156 @@
+Index: samba-3.3.0/docs/manpages/cifs.upcall.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/cifs.upcall.8
++++ samba-3.3.0/docs/manpages/cifs.upcall.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/eventlogadm.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/eventlogadm.8
++++ samba-3.3.0/docs/manpages/eventlogadm.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/findsmb.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/findsmb.1
++++ samba-3.3.0/docs/manpages/findsmb.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_ad.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_ad.8
++++ samba-3.3.0/docs/manpages/idmap_ad.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_adex.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_adex.8
++++ samba-3.3.0/docs/manpages/idmap_adex.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_hash.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_hash.8
++++ samba-3.3.0/docs/manpages/idmap_hash.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_ldap.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_ldap.8
++++ samba-3.3.0/docs/manpages/idmap_ldap.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_nss.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_nss.8
++++ samba-3.3.0/docs/manpages/idmap_nss.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_rid.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_rid.8
++++ samba-3.3.0/docs/manpages/idmap_rid.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_tdb.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_tdb.8
++++ samba-3.3.0/docs/manpages/idmap_tdb.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/idmap_tdb2.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/idmap_tdb2.8
++++ samba-3.3.0/docs/manpages/idmap_tdb2.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldb.3
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldb.3
++++ samba-3.3.0/docs/manpages/ldb.3
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldbadd.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldbadd.1
++++ samba-3.3.0/docs/manpages/ldbadd.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldbdel.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldbdel.1
++++ samba-3.3.0/docs/manpages/ldbdel.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldbedit.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldbedit.1
++++ samba-3.3.0/docs/manpages/ldbedit.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldbmodify.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldbmodify.1
++++ samba-3.3.0/docs/manpages/ldbmodify.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ldbsearch.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ldbsearch.1
++++ samba-3.3.0/docs/manpages/ldbsearch.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/libsmbclient.7
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/libsmbclient.7
++++ samba-3.3.0/docs/manpages/libsmbclient.7
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/lmhosts.5
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/lmhosts.5
++++ samba-3.3.0/docs/manpages/lmhosts.5
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/log2pcap.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/log2pcap.1
++++ samba-3.3.0/docs/manpages/log2pcap.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/mount.cifs.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/mount.cifs.8
++++ samba-3.3.0/docs/manpages/mount.cifs.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/net.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/net.8
++++ samba-3.3.0/docs/manpages/net.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/nmbd.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/nmbd.8
++++ samba-3.3.0/docs/manpages/nmbd.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/nmblookup.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/nmblookup.1
++++ samba-3.3.0/docs/manpages/nmblookup.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/ntlm_auth.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/ntlm_auth.1
++++ samba-3.3.0/docs/manpages/ntlm_auth.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/pam_winbind.7
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/pam_winbind.7
++++ samba-3.3.0/docs/manpages/pam_winbind.7
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/pdbedit.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/pdbedit.8
++++ samba-3.3.0/docs/manpages/pdbedit.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/profiles.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/profiles.1
++++ samba-3.3.0/docs/manpages/profiles.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/rpcclient.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/rpcclient.1
++++ samba-3.3.0/docs/manpages/rpcclient.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/samba.7
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/samba.7
++++ samba-3.3.0/docs/manpages/samba.7
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smb.conf.5
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smb.conf.5
++++ samba-3.3.0/docs/manpages/smb.conf.5
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbcacls.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbcacls.1
++++ samba-3.3.0/docs/manpages/smbcacls.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbclient.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbclient.1
++++ samba-3.3.0/docs/manpages/smbclient.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbcontrol.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbcontrol.1
++++ samba-3.3.0/docs/manpages/smbcontrol.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbcquotas.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbcquotas.1
++++ samba-3.3.0/docs/manpages/smbcquotas.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbd.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbd.8
++++ samba-3.3.0/docs/manpages/smbd.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbget.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbget.1
++++ samba-3.3.0/docs/manpages/smbget.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbgetrc.5
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbgetrc.5
++++ samba-3.3.0/docs/manpages/smbgetrc.5
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbpasswd.5
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbpasswd.5
++++ samba-3.3.0/docs/manpages/smbpasswd.5
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbpasswd.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbpasswd.8
++++ samba-3.3.0/docs/manpages/smbpasswd.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbspool.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbspool.8
++++ samba-3.3.0/docs/manpages/smbspool.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbstatus.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbstatus.1
++++ samba-3.3.0/docs/manpages/smbstatus.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbtar.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbtar.1
++++ samba-3.3.0/docs/manpages/smbtar.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/smbtree.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/smbtree.1
++++ samba-3.3.0/docs/manpages/smbtree.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/swat.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/swat.8
++++ samba-3.3.0/docs/manpages/swat.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/tdbbackup.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/tdbbackup.8
++++ samba-3.3.0/docs/manpages/tdbbackup.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/tdbdump.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/tdbdump.8
++++ samba-3.3.0/docs/manpages/tdbdump.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/tdbtool.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/tdbtool.8
++++ samba-3.3.0/docs/manpages/tdbtool.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/testparm.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/testparm.1
++++ samba-3.3.0/docs/manpages/testparm.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/umount.cifs.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/umount.cifs.8
++++ samba-3.3.0/docs/manpages/umount.cifs.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_audit.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_audit.8
++++ samba-3.3.0/docs/manpages/vfs_audit.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_cacheprime.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_cacheprime.8
++++ samba-3.3.0/docs/manpages/vfs_cacheprime.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_cap.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_cap.8
++++ samba-3.3.0/docs/manpages/vfs_cap.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_catia.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_catia.8
++++ samba-3.3.0/docs/manpages/vfs_catia.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_commit.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_commit.8
++++ samba-3.3.0/docs/manpages/vfs_commit.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_default_quota.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_default_quota.8
++++ samba-3.3.0/docs/manpages/vfs_default_quota.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_extd_audit.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_extd_audit.8
++++ samba-3.3.0/docs/manpages/vfs_extd_audit.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_fake_perms.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_fake_perms.8
++++ samba-3.3.0/docs/manpages/vfs_fake_perms.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_fileid.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_fileid.8
++++ samba-3.3.0/docs/manpages/vfs_fileid.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_full_audit.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_full_audit.8
++++ samba-3.3.0/docs/manpages/vfs_full_audit.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_gpfs.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_gpfs.8
++++ samba-3.3.0/docs/manpages/vfs_gpfs.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_netatalk.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_netatalk.8
++++ samba-3.3.0/docs/manpages/vfs_netatalk.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_notify_fam.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_notify_fam.8
++++ samba-3.3.0/docs/manpages/vfs_notify_fam.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_prealloc.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_prealloc.8
++++ samba-3.3.0/docs/manpages/vfs_prealloc.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_readahead.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_readahead.8
++++ samba-3.3.0/docs/manpages/vfs_readahead.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_readonly.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_readonly.8
++++ samba-3.3.0/docs/manpages/vfs_readonly.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_recycle.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_recycle.8
++++ samba-3.3.0/docs/manpages/vfs_recycle.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_shadow_copy.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_shadow_copy.8
++++ samba-3.3.0/docs/manpages/vfs_shadow_copy.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_shadow_copy2.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_shadow_copy2.8
++++ samba-3.3.0/docs/manpages/vfs_shadow_copy2.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_smb_traffic_analyzer.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_smb_traffic_analyzer.8
++++ samba-3.3.0/docs/manpages/vfs_smb_traffic_analyzer.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_streams_depot.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_streams_depot.8
++++ samba-3.3.0/docs/manpages/vfs_streams_depot.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_streams_xattr.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_streams_xattr.8
++++ samba-3.3.0/docs/manpages/vfs_streams_xattr.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfs_xattr_tdb.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfs_xattr_tdb.8
++++ samba-3.3.0/docs/manpages/vfs_xattr_tdb.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/vfstest.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/vfstest.1
++++ samba-3.3.0/docs/manpages/vfstest.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/wbinfo.1
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/wbinfo.1
++++ samba-3.3.0/docs/manpages/wbinfo.1
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/winbind_krb5_locator.7
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/winbind_krb5_locator.7
++++ samba-3.3.0/docs/manpages/winbind_krb5_locator.7
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)
+Index: samba-3.3.0/docs/manpages/winbindd.8
+===================================================================
+--- samba-3.3.0.orig/docs/manpages/winbindd.8
++++ samba-3.3.0/docs/manpages/winbindd.8
+@@ -33,7 +33,6 @@
+ .\" SH - level-one heading that works better for non-TTY output
+ .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ .de1 SH
+-.\" put an extra blank line of space above the head in non-TTY output
+ .if t \{\
+ .sp 1
+ .\}
+@@ -48,7 +47,6 @@
+ .it 1 an-trap
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+-\." make the size of the head bigger
+ .ps +3
+ .ft B
+ .ne (2v + 1u)
+@@ -82,7 +80,6 @@
+ .nr an-no-space-flag 1
+ .nr an-break-flag 1
+ .ps \\n[PS-SS]u
+-\." make the size of the head bigger
+ .ps +2
+ .ft B
+ .ne (2v + 1u)

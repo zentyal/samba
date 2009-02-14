@@ -28,7 +28,6 @@
 extern int max_send;
 extern enum protocol_types Protocol;
 extern uint32 global_client_caps;
-extern struct current_user current_user;
 
 #define get_file_size(sbuf) ((sbuf).st_size)
 #define DIR_ENTRY_SAFETY_MARGIN 4096
@@ -178,7 +177,7 @@ NTSTATUS get_ea_names_from_file(TALLOC_CTX *mem_ctx, connection_struct *conn,
 	char *p;
 	char **names, **tmp;
 	size_t num_names;
-	ssize_t sizeret;
+	ssize_t sizeret = -1;
 
 	if (!lp_ea_support(SNUM(conn))) {
 		*pnames = NULL;
@@ -504,7 +503,7 @@ NTSTATUS set_ea(connection_struct *conn, files_struct *fsp, const char *fname, s
 static struct ea_list *read_ea_name_list(TALLOC_CTX *ctx, const char *pdata, size_t data_size)
 {
 	struct ea_list *ea_list_head = NULL;
-	size_t offset = 0;
+	size_t converted_size, offset = 0;
 
 	while (offset + 2 < data_size) {
 		struct ea_list *eal = TALLOC_ZERO_P(ctx, struct ea_list);
@@ -522,7 +521,11 @@ static struct ea_list *read_ea_name_list(TALLOC_CTX *ctx, const char *pdata, siz
 		if (pdata[offset + namelen] != '\0') {
 			return NULL;
 		}
-		pull_ascii_talloc(ctx, &eal->ea.name, &pdata[offset]);
+		if (!pull_ascii_talloc(ctx, &eal->ea.name, &pdata[offset],
+				       &converted_size)) {
+			DEBUG(0,("read_ea_name_list: pull_ascii_talloc "
+				 "failed: %s", strerror(errno)));
+		}
 		if (!eal->ea.name) {
 			return NULL;
 		}
@@ -544,6 +547,7 @@ struct ea_list *read_ea_list_entry(TALLOC_CTX *ctx, const char *pdata, size_t da
 	struct ea_list *eal = TALLOC_ZERO_P(ctx, struct ea_list);
 	uint16 val_len;
 	unsigned int namelen;
+	size_t converted_size;
 
 	if (!eal) {
 		return NULL;
@@ -565,7 +569,10 @@ struct ea_list *read_ea_list_entry(TALLOC_CTX *ctx, const char *pdata, size_t da
 	if (pdata[namelen + 4] != '\0') {
 		return NULL;
 	}
-	pull_ascii_talloc(ctx, &eal->ea.name, pdata + 4);
+	if (!pull_ascii_talloc(ctx, &eal->ea.name, pdata + 4, &converted_size)) {
+		DEBUG(0,("read_ea_list_entry: pull_ascii_talloc failed: %s",
+			 strerror(errno)));
+	}
 	if (!eal->ea.name) {
 		return NULL;
 	}
@@ -1080,15 +1087,13 @@ static bool exact_match(connection_struct *conn,
 {
 	if (mask[0] == '.' && mask[1] == 0)
 		return False;
-	if (conn->case_sensitive)
-		return strcmp(str,mask)==0;
-	if (StrCaseCmp(str,mask) != 0) {
-		return False;
-	}
 	if (dptr_has_wild(conn->dirptr)) {
 		return False;
 	}
-	return True;
+	if (conn->case_sensitive)
+		return strcmp(str,mask)==0;
+	else
+		return StrCaseCmp(str,mask) == 0;
 }
 
 /****************************************************************************
@@ -1122,7 +1127,7 @@ static uint32 unix_filetype(mode_t mode)
 		return UNIX_TYPE_SOCKET;
 #endif
 
-	DEBUG(0,("unix_filetype: unknown filetype %u", (unsigned)mode));
+	DEBUG(0,("unix_filetype: unknown filetype %u\n", (unsigned)mode));
 	return UNIX_TYPE_UNKNOWN;
 }
 
@@ -1885,7 +1890,7 @@ static void call_trans2findfirst(connection_struct *conn,
 	bool requires_resume_key;
 	int info_level;
 	char *directory = NULL;
-	const char *mask = NULL;
+	char *mask = NULL;
 	char *p;
 	int last_entry_off=0;
 	int dptr_num = -1;
@@ -1973,7 +1978,7 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 		return;
 	}
 
-	ntstatus = unix_convert(ctx, conn, directory, True, &directory, NULL, &sbuf);
+	ntstatus = unix_convert(ctx, conn, directory, True, &directory, &mask, &sbuf);
 	if (!NT_STATUS_IS_OK(ntstatus)) {
 		reply_nterror(req, ntstatus);
 		return;
@@ -1989,10 +1994,12 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 	if(p == NULL) {
 		/* Windows and OS/2 systems treat search on the root '\' as if it were '\*' */
 		if((directory[0] == '.') && (directory[1] == '\0')) {
-			mask = "*";
+			mask = talloc_strdup(ctx,"*");
+			if (!mask) {
+				reply_nterror(req, NT_STATUS_NO_MEMORY);
+				return;
+			}
 			mask_contains_wcard = True;
-		} else {
-			mask = directory;
 		}
 		directory = talloc_strdup(talloc_tos(), "./");
 		if (!directory) {
@@ -2000,7 +2007,6 @@ close_if_end = %d requires_resume_key = %d level = 0x%x, max_data_bytes = %d\n",
 			return;
 		}
 	} else {
-		mask = p+1;
 		*p = 0;
 	}
 
@@ -2832,9 +2838,11 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			fsp.fnum = -1;
 			
 			/* access check */
-			if (current_user.ut.uid != 0) {
-				DEBUG(0,("set_user_quota: access_denied service [%s] user [%s]\n",
-					lp_servicename(SNUM(conn)),conn->user));
+			if (conn->server_info->utok.uid != 0) {
+				DEBUG(0,("set_user_quota: access_denied "
+					 "service [%s] user [%s]\n",
+					 lp_servicename(SNUM(conn)),
+					 conn->server_info->unix_name));
 				reply_doserror(req, ERRDOS, ERRnoaccess);
 				return;
 			}
@@ -2994,7 +3002,7 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			 * in our list of SIDs.
 			 */
 			if (nt_token_check_sid(&global_sid_Builtin_Guests,
-				    current_user.nt_user_token)) {
+					       conn->server_info->ptok)) {
 				flags |= SMB_WHOAMI_GUEST;
 			}
 
@@ -3002,7 +3010,7 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			 * is in our list of SIDs.
 			 */
 			if (nt_token_check_sid(&global_sid_Authenticated_Users,
-				    current_user.nt_user_token)) {
+					       conn->server_info->ptok)) {
 				flags &= ~SMB_WHOAMI_GUEST;
 			}
 
@@ -3018,16 +3026,18 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			    + 4 /* num_sids */
 			    + 4 /* SID bytes */
 			    + 4 /* pad/reserved */
-			    + (current_user.ut.ngroups * 8)
+			    + (conn->server_info->utok.ngroups * 8)
 				/* groups list */
-			    + (current_user.nt_user_token->num_sids *
+			    + (conn->server_info->ptok->num_sids *
 				    SID_MAX_SIZE)
 				/* SID list */;
 
 			SIVAL(pdata, 0, flags);
 			SIVAL(pdata, 4, SMB_WHOAMI_MASK);
-			SBIG_UINT(pdata, 8, (SMB_BIG_UINT)current_user.ut.uid);
-			SBIG_UINT(pdata, 16, (SMB_BIG_UINT)current_user.ut.gid);
+			SBIG_UINT(pdata, 8,
+				  (SMB_BIG_UINT)conn->server_info->utok.uid);
+			SBIG_UINT(pdata, 16,
+				  (SMB_BIG_UINT)conn->server_info->utok.gid);
 
 
 			if (data_len >= max_data_bytes) {
@@ -3042,18 +3052,18 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 				break;
 			}
 
-			SIVAL(pdata, 24, current_user.ut.ngroups);
-			SIVAL(pdata, 28,
-				current_user.nt_user_token->num_sids);
+			SIVAL(pdata, 24, conn->server_info->utok.ngroups);
+			SIVAL(pdata, 28, conn->server_info->num_sids);
 
 			/* We walk the SID list twice, but this call is fairly
 			 * infrequent, and I don't expect that it's performance
 			 * sensitive -- jpeach
 			 */
 			for (i = 0, sid_bytes = 0;
-			    i < current_user.nt_user_token->num_sids; ++i) {
+			     i < conn->server_info->ptok->num_sids; ++i) {
 				sid_bytes += ndr_size_dom_sid(
-					&current_user.nt_user_token->user_sids[i], 0);
+					&conn->server_info->ptok->user_sids[i],
+					0);
 			}
 
 			/* SID list byte count */
@@ -3064,20 +3074,21 @@ cBytesSector=%u, cUnitTotal=%u, cUnitAvail=%d\n", (unsigned int)bsize, (unsigned
 			data_len = 40;
 
 			/* GID list */
-			for (i = 0; i < current_user.ut.ngroups; ++i) {
+			for (i = 0; i < conn->server_info->utok.ngroups; ++i) {
 				SBIG_UINT(pdata, data_len,
-					(SMB_BIG_UINT)current_user.ut.groups[i]);
+					  (SMB_BIG_UINT)conn->server_info->utok.groups[i]);
 				data_len += 8;
 			}
 
 			/* SID list */
 			for (i = 0;
-			    i < current_user.nt_user_token->num_sids; ++i) {
+			    i < conn->server_info->ptok->num_sids; ++i) {
 				int sid_len = ndr_size_dom_sid(
-					&current_user.nt_user_token->user_sids[i], 0);
+					&conn->server_info->ptok->user_sids[i],
+					0);
 
 				sid_linearize(pdata + data_len, sid_len,
-				    &current_user.nt_user_token->user_sids[i]);
+				    &conn->server_info->ptok->user_sids[i]);
 				data_len += sid_len;
 			}
 
@@ -3272,9 +3283,11 @@ cap_low = 0x%x, cap_high = 0x%x\n",
 				ZERO_STRUCT(quotas);
 
 				/* access check */
-				if ((current_user.ut.uid != 0)||!CAN_WRITE(conn)) {
+				if ((conn->server_info->utok.uid != 0)
+				    ||!CAN_WRITE(conn)) {
 					DEBUG(0,("set_user_quota: access_denied service [%s] user [%s]\n",
-						lp_servicename(SNUM(conn)),conn->user));
+						 lp_servicename(SNUM(conn)),
+						 conn->server_info->unix_name));
 					reply_doserror(req, ERRSRV, ERRaccess);
 					return;
 				}
@@ -3284,7 +3297,9 @@ cap_low = 0x%x, cap_high = 0x%x\n",
 				 * --metze 
 				 */
 				fsp = file_fsp(SVAL(params,0));
-				if (!CHECK_NTQUOTA_HANDLE_OK(fsp,conn)) {
+
+				if (!check_fsp_ntquota_handle(conn, req,
+							      fsp)) {
 					DEBUG(3,("TRANSACT_GET_USER_QUOTA: no valid QUOTA HANDLE\n"));
 					reply_nterror(
 						req, NT_STATUS_INVALID_HANDLE);
@@ -3664,15 +3679,15 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 	unsigned int i;
 	unsigned int ofs = 0;
 
-	for (i=0; i<num_streams; i++) {
+	for (i = 0; i < num_streams && ofs <= max_data_bytes; i++) {
 		unsigned int next_offset;
 		size_t namelen;
 		smb_ucs2_t *namebuf;
 
-		namelen = push_ucs2_talloc(talloc_tos(), &namebuf,
-					    streams[i].name);
-
-		if ((namelen == (size_t)-1) || (namelen <= 2)) {
+		if (!push_ucs2_talloc(talloc_tos(), &namebuf,
+				      streams[i].name, &namelen) ||
+		    namelen <= 2)
+		{
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
@@ -3682,11 +3697,6 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 		 */
 
 		namelen -= 2;
-
-		if (ofs + 24 + namelen > max_data_bytes) {
-			TALLOC_FREE(namebuf);
-			return NT_STATUS_BUFFER_TOO_SMALL;
-		}
 
 		SIVAL(data, ofs+4, namelen);
 		SOFF_T(data, ofs+8, streams[i].size);
@@ -3701,10 +3711,6 @@ static NTSTATUS marshall_stream_info(unsigned int num_streams,
 		}
 		else {
 			unsigned int align = ndr_align_size(next_offset, 8);
-
-			if (next_offset + align > max_data_bytes) {
-				return NT_STATUS_BUFFER_TOO_SMALL;
-			}
 
 			memset(data+next_offset, 0, align);
 			next_offset += align;
@@ -3829,7 +3835,6 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 	files_struct *fsp = NULL;
 	struct file_id fileid;
 	struct ea_list *ea_list = NULL;
-	uint32 access_mask = 0x12019F; /* Default - GENERIC_EXECUTE mapping from Windows */
 	char *lock_data = NULL;
 	bool ms_dfs_link = false;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -3867,7 +3872,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 		}
 
 		/* Initial check for valid fsp ptr. */
-		if (!check_fsp_open(conn, req, fsp, &current_user)) {
+		if (!check_fsp_open(conn, req, fsp)) {
 			return;
 		}
 
@@ -3910,7 +3915,7 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			/*
 			 * Original code - this is an open file.
 			 */
-			if (!check_fsp(conn, req, fsp, &current_user)) {
+			if (!check_fsp(conn, req, fsp)) {
 				return;
 			}
 
@@ -3922,7 +3927,6 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			pos = fsp->fh->position_information;
 			fileid = vfs_file_id_from_sbuf(conn, &sbuf);
 			get_file_infos(fileid, &delete_pending, &write_time_ts);
-			access_mask = fsp->access_mask;
 		}
 
 	} else {
@@ -3976,6 +3980,46 @@ static void call_trans2qfilepathinfo(connection_struct *conn,
 			DEBUG(3,("call_trans2qfilepathinfo: fileinfo of %s failed (%s)\n",fname,nt_errstr(status)));
 			reply_nterror(req, status);
 			return;
+		}
+
+		if ((conn->fs_capabilities & FILE_NAMED_STREAMS)
+		    && is_ntfs_stream_name(fname)) {
+			char *base;
+			SMB_STRUCT_STAT bsbuf;
+
+			status = split_ntfs_stream_name(talloc_tos(), fname,
+							&base, NULL);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(10, ("create_file_unixpath: "
+					"split_ntfs_stream_name failed: %s\n",
+					nt_errstr(status)));
+				reply_nterror(req, status);
+				return;
+			}
+
+			SMB_ASSERT(!is_ntfs_stream_name(base));	/* paranoia.. */
+
+			if (INFO_LEVEL_IS_UNIX(info_level)) {
+				/* Always do lstat for UNIX calls. */
+				if (SMB_VFS_LSTAT(conn,base,&bsbuf)) {
+					DEBUG(3,("call_trans2qfilepathinfo: SMB_VFS_LSTAT of %s failed (%s)\n",base,strerror(errno)));
+					reply_unixerror(req,ERRDOS,ERRbadpath);
+					return;
+				}
+			} else {
+				if (SMB_VFS_STAT(conn,base,&bsbuf) != 0) {
+					DEBUG(3,("call_trans2qfilepathinfo: fileinfo of %s failed (%s)\n",base,strerror(errno)));
+					reply_unixerror(req,ERRDOS,ERRbadpath);
+					return;
+				}
+			}
+
+			fileid = vfs_file_id_from_sbuf(conn, &bsbuf);
+			get_file_infos(fileid, &delete_pending, NULL);
+			if (delete_pending) {
+				reply_nterror(req, NT_STATUS_DELETE_PENDING);
+				return;
+			}
 		}
 
 		if (INFO_LEVEL_IS_UNIX(info_level)) {
@@ -4386,7 +4430,12 @@ total_data=%u (should be %u)\n", (unsigned int)total_data, (unsigned int)IVAL(pd
 
 		case SMB_FILE_ACCESS_INFORMATION:
 			DEBUG(10,("call_trans2qfilepathinfo: SMB_FILE_ACCESS_INFORMATION\n"));
-			SIVAL(pdata,0,access_mask);
+			if (fsp) {
+				SIVAL(pdata,0,fsp->access_mask);
+			} else {
+				/* GENERIC_EXECUTE mapping from Windows */
+				SIVAL(pdata,0,0x12019F);
+			}
 			data_size = 4;
 			break;
 
@@ -4891,7 +4940,11 @@ NTSTATUS smb_set_file_time(connection_struct *conn,
 			  time_to_asc(convert_timespec_to_time_t(ts[1])) ));
 
 		if (fsp != NULL) {
-			set_sticky_write_time_fsp(fsp, ts[1]);
+			if (fsp->base_fsp) {
+				set_sticky_write_time_fsp(fsp->base_fsp, ts[1]);
+			} else {
+				set_sticky_write_time_fsp(fsp, ts[1]);
+			}
 		} else {
 			set_sticky_write_time_path(conn, fname,
 					    vfs_file_id_from_sbuf(conn, psbuf),
@@ -4900,6 +4953,10 @@ NTSTATUS smb_set_file_time(connection_struct *conn,
 	}
 
 	DEBUG(10,("smb_set_file_time: setting utimes to modified values.\n"));
+
+	if (fsp && fsp->base_fsp) {
+		fname = fsp->base_fsp->fsp_name;
+	}
 
 	if(file_ntimes(conn, fname, ts)!=0) {
 		return map_nt_error_from_unix(errno);
@@ -5090,7 +5147,8 @@ static NTSTATUS smb_set_file_disposition_info(connection_struct *conn,
 	}
 
 	/* The set is across all open files on this dev/inode pair. */
-	if (!set_delete_on_close(fsp, delete_on_close, &current_user.ut)) {
+	if (!set_delete_on_close(fsp, delete_on_close,
+				 &conn->server_info->utok)) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 	return NT_STATUS_OK;
@@ -5286,6 +5344,8 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 	char *newname = NULL;
 	char *base_name = NULL;
 	bool dest_has_wcard = False;
+	SMB_STRUCT_STAT sbuf;
+	char *newname_last_component = NULL;
 	NTSTATUS status = NT_STATUS_OK;
 	char *p;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -5293,6 +5353,8 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 	if (total_data < 13) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
+
+	ZERO_STRUCT(sbuf);
 
 	overwrite = (CVAL(pdata,0) ? True : False);
 	root_fid = IVAL(pdata,4);
@@ -5326,38 +5388,49 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	/* Create the base directory. */
-	base_name = talloc_strdup(ctx, fname);
-	if (!base_name) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	p = strrchr_m(base_name, '/');
-	if (p) {
-		p[1] = '\0';
-	} else {
-		base_name = talloc_strdup(ctx, "./");
+	if (fsp && fsp->base_fsp) {
+		/* newname must be a stream name. */
+		if (newname[0] != ':') {
+			return NT_STATUS_NOT_SUPPORTED;
+		}
+		base_name = talloc_asprintf(ctx, "%s%s",
+					   fsp->base_fsp->fsp_name,
+					   newname);
 		if (!base_name) {
 			return NT_STATUS_NO_MEMORY;
 		}
-	}
-	/* Append the new name. */
-	base_name = talloc_asprintf_append(base_name,
-			"%s",
-			newname);
-	if (!base_name) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	} else {
+		/* newname must *not* be a stream name. */
+		if (is_ntfs_stream_name(newname)) {
+			return NT_STATUS_NOT_SUPPORTED;
+		}
 
-	if (fsp) {
-		SMB_STRUCT_STAT sbuf;
-		char *newname_last_component = NULL;
-
-		ZERO_STRUCT(sbuf);
+		/* Create the base directory. */
+		base_name = talloc_strdup(ctx, fname);
+		if (!base_name) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		p = strrchr_m(base_name, '/');
+		if (p) {
+			p[1] = '\0';
+		} else {
+			base_name = talloc_strdup(ctx, "./");
+			if (!base_name) {
+				return NT_STATUS_NO_MEMORY;
+			}
+		}
+		/* Append the new name. */
+		base_name = talloc_asprintf_append(base_name,
+				"%s",
+				newname);
+		if (!base_name) {
+			return NT_STATUS_NO_MEMORY;
+		}
 
 		status = unix_convert(ctx, conn, newname, False,
-					&newname,
-					&newname_last_component,
-					&sbuf);
+				&newname,
+				&newname_last_component,
+				&sbuf);
 
 		/* If an error we expect this to be
 		 * NT_STATUS_OBJECT_PATH_NOT_FOUND */
@@ -5367,7 +5440,9 @@ static NTSTATUS smb_file_rename_information(connection_struct *conn,
 					status)) {
 			return status;
 		}
+	}
 
+	if (fsp) {
 		DEBUG(10,("smb_file_rename_information: SMB_FILE_RENAME_INFORMATION (fnum %d) %s -> %s\n",
 			fsp->fnum, fsp->fsp_name, base_name ));
 		status = rename_internals_fsp(conn, fsp, base_name,
@@ -5877,7 +5952,7 @@ static NTSTATUS smb_unix_mknod(connection_struct *conn,
  	 */
 
 	if (lp_inherit_perms(SNUM(conn))) {
-		inherit_access_acl(
+		inherit_access_posix_acl(
 			conn, parent_dirname(fname),
 			fname, unixmode);
 	}
@@ -6566,7 +6641,7 @@ static void call_trans2setfilepathinfo(connection_struct *conn,
 
 		fsp = file_fsp(SVAL(params,0));
 		/* Basic check for non-null fsp. */
-	        if (!check_fsp_open(conn, req, fsp, &current_user)) {
+	        if (!check_fsp_open(conn, req, fsp)) {
 			return;
 		}
 		info_level = SVAL(params,2);
@@ -6619,7 +6694,7 @@ static void call_trans2setfilepathinfo(connection_struct *conn,
 			/*
 			 * Original code - this is an open file.
 			 */
-		        if (!check_fsp(conn, req, fsp, &current_user)) {
+		        if (!check_fsp(conn, req, fsp)) {
 				return;
 			}
 
@@ -7047,10 +7122,11 @@ static void call_trans2mkdir(connection_struct *conn, struct smb_request *req,
 			reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 			return;
 		}
-	} else if (IVAL(pdata,0) != 4) {
-		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		return;
 	}
+	/* If total_data == 4 Windows doesn't care what values
+	 * are placed in that field, it just ignores them.
+	 * The System i QNTC IBM SMB client puts bad values here,
+	 * so ignore them. */
 
 	status = create_directory(conn, req, directory);
 
@@ -7551,7 +7627,7 @@ void reply_trans2(struct smb_request *req)
 		}
 	}
 
-	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
+	if ((state = TALLOC_P(conn, struct trans_state)) == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		reply_nterror(req, NT_STATUS_NO_MEMORY);
 		END_PROFILE(SMBtrans2);

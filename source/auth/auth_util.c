@@ -508,9 +508,17 @@ static auth_serversupplied_info *make_server_info(TALLOC_CTX *mem_ctx)
 	   which may save us from giving away root access if there
 	   is a bug in allocating these fields. */
 
-	result->uid = -1;
-	result->gid = -1;
+	result->utok.uid = -1;
+	result->utok.gid = -1;
 	return result;
+}
+
+static char *sanitize_username(TALLOC_CTX *mem_ctx, const char *username)
+{
+	fstring tmp;
+
+	alpha_strcpy(tmp, username, ". _-$", sizeof(tmp));
+	return talloc_strdup(mem_ctx, tmp);
 }
 
 /***************************************************************************
@@ -570,10 +578,17 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 	result->unix_name = pwd->pw_name;
 	/* Ensure that we keep pwd->pw_name, because we will free pwd below */
 	talloc_steal(result, pwd->pw_name);
-	result->gid = pwd->pw_gid;
-	result->uid = pwd->pw_uid;
+	result->utok.gid = pwd->pw_gid;
+	result->utok.uid = pwd->pw_uid;
 
 	TALLOC_FREE(pwd);
+
+	result->sanitized_username = sanitize_username(result,
+						       result->unix_name);
+	if (result->sanitized_username == NULL) {
+		TALLOC_FREE(result);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	if (IS_DC && is_our_machine_account(username)) {
 		/*
@@ -654,39 +669,44 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS log_nt_token(TALLOC_CTX *tmp_ctx, NT_USER_TOKEN *token)
+static NTSTATUS log_nt_token(NT_USER_TOKEN *token)
 {
+	TALLOC_CTX *frame = talloc_stackframe();
 	char *command;
 	char *group_sidstr;
 	size_t i;
 
 	if ((lp_log_nt_token_command() == NULL) ||
 	    (strlen(lp_log_nt_token_command()) == 0)) {
+		TALLOC_FREE(frame);
 		return NT_STATUS_OK;
 	}
 
-	group_sidstr = talloc_strdup(tmp_ctx, "");
+	group_sidstr = talloc_strdup(frame, "");
 	for (i=1; i<token->num_sids; i++) {
 		group_sidstr = talloc_asprintf(
-			tmp_ctx, "%s %s", group_sidstr,
-			sid_string_talloc(tmp_ctx, &token->user_sids[i]));
+			frame, "%s %s", group_sidstr,
+			sid_string_talloc(frame, &token->user_sids[i]));
 	}
 
 	command = talloc_string_sub(
-		tmp_ctx, lp_log_nt_token_command(),
-		"%s", sid_string_talloc(tmp_ctx, &token->user_sids[0]));
-	command = talloc_string_sub(tmp_ctx, command, "%t", group_sidstr);
+		frame, lp_log_nt_token_command(),
+		"%s", sid_string_talloc(frame, &token->user_sids[0]));
+	command = talloc_string_sub(frame, command, "%t", group_sidstr);
 
 	if (command == NULL) {
+		TALLOC_FREE(frame);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	DEBUG(8, ("running command: [%s]\n", command));
 	if (smbrun(command, NULL) != 0) {
 		DEBUG(0, ("Could not log NT token\n"));
+		TALLOC_FREE(frame);
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
+	TALLOC_FREE(frame);
 	return NT_STATUS_OK;
 }
 
@@ -697,16 +717,8 @@ static NTSTATUS log_nt_token(TALLOC_CTX *tmp_ctx, NT_USER_TOKEN *token)
 
 NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 {
-	TALLOC_CTX *mem_ctx;
 	NTSTATUS status;
 	size_t i;
-	
-
-	mem_ctx = talloc_new(NULL);
-	if (mem_ctx == NULL) {
-		DEBUG(0, ("talloc_new failed\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	/*
 	 * If winbind is not around, we can not make much use of the SIDs the
@@ -715,15 +727,15 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 	 */
 
 	if (((lp_server_role() == ROLE_DOMAIN_MEMBER) && !winbind_ping()) ||
-	    (server_info->was_mapped)) {
+	    (server_info->nss_token)) {
 		status = create_token_from_username(server_info,
 						    server_info->unix_name,
 						    server_info->guest,
-						    &server_info->uid,
-						    &server_info->gid,
+						    &server_info->utok.uid,
+						    &server_info->utok.gid,
 						    &server_info->unix_name,
 						    &server_info->ptok);
-		
+
 	} else {
 		server_info->ptok = create_local_nt_token(
 			server_info,
@@ -735,14 +747,13 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(mem_ctx);
 		return status;
 	}
-	
+
 	/* Convert the SIDs to gids. */
 
-	server_info->n_groups = 0;
-	server_info->groups = NULL;
+	server_info->utok.ngroups = 0;
+	server_info->utok.groups = NULL;
 
 	/* Start at index 1, where the groups start. */
 
@@ -755,15 +766,14 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 				   "ignoring it\n", sid_string_dbg(sid)));
 			continue;
 		}
-		add_gid_to_array_unique(server_info, gid, &server_info->groups,
-					&server_info->n_groups);
+		add_gid_to_array_unique(server_info, gid,
+					&server_info->utok.groups,
+					&server_info->utok.ngroups);
 	}
-	
+
 	debug_nt_user_token(DBGC_AUTH, 10, server_info->ptok);
 
-	status = log_nt_token(mem_ctx, server_info->ptok);
-
-	TALLOC_FREE(mem_ctx);
+	status = log_nt_token(server_info->ptok);
 	return status;
 }
 
@@ -1064,9 +1074,8 @@ bool user_in_group(const char *username, const char *groupname)
 	return user_in_group_sid(username, &group_sid);
 }
 
-
 /***************************************************************************
- Make (and fill) a user_info struct from a 'struct passwd' by conversion 
+ Make (and fill) a server_info struct from a 'struct passwd' by conversion
  to a struct samu
 ***************************************************************************/
 
@@ -1099,9 +1108,19 @@ NTSTATUS make_server_info_pw(auth_serversupplied_info **server_info,
 	}
 
 	result->sam_account = sampass;
+
 	result->unix_name = talloc_strdup(result, unix_username);
-	result->uid = pwd->pw_uid;
-	result->gid = pwd->pw_gid;
+	result->sanitized_username = sanitize_username(result, unix_username);
+
+	if ((result->unix_name == NULL)
+	    || (result->sanitized_username == NULL)) {
+		TALLOC_FREE(sampass);
+		TALLOC_FREE(result);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	result->utok.uid = pwd->pw_uid;
+	result->utok.gid = pwd->pw_gid;
 
 	status = pdb_enum_group_memberships(result, sampass,
 					    &result->sids, &gids,
@@ -1188,6 +1207,7 @@ static NTSTATUS make_new_server_info_guest(auth_serversupplied_info **server_inf
 	DOM_SID guest_sid;
 	bool ret;
 	char zeros[16];
+	fstring tmp;
 
 	if ( !(sampass = samu_new( NULL )) ) {
 		return NT_STATUS_NO_MEMORY;
@@ -1226,27 +1246,73 @@ static NTSTATUS make_new_server_info_guest(auth_serversupplied_info **server_inf
 	(*server_info)->user_session_key = data_blob(zeros, sizeof(zeros));
 	(*server_info)->lm_session_key = data_blob(zeros, sizeof(zeros));
 
+	alpha_strcpy(tmp, pdb_get_username(sampass), ". _-$", sizeof(tmp));
+	(*server_info)->sanitized_username = talloc_strdup(*server_info, tmp);
+
 	return NT_STATUS_OK;
 }
 
-static auth_serversupplied_info *copy_serverinfo(auth_serversupplied_info *src)
+/****************************************************************************
+  Fake a auth_serversupplied_info just from a username
+****************************************************************************/
+
+NTSTATUS make_serverinfo_from_username(TALLOC_CTX *mem_ctx,
+				       const char *username,
+				       bool is_guest,
+				       struct auth_serversupplied_info **presult)
+{
+	struct auth_serversupplied_info *result;
+	struct passwd *pwd;
+	NTSTATUS status;
+
+	pwd = getpwnam_alloc(talloc_tos(), username);
+	if (pwd == NULL) {
+		return NT_STATUS_NO_SUCH_USER;
+	}
+
+	status = make_server_info_pw(&result, pwd->pw_name, pwd);
+
+	TALLOC_FREE(pwd);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	result->nss_token = true;
+	result->guest = is_guest;
+
+	status = create_local_token(result);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(result);
+		return status;
+	}
+
+	*presult = result;
+	return NT_STATUS_OK;
+}
+
+
+struct auth_serversupplied_info *copy_serverinfo(TALLOC_CTX *mem_ctx,
+						 const auth_serversupplied_info *src)
 {
 	auth_serversupplied_info *dst;
 
-	dst = make_server_info(NULL);
+	dst = make_server_info(mem_ctx);
 	if (dst == NULL) {
 		return NULL;
 	}
 
 	dst->guest = src->guest;
-	dst->uid = src->uid;
-	dst->gid = src->gid;
-	dst->n_groups = src->n_groups;
-	if (src->n_groups != 0) {
-		dst->groups = (gid_t *)TALLOC_MEMDUP(
-			dst, src->groups, sizeof(gid_t)*dst->n_groups);
+	dst->utok.uid = src->utok.uid;
+	dst->utok.gid = src->utok.gid;
+	dst->utok.ngroups = src->utok.ngroups;
+	if (src->utok.ngroups != 0) {
+		dst->utok.groups = (gid_t *)TALLOC_MEMDUP(
+			dst, src->utok.groups,
+			sizeof(gid_t)*dst->utok.ngroups);
 	} else {
-		dst->groups = NULL;
+		dst->utok.groups = NULL;
 	}
 
 	if (src->ptok) {
@@ -1281,7 +1347,29 @@ static auth_serversupplied_info *copy_serverinfo(auth_serversupplied_info *src)
 		return NULL;
 	}
 
+	dst->sanitized_username = talloc_strdup(dst, src->sanitized_username);
+	if (!dst->sanitized_username) {
+		TALLOC_FREE(dst);
+		return NULL;
+	}
+
 	return dst;
+}
+
+/*
+ * Set a new session key. Used in the rpc server where we have to override the
+ * SMB level session key with SystemLibraryDTC
+ */
+
+bool server_info_set_session_key(struct auth_serversupplied_info *info,
+				 DATA_BLOB session_key)
+{
+	TALLOC_FREE(info->user_session_key.data);
+
+	info->user_session_key = data_blob_talloc(
+		info, session_key.data, session_key.length);
+
+	return (info->user_session_key.data != NULL);
 }
 
 static auth_serversupplied_info *guest_info = NULL;
@@ -1294,9 +1382,10 @@ bool init_guest_info(void)
 	return NT_STATUS_IS_OK(make_new_server_info_guest(&guest_info));
 }
 
-NTSTATUS make_server_info_guest(auth_serversupplied_info **server_info)
+NTSTATUS make_server_info_guest(TALLOC_CTX *mem_ctx,
+				auth_serversupplied_info **server_info)
 {
-	*server_info = copy_serverinfo(guest_info);
+	*server_info = copy_serverinfo(mem_ctx, guest_info);
 	return (*server_info != NULL) ? NT_STATUS_OK : NT_STATUS_NO_MEMORY;
 }
 
@@ -1322,39 +1411,6 @@ bool copy_current_user(struct current_user *dst, struct current_user *src)
 	dst->ut.uid = src->ut.uid;
 	dst->ut.gid = src->ut.gid;
 	dst->ut.ngroups = src->ut.ngroups;
-	dst->ut.groups = groups;
-	dst->nt_user_token = nt_token;
-	return True;
-}
-
-bool set_current_user_guest(struct current_user *dst)
-{
-	gid_t *groups;
-	NT_USER_TOKEN *nt_token;
-
-	groups = (gid_t *)memdup(guest_info->groups,
-				 sizeof(gid_t) * guest_info->n_groups);
-	if (groups == NULL) {
-		return False;
-	}
-
-	nt_token = dup_nt_token(NULL, guest_info->ptok);
-	if (nt_token == NULL) {
-		SAFE_FREE(groups);
-		return False;
-	}
-
-	TALLOC_FREE(dst->nt_user_token);
-	SAFE_FREE(dst->ut.groups);
-
-	/* dst->conn is never really dereferenced, it's only tested for
-	 * equality in uid.c */
-	dst->conn = NULL;
-
-	dst->vuid = UID_FIELD_INVALID;
-	dst->ut.uid = guest_info->uid;
-	dst->ut.gid = guest_info->gid;
-	dst->ut.ngroups = guest_info->n_groups;
 	dst->ut.groups = groups;
 	dst->nt_user_token = nt_token;
 	return True;
@@ -1580,7 +1636,7 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		TALLOC_FREE( sam_account );
 		if ( lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_UID ) {
-		 	make_server_info_guest(server_info); 
+			make_server_info_guest(NULL, server_info);
 			return NT_STATUS_OK;
 		}
 		return nt_status;
@@ -1688,10 +1744,17 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 	result->sam_account = sam_account;
 	result->unix_name = talloc_strdup(result, found_username);
 
+	result->sanitized_username = sanitize_username(result,
+						       result->unix_name);
+	if (result->sanitized_username == NULL) {
+		TALLOC_FREE(result);
+		return NT_STATUS_NO_MEMORY;
+	}
+
 	/* Fill in the unix info we found on the way */
 
-	result->uid = uid;
-	result->gid = gid;
+	result->utok.uid = uid;
+	result->utok.gid = gid;
 
 	/* Create a 'combined' list of all SIDs we might want in the SD */
 
@@ -1733,7 +1796,7 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 			sizeof(info3->base.LMSessKey.key));
 	}
 
-	result->was_mapped = username_was_mapped;
+	result->nss_token |= username_was_mapped;
 
 	*server_info = result;
 
@@ -1835,7 +1898,7 @@ NTSTATUS make_server_info_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		TALLOC_FREE( result );
 		if ( lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_UID ) {
-			make_server_info_guest(server_info);
+			make_server_info_guest(NULL, server_info);
 			return NT_STATUS_OK;
 		}
 		return nt_status;
@@ -1926,12 +1989,21 @@ NTSTATUS make_server_info_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 	result->sam_account = sam_account;
 	result->unix_name = talloc_strdup(result, found_username);
 
+	result->sanitized_username = sanitize_username(result,
+						       result->unix_name);
 	result->login_server = talloc_strdup(result, info->logon_server);
+
+	if ((result->unix_name == NULL)
+	    || (result->sanitized_username == NULL)
+	    || (result->login_server == NULL)) {
+		TALLOC_FREE(result);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* Fill in the unix info we found on the way */
 
-	result->uid = uid;
-	result->gid = gid;
+	result->utok.uid = uid;
+	result->utok.gid = gid;
 
 	/* Create a 'combined' list of all SIDs we might want in the SD */
 
@@ -1969,7 +2041,7 @@ NTSTATUS make_server_info_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 			sizeof(info->lm_session_key));
 	}
 
-	result->was_mapped = username_was_mapped;
+	result->nss_token |= username_was_mapped;
 
 	*server_info = result;
 

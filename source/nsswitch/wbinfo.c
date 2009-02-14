@@ -75,7 +75,7 @@ static char winbind_separator_int(bool strict)
 		/* HACK: (this module should not call lp_ funtions) */
 		sep = *lp_winbind_separator();
 	}
-	
+
 	return sep;
 }
 
@@ -126,6 +126,31 @@ static bool parse_wbinfo_domain_user(const char *domuser, fstring domain,
 	fstrcpy(domain, domuser);
 	domain[PTR_DIFF(p, domuser)] = 0;
 	strupper_m(domain);
+
+	return true;
+}
+
+/* Parse string of "uid,sid" or "gid,sid" into separate int and string values.
+ * Return true if input was valid, false otherwise. */
+static bool parse_mapping_arg(char *arg, int *id, char **sid)
+{
+	char *tmp, *endptr;
+
+	if (!arg || !*arg)
+		return false;
+
+	tmp = strtok(arg, ",");
+	*sid = strtok(NULL, ",");
+
+	if (!tmp || !*tmp || !*sid || !**sid)
+		return false;
+
+	/* Because atoi() can return 0 on invalid input, which would be a valid
+	 * UID/GID we must use strtoul() and do error checking */
+	*id = strtoul(tmp, &endptr, 10);
+
+	if (endptr[0] != '\0')
+		return false;
 
 	return true;
 }
@@ -538,8 +563,8 @@ static bool wbinfo_dsgetdcname(const char *domain_name, uint32_t flags)
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	fstrcpy(request.domain_name, domain_name);
-	request.flags = flags;
+	fstrcpy(request.data.dsgetdcname.domain_name, domain_name);
+	request.data.dsgetdcname.flags = flags;
 
 	request.flags |= DS_DIRECTORY_SERVICE_REQUIRED;
 
@@ -553,7 +578,15 @@ static bool wbinfo_dsgetdcname(const char *domain_name, uint32_t flags)
 
 	/* Display response */
 
-	d_printf("%s\n", response.data.dc_name);
+	d_printf("%s\n", response.data.dsgetdcname.dc_unc);
+	d_printf("%s\n", response.data.dsgetdcname.dc_address);
+	d_printf("%d\n", response.data.dsgetdcname.dc_address_type);
+	d_printf("%s\n", response.data.dsgetdcname.domain_guid);
+	d_printf("%s\n", response.data.dsgetdcname.domain_name);
+	d_printf("%s\n", response.data.dsgetdcname.forest_name);
+	d_printf("0x%08x\n", response.data.dsgetdcname.dc_flags);
+	d_printf("%s\n", response.data.dsgetdcname.dc_site_name);
+	d_printf("%s\n", response.data.dsgetdcname.client_site_name);
 
 	return true;
 }
@@ -730,6 +763,102 @@ static bool wbinfo_allocate_gid(void)
 	return true;
 }
 
+static bool wbinfo_set_uid_mapping(uid_t uid, const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcSetUidMapping(uid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("uid %d now mapped to sid %s\n", uid, sid_str);
+
+	return true;
+}
+
+static bool wbinfo_set_gid_mapping(gid_t gid, const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcSetGidMapping(gid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("gid %d now mapped to sid %s\n", gid, sid_str);
+
+	return true;
+}
+
+static bool wbinfo_remove_uid_mapping(uid_t uid, const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcRemoveUidMapping(uid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("Removed uid %d to sid %s mapping\n", uid, sid_str);
+
+	return true;
+}
+
+static bool wbinfo_remove_gid_mapping(gid_t gid, const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+
+	/* Send request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcRemoveGidMapping(gid, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("Removed gid %d to sid %s mapping\n", gid, sid_str);
+
+	return true;
+}
+
 /* Convert sid to string */
 
 static bool wbinfo_lookupsid(const char *sid_str)
@@ -748,6 +877,36 @@ static bool wbinfo_lookupsid(const char *sid_str)
 	}
 
 	wbc_status = wbcLookupSid(&sid, &domain, &name, &type);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	/* Display response */
+
+	d_printf("%s%c%s %d\n",
+		 domain, winbind_separator(), name, type);
+
+	return true;
+}
+
+/* Convert sid to fullname */
+
+static bool wbinfo_lookupsid_fullname(const char *sid_str)
+{
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	struct wbcDomainSid sid;
+	char *domain;
+	char *name;
+	enum wbcSidType type;
+
+	/* Send off request */
+
+	wbc_status = wbcStringToSid(sid_str, &sid);
+	if (!WBC_ERROR_IS_OK(wbc_status)) {
+		return false;
+	}
+
+	wbc_status = wbcGetDisplayName(&sid, &domain, &name, &type);
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
 		return false;
 	}
@@ -879,21 +1038,61 @@ static bool wbinfo_lookupname(const char *full_name)
 	return true;
 }
 
+static char *wbinfo_prompt_pass(const char *prefix,
+				const char *username)
+{
+	char *prompt;
+	const char *ret = NULL;
+
+	prompt = talloc_asprintf(talloc_tos(), "Enter %s's ", username);
+	if (!prompt) {
+		return NULL;
+	}
+	if (prefix) {
+		prompt = talloc_asprintf_append(prompt, "%s ", prefix);
+		if (!prompt) {
+			return NULL;
+		}
+	}
+	prompt = talloc_asprintf_append(prompt, "password: ");
+	if (!prompt) {
+		return NULL;
+	}
+
+	ret = getpass(prompt);
+	TALLOC_FREE(prompt);
+
+	return SMB_STRDUP(ret);
+}
+
 /* Authenticate a user with a plaintext password */
 
-static bool wbinfo_auth_krb5(char *username, const char *pass, const char *cctype, uint32 flags)
+static bool wbinfo_auth_krb5(char *username, const char *cctype, uint32 flags)
 {
 	struct winbindd_request request;
 	struct winbindd_response response;
 	NSS_STATUS result;
+	char *p;
+	char *password;
 
 	/* Send off request */
 
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	fstrcpy(request.data.auth.user, username);
-	fstrcpy(request.data.auth.pass, pass);
+	p = strchr(username, '%');
+
+	if (p) {
+		*p = 0;
+		fstrcpy(request.data.auth.user, username);
+		fstrcpy(request.data.auth.pass, p + 1);
+		*p = '%';
+	} else {
+		fstrcpy(request.data.auth.user, username);
+		password = wbinfo_prompt_pass(NULL, username);
+		fstrcpy(request.data.auth.pass, password);
+		SAFE_FREE(password);
+	}
 
 	request.flags = flags;
 
@@ -934,11 +1133,29 @@ static bool wbinfo_auth_krb5(char *username, const char *pass, const char *cctyp
 
 /* Authenticate a user with a plaintext password */
 
-static bool wbinfo_auth(char *username, const char *pass)
+static bool wbinfo_auth(char *username)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+	char *s = NULL;
+	char *p = NULL;
+	char *password = NULL;
+	char *name = NULL;
 
-	wbc_status = wbcAuthenticateUser(username, pass);
+	if ((s = SMB_STRDUP(username)) == NULL) {
+		return false;
+	}
+
+	if ((p = strchr(s, '%')) != NULL) {
+		*p = 0;
+		p++;
+		password = SMB_STRDUP(p);
+	} else {
+		password = wbinfo_prompt_pass(NULL, username);
+	}
+
+	name = s;
+
+	wbc_status = wbcAuthenticateUser(name, password);
 
 	d_printf("plaintext password authentication %s\n",
 		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
@@ -951,12 +1168,15 @@ static bool wbinfo_auth(char *username, const char *pass)
 			 response.data.auth.error_string);
 #endif
 
+	SAFE_FREE(s);
+	SAFE_FREE(password);
+
 	return WBC_ERROR_IS_OK(wbc_status);
 }
 
 /* Authenticate a user with a challenge/response */
 
-static bool wbinfo_auth_crap(char *username, const char *pass)
+static bool wbinfo_auth_crap(char *username)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcAuthUserParams params;
@@ -966,6 +1186,17 @@ static bool wbinfo_auth_crap(char *username, const char *pass)
 	DATA_BLOB nt = data_blob_null;
 	fstring name_user;
 	fstring name_domain;
+	char *pass;
+	char *p;
+
+	p = strchr(username, '%');
+
+	if (p) {
+		*p = 0;
+		pass = SMB_STRDUP(p + 1);
+	} else {
+		pass = wbinfo_prompt_pass(NULL, username);
+	}
 
 	parse_wbinfo_domain_user(username, name_domain, name_user);
 
@@ -995,6 +1226,7 @@ static bool wbinfo_auth_crap(char *username, const char *pass)
 				      &lm, &nt, NULL)) {
 			data_blob_free(&names_blob);
 			data_blob_free(&server_chal);
+			SAFE_FREE(pass);
 			return false;
 		}
 		data_blob_free(&names_blob);
@@ -1039,6 +1271,7 @@ static bool wbinfo_auth_crap(char *username, const char *pass)
 
 	data_blob_free(&nt);
 	data_blob_free(&lm);
+	SAFE_FREE(pass);
 
 	return WBC_ERROR_IS_OK(wbc_status);
 }
@@ -1267,6 +1500,28 @@ static bool wbinfo_ping(void)
 	return WBC_ERROR_IS_OK(wbc_status);
 }
 
+static bool wbinfo_change_user_password(const char *username)
+{
+	wbcErr wbc_status;
+	char *old_password = NULL;
+	char *new_password = NULL;
+
+	old_password = wbinfo_prompt_pass("old", username);
+	new_password = wbinfo_prompt_pass("new", username);
+
+	wbc_status = wbcChangeUserPassword(username, old_password, new_password);
+
+	/* Display response */
+
+	d_printf("Password change for user %s %s\n", username,
+		WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
+
+	SAFE_FREE(old_password);
+	SAFE_FREE(new_password);
+
+	return WBC_ERROR_IS_OK(wbc_status);
+}
+
 /* Main program */
 
 enum {
@@ -1280,13 +1535,19 @@ enum {
 	OPT_USERSIDS,
 	OPT_ALLOCATE_UID,
 	OPT_ALLOCATE_GID,
+	OPT_SET_UID_MAPPING,
+	OPT_SET_GID_MAPPING,
+	OPT_REMOVE_UID_MAPPING,
+	OPT_REMOVE_GID_MAPPING,
 	OPT_SEPARATOR,
 	OPT_LIST_ALL_DOMAINS,
 	OPT_LIST_OWN_DOMAIN,
 	OPT_UID_INFO,
 	OPT_GROUP_INFO,
 	OPT_VERBOSE,
-	OPT_ONLINESTATUS
+	OPT_ONLINESTATUS,
+	OPT_CHANGE_USER_PASSWORD,
+	OPT_SID_TO_FULLNAME
 };
 
 int main(int argc, char **argv, char **envp)
@@ -1295,8 +1556,10 @@ int main(int argc, char **argv, char **envp)
 	TALLOC_CTX *frame = talloc_stackframe();
 	poptContext pc;
 	static char *string_arg;
+	char *string_subarg = NULL;
 	static char *opt_domain_name;
 	static int int_arg;
+	int int_subarg = -1;
 	int result = 1;
 	bool verbose = false;
 
@@ -1312,6 +1575,8 @@ int main(int argc, char **argv, char **envp)
 		{ "WINS-by-ip", 'I', POPT_ARG_STRING, &string_arg, 'I', "Converts IP address to NetBIOS name", "IP" },
 		{ "name-to-sid", 'n', POPT_ARG_STRING, &string_arg, 'n', "Converts name to sid", "NAME" },
 		{ "sid-to-name", 's', POPT_ARG_STRING, &string_arg, 's', "Converts sid to name", "SID" },
+		{ "sid-to-fullname", 0, POPT_ARG_STRING, &string_arg,
+		  OPT_SID_TO_FULLNAME, "Converts sid to fullname", "SID" },
 		{ "lookup-rids", 'R', POPT_ARG_STRING, &string_arg, 'R', "Converts RIDs to names", "RIDs" },
 		{ "uid-to-sid", 'U', POPT_ARG_INT, &int_arg, 'U', "Converts uid to sid" , "UID" },
 		{ "gid-to-sid", 'G', POPT_ARG_INT, &int_arg, 'G', "Converts gid to sid", "GID" },
@@ -1321,6 +1586,10 @@ int main(int argc, char **argv, char **envp)
 		  "Get a new UID out of idmap" },
 		{ "allocate-gid", 0, POPT_ARG_NONE, 0, OPT_ALLOCATE_GID,
 		  "Get a new GID out of idmap" },
+		{ "set-uid-mapping", 0, POPT_ARG_STRING, &string_arg, OPT_SET_UID_MAPPING, "Create or modify uid to sid mapping in idmap", "UID,SID" },
+		{ "set-gid-mapping", 0, POPT_ARG_STRING, &string_arg, OPT_SET_GID_MAPPING, "Create or modify gid to sid mapping in idmap", "GID,SID" },
+		{ "remove-uid-mapping", 0, POPT_ARG_STRING, &string_arg, OPT_REMOVE_UID_MAPPING, "Remove uid to sid mapping in idmap", "UID,SID" },
+		{ "remove-gid-mapping", 0, POPT_ARG_STRING, &string_arg, OPT_REMOVE_GID_MAPPING, "Remove gid to sid mapping in idmap", "GID,SID" },
 		{ "check-secret", 't', POPT_ARG_NONE, 0, 't', "Check shared secret" },
 		{ "trusted-domains", 'm', POPT_ARG_NONE, 0, 'm', "List trusted domains" },
 		{ "all-domains", 0, POPT_ARG_NONE, 0, OPT_LIST_ALL_DOMAINS, "List all domains (trusted and own domain)" },
@@ -1335,7 +1604,7 @@ int main(int argc, char **argv, char **envp)
 		{ "user-domgroups", 0, POPT_ARG_STRING, &string_arg,
 		  OPT_USERDOMGROUPS, "Get user domain groups", "SID" },
 		{ "user-sids", 0, POPT_ARG_STRING, &string_arg, OPT_USERSIDS, "Get user group sids for user SID", "SID" },
- 		{ "authenticate", 'a', POPT_ARG_STRING, &string_arg, 'a', "authenticate user", "user%password" },
+		{ "authenticate", 'a', POPT_ARG_STRING, &string_arg, 'a', "authenticate user", "user%password" },
 		{ "set-auth-user", 0, POPT_ARG_STRING, &string_arg, OPT_SET_AUTH_USER, "Store user and password used by winbindd (root only)", "user%password" },
 		{ "getdcname", 0, POPT_ARG_STRING, &string_arg, OPT_GETDCNAME,
 		  "Get a DC name for a foreign domain", "domainname" },
@@ -1344,7 +1613,7 @@ int main(int argc, char **argv, char **envp)
 		{ "ping", 'p', POPT_ARG_NONE, 0, 'p', "Ping winbindd to see if it is alive" },
 		{ "domain", 0, POPT_ARG_STRING, &opt_domain_name, OPT_DOMAIN_NAME, "Define to the domain to restrict operation", "domain" },
 #ifdef WITH_FAKE_KASERVER
- 		{ "klog", 'k', POPT_ARG_STRING, &string_arg, 'k', "set an AFS token from winbind", "user%password" },
+		{ "klog", 'k', POPT_ARG_STRING, &string_arg, 'k', "set an AFS token from winbind", "user%password" },
 #endif
 #ifdef HAVE_KRB5
 		{ "krb5auth", 'K', POPT_ARG_STRING, &string_arg, 'K', "authenticate user using Kerberos", "user%password" },
@@ -1353,6 +1622,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 		{ "separator", 0, POPT_ARG_NONE, 0, OPT_SEPARATOR, "Get the active winbind separator", NULL },
 		{ "verbose", 0, POPT_ARG_NONE, 0, OPT_VERBOSE, "Print additional information per command", NULL },
+		{ "change-user-password", 0, POPT_ARG_STRING, &string_arg, OPT_CHANGE_USER_PASSWORD, "Change the password for a user", NULL },
 		POPT_COMMON_CONFIGFILE
 		POPT_COMMON_VERSION
 		POPT_TABLEEND
@@ -1395,7 +1665,7 @@ int main(int argc, char **argv, char **envp)
 
 	load_interfaces();
 
-	pc = poptGetContext(NULL, argc, (const char **)argv, long_options, 
+	pc = poptGetContext(NULL, argc, (const char **)argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);
 
 	while((opt = poptGetNextOpt(pc)) != -1) {
@@ -1415,6 +1685,13 @@ int main(int argc, char **argv, char **envp)
 		case 's':
 			if (!wbinfo_lookupsid(string_arg)) {
 				d_fprintf(stderr, "Could not lookup sid %s\n", string_arg);
+				goto done;
+			}
+			break;
+		case OPT_SID_TO_FULLNAME:
+			if (!wbinfo_lookupsid_fullname(string_arg)) {
+				d_fprintf(stderr, "Could not lookup sid %s\n",
+					  string_arg);
 				goto done;
 			}
 			break;
@@ -1478,6 +1755,48 @@ int main(int argc, char **argv, char **envp)
 		case OPT_ALLOCATE_GID:
 			if (!wbinfo_allocate_gid()) {
 				d_fprintf(stderr, "Could not allocate a gid\n");
+				goto done;
+			}
+			break;
+		case OPT_SET_UID_MAPPING:
+			if (!parse_mapping_arg(string_arg, &int_subarg,
+				&string_subarg) ||
+			    !wbinfo_set_uid_mapping(int_subarg, string_subarg))
+			{
+				d_fprintf(stderr, "Could not create or modify "
+					  "uid to sid mapping\n");
+				goto done;
+			}
+			break;
+		case OPT_SET_GID_MAPPING:
+			if (!parse_mapping_arg(string_arg, &int_subarg,
+			        &string_subarg) ||
+			    !wbinfo_set_gid_mapping(int_subarg, string_subarg))
+			{
+				d_fprintf(stderr, "Could not create or modify "
+					  "gid to sid mapping\n");
+				goto done;
+			}
+			break;
+		case OPT_REMOVE_UID_MAPPING:
+			if (!parse_mapping_arg(string_arg, &int_subarg,
+				&string_subarg) ||
+			    !wbinfo_remove_uid_mapping(int_subarg,
+				string_subarg))
+			{
+				d_fprintf(stderr, "Could not remove uid to sid "
+				    "mapping\n");
+				goto done;
+			}
+			break;
+		case OPT_REMOVE_GID_MAPPING:
+			if (!parse_mapping_arg(string_arg, &int_subarg,
+			        &string_subarg) ||
+			    !wbinfo_remove_gid_mapping(int_subarg,
+			        string_subarg))
+			{
+				d_fprintf(stderr, "Could not remove gid to sid "
+				    "mapping\n");
 				goto done;
 			}
 			break;
@@ -1555,22 +1874,14 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'a': {
 				bool got_error = false;
-				char *pass;
 
-				if ((pass = strchr(string_arg, '%')) != NULL) {
-					*pass = 0;
-					pass++;
-				} else {
-					pass = (char *)"";
-				}
-
-				if (!wbinfo_auth(string_arg, pass)) {
+				if (!wbinfo_auth(string_arg)) {
 					d_fprintf(stderr, "Could not authenticate user %s with "
 						"plaintext password\n", string_arg);
 					got_error = true;
 				}
 
-				if (!wbinfo_auth_crap(string_arg, pass)) {
+				if (!wbinfo_auth_crap(string_arg)) {
 					d_fprintf(stderr, "Could not authenticate user %s with "
 						"challenge/response\n", string_arg);
 					got_error = true;
@@ -1585,16 +1896,8 @@ int main(int argc, char **argv, char **envp)
 						WBFLAG_PAM_CACHED_LOGIN |
 						WBFLAG_PAM_FALLBACK_AFTER_KRB5 |
 						WBFLAG_PAM_INFO3_TEXT;
-				char *pass;
 
-				if ((pass = strchr(string_arg, '%')) != NULL) {
-					*pass = 0;
-					pass++;
-				} else {
-					pass = (char *)"";
-				}
-
-				if (!wbinfo_auth_krb5(string_arg, pass, "FILE", flags)) {
+				if (!wbinfo_auth_krb5(string_arg, "FILE", flags)) {
 					d_fprintf(stderr, "Could not authenticate user [%s] with "
 						"Kerberos (ccache: %s)\n", string_arg, "FILE");
 					goto done;
@@ -1649,6 +1952,14 @@ int main(int argc, char **argv, char **envp)
 				goto done;
 			}
 			break;
+		case OPT_CHANGE_USER_PASSWORD:
+			if (!wbinfo_change_user_password(string_arg)) {
+				d_fprintf(stderr, "Could not change user password "
+					 "for user %s\n", string_arg);
+				goto done;
+			}
+			break;
+
 		/* generic configuration options */
 		case OPT_DOMAIN_NAME:
 			break;

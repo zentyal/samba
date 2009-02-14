@@ -30,15 +30,15 @@ static enum tree_level level = LEV_SHARE;
 
 /* Holds a list of workgroups or servers */
 
-struct name_list {
-        struct name_list *prev, *next;
+struct smb_name_list {
+        struct smb_name_list *prev, *next;
         char *name, *comment;
         uint32 server_type;
 };
 
-static struct name_list *workgroups, *servers, *shares;
+static struct smb_name_list *workgroups, *servers, *shares;
 
-static void free_name_list(struct name_list *list)
+static void free_name_list(struct smb_name_list *list)
 {
         while(list)
                 DLIST_REMOVE(list, list);
@@ -47,10 +47,10 @@ static void free_name_list(struct name_list *list)
 static void add_name(const char *machine_name, uint32 server_type,
                      const char *comment, void *state)
 {
-        struct name_list **name_list = (struct name_list **)state;
-        struct name_list *new_name;
+        struct smb_name_list **name_list = (struct smb_name_list **)state;
+        struct smb_name_list *new_name;
 
-        new_name = SMB_MALLOC_P(struct name_list);
+        new_name = SMB_MALLOC_P(struct smb_name_list);
 
         if (!new_name)
                 return;
@@ -163,9 +163,10 @@ static bool get_rpc_shares(struct cli_state *cli,
 		return False;
 	}
 
-	pipe_hnd = cli_rpc_pipe_open_noauth(cli, PI_SRVSVC, &status);
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
+					  &pipe_hnd);
 
-	if (pipe_hnd == NULL) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("Could not connect to srvsvc pipe: %s\n",
 			   nt_errstr(status)));
 		TALLOC_FREE(mem_ctx);
@@ -179,7 +180,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 	info_ctr.ctr.ctr1 = &ctr1;
 
 	status = rpccli_srvsvc_NetShareEnumAll(pipe_hnd, mem_ctx,
-					       pipe_hnd->cli->desthost,
+					       pipe_hnd->desthost,
 					       &info_ctr,
 					       0xffffffff,
 					       &total_entries,
@@ -188,7 +189,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 
 	if (!NT_STATUS_IS_OK(status) || !W_ERROR_IS_OK(werr)) {
 		TALLOC_FREE(mem_ctx);
-		cli_rpc_pipe_close(pipe_hnd);
+		TALLOC_FREE(pipe_hnd);
 		return False;
 	}
 
@@ -198,7 +199,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 	}
 
 	TALLOC_FREE(mem_ctx);
-	cli_rpc_pipe_close(pipe_hnd);
+	TALLOC_FREE(pipe_hnd);
 	return True;
 }
 
@@ -221,7 +222,7 @@ static bool get_shares(char *server_name, struct user_auth_info *user_info)
 
 static bool print_tree(struct user_auth_info *user_info)
 {
-        struct name_list *wg, *sv, *sh;
+        struct smb_name_list *wg, *sv, *sh;
 
         /* List workgroups */
 

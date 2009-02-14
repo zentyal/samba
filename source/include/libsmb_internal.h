@@ -113,18 +113,19 @@ struct SMBC_internal_data {
 	/* True when this handle is initialized */
 	bool                                    initialized;
 
-        /* dirent pointer location
-         *
+        /* dirent pointer location */
+	struct smbc_dirent			dirent;
+	/*
          * Leave room for any urlencoded filename and the comment field.
          *
-         * We really should use sizeof(struct smbc_dirent) plus (NAME_MAX * 3)
-         * plus whatever the max length of a comment is, plus a couple of null
-         * terminators (one after the filename, one after the comment).
+	 * We use (NAME_MAX * 3) plus whatever the max length of a comment is,
+	 * plus a couple of null terminators (one after the filename,
+	 * one after the comment).
          *
          * According to <linux/limits.h>, NAME_MAX is 255.  Is it longer
          * anyplace else?
          */
-	char                                    dirent[1024];
+	char                                    _dirent_name[1024];
 
 	/*
          * server connection list
@@ -174,6 +175,11 @@ struct SMBC_internal_data {
          * encryption requested, set to 2 if encryption required.
          */
         smbc_smb_encrypt_level                  smb_encryption_level;
+
+        /*
+         * Should we request case sensitivity of file names?
+         */
+        bool                                    case_sensitive;
 
         struct smbc_server_cache * server_cache;
 
@@ -346,7 +352,7 @@ SMBC_read_ctx(SMBCCTX *context,
 ssize_t
 SMBC_write_ctx(SMBCCTX *context,
                SMBCFILE *file,
-               void *buf,
+               const void *buf,
                size_t count);
 
 int
@@ -395,16 +401,6 @@ SMBC_errno(SMBCCTX *context,
 
 
 /* Functions in libsmb_path.c */
-int
-SMBC_urldecode(char *dest,
-               char *src,
-               size_t max_dest_len);
-
-int
-SMBC_urlencode(char *dest,
-               char *src,
-               int max_dest_len);
-
 int
 SMBC_parse_path(TALLOC_CTX *ctx,
 		SMBCCTX *context,

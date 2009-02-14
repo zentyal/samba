@@ -366,7 +366,7 @@ static void lookupname_recv(TALLOC_CTX *mem_ctx, bool success,
 
 /********************************************************************
  The lookup name call first contacts a DC in its own domain
- and fallbacks to contact a DC in the forest in our domain doesn't
+ and fallbacks to contact a DC if the forest in our domain doesn't
  know the name.
 ********************************************************************/
 
@@ -468,7 +468,7 @@ static void listent_recv(TALLOC_CTX *mem_ctx, bool success,
 	}
 
 	cont(private_data, True, response->data.name.dom_name,
-	     response->extra_data.data);
+	     (char *)response->extra_data.data);
 
 	SAFE_FREE(response->extra_data.data);
 }

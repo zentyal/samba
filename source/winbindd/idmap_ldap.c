@@ -33,6 +33,29 @@
 
 #include "smbldap.h"
 
+static char *idmap_fetch_secret(const char *backend, bool alloc,
+				const char *domain, const char *identity)
+{
+	char *tmp, *ret;
+	int r;
+
+	if (alloc) {
+		r = asprintf(&tmp, "IDMAP_ALLOC_%s", backend);
+	} else {
+		r = asprintf(&tmp, "IDMAP_%s_%s", backend, domain);
+	}
+
+	if (r < 0)
+		return NULL;
+
+	strupper_m(tmp); /* make sure the key is case insensitive */
+	ret = secrets_fetch_generic(tmp, identity);
+
+	SAFE_FREE(tmp);
+
+	return ret;
+}
+
 struct idmap_ldap_context {
 	struct smbldap_state *smbldap_state;
 	char *url;
@@ -223,7 +246,6 @@ done:
 static NTSTATUS idmap_ldap_alloc_init(const char *params)
 {
 	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
-	const char *range;
 	const char *tmp;
 	uid_t low_uid = 0;
 	uid_t high_uid = 0;
@@ -240,50 +262,27 @@ static NTSTATUS idmap_ldap_alloc_init(const char *params)
 
 	/* load ranges */
 
-	idmap_alloc_ldap->low_uid = 0;
-	idmap_alloc_ldap->high_uid = 0;
-	idmap_alloc_ldap->low_gid = 0;
-	idmap_alloc_ldap->high_gid = 0;
-
-	range = lp_parm_const_string(-1, "idmap alloc config", "range", NULL);
-	if (range && range[0]) {
-		unsigned low_id, high_id;
-
-		if (sscanf(range, "%u - %u", &low_id, &high_id) == 2) {
-			if (low_id < high_id) {
-				idmap_alloc_ldap->low_gid = low_id;
-				idmap_alloc_ldap->low_uid = low_id;
-				idmap_alloc_ldap->high_gid = high_id;
-				idmap_alloc_ldap->high_uid = high_id;
-			} else {
-				DEBUG(1, ("ERROR: invalid idmap alloc range "
-					  "[%s]", range));
-			}
-		} else {
-			DEBUG(1, ("ERROR: invalid syntax for idmap alloc "
-				  "config:range [%s]", range));
-		}
+	if (!lp_idmap_uid(&low_uid, &high_uid)
+	    || !lp_idmap_gid(&low_gid, &high_gid)) {
+		DEBUG(1, ("idmap uid or idmap gid missing\n"));
+		ret = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 
-	if (lp_idmap_uid(&low_uid, &high_uid)) {
-		idmap_alloc_ldap->low_uid = low_uid;
-		idmap_alloc_ldap->high_uid = high_uid;
-	}
-
-	if (lp_idmap_gid(&low_gid, &high_gid)) {
-		idmap_alloc_ldap->low_gid = low_gid;
-		idmap_alloc_ldap->high_gid= high_gid;
-	}
+	idmap_alloc_ldap->low_uid = low_uid;
+	idmap_alloc_ldap->high_uid = high_uid;
+	idmap_alloc_ldap->low_gid = low_gid;
+	idmap_alloc_ldap->high_gid= high_gid;
 
 	if (idmap_alloc_ldap->high_uid <= idmap_alloc_ldap->low_uid) {
-		DEBUG(1, ("idmap uid range missing or invalid\n"));
+		DEBUG(1, ("idmap uid range invalid\n"));
 		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
 		ret = NT_STATUS_UNSUCCESSFUL;
 		goto done;
 	}
 
 	if (idmap_alloc_ldap->high_gid <= idmap_alloc_ldap->low_gid) {
-		DEBUG(1, ("idmap gid range missing or invalid\n"));
+		DEBUG(1, ("idmap gid range invalid\n"));
 		DEBUGADD(1, ("idmap will be unable to map foreign SIDs\n"));
 		ret = NT_STATUS_UNSUCCESSFUL;
 		goto done;
@@ -760,7 +759,8 @@ static int idmap_ldap_close_destructor(struct idmap_ldap_context *ctx)
  Initialise idmap database.
 ********************************/
 
-static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
+static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
+				   const char *params)
 {
 	NTSTATUS ret;
 	struct idmap_ldap_context *ctx = NULL;
@@ -798,9 +798,9 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 		}
 	}
 
-	if (dom->params && *(dom->params)) {
+	if (params != NULL) {
 		/* assume location is the only parameter */
-		ctx->url = talloc_strdup(ctx, dom->params);
+		ctx->url = talloc_strdup(ctx, params);
 	} else {
 		tmp = lp_parm_const_string(-1, config_option, "ldap_url", NULL);
 
@@ -848,7 +848,6 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 	talloc_set_destructor(ctx, idmap_ldap_close_destructor);
 
 	dom->private_data = ctx;
-	dom->initialized = True;
 
 	talloc_free(config_option);
 	return NT_STATUS_OK;
@@ -907,14 +906,6 @@ static NTSTATUS idmap_ldap_unixids_to_sids(struct idmap_domain *dom,
 	/* Only do query if we are online */
 	if (idmap_is_offline())	{
 		return NT_STATUS_FILE_IS_OFFLINE;
-	}
-
-	/* Initilization my have been deferred because we were offline */
-	if ( ! dom->initialized) {
-		ret = idmap_ldap_db_init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			return ret;
-		}
 	}
 
 	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
@@ -1138,14 +1129,6 @@ static NTSTATUS idmap_ldap_sids_to_unixids(struct idmap_domain *dom,
 		return NT_STATUS_FILE_IS_OFFLINE;
 	}
 
-	/* Initilization my have been deferred because we were offline */
-	if ( ! dom->initialized) {
-		ret = idmap_ldap_db_init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			return ret;
-		}
-	}
-
 	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
 
 	memctx = talloc_new(ctx);
@@ -1350,14 +1333,6 @@ static NTSTATUS idmap_ldap_set_mapping(struct idmap_domain *dom,
 		return NT_STATUS_FILE_IS_OFFLINE;
 	}
 
-	/* Initilization my have been deferred because we were offline */
-	if ( ! dom->initialized) {
-		ret = idmap_ldap_db_init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			return ret;
-		}
-	}
-
 	ctx = talloc_get_type(dom->private_data, struct idmap_ldap_context);
 
 	switch(map->xid.type) {
@@ -1482,12 +1457,13 @@ static struct idmap_alloc_methods idmap_ldap_alloc_methods = {
 	/* .dump_data = TODO */
 };
 
-NTSTATUS idmap_alloc_ldap_init(void)
+static NTSTATUS idmap_alloc_ldap_init(void)
 {
 	return smb_register_idmap_alloc(SMB_IDMAP_INTERFACE_VERSION, "ldap",
 					&idmap_ldap_alloc_methods);
 }
 
+NTSTATUS idmap_ldap_init(void);
 NTSTATUS idmap_ldap_init(void)
 {
 	NTSTATUS ret;

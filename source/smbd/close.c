@@ -67,10 +67,20 @@ static void check_magic(struct files_struct *fsp)
 		return;
 	}
 
-	chmod(fsp->fsp_name,0755);
-	ret = smbrun(fsp->fsp_name,&tmp_fd);
+	/* Ensure we don't depend on user's PATH. */
+	p = talloc_asprintf(ctx, "./%s", fsp->fsp_name);
+	if (!p) {
+		TALLOC_FREE(ctx);
+		return;
+	}
+
+	if (chmod(fsp->fsp_name,0755) == -1) {
+		TALLOC_FREE(ctx);
+		return;
+	}
+	ret = smbrun(p,&tmp_fd);
 	DEBUG(3,("Invoking magic command %s gave %d\n",
-		fsp->fsp_name,ret));
+		p,ret));
 
 	unlink(fsp->fsp_name);
 	if (ret != 0 || tmp_fd == -1) {
@@ -106,8 +116,7 @@ static void check_magic(struct files_struct *fsp)
 static NTSTATUS close_filestruct(files_struct *fsp)
 {
 	NTSTATUS status = NT_STATUS_OK;
-	connection_struct *conn = fsp->conn;
-    
+
 	if (fsp->fh->fd != -1) {
 		if(flush_write_cache(fsp, CLOSE_FLUSH) == -1) {
 			status = map_nt_error_from_unix(errno);
@@ -115,9 +124,8 @@ static NTSTATUS close_filestruct(files_struct *fsp)
 		delete_write_cache(fsp);
 	}
 
-	conn->num_files_open--;
 	return status;
-}    
+}
 
 /****************************************************************************
  If any deferred opens are waiting on this close, notify them.
@@ -581,8 +589,8 @@ static NTSTATUS close_normal_file(files_struct *fsp, enum file_close_type close_
 	}
 
 	DEBUG(2,("%s closed file %s (numopen=%d) %s\n",
-		conn->user,fsp->fsp_name,
-		conn->num_files_open,
+		conn->server_info->unix_name,fsp->fsp_name,
+		conn->num_files_open - 1,
 		nt_errstr(status) ));
 
 	file_free(fsp);
@@ -703,20 +711,6 @@ static NTSTATUS close_directory(files_struct *fsp, enum file_close_type close_ty
 }
 
 /****************************************************************************
- Close a 'stat file' opened internally.
-****************************************************************************/
-  
-static NTSTATUS close_stat(files_struct *fsp)
-{
-	/*
-	 * Do the code common to files and directories.
-	 */
-	close_filestruct(fsp);
-	file_free(fsp);
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
  Close a files_struct.
 ****************************************************************************/
   
@@ -727,8 +721,6 @@ NTSTATUS close_file(files_struct *fsp, enum file_close_type close_type)
 
 	if(fsp->is_directory) {
 		status = close_directory(fsp, close_type);
-	} else if (fsp->is_stat) {
-		status = close_stat(fsp);
 	} else if (fsp->fake_file_handle != NULL) {
 		status = close_fake_file(fsp);
 	} else {

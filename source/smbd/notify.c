@@ -114,6 +114,9 @@ static bool notify_marshall_changes(int num_changes,
 
 		if (prs_offset(ps) > max_offset) {
 			/* Too much data for client. */
+			DEBUG(10, ("Client only wanted %d bytes, trying to "
+				   "marshall %d bytes\n", (int)max_offset,
+				   (int)prs_offset(ps)));
 			return False;
 		}
 	}
@@ -256,6 +259,9 @@ NTSTATUS change_notify_add_request(const struct smb_request *req,
 	struct notify_change_request *request = NULL;
 	struct notify_mid_map *map = NULL;
 
+	DEBUG(10, ("change_notify_add_request: Adding request for %s: "
+		   "max_param = %d\n", fsp->fsp_name, (int)max_param));
+
 	if (!(request = SMB_MALLOC_P(struct notify_change_request))
 	    || !(map = SMB_MALLOC_P(struct notify_mid_map))) {
 		SAFE_FREE(request);
@@ -359,6 +365,9 @@ void notify_fname(connection_struct *conn, uint32 action, uint32 filter,
 {
 	char *fullpath;
 
+	if (path[0] == '.' && path[1] == '/') {
+		path += 2;
+	}
 	if (asprintf(&fullpath, "%s/%s", conn->connectpath, path) == -1) {
 		DEBUG(0, ("asprintf failed\n"));
 		return;

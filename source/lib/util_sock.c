@@ -234,7 +234,7 @@ bool interpret_string_addr(struct sockaddr_storage *pss,
 	}
 #endif
 
-	zero_addr(pss);
+	zero_sockaddr(pss);
 
 	if (!interpret_string_addr_internal(&res, str, flags|AI_ADDRCONFIG)) {
 		return false;
@@ -334,7 +334,7 @@ void zero_ip_v4(struct in_addr *ip)
  Set an address to INADDR_ANY.
 ******************************************************************/
 
-void zero_addr(struct sockaddr_storage *pss)
+void zero_sockaddr(struct sockaddr_storage *pss)
 {
 	memset(pss, '\0', sizeof(*pss));
 	/* Ensure we're at least a valid sockaddr-storage. */
@@ -429,8 +429,8 @@ bool same_net(const struct sockaddr_storage *ip1,
  Are two sockaddr_storage's the same family and address ? Ignore port etc.
 ********************************************************************/
 
-bool addr_equal(const struct sockaddr_storage *ip1,
-		const struct sockaddr_storage *ip2)
+bool sockaddr_equal(const struct sockaddr_storage *ip1,
+		    const struct sockaddr_storage *ip2)
 {
 	if (ip1->ss_family != ip2->ss_family) {
 		/* Never the same. */
@@ -1037,40 +1037,109 @@ NTSTATUS read_data(int fd, char *buffer, size_t N)
 }
 
 /****************************************************************************
+ Write all data from an iov array
+****************************************************************************/
+
+ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
+{
+	int i;
+	size_t to_send;
+	ssize_t thistime;
+	size_t sent;
+	struct iovec *iov_copy, *iov;
+
+	to_send = 0;
+	for (i=0; i<iovcnt; i++) {
+		to_send += orig_iov[i].iov_len;
+	}
+
+	thistime = sys_writev(fd, orig_iov, iovcnt);
+	if ((thistime <= 0) || (thistime == to_send)) {
+		return thistime;
+	}
+	sent = thistime;
+
+	/*
+	 * We could not send everything in one call. Make a copy of iov that
+	 * we can mess with. We keep a copy of the array start in iov_copy for
+	 * the TALLOC_FREE, because we're going to modify iov later on,
+	 * discarding elements.
+	 */
+
+	iov_copy = (struct iovec *)TALLOC_MEMDUP(
+		talloc_tos(), orig_iov, sizeof(struct iovec) * iovcnt);
+
+	if (iov_copy == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+	iov = iov_copy;
+
+	while (sent < to_send) {
+		/*
+		 * We have to discard "thistime" bytes from the beginning
+		 * iov array, "thistime" contains the number of bytes sent
+		 * via writev last.
+		 */
+		while (thistime > 0) {
+			if (thistime < iov[0].iov_len) {
+				char *new_base =
+					(char *)iov[0].iov_base + thistime;
+				iov[0].iov_base = new_base;
+				iov[0].iov_len -= thistime;
+				break;
+			}
+			thistime -= iov[0].iov_len;
+			iov += 1;
+			iovcnt -= 1;
+		}
+
+		thistime = sys_writev(fd, iov, iovcnt);
+		if (thistime <= 0) {
+			break;
+		}
+		sent += thistime;
+	}
+
+	TALLOC_FREE(iov_copy);
+	return sent;
+}
+
+/****************************************************************************
+ Write data to a fd.
+****************************************************************************/
+
+/****************************************************************************
  Write data to a fd.
 ****************************************************************************/
 
 ssize_t write_data(int fd, const char *buffer, size_t N)
 {
-	size_t total=0;
 	ssize_t ret;
-	char addr[INET6_ADDRSTRLEN];
+	struct iovec iov;
 
-	while (total < N) {
-		ret = sys_write(fd,buffer + total,N - total);
+	iov.iov_base = CONST_DISCARD(char *, buffer);
+	iov.iov_len = N;
 
-		if (ret == -1) {
-			if (fd == get_client_fd()) {
-				/* Try and give an error message saying
-				 * what client failed. */
-				DEBUG(0,("write_data: write failure in "
-					"writing to client %s. Error %s\n",
-					get_peer_addr(fd,addr,sizeof(addr)),
-					strerror(errno) ));
-			} else {
-				DEBUG(0,("write_data: write failure. "
-					"Error = %s\n", strerror(errno) ));
-			}
-			return -1;
-		}
-
-		if (ret == 0) {
-			return total;
-		}
-
-		total += ret;
+	ret = write_data_iov(fd, &iov, 1);
+	if (ret >= 0) {
+		return ret;
 	}
-	return (ssize_t)total;
+
+	if (fd == get_client_fd()) {
+		char addr[INET6_ADDRSTRLEN];
+		/*
+		 * Try and give an error message saying what client failed.
+		 */
+		DEBUG(0, ("write_data: write failure in writing to client %s. "
+			  "Error %s\n", get_peer_addr(fd,addr,sizeof(addr)),
+			  strerror(errno)));
+	} else {
+		DEBUG(0,("write_data: write failure. Error = %s\n",
+			 strerror(errno) ));
+	}
+
+	return -1;
 }
 
 /****************************************************************************
@@ -1659,7 +1728,7 @@ static bool matchname(const char *remotehost,
 		if (!res->ai_addr) {
 			continue;
 		}
-		if (addr_equal((const struct sockaddr_storage *)res->ai_addr,
+		if (sockaddr_equal((const struct sockaddr_storage *)res->ai_addr,
 					pss)) {
 			freeaddrinfo(ailist);
 			return true;
@@ -1772,7 +1841,7 @@ const char *get_peer_name(int fd, bool force_lookup)
 	p = get_peer_addr_internal(fd, addr_buf, sizeof(addr_buf), &ss, &length);
 
 	/* it might be the same as the last one - save some DNS work */
-	if (addr_equal(&ss, &nc.ss)) {
+	if (sockaddr_equal(&ss, &nc.ss)) {
 		return nc.name ? nc.name : "UNKNOWN";
 	}
 
@@ -2011,6 +2080,7 @@ const char *get_mydnsfullname(void)
 bool is_myname_or_ipaddr(const char *s)
 {
 	TALLOC_CTX *ctx = talloc_tos();
+	char addr[INET6_ADDRSTRLEN];
 	char *name = NULL;
 	const char *dnsname;
 	char *servername = NULL;
@@ -2062,11 +2132,11 @@ bool is_myname_or_ipaddr(const char *s)
 	if (!is_ipaddress(servername)) {
 		/* Use DNS to resolve the name, but only the first address */
 		struct sockaddr_storage ss;
-		if (interpret_string_addr(&ss, servername,0)) {
-			print_sockaddr(name,
-					sizeof(name),
+		if (interpret_string_addr(&ss, servername, 0)) {
+			print_sockaddr(addr,
+					sizeof(addr),
 					&ss);
-			servername = name;
+			servername = addr;
 		}
 	}
 
@@ -2091,7 +2161,7 @@ bool is_myname_or_ipaddr(const char *s)
 		}
 		n = get_interfaces(nics, MAX_INTERFACES);
 		for (i=0; i<n; i++) {
-			if (addr_equal(&nics[i].ip, &ss)) {
+			if (sockaddr_equal(&nics[i].ip, &ss)) {
 				TALLOC_FREE(nics);
 				return true;
 			}

@@ -1437,12 +1437,12 @@ char *talloc_strndup_append_buffer(char *s, const char *a, size_t n)
 #endif
 
 char *talloc_vasprintf(const void *t, const char *fmt, va_list ap)
-{	
+{
 	int len;
 	char *ret;
 	va_list ap2;
 	char c;
-	
+
 	/* this call looks strange, but it makes it work on older solaris boxes */
 	va_copy(ap2, ap);
 	len = vsnprintf(&c, 1, fmt, ap2);

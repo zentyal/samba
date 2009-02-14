@@ -131,23 +131,7 @@ static bool api_svcctl_query_service_status_ex(pipes_struct *p)
 
 static bool api_svcctl_enum_dependent_services(pipes_struct *p)
 {
-	SVCCTL_Q_ENUM_DEPENDENT_SERVICES q_u;
-	SVCCTL_R_ENUM_DEPENDENT_SERVICES r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!svcctl_io_q_enum_dependent_services("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _svcctl_enum_dependent_services(p, &q_u, &r_u);
-
-	if(!svcctl_io_r_enum_dependent_services("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_svcctl_call(p, NDR_SVCCTL_ENUMDEPENDENTSERVICESW);
 }
 
 /*******************************************************************
@@ -171,23 +155,7 @@ static bool api_svcctl_control_service(pipes_struct *p)
 
 static bool api_svcctl_query_service_config(pipes_struct *p)
 {
-	SVCCTL_Q_QUERY_SERVICE_CONFIG q_u;
-	SVCCTL_R_QUERY_SERVICE_CONFIG r_u;
-	prs_struct *data = &p->in_data.data;
-	prs_struct *rdata = &p->out_data.rdata;
-
-	ZERO_STRUCT(q_u);
-	ZERO_STRUCT(r_u);
-
-	if(!svcctl_io_q_query_service_config("", &q_u, data, 0))
-		return False;
-
-	r_u.status = _svcctl_query_service_config(p, &q_u, &r_u);
-
-	if(!svcctl_io_r_query_service_config("", &r_u, rdata, 0))
-		return False;
-
-	return True;
+	return proxy_svcctl_call(p, SVCCTL_QUERY_SERVICE_CONFIG_W);
 }
 
 /*******************************************************************
@@ -282,6 +250,8 @@ void svcctl2_get_pipe_fns( struct api_struct **fns, int *n_fns )
 NTSTATUS rpc_svcctl2_init(void)
 {
 	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION,
-					  "svcctl", "ntsvcs", api_svcctl_cmds,
+					  "svcctl", "ntsvcs",
+					  &ndr_table_svcctl.syntax_id,
+					  api_svcctl_cmds,
 					  sizeof(api_svcctl_cmds) / sizeof(struct api_struct));
 }

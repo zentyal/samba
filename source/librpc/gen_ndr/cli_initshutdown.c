@@ -12,7 +12,7 @@ NTSTATUS rpccli_initshutdown_Init(struct rpc_pipe_client *cli,
 				  struct initshutdown_String *message /* [in] [unique] */,
 				  uint32_t timeout /* [in]  */,
 				  uint8_t force_apps /* [in]  */,
-				  uint8_t reboot /* [in]  */,
+				  uint8_t do_reboot /* [in]  */,
 				  WERROR *werror)
 {
 	struct initshutdown_Init r;
@@ -23,7 +23,7 @@ NTSTATUS rpccli_initshutdown_Init(struct rpc_pipe_client *cli,
 	r.in.message = message;
 	r.in.timeout = timeout;
 	r.in.force_apps = force_apps;
-	r.in.reboot = reboot;
+	r.in.do_reboot = do_reboot;
 
 	if (DEBUGLEVEL >= 10) {
 		NDR_PRINT_IN_DEBUG(initshutdown_Init, &r);
@@ -31,7 +31,6 @@ NTSTATUS rpccli_initshutdown_Init(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
-				PI_INITSHUTDOWN,
 				&ndr_table_initshutdown,
 				NDR_INITSHUTDOWN_INIT,
 				&r);
@@ -75,7 +74,6 @@ NTSTATUS rpccli_initshutdown_Abort(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
-				PI_INITSHUTDOWN,
 				&ndr_table_initshutdown,
 				NDR_INITSHUTDOWN_ABORT,
 				&r);
@@ -108,7 +106,7 @@ NTSTATUS rpccli_initshutdown_InitEx(struct rpc_pipe_client *cli,
 				    struct initshutdown_String *message /* [in] [unique] */,
 				    uint32_t timeout /* [in]  */,
 				    uint8_t force_apps /* [in]  */,
-				    uint8_t reboot /* [in]  */,
+				    uint8_t do_reboot /* [in]  */,
 				    uint32_t reason /* [in]  */,
 				    WERROR *werror)
 {
@@ -120,7 +118,7 @@ NTSTATUS rpccli_initshutdown_InitEx(struct rpc_pipe_client *cli,
 	r.in.message = message;
 	r.in.timeout = timeout;
 	r.in.force_apps = force_apps;
-	r.in.reboot = reboot;
+	r.in.do_reboot = do_reboot;
 	r.in.reason = reason;
 
 	if (DEBUGLEVEL >= 10) {
@@ -129,7 +127,6 @@ NTSTATUS rpccli_initshutdown_InitEx(struct rpc_pipe_client *cli,
 
 	status = cli_do_rpc_ndr(cli,
 				mem_ctx,
-				PI_INITSHUTDOWN,
 				&ndr_table_initshutdown,
 				NDR_INITSHUTDOWN_INITEX,
 				&r);

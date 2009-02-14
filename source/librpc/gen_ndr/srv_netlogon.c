@@ -1454,7 +1454,7 @@ static bool api_netr_DatabaseRedo(pipes_struct *p)
 
 	ZERO_STRUCT(r->out);
 	r->out.return_authenticator = r->in.return_authenticator;
-	r->out.delta_enum_array = talloc_zero(r, struct netr_DELTA_ENUM_ARRAY);
+	r->out.delta_enum_array = talloc_zero(r, struct netr_DELTA_ENUM_ARRAY *);
 	if (r->out.delta_enum_array == NULL) {
 		talloc_free(r);
 		return false;
@@ -3862,5 +3862,5 @@ void netlogon_get_pipe_fns(struct api_struct **fns, int *n_fns)
 
 NTSTATUS rpc_netlogon_init(void)
 {
-	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "netlogon", "netlogon", api_netlogon_cmds, sizeof(api_netlogon_cmds) / sizeof(struct api_struct));
+	return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "netlogon", "netlogon", &ndr_table_netlogon.syntax_id, api_netlogon_cmds, sizeof(api_netlogon_cmds) / sizeof(struct api_struct));
 }

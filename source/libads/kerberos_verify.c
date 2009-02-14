@@ -69,13 +69,27 @@ static bool ads_keytab_verify_ticket(krb5_context context,
 	my_fqdn[0] = '\0';
 	name_to_fqdn(my_fqdn, global_myname());
 
-	asprintf(&valid_princ_formats[0], "%s$@%s", my_name, lp_realm());
-	asprintf(&valid_princ_formats[1], "host/%s@%s", my_name, lp_realm());
-	asprintf(&valid_princ_formats[2], "host/%s@%s", my_fqdn, lp_realm());
-	asprintf(&valid_princ_formats[3], "host/%s.%s@%s", my_name, lp_realm(), lp_realm());
-	asprintf(&valid_princ_formats[4], "cifs/%s@%s", my_name, lp_realm());
-	asprintf(&valid_princ_formats[5], "cifs/%s@%s", my_fqdn, lp_realm());
-	asprintf(&valid_princ_formats[6], "cifs/%s.%s@%s", my_name, lp_realm(), lp_realm());
+	if (asprintf(&valid_princ_formats[0], "%s$@%s", my_name, lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[1], "host/%s@%s", my_name, lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[2], "host/%s@%s", my_fqdn, lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[3], "host/%s.%s@%s", my_name, lp_realm(), lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[4], "cifs/%s@%s", my_name, lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[5], "cifs/%s@%s", my_fqdn, lp_realm()) == -1) {
+		goto out;
+	}
+	if (asprintf(&valid_princ_formats[6], "cifs/%s.%s@%s", my_name, lp_realm(), lp_realm()) == -1) {
+		goto out;
+	}
 
 	ZERO_STRUCT(kt_entry);
 	ZERO_STRUCT(kt_cursor);
@@ -259,7 +273,7 @@ static krb5_error_code ads_secrets_verify_ticket(krb5_context context,
 			goto out;
 		}
 	
-		if (create_kerberos_key_from_string(context, host_princ, &password, key, enctypes[i])) {
+		if (create_kerberos_key_from_string(context, host_princ, &password, key, enctypes[i], false)) {
 			SAFE_FREE(key);
 			continue;
 		}
@@ -375,8 +389,7 @@ NTSTATUS ads_verify_ticket(TALLOC_CTX *mem_ctx,
 		krb5_auth_con_setflags( context, auth_context, flags );
 	}
 
-	asprintf(&host_princ_s, "%s$", global_myname());
-	if (!host_princ_s) {
+	if (asprintf(&host_princ_s, "%s$", global_myname()) == -1) {
 		goto out;
 	}
 

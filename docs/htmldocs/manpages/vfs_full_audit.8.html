@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_full_audit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="vfs_full_audit.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_full_audit &#8212; record Samba VFS operations in the system log</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = full_audit</code></p></div></div><div class="refsect1" lang="en"><a name="id2518311"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>vfs_full_audit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="vfs_full_audit.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>vfs_full_audit &#8212; record Samba VFS operations in the system log</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">vfs objects = full_audit</code></p></div></div><div class="refsect1" lang="en"><a name="id2522929"></a><h2>DESCRIPTION</h2><p>This VFS module is part of the
 	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The <code class="literal">vfs_full_audit</code> VFS module records selected
 	client operations to the system log using
 	<a class="citerefentry" href="syslog.3.html"><span class="citerefentry"><span class="refentrytitle">syslog</span>(3)</span></a>.</p><p><code class="literal">vfs_full_audit</code> is able to record the
@@ -10,7 +10,7 @@
 	format consisting of fields separated by '|' characters. The
 	format is: </p><pre class="programlisting">
 		smbd_audit: PREFIX|OPERATION|RESULT|FILE
-	</pre><p>The record fields are:</p><div class="itemizedlist"><ul type="disc"><li><p><code class="literal">PREFIX</code> - the result of the full_audit:prefix string after variable substitutions</p></li><li><p><code class="literal">OPERATION</code> - the name of the VFS operation</p></li><li><p><code class="literal">RESULT</code> - whether the operation succeeded or failed</p></li><li><p><code class="literal">FILE</code> - the name of the file or directory the operation was performed on</p></li></ul></div><p>This module is stackable.</p></div><div class="refsect1" lang="en"><a name="id2478314"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">vfs_full_audit:prefix = STRING</span></dt><dd><p>Prepend audit messages with STRING. STRING is
+	</pre><p>The record fields are:</p><div class="itemizedlist"><ul type="disc"><li><p><code class="literal">PREFIX</code> - the result of the full_audit:prefix string after variable substitutions</p></li><li><p><code class="literal">OPERATION</code> - the name of the VFS operation</p></li><li><p><code class="literal">RESULT</code> - whether the operation succeeded or failed</p></li><li><p><code class="literal">FILE</code> - the name of the file or directory the operation was performed on</p></li></ul></div><p>This module is stackable.</p></div><div class="refsect1" lang="en"><a name="id2481544"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">vfs_full_audit:prefix = STRING</span></dt><dd><p>Prepend audit messages with STRING. STRING is
 		processed for standard substitution variables listed in
 		<a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>. The default
 		prefix is "%u|%I". </p></dd><dt><span class="term">vfs_full_audit:success = LIST</span></dt><dd><p>LIST is a list of VFS operations that should be
@@ -24,19 +24,19 @@
 
                 </p></dd><dt><span class="term">full_audit:priority = PRIORITY</span></dt><dd><p>Log messages with the named
                 <a class="citerefentry" href="syslog.3.html"><span class="citerefentry"><span class="refentrytitle">syslog</span>(3)</span></a> priority.
-                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2478424"></a><h2>EXAMPLES</h2><p>Log file and directory open operations on the [records]
+                </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481650"></a><h2>EXAMPLES</h2><p>Log file and directory open operations on the [records]
 	share using the LOCAL7 facility and ALERT priority, including
 	the username and IP address:</p><pre class="programlisting">
         <em class="parameter"><code>[records]</code></em>
-	<a class="link" href="smb.conf.5.html#PATH">path = /data/records</a>
-	<a class="link" href="smb.conf.5.html#VFSOBJECTS">vfs objects = full_audit</a>
-	<a class="link" href="smb.conf.5.html#FULL_AUDIT:PREFIX">full_audit:prefix = %u|%I</a>
-	<a class="link" href="smb.conf.5.html#FULL_AUDIT:SUCCESS">full_audit:success = open opendir</a>
-	<a class="link" href="smb.conf.5.html#FULL_AUDIT:FAILURE">full_audit:failure = all</a>
-	<a class="link" href="smb.conf.5.html#FULL_AUDIT:FACILITY">full_audit:facility = LOCAL7</a>
-	<a class="link" href="smb.conf.5.html#FULL_AUDIT:PRIORITY">full_audit:priority = ALERT</a>
-</pre></div><div class="refsect1" lang="en"><a name="id2478638"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
-	</p></div><div class="refsect1" lang="en"><a name="id2478649"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+	<a class="link" href="smb.conf.5.html#PATH" target="_top">path = /data/records</a>
+	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = full_audit</a>
+	<a class="link" href="smb.conf.5.html#FULL_AUDIT:PREFIX" target="_top">full_audit:prefix = %u|%I</a>
+	<a class="link" href="smb.conf.5.html#FULL_AUDIT:SUCCESS" target="_top">full_audit:success = open opendir</a>
+	<a class="link" href="smb.conf.5.html#FULL_AUDIT:FAILURE" target="_top">full_audit:failure = all</a>
+	<a class="link" href="smb.conf.5.html#FULL_AUDIT:FACILITY" target="_top">full_audit:facility = LOCAL7</a>
+	<a class="link" href="smb.conf.5.html#FULL_AUDIT:PRIORITY" target="_top">full_audit:priority = ALERT</a>
+</pre></div><div class="refsect1" lang="en"><a name="id2481853"></a><h2>VERSION</h2><p>This man page is correct for version 3.0.25 of the Samba suite.
+	</p></div><div class="refsect1" lang="en"><a name="id2481863"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar
 	to the way the Linux kernel is developed.</p></div></div></body></html>

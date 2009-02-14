@@ -7,7 +7,7 @@
 	<manvolnum>7</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">7</refmiscinfo>
-	<refmiscinfo class="version">3.2</refmiscinfo>
+	<refmiscinfo class="version">3.3</refmiscinfo>
 </refmeta>
 
 
@@ -131,6 +131,14 @@
 		<term>silent</term>
 		<listitem><para>
 		Do not emit any messages.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>mkhomedir</term>
+		<listitem><para>
+		Create homedirectory for a user on-the-fly, option is valid in
+		PAM session block.
 		</para></listitem>
 		</varlistentry>
 

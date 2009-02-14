@@ -84,16 +84,16 @@
 #define SMB_VFS_CHFLAGS(conn, path, flags) ((conn)->vfs.ops.chflags((conn)->vfs.handles.chflags, (path), (flags)))
 #define SMB_VFS_FILE_ID_CREATE(conn, dev, inode) ((conn)->vfs.ops.file_id_create((conn)->vfs.handles.file_id_create, (dev), (inode)))
 #define SMB_VFS_STREAMINFO(conn, fsp, fname, mem_ctx, num_streams, streams) ((conn)->vfs.ops.streaminfo((conn)->vfs.handles.streaminfo, (fsp), (fname), (mem_ctx), (num_streams), (streams)))
+#define SMB_VFS_GET_REAL_FILENAME(conn, path, name, mem_ctx, found_name) ((conn)->vfs.ops.get_real_filename((conn)->vfs.handles.get_real_filename, (path), (name), (mem_ctx), (found_name)))
 
 /* NT ACL operations. */
 #define SMB_VFS_FGET_NT_ACL(fsp, security_info, ppdesc) ((fsp)->conn->vfs.ops.fget_nt_acl((fsp)->conn->vfs.handles.fget_nt_acl, (fsp), (security_info), (ppdesc)))
 #define SMB_VFS_GET_NT_ACL(conn, name, security_info, ppdesc) ((conn)->vfs.ops.get_nt_acl((conn)->vfs.handles.get_nt_acl, (name), (security_info), (ppdesc)))
 #define SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd) ((fsp)->conn->vfs.ops.fset_nt_acl((fsp)->conn->vfs.handles.fset_nt_acl, (fsp), (security_info_sent), (psd)))
-#define SMB_VFS_SET_NT_ACL(fsp, name, security_info_sent, psd) ((fsp)->conn->vfs.ops.set_nt_acl((fsp)->conn->vfs.handles.set_nt_acl, (fsp), (name), (security_info_sent), (psd)))
 
 /* POSIX ACL operations. */
 #define SMB_VFS_CHMOD_ACL(conn, name, mode) ((conn)->vfs.ops.chmod_acl((conn)->vfs.handles.chmod_acl, (name), (mode)))
-#define SMB_VFS_FCHMOD_ACL(fsp, mode) ((fsp)->conn->vfs.ops.fchmod_acl((fsp)->conn->vfs.handles.chmod_acl, (fsp), (mode)))
+#define SMB_VFS_FCHMOD_ACL(fsp, mode) ((fsp)->conn->vfs.ops.fchmod_acl((fsp)->conn->vfs.handles.fchmod_acl, (fsp), (mode)))
 
 #define SMB_VFS_SYS_ACL_GET_ENTRY(conn, theacl, entry_id, entry_p) ((conn)->vfs.ops.sys_acl_get_entry((conn)->vfs.handles.sys_acl_get_entry, (theacl), (entry_id), (entry_p)))
 #define SMB_VFS_SYS_ACL_GET_TAG_TYPE(conn, entry_d, tag_type_p) ((conn)->vfs.ops.sys_acl_get_tag_type((conn)->vfs.handles.sys_acl_get_tag_type, (entry_d), (tag_type_p)))
@@ -210,16 +210,16 @@
 #define SMB_VFS_OPAQUE_CHFLAGS(conn, path, flags) ((conn)->vfs_opaque.ops.chflags((conn)->vfs_opaque.handles.chflags, (path), (flags)))
 #define SMB_VFS_OPAQUE_FILE_ID_CREATE(conn, dev, inode) ((conn)->vfs.ops_opaque.file_id_create((conn)->vfs_opaque.handles.file_id_create, (dev), (inode)))
 #define SMB_VFS_OPAQUE_STREAMINFO(conn, fsp, fname, mem_ctx, num_streams, streams) ((conn)->vfs_opaque.ops.streaminfo((conn)->vfs_opaque.handles.streaminfo, (fsp), (fname), (mem_ctx), (num_streams), (streams)))
+#define SMB_VFS_OPAQUE_GET_REAL_FILENAME(conn, path, name, mem_ctx, found_name) ((conn)->vfs_opaque.ops.get_real_filename((conn)->vfs_opaque.handles.get_real_filename, (path), (name), (mem_ctx), (found_name)))
 
 /* NT ACL operations. */
 #define SMB_VFS_OPAQUE_FGET_NT_ACL(fsp, security_info, ppdesc) ((fsp)->conn->vfs_opaque.ops.fget_nt_acl((fsp)->conn->vfs_opaque.handles.fget_nt_acl, (fsp), (security_info), (ppdesc)))
 #define SMB_VFS_OPAQUE_GET_NT_ACL(conn, name, security_info, ppdesc) ((conn)->vfs_opaque.ops.get_nt_acl((conn)->vfs_opaque.handles.get_nt_acl, (name), (security_info), (ppdesc)))
 #define SMB_VFS_OPAQUE_FSET_NT_ACL(fsp, security_info_sent, psd) ((fsp)->conn->vfs_opaque.ops.fset_nt_acl((fsp)->conn->vfs_opaque.handles.fset_nt_acl, (fsp), (security_info_sent), (psd)))
-#define SMB_VFS_OPAQUE_SET_NT_ACL(fsp, name, security_info_sent, psd) ((fsp)->conn->vfs_opaque.ops.set_nt_acl((fsp)->conn->vfs_opaque.handles.set_nt_acl, (fsp), (name), (security_info_sent), (psd)))
 
 /* POSIX ACL operations. */
 #define SMB_VFS_OPAQUE_CHMOD_ACL(conn, name, mode) ((conn)->vfs_opaque.ops.chmod_acl((conn)->vfs_opaque.handles.chmod_acl, (name), (mode)))
-#define SMB_VFS_OPAQUE_FCHMOD_ACL(fsp, mode) ((fsp)->conn->vfs_opaque.ops.fchmod_acl((fsp)->conn->vfs_opaque.handles.chmod_acl, (fsp), (mode)))
+#define SMB_VFS_OPAQUE_FCHMOD_ACL(fsp, mode) ((fsp)->conn->vfs_opaque.ops.fchmod_acl((fsp)->conn->vfs_opaque.handles.fchmod_acl, (fsp), (mode)))
 
 #define SMB_VFS_OPAQUE_SYS_ACL_GET_ENTRY(conn, theacl, entry_id, entry_p) ((conn)->vfs_opaque.ops.sys_acl_get_entry((conn)->vfs_opaque.handles.sys_acl_get_entry, (theacl), (entry_id), (entry_p)))
 #define SMB_VFS_OPAQUE_SYS_ACL_GET_TAG_TYPE(conn, entry_d, tag_type_p) ((conn)->vfs_opaque.ops.sys_acl_get_tag_type((conn)->vfs_opaque.handles.sys_acl_get_tag_type, (entry_d), (tag_type_p)))
@@ -337,16 +337,16 @@
 #define SMB_VFS_NEXT_CHFLAGS(handle, path, flags) ((handle)->vfs_next.ops.chflags((handle)->vfs_next.handles.chflags, (path), (flags)))
 #define SMB_VFS_NEXT_FILE_ID_CREATE(handle, dev, inode) ((handle)->vfs_next.ops.file_id_create((handle)->vfs_next.handles.file_id_create, (dev), (inode)))
 #define SMB_VFS_NEXT_STREAMINFO(handle, fsp, fname, mem_ctx, num_streams, streams) ((handle)->vfs_next.ops.streaminfo((handle)->vfs_next.handles.streaminfo, (fsp), (fname), (mem_ctx), (num_streams), (streams)))
+#define SMB_VFS_NEXT_GET_REAL_FILENAME(conn, path, name, mem_ctx, found_name) ((conn)->vfs_next.ops.get_real_filename((conn)->vfs_next.handles.get_real_filename, (path), (name), (mem_ctx), (found_name)))
 
 /* NT ACL operations. */
 #define SMB_VFS_NEXT_FGET_NT_ACL(handle, fsp, security_info, ppdesc) ((handle)->vfs_next.ops.fget_nt_acl((handle)->vfs_next.handles.fget_nt_acl, (fsp), (security_info), (ppdesc)))
 #define SMB_VFS_NEXT_GET_NT_ACL(handle, name, security_info, ppdesc) ((handle)->vfs_next.ops.get_nt_acl((handle)->vfs_next.handles.get_nt_acl, (name), (security_info), (ppdesc)))
 #define SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp, security_info_sent, psd) ((handle)->vfs_next.ops.fset_nt_acl((handle)->vfs_next.handles.fset_nt_acl, (fsp), (security_info_sent), (psd)))
-#define SMB_VFS_NEXT_SET_NT_ACL(handle, fsp, name, security_info_sent, psd) ((handle)->vfs_next.ops.set_nt_acl((handle)->vfs_next.handles.set_nt_acl, (fsp), (name), (security_info_sent), (psd)))
 
 /* POSIX ACL operations. */
 #define SMB_VFS_NEXT_CHMOD_ACL(handle, name, mode) ((handle)->vfs_next.ops.chmod_acl((handle)->vfs_next.handles.chmod_acl, (name), (mode)))
-#define SMB_VFS_NEXT_FCHMOD_ACL(handle, fsp, mode) ((handle)->vfs_next.ops.fchmod_acl((handle)->vfs_next.handles.chmod_acl, (fsp), (mode)))
+#define SMB_VFS_NEXT_FCHMOD_ACL(handle, fsp, mode) ((handle)->vfs_next.ops.fchmod_acl((handle)->vfs_next.handles.fchmod_acl, (fsp), (mode)))
 
 #define SMB_VFS_NEXT_SYS_ACL_GET_ENTRY(handle, theacl, entry_id, entry_p) ((handle)->vfs_next.ops.sys_acl_get_entry((handle)->vfs_next.handles.sys_acl_get_entry, (theacl), (entry_id), (entry_p)))
 #define SMB_VFS_NEXT_SYS_ACL_GET_TAG_TYPE(handle, entry_d, tag_type_p) ((handle)->vfs_next.ops.sys_acl_get_tag_type((handle)->vfs_next.handles.sys_acl_get_tag_type, (entry_d), (tag_type_p)))

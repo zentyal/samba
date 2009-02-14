@@ -657,6 +657,7 @@ typedef char fstring[FSTRING_LEN];
 #define talloc_get_type_abort(ptr, type) \
 	(type *)talloc_check_name_abort(ptr, #type)
 
+#include "event.h"
 #include "nt_status.h"
 #include "ads.h"
 #include "ads_dns.h"
@@ -702,6 +703,9 @@ typedef char fstring[FSTRING_LEN];
 #include "rpc_perfcount_defs.h"
 #include "librpc/gen_ndr/notify.h"
 #include "librpc/gen_ndr/xattr.h"
+#include "librpc/gen_ndr/ndr_nbt.h"
+#include "librpc/gen_ndr/messaging.h"
+#include "librpc/rpc/dcerpc.h"
 #include "nt_printing.h"
 #include "idmap.h"
 #include "client.h"
@@ -714,7 +718,6 @@ typedef char fstring[FSTRING_LEN];
 #include "nsswitch/winbind_client.h"
 #include "spnego.h"
 #include "rpc_client.h"
-#include "event.h"
 #include "dbwrap.h"
 #include "packet.h"
 #include "ctdbd_conn.h"
@@ -722,20 +725,9 @@ typedef char fstring[FSTRING_LEN];
 #include "memcache.h"
 #include "async_req.h"
 #include "async_smb.h"
+#include "async_sock.h"
 
 #include "lib/smbconf/smbconf.h"
-
-/* used in net.c */
-struct functable {
-	const char *funcname;
-	int (*fn)(int argc, const char **argv);
-};
-
-struct functable2 {
-	const char *funcname;
-	int (*fn)(int argc, const char **argv);
-	const char *helptext;
-};
 
 /* Defines for wisXXX functions. */
 #define UNI_UPPER    0x1
@@ -802,6 +794,26 @@ enum flush_reason_enum {
 /***** automatically generated prototypes *****/
 #ifndef NO_PROTO_H
 #include "proto.h"
+#endif
+
+#if defined(HAVE_POSIX_ACLS)
+#include "modules/vfs_posixacl.h"
+#endif
+
+#if defined(HAVE_TRU64_ACLS)
+#include "modules/vfs_tru64acl.h"
+#endif
+
+#if defined(HAVE_SOLARIS_ACLS) || defined(HAVE_UNIXWARE_ACLS)
+#include "modules/vfs_solarisacl.h"
+#endif
+
+#if defined(HAVE_HPUX_ACLS)
+#include "modules/vfs_hpuxacl.h"
+#endif
+
+#if defined(HAVE_IRIX_ACLS)
+#include "modules/vfs_irixacl.h"
 #endif
 
 #ifdef HAVE_LDAP
@@ -1154,8 +1166,7 @@ void krb5_free_unparsed_name(krb5_context ctx, char *val);
 
 /* Samba wrapper function for krb5 functionality. */
 bool setup_kaddr( krb5_address *pkaddr, struct sockaddr_storage *paddr);
-int create_kerberos_key_from_string(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype);
-int create_kerberos_key_from_string_direct(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype);
+int create_kerberos_key_from_string(krb5_context context, krb5_principal host_princ, krb5_data *password, krb5_keyblock *key, krb5_enctype enctype, bool no_salt);
 bool get_auth_data_from_tkt(TALLOC_CTX *mem_ctx, DATA_BLOB *auth_data, krb5_ticket *tkt);
 krb5_const_principal get_principal_from_tkt(krb5_ticket *tkt);
 krb5_error_code smb_krb5_locate_kdc(krb5_context ctx, const krb5_data *realm, struct sockaddr **addr_pp, int *naddrs, int get_masters);
@@ -1225,7 +1236,7 @@ krb5_error_code smb_krb5_mk_error(krb5_context context,
 					krb5_error_code error_code,
 					const krb5_principal server,
 					krb5_data *reply);
-krb5_enctype smb_get_enctype_from_kt_entry(const krb5_keytab_entry *kt_entry);
+krb5_enctype smb_get_enctype_from_kt_entry(krb5_keytab_entry *kt_entry);
 krb5_error_code smb_krb5_enctype_to_string(krb5_context context, 
  					    krb5_enctype enctype, 
 					    char **etype_s);
@@ -1233,6 +1244,19 @@ krb5_error_code smb_krb5_open_keytab(krb5_context context,
  				      const char *keytab_name, 
 				      bool write_access, 
 				      krb5_keytab *keytab);
+krb5_error_code smb_krb5_keytab_name(TALLOC_CTX *mem_ctx,
+				     krb5_context context,
+				     krb5_keytab keytab,
+				     const char **keytab_name);
+int smb_krb5_kt_add_entry_ext(krb5_context context,
+			      krb5_keytab keytab,
+			      krb5_kvno kvno,
+			      const char *princ_s,
+			      krb5_enctype *enctypes,
+			      krb5_data password,
+			      bool no_salt,
+			      bool keep_old_entries);
+
 #endif /* HAVE_KRB5 */
 
 

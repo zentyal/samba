@@ -106,8 +106,11 @@
 /* Leave at 22 - not yet released. Additional change: add operations for offline files -- ab */
 /* Leave at 22 - not yet released. Add the streaminfo call. -- jpeach, vl */
 /* Leave at 22 - not yet released. Remove parameter fd from close_fn. - obnox */
+/* Changed to version 23 - remove set_nt_acl call. This can only be done via an
+   open handle. JRA. */
+/* Changed to version 24 - make security descriptor const in fset_nt_acl. JRA. */
 
-#define SMB_VFS_INTERFACE_VERSION 22
+#define SMB_VFS_INTERFACE_VERSION 24
 
 
 /* to bug old modules which are trying to compile with the old functions */
@@ -202,13 +205,13 @@ typedef enum _vfs_op_type {
 	SMB_VFS_OP_CHFLAGS,
 	SMB_VFS_OP_FILE_ID_CREATE,
 	SMB_VFS_OP_STREAMINFO,
+	SMB_VFS_OP_GET_REAL_FILENAME,
 
 	/* NT ACL operations. */
 
 	SMB_VFS_OP_FGET_NT_ACL,
 	SMB_VFS_OP_GET_NT_ACL,
 	SMB_VFS_OP_FSET_NT_ACL,
-	SMB_VFS_OP_SET_NT_ACL,
 
 	/* POSIX ACL operations. */
 
@@ -351,6 +354,12 @@ struct vfs_ops {
 				       unsigned int *num_streams,
 				       struct stream_struct **streams);
 
+		int (*get_real_filename)(struct vfs_handle_struct *handle,
+					 const char *path,
+					 const char *name,
+					 TALLOC_CTX *mem_ctx,
+					 char **found_name);
+
 		/* NT ACL operations. */
 
 		NTSTATUS (*fget_nt_acl)(struct vfs_handle_struct *handle,
@@ -364,12 +373,7 @@ struct vfs_ops {
 		NTSTATUS (*fset_nt_acl)(struct vfs_handle_struct *handle,
 					struct files_struct *fsp,
 					uint32 security_info_sent,
-					struct security_descriptor *psd);
-		NTSTATUS (*set_nt_acl)(struct vfs_handle_struct *handle,
-				       struct files_struct *fsp,
-				       const char *name,
-				       uint32 security_info_sent,
-				       struct security_descriptor *psd);
+					const struct security_descriptor *psd);
 
 		/* POSIX ACL operations. */
 
@@ -490,13 +494,13 @@ struct vfs_ops {
 		struct vfs_handle_struct *chflags;
 		struct vfs_handle_struct *file_id_create;
 		struct vfs_handle_struct *streaminfo;
+		struct vfs_handle_struct *get_real_filename;
 
 		/* NT ACL operations. */
 
 		struct vfs_handle_struct *fget_nt_acl;
 		struct vfs_handle_struct *get_nt_acl;
 		struct vfs_handle_struct *fset_nt_acl;
-		struct vfs_handle_struct *set_nt_acl;
 
 		/* POSIX ACL operations. */
 

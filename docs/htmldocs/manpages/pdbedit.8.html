@@ -1,10 +1,10 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>pdbedit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="pdbedit.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>pdbedit &#8212; manage the SAM database (Database of Samba Users)</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">pdbedit</code> [-L] [-v] [-w] [-u username] [-f fullname] [-h homedir] [-D drive] [-S script] [-p profile] [-a] [-t, --password-from-stdin] [-m] [-r] [-x] [-i passdb-backend] [-e passdb-backend] [-b passdb-backend] [-g] [-d debuglevel] [-s configfile] [-P account-policy] [-C value] [-c account-control] [-y]</p></div></div><div class="refsect1" lang="en"><a name="id2479301"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The pdbedit program is used to manage the users accounts
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>pdbedit</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="pdbedit.8"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>pdbedit &#8212; manage the SAM database (Database of Samba Users)</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">pdbedit</code> [-L] [-v] [-w] [-u username] [-f fullname] [-h homedir] [-D drive] [-S script] [-p profile] [-a] [-t, --password-from-stdin] [-m] [-r] [-x] [-i passdb-backend] [-e passdb-backend] [-b passdb-backend] [-g] [-d debuglevel] [-s configfile] [-P account-policy] [-C value] [-c account-control] [-y]</p></div></div><div class="refsect1" lang="en"><a name="id2483603"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p>The pdbedit program is used to manage the users accounts
 	stored in the sam database and can only be run by root.</p><p>The pdbedit tool uses the passdb modular interface and is
 	independent from the kind of users database used (currently there
 	are smbpasswd, ldap, nis+ and tdb based and more can be added
 	without changing the tool).</p><p>There are five main ways to use pdbedit: adding a user account,
 	removing a user account, modifing a user account, listing user
-	accounts, importing users accounts.</p></div><div class="refsect1" lang="en"><a name="id2479338"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-L</span></dt><dd><p>This option lists all the user accounts
+	accounts, importing users accounts.</p></div><div class="refsect1" lang="en"><a name="id2483640"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-L</span></dt><dd><p>This option lists all the user accounts
 		present in the users database.
 		This option prints a list of user/uid pairs separated by
 		the ':' character.</p><p>Example: <code class="literal">pdbedit -L</code></p><pre class="programlisting">
@@ -78,7 +78,7 @@ samba:45:0F2B255F7B67A7A9AAD3B435B51404EE:
 retype new password
 </pre><p>
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>pdbedit does not call the unix password syncronisation 
-				script if <a class="link" href="smb.conf.5.html#UNIXPASSWORDSYNC">unix password sync</a>
+				script if <a class="link" href="smb.conf.5.html#UNIXPASSWORDSYNC" target="_top">unix password sync</a>
 				has been set. It only updates the data in the Samba 
 				user database. 
 			</p><p>If you wish to add a user and synchronise the password
@@ -132,7 +132,7 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL">log level</a> parameter
+override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
 in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
 </p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
@@ -144,8 +144,8 @@ The default configuration file name is determined at
 compile time.</p></dd><dt><span class="term">-l|--log-basename=logdirectory</span></dt><dd><p>Base directory name for log/debug files. The extension
 <code class="constant">".progname"</code> will be appended (e.g. log.smbclient, 
 log.smbd, etc...). The log file is never removed by the client.
-</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2525732"></a><h2>NOTES</h2><p>This command may be used only by root.</p></div><div class="refsect1" lang="en"><a name="id2525742"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
-	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2525753"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="smbpasswd.5.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(5)</span></a>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a></p></div><div class="refsect1" lang="en"><a name="id2525777"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532742"></a><h2>NOTES</h2><p>This command may be used only by root.</p></div><div class="refsect1" lang="en"><a name="id2532752"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
+	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2532762"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="smbpasswd.5.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(5)</span></a>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532785"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The pdbedit manpage was written by Simo Sorce and Jelmer Vernooij.</p></div></div></body></html>

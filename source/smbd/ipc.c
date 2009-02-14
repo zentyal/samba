@@ -5,17 +5,17 @@
 
    SMB Version handling
    Copyright (C) John H Terpstra 1995-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
    */
@@ -81,8 +81,7 @@ static void copy_trans_params_and_data(char *outbuf, int align,
  Send a trans reply.
  ****************************************************************************/
 
-void send_trans_reply(connection_struct *conn,
-			struct smb_request *req,
+void send_trans_reply(connection_struct *conn, const uint8_t *inbuf,
 		      char *rparam, int rparam_len,
 		      char *rdata, int rdata_len,
 		      bool buffer_too_large)
@@ -91,6 +90,7 @@ void send_trans_reply(connection_struct *conn,
 	int tot_data_sent = 0;
 	int tot_param_sent = 0;
 	int align;
+	char *outbuf;
 
 	int ldata  = rdata  ? rdata_len : 0;
 	int lparam = rparam ? rparam_len : 0;
@@ -103,47 +103,48 @@ void send_trans_reply(connection_struct *conn,
 
 	align = ((this_lparam)%4);
 
-	reply_outbuf(req, 10, 1+align+this_ldata+this_lparam);
+	if (!create_outbuf(talloc_tos(), (char *)inbuf, &outbuf,
+			   10, 1+align+this_ldata+this_lparam)) {
+		smb_panic("could not allocate outbuf");
+	}
 
-	copy_trans_params_and_data((char *)req->outbuf, align,
+	copy_trans_params_and_data(outbuf, align,
 				rparam, tot_param_sent, this_lparam,
 				rdata, tot_data_sent, this_ldata);
 
-	SSVAL(req->outbuf,smb_vwv0,lparam);
-	SSVAL(req->outbuf,smb_vwv1,ldata);
-	SSVAL(req->outbuf,smb_vwv3,this_lparam);
-	SSVAL(req->outbuf,smb_vwv4,smb_offset(smb_buf(req->outbuf)+1,
-					      req->outbuf));
-	SSVAL(req->outbuf,smb_vwv5,0);
-	SSVAL(req->outbuf,smb_vwv6,this_ldata);
-	SSVAL(req->outbuf,smb_vwv7,smb_offset(smb_buf(req->outbuf)+1+
-					      this_lparam+align,
-					      req->outbuf));
-	SSVAL(req->outbuf,smb_vwv8,0);
-	SSVAL(req->outbuf,smb_vwv9,0);
+	SSVAL(outbuf,smb_vwv0,lparam);
+	SSVAL(outbuf,smb_vwv1,ldata);
+	SSVAL(outbuf,smb_vwv3,this_lparam);
+	SSVAL(outbuf,smb_vwv4,smb_offset(smb_buf(outbuf)+1,outbuf));
+	SSVAL(outbuf,smb_vwv5,0);
+	SSVAL(outbuf,smb_vwv6,this_ldata);
+	SSVAL(outbuf,smb_vwv7,smb_offset(smb_buf(outbuf)+1+this_lparam+align,
+					 outbuf));
+	SSVAL(outbuf,smb_vwv8,0);
+	SSVAL(outbuf,smb_vwv9,0);
 
 	if (buffer_too_large) {
-		error_packet_set((char *)req->outbuf,
-				 ERRDOS, ERRmoredata,
-				 STATUS_BUFFER_OVERFLOW,
-				 __LINE__, __FILE__);
+		error_packet_set((char *)outbuf, ERRDOS, ERRmoredata,
+				 STATUS_BUFFER_OVERFLOW, __LINE__, __FILE__);
 	}
 
-	show_msg((char *)req->outbuf);
-	if (!srv_send_smb(smbd_server_fd(),
-			(char *)req->outbuf,
-			IS_CONN_ENCRYPTED(conn)))
+	show_msg(outbuf);
+	if (!srv_send_smb(smbd_server_fd(), (char *)outbuf,
+			  IS_CONN_ENCRYPTED(conn))) {
 		exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
+	}
 
-	TALLOC_FREE(req->outbuf);
+	TALLOC_FREE(outbuf);
 
 	tot_data_sent = this_ldata;
 	tot_param_sent = this_lparam;
 
 	while (tot_data_sent < ldata || tot_param_sent < lparam)
 	{
-		this_lparam = MIN(lparam-tot_param_sent, max_send - 500); /* hack */
-		this_ldata  = MIN(ldata -tot_data_sent, max_send - (500+this_lparam));
+		this_lparam = MIN(lparam-tot_param_sent,
+				  max_send - 500); /* hack */
+		this_ldata  = MIN(ldata -tot_data_sent,
+				  max_send - (500+this_lparam));
 
 		if(this_lparam < 0)
 			this_lparam = 0;
@@ -153,39 +154,39 @@ void send_trans_reply(connection_struct *conn,
 
 		align = (this_lparam%4);
 
-		reply_outbuf(req, 10, 1+this_ldata+this_lparam+align);
+		if (!create_outbuf(talloc_tos(), (char *)inbuf, &outbuf,
+				   10, 1+align+this_ldata+this_lparam)) {
+			smb_panic("could not allocate outbuf");
+		}
 
-		copy_trans_params_and_data((char *)req->outbuf, align,
+		copy_trans_params_and_data(outbuf, align,
 					   rparam, tot_param_sent, this_lparam,
 					   rdata, tot_data_sent, this_ldata);
-		
-		SSVAL(req->outbuf,smb_vwv3,this_lparam);
-		SSVAL(req->outbuf,smb_vwv4,smb_offset(smb_buf(req->outbuf)+1,
-						      req->outbuf));
-		SSVAL(req->outbuf,smb_vwv5,tot_param_sent);
-		SSVAL(req->outbuf,smb_vwv6,this_ldata);
-		SSVAL(req->outbuf,smb_vwv7,smb_offset(smb_buf(req->outbuf)+1+
-						      this_lparam+align,
-						      req->outbuf));
-		SSVAL(req->outbuf,smb_vwv8,tot_data_sent);
-		SSVAL(req->outbuf,smb_vwv9,0);
+
+		SSVAL(outbuf,smb_vwv3,this_lparam);
+		SSVAL(outbuf,smb_vwv4,smb_offset(smb_buf(outbuf)+1,outbuf));
+		SSVAL(outbuf,smb_vwv5,tot_param_sent);
+		SSVAL(outbuf,smb_vwv6,this_ldata);
+		SSVAL(outbuf,smb_vwv7,
+		      smb_offset(smb_buf(outbuf)+1+this_lparam+align, outbuf));
+		SSVAL(outbuf,smb_vwv8,tot_data_sent);
+		SSVAL(outbuf,smb_vwv9,0);
 
 		if (buffer_too_large) {
-			error_packet_set((char *)req->outbuf,
-					 ERRDOS, ERRmoredata,
+			error_packet_set(outbuf, ERRDOS, ERRmoredata,
 					 STATUS_BUFFER_OVERFLOW,
 					 __LINE__, __FILE__);
 		}
 
-		show_msg((char *)req->outbuf);
-		if (!srv_send_smb(smbd_server_fd(),
-				(char *)req->outbuf,
-				IS_CONN_ENCRYPTED(conn)))
-			exit_server_cleanly("send_trans_reply: srv_send_smb failed.");
+		show_msg(outbuf);
+		if (!srv_send_smb(smbd_server_fd(), outbuf,
+				  IS_CONN_ENCRYPTED(conn)))
+			exit_server_cleanly("send_trans_reply: srv_send_smb "
+					    "failed.");
 
 		tot_data_sent  += this_ldata;
 		tot_param_sent += this_lparam;
-		TALLOC_FREE(req->outbuf);
+		TALLOC_FREE(outbuf);
 	}
 }
 
@@ -212,7 +213,8 @@ static void api_rpc_trans_reply(connection_struct *conn, struct smb_request *req
 		return;
 	}
 
-	send_trans_reply(conn, req, NULL, 0, rdata, data_len, is_data_outstanding);
+	send_trans_reply(conn, req->inbuf, NULL, 0, rdata, data_len,
+			 is_data_outstanding);
 	SAFE_FREE(rdata);
 	return;
 }
@@ -236,7 +238,7 @@ static void api_WNPHS(connection_struct *conn, struct smb_request *req, smb_np_s
 
 	if (wait_rpc_pipe_hnd_state(p, priority)) {
 		/* now send the reply */
-		send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+		send_trans_reply(conn, req->inbuf, NULL, 0, NULL, 0, False);
 		return;
 	}
 	api_no_reply(conn,req);
@@ -262,7 +264,7 @@ static void api_SNPHS(connection_struct *conn, struct smb_request *req, smb_np_s
 
 	if (set_rpc_pipe_hnd_state(p, id)) {
 		/* now send the reply */
-		send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+		send_trans_reply(conn, req->inbuf, NULL, 0, NULL, 0, False);
 		return;
 	}
 	api_no_reply(conn,req);
@@ -284,7 +286,7 @@ static void api_no_reply(connection_struct *conn, struct smb_request *req)
 	DEBUG(3,("Unsupported API fd command\n"));
 
 	/* now send the reply */
-	send_trans_reply(conn, req, rparam, 4, NULL, 0, False);
+	send_trans_reply(conn, req->inbuf, rparam, 4, NULL, 0, False);
 
 	return;
 }
@@ -316,7 +318,7 @@ static void api_fd_reply(connection_struct *conn, uint16 vuid,
 	/* Get the file handle and hence the file name. */
 	/* 
 	 * NB. The setup array has already been transformed
-	 * via SVAL and so is in gost byte order.
+	 * via SVAL and so is in host byte order.
 	 */
 	pnum = ((int)setup[1]) & 0xFFFF;
 	subcommand = ((int)setup[0]) & 0xFFFF;
@@ -326,7 +328,8 @@ static void api_fd_reply(connection_struct *conn, uint16 vuid,
 			/* Win9x does this call with a unicode pipe name, not a pnum. */
 			/* Just return success for now... */
 			DEBUG(3,("Got TRANSACT_WAITNAMEDPIPEHANDLESTATE on text pipe name\n"));
-			send_trans_reply(conn, req, NULL, 0, NULL, 0, False);
+			send_trans_reply(conn, req->inbuf, NULL, 0, NULL, 0,
+					 False);
 			return;
 		}
 
@@ -525,7 +528,7 @@ void reply_trans(struct smb_request *req)
 		return;
 	}
 
-	if ((state = TALLOC_P(conn->mem_ctx, struct trans_state)) == NULL) {
+	if ((state = TALLOC_P(conn, struct trans_state)) == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		reply_nterror(req, NT_STATUS_NO_MEMORY);
 		END_PROFILE(SMBtrans);
@@ -732,11 +735,11 @@ void reply_transs(struct smb_request *req)
 
 	state->received_param += pcnt;
 	state->received_data += dcnt;
-		
+
 	if ((state->received_data > state->total_data) ||
 	    (state->received_param > state->total_param))
 		goto bad_param;
-		
+
 	if (pcnt) {
 		if (pdisp > state->total_param ||
 				pcnt > state->total_param ||

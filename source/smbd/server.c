@@ -59,7 +59,9 @@ int get_client_fd(void)
 	return server_fd;
 }
 
-int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client)
+#ifdef CLUSTER_SUPPORT
+static int client_get_tcp_info(struct sockaddr_storage *server,
+			       struct sockaddr_storage *client)
 {
 	socklen_t length;
 	if (server_fd == -1) {
@@ -75,12 +77,13 @@ int client_get_tcp_info(struct sockaddr_in *server, struct sockaddr_in *client)
 	}
 	return 0;
 }
+#endif
 
 struct event_context *smbd_event_context(void)
 {
 	static struct event_context *ctx;
 
-	if (!ctx && !(ctx = event_context_init(NULL))) {
+	if (!ctx && !(ctx = event_context_init(talloc_autofree_context()))) {
 		smb_panic("Could not init smbd event context");
 	}
 	return ctx;
@@ -90,9 +93,12 @@ struct messaging_context *smbd_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   smbd_event_context()))) {
-		smb_panic("Could not init smbd messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(talloc_autofree_context(), server_id_self(),
+				     smbd_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init smbd messaging context.\n"));
 	}
 	return ctx;
 }
@@ -102,7 +108,7 @@ struct memcache *smbd_memcache(void)
 	static struct memcache *cache;
 
 	if (!cache
-	    && !(cache = memcache_init(NULL,
+	    && !(cache = memcache_init(talloc_autofree_context(),
 				       lp_max_stat_cache_size()*1024))) {
 
 		smb_panic("Could not init smbd memcache");
@@ -293,6 +299,7 @@ static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 		/* a child terminated uncleanly so tickle all processes to see 
 		   if they can grab any of the pending locks
 		*/
+		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", pid));
 		messaging_send_buf(smbd_messaging_context(), procid_self(), 
 				   MSG_SMB_BRL_VALIDATE, NULL, 0);
 		message_send_all(smbd_messaging_context(), 
@@ -465,9 +472,8 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 		char *sock_tok;
 		const char *sock_ptr;
 
-		if (sock_addr[0] == '\0' ||
-				strequal(sock_addr, "0.0.0.0") ||
-				strequal(sock_addr, "::")) {
+		if (strequal(sock_addr, "0.0.0.0") ||
+		    strequal(sock_addr, "::")) {
 #if HAVE_IPV6
 			sock_addr = "::,0.0.0.0";
 #else
@@ -570,6 +576,12 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 	messaging_register(smbd_messaging_context(), NULL,
 			   MSG_SMB_STAT_CACHE_DELETE, smb_stat_cache_delete);
 	brl_register_msgs(smbd_messaging_context());
+
+#ifdef CLUSTER_SUPPORT
+	if (lp_clustering()) {
+		ctdbd_register_reconfigure(messaging_ctdbd_connection());
+	}
+#endif
 
 #ifdef DEVELOPER
 	messaging_register(smbd_messaging_context(), NULL,
@@ -741,7 +753,9 @@ static bool open_sockets_smbd(bool is_daemon, bool interactive, const char *smb_
 								false);
 
 				if (!reinit_after_fork(
-					    smbd_messaging_context(), true)) {
+					    smbd_messaging_context(),
+					    smbd_event_context(),
+					    true)) {
 					DEBUG(0,("reinit_after_fork() failed\n"));
 					smb_panic("reinit_after_fork() failed");
 				}
@@ -884,6 +898,7 @@ static void exit_server_common(enum server_exit_reason how,
 	const char *const reason)
 {
 	static int firsttime=1;
+	bool had_open_conn;
 
 	if (!firsttime)
 		exit(0);
@@ -895,7 +910,7 @@ static void exit_server_common(enum server_exit_reason how,
 		(negprot_global_auth_context->free)(&negprot_global_auth_context);
 	}
 
-	conn_close_all();
+	had_open_conn = conn_close_all();
 
 	invalidate_all_vuids();
 
@@ -945,7 +960,15 @@ static void exit_server_common(enum server_exit_reason how,
 			(reason ? reason : "normal exit")));
 	}
 
-	exit(0);
+	/* if we had any open SMB connections when we exited then we
+	   need to tell the parent smbd so that it can trigger a retry
+	   of any locks we may have been holding or open files we were
+	   blocking */
+	if (had_open_conn) {
+		exit(1);
+	} else {
+		exit(0);
+	}
 }
 
 void exit_server(const char *const explanation)
@@ -979,7 +1002,9 @@ static void release_ip(const char *ip, void *priv)
 		   away */
 		DEBUG(0,("Got release IP message for our IP %s - exiting immediately\n",
 			ip));
-		_exit(0);
+		/* note we must exit with non-zero status so the unclean handler gets
+		   called in the parent, so that the brl database is tickled */
+		_exit(1);
 	}
 }
 
@@ -1046,6 +1071,30 @@ static bool deadtime_fn(const struct timeval *now, void *private_data)
 	return True;
 }
 
+/*
+ * Do the recurring log file and smb.conf reload checks.
+ */
+
+static bool housekeeping_fn(const struct timeval *now, void *private_data)
+{
+	change_to_root_user();
+
+	/* update printer queue caches if necessary */
+	update_monitored_printq_cache();
+
+	/* check if we need to reload services */
+	check_reload(time(NULL));
+
+	/* Change machine password if neccessary. */
+	attempt_machine_password_change();
+
+        /*
+	 * Force a log file check.
+	 */
+        force_check_log_size();
+        check_log_size();
+	return true;
+}
 
 /****************************************************************************
  main program.
@@ -1094,8 +1143,6 @@ extern void build_options(bool screen);
 	TALLOC_CTX *frame = talloc_stackframe(); /* Setup tos. */
 
 	TimeInit();
-
-	db_tdb2_setup_messaging(NULL, false);
 
 #ifdef HAVE_SET_AUTH_PARAMETERS
 	set_auth_parameters(argc,argv);
@@ -1228,11 +1275,6 @@ extern void build_options(bool screen);
 	if (smbd_messaging_context() == NULL)
 		exit(1);
 
-	/*
-	 * Do this before reload_services.
-	 */
-	db_tdb2_setup_messaging(smbd_messaging_context(), true);
-
 	if (!reload_services(False))
 		return(-1);	
 
@@ -1287,7 +1329,8 @@ extern void build_options(bool screen);
 	if (is_daemon)
 		pidfile_create("smbd");
 
-	if (!reinit_after_fork(smbd_messaging_context(), false)) {
+	if (!reinit_after_fork(smbd_messaging_context(),
+			       smbd_event_context(), false)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
@@ -1412,6 +1455,13 @@ extern void build_options(bool screen);
 		exit(1);
 	}
 
+	if (!(event_add_idle(smbd_event_context(), NULL,
+			     timeval_set(SMBD_SELECT_TIMEOUT, 0),
+			     "housekeeping", housekeeping_fn, NULL))) {
+		DEBUG(0, ("Could not add housekeeping event\n"));
+		exit(1);
+	}
+
 #ifdef CLUSTER_SUPPORT
 
 	if (lp_clustering()) {
@@ -1422,7 +1472,7 @@ extern void build_options(bool screen);
 		 * client.
 		 */
 
-		struct sockaddr_in srv, clnt;
+		struct sockaddr_storage srv, clnt;
 
 		if (client_get_tcp_info(&srv, &clnt) == 0) {
 

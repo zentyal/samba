@@ -75,7 +75,7 @@ bool session_claim(user_struct *vuser)
 
 	/* don't register sessions for the guest user - its just too
 	   expensive to go through pam session code for browsing etc */
-	if (vuser->guest) {
+	if (vuser->server_info->guest) {
 		return True;
 	}
 
@@ -113,7 +113,10 @@ bool session_claim(user_struct *vuser)
 				break;
 			}
 
-			sess_pid = ((struct sessionid *)rec->value.dptr)->pid;
+			memcpy(&sess_pid,
+			       ((char *)rec->value.dptr)
+			       + offsetof(struct sessionid, pid),
+			       sizeof(sess_pid));
 
 			if (!process_exists(sess_pid)) {
 				DEBUG(5, ("%s has died -- re-using session\n",
@@ -164,12 +167,12 @@ bool session_claim(user_struct *vuser)
 		hostname = client_addr(get_client_fd(),addr,sizeof(addr));
 	}
 
-	fstrcpy(sessionid.username, vuser->user.unix_name);
+	fstrcpy(sessionid.username, vuser->server_info->unix_name);
 	fstrcpy(sessionid.hostname, hostname);
 	sessionid.id_num = i;  /* Only valid for utmp sessions */
 	sessionid.pid = pid;
-	sessionid.uid = vuser->uid;
-	sessionid.gid = vuser->gid;
+	sessionid.uid = vuser->server_info->utok.uid;
+	sessionid.gid = vuser->server_info->utok.gid;
 	fstrcpy(sessionid.remote_machine, get_remote_machine_name());
 	fstrcpy(sessionid.ip_addr_str,
 		client_addr(get_client_fd(),addr,sizeof(addr)));

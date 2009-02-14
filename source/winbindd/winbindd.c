@@ -47,16 +47,19 @@ struct messaging_context *winbind_messaging_context(void)
 {
 	static struct messaging_context *ctx;
 
-	if (!ctx && !(ctx = messaging_init(NULL, server_id_self(),
-					   winbind_event_context()))) {
-		smb_panic("Could not init winbind messaging context");
+	if (ctx == NULL) {
+		ctx = messaging_init(NULL, server_id_self(),
+				     winbind_event_context());
+	}
+	if (ctx == NULL) {
+		DEBUG(0, ("Could not init winbind messaging context.\n"));
 	}
 	return ctx;
 }
 
 /* Reload configuration */
 
-static bool reload_services_file(const char *logfile)
+static bool reload_services_file(const char *lfile)
 {
 	bool ret;
 
@@ -70,8 +73,8 @@ static bool reload_services_file(const char *logfile)
 
 	/* if this is a child, restore the logfile to the special
 	   name - <domain>, idmap, etc. */
-	if (logfile && *logfile) {
-		lp_set_logfile(logfile);
+	if (lfile && *lfile) {
+		lp_set_logfile(lfile);
 	}
 
 	reopen_logs();
@@ -170,35 +173,35 @@ static void terminate(bool is_parent)
 	exit(0);
 }
 
-static bool do_sigterm;
+static SIG_ATOMIC_T do_sigterm = 0;
 
 static void termination_handler(int signum)
 {
-	do_sigterm = True;
+	do_sigterm = 1;
 	sys_select_signal(signum);
 }
 
-static bool do_sigusr2;
+static SIG_ATOMIC_T do_sigusr2 = 0;
 
 static void sigusr2_handler(int signum)
 {
-	do_sigusr2 = True;
+	do_sigusr2 = 1;
 	sys_select_signal(SIGUSR2);
 }
 
-static bool do_sighup;
+static SIG_ATOMIC_T do_sighup = 0;
 
 static void sighup_handler(int signum)
 {
-	do_sighup = True;
+	do_sighup = 1;
 	sys_select_signal(SIGHUP);
 }
 
-static bool do_sigchld;
+static SIG_ATOMIC_T do_sigchld = 0;
 
 static void sigchld_handler(int signum)
 {
-	do_sigchld = True;
+	do_sigchld = 1;
 	sys_select_signal(SIGCHLD);
 }
 
@@ -221,7 +224,7 @@ static void msg_shutdown(struct messaging_context *msg,
 			 struct server_id server_id,
 			 DATA_BLOB *data)
 {
-	do_sigterm = True;
+	do_sigterm = 1;
 }
 
 
@@ -337,12 +340,10 @@ static struct winbindd_dispatch_table {
 	{ WINBINDD_SID_TO_GID, winbindd_sid_to_gid, "SID_TO_GID" },
 	{ WINBINDD_UID_TO_SID, winbindd_uid_to_sid, "UID_TO_SID" },
 	{ WINBINDD_GID_TO_SID, winbindd_gid_to_sid, "GID_TO_SID" },
-#if 0   /* DISABLED until we fix the interface in Samba 3.0.26 --jerry */
-	{ WINBINDD_SIDS_TO_XIDS, winbindd_sids_to_unixids, "SIDS_TO_XIDS" },
-#endif  /* end DISABLED */
 	{ WINBINDD_ALLOCATE_UID, winbindd_allocate_uid, "ALLOCATE_UID" },
 	{ WINBINDD_ALLOCATE_GID, winbindd_allocate_gid, "ALLOCATE_GID" },
 	{ WINBINDD_SET_MAPPING, winbindd_set_mapping, "SET_MAPPING" },
+	{ WINBINDD_REMOVE_MAPPING, winbindd_remove_mapping, "REMOVE_MAPPING" },
 	{ WINBINDD_SET_HWM, winbindd_set_hwm, "SET_HWMS" },
 
 	/* Miscellaneous */
@@ -367,7 +368,7 @@ static struct winbindd_dispatch_table {
 
 	{ WINBINDD_WINS_BYNAME, winbindd_wins_byname, "WINS_BYNAME" },
 	{ WINBINDD_WINS_BYIP, winbindd_wins_byip, "WINS_BYIP" },
-	
+
 	/* End of list */
 
 	{ WINBINDD_NUM_CMDS, NULL, "NONE" }
@@ -414,16 +415,16 @@ static void process_request(struct winbindd_cli_state *state)
 
 /*
  * A list of file descriptors being monitored by select in the main processing
- * loop. fd_event->handler is called whenever the socket is readable/writable.
+ * loop. winbindd_fd_event->handler is called whenever the socket is readable/writable.
  */
 
-static struct fd_event *fd_events = NULL;
+static struct winbindd_fd_event *fd_events = NULL;
 
-void add_fd_event(struct fd_event *ev)
+void add_fd_event(struct winbindd_fd_event *ev)
 {
-	struct fd_event *match;
+	struct winbindd_fd_event *match;
 
-	/* only add unique fd_event structs */
+	/* only add unique winbindd_fd_event structs */
 
 	for (match=fd_events; match; match=match->next ) {
 #ifdef DEVELOPER
@@ -437,17 +438,17 @@ void add_fd_event(struct fd_event *ev)
 	DLIST_ADD(fd_events, ev);
 }
 
-void remove_fd_event(struct fd_event *ev)
+void remove_fd_event(struct winbindd_fd_event *ev)
 {
 	DLIST_REMOVE(fd_events, ev);
 }
 
 /*
- * Handler for fd_events to complete a read/write request, set up by
+ * Handler for winbindd_fd_events to complete a read/write request, set up by
  * setup_async_read/setup_async_write.
  */
 
-static void rw_callback(struct fd_event *event, int flags)
+static void rw_callback(struct winbindd_fd_event *event, int flags)
 {
 	size_t todo;
 	ssize_t done = 0;
@@ -488,11 +489,11 @@ static void rw_callback(struct fd_event *event, int flags)
 }
 
 /*
- * Request an async read/write on a fd_event structure. (*finished) is called
+ * Request an async read/write on a winbindd_fd_event structure. (*finished) is called
  * when the request is completed or an error had occurred.
  */
 
-void setup_async_read(struct fd_event *event, void *data, size_t length,
+void setup_async_read(struct winbindd_fd_event *event, void *data, size_t length,
 		      void (*finished)(void *private_data, bool success),
 		      void *private_data)
 {
@@ -506,7 +507,7 @@ void setup_async_read(struct fd_event *event, void *data, size_t length,
 	event->flags = EVENT_FD_READ;
 }
 
-void setup_async_write(struct fd_event *event, void *data, size_t length,
+void setup_async_write(struct winbindd_fd_event *event, void *data, size_t length,
 		       void (*finished)(void *private_data, bool success),
 		       void *private_data)
 {
@@ -534,7 +535,6 @@ static void request_len_recv(void *private_data, bool success);
 static void request_recv(void *private_data, bool success);
 static void request_main_recv(void *private_data, bool success);
 static void request_finished(struct winbindd_cli_state *state);
-void request_finished_cont(void *private_data, bool success);
 static void response_main_sent(void *private_data, bool success);
 static void response_extra_sent(void *private_data, bool success);
 
@@ -543,10 +543,7 @@ static void response_extra_sent(void *private_data, bool success)
 	struct winbindd_cli_state *state =
 		talloc_get_type_abort(private_data, struct winbindd_cli_state);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	if (!success) {
 		state->finished = True;
@@ -570,10 +567,7 @@ static void response_main_sent(void *private_data, bool success)
 	}
 
 	if (state->response.length == sizeof(state->response)) {
-		if (state->mem_ctx != NULL) {
-			talloc_destroy(state->mem_ctx);
-			state->mem_ctx = NULL;
-		}
+		TALLOC_FREE(state->mem_ctx);
 
 		setup_async_read(&state->fd_event, &state->request,
 				 sizeof(uint32), request_len_recv, state);
@@ -605,17 +599,6 @@ void request_ok(struct winbindd_cli_state *state)
 	SMB_ASSERT(state->response.result == WINBINDD_PENDING);
 	state->response.result = WINBINDD_OK;
 	request_finished(state);
-}
-
-void request_finished_cont(void *private_data, bool success)
-{
-	struct winbindd_cli_state *state =
-		talloc_get_type_abort(private_data, struct winbindd_cli_state);
-
-	if (success)
-		request_ok(state);
-	else
-		request_error(state);
 }
 
 static void request_len_recv(void *private_data, bool success)
@@ -745,12 +728,22 @@ static void new_connection(int listen_sock, bool privileged)
 
 static void remove_client(struct winbindd_cli_state *state)
 {
+	char c = 0;
+	int nwritten;
+
 	/* It's a dead client - hold a funeral */
 	
 	if (state == NULL) {
 		return;
 	}
-		
+
+	/* tell client, we are closing ... */
+	nwritten = write(state->sock, &c, sizeof(c));
+	if (nwritten == -1) {
+		DEBUG(2, ("final write to client failed: %s\n",
+			  strerror(errno)));
+	}
+
 	/* Close socket */
 		
 	close(state->sock);
@@ -765,10 +758,7 @@ static void remove_client(struct winbindd_cli_state *state)
 
 	SAFE_FREE(state->response.extra_data.data);
 
-	if (state->mem_ctx != NULL) {
-		talloc_destroy(state->mem_ctx);
-		state->mem_ctx = NULL;
-	}
+	TALLOC_FREE(state->mem_ctx);
 
 	remove_fd_event(&state->fd_event);
 		
@@ -808,16 +798,16 @@ static bool remove_idle_client(void)
 }
 
 /* check if HUP has been received and reload files */
-void winbind_check_sighup(const char *logfile)
+void winbind_check_sighup(const char *lfile)
 {
 	if (do_sighup) {
 
 		DEBUG(3, ("got SIGHUP\n"));
 
 		flush_caches();
-		reload_services_file(logfile);
+		reload_services_file(lfile);
 
-		do_sighup = False;
+		do_sighup = 0;
 	}
 }
 
@@ -836,7 +826,7 @@ void winbind_check_sigterm(bool is_parent)
 static void process_loop(void)
 {
 	struct winbindd_cli_state *state;
-	struct fd_event *ev;
+	struct winbindd_fd_event *ev;
 	fd_set r_fds, w_fds;
 	int maxfd, listen_sock, listen_priv_sock, selret;
 	struct timeval timeout, ev_timeout;
@@ -930,7 +920,7 @@ static void process_loop(void)
 
 	ev = fd_events;
 	while (ev != NULL) {
-		struct fd_event *next = ev->next;
+		struct winbindd_fd_event *next = ev->next;
 		int flags = 0;
 		if (FD_ISSET(ev->fd, &r_fds))
 			flags |= EVENT_FD_READ;
@@ -992,13 +982,13 @@ static void process_loop(void)
 
 	if (do_sigusr2) {
 		print_winbindd_status();
-		do_sigusr2 = False;
+		do_sigusr2 = 0;
 	}
 
 	if (do_sigchld) {
 		pid_t pid;
 
-		do_sigchld = False;
+		do_sigchld = 0;
 
 		while ((pid = sys_waitpid(-1, NULL, WNOHANG)) > 0) {
 			winbind_child_died(pid);
@@ -1045,8 +1035,6 @@ int main(int argc, char **argv, char **envp)
 	dump_core_setup("winbindd");
 
 	load_case_tables();
-
-	db_tdb2_setup_messaging(NULL, false);
 
 	/* Initialise for running in non-root mode */
 
@@ -1114,11 +1102,11 @@ int main(int argc, char **argv, char **envp)
 	poptFreeContext(pc);
 
 	if (!override_logfile) {
-		char *logfile = NULL;
-		if (asprintf(&logfile,"%s/log.winbindd",
+		char *lfile = NULL;
+		if (asprintf(&lfile,"%s/log.winbindd",
 				get_dyn_LOGFILEBASE()) > 0) {
-			lp_set_logfile(logfile);
-			SAFE_FREE(logfile);
+			lp_set_logfile(lfile);
+			SAFE_FREE(lfile);
 		}
 	}
 	setup_logging("winbindd", log_stdout);
@@ -1135,11 +1123,8 @@ int main(int argc, char **argv, char **envp)
 	/* Initialise messaging system */
 
 	if (winbind_messaging_context() == NULL) {
-		DEBUG(0, ("unable to initialize messaging system\n"));
 		exit(1);
 	}
-
-	db_tdb2_setup_messaging(winbind_messaging_context(), true);
 
 	if (!reload_services_file(NULL)) {
 		DEBUG(0, ("error opening config file\n"));
@@ -1166,12 +1151,6 @@ int main(int argc, char **argv, char **envp)
 	/* Enable netbios namecache */
 
 	namecache_enable();
-
-	/* Winbind daemon initialisation */
-
-	if ( ! NT_STATUS_IS_OK(idmap_init_cache()) ) {
-		DEBUG(1, ("Could not init idmap cache!\n"));		
-	}
 
 	/* Unblock all signals we are interested in as they may have been
 	   blocked by the parent process. */
@@ -1212,7 +1191,13 @@ int main(int argc, char **argv, char **envp)
 
 	TimeInit();
 
-	if (!reinit_after_fork(winbind_messaging_context(), false)) {
+	/* Don't use winbindd_reinit_after_fork here as
+	 * we're just starting up and haven't created any
+	 * winbindd-specific resources we must free yet. JRA.
+	 */
+
+	if (!reinit_after_fork(winbind_messaging_context(),
+			       winbind_event_context(), false)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}

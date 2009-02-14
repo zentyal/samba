@@ -156,7 +156,9 @@ static int include_html(const char *fname)
 	}
 
 	while ((ret = read(fd, buf, sizeof(buf))) > 0) {
-		write(1, buf, ret);
+		if (write(1, buf, ret) == -1) {
+			break;
+		}
 	}
 
 	close(fd);
@@ -228,6 +230,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 	int i;
 	void *ptr = parm->ptr;
 	char *utf8_s1, *utf8_s2;
+	size_t converted_size;
 	TALLOC_CTX *ctx = talloc_stackframe();
 
 	if (parm->p_class == P_LOCAL && snum >= 0) {
@@ -252,12 +255,12 @@ static void show_parameter(int snum, struct parm_struct *parm)
 			for (;*list;list++) {
 				/* enclose in HTML encoded quotes if the string contains a space */
 				if ( strchr_m(*list, ' ') ) {
-					push_utf8_allocate(&utf8_s1, *list);
-					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""));
+					push_utf8_allocate(&utf8_s1, *list, &converted_size);
+					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""), &converted_size);
 					printf("&quot;%s&quot;%s", utf8_s1, utf8_s2);
 				} else {
-					push_utf8_allocate(&utf8_s1, *list);
-					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""));
+					push_utf8_allocate(&utf8_s1, *list, &converted_size);
+					push_utf8_allocate(&utf8_s2, ((*(list+1))?", ":""), &converted_size);
 					printf("%s%s", utf8_s1, utf8_s2);
 				}
 				SAFE_FREE(utf8_s1);
@@ -282,7 +285,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 
 	case P_STRING:
 	case P_USTRING:
-		push_utf8_allocate(&utf8_s1, *(char **)ptr);
+		push_utf8_allocate(&utf8_s1, *(char **)ptr, &converted_size);
 		printf("<input type=text size=40 name=\"parm_%s\" value=\"%s\">",
 		       make_parm_name(parm->label), fix_quotes(ctx, utf8_s1));
 		SAFE_FREE(utf8_s1);
@@ -474,7 +477,7 @@ static int save_reload(int snum)
 	}
 
 	write_config(f, False);
-	if (snum)
+	if (snum >= 0)
 		lp_dump_one(f, False, snum);
 	fclose(f);
 
@@ -896,6 +899,7 @@ static void shares_page(void)
 	int i;
 	int mode = 0;
 	unsigned int parm_filter = FLAG_BASIC;
+	size_t converted_size;
 
 	if (share)
 		snum = lp_servicenumber(share);
@@ -954,7 +958,7 @@ static void shares_page(void)
 	for (i=0;i<lp_numservices();i++) {
 		s = lp_servicename(i);
 		if (s && (*s) && strcmp(s,"IPC$") && !lp_print_ok(i)) {
-			push_utf8_allocate(&utf8_s, s);
+			push_utf8_allocate(&utf8_s, s, &converted_size);
 			printf("<option %s value=\"%s\">%s\n", 
 			       (share && strcmp(share,s)==0)?"SELECTED":"",
 			       utf8_s, utf8_s);
@@ -1250,8 +1254,8 @@ static void printers_page(void)
         printf("<H2>%s</H2>\n", _("Printer Parameters"));
  
         printf("<H3>%s</H3>\n", _("Important Note:"));
-        printf(_("Printer names marked with [*] in the Choose Printer drop-down box "));
-        printf(_("are autoloaded printers from "));
+        printf("%s",_("Printer names marked with [*] in the Choose Printer drop-down box "));
+        printf("%s",_("are autoloaded printers from "));
         printf("<A HREF=\"/swat/help/smb.conf.5.html#printcapname\" target=\"docs\">%s</A>\n", _("Printcap Name"));
         printf("%s\n", _("Attempting to delete these printers from SWAT will have no effect."));
 

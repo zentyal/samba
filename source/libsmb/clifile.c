@@ -66,7 +66,7 @@ static bool cli_link_internal(struct cli_state *cli, const char *oldname, const 
 			-1, 0,                          /* fid, flags */
 			&setup, 1, 0,                   /* setup, length, max */
 			param, param_len, 2,            /* param, length, max */
-			(char *)&data,  data_len, cli->max_xmit /* data, length, max */
+			data,  data_len, cli->max_xmit  /* data, length, max */
 			)) {
 		SAFE_FREE(data);
 		SAFE_FREE(param);
@@ -715,10 +715,10 @@ int cli_nt_delete_on_close(struct cli_state *cli, int fnum, bool flag)
 ****************************************************************************/
 
 int cli_nt_create_full(struct cli_state *cli, const char *fname,
-		 uint32 CreatFlags, uint32 DesiredAccess,
-		 uint32 FileAttributes, uint32 ShareAccess,
-		 uint32 CreateDisposition, uint32 CreateOptions,
-		 uint8 SecuityFlags)
+		       uint32 CreatFlags, uint32 DesiredAccess,
+		       uint32 FileAttributes, uint32 ShareAccess,
+		       uint32 CreateDisposition, uint32 CreateOptions,
+		       uint8 SecurityFlags)
 {
 	char *p;
 	int len;
@@ -744,7 +744,7 @@ int cli_nt_create_full(struct cli_state *cli, const char *fname,
 	SIVAL(cli->outbuf,smb_ntcreate_CreateDisposition, CreateDisposition);
 	SIVAL(cli->outbuf,smb_ntcreate_CreateOptions, CreateOptions);
 	SIVAL(cli->outbuf,smb_ntcreate_ImpersonationLevel, 0x02);
-	SCVAL(cli->outbuf,smb_ntcreate_SecurityFlags, SecuityFlags);
+	SCVAL(cli->outbuf,smb_ntcreate_SecurityFlags, SecurityFlags);
 
 	p = smb_buf(cli->outbuf);
 	/* this alignment and termination is critical for netapp filers. Don't change */

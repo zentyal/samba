@@ -578,7 +578,9 @@ void setup_logging(const char *pname, bool interactive)
 	stdout_logging = False;
 	if (dbf) {
 		x_fflush(dbf);
-		(void) x_fclose(dbf);
+                if (dbf != x_stdout) {
+                        (void) x_fclose(dbf);
+                }
 	}
 
 	dbf = NULL;
@@ -849,7 +851,7 @@ void check_log_size( void )
 		ret = vasprintf(&msgbuf, format_str, ap);
 		va_end(ap);
 
-		if (ret == -1) {
+		if (ret != -1) {
 			syslog(priority, "%s", msgbuf);
 		}
 		SAFE_FREE(msgbuf);

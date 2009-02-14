@@ -79,6 +79,37 @@ enum SERVICE_CONTROL
 #endif
 ;
 
+/* bitmap svcctl_MgrAccessMask */
+#define SC_RIGHT_MGR_CONNECT ( 0x0001 )
+#define SC_RIGHT_MGR_CREATE_SERVICE ( 0x0002 )
+#define SC_RIGHT_MGR_ENUMERATE_SERVICE ( 0x0004 )
+#define SC_RIGHT_MGR_LOCK ( 0x0008 )
+#define SC_RIGHT_MGR_QUERY_LOCK_STATUS ( 0x0010 )
+#define SC_RIGHT_MGR_MODIFY_BOOT_CONFIG ( 0x0020 )
+
+/* bitmap svcctl_ServiceAccessMask */
+#define SC_RIGHT_SVC_QUERY_CONFIG ( 0x0001 )
+#define SC_RIGHT_SVC_CHANGE_CONFIG ( 0x0002 )
+#define SC_RIGHT_SVC_QUERY_STATUS ( 0x0004 )
+#define SC_RIGHT_SVC_ENUMERATE_DEPENDENTS ( 0x0008 )
+#define SC_RIGHT_SVC_START ( 0x0010 )
+#define SC_RIGHT_SVC_STOP ( 0x0020 )
+#define SC_RIGHT_SVC_PAUSE_CONTINUE ( 0x0040 )
+#define SC_RIGHT_SVC_INTERROGATE ( 0x0080 )
+#define SC_RIGHT_SVC_USER_DEFINED_CONTROL ( 0x0100 )
+
+struct QUERY_SERVICE_CONFIG {
+	uint32_t service_type;
+	uint32_t start_type;
+	uint32_t error_control;
+	const char *executablepath;/* [unique,range(0,8192),charset(UTF16)] */
+	const char *loadordergroup;/* [unique,range(0,8192),charset(UTF16)] */
+	uint32_t tag_id;
+	const char *dependencies;/* [unique,range(0,8192),charset(UTF16)] */
+	const char *startname;/* [unique,range(0,8192),charset(UTF16)] */
+	const char *displayname;/* [unique,range(0,8192),charset(UTF16)] */
+}/* [gensize,public] */;
+
 
 struct svcctl_CloseServiceHandle {
 	struct {
@@ -274,13 +305,13 @@ struct svcctl_EnumDependentServicesW {
 	struct {
 		struct policy_handle *service;/* [ref] */
 		uint32_t state;
-		uint32_t buf_size;
+		uint32_t buf_size;/* [range(0,0x40000)] */
 	} in;
 
 	struct {
-		struct ENUM_SERVICE_STATUS *service_status;/* [unique] */
-		uint32_t *bytes_needed;/* [ref] */
-		uint32_t *services_returned;/* [ref] */
+		uint8_t *service_status;/* [ref,size_is(buf_size)] */
+		uint32_t *bytes_needed;/* [ref,range(0,0x40000)] */
+		uint32_t *services_returned;/* [ref,range(0,0x40000)] */
 		WERROR result;
 	} out;
 
@@ -340,12 +371,12 @@ struct svcctl_OpenServiceW {
 struct svcctl_QueryServiceConfigW {
 	struct {
 		struct policy_handle *handle;/* [ref] */
-		uint32_t buf_size;
+		uint32_t buf_size;/* [range(0,8192)] */
 	} in;
 
 	struct {
-		uint8_t *query;
-		uint32_t *bytes_needed;/* [ref] */
+		struct QUERY_SERVICE_CONFIG *query;/* [ref] */
+		uint32_t *bytes_needed;/* [ref,range(0,8192)] */
 		WERROR result;
 	} out;
 

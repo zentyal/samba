@@ -31,24 +31,21 @@
    Updated to 3 for enum types by JRA. */
 
 /* Updated to 4, completely new interface, SSS */
+/* Updated to 5, simplified interface by Volker */
 
-#define SMB_IDMAP_INTERFACE_VERSION 4
+#define SMB_IDMAP_INTERFACE_VERSION 5
 
 struct idmap_domain {
 	const char *name;
-	bool default_domain;
-	bool readonly;
-	void *private_data;
 	struct idmap_methods *methods;
-	bool initialized;
-	const char *params;
+	void *private_data;
 };
 
 /* Filled out by IDMAP backends */
 struct idmap_methods {
 
 	/* Called when backend is first loaded */
-	NTSTATUS (*init)(struct idmap_domain *dom);
+	NTSTATUS (*init)(struct idmap_domain *dom, const char *params);
 
 	/* Map an array of uids/gids to SIDs.  The caller specifies
 	   the uid/gid and type. Gets back the SID. */

@@ -21,8 +21,6 @@
 
 #include "includes.h"
 
-extern struct current_user current_user;
-
 userdom_struct current_user_info;
 fstring remote_proto="UNKNOWN";
 
@@ -213,11 +211,18 @@ static const char *get_smb_user_name(void)
 /*******************************************************************
  Setup the strings used by substitutions. Called per packet. Ensure
  %U name is set correctly also.
+
+ smb_name must be sanitized by alpha_strcpy
 ********************************************************************/
 
-void set_current_user_info(const userdom_struct *pcui)
+void set_current_user_info(const char *smb_name, const char *unix_name,
+			   const char *full_name, const char *domain)
 {
-	current_user_info = *pcui;
+	fstrcpy(current_user_info.smb_name, smb_name);
+	fstrcpy(current_user_info.unix_name, unix_name);
+	fstrcpy(current_user_info.full_name, full_name);
+	fstrcpy(current_user_info.domain, domain);
+
 	/* The following is safe as current_user_info.smb_name
 	 * has already been sanitised in register_existing_vuid. */
 
@@ -901,9 +906,9 @@ char *standard_sub_conn(TALLOC_CTX *ctx, connection_struct *conn, const char *st
 {
 	return talloc_sub_advanced(ctx,
 				lp_servicename(SNUM(conn)),
-				conn->user,
+				conn->server_info->unix_name,
 				conn->connectpath,
-				conn->gid,
+				conn->server_info->utok.gid,
 				get_smb_user_name(),
 				"",
 				str);

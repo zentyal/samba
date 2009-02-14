@@ -40,6 +40,8 @@ import "misc.idl", "lsa.idl", "security.idl";
 		ACB_NO_AUTH_DATA_REQD		= 0x00080000   /* 1 = No authorization data required */
 	} samr_AcctFlags;
 
+	/* SAM server specific access rights */
+
 	typedef [bitmap32bit] bitmap {
 		SAMR_ACCESS_CONNECT_TO_SERVER   = 0x00000001,
 		SAMR_ACCESS_SHUTDOWN_SERVER     = 0x00000002,
@@ -48,6 +50,29 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_ACCESS_ENUM_DOMAINS        = 0x00000010,
 		SAMR_ACCESS_OPEN_DOMAIN         = 0x00000020
 	} samr_ConnectAccessMask;
+
+	const int SAMR_ACCESS_ALL_ACCESS = 0x0000003F;
+
+	const int GENERIC_RIGHTS_SAM_ALL_ACCESS =
+		(STANDARD_RIGHTS_REQUIRED_ACCESS	|
+		 SAMR_ACCESS_ALL_ACCESS);
+
+	const int GENERIC_RIGHTS_SAM_READ =
+		(STANDARD_RIGHTS_READ_ACCESS		|
+		 SAMR_ACCESS_ENUM_DOMAINS);
+
+	const int GENERIC_RIGHTS_SAM_WRITE =
+		(STANDARD_RIGHTS_WRITE_ACCESS		|
+		 SAMR_ACCESS_CREATE_DOMAIN		|
+		 SAMR_ACCESS_INITIALIZE_SERVER		|
+		 SAMR_ACCESS_SHUTDOWN_SERVER);
+
+	const int GENERIC_RIGHTS_SAM_EXECUTE =
+		(STANDARD_RIGHTS_EXECUTE_ACCESS		|
+		 SAMR_ACCESS_OPEN_DOMAIN		|
+		 SAMR_ACCESS_CONNECT_TO_SERVER);
+
+	/* User Object specific access rights */
 
 	typedef [bitmap32bit] bitmap {
 		SAMR_USER_ACCESS_GET_NAME_ETC             = 0x00000001,
@@ -63,6 +88,35 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_USER_ACCESS_CHANGE_GROUP_MEMBERSHIP  = 0x00000400
 	} samr_UserAccessMask;
 
+	const int SAMR_USER_ACCESS_ALL_ACCESS = 0x000007FF;
+
+	const int GENERIC_RIGHTS_USER_ALL_ACCESS =
+		(STANDARD_RIGHTS_REQUIRED_ACCESS	|
+		 SAMR_USER_ACCESS_ALL_ACCESS);	/* 0x000f07ff */
+
+	const int GENERIC_RIGHTS_USER_READ =
+		(STANDARD_RIGHTS_READ_ACCESS		|
+		 SAMR_USER_ACCESS_GET_GROUP_MEMBERSHIP	|
+		 SAMR_USER_ACCESS_GET_GROUPS		|
+		 SAMR_USER_ACCESS_GET_ATTRIBUTES	|
+		 SAMR_USER_ACCESS_GET_LOGONINFO		|
+		 SAMR_USER_ACCESS_GET_LOCALE);	/* 0x0002031a */
+
+	const int GENERIC_RIGHTS_USER_WRITE =
+		(STANDARD_RIGHTS_WRITE_ACCESS		|
+		 SAMR_USER_ACCESS_CHANGE_PASSWORD	|
+		 SAMR_USER_ACCESS_SET_LOC_COM		|
+		 SAMR_USER_ACCESS_SET_ATTRIBUTES	|
+		 SAMR_USER_ACCESS_SET_PASSWORD		|
+		 SAMR_USER_ACCESS_CHANGE_GROUP_MEMBERSHIP);	/* 0x000204e4 */
+
+	const int GENERIC_RIGHTS_USER_EXECUTE =
+		(STANDARD_RIGHTS_EXECUTE_ACCESS		|
+		 SAMR_USER_ACCESS_CHANGE_PASSWORD	|
+		 SAMR_USER_ACCESS_GET_NAME_ETC);	/* 0x00020041 */
+
+	/* Domain Object specific access rights */
+
 	typedef [bitmap32bit] bitmap {
 		SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1  = 0x00000001,
 		SAMR_DOMAIN_ACCESS_SET_INFO_1     = 0x00000002,
@@ -77,6 +131,34 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_DOMAIN_ACCESS_SET_INFO_3     = 0x00000400
 	} samr_DomainAccessMask;
 
+	const int SAMR_DOMAIN_ACCESS_ALL_ACCESS	= 0x000007FF;
+
+	const int GENERIC_RIGHTS_DOMAIN_ALL_ACCESS =
+		(STANDARD_RIGHTS_REQUIRED_ACCESS	|
+		 SAMR_DOMAIN_ACCESS_ALL_ACCESS);
+
+	const int GENERIC_RIGHTS_DOMAIN_READ =
+		(STANDARD_RIGHTS_READ_ACCESS		|
+		 SAMR_DOMAIN_ACCESS_LOOKUP_ALIAS	|
+		 SAMR_DOMAIN_ACCESS_LOOKUP_INFO_2);
+
+	const int GENERIC_RIGHTS_DOMAIN_WRITE =
+		(STANDARD_RIGHTS_WRITE_ACCESS		|
+		 SAMR_DOMAIN_ACCESS_SET_INFO_3		|
+		 SAMR_DOMAIN_ACCESS_CREATE_ALIAS	|
+		 SAMR_DOMAIN_ACCESS_CREATE_GROUP	|
+		 SAMR_DOMAIN_ACCESS_CREATE_USER		|
+		 SAMR_DOMAIN_ACCESS_SET_INFO_2		|
+		 SAMR_DOMAIN_ACCESS_SET_INFO_1);
+
+	const int GENERIC_RIGHTS_DOMAIN_EXECUTE =
+		(STANDARD_RIGHTS_EXECUTE_ACCESS		|
+		 SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT	|
+		 SAMR_DOMAIN_ACCESS_ENUM_ACCOUNTS	|
+		 SAMR_DOMAIN_ACCESS_LOOKUP_INFO_1);
+
+	/* Group Object specific access rights */
+
 	typedef [bitmap32bit] bitmap {
 		SAMR_GROUP_ACCESS_LOOKUP_INFO     = 0x00000001,
 		SAMR_GROUP_ACCESS_SET_INFO        = 0x00000002,
@@ -85,6 +167,28 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_GROUP_ACCESS_GET_MEMBERS     = 0x00000010
 	} samr_GroupAccessMask;
 
+	const int SAMR_GROUP_ACCESS_ALL_ACCESS = 0x0000001F;
+
+	const int GENERIC_RIGHTS_GROUP_ALL_ACCESS =
+		(STANDARD_RIGHTS_REQUIRED_ACCESS	|
+		 SAMR_GROUP_ACCESS_ALL_ACCESS);	/* 0x000f001f */
+
+	const int GENERIC_RIGHTS_GROUP_READ =
+		(STANDARD_RIGHTS_READ_ACCESS		|
+		 SAMR_GROUP_ACCESS_GET_MEMBERS);	/* 0x00020010 */
+
+	const int GENERIC_RIGHTS_GROUP_WRITE =
+		(STANDARD_RIGHTS_WRITE_ACCESS		|
+		 SAMR_GROUP_ACCESS_REMOVE_MEMBER	|
+		 SAMR_GROUP_ACCESS_ADD_MEMBER		|
+		 SAMR_GROUP_ACCESS_SET_INFO);	/* 0x0002000e */
+
+	const int GENERIC_RIGHTS_GROUP_EXECUTE =
+		(STANDARD_RIGHTS_EXECUTE_ACCESS		|
+		 SAMR_GROUP_ACCESS_LOOKUP_INFO);	/* 0x00020001 */
+
+	/* Alias Object specific access rights */
+
 	typedef [bitmap32bit] bitmap {
 		SAMR_ALIAS_ACCESS_ADD_MEMBER      = 0x00000001,
 		SAMR_ALIAS_ACCESS_REMOVE_MEMBER   = 0x00000002,
@@ -92,6 +196,26 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_ALIAS_ACCESS_LOOKUP_INFO     = 0x00000008,
 		SAMR_ALIAS_ACCESS_SET_INFO        = 0x00000010
 	} samr_AliasAccessMask;
+
+	const int SAMR_ALIAS_ACCESS_ALL_ACCESS = 0x0000001F;
+
+	const int GENERIC_RIGHTS_ALIAS_ALL_ACCESS =
+		(STANDARD_RIGHTS_REQUIRED_ACCESS	|
+		 SAMR_ALIAS_ACCESS_ALL_ACCESS);	/* 0x000f001f */
+
+	const int GENERIC_RIGHTS_ALIAS_READ =
+		(STANDARD_RIGHTS_READ_ACCESS		|
+		 SAMR_ALIAS_ACCESS_GET_MEMBERS);	/* 0x00020004 */
+
+	const int GENERIC_RIGHTS_ALIAS_WRITE =
+		(STANDARD_RIGHTS_WRITE_ACCESS		|
+		 SAMR_ALIAS_ACCESS_REMOVE_MEMBER	|
+		 SAMR_ALIAS_ACCESS_ADD_MEMBER		|
+		 SAMR_ALIAS_ACCESS_SET_INFO);	/* 0x00020013 */
+
+	const int GENERIC_RIGHTS_ALIAS_EXECUTE =
+		(STANDARD_RIGHTS_EXECUTE_ACCESS		|
+		 SAMR_ALIAS_ACCESS_LOOKUP_INFO);	/* 0x00020008 */
 
 	/******************/
 	/* Function: 0x00 */
@@ -265,8 +389,7 @@ import "misc.idl", "lsa.idl", "security.idl";
 	typedef struct {
 		hyper sequence_num;
 		NTTIME domain_create_time;
-		uint32 unknown1;
-		uint32 unknown2;
+		hyper modified_count_at_last_promotion;
 	} samr_DomInfo13;
 
 	typedef [switch_type(uint16)] union {
@@ -739,10 +862,11 @@ import "misc.idl", "lsa.idl", "security.idl";
 	} samr_Password;
 
 	typedef struct {
-		samr_Password lm_pwd;
 		samr_Password nt_pwd;
-		boolean8 lm_pwd_active;
+		samr_Password lm_pwd;
 		boolean8 nt_pwd_active;
+		boolean8 lm_pwd_active;
+		uint8 password_expired;
 	} samr_UserInfo18;
 
 	typedef struct {
@@ -775,8 +899,8 @@ import "misc.idl", "lsa.idl", "security.idl";
 		SAMR_FIELD_PARAMETERS       = 0x00200000,
 		SAMR_FIELD_COUNTRY_CODE     = 0x00400000,
 		SAMR_FIELD_CODE_PAGE        = 0x00800000,
-		SAMR_FIELD_PASSWORD         = 0x01000000, /* either of these */
-		SAMR_FIELD_PASSWORD2        = 0x02000000, /* two bits seems to work */
+		SAMR_FIELD_NT_PASSWORD_PRESENT = 0x01000000, /* either of these */
+		SAMR_FIELD_LM_PASSWORD_PRESENT = 0x02000000, /* two bits seems to work */
 		SAMR_FIELD_PRIVATE_DATA     = 0x04000000,
 		SAMR_FIELD_EXPIRED_FLAG     = 0x08000000,
 		SAMR_FIELD_SEC_DESC         = 0x10000000,
@@ -804,8 +928,8 @@ import "misc.idl", "lsa.idl", "security.idl";
 		lsa_String workstations;
 		lsa_String comment;
 		lsa_BinaryString parameters;
-		lsa_String unknown1;
-		lsa_String unknown2;
+		lsa_BinaryString lm_owf_password;
+		lsa_BinaryString nt_owf_password;
 		lsa_String unknown3;
 		uint32 buf_count;
 		[size_is(buf_count)] uint8 *buffer;
@@ -818,8 +942,8 @@ import "misc.idl", "lsa.idl", "security.idl";
 		uint16 logon_count;
 		uint16 country_code;
 		uint16 code_page;
-		uint8  nt_password_set;
 		uint8  lm_password_set;
+		uint8  nt_password_set;
 		uint8  password_expired;
 		uint8  unknown4;
 	} samr_UserInfo21;
@@ -835,7 +959,7 @@ import "misc.idl", "lsa.idl", "security.idl";
 
 	typedef struct {
 		samr_CryptPassword password;
-		uint8 pw_len;
+		uint8 password_expired;
 	} samr_UserInfo24;
 
 	typedef [flag(NDR_PAHEX)] struct {
@@ -849,7 +973,7 @@ import "misc.idl", "lsa.idl", "security.idl";
 
 	typedef struct {
 		samr_CryptPasswordEx password;
-		uint8 pw_len;
+		uint8 password_expired;
 	} samr_UserInfo26;
 
 	typedef [switch_type(uint16)] union {
@@ -1088,7 +1212,7 @@ import "misc.idl", "lsa.idl", "security.idl";
 	NTSTATUS samr_QueryUserInfo2(
 		[in,ref]                  policy_handle *user_handle,
 		[in]                      uint16 level,
-		[out,ref,switch_is(level)]    samr_UserInfo *info
+		[out,ref,switch_is(level)]    samr_UserInfo **info
 		);
 
 	/************************/
@@ -1424,7 +1548,7 @@ import "misc.idl", "lsa.idl", "security.idl";
 
 	NTSTATUS samr_ValidatePassword(
 		[in] samr_ValidatePasswordLevel level,
-		[in,switch_is(level)] samr_ValidatePasswordReq req,
-		[out,ref,switch_is(level)] samr_ValidatePasswordRep *rep
+		[in,switch_is(level)] samr_ValidatePasswordReq *req,
+		[out,ref,switch_is(level)] samr_ValidatePasswordRep **rep
 		);
 }

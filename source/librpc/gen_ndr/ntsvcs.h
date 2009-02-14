@@ -5,10 +5,11 @@
 #ifndef _HEADER_ntsvcs
 #define _HEADER_ntsvcs
 
+#define DEV_REGPROP_DESC	( 1 )
 struct PNP_HwProfInfo {
-	uint32_t unknown1;
-	uint16_t unknown2[160];
-	uint32_t unknown3;
+	uint32_t profile_handle;
+	uint16_t friendly_name[80];
+	uint32_t flags;
 };
 
 
@@ -130,6 +131,19 @@ struct PNP_GetDepth {
 
 struct PNP_GetDeviceRegProp {
 	struct {
+		const char *devicepath;/* [ref,charset(UTF16)] */
+		uint32_t property;
+		uint32_t unknown3;
+		uint32_t *unknown1;/* [ref] */
+		uint32_t *buffer_size;/* [ref] */
+		uint32_t *needed;/* [ref] */
+	} in;
+
+	struct {
+		uint8_t *buffer;/* [ref,length_is(*buffer_size),size_is(*buffer_size)] */
+		uint32_t *unknown1;/* [ref] */
+		uint32_t *buffer_size;/* [ref] */
+		uint32_t *needed;/* [ref] */
 		WERROR result;
 	} out;
 
@@ -369,8 +383,8 @@ struct PNP_HwProfFlags {
 struct PNP_GetHwProfInfo {
 	struct {
 		uint32_t idx;
-		uint32_t unknown1;
-		uint32_t unknown2;
+		uint32_t size;
+		uint32_t flags;
 		struct PNP_HwProfInfo *info;/* [ref] */
 	} in;
 

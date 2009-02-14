@@ -28,52 +28,58 @@
 
 static_decl_idmap;
 
+/**
+ * Pointer to the backend methods. Modules register themselves here via
+ * smb_register_idmap.
+ */
+
 struct idmap_backend {
 	const char *name;
 	struct idmap_methods *methods;
 	struct idmap_backend *prev, *next;
 };
+static struct idmap_backend *backends = NULL;
 
+/**
+ * Pointer to the alloc backend methods. Modules register themselves here via
+ * smb_register_idmap_alloc.
+ */
 struct idmap_alloc_backend {
 	const char *name;
 	struct idmap_alloc_methods *methods;
 	struct idmap_alloc_backend *prev, *next;
 };
-
-struct idmap_cache_ctx;
-
-struct idmap_alloc_context {
-	const char *params;
-	struct idmap_alloc_methods *methods;
-	bool initialized;
-};
-
-static TALLOC_CTX *idmap_ctx = NULL;
-static struct idmap_cache_ctx *idmap_cache;
-
-static struct idmap_backend *backends = NULL;
-static struct idmap_domain **idmap_domains = NULL;
-static int num_domains = 0;
-static int pdb_dom_num = -1;
-static int def_dom_num = -1;
-
 static struct idmap_alloc_backend *alloc_backends = NULL;
+
+/**
+ * The idmap alloc context that is configured via "idmap alloc
+ * backend". Defaults to "idmap backend" in case the module (tdb, ldap) also
+ * provides alloc methods.
+ */
+struct idmap_alloc_context {
+	struct idmap_alloc_methods *methods;
+};
 static struct idmap_alloc_context *idmap_alloc_ctx = NULL;
 
-#define IDMAP_CHECK_RET(ret) do { \
-	if ( ! NT_STATUS_IS_OK(ret)) { \
-		DEBUG(2, ("ERROR: NTSTATUS = 0x%08x\n", NT_STATUS_V(ret))); \
-			goto done; \
-	} } while(0)
-#define IDMAP_REPORT_RET(ret) do { \
-	if ( ! NT_STATUS_IS_OK(ret)) { \
-		DEBUG(2, ("ERROR: NTSTATUS = 0x%08x\n", NT_STATUS_V(ret))); \
-	} } while(0)
-#define IDMAP_CHECK_ALLOC(mem) do { \
-	if (!mem) { \
-		DEBUG(0, ("Out of memory!\n")); ret = NT_STATUS_NO_MEMORY; \
-		goto done; \
-	} } while(0)
+/**
+ * Default idmap domain configured via "idmap backend".
+ */
+static struct idmap_domain *default_idmap_domain;
+
+/**
+ * Passdb idmap domain, not configurable. winbind must always give passdb a
+ * chance to map ids.
+ */
+static struct idmap_domain *passdb_idmap_domain;
+
+/**
+ * List of specially configured idmap domains. This list is filled on demand
+ * in the winbind idmap child when the parent winbind figures out via the
+ * special range parameter or via the domain SID that a special "idmap config
+ * domain" configuration is present.
+ */
+static struct idmap_domain **idmap_domains = NULL;
+static int num_domains = 0;
 
 static struct idmap_methods *get_methods(const char *name)
 {
@@ -107,6 +113,11 @@ bool idmap_is_offline(void)
 	     get_global_winbindd_state_offline() );
 }
 
+bool idmap_is_online(void)
+{
+	return !idmap_is_offline();
+}
+
 /**********************************************************************
  Allow a module to register itself as a method.
 **********************************************************************/
@@ -114,12 +125,7 @@ bool idmap_is_offline(void)
 NTSTATUS smb_register_idmap(int version, const char *name,
 			    struct idmap_methods *methods)
 {
-	struct idmap_methods *test;
 	struct idmap_backend *entry;
-
-	if (!idmap_ctx) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
 
  	if ((version != SMB_IDMAP_INTERFACE_VERSION)) {
 		DEBUG(0, ("Failed to register idmap module.\n"
@@ -137,20 +143,24 @@ NTSTATUS smb_register_idmap(int version, const char *name,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	test = get_methods(name);
-	if (test) {
-		DEBUG(0,("Idmap module %s already registered!\n", name));
-		return NT_STATUS_OBJECT_NAME_COLLISION;
+	for (entry = backends; entry != NULL; entry = entry->next) {
+		if (strequal(entry->name, name)) {
+			DEBUG(0,("Idmap module %s already registered!\n",
+				 name));
+			return NT_STATUS_OBJECT_NAME_COLLISION;
+		}
 	}
 
-	entry = talloc(idmap_ctx, struct idmap_backend);
+	entry = talloc(NULL, struct idmap_backend);
 	if ( ! entry) {
 		DEBUG(0,("Out of memory!\n"));
+		TALLOC_FREE(entry);
 		return NT_STATUS_NO_MEMORY;
 	}
-	entry->name = talloc_strdup(idmap_ctx, name);
+	entry->name = talloc_strdup(entry, name);
 	if ( ! entry->name) {
 		DEBUG(0,("Out of memory!\n"));
+		TALLOC_FREE(entry);
 		return NT_STATUS_NO_MEMORY;
 	}
 	entry->methods = methods;
@@ -161,7 +171,7 @@ NTSTATUS smb_register_idmap(int version, const char *name,
 }
 
 /**********************************************************************
- Allow a module to register itself as a method.
+ Allow a module to register itself as an alloc method.
 **********************************************************************/
 
 NTSTATUS smb_register_idmap_alloc(int version, const char *name,
@@ -169,10 +179,6 @@ NTSTATUS smb_register_idmap_alloc(int version, const char *name,
 {
 	struct idmap_alloc_methods *test;
 	struct idmap_alloc_backend *entry;
-
-	if (!idmap_ctx) {
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
 
  	if ((version != SMB_IDMAP_INTERFACE_VERSION)) {
 		DEBUG(0, ("Failed to register idmap alloc module.\n"
@@ -196,12 +202,12 @@ NTSTATUS smb_register_idmap_alloc(int version, const char *name,
 		return NT_STATUS_OBJECT_NAME_COLLISION;
 	}
 
-	entry = talloc(idmap_ctx, struct idmap_alloc_backend);
+	entry = talloc(NULL, struct idmap_alloc_backend);
 	if ( ! entry) {
 		DEBUG(0,("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
-	entry->name = talloc_strdup(idmap_ctx, name);
+	entry->name = talloc_strdup(entry, name);
 	if ( ! entry->name) {
 		DEBUG(0,("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
@@ -225,609 +231,372 @@ static int close_domain_destructor(struct idmap_domain *dom)
 	return 0;
 }
 
-/**************************************************************************
- Shutdown.
-**************************************************************************/
-
-NTSTATUS idmap_close(void)
+static bool parse_idmap_module(TALLOC_CTX *mem_ctx, const char *param,
+			       char **pmodulename, char **pargs)
 {
-	/* close the alloc backend first before freeing idmap_ctx */
-	if (idmap_alloc_ctx) {
-		idmap_alloc_ctx->methods->close_fn();
-		idmap_alloc_ctx->methods = NULL;
+	char *modulename;
+	char *args;
+
+	if (strncmp(param, "idmap_", 6) == 0) {
+		param += 6;
+		DEBUG(1, ("idmap_init: idmap backend uses deprecated "
+			  "'idmap_' prefix.  Please replace 'idmap_%s' by "
+			  "'%s'\n", param, param));
 	}
-	alloc_backends = NULL;
 
-	/* this talloc_free call will fire the talloc destructors
-	 * that will free all active backends resources */
-	TALLOC_FREE(idmap_ctx);
-	idmap_cache = NULL;
-	idmap_domains = NULL;
-	backends = NULL;
+	modulename = talloc_strdup(mem_ctx, param);
+	if (modulename == NULL) {
+		return false;
+	}
 
-	return NT_STATUS_OK;
+	args = strchr(modulename, ':');
+	if (args == NULL) {
+		*pmodulename = modulename;
+		*pargs = NULL;
+		return true;
+	}
+
+	*args = '\0';
+
+	args = talloc_strdup(mem_ctx, args+1);
+	if (args == NULL) {
+		TALLOC_FREE(modulename);
+		return false;
+	}
+
+	*pmodulename = modulename;
+	*pargs = args;
+	return true;
 }
 
-/****************************************************************************
- ****************************************************************************/
-
-NTSTATUS idmap_init_cache(void)
+/**
+ * Initialize a domain structure
+ * @param[in] mem_ctx		memory context for the result
+ * @param[in] domainname	which domain is this for
+ * @param[in] modulename	which backend module
+ * @param[in] params		parameter to pass to the init function
+ * @result The initialized structure
+ */
+static struct idmap_domain *idmap_init_domain(TALLOC_CTX *mem_ctx,
+					      const char *domainname,
+					      const char *modulename,
+					      const char *params)
 {
-	/* Always initialize the cache.  We'll have to delay initialization
-	   of backends if we are offline */
+	struct idmap_domain *result;
+	NTSTATUS status;
 
-	if ( idmap_ctx ) {
-		return NT_STATUS_OK;
+	result = talloc_zero(mem_ctx, struct idmap_domain);
+	if (result == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		return NULL;
 	}
 
-	if ( (idmap_ctx = talloc_named_const(NULL, 0, "idmap_ctx")) == NULL ) {
-		return NT_STATUS_NO_MEMORY;
+	result->name = talloc_strdup(result, domainname);
+	if (result->name == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		goto fail;
 	}
 
-	if ( (idmap_cache = idmap_cache_init(idmap_ctx)) == NULL ) {
-		return NT_STATUS_UNSUCCESSFUL;
+	result->methods = get_methods(modulename);
+	if (result->methods == NULL) {
+		DEBUG(3, ("idmap backend %s not found\n", modulename));
+
+		status = smb_probe_module("idmap", modulename);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(3, ("Could not probe idmap module %s\n",
+				  modulename));
+			goto fail;
+		}
+
+		result->methods = get_methods(modulename);
+	}
+	if (result->methods == NULL) {
+		DEBUG(1, ("idmap backend %s not found\n", modulename));
+		goto fail;
 	}
 
-	return NT_STATUS_OK;
+	status = result->methods->init(result, params);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("idmap initialization returned %s\n",
+			  nt_errstr(status)));
+		goto fail;
+	}
+
+	talloc_set_destructor(result, close_domain_destructor);
+
+	return result;
+
+fail:
+	TALLOC_FREE(result);
+	return NULL;
 }
 
-/****************************************************************************
- ****************************************************************************/
+/**
+ * Initialize the default domain structure
+ * @param[in] mem_ctx		memory context for the result
+ * @result The default domain structure
+ *
+ * This routine takes the module name from the "idmap backend" parameter,
+ * passing a possible parameter like ldap:ldap://ldap-url/ to the module.
+ */
 
-NTSTATUS idmap_init(void)
+static struct idmap_domain *idmap_init_default_domain(TALLOC_CTX *mem_ctx)
 {
-	NTSTATUS ret;
-	static NTSTATUS idmap_init_status = NT_STATUS_UNSUCCESSFUL;
-	struct idmap_domain *dom;
-	char *compat_backend = NULL;
-	char *compat_params = NULL;
-	const char **dom_list = NULL;
-	const char *default_domain = NULL;
-	char *alloc_backend = NULL;
-	bool default_already_defined = False;
-	bool pri_dom_is_in_list = False;
-	int compat = 0;
-	int i;
+	struct idmap_domain *result;
+	char *modulename;
+	char *params;
 
-	ret = idmap_init_cache();
-	if (!NT_STATUS_IS_OK(ret))
-		return ret;
-
-	if (NT_STATUS_IS_OK(idmap_init_status)) {
-		return NT_STATUS_OK;
-	}
-
-	/* We can't reliably call intialization code here unless
-	   we are online.  But return NT_STATUS_OK so the upper
-	   level code doesn't abort idmap lookups. */
-
-	if ( get_global_winbindd_state_offline() ) {
-		idmap_init_status = NT_STATUS_FILE_IS_OFFLINE;
-		return NT_STATUS_OK;
-	}
+	DEBUG(10, ("idmap_init_default_domain: calling static_init_idmap\n"));
 
 	static_init_idmap;
 
-	dom_list = lp_idmap_domains();
-
-	if ( lp_idmap_backend() ) {
-       		const char **compat_list = lp_idmap_backend();
-		char *p = NULL;
-		const char *q = NULL;
-
-		if ( dom_list ) {
-			DEBUG(0, ("WARNING: idmap backend and idmap domains are"
-				  " mutually exclusive!\n"));
-			DEBUGADD(0,("idmap backend option will be IGNORED!\n"));
-		} else {
-			compat = 1;
-
-			compat_backend = talloc_strdup(idmap_ctx, *compat_list);
-
-			/* strip any leading idmap_ prefix of */
-			if (strncmp(*compat_list, "idmap_", 6) == 0 ) {
-				q = *compat_list += 6;
-				DEBUG(0, ("WARNING: idmap backend uses obsolete"
-					  " and deprecated 'idmap_' prefix.\n"
-					  "Please replace 'idmap_%s' by '%s' in"
-					  " %s\n", q, q, get_dyn_CONFIGFILE()));
-				compat_backend = talloc_strdup(idmap_ctx, q);
-			} else {
-				compat_backend = talloc_strdup(idmap_ctx,
-							       *compat_list);
-			}
-
-			if (compat_backend == NULL ) {
-				ret = NT_STATUS_NO_MEMORY;
-				goto done;
-			}
-
-			/* separate the backend and module arguements */
-			if ((p = strchr(compat_backend, ':')) != NULL) {
-				*p = '\0';
-				compat_params = p + 1;
-			}
-		}
-	} else if ( !dom_list ) {
-		/* Back compatible: without idmap domains and explicit
-		   idmap backend.  Taking default idmap backend: tdb */
-
-		compat = 1;
-		compat_backend = talloc_strdup( idmap_ctx, "tdb");
-		compat_params = compat_backend;
+	if (!parse_idmap_module(talloc_tos(), lp_idmap_backend(), &modulename,
+				&params)) {
+		DEBUG(1, ("parse_idmap_module failed\n"));
+		return NULL;
 	}
 
-	if ( ! dom_list) {
-		/* generate a list with our main domain */
-		const char ** dl;
+	DEBUG(3, ("idmap_init: using '%s' as remote backend\n", modulename));
 
-		dl = talloc_array(idmap_ctx, const char *, 2);
-		if (dl == NULL) {
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-		dl[0] = talloc_strdup(dl, lp_workgroup());
-		if (dl[0] == NULL) {
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-
-		/* terminate */
-		dl[1] = NULL;
-
-		dom_list = dl;
-		default_domain = dl[0];
+	result = idmap_init_domain(mem_ctx, "*", modulename, params);
+	if (result == NULL) {
+		goto fail;
 	}
 
-	/***************************
-	 * initialize idmap domains
-	 */
-	DEBUG(1, ("Initializing idmap domains\n"));
-
-	for (i=0, num_domains=0; dom_list[i]; i++) {
-	       	const char *parm_backend;
-		char *config_option;
-
-		/* ignore BUILTIN and local MACHINE domains */
-		if (strequal(dom_list[i], "BUILTIN")
-		     || strequal(dom_list[i], get_global_sam_name()))
-		{
-			DEBUG(0,("idmap_init: Ignoring domain %s\n",
-				 dom_list[i]));
-			continue;
-		}
-
-		if ((dom_list[i] != default_domain) &&
-		    strequal(dom_list[i], lp_workgroup())) {
-			pri_dom_is_in_list = True;
-		}
-		/* init domain */
-
-		dom = TALLOC_ZERO_P(idmap_ctx, struct idmap_domain);
-		IDMAP_CHECK_ALLOC(dom);
-
-		dom->name = talloc_strdup(dom, dom_list[i]);
-		IDMAP_CHECK_ALLOC(dom->name);
-
-		config_option = talloc_asprintf(dom, "idmap config %s",
-						dom->name);
-		IDMAP_CHECK_ALLOC(config_option);
-
-		/* default or specific ? */
-
-		dom->default_domain = lp_parm_bool(-1, config_option,
-						   "default", False);
-
-		if (dom->default_domain ||
-		    (default_domain && strequal(dom_list[i], default_domain))) {
-
-			/* make sure this is set even when we match
-			 * default_domain */
-			dom->default_domain = True;
-
-			if (default_already_defined) {
-				DEBUG(1, ("ERROR: Multiple domains defined as"
-					  " default!\n"));
-				ret = NT_STATUS_INVALID_PARAMETER;
-				goto done;
-			}
-
-			default_already_defined = True;
-
-		}
-
-		dom->readonly = lp_parm_bool(-1, config_option,
-					     "readonly", False);
-
-		/* find associated backend (default: tdb) */
-		if (compat) {
-			parm_backend = talloc_strdup(idmap_ctx, compat_backend);
-		} else {
-			parm_backend = talloc_strdup(idmap_ctx,
-						     lp_parm_const_string(
-							-1, config_option,
-							"backend", "tdb"));
-		}
-		IDMAP_CHECK_ALLOC(parm_backend);
-
-		/* get the backend methods for this domain */
-		dom->methods = get_methods(parm_backend);
-
-		if ( ! dom->methods) {
-			ret = smb_probe_module("idmap", parm_backend);
-			if (NT_STATUS_IS_OK(ret)) {
-				dom->methods = get_methods(parm_backend);
-			}
-		}
-		if ( ! dom->methods) {
-			DEBUG(0, ("ERROR: Could not get methods for "
-				  "backend %s\n", parm_backend));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		/* check the set_mapping function exists otherwise mark the
-		 * module as readonly */
-		if ( ! dom->methods->set_mapping) {
-			DEBUG(5, ("Forcing to readonly, as this module can't"
-				  " store arbitrary mappings.\n"));
-			dom->readonly = True;
-		}
-
-		/* now that we have methods,
-		 * set the destructor for this domain */
-		talloc_set_destructor(dom, close_domain_destructor);
-
-		if (compat_params) {
-			dom->params = talloc_strdup(dom, compat_params);
-			IDMAP_CHECK_ALLOC(dom->params);
-		} else {
-			dom->params = NULL;
-		}
-
-		/* Finally instance a backend copy for this domain */
-		ret = dom->methods->init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			DEBUG(0, ("ERROR: Initialization failed for backend "
-				  "%s (domain %s), deferred!\n",
-				  parm_backend, dom->name));
-		}
-		idmap_domains = talloc_realloc(idmap_ctx, idmap_domains,
-						struct idmap_domain *, i+1);
-		if ( ! idmap_domains) {
-			DEBUG(0, ("Out of memory!\n"));
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-		idmap_domains[num_domains] = dom;
-
-		/* save default domain position for future uses */
-		if (dom->default_domain) {
-			def_dom_num = num_domains;
-		}
-
-		/* Bump counter to next available slot */
-
-		num_domains++;
-
-		DEBUG(10, ("Domain %s - Backend %s - %sdefault - %sreadonly\n",
-				dom->name, parm_backend,
-				dom->default_domain?"":"not ",
-				dom->readonly?"":"not "));
-
-		talloc_free(config_option);
-	}
-
-	/* on DCs we need to add idmap_tdb as the default backend if compat is
-	 * defined (when the old implicit configuration is used)
-	 * This is not done in the previous loop a on member server we exclude
-	 * the local domain. But on a DC the local domain is the only domain
-	 * available therefore we are left with no default domain */
-	if (((lp_server_role() == ROLE_DOMAIN_PDC) ||
-	     (lp_server_role() == ROLE_DOMAIN_BDC)) &&
-            ((num_domains == 0) && (compat == 1))) {
-
-		dom = TALLOC_ZERO_P(idmap_ctx, struct idmap_domain);
-		IDMAP_CHECK_ALLOC(dom);
-
-		dom->name = talloc_strdup(dom, "__default__");
-		IDMAP_CHECK_ALLOC(dom->name);
-
-		dom->default_domain = True;
-		dom->readonly = False;
-
-		/* get the backend methods for this domain */
-		dom->methods = get_methods(compat_backend); 
-		if ( ! dom->methods) {
-			ret = smb_probe_module("idmap", compat_backend);
-			if (NT_STATUS_IS_OK(ret)) {
-				dom->methods = get_methods(compat_backend);
-			}
-		}
-		if ( ! dom->methods) {
-			DEBUG(0, ("ERROR: Could not get methods for "
-				  "backend %s\n", compat_backend));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		/* now that we have methods,
-		 * set the destructor for this domain */
-		talloc_set_destructor(dom, close_domain_destructor);
-
-		dom->params = talloc_strdup(dom, compat_params);
-		IDMAP_CHECK_ALLOC(dom->params);
-
-		/* Finally instance a backend copy for this domain */
-		ret = dom->methods->init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			DEBUG(0, ("ERROR: Initialization failed for backend "
-				  "%s (domain %s), deferred!\n",
-				  compat_backend, dom->name));
-		}
-		idmap_domains = talloc_realloc(idmap_ctx, idmap_domains,
-						struct idmap_domain *, 2);
-		if ( ! idmap_domains) {
-			DEBUG(0, ("Out of memory!\n"));
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-		idmap_domains[num_domains] = dom;
-
-		def_dom_num = num_domains;
-
-		/* Bump counter to next available slot */
-
-		num_domains++;
-
-		DEBUG(10, ("Domain %s - Backend %s - %sdefault - %sreadonly\n",
-				dom->name, compat_backend,
-				dom->default_domain?"":"not ",
-				dom->readonly?"":"not "));
-	}
-
-	/* automatically add idmap_nss backend if needed */
-	if ((lp_server_role() == ROLE_DOMAIN_MEMBER) &&
-	    ( ! pri_dom_is_in_list) &&
-	    lp_winbind_trusted_domains_only()) {
-
-		dom = TALLOC_ZERO_P(idmap_ctx, struct idmap_domain);
-		IDMAP_CHECK_ALLOC(dom);
-
-		dom->name = talloc_strdup(dom, lp_workgroup());
-		IDMAP_CHECK_ALLOC(dom->name);
-
-		dom->default_domain = False;
-		dom->readonly = True;
-
-		/* get the backend methods for nss */
-		dom->methods = get_methods("nss");
-
-		/* (the nss module is always statically linked) */
-		if ( ! dom->methods) {
-			DEBUG(0, ("ERROR: No methods for idmap_nss ?!\n"));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		/* now that we have methods,
-		 * set the destructor for this domain */
-		talloc_set_destructor(dom, close_domain_destructor);
-
-		if (compat_params) {
-			dom->params = talloc_strdup(dom, compat_params);
-			IDMAP_CHECK_ALLOC(dom->params);
-		} else {
-			dom->params = NULL;
-		}
-
-		/* Finally instance a backend copy for this domain */
-		ret = dom->methods->init(dom);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			DEBUG(0, ("ERROR: Init. failed for idmap_nss ?!\n"));
-			ret = NT_STATUS_UNSUCCESSFUL;
-			goto done;
-		}
-
-		idmap_domains = talloc_realloc(idmap_ctx,
-						idmap_domains,
-						struct idmap_domain *,
-						num_domains+1);
-		if ( ! idmap_domains) {
-			DEBUG(0, ("Out of memory!\n"));
-			ret = NT_STATUS_NO_MEMORY;
-			goto done;
-		}
-		idmap_domains[num_domains] = dom;
-
-		DEBUG(10, ("Domain %s - Backend nss - not default - readonly\n",
-			   dom->name ));
-
-		num_domains++;
-	}
-
-	/**** automatically add idmap_passdb backend ****/
-	dom = TALLOC_ZERO_P(idmap_ctx, struct idmap_domain);
-	IDMAP_CHECK_ALLOC(dom);
-
-	dom->name = talloc_strdup(dom, get_global_sam_name());
-	IDMAP_CHECK_ALLOC(dom->name);
-
-	dom->default_domain = False;
-	dom->readonly = True;
-
-	/* get the backend methods for passdb */
-	dom->methods = get_methods("passdb");
-
-	/* (the passdb module is always statically linked) */
-	if ( ! dom->methods) {
-		DEBUG(0, ("ERROR: No methods for idmap_passdb ?!\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	/* now that we have methods, set the destructor for this domain */
-	talloc_set_destructor(dom, close_domain_destructor);
-
-	if (compat_params) {
-		dom->params = talloc_strdup(dom, compat_params);
-		IDMAP_CHECK_ALLOC(dom->params);
-	} else {
-		dom->params = NULL;
-	}
-
-	/* Finally instance a backend copy for this domain */
-	ret = dom->methods->init(dom);
-	if ( ! NT_STATUS_IS_OK(ret)) {
-		DEBUG(0, ("ERROR: Init. failed for idmap_passdb ?!\n"));
-		ret = NT_STATUS_UNSUCCESSFUL;
-		goto done;
-	}
-
-	idmap_domains = talloc_realloc(idmap_ctx,
-					idmap_domains,
-					struct idmap_domain *,
-					num_domains+1);
-	if ( ! idmap_domains) {
-		DEBUG(0, ("Out of memory!\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-	idmap_domains[num_domains] = dom;
-
-	/* needed to handle special BUILTIN and wellknown SIDs cases */
-	pdb_dom_num = num_domains;
-
-	DEBUG(10, ("Domain %s - Backend passdb - not default - readonly\n",
-		   dom->name));
-
-	num_domains++;
-	/**** finished adding idmap_passdb backend ****/
-
-	/* sort domains so that the default is the last one */
-	/* don't sort if no default domain defined */
-	if (def_dom_num != -1 && def_dom_num != num_domains-1) {
-		/* default is not last, move it */
-		struct idmap_domain *tmp;
-
-		if (pdb_dom_num > def_dom_num) {
-			pdb_dom_num --;
-
-		} else if (pdb_dom_num == def_dom_num) { /* ?? */
-			pdb_dom_num = num_domains - 1;
-		}
-
-		tmp = idmap_domains[def_dom_num];
-
-		for (i = def_dom_num; i < num_domains-1; i++) {
-			idmap_domains[i] = idmap_domains[i+1];
-		}
-		idmap_domains[i] = tmp;
-		def_dom_num = i;
-	}
-
-
-	/* Initialize alloc module */
-
-	DEBUG(3, ("Initializing idmap alloc module\n"));
-
-	alloc_backend = NULL;
-	if (compat) {
-		alloc_backend = talloc_strdup(idmap_ctx, compat_backend);
-	} else {
-		char *ab = lp_idmap_alloc_backend();
-
-		if (ab && (ab[0] != '\0')) {
-			alloc_backend = talloc_strdup(idmap_ctx,
-						      lp_idmap_alloc_backend());
-		}
-	}
-
-	if ( alloc_backend ) {
-
-		idmap_alloc_ctx = TALLOC_ZERO_P(idmap_ctx,
-						struct idmap_alloc_context);
-		IDMAP_CHECK_ALLOC(idmap_alloc_ctx);
-
-		idmap_alloc_ctx->methods = get_alloc_methods(alloc_backend);
-		if ( ! idmap_alloc_ctx->methods) {
-			ret = smb_probe_module("idmap", alloc_backend);
-			if (NT_STATUS_IS_OK(ret)) {
-				idmap_alloc_ctx->methods =
-					get_alloc_methods(alloc_backend);
-			}
-		}
-		if (idmap_alloc_ctx->methods) {
-
-			if (compat_params) {
-				idmap_alloc_ctx->params =
-					talloc_strdup(idmap_alloc_ctx,
-						      compat_params);
-				IDMAP_CHECK_ALLOC(idmap_alloc_ctx->params);
-			} else {
-				idmap_alloc_ctx->params = NULL;
-			}
-
-			ret = idmap_alloc_ctx->methods->init(idmap_alloc_ctx->params);
-			if ( ! NT_STATUS_IS_OK(ret)) {
-				DEBUG(0, ("ERROR: Initialization failed for "
-					  "alloc backend %s, deferred!\n",
-					  alloc_backend));
-			} else {
-				idmap_alloc_ctx->initialized = True;
-			}
-		} else {
-			DEBUG(2, ("idmap_init: Unable to get methods for "
-				  "alloc backend %s\n",
-				  alloc_backend));
-			/* certain compat backends are just readonly */
-			if ( compat ) {
-				TALLOC_FREE(idmap_alloc_ctx);
-				ret = NT_STATUS_OK;
-			} else {
-				ret = NT_STATUS_UNSUCCESSFUL;
-			}
-		}
-	}
-
-	/* cleanup temporary strings */
-	TALLOC_FREE( compat_backend );
-
-	idmap_init_status = NT_STATUS_OK;
-
-	return ret;
-
-done:
-	DEBUG(0, ("Aborting IDMAP Initialization ...\n"));
-	idmap_close();
-
-	return ret;
+	TALLOC_FREE(modulename);
+	TALLOC_FREE(params);
+	return result;
+
+fail:
+	TALLOC_FREE(modulename);
+	TALLOC_FREE(params);
+	TALLOC_FREE(result);
+	return NULL;
 }
 
-static NTSTATUS idmap_alloc_init(void)
+/**
+ * Initialize a named domain structure
+ * @param[in] mem_ctx		memory context for the result
+ * @param[in] domname		the domain name
+ * @result The default domain structure
+ *
+ * This routine looks at the "idmap config <domname>" parameters to figure out
+ * the configuration.
+ */
+
+static struct idmap_domain *idmap_init_named_domain(TALLOC_CTX *mem_ctx,
+						    const char *domname)
 {
-	NTSTATUS ret;
+	struct idmap_domain *result = NULL;
+	char *config_option;
+	const char *backend;
 
-	if (! NT_STATUS_IS_OK(ret = idmap_init())) {
-		return ret;
+	config_option = talloc_asprintf(talloc_tos(), "idmap config %s",
+					domname);
+	if (config_option == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		goto fail;
 	}
 
-	if ( ! idmap_alloc_ctx) {
-		return NT_STATUS_NOT_SUPPORTED;
+	backend = lp_parm_const_string(-1, config_option, "backend", NULL);
+	if (backend == NULL) {
+		DEBUG(1, ("no backend defined for %s\n", config_option));
+		goto fail;
 	}
 
-	if ( ! idmap_alloc_ctx->initialized) {
-		ret = idmap_alloc_ctx->methods->init(idmap_alloc_ctx->params);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			DEBUG(0, ("ERROR: Initialization failed for alloc "
-				  "backend, deferred!\n"));
-			return ret;
-		} else {
-			idmap_alloc_ctx->initialized = True;
+	result = idmap_init_domain(mem_ctx, domname, backend, NULL);
+	if (result == NULL) {
+		goto fail;
+	}
+
+	TALLOC_FREE(config_option);
+	return result;
+
+fail:
+	TALLOC_FREE(config_option);
+	TALLOC_FREE(result);
+	return NULL;
+}
+
+/**
+ * Initialize the passdb domain structure
+ * @param[in] mem_ctx		memory context for the result
+ * @result The default domain structure
+ *
+ * No config, passdb has its own configuration.
+ */
+
+static struct idmap_domain *idmap_init_passdb_domain(TALLOC_CTX *mem_ctx)
+{
+	if (passdb_idmap_domain != NULL) {
+		return passdb_idmap_domain;
+	}
+
+	passdb_idmap_domain = idmap_init_domain(NULL, get_global_sam_name(),
+						"passdb", NULL);
+	if (passdb_idmap_domain == NULL) {
+		DEBUG(1, ("Could not init passdb idmap domain\n"));
+	}
+
+	return passdb_idmap_domain;
+}
+
+/**
+ * Find a domain struct according to a domain name
+ * @param[in] domname		Domain name to get the config for
+ * @result The default domain structure that fits
+ *
+ * This is the central routine in the winbindd-idmap child to pick the correct
+ * domain for looking up IDs. If domname is NULL or empty, we use the default
+ * domain. If it contains something, we try to use idmap_init_named_domain()
+ * to fetch the correct backend.
+ *
+ * The choice about "domname" is being made by the winbind parent, look at the
+ * "have_idmap_config" of "struct winbindd_domain" which is set in
+ * add_trusted_domain.
+ */
+
+static struct idmap_domain *idmap_find_domain(const char *domname)
+{
+	struct idmap_domain *result;
+	int i;
+
+	DEBUG(10, ("idmap_find_domain called for domain '%s'\n",
+		   domname?domname:"NULL"));
+
+	/*
+	 * Always init the default domain, we can't go without one
+	 */
+	if (default_idmap_domain == NULL) {
+		default_idmap_domain = idmap_init_default_domain(NULL);
+	}
+	if (default_idmap_domain == NULL) {
+		return NULL;
+	}
+
+	if ((domname == NULL) || (domname[0] == '\0')) {
+		return default_idmap_domain;
+	}
+
+	for (i=0; i<num_domains; i++) {
+		if (strequal(idmap_domains[i]->name, domname)) {
+			return idmap_domains[i];
 		}
 	}
 
+	if (idmap_domains == NULL) {
+		/*
+		 * talloc context for all idmap domains
+		 */
+		idmap_domains = TALLOC_ARRAY(NULL, struct idmap_domain *, 1);
+	}
+
+	if (idmap_domains == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		return NULL;
+	}
+
+	result = idmap_init_named_domain(idmap_domains, domname);
+	if (result == NULL) {
+		/*
+		 * Could not init that domain -- try the default one
+		 */
+		return default_idmap_domain;
+	}
+
+	ADD_TO_ARRAY(idmap_domains, struct idmap_domain *, result,
+		     &idmap_domains, &num_domains);
+	return result;
+}
+
+void idmap_close(void)
+{
+        if (idmap_alloc_ctx) {
+                idmap_alloc_ctx->methods->close_fn();
+                idmap_alloc_ctx->methods = NULL;
+        }
+        alloc_backends = NULL;
+	TALLOC_FREE(default_idmap_domain);
+	TALLOC_FREE(passdb_idmap_domain);
+	TALLOC_FREE(idmap_domains);
+	num_domains = 0;
+}
+
+/**
+ * Initialize the idmap alloc backend
+ * @param[out] ctx		Where to put the alloc_ctx?
+ * @result Did it work fine?
+ *
+ * This routine first looks at "idmap alloc backend" and if that is not
+ * defined, it uses "idmap backend" for the module name.
+ */
+static NTSTATUS idmap_alloc_init(struct idmap_alloc_context **ctx)
+{
+	const char *backend;
+	char *modulename, *params;
+	NTSTATUS ret = NT_STATUS_NO_MEMORY;;
+
+	if (idmap_alloc_ctx != NULL) {
+		*ctx = idmap_alloc_ctx;
+		return NT_STATUS_OK;
+	}
+
+	idmap_alloc_ctx = talloc(NULL, struct idmap_alloc_context);
+	if (idmap_alloc_ctx == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		goto fail;
+	}
+
+	backend = lp_idmap_alloc_backend();
+	if ((backend == NULL) || (backend[0] == '\0')) {
+		backend = lp_idmap_backend();
+	}
+
+	if (backend == NULL) {
+		DEBUG(3, ("no idmap alloc backend defined\n"));
+		ret = NT_STATUS_INVALID_PARAMETER;
+		goto fail;
+	}
+
+	if (!parse_idmap_module(idmap_alloc_ctx, backend, &modulename,
+				&params)) {
+		DEBUG(1, ("parse_idmap_module %s failed\n", backend));
+		goto fail;
+	}
+
+	idmap_alloc_ctx->methods = get_alloc_methods(modulename);
+
+	if (idmap_alloc_ctx->methods == NULL) {
+		ret = smb_probe_module("idmap", modulename);
+		if (NT_STATUS_IS_OK(ret)) {
+			idmap_alloc_ctx->methods =
+				get_alloc_methods(modulename);
+		}
+	}
+
+	if (idmap_alloc_ctx->methods == NULL) {
+		DEBUG(1, ("could not find idmap alloc module %s\n", backend));
+		ret = NT_STATUS_INVALID_PARAMETER;
+		goto fail;
+	}
+
+	ret = idmap_alloc_ctx->methods->init(params);
+
+	if (!NT_STATUS_IS_OK(ret)) {
+		DEBUG(0, ("ERROR: Initialization failed for alloc "
+			  "backend, deferred!\n"));
+		goto fail;
+	}
+
+	TALLOC_FREE(modulename);
+	TALLOC_FREE(params);
+
+	*ctx = idmap_alloc_ctx;
 	return NT_STATUS_OK;
+
+fail:
+	TALLOC_FREE(idmap_alloc_ctx);
+	return ret;
 }
 
 /**************************************************************************
@@ -836,738 +605,214 @@ static NTSTATUS idmap_alloc_init(void)
 
 NTSTATUS idmap_allocate_uid(struct unixid *id)
 {
+	struct idmap_alloc_context *ctx;
 	NTSTATUS ret;
 
-	if (! NT_STATUS_IS_OK(ret = idmap_alloc_init())) {
+	if (!NT_STATUS_IS_OK(ret = idmap_alloc_init(&ctx))) {
 		return ret;
 	}
 
 	id->type = ID_TYPE_UID;
-	return idmap_alloc_ctx->methods->allocate_id(id);
+	return ctx->methods->allocate_id(id);
 }
 
 NTSTATUS idmap_allocate_gid(struct unixid *id)
 {
+	struct idmap_alloc_context *ctx;
 	NTSTATUS ret;
 
-	if (! NT_STATUS_IS_OK(ret = idmap_alloc_init())) {
+	if (!NT_STATUS_IS_OK(ret = idmap_alloc_init(&ctx))) {
 		return ret;
 	}
 
 	id->type = ID_TYPE_GID;
-	return idmap_alloc_ctx->methods->allocate_id(id);
+	return ctx->methods->allocate_id(id);
 }
 
 NTSTATUS idmap_set_uid_hwm(struct unixid *id)
 {
+	struct idmap_alloc_context *ctx;
 	NTSTATUS ret;
 
-	if (! NT_STATUS_IS_OK(ret = idmap_alloc_init())) {
+	if (!NT_STATUS_IS_OK(ret = idmap_alloc_init(&ctx))) {
 		return ret;
 	}
 
 	id->type = ID_TYPE_UID;
-	return idmap_alloc_ctx->methods->set_id_hwm(id);
+	return ctx->methods->set_id_hwm(id);
 }
 
 NTSTATUS idmap_set_gid_hwm(struct unixid *id)
 {
+	struct idmap_alloc_context *ctx;
 	NTSTATUS ret;
 
-	if (! NT_STATUS_IS_OK(ret = idmap_alloc_init())) {
+	if (!NT_STATUS_IS_OK(ret = idmap_alloc_init(&ctx))) {
 		return ret;
 	}
 
 	id->type = ID_TYPE_GID;
-	return idmap_alloc_ctx->methods->set_id_hwm(id);
+	return ctx->methods->set_id_hwm(id);
 }
 
-/******************************************************************************
- Lookup an idmap_domain give a full user or group SID
- ******************************************************************************/
-
-static struct idmap_domain* find_idmap_domain_from_sid( DOM_SID *account_sid )
+NTSTATUS idmap_new_mapping(const struct dom_sid *psid, enum id_type type,
+			   struct unixid *pxid)
 {
-	DOM_SID domain_sid;
-	uint32_t rid;
-	struct winbindd_domain *domain = NULL;
-	int i;
-
-	/* 1. Handle BUILTIN or Special SIDs and prevent them from
-	   falling into the default domain space (if we have a
-	   configured passdb backend. */
-
-	if ( (pdb_dom_num != -1) &&
-	     (sid_check_is_in_builtin(account_sid) ||
-	      sid_check_is_in_wellknown_domain(account_sid) ||
-	      sid_check_is_in_unix_groups(account_sid) ||
-	      sid_check_is_in_unix_users(account_sid)) )
-	{
-		return idmap_domains[pdb_dom_num];
-	}
-
-	/* 2. Lookup the winbindd_domain from the account_sid */
-
-	sid_copy( &domain_sid, account_sid );
-	sid_split_rid( &domain_sid, &rid );
-	domain = find_domain_from_sid_noinit( &domain_sid );
-
-	for (i = 0; domain && i < num_domains; i++) {
-		if ( strequal( idmap_domains[i]->name, domain->name ) ) {
-			return idmap_domains[i];
-		}
-	}
-
-	/* 3. Fall back to the default domain */
-
-	if ( def_dom_num != -1 ) {
-		return idmap_domains[def_dom_num];
-	}
-
-	return NULL;
-}
-
-/******************************************************************************
- Lookup an index given an idmap_domain pointer
- ******************************************************************************/
-
-static uint32_t find_idmap_domain_index( struct idmap_domain *id_domain)
-{
-	int i;
-
-	for (i = 0; i < num_domains; i++) {
-		if ( idmap_domains[i] == id_domain )
-			return i;
-	}
-
-	return -1;
-}
-
-
-/*********************************************************
- Check if creating a mapping is permitted for the domain
-*********************************************************/
-
-static NTSTATUS idmap_can_map(const struct id_map *map,
-			      struct idmap_domain **ret_dom)
-{
+	struct dom_sid sid;
 	struct idmap_domain *dom;
+	struct id_map map;
+	NTSTATUS status;
 
-	/* Check we do not create mappings for our own local domain,
-	 * or BUILTIN or special SIDs */
-	if ((sid_compare_domain(map->sid, get_global_sam_sid()) == 0) ||
-	    sid_check_is_in_builtin(map->sid) ||
-	    sid_check_is_in_wellknown_domain(map->sid) ||
-	    sid_check_is_in_unix_users(map->sid) ||
-	    sid_check_is_in_unix_groups(map->sid) )
-	{
-		DEBUG(10, ("We are not supposed to create mappings for our own "
-			   "domains (local, builtin, specials)\n"));
-		return NT_STATUS_UNSUCCESSFUL;
+	dom = idmap_find_domain(NULL);
+	if (dom == NULL) {
+		DEBUG(3, ("no default domain, no place to write\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+	if (dom->methods->set_mapping == NULL) {
+		DEBUG(3, ("default domain not writable\n"));
+		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 
-	/* Special check for trusted domain only = Yes */
-	if (lp_winbind_trusted_domains_only()) {
-		struct winbindd_domain *wdom = find_our_domain();
-		if (wdom && (sid_compare_domain(map->sid, &wdom->sid) == 0)) {
-			DEBUG(10, ("We are not supposed to create mappings for "
-				   "our primary domain when <trusted domain "
-				   "only> is True\n"));
-			DEBUGADD(10, ("Leave [%s] unmapped\n",
-				      sid_string_dbg(map->sid)));
-			return NT_STATUS_UNSUCCESSFUL;
-		}
-	}
+	sid_copy(&sid, psid);
+	map.sid = &sid;
+	map.xid.type = type;
 
-	if ( (dom = find_idmap_domain_from_sid( map->sid )) == NULL ) {
-		/* huh, couldn't find a suitable domain,
-		 *  let's just leave it unmapped */
-		DEBUG(10, ("Could not find idmap backend for SID %s\n",
-			   sid_string_dbg(map->sid)));
-		return NT_STATUS_NO_SUCH_DOMAIN;
-	}
-
-	if (dom->readonly) {
-		/* ouch the domain is read only,
-		 *  let's just leave it unmapped */
-		DEBUG(10, ("idmap backend for SID %s is READONLY!\n",
-			   sid_string_dbg(map->sid)));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	*ret_dom = dom;
-	return NT_STATUS_OK;
-}
-
-static NTSTATUS idmap_new_mapping(TALLOC_CTX *ctx, struct id_map *map)
-{
-	NTSTATUS ret;
-	struct idmap_domain *dom;
-
-	/* If we are offline we cannot lookup SIDs, deny mapping */
-	if (idmap_is_offline())	{
-		return NT_STATUS_FILE_IS_OFFLINE;
-	}
-
-	ret = idmap_can_map(map, &dom);
-	if ( ! NT_STATUS_IS_OK(ret)) {
-		return NT_STATUS_NONE_MAPPED;
-	}
-
-	/* check if this is a valid SID and then map it */
-	switch (map->xid.type) {
+	switch (type) {
 	case ID_TYPE_UID:
-		ret = idmap_allocate_uid(&map->xid);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			/* can't allocate id, let's just leave it unmapped */
-			DEBUG(2, ("uid allocation failed! "
-				  "Can't create mapping\n"));
-			return NT_STATUS_NONE_MAPPED;
-		}
+		status = idmap_allocate_uid(&map.xid);
 		break;
 	case ID_TYPE_GID:
-		ret = idmap_allocate_gid(&map->xid);
-		if ( ! NT_STATUS_IS_OK(ret)) {
-			/* can't allocate id, let's just leave it unmapped */
-			DEBUG(2, ("gid allocation failed! "
-				  "Can't create mapping\n"));
-			return NT_STATUS_NONE_MAPPED;
-		}
+		status = idmap_allocate_gid(&map.xid);
 		break;
 	default:
-		/* invalid sid, let's just leave it unmapped */
-		DEBUG(3,("idmap_new_mapping: Refusing to create a "
-			 "mapping for an unspecified ID type.\n"));
-		return NT_STATUS_NONE_MAPPED;
+		status = NT_STATUS_INVALID_PARAMETER;
+		break;
 	}
 
-	/* ok, got a new id, let's set a mapping */
-	map->status = ID_MAPPED;
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(3, ("Could not allocate id: %s\n", nt_errstr(status)));
+		return status;
+	}
+
+	map.status = ID_MAPPED;
 
 	DEBUG(10, ("Setting mapping: %s <-> %s %lu\n",
-		   sid_string_dbg(map->sid),
-		   (map->xid.type == ID_TYPE_UID) ? "UID" : "GID",
-		   (unsigned long)map->xid.id));
-	ret = dom->methods->set_mapping(dom, map);
+		   sid_string_dbg(map.sid),
+		   (map.xid.type == ID_TYPE_UID) ? "UID" : "GID",
+		   (unsigned long)map.xid.id));
 
-	if ( ! NT_STATUS_IS_OK(ret)) {
-		/* something wrong here :-( */
-		DEBUG(2, ("Failed to commit mapping\n!"));
+	status = dom->methods->set_mapping(dom, &map);
 
-	/* TODO: would it make sense to have an "unalloc_id function?" */
-
-		return NT_STATUS_NONE_MAPPED;
+	if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
+		struct id_map *ids[2];
+		DEBUG(5, ("Mapping for %s exists - retrying to map sid\n",
+			  sid_string_dbg(map.sid)));
+		ids[0] = &map;
+		ids[1] = NULL;
+		status = dom->methods->sids_to_unixids(dom, ids);
 	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(3, ("Could not store the new mapping: %s\n",
+			  nt_errstr(status)));
+		return status;
+	}
+
+	*pxid = map.xid;
 
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS idmap_backends_set_mapping(const struct id_map *map)
+NTSTATUS idmap_backends_unixid_to_sid(const char *domname, struct id_map *id)
 {
 	struct idmap_domain *dom;
-	NTSTATUS ret;
+	struct id_map *maps[2];
 
-	DEBUG(10, ("Setting mapping %s <-> %s %lu\n",
-		   sid_string_dbg(map->sid),
-		   (map->xid.type == ID_TYPE_UID) ? "UID" : "GID",
-		   (unsigned long)map->xid.id));
+	 DEBUG(10, ("idmap_backend_unixid_to_sid: domain = '%s', xid = %d "
+		    "(type %d)\n",
+		    domname?domname:"NULL", id->xid.id, id->xid.type));
 
-	ret = idmap_can_map(map, &dom);
-	if ( ! NT_STATUS_IS_OK(ret)) {
-		return ret;
+	maps[0] = id;
+	maps[1] = NULL;
+
+	/*
+	 * Always give passdb a chance first
+	 */
+
+	dom = idmap_init_passdb_domain(NULL);
+	if ((dom != NULL)
+	    && NT_STATUS_IS_OK(dom->methods->unixids_to_sids(dom, maps))
+	    && id->status == ID_MAPPED) {
+		return NT_STATUS_OK;
 	}
 
-	DEBUG(10,("set_mapping for domain %s\n", dom->name ));
+	dom = idmap_find_domain(domname);
+	if (dom == NULL) {
+		return NT_STATUS_NONE_MAPPED;
+	}
+
+	return dom->methods->unixids_to_sids(dom, maps);
+}
+
+NTSTATUS idmap_backends_sid_to_unixid(const char *domain, struct id_map *id)
+{
+	struct idmap_domain *dom;
+	struct id_map *maps[2];
+
+	 DEBUG(10, ("idmap_backend_sid_to_unixid: domain = '%s', sid = [%s]\n",
+		    domain?domain:"NULL", sid_string_dbg(id->sid)));
+
+	maps[0] = id;
+	maps[1] = NULL;
+
+	if (sid_check_is_in_builtin(id->sid)
+	    || (sid_check_is_in_our_domain(id->sid))) {
+
+		dom = idmap_init_passdb_domain(NULL);
+		if (dom == NULL) {
+			return NT_STATUS_NONE_MAPPED;
+		}
+		return dom->methods->sids_to_unixids(dom, maps);
+	}
+
+	dom = idmap_find_domain(domain);
+	if (dom == NULL) {
+		return NT_STATUS_NONE_MAPPED;
+	}
+
+	return dom->methods->sids_to_unixids(dom, maps);
+}
+
+NTSTATUS idmap_set_mapping(const struct id_map *map)
+{
+	struct idmap_domain *dom;
+
+	dom = idmap_find_domain(NULL);
+	if (dom == NULL) {
+		DEBUG(3, ("no default domain, no place to write\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+	if (dom->methods->set_mapping == NULL) {
+		DEBUG(3, ("default domain not writable\n"));
+		return NT_STATUS_MEDIA_WRITE_PROTECTED;
+	}
 
 	return dom->methods->set_mapping(dom, map);
 }
 
-static NTSTATUS idmap_backends_unixids_to_sids(struct id_map **ids)
+NTSTATUS idmap_remove_mapping(const struct id_map *map)
 {
 	struct idmap_domain *dom;
-	struct id_map **unmapped;
-	struct id_map **_ids;
-	TALLOC_CTX *ctx;
-	NTSTATUS ret;
-	int i, u, n;
 
-	if (!ids || !*ids) {
-		DEBUG(1, ("Invalid list of maps\n"));
-		return NT_STATUS_INVALID_PARAMETER;
+	dom = idmap_find_domain(NULL);
+	if (dom == NULL) {
+		DEBUG(3, ("no default domain, no place to write\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+	if (dom->methods->remove_mapping == NULL) {
+		DEBUG(3, ("default domain not writable\n"));
+		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 
-	ctx = talloc_named_const(NULL, 0, "idmap_backends_unixids_to_sids ctx");
-	if ( ! ctx) {
-		DEBUG(0, ("Out of memory!\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	DEBUG(10, ("Query backends to map ids->sids\n"));
-
-	/* start from the default (the last one) and then if there are still
-	 * unmapped entries cycle through the others */
-
-	_ids = ids;
-
-	unmapped = NULL;
-	for (n = num_domains-1; n >= 0; n--) { /* cycle backwards */
-
-		dom = idmap_domains[n];
-
-		DEBUG(10, ("Query sids from domain %s\n", dom->name));
-
-		ret = dom->methods->unixids_to_sids(dom, _ids);
-		IDMAP_REPORT_RET(ret);
-
-		unmapped = NULL;
-
-		for (i = 0, u = 0; _ids[i]; i++) {
-			if (_ids[i]->status != ID_MAPPED) {
-				unmapped = talloc_realloc(ctx, unmapped,
-							struct id_map *, u + 2);
-				IDMAP_CHECK_ALLOC(unmapped);
-				unmapped[u] = _ids[i];
-				u++;
-			}
-		}
-		if (unmapped) {
-			/* terminate the unmapped list */
-			unmapped[u] = NULL;
-		} else { /* no more entries, get out */
-			break;
-		}
-
-		_ids = unmapped;
-
-	}
-
-	if (unmapped) {
-		/* there are still unmapped ids,
-		 * map them to the unix users/groups domains */
-		/* except for expired entries,
-		 * these will be returned as valid (offline mode) */
-		for (i = 0; unmapped[i]; i++) {
-			if (unmapped[i]->status == ID_EXPIRED) continue;
-			switch (unmapped[i]->xid.type) {
-			case ID_TYPE_UID:
-				uid_to_unix_users_sid(
-						(uid_t)unmapped[i]->xid.id,
-						unmapped[i]->sid);
-				unmapped[i]->status = ID_MAPPED;
-				break;
-			case ID_TYPE_GID:
-				gid_to_unix_groups_sid(
-						(gid_t)unmapped[i]->xid.id,
-						unmapped[i]->sid);
-				unmapped[i]->status = ID_MAPPED;
-				break;
-			default: /* what?! */
-				unmapped[i]->status = ID_UNKNOWN;
-				break;
-			}
-		}
-	}
-
-	ret = NT_STATUS_OK;
-
-done:
-	talloc_free(ctx);
-	return ret;
+	return dom->methods->remove_mapping(dom, map);
 }
-
-static NTSTATUS idmap_backends_sids_to_unixids(struct id_map **ids)
-{
-	struct id_map ***dom_ids;
-	struct idmap_domain *dom;
-	TALLOC_CTX *ctx;
-	NTSTATUS ret;
-	int i, *counters;
-
-	if ( (ctx = talloc_named_const(NULL, 0, "be_sids_to_ids")) == NULL ) {
-		DEBUG(1, ("failed to allocate talloc context, OOM?\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	DEBUG(10, ("Query backends to map sids->ids\n"));
-
-	/* split list per domain */
-	if (num_domains == 0) {
-		DEBUG(1, ("No domains available?\n"));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	dom_ids = TALLOC_ZERO_ARRAY(ctx, struct id_map **, num_domains);
-	IDMAP_CHECK_ALLOC(dom_ids);
-	counters = TALLOC_ZERO_ARRAY(ctx, int, num_domains);
-	IDMAP_CHECK_ALLOC(counters);
-
-	/* partition the requests by domain */
-
-	for (i = 0; ids[i]; i++) {
-		uint32_t idx;
-
-		if ((dom = find_idmap_domain_from_sid(ids[i]->sid)) == NULL) {
-			/* no available idmap_domain.  Move on */
-			continue;
-		}
-
-		DEBUG(10,("SID %s is being handled by %s\n",
-			  sid_string_dbg(ids[i]->sid),
-			  dom ? dom->name : "none" ));
-
-		idx = find_idmap_domain_index( dom );
-		SMB_ASSERT( idx != -1 );
-
-		dom_ids[idx] = talloc_realloc(ctx, dom_ids[idx],
-					      struct id_map *,
-					      counters[idx] + 2);
-		IDMAP_CHECK_ALLOC(dom_ids[idx]);
-
-		dom_ids[idx][counters[idx]] = ids[i];
-		counters[idx]++;
-		dom_ids[idx][counters[idx]] = NULL;
-	}
-
-	/* All the ids have been dispatched in the right queues.
-	   Let's cycle through the filled ones */
-
-	for (i = 0; i < num_domains; i++) {
-		if (dom_ids[i]) {
-			dom = idmap_domains[i];
-			DEBUG(10, ("Query ids from domain %s\n", dom->name));
-			ret = dom->methods->sids_to_unixids(dom, dom_ids[i]);
-			IDMAP_REPORT_RET(ret);
-		}
-	}
-
-	/* ok all the backends have been contacted at this point */
-	/* let's see if we have any unmapped SID left and act accordingly */
-
-	for (i = 0; ids[i]; i++) {
-		/* NOTE: this will NOT touch ID_EXPIRED entries that the backend
-		 * was not able to confirm/deny (offline mode) */
-		if (ids[i]->status == ID_UNKNOWN ||
-			ids[i]->status == ID_UNMAPPED) {
-			/* ok this is an unmapped one, see if we can map it */
-			ret = idmap_new_mapping(ctx, ids[i]);
-			if (NT_STATUS_IS_OK(ret)) {
-				/* successfully mapped */
-				ids[i]->status = ID_MAPPED;
-			} else
-			if (NT_STATUS_EQUAL(ret, NT_STATUS_NONE_MAPPED)) {
-				/* could not map it */
-				ids[i]->status = ID_UNMAPPED;
-			} else {
-				/* Something very bad happened down there
-				 * OR we are offline */
-				ids[i]->status = ID_UNKNOWN;
-			}
-		}
-	}
-
-	ret = NT_STATUS_OK;
-
-done:
-	talloc_free(ctx);
-	return ret;
-}
-
-/**************************************************************************
- idmap interface functions
-**************************************************************************/
-
-NTSTATUS idmap_unixids_to_sids(struct id_map **ids)
-{
-	TALLOC_CTX *ctx;
-	NTSTATUS ret;
-	struct id_map **bids;
-	int i, bi;
-	int bn = 0;
-	struct winbindd_domain *our_domain = find_our_domain();
-
-	if (! NT_STATUS_IS_OK(ret = idmap_init())) {
-		return ret;
-	}
-
-	if (!ids || !*ids) {
-		DEBUG(1, ("Invalid list of maps\n"));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	ctx = talloc_named_const(NULL, 0, "idmap_unixids_to_sids ctx");
-	if ( ! ctx) {
-		DEBUG(1, ("failed to allocate talloc context, OOM?\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* no ids to be asked to the backends by default */
-	bids = NULL;
-	bi = 0;
-
-	for (i = 0; ids[i]; i++) {
-
-		if ( ! ids[i]->sid) {
-			DEBUG(1, ("invalid null SID in id_map array"));
-			talloc_free(ctx);
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-
-		ret = idmap_cache_map_id(idmap_cache, ids[i]);
-
-		if ( ! NT_STATUS_IS_OK(ret)) {
-
-			if ( ! bids) {
-				/* alloc space for ids to be resolved by
-				 * backends (realloc ten by ten) */
-				bids = TALLOC_ARRAY(ctx, struct id_map *, 10);
-				if ( ! bids) {
-					DEBUG(1, ("Out of memory!\n"));
-					talloc_free(ctx);
-					return NT_STATUS_NO_MEMORY;
-				}
-				bn = 10;
-			}
-
-			/* add this id to the ones to be retrieved
-			 * from the backends */
-			bids[bi] = ids[i];
-			bi++;
-
-			/* check if we need to allocate new space
-			 *  on the rids array */
-			if (bi == bn) {
-				bn += 10;
-				bids = talloc_realloc(ctx, bids,
-						      struct id_map *, bn);
-				if ( ! bids) {
-					DEBUG(1, ("Out of memory!\n"));
-					talloc_free(ctx);
-					return NT_STATUS_NO_MEMORY;
-				}
-			}
-
-			/* make sure the last element is NULL */
-			bids[bi] = NULL;
-		}
-	}
-
-	/* let's see if there is any id mapping to be retieved
-	 * from the backends */
-	if (bids) {
-		bool online;
-
-		/* Only do query if we are online */
-		online = !IS_DOMAIN_OFFLINE(our_domain);
-		if (online) {
-			ret = idmap_backends_unixids_to_sids(bids);
-			IDMAP_CHECK_RET(ret);
-		}
-
-		/* update the cache */
-		for (i = 0; i < bi; i++) {
-			if (bids[i]->status == ID_MAPPED) {
-				ret = idmap_cache_set(idmap_cache, bids[i]);
-			} else if (bids[i]->status == ID_EXPIRED) {
-				/* the cache returned an expired entry and the
-				 * backend was not able to clear the situation
-				 * (offline). This handles a previous
-				 * NT_STATUS_SYNCHRONIZATION_REQUIRED
-				 * for disconnected mode, */
-				bids[i]->status = ID_MAPPED;
-			} else if (bids[i]->status == ID_UNKNOWN) {
-				/* something bad here. We were not able to
-				 * handle this for some reason, mark it as
-				 * unmapped and hope next time things will
-				 * settle down. */
-				bids[i]->status = ID_UNMAPPED;
-			} else if (online) { /* unmapped */
-				ret = idmap_cache_set_negative_id(idmap_cache,
-								  bids[i]);
-			}
-			IDMAP_CHECK_RET(ret);
-		}
-	}
-
-	ret = NT_STATUS_OK;
-done:
-	talloc_free(ctx);
-	return ret;
-}
-
-NTSTATUS idmap_sids_to_unixids(struct id_map **ids)
-{
-	TALLOC_CTX *ctx;
-	NTSTATUS ret;
-	struct id_map **bids;
-	int i, bi;
-	int bn = 0;
-	struct winbindd_domain *our_domain = find_our_domain();
-
-	if (! NT_STATUS_IS_OK(ret = idmap_init())) {
-		return ret;
-	}
-
-	if (!ids || !*ids) {
-		DEBUG(1, ("Invalid list of maps\n"));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	ctx = talloc_named_const(NULL, 0, "idmap_sids_to_unixids ctx");
-	if ( ! ctx) {
-		DEBUG(1, ("failed to allocate talloc context, OOM?\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* no ids to be asked to the backends by default */
-	bids = NULL;
-	bi = 0;
-
-	for (i = 0; ids[i]; i++) {
-
-		if ( ! ids[i]->sid) {
-			DEBUG(1, ("invalid null SID in id_map array\n"));
-			talloc_free(ctx);
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-
-		ret = idmap_cache_map_sid(idmap_cache, ids[i]);
-
-		if ( ! NT_STATUS_IS_OK(ret)) {
-
-			if ( ! bids) {
-				/* alloc space for ids to be resolved
-				   by backends (realloc ten by ten) */
-				bids = TALLOC_ARRAY(ctx, struct id_map *, 10);
-				if ( ! bids) {
-					DEBUG(1, ("Out of memory!\n"));
-					talloc_free(ctx);
-					return NT_STATUS_NO_MEMORY;
-				}
-				bn = 10;
-			}
-
-			/* add this id to the ones to be retrieved
-			 * from the backends */
-			bids[bi] = ids[i];
-			bi++;
-
-			/* check if we need to allocate new space
-			 * on the ids array */
-			if (bi == bn) {
-				bn += 10;
-				bids = talloc_realloc(ctx, bids,
-						      struct id_map *, bn);
-				if ( ! bids) {
-					DEBUG(1, ("Out of memory!\n"));
-					talloc_free(ctx);
-					return NT_STATUS_NO_MEMORY;
-				}
-			}
-
-			/* make sure the last element is NULL */
-			bids[bi] = NULL;
-		}
-	}
-
-	/* let's see if there is any id mapping to be retieved
-	 * from the backends */
-	if (bids) {
-		bool online;
-
-		/* Only do query if we are online */
-		online = !IS_DOMAIN_OFFLINE(our_domain);
-		if (online) {
-			ret = idmap_backends_sids_to_unixids(bids);
-			IDMAP_CHECK_RET(ret);
-		}
-
-		/* update the cache */
-		for (i = 0; bids[i]; i++) {
-			if (bids[i]->status == ID_MAPPED) {
-				ret = idmap_cache_set(idmap_cache, bids[i]);
-			} else if (bids[i]->status == ID_EXPIRED) {
-				/* the cache returned an expired entry and the
-				 * backend was not able to clear the situation
-				 * (offline). This handles a previous
-				 * NT_STATUS_SYNCHRONIZATION_REQUIRED
-				 * for disconnected mode, */
-				bids[i]->status = ID_MAPPED;
-			} else if (bids[i]->status == ID_UNKNOWN) {
-				/* something bad here. We were not able to
-				 * handle this for some reason, mark it as
-				 * unmapped and hope next time things will
-				 * settle down. */
-				bids[i]->status = ID_UNMAPPED;
-			} else if (online) { /* unmapped */
-				ret = idmap_cache_set_negative_sid(idmap_cache,
-								   bids[i]);
-			}
-			IDMAP_CHECK_RET(ret);
-		}
-	}
-
-	ret = NT_STATUS_OK;
-done:
-	talloc_free(ctx);
-	return ret;
-}
-
-NTSTATUS idmap_set_mapping(const struct id_map *id)
-{
-	TALLOC_CTX *ctx;
-	NTSTATUS ret;
-
-	if (! NT_STATUS_IS_OK(ret = idmap_init())) {
-		return ret;
-	}
-
-	/* sanity checks */
-	if ((id->sid == NULL) || (id->status != ID_MAPPED)) {
-		DEBUG(1, ("NULL SID or unmapped entry\n"));
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	/* TODO: check uid/gid range ? */
-
-	ctx = talloc_named_const(NULL, 0, "idmap_set_mapping ctx");
-	if ( ! ctx) {
-		DEBUG(1, ("failed to allocate talloc context, OOM?\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* set the new mapping */
-	ret = idmap_backends_set_mapping(id);
-	IDMAP_CHECK_RET(ret);
-
-	/* set the mapping in the cache */
-	ret = idmap_cache_set(idmap_cache, id);
-	IDMAP_CHECK_RET(ret);
-
-done:
-	talloc_free(ctx);
-	return ret;
-}
-
-char *idmap_fetch_secret(const char *backend, bool alloc,
-			       const char *domain, const char *identity)
-{
-	char *tmp, *ret;
-	int r;
-
-	if (alloc) {
-		r = asprintf(&tmp, "IDMAP_ALLOC_%s", backend);
-	} else {
-		r = asprintf(&tmp, "IDMAP_%s_%s", backend, domain);
-	}
-
-	if (r < 0)
-		return NULL;
-
-	strupper_m(tmp); /* make sure the key is case insensitive */
-	ret = secrets_fetch_generic(tmp, identity);
-
-	SAFE_FREE(tmp);
-
-	return ret;
-}
-

@@ -51,7 +51,7 @@ static bool share_info_db_init(void)
 		return True;
 	}
 
-	share_db = db_open_trans(NULL, state_path("share_info.tdb"), 0,
+	share_db = db_open(NULL, state_path("share_info.tdb"), 0,
 				 TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
 	if (share_db == NULL) {
 		DEBUG(0,("Failed to open share info database %s (%s)\n",
@@ -109,7 +109,7 @@ static bool share_info_db_init(void)
 
 	if (share_db->transaction_commit(share_db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
-		goto cancel;
+		return false;
 	}
 
 	return true;
@@ -129,7 +129,7 @@ static bool share_info_db_init(void)
 
 SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def_access)
 {
-	SEC_ACCESS sa;
+	uint32_t sa;
 	SEC_ACE ace;
 	SEC_ACL *psa = NULL;
 	SEC_DESC *psd = NULL;
@@ -137,7 +137,7 @@ SEC_DESC *get_share_security_default( TALLOC_CTX *ctx, size_t *psize, uint32 def
 
 	se_map_generic(&spec_access, &file_generic_mapping);
 
-	init_sec_access(&sa, def_access | spec_access );
+	sa = (def_access | spec_access );
 	init_sec_ace(&ace, &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED, sa, 0);
 
 	if ((psa = make_sec_acl(ctx, NT4_ACL_REVISION, 1, &ace)) != NULL) {
@@ -284,7 +284,6 @@ bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
 	NTSTATUS status;
 	SEC_DESC *psd = NULL;
 	size_t sd_size;
-	bool ret = True;
 
 	psd = get_share_security(talloc_tos(), sharename, &sd_size);
 
@@ -292,11 +291,11 @@ bool share_access_check(const NT_USER_TOKEN *token, const char *sharename,
 		return True;
 	}
 
-	ret = se_access_check(psd, token, desired_access, &granted, &status);
+	status = se_access_check(psd, token, desired_access, &granted);
 
 	TALLOC_FREE(psd);
 
-	return ret;
+	return NT_STATUS_IS_OK(status);
 }
 
 /***************************************************************************
@@ -337,7 +336,7 @@ bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 	}
 
 	for (i = 0; i < num_aces; i++) {
-		SEC_ACCESS sa;
+		uint32_t sa;
 		uint32 g_access;
 		uint32 s_access;
 		DOM_SID sid;
@@ -385,7 +384,7 @@ bool parse_usershare_acl(TALLOC_CTX *ctx, const char *acl_str, SEC_DESC **ppsd)
 		pacl++; /* Go past any ',' */
 
 		se_map_generic(&s_access, &file_generic_mapping);
-		init_sec_access(&sa, g_access | s_access );
+		sa = (g_access | s_access);
 		init_sec_ace(&ace_list[i], &sid, type, sa, 0);
 	}
 

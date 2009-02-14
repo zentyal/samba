@@ -1632,6 +1632,8 @@ void spoolss_get_pipe_fns( struct api_struct **fns, int *n_fns )
 
 NTSTATUS rpc_spoolss_init(void)
 {
-  return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION, "spoolss", "spoolss", api_spoolss_cmds,
+  return rpc_pipe_register_commands(SMB_RPC_INTERFACE_VERSION,
+				    "spoolss", "spoolss", &syntax_spoolss,
+				    api_spoolss_cmds,
 				    sizeof(api_spoolss_cmds) / sizeof(struct api_struct));
 }

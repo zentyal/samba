@@ -27,6 +27,7 @@ struct libnet_JoinCtx {
 		uint8_t modify_config;
 		struct ads_struct *ads;/* [ref] */
 		uint8_t debug;
+		uint8_t use_kerberos;
 		enum netr_SchannelType secure_channel_type;
 		struct messaging_context *msg_ctx;/* [noprint,ref] */
 	} in;
@@ -35,6 +36,7 @@ struct libnet_JoinCtx {
 		const char * account_name;
 		const char * netbios_domain_name;
 		const char * dns_domain_name;
+		const char * forest_name;
 		const char * dn;
 		struct dom_sid *domain_sid;/* [ref] */
 		uint8_t modified_config;
@@ -60,12 +62,14 @@ struct libnet_UnjoinCtx {
 		struct dom_sid *domain_sid;/* [ref] */
 		struct ads_struct *ads;/* [ref] */
 		uint8_t debug;
+		uint8_t use_kerberos;
 		struct messaging_context *msg_ctx;/* [noprint,ref] */
 	} in;
 
 	struct {
 		const char * netbios_domain_name;
 		const char * dns_domain_name;
+		const char * forest_name;
 		uint8_t modified_config;
 		const char * error_string;
 		uint8_t disabled_machine_account;

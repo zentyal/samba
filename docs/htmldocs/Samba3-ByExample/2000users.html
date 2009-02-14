@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 6. A Distributed 2000-User Network</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"><link rel="start" href="index.html" title="Samba-3 by Example"><link rel="up" href="ExNetworks.html" title="Part I. Example Network Configurations"><link rel="prev" href="happy.html" title="Chapter 5. Making Happy Users"><link rel="next" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 6. A Distributed 2000-User Network</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="happy.html">Prev</a> </td><th width="60%" align="center">Part I. Example Network Configurations</th><td width="20%" align="right"> <a accesskey="n" href="DMSMig.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="2000users"></a>Chapter 6. A Distributed 2000-User Network</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="2000users.html#id2576874">Introduction</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2576904">Assignment Tasks</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2576972">Dissection and Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2577245">Technical Issues</a></span></dt><dt><span class="sect2"><a href="2000users.html#id2578189">Political Issues</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2578207">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2581365">Key Points Learned</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2581512">Questions and Answers</a></span></dt></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 6. A Distributed 2000-User Network</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="Samba-3 by Example"><link rel="up" href="ExNetworks.html" title="Part I. Example Network Configurations"><link rel="prev" href="happy.html" title="Chapter 5. Making Happy Users"><link rel="next" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 6. A Distributed 2000-User Network</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="happy.html">Prev</a> </td><th width="60%" align="center">Part I. Example Network Configurations</th><td width="20%" align="right"> <a accesskey="n" href="DMSMig.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="2000users"></a>Chapter 6. A Distributed 2000-User Network</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="2000users.html#id2583767">Introduction</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2583797">Assignment Tasks</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2583865">Dissection and Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2584139">Technical Issues</a></span></dt><dt><span class="sect2"><a href="2000users.html#id2585083">Political Issues</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2585101">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="2000users.html#id2588260">Key Points Learned</a></span></dt></dl></dd><dt><span class="sect1"><a href="2000users.html#id2588407">Questions and Answers</a></span></dt></dl></div><p>
 There is something indeed mystical about things that are
 big. Large networks exhibit a certain magnetism and exude a sense of
 importance that obscures reality. You and I know that it is no more
@@ -30,7 +30,7 @@ implementing a DNS or a DHCP server are under control. Even the basics of
 Samba are largely under control. So in this section you focus on the
 specifics of implementing LDAP changes, Samba changes, and approach and
 design of the solution and its deployment.
-</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2576874"></a>Introduction</h2></div></div></div><p>
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2583767"></a>Introduction</h2></div></div></div><p>
 Abmas is a miracle company. Most businesses would have collapsed under
 the weight of rapid expansion that this company has experienced. Samba 
 is flexible, so there is no need to reinstall the whole operating 
@@ -39,19 +39,19 @@ you can keep an old server running right up to the moment of cutover
 and then do a near-live conversion. There is no need to reinstall a 
 Samba server just to change the way your network should function.
 </p><p>
-<a class="indexterm" name="id2576892"></a>
+<a class="indexterm" name="id2583786"></a>
 Network growth is common to all organizations. In this exercise,
 your preoccupation is with the mechanics of implementing Samba and
 LDAP so that network users on each network segment can work
 without impediment.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2576904"></a>Assignment Tasks</h3></div></div></div><p>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2583797"></a>Assignment Tasks</h3></div></div></div><p>
 	Starting with the configuration files for the server called
 	<code class="constant">MASSIVE</code> in <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, you now deal with the
 	issues that are particular to large distributed networks. Your task
 	is simple  identify the challenges, consider the 
 	alternatives, and then design and implement a solution.
 	</p><p>
-	<a class="indexterm" name="id2576932"></a>
+	<a class="indexterm" name="id2583825"></a>
 	Remember, you have users based in London (UK), Los Angeles,
 	Washington. DC, and, three buildings in New York. A significant portion
 	of your workforce have notebook computers and roam all over the
@@ -72,18 +72,18 @@ without impediment.
 	You have outsourced all desktop deployment and management to
 	DirectPointe. Your concern is server maintenance and third-level
 	support. Build a plan and show what must be done.
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2576972"></a>Dissection and Discussion</h2></div></div></div><p>
-<a class="indexterm" name="id2576980"></a>
-<a class="indexterm" name="id2576987"></a>
+	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2583865"></a>Dissection and Discussion</h2></div></div></div><p>
+<a class="indexterm" name="id2583873"></a>
+<a class="indexterm" name="id2583880"></a>
 In <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, you implemented an LDAP server that provided the
 <em class="parameter"><code>passdb backend</code></em> for the Samba servers. You
 explored ways to accelerate Windows desktop profile handling and you
 took control of network performance.
 </p><p>
-<a class="indexterm" name="id2577012"></a>
-<a class="indexterm" name="id2577018"></a>
-<a class="indexterm" name="id2577025"></a>
-<a class="indexterm" name="id2577032"></a>
+<a class="indexterm" name="id2583905"></a>
+<a class="indexterm" name="id2583912"></a>
+<a class="indexterm" name="id2583919"></a>
+<a class="indexterm" name="id2583925"></a>
 The implementation of an LDAP-based passdb backend (known as
 <span class="emphasis"><em>ldapsam</em></span> in Samba parlance), or some form of database
 that can be distributed, is essential to permit the deployment of Samba
@@ -96,8 +96,8 @@ using a tool such as <code class="literal">rsync</code>, but
 support the range of account facilities demanded by modern network
 managers.
 </p><p>
-<a class="indexterm" name="id2577072"></a>
-<a class="indexterm" name="id2577078"></a>
+<a class="indexterm" name="id2583965"></a>
+<a class="indexterm" name="id2583972"></a>
 The new <span class="emphasis"><em>tdbsam</em></span> facility supports functionality
 that is similar to an <span class="emphasis"><em>ldapsam</em></span>, but the lack of
 distributed infrastructure sorely limits the scope for its
@@ -105,10 +105,10 @@ deployment. This raises the following questions: Why can't I just use
 an XML-based backend, or for that matter, why not use an SQL-based
 backend? Is support for these tools broken? Answers to these
 questions require a bit of background.</p><p>
-<a class="indexterm" name="id2577102"></a>
-<a class="indexterm" name="id2577109"></a>
-<a class="indexterm" name="id2577115"></a>
-<a class="indexterm" name="id2577122"></a>
+<a class="indexterm" name="id2583996"></a>
+<a class="indexterm" name="id2584002"></a>
+<a class="indexterm" name="id2584009"></a>
+<a class="indexterm" name="id2584016"></a>
 <span class="emphasis"><em>What is a directory?</em></span> A directory is a
 collection of information regarding objects that can be accessed to
 rapidly find information that is relevant in a particular and
@@ -116,19 +116,19 @@ consistent manner. A directory differs from a database in that it is
 generally more often searched (read) than updated. As a consequence, the
 information is organized to facilitate read access rather than to
 support transaction processing.</p><p>
-<a class="indexterm" name="id2577143"></a>
-<a class="indexterm" name="id2577152"></a>
-<a class="indexterm" name="id2577159"></a>
-<a class="indexterm" name="id2577166"></a>
+<a class="indexterm" name="id2584036"></a>
+<a class="indexterm" name="id2584046"></a>
+<a class="indexterm" name="id2584053"></a>
+<a class="indexterm" name="id2584060"></a>
 The Lightweight Directory Access Protocol (LDAP) differs
 considerably from a traditional database. It has a simple search
 facility that uniquely makes a highly preferred mechanism for managing
 user identities. LDAP provides a scalable mechanism for distributing
 the data repository and for keeping all copies (slaves) in sync with
 the master repository.</p><p>
-<a class="indexterm" name="id2577182"></a>
-<a class="indexterm" name="id2577189"></a>
-<a class="indexterm" name="id2577196"></a>
+<a class="indexterm" name="id2584076"></a>
+<a class="indexterm" name="id2584083"></a>
+<a class="indexterm" name="id2584090"></a>
 Samba is a flexible and powerful file and print sharing
 technology. It can use many external authentication sources and can be
 part of a total authentication and identity management
@@ -136,7 +136,7 @@ infrastructure. The two most important external sources for large sites
 are Microsoft Active Directory and LDAP. Sites that specifically wish to
 avoid the proprietary implications of Microsoft Active Directory
 naturally gravitate toward OpenLDAP.</p><p>
-<a class="indexterm" name="id2577213"></a>
+<a class="indexterm" name="id2584107"></a>
 In <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, you had to deal with a locally routed
 network. All deployment concerns focused around making users happy,
 and that simply means taking control over all network practices and
@@ -147,12 +147,12 @@ function. In particular, you must be concerned with users who move
 between offices. You must take into account the way users need to
 access information globally. And you must make the network robust
 enough so that it can sustain partial breakdown without causing loss of
-productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2577245"></a>Technical Issues</h3></div></div></div><p>
+productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2584139"></a>Technical Issues</h3></div></div></div><p>
 	There are at least three areas that need to be addressed as you
 	approach the challenge of designing a network solution for the newly
 	expanded business:
-	</p><div class="itemizedlist"><ul type="disc"><li><p><a class="indexterm" name="id2577261"></a>
-		User needs such as mobility and data access</p></li><li><p>The nature of Windows networking protocols</p></li><li><p>Identity management infrastructure needs</p></li></ul></div><p>Let's look at each in turn.</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2577284"></a>User Needs</h4></div></div></div><p>
+	</p><div class="itemizedlist"><ul type="disc"><li><p><a class="indexterm" name="id2584155"></a>
+		User needs such as mobility and data access</p></li><li><p>The nature of Windows networking protocols</p></li><li><p>Identity management infrastructure needs</p></li></ul></div><p>Let's look at each in turn.</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2584178"></a>User Needs</h4></div></div></div><p>
 	The new company has three divisions. Staff for each division are spread across
 	the company. Some staff are office-bound and some are mobile users. Mobile
 	users travel globally. Some spend considerable periods working in other offices.
@@ -163,7 +163,7 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	curtail user needs. Parts of the global Internet infrastructure remain shielded
 	off for reasons outside the scope of this discussion.
 	</p><p>
-	<a class="indexterm" name="id2577309"></a>
+	<a class="indexterm" name="id2584203"></a>
 	Decisions must be made regarding where data is to be stored, how it will be
 	replicated (if at all), and what the network bandwidth implications are. For
 	example, one decision that can be made is to give each office its own master
@@ -174,8 +174,8 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	This way, they can synchronize all files that have changed since each logon
 	to the network.
 	</p><p>
-	<a class="indexterm" name="id2577335"></a>
-	<a class="indexterm" name="id2577344"></a>
+	<a class="indexterm" name="id2584229"></a>
+	<a class="indexterm" name="id2584239"></a>
 	No matter which way you look at this, the bandwidth requirements
 	for acceptable performance are substantial even if only 10 percent of
 	staff are global data users. A company with 3,500 employees,
@@ -188,11 +188,11 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	profile involves a transfer of over 750 KB from the profile
 	server to and from the client.
 	</p><p>
-	<a class="indexterm" name="id2577366"></a>
+	<a class="indexterm" name="id2584260"></a>
 	Obviously then, user needs and wide-area practicalities dictate the economic and
 	technical aspects of your network design as well as for standard operating procedures.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2577378"></a>The Nature of Windows Networking Protocols</h4></div></div></div><p>
-	<a class="indexterm" name="id2577386"></a>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2584272"></a>The Nature of Windows Networking Protocols</h4></div></div></div><p>
+	<a class="indexterm" name="id2584280"></a>
 	Network logons that include roaming profile handling requires from 140 KB to 2 MB.
 	The inclusion of support for a minimal set of common desktop applications can push
 	the size of a complete profile to over 15 MB. This has substantial implications
@@ -200,8 +200,8 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	determining the nature and style of mandatory profiles that may be enforced as
 	part of a total service-level assurance program that might be implemented.
 	</p><p>
-	<a class="indexterm" name="id2577407"></a>
-	<a class="indexterm" name="id2577414"></a>
+	<a class="indexterm" name="id2584301"></a>
+	<a class="indexterm" name="id2584308"></a>
 	One way to reduce the network bandwidth impact of user logon
 	traffic is through folder redirection. In <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, you
 	implemented this in the new Windows XP Professional standard
@@ -210,14 +210,14 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	also be excluded from synchronization to and from the server on
 	logon or logout. Redirected folders are analogous to network drive
 	connections.
-	</p><p><a class="indexterm" name="id2577441"></a>
+	</p><p><a class="indexterm" name="id2584336"></a>
 	Of course, network applications should only be run off
 	local application servers. As a general rule, even with 2 Mb/sec
 	network bandwidth, it would not make sense at all for someone who
 	is working out of the London office to run applications off a
 	server that is located in New York.
 	</p><p>
-	<a class="indexterm" name="id2577456"></a>
+	<a class="indexterm" name="id2584351"></a>
 	When network bandwidth becomes a precious commodity (that is most
 	of the time), there is a significant demand to understand network
 	processes and to mold the limits of acceptability around the
@@ -226,15 +226,15 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	When a Windows NT4/200x/XP Professional client user logs onto
 	the network, several important things must happen.
 	</p><div class="itemizedlist"><ul type="disc"><li><p>
-		<a class="indexterm" name="id2577479"></a>
+		<a class="indexterm" name="id2584373"></a>
 		The client obtains an IP address via DHCP. (DHCP is
 		necessary so that users can roam between offices.)
 		</p></li><li><p>
-		<a class="indexterm" name="id2577492"></a>
-		<a class="indexterm" name="id2577499"></a>
+		<a class="indexterm" name="id2584386"></a>
+		<a class="indexterm" name="id2584393"></a>
 		The client must register itself with the WINS and/or DNS server.
 		</p></li><li><p>
-		<a class="indexterm" name="id2577511"></a>
+		<a class="indexterm" name="id2584405"></a>
 		The client must locate the closest domain controller.
 		</p></li><li><p>
 		The client must log onto a domain controller and obtain as part of
@@ -256,15 +256,15 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	name both by broadcast and Unicast registration that is directed
 	at the WINS server.
 	</p><p>
-	<a class="indexterm" name="id2577558"></a>
-	<a class="indexterm" name="id2577565"></a><a class="indexterm" name="id2577574"></a>
+	<a class="indexterm" name="id2584452"></a>
+	<a class="indexterm" name="id2584459"></a><a class="indexterm" name="id2584468"></a>
 	Given that the client is already a domain member, it then sends
 	a directed (Unicast) request to the WINS server seeking the list of
 	IP addresses for domain controllers (NetBIOS name type 0x1C). The
 	WINS server replies with the information requested.</p><p>
-	<a class="indexterm" name="id2577589"></a>
-	<a class="indexterm" name="id2577598"></a>
-	<a class="indexterm" name="id2577605"></a>
+	<a class="indexterm" name="id2584483"></a>
+	<a class="indexterm" name="id2584492"></a>
+	<a class="indexterm" name="id2584499"></a>
 	The client sends two netlogon mailslot broadcast requests
 	to the local network and to each of the IP addresses returned by
 	the WINS server. Whichever answers this request first appears to
@@ -274,9 +274,9 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	was listed in the WINS server response to a request for the list of
 	domain controllers.
 	</p><p>
-	<a class="indexterm" name="id2577631"></a>
-	<a class="indexterm" name="id2577640"></a>
-	<a class="indexterm" name="id2577647"></a>
+	<a class="indexterm" name="id2584525"></a>
+	<a class="indexterm" name="id2584534"></a>
+	<a class="indexterm" name="id2584541"></a>
 	The logon process begins with negotiation of the SMB/CIFS
 	protocols that are to be used; this is followed by an exchange of
 	information that ultimately includes the client sending the
@@ -287,10 +287,10 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	needs. A secondary fact we need to know is, what happens when
 	local domain controllers fail or break?
 	</p><p>
-	<a class="indexterm" name="id2577666"></a>
-	<a class="indexterm" name="id2577673"></a>
-	<a class="indexterm" name="id2577680"></a>
-	<a class="indexterm" name="id2577686"></a>
+	<a class="indexterm" name="id2584560"></a>
+	<a class="indexterm" name="id2584567"></a>
+	<a class="indexterm" name="id2584574"></a>
+	<a class="indexterm" name="id2584580"></a>
 	Under most circumstances, the nearest domain controller
 	responds to the netlogon mailslot broadcast. The exception to this
 	norm occurs when the nearest domain controller is too busy or is out
@@ -299,18 +299,18 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	domain controllers. Since there can be only one PDC, all additional
 	domain controllers are by definition BDCs.
 	</p><p>
-	<a class="indexterm" name="id2577704"></a>
-	<a class="indexterm" name="id2577710"></a>
+	<a class="indexterm" name="id2584598"></a>
+	<a class="indexterm" name="id2584605"></a>
 	The provision of sufficient servers that are BDCs is an
 	important design factor. The second important design factor
 	involves how each of the BDCs obtains user authentication
 	data. That is the subject of the next section, which involves key
 	decisions regarding Identity Management facilities.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2577725"></a>Identity Management Needs</h4></div></div></div><p>
-	<a class="indexterm" name="id2577733"></a>
-	<a class="indexterm" name="id2577739"></a>
-	<a class="indexterm" name="id2577746"></a>
-	<a class="indexterm" name="id2577753"></a>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2584619"></a>Identity Management Needs</h4></div></div></div><p>
+	<a class="indexterm" name="id2584627"></a>
+	<a class="indexterm" name="id2584634"></a>
+	<a class="indexterm" name="id2584640"></a>
+	<a class="indexterm" name="id2584647"></a>
 	Network managers recognize that in large organizations users
 	generally need to be given resource access based on needs, while
 	being excluded from other resources for reasons of privacy. It is
@@ -319,9 +319,9 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	by which user credentials are validated and filtered and appropriate
 	rights and privileges are allocated.
 	</p><p>
-	<a class="indexterm" name="id2577770"></a>
-	<a class="indexterm" name="id2577777"></a>
-	<a class="indexterm" name="id2577784"></a>
+	<a class="indexterm" name="id2584665"></a>
+	<a class="indexterm" name="id2584672"></a>
+	<a class="indexterm" name="id2584678"></a>
 	Unfortunately, network resources tend to have their own Identity 
 	Management facilities, the quality and manageability of which varies 
 	from quite poor to exceptionally good. Corporations that use a mixture 
@@ -333,7 +333,7 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	What was once called <code class="constant">Yellow Pages</code> is today known 
 	as <code class="constant">Network Information System</code> (NIS).
 	</p><p>
-	<a class="indexterm" name="id2577815"></a>
+	<a class="indexterm" name="id2584709"></a>
 	NIS gained a strong following throughout the UNIX/VMS space in a short
 	period of time and retained that appeal and use for over a decade.
 	Security concerns and inherent limitations have caused it to enter its
@@ -343,9 +343,9 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	demands as the demand for directory services that can be coupled with
 	other information systems is catching on.
 	</p><p>
-	<a class="indexterm" name="id2577834"></a>
-	<a class="indexterm" name="id2577841"></a>
-	<a class="indexterm" name="id2577848"></a>
+	<a class="indexterm" name="id2584728"></a>
+	<a class="indexterm" name="id2584735"></a>
+	<a class="indexterm" name="id2584742"></a>
 	Nevertheless, both NIS and NIS+ continue to hold ground in
 	business areas where UNIX still has major sway. Examples of
 	organizations that remain firmly attached to the use of NIS and
@@ -353,14 +353,14 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	and large corporations that have a scientific or engineering
 	focus.
 	</p><p>
-	<a class="indexterm" name="id2577863"></a>
-	<a class="indexterm" name="id2577870"></a>
+	<a class="indexterm" name="id2584757"></a>
+	<a class="indexterm" name="id2584764"></a>
 	Today's networking world needs a scalable, distributed Identity 
 	Management infrastructure, commonly called a directory. The most 
 	popular technologies today are Microsoft Active Directory service 
 	and a number of LDAP implementations.
 	</p><p>
-	<a class="indexterm" name="id2577884"></a>
+	<a class="indexterm" name="id2584778"></a>
 	The problem of managing multiple directories has become a focal
 	point over the past decade, creating a large market for
 	metadirectory products and services that allow organizations that
@@ -369,15 +369,15 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	another. The attendant benefit to end users is the promise of
 	having to remember and deal with fewer login identities and
 	passwords.</p><p>
-	<a class="indexterm" name="id2577902"></a>
+	<a class="indexterm" name="id2584796"></a>
 	The challenge of every large network is to find the optimum
 	balance of internal systems and facilities for Identity
 	Management resources. How well the solution is chosen and
 	implemented has potentially significant impact on network bandwidth
 	and systems response needs.</p><p>
-	<a class="indexterm" name="id2577919"></a>
-	<a class="indexterm" name="id2577926"></a>
-	<a class="indexterm" name="id2577935"></a>
+	<a class="indexterm" name="id2584813"></a>
+	<a class="indexterm" name="id2584820"></a>
+	<a class="indexterm" name="id2584829"></a>
 	In <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, you implemented a single LDAP server for the
 	entire network. This may work for smaller networks, but almost
 	certainly fails to meet the needs of large and complex networks. The
@@ -386,8 +386,8 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	What is the best method for implementing master/slave LDAP
 	servers within the context of a distributed 2,000-user network is a
 	question that remains to be answered.</p><p>
-	<a class="indexterm" name="id2577964"></a>
-	<a class="indexterm" name="id2577971"></a>
+	<a class="indexterm" name="id2584858"></a>
+	<a class="indexterm" name="id2584865"></a>
 	One possibility that has great appeal is to create a single,
 	large distributed domain. The practical implications of this
 	design (see <a class="link" href="2000users.html#chap7net" title="Figure 6.6. Network Topology 2000 User Complex Design A">&#8220;Network Topology  2000 User Complex Design A&#8221;</a>) demands the placement of
@@ -398,7 +398,7 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	productivity against the cost of network management and
 	maintenance.
 	</p><p>
-	<a class="indexterm" name="id2577996"></a>
+	<a class="indexterm" name="id2584890"></a>
 	The network design in <a class="link" href="2000users.html#chap7net2" title="Figure 6.7. Network Topology 2000 User Complex Design B">&#8220;Network Topology  2000 User Complex Design B&#8221;</a> takes the approach
 	that management of networks that are too remote to be managed
 	effectively from New York ought to be given a certain degree of
@@ -409,22 +409,22 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	the ability for network users to roam globally without some compromise
 	in how they may access global resources.
 	</p><p>
-	<a class="indexterm" name="id2578022"></a>
+	<a class="indexterm" name="id2584916"></a>
 	Desk-bound users need not be negatively affected by this design, since
 	the use of interdomain trusts can be used to satisfy the need for global
 	data sharing.
 	</p><p>
-	<a class="indexterm" name="id2578034"></a>
-	<a class="indexterm" name="id2578041"></a>
-	<a class="indexterm" name="id2578050"></a>
+	<a class="indexterm" name="id2584929"></a>
+	<a class="indexterm" name="id2584936"></a>
+	<a class="indexterm" name="id2584945"></a>
 	When Samba-3 is configured to use an LDAP backend, it stores the domain
 	account information in a directory entry. This account entry contains the
 	domain SID. An unintended but exploitable side effect is that this makes it
 	possible to operate with more than one PDC on a distributed network.
 	</p><p>
-	<a class="indexterm" name="id2578065"></a>
-	<a class="indexterm" name="id2578072"></a>
-	<a class="indexterm" name="id2578079"></a>
+	<a class="indexterm" name="id2584960"></a>
+	<a class="indexterm" name="id2584966"></a>
+	<a class="indexterm" name="id2584973"></a>
 	How might this peculiar feature be exploited? The answer is simple. It is
 	imperative that each network segment have its own WINS server. Major
 	servers on remote network segments can be given a static WINS entry in
@@ -434,8 +434,8 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	same domain SID. Since all domain account information can be stored in a
 	single LDAP backend, users have unfettered ability to roam.
 	</p><p>
-	<a class="indexterm" name="id2578104"></a>
-	<a class="indexterm" name="id2578113"></a>
+	<a class="indexterm" name="id2584998"></a>
+	<a class="indexterm" name="id2585008"></a>
 	This concept has not been exhaustively validated, though we can see no reason
 	why this should not work. The important facets are the following: The name of
 	the domain must be identical in all locations. Each network segment must have
@@ -446,10 +446,10 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	on every network segment. Finally, the BDCs should each use failover LDAP servers
 	that are in fact slave LDAP servers on the local segments.
 	</p><p>
-	<a class="indexterm" name="id2578135"></a>
-	<a class="indexterm" name="id2578144"></a>
-	<a class="indexterm" name="id2578151"></a>
-	<a class="indexterm" name="id2578160"></a>
+	<a class="indexterm" name="id2585029"></a>
+	<a class="indexterm" name="id2585039"></a>
+	<a class="indexterm" name="id2585045"></a>
+	<a class="indexterm" name="id2585055"></a>
 	With a single master LDAP server, all network updates are effected on a single
 	server. In the event that this should become excessively fragile or network
 	bandwidth limiting, one could implement a delegated LDAP domain. This is also
@@ -463,7 +463,7 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	administrators must of necessity follow the same standard
 	procedures for managing the directory, because retroactive correction of
 	inconsistent directory information can be exceedingly difficult.
-	</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2578189"></a>Political Issues</h3></div></div></div><p>
+	</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2585083"></a>Political Issues</h3></div></div></div><p>
 	As organizations grow, the number of points of control increases
 	also. In a large distributed organization, it is important that the
 	Identity Management system be capable of being updated from
@@ -471,11 +471,11 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	become usable in a reasonable period, typically
 	minutes rather than days (the old limitation of highly manual
 	systems).
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2578207"></a>Implementation</h2></div></div></div><p>
-	<a class="indexterm" name="id2578214"></a>
-	<a class="indexterm" name="id2578221"></a>
-	<a class="indexterm" name="id2578228"></a>
-	<a class="indexterm" name="id2578235"></a>
+	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2585101"></a>Implementation</h2></div></div></div><p>
+	<a class="indexterm" name="id2585109"></a>
+	<a class="indexterm" name="id2585116"></a>
+	<a class="indexterm" name="id2585123"></a>
+	<a class="indexterm" name="id2585129"></a>
 	Samba-3 has the ability to use multiple password (authentication and
 	identity resolution) backends. The diagram in <a class="link" href="2000users.html#chap7idres" title="Figure 6.1. Samba and Authentication Backend Search Pathways">&#8220;Samba and Authentication Backend Search Pathways&#8221;</a>
 	demonstrates how Samba uses winbind, LDAP, and NIS, the traditional system
@@ -483,13 +483,13 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	authentication and identity resolution (obtaining a UNIX UID/GID)
 	using the specific systems shown.
 	</p><div class="figure"><a name="chap7idres"></a><p class="title"><b>Figure 6.1. Samba and Authentication Backend Search Pathways</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap7-idresol.png" width="297" alt="Samba and Authentication Backend Search Pathways"></div></div></div><br class="figure-break"><p>
-	<a class="indexterm" name="id2578298"></a>
-	<a class="indexterm" name="id2578305"></a>
-	<a class="indexterm" name="id2578312"></a>
-	<a class="indexterm" name="id2578319"></a>
-	<a class="indexterm" name="id2578326"></a>
-	<a class="indexterm" name="id2578332"></a>
-	<a class="indexterm" name="id2578339"></a>
+	<a class="indexterm" name="id2585194"></a>
+	<a class="indexterm" name="id2585200"></a>
+	<a class="indexterm" name="id2585207"></a>
+	<a class="indexterm" name="id2585214"></a>
+	<a class="indexterm" name="id2585221"></a>
+	<a class="indexterm" name="id2585228"></a>
+	<a class="indexterm" name="id2585235"></a>
 	Samba is capable of using the <code class="constant">smbpasswd</code>,
 	<code class="constant">tdbsam</code>, <code class="constant">xmlsam</code>,
 	and <code class="constant">mysqlsam</code> authentication databases. The SMB
@@ -497,7 +497,7 @@ productivity.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><
 	backend. LDAP is the preferred passdb backend for distributed network
 	operations.
 	</p><p>
-	<a class="indexterm" name="id2578367"></a>
+	<a class="indexterm" name="id2585263"></a>
 	Additionally, it is possible to use multiple passdb backends
 	concurrently as well as have multiple LDAP backends. As a result, you
 	can specify a failover LDAP backend. The syntax for specifying a
@@ -509,8 +509,8 @@ passdb backend = ldapsam:ldap://master.abmas.biz
 </pre><p>
 	This configuration tells Samba to use a single LDAP server, as shown in <a class="link" href="2000users.html#ch7singleLDAP" title="Figure 6.2. Samba Configuration to Use a Single LDAP Server">&#8220;Samba Configuration to Use a Single LDAP Server&#8221;</a>.
 	</p><div class="figure"><a name="ch7singleLDAP"></a><p class="title"><b>Figure 6.2. Samba Configuration to Use a Single LDAP Server</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ch7-singleLDAP.png" width="351" alt="Samba Configuration to Use a Single LDAP Server"></div></div></div><p><br class="figure-break">
-	<a class="indexterm" name="id2578440"></a>
-	<a class="indexterm" name="id2578449"></a>
+	<a class="indexterm" name="id2585336"></a>
+	<a class="indexterm" name="id2585345"></a>
 	The addition of a failover LDAP server can simply be done by adding a
 	second entry for the failover server to the single <em class="parameter"><code>ldapsam</code></em>
 	entry, as shown here (note the particular use of the double quotes):
@@ -532,7 +532,7 @@ passdb backend = ldapsam:ldap://master.abmas.biz \
                  ldapsam:ldap://slave.abmas.biz
 ...
 </pre><p>
-	<a class="indexterm" name="id2578536"></a>
+	<a class="indexterm" name="id2585432"></a>
 	The effect of this style of entry is that Samba lists the users
 	that are in both LDAP databases. If both contain the same information,
 	it results in each record being shown twice. This is, of course, not the
@@ -553,9 +553,9 @@ passdb backend = ldapsam:ldap://master.abmas.biz \
 	It is assumed that the network you are working with follows in a
 	pattern similar to what was covered in <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>. The following steps
     permit the operation of a master/slave OpenLDAP arrangement.
-	</p><div class="procedure"><a name="id2578678"></a><p class="title"><b>Procedure 6.1. Implementation Steps for an LDAP Slave Server</b></p><ol type="1"><li><p>
-	    <a class="indexterm" name="id2578690"></a>
-		<a class="indexterm" name="id2578696"></a>
+	</p><div class="procedure"><a name="id2585574"></a><p class="title"><b>Procedure 6.1. Implementation Steps for an LDAP Slave Server</b></p><ol type="1"><li><p>
+	    <a class="indexterm" name="id2585585"></a>
+		<a class="indexterm" name="id2585592"></a>
 		Log onto the master LDAP server as <code class="constant">root</code>.
 		You are about to change the configuration of the LDAP server, so it
 		makes sense to temporarily halt it. Stop OpenLDAP from running on 
@@ -568,7 +568,7 @@ passdb backend = ldapsam:ldap://master.abmas.biz \
 <code class="prompt">root# </code> service ldap stop
 </pre><p>
 		</p></li><li><p>
-		<a class="indexterm" name="id2578742"></a>
+		<a class="indexterm" name="id2585637"></a>
 		Edit the <code class="filename">/etc/openldap/slapd.conf</code> file so it
 		matches the content of <a class="link" href="2000users.html#ch7-LDAP-master" title="Example 6.1. LDAP Master Server Configuration File /etc/openldap/slapd.conf">&#8220;LDAP Master Server Configuration File  /etc/openldap/slapd.conf&#8221;</a>.
 		</p></li><li><p>
@@ -592,8 +592,8 @@ userPassword: buttercup
 <code class="prompt">root# </code> slapadd -v -l admin-accts.ldif
 </pre><p>
 		</p></li><li><p>
-		<a class="indexterm" name="id2578815"></a>
-		<a class="indexterm" name="id2578822"></a>
+		<a class="indexterm" name="id2585711"></a>
+		<a class="indexterm" name="id2585718"></a>
 		Change directory to a suitable place to dump the contents of the
 		LDAP server. The dump file (and LDIF file) is used to preload
 		the slave LDAP server database. You can dump the database by executing:
@@ -602,7 +602,7 @@ userPassword: buttercup
 </pre><p>
 		Each record is written to the file.	
 		</p></li><li><p>
-		<a class="indexterm" name="id2578854"></a>
+		<a class="indexterm" name="id2585750"></a>
 		Copy the file <code class="filename">LDAP-transfer-LDIF.txt</code> to the intended
 		slave LDAP server. A good location could be in the directory 
 		<code class="filename">/etc/openldap/preload</code>.
@@ -652,9 +652,9 @@ added: "cn=PIOps,ou=Groups,dc=abmas,dc=biz" (00000013)
 <code class="prompt">root# </code> chkconfig ldap on
 </pre><p>
 		</p></li><li><p>
-	    <a class="indexterm" name="id2579028"></a>
-		<a class="indexterm" name="id2579034"></a>
-		<a class="indexterm" name="id2579041"></a>
+	    <a class="indexterm" name="id2585923"></a>
+		<a class="indexterm" name="id2585930"></a>
+		<a class="indexterm" name="id2585937"></a>
 		Go back to the master LDAP server. Execute the following to start LDAP as well
 		as <code class="literal">slurpd</code>, the synchronization daemon, as shown here:
 </p><pre class="screen">
@@ -663,10 +663,10 @@ added: "cn=PIOps,ou=Groups,dc=abmas,dc=biz" (00000013)
 <code class="prompt">root# </code> rcslurpd start
 <code class="prompt">root# </code> chkconfig slurpd on
 </pre><p>
-	    <a class="indexterm" name="id2579087"></a>
+	    <a class="indexterm" name="id2585982"></a>
 		On Red Hat Linux, check the equivalent command to start <code class="literal">slurpd</code>.
 		</p></li><li><p>
-		<a class="indexterm" name="id2579107"></a>
+		<a class="indexterm" name="id2586002"></a>
 		On the master LDAP server you may now add an account to validate that replication
 		is working. Assuming the configuration shown in <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, execute:
 </p><pre class="screen">
@@ -791,12 +791,12 @@ index sambaSID              eq
 index sambaPrimaryGroupSID  eq
 index sambaDomainName       eq
 index default               sub
-</pre></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfA"></a><p class="title"><b>Example 6.3. Primary Domain Controller <code class="filename">smb.conf</code> File  Part A</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2579371"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2579383"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2579395"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2579407"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2579419"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2579431"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2579442"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2579454"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2579466"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2579477"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2579489"></a><em class="parameter"><code>time server = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2579501"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2579513"></a><em class="parameter"><code>add user script = /opt/IDEALX/sbin/smbldap-useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579525"></a><em class="parameter"><code>delete user script = /opt/IDEALX/sbin/smbldap-userdel '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579538"></a><em class="parameter"><code>add group script = /opt/IDEALX/sbin/smbldap-groupadd -p '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2579550"></a><em class="parameter"><code>delete group script = /opt/IDEALX/sbin/smbldap-groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2579563"></a><em class="parameter"><code>add user to group script = /opt/IDEALX/sbin/smbldap-groupmod -m '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579576"></a><em class="parameter"><code>delete user from group script = /opt/IDEALX/sbin/smbldap-groupmod -x '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579589"></a><em class="parameter"><code>set primary group script = /opt/IDEALX/sbin/smbldap-usermod -g '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579601"></a><em class="parameter"><code>add machine script = /opt/IDEALX/sbin/smbldap-useradd -w '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2579614"></a><em class="parameter"><code>shutdown script = /var/lib/samba/scripts/shutdown.sh</code></em></td></tr><tr><td><a class="indexterm" name="id2579626"></a><em class="parameter"><code>abort shutdown script = /sbin/shutdown -c</code></em></td></tr><tr><td><a class="indexterm" name="id2579639"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2579651"></a><em class="parameter"><code>logon path = \\%L\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2579662"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id2579674"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2579686"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2579698"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2579709"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2579721"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2579733"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2579745"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2579757"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2579769"></a><em class="parameter"><code>ldap admin dn = cn=sambaadmin,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2579781"></a><em class="parameter"><code>idmap backend = ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2579794"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2579805"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2579817"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2579829"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfB"></a><p class="title"><b>Example 6.4. Primary Domain Controller <code class="filename">smb.conf</code> File  Part B</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id2579874"></a><em class="parameter"><code>path = /tmp</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[accounts]</code></em></td></tr><tr><td><a class="indexterm" name="id2579895"></a><em class="parameter"><code>comment = Accounting Files</code></em></td></tr><tr><td><a class="indexterm" name="id2579906"></a><em class="parameter"><code>path = /data/accounts</code></em></td></tr><tr><td><a class="indexterm" name="id2579918"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[service]</code></em></td></tr><tr><td><a class="indexterm" name="id2579938"></a><em class="parameter"><code>comment = Financial Services Files</code></em></td></tr><tr><td><a class="indexterm" name="id2579950"></a><em class="parameter"><code>path = /data/service</code></em></td></tr><tr><td><a class="indexterm" name="id2579962"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[pidata]</code></em></td></tr><tr><td><a class="indexterm" name="id2579982"></a><em class="parameter"><code>comment = Property Insurance Files</code></em></td></tr><tr><td><a class="indexterm" name="id2579994"></a><em class="parameter"><code>path = /data/pidata</code></em></td></tr><tr><td><a class="indexterm" name="id2580006"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2580026"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2580038"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2580050"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2580061"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2580082"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2580094"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2580105"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2580117"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2580129"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfC"></a><p class="title"><b>Example 6.5. Primary Domain Controller <code class="filename">smb.conf</code> File  Part C</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[apps]</code></em></td></tr><tr><td><a class="indexterm" name="id2580174"></a><em class="parameter"><code>comment = Application Files</code></em></td></tr><tr><td><a class="indexterm" name="id2580186"></a><em class="parameter"><code>path = /apps</code></em></td></tr><tr><td><a class="indexterm" name="id2580197"></a><em class="parameter"><code>admin users = bjones</code></em></td></tr><tr><td><a class="indexterm" name="id2580209"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2580230"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2580242"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2580253"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2580265"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2580277"></a><em class="parameter"><code>locking = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2580297"></a><em class="parameter"><code>comment = Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id2580309"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2580321"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2580333"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profdata]</code></em></td></tr><tr><td><a class="indexterm" name="id2580353"></a><em class="parameter"><code>comment = Profile Data Share</code></em></td></tr><tr><td><a class="indexterm" name="id2580365"></a><em class="parameter"><code>path = /var/lib/samba/profdata</code></em></td></tr><tr><td><a class="indexterm" name="id2580377"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2580389"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2580409"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2580421"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2580433"></a><em class="parameter"><code>write list = root</code></em></td></tr><tr><td><a class="indexterm" name="id2580444"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-slvsmbocnfA"></a><p class="title"><b>Example 6.6. Backup Domain Controller <code class="filename">smb.conf</code> File  Part A</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># # Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2580494"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2580505"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2580517"></a><em class="parameter"><code>netbios name = BLDG1</code></em></td></tr><tr><td><a class="indexterm" name="id2580529"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://lapdc.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2580541"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2580553"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2580565"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2580576"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2580588"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2580600"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2580612"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2580624"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2580636"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2580648"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2580660"></a><em class="parameter"><code>logon path = \\%L\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2580672"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id2580683"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2580695"></a><em class="parameter"><code>os level = 63</code></em></td></tr><tr><td><a class="indexterm" name="id2580706"></a><em class="parameter"><code>domain master = No</code></em></td></tr><tr><td><a class="indexterm" name="id2580718"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2580730"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2580742"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2580754"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2580766"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2580778"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2580790"></a><em class="parameter"><code>ldap admin dn = cn=sambaadmin,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2580802"></a><em class="parameter"><code>utmp = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2580814"></a><em class="parameter"><code>idmap backend = ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2580826"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2580837"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2580849"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[accounts]</code></em></td></tr><tr><td><a class="indexterm" name="id2580870"></a><em class="parameter"><code>comment = Accounting Files</code></em></td></tr><tr><td><a class="indexterm" name="id2580881"></a><em class="parameter"><code>path = /data/accounts</code></em></td></tr><tr><td><a class="indexterm" name="id2580893"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[service]</code></em></td></tr><tr><td><a class="indexterm" name="id2580914"></a><em class="parameter"><code>comment = Financial Services Files</code></em></td></tr><tr><td><a class="indexterm" name="id2580926"></a><em class="parameter"><code>path = /data/service</code></em></td></tr><tr><td><a class="indexterm" name="id2580937"></a><em class="parameter"><code>read only = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-slvsmbocnfB"></a><p class="title"><b>Example 6.7. Backup Domain Controller <code class="filename">smb.conf</code> File  Part B</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[pidata]</code></em></td></tr><tr><td><a class="indexterm" name="id2580983"></a><em class="parameter"><code>comment = Property Insurance Files</code></em></td></tr><tr><td><a class="indexterm" name="id2580995"></a><em class="parameter"><code>path = /data/pidata</code></em></td></tr><tr><td><a class="indexterm" name="id2581006"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2581027"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2581038"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2581050"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2581062"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2581082"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2581094"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2581106"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2581117"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2581129"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[apps]</code></em></td></tr><tr><td><a class="indexterm" name="id2581149"></a><em class="parameter"><code>comment = Application Files</code></em></td></tr><tr><td><a class="indexterm" name="id2581161"></a><em class="parameter"><code>path = /apps</code></em></td></tr><tr><td><a class="indexterm" name="id2581173"></a><em class="parameter"><code>admin users = bjones</code></em></td></tr><tr><td><a class="indexterm" name="id2581184"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2581205"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2581217"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2581229"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2581240"></a><em class="parameter"><code>locking = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2581261"></a><em class="parameter"><code>comment = Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id2581273"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2581284"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2581296"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profdata]</code></em></td></tr><tr><td><a class="indexterm" name="id2581317"></a><em class="parameter"><code>comment = Profile Data Share</code></em></td></tr><tr><td><a class="indexterm" name="id2581329"></a><em class="parameter"><code>path = /var/lib/samba/profdata</code></em></td></tr><tr><td><a class="indexterm" name="id2581340"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2581352"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr></table></div></div><br class="example-break"><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2581365"></a>Key Points Learned</h3></div></div></div><div class="itemizedlist"><ul type="disc"><li><p>
-			<a class="indexterm" name="id2581376"></a><a class="indexterm" name="id2581382"></a>
+</pre></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfA"></a><p class="title"><b>Example 6.3. Primary Domain Controller <code class="filename">smb.conf</code> File  Part A</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2586266"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2586278"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2586290"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2586302"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2586314"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2586326"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2586337"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2586349"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2586361"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2586372"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2586384"></a><em class="parameter"><code>time server = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2586396"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2586408"></a><em class="parameter"><code>add user script = /opt/IDEALX/sbin/smbldap-useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586420"></a><em class="parameter"><code>delete user script = /opt/IDEALX/sbin/smbldap-userdel '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586433"></a><em class="parameter"><code>add group script = /opt/IDEALX/sbin/smbldap-groupadd -p '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2586445"></a><em class="parameter"><code>delete group script = /opt/IDEALX/sbin/smbldap-groupdel '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2586458"></a><em class="parameter"><code>add user to group script = /opt/IDEALX/sbin/smbldap-groupmod -m '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586470"></a><em class="parameter"><code>delete user from group script = /opt/IDEALX/sbin/smbldap-groupmod -x '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586484"></a><em class="parameter"><code>set primary group script = /opt/IDEALX/sbin/smbldap-usermod -g '%g' '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586496"></a><em class="parameter"><code>add machine script = /opt/IDEALX/sbin/smbldap-useradd -w '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2586509"></a><em class="parameter"><code>shutdown script = /var/lib/samba/scripts/shutdown.sh</code></em></td></tr><tr><td><a class="indexterm" name="id2586521"></a><em class="parameter"><code>abort shutdown script = /sbin/shutdown -c</code></em></td></tr><tr><td><a class="indexterm" name="id2586534"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2586546"></a><em class="parameter"><code>logon path = \\%L\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2586557"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id2586569"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2586581"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2586592"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2586604"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2586616"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2586628"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2586640"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2586652"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2586664"></a><em class="parameter"><code>ldap admin dn = cn=sambaadmin,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2586676"></a><em class="parameter"><code>idmap backend = ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2586688"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2586700"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2586712"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2586724"></a><em class="parameter"><code>printing = cups</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfB"></a><p class="title"><b>Example 6.4. Primary Domain Controller <code class="filename">smb.conf</code> File  Part B</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id2586770"></a><em class="parameter"><code>path = /tmp</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[accounts]</code></em></td></tr><tr><td><a class="indexterm" name="id2586790"></a><em class="parameter"><code>comment = Accounting Files</code></em></td></tr><tr><td><a class="indexterm" name="id2586802"></a><em class="parameter"><code>path = /data/accounts</code></em></td></tr><tr><td><a class="indexterm" name="id2586814"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[service]</code></em></td></tr><tr><td><a class="indexterm" name="id2586834"></a><em class="parameter"><code>comment = Financial Services Files</code></em></td></tr><tr><td><a class="indexterm" name="id2586846"></a><em class="parameter"><code>path = /data/service</code></em></td></tr><tr><td><a class="indexterm" name="id2586857"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[pidata]</code></em></td></tr><tr><td><a class="indexterm" name="id2586878"></a><em class="parameter"><code>comment = Property Insurance Files</code></em></td></tr><tr><td><a class="indexterm" name="id2586890"></a><em class="parameter"><code>path = /data/pidata</code></em></td></tr><tr><td><a class="indexterm" name="id2586901"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2586922"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2586934"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2586945"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2586957"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2586977"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2586989"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2587001"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2587012"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2587024"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-massmbconfC"></a><p class="title"><b>Example 6.5. Primary Domain Controller <code class="filename">smb.conf</code> File  Part C</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[apps]</code></em></td></tr><tr><td><a class="indexterm" name="id2587070"></a><em class="parameter"><code>comment = Application Files</code></em></td></tr><tr><td><a class="indexterm" name="id2587082"></a><em class="parameter"><code>path = /apps</code></em></td></tr><tr><td><a class="indexterm" name="id2587093"></a><em class="parameter"><code>admin users = bjones</code></em></td></tr><tr><td><a class="indexterm" name="id2587104"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2587125"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2587137"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2587149"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2587161"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2587172"></a><em class="parameter"><code>locking = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2587193"></a><em class="parameter"><code>comment = Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id2587204"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2587216"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2587228"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profdata]</code></em></td></tr><tr><td><a class="indexterm" name="id2587249"></a><em class="parameter"><code>comment = Profile Data Share</code></em></td></tr><tr><td><a class="indexterm" name="id2587260"></a><em class="parameter"><code>path = /var/lib/samba/profdata</code></em></td></tr><tr><td><a class="indexterm" name="id2587272"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2587284"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2587305"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2587316"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2587328"></a><em class="parameter"><code>write list = root</code></em></td></tr><tr><td><a class="indexterm" name="id2587340"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-slvsmbocnfA"></a><p class="title"><b>Example 6.6. Backup Domain Controller <code class="filename">smb.conf</code> File  Part A</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># # Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2587389"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2587401"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2587412"></a><em class="parameter"><code>netbios name = BLDG1</code></em></td></tr><tr><td><a class="indexterm" name="id2587424"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://lapdc.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2587437"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2587449"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2587460"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2587472"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2587484"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2587495"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2587507"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2587519"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2587531"></a><em class="parameter"><code>show add printer wizard = No</code></em></td></tr><tr><td><a class="indexterm" name="id2587543"></a><em class="parameter"><code>logon script = scripts\logon.bat</code></em></td></tr><tr><td><a class="indexterm" name="id2587555"></a><em class="parameter"><code>logon path = \\%L\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2587567"></a><em class="parameter"><code>logon drive = X:</code></em></td></tr><tr><td><a class="indexterm" name="id2587578"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2587590"></a><em class="parameter"><code>os level = 63</code></em></td></tr><tr><td><a class="indexterm" name="id2587602"></a><em class="parameter"><code>domain master = No</code></em></td></tr><tr><td><a class="indexterm" name="id2587614"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2587625"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2587637"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2587649"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2587661"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2587673"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2587685"></a><em class="parameter"><code>ldap admin dn = cn=sambaadmin,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2587697"></a><em class="parameter"><code>utmp = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2587709"></a><em class="parameter"><code>idmap backend = ldap://massive.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2587721"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2587733"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2587744"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[accounts]</code></em></td></tr><tr><td><a class="indexterm" name="id2587765"></a><em class="parameter"><code>comment = Accounting Files</code></em></td></tr><tr><td><a class="indexterm" name="id2587777"></a><em class="parameter"><code>path = /data/accounts</code></em></td></tr><tr><td><a class="indexterm" name="id2587788"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[service]</code></em></td></tr><tr><td><a class="indexterm" name="id2587809"></a><em class="parameter"><code>comment = Financial Services Files</code></em></td></tr><tr><td><a class="indexterm" name="id2587821"></a><em class="parameter"><code>path = /data/service</code></em></td></tr><tr><td><a class="indexterm" name="id2587833"></a><em class="parameter"><code>read only = No</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch7-slvsmbocnfB"></a><p class="title"><b>Example 6.7. Backup Domain Controller <code class="filename">smb.conf</code> File  Part B</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[pidata]</code></em></td></tr><tr><td><a class="indexterm" name="id2587878"></a><em class="parameter"><code>comment = Property Insurance Files</code></em></td></tr><tr><td><a class="indexterm" name="id2587890"></a><em class="parameter"><code>path = /data/pidata</code></em></td></tr><tr><td><a class="indexterm" name="id2587902"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2587922"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2587934"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2587945"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2587957"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2587978"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2587989"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2588001"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2588013"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2588024"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[apps]</code></em></td></tr><tr><td><a class="indexterm" name="id2588045"></a><em class="parameter"><code>comment = Application Files</code></em></td></tr><tr><td><a class="indexterm" name="id2588056"></a><em class="parameter"><code>path = /apps</code></em></td></tr><tr><td><a class="indexterm" name="id2588068"></a><em class="parameter"><code>admin users = bjones</code></em></td></tr><tr><td><a class="indexterm" name="id2588080"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2588100"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2588112"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2588124"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2588136"></a><em class="parameter"><code>locking = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2588156"></a><em class="parameter"><code>comment = Profile Share</code></em></td></tr><tr><td><a class="indexterm" name="id2588168"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2588180"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2588191"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profdata]</code></em></td></tr><tr><td><a class="indexterm" name="id2588212"></a><em class="parameter"><code>comment = Profile Data Share</code></em></td></tr><tr><td><a class="indexterm" name="id2588224"></a><em class="parameter"><code>path = /var/lib/samba/profdata</code></em></td></tr><tr><td><a class="indexterm" name="id2588236"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2588247"></a><em class="parameter"><code>profile acls = Yes</code></em></td></tr></table></div></div><br class="example-break"><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2588260"></a>Key Points Learned</h3></div></div></div><div class="itemizedlist"><ul type="disc"><li><p>
+			<a class="indexterm" name="id2588271"></a><a class="indexterm" name="id2588277"></a>
 			Where Samba-3 is used as a domain controller, the use of LDAP is an 
 			essential component to permit the use of BDCs.
 			</p></li><li><p>
-			<a class="indexterm" name="id2581395"></a>
+			<a class="indexterm" name="id2588290"></a>
 			Replication of the LDAP master server to create a network of BDCs
 			is an important mechanism for limiting WAN traffic.
 			</p></li><li><p>
@@ -808,55 +808,55 @@ index default               sub
 			Roaming profiles must be contained to the local network segment. Any
 			departure from this may clog wide-area arteries and slow legitimate network
 			traffic to a crawl.
-			</p></li></ul></div></div><div class="figure"><a name="chap7net"></a><p class="title"><b>Figure 6.6. Network Topology  2000 User Complex Design A</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap7-net-Ar.png" width="432" alt="Network Topology 2000 User Complex Design A"></div></div></div><br class="figure-break"><div class="figure"><a name="chap7net2"></a><p class="title"><b>Figure 6.7. Network Topology  2000 User Complex Design B</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap7-net2-Br.png" width="432" alt="Network Topology 2000 User Complex Design B"></div></div></div><br class="figure-break"></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2581512"></a>Questions and Answers</h2></div></div></div><p>
+			</p></li></ul></div></div><div class="figure"><a name="chap7net"></a><p class="title"><b>Figure 6.6. Network Topology  2000 User Complex Design A</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap7-net-Ar.png" width="432" alt="Network Topology 2000 User Complex Design A"></div></div></div><br class="figure-break"><div class="figure"><a name="chap7net2"></a><p class="title"><b>Figure 6.7. Network Topology  2000 User Complex Design B</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap7-net2-Br.png" width="432" alt="Network Topology 2000 User Complex Design B"></div></div></div><br class="figure-break"></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2588407"></a>Questions and Answers</h2></div></div></div><p>
 	There is much rumor and misinformation regarding the use of MS Windows networking protocols.
 	These questions are just a few of those frequently asked.
-	</p><div class="qandaset"><dl><dt> <a href="2000users.html#id2581530">
+	</p><div class="qandaset"><dl><dt> <a href="2000users.html#id2588426">
 		
 		
 		Is it true that DHCP uses lots of WAN bandwidth?
-		</a></dt><dt> <a href="2000users.html#id2581665">
+		</a></dt><dt> <a href="2000users.html#id2588560">
 		
 		
 		How much background communication takes place between a master LDAP server and its slave LDAP servers?
-		</a></dt><dt> <a href="2000users.html#id2581726">
+		</a></dt><dt> <a href="2000users.html#id2588621">
 		LDAP has a database. Is LDAP not just a fancy database front end?
-		</a></dt><dt> <a href="2000users.html#id2581790">
+		</a></dt><dt> <a href="2000users.html#id2588685">
 		
 		Can Active Directory obtain account information from an OpenLDAP server?
-		</a></dt><dt> <a href="2000users.html#id2581826">
+		</a></dt><dt> <a href="2000users.html#id2588721">
 		What are the parts of a roaming profile? How large is each part?
-		</a></dt><dt> <a href="2000users.html#id2581974">
+		</a></dt><dt> <a href="2000users.html#id2588869">
 		Can the My Documents folder be stored on a network drive?
-		</a></dt><dt> <a href="2000users.html#id2582022">
+		</a></dt><dt> <a href="2000users.html#id2588917">
 		
 		
 		
 		How much WAN bandwidth does WINS consume?
-		</a></dt><dt> <a href="2000users.html#id2582106">
+		</a></dt><dt> <a href="2000users.html#id2589001">
 		How many BDCs should I have? What is the right number of Windows clients per server?
-		</a></dt><dt> <a href="2000users.html#id2582142">
+		</a></dt><dt> <a href="2000users.html#id2589037">
 		
 		I've heard that you can store NIS accounts in LDAP. Is LDAP not just a smarter way to
 		run an NIS server?
-		</a></dt><dt> <a href="2000users.html#id2582176">
+		</a></dt><dt> <a href="2000users.html#id2589071">
 		Can I use NIS in place of LDAP?
-		</a></dt></dl><table border="0" summary="Q and A Set"><col align="left" width="1%"><tbody><tr class="question"><td align="left" valign="top"><a name="id2581530"></a><a name="id2581533"></a></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581537"></a>
-		<a class="indexterm" name="id2581544"></a>
+		</a></dt></dl><table border="0" summary="Q and A Set"><col align="left" width="1%"><tbody><tr class="question"><td align="left" valign="top"><a name="id2588426"></a><a name="id2588428"></a></td><td align="left" valign="top"><p>
+		<a class="indexterm" name="id2588432"></a>
+		<a class="indexterm" name="id2588439"></a>
 		Is it true that DHCP uses lots of WAN bandwidth?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581560"></a>
-		<a class="indexterm" name="id2581570"></a>
-		<a class="indexterm" name="id2581576"></a>
+		<a class="indexterm" name="id2588456"></a>
+		<a class="indexterm" name="id2588465"></a>
+		<a class="indexterm" name="id2588472"></a>
 		It is a smart practice to localize DHCP servers on each network segment. As a 
 		rule, there should be two DHCP servers per network segment. This means that if
 		one server fails, there is always another to service user needs. DHCP requests use
 		only UDP broadcast protocols. It is possible to run a DHCP Relay Agent on network
 		routers. This makes it possible to run fewer DHCP servers.
 		</p><p>
-		<a class="indexterm" name="id2581595"></a>
-		<a class="indexterm" name="id2581605"></a>
+		<a class="indexterm" name="id2588491"></a>
+		<a class="indexterm" name="id2588500"></a>
 		A DHCP network address request and confirmation usually results in about six UDP packets.
 		The packets are from 60 to 568 bytes in length. Let us consider a site that has 300 DHCP
 		clients and that uses a 24-hour IP address lease. This means that all clients renew
@@ -874,28 +874,28 @@ DHCP traffic:          300 (clients) x 6 (packets)
 </pre><p>
 		From this can be seen that the traffic impact would be minimal.
 		</p><p>
-		<a class="indexterm" name="id2581642"></a>
-		<a class="indexterm" name="id2581651"></a>
+		<a class="indexterm" name="id2588538"></a>
+		<a class="indexterm" name="id2588546"></a>
 		Even when DHCP is configured to do DNS update (dynamic DNS) over a wide-area link,
 		the impact of the update is no more than the DHCP IP address renewal traffic and thus
 		still insignificant for most practical purposes.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2581665"></a><a name="id2581667"></a></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581671"></a>
-		<a class="indexterm" name="id2581678"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588560"></a><a name="id2588562"></a></td><td align="left" valign="top"><p>
+		<a class="indexterm" name="id2588567"></a>
+		<a class="indexterm" name="id2588574"></a>
 		How much background communication takes place between a master LDAP server and its slave LDAP servers?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581699"></a>
+		<a class="indexterm" name="id2588594"></a>
 		The process that controls the replication of data from the master LDAP server to the slave LDAP
 		servers is called <code class="literal">slurpd</code>. The <code class="literal">slurpd</code> remains nascent (quiet)
 		until an update must be propagated. The propagation traffic per LDAP slave to update (add/modify/delete)
 		two user accounts requires less than 10KB traffic.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2581726"></a><a name="id2581728"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588621"></a><a name="id2588623"></a></td><td align="left" valign="top"><p>
 		LDAP has a database. Is LDAP not just a fancy database front end?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581740"></a>
-		<a class="indexterm" name="id2581747"></a>
-		<a class="indexterm" name="id2581756"></a>
-		<a class="indexterm" name="id2581763"></a>
+		<a class="indexterm" name="id2588635"></a>
+		<a class="indexterm" name="id2588642"></a>
+		<a class="indexterm" name="id2588651"></a>
+		<a class="indexterm" name="id2588658"></a>
 		LDAP does store its data in a database of sorts. In fact, the LDAP backend is an application-specific
 		data storage system. This type of database is indexed so that records can be rapidly located, but the
 		database is not generic and can be used only in particular pre-programmed ways. General external
@@ -904,17 +904,17 @@ DHCP traffic:          300 (clients) x 6 (packets)
 		orientation and typically allows external programs to perform ad hoc queries, even across data tables.
 		An LDAP front end is a purpose-built tool that has a search orientation that is designed around specific
 		simple queries. The term <code class="constant">database</code> is heavily overloaded and thus much misunderstood.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2581790"></a><a name="id2581792"></a></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581796"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588685"></a><a name="id2588687"></a></td><td align="left" valign="top"><p>
+		<a class="indexterm" name="id2588692"></a>
 		Can Active Directory obtain account information from an OpenLDAP server?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581811"></a>
+		<a class="indexterm" name="id2588706"></a>
 		No, at least not directly. It is possible to provision Active Directory from and/or to an OpenLDAP
 		database through use of a metadirectory server. Microsoft MMS (now called MIIS) can interface
 		to OpenLDAP using standard LDAP queries and updates. 
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2581826"></a><a name="id2581828"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588721"></a><a name="id2588723"></a></td><td align="left" valign="top"><p>
 		What are the parts of a roaming profile? How large is each part?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2581839"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2588734"></a>
 		A roaming profile consists of
 		</p><div class="itemizedlist"><ul type="disc"><li><p>
 			Desktop folders such as <code class="constant">Desktop</code>, <code class="constant">My Documents</code>,
@@ -922,39 +922,39 @@ DHCP traffic:          300 (clients) x 6 (packets)
 			<code class="constant">Cookies</code>, <code class="constant">Application Data</code>,
 			<code class="constant">Local Settings,</code> and more. See <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a>, <a class="link" href="happy.html#XP-screen001" title="Figure 5.3. Windows XP Professional User Shared Folders">&#8220;Windows XP Professional  User Shared Folders&#8221;</a>.
 			</p><p>
-			<a class="indexterm" name="id2581900"></a>
+			<a class="indexterm" name="id2588795"></a>
 			Each of these can be anywhere from a few bytes to gigabytes in capacity. Fortunately, all
 			such folders can be redirected to network drive resources. See <a class="link" href="happy.html#redirfold" title="Configuration of Default Profile with Folder Redirection">&#8220;Configuration of Default Profile with Folder Redirection&#8221;</a>
 			for more information regarding folder redirection.
 			</p></li><li><p>
 			A static or rewritable portion that is typically only a few files (2-5 KB of information).
 			</p></li><li><p>
-			<a class="indexterm" name="id2581926"></a>
-			<a class="indexterm" name="id2581932"></a>
+			<a class="indexterm" name="id2588821"></a>
+			<a class="indexterm" name="id2588828"></a>
 			The registry load file that modifies the <code class="constant">HKEY_LOCAL_USER</code> hive. This is
 			the <code class="filename">NTUSER.DAT</code> file. It can be from 0.4 to 1.5 MB.
 			</p></li></ul></div><p>
-		<a class="indexterm" name="id2581955"></a>
+		<a class="indexterm" name="id2588851"></a>
 		Microsoft Outlook PST files may be stored in the <code class="constant">Local Settings\Application Data</code>
 		folder. It can be up to 2 GB in size per PST file.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2581974"></a><a name="id2581976"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588869"></a><a name="id2588871"></a></td><td align="left" valign="top"><p>
 		Can the <code class="constant">My Documents</code> folder be stored on a network drive?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2581991"></a>
-		<a class="indexterm" name="id2581998"></a>
+		<a class="indexterm" name="id2588887"></a>
+		<a class="indexterm" name="id2588893"></a>
 		Yes. More correctly, such folders can be redirected to network shares. No specific network drive
 		connection is required. Registry settings permit this to be redirected directly to a UNC (Universal
 		Naming Convention) resource, though it is possible to specify a network drive letter instead of a
 		UNC name. See <a class="link" href="happy.html#redirfold" title="Configuration of Default Profile with Folder Redirection">&#8220;Configuration of Default Profile with Folder Redirection&#8221;</a>.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2582022"></a><a name="id2582024"></a></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2582028"></a>
-		<a class="indexterm" name="id2582035"></a>
-		<a class="indexterm" name="id2582044"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2588917"></a><a name="id2588919"></a></td><td align="left" valign="top"><p>
+		<a class="indexterm" name="id2588924"></a>
+		<a class="indexterm" name="id2588930"></a>
+		<a class="indexterm" name="id2588940"></a>
 		How much WAN bandwidth does WINS consume?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2582058"></a>
-		<a class="indexterm" name="id2582068"></a>
-		<a class="indexterm" name="id2582074"></a>
+		<a class="indexterm" name="id2588954"></a>
+		<a class="indexterm" name="id2588963"></a>
+		<a class="indexterm" name="id2588970"></a>
 		MS Windows clients cache information obtained from WINS lookups in a local NetBIOS name cache.
 		This keeps WINS lookups to a minimum. On a network with 3500 MS Windows clients and a central WINS
 		server, the total bandwidth demand measured at the WINS server, averaged over an 8-hour working day,
@@ -966,7 +966,7 @@ DHCP traffic:          300 (clients) x 6 (packets)
 		</p><p>
 		In conclusion, the total load afforded through WINS traffic is again marginal to total operational
 		usage  as it should be.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2582106"></a><a name="id2582108"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2589001"></a><a name="id2589003"></a></td><td align="left" valign="top"><p>
 		How many BDCs should I have? What is the right number of Windows clients per server?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 		It is recommended to have at least one BDC per network segment, including the segment served
@@ -980,19 +980,19 @@ DHCP traffic:          300 (clients) x 6 (packets)
 		</p><p>
 		As unsatisfactory as the answer might sound, it all depends on network and server load
 		characteristics.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2582142"></a><a name="id2582144"></a></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2582148"></a><a class="indexterm" name="id2582154"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2589037"></a><a name="id2589039"></a></td><td align="left" valign="top"><p>
+		<a class="indexterm" name="id2589044"></a><a class="indexterm" name="id2589049"></a>
 		I've heard that you can store NIS accounts in LDAP. Is LDAP not just a smarter way to
 		run an NIS server?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 		The correct answer to both questions is yes. But do understand that an LDAP server has
 		a configurable schema that can store far more information for many more purposes than
 		just NIS.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2582176"></a><a name="id2582178"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2589071"></a><a name="id2589073"></a></td><td align="left" valign="top"><p>
 		Can I use NIS in place of LDAP?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2582189"></a>
-		<a class="indexterm" name="id2582196"></a>
+		<a class="indexterm" name="id2589085"></a>
+		<a class="indexterm" name="id2589091"></a>
 		No. The NIS database does not have provision to store Microsoft encrypted passwords and does not deal
 		with the types of data necessary for interoperability with Microsoft Windows networking. The use
 		of LDAP with Samba requires the use of a number of schemas, one of which is the NIS schema, but also

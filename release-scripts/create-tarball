@@ -137,7 +137,7 @@ function createReleaseTag
 	return 0
     fi
 
-    if [ "x`git-tag -l ${OPT_TAG}`" != "x" ]; then
+    if [ "x`git tag -l ${OPT_TAG}`" != "x" ]; then
 	echo -n "Tag exists.  Do you wish to overwrite? (y/N): "
 	read answer
 
@@ -155,7 +155,7 @@ function createReleaseTag
 	fi
     fi
 
-    git-tag -u ${OPT_KEYID} ${OPT_TAG}
+    git tag -u ${OPT_KEYID} ${OPT_TAG}
     exitOnError $? "Failed to create tag"
 
     return 0
@@ -170,7 +170,7 @@ function main
     
     cd $TOPDIR
 
-    git-checkout ${OPT_BRANCH}
+    git checkout ${OPT_BRANCH}
     exitOnError $? "Invalid branch name \"${OPT_BRANCH}\""
 
     (cd source && ./script/mkversion.sh)
@@ -183,12 +183,16 @@ function main
     if [ -n "$vendor_version" ]; then
 	version="$version-$vendor_version"
     fi
+    vendor_patch=`grep "define SAMBA_VERSION_VENDOR_PATCH" $VER_H | awk '{print $3}'`
+    if [ -n "$vendor_patch" ]; then
+	version="$version-$vendor_patch"
+    fi
     version=`echo $version | sed 's/\"//g'`
 
     echo "Creating release tarball for Samba $version"
 
     /bin/rm -rf ../samba-${version}
-    git-archive --format=tar --prefix=samba-${version}/ HEAD | (cd .. && tar xf -)
+    git archive --format=tar --prefix=samba-${version}/ HEAD | (cd .. && tar xf -)
     exitOnError $? "Failed to create release directory tree"
 
     pushd ../samba-${version}

@@ -252,6 +252,53 @@ void init_samr_alias_info3(struct lsa_String *r,
 }
 
 /*******************************************************************
+ inits a samr_UserInfo5 structure.
+********************************************************************/
+
+void init_samr_user_info5(struct samr_UserInfo5 *r,
+			  const char *account_name,
+			  const char *full_name,
+			  uint32_t rid,
+			  uint32_t primary_gid,
+			  const char *home_directory,
+			  const char *home_drive,
+			  const char *logon_script,
+			  const char *profile_path,
+			  const char *description,
+			  const char *workstations,
+			  NTTIME last_logon,
+			  NTTIME last_logoff,
+			  struct samr_LogonHours logon_hours,
+			  uint16_t bad_password_count,
+			  uint16_t logon_count,
+			  NTTIME last_password_change,
+			  NTTIME acct_expiry,
+			  uint32_t acct_flags)
+{
+	DEBUG(5, ("init_samr_user_info5\n"));
+
+	init_lsa_String(&r->account_name, account_name);
+	init_lsa_String(&r->full_name, full_name);
+	r->rid = rid;
+	r->primary_gid = primary_gid;
+	init_lsa_String(&r->home_directory, home_directory);
+	init_lsa_String(&r->home_drive, home_drive);
+	init_lsa_String(&r->logon_script, logon_script);
+	init_lsa_String(&r->profile_path, profile_path);
+	init_lsa_String(&r->description, description);
+	init_lsa_String(&r->workstations, workstations);
+	r->last_logon = last_logon;
+	r->last_logoff = last_logoff;
+	r->logon_hours = logon_hours;
+	r->bad_password_count = bad_password_count;
+	r->logon_count = logon_count;
+	r->last_password_change = last_password_change;
+	r->acct_expiry = acct_expiry;
+	r->acct_flags = acct_flags;
+}
+
+
+/*******************************************************************
  inits a samr_UserInfo7 structure.
 ********************************************************************/
 
@@ -293,7 +340,8 @@ void init_samr_user_info16(struct samr_UserInfo16 *r,
 
 void init_samr_user_info18(struct samr_UserInfo18 *r,
 			   const uint8 lm_pwd[16],
-			   const uint8 nt_pwd[16])
+			   const uint8 nt_pwd[16],
+			   uint8_t password_expired)
 {
 	DEBUG(5, ("init_samr_user_info18\n"));
 
@@ -301,6 +349,7 @@ void init_samr_user_info18(struct samr_UserInfo18 *r,
 		memcpy(r->lm_pwd.hash, lm_pwd, sizeof(r->lm_pwd.hash)) ? true : false;
 	r->nt_pwd_active =
 		memcpy(r->nt_pwd.hash, nt_pwd, sizeof(r->nt_pwd.hash)) ? true : false;
+	r->password_expired = password_expired;
 }
 
 /*******************************************************************
@@ -343,8 +392,8 @@ void init_samr_user_info21(struct samr_UserInfo21 *r,
 			   uint16_t logon_count,
 			   uint16_t country_code,
 			   uint16_t code_page,
-			   uint8_t nt_password_set,
 			   uint8_t lm_password_set,
+			   uint8_t nt_password_set,
 			   uint8_t password_expired)
 {
 	r->last_logon = last_logon;
@@ -372,8 +421,8 @@ void init_samr_user_info21(struct samr_UserInfo21 *r,
 	r->logon_count = logon_count;
 	r->country_code = country_code;
 	r->code_page = code_page;
-	r->nt_password_set = nt_password_set;
 	r->lm_password_set = lm_password_set;
+	r->nt_password_set = nt_password_set;
 	r->password_expired = password_expired;
 }
 
@@ -407,11 +456,10 @@ void init_samr_user_info23(struct samr_UserInfo23 *r,
 			   uint16_t logon_count,
 			   uint16_t country_code,
 			   uint16_t code_page,
-			   uint8_t nt_password_set,
 			   uint8_t lm_password_set,
+			   uint8_t nt_password_set,
 			   uint8_t password_expired,
-			   uint8_t data[516],
-			   uint8_t pw_len)
+			   struct samr_CryptPassword *pwd_buf)
 {
 	memset(r, '\0', sizeof(*r));
 	init_samr_user_info21(&r->info,
@@ -440,11 +488,11 @@ void init_samr_user_info23(struct samr_UserInfo23 *r,
 			      logon_count,
 			      country_code,
 			      code_page,
-			      nt_password_set,
 			      lm_password_set,
+			      nt_password_set,
 			      password_expired);
 
-	memcpy(r->password.data, data, sizeof(r->password.data));
+	r->password = *pwd_buf;
 }
 
 /*************************************************************************
@@ -452,11 +500,142 @@ void init_samr_user_info23(struct samr_UserInfo23 *r,
  *************************************************************************/
 
 void init_samr_user_info24(struct samr_UserInfo24 *r,
-			   uint8_t data[516],
-			   uint8_t pw_len)
+			   struct samr_CryptPassword *pwd_buf,
+			   uint8_t password_expired)
 {
 	DEBUG(10, ("init_samr_user_info24:\n"));
 
-	memcpy(r->password.data, data, sizeof(r->password.data));
-	r->pw_len = pw_len;
+	r->password = *pwd_buf;
+	r->password_expired = password_expired;
+}
+
+/*************************************************************************
+ init_samr_user_info25
+ *************************************************************************/
+
+void init_samr_user_info25(struct samr_UserInfo25 *r,
+			   NTTIME last_logon,
+			   NTTIME last_logoff,
+			   NTTIME last_password_change,
+			   NTTIME acct_expiry,
+			   NTTIME allow_password_change,
+			   NTTIME force_password_change,
+			   const char *account_name,
+			   const char *full_name,
+			   const char *home_directory,
+			   const char *home_drive,
+			   const char *logon_script,
+			   const char *profile_path,
+			   const char *description,
+			   const char *workstations,
+			   const char *comment,
+			   struct lsa_BinaryString *parameters,
+			   uint32_t rid,
+			   uint32_t primary_gid,
+			   uint32_t acct_flags,
+			   uint32_t fields_present,
+			   struct samr_LogonHours logon_hours,
+			   uint16_t bad_password_count,
+			   uint16_t logon_count,
+			   uint16_t country_code,
+			   uint16_t code_page,
+			   uint8_t lm_password_set,
+			   uint8_t nt_password_set,
+			   uint8_t password_expired,
+			   struct samr_CryptPasswordEx *pwd_buf)
+{
+	DEBUG(10, ("init_samr_user_info25:\n"));
+
+	memset(r, '\0', sizeof(*r));
+	init_samr_user_info21(&r->info,
+			      last_logon,
+			      last_logoff,
+			      last_password_change,
+			      acct_expiry,
+			      allow_password_change,
+			      force_password_change,
+			      account_name,
+			      full_name,
+			      home_directory,
+			      home_drive,
+			      logon_script,
+			      profile_path,
+			      description,
+			      workstations,
+			      comment,
+			      parameters,
+			      rid,
+			      primary_gid,
+			      acct_flags,
+			      fields_present,
+			      logon_hours,
+			      bad_password_count,
+			      logon_count,
+			      country_code,
+			      code_page,
+			      lm_password_set,
+			      nt_password_set,
+			      password_expired);
+
+	r->password = *pwd_buf;
+}
+
+/*************************************************************************
+ init_samr_user_info26
+ *************************************************************************/
+
+void init_samr_user_info26(struct samr_UserInfo26 *r,
+			   struct samr_CryptPasswordEx *pwd_buf,
+			   uint8_t password_expired)
+{
+	DEBUG(10, ("init_samr_user_info26:\n"));
+
+	r->password = *pwd_buf;
+	r->password_expired = password_expired;
+}
+
+/*************************************************************************
+ inits a samr_CryptPasswordEx structure
+ *************************************************************************/
+
+void init_samr_CryptPasswordEx(const char *pwd,
+			       DATA_BLOB *session_key,
+			       struct samr_CryptPasswordEx *pwd_buf)
+{
+	/* samr_CryptPasswordEx */
+
+	uchar pwbuf[532];
+	struct MD5Context md5_ctx;
+	uint8_t confounder[16];
+	DATA_BLOB confounded_session_key = data_blob(NULL, 16);
+
+	encode_pw_buffer(pwbuf, pwd, STR_UNICODE);
+
+	generate_random_buffer((uint8_t *)confounder, 16);
+
+	MD5Init(&md5_ctx);
+	MD5Update(&md5_ctx, confounder, 16);
+	MD5Update(&md5_ctx, session_key->data,
+			    session_key->length);
+	MD5Final(confounded_session_key.data, &md5_ctx);
+
+	SamOEMhashBlob(pwbuf, 516, &confounded_session_key);
+	memcpy(&pwbuf[516], confounder, 16);
+
+	memcpy(pwd_buf->data, pwbuf, sizeof(pwbuf));
+	data_blob_free(&confounded_session_key);
+}
+
+/*************************************************************************
+ inits a samr_CryptPassword structure
+ *************************************************************************/
+
+void init_samr_CryptPassword(const char *pwd,
+			     DATA_BLOB *session_key,
+			     struct samr_CryptPassword *pwd_buf)
+{
+	/* samr_CryptPassword */
+
+	encode_pw_buffer(pwd_buf->data, pwd, STR_UNICODE);
+	SamOEMhashBlob(pwd_buf->data, 516, session_key);
 }

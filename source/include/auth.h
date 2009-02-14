@@ -47,13 +47,8 @@ typedef struct auth_serversupplied_info {
 			   check_ntlm_password and the token creation. */
 	size_t num_sids;
 
-	uid_t uid;
-	gid_t gid;
-	
-	/* This groups info is needed for when we become_user() for this uid */
-	size_t n_groups;
-	gid_t *groups;
-	
+	struct unix_user_token utok;
+
 	/* NT group information taken from the info3 structure */
 	
 	NT_USER_TOKEN *ptok;
@@ -67,9 +62,21 @@ typedef struct auth_serversupplied_info {
 	
 	void *pam_handle;
 
-	bool was_mapped;	/* Did the username map match? */
+	/*
+	 * This is a token from /etc/passwd and /etc/group
+	 */
+	bool nss_token;
+
 	char *unix_name;
-	
+
+	/*
+	 * For performance reasons we keep an alpha_strcpy-sanitized version
+	 * of the username around as long as the global variable current_user
+	 * still exists. If we did not do keep this, we'd have to call
+	 * alpha_strcpy whenever we do a become_user(), potentially on every
+	 * smb request. See set_current_user_info.
+	 */
+	char *sanitized_username;
 } auth_serversupplied_info;
 
 struct auth_context {

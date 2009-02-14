@@ -53,9 +53,8 @@ struct ctdbd_connection *messaging_ctdbd_connection(void)
 		msg = messaging_init(NULL, procid_self(), ev);
 		if (!msg) {
 			DEBUG(0,("messaging_init failed\n"));
+			return NULL;
 		}
-
-		db_tdb2_setup_messaging(msg, false);
 	}
 
 	if (global_ctdb_connection_pid != getpid()) {

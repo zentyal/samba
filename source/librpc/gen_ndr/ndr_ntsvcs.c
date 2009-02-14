@@ -5,14 +5,14 @@
 
 static enum ndr_err_code ndr_push_PNP_HwProfInfo(struct ndr_push *ndr, int ndr_flags, const struct PNP_HwProfInfo *r)
 {
-	uint32_t cntr_unknown2_0;
+	uint32_t cntr_friendly_name_0;
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_push_align(ndr, 4));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->unknown1));
-		for (cntr_unknown2_0 = 0; cntr_unknown2_0 < 160; cntr_unknown2_0++) {
-			NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->unknown2[cntr_unknown2_0]));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->profile_handle));
+		for (cntr_friendly_name_0 = 0; cntr_friendly_name_0 < 80; cntr_friendly_name_0++) {
+			NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->friendly_name[cntr_friendly_name_0]));
 		}
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->unknown3));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->flags));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -21,14 +21,14 @@ static enum ndr_err_code ndr_push_PNP_HwProfInfo(struct ndr_push *ndr, int ndr_f
 
 static enum ndr_err_code ndr_pull_PNP_HwProfInfo(struct ndr_pull *ndr, int ndr_flags, struct PNP_HwProfInfo *r)
 {
-	uint32_t cntr_unknown2_0;
+	uint32_t cntr_friendly_name_0;
 	if (ndr_flags & NDR_SCALARS) {
 		NDR_CHECK(ndr_pull_align(ndr, 4));
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->unknown1));
-		for (cntr_unknown2_0 = 0; cntr_unknown2_0 < 160; cntr_unknown2_0++) {
-			NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->unknown2[cntr_unknown2_0]));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->profile_handle));
+		for (cntr_friendly_name_0 = 0; cntr_friendly_name_0 < 80; cntr_friendly_name_0++) {
+			NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->friendly_name[cntr_friendly_name_0]));
 		}
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->unknown3));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->flags));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -37,21 +37,21 @@ static enum ndr_err_code ndr_pull_PNP_HwProfInfo(struct ndr_pull *ndr, int ndr_f
 
 _PUBLIC_ void ndr_print_PNP_HwProfInfo(struct ndr_print *ndr, const char *name, const struct PNP_HwProfInfo *r)
 {
-	uint32_t cntr_unknown2_0;
+	uint32_t cntr_friendly_name_0;
 	ndr_print_struct(ndr, name, "PNP_HwProfInfo");
 	ndr->depth++;
-	ndr_print_uint32(ndr, "unknown1", r->unknown1);
-	ndr->print(ndr, "%s: ARRAY(%d)", "unknown2", (int)160);
+	ndr_print_uint32(ndr, "profile_handle", r->profile_handle);
+	ndr->print(ndr, "%s: ARRAY(%d)", "friendly_name", (int)80);
 	ndr->depth++;
-	for (cntr_unknown2_0=0;cntr_unknown2_0<160;cntr_unknown2_0++) {
+	for (cntr_friendly_name_0=0;cntr_friendly_name_0<80;cntr_friendly_name_0++) {
 		char *idx_0=NULL;
-		if (asprintf(&idx_0, "[%d]", cntr_unknown2_0) != -1) {
-			ndr_print_uint16(ndr, "unknown2", r->unknown2[cntr_unknown2_0]);
+		if (asprintf(&idx_0, "[%d]", cntr_friendly_name_0) != -1) {
+			ndr_print_uint16(ndr, "friendly_name", r->friendly_name[cntr_friendly_name_0]);
 			free(idx_0);
 		}
 	}
 	ndr->depth--;
-	ndr_print_uint32(ndr, "unknown3", r->unknown3);
+	ndr_print_uint32(ndr, "flags", r->flags);
 	ndr->depth--;
 }
 
@@ -688,8 +688,48 @@ _PUBLIC_ void ndr_print_PNP_GetDepth(struct ndr_print *ndr, const char *name, in
 static enum ndr_err_code ndr_push_PNP_GetDeviceRegProp(struct ndr_push *ndr, int flags, const struct PNP_GetDeviceRegProp *r)
 {
 	if (flags & NDR_IN) {
+		if (r->in.devicepath == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->in.devicepath, CH_UTF16)));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->in.devicepath, CH_UTF16)));
+		NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->in.devicepath, ndr_charset_length(r->in.devicepath, CH_UTF16), sizeof(uint16_t), CH_UTF16));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.property));
+		if (r->in.unknown1 == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->in.unknown1));
+		if (r->in.buffer_size == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->in.buffer_size));
+		if (r->in.needed == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->in.needed));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.unknown3));
 	}
 	if (flags & NDR_OUT) {
+		if (r->out.unknown1 == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->out.unknown1));
+		if (r->out.buffer == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->out.buffer_size));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->out.buffer_size));
+		NDR_CHECK(ndr_push_array_uint8(ndr, NDR_SCALARS, r->out.buffer, *r->out.buffer_size));
+		if (r->out.buffer_size == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->out.buffer_size));
+		if (r->out.needed == NULL) {
+			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
+		}
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, *r->out.needed));
 		NDR_CHECK(ndr_push_WERROR(ndr, NDR_SCALARS, r->out.result));
 	}
 	return NDR_ERR_SUCCESS;
@@ -697,10 +737,89 @@ static enum ndr_err_code ndr_push_PNP_GetDeviceRegProp(struct ndr_push *ndr, int
 
 static enum ndr_err_code ndr_pull_PNP_GetDeviceRegProp(struct ndr_pull *ndr, int flags, struct PNP_GetDeviceRegProp *r)
 {
+	TALLOC_CTX *_mem_save_unknown1_0;
+	TALLOC_CTX *_mem_save_buffer_size_0;
+	TALLOC_CTX *_mem_save_needed_0;
 	if (flags & NDR_IN) {
+		ZERO_STRUCT(r->out);
+
+		NDR_CHECK(ndr_pull_array_size(ndr, &r->in.devicepath));
+		NDR_CHECK(ndr_pull_array_length(ndr, &r->in.devicepath));
+		if (ndr_get_array_length(ndr, &r->in.devicepath) > ndr_get_array_size(ndr, &r->in.devicepath)) {
+			return ndr_pull_error(ndr, NDR_ERR_ARRAY_SIZE, "Bad array size %u should exceed array length %u", ndr_get_array_size(ndr, &r->in.devicepath), ndr_get_array_length(ndr, &r->in.devicepath));
+		}
+		NDR_CHECK(ndr_check_string_terminator(ndr, ndr_get_array_length(ndr, &r->in.devicepath), sizeof(uint16_t)));
+		NDR_CHECK(ndr_pull_charset(ndr, NDR_SCALARS, &r->in.devicepath, ndr_get_array_length(ndr, &r->in.devicepath), sizeof(uint16_t), CH_UTF16));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.property));
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.unknown1);
+		}
+		_mem_save_unknown1_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.unknown1, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->in.unknown1));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_unknown1_0, LIBNDR_FLAG_REF_ALLOC);
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.buffer_size);
+		}
+		_mem_save_buffer_size_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.buffer_size, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->in.buffer_size));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_buffer_size_0, LIBNDR_FLAG_REF_ALLOC);
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->in.needed);
+		}
+		_mem_save_needed_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->in.needed, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->in.needed));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_needed_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.unknown3));
+		NDR_PULL_ALLOC(ndr, r->out.unknown1);
+		*r->out.unknown1 = *r->in.unknown1;
+		NDR_PULL_ALLOC_N(ndr, r->out.buffer, *r->in.buffer_size);
+		memset(r->out.buffer, 0, (*r->in.buffer_size) * sizeof(*r->out.buffer));
+		NDR_PULL_ALLOC(ndr, r->out.buffer_size);
+		*r->out.buffer_size = *r->in.buffer_size;
+		NDR_PULL_ALLOC(ndr, r->out.needed);
+		*r->out.needed = *r->in.needed;
 	}
 	if (flags & NDR_OUT) {
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.unknown1);
+		}
+		_mem_save_unknown1_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.unknown1, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->out.unknown1));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_unknown1_0, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_array_size(ndr, &r->out.buffer));
+		NDR_CHECK(ndr_pull_array_length(ndr, &r->out.buffer));
+		if (ndr_get_array_length(ndr, &r->out.buffer) > ndr_get_array_size(ndr, &r->out.buffer)) {
+			return ndr_pull_error(ndr, NDR_ERR_ARRAY_SIZE, "Bad array size %u should exceed array length %u", ndr_get_array_size(ndr, &r->out.buffer), ndr_get_array_length(ndr, &r->out.buffer));
+		}
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC_N(ndr, r->out.buffer, ndr_get_array_size(ndr, &r->out.buffer));
+		}
+		NDR_CHECK(ndr_pull_array_uint8(ndr, NDR_SCALARS, r->out.buffer, ndr_get_array_length(ndr, &r->out.buffer)));
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.buffer_size);
+		}
+		_mem_save_buffer_size_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.buffer_size, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->out.buffer_size));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_buffer_size_0, LIBNDR_FLAG_REF_ALLOC);
+		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
+			NDR_PULL_ALLOC(ndr, r->out.needed);
+		}
+		_mem_save_needed_0 = NDR_PULL_GET_MEM_CTX(ndr);
+		NDR_PULL_SET_MEM_CTX(ndr, r->out.needed, LIBNDR_FLAG_REF_ALLOC);
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, r->out.needed));
+		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_needed_0, LIBNDR_FLAG_REF_ALLOC);
 		NDR_CHECK(ndr_pull_WERROR(ndr, NDR_SCALARS, &r->out.result));
+		if (r->out.buffer) {
+			NDR_CHECK(ndr_check_array_size(ndr, (void*)&r->out.buffer, *r->out.buffer_size));
+		}
+		if (r->out.buffer) {
+			NDR_CHECK(ndr_check_array_length(ndr, (void*)&r->out.buffer, *r->out.buffer_size));
+		}
 	}
 	return NDR_ERR_SUCCESS;
 }
@@ -715,11 +834,45 @@ _PUBLIC_ void ndr_print_PNP_GetDeviceRegProp(struct ndr_print *ndr, const char *
 	if (flags & NDR_IN) {
 		ndr_print_struct(ndr, "in", "PNP_GetDeviceRegProp");
 		ndr->depth++;
+		ndr_print_ptr(ndr, "devicepath", r->in.devicepath);
+		ndr->depth++;
+		ndr_print_string(ndr, "devicepath", r->in.devicepath);
+		ndr->depth--;
+		ndr_print_uint32(ndr, "property", r->in.property);
+		ndr_print_ptr(ndr, "unknown1", r->in.unknown1);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "unknown1", *r->in.unknown1);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "buffer_size", r->in.buffer_size);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "buffer_size", *r->in.buffer_size);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "needed", r->in.needed);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "needed", *r->in.needed);
+		ndr->depth--;
+		ndr_print_uint32(ndr, "unknown3", r->in.unknown3);
 		ndr->depth--;
 	}
 	if (flags & NDR_OUT) {
 		ndr_print_struct(ndr, "out", "PNP_GetDeviceRegProp");
 		ndr->depth++;
+		ndr_print_ptr(ndr, "unknown1", r->out.unknown1);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "unknown1", *r->out.unknown1);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "buffer", r->out.buffer);
+		ndr->depth++;
+		ndr_print_array_uint8(ndr, "buffer", r->out.buffer, *r->out.buffer_size);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "buffer_size", r->out.buffer_size);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "buffer_size", *r->out.buffer_size);
+		ndr->depth--;
+		ndr_print_ptr(ndr, "needed", r->out.needed);
+		ndr->depth++;
+		ndr_print_uint32(ndr, "needed", *r->out.needed);
+		ndr->depth--;
 		ndr_print_WERROR(ndr, "result", r->out.result);
 		ndr->depth--;
 	}
@@ -2038,8 +2191,8 @@ static enum ndr_err_code ndr_push_PNP_GetHwProfInfo(struct ndr_push *ndr, int fl
 			return ndr_push_error(ndr, NDR_ERR_INVALID_POINTER, "NULL [ref] pointer");
 		}
 		NDR_CHECK(ndr_push_PNP_HwProfInfo(ndr, NDR_SCALARS, r->in.info));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.unknown1));
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.unknown2));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.size));
+		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->in.flags));
 	}
 	if (flags & NDR_OUT) {
 		if (r->out.info == NULL) {
@@ -2065,8 +2218,8 @@ static enum ndr_err_code ndr_pull_PNP_GetHwProfInfo(struct ndr_pull *ndr, int fl
 		NDR_PULL_SET_MEM_CTX(ndr, r->in.info, LIBNDR_FLAG_REF_ALLOC);
 		NDR_CHECK(ndr_pull_PNP_HwProfInfo(ndr, NDR_SCALARS, r->in.info));
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_info_0, LIBNDR_FLAG_REF_ALLOC);
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.unknown1));
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.unknown2));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.size));
+		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->in.flags));
 		NDR_PULL_ALLOC(ndr, r->out.info);
 		*r->out.info = *r->in.info;
 	}
@@ -2098,8 +2251,8 @@ _PUBLIC_ void ndr_print_PNP_GetHwProfInfo(struct ndr_print *ndr, const char *nam
 		ndr->depth++;
 		ndr_print_PNP_HwProfInfo(ndr, "info", r->in.info);
 		ndr->depth--;
-		ndr_print_uint32(ndr, "unknown1", r->in.unknown1);
-		ndr_print_uint32(ndr, "unknown2", r->in.unknown2);
+		ndr_print_uint32(ndr, "size", r->in.size);
+		ndr_print_uint32(ndr, "flags", r->in.flags);
 		ndr->depth--;
 	}
 	if (flags & NDR_OUT) {

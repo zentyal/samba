@@ -216,7 +216,7 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
 
 static void aio_child_cleanup(struct event_context *event_ctx,
 			      struct timed_event *te,
-			      const struct timeval *now,
+			      struct timeval now,
 			      void *private_data)
 {
 	struct aio_child_list *list = talloc_get_type_abort(
@@ -252,8 +252,7 @@ static void aio_child_cleanup(struct event_context *event_ctx,
 		 * Re-schedule the next cleanup round
 		 */
 		list->cleanup_event = event_add_timed(smbd_event_context(), list,
-						      timeval_add(now, 30, 0),
-						      "aio_child_cleanup",
+						      timeval_add(&now, 30, 0),
 						      aio_child_cleanup, list);
 
 	}
@@ -284,7 +283,6 @@ static struct aio_child_list *init_aio_children(struct vfs_handle_struct *handle
 	if (data->cleanup_event == NULL) {
 		data->cleanup_event = event_add_timed(smbd_event_context(), data,
 						      timeval_current_ofs(30, 0),
-						      "aio_child_cleanup",
 						      aio_child_cleanup, data);
 		if (data->cleanup_event == NULL) {
 			TALLOC_FREE(data);
@@ -436,7 +434,6 @@ static NTSTATUS create_aio_child(struct aio_child_list *children,
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, fdpair) == -1) {
 		status = map_nt_error_from_unix(errno);
 		DEBUG(10, ("socketpair() failed: %s\n", strerror(errno)));
-		TALLOC_FREE(result);
 		goto fail;
 	}
 

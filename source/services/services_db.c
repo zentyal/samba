@@ -89,7 +89,6 @@ struct service_display_info common_unix_svcs[] = {
 static SEC_DESC* construct_service_sd( TALLOC_CTX *ctx )
 {
 	SEC_ACE ace[4];
-	SEC_ACCESS mask;
 	size_t i = 0;
 	SEC_DESC *sd = NULL;
 	SEC_ACL *acl = NULL;
@@ -97,15 +96,16 @@ static SEC_DESC* construct_service_sd( TALLOC_CTX *ctx )
 
 	/* basic access for Everyone */
 
-	init_sec_access(&mask, SERVICE_READ_ACCESS );
-	init_sec_ace(&ace[i++], &global_sid_World, SEC_ACE_TYPE_ACCESS_ALLOWED, mask, 0);
+	init_sec_ace(&ace[i++], &global_sid_World,
+		SEC_ACE_TYPE_ACCESS_ALLOWED, SERVICE_READ_ACCESS, 0);
 
-	init_sec_access(&mask,SERVICE_EXECUTE_ACCESS );
-	init_sec_ace(&ace[i++], &global_sid_Builtin_Power_Users, SEC_ACE_TYPE_ACCESS_ALLOWED, mask, 0);
+	init_sec_ace(&ace[i++], &global_sid_Builtin_Power_Users,
+			SEC_ACE_TYPE_ACCESS_ALLOWED, SERVICE_EXECUTE_ACCESS, 0);
 
-	init_sec_access(&mask,SERVICE_ALL_ACCESS );
-	init_sec_ace(&ace[i++], &global_sid_Builtin_Server_Operators, SEC_ACE_TYPE_ACCESS_ALLOWED, mask, 0);
-	init_sec_ace(&ace[i++], &global_sid_Builtin_Administrators, SEC_ACE_TYPE_ACCESS_ALLOWED, mask, 0);
+	init_sec_ace(&ace[i++], &global_sid_Builtin_Server_Operators,
+		SEC_ACE_TYPE_ACCESS_ALLOWED, SERVICE_ALL_ACCESS, 0);
+	init_sec_ace(&ace[i++], &global_sid_Builtin_Administrators,
+		SEC_ACE_TYPE_ACCESS_ALLOWED, SERVICE_ALL_ACCESS, 0);
 
 	/* create the security descriptor */
 
@@ -199,7 +199,7 @@ static bool read_init_file( const char *servicename, struct rcinit_file_informat
 
 	/* attempt the file open */
 
-	filepath = talloc_asprintf(info, "%s/%s/%s", get_dyn_LIBDIR(),
+	filepath = talloc_asprintf(info, "%s/%s/%s", get_dyn_MODULESDIR(),
 				SVCCTL_SCRIPT_DIR, servicename);
 	if (!filepath) {
 		TALLOC_FREE(info);
@@ -277,7 +277,7 @@ static void fill_service_values( const char *name, REGVAL_CTR *values )
 		if ( strequal( name, builtin_svcs[i].servicename ) ) {
 			char *pstr = NULL;
 			if (asprintf(&pstr, "%s/%s/%s",
-					get_dyn_LIBDIR(), SVCCTL_SCRIPT_DIR,
+					get_dyn_MODULESDIR(), SVCCTL_SCRIPT_DIR,
 					builtin_svcs[i].daemon) > 0) {
 				init_unistr2( &ipath, pstr, UNI_STR_TERMINATE );
 				SAFE_FREE(pstr);
@@ -297,7 +297,7 @@ static void fill_service_values( const char *name, REGVAL_CTR *values )
 		char *dispname = NULL;
 		struct rcinit_file_information *init_info = NULL;
 
-		if (asprintf(&pstr, "%s/%s/%s",get_dyn_LIBDIR(),
+		if (asprintf(&pstr, "%s/%s/%s",get_dyn_MODULESDIR(),
 					SVCCTL_SCRIPT_DIR, name) > 0) {
 			init_unistr2( &ipath, pstr, UNI_STR_TERMINATE );
 			SAFE_FREE(pstr);

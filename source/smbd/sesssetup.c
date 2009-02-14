@@ -45,7 +45,7 @@ static NTSTATUS do_map_to_guest(NTSTATUS status,
 		    (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_PASSWORD)) {
 			DEBUG(3,("No such user %s [%s] - using guest account\n",
 				 user, domain));
-			status = make_server_info_guest(server_info);
+			status = make_server_info_guest(NULL, server_info);
 		}
 	}
 
@@ -53,7 +53,7 @@ static NTSTATUS do_map_to_guest(NTSTATUS status,
 		if (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_PASSWORD) {
 			DEBUG(3,("Registered username %s for guest access\n",
 				user));
-			status = make_server_info_guest(server_info);
+			status = make_server_info_guest(NULL, server_info);
 		}
 	}
 
@@ -442,7 +442,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	if (pw) {
 		/* if a real user check pam account restrictions */
 		/* only really perfomed if "obey pam restriction" is true */
-		/* do this before an eventual mappign to guest occurs */
+		/* do this before an eventual mapping to guest occurs */
 		ret = smb_pam_accountcheck(pw->pw_name);
 		if (  !NT_STATUS_IS_OK(ret)) {
 			DEBUG(1,("PAM account restriction "
@@ -488,7 +488,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	reload_services(True);
 
 	if ( map_domainuser_to_guest ) {
-		make_server_info_guest(&server_info);
+		make_server_info_guest(NULL, &server_info);
 	} else if (logon_info) {
 		/* pass the unmapped username here since map_username()
 		   will be called again from inside make_server_info_info3() */
@@ -530,9 +530,7 @@ static void reply_spnego_kerberos(struct smb_request *req,
 		}
 	}
 
-	if (username_was_mapped) {
-		server_info->was_mapped = username_was_mapped;
-	}
+	server_info->nss_token |= username_was_mapped;
 
 	/* we need to build the token for the user. make_server_info_guest()
 	   already does this */
@@ -560,9 +558,13 @@ static void reply_spnego_kerberos(struct smb_request *req,
 	if (!is_partial_auth_vuid(sess_vuid)) {
 		sess_vuid = register_initial_vuid();
 	}
+
+	data_blob_free(&server_info->user_session_key);
+	server_info->user_session_key = session_key;
+	session_key = data_blob_null;
+
 	sess_vuid = register_existing_vuid(sess_vuid,
 					server_info,
-					session_key,
 					nullblob,
 					client);
 
@@ -573,7 +575,6 @@ static void reply_spnego_kerberos(struct smb_request *req,
 
 	if (sess_vuid == UID_FIELD_INVALID ) {
 		ret = NT_STATUS_LOGON_FAILURE;
-		data_blob_free(&session_key);
 	} else {
 		/* current_user_info is changed on new vuid */
 		reload_services( True );
@@ -643,23 +644,24 @@ static void reply_spnego_ntlmssp(struct smb_request *req,
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		DATA_BLOB nullblob = data_blob_null;
-		DATA_BLOB session_key =
-			data_blob(
-			(*auth_ntlmssp_state)->ntlmssp_state->session_key.data,
-			(*auth_ntlmssp_state)->ntlmssp_state->session_key.length);
 
 		if (!is_partial_auth_vuid(vuid)) {
-			data_blob_free(&session_key);
 			nt_status = NT_STATUS_LOGON_FAILURE;
 			goto out;
 		}
+
+		data_blob_free(&server_info->user_session_key);
+		server_info->user_session_key =
+			data_blob_talloc(
+			server_info,
+			(*auth_ntlmssp_state)->ntlmssp_state->session_key.data,
+			(*auth_ntlmssp_state)->ntlmssp_state->session_key.length);
+
 		/* register_existing_vuid keeps the server info */
 		if (register_existing_vuid(vuid,
-				server_info,
-				session_key, nullblob,
+				server_info, nullblob,
 				(*auth_ntlmssp_state)->ntlmssp_state->user) !=
 					vuid) {
-			data_blob_free(&session_key);
 			nt_status = NT_STATUS_LOGON_FAILURE;
 			goto out;
 		}
@@ -916,7 +918,7 @@ static void reply_spnego_auth(struct smb_request *req,
 			DEBUG(3,("reply_spnego_auth: network "
 				"misconfiguration, client sent us a "
 				"krb5 ticket and kerberos security "
-				"not enabled"));
+				"not enabled\n"));
 			reply_nterror(req, nt_status_squash(
 					NT_STATUS_LOGON_FAILURE));
 			SAFE_FREE(kerb_mech);
@@ -1350,6 +1352,9 @@ static int shutdown_other_smbds(struct db_record *rec,
 		return 0;
 	}
 
+	DEBUG(0,("shutdown_other_smbds: shutting down pid %d "
+		 "(IP %s)\n", procid_to_pid(&crec->pid), ip));
+
 	messaging_send(smbd_messaging_context(), crec->pid, MSG_SHUTDOWN,
 		       &data_blob_null);
 	return 0;
@@ -1397,8 +1402,6 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	NTSTATUS nt_status;
 
 	bool doencrypt = global_encrypted_passwords_negotiated;
-
-	DATA_BLOB session_key;
 
 	START_PROFILE(SMBsesssetupX);
 
@@ -1750,13 +1753,6 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		}
 	}
 
-	if (server_info->user_session_key.data) {
-		session_key = data_blob(server_info->user_session_key.data,
-				server_info->user_session_key.length);
-	} else {
-		session_key = data_blob_null;
-	}
-
 	data_blob_clear_free(&plaintext_password);
 
 	/* it's ok - setup a reply */
@@ -1775,7 +1771,6 @@ void reply_sesssetup_and_X(struct smb_request *req)
 
 	if (lp_security() == SEC_SHARE) {
 		sess_vuid = UID_FIELD_INVALID;
-		data_blob_free(&session_key);
 		TALLOC_FREE(server_info);
 	} else {
 		/* Ignore the initial vuid. */
@@ -1783,7 +1778,6 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		if (sess_vuid == UID_FIELD_INVALID) {
 			data_blob_free(&nt_resp);
 			data_blob_free(&lm_resp);
-			data_blob_free(&session_key);
 			reply_nterror(req, nt_status_squash(
 					      NT_STATUS_LOGON_FAILURE));
 			END_PROFILE(SMBsesssetupX);
@@ -1792,13 +1786,11 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		/* register_existing_vuid keeps the server info */
 		sess_vuid = register_existing_vuid(sess_vuid,
 					server_info,
-					session_key,
 					nt_resp.data ? nt_resp : lm_resp,
 					sub_user);
 		if (sess_vuid == UID_FIELD_INVALID) {
 			data_blob_free(&nt_resp);
 			data_blob_free(&lm_resp);
-			data_blob_free(&session_key);
 			reply_nterror(req, nt_status_squash(
 					      NT_STATUS_LOGON_FAILURE));
 			END_PROFILE(SMBsesssetupX);

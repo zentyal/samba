@@ -40,22 +40,18 @@ wbcErr wbcSidToString(const struct wbcDomainSid *sid,
 	uint32_t id_auth;
 	int i;
 	char *tmp = NULL;
-	TALLOC_CTX *ctx = NULL;
 
 	if (!sid) {
 		wbc_status = WBC_ERR_INVALID_SID;
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	ctx = talloc_init("wbcSidToString");
-	BAIL_ON_PTR_ERROR(ctx, wbc_status);
-
 	id_auth = sid->id_auth[5] +
 		(sid->id_auth[4] << 8) +
 		(sid->id_auth[3] << 16) +
 		(sid->id_auth[2] << 24);
 
-	tmp = talloc_asprintf(ctx, "S-%d-%d", sid->sid_rev_num, id_auth);
+	tmp = talloc_asprintf(NULL, "S-%d-%d", sid->sid_rev_num, id_auth);
 	BAIL_ON_PTR_ERROR(tmp, wbc_status);
 
 	for (i=0; i<sid->num_auths; i++) {
@@ -66,13 +62,13 @@ wbcErr wbcSidToString(const struct wbcDomainSid *sid,
 		tmp = tmp2;
 	}
 
-	*sid_string=talloc_strdup(NULL, tmp);
-	BAIL_ON_PTR_ERROR((*sid_string), wbc_status);
+	*sid_string = tmp;
+	tmp = NULL;
 
 	wbc_status = WBC_ERR_SUCCESS;
 
 done:
-	talloc_free(ctx);
+	talloc_free(tmp);
 
 	return wbc_status;
 }
@@ -102,8 +98,7 @@ wbcErr wbcStringToSid(const char *str,
 
 	if (!str
 	    || (str[0]!='S' && str[0]!='s')
-	    || (str[1]!='-')
-	    || (strlen(str)<2))
+	    || (str[1]!='-'))
 	{
 		wbc_status = WBC_ERR_INVALID_PARAM;
 		BAIL_ON_WBC_ERROR(wbc_status);
@@ -143,9 +138,13 @@ wbcErr wbcStringToSid(const char *str,
 		x=(uint32_t)strtoul(p, &q, 10);
 		if (p == q)
 			break;
+		if (q == NULL) {
+			wbc_status = WBC_ERR_INVALID_SID;
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
 		sid->sub_auths[sid->num_auths++] = x;
 
-		if (q && ((*q!='-') || (*q=='\0')))
+		if ((*q!='-') || (*q=='\0'))
 			break;
 		p = q + 1;
 	}
@@ -220,9 +219,9 @@ wbcErr wbcLookupName(const char *domain,
 /** @brief Convert a SID to a domain and name
  *
  * @param *sid        Pointer to the domain SID to be resolved
- * @param domain      Resolved Domain name (possibly "")
- * @param name        Resolved User or group name
- * @param *name_type  Pointet to the resolved SID type
+ * @param pdomain     Resolved Domain name (possibly "")
+ * @param pname       Resolved User or group name
+ * @param *pname_type Pointet to the resolved SID type
  *
  * @return #wbcErr
  *
@@ -239,7 +238,7 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 	char *sid_string = NULL;
 	char *domain = NULL;
 	char *name = NULL;
-	enum wbcSidType name_type;
+	enum wbcSidType name_type = WBC_SID_NAME_USE_NONE;
 
 	if (!sid) {
 		wbc_status = WBC_ERR_INVALID_PARAM;
@@ -291,9 +290,18 @@ wbcErr wbcLookupSid(const struct wbcDomainSid *sid,
 		}
 	}
 	else {
+#if 0
+		/*
+		 * Found by Coverity: In this particular routine we can't end
+		 * up here with a non-NULL name. Further up there are just two
+		 * exit paths that lead here, neither of which leave an
+		 * allocated name. If you add more paths up there, re-activate
+		 * this.
+		 */
 		if (name != NULL) {
 			talloc_free(name);
 		}
+#endif
 		if (domain != NULL) {
 			talloc_free(domain);
 		}
@@ -661,5 +669,49 @@ wbcErr wbcListGroups(const char *domain_name,
 	if (groups) {
 		talloc_free(groups);
 	}
+	return wbc_status;
+}
+
+wbcErr wbcGetDisplayName(const struct wbcDomainSid *sid,
+			 char **pdomain,
+			 char **pfullname,
+			 enum wbcSidType *pname_type)
+{
+	wbcErr wbc_status;
+	char *domain = NULL;
+	char *name = NULL;
+	enum wbcSidType name_type;
+
+	wbc_status = wbcLookupSid(sid, &domain, &name, &name_type);
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+	if (name_type == WBC_SID_NAME_USER) {
+		uid_t uid;
+		struct passwd *pwd;
+
+		wbc_status = wbcSidToUid(sid, &uid);
+		BAIL_ON_WBC_ERROR(wbc_status);
+
+		wbc_status = wbcGetpwuid(uid, &pwd);
+		BAIL_ON_WBC_ERROR(wbc_status);
+
+		wbcFreeMemory(name);
+
+		name = talloc_strdup(NULL, pwd->pw_gecos);
+		BAIL_ON_PTR_ERROR(name, wbc_status);
+	}
+
+	wbc_status = WBC_ERR_SUCCESS;
+
+ done:
+	if (WBC_ERROR_IS_OK(wbc_status)) {
+		*pdomain = domain;
+		*pfullname = name;
+		*pname_type = name_type;
+	} else {
+		wbcFreeMemory(domain);
+		wbcFreeMemory(name);
+	}
+
 	return wbc_status;
 }

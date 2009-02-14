@@ -120,6 +120,10 @@ void async_request(TALLOC_CTX *mem_ctx, struct winbindd_child *child,
 
 	SMB_ASSERT(continuation != NULL);
 
+	DEBUG(10, ("Sending request to child pid %d (domain=%s)\n",
+		(int)child->pid,
+		(child->domain != NULL) ? child->domain->name : "''"));
+
 	state = TALLOC_P(mem_ctx, struct winbindd_async_request);
 
 	if (state == NULL) {
@@ -171,7 +175,7 @@ static void async_main_request_sent(void *private_data, bool success)
 
 static void async_request_timeout_handler(struct event_context *ctx,
 					struct timed_event *te,
-					const struct timeval *now,
+					struct timeval now,
 					void *private_data)
 {
 	struct winbindd_async_request *state =
@@ -196,10 +200,12 @@ static void async_request_fail(struct winbindd_async_request *state)
 
 	TALLOC_FREE(state->reply_timeout_event);
 
-	SMB_ASSERT(state->child_pid != (pid_t)0);
+	/* If child exists and is not already reaped,
+	   send kill signal to child. */
 
-	/* If not already reaped, send kill signal to child. */
-	if (state->child->pid == state->child_pid) {
+	if ((state->child->pid != (pid_t)0) &&
+			(state->child->pid != (pid_t)-1) &&
+			(state->child->pid == state->child_pid)) {
 		kill(state->child_pid, SIGTERM);
 
 		/* 
@@ -241,7 +247,6 @@ static void async_request_sent(void *private_data_data, bool success)
 	state->reply_timeout_event = event_add_timed(winbind_event_context(),
 							NULL,
 							timeval_current_ofs(300,0),
-							"async_request_timeout",
 							async_request_timeout_handler,
 							state);
 	if (!state->reply_timeout_event) {
@@ -294,13 +299,27 @@ static void schedule_async_request(struct winbindd_child *child)
 		return;		/* Busy */
 	}
 
+	/*
+	 * This may be a reschedule, so we might
+	 * have an existing timeout event pending on
+	 * the first entry in the child->requests list
+	 * (we only send one request at a time).
+	 * Ensure we free it before we reschedule.
+	 * Bug #5814, from hargagan <shargagan@novell.com>.
+	 * JRA.
+	 */
+
+	TALLOC_FREE(request->reply_timeout_event);
+
 	if ((child->pid == 0) && (!fork_domain_child(child))) {
-		/* Cancel all outstanding requests */
+		/* fork_domain_child failed.
+		   Cancel all outstanding requests */
 
 		while (request != NULL) {
 			/* request might be free'd in the continuation */
 			struct winbindd_async_request *next = request->next;
-			request->continuation(request->private_data, False);
+
+			async_request_fail(request);
 			request = next;
 		}
 		return;
@@ -486,6 +505,17 @@ void winbind_child_died(pid_t pid)
 	child->event.fd = 0;
 	child->event.flags = 0;
 	child->pid = 0;
+
+	if (child->requests) {
+		/*
+		 * schedule_async_request() will also
+		 * clear this event but the call is
+		 * idempotent so it doesn't hurt to
+		 * cover all possible future code
+		 * paths. JRA.
+		 */
+		TALLOC_FREE(child->requests->reply_timeout_event);
+	}
 
 	schedule_async_request(child);
 }
@@ -796,7 +826,7 @@ void winbind_msg_dump_domain_list(struct messaging_context *msg_ctx,
 
 static void account_lockout_policy_handler(struct event_context *ctx,
 					   struct timed_event *te,
-					   const struct timeval *now,
+					   struct timeval now,
 					   void *private_data)
 {
 	struct winbindd_child *child =
@@ -835,9 +865,112 @@ static void account_lockout_policy_handler(struct event_context *ctx,
 
 	child->lockout_policy_event = event_add_timed(winbind_event_context(), NULL,
 						      timeval_current_ofs(3600, 0),
-						      "account_lockout_policy_handler",
 						      account_lockout_policy_handler,
 						      child);
+}
+
+static time_t get_machine_password_timeout(void)
+{
+	/* until we have gpo support use lp setting */
+	return lp_machine_password_timeout();
+}
+
+static bool calculate_next_machine_pwd_change(const char *domain,
+					      struct timeval *t)
+{
+	time_t pass_last_set_time;
+	time_t timeout;
+	time_t next_change;
+	char *pw;
+
+	pw = secrets_fetch_machine_password(domain,
+					    &pass_last_set_time,
+					    NULL);
+
+	if (pw == NULL) {
+		DEBUG(0,("cannot fetch own machine password ????"));
+		return false;
+	}
+
+	SAFE_FREE(pw);
+
+	timeout = get_machine_password_timeout();
+	if (timeout == 0) {
+		DEBUG(10,("machine password never expires\n"));
+		return false;
+	}
+
+	if (time(NULL) < (pass_last_set_time + timeout)) {
+		next_change = pass_last_set_time + timeout;
+		DEBUG(10,("machine password still valid until: %s\n",
+			http_timestring(next_change)));
+		*t = timeval_set(next_change, 0);
+		return true;
+	}
+
+	DEBUG(10,("machine password expired, needs immediate change\n"));
+
+	*t = timeval_zero();
+
+	return true;
+}
+
+static void machine_password_change_handler(struct event_context *ctx,
+					    struct timed_event *te,
+					    struct timeval now,
+					    void *private_data)
+{
+	struct winbindd_child *child =
+		(struct winbindd_child *)private_data;
+	struct rpc_pipe_client *netlogon_pipe = NULL;
+	TALLOC_CTX *frame;
+	NTSTATUS result;
+	struct timeval next_change;
+
+	DEBUG(10,("machine_password_change_handler called\n"));
+
+	TALLOC_FREE(child->machine_password_change_event);
+
+	if (!calculate_next_machine_pwd_change(child->domain->name,
+					       &next_change)) {
+		return;
+	}
+
+	if (!winbindd_can_contact_domain(child->domain)) {
+		DEBUG(10,("machine_password_change_handler: Removing myself since I "
+			  "do not have an incoming trust to domain %s\n",
+			  child->domain->name));
+		return;
+	}
+
+	result = cm_connect_netlogon(child->domain, &netlogon_pipe);
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(10,("machine_password_change_handler: "
+			"failed to connect netlogon pipe: %s\n",
+			 nt_errstr(result)));
+		return;
+	}
+
+	frame = talloc_stackframe();
+
+	result = trust_pw_find_change_and_store_it(netlogon_pipe,
+						   frame,
+						   child->domain->name);
+	TALLOC_FREE(frame);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(10,("machine_password_change_handler: "
+			"failed to change machine password: %s\n",
+			 nt_errstr(result)));
+	} else {
+		DEBUG(10,("machine_password_change_handler: "
+			"successfully changed machine password\n"));
+	}
+
+	child->machine_password_change_event = event_add_timed(winbind_event_context(), NULL,
+							      next_change,
+							      machine_password_change_handler,
+							      child);
 }
 
 /* Deal with a request to go offline. */
@@ -849,6 +982,7 @@ static void child_msg_offline(struct messaging_context *msg,
 			      DATA_BLOB *data)
 {
 	struct winbindd_domain *domain;
+	struct winbindd_domain *primary_domain = NULL;
 	const char *domainname = (const char *)data->data;
 
 	if (data->data == NULL || data->length == 0) {
@@ -862,6 +996,8 @@ static void child_msg_offline(struct messaging_context *msg,
 		return;
 	}
 
+	primary_domain = find_our_domain();
+
 	/* Mark the requested domain offline. */
 
 	for (domain = domain_list(); domain; domain = domain->next) {
@@ -871,6 +1007,11 @@ static void child_msg_offline(struct messaging_context *msg,
 		if (strequal(domain->name, domainname)) {
 			DEBUG(5,("child_msg_offline: marking %s offline.\n", domain->name));
 			set_domain_offline(domain);
+			/* we are in the trusted domain, set the primary domain 
+			 * offline too */
+			if (domain != primary_domain) {
+				set_domain_offline(primary_domain);
+			}
 		}
 	}
 }
@@ -884,6 +1025,7 @@ static void child_msg_online(struct messaging_context *msg,
 			     DATA_BLOB *data)
 {
 	struct winbindd_domain *domain;
+	struct winbindd_domain *primary_domain = NULL;
 	const char *domainname = (const char *)data->data;
 
 	if (data->data == NULL || data->length == 0) {
@@ -896,6 +1038,8 @@ static void child_msg_online(struct messaging_context *msg,
 		DEBUG(10,("child_msg_online: rejecting online message.\n"));
 		return;
 	}
+
+	primary_domain = find_our_domain();
 
 	/* Set our global state as online. */
 	set_global_winbindd_state_online();
@@ -911,6 +1055,16 @@ static void child_msg_online(struct messaging_context *msg,
 			DEBUG(5,("child_msg_online: requesting %s to go online.\n", domain->name));
 			winbindd_flush_negative_conn_cache(domain);
 			set_domain_online_request(domain);
+
+			/* we can be in trusted domain, which will contact primary domain
+			 * we have to bring primary domain online in trusted domain process
+			 * see, winbindd_dual_pam_auth() --> winbindd_dual_pam_auth_samlogon()
+			 * --> contact_domain = find_our_domain()
+			 * */
+			if (domain != primary_domain) {
+				winbindd_flush_negative_conn_cache(primary_domain);
+				set_domain_online_request(primary_domain);
+			}
 		}
 	}
 }
@@ -988,12 +1142,99 @@ static void child_msg_dump_event_list(struct messaging_context *msg,
 	dump_event_list(winbind_event_context());
 }
 
+bool winbindd_reinit_after_fork(const char *logfilename)
+{
+	struct winbindd_domain *domain;
+	struct winbindd_child *cl;
+
+	if (!reinit_after_fork(winbind_messaging_context(),
+			       winbind_event_context(), true)) {
+		DEBUG(0,("reinit_after_fork() failed\n"));
+		return false;
+	}
+
+	close_conns_after_fork();
+
+	if (!override_logfile && logfilename) {
+		lp_set_logfile(logfilename);
+		reopen_logs();
+	}
+
+	/* Don't handle the same messages as our parent. */
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_SMB_CONF_UPDATED, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_SHUTDOWN, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_WINBIND_OFFLINE, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_WINBIND_ONLINE, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_WINBIND_ONLINESTATUS, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_DUMP_EVENT_LIST, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_WINBIND_DUMP_DOMAIN_LIST, NULL);
+	messaging_deregister(winbind_messaging_context(),
+			     MSG_DEBUG, NULL);
+
+	/* We have destroyed all events in the winbindd_event_context
+	 * in reinit_after_fork(), so clean out all possible pending
+	 * event pointers. */
+
+	/* Deal with check_online_events. */
+
+	for (domain = domain_list(); domain; domain = domain->next) {
+		TALLOC_FREE(domain->check_online_event);
+	}
+
+	/* Ensure we're not handling a credential cache event inherited
+	 * from our parent. */
+
+	ccache_remove_all_after_fork();
+
+	/* Destroy all possible events in child list. */
+	for (cl = children; cl != NULL; cl = cl->next) {
+		struct winbindd_async_request *request;
+
+		for (request = cl->requests; request; request = request->next) {
+			TALLOC_FREE(request->reply_timeout_event);
+		}
+		TALLOC_FREE(cl->lockout_policy_event);
+		TALLOC_FREE(cl->machine_password_change_event);
+
+		/* Children should never be able to send
+		 * each other messages, all messages must
+		 * go through the parent.
+		 */
+		cl->pid = (pid_t)0;
+	}
+	/*
+	 * This is a little tricky, children must not
+	 * send an MSG_WINBIND_ONLINE message to idmap_child().
+	 * If we are in a child of our primary domain or
+	 * in the process created by fork_child_dc_connect(),
+	 * and the primary domain cannot go online,
+	 * fork_child_dc_connection() sends MSG_WINBIND_ONLINE
+	 * periodically to idmap_child().
+	 *
+	 * The sequence is, fork_child_dc_connect() ---> getdcs() --->
+	 * get_dc_name_via_netlogon() ---> cm_connect_netlogon()
+	 * ---> init_dc_connection() ---> cm_open_connection --->
+	 * set_domain_online(), sends MSG_WINBIND_ONLINE to
+	 * idmap_child(). Disallow children sending messages
+	 * to each other, all messages must go through the parent.
+	 */
+	cl = idmap_child();
+	cl->pid = (pid_t)0;
+
+	return true;
+}
 
 static bool fork_domain_child(struct winbindd_child *child)
 {
 	int fdpair[2];
 	struct winbindd_cli_state state;
-	struct winbindd_domain *domain;
 	struct winbindd_domain *primary_domain = NULL;
 
 	if (child->domain) {
@@ -1026,12 +1267,13 @@ static bool fork_domain_child(struct winbindd_child *child)
 		DLIST_ADD(children, child);
 		child->event.fd = fdpair[1];
 		child->event.flags = 0;
-		child->requests = NULL;
 		add_fd_event(&child->event);
 		return True;
 	}
 
 	/* Child */
+
+	DEBUG(10, ("Child process %d\n", (int)sys_getpid()));
 
 	/* Stop zombies in children */
 	CatchChild();
@@ -1039,42 +1281,9 @@ static bool fork_domain_child(struct winbindd_child *child)
 	state.sock = fdpair[0];
 	close(fdpair[1]);
 
-	if (!reinit_after_fork(winbind_messaging_context(), true)) {
-		DEBUG(0,("reinit_after_fork() failed\n"));
+	if (!winbindd_reinit_after_fork(child->logfilename)) {
 		_exit(0);
 	}
-
-	close_conns_after_fork();
-
-	if (!override_logfile) {
-		lp_set_logfile(child->logfilename);
-		reopen_logs();
-	}
-
-	/*
-	 * For clustering, we need to re-init our ctdbd connection after the
-	 * fork
-	 */
-	if (!NT_STATUS_IS_OK(messaging_reinit(winbind_messaging_context())))
-		exit(1);
-
-	/* Don't handle the same messages as our parent. */
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_SMB_CONF_UPDATED, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_SHUTDOWN, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_WINBIND_OFFLINE, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_WINBIND_ONLINE, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_WINBIND_ONLINESTATUS, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_DUMP_EVENT_LIST, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_WINBIND_DUMP_DOMAIN_LIST, NULL);
-	messaging_deregister(winbind_messaging_context(),
-			     MSG_DEBUG, NULL);
 
 	/* Handle online/offline messages. */
 	messaging_register(winbind_messaging_context(), NULL,
@@ -1088,28 +1297,37 @@ static bool fork_domain_child(struct winbindd_child *child)
 	messaging_register(winbind_messaging_context(), NULL,
 			   MSG_DEBUG, debug_message);
 
+	primary_domain = find_our_domain();
+
+	if (primary_domain == NULL) {
+		smb_panic("no primary domain found");
+	}
+
+	/* It doesn't matter if we allow cache login,
+	 * try to bring domain online after fork. */
 	if ( child->domain ) {
 		child->domain->startup = True;
 		child->domain->startup_time = time(NULL);
-	}
-
-	/* Ensure we have no pending check_online events other
-	   than one for this domain or the primary domain. */
-
-	for (domain = domain_list(); domain; domain = domain->next) {
-		if (domain->primary) {
-			primary_domain = domain;
+		/* we can be in primary domain or in trusted domain
+		 * If we are in trusted domain, set the primary domain
+		 * in start-up mode */
+		if (!(child->domain->internal)) {
+			set_domain_online_request(child->domain);
+			if (!(child->domain->primary)) {
+				primary_domain->startup = True;
+				primary_domain->startup_time = time(NULL);
+				set_domain_online_request(primary_domain);
+			}
 		}
-		if ((domain != child->domain) && !domain->primary) {
-			TALLOC_FREE(domain->check_online_event);
-		}
 	}
-
-	/* Ensure we're not handling an event inherited from
-	   our parent. */
-
-	cancel_named_event(winbind_event_context(),
-			   "krb5_ticket_refresh_handler");
+	
+	/*
+	 * We are in idmap child, make sure that we set the
+	 * check_online_event to bring primary domain online.
+	 */
+	if (child == idmap_child()) {
+		set_domain_online_request(primary_domain);
+	}
 
 	/* We might be in the idmap child...*/
 	if (child->domain && !(child->domain->internal) &&
@@ -1117,7 +1335,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 		set_domain_online_request(child->domain);
 
-		if (primary_domain != child->domain) {
+		if (primary_domain && (primary_domain != child->domain)) {
 			/* We need to talk to the primary
 			 * domain as well as the trusted
 			 * domain inside a trusted domain
@@ -1131,9 +1349,23 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 		child->lockout_policy_event = event_add_timed(
 			winbind_event_context(), NULL, timeval_zero(),
-			"account_lockout_policy_handler",
 			account_lockout_policy_handler,
 			child);
+	}
+
+	if (child->domain && child->domain->primary &&
+	    !lp_use_kerberos_keytab() &&
+	    lp_server_role() == ROLE_DOMAIN_MEMBER) {
+
+		struct timeval next_change;
+
+		if (calculate_next_machine_pwd_change(child->domain->name,
+						       &next_change)) {
+			child->machine_password_change_event = event_add_timed(
+				winbind_event_context(), NULL, next_change,
+				machine_password_change_handler,
+				child);
+		}
 	}
 
 	while (1) {
@@ -1193,7 +1425,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 			DEBUG(0,("select error occured\n"));
 			TALLOC_FREE(frame);
 			perror("select");
-			return False;
+			_exit(1);
 		}
 
 		/* fetch a request from the main daemon */
@@ -1201,7 +1433,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 
 		if (state.finished) {
 			/* we lost contact with our parent */
-			exit(0);
+			_exit(0);
 		}
 
 		DEBUG(4,("child daemon request %d\n", (int)state.request.cmd));

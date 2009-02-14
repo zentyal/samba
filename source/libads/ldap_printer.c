@@ -31,7 +31,7 @@
 				       const char *servername)
 {
 	ADS_STATUS status;
-	char *srv_dn, **srv_cn, *s;
+	char *srv_dn, **srv_cn, *s = NULL;
 	const char *attrs[] = {"*", "nTSecurityDescriptor", NULL};
 
 	status = ads_find_machine_acct(ads, res, servername);
@@ -41,25 +41,43 @@
 		return status;
 	}
 	if (ads_count_replies(ads, *res) != 1) {
+		if (res) {
+			ads_msgfree(ads, *res);
+			*res = NULL;
+		}
 		return ADS_ERROR(LDAP_NO_SUCH_OBJECT);
 	}
 	srv_dn = ldap_get_dn(ads->ldap.ld, *res);
 	if (srv_dn == NULL) {
+		if (res) {
+			ads_msgfree(ads, *res);
+			*res = NULL;
+		}
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
 	srv_cn = ldap_explode_dn(srv_dn, 1);
 	if (srv_cn == NULL) {
 		ldap_memfree(srv_dn);
+		if (res) {
+			ads_msgfree(ads, *res);
+			*res = NULL;
+		}
 		return ADS_ERROR(LDAP_INVALID_DN_SYNTAX);
 	}
-	ads_msgfree(ads, *res);
+	if (res) {
+		ads_msgfree(ads, *res);
+		*res = NULL;
+	}
 
-	asprintf(&s, "(cn=%s-%s)", srv_cn[0], printer);
+	if (asprintf(&s, "(cn=%s-%s)", srv_cn[0], printer) == -1) {
+		ldap_memfree(srv_dn);
+		return ADS_ERROR(LDAP_NO_MEMORY);
+	}
 	status = ads_search(ads, res, s, attrs);
 
 	ldap_memfree(srv_dn);
 	ldap_value_free(srv_cn);
-	free(s);
+	SAFE_FREE(s);
 	return status;	
 }
 
@@ -103,17 +121,23 @@ static bool map_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 			    const REGISTRY_VALUE *value)
 {
 	char *str_value = NULL;
+	size_t converted_size;
 	ADS_STATUS status;
 
 	if (value->type != REG_SZ)
-		return False;
+		return false;
 
 	if (value->size && *((smb_ucs2_t *) value->data_p)) {
-		pull_ucs2_talloc(ctx, &str_value, (const smb_ucs2_t *) value->data_p);
+		if (!pull_ucs2_talloc(ctx, &str_value,
+				      (const smb_ucs2_t *) value->data_p,
+				      &converted_size))
+		{
+			return false;
+		}
 		status = ads_mod_str(ctx, mods, value->valuename, str_value);
 		return ADS_ERR_OK(status);
 	}
-	return True;
+	return true;
 		
 }
 
@@ -163,6 +187,7 @@ static bool map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 			 const REGISTRY_VALUE *value)
 {
 	char **str_values = NULL;
+	size_t converted_size;
 	smb_ucs2_t *cur_str = (smb_ucs2_t *) value->data_p;
         uint32 size = 0, num_vals = 0, i=0;
 	ADS_STATUS status;
@@ -185,9 +210,11 @@ static bool map_multi_sz(TALLOC_CTX *ctx, ADS_MODLIST *mods,
 		       (num_vals + 1) * sizeof(char *));
 
 		cur_str = (smb_ucs2_t *) value->data_p;
-		for (i=0; i < num_vals; i++)
+		for (i=0; i < num_vals; i++) {
 			cur_str += pull_ucs2_talloc(ctx, &str_values[i],
-			                            cur_str);
+						    cur_str, &converted_size) ?
+			    converted_size : (size_t)-1;
+		}
 
 		status = ads_mod_strlist(ctx, mods, value->valuename, 
 					 (const char **) str_values);
@@ -288,16 +315,16 @@ WERROR get_remote_printer_publishing_data(struct rpc_pipe_client *cli,
 	uint32 i;
 	POLICY_HND pol;
 
-	asprintf(&servername, "\\\\%s", cli->cli->desthost);
-	asprintf(&printername, "%s\\%s", servername, printer);
-	if (!servername || !printername) {
+	if ((asprintf(&servername, "\\\\%s", cli->desthost) == -1)
+	    || (asprintf(&printername, "%s\\%s", servername, printer) == -1)) {
 		DEBUG(3, ("Insufficient memory\n"));
 		return WERR_NOMEM;
 	}
 	
 	result = rpccli_spoolss_open_printer_ex(cli, mem_ctx, printername, 
 					     "", MAXIMUM_ALLOWED_ACCESS, 
-					     servername, cli->cli->user_name, &pol);
+					     servername, cli->auth->user_name,
+					     &pol);
 	if (!W_ERROR_IS_OK(result)) {
 		DEBUG(3, ("Unable to open printer %s, error is %s.\n",
 			  printername, dos_errstr(result)));

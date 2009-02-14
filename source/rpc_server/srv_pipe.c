@@ -29,7 +29,6 @@
 
 #include "includes.h"
 
-extern struct pipe_id_info pipe_names[];
 extern struct current_user current_user;
 
 #undef DBGC_CLASS
@@ -606,18 +605,14 @@ bool create_next_pdu(pipes_struct *p)
 
 static bool pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
 {
-	DATA_BLOB reply;
+	DATA_BLOB session_key, reply;
 	NTSTATUS status;
 	AUTH_NTLMSSP_STATE *a = p->auth.a_u.auth_ntlmssp_state;
+	bool ret;
 
 	DEBUG(5,("pipe_ntlmssp_verify_final: pipe %s checking user details\n", p->name));
 
 	ZERO_STRUCT(reply);
-
-	memset(p->user_name, '\0', sizeof(p->user_name));
-	memset(p->pipe_user_name, '\0', sizeof(p->pipe_user_name));
-	memset(p->domain, '\0', sizeof(p->domain));
-	memset(p->wks, '\0', sizeof(p->wks));
 
 	/* Set up for non-authenticated user. */
 	TALLOC_FREE(p->pipe_user.nt_user_token);
@@ -656,38 +651,23 @@ static bool pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
 			return False;
 		}
 	}
-	
-	fstrcpy(p->user_name, a->ntlmssp_state->user);
-	fstrcpy(p->pipe_user_name, a->server_info->unix_name);
-	fstrcpy(p->domain, a->ntlmssp_state->domain);
-	fstrcpy(p->wks, a->ntlmssp_state->workstation);
 
-	DEBUG(5,("pipe_ntlmssp_verify_final: OK: user: %s domain: %s workstation: %s\n",
-		p->user_name, p->domain, p->wks));
+	DEBUG(5, ("pipe_ntlmssp_verify_final: OK: user: %s domain: %s "
+		  "workstation: %s\n", a->ntlmssp_state->user,
+		  a->ntlmssp_state->domain, a->ntlmssp_state->workstation));
 
 	/*
 	 * Store the UNIX credential data (uid/gid pair) in the pipe structure.
 	 */
 
-	p->pipe_user.ut.uid = a->server_info->uid;
-	p->pipe_user.ut.gid = a->server_info->gid;
+	p->pipe_user.ut.uid = a->server_info->utok.uid;
+	p->pipe_user.ut.gid = a->server_info->utok.gid;
 	
-	/*
-	 * We're an authenticated bind over smbd, so the session key needs to
-	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
-	 * does. See the RPC-SAMBA3SESSIONKEY.
-	 */
-
-	data_blob_free(&p->session_key);
-	p->session_key = generic_session_key();
-	if (!p->session_key.data) {
-		return False;
-	}
-
-	p->pipe_user.ut.ngroups = a->server_info->n_groups;
+	p->pipe_user.ut.ngroups = a->server_info->utok.ngroups;
 	if (p->pipe_user.ut.ngroups) {
-		if (!(p->pipe_user.ut.groups = (gid_t *)memdup(a->server_info->groups,
-						sizeof(gid_t) * p->pipe_user.ut.ngroups))) {
+		if (!(p->pipe_user.ut.groups = (gid_t *)memdup(
+			      a->server_info->utok.groups,
+			      sizeof(gid_t) * p->pipe_user.ut.ngroups))) {
 			DEBUG(0,("failed to memdup group list to p->pipe_user.groups\n"));
 			return False;
 		}
@@ -702,6 +682,29 @@ static bool pipe_ntlmssp_verify_final(pipes_struct *p, DATA_BLOB *p_resp_blob)
 		return False;
 	}
 
+	TALLOC_FREE(p->server_info);
+
+	p->server_info = copy_serverinfo(p, a->server_info);
+	if (p->server_info == NULL) {
+		DEBUG(0, ("copy_serverinfo failed\n"));
+		return false;
+	}
+
+	/*
+	 * We're an authenticated bind over smb, so the session key needs to
+	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
+	 * does. See the RPC-SAMBA3SESSIONKEY.
+	 */
+
+	session_key = generic_session_key();
+	if (session_key.data == NULL) {
+		return False;
+	}
+
+	ret = server_info_set_session_key(p->server_info, session_key);
+
+	data_blob_free(&session_key);
+
 	return True;
 }
 
@@ -714,6 +717,7 @@ struct rpc_table {
 		const char *clnt;
 		const char *srv;
 	} pipe;
+	struct ndr_syntax_id rpc_interface;
 	const struct api_struct *cmds;
 	int n_cmds;
 };
@@ -728,7 +732,7 @@ static int rpc_lookup_size;
 bool api_pipe_bind_auth3(pipes_struct *p, prs_struct *rpc_in_p)
 {
 	RPC_HDR_AUTH auth_info;
-	uint32 pad;
+	uint32 pad = 0;
 	DATA_BLOB blob;
 
 	ZERO_STRUCT(blob);
@@ -981,52 +985,41 @@ bool setup_cancel_ack_reply(pipes_struct *p, prs_struct *rpc_in_p)
 bool check_bind_req(struct pipes_struct *p, RPC_IFACE* abstract,
                     RPC_IFACE* transfer, uint32 context_id)
 {
-	char *pipe_name = p->name;
 	int i=0;
-	fstring pname;
-	
-	fstrcpy(pname,"\\PIPE\\");
-	fstrcat(pname,pipe_name);
+	struct pipe_rpc_fns *context_fns;
 
-	DEBUG(3,("check_bind_req for %s\n", pname));
+	DEBUG(3,("check_bind_req for %s\n", p->name));
 
 	/* we have to check all now since win2k introduced a new UUID on the lsaprpc pipe */
-		
-	for ( i=0; pipe_names[i].client_pipe; i++ ) {
-		DEBUGADD(10,("checking %s\n", pipe_names[i].client_pipe));
-		if ( strequal(pipe_names[i].client_pipe, pname)
-			&& (abstract->version == pipe_names[i].abstr_syntax.version) 
-			&& (memcmp(&abstract->uuid, &pipe_names[i].abstr_syntax.uuid, sizeof(struct GUID)) == 0)
-			&& (transfer->version == pipe_names[i].trans_syntax.version)
-			&& (memcmp(&transfer->uuid, &pipe_names[i].trans_syntax.uuid, sizeof(struct GUID)) == 0) ) {
-			struct api_struct 	*fns = NULL;
-			int 			n_fns = 0;
-			PIPE_RPC_FNS		*context_fns;
-			
-			if ( !(context_fns = SMB_MALLOC_P(PIPE_RPC_FNS)) ) {
-				DEBUG(0,("check_bind_req: malloc() failed!\n"));
-				return False;
-			}
-			
-			/* save the RPC function table associated with this bind */
-			
-			get_pipe_fns(i, &fns, &n_fns);
-			
-			context_fns->cmds = fns;
-			context_fns->n_cmds = n_fns;
-			context_fns->context_id = context_id;
-			
-			/* add to the list of open contexts */
-			
-			DLIST_ADD( p->contexts, context_fns );
-			
+
+	for (i=0; i<rpc_lookup_size; i++) {
+		DEBUGADD(10, ("checking %s\n", rpc_lookup[i].pipe.clnt));
+		if (strequal(rpc_lookup[i].pipe.clnt, p->name)
+		    && ndr_syntax_id_equal(
+			    abstract, &rpc_lookup[i].rpc_interface)
+		    && ndr_syntax_id_equal(
+			    transfer, &ndr_transfer_syntax)) {
 			break;
 		}
 	}
 
-	if(pipe_names[i].client_pipe == NULL) {
+	if (i == rpc_lookup_size) {
+		return false;
+	}
+
+	context_fns = SMB_MALLOC_P(struct pipe_rpc_fns);
+	if (context_fns == NULL) {
+		DEBUG(0,("check_bind_req: malloc() failed!\n"));
 		return False;
 	}
+
+	context_fns->cmds = rpc_lookup[i].cmds;
+	context_fns->n_cmds = rpc_lookup[i].n_cmds;
+	context_fns->context_id = context_id;
+
+	/* add to the list of open contexts */
+
+	DLIST_ADD( p->contexts, context_fns );
 
 	return True;
 }
@@ -1035,7 +1028,10 @@ bool check_bind_req(struct pipes_struct *p, RPC_IFACE* abstract,
  Register commands to an RPC pipe
 *******************************************************************/
 
-NTSTATUS rpc_pipe_register_commands(int version, const char *clnt, const char *srv, const struct api_struct *cmds, int size)
+NTSTATUS rpc_pipe_register_commands(int version, const char *clnt,
+				    const char *srv,
+				    const struct ndr_syntax_id *interface,
+				    const struct api_struct *cmds, int size)
 {
         struct rpc_table *rpc_entry;
 
@@ -1075,10 +1071,44 @@ NTSTATUS rpc_pipe_register_commands(int version, const char *clnt, const char *s
         ZERO_STRUCTP(rpc_entry);
         rpc_entry->pipe.clnt = SMB_STRDUP(clnt);
         rpc_entry->pipe.srv = SMB_STRDUP(srv);
+	rpc_entry->rpc_interface = *interface;
         rpc_entry->cmds = cmds;
         rpc_entry->n_cmds = size;
         
         return NT_STATUS_OK;
+}
+
+/**
+ * Is a named pipe known?
+ * @param[in] cli_filename	The pipe name requested by the client
+ * @result			Do we want to serve this?
+ */
+bool is_known_pipename(const char *cli_filename)
+{
+	const char *pipename = cli_filename;
+	int i;
+
+	if (strnequal(pipename, "\\PIPE\\", 6)) {
+		pipename += 5;
+	}
+
+	if (*pipename == '\\') {
+		pipename += 1;
+	}
+
+	if (lp_disable_spoolss() && strequal(pipename, "spoolss")) {
+		DEBUG(10, ("refusing spoolss access\n"));
+		return false;
+	}
+
+	for (i=0; i<rpc_lookup_size; i++) {
+		if (strequal(pipename, rpc_lookup[i].pipe.clnt)) {
+			return true;
+		}
+	}
+
+	DEBUG(10, ("is_known_pipename: %s unknown\n", cli_filename));
+	return false;
 }
 
 /*******************************************************************
@@ -1330,6 +1360,7 @@ static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 	bool ret;
 	struct dcinfo *pdcinfo;
 	uint32 flags;
+	DATA_BLOB session_key;
 
 	if (!smb_io_rpc_auth_schannel_neg("", &neg, rpc_in_p, 0)) {
 		DEBUG(0,("pipe_schannel_auth_bind: Could not unmarshal SCHANNEL auth neg\n"));
@@ -1351,7 +1382,7 @@ static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 		return False;
 	}
 
-	p->auth.a_u.schannel_auth = TALLOC_P(p->pipe_state_mem_ctx, struct schannel_auth_struct);
+	p->auth.a_u.schannel_auth = talloc(p, struct schannel_auth_struct);
 	if (!p->auth.a_u.schannel_auth) {
 		TALLOC_FREE(pdcinfo);
 		return False;
@@ -1376,12 +1407,20 @@ static bool pipe_schannel_auth_bind(pipes_struct *p, prs_struct *rpc_in_p,
 	 * anymore.
 	 */
 
-	data_blob_free(&p->session_key);
-	p->session_key = generic_session_key();
-	if (p->session_key.data == NULL) {
+	session_key = generic_session_key();
+	if (session_key.data == NULL) {
 		DEBUG(0, ("pipe_schannel_auth_bind: Could not alloc session"
 			  " key\n"));
-		return False;
+		return false;
+	}
+
+	ret = server_info_set_session_key(p->server_info, session_key);
+
+	data_blob_free(&session_key);
+
+	if (!ret) {
+		DEBUG(0, ("server_info_set_session_key failed\n"));
+		return false;
 	}
 
 	init_rpc_hdr_auth(&auth_info, RPC_SCHANNEL_AUTH_TYPE, pauth_info->auth_level, RPC_HDR_AUTH_LEN, 1);
@@ -1552,16 +1591,32 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 
 	DEBUG(5,("api_pipe_bind_req: decode request. %d\n", __LINE__));
 
+	ZERO_STRUCT(hdr_rb);
+
+	/* decode the bind request */
+
+	if(!smb_io_rpc_hdr_rb("", &hdr_rb, rpc_in_p, 0))  {
+		DEBUG(0,("api_pipe_bind_req: unable to unmarshall RPC_HDR_RB "
+			 "struct.\n"));
+		goto err_exit;
+	}
+
+	if (hdr_rb.num_contexts == 0) {
+		DEBUG(0, ("api_pipe_bind_req: no rpc contexts around\n"));
+		goto err_exit;
+	}
+
 	/*
 	 * Try and find the correct pipe name to ensure
 	 * that this is a pipe name we support.
 	 */
 
-
 	for (i = 0; i < rpc_lookup_size; i++) {
-	        if (strequal(rpc_lookup[i].pipe.clnt, p->name)) {
+		if (ndr_syntax_id_equal(&rpc_lookup[i].rpc_interface,
+					&hdr_rb.rpc_context[0].abstract)) {
 			DEBUG(3, ("api_pipe_bind_req: \\PIPE\\%s -> \\PIPE\\%s\n",
 				rpc_lookup[i].pipe.clnt, rpc_lookup[i].pipe.srv));
+			fstrcpy(p->name, rpc_lookup[i].pipe.clnt);
 			fstrcpy(p->pipe_srv_name, rpc_lookup[i].pipe.srv);
 			break;
 		}
@@ -1591,14 +1646,6 @@ bool api_pipe_bind_req(pipes_struct *p, prs_struct *rpc_in_p)
 			DEBUG(0, ("module %s doesn't provide functions for pipe %s!\n", p->name, p->name));
 			goto err_exit;
 		}
-	}
-
-	ZERO_STRUCT(hdr_rb);
-
-	/* decode the bind request */
-	if(!smb_io_rpc_hdr_rb("", &hdr_rb, rpc_in_p, 0))  {
-		DEBUG(0,("api_pipe_bind_req: unable to unmarshall RPC_HDR_RB struct.\n"));
-		goto err_exit;
 	}
 
 	/* name has to be \PIPE\xxxxx */
@@ -1823,6 +1870,8 @@ bool api_pipe_alter_context(pipes_struct *p, prs_struct *rpc_in_p)
 		prs_mem_free(&out_hdr_ba);
 		return False;
 	}
+
+	ZERO_STRUCT(hdr_rb);
 
 	DEBUG(5,("api_pipe_alter_context: decode request. %d\n", __LINE__));
 
@@ -2237,6 +2286,9 @@ void free_pipe_rpc_context( PIPE_RPC_FNS *list )
 	return;	
 }
 
+static bool api_rpcTNP(pipes_struct *p, const char *rpc_name, 
+		       const struct api_struct *api_rpc_cmds, int n_cmds);
+
 /****************************************************************************
  Find the correct RPC function to call for this request.
  If the pipe is authenticated then become the correct UNIX user
@@ -2286,8 +2338,8 @@ bool api_pipe_request(pipes_struct *p)
  Calls the underlying RPC function for a named pipe.
  ********************************************************************/
 
-bool api_rpcTNP(pipes_struct *p, const char *rpc_name, 
-		const struct api_struct *api_rpc_cmds, int n_cmds)
+static bool api_rpcTNP(pipes_struct *p, const char *rpc_name, 
+		       const struct api_struct *api_rpc_cmds, int n_cmds)
 {
 	int fn_num;
 	fstring name;
@@ -2366,64 +2418,4 @@ bool api_rpcTNP(pipes_struct *p, const char *rpc_name,
 	}
 
 	return True;
-}
-
-/*******************************************************************
-*******************************************************************/
-
-void get_pipe_fns( int idx, struct api_struct **fns, int *n_fns )
-{
-	struct api_struct *cmds = NULL;
-	int               n_cmds = 0;
-
-	switch ( idx ) {
-		case PI_LSARPC:
-			lsarpc_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_DSSETUP:
-			dssetup_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_SAMR:
-			samr_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_NETLOGON:
-			netlogon_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_SRVSVC:
-			srvsvc_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_WKSSVC:
-			wkssvc_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_WINREG:
-			winreg_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_SPOOLSS:
-			spoolss_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_NETDFS:
-			netdfs_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_SVCCTL:
-			svcctl2_get_pipe_fns( &cmds, &n_cmds );
-			break;
-	        case PI_EVENTLOG:
-			eventlog2_get_pipe_fns( &cmds, &n_cmds );
-			break;
-		case PI_NTSVCS:
-			ntsvcs2_get_pipe_fns( &cmds, &n_cmds );
-			break;
-#ifdef DEVELOPER
-		case PI_RPCECHO:
-			rpcecho_get_pipe_fns( &cmds, &n_cmds );
-			break;
-#endif
-		default:
-			DEBUG(0,("get_pipe_fns: Unknown pipe index! [%d]\n", idx));
-	}
-
-	*fns = cmds;
-	*n_fns = n_cmds;
-
-	return;
 }

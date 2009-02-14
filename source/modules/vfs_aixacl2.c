@@ -25,11 +25,6 @@
 
 #define AIXACL2_MODULE_NAME "aixacl2"
 
-extern struct current_user current_user;
-extern int try_chown(connection_struct *conn, const char *fname, uid_t uid, gid_t gid);
-extern NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp,
-	uint32 security_info_sent, SEC_DESC *psd);
-
 extern SMB_ACL_T aixacl_to_smbacl( struct acl *file_acl);
 extern struct acl *aixacl_smb_to_aixacl(SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl);
 
@@ -374,7 +369,7 @@ static bool aixjfs2_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 	return True;
 }
 
-static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
+static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
 {
 	acl_type_t	acl_type_info;
 	NTSTATUS	result = NT_STATUS_ACCESS_DENIED;
@@ -398,12 +393,7 @@ static NTSTATUS aixjfs2_set_nt_acl_common(files_struct *fsp, uint32 security_inf
 	return result;
 }
 
-NTSTATUS aixjfs2_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
-{
-	return aixjfs2_set_nt_acl_common(fsp, security_info_sent, psd);
-}
-
-NTSTATUS aixjfs2_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp, const char *name, uint32 security_info_sent, SEC_DESC *psd)
+NTSTATUS aixjfs2_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const SEC_DESC *psd)
 {
 	return aixjfs2_set_nt_acl_common(fsp, security_info_sent, psd);
 }
@@ -507,10 +497,6 @@ static vfs_op_tuple aixjfs2_ops[] =
 
 	{SMB_VFS_OP(aixjfs2_fset_nt_acl),
 	SMB_VFS_OP_FSET_NT_ACL,
-	SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(aixjfs2_set_nt_acl),
-	SMB_VFS_OP_SET_NT_ACL,
 	SMB_VFS_LAYER_TRANSPARENT},
 
 	{SMB_VFS_OP(aixjfs2_sys_acl_get_file),

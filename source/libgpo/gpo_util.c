@@ -1,7 +1,7 @@
 /*
  *  Unix SMB/CIFS implementation.
  *  Group Policy Object Support
- *  Copyright (C) Guenther Deschner 2005-2007
+ *  Copyright (C) Guenther Deschner 2005-2008
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -400,21 +400,34 @@ void dump_gplink(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, struct GP_LINK *gp_link)
 /****************************************************************
 ****************************************************************/
 
-NTSTATUS process_extension(ADS_STRUCT *ads,
-			   TALLOC_CTX *mem_ctx,
-			   uint32_t flags,
-			   const struct nt_user_token *token,
-			   struct GROUP_POLICY_OBJECT *gpo,
-			   const char *extension_guid,
-			   const char *snapin_guid)
+static bool gpo_get_gp_ext_from_gpo(TALLOC_CTX *mem_ctx,
+				    uint32_t flags,
+				    struct GROUP_POLICY_OBJECT *gpo,
+				    struct GP_EXT **gp_ext)
 {
-	DEBUG(0,("process_extension: no extension available for:\n"));
-	DEBUGADD(0,("%s (%s) (snapin: %s)\n",
-		extension_guid,
-		cse_gpo_guid_string_to_name(extension_guid),
-		snapin_guid));
+	ZERO_STRUCTP(*gp_ext);
 
-	return NT_STATUS_OK;
+	if (flags & GPO_INFO_FLAG_MACHINE) {
+
+		if (gpo->machine_extensions) {
+
+			if (!ads_parse_gp_ext(mem_ctx, gpo->machine_extensions,
+					      gp_ext)) {
+				return false;
+			}
+		}
+	} else {
+
+		if (gpo->user_extensions) {
+
+			if (!ads_parse_gp_ext(mem_ctx, gpo->user_extensions,
+					      gp_ext)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
 }
 
 /****************************************************************
@@ -423,6 +436,7 @@ NTSTATUS process_extension(ADS_STRUCT *ads,
 ADS_STATUS gpo_process_a_gpo(ADS_STRUCT *ads,
 			     TALLOC_CTX *mem_ctx,
 			     const struct nt_user_token *token,
+			     struct registry_key *root_key,
 			     struct GROUP_POLICY_OBJECT *gpo,
 			     const char *extension_guid_filter,
 			     uint32_t flags)
@@ -433,36 +447,22 @@ ADS_STATUS gpo_process_a_gpo(ADS_STRUCT *ads,
 	DEBUG(10,("gpo_process_a_gpo: processing gpo %s (%s)\n",
 		gpo->name, gpo->display_name));
 	if (extension_guid_filter) {
-		DEBUGADD(10,("gpo_process_a_gpo: using filter %s\n",
-			extension_guid_filter));
+		DEBUGADD(10,("gpo_process_a_gpo: using filter %s (%s)\n",
+			extension_guid_filter,
+			cse_gpo_guid_string_to_name(extension_guid_filter)));
 	}
 
-	if (flags & GPO_LIST_FLAG_MACHINE) {
+	if (!gpo_get_gp_ext_from_gpo(mem_ctx, flags, gpo, &gp_ext)) {
+		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+	}
 
-		if (gpo->machine_extensions) {
-
-			if (!ads_parse_gp_ext(mem_ctx, gpo->machine_extensions,
-					      &gp_ext)) {
-				return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
-			}
-
-		} else {
-			/* nothing to apply */
-			return ADS_SUCCESS;
+	if (!gp_ext || !gp_ext->num_exts) {
+		if (flags & GPO_INFO_FLAG_VERBOSE) {
+			DEBUG(0,("gpo_process_a_gpo: "
+				"no policies in %s (%s) for this extension\n",
+				gpo->name, gpo->display_name));
 		}
-
-	} else {
-
-		if (gpo->user_extensions) {
-
-			if (!ads_parse_gp_ext(mem_ctx, gpo->user_extensions,
-					      &gp_ext)) {
-				return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
-			}
-		} else {
-			/* nothing to apply */
-			return ADS_SUCCESS;
-		}
+		return ADS_SUCCESS;
 	}
 
 	for (i=0; i<gp_ext->num_exts; i++) {
@@ -475,12 +475,50 @@ ADS_STATUS gpo_process_a_gpo(ADS_STRUCT *ads,
 			continue;
 		}
 
-		ntstatus = process_extension(ads, mem_ctx,
-					     flags, token, gpo,
-					     gp_ext->extensions_guid[i],
-					     gp_ext->snapins_guid[i]);
+		ntstatus = gpext_process_extension(ads, mem_ctx,
+						   flags, token, root_key, gpo,
+						   gp_ext->extensions_guid[i],
+						   gp_ext->snapins_guid[i]);
 		if (!NT_STATUS_IS_OK(ntstatus)) {
 			ADS_ERROR_NT(ntstatus);
+		}
+	}
+
+	return ADS_SUCCESS;
+}
+
+/****************************************************************
+****************************************************************/
+
+static ADS_STATUS gpo_process_gpo_list_by_ext(ADS_STRUCT *ads,
+					      TALLOC_CTX *mem_ctx,
+					      const struct nt_user_token *token,
+					      struct registry_key *root_key,
+					      struct GROUP_POLICY_OBJECT *gpo_list,
+					      const char *extensions_guid,
+					      uint32_t flags)
+{
+	ADS_STATUS status;
+	struct GROUP_POLICY_OBJECT *gpo;
+
+	for (gpo = gpo_list; gpo; gpo = gpo->next) {
+
+		if (gpo->link_type == GP_LINK_LOCAL) {
+			continue;
+		}
+
+
+		/* FIXME: we need to pass down the *list* down to the
+		 * extension, otherwise we cannot store the e.g. the *list* of
+		 * logon-scripts correctly (for more then one GPO) */
+
+		status = gpo_process_a_gpo(ads, mem_ctx, token, root_key,
+					   gpo, extensions_guid, flags);
+
+		if (!ADS_ERR_OK(status)) {
+			DEBUG(0,("failed to process gpo by ext: %s\n",
+				ads_errstr(status)));
+			return status;
 		}
 	}
 
@@ -494,32 +532,79 @@ ADS_STATUS gpo_process_gpo_list(ADS_STRUCT *ads,
 				TALLOC_CTX *mem_ctx,
 				const struct nt_user_token *token,
 				struct GROUP_POLICY_OBJECT *gpo_list,
-				const char *extensions_guid,
+				const char *extensions_guid_filter,
 				uint32_t flags)
 {
-	ADS_STATUS status;
-	struct GROUP_POLICY_OBJECT *gpo;
+	ADS_STATUS status = ADS_SUCCESS;
+	struct gp_extension *gp_ext_list = NULL;
+	struct gp_extension *gp_ext = NULL;
+	struct registry_key *root_key = NULL;
+	struct gp_registry_context *reg_ctx = NULL;
+	WERROR werr;
 
-	/* FIXME: ok, this is wrong, windows does process the extensions and
-	 * hands the list of gpos to each extension and not process each gpo
-	 * with all extensions (this is how the extension can store the list
-	 * gplist in the registry) */
-
-	for (gpo = gpo_list; gpo; gpo = gpo->next) {
-
-		status = gpo_process_a_gpo(ads, mem_ctx, token, gpo,
-					   extensions_guid, flags);
-
-		if (!ADS_ERR_OK(status)) {
-			DEBUG(0,("failed to process gpo: %s\n",
-				ads_errstr(status)));
-			return status;
-		}
-
+	status = ADS_ERROR_NT(init_gp_extensions(mem_ctx));
+	if (!ADS_ERR_OK(status)) {
+		return status;
 	}
 
-	return ADS_SUCCESS;
+	gp_ext_list = get_gp_extension_list();
+	if (!gp_ext_list) {
+		return ADS_ERROR_NT(NT_STATUS_DLL_INIT_FAILED);
+	}
+
+	/* get the key here */
+	if (flags & GPO_LIST_FLAG_MACHINE) {
+		werr = gp_init_reg_ctx(mem_ctx, KEY_HKLM, REG_KEY_WRITE,
+				       get_system_token(),
+				       &reg_ctx);
+	} else {
+		werr = gp_init_reg_ctx(mem_ctx, KEY_HKCU, REG_KEY_WRITE,
+				       token,
+				       &reg_ctx);
+	}
+	if (!W_ERROR_IS_OK(werr)) {
+		gp_free_reg_ctx(reg_ctx);
+		return ADS_ERROR_NT(werror_to_ntstatus(werr));
+	}
+
+	root_key = reg_ctx->curr_key;
+
+	for (gp_ext = gp_ext_list; gp_ext; gp_ext = gp_ext->next) {
+
+		const char *guid_str = NULL;
+
+		guid_str = GUID_string(mem_ctx, gp_ext->guid);
+		if (!guid_str) {
+			status = ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
+			goto done;
+		}
+
+		if (extensions_guid_filter &&
+		    (!strequal(guid_str, extensions_guid_filter)))  {
+			continue;
+		}
+
+		DEBUG(0,("-------------------------------------------------\n"));
+		DEBUG(0,("gpo_process_gpo_list: processing ext: %s {%s}\n",
+			gp_ext->name, guid_str));
+
+
+		status = gpo_process_gpo_list_by_ext(ads, mem_ctx, token,
+						     root_key, gpo_list,
+						     guid_str, flags);
+		if (!ADS_ERR_OK(status)) {
+			goto done;
+		}
+	}
+
+ done:
+	gp_free_reg_ctx(reg_ctx);
+	TALLOC_FREE(root_key);
+	free_gp_extensions();
+
+	return status;
 }
+
 
 /****************************************************************
  check wether the version number in a GROUP_POLICY_OBJECT match those of the
@@ -579,7 +664,8 @@ NTSTATUS check_refresh_gpo(ADS_STRUCT *ads,
 					share, "A:",
 					ads->auth.user_name, NULL,
 					ads->auth.password,
-					CLI_FULL_CONNECTION_USE_KERBEROS,
+					CLI_FULL_CONNECTION_USE_KERBEROS |
+					CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS,
 					Undefined, NULL);
 			if (!NT_STATUS_IS_OK(result)) {
 				DEBUG(10,("check_refresh_gpo: "
@@ -621,6 +707,7 @@ NTSTATUS check_refresh_gpo(ADS_STRUCT *ads,
 		gpo->version,
 		GPO_VERSION_USER(gpo->version),
 		GPO_VERSION_MACHINE(gpo->version)));
+	DEBUGADD(10,("LDAP GPO link:\t\t%s\n", gpo->link));
 
 	result = NT_STATUS_OK;
 
@@ -668,6 +755,51 @@ NTSTATUS check_refresh_gpo_list(ADS_STRUCT *ads,
 /****************************************************************
 ****************************************************************/
 
+NTSTATUS gpo_get_unix_path(TALLOC_CTX *mem_ctx,
+			   struct GROUP_POLICY_OBJECT *gpo,
+			   char **unix_path)
+{
+	char *server, *share, *nt_path;
+	return gpo_explode_filesyspath(mem_ctx, gpo->file_sys_path,
+				       &server, &share, &nt_path, unix_path);
+}
+
+/****************************************************************
+****************************************************************/
+
+char *gpo_flag_str(uint32_t flags)
+{
+	fstring str = "";
+
+	if (flags == 0) {
+		return NULL;
+	}
+
+	if (flags & GPO_INFO_FLAG_SLOWLINK)
+		fstrcat(str, "GPO_INFO_FLAG_SLOWLINK ");
+	if (flags & GPO_INFO_FLAG_VERBOSE)
+		fstrcat(str, "GPO_INFO_FLAG_VERBOSE ");
+	if (flags & GPO_INFO_FLAG_SAFEMODE_BOOT)
+		fstrcat(str, "GPO_INFO_FLAG_SAFEMODE_BOOT ");
+	if (flags & GPO_INFO_FLAG_NOCHANGES)
+		fstrcat(str, "GPO_INFO_FLAG_NOCHANGES ");
+	if (flags & GPO_INFO_FLAG_MACHINE)
+		fstrcat(str, "GPO_INFO_FLAG_MACHINE ");
+	if (flags & GPO_INFO_FLAG_LOGRSOP_TRANSITION)
+		fstrcat(str, "GPO_INFO_FLAG_LOGRSOP_TRANSITION ");
+	if (flags & GPO_INFO_FLAG_LINKTRANSITION)
+		fstrcat(str, "GPO_INFO_FLAG_LINKTRANSITION ");
+	if (flags & GPO_INFO_FLAG_FORCED_REFRESH)
+		fstrcat(str, "GPO_INFO_FLAG_FORCED_REFRESH ");
+	if (flags & GPO_INFO_FLAG_BACKGROUND)
+		fstrcat(str, "GPO_INFO_FLAG_BACKGROUND ");
+
+	return SMB_STRDUP(str);
+}
+
+/****************************************************************
+****************************************************************/
+
 NTSTATUS gp_find_file(TALLOC_CTX *mem_ctx,
 		      uint32_t flags,
 		      const char *filename,
@@ -693,8 +825,11 @@ NTSTATUS gp_find_file(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_OK;
 	}
 
-	tmp = talloc_asprintf_strupper_m(mem_ctx, "%s/%s/%s", filename, path,
-					 suffix);
+	path = talloc_strdup_upper(mem_ctx, path);
+	NT_STATUS_HAVE_NO_MEMORY(path);
+
+	tmp = talloc_asprintf(mem_ctx, "%s/%s/%s", filename,
+			      path, suffix);
 	NT_STATUS_HAVE_NO_MEMORY(tmp);
 
 	if (sys_stat(tmp, &sbuf) == 0) {
@@ -705,3 +840,31 @@ NTSTATUS gp_find_file(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_NO_SUCH_FILE;
 }
 
+/****************************************************************
+****************************************************************/
+
+ADS_STATUS gp_get_machine_token(ADS_STRUCT *ads,
+				TALLOC_CTX *mem_ctx,
+				const char *dn,
+				struct nt_user_token **token)
+{
+	struct nt_user_token *ad_token = NULL;
+	ADS_STATUS status;
+	NTSTATUS ntstatus;
+
+#ifndef HAVE_ADS
+	return ADS_ERROR_NT(NT_STATUS_NOT_SUPPORTED);
+#endif
+	status = ads_get_sid_token(ads, mem_ctx, dn, &ad_token);
+	if (!ADS_ERR_OK(status)) {
+		return status;
+	}
+
+	ntstatus = merge_nt_token(mem_ctx, ad_token, get_system_token(),
+				  token);
+	if (!NT_STATUS_IS_OK(ntstatus)) {
+		return ADS_ERROR_NT(ntstatus);
+	}
+
+	return ADS_SUCCESS;
+}

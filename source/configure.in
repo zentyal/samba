@@ -100,6 +100,7 @@ AC_SUBST(IDMAP_LIBS)
 AC_SUBST(KRB5_LIBS)
 AC_SUBST(UUID_LIBS)
 AC_SUBST(LDAP_LIBS)
+AC_SUBST(GPEXT_LIBS)
 AC_SUBST(PAM_MODULES)
 AC_SUBST(INSTALL_PAM_MODULES)
 AC_SUBST(UNINSTALL_PAM_MODULES)
@@ -181,6 +182,10 @@ if test x"$ac_cv_prog_gcc" = x"yes" ; then
 	# -Wstrict-prototypes.
        if test x"$krb5_developer" != x"$yes" ; then
 	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Wstrict-prototypes"
+       fi
+
+       if test x"$picky_developer" = x"yes"; then
+	    DEVELOPER_CFLAGS="$DEVELOPER_CFLAGS -Werror"
        fi
 fi
 
@@ -404,7 +409,7 @@ dnl These have to be built static:
 default_static_modules="pdb_smbpasswd pdb_tdbsam rpc_lsarpc rpc_samr rpc_winreg rpc_initshutdown rpc_dssetup rpc_wkssvc rpc_svcctl2 rpc_ntsvcs2 rpc_netlogon rpc_netdfs rpc_srvsvc rpc_spoolss rpc_eventlog2 auth_sam auth_unix auth_winbind auth_server auth_domain auth_builtin vfs_default nss_info_template"
 
 dnl These are preferably build shared, and static if dlopen() is not available
-default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr"
+default_shared_modules="vfs_recycle vfs_audit vfs_extd_audit vfs_full_audit vfs_netatalk vfs_fake_perms vfs_default_quota vfs_readonly vfs_cap vfs_expand_msdfs vfs_shadow_copy vfs_shadow_copy2 charset_CP850 charset_CP437 auth_script vfs_readahead vfs_xattr_tdb vfs_streams_xattr vfs_streams_depot vfs_acl_xattr vfs_acl_tdb vfs_smb_traffic_analyzer"
 
 if test "x$developer" = xyes; then
    default_static_modules="$default_static_modules rpc_rpcecho"
@@ -657,7 +662,7 @@ LIBS="${LIBS} ${LIBDL} ${LIBREPLACE_NETWORK_LIBS}"
 
 AC_CHECK_HEADERS(aio.h sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h rpc/nettype.h)
 AC_CHECK_HEADERS(unistd.h utime.h grp.h sys/id.h memory.h alloca.h)
-AC_CHECK_HEADERS(limits.h float.h pthread.h)
+AC_CHECK_HEADERS(limits.h float.h pthread.h libintl.h)
 AC_CHECK_HEADERS(rpc/rpc.h rpcsvc/nis.h rpcsvc/ypclnt.h)
 AC_CHECK_HEADERS(sys/param.h ctype.h sys/wait.h sys/resource.h sys/ioctl.h sys/ipc.h sys/prctl.h)
 AC_CHECK_HEADERS(sys/mman.h sys/filio.h sys/priv.h sys/shm.h string.h strings.h stdlib.h)
@@ -756,10 +761,25 @@ if test x$enable_cups != xno; then
 	AC_PATH_PROG(CUPS_CONFIG, cups-config)
 
         if test "x$CUPS_CONFIG" != x; then
-                AC_DEFINE(HAVE_CUPS,1,[Whether we have CUPS])
+
+		ac_save_CFLAGS=$CFLAGS
+		ac_save_LDFLAGS=$LDFLAGS
+		ac_save_PRINT_LIBS=$PRINT_LIBS
 		CFLAGS="$CFLAGS `$CUPS_CONFIG --cflags`"
 		LDFLAGS="$LDFLAGS `$CUPS_CONFIG --ldflags`"
 		PRINT_LIBS="$PRINT_LIBS `$CUPS_CONFIG --libs`"
+		AC_CHECK_HEADERS(cups/cups.h cups/language.h)
+		if test x"$ac_cv_header_cups_cups_h" = xyes -a \
+		        x"$ac_cv_header_cups_language_h" = xyes; then
+			AC_DEFINE(HAVE_CUPS,1,[Whether we have CUPS])
+			samba_cv_HAVE_CUPS=yes
+		else
+			AC_MSG_WARN([cups-config around but cups-devel not installed])
+			CFLAGS=$ac_save_CFLAGS
+			LDFLAGS=$ac_save_LDFLAGS
+			PRINT_LIBS=$ac_save_PRINT_LIBS
+		fi
+
 	elif test x"$enable_cups" = x"yes"; then
 		AC_MSG_ERROR(Cups support required but cups-config not located.  Make sure cups-devel related files are installed.)
         fi
@@ -769,7 +789,7 @@ AC_ARG_ENABLE(iprint,
 [AS_HELP_STRING([--enable-iprint], [Turn on iPrint support (default=yes if cups is yes)])])
 
 if test x$enable_iprint != xno; then
-	if test "x$CUPS_CONFIG" != x; then
+	if test x"$samba_cv_HAVE_CUPS" = xyes; then
                 AC_DEFINE(HAVE_IPRINT,1,[Whether we have iPrint])
 	elif test x"$enable_iprint" = x"yes"; then
 		AC_MSG_ERROR(iPrint support required but cups not enabled.  Make sure cups-devel related files are installed and that cups is enabled.)
@@ -1035,9 +1055,12 @@ AC_CHECK_FUNCS(memalign posix_memalign hstrerror)
 AC_CHECK_HEADERS(sys/mman.h)
 # setbuffer, shmget, shm_open are needed for smbtorture
 AC_CHECK_FUNCS(setbuffer shmget shm_open)
+AC_CHECK_FUNCS(gettext dgettext)
 
 # Find a method of generating a stack trace
 AC_CHECK_HEADERS(execinfo.h libexc.h libunwind.h)
+# libexecinfo provides backtrace_symbols on FreeBSD
+AC_SEARCH_LIBS(backtrace_symbols, [execinfo])
 AC_CHECK_FUNCS(backtrace_symbols)
 AC_CHECK_LIB(exc, trace_back_stack)
 
@@ -1045,6 +1068,20 @@ printf "%s" "checking for GPFS GPL libs... "
 save_LIBS="$LIBS"
 LIBS="$LIBS -lgpfs_gpl"
 AC_TRY_LINK([#include <gpfs_gpl.h>],
+          [gpfs_set_share(0,GPFS_SHARE_READ,GPFS_DENY_NONE)],
+          samba_cv_HAVE_GPFS=yes,
+          samba_cv_HAVE_GPFS=no)
+echo $samba_cv_HAVE_GPFS
+if test x"$samba_cv_HAVE_GPFS" = x"yes"; then
+    AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL libs are available])
+    default_shared_modules="$default_shared_modules vfs_gpfs"
+fi
+LIBS="$save_LIBS"
+
+printf "%s" "checking for GPFS libs (with 3.2.1 PTF8 available as GPL)... "
+save_LIBS="$LIBS"
+LIBS="$LIBS -lgpfs"
+AC_TRY_LINK([#include <gpfs.h>],
           [gpfs_set_share(0,GPFS_SHARE_READ,GPFS_DENY_NONE)],
           samba_cv_HAVE_GPFS=yes,
           samba_cv_HAVE_GPFS=no)
@@ -2289,9 +2326,13 @@ for i in $ICONV_LOOK_DIRS ; do
     # in both libiconv and in libc. In this case the jm_ICONV test will always
     # succeed when the header is found. To counter this, make sure the
     # library directory is there and check the ABI directory first (which
-    # should be harmless on other systems.
+    # should be harmless on other systems, but causes tons of linker warnings on
+    # 64bit Ubuntu systems).
+    # As the build farm doesn't seem to have any IRIX machines with iconv.h
+    # installed, I've decided to fix the linker warnings.
+    # -- Kai
     # For IA64 HPUX systems, the libs are located in lib/hpux32 instead of lib.
-    for l in "lib32" "lib" "lib/hpux32"; do
+    for l in "lib" "lib32" "lib/hpux32"; do
         if test -d "$i/$l" ; then
                 LDFLAGS="$save_LDFLAGS -L$i/$l"
 		LIBS=
@@ -2473,7 +2514,7 @@ if test x"$samba_cv_HAVE_KERNEL_CHANGE_NOTIFY" = x"yes"; then
 fi
 
 AC_CACHE_CHECK([for inotify support],samba_cv_HAVE_INOTIFY,[
-AC_CHECK_HEADERS(linux/inotify.h asm/unistd.h)
+AC_CHECK_HEADERS(linux/inotify.h asm/unistd.h sys/inotify.h)
 AC_CHECK_FUNCS(inotify_init)
 AC_HAVE_DECL(__NR_inotify_init, [#include <asm/unistd.h>])
 ],
@@ -2966,9 +3007,12 @@ if test x"$samba_cv_WITH_AFS" != x"no" ||
     fi
 fi
 
+FAKE_KASERVER_OBJ=""
 if test x"$samba_cv_WITH_FAKE_KASERVER" != x"no" && test x"$have_afs_headers" = x"yes"; then
     AC_DEFINE(WITH_FAKE_KASERVER,1,[Whether to include AFS fake-kaserver support])
+    FAKE_KASERVER_OBJ="utils/net_afs.o"
 fi
+AC_SUBST(FAKE_KASERVER_OBJ)
 
 #################################################
 # check whether to compile AFS/NT ACL mapping module
@@ -4352,6 +4396,22 @@ AC_ARG_WITH(syslog,
 )
 
 #################################################
+# check for custom syslog facility
+AC_MSG_CHECKING(whether to use a custom syslog facility)
+AC_ARG_WITH(syslog-facility,
+[AS_HELP_STRING([--with-syslog-facility], [Use a custom syslog facility (default=none)])],
+[
+  if test "$withval" = "no" ; then
+    AC_MSG_ERROR([argument to --with-syslog-facility must be a string])
+  else
+     if test "$withval" != "yes" ; then
+        syslog_facility="$withval"
+	AC_DEFINE_UNQUOTED(SYSLOG_FACILITY,$syslog_facility, [syslog facility to log to])
+     fi
+  fi
+])
+
+#################################################
 # check for experimental disk-quotas support
 
 samba_cv_WITH_QUOTAS=auto
@@ -4852,10 +4912,21 @@ fi
 # This is not the case on ancient Linux systems.
 
 AC_CACHE_CHECK([that statvfs.f_fsid is an integer],samba_cv_fsid_int, [
-    AC_TRY_COMPILE([#include <sys/statvfs.h>],[struct statvfs buf; buf.f_fsid = 0],
+    AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/statvfs.h>],[struct statvfs buf; buf.f_fsid = 0],
 	samba_cv_fsid_int=yes,samba_cv_fsid_int=no)])
 if test x"$samba_cv_fsid_int" = x"yes"; then
     AC_DEFINE(HAVE_FSID_INT, 1, [Whether statvfs.f_fsid is an integer])
+fi
+
+# fsusage.c assumes that statvfs has an f_frsize entry. Some weird
+# systems use f_bsize.
+AC_CACHE_CHECK([that statvfs.f_frsize works],samba_cv_frsize, [
+    AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/statvfs.h>],[struct statvfs buf; buf.f_frsize = 0],
+	samba_cv_frsize=yes,samba_cv_frsize=no)])
+if test x"$samba_cv_frsize" = x"yes"; then
+    AC_DEFINE(HAVE_FRSIZE, 1, [Whether statvfs.f_frsize exists])
 fi
 
 if test $space = no; then
@@ -6021,6 +6092,8 @@ SMB_MODULE(idmap_passdb, winbindd/idmap_passdb.o, "bin/passdb.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_nss, winbindd/idmap_nss.o, "bin/nss.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_rid, winbindd/idmap_rid.o, "bin/rid.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_ad, winbindd/idmap_ad.o, "bin/ad.$SHLIBEXT", IDMAP)
+SMB_MODULE(idmap_hash, \$(IDMAP_HASH_OBJ), "bin/hash.$SHLIBEXT", IDMAP)
+SMB_MODULE(idmap_adex, \$(IDMAP_ADEX_OBJ), "bin/adex.$SHLIBEXT", IDMAP)
 SMB_SUBSYSTEM(IDMAP, winbindd/idmap.o)
 
 SMB_MODULE(nss_info_template, winbindd/nss_info_template.o, "bin/template.$SHLIBEXT", NSS_INFO)
@@ -6077,9 +6150,17 @@ SMB_MODULE(vfs_aio_fork, \$(VFS_AIO_FORK_OBJ), "bin/aio_fork.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_syncops, \$(VFS_SYNCOPS_OBJ), "bin/syncops.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_zfsacl, \$(VFS_ZFSACL_OBJ), "bin/zfsacl.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_notify_fam, \$(VFS_NOTIFY_FAM_OBJ), "bin/notify_fam.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_acl_xattr, \$(VFS_ACL_XATTR_OBJ), "bin/acl_xattr.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_acl_tdb, \$(VFS_ACL_TDB_OBJ), "bin/acl_tdb.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_smb_traffic_analyzer, \$(VFS_SMB_TRAFFIC_ANALYZER_OBJ), "bin/smb_traffic_analyzer.$SHLIBEXT", VFS)
 
 
 SMB_SUBSYSTEM(VFS,smbd/vfs.o)
+
+SMB_MODULE(gpext_registry, libgpo/gpext/registry.o, "bin/registry.$SHLIBEXT", GPEXT)
+SMB_MODULE(gpext_scripts, libgpo/gpext/scripts.o, "bin/scripts.$SHLIBEXT", GPEXT)
+SMB_MODULE(gpext_security, libgpo/gpext/security.o, "bin/security.$SHLIBEXT", GPEXT)
+SMB_SUBSYSTEM(GPEXT, libgpo/gpext/gpext.o)
 
 AC_DEFINE_UNQUOTED(STRING_STATIC_MODULES, "$string_static_modules", [String list of builtin modules])
 
@@ -6212,7 +6293,7 @@ AC_TRY_RUN([#include "${srcdir-.}/tests/summary.c"],
 
 dnl Merge in developer cflags from now on
 AC_SUBST(DEVELOPER_CFLAGS)
-if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes"; then
+if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes" -o x"$picky_developer" = x"yes"; then
     CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS)"
 fi
 
@@ -6224,10 +6305,12 @@ AC_SUBST(SMBD_LIBS)
 AC_OUTPUT(Makefile
 	  script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh
 	  lib/netapi/examples/Makefile
+	  lib/netapi/tests/Makefile
 	  pkgconfig/smbclient.pc
 	  pkgconfig/wbclient.pc
 	  pkgconfig/netapi.pc
 	  pkgconfig/smbsharemodes.pc
+	  ../examples/libsmbclient/Makefile.internal
 	  )
 
 #################################################

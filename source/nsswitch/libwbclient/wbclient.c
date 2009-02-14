@@ -59,7 +59,7 @@ wbcErr wbcRequestResponse(int cmd,
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	NSS_STATUS nss_status;
 
-	/* for some calls the request and/or response cna be NULL */
+	/* for some calls the request and/or response can be NULL */
 
 	nss_status = winbindd_request_response(cmd, request, response);
 
@@ -110,8 +110,14 @@ const char *wbcErrorString(wbcErr error)
 		return "WBC_ERR_INVALID_RESPONSE";
 	case WBC_ERR_NSS_ERROR:
 		return "WBC_ERR_NSS_ERROR";
+	case WBC_ERR_UNKNOWN_USER:
+		return "WBC_ERR_UNKNOWN_USER";
+	case WBC_ERR_UNKNOWN_GROUP:
+		return "WBC_ERR_UNKNOWN_GROUP";
 	case WBC_ERR_AUTH_ERROR:
 		return "WBC_ERR_AUTH_ERROR";
+	case WBC_ERR_PWD_CHANGE_FAILED:
+		return "WBC_ERR_PWD_CHANGE_FAILED";
 	}
 
 	return "unknown wbcErr value";

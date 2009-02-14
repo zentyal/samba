@@ -1,9 +1,9 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>nmblookup</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.73.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="nmblookup"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>nmblookup &#8212; NetBIOS over TCP/IP client used to lookup NetBIOS 
-	names</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">nmblookup</code> [-M] [-R] [-S] [-r] [-A] [-h] [-B &lt;broadcast address&gt;] [-U &lt;unicast address&gt;] [-d &lt;debug level&gt;] [-s &lt;smb config file&gt;] [-i &lt;NetBIOS scope&gt;] [-T] [-f] {name}</p></div></div><div class="refsect1" lang="en"><a name="id2479226"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">nmblookup</code> is used to query NetBIOS names 
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>nmblookup</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry" lang="en"><a name="nmblookup"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>nmblookup &#8212; NetBIOS over TCP/IP client used to lookup NetBIOS 
+	names</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="literal">nmblookup</code> [-M] [-R] [-S] [-r] [-A] [-h] [-B &lt;broadcast address&gt;] [-U &lt;unicast address&gt;] [-d &lt;debug level&gt;] [-s &lt;smb config file&gt;] [-i &lt;NetBIOS scope&gt;] [-T] [-f] {name}</p></div></div><div class="refsect1" lang="en"><a name="id2483412"></a><h2>DESCRIPTION</h2><p>This tool is part of the <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a> suite.</p><p><code class="literal">nmblookup</code> is used to query NetBIOS names 
 	and map them to IP addresses in a network using NetBIOS over TCP/IP 
 	queries. The options allow the name queries to be directed at a 
 	particular IP broadcast area or to a particular machine. All queries 
-	are done over UDP.</p></div><div class="refsect1" lang="en"><a name="id2479256"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-M</span></dt><dd><p>Searches for a master browser by looking 
+	are done over UDP.</p></div><div class="refsect1" lang="en"><a name="id2483558"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-M</span></dt><dd><p>Searches for a master browser by looking 
 		up the  NetBIOS name <em class="replaceable"><code>name</code></em> with a 
 		type of <code class="constant">0x1d</code>. If <em class="replaceable"><code>
 		name</code></em> is "-" then it does a lookup on the special name 
@@ -28,7 +28,7 @@
 		</p></dd><dt><span class="term">-A</span></dt><dd><p>Interpret <em class="replaceable"><code>name</code></em> as 
 		an IP Address and do a node status query on this address.</p></dd><dt><span class="term">-n &lt;primary NetBIOS name&gt;</span></dt><dd><p>This option allows you to override
 the NetBIOS name that Samba uses for itself. This is identical
-to setting the <a class="link" href="smb.conf.5.html#NETBIOSNAME">netbios name</a> parameter in the <code class="filename">smb.conf</code> file. 
+to setting the <a class="link" href="smb.conf.5.html#NETBIOSNAME" target="_top">netbios name</a> parameter in the <code class="filename">smb.conf</code> file. 
 However, a command
 line setting will take precedence over settings in
 <code class="filename">smb.conf</code>.</p></dd><dt><span class="term">-i &lt;scope&gt;</span></dt><dd><p>This specifies a NetBIOS scope that
@@ -65,7 +65,7 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL">log level</a> parameter
+override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
 in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
 </p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
@@ -88,12 +88,12 @@ log.smbd, etc...). The log file is never removed by the client.
 		If a NetBIOS name then the different name types may be specified 
 		by appending '#&lt;type&gt;' to the name. This name may also be
 		'*', which will return all registered names within a broadcast 
-		area.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2478548"></a><h2>EXAMPLES</h2><p><code class="literal">nmblookup</code> can be used to query 
+		area.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481778"></a><h2>EXAMPLES</h2><p><code class="literal">nmblookup</code> can be used to query 
 		a WINS server (in the same way <code class="literal">nslookup</code> is 
 		used to query DNS servers). To query a WINS server, <code class="literal">nmblookup</code> 
 		must be called like this:</p><p><code class="literal">nmblookup -U server -R 'name'</code></p><p>For example, running :</p><p><code class="literal">nmblookup -U samba.org -R 'IRIX#1B'</code></p><p>would query the WINS server samba.org for the domain 
-		master browser (1B name type) for the IRIX workgroup.</p></div><div class="refsect1" lang="en"><a name="id2478601"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
-	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2478612"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, and <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2478644"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+		master browser (1B name type) for the IRIX workgroup.</p></div><div class="refsect1" lang="en"><a name="id2481828"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
+	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2481839"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, and <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2481871"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 

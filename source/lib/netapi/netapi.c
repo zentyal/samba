@@ -30,8 +30,30 @@ static bool libnetapi_initialized = false;
 /****************************************************************
 ****************************************************************/
 
+static NET_API_STATUS libnetapi_init_private_context(struct libnetapi_ctx *ctx)
+{
+	struct libnetapi_private_ctx *priv;
+
+	if (!ctx) {
+		return W_ERROR_V(WERR_INVALID_PARAM);
+	}
+
+	priv = TALLOC_ZERO_P(ctx, struct libnetapi_private_ctx);
+	if (!priv) {
+		return W_ERROR_V(WERR_NOMEM);
+	}
+
+	ctx->private_data = priv;
+
+	return NET_API_STATUS_SUCCESS;
+}
+
+/****************************************************************
+****************************************************************/
+
 NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 {
+	NET_API_STATUS status;
 	struct libnetapi_ctx *ctx = NULL;
 	char *krb5_cc_env = NULL;
 
@@ -96,6 +118,12 @@ NET_API_STATUS libnetapi_init(struct libnetapi_ctx **context)
 		return W_ERROR_V(WERR_NOMEM);
 	}
 
+	status = libnetapi_init_private_context(ctx);
+	if (status != 0) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
 	libnetapi_initialized = true;
 
 	*context = stat_ctx = ctx;
@@ -124,6 +152,8 @@ NET_API_STATUS libnetapi_free(struct libnetapi_ctx *ctx)
 	if (!ctx) {
 		return NET_API_STATUS_SUCCESS;
 	}
+
+	libnetapi_samr_free(ctx);
 
 	libnetapi_shutdown_cm(ctx);
 
@@ -274,6 +304,33 @@ const char *libnetapi_get_error_string(struct libnetapi_ctx *ctx,
 	}
 
 	return libnetapi_errstr(status_in);
+}
+
+/****************************************************************
+****************************************************************/
+
+NET_API_STATUS NetApiBufferAllocate(uint32_t byte_count,
+				    void **buffer)
+{
+	void *buf = NULL;
+
+	if (!buffer) {
+		return W_ERROR_V(WERR_INSUFFICIENT_BUFFER);
+	}
+
+	if (byte_count == 0) {
+		goto done;
+	}
+
+	buf = talloc_size(NULL, byte_count);
+	if (!buf) {
+		return W_ERROR_V(WERR_NOMEM);
+	}
+
+ done:
+	*buffer = buf;
+
+	return NET_API_STATUS_SUCCESS;
 }
 
 /****************************************************************

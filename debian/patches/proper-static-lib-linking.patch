@@ -7,20 +7,20 @@ Status wrt upstream: not yet forwarded
 Note:
 
 === modified file 'source/Makefile.in'
-Index: samba-3.2.2/source/Makefile.in
+Index: samba-3.3.0pre2/source/Makefile.in
 ===================================================================
---- samba-3.2.2.orig/source/Makefile.in
-+++ samba-3.2.2/source/Makefile.in
-@@ -228,7 +228,7 @@
+--- samba-3.3.0pre2.orig/source/Makefile.in
++++ samba-3.3.0pre2/source/Makefile.in
+@@ -233,7 +233,7 @@
  TDB_OBJ = lib/util_tdb.o \
  	  lib/dbwrap.o lib/dbwrap_tdb.o \
- 	  lib/dbwrap_tdb2.o lib/dbwrap_ctdb.o \
+ 	  lib/dbwrap_ctdb.o \
 -	  lib/dbwrap_rbt.o @LIBTDB_STATIC@
 +	  lib/dbwrap_rbt.o
  
  SMBLDAP_OBJ = @SMBLDAP@ @SMBLDAPUTIL@
  
-@@ -292,8 +292,7 @@
+@@ -307,8 +307,7 @@
  SOCKET_WRAPPER_OBJ = @SOCKET_WRAPPER_OBJS@
  NSS_WRAPPER_OBJ = @NSS_WRAPPER_OBJS@
  
@@ -30,16 +30,16 @@ Index: samba-3.2.2/source/Makefile.in
  		$(SOCKET_WRAPPER_OBJ) \
  		$(NSS_WRAPPER_OBJ)
  
-@@ -345,7 +344,7 @@
+@@ -358,7 +357,7 @@
  
  LIBADDNS_OBJ0 = libaddns/dnsrecord.o libaddns/dnsutils.o  libaddns/dnssock.o \
  	       libaddns/dnsgss.o libaddns/dnsmarshall.o
 -LIBADDNS_OBJ = $(LIBADDNS_OBJ0) $(SOCKET_WRAPPER_OBJ) @LIBTALLOC_STATIC@
 +LIBADDNS_OBJ = $(LIBADDNS_OBJ0) $(SOCKET_WRAPPER_OBJ)
  
- LIBGPO_OBJ0 = libgpo/gpo_ldap.o libgpo/gpo_ini.o libgpo/gpo_util.o \
- 	      libgpo/gpo_fetch.o libgpo/gpo_filesync.o libgpo/gpo_sec.o
-@@ -1057,15 +1056,15 @@
+ GPEXT_OBJ = libgpo/gpext/gpext.o @GPEXT_STATIC@
+ 
+@@ -1082,15 +1081,15 @@
  		iniparser_build/strlib.o
  
  TDBBACKUP_OBJ = @tdbdir@/tools/tdbbackup.o $(LIBREPLACE_OBJ) \
@@ -59,7 +59,7 @@ Index: samba-3.2.2/source/Makefile.in
  	$(SOCKET_WRAPPER_OBJ)
  
  
-@@ -1260,7 +1259,7 @@
+@@ -1302,7 +1301,7 @@
  	  dir=bin $(MAKEDIR); fi
  	@: >> $@ || : > $@ # what a fancy emoticon!
  
@@ -68,7 +68,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(LDAP_LIBS) \
  		$(KRB5LIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
-@@ -1268,45 +1267,45 @@
+@@ -1310,45 +1309,45 @@
  		$(POPT_LIBS) @SMBD_LIBS@ $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
  		$(WINBIND_LIBS)
  
@@ -121,7 +121,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(CUPS_OBJ) $(DYNEXP) $(LDFLAGS) $(LIBS) \
  		$(KRB5LIBS) $(LDAP_LIBS) $(POPT_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
-@@ -1319,135 +1318,135 @@
+@@ -1361,135 +1360,135 @@
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(CIFS_UMOUNT_OBJ) $(DYNEXP) $(LDFLAGS) $(POPT_LIBS)
  
@@ -280,7 +280,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(VFSTEST_OBJ) $(LDFLAGS) $(TERMLDFLAGS) \
  		$(TERMLIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
-@@ -1455,64 +1454,64 @@
+@@ -1497,64 +1496,64 @@
  		@SMBD_LIBS@ $(NSCD_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
  		$(WINBIND_LIBS)
  
@@ -356,7 +356,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo Linking $@
  	@$(CC) $(FLAGS) -o $@ $(LDBDEL_OBJ) $(DYNEXP) $(LDFLAGS) \
  		$(LIBS) $(POPT_LIBS) $(LDAP_LIBS) \
-@@ -1676,7 +1675,7 @@
+@@ -1718,7 +1717,7 @@
  		  nsswitch/libwbclient/wbc_pam.o
  LIBWBCLIENT_OBJ = $(LIBWBCLIENT_OBJ0) \
  		  $(WBCOMMON_OBJ) \
@@ -365,7 +365,7 @@ Index: samba-3.2.2/source/Makefile.in
  
  LIBWBCLIENT_SHARED_TARGET=@LIBWBCLIENT_SHARED_TARGET@
  LIBWBCLIENT_SOVER=@LIBWBCLIENT_SOVER@
-@@ -1948,7 +1947,7 @@
+@@ -2000,7 +1999,7 @@
  
  LIBSMBSHAREMODES_OBJ0 = libsmb/smb_share_modes.o
  
@@ -374,7 +374,7 @@ Index: samba-3.2.2/source/Makefile.in
  
  LIBSMBSHAREMODES_SHARED_TARGET=@LIBSMBSHAREMODES_SHARED_TARGET@
  LIBSMBSHAREMODES_SOVER=@LIBSMBSHAREMODES_SOVER@
-@@ -2014,7 +2013,7 @@
+@@ -2067,7 +2066,7 @@
  #-------------------------------------------------------------------
  
  # This is probably wrong for anything other than the GNU linker.
@@ -383,7 +383,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo Linking shared library $@
  	@$(SHLD) $(LDSHFLAGS) -o $@ $(LIBBIGBALLOFMUD_OBJ) \
  		$(LIBS) $(LIBTALLOC_LIBS) \
-@@ -2095,13 +2094,13 @@
+@@ -2148,13 +2147,13 @@
  	@echo "Linking $@"
  	@$(SHLD_MODULE) $(RPC_ECHO_OBJ)
  
@@ -399,7 +399,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo "Linking $@"
  	@$(CC) $(FLAGS) -o $@ $(VLP_OBJ) $(LDFLAGS) $(DYNEXP) \
  		$(TERMLDFLAGS) $(TERMLIBS) $(LIBS) $(POPT_LIBS) \
-@@ -2114,7 +2113,7 @@
+@@ -2167,7 +2166,7 @@
  		$(WINBIND_NSS_EXTRA_LIBS) $(WINBIND_NSS_PTHREAD) \
  		@SONAMEFLAG@`basename $@`@NSSSONAMEVERSIONSUFFIX@
  
@@ -408,7 +408,7 @@ Index: samba-3.2.2/source/Makefile.in
  	@echo "Linking $@"
  	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_WINS_NSS_OBJ) \
  		$(LDAP_LIBS) $(KRB5LIBS) $(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
-@@ -2351,55 +2350,55 @@
+@@ -2432,55 +2431,55 @@
  ## None here right now
  #########################################################
  
@@ -474,10 +474,10 @@ Index: samba-3.2.2/source/Makefile.in
  	$(CC) $(FLAGS) -o $@ $(DYNEXP) $(LIBS) $(LIBTALLOC_LIBS) \
  		torture/t_strappend.o -L ./bin -lbigballofmud
  
-Index: samba-3.2.2/source/m4/aclocal.m4
+Index: samba-3.3.0pre2/source/m4/aclocal.m4
 ===================================================================
---- samba-3.2.2.orig/source/m4/aclocal.m4
-+++ samba-3.2.2/source/m4/aclocal.m4
+--- samba-3.3.0pre2.orig/source/m4/aclocal.m4
++++ samba-3.3.0pre2/source/m4/aclocal.m4
 @@ -68,7 +68,8 @@
  LIBUC[_STATIC_TARGET]=bin/LIBNAME.a
  LIBUC[_SHARED]=

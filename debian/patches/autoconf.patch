@@ -25,11 +25,11 @@ Note: This patch will normally have to be updated by hand after every
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba-deb/source/configure
+Index: samba-3.3.0pre2/source/configure
 ===================================================================
---- samba-deb.orig/source/configure
-+++ samba-deb/source/configure
-@@ -788,6 +788,7 @@
+--- samba-3.3.0pre2.orig/source/configure
++++ samba-3.3.0pre2/source/configure
+@@ -791,6 +791,7 @@
  LIBTALLOC_SHARED
  LIBTALLOC_STATIC
  LIBTALLOC_LIBS
@@ -37,7 +37,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBTALLOC
  UNINSTALL_LIBTALLOC
  LIBTALLOC_SOVER
-@@ -796,6 +797,7 @@
+@@ -799,6 +800,7 @@
  LIBTDB_SHARED
  LIBTDB_STATIC
  LIBTDB_LIBS
@@ -45,7 +45,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBTDB
  UNINSTALL_LIBTDB
  LIBTDB_SOVER
-@@ -804,6 +806,7 @@
+@@ -807,6 +809,7 @@
  LIBNETAPI_SHARED
  LIBNETAPI_STATIC
  LIBNETAPI_LIBS
@@ -53,7 +53,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBNETAPI
  UNINSTALL_LIBNETAPI
  LIBNETAPI_SOVER
-@@ -812,6 +815,7 @@
+@@ -815,6 +818,7 @@
  LIBSMBCLIENT_SHARED
  LIBSMBCLIENT_STATIC
  LIBSMBCLIENT_LIBS
@@ -61,7 +61,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBSMBCLIENT
  UNINSTALL_LIBSMBCLIENT
  LIBSMBCLIENT_SOVER
-@@ -820,6 +824,7 @@
+@@ -823,6 +827,7 @@
  LIBSMBSHAREMODES_SHARED
  LIBSMBSHAREMODES_STATIC
  LIBSMBSHAREMODES_LIBS
@@ -69,7 +69,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBSMBSHAREMODES
  UNINSTALL_LIBSMBSHAREMODES
  LIBSMBSHAREMODES_SOVER
-@@ -828,6 +833,7 @@
+@@ -831,6 +836,7 @@
  LIBADDNS_SHARED
  LIBADDNS_STATIC
  LIBADDNS_LIBS
@@ -77,28 +77,33 @@ Index: samba-deb/source/configure
  INSTALL_LIBADDNS
  UNINSTALL_LIBADDNS
  LIBADDNS_SOVER
-@@ -2242,7 +2248,7 @@
- if test "${with_fhs+set}" = set; then
-   withval=$with_fhs;  case "$withval" in
-   yes)
--    lockdir="\${VARDIR}/lib/samba"
-+    lockdir="\${VARDIR}/run/samba"
-     piddir="\${VARDIR}/run"
-     mandir="\${prefix}/share/man"
-     logfilebase="\${VARDIR}/log/samba"
-@@ -2250,9 +2256,9 @@
-     test "${libdir}" || libdir="\${prefix}/lib/samba"
+@@ -2241,9 +2247,9 @@
+ pammodulesdir="${libdir}/security"
+ configdir="${libdir}"
+ swatdir="\${prefix}/swat"
+-codepagedir="\${MODULESDIR}"
+-statedir="\${LOCKDIR}"
+-cachedir="\${prefix}/cache/samba"
++codepagedir="\${prefix}/share/samba"
++statedir="\${VARDIR}/lib/samba"
++cachedir="\${VARDIR}/cache/samba"
+ 
+ 
+ # Check whether --with-fhs was given.
+@@ -2258,10 +2264,10 @@
+     test "${libdir}" || libdir="\${prefix}/lib"
+     modulesdir="${libdir}/samba"
      configdir="\${sysconfdir}/samba"
-     swatdir="\${DATADIR}/samba/swat"
--    codepagedir="\${LIBDIR}"
-+    codepagedir="\${DATADIR}/samba"
+-    swatdir="\${DATADIR}/samba/swat"
++    swatdir="\${prefix}/swat"
+     codepagedir="\${prefix}/share/samba"
      statedir="\${VARDIR}/lib/samba"
 -    cachedir="\${VARDIR}/lib/samba"
 +    cachedir="\${VARDIR}/cache/samba"
  
  cat >>confdefs.h <<\_ACEOF
  #define FHS_COMPATIBLE 1
-@@ -13059,6 +13065,27 @@
+@@ -13085,6 +13091,27 @@
        fi
      ;;
  
@@ -126,7 +131,7 @@ Index: samba-deb/source/configure
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -40774,7 +40801,7 @@
+@@ -40961,7 +40988,7 @@
  #
  #
  case "$host_os" in
@@ -135,7 +140,7 @@ Index: samba-deb/source/configure
         # glibc <= 2.3.2 has a broken getgrouplist
         if test "$cross_compiling" = yes; then
    { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-@@ -46010,11 +46037,14 @@
+@@ -46197,11 +46224,14 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -152,7 +157,7 @@ Index: samba-deb/source/configure
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -67170,7 +67200,8 @@
+@@ -67364,7 +67394,8 @@
  LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
  LIBTALLOC_SHARED=
  LIBTALLOC_STATIC=
@@ -162,7 +167,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBTALLOC=
  UNINSTALL_LIBTALLOC=
  
-@@ -67185,6 +67216,7 @@
+@@ -67379,6 +67410,7 @@
  
  
  
@@ -170,7 +175,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libtalloc shared library" >&5
  echo $ECHO_N "checking whether to build the libtalloc shared library... $ECHO_C" >&6; }
  
-@@ -67219,15 +67251,17 @@
+@@ -67413,15 +67445,17 @@
  	UNINSTALL_LIBTALLOC=uninstalllibtalloc
  	if eval $BLDSHARED = true; then
  		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
@@ -190,7 +195,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -67254,7 +67288,8 @@
+@@ -67448,7 +67482,8 @@
  LIBTDB_STATIC_TARGET=bin/libtdb.a
  LIBTDB_SHARED=
  LIBTDB_STATIC=
@@ -200,7 +205,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBTDB=
  UNINSTALL_LIBTDB=
  
-@@ -67269,6 +67304,7 @@
+@@ -67463,6 +67498,7 @@
  
  
  
@@ -208,7 +213,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libtdb shared library" >&5
  echo $ECHO_N "checking whether to build the libtdb shared library... $ECHO_C" >&6; }
  
-@@ -67303,15 +67339,17 @@
+@@ -67497,15 +67533,17 @@
  	UNINSTALL_LIBTDB=uninstalllibtdb
  	if eval $BLDSHARED = true; then
  		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
@@ -228,7 +233,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -67338,7 +67376,8 @@
+@@ -67532,7 +67570,8 @@
  LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
  LIBNETAPI_SHARED=
  LIBNETAPI_STATIC=
@@ -238,7 +243,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBNETAPI=
  UNINSTALL_LIBNETAPI=
  
-@@ -67353,6 +67392,7 @@
+@@ -67547,6 +67586,7 @@
  
  
  
@@ -246,7 +251,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libnetapi shared library" >&5
  echo $ECHO_N "checking whether to build the libnetapi shared library... $ECHO_C" >&6; }
  
-@@ -67387,15 +67427,17 @@
+@@ -67581,15 +67621,17 @@
  	UNINSTALL_LIBNETAPI=uninstalllibnetapi
  	if eval $BLDSHARED = true; then
  		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
@@ -266,7 +271,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -67422,7 +67464,8 @@
+@@ -67616,7 +67658,8 @@
  LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
  LIBSMBCLIENT_SHARED=
  LIBSMBCLIENT_STATIC=
@@ -276,7 +281,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBSMBCLIENT=
  UNINSTALL_LIBSMBCLIENT=
  
-@@ -67437,6 +67480,7 @@
+@@ -67631,6 +67674,7 @@
  
  
  
@@ -284,7 +289,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libsmbclient shared library" >&5
  echo $ECHO_N "checking whether to build the libsmbclient shared library... $ECHO_C" >&6; }
  
-@@ -67471,15 +67515,17 @@
+@@ -67665,15 +67709,17 @@
  	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
  	if eval $BLDSHARED = true; then
  		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
@@ -304,7 +309,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -67506,7 +67552,8 @@
+@@ -67700,7 +67746,8 @@
  LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
  LIBSMBSHAREMODES_SHARED=
  LIBSMBSHAREMODES_STATIC=
@@ -314,7 +319,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBSMBSHAREMODES=
  UNINSTALL_LIBSMBSHAREMODES=
  
-@@ -67521,6 +67568,7 @@
+@@ -67715,6 +67762,7 @@
  
  
  
@@ -322,7 +327,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libsmbsharemodes shared library" >&5
  echo $ECHO_N "checking whether to build the libsmbsharemodes shared library... $ECHO_C" >&6; }
  
-@@ -67555,15 +67603,17 @@
+@@ -67749,15 +67797,17 @@
  	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
  	if eval $BLDSHARED = true; then
  		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
@@ -342,7 +347,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -67590,7 +67640,8 @@
+@@ -67784,7 +67834,8 @@
  LIBADDNS_STATIC_TARGET=bin/libaddns.a
  LIBADDNS_SHARED=
  LIBADDNS_STATIC=
@@ -352,7 +357,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBADDNS=
  UNINSTALL_LIBADDNS=
  
-@@ -67605,6 +67656,7 @@
+@@ -67799,6 +67850,7 @@
  
  
  
@@ -360,7 +365,7 @@ Index: samba-deb/source/configure
  { echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
  echo $ECHO_N "checking whether to build the libaddns shared library... $ECHO_C" >&6; }
  
-@@ -67641,15 +67693,17 @@
+@@ -67835,15 +67887,17 @@
  	UNINSTALL_LIBADDNS=uninstalllibaddns
  	if eval $BLDSHARED = true; then
  		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
@@ -380,7 +385,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  echo "${ECHO_T}no shared library support -- will supply static library" >&6; }
  	fi
-@@ -69660,7 +69714,7 @@
+@@ -69916,7 +69970,7 @@
  echo "${ECHO_T}yes" >&6; };
  
  	case "$host_os" in
@@ -389,7 +394,7 @@ Index: samba-deb/source/configure
  		{ echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
  echo $ECHO_N "checking for linux sendfile64 support... $ECHO_C" >&6; }
  if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
-@@ -70868,11 +70922,11 @@
+@@ -71124,11 +71178,11 @@
  WINBIND_NSS_PTHREAD=""
  
  case "$host_os" in
@@ -403,7 +408,7 @@ Index: samba-deb/source/configure
  		# FreeBSD winbind client is implemented as a wrapper around
  		# the Linux version.
  		NSSSONAMEVERSIONSUFFIX=".1"
-@@ -76739,6 +76793,7 @@
+@@ -77275,6 +77329,7 @@
  LIBTALLOC_SHARED!$LIBTALLOC_SHARED$ac_delim
  LIBTALLOC_STATIC!$LIBTALLOC_STATIC$ac_delim
  LIBTALLOC_LIBS!$LIBTALLOC_LIBS$ac_delim
@@ -411,7 +416,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBTALLOC!$INSTALL_LIBTALLOC$ac_delim
  UNINSTALL_LIBTALLOC!$UNINSTALL_LIBTALLOC$ac_delim
  LIBTALLOC_SOVER!$LIBTALLOC_SOVER$ac_delim
-@@ -76747,6 +76802,7 @@
+@@ -77283,6 +77338,7 @@
  LIBTDB_SHARED!$LIBTDB_SHARED$ac_delim
  LIBTDB_STATIC!$LIBTDB_STATIC$ac_delim
  LIBTDB_LIBS!$LIBTDB_LIBS$ac_delim
@@ -419,34 +424,34 @@ Index: samba-deb/source/configure
  INSTALL_LIBTDB!$INSTALL_LIBTDB$ac_delim
  UNINSTALL_LIBTDB!$UNINSTALL_LIBTDB$ac_delim
  LIBTDB_SOVER!$LIBTDB_SOVER$ac_delim
-@@ -76755,12 +76811,10 @@
+@@ -77291,9 +77347,7 @@
  LIBNETAPI_SHARED!$LIBNETAPI_SHARED$ac_delim
  LIBNETAPI_STATIC!$LIBNETAPI_STATIC$ac_delim
  LIBNETAPI_LIBS!$LIBNETAPI_LIBS$ac_delim
+-INSTALL_LIBNETAPI!$INSTALL_LIBNETAPI$ac_delim
+-UNINSTALL_LIBNETAPI!$UNINSTALL_LIBNETAPI$ac_delim
+-LIBNETAPI_SOVER!$LIBNETAPI_SOVER$ac_delim
 +LIBNETAPI_TARGET!$LIBNETAPI_TARGET$ac_delim
- INSTALL_LIBNETAPI!$INSTALL_LIBNETAPI$ac_delim
- UNINSTALL_LIBNETAPI!$UNINSTALL_LIBNETAPI$ac_delim
- LIBNETAPI_SOVER!$LIBNETAPI_SOVER$ac_delim
--LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
--LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
--LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
  _ACEOF
  
    if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
-@@ -76802,8 +76856,12 @@
+@@ -77335,11 +77389,15 @@
  ac_delim='%!_!# '
  for ac_last_try in false false false false false :; do
    cat >conf$$subs.sed <<_ACEOF
-+LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
-+LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
-+LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
++INSTALL_LIBNETAPI!$INSTALL_LIBNETAPI$ac_delim
++UNINSTALL_LIBNETAPI!$UNINSTALL_LIBNETAPI$ac_delim
++LIBNETAPI_SOVER!$LIBNETAPI_SOVER$ac_delim
+ LIBSMBCLIENT_SHARED_TARGET!$LIBSMBCLIENT_SHARED_TARGET$ac_delim
+ LIBSMBCLIENT_STATIC_TARGET!$LIBSMBCLIENT_STATIC_TARGET$ac_delim
+ LIBSMBCLIENT_SHARED!$LIBSMBCLIENT_SHARED$ac_delim
  LIBSMBCLIENT_STATIC!$LIBSMBCLIENT_STATIC$ac_delim
  LIBSMBCLIENT_LIBS!$LIBSMBCLIENT_LIBS$ac_delim
 +LIBSMBCLIENT_TARGET!$LIBSMBCLIENT_TARGET$ac_delim
  INSTALL_LIBSMBCLIENT!$INSTALL_LIBSMBCLIENT$ac_delim
  UNINSTALL_LIBSMBCLIENT!$UNINSTALL_LIBSMBCLIENT$ac_delim
  LIBSMBCLIENT_SOVER!$LIBSMBCLIENT_SOVER$ac_delim
-@@ -76812,6 +76870,7 @@
+@@ -77348,6 +77406,7 @@
  LIBSMBSHAREMODES_SHARED!$LIBSMBSHAREMODES_SHARED$ac_delim
  LIBSMBSHAREMODES_STATIC!$LIBSMBSHAREMODES_STATIC$ac_delim
  LIBSMBSHAREMODES_LIBS!$LIBSMBSHAREMODES_LIBS$ac_delim
@@ -454,7 +459,7 @@ Index: samba-deb/source/configure
  INSTALL_LIBSMBSHAREMODES!$INSTALL_LIBSMBSHAREMODES$ac_delim
  UNINSTALL_LIBSMBSHAREMODES!$UNINSTALL_LIBSMBSHAREMODES$ac_delim
  LIBSMBSHAREMODES_SOVER!$LIBSMBSHAREMODES_SOVER$ac_delim
-@@ -76820,6 +76879,7 @@
+@@ -77356,6 +77415,7 @@
  LIBADDNS_SHARED!$LIBADDNS_SHARED$ac_delim
  LIBADDNS_STATIC!$LIBADDNS_STATIC$ac_delim
  LIBADDNS_LIBS!$LIBADDNS_LIBS$ac_delim
@@ -462,19 +467,19 @@ Index: samba-deb/source/configure
  INSTALL_LIBADDNS!$INSTALL_LIBADDNS$ac_delim
  UNINSTALL_LIBADDNS!$UNINSTALL_LIBADDNS$ac_delim
  LIBADDNS_SOVER!$LIBADDNS_SOVER$ac_delim
-@@ -76857,7 +76917,7 @@
+@@ -77395,7 +77455,7 @@
  LTLIBOBJS!$LTLIBOBJS$ac_delim
  _ACEOF
  
--  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 53; then
-+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 59; then
+-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 58; then
++  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 64; then
      break
    elif $ac_last_try; then
      { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
-Index: samba-deb/source/include/config.h.in
+Index: samba-3.3.0pre2/source/include/config.h.in
 ===================================================================
---- samba-deb.orig/source/include/config.h.in
-+++ samba-deb/source/include/config.h.in
+--- samba-3.3.0pre2.orig/source/include/config.h.in
++++ samba-3.3.0pre2/source/include/config.h.in
 @@ -66,6 +66,9 @@
  /* Whether to use fully FHS-compatible paths */
  #undef FHS_COMPATIBLE

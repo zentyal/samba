@@ -46,11 +46,11 @@ Note: Use dedicated directories for:
       grep -r lp_lockdir source/ | grep -vE \
          '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: samba-3.2.0rc1/source/lib/util.c
+Index: samba-3.3.0pre2/source/lib/util.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/lib/util.c
-+++ samba-3.2.0rc1/source/lib/util.c
-@@ -2624,6 +2624,15 @@
+--- samba-3.3.0pre2.orig/source/lib/util.c
++++ samba-3.3.0pre2/source/lib/util.c
+@@ -2637,6 +2637,15 @@
  	return xx_path(name, get_dyn_STATEDIR());
  }
  
@@ -66,10 +66,10 @@ Index: samba-3.2.0rc1/source/lib/util.c
  /**
   * @brief Returns the platform specific shared library extension.
   *
-Index: samba-3.2.0rc1/source/libsmb/samlogon_cache.c
+Index: samba-3.3.0pre2/source/libsmb/samlogon_cache.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/libsmb/samlogon_cache.c
-+++ samba-3.2.0rc1/source/libsmb/samlogon_cache.c
+--- samba-3.3.0pre2.orig/source/libsmb/samlogon_cache.c
++++ samba-3.3.0pre2/source/libsmb/samlogon_cache.c
 @@ -34,7 +34,7 @@
  bool netsamlogon_cache_init(void)
  {
@@ -79,10 +79,10 @@ Index: samba-3.2.0rc1/source/libsmb/samlogon_cache.c
  					       TDB_DEFAULT, O_RDWR | O_CREAT, 0600);
  	}
  
-Index: samba-3.2.0rc1/source/nmbd/nmbd_serverlistdb.c
+Index: samba-3.3.0pre2/source/nmbd/nmbd_serverlistdb.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/nmbd/nmbd_serverlistdb.c
-+++ samba-3.2.0rc1/source/nmbd/nmbd_serverlistdb.c
+--- samba-3.3.0pre2.orig/source/nmbd/nmbd_serverlistdb.c
++++ samba-3.3.0pre2/source/nmbd/nmbd_serverlistdb.c
 @@ -326,7 +326,7 @@
  
  	updatecount++;
@@ -92,10 +92,10 @@ Index: samba-3.2.0rc1/source/nmbd/nmbd_serverlistdb.c
  	if (!fname) {
  		return;
  	}
-Index: samba-3.2.0rc1/source/passdb/login_cache.c
+Index: samba-3.3.0pre2/source/passdb/login_cache.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/passdb/login_cache.c
-+++ samba-3.2.0rc1/source/passdb/login_cache.c
+--- samba-3.3.0pre2.orig/source/passdb/login_cache.c
++++ samba-3.3.0pre2/source/passdb/login_cache.c
 @@ -35,7 +35,7 @@
  	/* skip file open if it's already opened */
  	if (cache) return True;
@@ -105,10 +105,10 @@ Index: samba-3.2.0rc1/source/passdb/login_cache.c
  	if (cache_fname)
  		DEBUG(5, ("Opening cache file at %s\n", cache_fname));
  	else {
-Index: samba-3.2.0rc1/source/printing/printing.c
+Index: samba-3.3.0pre2/source/printing/printing.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/printing/printing.c
-+++ samba-3.2.0rc1/source/printing/printing.c
+--- samba-3.3.0pre2.orig/source/printing/printing.c
++++ samba-3.3.0pre2/source/printing/printing.c
 @@ -183,8 +183,8 @@
  	int services = lp_numservices();
  	int snum;
@@ -120,10 +120,10 @@ Index: samba-3.2.0rc1/source/printing/printing.c
  
  	/* handle a Samba upgrade */
  
-Index: samba-3.2.0rc1/source/printing/printing_db.c
+Index: samba-3.3.0pre2/source/printing/printing_db.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/printing/printing_db.c
-+++ samba-3.2.0rc1/source/printing/printing_db.c
+--- samba-3.3.0pre2.orig/source/printing/printing_db.c
++++ samba-3.3.0pre2/source/printing/printing_db.c
 @@ -91,7 +91,7 @@
  	}
  
@@ -133,11 +133,11 @@ Index: samba-3.2.0rc1/source/printing/printing_db.c
  				printername) < 0) {
  		DLIST_REMOVE(print_db_head, p);
  		SAFE_FREE(p);
-Index: samba-3.2.0rc1/source/smbd/lanman.c
+Index: samba-3.3.0pre2/source/smbd/lanman.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/smbd/lanman.c
-+++ samba-3.2.0rc1/source/smbd/lanman.c
-@@ -1157,9 +1157,9 @@
+--- samba-3.3.0pre2.orig/source/smbd/lanman.c
++++ samba-3.3.0pre2/source/smbd/lanman.c
+@@ -1154,9 +1154,9 @@
  	bool local_list_only;
  	int i;
  
@@ -149,11 +149,11 @@ Index: samba-3.2.0rc1/source/smbd/lanman.c
  		return 0;
  	}
  
-Index: samba-3.2.0rc1/source/utils/smbcontrol.c
+Index: samba-3.3.0pre2/source/utils/smbcontrol.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/utils/smbcontrol.c
-+++ samba-3.2.0rc1/source/utils/smbcontrol.c
-@@ -875,10 +875,10 @@
+--- samba-3.3.0pre2.orig/source/utils/smbcontrol.c
++++ samba-3.3.0pre2/source/utils/smbcontrol.c
+@@ -868,10 +868,10 @@
  	/* Remove the entry in the winbindd_cache tdb to tell a later
  	   starting winbindd that we're online. */
  
@@ -166,7 +166,7 @@ Index: samba-3.2.0rc1/source/utils/smbcontrol.c
  		return False;
  	}
  
-@@ -912,13 +912,13 @@
+@@ -898,13 +898,13 @@
  	   starting winbindd that we're offline. We may actually create
  	   it here... */
  
@@ -182,10 +182,10 @@ Index: samba-3.2.0rc1/source/utils/smbcontrol.c
  		return False;
  	}
  
-Index: samba-3.2.0rc1/source/libgpo/gpo_fetch.c
+Index: samba-3.3.0pre2/source/libgpo/gpo_fetch.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/libgpo/gpo_fetch.c
-+++ samba-3.2.0rc1/source/libgpo/gpo_fetch.c
+--- samba-3.3.0pre2.orig/source/libgpo/gpo_fetch.c
++++ samba-3.3.0pre2/source/libgpo/gpo_fetch.c
 @@ -59,7 +59,7 @@
  
  	if ((path = talloc_asprintf(mem_ctx,
@@ -204,24 +204,11 @@ Index: samba-3.2.0rc1/source/libgpo/gpo_fetch.c
  	char *current_dir;
  	char *tok;
  
-Index: samba-3.2.0rc1/source/winbindd/idmap_cache.c
+Index: samba-3.3.0pre2/source/winbindd/winbindd_cache.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/winbindd/idmap_cache.c
-+++ samba-3.2.0rc1/source/winbindd/idmap_cache.c
-@@ -54,7 +54,7 @@
- 		return NULL;
- 	}
- 
--	cache_fname = lock_path("idmap_cache.tdb");
-+	cache_fname = cache_path("idmap_cache.tdb");
- 
- 	DEBUG(10, ("Opening cache file at %s\n", cache_fname));
- 
-Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
-===================================================================
---- samba-3.2.0rc1.orig/source/winbindd/winbindd_cache.c
-+++ samba-3.2.0rc1/source/winbindd/winbindd_cache.c
-@@ -2310,7 +2310,7 @@
+--- samba-3.3.0pre2.orig/source/winbindd/winbindd_cache.c
++++ samba-3.3.0pre2/source/winbindd/winbindd_cache.c
+@@ -2532,7 +2532,7 @@
  		return true;
  
  	/* when working offline we must not clear the cache on restart */
@@ -230,7 +217,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
-@@ -2353,9 +2353,9 @@
+@@ -2575,9 +2575,9 @@
  		tdb_close(wcache->tdb);
  		wcache->tdb = NULL;
  
@@ -242,7 +229,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				strerror(errno) ));
  			return false;
  		}
-@@ -2637,7 +2637,7 @@
+@@ -2859,7 +2859,7 @@
  		return;
  
  	/* when working offline we must not clear the cache on restart */
@@ -251,7 +238,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE, 
  				lp_winbind_offline_logon() ? TDB_DEFAULT : (TDB_DEFAULT | TDB_CLEAR_IF_FIRST), 
  				O_RDWR|O_CREAT, 0600);
-@@ -3422,7 +3422,7 @@
+@@ -3688,7 +3688,7 @@
  int winbindd_validate_cache(void)
  {
  	int ret = -1;
@@ -260,7 +247,7 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  	TDB_CONTEXT *tdb = NULL;
  
  	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
-@@ -3464,7 +3464,7 @@
+@@ -3730,7 +3730,7 @@
  int winbindd_validate_cache_nobackup(void)
  {
  	int ret = -1;
@@ -269,10 +256,10 @@ Index: samba-3.2.0rc1/source/winbindd/winbindd_cache.c
  
  	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
  	smb_panic_fn = validate_panic;
-Index: samba-3.2.0rc1/source/printing/nt_printing.c
+Index: samba-3.3.0pre2/source/printing/nt_printing.c
 ===================================================================
---- samba-3.2.0rc1.orig/source/printing/nt_printing.c
-+++ samba-3.2.0rc1/source/printing/nt_printing.c
+--- samba-3.3.0pre2.orig/source/printing/nt_printing.c
++++ samba-3.3.0pre2/source/printing/nt_printing.c
 @@ -2552,7 +2552,7 @@
  
  	if (geteuid() == 0) {
@@ -282,16 +269,3 @@ Index: samba-3.2.0rc1/source/printing/nt_printing.c
  				sharename) < 0) {
  			return (uint32)-1;
  		}
-Index: samba-3.2.0rc1/source/winbindd/idmap_tdb2.c
-===================================================================
---- samba-3.2.0rc1.orig/source/winbindd/idmap_tdb2.c
-+++ samba-3.2.0rc1/source/winbindd/idmap_tdb2.c
-@@ -68,7 +68,7 @@
- 		return NT_STATUS_OK;
- 	}
- 
--	db_path = lock_path("idmap2_cache.tdb");
-+	db_path = cache_path("idmap2_cache.tdb");
- 
- 	/* Open idmap repository */
- 	if (!(idmap_tdb2_tmp = tdb_open_log(db_path, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644))) {

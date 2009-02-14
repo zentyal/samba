@@ -56,6 +56,10 @@ conf_args = \
 		--with-dnsupdate \
 		--without-libtdb \
 		--without-libnetapi \
+		--with-modulesdir=/usr/lib/samba \
+		--datarootdir=/usr/share \
+		--with-swatdir=/usr/share/samba/swat \
+		--with-lockdir=/var/run/samba \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -93,7 +97,7 @@ build: configure build-stamp
 build-stamp:
 	dh_testdir
 
-	$(MAKE) -C source headers
+	$(MAKE) -C source # headers
 	$(MAKE) -C source everything nsswitch/libnss_wins.so
 
 	touch build-stamp

@@ -9,10 +9,10 @@ for it.
 
 Note: 
 
-Index: samba-3.3.0rc1/source/Makefile.in
+Index: samba-3.3.0rc2/source/Makefile.in
 ===================================================================
---- samba-3.3.0rc1.orig/source/Makefile.in
-+++ samba-3.3.0rc1/source/Makefile.in
+--- samba-3.3.0rc2.orig/source/Makefile.in
++++ samba-3.3.0rc2/source/Makefile.in
 @@ -1962,7 +1962,7 @@
  
  $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@

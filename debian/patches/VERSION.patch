@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: Should be kept
 
-Index: samba-3.3.0rc1/source/VERSION
+Index: samba-3.3.0rc2/source/VERSION
 ===================================================================
---- samba-3.3.0rc1.orig/source/VERSION
-+++ samba-3.3.0rc1/source/VERSION
+--- samba-3.3.0rc2.orig/source/VERSION
++++ samba-3.3.0rc2/source/VERSION
 @@ -84,7 +84,7 @@
  #       SAMBA_VERSION_VENDOR_FUNCTION                  #
  #                                                      #

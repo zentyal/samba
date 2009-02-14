@@ -137,6 +137,19 @@ install: build
 
 	$(MAKE) -C source install DESTDIR=$(DESTDIR)
 
+	# Rename to *.samba3 for alternatives
+	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
+	mv $(DESTDIR)/usr/bin/nmblookup $(DESTDIR)/usr/bin/nmblookup.samba3
+	mv $(DESTDIR)/usr/share/man/man1/nmblookup.1 $(DESTDIR)/usr/share/man/man1/nmblookup.samba3.1
+	mv $(DESTDIR)/usr/bin/net $(DESTDIR)/usr/bin/net.samba3
+	mv $(DESTDIR)/usr/share/man/man8/net.8 $(DESTDIR)/usr/share/man/man8/net.samba3.8
+	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
+	mv $(DESTDIR)/usr/share/man/man1/testparm.1 $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
+
+	mv $(DESTDIR)/usr/share/samba/lowcase.dat $(DESTDIR)/usr/share/samba/lowcase.dat.samba3
+	mv $(DESTDIR)/usr/share/samba/upcase.dat $(DESTDIR)/usr/share/samba/upcase.dat.samba3
+	mv $(DESTDIR)/usr/share/samba/valid.dat $(DESTDIR)/usr/share/samba/valid.dat.samba3
+
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the
 	# default library path. Here we move it to /usr/lib/.
@@ -174,7 +187,7 @@ endif
 	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
-	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action.samba3
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_movefiles.
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/

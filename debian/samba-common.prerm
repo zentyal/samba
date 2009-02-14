@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e 
+
+case "$1" in
+    remove|upgrade|deconfigure)
+	update-alternatives --remove nmblookup /usr/bin/nmblookup.samba3
+	update-alternatives --remove net /usr/bin/net.samba3
+	update-alternatives --remove testparm /usr/bin/testparm.samba3
+	for N in valid.dat upcase.dat lowcase.dat
+	do
+		update-alternatives --remove $N /usr/share/samba/$N.samba3
+	done
+	update-alternatives --remove samba-panic-action /usr/share/samba/panic-action.samba3
+		;;
+esac
+
+#DEBHELPER#
+
+exit 0

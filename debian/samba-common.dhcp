@@ -5,17 +5,20 @@ SAMBA_DHCP_CONF=/etc/samba/dhcp.conf
 netbios_setup() {
 	# No need to continue if we're called with an unsupported option
 
-	if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
-	   && [ "$reason" != REBIND ] && [ "$reason" != REBOOT ] \
-	   && [ "$reason" != EXPIRE ] && [ "$reason" != FAIL ]
-	then
+	case $reason in
+	BOUND|RENEW|REBIND|REBOOT|EXPIRE|FAIL|RELEASE|STOP)
+		;;
+	*)
 		return
-	fi
+		;;
+	esac
 
 	umask 022
 
-	local other_servers=""
-	local serverlist=""
+	local other_servers
+	other_servers==""
+	local serverlist
+	serverlist==""
 
 	# the destination file won't exist yet on the first run after 
 	# installing samba
@@ -23,7 +26,8 @@ netbios_setup() {
 	then
 		# don't continue if no settings have changed
 		if [ "$new_netbios_name_servers" = "$old_netbios_name_servers" ] \
-		   && [ "$new_netbios_scope" = "$old_netbios_scope" ]
+		   && [ "$new_netbios_scope" = "$old_netbios_scope" ] \
+		   && [ -n "$new_netbios_name_servers" ]
 		then
 			return
 		fi

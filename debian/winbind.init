@@ -16,6 +16,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
 DAEMON=/usr/sbin/winbindd
 PIDDIR=/var/run/samba
+WINBINDPID=$PIDDIR/winbindd.pid
 
 # clear conflicting settings from the environment
 unset TMPDIR
@@ -47,8 +48,11 @@ case "$1" in
 		$0 stop && sleep 2 && $0 start
 		;;
 
+	status)
+		status_of_proc -p $WINBINDPID $DAEMON winbind && exit 0 || exit $?
+		;;
 	*)
-		echo "Usage: /etc/init.d/winbind {start|stop|restart|force-reload}"
+		echo "Usage: /etc/init.d/winbind {start|stop|restart|force-reload|status}"
 		exit 1
 		;;
 esac

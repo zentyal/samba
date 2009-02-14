@@ -1,7 +1,7 @@
-Index: samba-3.3.0rc1/source/Makefile.in
+Index: samba-3.3.0rc2/source/Makefile.in
 ===================================================================
---- samba-3.3.0rc1.orig/source/Makefile.in
-+++ samba-3.3.0rc1/source/Makefile.in
+--- samba-3.3.0rc2.orig/source/Makefile.in
++++ samba-3.3.0rc2/source/Makefile.in
 @@ -1321,37 +1321,47 @@
  
  bin/smbd@EXEEXT@: $(BINARY_PREREQS) $(SMBD_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @BUILD_POPT@

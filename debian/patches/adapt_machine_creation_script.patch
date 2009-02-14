@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.3.0rc1/docs/manpages/smb.conf.5
+Index: samba-3.3.0rc2/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.3.0rc1.orig/docs/manpages/smb.conf.5
-+++ samba-3.3.0rc1/docs/manpages/smb.conf.5
+--- samba-3.3.0rc2.orig/docs/manpages/smb.conf.5
++++ samba-3.3.0rc2/docs/manpages/smb.conf.5
 @@ -750,8 +750,8 @@
  Default:
  \fI\fIadd machine script\fR\fR\fI = \fR\fI\fR\fI \fR

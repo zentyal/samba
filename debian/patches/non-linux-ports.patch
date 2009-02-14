@@ -7,10 +7,10 @@ Status wrt upstream: Forwarded, will be in 3.0.26
 Note: Upstream would probably welcome patches allowing to build on new architectures. 
       As this patch is the most often broken by new upstream releases, everybody would benefit from it.
 
-Index: samba-3.3.0rc1/source/configure.in
+Index: samba-3.3.0rc2/source/configure.in
 ===================================================================
---- samba-3.3.0rc1.orig/source/configure.in
-+++ samba-3.3.0rc1/source/configure.in
+--- samba-3.3.0rc2.orig/source/configure.in
++++ samba-3.3.0rc2/source/configure.in
 @@ -553,6 +553,15 @@
        fi
      ;;
@@ -27,7 +27,7 @@ Index: samba-3.3.0rc1/source/configure.in
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -1208,7 +1217,7 @@
+@@ -1222,7 +1231,7 @@
  #
  #
  case "$host_os" in
@@ -36,7 +36,7 @@ Index: samba-3.3.0rc1/source/configure.in
         # glibc <= 2.3.2 has a broken getgrouplist
         AC_TRY_RUN([
  #include <unistd.h>
-@@ -1642,7 +1651,10 @@
+@@ -1656,7 +1665,10 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -48,7 +48,7 @@ Index: samba-3.3.0rc1/source/configure.in
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
  				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -5361,7 +5373,7 @@
+@@ -5375,7 +5387,7 @@
  	AC_MSG_RESULT(yes);
  
  	case "$host_os" in
@@ -57,7 +57,7 @@ Index: samba-3.3.0rc1/source/configure.in
  		AC_CACHE_CHECK([for linux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
  		AC_TRY_LINK([#include <sys/sendfile.h>],
  [\
-@@ -5687,11 +5699,11 @@
+@@ -5701,11 +5713,11 @@
  WINBIND_NSS_PTHREAD=""
  
  case "$host_os" in

@@ -7,10 +7,10 @@ Fixes: #49011
 Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
                      change their default behaviour
 
-Index: samba-3.3.0rc1/source/param/loadparm.c
+Index: samba-3.3.0rc2/source/param/loadparm.c
 ===================================================================
---- samba-3.3.0rc1.orig/source/param/loadparm.c
-+++ samba-3.3.0rc1/source/param/loadparm.c
+--- samba-3.3.0rc2.orig/source/param/loadparm.c
++++ samba-3.3.0rc2/source/param/loadparm.c
 @@ -120,6 +120,9 @@
  	char *szAddPrinterCommand;
  	char *szDeletePrinterCommand;
@@ -56,10 +56,10 @@ Index: samba-3.3.0rc1/source/param/loadparm.c
  	{
  		.label		= "pid directory",
  		.type		= P_STRING,
-Index: samba-3.3.0rc1/source/m4/check_path.m4
+Index: samba-3.3.0rc2/source/m4/check_path.m4
 ===================================================================
---- samba-3.3.0rc1.orig/source/m4/check_path.m4
-+++ samba-3.3.0rc1/source/m4/check_path.m4
+--- samba-3.3.0rc2.orig/source/m4/check_path.m4
++++ samba-3.3.0rc2/source/m4/check_path.m4
 @@ -26,9 +26,9 @@
  pammodulesdir="${libdir}/security"
  configdir="${libdir}"
@@ -87,10 +87,10 @@ Index: samba-3.3.0rc1/source/m4/check_path.m4
      AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
      ;;
    esac])
-Index: samba-3.3.0rc1/source/configure
+Index: samba-3.3.0rc2/source/configure
 ===================================================================
---- samba-3.3.0rc1.orig/source/configure
-+++ samba-3.3.0rc1/source/configure
+--- samba-3.3.0rc2.orig/source/configure
++++ samba-3.3.0rc2/source/configure
 @@ -2245,7 +2245,7 @@
  swatdir="\${prefix}/swat"
  codepagedir="\${MODULESDIR}"

@@ -1,5 +1,5 @@
 usr/bin/eventlogadm
-usr/bin/smbstatus
+usr/bin/smbstatus.samba3
 usr/bin/smbcontrol
 usr/bin/profiles
 usr/bin/tdbbackup

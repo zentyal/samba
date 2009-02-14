@@ -1,24 +1,13 @@
-# translation of fr.po to French
+# samba debconf screens: French translation.
+# Copyright (C) 2006-2009, Christian Perrier <bubulle@debian.org>
+# This file is distributed under the same license as the samba package.
 #
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
-#
-#    Developers do not need to manually edit POT or PO files.
-#
-# Christian Perrier <bubulle@debian.org>, 2006, 2007.
 msgid ""
 msgstr ""
 "Project-Id-Version: fr\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
-"PO-Revision-Date: 2007-03-12 20:08+0100\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
+"PO-Revision-Date: 2008-12-29 12:32+0100\n"
 "Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -68,8 +57,8 @@ msgstr "Voulez-vous configurer smb.conf automatiquement ?"
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
-"line or an option that spans multiple lines, which could confuse the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
@@ -102,13 +91,16 @@ msgstr "Nom de domaine ou de groupe de travail :"
 #. Description
 #: ../samba-common.templates:3001
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
 msgstr ""
-"Veuillez indiquer le groupe de travail où les clients doivent trouver le "
-"serveur. Il indique aussi le nom de domaine utilisé par le paramètre "
-"« security=domain » quand celui-ci est utilisé."
+"Veuillez indiquer le groupe de travail pour ce système. Ce réglage définit "
+"le groupe de travail où le système apparaîtra s'il est utilisé comme "
+"serveur, le groupe de travail utilisé par défaut avec les divers outils de "
+"Samba ainsi que le nom de domaine utilisé le cas échéant avec le paramètre "
+"« security=domain »."
 
 #. Type: boolean
 #. Description
@@ -120,11 +112,11 @@ msgstr "Voulez-vous chiffrer les mots de passe ?"
 #. Description
 #: ../samba-common.templates:4001
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Tous les clients Windows récents communiquent avec les serveurs SMB en "
+"Tous les clients Windows récents communiquent avec les serveurs SMB/CIFS en "
 "utilisant des mots de passe chiffrés. Si vous voulez utiliser des mots de "
 "passe sans chiffrement, vous devez modifier un paramètre dans le registre de "
 "Windows."
@@ -133,14 +125,16 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:4001
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Il est recommandé d'utiliser des mots de passe chiffrés. Si vous le faites, "
-"n'oubliez pas de créer un fichier /etc/samba/smbpasswd et d'y établir les "
-"mots de passe de tous les utilisateurs, à l'aide de la commande "
-"« smbpasswd »."
+"Il est fortement recommandé d'utiliser des mots de passe chiffrés car les "
+"mots de passe en clair ne sont plus gérés dans les produits Microsoft "
+"Windows. Si vous le faites, n'oubliez pas de créer un fichier /etc/samba/"
+"smbpasswd et d'y établir les mots de passe de tous les utilisateurs, à "
+"l'aide de la commande « smbpasswd »."
 
 #. Type: boolean
 #. Description
@@ -180,8 +174,8 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
 "Veuillez consulter le fichier /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
 "html dans le paquet samba-doc pour plus d'informations."
@@ -213,40 +207,3 @@ msgid ""
 msgstr ""
 "Le service de Samba smbd peut s'exécuter en tant que démon classique ou bien "
 "être lancé par inetd. Il est recommandé de l'exécuter en tant que démon."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr ""
-#~ "Chaînage de méthodes multiples pour la gestion des mots de passe non géré"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "À partir de la version 3.0.23, samba ne gère plus le chaînage de méthodes "
-#~ "multiples dans le paramètre « passdb backend » qui décrit les méthodes de "
-#~ "stockage des mots de passe. Il semble que le fichier smb.conf de ce "
-#~ "système utilise un tel chaînage avec une liste de méthodes multiples. La "
-#~ "nouvelle version de samba ne fonctionnera pas correctement tant que ce "
-#~ "réglage n'aura pas été modifié."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Faut-il convertir /etc/samba/smbpasswd en /var/lib/samba/passdb.tdb ?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Avec Samba 3.0, une nouvelle interface pour les bases de données SAM, "
-#~ "plus complète, vient remplacer le fichier /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Veuillez confirmer si vous souhaitez que le fichier actuel soit remplacé "
-#~ "par /var/lib/samba/passdb.tdb. Ne choisissez pas cette option si vous "
-#~ "envisagez d'utiliser une autre interface d'authentification (p. ex. LDAP)."

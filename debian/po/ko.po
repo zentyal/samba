@@ -1,10 +1,10 @@
 # Sunjae Park <darehanl@gmail.com>, 2006.
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
 "PO-Revision-Date: 2007-03-14 09:28-0400\n"
 "Last-Translator: Sunjae Park <darehanl@gmail.com>\n"
 "Language-Team: Korean <debian-l10n-korean@lists.debian.org>\n"
@@ -54,8 +54,8 @@ msgstr "smb.conf을 자동으로 설정할까요?"
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
-"line or an option that spans multiple lines, which could confuse the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
@@ -85,10 +85,16 @@ msgstr "작업그룹/도메인 이름:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the workgroup you want this server to appear to be in when "
+#| "queried by clients. Note that this parameter also controls the domain "
+#| "name used with the security=domain setting."
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
 msgstr ""
 "클라이언트에서 질의가 들어올 때 이 서버가 소속된 작업그룹을 지정해주십시오. "
 "참고로 security=domain 방식의 설정을 사용할 경우 사용하는 도메인 이름도 이 매"
@@ -103,8 +109,13 @@ msgstr "비밀번호 암호화 기능을 사용할까요?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "All recent Windows clients communicate with SMB servers using encrypted "
+#| "passwords. If you want to use clear text passwords you will need to "
+#| "change a parameter in your Windows registry."
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
@@ -115,10 +126,16 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "Enabling this option is highly recommended. If you do, make sure you have "
+#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#| "each user using the smbpasswd command."
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
 "이 기능을 활성화할 것을 강력히 권장합니다. 활성화할 경우, /etc/samba/"
 "smbpasswd 파일이 제대로이고 smbpasswd 명령을 사용하여 각 사용자들의 비밀번호"
@@ -160,8 +177,8 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
 "자세한 사항은 samba-doc 꾸러미에서 제공하는 /usr/share/doc/samba-doc/"
 "htmldocs/ENCRYPTION.html를 참조하십시오."

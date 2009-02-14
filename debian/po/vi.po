@@ -1,12 +1,12 @@
 # Vietnamese translation for Samba.
 # Copyright © 2007 Free Software Foundation, Inc.
 # Clytie Siddall <clytie@riverland.net.au>, 2005-2007.
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: samba 3.0.23rc1-1\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
 "PO-Revision-Date: 2007-06-01 15:32+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
@@ -34,10 +34,9 @@ msgid ""
 msgstr ""
 "Nếu máy tính của bạn lấy thông tin địa chỉ IP từ một trình phục vụ DHCP nằm "
 "trên mạng, trình phục vụ DHCP có lẽ cũng có khả năng cung cấp thông tin về "
-"trình phục vụ WINS (« NetBIOS name servers ») cũng nằm trên mạng. Dịch vụ "
-"này cần thiết bạn sửa đổi tập tin « smb.conf » của mình để cho phép thiết "
-"lập WINS do DHCP cung cấp sẽ được đọc tự động từ tập tin </etc/samba/dhcp."
-"conf>."
+"trình phục vụ WINS (« NetBIOS name servers ») cũng nằm trên mạng. Dịch vụ này "
+"cần thiết bạn sửa đổi tập tin « smb.conf » của mình để cho phép thiết lập "
+"WINS do DHCP cung cấp sẽ được đọc tự động từ tập tin </etc/samba/dhcp.conf>."
 
 #. Type: boolean
 #. Description
@@ -58,17 +57,17 @@ msgstr "Cấu hình tự động tập tin « smb.conf » không?"
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
-"line or an option that spans multiple lines, which could confuse the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
 "Phần còn lại của cấu hình Samba đề cập các câu hỏi về tham số trong tập tin "
 "</etc/samba/smb.conf>, tập tin được dùng để cấu hình các chương trình Samba "
-"(nmbd và smbd). Tập tin « smb.conf » hiện thời chứa một dòng « include "
-"» (gồm) hay một tùy chọn chiếm nhiều dòng, mà có thể gây ra lỗi trong tiến "
-"trình cấu hình tự động thì cần thiết bạn tự sửa đổi tập tin « smb.conf » "
-"mình để kích hoạt lại nó."
+"(nmbd và smbd). Tập tin « smb.conf » hiện thời chứa một dòng « include » (gồm) "
+"hay một tùy chọn chiếm nhiều dòng, mà có thể gây ra lỗi trong tiến trình cấu "
+"hình tự động thì cần thiết bạn tự sửa đổi tập tin « smb.conf » mình để kích "
+"hoạt lại nó."
 
 #. Type: boolean
 #. Description
@@ -90,10 +89,16 @@ msgstr "Tên nhóm làm việc/miền:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the workgroup you want this server to appear to be in when "
+#| "queried by clients. Note that this parameter also controls the domain "
+#| "name used with the security=domain setting."
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
 msgstr ""
 "Hãy xác định nhóm làm việc nơi có vẻ nằm trình phục vụ này, khi ứng dụng "
 "khách yêu cầu. Ghi chú rằng tham số này cũng điều khiển tên miền được dùng "
@@ -108,8 +113,13 @@ msgstr "Sử dụng khả năng mật mã hoá mật khẩu không?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "All recent Windows clients communicate with SMB servers using encrypted "
+#| "passwords. If you want to use clear text passwords you will need to "
+#| "change a parameter in your Windows registry."
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
@@ -121,10 +131,16 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "Enabling this option is highly recommended. If you do, make sure you have "
+#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#| "each user using the smbpasswd command."
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
 "Rất khuyên bạn bật tùy chọn này. Nếu có, hãy chắc là bạn có tập tin </etc/"
 "samba/smbpasswd> hợp lệ và bạn cũng đặt mật khẩu trong nó cho mỗi người dùng "
@@ -166,11 +182,11 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
-"Xem tài liệu </usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html> từ gói "
-"samba-doc để tìm chi tiết."
+"Xem tài liệu </usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+"pwencrypt.html> từ gói samba-doc để tìm chi tiết."
 
 #. Type: select
 #. Choices
@@ -211,9 +227,9 @@ msgstr ""
 #~ msgstr ""
 #~ "Bắt đầu trong phiên bản 3.0.23, trình samba không còn hỗ trợ lại khả năng "
 #~ "xích lại nhiều hậu phương trong tham số « passdb backend ». Có vẻ là tập "
-#~ "tin cấu hình « smb.conf » của bạn vẫn còn chứa một tham số « passdb "
-#~ "backend » làm danh sách các hậu phương. Phiên bản samba mới sẽ chỉ hoạt "
-#~ "động được sau khi bạn sửa chữa trường hợp này."
+#~ "tin cấu hình « smb.conf » của bạn vẫn còn chứa một tham số « passdb backend "
+#~ "» làm danh sách các hậu phương. Phiên bản samba mới sẽ chỉ hoạt động được "
+#~ "sau khi bạn sửa chữa trường hợp này."
 
 #~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 #~ msgstr ""

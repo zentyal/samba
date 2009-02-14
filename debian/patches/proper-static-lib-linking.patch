@@ -7,10 +7,10 @@ Status wrt upstream: not yet forwarded
 Note:
 
 === modified file 'source/Makefile.in'
-Index: samba-3.3.0rc1/source/Makefile.in
+Index: samba-3.3.0rc2/source/Makefile.in
 ===================================================================
---- samba-3.3.0rc1.orig/source/Makefile.in
-+++ samba-3.3.0rc1/source/Makefile.in
+--- samba-3.3.0rc2.orig/source/Makefile.in
++++ samba-3.3.0rc2/source/Makefile.in
 @@ -239,7 +239,7 @@
  TDB_OBJ = lib/util_tdb.o \
  	  lib/dbwrap.o lib/dbwrap_tdb.o \
@@ -474,10 +474,10 @@ Index: samba-3.3.0rc1/source/Makefile.in
  	$(CC) $(FLAGS) -o $@ $(DYNEXP) $(LIBS) $(LIBTALLOC_LIBS) \
  		torture/t_strappend.o -L ./bin -lbigballofmud
  
-Index: samba-3.3.0rc1/source/m4/aclocal.m4
+Index: samba-3.3.0rc2/source/m4/aclocal.m4
 ===================================================================
---- samba-3.3.0rc1.orig/source/m4/aclocal.m4
-+++ samba-3.3.0rc1/source/m4/aclocal.m4
+--- samba-3.3.0rc2.orig/source/m4/aclocal.m4
++++ samba-3.3.0rc2/source/m4/aclocal.m4
 @@ -68,7 +68,8 @@
  LIBUC[_STATIC_TARGET]=bin/LIBNAME.a
  LIBUC[_SHARED]=

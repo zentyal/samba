@@ -18,7 +18,7 @@ _Description: Configure smb.conf automatically?
  The rest of the configuration of Samba deals with questions that
  affect parameters in /etc/samba/smb.conf, which is the file used to
  configure the Samba programs (nmbd and smbd). Your current smb.conf
- contains an 'include' line or an option that spans multiple lines,
+ contains an "include" line or an option that spans multiple lines,
  which could confuse the automated configuration process and require
  you to edit your smb.conf by hand to get it working again.
  .
@@ -30,19 +30,20 @@ Template: samba-common/workgroup
 Type: string
 Default: WORKGROUP
 _Description: Workgroup/Domain Name:
- Please specify the workgroup you want this server to appear to be in
- when queried by clients. Note that this parameter also controls the
- domain name used with the security=domain setting.
+ Please specify the workgroup for this system.  This setting controls which
+ workgroup the system will appear in when used as a server, the default
+ workgroup to be used when browsing with various frontends, and the domain
+ name used with the "security=domain" setting.
 
 Template: samba-common/encrypt_passwords
 Type: boolean
 Default: true
 _Description: Use password encryption?
- All recent Windows clients communicate with SMB servers using encrypted
+ All recent Windows clients communicate with SMB/CIFS servers using encrypted
  passwords. If you want to use clear text passwords you will need to change
- a parameter in your Windows registry. 
+ a parameter in your Windows registry.
  .
- Enabling this option is highly recommended. If you do, make sure you
- have a valid /etc/samba/smbpasswd file and that you set passwords in
- there for each user using the smbpasswd command.
-
+ Enabling this option is highly recommended as support for plain text
+ passwords is no longer maintained in Microsoft Windows products. If
+ you do, make sure you have a valid /etc/samba/smbpasswd file and that
+ you set passwords in there for each user using the smbpasswd command.

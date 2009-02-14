@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: pkg-samba-maint@lists.alioth.debian.org\n"
-"POT-Creation-Date: 2007-09-17 22:34+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -71,8 +71,8 @@ msgstr "smb.conf འདི་རང་བཞིན་གྱིས་རིམ་
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an 'include' "
-"line or an option that spans multiple lines, which could confuse the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
@@ -102,10 +102,16 @@ msgstr "ལཱ་གི་སྡེ་ཚན་/ཌོ་མེན་མིང�
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the workgroup you want this server to appear to be in when "
+#| "queried by clients. Note that this parameter also controls the domain "
+#| "name used with the security=domain setting."
 msgid ""
-"Please specify the workgroup you want this server to appear to be in when "
-"queried by clients. Note that this parameter also controls the domain name "
-"used with the security=domain setting."
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
 msgstr ""
 "ཞབས་ཏོག་སྤྱོད་མི་གིས་འདྲི་དཔྱད་འབདཝ་ད་ དེ་ནང་ལུ་སར་བར་འབྱུང་ནི་ཨིན་པའི་ལཱ་གི་སྡེ་ཚན་འདི་གསལ་བཀོད་"
 "འབད་གནང་། ཚད་བཟུང་འདི་གིས་ སྲུང་སྐྱོབ་=ཌཱ་མཱེན་སྒྲིག་སྟངས་དང་གཅིག་ཁར་ལག་ལེན་འཐབ་ཡོད་པའི་ཌཱ་མཱེན་མིང་"
@@ -120,8 +126,13 @@ msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐ
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "All recent Windows clients communicate with SMB servers using encrypted "
+#| "passwords. If you want to use clear text passwords you will need to "
+#| "change a parameter in your Windows registry."
 msgid ""
-"All recent Windows clients communicate with SMB servers using encrypted "
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
@@ -132,10 +143,16 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
+#, fuzzy
+#| msgid ""
+#| "Enabling this option is highly recommended. If you do, make sure you have "
+#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#| "each user using the smbpasswd command."
 msgid ""
-"Enabling this option is highly recommended. If you do, make sure you have a "
-"valid /etc/samba/smbpasswd file and that you set passwords in there for each "
-"user using the smbpasswd command."
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
 msgstr ""
 "གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་ལུ་"
 "ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
@@ -178,8 +195,8 @@ msgstr ""
 #. Description
 #: ../samba.templates:1001
 msgid ""
-"See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
-"package for more details."
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
 msgstr ""
 "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/htmldocs/"
 "ENCRYPTION.html ལུ་ལྟ།"

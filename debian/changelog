@@ -1,8 +1,63 @@
+samba (2:3.3.0-3) UNRELEASED; urgency=low
+
+  * Re-add smb.conf fixes that were dropped in the 3.3.0 merge to unstable.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 15 Feb 2009 12:28:51 -0800
+
 samba (2:3.3.0-2) unstable; urgency=low
 
   * Upload to unstable
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 14 Feb 2009 13:38:14 +0100
+
+samba (2:3.2.5-4) unstable; urgency=low
+
+  * Fix segfault whan accessign some NAS devices running old versions of Samba
+    Closes: #500129
+  * Fix process crush when using gethostbyname_r in several threads
+    Closes: #509101, #510450
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 08 Jan 2009 05:59:17 +0100
+
+samba (2:3.2.5-3) unstable; urgency=high
+
+  * Security update
+  * Fix Potential access to "/" in setups with registry shares enabled
+    This fixes CVE-2009-0022, backported from 3.2.7
+  * Fix links in HTML documentation index file.
+    Closes: #508388
+  * Drop spurious docs-xml/smbdotconf/parameters.global.xml.new
+    file in the diff. Thanks to the release managers for spotting it
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 21 Dec 2008 08:09:31 +0100
+
+samba (2:3.2.5-2) unstable; urgency=low
+
+  * Fix typo in bug number in a comment for the default smb.conf file
+    Closes: #507620
+  * Document the need to set appropriate permissions on the printer
+    drivers directory, in the default smb.conf file. Also change
+    the example group from ntadmin to lpadmin
+    Closes: #459243
+  * Add missing rfc2307.so and sfu*.so links that prevent using the
+    'winbind nss info' feature properly
+    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
+    the patch. Closes: #506109
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 13 Dec 2008 13:56:07 +0100
+
+samba (2:3.2.5-1) unstable; urgency=high
+
+  * New upstream version. Security-only release.
+    This addresses CVE-2008-4314: potentially leaking
+    arbitrary memory contents to malicious clients.
+  * Better document cases where using a "master" file for smb.conf
+    is a bad idea. Closes: #483187
+  * Insert example "add machine script" and "add group script" scripts
+    in the default smb.conf. Closes: #349049
+  * Move homepage URL to Homepage filed in debian/control
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 27 Nov 2008 11:36:35 +0100
 
 samba (2:3.3.0-1) experimental; urgency=low
 
@@ -17,7 +72,7 @@ samba (2:3.3.0-1) experimental; urgency=low
     - fix swat status table layout. Closes: #511275
 
   [ Jelmer Vernooij ]
-  * Use alternatives for the smbtatus, nmblookup, net and 
+  * Use alternatives for the smbstatus, nmblookup, net and 
     testparm binaries and various data files in samba-common 
     to allow installation of Samba 3 together with Samba 4. 
   * Add myself to uploaders.
@@ -120,11 +175,6 @@ samba (2:3.3.0~rc1-2) experimental; urgency=low
 
   * Provide idmap_adex and idmap_hash in winbind.
     Thanks to Jelmer Jaarsma for reporting and providing a patch
-  * Merged from unstable (needed for the above to work):
-    Add missing rfc2307.so and sfu*.so links that prevent using the
-    'winbind nss info' feature properly
-    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
-    the patch. Closes: #506109
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
 

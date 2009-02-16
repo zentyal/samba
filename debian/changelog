@@ -2,6 +2,7 @@ samba (2:3.3.0-3) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * Re-add smb.conf fixes that were dropped in the 3.3.0 merge to unstable.
+  * Make samba conflict with samba4, not with itself.
 
   [ Debconf translations ]
   * Vietnamese updated.  Closes: #515235.

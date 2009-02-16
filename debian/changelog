@@ -1,6 +1,10 @@
 samba (2:3.3.0-3) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Re-add smb.conf fixes that were dropped in the 3.3.0 merge to unstable.
+
+  [ Debconf translations ]
+  * Vietnamese updated.  Closes: #515235.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 15 Feb 2009 12:28:51 -0800
 

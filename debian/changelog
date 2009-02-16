@@ -5,6 +5,7 @@ samba (2:3.3.0-3) UNRELEASED; urgency=low
 
   [ Debconf translations ]
   * Vietnamese updated.  Closes: #515235.
+  * Slovak updated.  Closes: #515240.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 15 Feb 2009 12:28:51 -0800
 

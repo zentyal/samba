@@ -2,6 +2,9 @@ samba (2:3.3.0-4) UNRELEASED; urgency=low
 
   * Build-Depend on libcap2-dev.  Closes: #51851.
 
+  [ Debconf translations ]
+  * Belarusian added.  Closes: #516052.
+
  -- Steve Langasek <vorlon@debian.org>  Tue, 17 Feb 2009 16:35:49 -0800
 
 samba (2:3.3.0-3) unstable; urgency=low

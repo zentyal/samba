@@ -1,6 +1,6 @@
 samba (2:3.3.0-4) UNRELEASED; urgency=low
 
-  * Build-Depend on libcap2-dev.  Closes: #51851.
+  * Build-Depend on libcap2-dev.  Closes: #515851.
 
   [ Debconf translations ]
   * Belarusian added.  Closes: #516052.

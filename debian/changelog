@@ -1,11 +1,15 @@
 samba (2:3.3.0-4) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Build-Depend on libcap2-dev.  Closes: #515851.
 
   [ Debconf translations ]
   * Belarusian added.  Closes: #516052.
 
- -- Steve Langasek <vorlon@debian.org>  Tue, 17 Feb 2009 16:35:49 -0800
+  [ Mathieu Parent ]
+  * enable clustering by default (CTDB). Closes: #514050 
+
+ -- Mathieu Parent <math.parent@gmail.com>  Fri, 20 Feb 2009 22:39:32 +0100
 
 samba (2:3.3.0-3) unstable; urgency=low
 

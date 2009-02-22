@@ -5,6 +5,7 @@ samba (2:3.3.0-4) UNRELEASED; urgency=low
 
   [ Debconf translations ]
   * Belarusian added.  Closes: #516052.
+  * Traditional Chinese updated. Closes: #516594
 
   [ Mathieu Parent ]
   * enable clustering by default (CTDB). Closes: #514050 

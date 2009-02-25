@@ -46,10 +46,10 @@ Note: Use dedicated directories for:
       grep -r lp_lockdir source/ | grep -vE \
          '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
 
-Index: samba-3.3.0/source/lib/util.c
+Index: samba-deb/source/lib/util.c
 ===================================================================
---- samba-3.3.0.orig/source/lib/util.c
-+++ samba-3.3.0/source/lib/util.c
+--- samba-deb.orig/source/lib/util.c
++++ samba-deb/source/lib/util.c
 @@ -2644,6 +2644,15 @@
  	return xx_path(name, get_dyn_STATEDIR());
  }
@@ -66,10 +66,10 @@ Index: samba-3.3.0/source/lib/util.c
  /**
   * @brief Returns the platform specific shared library extension.
   *
-Index: samba-3.3.0/source/libsmb/samlogon_cache.c
+Index: samba-deb/source/libsmb/samlogon_cache.c
 ===================================================================
---- samba-3.3.0.orig/source/libsmb/samlogon_cache.c
-+++ samba-3.3.0/source/libsmb/samlogon_cache.c
+--- samba-deb.orig/source/libsmb/samlogon_cache.c
++++ samba-deb/source/libsmb/samlogon_cache.c
 @@ -34,7 +34,7 @@
  bool netsamlogon_cache_init(void)
  {
@@ -79,10 +79,10 @@ Index: samba-3.3.0/source/libsmb/samlogon_cache.c
  					       TDB_DEFAULT, O_RDWR | O_CREAT, 0600);
  	}
  
-Index: samba-3.3.0/source/nmbd/nmbd_serverlistdb.c
+Index: samba-deb/source/nmbd/nmbd_serverlistdb.c
 ===================================================================
---- samba-3.3.0.orig/source/nmbd/nmbd_serverlistdb.c
-+++ samba-3.3.0/source/nmbd/nmbd_serverlistdb.c
+--- samba-deb.orig/source/nmbd/nmbd_serverlistdb.c
++++ samba-deb/source/nmbd/nmbd_serverlistdb.c
 @@ -326,7 +326,7 @@
  
  	updatecount++;
@@ -92,10 +92,10 @@ Index: samba-3.3.0/source/nmbd/nmbd_serverlistdb.c
  	if (!fname) {
  		return;
  	}
-Index: samba-3.3.0/source/passdb/login_cache.c
+Index: samba-deb/source/passdb/login_cache.c
 ===================================================================
---- samba-3.3.0.orig/source/passdb/login_cache.c
-+++ samba-3.3.0/source/passdb/login_cache.c
+--- samba-deb.orig/source/passdb/login_cache.c
++++ samba-deb/source/passdb/login_cache.c
 @@ -35,7 +35,7 @@
  	/* skip file open if it's already opened */
  	if (cache) return True;
@@ -105,10 +105,10 @@ Index: samba-3.3.0/source/passdb/login_cache.c
  		DEBUG(0, ("Filename allocation failed.\n"));
  		return False;
  	}
-Index: samba-3.3.0/source/printing/printing.c
+Index: samba-deb/source/printing/printing.c
 ===================================================================
---- samba-3.3.0.orig/source/printing/printing.c
-+++ samba-3.3.0/source/printing/printing.c
+--- samba-deb.orig/source/printing/printing.c
++++ samba-deb/source/printing/printing.c
 @@ -183,8 +183,8 @@
  	int services = lp_numservices();
  	int snum;
@@ -120,10 +120,10 @@ Index: samba-3.3.0/source/printing/printing.c
  
  	/* handle a Samba upgrade */
  
-Index: samba-3.3.0/source/printing/printing_db.c
+Index: samba-deb/source/printing/printing_db.c
 ===================================================================
---- samba-3.3.0.orig/source/printing/printing_db.c
-+++ samba-3.3.0/source/printing/printing_db.c
+--- samba-deb.orig/source/printing/printing_db.c
++++ samba-deb/source/printing/printing_db.c
 @@ -91,7 +91,7 @@
  	}
  
@@ -133,10 +133,10 @@ Index: samba-3.3.0/source/printing/printing_db.c
  				printername) < 0) {
  		DLIST_REMOVE(print_db_head, p);
  		SAFE_FREE(p);
-Index: samba-3.3.0/source/smbd/lanman.c
+Index: samba-deb/source/smbd/lanman.c
 ===================================================================
---- samba-3.3.0.orig/source/smbd/lanman.c
-+++ samba-3.3.0/source/smbd/lanman.c
+--- samba-deb.orig/source/smbd/lanman.c
++++ samba-deb/source/smbd/lanman.c
 @@ -1154,9 +1154,9 @@
  	bool local_list_only;
  	int i;
@@ -149,10 +149,10 @@ Index: samba-3.3.0/source/smbd/lanman.c
  		return 0;
  	}
  
-Index: samba-3.3.0/source/utils/smbcontrol.c
+Index: samba-deb/source/utils/smbcontrol.c
 ===================================================================
---- samba-3.3.0.orig/source/utils/smbcontrol.c
-+++ samba-3.3.0/source/utils/smbcontrol.c
+--- samba-deb.orig/source/utils/smbcontrol.c
++++ samba-deb/source/utils/smbcontrol.c
 @@ -867,10 +867,10 @@
  	/* Remove the entry in the winbindd_cache tdb to tell a later
  	   starting winbindd that we're online. */
@@ -182,10 +182,10 @@ Index: samba-3.3.0/source/utils/smbcontrol.c
  		return False;
  	}
  
-Index: samba-3.3.0/source/libgpo/gpo_fetch.c
+Index: samba-deb/source/libgpo/gpo_fetch.c
 ===================================================================
---- samba-3.3.0.orig/source/libgpo/gpo_fetch.c
-+++ samba-3.3.0/source/libgpo/gpo_fetch.c
+--- samba-deb.orig/source/libgpo/gpo_fetch.c
++++ samba-deb/source/libgpo/gpo_fetch.c
 @@ -59,7 +59,7 @@
  
  	if ((path = talloc_asprintf(mem_ctx,
@@ -204,10 +204,10 @@ Index: samba-3.3.0/source/libgpo/gpo_fetch.c
  	char *current_dir;
  	char *tok;
  
-Index: samba-3.3.0/source/winbindd/winbindd_cache.c
+Index: samba-deb/source/winbindd/winbindd_cache.c
 ===================================================================
---- samba-3.3.0.orig/source/winbindd/winbindd_cache.c
-+++ samba-3.3.0/source/winbindd/winbindd_cache.c
+--- samba-deb.orig/source/winbindd/winbindd_cache.c
++++ samba-deb/source/winbindd/winbindd_cache.c
 @@ -2537,7 +2537,7 @@
  		return true;
  
@@ -256,10 +256,10 @@ Index: samba-3.3.0/source/winbindd/winbindd_cache.c
  
  	DEBUG(10, ("winbindd_validate_cache: replacing panic function\n"));
  	smb_panic_fn = validate_panic;
-Index: samba-3.3.0/source/printing/nt_printing.c
+Index: samba-deb/source/printing/nt_printing.c
 ===================================================================
---- samba-3.3.0.orig/source/printing/nt_printing.c
-+++ samba-3.3.0/source/printing/nt_printing.c
+--- samba-deb.orig/source/printing/nt_printing.c
++++ samba-deb/source/printing/nt_printing.c
 @@ -2552,7 +2552,7 @@
  
  	if (geteuid() == 0) {
@@ -269,3 +269,15 @@ Index: samba-3.3.0/source/printing/nt_printing.c
  				sharename) < 0) {
  			return (uint32)-1;
  		}
+Index: samba-deb/source/include/proto.h
+===================================================================
+--- samba-deb.orig/source/include/proto.h
++++ samba-deb/source/include/proto.h
+@@ -1315,6 +1315,7 @@
+ char *modules_path(const char *name);
+ char *data_path(const char *name);
+ char *state_path(const char *name);
++char *cache_path(const char *name);
+ const char *shlib_ext(void);
+ char *parent_dirname(const char *path);
+ bool parent_dirname_talloc(TALLOC_CTX *mem_ctx, const char *dir,

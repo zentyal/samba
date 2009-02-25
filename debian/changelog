@@ -2,6 +2,9 @@ samba (2:3.3.0-4) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * Build-Depend on libcap2-dev.  Closes: #515851.
+  * debian/patches/fhs-filespaths-debatable.patch: Add a missing prototype
+    for cache_path, which causes nearly undiagnoseable crashes when building
+    with -fPIE, because of a wrong return type!  LP: #330626.
 
   [ Debconf translations ]
   * Belarusian added.  Closes: #516052.

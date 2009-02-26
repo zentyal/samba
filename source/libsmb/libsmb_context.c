@@ -94,6 +94,8 @@ smbc_new_context(void)
         smbc_setFunctionLseek(context, SMBC_lseek_ctx);
         smbc_setFunctionFtruncate(context, SMBC_ftruncate_ctx);
         smbc_setFunctionStat(context, SMBC_stat_ctx);
+        smbc_setFunctionStatVFS(context, SMBC_statvfs_ctx);
+        smbc_setFunctionFstatVFS(context, SMBC_fstatvfs_ctx);
         smbc_setFunctionFstat(context, SMBC_fstat_ctx);
         smbc_setFunctionOpendir(context, SMBC_opendir_ctx);
         smbc_setFunctionClosedir(context, SMBC_closedir_ctx);
@@ -643,4 +645,50 @@ smbc_set_credentials(char *workgroup,
         }
         set_global_myworkgroup(workgroup);
         cli_cm_set_credentials();
+}
+
+void smbc_set_credentials_with_fallback(SMBCCTX *context,
+					const char *workgroup,
+					const char *user,
+					const char *password)
+{
+	smbc_bool use_kerberos = false;
+	const char *signing_state = "off";
+	
+	if (!context ||
+	    ! workgroup || ! *workgroup ||
+	    ! user || ! *user ||
+	    ! password || ! *password) {
+	    
+		return;
+	}
+
+	if (smbc_getOptionUseKerberos(context)) {
+		use_kerberos = True;
+	}
+
+	if (lp_client_signing()) {
+		signing_state = "on";
+	}
+
+	if (lp_client_signing() == Required) {
+		signing_state = "force";
+	}
+
+	/* Using CONST_DISCARD here is ugly, but
+	 * we know that smbc_set_credentials() doesn't
+	 * actually modify the strings, and should have
+	 * been const from the start. We're constrained
+	 * by the ABI here.
+	 */
+
+	smbc_set_credentials(CONST_DISCARD(char *,workgroup),
+			     CONST_DISCARD(char *,user),
+			     CONST_DISCARD(char *,password),
+			     use_kerberos,
+			     CONST_DISCARD(char *,signing_state));
+
+	if (smbc_getOptionFallbackAfterKerberos(context)) {
+		cli_cm_set_fallback_after_kerberos();
+	}
 }

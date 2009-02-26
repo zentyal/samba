@@ -50,12 +50,14 @@ NTSTATUS smb1_file_se_access_check(const struct security_descriptor *sd,
 
 static NTSTATUS check_open_rights(struct connection_struct *conn,
 				const char *fname,
-				uint32_t access_mask)
+				uint32_t access_mask,
+				uint32_t *access_granted)
 {
 	/* Check if we have rights to open. */
 	NTSTATUS status;
-	uint32_t access_granted = 0;
 	struct security_descriptor *sd;
+
+	*access_granted = 0;
 
 	status = SMB_VFS_GET_NT_ACL(conn, fname,
 			(OWNER_SECURITY_INFORMATION |
@@ -73,9 +75,17 @@ static NTSTATUS check_open_rights(struct connection_struct *conn,
 	status = smb1_file_se_access_check(sd,
 				conn->server_info->ptok,
 				access_mask,
-				&access_granted);
+				access_granted);
 
 	TALLOC_FREE(sd);
+
+	DEBUG(10,("check_open_rights: file %s requesting "
+		"0x%x returning 0x%x (%s)\n",
+		fname,
+		(unsigned int)access_mask,
+		(unsigned int)*access_granted,
+		nt_errstr(status) ));
+
 	return status;
 }
 
@@ -398,14 +408,49 @@ static NTSTATUS open_file(files_struct *fsp,
 	} else {
 		fsp->fh->fd = -1; /* What we used to call a stat open. */
 		if (file_existed) {
+			uint32_t access_granted = 0;
+
 			status = check_open_rights(conn,
 					path,
-					access_mask);
+					access_mask,
+					&access_granted);
 			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(10, ("open_file: Access denied on "
-					"file %s\n",
-					path));
-				return status;
+				if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
+					if ((access_mask & DELETE_ACCESS) &&
+							(access_granted == DELETE_ACCESS) &&
+							can_delete_file_in_directory(conn, path)) {
+						/* Were we trying to do a stat open
+						 * for delete and didn't get DELETE
+						 * access (only) ? Check if the
+						 * directory allows DELETE_CHILD.
+						 * See here:
+						 * http://blogs.msdn.com/oldnewthing/archive/2004/06/04/148426.aspx
+						 * for details. */
+
+						DEBUG(10,("open_file: overrode ACCESS_DENIED "
+							"on file %s\n",
+							path ));
+					} else {
+						DEBUG(10, ("open_file: Access denied on "
+							"file %s\n",
+							path));
+						return status;
+					}
+				} else if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_NOT_FOUND) &&
+							fsp->posix_open &&
+							S_ISLNK(psbuf->st_mode)) {
+					/* This is a POSIX stat open for delete
+					 * or rename on a symlink that points
+					 * nowhere. Allow. */
+					DEBUG(10, ("open_file: allowing POSIX open "
+						"on bad symlink %s\n",
+						path ));
+				} else {
+					DEBUG(10, ("open_file: check_open_rights "
+						"on file %s returned %s\n",
+						path, nt_errstr(status) ));
+					return status;
+				}
 			}
 		}
 	}
@@ -1313,6 +1358,7 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 	bool def_acl = False;
 	bool posix_open = False;
 	bool new_file_created = False;
+	bool clear_ads = false;
 	struct file_id id;
 	NTSTATUS fsp_open = NT_STATUS_ACCESS_DENIED;
 	mode_t new_unx_mode = (mode_t)0;
@@ -1366,7 +1412,7 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 		   "create_disposition = 0x%x create_options=0x%x "
 		   "unix mode=0%o oplock_request=%d\n",
 		   fname, new_dos_attributes, access_mask, share_access,
-		   create_disposition, create_options, unx_mode,
+		   create_disposition, create_options, (unsigned int)unx_mode,
 		   oplock_request));
 
 	if ((req == NULL) && ((oplock_request & INTERNAL_OPEN_ONLY) == 0)) {
@@ -1445,12 +1491,14 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 			/* If file exists replace/overwrite. If file doesn't
 			 * exist create. */
 			flags2 |= (O_CREAT | O_TRUNC);
+			clear_ads = true;
 			break;
 
 		case FILE_OVERWRITE_IF:
 			/* If file exists replace/overwrite. If file doesn't
 			 * exist create. */
 			flags2 |= (O_CREAT | O_TRUNC);
+			clear_ads = true;
 			break;
 
 		case FILE_OPEN:
@@ -1475,6 +1523,7 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 				return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 			}
 			flags2 |= O_TRUNC;
+			clear_ads = true;
 			break;
 
 		case FILE_CREATE:
@@ -1907,6 +1956,16 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 	}
 
 	SMB_ASSERT(lck != NULL);
+
+	/* Delete streams if create_disposition requires it */
+	if (file_existed && clear_ads && !is_ntfs_stream_name(fname)) {
+		status = delete_all_streams(conn, fname);
+		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(lck);
+			fd_close(fsp);
+			return status;
+		}
+	}
 
 	/* note that we ignore failure for the following. It is
            basically a hack for NFS, and NFS will never set one of
@@ -2398,9 +2457,11 @@ NTSTATUS open_directory(connection_struct *conn,
 	}
 
 	if (info == FILE_WAS_OPENED) {
+		uint32_t access_granted = 0;
 		status = check_open_rights(conn,
 					fname,
-					access_mask);
+					access_mask,
+					&access_granted);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(10, ("open_directory: check_open_rights on "
 				"file  %s failed with %s\n",
@@ -2819,8 +2880,11 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 	    && (create_disposition != FILE_CREATE)
 	    && (share_access & FILE_SHARE_DELETE)
 	    && (access_mask & DELETE_ACCESS)
-	    && (!can_delete_file_in_directory(conn, fname))) {
+	    && (!(can_delete_file_in_directory(conn, fname) ||
+		 can_access_file_acl(conn, fname, DELETE_ACCESS)))) {
 		status = NT_STATUS_ACCESS_DENIED;
+		DEBUG(10,("create_file_unixpath: open file %s "
+			"for delete ACCESS_DENIED\n", fname ));
 		goto fail;
 	}
 

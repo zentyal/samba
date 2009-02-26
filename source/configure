@@ -672,6 +672,7 @@ WINBIND_NSS_LDSHFLAGS
 WINBIND_WINS_NSS
 WINBIND_NSS
 WINBIND_NSS_PTHREAD
+CTDB_CFLAGS
 LIBADDNS_SOVER
 UNINSTALL_LIBADDNS
 INSTALL_LIBADDNS
@@ -833,7 +834,6 @@ statedir
 codepagedir
 swatdir
 privatedir
-ctdbdir
 logfilebase
 piddir
 lockdir
@@ -901,7 +901,6 @@ with_piddir
 with_swatdir
 with_configdir
 with_logfilebase
-with_ctdb
 with_modulesdir
 with_pammodulesdir
 with_mandir
@@ -955,6 +954,7 @@ with_libnetapi
 with_libsmbclient
 with_libsmbsharemodes
 with_libaddns
+with_ctdb
 with_cluster_support
 with_acl_support
 with_aio_support
@@ -1638,7 +1638,6 @@ Optional Packages:
   --with-swatdir=DIR      Where to put SWAT files ($ac_default_prefix/swat)
   --with-configdir=DIR    Where to put configuration files ($libdir)
   --with-logfilebase=DIR  Where to put log files ($VARDIR)
-  --with-ctdb=DIR         Where to find ctdb sources
   --with-modulesdir=DIR   Where to put shared modules ($libdir)
   --with-pammodulesdir=DIR
                           Which directory to use for PAM modules
@@ -1695,7 +1694,8 @@ Optional Packages:
                           shared libs supported)
   --with-libaddns         Build the libaddns shared library (default=no
                           (undefined API))
-  --with-cluster-support  Enable cluster extensions (default=no)
+  --with-ctdb=DIR         Where to find ctdb sources
+  --with-cluster-support  Enable cluster extensions (default=auto)
   --with-acl-support      Include ACL support (default=auto)
   --with-aio-support      Include asynchronous io support (default=no)
   --with-sendfile-support Check for sendfile support (default=yes)
@@ -2582,21 +2582,6 @@ fi
 
 
 #################################################
-# set ctdb source directory location
-
-# Check whether --with-ctdb was given.
-if test "${with_ctdb+set}" = set; then
-  withval=$with_ctdb;  case "$withval" in
-  yes|no)
-    { $as_echo "$as_me:$LINENO: WARNING: --with-ctdb called without argument" >&5
-$as_echo "$as_me: WARNING: --with-ctdb called without argument" >&2;}
-  ;;
-  * )
-    ctdbdir="$withval"
-    ;;
-  esac
-fi
-
 
 #################################################
 # set shared modules (internal lib) directory location
@@ -2676,7 +2661,6 @@ $as_echo "$as_me: WARNING: --with-localedir called without argument - will use d
   ;;
   esac
 fi
-
 
 
 
@@ -11976,7 +11960,7 @@ fi
 if test "x$debug" = "xyes" ; then
 	CFLAGS="${CFLAGS} -g"
 else
-	CFLAGS="-O"
+	CFLAGS="${CFLAGS} -O"
 fi
 
 CFLAGS="${CFLAGS} -D_SAMBA_BUILD_=3"
@@ -24368,10 +24352,226 @@ fi
 done
 
 
+for ac_header in netinet/in_systm.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
+$as_echo_n "checking $ac_header usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
+$as_echo_n "checking $ac_header presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+
+fi
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+
+for ac_header in netinet/ip.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETINET_IN_SYSTM_H
+#include <netinet/in_systm.h>
+#endif
+
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  eval "$as_ac_Header=yes"
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	eval "$as_ac_Header=no"
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
 
 
 
-for ac_header in netinet/ip.h netinet/tcp.h netinet/in_systm.h netinet/in_ip.h
+for ac_header in netinet/tcp.h netinet/in_ip.h
 do
 as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -28648,6 +28848,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <netinet/in.h>
 
 int
 main ()
@@ -44244,7 +44445,8 @@ fi
 
 #################################################
 # Check whether struct stat has timestamps with sub-second resolution.
-# At least IRIX and Solaris have these.
+# At least IRIX and Solaris have these.  FREEBSD does as well,
+# but with different members
 #
 # We check that
 #	all of st_mtim, st_atim and st_ctim exist
@@ -44253,6 +44455,103 @@ fi
 # There is some conflicting standards weirdness about whether we should use
 # "struct timespec" or "timespec_t". Linux doesn't have timespec_t, so we
 # prefer struct timespec.
+{ $as_echo "$as_me:$LINENO: checking whether struct stat has timespec timestamps" >&5
+$as_echo_n "checking whether struct stat has timespec timestamps... " >&6; }
+if test "${samba_cv_stat_timespec_hires+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+      cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+	  struct timespec t;
+	  struct stat s = {0};
+	  t = s.st_mtimespec;
+	  t = s.st_ctimespec;
+	  t = s.st_atimespec;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_timespec_hires=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_timespec_hires=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_stat_timespec_hires" >&5
+$as_echo "$samba_cv_stat_timespec_hires" >&6; }
+
+if test x"$samba_cv_stat_timespec_hires" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_MTIMESPEC 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_ATIMESPEC 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_CTIMESPEC 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_HIRES_TIMESTAMPS 1
+_ACEOF
+
+fi
+
+
 
 { $as_echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps" >&5
 $as_echo_n "checking whether struct stat has sub-second timestamps... " >&6; }
@@ -44353,8 +44652,8 @@ _ACEOF
 
 fi
 
-{ $as_echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps without struct timespec" >&5
-$as_echo_n "checking whether struct stat has sub-second timestamps without struct timespec... " >&6; }
+{ $as_echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps without struct timespec suffixed nsec" >&5
+$as_echo_n "checking whether struct stat has sub-second timestamps without struct timespec suffixed nsec... " >&6; }
 if test "${samba_cv_stat_hires_notimespec+set}" = set; then
   $as_echo_n "(cached) " >&6
 else
@@ -44415,12 +44714,12 @@ $as_echo "$ac_try_echo") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  samba_cv_stat_hires=yes
+  samba_cv_stat_hires_notimespec=yes
 else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_cv_stat_hires=no
+	samba_cv_stat_hires_notimespec=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
@@ -44443,6 +44742,204 @@ _ACEOF
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_STAT_ST_CTIMENSEC 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_HIRES_TIMESTAMPS 1
+_ACEOF
+
+fi
+
+{ $as_echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps without struct timespec suffixed _n" >&5
+$as_echo_n "checking whether struct stat has sub-second timestamps without struct timespec suffixed _n... " >&6; }
+if test "${samba_cv_stat_hires_notimespec_n+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+		struct timespec t;
+		struct stat s = {0};
+		t.tv_sec = s.st_mtime;
+		t.tv_nsec = s.st_mtime_n;
+		t.tv_sec = s.st_ctime;
+		t.tv_nsec = s.st_ctime_n;
+		t.tv_sec = s.st_atime;
+		t.tv_nsec = s.st_atime_n;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_hires_notimespec_n=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_hires_notimespec_n=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_stat_hires_notimespec_n" >&5
+$as_echo "$samba_cv_stat_hires_notimespec_n" >&6; }
+
+if test x"$samba_cv_stat_hires_notimespec_n" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_MTIME_N 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_ATIME_N 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_CTIME_N 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_HIRES_TIMESTAMPS 1
+_ACEOF
+
+fi
+
+{ $as_echo "$as_me:$LINENO: checking whether struct stat has sub-second timestamps in st_uXtime" >&5
+$as_echo_n "checking whether struct stat has sub-second timestamps in st_uXtime... " >&6; }
+if test "${samba_cv_stat_hires_uxtime+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+int
+main ()
+{
+
+		struct timespec t;
+		struct stat s = {0};
+		t.tv_sec = s.st_mtime;
+		t.tv_nsec = s.st_umtime * 1000;
+		t.tv_sec = s.st_ctime;
+		t.tv_nsec = s.st_uctime * 1000;
+		t.tv_sec = s.st_atime;
+		t.tv_nsec = s.st_uatime * 1000;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_stat_hires_uxtime=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_stat_hires_uxtime=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_stat_hires_uxtime" >&5
+$as_echo "$samba_cv_stat_hires_uxtime" >&6; }
+
+if test x"$samba_cv_stat_hires_uxtime" = x"yes" ; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_UMTIME 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_UATIME 1
+_ACEOF
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STAT_ST_UCTIME 1
 _ACEOF
 
 
@@ -44514,7 +45011,7 @@ else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_cv_stat_birthtimespec=no
+	samba_cv_stat_st_birthtimespec=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
@@ -44593,7 +45090,7 @@ else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_cv_stat_birthtimensec=no
+	samba_cv_stat_st_birthtimensec=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
@@ -44672,7 +45169,7 @@ else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	samba_cv_stat_birthtime=no
+	samba_cv_stat_st_birthtime=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
@@ -49871,7 +50368,7 @@ _ACEOF
 		*linux*)
 			LIB_PATH_VAR=LD_LIBRARY_PATH
 		;;
-		*netbsd*)
+		*bsd*)
 			LIB_PATH_VAR=LD_LIBRARY_PATH
 		;;
 		*solaris*)
@@ -72211,6 +72708,128 @@ _ACEOF
 
 fi
 
+# Some systems use f_flag in struct statvfs while others use f_flags
+{ $as_echo "$as_me:$LINENO: checking that statvfs.statvfs_f_flag works" >&5
+$as_echo_n "checking that statvfs.statvfs_f_flag works... " >&6; }
+if test "${samba_cv_statvfs_f_flag+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sys/types.h>
+#include <sys/statvfs.h>
+int
+main ()
+{
+struct statvfs buf; buf.f_flag = 0
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_statvfs_f_flag=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_statvfs_f_flag=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_statvfs_f_flag" >&5
+$as_echo "$samba_cv_statvfs_f_flag" >&6; }
+if test x"$samba_cv_statvfs_f_flag" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STATVFS_F_FLAG 1
+_ACEOF
+
+fi
+
+{ $as_echo "$as_me:$LINENO: checking that statvfs.statvfs_f_flags works" >&5
+$as_echo_n "checking that statvfs.statvfs_f_flags works... " >&6; }
+if test "${samba_cv_statvfs_f_flags+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sys/types.h>
+#include <sys/statvfs.h>
+int
+main ()
+{
+struct statvfs buf; buf.f_flags = 0
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_statvfs_f_flags=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_statvfs_f_flags=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_statvfs_f_flags" >&5
+$as_echo "$samba_cv_statvfs_f_flags" >&6; }
+if test x"$samba_cv_statvfs_f_flags" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STATVFS_F_FLAGS 1
+_ACEOF
+
+fi
+
+
 if test $space = no; then
   # DEC Alpha running OSF/1
   { $as_echo "$as_me:$LINENO: checking for 3-argument statfs function (DEC OSF/1)" >&5
@@ -72680,27 +73299,608 @@ $as_echo "$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT" >&6; }
 #################################################
 # check for cluster extensions
 
-{ $as_echo "$as_me:$LINENO: checking whether to include cluster support" >&5
-$as_echo_n "checking whether to include cluster support... " >&6; }
+CTDB_CFLAGS=""
+
+
+# Check whether --with-ctdb was given.
+if test "${with_ctdb+set}" = set; then
+  withval=$with_ctdb;  case "$withval" in
+  yes|no)
+    { $as_echo "$as_me:$LINENO: WARNING: --with-ctdb called without argument" >&5
+$as_echo "$as_me: WARNING: --with-ctdb called without argument" >&2;}
+    ;;
+  *)
+    CTDB_CPPFLAGS="-I$withval/include"
+    ;;
+  esac
+fi
+
+
+SAVED_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $CTDB_CPPFLAGS"
+ctdb_broken="missing or broken headers"
+
+
+
+for ac_header in ctdb.h ctdb_private.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#define private #error __USED_RESERVED_WORD_private__
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+
+
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  eval "$as_ac_Header=yes"
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	eval "$as_ac_Header=no"
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+
+
+ { $as_echo "$as_me:$LINENO: checking for CTDB_CONTROL_TRANS2_COMMIT_RETRY declaration" >&5
+$as_echo_n "checking for CTDB_CONTROL_TRANS2_COMMIT_RETRY declaration... " >&6; }
+if test "${ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+int
+main ()
+{
+int i = (int)CTDB_CONTROL_TRANS2_COMMIT_RETRY
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" >&5
+$as_echo "$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" >&6; }
+ if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_CTDB_CONTROL_TRANS2_COMMIT_RETRY_DECL 1
+_ACEOF
+
+ fi
+
+if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" = x"yes"; then
+	ctdb_broken=no
+else
+	ctdb_broken="missing transaction support"
+fi
+
+# in ctdb 1.0.57 ctdb_control_tcp was temparary renamed to ctdb_tcp_client
+{ $as_echo "$as_me:$LINENO: checking for struct ctdb_tcp_client" >&5
+$as_echo_n "checking for struct ctdb_tcp_client... " >&6; }
+if test "${ac_cv_type_struct_ctdb_tcp_client+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_type_struct_ctdb_tcp_client=no
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof (struct ctdb_tcp_client))
+       return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof ((struct ctdb_tcp_client)))
+	  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  :
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_struct_ctdb_tcp_client=yes
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_type_struct_ctdb_tcp_client" >&5
+$as_echo "$ac_cv_type_struct_ctdb_tcp_client" >&6; }
+if test "x$ac_cv_type_struct_ctdb_tcp_client" = x""yes; then
+
+
+cat >>confdefs.h <<\_ACEOF
+#define ctdb_control_tcp ctdb_tcp_client
+_ACEOF
+
+
+fi
+
+
+{ $as_echo "$as_me:$LINENO: checking for struct ctdb_control_tcp" >&5
+$as_echo_n "checking for struct ctdb_control_tcp... " >&6; }
+if test "${ac_cv_type_struct_ctdb_control_tcp+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_type_struct_ctdb_control_tcp=no
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof (struct ctdb_control_tcp))
+       return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof ((struct ctdb_control_tcp)))
+	  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  :
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_struct_ctdb_control_tcp=yes
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_type_struct_ctdb_control_tcp" >&5
+$as_echo "$ac_cv_type_struct_ctdb_control_tcp" >&6; }
+if test "x$ac_cv_type_struct_ctdb_control_tcp" = x""yes; then
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STRUCT_CTDB_CONTROL_TCP 1
+_ACEOF
+
+
+else
+
+	ctdb_broken="missing struct ctdb_control_tcp"
+
+fi
+
+
+{ $as_echo "$as_me:$LINENO: checking for struct ctdb_control_tcp_addr" >&5
+$as_echo_n "checking for struct ctdb_control_tcp_addr... " >&6; }
+if test "${ac_cv_type_struct_ctdb_control_tcp_addr+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_type_struct_ctdb_control_tcp_addr=no
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof (struct ctdb_control_tcp_addr))
+       return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include "confdefs.h"
+#define NO_CONFIG_H
+#include "replace.h"
+#include "system/wait.h"
+#include "system/network.h"
+#include <talloc.h>
+#include <tdb.h>
+#include <ctdb.h>
+#include <ctdb_private.h>
+
+
+int
+main ()
+{
+if (sizeof ((struct ctdb_control_tcp_addr)))
+	  return 0;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  :
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_type_struct_ctdb_control_tcp_addr=yes
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_type_struct_ctdb_control_tcp_addr" >&5
+$as_echo "$ac_cv_type_struct_ctdb_control_tcp_addr" >&6; }
+if test "x$ac_cv_type_struct_ctdb_control_tcp_addr" = x""yes; then
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR 1
+_ACEOF
+
+
+fi
+
+CPPFLAGS="$SAVED_CPPFLAGS"
+
+{ $as_echo "$as_me:$LINENO: checking cluster support" >&5
+$as_echo_n "checking cluster support... " >&6; }
 
 # Check whether --with-cluster-support was given.
 if test "${with_cluster_support+set}" = set; then
   withval=$with_cluster_support;
 fi
 
-if test "x$with_cluster_support" = "xyes"; then
+
+if test x"$with_cluster_support" = x ; then
+	with_cluster_support="auto"
+fi
+
+if test x"$ac_cv_header_ctdb_private_h" != x"yes"; then
+	if test "x$with_cluster_support" = "xyes"; then
+		{ { $as_echo "$as_me:$LINENO: error: \"ctdb_private.h is required for cluster support\"" >&5
+$as_echo "$as_me: error: \"ctdb_private.h is required for cluster support\"" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+	with_cluster_support=no
+fi
+
+if test x"$ctdb_broken" != x"no"; then
+	if test "x$with_cluster_support" = "xyes"; then
+		{ { $as_echo "$as_me:$LINENO: error: \"cluster support: $ctdb_broken\"" >&5
+$as_echo "$as_me: error: \"cluster support: $ctdb_broken\"" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+	with_cluster_support=no
+fi
+
+if test "x$with_cluster_support" != "xno"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define CLUSTER_SUPPORT 1
 _ACEOF
 
+    SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${CTDB_CPPFLAGS}"
     { $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 else
     { $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 fi
-
 
 #################################################
 # check for ACL support
@@ -76661,7 +77861,7 @@ _ACEOF
 fi
 
     if test x"$ac_cv_func_DNSServiceRegister" != x"yes" -a \
-            x"$ac_cv_lib_ext_DNSServiceRegister" != x"yes"; then
+            x"$ac_cv_lib_ext_dns_sd_DNSServiceRegister" != x"yes"; then
 	have_dnssd_support=no
     fi
 

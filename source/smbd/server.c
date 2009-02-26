@@ -299,7 +299,7 @@ static void remove_child_pid(pid_t pid, bool unclean_shutdown)
 		/* a child terminated uncleanly so tickle all processes to see 
 		   if they can grab any of the pending locks
 		*/
-		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", pid));
+		DEBUG(3,(__location__ " Unclean shutdown of pid %u\n", (unsigned int)pid));
 		messaging_send_buf(smbd_messaging_context(), procid_self(), 
 				   MSG_SMB_BRL_VALIDATE, NULL, 0);
 		message_send_all(smbd_messaging_context(), 
@@ -1420,8 +1420,15 @@ extern void build_options(bool screen);
 	}
 
 	if (*lp_rootdir()) {
-		if (sys_chroot(lp_rootdir()) == 0)
-			DEBUG(2,("Changed root to %s\n", lp_rootdir()));
+		if (sys_chroot(lp_rootdir()) != 0) {
+			DEBUG(0,("Failed to change root to %s\n", lp_rootdir()));
+			exit(1);
+		}
+		if (chdir("/") == -1) {
+			DEBUG(0,("Failed to chdir to / on chroot to %s\n", lp_rootdir()));
+			exit(1);
+		}
+		DEBUG(0,("Changed root to %s\n", lp_rootdir()));
 	}
 
 	/* Setup oplocks */

@@ -1,3 +1,9 @@
+samba (2:3.3.0-5) UNRELEASED; urgency=low
+
+  * Fix slave links for manual pages in samba-common. Closes: #517204.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Fri, 27 Feb 2009 17:22:10 +0100
+
 samba (2:3.3.0-4) unstable; urgency=low
 
   [ Steve Langasek ]

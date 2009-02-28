@@ -1,0 +1,28 @@
+Goal: Account locking when LDAP backend is used.
+
+Fixes: #514151
+
+Status wrt upstream: Fixed in 3.2.6
+
+Author: Jeremy Allison <jra@samba.org>
+
+Note: This patch was propused by Jeremy Allison in the upstream bug report
+      (https://bugzilla.samba.org/show_bug.cgi?id=5825#c8). This only line
+      if fixed in 3.2.6 and looks like it solves the problem, even when #5825
+      (upstream report) is still pending.
+
+Index: samba-3.2.5/source/passdb/pdb_interface.c
+===================================================================
+--- samba-3.2.5.orig/source/passdb/pdb_interface.c	2009-02-09 07:46:52.000000000 -0200
++++ samba-3.2.5/source/passdb/pdb_interface.c	2009-02-09 07:47:16.000000000 -0200
+@@ -1150,7 +1150,9 @@
+ 
+ static NTSTATUS pdb_default_update_login_attempts (struct pdb_methods *methods, struct samu *newpwd, bool success)
+ {
+-	return NT_STATUS_NOT_IMPLEMENTED;
++	/* Only the pdb_nds backend implements this, by
++	 * default just return ok. */
++	return NT_STATUS_OK;
+ }
+ 
+ static NTSTATUS pdb_default_get_account_policy(struct pdb_methods *methods, int policy_index, uint32 *value)

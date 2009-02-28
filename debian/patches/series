@@ -23,3 +23,4 @@ documentation-links-debian.patch
 smbd-prevent-access-to-root-filesystem-when-connect.patch
 bug_500129_upstream_5953.patch
 bug_509101_upstream_5904.patch
+account_lock_LDAP.patch

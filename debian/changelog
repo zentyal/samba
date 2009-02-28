@@ -1,8 +1,16 @@
-samba (2:3.3.0-5) UNRELEASED; urgency=low
+samba (2:3.3.1-1) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
+  * New upstream release. Closes: #516981
+  * Fixed various spelling errors/typos in manpages
+    Closes: #516047
+  * Fix renaming/deleting of files using Windows clients.
+    Closes: #516160
+
+  [ Jelmer Vernooij ]
   * Fix slave links for manual pages in samba-common. Closes: #517204.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Fri, 27 Feb 2009 17:22:10 +0100
+ -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
 
 samba (2:3.3.0-4) unstable; urgency=low
 

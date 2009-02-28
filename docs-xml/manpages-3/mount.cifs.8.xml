@@ -43,10 +43,13 @@ by the popular Open Source server Samba.
 	</para>
 
 	<para>
-	The mount.cifs utility attaches the UNC name (exported network resource) to
-	the local directory <emphasis>mount-point</emphasis>. It is possible to set the mode for mount.cifs to 
-setuid root to allow non-root users to mount shares to directories for which they
-have write permission.
+	The mount.cifs utility attaches the UNC name (exported network resource)
+	specified as <emphasis>service</emphasis> (using //server/share syntax,
+	where "server" is the server name or IP address and "share" is the name
+	of the share) to the local directory <emphasis>mount-point</emphasis>.
+	It is possible to set the mode for mount.cifs to setuid root to allow
+	non-root users to mount shares to directories for which they
+	have write permission.
 	</para>
 
 	<para>
@@ -137,7 +140,7 @@ credentials file properly.
                 same domain (e.g. running winbind or nss_ldap) and
                 the server supports the Unix Extensions then the uid
                 and gid can be retrieved from the server (and uid
-                and gid would not have to be specifed on the mount. 
+                and gid would not have to be specified on the mount.
                 For servers which do not support the CIFS Unix
                 extensions, the default uid (and gid) returned on lookup 
                 of existing files will be the uid (gid) of the person
@@ -369,9 +372,9 @@ port 445 is tried and if no response then port 139 is tried.
                 <term>noacl</term>
                 <listitem><para>Do not allow POSIX ACL operations even if server would support them.</para><para>
 		The CIFS client can get and set POSIX ACLs (getfacl, setfacl) to Samba servers
-		version 3.10 and later.  Setting POSIX ACLs requires enabling both XATTR and
+		version 3.0.10 and later.  Setting POSIX ACLs requires enabling both XATTR and
 		then POSIX support in the CIFS configuration options when building the cifs
-		module.  POSIX ACL support can be disabled on a per mount basic by specifying
+		module.  POSIX ACL support can be disabled on a per mount basis by specifying
 		"noacl" on mount.</para>
 		</listitem>
 	</varlistentry>

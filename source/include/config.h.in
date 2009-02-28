@@ -304,6 +304,15 @@
 /* Define to 1 if you have the `crypt16' function. */
 #undef HAVE_CRYPT16
 
+/* Whether CTDB_CONTROL_TRANS2_COMMIT_RETRY() is available */
+#undef HAVE_CTDB_CONTROL_TRANS2_COMMIT_RETRY_DECL
+
+/* Define to 1 if you have the <ctdb.h> header file. */
+#undef HAVE_CTDB_H
+
+/* Define to 1 if you have the <ctdb_private.h> header file. */
+#undef HAVE_CTDB_PRIVATE_H
+
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
 
@@ -1710,7 +1719,13 @@
 /* Whether stat64() is available */
 #undef HAVE_STAT64
 
-/* whether struct stat has sub-second timestamps without struct timespec */
+/* Whether statvfs.f_flag exists */
+#undef HAVE_STATVFS_F_FLAG
+
+/* Whether statvfs.f_flags exists */
+#undef HAVE_STATVFS_F_FLAGS
+
+/* whether struct stat has sub-second timestamps in st_uXtime */
 #undef HAVE_STAT_HIRES_TIMESTAMPS
 
 /* whether struct stat contains st_atim */
@@ -1718,6 +1733,12 @@
 
 /* whether struct stat contains st_atimensec */
 #undef HAVE_STAT_ST_ATIMENSEC
+
+/* whether struct stat contains st_atimespec */
+#undef HAVE_STAT_ST_ATIMESPEC
+
+/* whether struct stat contains st_atime_n */
+#undef HAVE_STAT_ST_ATIME_N
 
 /* whether struct stat contains st_birthtime */
 #undef HAVE_STAT_ST_BIRTHTIME
@@ -1740,6 +1761,12 @@
 /* whether struct stat contains st_ctimensec */
 #undef HAVE_STAT_ST_CTIMENSEC
 
+/* whether struct stat contains st_ctimespec */
+#undef HAVE_STAT_ST_CTIMESPEC
+
+/* whether struct stat contains st_ctime_n */
+#undef HAVE_STAT_ST_CTIME_N
+
 /* Whether the stat struct has a st_flags member */
 #undef HAVE_STAT_ST_FLAGS
 
@@ -1748,6 +1775,21 @@
 
 /* whether struct stat contains st_mtimensec */
 #undef HAVE_STAT_ST_MTIMENSEC
+
+/* whether struct stat contains st_mtimepec */
+#undef HAVE_STAT_ST_MTIMESPEC
+
+/* whether struct stat contains st_mtime_n */
+#undef HAVE_STAT_ST_MTIME_N
+
+/* whether struct stat contains st_uatime */
+#undef HAVE_STAT_ST_UATIME
+
+/* whether struct stat contains st_uctime */
+#undef HAVE_STAT_ST_UCTIME
+
+/* whether struct stat contains st_umtime */
+#undef HAVE_STAT_ST_UMTIME
 
 /* Define to 1 if you have the <stdarg.h> header file. */
 #undef HAVE_STDARG_H
@@ -1832,6 +1874,12 @@
 
 /* Define to 1 if the system has the type `struct addrinfo'. */
 #undef HAVE_STRUCT_ADDRINFO
+
+/* ctdb ipv4 support */
+#undef HAVE_STRUCT_CTDB_CONTROL_TCP
+
+/* ctdb ipv6 support */
+#undef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
 
 /* Whether the 'DIR64' abstract data type is available */
 #undef HAVE_STRUCT_DIR64
@@ -2887,6 +2935,9 @@
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
+
+/* ctdb ipv4 support */
+#undef ctdb_control_tcp
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t

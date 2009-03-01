@@ -12,6 +12,9 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * Add Vcs-{Browser,Svn} fields to debian/control.
+  * When populating the sambashare group, it's not an error if the user
+    simply doesn't exist; test for this case and let the install continue
+    instead of aborting.  LP: #206036.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
 

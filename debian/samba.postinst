@@ -6,7 +6,8 @@
 
 case "$1" in
 	configure)
-		update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10
+		update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
+			--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
 		# continue below
 	;;
 

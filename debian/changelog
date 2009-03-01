@@ -10,6 +10,9 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Fix slave links for manual pages in samba-common. Closes: #517204.
 
+  [ Steve Langasek ]
+  * Add Vcs-{Browser,Svn} fields to debian/control.
+
  -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
 
 samba (2:3.3.0-4) unstable; urgency=low

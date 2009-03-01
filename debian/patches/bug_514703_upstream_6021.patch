@@ -1,0 +1,48 @@
+Goal: Correct du recursion in smbclient
+
+Fixes: #514703
+
+Status wrt upstream: Fixed in 3.2.8
+
+Author: Jeremy Allison <jra@samba.org>
+
+Note: This patch was proposed by Jeremy Allison in the upstream bug report
+      (https://bugzilla.samba.org/show_bug.cgi?id=6021).
+
+Index: samba-3.2.5/source/client/client.c
+===================================================================
+--- samba-3.2.5.orig/source/client/client.c
++++ samba-3.2.5/source/client/client.c
+@@ -728,11 +728,11 @@
+ 				return;
+ 			}
+ 			p = strrchr_m(mask2,CLI_DIRSEP_CHAR);
+-			if (!p) {
+-				TALLOC_FREE(dir);
+-				return;
++			if (p) {
++				p[1] = 0;
++			} else {
++				mask2[0] = '\0';
+ 			}
+-			p[1] = 0;
+ 			mask2 = talloc_asprintf_append(mask2,
+ 					"%s%s*",
+ 					f->name,
+Index: samba-3.2.5/source/libsmb/clidfs.c
+===================================================================
+--- samba-3.2.5.orig/source/libsmb/clidfs.c
++++ samba-3.2.5/source/libsmb/clidfs.c
+@@ -306,10 +306,11 @@
+ 	}
+ 
+ 	if (p) {
+-		char *name = clean_name(NULL, p->mount);
++		char *name = clean_name(NULL, mnt);
+ 		if (!name) {
+ 			return;
+ 		}
++		TALLOC_FREE(p->mount);
+ 		p->mount = talloc_strdup(p, name);
+ 		TALLOC_FREE(name);
+ 	}

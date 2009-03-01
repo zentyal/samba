@@ -28,6 +28,7 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
   * debian/patches/fix_wrong_gnu_ld_version_check.patch: new patch to fix
     wrong detection of the GNU ld version, so that the symbol export scripts
     will be properly applied when building.
+  * refresh debian/libsmbclient.symbols for 3.3.1.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
 

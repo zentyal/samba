@@ -9,6 +9,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_fremovexattr@Base 3.0.24
  smbc_fsetxattr@Base 3.0.24
  smbc_fstat@Base 3.0.24
+ smbc_fstatvfs@Base 2:3.3.1
  smbc_ftruncate@Base 2:3.2.0
  smbc_getDebug@Base 2:3.2.0
  smbc_getFunctionAddCachedServer@Base 2:3.2.0
@@ -21,6 +22,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getFunctionCreat@Base 2:3.2.0
  smbc_getFunctionFstat@Base 2:3.2.0
  smbc_getFunctionFstatdir@Base 2:3.2.0
+ smbc_getFunctionFstatVFS@Base 2:3.3.1
  smbc_getFunctionFtruncate@Base 2:3.2.0
  smbc_getFunctionGetCachedServer@Base 2:3.2.0
  smbc_getFunctionGetdents@Base 2:3.2.0
@@ -44,6 +46,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getFunctionRmdir@Base 2:3.2.0
  smbc_getFunctionSetxattr@Base 2:3.2.0
  smbc_getFunctionStat@Base 2:3.2.0
+ smbc_getFunctionStatVFS@Base 2:3.3.1
  smbc_getFunctionTelldir@Base 2:3.2.0
  smbc_getFunctionUnlink@Base 2:3.2.0
  smbc_getFunctionUnlinkPrintJob@Base 2:3.2.0
@@ -101,6 +104,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setFunctionCreat@Base 2:3.2.0
  smbc_setFunctionFstat@Base 2:3.2.0
  smbc_setFunctionFstatdir@Base 2:3.2.0
+ smbc_setFunctionFstatVFS@Base 2:3.3.1
  smbc_setFunctionFtruncate@Base 2:3.2.0
  smbc_setFunctionGetCachedServer@Base 2:3.2.0
  smbc_setFunctionGetdents@Base 2:3.2.0
@@ -124,6 +128,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setFunctionRmdir@Base 2:3.2.0
  smbc_setFunctionSetxattr@Base 2:3.2.0
  smbc_setFunctionStat@Base 2:3.2.0
+ smbc_setFunctionStatVFS@Base 2:3.3.1
  smbc_setFunctionTelldir@Base 2:3.2.0
  smbc_setFunctionUnlink@Base 2:3.2.0
  smbc_setFunctionUnlinkPrintJob@Base 2:3.2.0
@@ -158,5 +163,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getOptionCaseSensitive@Base 2:3.3.0
  smbc_setOptionCaseSensitive@Base 2:3.3.0
  smbc_set_credentials@Base 2:3.3.0
+ smbc_set_credentials_with_fallback@Base 2:3.3.1
+ smbc_statvfs@Base 2:3.3.1
  smbc_urldecode@Base 2:3.3.0
  smbc_urlencode@Base 2:3.3.0

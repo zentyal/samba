@@ -25,10 +25,10 @@ Note: This patch will normally have to be updated by hand after every
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba-3.3.1/source/configure
+Index: samba-deb/source/configure
 ===================================================================
---- samba-3.3.1.orig/source/configure
-+++ samba-3.3.1/source/configure
+--- samba-deb.orig/source/configure
++++ samba-deb/source/configure
 @@ -1,11 +1,11 @@
  #! /bin/sh
  # Guess values for system-dependent variables and create Makefiles.
@@ -11242,15 +11242,16 @@ Index: samba-3.3.1/source/configure
          if test -n "$ac_cv_gnu_ld_date"; then
   	if test "$ac_cv_gnu_ld_date" -lt 20030217; then
   		ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
-@@ -12589,21 +12002,21 @@
+@@ -12589,25 +12002,25 @@
  		ac_cv_gnu_ld_version_script=yes
  	fi
          else
 -           { $as_echo "$as_me:$LINENO: checking GNU ld release version" >&5
 -$as_echo_n "checking GNU ld release version... " >&6; }
+-                      ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
 +           { echo "$as_me:$LINENO: checking GNU ld release version" >&5
 +echo $ECHO_N "checking GNU ld release version... $ECHO_C" >&6; }
-                       ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
++                      ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*[^0-9\.]\+\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
             ac_cv_gnu_ld_vernr_major=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 1`
             ac_cv_gnu_ld_vernr_minor=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 2`
 -                      { $as_echo "$as_me:$LINENO: result: ${ac_cv_gnu_ld_vernr}" >&5
@@ -11276,6 +11277,11 @@ Index: samba-3.3.1/source/configure
             if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
               ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
             fi
+-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
++           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major" = 2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+              ac_cv_gnu_ld_version_script=yes
+            fi
+         fi
 @@ -12616,16 +12029,16 @@
  
  
@@ -70194,10 +70200,10 @@ Index: samba-3.3.1/source/configure
 +	{ echo "$as_me:$LINENO: result:       \$ eval \\`dmalloc samba\\`." >&5
 +echo "${ECHO_T}      \$ eval \\`dmalloc samba\\`." >&6; }
  fi
-Index: samba-3.3.1/source/include/config.h.in
+Index: samba-deb/source/include/config.h.in
 ===================================================================
---- samba-3.3.1.orig/source/include/config.h.in
-+++ samba-3.3.1/source/include/config.h.in
+--- samba-deb.orig/source/include/config.h.in
++++ samba-deb/source/include/config.h.in
 @@ -69,6 +69,9 @@
  /* Whether to use fully FHS-compatible paths */
  #undef FHS_COMPATIBLE

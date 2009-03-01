@@ -1,0 +1,30 @@
+Goal: Fix bugs in the detection of the GNU ld version, which results in
+a failure to use linker scripts to limit the set of symbols exported by
+our shared libraries.
+
+Author: Steve Langasek <vorlon@debian.org>
+
+Upstream status: submitted as bugzilla bug #6147
+
+Index: samba-deb/source/configure.in
+===================================================================
+--- samba-deb.orig/source/configure.in
++++ samba-deb/source/configure.in
+@@ -250,7 +250,7 @@
+         else
+            AC_MSG_CHECKING(GNU ld release version)
+            changequote(,)dnl
+-           ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
++           ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*[^0-9\.]\+\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
+            ac_cv_gnu_ld_vernr_major=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 1`
+            ac_cv_gnu_ld_vernr_minor=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 2`
+            changequote([,])dnl
+@@ -262,7 +262,7 @@
+            if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
+              ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
+            fi
+-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
++           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major" = 2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+              ac_cv_gnu_ld_version_script=yes
+            fi
+         fi

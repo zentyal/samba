@@ -178,6 +178,8 @@ install: build
 	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
 	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
 	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
+	mkdir -p $(DESTDIR)/usr/share/pam-configs
+	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 
 ifeq ($(mount_cifs),yes)
 	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs

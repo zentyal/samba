@@ -132,7 +132,8 @@ Package: libpam-smbpass
 Section: admin
 Priority: extra
 Architecture: any
-Depends: ${shlibs:Depends}, samba-common (= ${binary:Version}), ${misc:Depends}
+Depends: ${shlibs:Depends}, samba-common (= ${binary:Version}), ${misc:Depends},
+	 libpam-runtime (>= 1.0.1-2ubuntu1)
 Suggests: samba
 Description: pluggable authentication module for Samba
  This is a module for PAM that enables a system administrator to migrate

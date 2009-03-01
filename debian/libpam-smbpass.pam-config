@@ -1,0 +1,14 @@
+Name: SMB password synchronization
+Default: yes
+Priority: 0
+Conflicts: smbpasswd-auth
+Auth-Type: Additional
+Auth-Initial:
+	optional			pam_smbpass.so migrate
+Auth-Final:
+	optional			pam_smbpass.so migrate
+Password-Type: Additional
+Password-Initial:
+	optional			pam_smbpass.so nullok use_authtok use_first_pass
+Password-Final:
+	optional			pam_smbpass.so nullok use_authtok use_first_pass

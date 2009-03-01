@@ -1,1 +1,2 @@
 lib/security/pam_smbpass.so
+usr/share/pam-configs/smbpasswd-migrate

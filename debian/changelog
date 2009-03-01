@@ -15,6 +15,12 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
   * When populating the sambashare group, it's not an error if the user
     simply doesn't exist; test for this case and let the install continue
     instead of aborting.  LP: #206036.
+  * debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+    debian/libpam-smbpass.files, debian/rules: provide a config block
+    for the new PAM framework, allowing this PAM module to
+    auto-configure itself
+  * debian/control: make libpam-smbpass depend on
+    libpam-runtime (>= 1.0.1-2ubuntu1) for the above
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
 

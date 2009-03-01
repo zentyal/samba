@@ -2,10 +2,12 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. Closes: #516981
-  * Fixed various spelling errors/typos in manpages
-    Closes: #516047
-  * Fix renaming/deleting of files using Windows clients.
-    Closes: #516160
+    Upstream fixes in that release:
+    - Fixed various spelling errors/typos in manpages
+      Closes: #516047
+    - Fix renaming/deleting of files using Windows clients.
+      Closes: #516160
+    - Fix syntax error in mount.cifs(8). Closes: #454799
 
   [ Jelmer Vernooij ]
   * Fix slave links for manual pages in samba-common. Closes: #517204.

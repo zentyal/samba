@@ -1,4 +1,4 @@
-samba (2:3.3.1-1) UNRELEASED; urgency=low
+samba (2:3.3.1-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. Closes: #516981
@@ -30,7 +30,7 @@ samba (2:3.3.1-1) UNRELEASED; urgency=low
     will be properly applied when building.
   * refresh debian/libsmbclient.symbols for 3.3.1.
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 25 Feb 2009 17:34:26 +0100
+ -- Steve Langasek <vorlon@debian.org>  Mon, 02 Mar 2009 00:30:35 -0800
 
 samba (2:3.3.0-4) unstable; urgency=low
 

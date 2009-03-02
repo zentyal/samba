@@ -5,3 +5,5 @@ set -e
 if [ "$1" = "remove" ]; then
 	pam-auth-update --package --remove smbpasswd-migrate
 fi
+
+#DEBHELPER#

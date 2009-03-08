@@ -1,9 +1,9 @@
-samba (2:3.2.5-4lenny1) UNRELEASED; urgency=low
+samba (2:3.2.5-4lenny1) stable-proposed-updates; urgency=low
 
   * Fix account locking with an LDAP backend. Closes: #514151
   * Correct usage of 'du' command in smbclient. Closes: #514703
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 28 Feb 2009 19:42:05 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 05 Mar 2009 22:05:41 +0100
 
 samba (2:3.2.5-4) unstable; urgency=low
 

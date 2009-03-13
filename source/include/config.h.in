@@ -3224,6 +3224,9 @@
 /* Whether to build vfs_prealloc as shared module */
 #undef vfs_prealloc_init
 
+/* Whether to build vfs_preopen as shared module */
+#undef vfs_preopen_init
+
 /* Whether to build vfs_readahead as shared module */
 #undef vfs_readahead_init
 

@@ -59,6 +59,15 @@ static NTSTATUS check_open_rights(struct connection_struct *conn,
 
 	*access_granted = 0;
 
+	if (conn->server_info->utok.uid == 0 || conn->admin_user) {
+		/* I'm sorry sir, I didn't know you were root... */
+		*access_granted = access_mask;
+		if (access_mask & SEC_FLAG_MAXIMUM_ALLOWED) {
+			*access_granted |= FILE_GENERIC_ALL;
+		}
+		return NT_STATUS_OK;
+	}
+
 	status = SMB_VFS_GET_NT_ACL(conn, fname,
 			(OWNER_SECURITY_INFORMATION |
 			GROUP_SECURITY_INFORMATION |
@@ -2382,6 +2391,14 @@ NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
+	/* We need to support SeSecurityPrivilege for this. */
+	if (access_mask & SEC_RIGHT_SYSTEM_SECURITY) {
+		DEBUG(10, ("open_directory: open on %s "
+			"failed - SEC_RIGHT_SYSTEM_SECURITY denied.\n",
+			fname));
+		return NT_STATUS_PRIVILEGE_NOT_HELD;
+	}
+
 	switch( create_disposition ) {
 		case FILE_OPEN:
 
@@ -2462,6 +2479,25 @@ NTSTATUS open_directory(connection_struct *conn,
 					fname,
 					access_mask,
 					&access_granted);
+
+		/* Were we trying to do a directory open
+		 * for delete and didn't get DELETE
+		 * access (only) ? Check if the
+		 * directory allows DELETE_CHILD.
+		 * See here:
+		 * http://blogs.msdn.com/oldnewthing/archive/2004/06/04/148426.aspx
+		 * for details. */
+
+		if ((NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) &&
+				(access_mask & DELETE_ACCESS) &&
+				(access_granted == DELETE_ACCESS) &&
+				can_delete_file_in_directory(conn, fname))) {
+			DEBUG(10,("open_directory: overrode ACCESS_DENIED "
+				"on directory %s\n",
+				fname ));
+			status = NT_STATUS_OK;
+		}
+
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(10, ("open_directory: check_open_rights on "
 				"file  %s failed with %s\n",
@@ -2893,6 +2929,20 @@ NTSTATUS create_file_unixpath(connection_struct *conn,
 	if ((access_mask & SEC_RIGHT_SYSTEM_SECURITY) &&
 	    !user_has_privileges(current_user.nt_user_token,
 				 &se_security)) {
+		status = NT_STATUS_PRIVILEGE_NOT_HELD;
+		goto fail;
+	}
+#else
+	/* We need to support SeSecurityPrivilege for this. */
+	if (access_mask & SEC_RIGHT_SYSTEM_SECURITY) {
+		status = NT_STATUS_PRIVILEGE_NOT_HELD;
+		goto fail;
+	}
+	/* Don't allow a SACL set from an NTtrans create until we
+	 * support SeSecurityPrivilege. */
+	if (!VALID_STAT(sbuf) &&
+			lp_nt_acl_support(SNUM(conn)) &&
+			sd && (sd->sacl != NULL)) {
 		status = NT_STATUS_PRIVILEGE_NOT_HELD;
 		goto fail;
 	}

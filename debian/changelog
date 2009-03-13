@@ -1,10 +1,11 @@
-samba (2:3.3.1-2) UNRELEASED; urgency=low
+samba (2:3.3.2-1) UNRELEASED; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release. Closes: #519626
+  * Re-fix slave links for manual pages in samba-common. Closes: #517204.
 
   [ Steve Langasek ]
   * Add missing debhelper token to libpam-smbpass.prerm.
-
-  [ Christian Perrier ]
-  * Re-fix slave links for manual pages in samba-common. Closes: #517204.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 02 Mar 2009 04:10:13 -0800
 

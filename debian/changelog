@@ -5,6 +5,8 @@ samba (2:3.3.2-1) UNRELEASED; urgency=low
     - mounts with -o guest will now automatically try to connect anonymously.
       Closes: #423971.
     - fix for brokenness when using 'force group'.  Closes: #517760.
+    - fix for saving files on Samba shares using MS Office 2007.
+      LP: #337037.
   * Re-fix slave links for manual pages in samba-common. Closes: #517204.
 
   [ Steve Langasek ]

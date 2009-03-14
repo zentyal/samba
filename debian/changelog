@@ -2,6 +2,9 @@ samba (2:3.3.2-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. Closes: #519626
+    - mounts with -o guest will now automatically try to connect anonymously.
+      Closes: #423971.
+    - fix for brokenness when using 'force group'.  Closes: #517760.
   * Re-fix slave links for manual pages in samba-common. Closes: #517204.
 
   [ Steve Langasek ]

@@ -1,4 +1,4 @@
-samba (2:3.3.2-1) UNRELEASED; urgency=low
+samba (2:3.3.2-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. Closes: #519626
@@ -12,7 +12,7 @@ samba (2:3.3.2-1) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Add missing debhelper token to libpam-smbpass.prerm.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 02 Mar 2009 04:10:13 -0800
+ -- Christian Perrier <bubulle@debian.org>  Sun, 15 Mar 2009 12:16:48 +0100
 
 samba (2:3.3.1-1) unstable; urgency=low
 

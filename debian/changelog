@@ -1,3 +1,10 @@
+samba (2:3.3.2-2) UNRELEASED; urgency=low
+
+  * libcap2-dev is only available on Linux, so make this build-dependency
+    conditional.  Closes: #519911.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 16 Mar 2009 01:16:47 -0700
+
 samba (2:3.3.2-1) unstable; urgency=low
 
   [ Christian Perrier ]

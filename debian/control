@@ -3,7 +3,14 @@ Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Eloy A. Paris <peloy@debian.org>, Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Adam Conrad <adconrad@0c3.net>, Jelmer Vernooij <jelmer@debian.org>
-Build-Depends: debhelper, libpam0g-dev, libreadline5-dev, libcups2-dev | libcupsys2-dev, libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev, libtalloc-dev (>= 1.2.0~git20080616), libcap2-dev, libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], ctdb
+Build-Depends: debhelper, libpam0g-dev, libreadline5-dev,
+	libcups2-dev | libcupsys2-dev,
+	libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev,
+	libtalloc-dev (>= 1.2.0~git20080616),
+	libcap2-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	ctdb
 Build-Conflicts: libfam-dev
 Standards-Version: 3.8.1
 Homepage: http://www.samba.org

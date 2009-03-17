@@ -191,7 +191,7 @@ Description: Samba nameservice integration server
  module for PAM.
 
 Package: samba-dbg
-Section: devel
+Section: debug
 Priority: extra
 Architecture: any
 Depends: samba (= ${binary:Version}), ${misc:Depends}

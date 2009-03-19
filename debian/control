@@ -10,7 +10,7 @@ Build-Depends: debhelper, libpam0g-dev, libreadline5-dev,
 	libtalloc-dev (>= 1.2.0~git20080616),
 	libcap2-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
 	libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
-	ctdb
+	ctdb (>= 1.0.73)
 Build-Conflicts: libfam-dev
 Standards-Version: 3.8.1
 Homepage: http://www.samba.org

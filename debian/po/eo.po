@@ -1,14 +1,14 @@
-# Copyright (C) 2007 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Serge Leblanc <serge.leblanc@wanadoo.fr>, 2007.
+# Copyright 2007, Serge Leblanc <serge.leblanc@wanadoo.fr>.
+# Copyright 2009, Felipe Castro <fefcas@gmail.com>.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-04-04 17:14+0200\n"
-"Last-Translator: Serge Leblanc <serge.leblanc@wanadoo.fr>\n"
+"PO-Revision-Date: 2009-03-11 06:04-0300\n"
+"Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -18,7 +18,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Ŝanĝu la 'smb.conf'-dosieron por uzi la 'WINS'-argordojn el 'DHCP'?"
+msgstr "Ĉu modifi la dosieron smb.conf por uzi la agordojn WINS el DHCP?"
 
 #. Type: boolean
 #. Description
@@ -30,25 +30,24 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Se via komputilo akiras sian 'IP'-adreson de reta 'DHCP'-servilo, tiu 'DHCP'-"
-"servilo povos provizi informojn pri 'WINS'-serviloj (\"NetBIOS nomservilo\") "
-"rete ĉeestantaj. Tio postulas ŝanĝojn en via 'smb.conf'-dosiero por ke la "
-"'WINS'-agordoj provizitaj de 'DHCP'-servilo estu ligitaj en la '/etc/samba/"
-"dhcp.conf'-dosiero."
+"Se via komputilo akiras sian adreson IP de retservilo DHCP, tiu servilo DHCP "
+"povos provizi informojn pri serviloj WINS (\"nomserviloj NetBIOS\") "
+"ĉeestantaj rete. Tio postulas ŝanĝojn en via dosiero smb.conf por ke la "
+"agordoj WINS provizitaj de servilo DHCP estu aŭtomate legitaj el la dosiero /"
+"etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:1001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr ""
-"La 'dhcp3'-klienta pako dovos esti instalita por profiti ĉi tiujn trajtojn."
+msgstr "La pako dhcp3-client devas esti instalita por profiti ĉi tiun trajton."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Configure smb.conf automatically?"
-msgstr "Akomodu mem la 'smb.conf'-dosieron?"
+msgstr "Ĉu aŭtomate akomodi la dosieron smb.conf?"
 
 #. Type: boolean
 #. Description
@@ -61,12 +60,11 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
-"La sekva 'Samba'-agordado petas demandojn koncernantajn la parametrojn de /"
-"etc/samba/smb.conf'-dosiero uzita por agordi la 'Samba'-programojn (nmbd kaj "
-"smbd). Via kutima 'smb.conf'-dosiero enhavas 'include'-linion aŭ komandon "
-"kiu multlinie sterniĝas. Tio povas igi konfuza la memakomodan procezon kaj "
-"postuli de vi mane agordi vian 'smb.conf'-dosieron. Do oni konsilas mane "
-"administri la enhavon de la dosiero."
+"La sekva agordado de Samba traktas aferojn koncernantajn la parametrojn en /"
+"etc/samba/smb.conf, uzata por agordi la programojn de Samba (nmbd kaj smbd). "
+"Via aktuala dosiero smb.conf enhavas linion \"include\" aŭ opcion kiu "
+"sterniĝas plurlinie, kio povus konfuzi la aŭtomatan akomodan procezon kaj "
+"postuli de vi mane agordi vian smb.conf por refunkciigi ĝin."
 
 #. Type: boolean
 #. Description
@@ -76,79 +74,66 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Se vi ne elektas tiun eblon, vi devos mem administri agordajn ŝanĝojn, kaj "
-"vi ne povos periode profiti agordajn plibonigojn."
+"Se vi ne elektas tiun ĉi opcion, vi devos mem administri ĉiujn agordajn "
+"ŝanĝojn, kaj vi ne povos periode profiti agordajn plibonigojn."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
 msgid "Workgroup/Domain Name:"
-msgstr "Laborgrupo/Domajnnomo:"
+msgstr "Laborgrupo/Domajno-Nomo:"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Bonvolu indiki la laborgrupon, kies klientoj devas trovi la servilon. Notu, "
-"tiu parametro ankaŭ kontrolas la uzitan domajnnomon de la parametro "
-"\"security=domain\"."
+"Bonvolu indiki la laborgrupon por tiu ĉi sistemo. Tiu ĉi difino regas kiun "
+"laborgrupon la sistemo aperigos kiam uzata kiel servilon, la implicitan "
+"laborgrupon uzatan dum esplorado per pluraj klientoj, kaj la domajno-nomon "
+"uzatan kun la parametro \"security=domain\"."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
 msgid "Use password encryption?"
-msgstr "Uzu pasvortan ĉifradon?"
+msgstr "Ĉu ĉifri la pasvortojn?"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Ĉiuj novaj 'Windows'-klientoj komunikas per 'SMB'-serviloj uzantaj ĉifritajn "
-"pasvortojn. Se vi volas uzi malĉifrajn pasvortojn vi bezonos ŝanĝi agordon "
-"en via 'Windows'-rikordkampo."
+"Ĉiuj novaj klientoj Windows komunikas kun serviloj SMB/CIFS uzante ĉifritajn "
+"pasvortojn. Se vi volas uzi malĉifritajn pasvortojn vi bezonos ŝanĝi "
+"parametron en via registrejo Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Ege rekomendita tiu eblo estas. Se vi elektas ĝin, kontrolu ĉu vi havas "
-"validan '/etc/samba/smbpasswd'-dosieron, en kiu vi enmetis pasvortojn por "
-"ĉiu uzanto kiu uzas la 'smbpasswd'-ordonon."
+"Ebligi tiun ĉi opcion estas ege rekomendata ĉar pur-tekstaj pasvortoj ne plu "
+"estas subtenataj en produktoj Microsoft Windows. Se vi elektas ĝin, kontrolu "
+"ĉu vi havas validan dosieron /etc/samba/smbpasswd, en kiu vi enmetis "
+"pasvortojn por ĉiu uzanto kiu uzas la komandon smbpasswd."
 
 #. Type: boolean
 #. Description
 #: ../samba.templates:1001
 msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-msgstr "Ĉu krei pasvortan 'samba'-datumbazon, /var/lib/samba/passdb.tdb?"
+msgstr "Ĉu krei pasvortan datumbazon de samba, /var/lib/samba/passdb.tdb?"
 
 #. Type: boolean
 #. Description
@@ -160,11 +145,11 @@ msgid ""
 "automatically, but the passwords must be added manually by running smbpasswd "
 "and be kept up-to-date in the future."
 msgstr ""
-"Por kongrui kun implicita regulo el plimulta 'Windows'-eldono, 'Samba'-"
-"programo devas esti agordita por uzi ĉifrajn pasvortojn. Tio postulas ke "
-"uzant-pasvortoj estu memortenitaj en apartiga dosiero de '/etc/passwd'. Tiu "
-"dosiero povas esti aŭtomate kreita, sed oni devas mane aldoni la pasvortojn "
-"plenigante 'smbpasswd'-programon kaj ĝisdatigante ilin."
+"Por kongrui kun implicita regulo el plejmultaj eldonoj de Windows, Samba "
+"devas esti agordita por uzi ĉifritajn pasvortojn. Tio postulas ke uzant-"
+"pasvortoj estu konservitaj en dosiero aparta de /etc/passwd. Tiu ĉi dosiero "
+"povas esti aŭtomate kreata, sed oni devas mane aldoni la pasvortojn lanĉante "
+"smbpasswd kaj tenante ilin ĝisdataj estonte."
 
 #. Type: boolean
 #. Description
@@ -173,8 +158,8 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"Se vi ne volas nun krei ĝin, vi devos agordi 'Samba'-programon (kaj verŝajne "
-"via klientan maŝinon) por uzi plattekstaj pasvortoj."
+"Se vi ne kreos ĝin, vi devos reakomodi Samba (kaj verŝajne viajn klientajn "
+"maŝinojn) por uzi purtekstajn pasvortojn."
 
 #. Type: boolean
 #. Description
@@ -183,8 +168,8 @@ msgid ""
 "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
 "from the samba-doc package for more details."
 msgstr ""
-"Vidu la '/usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-"html'-dosieron de 'samba-doc'-pako por pliaj informoj."
+"Vidu /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+"html el la pako samba-doc por pliaj informoj."
 
 #. Type: select
 #. Choices
@@ -202,7 +187,7 @@ msgstr "inetd"
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr "Kiel vi volas lanĉi la programon 'Samba'?"
+msgstr "Kiel vi volas lanĉi Samba?"
 
 #. Type: select
 #. Description
@@ -211,40 +196,5 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
-"La 'Samba'-demono 'smbd' povas ruli tiel kutima demono aŭ per la 'inetd'-"
-"programo. Oni konsilas demone lanĉi la 'Samba'-programon."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Multmetodo sinsekvo mastrumanta la pasvortojn ne estas administrita"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Ekde la '3.0.23'-eldono, la 'samba'-programo ne plu traktas la sinsekvan "
-#~ "multan metodon per la parametro \"passdb backend\". Verŝajne via 'smb."
-#~ "conf'-dosiero enhavas tian 'passdb backend'-parametron. La nova 'samba'-"
-#~ "versio ne funkcios ĝis kiam tiu agordo ne estos ŝanĝita."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Movu la '/etc/samba/smbpasswd'-dosieron al '/var/lib/samba/passdb.tdb'?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "'Samba 3.0'-pragramo enigas plian kompletan 'SAM'-datumbazan interfacon, "
-#~ "anstataŭantan la '/etc/samba/smbpasswd'-dosieron."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Bonvolu konfirmi ĉu vi volas anstataŭigi la nunan 'smbpasswd'-dosieron "
-#~ "per memmigrita '/var/lib/samba/passdb.tdb'-dosiero. Neniam elekti ĉi tiun "
-#~ "eblon se vi planas anstataŭe uzi alian 'pdb'-internan interfacon (ekz. "
-#~ "LDAP)."
+"La Samba-demono smbd povas esti lanĉita kiel normala demono aŭ per la "
+"programo inetd. Oni rekomendas lanĉi ĝin kiel demonon."

@@ -1,3 +1,9 @@
+samba (2:3.2.5-4lenny2) UNRELEASED; urgency=low
+
+  * Do not abort rename process on valid rename script. Closes: #519974
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 22 Mar 2009 11:42:53 +0100
+
 samba (2:3.2.5-4lenny1) stable-proposed-updates; urgency=low
 
   * Fix account locking with an LDAP backend. Closes: #514151

@@ -1,0 +1,21 @@
+Goal: do not abort rename process on valid rename script
+
+Fixes: #519974
+
+Status wrt upstream: Fixed in 3.2.6
+
+Author: Guenther Deschner <gd@samba.org>
+
+Index: lenny/source/passdb/pdb_ldap.c
+===================================================================
+--- lenny.orig/source/passdb/pdb_ldap.c
++++ lenny/source/passdb/pdb_ldap.c
+@@ -2010,7 +2010,7 @@
+ 					newname_lower,
+ 					true,
+ 					true);
+-	if (rename_script) {
++	if (!rename_script) {
+ 		return NT_STATUS_NO_MEMORY;
+ 	}
+ 	rename_script = realloc_string_sub2(rename_script,

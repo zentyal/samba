@@ -9,6 +9,8 @@ samba (2:3.3.2-2) UNRELEASED; urgency=low
   * Update debian/copyright for year 2009. Thanks to debian-devel
     for the reminder.
   * Dropping Adam Conrad from Uploaders
+  * Dropping Eloy Paris from Uploaders with special thanks for his tremendous work
+    maintaining the package between 1997 and 2004.
 
   [ Mathieu Parent ]
   * ensure clustering is enabled with --with-cluster-support=yes

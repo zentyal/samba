@@ -1,4 +1,4 @@
-samba (2:3.3.2-2) UNRELEASED; urgency=low
+samba (2:3.3.2-2) unstable; urgency=low
 
   [ Steve Langasek ]
   * libcap2-dev is only available on Linux, so make this build-dependency
@@ -9,8 +9,8 @@ samba (2:3.3.2-2) UNRELEASED; urgency=low
   * Update debian/copyright for year 2009. Thanks to debian-devel
     for the reminder.
   * Dropping Adam Conrad from Uploaders
-  * Dropping Eloy Paris from Uploaders with special thanks for his tremendous work
-    maintaining the package between 1997 and 2004.
+  * Dropping Eloy Paris from Uploaders with special thanks for his tremendous
+    work maintaining the package between 1997 and 2004.
 
   [ Mathieu Parent ]
   * ensure clustering is enabled with --with-cluster-support=yes
@@ -20,7 +20,7 @@ samba (2:3.3.2-2) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Esperanto updated.  Closes: #519237.
 
- -- Mathieu Parent <math.parent@gmail.com>  Fri, 20 Mar 2009 14:40:05 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sun, 29 Mar 2009 09:23:35 +0200
 
 samba (2:3.3.2-1) unstable; urgency=low
 

@@ -11,7 +11,6 @@ undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
 proper-static-lib-linking.patch 
-fix_wrong_gnu_ld_version_check.patch
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch

@@ -34,28 +34,11 @@ struct smbconf_service {
 	char **param_values;
 };
 
-
-/**
- * intialization dispatcher function.
- * takes source string in the form of "backend:path"
- */
-WERROR smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
-		    const char *source);
-
-/**
- * initialization functions for the available modules
- */
-
-WERROR smbconf_init_reg(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
-			const char *path);
-
-WERROR smbconf_init_txt(TALLOC_CTX *mem_ctx,
-			struct smbconf_ctx **conf_ctx,
-			const char *path);
-
 /*
  * the smbconf API functions
  */
+bool smbconf_backend_requires_messaging(struct smbconf_ctx *ctx);
+bool smbconf_is_writeable(struct smbconf_ctx *ctx);
 void smbconf_shutdown(struct smbconf_ctx *ctx);
 bool smbconf_changed(struct smbconf_ctx *ctx, struct smbconf_csn *csn,
 		     const char *service, const char *param);
@@ -110,5 +93,9 @@ WERROR smbconf_set_global_includes(struct smbconf_ctx *ctx,
 				   const char **includes);
 WERROR smbconf_delete_includes(struct smbconf_ctx *ctx, const char *service);
 WERROR smbconf_delete_global_includes(struct smbconf_ctx *ctx);
+
+WERROR smbconf_transaction_start(struct smbconf_ctx *ctx);
+WERROR smbconf_transaction_commit(struct smbconf_ctx *ctx);
+WERROR smbconf_transaction_cancel(struct smbconf_ctx *ctx);
 
 #endif /*  _LIBSMBCONF_H_  */

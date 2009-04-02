@@ -69,6 +69,7 @@ WINBIND_NSS_EXTRA_LIBS=@WINBIND_NSS_EXTRA_LIBS@
 WINBIND_NSS_PTHREAD=@WINBIND_NSS_PTHREAD@
 PAM_WINBIND_EXTRA_LIBS=@PAM_WINBIND_EXTRA_LIBS@
 DNSSD_LIBS=@DNSSD_LIBS@
+AVAHI_LIBS=@AVAHI_LIBS@
 POPT_LIBS=@POPTLIBS@
 LIBTALLOC_LIBS=@LIBTALLOC_LIBS@
 LIBTDB_LIBS=@LIBTDB_LIBS@
@@ -249,6 +250,8 @@ WBCOMMON_OBJ = nsswitch/wb_common.o
 AFS_OBJ = lib/afs.o
 
 AFS_SETTOKEN_OBJ = lib/afs_settoken.o
+
+AVAHI_OBJ = @AVAHI_OBJ@
 
 SERVER_MUTEX_OBJ = lib/server_mutex.o
 
@@ -575,7 +578,7 @@ PASSDB_OBJ = $(PASSDB_GET_SET_OBJ) passdb/passdb.o passdb/pdb_interface.o \
 		passdb/util_unixsids.o passdb/lookup_sid.o \
 		passdb/login_cache.o @PDB_STATIC@ \
 		lib/account_pol.o $(PRIVILEGES_OBJ) \
-		lib/util_nscd.o lib/winbind_util.o
+		lib/util_nscd.o lib/winbind_util.o $(SERVER_MUTEX_OBJ)
 
 DEVEL_HELP_WEIRD_OBJ = modules/weird.o
 CP850_OBJ = modules/CP850.o
@@ -635,6 +638,7 @@ VFS_SYNCOPS_OBJ = modules/vfs_syncops.o
 VFS_ACL_XATTR_OBJ = modules/vfs_acl_xattr.o
 VFS_ACL_TDB_OBJ = modules/vfs_acl_tdb.o
 VFS_SMB_TRAFFIC_ANALYZER_OBJ = modules/vfs_smb_traffic_analyzer.o
+VFS_DIRSORT_OBJ = modules/vfs_dirsort.o
 
 PLAINTEXT_AUTH_OBJ = auth/pampass.o auth/pass_check.o
 
@@ -670,7 +674,7 @@ SMBD_OBJ_SRV = smbd/files.o smbd/chgpasswd.o smbd/connection.o \
 	       smbd/dosmode.o smbd/filename.o smbd/open.o smbd/close.o \
 	       smbd/blocking.o smbd/sec_ctx.o smbd/srvstr.o \
 	       smbd/vfs.o smbd/statcache.o smbd/seal.o \
-               smbd/posix_acls.o lib/sysacls.o $(SERVER_MUTEX_OBJ) \
+               smbd/posix_acls.o lib/sysacls.o \
 	       smbd/process.o smbd/service.o smbd/error.o \
 	       printing/printfsp.o lib/sysquotas.o lib/sysquotas_linux.o \
 	       lib/sysquotas_xfs.o lib/sysquotas_4A.o \
@@ -687,7 +691,7 @@ SMBD_OBJ_BASE = $(PARAM_WITHOUT_REG_OBJ) $(SMBD_OBJ_SRV) $(LIBSMB_OBJ) \
 		$(LOCKING_OBJ) $(PASSDB_OBJ) $(PRINTING_OBJ) $(PROFILE_OBJ) \
 		$(LIB_OBJ) $(PRINTBACKEND_OBJ) $(OPLOCK_OBJ) \
 		$(NOTIFY_OBJ) $(GROUPDB_OBJ) $(AUTH_OBJ) \
-		$(LIBMSRPC_OBJ) $(LIBMSRPC_GEN_OBJ) \
+		$(LIBMSRPC_OBJ) $(LIBMSRPC_GEN_OBJ) $(AVAHI_OBJ) \
 		$(LIBADS_OBJ) $(KRBCLIENT_OBJ) $(LIBADS_SERVER_OBJ) \
 		$(REG_FULL_OBJ) $(POPT_LIB_OBJ) $(BUILDOPT_OBJ) \
 		$(SMBLDAP_OBJ) $(LDB_OBJ) $(LIBNET_OBJ) @LIBWBCLIENT_STATIC@ \
@@ -788,7 +792,7 @@ RPCCLIENT_OBJ = $(RPCCLIENT_OBJ1) \
 	     $(SMBLDAP_OBJ) $(DCUTIL_OBJ) $(LDB_OBJ) 
 
 PAM_WINBIND_OBJ = nsswitch/pam_winbind.o localedir.o $(WBCOMMON_OBJ) \
-		  $(LIBREPLACE_OBJ) @BUILD_INIPARSER@
+		  $(LIBREPLACE_OBJ) @BUILD_INIPARSER@ @LIBTALLOC_STATIC@
 
 LIBSMBCLIENT_OBJ0 = \
 		    libsmb/libsmb_cache.o \
@@ -881,7 +885,7 @@ NET_OBJ = $(NET_OBJ1) \
 	  $(KRBCLIENT_OBJ) $(LIB_NONSMBD_OBJ) $(LIBADDNS_OBJ0) \
 	  $(LIBMSRPC_OBJ) $(LIBMSRPC_GEN_OBJ) \
 	  $(LIBADS_OBJ) $(LIBADS_SERVER_OBJ) $(POPT_LIB_OBJ) \
-	  $(SMBLDAP_OBJ) $(DCUTIL_OBJ) $(SERVER_MUTEX_OBJ) \
+	  $(SMBLDAP_OBJ) $(DCUTIL_OBJ) \
 	  $(AFS_OBJ) $(AFS_SETTOKEN_OBJ) $(READLINE_OBJ) \
 	  $(LDB_OBJ) $(LIBGPO_OBJ) @BUILD_INIPARSER@ $(DISPLAY_SEC_OBJ) \
 	  $(REG_SMBCONF_OBJ) @LIBNETAPI_STATIC@ $(LIBNET_OBJ) \
@@ -1043,7 +1047,7 @@ WINBINDD_OBJ = \
 		$(LIBADS_OBJ) $(KRBCLIENT_OBJ) $(POPT_LIB_OBJ) \
 		$(DCUTIL_OBJ) $(IDMAP_OBJ) $(NSS_INFO_OBJ) \
 		$(AFS_OBJ) $(AFS_SETTOKEN_OBJ) \
-		$(LIBADS_SERVER_OBJ) $(SERVER_MUTEX_OBJ) $(LDB_OBJ) 
+		$(LIBADS_SERVER_OBJ) $(LDB_OBJ) 
 
 WBINFO_OBJ = nsswitch/wbinfo.o $(LIBSAMBA_OBJ) $(PARAM_OBJ) $(LIB_NONSMBD_OBJ) \
 		$(POPT_LIB_OBJ) $(AFS_SETTOKEN_OBJ) \
@@ -1109,7 +1113,7 @@ NTLM_AUTH_OBJ1 = utils/ntlm_auth.o utils/ntlm_auth_diagnostics.o
 
 NTLM_AUTH_OBJ = ${NTLM_AUTH_OBJ1} $(LIBSAMBA_OBJ) $(POPT_LIB_OBJ) \
 		libsmb/asn1.o libsmb/spnego.o libsmb/clikrb5.o libads/kerberos.o \
-		$(SERVER_MUTEX_OBJ) $(LIBADS_SERVER_OBJ) \
+		$(LIBADS_SERVER_OBJ) \
 		$(PASSDB_OBJ) $(GROUPDB_OBJ) \
 		$(SMBLDAP_OBJ) $(LIBNMB_OBJ) \
 		$(LDB_OBJ) $(WBCOMMON_OBJ) @LIBWBCLIENT_STATIC@ \
@@ -1327,7 +1331,7 @@ bin/smbd@EXEEXT@: $(BINARY_PREREQS) $(SMBD_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARE
 	@echo Linking $@
 	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(LDAP_LIBS) \
 		$(KRB5LIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
-		$(ACL_LIBS) $(PASSDB_LIBS) $(LIBS) $(DNSSD_LIBS) \
+		$(ACL_LIBS) $(PASSDB_LIBS) $(LIBS) $(DNSSD_LIBS) $(AVAHI_LIBS) \
 		$(POPT_LIBS) @SMBD_LIBS@ $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
 		$(WINBIND_LIBS)
 
@@ -1512,7 +1516,7 @@ bin/pdbtest@EXEEXT@: $(BINARY_PREREQS) $(PDBTEST_OBJ) @BUILD_POPT@ @LIBTALLOC_SH
 
 bin/vfstest@EXEEXT@: $(BINARY_PREREQS) $(VFSTEST_OBJ) @BUILD_POPT@ @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
 	@echo Linking $@
-	@$(CC) $(FLAGS) -o $@ $(VFSTEST_OBJ) $(LDFLAGS) $(TERMLDFLAGS) \
+	@$(CC) $(FLAGS) -o $@ $(VFSTEST_OBJ) $(LDFLAGS) $(TERMLDFLAGS) $(AVAHI_LIBS) \
 		$(TERMLIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) $(DNSSD_LIBS) \
 		$(ACL_LIBS) $(LIBS) $(POPT_LIBS) $(KRB5LIBS) $(LDAP_LIBS) \
 		@SMBD_LIBS@ $(NSCD_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
@@ -2461,6 +2465,10 @@ bin/smb_traffic_analyzer.@SHLIBEXT@: $(BINARY_PREREQS) $(VFS_SMB_TRAFFIC_ANALYZE
 bin/security.@SHLIBEXT@: $(BINARY_PREREQS) libgpo/gpext/security.o
 	@echo "Building plugin $@"
 	@$(SHLD_MODULE) libgpo/gpext/security.o
+
+bin/dirsort.@SHLIBEXT@: $(BINARY_PREREQS) $(VFS_DIRSORT_OBJ)
+	@echo "Building plugin $@"
+	@$(SHLD_MODULE) $(VFS_DIRSORT_OBJ)
 
 #########################################################
 ## IdMap NSS plugins

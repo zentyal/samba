@@ -23,6 +23,8 @@
 struct smbconf_ops {
 	WERROR (*init)(struct smbconf_ctx *ctx, const char *path);
 	int (*shutdown)(struct smbconf_ctx *ctx);
+	bool (*requires_messaging)(struct smbconf_ctx *ctx);
+	bool (*is_writeable)(struct smbconf_ctx *ctx);
 	WERROR (*open_conf)(struct smbconf_ctx *ctx);
 	int (*close_conf)(struct smbconf_ctx *ctx);
 	void (*get_csn)(struct smbconf_ctx *ctx, struct smbconf_csn *csn,
@@ -60,6 +62,9 @@ struct smbconf_ops {
 			       uint32_t num_includes, const char **includes);
 	WERROR (*delete_includes)(struct smbconf_ctx *ctx,
 				  const char *service);
+	WERROR (*transaction_start)(struct smbconf_ctx *ctx);
+	WERROR (*transaction_commit)(struct smbconf_ctx *ctx);
+	WERROR (*transaction_cancel)(struct smbconf_ctx *ctx);
 };
 
 struct smbconf_ctx {

@@ -201,6 +201,15 @@
 /* Define to 1 if you have the <attr/xattr.h> header file. */
 #undef HAVE_ATTR_XATTR_H
 
+/* Define to 1 if you have the <avahi-client/client.h> header file. */
+#undef HAVE_AVAHI_CLIENT_CLIENT_H
+
+/* Define to 1 if you have the `avahi_client_new' function. */
+#undef HAVE_AVAHI_CLIENT_NEW
+
+/* Define to 1 if you have the <avahi-common/watch.h> header file. */
+#undef HAVE_AVAHI_COMMON_WATCH_H
+
 /* Define to 1 if you have the `backtrace_symbols' function. */
 #undef HAVE_BACKTRACE_SYMBOLS
 
@@ -1082,6 +1091,9 @@
 
 /* Define to 1 if you have the `asn1' library (-lasn1). */
 #undef HAVE_LIBASN1
+
+/* Define to 1 if you have the `avahi-client' library (-lavahi-client). */
+#undef HAVE_LIBAVAHI_CLIENT
 
 /* Define to 1 if you have the `com_err' library (-lcom_err). */
 #undef HAVE_LIBCOM_ERR
@@ -2789,6 +2801,9 @@
 /* Whether to include automount support */
 #undef WITH_AUTOMOUNT
 
+/* Whether to enable avahi support */
+#undef WITH_AVAHI_SUPPORT
+
 /* Whether to build mount.cifs and umount.cifs */
 #undef WITH_CIFSMOUNT
 
@@ -3187,6 +3202,9 @@
 
 /* Whether to build vfs_default_quota as shared module */
 #undef vfs_default_quota_init
+
+/* Whether to build vfs_dirsort as shared module */
+#undef vfs_dirsort_init
 
 /* Whether to build vfs_expand_msdfs as shared module */
 #undef vfs_expand_msdfs_init

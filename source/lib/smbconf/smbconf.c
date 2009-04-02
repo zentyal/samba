@@ -43,11 +43,28 @@ static WERROR smbconf_global_check(struct smbconf_ctx *ctx)
  **********************************************************************/
 
 /**
+ * Tell whether the backend requires messaging to be set up
+ * for the backend to work correctly.
+ */
+bool smbconf_backend_requires_messaging(struct smbconf_ctx *ctx)
+{
+	return ctx->ops->requires_messaging(ctx);
+}
+
+/**
+ * Tell whether the source is writeable.
+ */
+bool smbconf_is_writeable(struct smbconf_ctx *ctx)
+{
+	return ctx->ops->is_writeable(ctx);
+}
+
+/**
  * Close the configuration.
  */
 void smbconf_shutdown(struct smbconf_ctx *ctx)
 {
-	TALLOC_FREE(ctx);
+	talloc_free(ctx);
 }
 
 /**
@@ -140,7 +157,7 @@ WERROR smbconf_get_config(struct smbconf_ctx *ctx,
 	}
 
 done:
-	TALLOC_FREE(tmp_ctx);
+	talloc_free(tmp_ctx);
 	return werr;
 }
 
@@ -186,10 +203,6 @@ WERROR smbconf_get_share(struct smbconf_ctx *ctx,
 			 const char *servicename,
 			 struct smbconf_service **service)
 {
-	if (!smbconf_share_exists(ctx, servicename)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->get_share(ctx, mem_ctx, servicename, service);
 }
 
@@ -213,10 +226,6 @@ WERROR smbconf_set_parameter(struct smbconf_ctx *ctx,
 			     const char *param,
 			     const char *valstr)
 {
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->set_parameter(ctx, service, param, valstr);
 }
 
@@ -252,10 +261,6 @@ WERROR smbconf_get_parameter(struct smbconf_ctx *ctx,
 		return WERR_INVALID_PARAM;
 	}
 
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->get_parameter(ctx, mem_ctx, service, param, valstr);
 }
 
@@ -286,10 +291,6 @@ WERROR smbconf_get_global_parameter(struct smbconf_ctx *ctx,
 WERROR smbconf_delete_parameter(struct smbconf_ctx *ctx,
 				const char *service, const char *param)
 {
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->delete_parameter(ctx, service, param);
 }
 
@@ -316,10 +317,6 @@ WERROR smbconf_get_includes(struct smbconf_ctx *ctx,
 			    const char *service,
 			    uint32_t *num_includes, char ***includes)
 {
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->get_includes(ctx, mem_ctx, service, num_includes,
 				      includes);
 }
@@ -343,10 +340,6 @@ WERROR smbconf_set_includes(struct smbconf_ctx *ctx,
 			    const char *service,
 			    uint32_t num_includes, const char **includes)
 {
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->set_includes(ctx, service, num_includes, includes);
 }
 
@@ -368,10 +361,6 @@ WERROR smbconf_set_global_includes(struct smbconf_ctx *ctx,
 
 WERROR smbconf_delete_includes(struct smbconf_ctx *ctx, const char *service)
 {
-	if (!smbconf_share_exists(ctx, service)) {
-		return WERR_NO_SUCH_SERVICE;
-	}
-
 	return ctx->ops->delete_includes(ctx, service);
 }
 
@@ -385,4 +374,19 @@ WERROR smbconf_delete_global_includes(struct smbconf_ctx *ctx)
 	}
 
 	return werr;
+}
+
+WERROR smbconf_transaction_start(struct smbconf_ctx *ctx)
+{
+	return ctx->ops->transaction_start(ctx);
+}
+
+WERROR smbconf_transaction_commit(struct smbconf_ctx *ctx)
+{
+	return ctx->ops->transaction_commit(ctx);
+}
+
+WERROR smbconf_transaction_cancel(struct smbconf_ctx *ctx)
+{
+	return ctx->ops->transaction_cancel(ctx);
 }

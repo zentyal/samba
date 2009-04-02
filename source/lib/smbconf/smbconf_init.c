@@ -18,10 +18,9 @@
  */
 
 #include "includes.h"
-#include "smbconf_private.h"
-
-#define INCLUDES_VALNAME "includes"
-
+#include "lib/smbconf/smbconf_private.h"
+#include "lib/smbconf/smbconf_txt.h"
+#include "lib/smbconf/smbconf_reg.h"
 
 /**
  * smbconf initialization dispatcher
@@ -75,21 +74,22 @@ WERROR smbconf_init(TALLOC_CTX *mem_ctx, struct smbconf_ctx **conf_ctx,
 	} else if (sep == NULL) {
 		/*
 		 * If no separator was given in the source, and the string is
-		 * not a know backend, assume file backend and use the source
+		 * not a known backend, assume file backend and use the source
 		 * string as a path argument.
 		 */
 		werr = smbconf_init_txt(mem_ctx, conf_ctx, backend);
 	} else {
 		/*
 		 * Separator was specified but this is not a known backend.
-		 * Can't handle this.
+		 * As a last resort, try to interpret the original source
+		 * string as a file name that contains a ":" sign.
+		 * This may occur with an include directive like this:
+		 * 'include = /path/to/file.%T'
 		 */
-		DEBUG(1, ("smbconf_init: ERROR - unknown backend '%s' given\n",
-			  backend));
-		werr = WERR_INVALID_PARAM;
+		werr = smbconf_init_txt(mem_ctx, conf_ctx, source);
 	}
 
 done:
-	TALLOC_FREE(tmp_ctx);
+	talloc_free(tmp_ctx);
 	return werr;
 }

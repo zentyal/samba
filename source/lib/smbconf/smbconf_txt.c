@@ -138,7 +138,7 @@ static bool smbconf_txt_do_parameter(const char *param_name,
 	if (!(tpd->verbatim) &&
 	    smbconf_find_in_array(param_name, param_names, num_params, &idx))
 	{
-		TALLOC_FREE(param_values[idx]);
+		talloc_free(param_values[idx]);
 		param_values[idx] = talloc_strdup(cache, param_value);
 		if (param_values[idx] == NULL) {
 			return false;
@@ -160,7 +160,8 @@ static bool smbconf_txt_do_parameter(const char *param_name,
 
 static void smbconf_txt_flush_cache(struct smbconf_ctx *ctx)
 {
-	TALLOC_FREE(pd(ctx)->cache);
+	talloc_free(pd(ctx)->cache);
+	pd(ctx)->cache = NULL;
 }
 
 static WERROR smbconf_txt_init_cache(struct smbconf_ctx *ctx)
@@ -221,7 +222,7 @@ static WERROR smbconf_txt_load_file(struct smbconf_ctx *ctx)
 static WERROR smbconf_txt_init(struct smbconf_ctx *ctx, const char *path)
 {
 	if (path == NULL) {
-		path = get_dyn_CONFIGFILE();
+		return WERR_BADFILE;
 	}
 	ctx->path = talloc_strdup(ctx, path);
 	if (ctx->path == NULL) {
@@ -241,6 +242,17 @@ static WERROR smbconf_txt_init(struct smbconf_ctx *ctx, const char *path)
 static int smbconf_txt_shutdown(struct smbconf_ctx *ctx)
 {
 	return ctx->ops->close_conf(ctx);
+}
+
+static bool smbconf_txt_requires_messaging(struct smbconf_ctx *ctx)
+{
+	return false;
+}
+
+static bool smbconf_txt_is_writeable(struct smbconf_ctx *ctx)
+{
+	/* no write support in this backend yet... */
+	return false;
 }
 
 static WERROR smbconf_txt_open(struct smbconf_ctx *ctx)
@@ -348,7 +360,7 @@ static WERROR smbconf_txt_get_share_names(struct smbconf_ctx *ctx,
 	}
 
 done:
-	TALLOC_FREE(tmp_ctx);
+	talloc_free(tmp_ctx);
 	return werr;
 }
 
@@ -447,7 +459,7 @@ static WERROR smbconf_txt_get_share(struct smbconf_ctx *ctx,
 	}
 
 done:
-	TALLOC_FREE(tmp_ctx);
+	talloc_free(tmp_ctx);
 	return werr;
 }
 
@@ -582,7 +594,7 @@ static WERROR smbconf_txt_get_includes(struct smbconf_ctx *ctx,
 	werr = WERR_OK;
 
 done:
-	TALLOC_FREE(tmp_ctx);
+	talloc_free(tmp_ctx);
 	return werr;
 }
 
@@ -600,10 +612,26 @@ static WERROR smbconf_txt_delete_includes(struct smbconf_ctx *ctx,
 	return WERR_NOT_SUPPORTED;
 }
 
+static WERROR smbconf_txt_transaction_start(struct smbconf_ctx *ctx)
+{
+	return WERR_OK;
+}
+
+static WERROR smbconf_txt_transaction_commit(struct smbconf_ctx *ctx)
+{
+	return WERR_OK;
+}
+
+static WERROR smbconf_txt_transaction_cancel(struct smbconf_ctx *ctx)
+{
+	return WERR_OK;
+}
 
 static struct smbconf_ops smbconf_ops_txt = {
 	.init			= smbconf_txt_init,
 	.shutdown		= smbconf_txt_shutdown,
+	.requires_messaging	= smbconf_txt_requires_messaging,
+	.is_writeable		= smbconf_txt_is_writeable,
 	.open_conf		= smbconf_txt_open,
 	.close_conf		= smbconf_txt_close,
 	.get_csn		= smbconf_txt_get_csn,
@@ -619,6 +647,9 @@ static struct smbconf_ops smbconf_ops_txt = {
 	.get_includes		= smbconf_txt_get_includes,
 	.set_includes		= smbconf_txt_set_includes,
 	.delete_includes	= smbconf_txt_delete_includes,
+	.transaction_start	= smbconf_txt_transaction_start,
+	.transaction_commit	= smbconf_txt_transaction_commit,
+	.transaction_cancel	= smbconf_txt_transaction_cancel,
 };
 
 

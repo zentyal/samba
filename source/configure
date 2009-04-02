@@ -659,6 +659,8 @@ PDB_MODULES
 PDB_STATIC
 INIPARSERLIBS
 BUILD_INIPARSER
+AVAHI_OBJ
+AVAHI_LIBS
 DNSSD_LIBS
 FLAGS1
 POPTLIBS
@@ -962,6 +964,7 @@ with_sendfile_support
 with_winbind
 with_included_popt
 enable_dnssd
+enable_avahi
 with_included_iniparser
 with_static_modules
 with_shared_modules
@@ -1622,7 +1625,8 @@ Optional Features:
                           available (default=yes)
   --enable-fam            Turn on FAM support (default=auto)
   --enable-shared-libs    Use shared libraries internally (default=yes)
-  --enable-dnssd          Enable DNS service discovery support (default=auto)
+  --enable-dnssd          Enable DNS service discovery support (default=no)
+  --enable-avahi          Enable Avahi support (default=auto)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -12591,7 +12595,7 @@ $as_echo "${ac_cv_gnu_ld_date}" >&6; }
         else
            { $as_echo "$as_me:$LINENO: checking GNU ld release version" >&5
 $as_echo_n "checking GNU ld release version... " >&6; }
-                      ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
+                      ac_cv_gnu_ld_vernr=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*[^0-9\.]\+\([1-9][0-9]*\.[0-9][0-9]*\).*$,\1,p'`
            ac_cv_gnu_ld_vernr_major=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 1`
            ac_cv_gnu_ld_vernr_minor=`echo $ac_cv_gnu_ld_vernr | cut -d '.' -f 2`
                       { $as_echo "$as_me:$LINENO: result: ${ac_cv_gnu_ld_vernr}" >&5
@@ -12607,7 +12611,7 @@ $as_echo "${ac_cv_gnu_ld_vernr_minor}" >&6; }
            if test "$ac_cv_gnu_ld_vernr_major" -lt 2 || test "$ac_cv_gnu_ld_vernr_minor" -lt 14; then
              ac_cv_gnu_ld_no_default_allow_shlib_undefined=yes
            fi
-           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major"=2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
+           if test "$ac_cv_gnu_ld_vernr_major" -gt 2 || test "$ac_cv_gnu_ld_vernr_major" = 2 && test "$ac_cv_gnu_ld_vernr_minor" -ge 12; then
              ac_cv_gnu_ld_version_script=yes
            fi
         fi
@@ -24517,12 +24521,15 @@ _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_NETINET_IN_SYSTM_H
-#include <netinet/in_systm.h>
-#endif
+
+	#include <sys/types.h>
+	#ifdef HAVE_NETINET_IN_H
+	#include <netinet/in.h>
+	#endif
+	#ifdef HAVE_NETINET_IN_SYSTM_H
+	#include <netinet/in_systm.h>
+	#endif
+
 
 #include <$ac_header>
 _ACEOF
@@ -36320,7 +36327,7 @@ fi
 done
 
 if test x"$ac_cv_func_dirfd" = x"yes"; then
-	default_shared_modules="$default_shared_modules vfs_syncops"
+	default_shared_modules="$default_shared_modules vfs_syncops vfs_dirsort"
 fi
 
 { $as_echo "$as_me:$LINENO: checking for sig_atomic_t type" >&5
@@ -77500,7 +77507,7 @@ fi
 
 
 
-if test x"$enable_dnssd" != x"no"; then
+if test x"$enable_dnssd" == x"yes"; then
     have_dnssd_support=yes
 
 
@@ -77879,6 +77886,449 @@ $as_echo "$as_me: error: DNS service discovery support not available" >&2;}
 	fi
     fi
 
+fi
+
+#################################################
+# Check if user wants avahi support
+
+# Check whether --enable-avahi was given.
+if test "${enable_avahi+set}" = set; then
+  enableval=$enable_avahi;
+fi
+
+
+
+if test x"$enable_avahi" != x"no"; then
+    have_avahi_support=yes
+
+
+for ac_header in avahi-common/watch.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
+$as_echo_n "checking $ac_header usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
+$as_echo_n "checking $ac_header presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+
+fi
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+    if test x"$ac_cv_header_avahi_common_watch_h" != x"yes"; then
+	have_avahi_support=no
+    fi
+
+
+for ac_header in avahi-client/client.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
+$as_echo_n "checking $ac_header usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
+$as_echo_n "checking $ac_header presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+
+fi
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+    if test x"$ac_cv_header_avahi_common_watch_h" != x"yes"; then
+	have_avahi_support=no
+    fi
+
+
+
+
+ac_check_lib_ext_save_LIBS=$LIBS
+LIBS="-lavahi-client $AVAHI_LIBS  $LIBS"
+
+
+
+
+        { $as_echo "$as_me:$LINENO: checking for avahi_client_new in -lavahi-client" >&5
+$as_echo_n "checking for avahi_client_new in -lavahi-client... " >&6; }
+if test "${ac_cv_lib_ext_avahi_client_avahi_client_new+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char avahi_client_new ();
+int
+main ()
+{
+return avahi_client_new ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_ext_avahi_client_avahi_client_new=yes;
+		  ac_cv_lib_ext_avahi_client=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_ext_avahi_client_avahi_client_new=no;
+		  ac_cv_lib_ext_avahi_client=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_ext_avahi_client_avahi_client_new" >&5
+$as_echo "$ac_cv_lib_ext_avahi_client_avahi_client_new" >&6; }
+    if test $ac_cv_lib_ext_avahi_client_avahi_client_new = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_AVAHI_CLIENT_NEW 1
+_ACEOF
+
+fi
+
+LIBS=$ac_check_lib_ext_save_LIBS
+
+if test $ac_cv_lib_ext_avahi_client = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBAVAHI_CLIENT 1
+_ACEOF
+
+		case "$AVAHI_LIBS" in
+		    *-lavahi-client*)
+			;;
+		    *)
+			AVAHI_LIBS="-lavahi-client $AVAHI_LIBS"
+			;;
+		esac
+
+
+fi
+
+    if test x"$ac_cv_lib_ext_avahi_client_avahi_client_new" != x"yes"; then
+	have_avahi_support=no
+    fi
+
+    if test x"$have_avahi_support" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define WITH_AVAHI_SUPPORT 1
+_ACEOF
+
+	AVAHI_OBJ="lib/avahi.o smbd/avahi_register.o"
+
+    else
+	if test x"$enable_avahi" = x"yes"; then
+	    { { $as_echo "$as_me:$LINENO: error: avahi support not available" >&5
+$as_echo "$as_me: error: avahi support not available" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+    fi
 fi
 
 #################################################
@@ -81333,6 +81783,43 @@ $as_echo "shared" >&6; }
 $as_echo "static" >&6; }
 	else
 	    string_ignored_modules="$string_ignored_modules vfs_smb_traffic_analyzer"
+		{ $as_echo "$as_me:$LINENO: result: not" >&5
+$as_echo "not" >&6; }
+	fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking how to build vfs_dirsort" >&5
+$as_echo_n "checking how to build vfs_dirsort... " >&6; }
+	if test "$MODULE_vfs_dirsort"; then
+		DEST=$MODULE_vfs_dirsort
+	elif test "$MODULE_vfs" -a "$MODULE_DEFAULT_vfs_dirsort"; then
+		DEST=$MODULE_vfs
+	else
+		DEST=$MODULE_DEFAULT_vfs_dirsort
+	fi
+
+	if test x"$DEST" = xSHARED; then
+
+cat >>confdefs.h <<\_ACEOF
+#define vfs_dirsort_init init_samba_module
+_ACEOF
+
+		VFS_MODULES="$VFS_MODULES "bin/dirsort.$SHLIBEXT""
+		{ $as_echo "$as_me:$LINENO: result: shared" >&5
+$as_echo "shared" >&6; }
+
+		string_shared_modules="$string_shared_modules vfs_dirsort"
+	elif test x"$DEST" = xSTATIC; then
+		init_static_modules_vfs="$init_static_modules_vfs  vfs_dirsort_init();"
+ 		decl_static_modules_vfs="$decl_static_modules_vfs extern NTSTATUS vfs_dirsort_init(void);"
+		string_static_modules="$string_static_modules vfs_dirsort"
+		VFS_STATIC="$VFS_STATIC \$(VFS_DIRSORT_OBJ)"
+
+
+		{ $as_echo "$as_me:$LINENO: result: static" >&5
+$as_echo "static" >&6; }
+	else
+	    string_ignored_modules="$string_ignored_modules vfs_dirsort"
 		{ $as_echo "$as_me:$LINENO: result: not" >&5
 $as_echo "not" >&6; }
 	fi

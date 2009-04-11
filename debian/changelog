@@ -1,10 +1,13 @@
-samba (2:3.3.3-1) UNRELEASED; urgency=low
+samba (2:3.3.3-1) unstable; urgency=low
 
   * New upstream release:
     - Fix map readonly. Closes: #521225
     - Add missing whitespace in mount.cifs error message. Closes: #517021
+    - Includes our patch to fix detection of GNU ld version. As a
+      consequence, we dropped fix_wrong_gnu_ld_version_check.patch
+    - Fix segfault in lookup_sid. Closes: #521408
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 02 Apr 2009 22:27:54 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 11 Apr 2009 10:12:23 +0200
 
 samba (2:3.3.2-2) unstable; urgency=low
 

@@ -1,3 +1,10 @@
+samba (2:3.3.3-2) UNRELEASED; urgency=low
+
+  [ Debconf translations ]
+  * Bengali added.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 19 Apr 2009 22:31:33 +0200
+
 samba (2:3.3.3-1) unstable; urgency=low
 
   * New upstream release:

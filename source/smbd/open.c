@@ -1193,6 +1193,7 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 	bool def_acl = False;
 	bool posix_open = False;
 	bool new_file_created = False;
+	bool clear_ads = false;
 	struct file_id id;
 	NTSTATUS fsp_open = NT_STATUS_ACCESS_DENIED;
 	mode_t new_unx_mode = (mode_t)0;
@@ -1325,12 +1326,14 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 			/* If file exists replace/overwrite. If file doesn't
 			 * exist create. */
 			flags2 |= (O_CREAT | O_TRUNC);
+			clear_ads = true;
 			break;
 
 		case FILE_OVERWRITE_IF:
 			/* If file exists replace/overwrite. If file doesn't
 			 * exist create. */
 			flags2 |= (O_CREAT | O_TRUNC);
+			clear_ads = true;
 			break;
 
 		case FILE_OPEN:
@@ -1355,6 +1358,7 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 				return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 			}
 			flags2 |= O_TRUNC;
+			clear_ads = true;
 			break;
 
 		case FILE_CREATE:
@@ -1786,6 +1790,16 @@ static NTSTATUS open_file_ntcreate_internal(connection_struct *conn,
 	}
 
 	SMB_ASSERT(lck != NULL);
+
+	/* Delete streams if create_disposition requires it */
+	if (file_existed && clear_ads && !is_ntfs_stream_name(fname)) {
+		status = delete_all_streams(conn, fname);
+		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(lck);
+			fd_close(fsp);
+			return status;
+		}
+	}
 
 	/* note that we ignore failure for the following. It is
            basically a hack for NFS, and NFS will never set one of
@@ -3041,6 +3055,29 @@ NTSTATUS create_file(connection_struct *conn,
 		  (unsigned int)root_dir_fid,
 		  ea_list, sd, fname));
 
+	/* MSDFS pathname processing must be done FIRST.
+	   MSDFS pathnames containing IPv6 addresses can
+	   be confused with NTFS stream names (they contain
+	   ":" characters. JRA. */
+
+	if ((req != NULL) && (req->flags2 & FLAGS2_DFS_PATHNAMES)) {
+		char *resolved_fname;
+
+		status = resolve_dfspath(talloc_tos(), conn, true, fname,
+					 &resolved_fname);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			/*
+			 * For PATH_NOT_COVERED we had
+			 * reply_botherror(req, NT_STATUS_PATH_NOT_COVERED,
+			 *		   ERRSRV, ERRbadpath);
+			 * Need to fix in callers
+			 */
+			goto fail;
+		}
+		fname = resolved_fname;
+	}
+
 	/*
 	 * Get the file name.
 	 */
@@ -3166,24 +3203,6 @@ NTSTATUS create_file(connection_struct *conn,
 			status = NT_STATUS_OBJECT_PATH_NOT_FOUND;
 			goto fail;
 		}
-	}
-
-	if ((req != NULL) && (req->flags2 & FLAGS2_DFS_PATHNAMES)) {
-		char *resolved_fname;
-
-		status = resolve_dfspath(talloc_tos(), conn, true, fname,
-					 &resolved_fname);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			/*
-			 * For PATH_NOT_COVERED we had
-			 * reply_botherror(req, NT_STATUS_PATH_NOT_COVERED,
-			 *		   ERRSRV, ERRbadpath);
-			 * Need to fix in callers
-			 */
-			goto fail;
-		}
-		fname = resolved_fname;
 	}
 
 	/*

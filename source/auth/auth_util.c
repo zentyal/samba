@@ -547,9 +547,6 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 	struct passwd *pwd;
 	gid_t *gids;
 	auth_serversupplied_info *result;
-	int i;
-	size_t num_gids;
-	DOM_SID unix_group_sid;
 	const char *username = pdb_get_username(sampass);
 	NTSTATUS status;
 
@@ -565,8 +562,6 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 	}
 
 	result->sam_account = sampass;
-	/* Ensure thaat the sampass will be freed with the result */
-	talloc_steal(result, sampass);
 	result->unix_name = pwd->pw_name;
 	/* Ensure that we keep pwd->pw_name, because we will free pwd below */
 	talloc_steal(result, pwd->pw_name);
@@ -616,30 +611,6 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 		}
 	}
 
-	/* Add the "Unix Group" SID for each gid to catch mapped groups
-	   and their Unix equivalent.  This is to solve the backwards 
-	   compatibility problem of 'valid users = +ntadmin' where 
-	   ntadmin has been paired with "Domain Admins" in the group 
-	   mapping table.  Otherwise smb.conf would need to be changed
-	   to 'valid user = "Domain Admins"'.  --jerry */
-	
-	num_gids = result->num_sids;
-	for ( i=0; i<num_gids; i++ ) {
-		if ( !gid_to_unix_groups_sid( gids[i], &unix_group_sid ) ) {
-			DEBUG(1,("make_server_info_sam: Failed to create SID "
-				"for gid %d!\n", gids[i]));
-			continue;
-		}
-		status = add_sid_to_array_unique(result, &unix_group_sid,
-						 &result->sids,
-						 &result->num_sids);
-		if (!NT_STATUS_IS_OK(status)) {
-			result->sam_account = NULL; /* Don't free on error exit. */
-			TALLOC_FREE(result);
-			return status;
-		}
-	}
-
 	/* For now we throw away the gids and convert via sid_to_gid
 	 * later. This needs fixing, but I'd like to get the code straight and
 	 * simple first. */
@@ -650,6 +621,8 @@ NTSTATUS make_server_info_sam(auth_serversupplied_info **server_info,
 		 pdb_get_username(sampass), result->unix_name));
 
 	*server_info = result;
+	/* Ensure thaat the sampass will be freed with the result */
+	talloc_steal(result, sampass);
 
 	return NT_STATUS_OK;
 }
@@ -700,13 +673,7 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 	TALLOC_CTX *mem_ctx;
 	NTSTATUS status;
 	size_t i;
-	
-
-	mem_ctx = talloc_new(NULL);
-	if (mem_ctx == NULL) {
-		DEBUG(0, ("talloc_new failed\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
+	struct dom_sid tmp_sid;
 
 	/*
 	 * If winbind is not around, we can not make much use of the SIDs the
@@ -735,7 +702,6 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(mem_ctx);
 		return status;
 	}
 	
@@ -758,8 +724,46 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 		add_gid_to_array_unique(server_info, gid, &server_info->groups,
 					&server_info->n_groups);
 	}
-	
+
+	if (!uid_to_unix_users_sid(server_info->uid, &tmp_sid)) {
+		DEBUG(1,("create_local_token: Failed to create SID "
+			"for uid %d!\n", server_info->uid));
+	}
+	add_sid_to_array_unique(server_info->ptok, &tmp_sid,
+				&server_info->ptok->user_sids,
+				&server_info->ptok->num_sids);
+
+	if (!gid_to_unix_groups_sid( server_info->gid, &tmp_sid)) {
+		DEBUG(1,("create_local_token: Failed to create SID "
+			"for gid %d!\n", server_info->gid));
+	}
+	add_sid_to_array_unique(server_info->ptok, &tmp_sid,
+				&server_info->ptok->user_sids,
+				&server_info->ptok->num_sids);
+
+	for ( i=0; i<server_info->n_groups; i++ ) {
+		if (!gid_to_unix_groups_sid( server_info->groups[i], &tmp_sid ) ) {
+			DEBUG(1,("create_local_token: Failed to create SID "
+				"for gid %d!\n", server_info->groups[i]));
+			continue;
+		}
+		add_sid_to_array_unique(server_info->ptok, &tmp_sid,
+					&server_info->ptok->user_sids,
+					&server_info->ptok->num_sids);
+	}
+
 	debug_nt_user_token(DBGC_AUTH, 10, server_info->ptok);
+	debug_unix_user_token(DBGC_AUTH, 10,
+			      server_info->uid,
+			      server_info->gid,
+			      server_info->n_groups,
+			      server_info->groups);
+
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		DEBUG(0, ("talloc_new failed\n"));
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	status = log_nt_token(mem_ctx, server_info->ptok);
 
@@ -768,7 +772,7 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 }
 
 /*
- * Create an artificial NT token given just a username. (Initially indended
+ * Create an artificial NT token given just a username. (Initially intended
  * for force user)
  *
  * We go through lookup_name() to avoid problems we had with 'winbind use
@@ -818,12 +822,6 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 	if (type != SID_NAME_USER) {
 		DEBUG(1, ("%s is a %s, not a user\n", username,
 			  sid_type_lookup(type)));
-		goto done;
-	}
-
-	if (!sid_to_uid(&user_sid, uid)) {
-		DEBUG(1, ("sid_to_uid for %s (%s) failed\n",
-			  username, sid_string_dbg(&user_sid)));
 		goto done;
 	}
 
@@ -883,6 +881,12 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		 */
 
 	unix_user:
+
+		if (!sid_to_uid(&user_sid, uid)) {
+			DEBUG(1, ("sid_to_uid for %s (%s) failed\n",
+				  username, sid_string_dbg(&user_sid)));
+			goto done;
+		}
 
 		uid_to_unix_users_sid(*uid, &user_sid);
 

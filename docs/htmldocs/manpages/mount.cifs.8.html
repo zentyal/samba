@@ -63,7 +63,7 @@ credentials file properly.
                 same domain (e.g. running winbind or nss_ldap) and
                 the server supports the Unix Extensions then the uid
                 and gid can be retrieved from the server (and uid
-                and gid would not have to be specifed on the mount. 
+                and gid would not have to be specified on the mount.
                 For servers which do not support the CIFS Unix
                 extensions, the default uid (and gid) returned on lookup 
                 of existing files will be the uid (gid) of the person
@@ -161,9 +161,9 @@ port 445 is tried and if no response then port 139 is tried.
                 Unicode on the wire.</p></dd><dt><span class="term">nomapchars</span></dt><dd><p>Do not translate any of these seven characters (default)</p></dd><dt><span class="term">intr</span></dt><dd><p>currently unimplemented</p></dd><dt><span class="term">nointr</span></dt><dd><p>(default) currently unimplemented </p></dd><dt><span class="term">hard</span></dt><dd><p>The  program  accessing  a file on the cifs mounted file system will hang when the
               server crashes.</p></dd><dt><span class="term">soft</span></dt><dd><p>(default) The  program  accessing  a file on the cifs mounted file system will not hang when the server crashes and will return errors to the user application.</p></dd><dt><span class="term">noacl</span></dt><dd><p>Do not allow POSIX ACL operations even if server would support them.</p><p>
 		The CIFS client can get and set POSIX ACLs (getfacl, setfacl) to Samba servers
-		version 3.10 and later.  Setting POSIX ACLs requires enabling both XATTR and
+		version 3.0.10 and later.  Setting POSIX ACLs requires enabling both XATTR and
 		then POSIX support in the CIFS configuration options when building the cifs
-		module.  POSIX ACL support can be disabled on a per mount basic by specifying
+		module.  POSIX ACL support can be disabled on a per mount basis by specifying
 		"noacl" on mount.</p></dd><dt><span class="term">nocase</span></dt><dd><p>Request case insensitive path name matching (case
                 sensitive is the default if the server suports it).
 		</p></dd><dt><span class="term">sec=</span></dt><dd><p>Security mode.  Allowed values are:</p><div class="itemizedlist"><ul type="disc"><li><p>none    attempt to connection as a null user (no name) </p></li><li><p>krb5    Use Kerberos version 5 authentication</p></li><li><p>krb5i   Use Kerberos authentication and packet signing</p></li><li><p>ntlm    Use NTLM password hashing (default)</p></li><li><p>ntlmi   Use NTLM password hashing with signing (if

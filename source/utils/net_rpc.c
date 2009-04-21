@@ -4606,7 +4606,6 @@ static NTSTATUS rpc_share_allowedusers_internals(const DOM_SID *domain_sid,
 {
 	int ret;
 	bool r;
-	ENUM_HND hnd;
 	uint32 i;
 	FILE *f;
 
@@ -4643,8 +4642,6 @@ static NTSTATUS rpc_share_allowedusers_internals(const DOM_SID *domain_sid,
 
 	for (i=0; i<num_tokens; i++)
 		collect_alias_memberships(&tokens[i].token);
-
-	init_enum_hnd(&hnd, 0);
 
 	share_list.num_shares = 0;
 	share_list.shares = NULL;
@@ -6283,7 +6280,7 @@ static int rpc_trustdom_list(int argc, const char **argv)
 	/* SamrConnect2 */
 	nt_status = rpccli_samr_Connect2(pipe_hnd, mem_ctx,
 					 pipe_hnd->cli->desthost,
-					 SA_RIGHT_SAM_OPEN_DOMAIN,
+					 SA_RIGHT_SAM_LOOKUP_DOMAIN,
 					 &connect_hnd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Couldn't open SAMR policy handle. Error was %s\n",

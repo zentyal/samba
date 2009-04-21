@@ -85,6 +85,7 @@
 
 const char *thisprogram;
 int verboseflag = 0;
+int fakemnt = 0;
 static int got_password = 0;
 static int got_user = 0;
 static int got_domain = 0;
@@ -484,7 +485,8 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 			}
 		} else if (strncmp(data, "sec", 3) == 0) {
 			if (value) {
-				if (!strcmp(value, "none"))
+				if (!strncmp(value, "none", 4) ||
+				    !strncmp(value, "krb5", 4))
 					got_password = 1;
 			}
 		} else if (strncmp(data, "ip", 2) == 0) {
@@ -532,8 +534,11 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 				SAFE_FREE(out);
 				return 1;
 			}
-		} else if ((strncmp(data, "domain", 3) == 0)
-			   || (strncmp(data, "workgroup", 5) == 0)) {
+		} else if ((strncmp(data, "dom" /* domain */, 3) == 0)
+			   || (strncmp(data, "workg", 5) == 0)) {
+			/* note this allows for synonyms of "domain"
+			   such as "DOM" and "dom" and "workgroup"
+			   and "WORKGRP" etc. */
 			if (!value || !*value) {
 				printf("CIFS: invalid domain name\n");
 				SAFE_FREE(out);
@@ -645,7 +650,9 @@ static int parse_options(char ** optionsp, int * filesys_flags)
 		} else if (strncmp(data, "exec", 4) == 0) {
 			*filesys_flags &= ~MS_NOEXEC;
 		} else if (strncmp(data, "guest", 5) == 0) {
-			got_password=1;
+			user_name = (char *)calloc(1, 1);
+			got_user = 1;
+			got_password = 1;
 		} else if (strncmp(data, "ro", 2) == 0) {
 			*filesys_flags |= MS_RDONLY;
 		} else if (strncmp(data, "rw", 2) == 0) {
@@ -1026,7 +1033,7 @@ int main(int argc, char ** argv)
 	char * resolved_path = NULL;
 	char * temp;
 	char * dev_name;
-	int rc;
+	int rc = 0;
 	int rsize = 0;
 	int wsize = 0;
 	int nomtab = 0;
@@ -1074,6 +1081,14 @@ int main(int argc, char ** argv)
 		}
 		mountpoint = argv[2];
 	} else {
+		if ((strcmp (argv[1], "--version") == 0) ||
+		    ((strcmp (argv[1], "-V") == 0))) {
+			printf ("mount.cifs version: %s.%s%s\n",
+			MOUNT_CIFS_VERSION_MAJOR,
+			MOUNT_CIFS_VERSION_MINOR,
+			MOUNT_CIFS_VENDOR_SUFFIX);
+			exit (0);
+		}
 		mount_cifs_usage();
 		exit(EX_USAGE);
 	}
@@ -1099,8 +1114,8 @@ int main(int argc, char ** argv)
 			mount_cifs_usage ();
 			exit(EX_USAGE);
 		case 'n':
-		    ++nomtab;
-		    break;
+			++nomtab;
+			break;
 		case 'b':
 #ifdef MS_BIND
 			flags |= MS_BIND;
@@ -1205,6 +1220,9 @@ int main(int argc, char ** argv)
 			break;
 		case 't':
 			break;
+		case 'f':
+			++fakemnt;
+			break;
 		default:
 			printf("unknown mount option %c\n",c);
 			mount_cifs_usage();
@@ -1282,7 +1300,13 @@ int main(int argc, char ** argv)
 	}
 
 	if(got_user == 0) {
-		user_name = getusername();
+		/* Note that the password will not be retrieved from the
+		   USER env variable (ie user%password form) as there is
+		   already a PASSWD environment varaible */
+		if (getenv("USER"))
+			user_name = strdup(getenv("USER"));
+		if (user_name == NULL)
+			user_name = getusername();
 		got_user = 1;
 	}
        
@@ -1400,7 +1424,7 @@ mount_retry:
 		}
 	}
 
-	if (mount(dev_name, mountpoint, "cifs", flags, options)) {
+	if (!fakemnt && mount(dev_name, mountpoint, "cifs", flags, options)) {
 		switch (errno) {
 		case ECONNREFUSED:
 		case EHOSTUNREACH:
@@ -1430,6 +1454,8 @@ mount_retry:
 		goto mount_exit;
 	}
 
+	if (nomtab)
+		goto mount_exit;
 	atexit(unlock_mtab);
 	rc = lock_mtab();
 	if (rc) {

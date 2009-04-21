@@ -23,7 +23,12 @@
 		in STRING.
 		</p></dd><dt><span class="term">smb_traffic_analyzer:anonymize_prefix = STRING</span></dt><dd><p>The module will replace the user names with a prefix
 		given by STRING and a simple hash number.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483659"></a><h2>EXAMPLES</h2><p>The module running on share "example_share", using a unix domain socket</p><pre class="programlisting">
+		</p></dd><dt><span class="term">smb_traffic_analyzer:total_anonymization = STRING</span></dt><dd><p>If STRING matches to 'yes', the module will replace
+		any user name with the string given by the option 
+		smb_traffic_analyzer:anonymize_prefix, without generating
+		an additional hash number. This means that any transfer data
+		will be mapped to a single user, leading to a total 
+		anonymization of user related data.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483678"></a><h2>EXAMPLES</h2><p>The module running on share "example_share", using a unix domain socket</p><pre class="programlisting">
 	<em class="parameter"><code>[example_share]</code></em>
 	<a class="link" href="smb.conf.5.html#PATH" target="_top">path = /data/example</a>
 	<a class="link" href="smb.conf.5.html#VFSOBJECTS" target="_top">vfs objects = smb_traffic_analyzer</a>
@@ -44,8 +49,8 @@
 	<a class="link" href="smb.conf.5.html#SMB_TRAFFIC_ANALYZER:HOST" target="_top">smb_traffic_analyzer:host = examplehost</a>
 	<a class="link" href="smb.conf.5.html#SMB_TRAFFIC_ANALYZER:PORT" target="_top">smb_traffic_analyzer:port = 3491</a>
 	<a class="link" href="smb.conf.5.html#SMB_TRAFFIC_ANALYZER:ANONYMIZE_PREFIX" target="_top">smb_traffic_analyzer:anonymize_prefix = User</a>
-	</pre></div><div class="refsect1" lang="en"><a name="id2481610"></a><h2>VERSION</h2><p>This man page is correct for version 3.2.0 of the Samba suite.
-	</p></div><div class="refsect1" lang="en"><a name="id2481621"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+	</pre></div><div class="refsect1" lang="en"><a name="id2481628"></a><h2>VERSION</h2><p>This man page is correct for version 3.2.0 of the Samba suite.
+	</p></div><div class="refsect1" lang="en"><a name="id2481639"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar
 	to the way the Linux kernel is developed.</p><p>The original version of the VFS module and the

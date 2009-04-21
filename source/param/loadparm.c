@@ -863,7 +863,7 @@ static const struct enum_list enum_config_backend[] = {
 
 /* Note: We do not initialise the defaults union - it is not allowed in ANSI C
  *
- * The FLAG_HIDE is explicit. Paramters set this way do NOT appear in any edit
+ * The FLAG_HIDE is explicit. Parameters set this way do NOT appear in any edit
  * screen in SWAT. This is used to exclude parameters as well as to squash all
  * parameters that have been duplicated by pseudonyms.
  *
@@ -872,7 +872,7 @@ static const struct enum_list enum_config_backend[] = {
  *	 Set FLAG_SHARE and FLAG_PRINT to specifically display parameters in
  *        respective views.
  *
- * NOTE2: Handling of duplicated (synonym) paramters:
+ * NOTE2: Handling of duplicated (synonym) parameters:
  *	Only the first occurance of a parameter should be enabled by FLAG_BASIC
  *	and/or FLAG_ADVANCED. All duplicates following the first mention should be
  *	set to FLAG_HIDE. ie: Make you must place the parameter that has the preferred
@@ -4534,7 +4534,7 @@ static void init_printer_values(struct service *pService)
 		string_set(&pService->szLpqcommand, "vlp lpq %p");
 		string_set(&pService->szLprmcommand, "vlp lprm %p %j");
 		string_set(&pService->szLppausecommand, "vlp lppause %p %j");
-		string_set(&pService->szLpresumecommand, "vlp lpresum %p %j");
+		string_set(&pService->szLpresumecommand, "vlp lpresume %p %j");
 		string_set(&pService->szQueuepausecommand, "vlp queuepause %p");
 		string_set(&pService->szQueueresumecommand, "vlp queueresume %p");
 		break;

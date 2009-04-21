@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.2.8
+Version:      3.2.11
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -404,6 +404,7 @@ fi
 %defattr(-,root,root)
 /sbin/mount.cifs
 /sbin/umount.cifs
+%{_sbindir}/cifs.upcall
 
 %{_bindir}/rpcclient
 %{_bindir}/smbcacls
@@ -420,6 +421,7 @@ fi
 
 %{_mandir}/man8/mount.cifs.8.*
 %{_mandir}/man8/umount.cifs.8.*
+%{_mandir}/man8/cifs.upcall.8.*
 %{_mandir}/man8/smbspool.8*
 %{_mandir}/man1/smbget.1*
 %{_mandir}/man5/smbgetrc.5*

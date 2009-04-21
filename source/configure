@@ -28812,6 +28812,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <netinet/in.h>
 
 int
 main ()
@@ -50167,7 +50168,7 @@ _ACEOF
 		*linux*)
 			LIB_PATH_VAR=LD_LIBRARY_PATH
 		;;
-		*netbsd*)
+		*bsd*)
 			LIB_PATH_VAR=LD_LIBRARY_PATH
 		;;
 		*solaris*)

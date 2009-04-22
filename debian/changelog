@@ -3,6 +3,9 @@ samba (2:3.3.3-2) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Bengali added.
 
+  [ Christian Perrier ]
+  * Add idmap_tdb2 module to winbind package
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 19 Apr 2009 22:31:33 +0200
 
 samba (2:3.3.3-1) unstable; urgency=low

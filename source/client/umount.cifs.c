@@ -34,9 +34,10 @@
 #include <errno.h>
 #include <string.h>
 #include <mntent.h>
+#include "mount.h"
 
 #define UNMOUNT_CIFS_VERSION_MAJOR "0"
-#define UNMOUNT_CIFS_VERSION_MINOR "5"
+#define UNMOUNT_CIFS_VERSION_MINOR "6"
 
 #ifndef UNMOUNT_CIFS_VENDOR_SUFFIX
  #ifdef _SAMBA_BUILD_
@@ -131,32 +132,14 @@ static int umount_check_perm(char * dir)
 		printf("user unmounting via %s is an optional feature of",thisprogram);
 		printf(" the cifs filesystem driver (cifs.ko)");
 		printf("\n\tand requires cifs.ko version 1.32 or later\n");
-	} else if (rc > 0)
+	} else if (rc != 0)
 		printf("user unmount of %s failed with %d %s\n",dir,errno,strerror(errno));
 	close(fileid);
 
 	return rc;
 }
 
-int lock_mtab(void)
-{
-	int rc;
-	
-	rc = mknod(MOUNTED_LOCK , 0600, 0);
-	if(rc == -1)
-		printf("\ngetting lock file %s failed with %s\n",MOUNTED_LOCK,
-				strerror(errno));
-		
-	return rc;	
-	
-}
-
-void unlock_mtab(void)
-{
-	unlink(MOUNTED_LOCK);	
-}
-
-int remove_from_mtab(char * mountpoint)
+static int remove_from_mtab(char * mountpoint)
 {
 	int rc;
 	int num_matches;
@@ -169,6 +152,7 @@ int remove_from_mtab(char * mountpoint)
 
 	/* Do we first need to check if it is writable? */ 
 
+	atexit(unlock_mtab);
 	if (lock_mtab()) {
 		printf("Mount table locked\n");
 		return -EACCES;
@@ -341,6 +325,13 @@ int main(int argc, char ** argv)
 	}
 
 	/* fixup path if needed */
+
+	/* Trim any trailing slashes */
+	while ((strlen(mountpoint) > 1) &&
+		(mountpoint[strlen(mountpoint)-1] == '/'))
+	{
+		mountpoint[strlen(mountpoint)-1] = '\0';
+	}
 
 	/* make sure that this is a cifs filesystem */
 	rc = statfs(mountpoint, &statbuf);

@@ -325,7 +325,14 @@ BOOL netdfs_io_dfs_Info3_d(const char *desc, NETDFS_DFS_INFO3 *v, prs_struct *ps
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->stores = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->stores)*v->num_stores);
+			if (v->num_stores) {
+				v->stores = PRS_ALLOC_MEM(ps,NETDFS_DFS_STORAGEINFO,v->num_stores);
+				if (!v->stores) {
+					return False;
+				}
+			} else {
+				v->stores = NULL;
+			}
 		}
 		for (i_stores_1=0; i_stores_1<v->num_stores;i_stores_1++) {
 			if (!netdfs_io_dfs_StorageInfo_p("stores", &v->stores[i_stores_1], ps, depth))
@@ -340,7 +347,7 @@ BOOL netdfs_io_dfs_Info3_d(const char *desc, NETDFS_DFS_INFO3 *v, prs_struct *ps
 	return True;
 }
 
-BOOL init_netdfs_dfs_Info4(NETDFS_DFS_INFO4 *v, const char *path, const char *comment, uint32 state, uint32 timeout, struct uuid guid, uint32 num_stores, NETDFS_DFS_STORAGEINFO **stores)
+BOOL init_netdfs_dfs_Info4(NETDFS_DFS_INFO4 *v, const char *path, const char *comment, uint32 state, uint32 timeout, struct GUID guid, uint32 num_stores, NETDFS_DFS_STORAGEINFO **stores)
 {
 	DEBUG(5,("init_netdfs_dfs_Info4\n"));
 	
@@ -447,7 +454,14 @@ BOOL netdfs_io_dfs_Info4_d(const char *desc, NETDFS_DFS_INFO4 *v, prs_struct *ps
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->stores = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->stores)*v->num_stores);
+			if (v->num_stores) {
+				v->stores = PRS_ALLOC_MEM(ps,NETDFS_DFS_STORAGEINFO,v->num_stores);
+				if (!v->stores) {
+					return False;
+				}
+			} else {
+				v->stores = NULL;
+			}
 		}
 		for (i_stores_1=0; i_stores_1<v->num_stores;i_stores_1++) {
 			if (!netdfs_io_dfs_StorageInfo_p("stores", &v->stores[i_stores_1], ps, depth))
@@ -920,7 +934,14 @@ BOOL netdfs_io_dfs_EnumArray1_d(const char *desc, NETDFS_DFS_ENUMARRAY1 *v, prs_
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO1,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info1_p("s", &v->s[i_s_1], ps, depth))
@@ -986,7 +1007,14 @@ BOOL netdfs_io_dfs_EnumArray2_d(const char *desc, NETDFS_DFS_ENUMARRAY2 *v, prs_
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO2,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info2_p("s", &v->s[i_s_1], ps, depth))
@@ -1052,7 +1080,14 @@ BOOL netdfs_io_dfs_EnumArray3_d(const char *desc, NETDFS_DFS_ENUMARRAY3 *v, prs_
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO3,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info3_p("s", &v->s[i_s_1], ps, depth))
@@ -1118,7 +1153,14 @@ BOOL netdfs_io_dfs_EnumArray4_d(const char *desc, NETDFS_DFS_ENUMARRAY4 *v, prs_
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO4,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info4_p("s", &v->s[i_s_1], ps, depth))
@@ -1184,7 +1226,14 @@ BOOL netdfs_io_dfs_EnumArray200_d(const char *desc, NETDFS_DFS_ENUMARRAY200 *v, 
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO200,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info200_p("s", &v->s[i_s_1], ps, depth))
@@ -1250,7 +1299,14 @@ BOOL netdfs_io_dfs_EnumArray300_d(const char *desc, NETDFS_DFS_ENUMARRAY300 *v, 
 			return False;
 		
 		if (UNMARSHALLING(ps)) {
-			v->s = (void *)PRS_ALLOC_MEM_VOID(ps,sizeof(*v->s)*v->count);
+			if (v->count) {
+				v->s = PRS_ALLOC_MEM(ps,NETDFS_DFS_INFO300,v->count);
+				if (!v->s) {
+					return False;
+				}
+			} else {
+				v->s = NULL;
+			}
 		}
 		for (i_s_1=0; i_s_1<v->count;i_s_1++) {
 			if (!netdfs_io_dfs_Info300_p("s", &v->s[i_s_1], ps, depth))

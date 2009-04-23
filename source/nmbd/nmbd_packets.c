@@ -963,6 +963,12 @@ for id %hu\n", packet_type, nmb_namestr(&orig_nmb->question.question_name),
 	nmb->answers->ttl      = ttl;
   
 	if (data && len) {
+		if (len < 0 || len > sizeof(nmb->answers->rdata)) {
+			DEBUG(5,("reply_netbios_packet: "
+				"invalid packet len (%d)\n",
+				len ));
+			return;
+		}
 		nmb->answers->rdlength = len;
 		memcpy(nmb->answers->rdata, data, len);
 	}
@@ -1153,10 +1159,10 @@ mismatch with our scope (%s).\n", inet_ntoa(p->ip), scope, global_scope()));
 	switch (command) {
 		case ANN_HostAnnouncement:
 			debug_browse_data(buf, len);
-			process_lm_host_announce(subrec, p, buf+1);
+			process_lm_host_announce(subrec, p, buf+1, len > 1 ? len-1 : 0);
 			break;
 		case ANN_AnnouncementRequest:
-			process_lm_announce_request(subrec, p, buf+1);
+			process_lm_announce_request(subrec, p, buf+1, len > 1 ? len-1 : 0);
 			break;
 		default:
 			DEBUG(0,("process_lanman_packet: On subnet %s ignoring browse packet \
@@ -1600,6 +1606,8 @@ void retransmit_or_expire_response_records(time_t t)
 	for (subrec = FIRST_SUBNET; subrec; subrec = get_next_subnet_maybe_unicast_or_wins_server(subrec)) {
 		struct response_record *rrec, *nextrrec;
 
+  restart:
+
 		for (rrec = subrec->responselist; rrec; rrec = nextrrec) {
 			nextrrec = rrec->next;
    
@@ -1638,6 +1646,9 @@ on subnet %s\n", rrec->response_id, inet_ntoa(rrec->packet->ip), subrec->subnet_
 									no timeout function. */
 							remove_response_record(subrec, rrec);
 						}
+						/* We have changed subrec->responselist,
+						 * restart from the beginning of this list. */
+						goto restart;
 					} /* !rrec->in_expitation_processing */
 				} /* rrec->repeat_count > 0 */
 			} /* rrec->repeat_time <= t */
@@ -1886,6 +1897,12 @@ BOOL send_mailslot(BOOL unique, const char *mailslot,char *buf, size_t len,
 	/* Setup the smb part. */
 	ptr -= 4; /* XXX Ugliness because of handling of tcp SMB length. */
 	memcpy(tmp,ptr,4);
+
+	if (smb_size + 17*2 + strlen(mailslot) + 1 + len > MAX_DGRAM_SIZE) {
+		DEBUG(0, ("send_mailslot: Cannot write beyond end of packet\n"));
+		return False;
+	}
+
 	set_message(ptr,17,strlen(mailslot) + 1 + len,True);
 	memcpy(ptr,tmp,4);
 
@@ -1899,7 +1916,7 @@ BOOL send_mailslot(BOOL unique, const char *mailslot,char *buf, size_t len,
 	SSVAL(ptr,smb_vwv16,2);
 	p2 = smb_buf(ptr);
 	safe_strcpy_base(p2, mailslot, dgram->data, sizeof(dgram->data));
-	p2 = skip_string(p2,1);
+	p2 = skip_string(ptr,MAX_DGRAM_SIZE,p2);
   
 	if (((p2+len) > dgram->data+sizeof(dgram->data)) || ((p2+len) < p2)) {
 		DEBUG(0, ("send_mailslot: Cannot write beyond end of packet\n"));

@@ -20,6 +20,8 @@
 
 #include "includes.h"
 
+extern int smb_read_error;
+
 /****************************************************************************
  Change the timeout (in milliseconds).
 ****************************************************************************/
@@ -42,8 +44,7 @@ int cli_set_port(struct cli_state *cli, int port)
 }
 
 /****************************************************************************
- Read an smb from a fd ignoring all keepalive packets. Note that the buffer 
- *MUST* be of size BUFFER_SIZE+SAFETY_MARGIN.
+ Read an smb from a fd ignoring all keepalive packets.
  The timeout is in milliseconds
 
  This is exactly the same as receive_smb except that it never returns
@@ -52,12 +53,12 @@ int cli_set_port(struct cli_state *cli, int port)
  should never go into a blocking read.
 ****************************************************************************/
 
-static BOOL client_receive_smb(int fd,char *buffer, unsigned int timeout)
+static BOOL client_receive_smb(int fd,char *buffer, size_t bufsize, unsigned int timeout)
 {
 	BOOL ret;
 
 	for(;;) {
-		ret = receive_smb_raw(fd, buffer, timeout);
+		ret = receive_smb_raw(fd, buffer, bufsize, timeout);
 
 		if (!ret) {
 			DEBUG(10,("client_receive_smb failed\n"));
@@ -79,7 +80,6 @@ static BOOL client_receive_smb(int fd,char *buffer, unsigned int timeout)
 
 BOOL cli_receive_smb(struct cli_state *cli)
 {
-	extern int smb_read_error;
 	BOOL ret;
 
 	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
@@ -87,7 +87,7 @@ BOOL cli_receive_smb(struct cli_state *cli)
 		return False; 
 
  again:
-	ret = client_receive_smb(cli->fd,cli->inbuf,cli->timeout);
+	ret = client_receive_smb(cli->fd,cli->inbuf, cli->bufsize, cli->timeout);
 	
 	if (ret) {
 		/* it might be an oplock break request */
@@ -107,8 +107,8 @@ BOOL cli_receive_smb(struct cli_state *cli)
 	}
 
 	/* If the server is not responding, note that now */
-
 	if (!ret) {
+                DEBUG(0, ("Receiving SMB: Server stopped responding\n"));
 		cli->smb_rw_error = smb_read_error;
 		close(cli->fd);
 		cli->fd = -1;
@@ -116,6 +116,26 @@ BOOL cli_receive_smb(struct cli_state *cli)
 	}
 
 	if (!cli_check_sign_mac(cli)) {
+		/*
+		 * If we get a signature failure in sessionsetup, then
+		 * the server sometimes just reflects the sent signature
+		 * back to us. Detect this and allow the upper layer to
+		 * retrieve the correct Windows error message.
+		 */
+		if (CVAL(cli->outbuf,smb_com) == SMBsesssetupX &&
+			(smb_len(cli->inbuf) > (smb_ss_field + 8 - 4)) &&
+			(SVAL(cli->inbuf,smb_flg2) & FLAGS2_SMB_SECURITY_SIGNATURES) &&
+			memcmp(&cli->outbuf[smb_ss_field],&cli->inbuf[smb_ss_field],8) == 0 &&
+			cli_is_error(cli)) {
+
+			/*
+			 * Reflected signature on login error. 
+			 * Set bad sig but don't close fd.
+			 */
+			cli->smb_rw_error = READ_BAD_SIG;
+			return True;
+		}
+
 		DEBUG(0, ("SMB Signature verification failed on incoming packet!\n"));
 		cli->smb_rw_error = READ_BAD_SIG;
 		close(cli->fd);
@@ -255,12 +275,12 @@ void cli_setup_signing_state(struct cli_state *cli, int signing_state)
 }
 
 /****************************************************************************
- Initialise a client structure.
+ Initialise a client structure. Always returns a malloc'ed struct.
 ****************************************************************************/
 
-struct cli_state *cli_initialise(struct cli_state *cli)
+struct cli_state *cli_initialise(void)
 {
-        BOOL alloced_cli = False;
+	struct cli_state *cli = NULL;
 
 	/* Check the effective uid - make sure we are not setuid */
 	if (is_setuid_root()) {
@@ -268,16 +288,10 @@ struct cli_state *cli_initialise(struct cli_state *cli)
 		return NULL;
 	}
 
+	cli = SMB_MALLOC_P(struct cli_state);
 	if (!cli) {
-		cli = SMB_MALLOC_P(struct cli_state);
-		if (!cli)
-			return NULL;
-		ZERO_STRUCTP(cli);
-                alloced_cli = True;
+		return NULL;
 	}
-
-	if (cli->initialised)
-		cli_close_connection(cli);
 
 	ZERO_STRUCTP(cli);
 
@@ -333,7 +347,6 @@ struct cli_state *cli_initialise(struct cli_state *cli)
 	cli_null_set_signing(cli);
 
 	cli->initialised = 1;
-	cli->allocated = alloced_cli;
 
 	return cli;
 
@@ -343,10 +356,7 @@ struct cli_state *cli_initialise(struct cli_state *cli)
 
         SAFE_FREE(cli->inbuf);
         SAFE_FREE(cli->outbuf);
-
-        if (alloced_cli)
-                SAFE_FREE(cli);
-
+	SAFE_FREE(cli);
         return NULL;
 }
 
@@ -403,10 +413,10 @@ void cli_nt_pipes_close(struct cli_state *cli)
 }
 
 /****************************************************************************
- Close a client connection and free the memory without destroying cli itself.
+ Shutdown a client structure.
 ****************************************************************************/
 
-void cli_close_connection(struct cli_state *cli)
+void cli_shutdown(struct cli_state *cli)
 {
 	cli_nt_pipes_close(cli);
 
@@ -443,20 +453,8 @@ void cli_close_connection(struct cli_state *cli)
 	}
 	cli->fd = -1;
 	cli->smb_rw_error = 0;
-}
 
-/****************************************************************************
- Shutdown a client structure.
-****************************************************************************/
-
-void cli_shutdown(struct cli_state *cli)
-{
-	BOOL allocated = cli->allocated;
-	cli_close_connection(cli);
-	ZERO_STRUCTP(cli);
-	if (allocated) {
-		free(cli);
-	}
+	SAFE_FREE(cli);
 }
 
 /****************************************************************************

@@ -87,6 +87,7 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 	unsigned int i;
 	struct vuid_cache_entry *ent = NULL;
 	BOOL readonly_share;
+	NT_USER_TOKEN *token;
 
 	for (i=0;i<conn->vuid_cache.entries && i< VUID_CACHE_SIZE;i++) {
 		if (conn->vuid_cache.array[i].vuid == vuser->vuid) {
@@ -102,10 +103,14 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 
 	readonly_share = is_share_read_only_for_token(vuser->user.unix_name,
 						      vuser->nt_user_token,
-						      conn->service);
+						      SNUM(conn));
+
+	token = conn->nt_user_token ?
+		conn->nt_user_token : vuser->nt_user_token;
 
 	if (!readonly_share &&
-	    !share_access_check(conn, snum, vuser, FILE_WRITE_DATA)) {
+	    !share_access_check(token, lp_servicename(snum),
+				FILE_WRITE_DATA)) {
 		/* smb.conf allows r/w, but the security descriptor denies
 		 * write. Fall back to looking at readonly. */
 		readonly_share = True;
@@ -113,7 +118,7 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 			 "security descriptor\n"));
 	}
 
-	if (!share_access_check(conn, snum, vuser,
+	if (!share_access_check(token, lp_servicename(snum),
 				readonly_share ?
 				FILE_READ_DATA : FILE_WRITE_DATA)) {
 		return False;
@@ -129,13 +134,55 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 
 	ent->admin_user = token_contains_name_in_list(
 		vuser->user.unix_name, NULL, vuser->nt_user_token,
-		lp_admin_users(conn->service));
+		lp_admin_users(SNUM(conn)));
 
 	conn->read_only = ent->read_only;
 	conn->admin_user = ent->admin_user;
 
 	return(True);
 }
+
+/*******************************************************************
+ Check if a username is OK in share level security.
+********************************************************************/
+
+static bool check_user_ok_sharelevel_security(connection_struct *conn,
+					const char *unix_name,
+					int snum)
+{
+	NT_USER_TOKEN *token = conn->nt_user_token;
+
+	if (!user_ok_token(unix_name, token, snum)) {
+		return false;
+	}
+
+	conn->read_only = is_share_read_only_for_token(unix_name,
+						      token,
+						      snum);
+
+	if (!conn->read_only &&
+	    !share_access_check(token, lp_servicename(snum),
+				FILE_WRITE_DATA)) {
+		/* smb.conf allows r/w, but the security descriptor denies
+		 * write. Fall back to looking at readonly. */
+		conn->read_only = true;
+		DEBUG(5,("falling back to read-only access-evaluation due to "
+			 "security descriptor\n"));
+	}
+
+	if (!share_access_check(token, lp_servicename(snum),
+				conn->read_only ?
+				FILE_READ_DATA : FILE_WRITE_DATA)) {
+		return false;
+	}
+
+	conn->admin_user = token_contains_name_in_list(
+				unix_name, NULL, token,
+				lp_admin_users(SNUM(conn)));
+
+	return true;
+}
+
 
 /****************************************************************************
  Become the user of a connection number without changing the security context
@@ -144,6 +191,7 @@ static BOOL check_user_ok(connection_struct *conn, user_struct *vuser,int snum)
 
 BOOL change_to_user(connection_struct *conn, uint16 vuid)
 {
+	enum security_types sec = (enum security_types)lp_security();
 	user_struct *vuser = get_valid_user_struct(vuid);
 	int snum;
 	gid_t gid;
@@ -151,7 +199,9 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
 	char group_c;
 	BOOL must_free_token = False;
 	NT_USER_TOKEN *token = NULL;
-
+	int num_groups = 0;
+	gid_t *group_list = NULL;
+	
 	if (!conn) {
 		DEBUG(2,("change_to_user: Connection not open\n"));
 		return(False);
@@ -164,7 +214,7 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
 	 * SMB's - this hurts performance - Badly.
 	 */
 
-	if((lp_security() == SEC_SHARE) && (current_user.conn == conn) &&
+	if((sec == SEC_SHARE) && (current_user.conn == conn) &&
 	   (current_user.ut.uid == conn->uid)) {
 		DEBUG(4,("change_to_user: Skipping user change - already "
 			 "user\n"));
@@ -185,19 +235,26 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
 			 vuser->user.smb_name, vuser->user.unix_name, vuid,
 			 lp_servicename(snum)));
 		return False;
+	} else if ((sec == SEC_SHARE) && !check_user_ok_sharelevel_security(conn,
+			conn->user, snum)) {
+		DEBUG(2,("change_to_user: unix user %s "
+			 "not permitted access to share %s.\n",
+			 conn->user,
+			 lp_servicename(snum)));
+		return false;
 	}
 
 	if (conn->force_user) /* security = share sets this too */ {
 		uid = conn->uid;
 		gid = conn->gid;
-		current_user.ut.groups = conn->groups;
-		current_user.ut.ngroups = conn->ngroups;
+	        group_list = conn->groups;
+		num_groups = conn->ngroups;
 		token = conn->nt_user_token;
 	} else if (vuser) {
 		uid = conn->admin_user ? 0 : vuser->uid;
 		gid = vuser->gid;
-		current_user.ut.ngroups = vuser->n_groups;
-		current_user.ut.groups  = vuser->groups;
+		num_groups = vuser->n_groups;
+		group_list  = vuser->groups;
 		token = vuser->nt_user_token;
 	} else {
 		DEBUG(2,("change_to_user: Invalid vuid used %d in accessing "
@@ -230,8 +287,8 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
 			 */
 
 			int i;
-			for (i = 0; i < current_user.ut.ngroups; i++) {
-				if (current_user.ut.groups[i] == conn->gid) {
+			for (i = 0; i < num_groups; i++) {
+				if (group_list[i] == conn->gid) {
 					gid = conn->gid;
 					gid_to_sid(&token->user_sids[1], gid);
 					break;
@@ -243,6 +300,12 @@ BOOL change_to_user(connection_struct *conn, uint16 vuid)
 		}
 	}
 	
+	/* Now set current_user since we will immediately also call
+	   set_sec_ctx() */
+
+	current_user.ut.ngroups = num_groups;
+	current_user.ut.groups  = group_list;	
+
 	set_sec_ctx(uid, gid, current_user.ut.ngroups, current_user.ut.groups,
 		    token);
 
@@ -415,4 +478,3 @@ BOOL unbecome_user(void)
 	pop_conn_ctx();
 	return True;
 }
-

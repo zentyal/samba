@@ -5,9 +5,6 @@ samba (2:3.3.3-2) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Add idmap_tdb2 module to winbind package
-  * Drop shrink-dead-code.patch that trims out too many
-    functions and leads to non functional VFS modules
-    Closes: #524048
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 19 Apr 2009 22:31:33 +0200
 

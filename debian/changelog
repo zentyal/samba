@@ -1,9 +1,9 @@
-samba (2:3.2.5-4lenny2) UNRELEASED; urgency=low
+samba (2:3.2.5-4lenny2) stable-proposed-updates; urgency=low
 
   * Do not abort rename process on valid rename script. Closes: #519974
   * Allow Office 2007 to save files on Samba-mapped drives. Closes: #520284
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 22 Mar 2009 11:42:53 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sun, 22 Mar 2009 17:53:21 +0100
 
 samba (2:3.2.5-4lenny1) stable-proposed-updates; urgency=low
 

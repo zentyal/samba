@@ -1,0 +1,25 @@
+Goal: Fix winbind crashes when interacting with OpenLDAP by having
+      ldap_search_with_timeout() always returns LDAP_TIMELIMIT_EXCEEDED
+      in the error case
+
+Fixes: #522907
+
+Status wrt upstream: Fixed in 3.3.4
+
+Author: Jeremy Allison <jra@samba.org>
+
+Index: samba-3.2.5/source/libads/ldap.c
+===================================================================
+--- samba-3.2.5.orig/source/libads/ldap.c
++++ samba-3.2.5/source/libads/ldap.c
+@@ -118,6 +118,10 @@
+ 	if (gotalarm != 0)
+ 		return LDAP_TIMELIMIT_EXCEEDED;
+ 
++	if (*res == NULL) {
++		return LDAP_TIMELIMIT_EXCEEDED;
++	}
++
+ 	return result;
+ }
+ 

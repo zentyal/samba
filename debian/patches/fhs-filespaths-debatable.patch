@@ -5,8 +5,7 @@ Goal: Prepare the sources to better respect FHS
 
 Fixes: #49011
 
-Status wrt upstream: Mean to be forwarded upstream (a good rationale 
-                     about FHS is probably recommended)
+Status wrt upstream: Applied in 3.4
 
 Note: Use dedicated directories for:
       - discardable cache data (/var/cache/samba): 

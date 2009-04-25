@@ -4,8 +4,10 @@ Goal: Change install paths to better respect FHS. This needs fhs-newpaths.patch
 
 Fixes: #49011
 
-Status wrt upstream: Can remain Debian-specific if upstream doesn't want to
-                     change their default behaviour
+Status wrt upstream: The "lock dir" related parts will no longer be
+                     needed in 3.4 and 3.4 will allow to configure locations
+                     for "lock directory", "state directory" and 
+                     "cache directory" in smb.conf
 
 Index: samba-3.3.0rc2/source/param/loadparm.c
 ===================================================================

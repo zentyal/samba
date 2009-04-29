@@ -1,3 +1,21 @@
+Comment by Michael Adam <obnox@samba.org>:
+
+While this patch is clever in one respect, it has bad side effects:
+Functions that not used are removed from the binaries.
+For functions that are only used in shared objects, this is very bad,
+since these will refuse to work (load).
+
+Example: librpc/gen_ndr/ndr_xattr.c:ndr_pull_xattr_NTACL() is only
+used in the acl_tdb and acl_xattr vfs modules.
+So the symbol is not present in smbd, and thus these modules will
+not work. The _do_ not work in the 3.3. packages that are out there.
+
+I recommend not using this patch!
+
+Better reduction is done by fixing the linking dependencies... :-(
+
+Michael
+
 Index: samba/source/Makefile.in
 ===================================================================
 --- samba.orig/source/Makefile.in

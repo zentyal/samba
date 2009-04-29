@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/01/2009
+.\"      Date: 04/28/2009
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "04/01/2009" "Samba 3\&.3" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/28/2009" "Samba 3\&.3" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -10630,7 +10630,7 @@ winbind normalize names (G)
 .RS 4
 This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\&. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\&. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\&. If your domain possesses names containing the underscore character, this option may cause problems unless the name aliasing feature is supported by your nss_info plugin\&.
 .sp
-This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qlaified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
+This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
 .sp
 Default:
 \fI\fIwinbind normalize names\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR

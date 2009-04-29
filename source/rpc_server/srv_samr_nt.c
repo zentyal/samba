@@ -620,13 +620,6 @@ NTSTATUS _samr_OpenDomain(pipes_struct *p,
 	if ( !find_policy_by_hnd(p, r->in.connect_handle, (void**)(void *)&info) )
 		return NT_STATUS_INVALID_HANDLE;
 
-	status = access_check_samr_function(info->acc_granted,
-					    SAMR_ACCESS_OPEN_DOMAIN,
-					    "_samr_OpenDomain" );
-
-	if ( !NT_STATUS_IS_OK(status) )
-		return status;
-
 	/*check if access can be granted as requested by client. */
 	map_max_allowed_access(p->pipe_user.nt_user_token, &des_access);
 
@@ -2897,7 +2890,7 @@ NTSTATUS _samr_QueryDomainInfo(pipes_struct *p,
 	}
 
 	status = access_check_samr_function(info->acc_granted,
-					    SAMR_ACCESS_OPEN_DOMAIN,
+					    SAMR_ACCESS_LOOKUP_DOMAIN,
 					    "_samr_QueryDomainInfo" );
 
 	if ( !NT_STATUS_IS_OK(status) )
@@ -3322,7 +3315,7 @@ NTSTATUS _samr_Connect(pipes_struct *p,
 	map_max_allowed_access(p->pipe_user.nt_user_token, &des_access);
 
 	se_map_generic( &des_access, &sam_generic_mapping );
-	info->acc_granted = des_access & (SAMR_ACCESS_ENUM_DOMAINS|SAMR_ACCESS_OPEN_DOMAIN);
+	info->acc_granted = des_access & (SAMR_ACCESS_ENUM_DOMAINS|SAMR_ACCESS_LOOKUP_DOMAIN);
 
 	/* get a (unique) handle.  open a policy on it. */
 	if (!create_policy_hnd(p, r->out.connect_handle, free_samr_info, (void *)info))
@@ -3458,7 +3451,7 @@ NTSTATUS _samr_LookupDomain(pipes_struct *p,
 	   Reverted that change so we will work with RAS servers again */
 
 	status = access_check_samr_function(info->acc_granted,
-					    SAMR_ACCESS_OPEN_DOMAIN,
+					    SAMR_ACCESS_LOOKUP_DOMAIN,
 					    "_samr_LookupDomain");
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -3743,12 +3736,7 @@ static NTSTATUS set_user_info_18(struct samr_UserInfo18 *id18,
 		pdb_set_pass_last_set_time(pwd, time(NULL), PDB_CHANGED);
 	}
 
-	if (id18->password_expired) {
-		pdb_set_pass_last_set_time(pwd, 0, PDB_CHANGED);
-	} else {
-		/* FIXME */
-		pdb_set_pass_last_set_time(pwd, time(NULL), PDB_CHANGED);
-	}
+	copy_id18_to_sam_passwd(pwd, id18);
 
 	return pdb_update_sam_account(pwd);
 }
@@ -3955,23 +3943,16 @@ static NTSTATUS set_user_info_23(TALLOC_CTX *mem_ctx,
  set_user_info_pw
  ********************************************************************/
 
-static bool set_user_info_pw(uint8 *pass, struct samu *pwd,
-			     int level)
+static bool set_user_info_pw(uint8 *pass, struct samu *pwd)
 {
 	uint32 len = 0;
 	char *plaintext_buf = NULL;
 	uint32 acct_ctrl;
-	time_t last_set_time;
-	enum pdb_value_state last_set_state;
 
 	DEBUG(5, ("Attempting administrator password change for user %s\n",
 		  pdb_get_username(pwd)));
 
 	acct_ctrl = pdb_get_acct_ctrl(pwd);
-	/* we need to know if it's expired, because this is an admin change, not a
-	   user change, so it's still expired when we're done */
-	last_set_state = pdb_get_init_flags(pwd, PDB_PASSLASTSET);
-	last_set_time = pdb_get_pass_last_set_time(pwd);
 
 	if (!decode_pw_buffer(talloc_tos(),
 				pass,
@@ -4014,29 +3995,38 @@ static bool set_user_info_pw(uint8 *pass, struct samu *pwd,
 
 	memset(plaintext_buf, '\0', strlen(plaintext_buf));
 
-	/*
-	 * A level 25 change does reset the pwdlastset field, a level 24
-	 * change does not. I know this is probably not the full story, but
-	 * it is needed to make XP join LDAP correctly, without it the later
-	 * auth2 check can fail with PWD_MUST_CHANGE.
-	 */
-	if (level != 25) {
-		/*
-		 * restore last set time as this is an admin change, not a
-		 * user pw change
-		 */
-		pdb_set_pass_last_set_time (pwd, last_set_time,
-					    last_set_state);
-	}
-
 	DEBUG(5,("set_user_info_pw: pdb_update_pwd()\n"));
 
-	/* update the SAMBA password */
-	if(!NT_STATUS_IS_OK(pdb_update_sam_account(pwd))) {
-		return False;
+	return True;
+}
+
+/*******************************************************************
+ set_user_info_24
+ ********************************************************************/
+
+static NTSTATUS set_user_info_24(TALLOC_CTX *mem_ctx,
+				 struct samr_UserInfo24 *id24,
+				 struct samu *pwd)
+{
+	NTSTATUS status;
+
+	if (id24 == NULL) {
+		DEBUG(5, ("set_user_info_24: NULL id24\n"));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (!set_user_info_pw(id24->password.data, pwd)) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
+	copy_id24_to_sam_passwd(pwd, id24);
+
+	status = pdb_update_sam_account(pwd);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
  	}
 
-	return True;
+	return NT_STATUS_OK;
 }
 
 /*******************************************************************
@@ -4060,6 +4050,14 @@ static NTSTATUS set_user_info_25(TALLOC_CTX *mem_ctx,
 
 	if (id25->info.fields_present & SAMR_FIELD_LAST_PWD_CHANGE) {
 		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	if ((id25->info.fields_present & SAMR_FIELD_NT_PASSWORD_PRESENT) ||
+	    (id25->info.fields_present & SAMR_FIELD_LM_PASSWORD_PRESENT)) {
+
+		if (!set_user_info_pw(id25->password.data, pwd)) {
+			return NT_STATUS_WRONG_PASSWORD;
+		}
 	}
 
 	copy_id25_to_sam_passwd(pwd, id25);
@@ -4086,6 +4084,36 @@ static NTSTATUS set_user_info_25(TALLOC_CTX *mem_ctx,
 
 	return NT_STATUS_OK;
 }
+
+/*******************************************************************
+ set_user_info_26
+ ********************************************************************/
+
+static NTSTATUS set_user_info_26(TALLOC_CTX *mem_ctx,
+				 struct samr_UserInfo26 *id26,
+				 struct samu *pwd)
+{
+	NTSTATUS status;
+
+	if (id26 == NULL) {
+		DEBUG(5, ("set_user_info_26: NULL id26\n"));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (!set_user_info_pw(id26->password.data, pwd)) {
+		return NT_STATUS_WRONG_PASSWORD;
+	}
+
+	copy_id26_to_sam_passwd(pwd, id26);
+
+	status = pdb_update_sam_account(pwd);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	return NT_STATUS_OK;
+}
+
 
 /*******************************************************************
  samr_SetUserInfo
@@ -4247,10 +4275,8 @@ NTSTATUS _samr_SetUserInfo(pipes_struct *p,
 
 			dump_data(100, info->info24.password.data, 516);
 
-			if (!set_user_info_pw(info->info24.password.data, pwd,
-					      switch_value)) {
-				status = NT_STATUS_WRONG_PASSWORD;
-			}
+			status = set_user_info_24(p->mem_ctx,
+						  &info->info24, pwd);
 			break;
 
 		case 25:
@@ -4265,13 +4291,6 @@ NTSTATUS _samr_SetUserInfo(pipes_struct *p,
 
 			status = set_user_info_25(p->mem_ctx,
 						  &info->info25, pwd);
-			if (!NT_STATUS_IS_OK(status)) {
-				goto done;
-			}
-			if (!set_user_info_pw(info->info25.password.data, pwd,
-					      switch_value)) {
-				status = NT_STATUS_WRONG_PASSWORD;
-			}
 			break;
 
 		case 26:
@@ -4284,17 +4303,13 @@ NTSTATUS _samr_SetUserInfo(pipes_struct *p,
 
 			dump_data(100, info->info26.password.data, 516);
 
-			if (!set_user_info_pw(info->info26.password.data, pwd,
-					      switch_value)) {
-				status = NT_STATUS_WRONG_PASSWORD;
-			}
+			status = set_user_info_26(p->mem_ctx,
+						  &info->info26, pwd);
 			break;
 
 		default:
 			status = NT_STATUS_INVALID_INFO_CLASS;
 	}
-
- done:
 
 	TALLOC_FREE(pwd);
 

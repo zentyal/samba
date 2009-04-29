@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/01/2009
+.\"      Date: 04/28/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "NET" "8" "04/01/2009" "Samba 3\&.3" "System Administration tools"
+.TH "NET" "8" "04/28/2009" "Samba 3\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ net \- Tool for administration of Samba and remote CIFS servers\&.
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCnet\F[] {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V]
+\FCnet\F[] {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V] [\-\-request\-timeout\ seconds]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -242,6 +242,11 @@ When listing data, give more information on each item\&.
 \-P
 .RS 4
 Make queries to the external server using the machine account of the local server\&.
+.RE
+.PP
+\-\-request\-timeout 30
+.RS 4
+Let client requests timeout after 30 seconds the default is 10 seconds\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level

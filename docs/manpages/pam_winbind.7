@@ -1,12 +1,12 @@
 .\"     Title: pam_winbind
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/01/2009
+.\"      Date: 04/28/2009
 .\"    Manual: 7
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "PAM_WINBIND" "7" "04/01/2009" "Samba 3\&.3" "7"
+.TH "PAM_WINBIND" "7" "04/28/2009" "Samba 3\&.3" "7"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -242,6 +242,11 @@ Do not emit any messages\&.
 mkhomedir
 .RS 4
 Create homedirectory for a user on\-the\-fly, option is valid in PAM session block\&.
+.RE
+.PP
+warn_pwd_expire
+.RS 4
+Defines number of days before pam_winbind starts to warn about passwords that are going to expire\&. Defaults to 14 days\&.
 .RE
 .SH "SEE ALSO"
 .PP

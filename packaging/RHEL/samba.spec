@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.3.3
+Version:      3.3.4
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -157,7 +157,7 @@ CC="$CC" CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
         --without-smbwrapper \
 	--with-pam \
 	--with-quotas \
-	--with-shared-modules=idmap_rid,idmap_ad \
+	--with-shared-modules=idmap_rid,idmap_ad,idmap_hash,idmap_adex \
 	--with-syslog \
 	--with-utmp \
 	--with-dnsupdate

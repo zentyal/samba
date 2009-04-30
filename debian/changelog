@@ -1,10 +1,11 @@
-samba (2:3.3.3-2) UNRELEASED; urgency=low
+samba (2:3.3.4-1) UNRELEASED; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release
+  * Add idmap_tdb2 module to winbind package
 
   [ Debconf translations ]
   * Bengali added.
-
-  [ Christian Perrier ]
-  * Add idmap_tdb2 module to winbind package
 
   [ Steve Langasek ]
   * Recommend logrotate instead of depending on it.  Closes: #504219.

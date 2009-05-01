@@ -1,11 +1,11 @@
-samba (2:3.2.5-4lenny3) UNRELEASED; urgency=low
+samba (2:3.2.5-4lenny3) stable-proposed-updates; urgency=low
 
   * Have ldap_search_with_timeout() always returns LDAP_TIMELIMIT_EXCEEDED
     when OpenLDAP times out. THat fixes daily winbind crashes for users
     Closes: #522907
   * Fix memory leak in vfs_full_audit. Closes: #520794
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 24 Apr 2009 10:24:01 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 01 May 2009 08:37:04 +0200
 
 samba (2:3.2.5-4lenny2) stable-proposed-updates; urgency=low
 

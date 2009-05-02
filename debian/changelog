@@ -3,6 +3,8 @@ samba (2:3.3.4-1) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * New upstream release
   * Add idmap_tdb2 module to winbind package
+  * No longer shrink "dead" code from smbd as it prevents VFS modules
+    to properly load. Closes: #524048.
 
   [ Debconf translations ]
   * Bengali added.

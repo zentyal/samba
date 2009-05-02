@@ -16,22 +16,11 @@ Better reduction is done by fixing the linking dependencies... :-(
 
 Michael
 
-Index: samba/source/Makefile.in
+Index: samba-3.4.0/source/Makefile.in
 ===================================================================
---- samba.orig/source/Makefile.in
-+++ samba/source/Makefile.in
-@@ -1328,267 +1328,356 @@
- 
- bin/smbd@EXEEXT@: $(BINARY_PREREQS) $(SMBD_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@ @BUILD_POPT@
- 	@echo Linking $@
--	@$(CC) $(FLAGS) -o $@ $(SMBD_OBJ) $(LDFLAGS) $(LDAP_LIBS) \
-+	@$(AR) -rc $@.a $(SMBD_OBJ)
-+	@$(CC) $(FLAGS) -o $@ $@.a $(LDFLAGS) $(LDAP_LIBS) \
- 		$(KRB5LIBS) $(DYNEXP) $(PRINT_LIBS) $(AUTH_LIBS) \
- 		$(ACL_LIBS) $(PASSDB_LIBS) $(LIBS) $(DNSSD_LIBS) $(AVAHI_LIBS) \
- 		$(POPT_LIBS) @SMBD_LIBS@ $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
- 		$(WINBIND_LIBS)
-+	@rm -f $@.a
+--- samba-3.4.0.orig/source/Makefile.in	2009-05-02 07:06:20.433929231 +0200
++++ samba-3.4.0/source/Makefile.in	2009-05-02 07:07:48.726174813 +0200
+@@ -1336,259 +1336,346 @@
  
  bin/nmbd@EXEEXT@: $(BINARY_PREREQS) $(NMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@
@@ -423,7 +412,7 @@ Index: samba/source/Makefile.in
  
  
  #####################################################################
-@@ -2181,16 +2270,20 @@
+@@ -2181,16 +2268,20 @@
  
  bin/winbindd@EXEEXT@: $(BINARY_PREREQS) $(WINBINDD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
  	@echo "Linking $@"
@@ -446,7 +435,7 @@ Index: samba/source/Makefile.in
  
  @WINBIND_NSS@: $(BINARY_PREREQS) $(WINBIND_NSS_OBJ)
  	@echo "Linking $@"
-@@ -2477,9 +2570,11 @@
+@@ -2477,9 +2568,11 @@
  
  bin/wbinfo@EXEEXT@: $(BINARY_PREREQS) $(WBINFO_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
  	@echo Linking $@
@@ -459,7 +448,7 @@ Index: samba/source/Makefile.in
  
  bin/ntlm_auth@EXEEXT@: $(BINARY_PREREQS) $(NTLM_AUTH_OBJ) $(PARAM_OBJ) \
  	$(LIB_NONSMBD_OBJ) @BUILD_POPT@ @LIBTALLOC_TARGET@ @LIBTDB_TARGET@ @LIBWBCLIENT_SHARED@
-@@ -2497,23 +2592,31 @@
+@@ -2497,23 +2590,31 @@
  
  bin/tdbbackup@EXEEXT@: $(BINARY_PREREQS) $(TDBBACKUP_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
  	@echo Linking $@

@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "NET" "8" "01/27/2009" "Samba 3\&.3" "System Administration tools"
+.TH "NET" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -171,7 +171,7 @@ net \- Tool for administration of Samba and remote CIFS servers\&.
 .SH "Synopsis"
 .fam C
 .HP \w'\ 'u
-\FCnet\F[] {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V]
+\FCnet\F[] {<ads|rap|rpc>} [\-h] [\-w\ workgroup] [\-W\ myworkgroup] [\-U\ user] [\-I\ ip\-address] [\-p\ port] [\-n\ myname] [\-s\ conffile] [\-S\ server] [\-l] [\-P] [\-d\ debuglevel] [\-V] [\-\-request\-timeout\ seconds]
 .fam
 .SH "DESCRIPTION"
 .PP
@@ -242,6 +242,11 @@ When listing data, give more information on each item\&.
 \-P
 .RS 4
 Make queries to the external server using the machine account of the local server\&.
+.RE
+.PP
+\-\-request\-timeout 30
+.RS 4
+Let client requests timeout after 30 seconds the default is 10 seconds\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level
@@ -1062,6 +1067,57 @@ Set the list of includes for the provided section (global or share) to the given
 .SS "CONF DELINCLUDES section"
 .PP
 Delete the list of includes from the provided section (global or share)\&.
+.SS "EVENTLOG"
+.PP
+Starting with version 3\&.4\&.0 net can read, dump, import and export native win32 eventlog files (usually *\&.evt)\&. evt files are used by the native Windows eventviewer tools\&.
+.PP
+The import and export of evt files can only succeed when
+\fIeventlog list\fR
+is used in
+\fIsmb\&.conf\fR
+file\&. See the
+\fBsmb.conf\fR(5)
+manpage for details\&.
+.PP
+The eventlog commands are:
+.RS 4
+net eventlog dump \- Dump a eventlog *\&.evt file on the screen\&.
+.RE
+.RS 4
+net eventlog import \- Import a eventlog *\&.evt into the samba internal
+tdb based representation of eventlogs\&.
+.RE
+.RS 4
+net eventlog export \- Export the samba internal tdb based representation
+of eventlogs into an eventlog *\&.evt file\&.
+.RE
+.SS "EVENTLOG DUMP"
+.PP
+Prints a eventlog *\&.evt file to standard output\&.
+.SS "EVENTLOG IMPORT filename eventlog"
+.PP
+Imports a eventlog *\&.evt file defined by
+\fIfilename\fR
+into the samba internal tdb representation of eventlog defined by
+\fIeventlog\fR\&.
+\fIeventlog\fR
+needs to part of the
+\fIeventlog list\fR
+defined in smb\&.conf\&. See the
+\fBsmb.conf\fR(5)
+manpage for details\&.
+.SS "EVENTLOG EXPORT filename eventlog"
+.PP
+Exports the samba internal tdb representation of eventlog defined by
+\fIeventlog\fR
+to a eventlog *\&.evt file defined by
+\fIfilename\fR\&.
+\fIeventlog\fR
+needs to part of the
+\fIeventlog list\fR
+defined in smb\&.conf\&. See the
+\fBsmb.conf\fR(5)
+manpage for details\&.
 .SS "HELP [COMMAND]"
 .PP
 Gives usage information for the specified command\&.

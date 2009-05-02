@@ -1,5 +1,5 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 25. Advanced Network Management</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="winbind.html" title="Chapter 24. Winbind: Use of Domain Accounts"><link rel="next" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 25. Advanced Network Management</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="winbind.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="PolicyMgmt.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="AdvancedNetworkManagement"></a>Chapter 25. Advanced Network Management</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 15 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657588">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657615">Remote Server Administration</a></span></dt><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657758">Remote Desktop Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2657787">Remote Management from NoMachine.Com</a></span></dt><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658163">Remote Management with ThinLinc</a></span></dt></dl></dd><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2658348">Network Logon Script Magic</a></span></dt><dd><dl><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658573">Adding Printers without User Intervention</a></span></dt><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658616">Limiting Logon Connections</a></span></dt></dl></dd></dl></div><p>
-<a class="indexterm" name="id2657576"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 25. Advanced Network Management</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="winbind.html" title="Chapter 24. Winbind: Use of Domain Accounts"><link rel="next" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 25. Advanced Network Management</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="winbind.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="PolicyMgmt.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="AdvancedNetworkManagement"></a>Chapter 25. Advanced Network Management</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 15 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657588">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657615">Remote Server Administration</a></span></dt><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2657758">Remote Desktop Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2657787">Remote Management from NoMachine.Com</a></span></dt><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658163">Remote Management with ThinLinc</a></span></dt></dl></dd><dt><span class="sect1"><a href="AdvancedNetworkManagement.html#id2658348">Network Logon Script Magic</a></span></dt><dd><dl><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658573">Adding Printers without User Intervention</a></span></dt><dt><span class="sect2"><a href="AdvancedNetworkManagement.html#id2658617">Limiting Logon Connections</a></span></dt></dl></dd></dl></div><p>
+<a class="indexterm" name="id2657577"></a>
 This section documents peripheral issues that are of great importance to network
 administrators who want to improve network resource access control, to automate the user
 environment, and to make their lives a little easier.
@@ -35,7 +35,7 @@ Domains and Server Manager are available from Microsoft
 <a class="ulink" href="ftp://ftp.microsoft.com/Softlib/MSLFILES/SRVTOOLS.EXE" target="_top">via ftp</a>.
 </p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2657758"></a>Remote Desktop Management</h2></div></div></div><p>
 <a class="indexterm" name="id2657766"></a>
-<a class="indexterm" name="id2657773"></a>
+<a class="indexterm" name="id2657774"></a>
 There are a number of possible remote desktop management solutions that range from free
 through costly. Do not let that put you off. Sometimes the most costly solution is the
 most cost effective. In any case, you will need to draw your own conclusions as to which
@@ -53,7 +53,7 @@ is the best tool in your network environment.
 		</span>&#8221;</p><p>&#8220;<span class="quote">
 <a class="indexterm" name="id2657826"></a>
 <a class="indexterm" name="id2657833"></a>
-<a class="indexterm" name="id2657839"></a>
+<a class="indexterm" name="id2657840"></a>
 <a class="indexterm" name="id2657846"></a>
 		Is there a way to accomplish this? Do I need a Windows Terminal server?  Do I need to configure it so
 		it is a member of the domain or a BDC or PDC? Are there any hacks for MS Windows XP to enable remote login
@@ -77,7 +77,7 @@ is the best tool in your network environment.
 <a class="indexterm" name="id2657918"></a>
 <a class="indexterm" name="id2657925"></a>
 <a class="indexterm" name="id2657932"></a>
-<a class="indexterm" name="id2657938"></a>
+<a class="indexterm" name="id2657939"></a>
 	I test drove their (public) Red Hat machine in Italy, over a loaded
 	Internet connection, with enabled thumbnail previews in KDE konqueror,
 	which popped up immediately on &#8220;<span class="quote">mouse-over</span>&#8221;. From inside that (remote X)
@@ -85,7 +85,7 @@ is the best tool in your network environment.
 	To test the performance, I played Pinball. I am proud to announce
 	that my score was 631,750 points at first try.
 	</p><p>
-<a class="indexterm" name="id2657957"></a>
+<a class="indexterm" name="id2657958"></a>
 <a class="indexterm" name="id2657964"></a>
 <a class="indexterm" name="id2657971"></a>
 <a class="indexterm" name="id2657978"></a>
@@ -152,7 +152,7 @@ is the best tool in your network environment.
 	Another alternative for remote access is <span class="emphasis"><em>ThinLinc</em></span> from Cendio.
 	</p><p>
 <a class="indexterm" name="id2658179"></a>
-<a class="indexterm" name="id2658185"></a>
+<a class="indexterm" name="id2658186"></a>
 <a class="indexterm" name="id2658192"></a>
 <a class="indexterm" name="id2658199"></a>
 <a class="indexterm" name="id2658206"></a>
@@ -162,7 +162,7 @@ is the best tool in your network environment.
 	ThinLinc is a terminal server solution that is available for Linux and Solaris based on standard
 	protocols such as SSH, TightVNC, NFS and PulseAudio.
 	</p><p>
-<a class="indexterm" name="id2658238"></a>
+<a class="indexterm" name="id2658239"></a>
 <a class="indexterm" name="id2658245"></a>
 	ThinLinc an be used both in the LAN environment to implement a Thin Client strategy for an organization, and as
 	secure remote access solution for people working from remote locations, even over smallband connections.
@@ -195,7 +195,7 @@ See <code class="filename">examples</code> directory <code class="filename">genl
 </p><p>
 The following listings are from the genlogon directory.
 </p><p>
-<a class="indexterm" name="id2658418"></a>
+<a class="indexterm" name="id2658419"></a>
 This is the <code class="filename">genlogon.pl</code> file:
 
 </p><pre class="programlisting">
@@ -282,7 +282,7 @@ Printers may be added automatically during logon script processing through the u
 </pre><p>
 
 See the documentation in the <a class="ulink" href="http://support.microsoft.com/default.asp?scid=kb;en-us;189105" target="_top">Microsoft Knowledge Base article 189105</a>.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2658616"></a>Limiting Logon Connections</h3></div></div></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2658617"></a>Limiting Logon Connections</h3></div></div></div><p>
 		Sometimes it is necessary to limit the number of concurrent connections to a
 		Samba shared resource. For example, a site may wish to permit only one network
 		logon per user.

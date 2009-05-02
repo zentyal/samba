@@ -88,7 +88,7 @@ log.smbd, etc...). The log file is never removed by the client.
 		This option changes the default UDP port number (normally 137)
 		that <code class="literal">nmbd</code> responds to name queries on. Don't
 		use this option unless you are an expert, in which case you
-		won't need help!</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481764"></a><h2>FILES</h2><div class="variablelist"><dl><dt><span class="term"><code class="filename">/etc/inetd.conf</code></span></dt><dd><p>If the server is to be run by the
+		won't need help!</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481763"></a><h2>FILES</h2><div class="variablelist"><dl><dt><span class="term"><code class="filename">/etc/inetd.conf</code></span></dt><dd><p>If the server is to be run by the
 		<code class="literal">inetd</code> meta-daemon, this file
 		must contain suitable startup information for the
 		meta-daemon. 
@@ -115,7 +115,7 @@ log.smbd, etc...). The log file is never removed by the client.
 		will store the browsing database in the file <code class="filename">browse.dat
 		</code> in the <code class="filename">var/locks</code> directory
 		configured under wherever Samba was configured to install itself.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481969"></a><h2>SIGNALS</h2><p>To shut down an <code class="literal">nmbd</code> process it is recommended
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481968"></a><h2>SIGNALS</h2><p>To shut down an <code class="literal">nmbd</code> process it is recommended
 	that SIGKILL (-9) <span class="emphasis"><em>NOT</em></span> be used, except as a last
 	resort, as this may leave the name database in an inconsistent state.
 	The correct way to terminate <code class="literal">nmbd</code> is to send it
@@ -129,13 +129,13 @@ log.smbd, etc...). The log file is never removed by the client.
 	using <a class="citerefentry" href="smbcontrol.1.html"><span class="citerefentry"><span class="refentrytitle">smbcontrol</span>(1)</span></a> (SIGUSR[1|2] signals
 	are no longer used since Samba 2.2). This is to allow
 	transient problems to be diagnosed, whilst still running 
-	at a normally low log level.</p></div><div class="refsect1" lang="en"><a name="id2532519"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
-	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2532530"></a><h2>SEE ALSO</h2><p>
+	at a normally low log level.</p></div><div class="refsect1" lang="en"><a name="id2532518"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
+	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2532528"></a><h2>SEE ALSO</h2><p>
 	<a class="citerefentry" href="inetd.8.html"><span class="citerefentry"><span class="refentrytitle">inetd</span>(8)</span></a>, <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>, <a class="citerefentry" href="smbclient.1.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(1)</span></a>, <a class="citerefentry" href="testparm.1.html"><span class="citerefentry"><span class="refentrytitle">testparm</span>(1)</span></a>, <a class="citerefentry" href="testprns.1.html"><span class="citerefentry"><span class="refentrytitle">testprns</span>(1)</span></a>, and the Internet 
 	RFC's <code class="filename">rfc1001.txt</code>, <code class="filename">rfc1002.txt</code>. 
 	In addition the CIFS (formerly SMB) specification is available 
 	as a link from the Web page <a class="ulink" href="http://samba.org/cifs/" target="_top"> 
-	http://samba.org/cifs/</a>.</p></div><div class="refsect1" lang="en"><a name="id2532603"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	http://samba.org/cifs/</a>.</p></div><div class="refsect1" lang="en"><a name="id2532602"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 

@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 29. Integrating MS Windows Networks with Samba</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="pam.html" title="Chapter 28. PAM-Based Distributed Authentication"><link rel="next" href="unicode.html" title="Chapter 30. Unicode/Charsets"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 29. Integrating MS Windows Networks with Samba</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pam.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="unicode.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="integrate-ms-networks"></a>Chapter 29. Integrating MS Windows Networks with Samba</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate"> (Jan 01 2001) </p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668035">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668056">Background Information</a></span></dt><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668184">Name Resolution in a Pure UNIX/Linux World</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668257">/etc/hosts</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668446">/etc/resolv.conf</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668482">/etc/host.conf</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668533">/etc/nsswitch.conf</a></span></dt></dl></dd><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668657">Name Resolution as Used within MS Windows Networking</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669092">The NetBIOS Name Cache</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669185">The LMHOSTS File</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669356">HOSTS File</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669384">DNS Lookup</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669412">WINS Lookup</a></span></dt></dl></dd><dt><span class="sect1"><a href="integrate-ms-networks.html#id2669549">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669562">Pinging Works Only One Way</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669594">Very Slow Network Connections</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669636">Samba Server Name-Change Problem</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 29. Integrating MS Windows Networks with Samba</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="pam.html" title="Chapter 28. PAM-Based Distributed Authentication"><link rel="next" href="unicode.html" title="Chapter 30. Unicode/Charsets"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 29. Integrating MS Windows Networks with Samba</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="pam.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="unicode.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="integrate-ms-networks"></a>Chapter 29. Integrating MS Windows Networks with Samba</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate"> (Jan 01 2001) </p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668035">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668056">Background Information</a></span></dt><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668184">Name Resolution in a Pure UNIX/Linux World</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668257">/etc/hosts</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668446">/etc/resolv.conf</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668482">/etc/host.conf</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2668533">/etc/nsswitch.conf</a></span></dt></dl></dd><dt><span class="sect1"><a href="integrate-ms-networks.html#id2668657">Name Resolution as Used within MS Windows Networking</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669092">The NetBIOS Name Cache</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669185">The LMHOSTS File</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669357">HOSTS File</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669385">DNS Lookup</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669412">WINS Lookup</a></span></dt></dl></dd><dt><span class="sect1"><a href="integrate-ms-networks.html#id2669550">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669563">Pinging Works Only One Way</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669594">Very Slow Network Connections</a></span></dt><dt><span class="sect2"><a href="integrate-ms-networks.html#id2669636">Samba Server Name-Change Problem</a></span></dt></dl></dd></dl></div><p>
 <a class="indexterm" name="id2667993"></a>
 This chapter deals with NetBIOS over TCP/IP name to IP address resolution. If
 your MS Windows clients are not configured to use NetBIOS over TCP/IP, then this
@@ -6,7 +6,7 @@ section does not apply to your installation. If your installation involves the u
 NetBIOS over TCP/IP, then this chapter may help you to resolve networking problems.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 <a class="indexterm" name="id2668011"></a>
-<a class="indexterm" name="id2668017"></a>
+<a class="indexterm" name="id2668018"></a>
 NetBIOS over TCP/IP has nothing to do with NetBEUI. NetBEUI is NetBIOS
 over Logical Link Control (LLC). On modern networks it is highly advised
 to not run NetBEUI at all. Note also that there is no such thing as
@@ -37,7 +37,7 @@ the client will use UDP port 137 (NetBIOS Name Service, also known as the Window
 Name Service, or WINS), TCP port 139, and TCP port 445 (for actual file and print traffic).
 </p></div><p>
 <a class="indexterm" name="id2668119"></a>
-<a class="indexterm" name="id2668125"></a>
+<a class="indexterm" name="id2668126"></a>
 <a class="indexterm" name="id2668132"></a>
 <a class="indexterm" name="id2668139"></a>
 <a class="indexterm" name="id2668146"></a>
@@ -50,7 +50,7 @@ Use of DHCP with ADS is recommended as a further means of maintaining central co
 workstation network configuration.
 </p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2668184"></a>Name Resolution in a Pure UNIX/Linux World</h2></div></div></div><p>
 The key configuration files covered in this section are:
-</p><a class="indexterm" name="id2668195"></a><a class="indexterm" name="id2668201"></a><a class="indexterm" name="id2668208"></a><a class="indexterm" name="id2668215"></a><div class="itemizedlist"><ul type="disc"><li><p><code class="filename">/etc/hosts</code></p></li><li><p><code class="filename">/etc/resolv.conf</code></p></li><li><p><code class="filename">/etc/host.conf</code></p></li><li><p><code class="filename">/etc/nsswitch.conf</code></p></li></ul></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2668257"></a><code class="filename">/etc/hosts</code></h3></div></div></div><p>
+</p><a class="indexterm" name="id2668195"></a><a class="indexterm" name="id2668202"></a><a class="indexterm" name="id2668208"></a><a class="indexterm" name="id2668215"></a><div class="itemizedlist"><ul type="disc"><li><p><code class="filename">/etc/hosts</code></p></li><li><p><code class="filename">/etc/resolv.conf</code></p></li><li><p><code class="filename">/etc/host.conf</code></p></li><li><p><code class="filename">/etc/nsswitch.conf</code></p></li></ul></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2668257"></a><code class="filename">/etc/hosts</code></h3></div></div></div><p>
 This file contains a static list of IP addresses and names.
 </p><pre class="programlisting">
 127.0.0.1	localhost localhost.localdomain
@@ -84,14 +84,14 @@ interface, the assignment of an IP address makes sense from a network management
 address can be assigned per MAC address. One address must be the primary IP address  this is the
 address that will be returned in the Address Resolution Protocol (ARP) reply.
 </p><p>
-<a class="indexterm" name="id2668368"></a>
+<a class="indexterm" name="id2668369"></a>
 When a user or a process wants to communicate with another machine, 
 the protocol implementation ensures that the &#8220;<span class="quote">machine name</span>&#8221; or &#8220;<span class="quote">host 
 name</span>&#8221; is resolved to an IP address in a manner that is controlled 
 by the TCP/IP configuration control files. The file 
 <code class="filename">/etc/hosts</code> is one such file.
 </p><p>
-<a class="indexterm" name="id2668395"></a>
+<a class="indexterm" name="id2668396"></a>
 When the IP address of the destination interface has been determined, a protocol called ARP/RARP is used to
 identify the MAC address of the target interface. ARP is a broadcast-oriented method that uses User Datagram
 Protocol (UDP) to send a request to all interfaces on the local network segment using the all 1s MAC address.
@@ -128,7 +128,7 @@ multi on
 </pre><p>Both addresses should be returned. Please refer to the 
 man page for <code class="filename">host.conf</code> for further details.
 </p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2668533"></a><code class="filename">/etc/nsswitch.conf</code></h3></div></div></div><p>
-<a class="indexterm" name="id2668544"></a>
+<a class="indexterm" name="id2668545"></a>
 This file controls the actual name resolution targets. The 
 file typically has resolver object specifications as follows:
 </p><pre class="programlisting">
@@ -160,8 +160,8 @@ It should be noted that unless a network request/message must be
 sent, TCP/IP networks are silent. All TCP/IP communications assume a 
 principal of speaking only when necessary.
 </p><p>
-<a class="indexterm" name="id2668580"></a>
-<a class="indexterm" name="id2668587"></a>
+<a class="indexterm" name="id2668581"></a>
+<a class="indexterm" name="id2668588"></a>
 <a class="indexterm" name="id2668594"></a>
 <a class="indexterm" name="id2668601"></a>
 <a class="indexterm" name="id2668608"></a>
@@ -181,7 +181,7 @@ which both the Samba machine and the MS Windows machine belong.
 <a class="indexterm" name="id2668666"></a>
 <a class="indexterm" name="id2668673"></a>
 <a class="indexterm" name="id2668680"></a>
-<a class="indexterm" name="id2668686"></a>
+<a class="indexterm" name="id2668687"></a>
 MS Windows networking is predicated on the name each machine is given. This name is known variously (and
 inconsistently) as the &#8220;<span class="quote">computer name,</span>&#8221; &#8220;<span class="quote">machine name,</span>&#8221; &#8220;<span class="quote">networking
 name,</span>&#8221; &#8220;<span class="quote">NetBIOS name,</span>&#8221; or &#8220;<span class="quote">SMB name.</span>&#8221; All terms mean the same thing with the
@@ -253,7 +253,7 @@ MS Windows machines use a complex array of name resolution mechanisms.
 Since we are primarily concerned with TCP/IP, this demonstration is 
 limited to this area.
 </p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669092"></a>The NetBIOS Name Cache</h3></div></div></div><p>
-<a class="indexterm" name="id2669099"></a>
+<a class="indexterm" name="id2669100"></a>
 <a class="indexterm" name="id2669106"></a>
 <a class="indexterm" name="id2669113"></a>
 All MS Windows machines employ an in-memory buffer in which is 
@@ -273,7 +273,7 @@ frustrating for users but is a characteristic of the protocol.
 </p><p>
 <a class="indexterm" name="id2669151"></a>
 <a class="indexterm" name="id2669158"></a>
-<a class="indexterm" name="id2669164"></a>
+<a class="indexterm" name="id2669165"></a>
 The MS Windows utility that allows examination of the NetBIOS 
 name cache is called &#8220;<span class="quote">nbtstat.</span>&#8221; The Samba equivalent
 is called <code class="literal">nmblookup</code>.
@@ -363,14 +363,14 @@ It typically looks like this:
 # so keeping the number of comments to a minimum will improve performance.
 # Therefore it is not advisable to simply add lmhosts file entries onto the
 # end of this file.
-</pre></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669356"></a>HOSTS File</h3></div></div></div><p>
+</pre></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669357"></a>HOSTS File</h3></div></div></div><p>
 This file is usually located in MS Windows NT 4.0 or Windows 200x/XP in 
 the directory <code class="filename">%SystemRoot%\SYSTEM32\DRIVERS\ETC</code> and contains 
 the IP address and the IP hostname in matched pairs. It can be 
 used by the name resolution infrastructure in MS Windows, depending 
 on how the TCP/IP environment is configured. This file is in 
 every way the equivalent of the UNIX/Linux <code class="filename">/etc/hosts</code> file.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669384"></a>DNS Lookup</h3></div></div></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669385"></a>DNS Lookup</h3></div></div></div><p>
 <a class="indexterm" name="id2669392"></a>
 This capability is configured in the TCP/IP setup area in the network 
 configuration facility. If enabled, an elaborate name resolution sequence 
@@ -383,8 +383,8 @@ Node Type 8, then a NetBIOS Unicast (over UDP Unicast) is sent to the
 WINS server to obtain a lookup before DNS, HOSTS, LMHOSTS, or broadcast 
 lookup is used.
 </p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669412"></a>WINS Lookup</h3></div></div></div><p>
-<a class="indexterm" name="id2669419"></a>
-<a class="indexterm" name="id2669426"></a>
+<a class="indexterm" name="id2669420"></a>
+<a class="indexterm" name="id2669427"></a>
 <a class="indexterm" name="id2669436"></a>
 A WINS (Windows Internet Name Server) service is the equivalent of the 
 rfc1001/1002 specified NBNS (NetBIOS Name Server). A WINS server stores 
@@ -393,19 +393,19 @@ if the TCP/IP setup has been given at least one WINS server IP address.
 </p><p>
 To configure Samba to be a WINS server, the following parameter needs 
 to be added to the <code class="filename">smb.conf</code> file:
-</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2669468"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr></table><p>
-<a class="indexterm" name="id2669482"></a>
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2669469"></a><em class="parameter"><code>wins support = Yes</code></em></td></tr></table><p>
+<a class="indexterm" name="id2669483"></a>
 To configure Samba to use a WINS server, the following parameters are 
 needed in the <code class="filename">smb.conf</code> file:
-</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2669504"></a><em class="parameter"><code>wins support = No</code></em></td></tr><tr><td><a class="indexterm" name="id2669516"></a><em class="parameter"><code>wins server = xxx.xxx.xxx.xxx</code></em></td></tr></table><p>
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2669505"></a><em class="parameter"><code>wins support = No</code></em></td></tr><tr><td><a class="indexterm" name="id2669516"></a><em class="parameter"><code>wins server = xxx.xxx.xxx.xxx</code></em></td></tr></table><p>
 where <em class="replaceable"><code>xxx.xxx.xxx.xxx</code></em> is the IP address 
 of the WINS server.
 </p><p>For information about setting up Samba as a WINS server, read 
-<a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network Browsing</a>.</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2669549"></a>Common Errors</h2></div></div></div><p>
+<a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network Browsing</a>.</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2669550"></a>Common Errors</h2></div></div></div><p>
 TCP/IP network configuration problems find every network administrator sooner or later.
 The cause can be anything from keyboard mishaps to forgetfulness to simple mistakes to
 carelessness. Of course, no one is ever deliberately careless!
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669562"></a>Pinging Works Only One Way</h3></div></div></div><p>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2669563"></a>Pinging Works Only One Way</h3></div></div></div><p>
 	&#8220;<span class="quote">I can ping my Samba server from Windows, but I cannot ping my Windows
 	machine from the Samba server.</span>&#8221;
 	</p><p>

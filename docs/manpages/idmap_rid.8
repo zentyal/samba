@@ -1,12 +1,12 @@
 .\"     Title: idmap_rid
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "IDMAP_RID" "8" "01/27/2009" "Samba 3\&.3" "System Administration tools"
+.TH "IDMAP_RID" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -180,13 +180,69 @@ Defines the available matching uid and gid range for which the backend is author
 .PP
 base_rid = INTEGER
 .RS 4
-Defines the base integer used to build SIDs out of an UID or a GID, and to rebase the UID or GID to be obtained from a SID\&. User RIDs by default start at 1000 (512 hexadecimal), this means a good value for base_rid can be 1000 as the resulting ID is calculated this way: ID = RID \- BASE_RID + LOW RANGE ID\&.
+Defines the base integer used to build SIDs out of a UID or a GID, and to rebase the UID or GID to be obtained from a SID\&. This means SIDs with a RID less than the base rid are filtered\&. The default is not to restrict the allowed rids at all, i\&.e\&. a base_rid value of 0\&. A good value for the base_rid can be 1000, since user RIDs by default start at 1000 (512 hexadecimal)\&.
 .sp
 Use of this parameter is deprecated\&.
 .RE
+.SH "THE MAPPING FORMULAS"
+.PP
+The Unix ID for a RID is calculated this way:
+.sp
+.if n \{\
+.RS 4
+.\}
+.fam C
+.ps -1
+.nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
+			ID = RID \- BASE_RID + LOW_RANGE_ID\&.
+		
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
+.fi
+.fam
+.ps +1
+.if n \{\
+.RE
+.\}
+.PP
+Correspondingly, the formula for calculationg the RID for a given Unix ID is this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.fam C
+.ps -1
+.nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
+			RID = ID + BASE_RID \- LOW_RANGE_ID\&.
+		
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
+.fi
+.fam
+.ps +1
+.if n \{\
+.RE
+.\}
+.sp
 .SH "EXAMPLES"
 .PP
-This example shows how to configure a domain with idmap_rid
+This example shows how to configure two domains with idmap_rid, the principal domain and a trusted domain, leaving the default id mapping scheme at tdb\&. The example also demonstrates the use of the base_rid parameter for the trusted domain\&.
 .sp
 .if n \{\
 .RS 4
@@ -201,12 +257,19 @@ This example shows how to configure a domain with idmap_rid
 .sp -1
 
 	[global]
+	security = domain
+	workgroup = MAIN
+
 	idmap backend = tdb
 	idmap uid = 1000000\-1999999
 	idmap gid = 1000000\-1999999
 
+	idmap config MAIN : backend     = rid
+	idmap config MAIN : range       = 10000 \- 49999
+
 	idmap config TRUSTED : backend  = rid
 	idmap config TRUSTED : range    = 50000 \- 99999
+	idmap config TRUSTED : base_rid = 1000
 	
 .EB lightgray adjust-for-leading-newline
 .if t \{\

@@ -7,7 +7,7 @@
 	<manvolnum>7</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">7</refmiscinfo>
-	<refmiscinfo class="version">3.3</refmiscinfo>
+	<refmiscinfo class="version">3.4</refmiscinfo>
 </refmeta>
 
 
@@ -142,8 +142,15 @@
 		</para></listitem>
 		</varlistentry>
 
-		</variablelist>
+		<varlistentry>
+		<term>warn_pwd_expire</term>
+		<listitem><para>
+		Defines number of days before pam_winbind starts to warn about passwords that are
+		going to expire. Defaults to 14 days.
+		</para></listitem>
+		</varlistentry>
 
+		</variablelist>
 
 	</para>
 

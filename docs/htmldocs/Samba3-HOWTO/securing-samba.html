@@ -1,6 +1,6 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 18. Securing Samba</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="locking.html" title="Chapter 17. File and Record Locking"><link rel="next" href="InterdomainTrusts.html" title="Chapter 19. Interdomain Trust Relationships"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 18. Securing Samba</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="locking.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="InterdomainTrusts.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="securing-samba"></a>Chapter 18. Securing Samba</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 26, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="securing-samba.html#id2618022">Introduction</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2618120">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2618267">Technical Discussion of Protective Measures and Issues</a></span></dt><dd><dl><dt><span class="sect2"><a href="securing-samba.html#id2618283">Using Host-Based Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618437">User-Based Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618496">Using Interface Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#firewallports">Using a Firewall</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618847">Using IPC$ Share-Based Denials </a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618991">NTLMv2 Security</a></span></dt></dl></dd><dt><span class="sect1"><a href="securing-samba.html#id2619045">Upgrading Samba</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2619089">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="securing-samba.html#id2619105">Smbclient Works on Localhost, but the Network Is Dead</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2619134">Why Can Users Access Other Users' Home Directories?</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2618022"></a>Introduction</h2></div></div></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 18. Securing Samba</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="locking.html" title="Chapter 17. File and Record Locking"><link rel="next" href="InterdomainTrusts.html" title="Chapter 19. Interdomain Trust Relationships"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 18. Securing Samba</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="locking.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="InterdomainTrusts.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="securing-samba"></a>Chapter 18. Securing Samba</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 26, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="securing-samba.html#id2618022">Introduction</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2618121">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2618267">Technical Discussion of Protective Measures and Issues</a></span></dt><dd><dl><dt><span class="sect2"><a href="securing-samba.html#id2618283">Using Host-Based Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618437">User-Based Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618497">Using Interface Protection</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#firewallports">Using a Firewall</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618847">Using IPC$ Share-Based Denials </a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2618991">NTLMv2 Security</a></span></dt></dl></dd><dt><span class="sect1"><a href="securing-samba.html#id2619046">Upgrading Samba</a></span></dt><dt><span class="sect1"><a href="securing-samba.html#id2619089">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="securing-samba.html#id2619105">Smbclient Works on Localhost, but the Network Is Dead</a></span></dt><dt><span class="sect2"><a href="securing-samba.html#id2619134">Why Can Users Access Other Users' Home Directories?</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2618022"></a>Introduction</h2></div></div></div><p>
 <a class="indexterm" name="id2618030"></a>
-<a class="indexterm" name="id2618036"></a>
+<a class="indexterm" name="id2618037"></a>
 <a class="indexterm" name="id2618044"></a>
 <a class="indexterm" name="id2618050"></a>
 <a class="indexterm" name="id2618057"></a>
@@ -22,9 +22,9 @@ on it!</span>&#8221;
 Security concerns are just like that. You need to know a little about the subject to appreciate
 how obvious most of it really is. The challenge for most of us is to discover that first morsel
 of knowledge with which we may unlock the secrets of the masters.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2618120"></a>Features and Benefits</h2></div></div></div><p>
-<a class="indexterm" name="id2618128"></a>
-<a class="indexterm" name="id2618135"></a>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2618121"></a>Features and Benefits</h2></div></div></div><p>
+<a class="indexterm" name="id2618129"></a>
+<a class="indexterm" name="id2618136"></a>
 <a class="indexterm" name="id2618142"></a>
 <a class="indexterm" name="id2618149"></a>
 There are three levels at which security principles must be observed in order to render a site
@@ -82,14 +82,14 @@ before someone will find yet another vulnerability.
 	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618437"></a>User-Based Protection</h3></div></div></div><p>
 	If you want to restrict access to your server to valid users only, then the following
 	method may be of use. In the <code class="filename">smb.conf</code> <em class="parameter"><code>[global]</code></em> section put:
-	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2618464"></a><em class="parameter"><code>valid users = @smbusers, jacko</code></em></td></tr></table><p>
+	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2618465"></a><em class="parameter"><code>valid users = @smbusers, jacko</code></em></td></tr></table><p>
 	</p><p>
 <a class="indexterm" name="id2618480"></a>
 	This restricts all server access either to the user <span class="emphasis"><em>jacko</em></span>
 	or to members of the system group <span class="emphasis"><em>smbusers</em></span>.
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618496"></a>Using Interface Protection</h3></div></div></div><p>
-<a class="indexterm" name="id2618504"></a>
-<a class="indexterm" name="id2618511"></a>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618497"></a>Using Interface Protection</h3></div></div></div><p>
+<a class="indexterm" name="id2618505"></a>
+<a class="indexterm" name="id2618512"></a>
 <a class="indexterm" name="id2618518"></a>
 	By default, Samba accepts connections on any network interface that
 	it finds on your system. That means if you have an ISDN line or a PPP
@@ -157,31 +157,31 @@ before someone will find yet another vulnerability.
 	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618847"></a>Using IPC$ Share-Based Denials </h3></div></div></div><p>
 <a class="indexterm" name="id2618855"></a>
 <a class="indexterm" name="id2618862"></a>
-<a class="indexterm" name="id2618868"></a>
+<a class="indexterm" name="id2618869"></a>
 	If the above methods are not suitable, then you could also place a more specific deny on the IPC$ share that
 	is used in the recently discovered security hole. This allows you to offer access to other shares while
 	denying access to IPC$ from potentially untrustworthy hosts.
 	</p><p>
 	To do this you could use:
-	</p><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id2618898"></a><em class="parameter"><code>hosts allow = 192.168.115.0/24 127.0.0.1</code></em></td></tr><tr><td><a class="indexterm" name="id2618910"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
+	</p><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id2618899"></a><em class="parameter"><code>hosts allow = 192.168.115.0/24 127.0.0.1</code></em></td></tr><tr><td><a class="indexterm" name="id2618911"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
 	</p><p>
-<a class="indexterm" name="id2618925"></a>
+<a class="indexterm" name="id2618926"></a>
 <a class="indexterm" name="id2618932"></a>
-<a class="indexterm" name="id2618939"></a>
+<a class="indexterm" name="id2618940"></a>
 	This instructs Samba that IPC$ connections are not allowed from anywhere except the two listed network
 	addresses (localhost and the 192.168.115 subnet). Connections to other shares are still allowed. Because the
 	IPC$ share is the only share that is always accessible anonymously, this provides some level of protection
 	against attackers who do not know a valid username/password for your host.
 	</p><p>
-<a class="indexterm" name="id2618956"></a>
-<a class="indexterm" name="id2618963"></a>
+<a class="indexterm" name="id2618957"></a>
+<a class="indexterm" name="id2618964"></a>
 <a class="indexterm" name="id2618970"></a>
 	If you use this method, then clients will be given an <code class="literal">`access denied'</code> reply when they try
 	to access the IPC$ share. Those clients will not be able to browse shares and may also be unable to access
 	some other resources.  This is not recommended unless for some reason you cannot use one of the other methods
 	just discussed.
 	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618991"></a>NTLMv2 Security</h3></div></div></div><p>
-<a class="indexterm" name="id2618998"></a>
+<a class="indexterm" name="id2618999"></a>
 	To configure NTLMv2 authentication, the following registry keys are worth knowing about:
 	</p><p>
 		</p><pre class="screen">
@@ -201,7 +201,7 @@ before someone will find yet another vulnerability.
 	The value 0x00080000 means permit only NTLMv2 session security. If either NtlmMinClientSec or
 	NtlmMinServerSec is set to 0x00080000, the connection will fail if NTLMv2
 	session security is negotiated.
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2619045"></a>Upgrading Samba</h2></div></div></div><p>
+	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2619046"></a>Upgrading Samba</h2></div></div></div><p>
 <a class="indexterm" name="id2619053"></a>
 <a class="indexterm" name="id2619060"></a>
 <a class="indexterm" name="id2619067"></a>

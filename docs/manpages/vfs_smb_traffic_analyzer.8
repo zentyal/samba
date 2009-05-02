@@ -1,12 +1,12 @@
 .\"     Title: smb_traffic_analyzer
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB_TRAFFIC_ANALYZER" "8" "01/27/2009" "Samba 3\&.3" "System Administration tools"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -334,6 +334,11 @@ The module will send the data using the TCP port given in STRING\&.
 smb_traffic_analyzer:anonymize_prefix = STRING
 .RS 4
 The module will replace the user names with a prefix given by STRING and a simple hash number\&.
+.RE
+.PP
+smb_traffic_analyzer:total_anonymization = STRING
+.RS 4
+If STRING matches to \'yes\', the module will replace any user name with the string given by the option smb_traffic_analyzer:anonymize_prefix, without generating an additional hash number\&. This means that any transfer data will be mapped to a single user, leading to a total anonymization of user related data\&.
 .RE
 .SH "EXAMPLES"
 .PP

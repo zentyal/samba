@@ -1,12 +1,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: User Commands
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "01/27/2009" "Samba 3\&.3" "User Commands"
+.TH "WBINFO" "1" "04/30/2009" "Samba 3\&.4" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -192,9 +192,10 @@ daemon must be configured and running for the
 program to be able to return information\&.
 .SH "OPTIONS"
 .PP
-\-a|\-\-authenticate username%password
+\-a|\-\-authenticate \fIusername%password\fR
 .RS 4
-Attempt to authenticate a user via winbindd\&. This checks both authenticaion methods and reports its results\&.
+Attempt to authenticate a user via
+\fBwinbindd\fR(8)\&. This checks both authentication methods and reports its results\&.
 .if n \{\
 .sp
 .\}
@@ -230,18 +231,20 @@ Get a new UID out of idmap
 List all domains (trusted and own domain)\&.
 .RE
 .PP
-\-\-domain name
+\-\-domain \fIname\fR
 .RS 4
-This parameter sets the domain on which any specified operations will performed\&. If special domain name \'\&.\' is used to represent the current domain to which winbindd belongs\&. Currently only the
+This parameter sets the domain on which any specified operations will performed\&. If special domain name \'\&.\' is used to represent the current domain to which
+\fBwinbindd\fR(8)
+belongs\&. Currently only the
 \fB\-\-sequence\fR,
 \fB\-u\fR, and
 \fB\-g\fR
 options honor this parameter\&.
 .RE
 .PP
-\-D|\-\-domain\-info domain
+\-D|\-\-domain\-info \fIdomain\fR
 .RS 4
-Show most of the info we have about the domain\&.
+Show most of the info we have about the specified domain\&.
 .RE
 .PP
 \-g|\-\-domain\-groups
@@ -254,26 +257,28 @@ daemon is operating in\&. Groups in all trusted domains will also be listed\&. N
 .PP
 \-\-get\-auth\-user
 .RS 4
-Print username and password used by winbindd during session setup to a domain controller\&. Username and password can be set using
+Print username and password used by
+\fBwinbindd\fR(8)
+during session setup to a domain controller\&. Username and password can be set using
 \fB\-\-set\-auth\-user\fR\&. Only available for root\&.
 .RE
 .PP
-\-\-getdcname domain
+\-\-getdcname \fIdomain\fR
 .RS 4
 Get the DC name for the specified domain\&.
 .RE
 .PP
-\-G|\-\-gid\-to\-sid gid
+\-G|\-\-gid\-to\-sid \fIgid\fR
 .RS 4
 Try to convert a UNIX group id to a Windows NT SID\&. If the gid specified does not refer to one within the idmap gid range then the operation will fail\&.
 .RE
 .PP
-\-i|\-\-user\-info user
+\-i|\-\-user\-info \fIuser\fR
 .RS 4
 Get user info\&.
 .RE
 .PP
-\-I|\-\-WINS\-by\-ip ip
+\-I|\-\-WINS\-by\-ip \fIip\fR
 .RS 4
 The
 \fI\-I\fR
@@ -284,7 +289,7 @@ to send a node status request to get the NetBIOS name associated with the IP add
 parameter\&.
 .RE
 .PP
-\-K|\-\-krb5auth username%password
+\-K|\-\-krb5auth \fIusername%password\fR
 .RS 4
 Attempt to authenticate a user via Kerberos\&.
 .RE
@@ -296,7 +301,7 @@ Produce a list of domains trusted by the Windows NT server
 contacts when resolving names\&. This list does not include the Windows NT domain the server is a Primary Domain Controller for\&.
 .RE
 .PP
-\-n|\-\-name\-to\-sid name
+\-n|\-\-name\-to\-sid \fIname\fR
 .RS 4
 The
 \fI\-n\fR
@@ -308,7 +313,7 @@ for the SID associated with the name specified\&. Domain names can be specified 
 parameter\&.
 .RE
 .PP
-\-N|\-\-WINS\-by\-name name
+\-N|\-\-WINS\-by\-name \fIname\fR
 .RS 4
 The
 \fI\-N\fR
@@ -326,15 +331,17 @@ List own domain\&.
 .PP
 \-p|\-\-ping
 .RS 4
-Check whether winbindd is still alive\&. Prints out either \'succeeded\' or \'failed\'\&.
+Check whether
+\fBwinbindd\fR(8)
+is still alive\&. Prints out either \'succeeded\' or \'failed\'\&.
 .RE
 .PP
-\-r|\-\-user\-groups username
+\-r|\-\-user\-groups \fIusername\fR
 .RS 4
 Try to obtain the list of UNIX group ids to which the user belongs\&. This only works for users defined on a Domain Controller\&.
 .RE
 .PP
-\-s|\-\-sid\-to\-name sid
+\-s|\-\-sid\-to\-name \fIsid\fR
 .RS 4
 Use
 \fI\-s\fR
@@ -350,15 +357,17 @@ Get the active winbind separator\&.
 .PP
 \-\-sequence
 .RS 4
-Show sequence numbers of all known domains
+Show sequence numbers of all known domains\&.
 .RE
 .PP
-\-\-set\-auth\-user username%password
+\-\-set\-auth\-user \fIusername%password\fR
 .RS 4
-Store username and password used by winbindd during session setup to a domain controller\&. This enables winbindd to operate in a Windows 2000 domain with Restrict Anonymous turned on (a\&.k\&.a\&. Permissions compatible with Windows 2000 servers only)\&.
+Store username and password used by
+\fBwinbindd\fR(8)
+during session setup to a domain controller\&. This enables winbindd to operate in a Windows 2000 domain with Restrict Anonymous turned on (a\&.k\&.a\&. Permissions compatible with Windows 2000 servers only)\&.
 .RE
 .PP
-\-S|\-\-sid\-to\-uid sid
+\-S|\-\-sid\-to\-uid \fIsid\fR
 .RS 4
 Convert a SID to a UNIX user id\&. If the SID does not correspond to a UNIX user mapped by
 \fBwinbindd\fR(8)
@@ -379,22 +388,22 @@ daemon is operating in\&. Users in all trusted domains will also be listed\&. No
 \&.
 .RE
 .PP
-\-\-uid\-info UID
+\-\-uid\-info \fIuid\fR
 .RS 4
-Get user info for the user conencted to user id UID\&.
+Get user info for the user connected to user id UID\&.
 .RE
 .PP
-\-\-user\-domgroups SID
+\-\-user\-domgroups \fIsid\fR
 .RS 4
 Get user domain groups\&.
 .RE
 .PP
-\-\-user\-sids SID
+\-\-user\-sids \fIsid\fR
 .RS 4
 Get user group SIDs for user\&.
 .RE
 .PP
-\-U|\-\-uid\-to\-sid uid
+\-U|\-\-uid\-to\-sid \fIuid\fR
 .RS 4
 Try to convert a UNIX user id to a Windows NT SID\&. If the uid specified does not refer to one within the idmap uid range then the operation will fail\&.
 .RE
@@ -404,7 +413,7 @@ Try to convert a UNIX user id to a Windows NT SID\&. If the uid specified does n
 Print additional information about the query results\&.
 .RE
 .PP
-\-Y|\-\-sid\-to\-gid sid
+\-Y|\-\-sid\-to\-gid \fIsid\fR
 .RS 4
 Convert a SID to a UNIX group id\&. If the SID does not correspond to a UNIX group mapped by
 \fBwinbindd\fR(8)

@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "01/27/2009" "Samba 3\&.3" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/30/2009" "Samba 3\&.4" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1039,6 +1039,26 @@ Example:
 \fI\fIabort shutdown script\fR\fR\fI = \fR\fI\FC/sbin/shutdown \-c\F[]\fR\fI \fR
 .RE
 
+public
+.\" public
+.PP
+.RS 4
+This parameter is a synonym for
+access based share enum\&.
+.RE
+
+access based share enum (S)
+.\" access based share enum
+.PP
+.RS 4
+If this parameter is
+\fByes\fR
+for a service, then the share hosted by the service will only be visible to users who have read or write access to the share during share enumeration (for example net view \e\esambaserver)\&. This has parallels to access based enumeration, the main difference being that only share permissions are evaluated, and security descriptors on files contained on the share are not used in computing enumeration access rights\&.
+.sp
+Default:
+\fI\fIaccess based share enum\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 acl check permissions (S)
 .\" acl check permissions
 .PP
@@ -1046,7 +1066,7 @@ acl check permissions (S)
 This boolean parameter controls what
 \fBsmbd\fR(8)does on receiving a protocol request of "open for delete" from a Windows client\&. If a Windows client doesn\'t have permissions to delete a file then they expect this to be denied at open time\&. POSIX systems normally only detect restrictions on delete by actually attempting to delete the file or directory\&. As Windows clients can (and do) "back out" a delete request by unsetting the "delete on close" bit Samba cannot delete the file immediately on "open for delete" request as we cannot restore such a deleted file\&. With this parameter set to true (the default) then smbd checks the file system permissions directly on "open for delete" and denies the request without actually deleting the file if the file system permissions would seem to deny it\&. This is not perfect, as it\'s possible a user could have deleted a file without Samba being able to check the permissions correctly, but it is close enough to Windows semantics for mostly correct behaviour\&. Samba will correctly check POSIX ACL semantics in this case\&.
 .sp
-If this parameter is set to "false" Samba doesn\'t check permissions on "open for delete" and allows the open\&. If the user doesn\'t have permission to delete the file this will only be discovered at close time, which is too late for the Windows user tools to display an error message to the user\&. The symptom of this is files that appear to have been deleted "magically" re\-appearing on a Windows explorer refersh\&. This is an extremely advanced protocol option which should not need to be changed\&. This parameter was introduced in its final form in 3\&.0\&.21, an earlier version with slightly different semantics was introduced in 3\&.0\&.20\&. That older version is not documented here\&.
+If this parameter is set to "false" Samba doesn\'t check permissions on "open for delete" and allows the open\&. If the user doesn\'t have permission to delete the file this will only be discovered at close time, which is too late for the Windows user tools to display an error message to the user\&. The symptom of this is files that appear to have been deleted "magically" re\-appearing on a Windows explorer refresh\&. This is an extremely advanced protocol option which should not need to be changed\&. This parameter was introduced in its final form in 3\&.0\&.21, an earlier version with slightly different semantics was introduced in 3\&.0\&.20\&. That older version is not documented here\&.
 .sp
 Default:
 \fI\fIacl check permissions\fR\fR\fI = \fR\fI\FCTrue\F[]\fR\fI \fR
@@ -2005,11 +2025,11 @@ This parameter determines whether or not
 \fBsmbclient\fR(8)
 and other samba client tools will attempt to authenticate itself to servers using the weaker LANMAN password hash\&. If disabled, only server which support NT password hashes (e\&.g\&. Windows NT/2000, Samba, etc\&.\&.\&. but not Windows 95/98) will be able to be connected from the Samba client\&.
 .sp
-The LANMAN encrypted response is easily broken, due to it\'s case\-insensitive nature, and the choice of algorithm\&. Clients without Windows 95/98 servers are advised to disable this option\&.
+The LANMAN encrypted response is easily broken, due to its case\-insensitive nature, and the choice of algorithm\&. Clients without Windows 95/98 servers are advised to disable this option\&.
 .sp
 Disabling this option will also disable the
 \FCclient plaintext auth\F[]
-option
+option\&.
 .sp
 Likewise, if the
 \FCclient ntlmv2 auth\F[]
@@ -2114,7 +2134,7 @@ client signing (G)
 .\" client signing
 .PP
 .RS 4
-This controls whether the client offers or requires the server it talks to to use SMB signing\&. Possible values are
+This controls whether the client is allowed or required to use SMB signing\&. Possible values are
 \fIauto\fR,
 \fImandatory\fR
 and
@@ -3134,7 +3154,7 @@ enable asu support (G)
 .\" enable asu support
 .PP
 .RS 4
-Hosts running the "Advanced Server for Unix (ASU)" product require some special accomodations such as creating a builting [ADMIN$] share that only supports IPC connections\&. The has been the default behavior in smbd for many years\&. However, certain Microsoft applications such as the Print Migrator tool require that the remote server support an [ADMIN$} file share\&. Disabling this parameter allows for creating an [ADMIN$] file share in smb\&.conf\&.
+Hosts running the "Advanced Server for Unix (ASU)" product require some special accomodations such as creating a builtin [ADMIN$] share that only supports IPC connections\&. The has been the default behavior in smbd for many years\&. However, certain Microsoft applications such as the Print Migrator tool require that the remote server support an [ADMIN$} file share\&. Disabling this parameter allows for creating an [ADMIN$] file share in smb\&.conf\&.
 .sp
 Default:
 \fI\fIenable asu support\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -3190,7 +3210,7 @@ This option enables a couple of enhancements to cross\-subnet browse propagation
 .sp
 The first enhancement to browse propagation consists of a regular wildcard query to a Samba WINS server for all Domain Master Browsers, followed by a browse synchronization with each of the returned DMBs\&. The second enhancement consists of a regular randomised browse synchronization with all currently known DMBs\&.
 .sp
-You may wish to disable this option if you have a problem with empty workgroups not disappearing from browse lists\&. Due to the restrictions of the browse protocols these enhancements can cause a empty workgroup to stay around forever which can be annoying\&.
+You may wish to disable this option if you have a problem with empty workgroups not disappearing from browse lists\&. Due to the restrictions of the browse protocols, these enhancements can cause a empty workgroup to stay around forever which can be annoying\&.
 .sp
 In general you should leave this option enabled as it makes cross\-subnet browse propagation much more reliable\&.
 .sp
@@ -4540,7 +4560,7 @@ This parameter determines whether or not
 \fBsmbd\fR(8)
 will attempt to authenticate users or permit password changes using the LANMAN password hash\&. If disabled, only clients which support NT password hashes (e\&.g\&. Windows NT/2000 clients, smbclient, but not Windows 95/98 or the MS DOS network client) will be able to connect to the Samba host\&.
 .sp
-The LANMAN encrypted response is easily broken, due to it\'s case\-insensitive nature, and the choice of algorithm\&. Servers without Windows 95/98/ME or MS DOS clients are advised to disable this option\&.
+The LANMAN encrypted response is easily broken, due to its case\-insensitive nature, and the choice of algorithm\&. Servers without Windows 95/98/ME or MS DOS clients are advised to disable this option\&.
 .sp
 Unlike the
 \FCencrypt passwords\F[]
@@ -4902,6 +4922,26 @@ Default:
 \fI\fIldapsam:trusted\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
 .RE
 
+ldap ssl ads (G)
+.\" ldap ssl ads
+.PP
+.RS 4
+This option is used to define whether or not Samba should use SSL when connecting to the ldap server using
+\fIads\fR
+methods\&. Rpc methods are not affected by this parameter\&. Please note, that this parameter won\'t have any effect if
+\m[blue]\fBldap ssl\fR\m[]
+is set to
+\fIno\fR\&.
+.sp
+See
+smb\&.conf(5)
+for more information on
+\m[blue]\fBldap ssl\fR\m[]\&.
+.sp
+Default:
+\fI\fIldap ssl ads\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 ldap ssl (G)
 .\" ldap ssl
 .PP
@@ -4914,9 +4954,12 @@ option to the
 \FCconfigure\F[]
 script\&.
 .sp
-LDAP connections should be secured where possible\&. This may be done setting either this parameter to
+LDAP connections should be secured where possible\&. This may be done setting
+\fIeither\fR
+this parameter to
 \fIStart_tls\fR
-or by specifying
+\fIor\fR
+by specifying
 \fIldaps://\fR
 in the URL argument of
 \m[blue]\fBpassdb backend\fR\m[]\&.
@@ -4949,6 +4992,17 @@ can be set to one of two values:
 = Use the LDAPv3 StartTLS extended operation (RFC2830) for communicating with the directory server\&.
 .sp
 .RE
+Please note that this parameter does only affect
+\fIrpc\fR
+methods\&. To enable the LDAPv3 StartTLS extended operation (RFC2830) for
+\fIads\fR, set
+\m[blue]\fBldap ssl = yes\fR\m[]
+\fIand\fR
+\m[blue]\fBldap ssl ads = yes\fR\m[]\&. See
+smb\&.conf(5)
+for more information on
+\m[blue]\fBldap ssl ads\fR\m[]\&.
+.sp
 Default:
 \fI\fIldap ssl\fR\fR\fI = \fR\fI\FCstart tls\F[]\fR\fI \fR
 .RE
@@ -7444,7 +7498,7 @@ password server (G)
 .RS 4
 By specifying the name of another SMB server or Active Directory domain controller with this option, and using
 \FCsecurity = [ads|domain|server]\F[]
-it is possible to get Samba to to do all its username/password validation using a specific remote server\&.
+it is possible to get Samba to do all its username/password validation using a specific remote server\&.
 .sp
 This option sets the name or IP address of the password server to use\&. New syntax has been added to support defining the port to use when connecting to the server the case of an ADS realm\&. To define a port other than the default LDAP port of 389, add the port number using a colon after the name or IP address (e\&.g\&. 192\&.168\&.1\&.100:389)\&. If you do not specify a port, Samba will use the standard LDAP port of tcp/389\&. Note that port numbers have no effect on password servers for Windows NT 4\&.0 domains or netbios connections\&.
 .sp
@@ -7576,6 +7630,15 @@ Default:
 .sp
 Example:
 \fI\fIpath\fR\fR\fI = \fR\fI\FC/home/fred\F[]\fR\fI \fR
+.RE
+
+perfcount module (G)
+.\" perfcount module
+.PP
+.RS 4
+This parameter specifies the perfcount backend to be used when monitoring SMB operations\&. Only one perfcount module may be used, and it must implement all of the apis contained in the smb_perfcount_handler structure defined in smb\&.h\&.
+.sp
+\fINo default\fR
 .RE
 
 pid directory (G)
@@ -8224,7 +8287,8 @@ remote announce (G)
 .PP
 .RS 4
 This option allows you to setup
-\fBnmbd\fR(8)to periodically announce itself to arbitrary IP addresses with an arbitrary workgroup name\&.
+\fBnmbd\fR(8)
+to periodically announce itself to arbitrary IP addresses with an arbitrary workgroup name\&.
 .sp
 This is useful if you want your Samba server to appear in a remote workgroup for which the normal browse propagation rules don\'t work\&. The remote workgroup can be anywhere that you can send IP packets to\&.
 .sp
@@ -8256,7 +8320,7 @@ For example:
 .sp
 the above line would cause
 \FCnmbd\F[]
-to announce itself to the two given IP addresses using the given workgroup names\&. If you leave out the workgroup name then the one given in the
+to announce itself to the two given IP addresses using the given workgroup names\&. If you leave out the workgroup name, then the one given in the
 \m[blue]\fBworkgroup\fR\m[]
 parameter is used instead\&.
 .sp
@@ -8558,7 +8622,8 @@ You should also use
 \FCsecurity = share\F[]
 if you want to mainly setup shares without a password (guest shares)\&. This is commonly used for a shared printer server\&. It is more difficult to setup guest shares with
 \FCsecurity = user\F[], see the
-\m[blue]\fBmap to guest\fR\m[]parameter for details\&.
+\m[blue]\fBmap to guest\fR\m[]
+parameter for details\&.
 .sp
 It is possible to use
 \FCsmbd\F[]
@@ -8571,7 +8636,7 @@ The different settings will now be explained\&.
 .sp
 \fISECURITY = SHARE\fR
 .sp
-When clients connect to a share level security server they need not log onto the server with a valid username and password before attempting to connect to a shared resource (although modern clients such as Windows 95/98 and Windows NT will send a logon request with a username but no password when talking to a
+When clients connect to a share level security server, they need not log onto the server with a valid username and password before attempting to connect to a shared resource (although modern clients such as Windows 95/98 and Windows NT will send a logon request with a username but no password when talking to a
 \FCsecurity = share \F[]
 server)\&. Instead, the clients send authentication information (passwords) on a per\-share basis, at the time they attempt to connect to that share\&.
 .sp
@@ -8776,7 +8841,7 @@ This mode of operation has significant pitfalls since it is more vulnerable to m
 \fBNote\fR
 .ps -1
 .br
-From the client\'s point of view
+From the client\'s point of view,
 \FCsecurity = server\F[]
 is the same as
 \FCsecurity = user\F[]\&. It only affects how the server deals with the authentication, it does not in any way affect what the client sees\&.
@@ -8828,8 +8893,7 @@ offers the schannel but does not enforce it, and
 denies access if the client is not able to speak netlogon schannel\&. This is only the case for Windows NT4 before SP4\&.
 .sp
 Please note that with this set to
-\FCno\F[]
-you will have to apply the WindowsXP
+\FCno\F[], you will have to apply the WindowsXP
 \FCWinXP_SignOrSeal\&.reg\F[]
 registry patch found in the docs/registry subdirectory of the Samba distribution tarball\&.
 .sp
@@ -8844,7 +8908,7 @@ server signing (G)
 .\" server signing
 .PP
 .RS 4
-This controls whether the server offers or requires the client it talks to to use SMB signing\&. Possible values are
+This controls whether the client is allowed or required to use SMB signing\&. Possible values are
 \fIauto\fR,
 \fImandatory\fR
 and
@@ -9257,7 +9321,7 @@ smb encrypt (S)
 .RS 4
 This is a new feature introduced with Samba 3\&.2 and above\&. It is an extension to the SMB/CIFS protocol negotiated as part of the UNIX extensions\&. SMB encryption uses the GSSAPI (SSPI on Windows) ability to encrypt and sign every request/response in a SMB protocol stream\&. When enabled it provides a secure method of SMB/CIFS communication, similar to an ssh protected session, but using SMB/CIFS authentication to negotiate encryption and signing keys\&. Currently this is only supported by Samba 3\&.2 smbclient, and hopefully soon Linux CIFSFS and MacOS/X clients\&. Windows clients do not support this feature\&.
 .sp
-This controls whether the server offers or requires the client it talks to to use SMB encryption\&. Possible values are
+This controls whether the remote client is allowed or required to use SMB encryption\&. Possible values are
 \fIauto\fR,
 \fImandatory\fR
 and
@@ -9551,7 +9615,7 @@ strict locking (S)
 This is an enumerated type that controls the handling of file locking in the server\&. When this is set to
 \fByes\fR, the server will check every read and write access for file locks, and deny access if locks exist\&. This can be slow on some systems\&.
 .sp
-When strict locking is set to Auto (the default), the server performs file lock checks only on non\-oplocked files\&. As most Windows redirectors perform file locking checks locally on oplocked files this is a good trade off for inproved performance\&.
+When strict locking is set to Auto (the default), the server performs file lock checks only on non\-oplocked files\&. As most Windows redirectors perform file locking checks locally on oplocked files this is a good trade off for improved performance\&.
 .sp
 When strict locking is disabled, the server performs file lock checks only when the client explicitly asks for them\&.
 .sp
@@ -9612,7 +9676,7 @@ call to ensure the data is written to disk\&. Note that the
 \fIstrict sync\fR
 parameter must be set to
 \fByes\fR
-in order for this parameter to have any affect\&.
+in order for this parameter to have any effect\&.
 .sp
 Default:
 \fI\fIsync always\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -9745,7 +9809,7 @@ update encrypted (G)
 .\" update encrypted
 .PP
 .RS 4
-This boolean parameter allows a user logging on with a plaintext password to have their encrypted (hashed) password in the smbpasswd file to be updated automatically as they log on\&. This option allows a site to migrate from plaintext password authentication (users authenticate with plaintext password over the wire, and are checked against a UNIX account atabase) to encrypted password authentication (the SMB challenge/response authentication mechanism) without forcing all users to re\-enter their passwords via smbpasswd at the time the change is made\&. This is a convenience option to allow the change over to encrypted passwords to be made over a longer period\&. Once all users have encrypted representations of their passwords in the smbpasswd file this parameter should be set to
+This boolean parameter allows a user logging on with a plaintext password to have their encrypted (hashed) password in the smbpasswd file to be updated automatically as they log on\&. This option allows a site to migrate from plaintext password authentication (users authenticate with plaintext password over the wire, and are checked against a UNIX account database) to encrypted password authentication (the SMB challenge/response authentication mechanism) without forcing all users to re\-enter their passwords via smbpasswd at the time the change is made\&. This is a convenience option to allow the change over to encrypted passwords to be made over a longer period\&. Once all users have encrypted representations of their passwords in the smbpasswd file this parameter should be set to
 \fBno\fR\&.
 .sp
 In order for this parameter to be operative the
@@ -9758,7 +9822,7 @@ for this
 \m[blue]\fBupdate encrypted\fR\m[]
 to work\&.
 .sp
-Note that even when this parameter is set a user authenticating to
+Note that even when this parameter is set, a user authenticating to
 \FCsmbd\F[]
 must still enter a valid password in order to connect correctly, and to update their hashed (smbpasswd) passwords\&.
 .sp
@@ -9776,51 +9840,10 @@ This parameter applies only to Windows NT/2000 clients\&. It has no effect on Wi
 The differentiating factor is that under normal circumstances, the NT/2000 client will attempt to open the network printer using MS\-RPC\&. The problem is that because the client considers the printer to be local, it will attempt to issue the OpenPrinterEx() call requesting access rights associated with the logged on user\&. If the user possesses local administator rights but not root privilege on the Samba host (often the case), the OpenPrinterEx() call will fail\&. The result is that the client will now display an "Access Denied; Unable to connect" message in the printer queue window (even though jobs may successfully be printed)\&.
 .sp
 If this parameter is enabled for a printer, then any attempt to open the printer with the PRINTER_ACCESS_ADMINISTER right is mapped to PRINTER_ACCESS_USE instead\&. Thus allowing the OpenPrinterEx() call to succeed\&.
-\fIThis parameter MUST not be able enabled on a print share which has valid print driver installed on the Samba server\&.\fR
+\fIThis parameter MUST not be enabled on a print share which has valid print driver installed on the Samba server\&.\fR
 .sp
 Default:
 \fI\fIuse client driver\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
-.RE
-
-use kerberos keytab (G)
-.\" use kerberos keytab
-.PP
-.RS 4
-Specifies whether Samba should attempt to maintain service principals in the systems keytab file for
-\fBhost/FQDN\fR
-and
-\fBcifs/FQDN\fR\&.
-.sp
-When you are using the heimdal Kerberos libraries, you must also specify the following in
-\FC/etc/krb5\&.conf\F[]:
-.sp
-.if n \{\
-.RS 4
-.\}
-.fam C
-.ps -1
-.nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
-[libdefaults]
-default_keytab_name = FILE:/etc/krb5\&.keytab
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
-.fi
-.fam
-.ps +1
-.if n \{\
-.RE
-.\}
-.sp
-Default:
-\fI\fIuse kerberos keytab\fR\fR\fI = \fR\fI\FCFalse\F[]\fR\fI \fR
 .RE
 
 use mmap (G)
@@ -10124,7 +10147,7 @@ usershare allow guests (G)
 .RS 4
 This parameter controls whether user defined shares are allowed to be accessed by non\-authenticated users or not\&. It is the equivalent of allowing people who can create a share the option of setting
 \fIguest ok = yes\fR
-in a share definition\&. Due to the security sensitive nature of this the default is set to off\&.
+in a share definition\&. Due to its security sensitive nature, the default is set to off\&.
 .sp
 Default:
 \fI\fIusershare allow guests\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -10196,7 +10219,7 @@ usershare prefix allow list (G)
 .\" usershare prefix allow list
 .PP
 .RS 4
-This parameter specifies a list of absolute pathnames the root of which are allowed to be exported by user defined share definitions\&. If the pathname exported doesn\'t start with one of the strings in this list the user defined share will not be allowed\&. This allows the Samba administrator to restrict the directories on the system that can be exported by user defined shares\&.
+This parameter specifies a list of absolute pathnames the root of which are allowed to be exported by user defined share definitions\&. If the pathname to be exported doesn\'t start with one of the strings in this list, the user defined share will not be allowed\&. This allows the Samba administrator to restrict the directories on the system that can be exported by user defined shares\&.
 .sp
 If there is a "usershare prefix deny list" and also a "usershare prefix allow list" the deny list is processed first, followed by the allow list, thus leading to the most restrictive interpretation\&.
 .sp
@@ -10226,7 +10249,7 @@ usershare template share (G)
 .\" usershare template share
 .PP
 .RS 4
-User defined shares only have limited possible parameters such as path, guest ok etc\&. This parameter allows usershares to "cloned" from an existing share\&. If "usershare template share" is set to the name of an existing share, then all usershares created have their defaults set from the parameters set on this share\&.
+User defined shares only have limited possible parameters such as path, guest ok, etc\&. This parameter allows usershares to "cloned" from an existing share\&. If "usershare template share" is set to the name of an existing share, then all usershares created have their defaults set from the parameters set on this share\&.
 .sp
 The target share may be set to be invalid for real file sharing by setting the parameter "\-valid = False" on the template share definition\&. This causes it not to be seen as a real exported share but to be able to be used as a template for usershares\&.
 .sp
@@ -10595,7 +10618,7 @@ winbind normalize names (G)
 .RS 4
 This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\&. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\&. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\&. If your domain possesses names containing the underscore character, this option may cause problems unless the name aliasing feature is supported by your nss_info plugin\&.
 .sp
-This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qlaified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
+This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precendence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
 .sp
 Default:
 \fI\fIwinbind normalize names\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR

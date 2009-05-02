@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 16. File, Directory, and Share Access Controls</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="rights.html" title="Chapter 15. User Rights and Privileges"><link rel="next" href="locking.html" title="Chapter 17. File and Record Locking"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 16. File, Directory, and Share Access Controls</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="rights.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="locking.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="AccessControls"></a>Chapter 16. File, Directory, and Share Access Controls</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jeremy</span> <span class="orgname">Samba Team</span> <span class="surname">Allison</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jra@samba.org">jra@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><span class="contrib">drawing</span> <div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 10, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="AccessControls.html#id2610520">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="AccessControls.html#id2610715">File System Access Controls</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2610729">MS Windows NTFS Comparison with UNIX File Systems</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2611066">Managing Directories</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2611189">File and Directory Access Control</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2611855">Share Definition Access Controls</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2611888">User- and Group-Based Controls</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2612262">File and Directory Permissions-Based Controls</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2612600">Miscellaneous Controls</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2612937">Access Controls on Shares</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2613086">Share Permissions Management</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2613432">MS Windows Access Control Lists and UNIX Interoperability</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2613439">Managing UNIX Permissions Using NT Security Dialogs</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613486">Viewing File Security on a Samba Share</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613556">Viewing File Ownership</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613700">Viewing File or Directory Permissions</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613915">Modifying File or Directory Permissions</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614073">Interaction with the Standard Samba create mask Parameters</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614442">Interaction with the Standard Samba File Attribute Mapping</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614515">Windows NT/200X ACLs and POSIX ACLs Limitations</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2614928">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2614939">Users Cannot Write to a Public Share</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2615262">File Operations Done as root with force user Set</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2615308">MS Word with Samba Changes Owner of File</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 16. File, Directory, and Share Access Controls</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="rights.html" title="Chapter 15. User Rights and Privileges"><link rel="next" href="locking.html" title="Chapter 17. File and Record Locking"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 16. File, Directory, and Share Access Controls</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="rights.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="locking.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="AccessControls"></a>Chapter 16. File, Directory, and Share Access Controls</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jeremy</span> <span class="orgname">Samba Team</span> <span class="surname">Allison</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jra@samba.org">jra@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><span class="contrib">drawing</span> <div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 10, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="AccessControls.html#id2610520">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="AccessControls.html#id2610715">File System Access Controls</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2610730">MS Windows NTFS Comparison with UNIX File Systems</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2611066">Managing Directories</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2611189">File and Directory Access Control</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2611855">Share Definition Access Controls</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2611888">User- and Group-Based Controls</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2612263">File and Directory Permissions-Based Controls</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2612600">Miscellaneous Controls</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2612938">Access Controls on Shares</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2613086">Share Permissions Management</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2613433">MS Windows Access Control Lists and UNIX Interoperability</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2613439">Managing UNIX Permissions Using NT Security Dialogs</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613486">Viewing File Security on a Samba Share</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613557">Viewing File Ownership</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613700">Viewing File or Directory Permissions</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2613916">Modifying File or Directory Permissions</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614073">Interaction with the Standard Samba create mask Parameters</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614442">Interaction with the Standard Samba File Attribute Mapping</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2614515">Windows NT/200X ACLs and POSIX ACLs Limitations</a></span></dt></dl></dd><dt><span class="sect1"><a href="AccessControls.html#id2614928">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="AccessControls.html#id2614939">Users Cannot Write to a Public Share</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2615262">File Operations Done as root with force user Set</a></span></dt><dt><span class="sect2"><a href="AccessControls.html#id2615308">MS Word with Samba Changes Owner of File</a></span></dt></dl></dd></dl></div><p>
 <a class="indexterm" name="id2610350"></a>
 <a class="indexterm" name="id2610357"></a>
 <a class="indexterm" name="id2610364"></a>
@@ -73,7 +73,7 @@ beyond early plans and expectations, yet the gap continues to shrink.
 			The basic options and techniques are described herein.
 			</p></li><li><p>
 		<span class="emphasis"><em>Samba Share ACLs</em></span>
-		<a class="indexterm" name="id2610639"></a>
+		<a class="indexterm" name="id2610640"></a>
 		</p><p>
 <a class="indexterm" name="id2610652"></a>
 			Just as it is possible in MS Windows NT to set ACLs on shares
@@ -99,10 +99,10 @@ Perhaps the most important recognition to be made is the simple fact that MS Win
 implement a totally divergent file system technology from what is provided in the UNIX operating system
 environment. First we consider what the most significant differences are, then we look
 at how Samba helps to bridge the differences.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2610729"></a>MS Windows NTFS Comparison with UNIX File Systems</h3></div></div></div><p>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2610730"></a>MS Windows NTFS Comparison with UNIX File Systems</h3></div></div></div><p>
 	<a class="indexterm" name="id2610738"></a>
 	<a class="indexterm" name="id2610745"></a>
-	<a class="indexterm" name="id2610751"></a>
+	<a class="indexterm" name="id2610752"></a>
 	<a class="indexterm" name="id2610761"></a>
 	Samba operates on top of the UNIX file system. This means it is subject to UNIX file system conventions
 	and permissions. It also means that if the MS Windows networking environment requires file system
@@ -186,14 +186,14 @@ at how Samba helps to bridge the differences.
 	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2611066"></a>Managing Directories</h3></div></div></div><p>
 <a class="indexterm" name="id2611074"></a>
 <a class="indexterm" name="id2611081"></a>
-<a class="indexterm" name="id2611087"></a>
+<a class="indexterm" name="id2611088"></a>
 	There are three basic operations for managing directories: <code class="literal">create</code>, <code class="literal">delete</code>,
 	<code class="literal">rename</code>. <a class="link" href="AccessControls.html#TOSH-Accesstbl" title="Table 16.1. Managing Directories with UNIX and Windows">Managing Directories with UNIX and
 	Windows</a> compares the commands in Windows and UNIX that implement these operations.
 	</p><div class="table"><a name="TOSH-Accesstbl"></a><p class="title"><b>Table 16.1. Managing Directories with UNIX and Windows</b></p><div class="table-contents"><table summary="Managing Directories with UNIX and Windows" border="1"><colgroup><col><col><col></colgroup><thead><tr><th align="center">Action</th><th align="center">MS Windows Command</th><th align="center">UNIX Command</th></tr></thead><tbody><tr><td align="center">create</td><td align="center">md folder</td><td align="center">mkdir folder</td></tr><tr><td align="center">delete</td><td align="center">rd folder</td><td align="center">rmdir folder</td></tr><tr><td align="center">rename</td><td align="center">rename oldname newname</td><td align="center">mv oldname newname</td></tr></tbody></table></div></div><br class="table-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2611189"></a>File and Directory Access Control</h3></div></div></div><p>
-	<a class="indexterm" name="id2611197"></a>
+	<a class="indexterm" name="id2611198"></a>
 <a class="indexterm" name="id2611207"></a>
-<a class="indexterm" name="id2611213"></a>
+<a class="indexterm" name="id2611214"></a>
 	The network administrator is strongly advised to read basic UNIX training manuals and reference materials
 	regarding file and directory permissions maintenance. Much can be achieved with the basic UNIX permissions
 	without having to resort to more complex facilities like POSIX ACLs or extended attributes (EAs).
@@ -229,7 +229,7 @@ drwsrwsrwx    2 maryo   gnomes       48 2003-05-12 22:29 muchado08
 <a class="indexterm" name="id2611355"></a>
 <a class="indexterm" name="id2611362"></a>
 <a class="indexterm" name="id2611369"></a>
-<a class="indexterm" name="id2611375"></a>
+<a class="indexterm" name="id2611376"></a>
 <a class="indexterm" name="id2611382"></a>
 <a class="indexterm" name="id2611389"></a>
 	</p><div class="example"><a name="access2"></a><p class="title"><b>Example 16.1. Example File</b></p><div class="example-contents"><pre class="programlisting">
@@ -239,14 +239,14 @@ drwsrwsrwx    2 maryo   gnomes       48 2003-05-12 22:29 muchado08
        ^^^          everyone else cannot do anything with it.
 </pre></div></div><br class="example-break"><p>
 <a class="indexterm" name="id2611419"></a>
-<a class="indexterm" name="id2611425"></a>
+<a class="indexterm" name="id2611426"></a>
 <a class="indexterm" name="id2611432"></a>
 <a class="indexterm" name="id2611439"></a>
 	Additional possibilities in the [type] field are c = character device, b = block device, p = pipe device,
 	s = UNIX Domain Socket.
 	</p><p>
 <a class="indexterm" name="id2611452"></a>
-<a class="indexterm" name="id2611458"></a>
+<a class="indexterm" name="id2611459"></a>
 <a class="indexterm" name="id2611465"></a>
 <a class="indexterm" name="id2611472"></a>
 <a class="indexterm" name="id2611479"></a>
@@ -262,7 +262,7 @@ drwsrwsrwx    2 maryo   gnomes       48 2003-05-12 22:29 muchado08
 	Without the sticky  bit, anyone able to write to the directory can delete or rename files. The sticky bit is commonly found on
 	directories, such as <code class="filename">/tmp</code>, that are world-writable.
 	</p><p>
-<a class="indexterm" name="id2611539"></a>
+<a class="indexterm" name="id2611540"></a>
 <a class="indexterm" name="id2611546"></a>
 <a class="indexterm" name="id2611553"></a>
 <a class="indexterm" name="id2611560"></a>
@@ -280,7 +280,7 @@ drwsrwsrwx    2 maryo   gnomes       48 2003-05-12 22:29 muchado08
 <a class="indexterm" name="id2611610"></a>
 <a class="indexterm" name="id2611617"></a>
 <a class="indexterm" name="id2611624"></a>
-<a class="indexterm" name="id2611630"></a>
+<a class="indexterm" name="id2611631"></a>
 	People have asked on the Samba mailing list how is it possible to protect files or directories from deletion by users.
 	For example, Windows NT/2K/XP provides the capacity to set access controls on a directory into which people can
 	write files but not delete them. It is possible to set an ACL on a Windows file that permits the file to be written to
@@ -385,7 +385,7 @@ mystic:/home/hannibal &gt; rm filename
 			List of users that should be allowed to login to this service.
 			</p></td></tr><tr><td align="left"><a class="link" href="smb.conf.5.html#WRITELIST" target="_top">write list</a></td><td align="justify"><p>
 			List of users that are given read-write access to a service.
-			</p></td></tr></tbody></table></div></div><br class="table-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2612262"></a>File and Directory Permissions-Based Controls</h3></div></div></div><p>
+			</p></td></tr></tbody></table></div></div><br class="table-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2612263"></a>File and Directory Permissions-Based Controls</h3></div></div></div><p>
 	Directory permission-based controls, if misused, can result in considerable difficulty in diagnosing the causes of 
 	misconfiguration. Use them sparingly and carefully. By gradually introducing each, one at a time, undesirable side 
 	effects may be detected. In the event of a problem, always comment all of them out and then gradually reintroduce 
@@ -449,8 +449,8 @@ mystic:/home/hannibal &gt; rm filename
 			If this parameter is yes, then users of a service may not create or modify files in the service's directory.
 			</p></td></tr><tr><td align="justify"><a class="link" href="smb.conf.5.html#VETOFILES" target="_top">veto files</a></td><td align="justify"><p>
 			List of files and directories that are neither visible nor accessible.
-			</p></td></tr></tbody></table></div></div><br class="table-break"></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2612937"></a>Access Controls on Shares</h2></div></div></div><p>
-<a class="indexterm" name="id2612945"></a>
+			</p></td></tr></tbody></table></div></div><br class="table-break"></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2612938"></a>Access Controls on Shares</h2></div></div></div><p>
+<a class="indexterm" name="id2612946"></a>
 <a class="indexterm" name="id2612952"></a>
 <a class="indexterm" name="id2612959"></a>
 <a class="indexterm" name="id2612966"></a>
@@ -507,7 +507,7 @@ mystic:/home/hannibal &gt; rm filename
 			Windows NT4/200x permissions allow the group "Everyone" full control on the share.
 			</p><p>
 <a class="indexterm" name="id2613264"></a>
-<a class="indexterm" name="id2613270"></a>
+<a class="indexterm" name="id2613271"></a>
 <a class="indexterm" name="id2613277"></a>
 			MS Windows 200x and later versions come with a tool called the <span class="application">Computer Management</span>
 			snap-in for the MMC. This tool can be accessed via <span class="guimenu">Control Panel -&gt;
@@ -534,7 +534,7 @@ mystic:/home/hannibal &gt; rm filename
 			ACL precedence. Everyone with <span class="emphasis"><em>no access</em></span> means that <code class="constant">MaryK</code> who is
 			part of the group <code class="constant">Everyone</code> will have no access even if she is given explicit full
 			control access.
-			</p></div></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2613432"></a>MS Windows Access Control Lists and UNIX Interoperability</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613439"></a>Managing UNIX Permissions Using NT Security Dialogs</h3></div></div></div><p>
+			</p></div></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2613433"></a>MS Windows Access Control Lists and UNIX Interoperability</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613439"></a>Managing UNIX Permissions Using NT Security Dialogs</h3></div></div></div><p>
 		<a class="indexterm" name="id2613447"></a>
 		Windows NT clients can use their native security settings dialog box to view and modify the
 		underlying UNIX permissions.
@@ -560,7 +560,7 @@ mystic:/home/hannibal &gt; rm filename
 		to add auditing requirements to a file if the user is logged on as the NT administrator. This dialog is
 		nonfunctional with a Samba share at this time, because the only useful button, the <span class="guibutton">Add</span>
 		button, will not currently allow a list of users to be seen.
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613556"></a>Viewing File Ownership</h3></div></div></div><p>
+		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613557"></a>Viewing File Ownership</h3></div></div></div><p>
 		Clicking on the <span class="guibutton">Ownership</span> button brings up a dialog box telling you who owns
 		the given file. The owner name will be displayed like this:
 		</p><pre class="screen">
@@ -574,7 +574,7 @@ mystic:/home/hannibal &gt; rm filename
 		If the parameter <a class="link" href="smb.conf.5.html#NTACLSUPPORT" target="_top">nt acl support</a> is set to <code class="constant">false</code>,
 		the file owner will be shown as the NT user <span class="emphasis"><em>Everyone</em></span>.
 		</p><p>
-<a class="indexterm" name="id2613630"></a>
+<a class="indexterm" name="id2613631"></a>
 		The <span class="guibutton">Take Ownership</span> button will not allow you to change the ownership of this file to
 		yourself (clicking it will display a dialog box complaining that the user as whom you are currently logged onto
 		the NT client cannot be found). The reason for this is that changing the ownership of a file is a privileged
@@ -632,7 +632,7 @@ mystic:/home/hannibal &gt; rm filename
 		</p><p>
 		Samba synthesizes these inherited permissions for NT by returning as an NT ACL the UNIX permission mode that a new file 
 		created by Samba on this share would receive.
-		</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613915"></a>Modifying File or Directory Permissions</h3></div></div></div><p>
+		</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2613916"></a>Modifying File or Directory Permissions</h3></div></div></div><p>
 	Modifying file and directory permissions is as simple as changing the displayed permissions in the dialog box
 	and clicking on <span class="guibutton">OK</span>. However, there are limitations that a user needs to be aware of,
 	and also interactions with the standard Samba permission masks and mapping of DOS attributes that also need to
@@ -719,7 +719,7 @@ mystic:/home/hannibal &gt; rm filename
 	does not force any particular bits to be set <span class="emphasis"><em>on</em></span>,
 	then set the following parameters in the <code class="filename">smb.conf</code> file in that
 	share-specific section:
-	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2614393"></a><em class="parameter"><code>security mask = 0777</code></em></td></tr><tr><td><a class="indexterm" name="id2614404"></a><em class="parameter"><code>force security mode = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2614416"></a><em class="parameter"><code>directory security mask = 0777</code></em></td></tr><tr><td><a class="indexterm" name="id2614428"></a><em class="parameter"><code>force directory security mode = 0</code></em></td></tr></table></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2614442"></a>Interaction with the Standard Samba File Attribute Mapping</h3></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2614393"></a><em class="parameter"><code>security mask = 0777</code></em></td></tr><tr><td><a class="indexterm" name="id2614405"></a><em class="parameter"><code>force security mode = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2614416"></a><em class="parameter"><code>directory security mask = 0777</code></em></td></tr><tr><td><a class="indexterm" name="id2614429"></a><em class="parameter"><code>force directory security mode = 0</code></em></td></tr></table></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2614442"></a>Interaction with the Standard Samba File Attribute Mapping</h3></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 	Samba maps some of the DOS attribute bits (such as &#8220;<span class="quote">read-only</span>&#8221;)
 	into the UNIX permissions of a file. This means there can 
 	be a conflict between the permission bits set via the security 
@@ -816,7 +816,7 @@ default:other:---     &lt;-- inherited permissions for everyone (other)
 	The UNIX administrator can set any directory permission from within the UNIX environment.
 	The Windows administrator is more restricted in that it is not possible from within 
 	Windows Explorer to remove read permission for the file owner.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2614903"></a>Mapping of Windows Directory ACLs to UNIX POSIX ACLs</h4></div></div></div><p>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2614904"></a>Mapping of Windows Directory ACLs to UNIX POSIX ACLs</h4></div></div></div><p>
 	Interesting things happen in the mapping of UNIX POSIX directory permissions and
 	UNIX POSIX ACLs to Windows ACEs (Access Control Entries, the discrete components of
 	an ACL) are mapped to Windows directory ACLs.

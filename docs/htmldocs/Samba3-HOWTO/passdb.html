@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 11. Account Information Databases</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing"><link rel="next" href="groupmapping.html" title="Chapter 12. Group Mapping: MS Windows and UNIX"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 11. Account Information Databases</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="NetworkBrowsing.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="groupmapping.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="passdb"></a>Chapter 11. Account Information Databases</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="orgname">Samba Team</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jeremy</span> <span class="orgname">Samba Team</span> <span class="surname">Allison</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jra@samba.org">jra@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><span class="contrib">LDAP updates</span> <div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Olivier (lem)</span> <span class="orgname">IDEALX</span> <span class="surname">Lemaire</span></h3><div class="affiliation"><span class="orgname">IDEALX<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:olem@IDEALX.org">olem@IDEALX.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 24, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="passdb.html#id2587207">Features and Benefits</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2587243">Backward Compatibility Account Storage Systems</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2587426">New Account Storage Systems</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#passdbtech">Technical Information</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2587995">Important Notes About Security</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2588514">Mapping User Identifiers between MS Windows and UNIX</a></span></dt><dt><span class="sect2"><a href="passdb.html#idmapbackend">Mapping Common UIDs/GIDs on Distributed Machines</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2589063">Comments Regarding LDAP</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2589476">LDAP Directories and Windows Computer Accounts</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#acctmgmttools">Account Management Tools</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2589916">The smbpasswd Tool</a></span></dt><dt><span class="sect2"><a href="passdb.html#pdbeditthing">The pdbedit Tool</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#id2592457">Password Backends</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2592510">Plaintext</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2592586">smbpasswd: Encrypted Password Database</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2592852">tdbsam</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2593010">ldapsam</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#id2595544">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2595549">Users Cannot Logon</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2595586">Configuration of auth methods</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 11. Account Information Databases</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing"><link rel="next" href="groupmapping.html" title="Chapter 12. Group Mapping: MS Windows and UNIX"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 11. Account Information Databases</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="NetworkBrowsing.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="groupmapping.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="passdb"></a>Chapter 11. Account Information Databases</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="orgname">Samba Team</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jeremy</span> <span class="orgname">Samba Team</span> <span class="surname">Allison</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jra@samba.org">jra@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><span class="contrib">LDAP updates</span> <div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Olivier (lem)</span> <span class="orgname">IDEALX</span> <span class="surname">Lemaire</span></h3><div class="affiliation"><span class="orgname">IDEALX<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:olem@IDEALX.org">olem@IDEALX.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 24, 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="passdb.html#id2587207">Features and Benefits</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2587243">Backward Compatibility Account Storage Systems</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2587426">New Account Storage Systems</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#passdbtech">Technical Information</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2587995">Important Notes About Security</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2588514">Mapping User Identifiers between MS Windows and UNIX</a></span></dt><dt><span class="sect2"><a href="passdb.html#idmapbackend">Mapping Common UIDs/GIDs on Distributed Machines</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2589063">Comments Regarding LDAP</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2589476">LDAP Directories and Windows Computer Accounts</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#acctmgmttools">Account Management Tools</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2589916">The smbpasswd Tool</a></span></dt><dt><span class="sect2"><a href="passdb.html#pdbeditthing">The pdbedit Tool</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#id2592457">Password Backends</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2592510">Plaintext</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2592586">smbpasswd: Encrypted Password Database</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2592852">tdbsam</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2593010">ldapsam</a></span></dt></dl></dd><dt><span class="sect1"><a href="passdb.html#id2595544">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="passdb.html#id2595550">Users Cannot Logon</a></span></dt><dt><span class="sect2"><a href="passdb.html#id2595586">Configuration of auth methods</a></span></dt></dl></dd></dl></div><p>
 <a class="indexterm" name="id2587009"></a>
 <a class="indexterm" name="id2587016"></a>
 <a class="indexterm" name="id2587023"></a>
@@ -490,7 +490,7 @@ Samba-3 introduces a number of new password backend capabilities.
 <a class="indexterm" name="id2589581"></a>
 		The POSIX and sambaSamAccount components of computer (machine) accounts are both used by Samba.
 		Thus, machine accounts are treated inside Samba in the same way that Windows NT4/200X treats
-		them. A user account and a machine account are indistinquishable from each other, except that
+		them. A user account and a machine account are indistinguishable from each other, except that
 		the machine account ends in a $ character, as do trust accounts.
 		</p><p>
 <a class="indexterm" name="id2589598"></a>
@@ -659,7 +659,7 @@ is being added to the <code class="literal">net</code> toolset (see <a class="li
 		</p><p>
 		Domain global policy controls available in Windows NT4 compared with Samba
 		is shown in <a class="link" href="passdb.html#policycontrols" title="Table 11.1. NT4 Domain v's Samba Policy Controls">NT4 Domain v's Samba Policy Controls</a>.
-		</p><div class="table"><a name="policycontrols"></a><p class="title"><b>Table 11.1. NT4 Domain v's Samba Policy Controls</b></p><div class="table-contents"><table summary="NT4 Domain v's Samba Policy Controls" border="1"><colgroup><col align="left"><col align="left"><col align="center"><col align="center"><col align="center"></colgroup><thead><tr><th align="left"><p>NT4 policy Name</p></th><th align="left"><p>Samba Policy Name</p></th><th align="center"><p>NT4 Range</p></th><th align="center"><p>Samba Range</p></th><th align="center"><p>Samba Default</p></th></tr></thead><tbody><tr><td align="left"><p>Maximum Password Age</p></td><td align="left"><p>maximum password age</p></td><td align="center"><p>0 - 999 (days)</p></td><td align="center"><p>0 - 4294967295 (sec)</p></td><td align="center"><p>4294967295</p></td></tr><tr><td align="left"><p>Minimum Password Age</p></td><td align="left"><p>minimum password age</p></td><td align="center"><p>0 - 999 (days)</p></td><td align="center"><p>0 - 4294967295 (sec)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Mimimum Password Length</p></td><td align="left"><p>min password length</p></td><td align="center"><p>1 - 14 (Chars)</p></td><td align="center"><p>0 - 4294967295 (Chars)</p></td><td align="center"><p>5</p></td></tr><tr><td align="left"><p>Password Uniqueness</p></td><td align="left"><p>password history</p></td><td align="center"><p>0 - 23 (#)</p></td><td align="center"><p>0 - 4294967295 (#)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Account Lockout - Reset count after</p></td><td align="left"><p>reset count minutes</p></td><td align="center"><p>1 - 99998 (min)</p></td><td align="center"><p>0 - 4294967295 (min)</p></td><td align="center"><p>30</p></td></tr><tr><td align="left"><p>Lockout after bad logon attempts</p></td><td align="left"><p>bad lockout attempt</p></td><td align="center"><p>0 - 998 (#)</p></td><td align="center"><p>0 - 4294967295 (#)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>*** Not Known ***</p></td><td align="left"><p>disconnect time</p></td><td align="center"><p>TBA</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Lockout Duration</p></td><td align="left"><p>lockout duration</p></td><td align="center"><p>1 - 99998 (min)</p></td><td align="center"><p>0 - 4294967295 (min)</p></td><td align="center"><p>30</p></td></tr><tr><td align="left"><p>Users must log on in order to change password</p></td><td align="left"><p>user must logon to change password</p></td><td align="center"><p>0/1</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>*** Registry Setting ***</p></td><td align="left"><p>refuse machine password change</p></td><td align="center"><p>0/1</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr></tbody></table></div></div><br class="table-break"><p>
+		</p><div class="table"><a name="policycontrols"></a><p class="title"><b>Table 11.1. NT4 Domain v's Samba Policy Controls</b></p><div class="table-contents"><table summary="NT4 Domain v's Samba Policy Controls" border="1"><colgroup><col align="left"><col align="left"><col align="center"><col align="center"><col align="center"></colgroup><thead><tr><th align="left"><p>NT4 policy Name</p></th><th align="left"><p>Samba Policy Name</p></th><th align="center"><p>NT4 Range</p></th><th align="center"><p>Samba Range</p></th><th align="center"><p>Samba Default</p></th></tr></thead><tbody><tr><td align="left"><p>Maximum Password Age</p></td><td align="left"><p>maximum password age</p></td><td align="center"><p>0 - 999 (days)</p></td><td align="center"><p>0 - 4294967295 (sec)</p></td><td align="center"><p>4294967295</p></td></tr><tr><td align="left"><p>Minimum Password Age</p></td><td align="left"><p>minimum password age</p></td><td align="center"><p>0 - 999 (days)</p></td><td align="center"><p>0 - 4294967295 (sec)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Minimum Password Length</p></td><td align="left"><p>min password length</p></td><td align="center"><p>1 - 14 (Chars)</p></td><td align="center"><p>0 - 4294967295 (Chars)</p></td><td align="center"><p>5</p></td></tr><tr><td align="left"><p>Password Uniqueness</p></td><td align="left"><p>password history</p></td><td align="center"><p>0 - 23 (#)</p></td><td align="center"><p>0 - 4294967295 (#)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Account Lockout - Reset count after</p></td><td align="left"><p>reset count minutes</p></td><td align="center"><p>1 - 99998 (min)</p></td><td align="center"><p>0 - 4294967295 (min)</p></td><td align="center"><p>30</p></td></tr><tr><td align="left"><p>Lockout after bad logon attempts</p></td><td align="left"><p>bad lockout attempt</p></td><td align="center"><p>0 - 998 (#)</p></td><td align="center"><p>0 - 4294967295 (#)</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>*** Not Known ***</p></td><td align="left"><p>disconnect time</p></td><td align="center"><p>TBA</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>Lockout Duration</p></td><td align="left"><p>lockout duration</p></td><td align="center"><p>1 - 99998 (min)</p></td><td align="center"><p>0 - 4294967295 (min)</p></td><td align="center"><p>30</p></td></tr><tr><td align="left"><p>Users must log on in order to change password</p></td><td align="left"><p>user must logon to change password</p></td><td align="center"><p>0/1</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr><tr><td align="left"><p>*** Registry Setting ***</p></td><td align="left"><p>refuse machine password change</p></td><td align="center"><p>0/1</p></td><td align="center"><p>0 - 4294967295</p></td><td align="center"><p>0</p></td></tr></tbody></table></div></div><br class="table-break"><p>
 		<a class="indexterm" name="id2590916"></a>
 <a class="indexterm" name="id2590923"></a>
 <a class="indexterm" name="id2590930"></a>
@@ -1015,7 +1015,7 @@ account policy value for password history is now 4
 <code class="prompt">root# </code> pdbedit -P "maximum password age" -C 7776000
 account policy value for maximum password age was 4294967295
 account policy value for maximum password age is now 7776000
-<code class="prompt">root# </code> pdbedit -P "minimum password age" -C 7
+<code class="prompt">root# </code> pdbedit -P "minimum password age" -C 604800
 account policy value for minimum password age was 0
 account policy value for minimum password age is now 7
 <code class="prompt">root# </code> pdbedit -P "bad lockout attempt" -C 8
@@ -1034,7 +1034,7 @@ time there after. Please check the WHATSNEW.txt file in the Samba-3 tarball for 
 regarding this facility.
 </p></div></div></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2592332"></a>Account Import/Export</h4></div></div></div><p>
 		<a class="indexterm" name="id2592340"></a>
-<a class="indexterm" name="id2592346"></a>
+<a class="indexterm" name="id2592347"></a>
 <a class="indexterm" name="id2592354"></a>
 		The <code class="literal">pdbedit</code> tool allows import/export of authentication (account)
 		databases from one backend to another. For example, to import/export accounts from an
@@ -1050,8 +1050,8 @@ regarding this facility.
 			Replace the <em class="parameter"><code>smbpasswd</code></em> with <em class="parameter"><code>tdbsam</code></em> in the
 			<em class="parameter"><code>passdb backend</code></em> configuration in <code class="filename">smb.conf</code>.
 			</p></li></ol></div></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2592457"></a>Password Backends</h2></div></div></div><p>
-<a class="indexterm" name="id2592464"></a>
-<a class="indexterm" name="id2592471"></a>
+<a class="indexterm" name="id2592465"></a>
+<a class="indexterm" name="id2592472"></a>
 Samba offers flexibility in backend account database design. The flexibility is immediately obvious as one
 begins to explore this capability. Recent changes to Samba (since 3.0.23) have removed the mulitple backend
 feature in order to simplify problems that broke some installations. This removal has made the internal
@@ -1078,7 +1078,7 @@ to be removed.
 		that the Samba host OS will access its <code class="filename">/etc/passwd</code> database.
 		On most Linux systems, for example, all user and group resolution is done via PAM.
 		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2592586"></a>smbpasswd: Encrypted Password Database</h3></div></div></div><p>
-		<a class="indexterm" name="id2592594"></a>
+		<a class="indexterm" name="id2592595"></a>
 <a class="indexterm" name="id2592604"></a>
 <a class="indexterm" name="id2592611"></a>
 <a class="indexterm" name="id2592618"></a>
@@ -1088,9 +1088,9 @@ to be removed.
 		file. There are several disadvantages to this approach for sites with large numbers of users
 		(counted in the thousands).
 		</p><div class="itemizedlist"><ul type="disc"><li><p>
-<a class="indexterm" name="id2592660"></a>
+<a class="indexterm" name="id2592661"></a>
 		The first problem is that all lookups must be performed sequentially. Given that
-		there are approximately two lookups per domain logon (one during intial logon validation
+		there are approximately two lookups per domain logon (one during initial logon validation
 		and one for a session connection setup, such as when mapping a network drive or printer), this
 		is a performance bottleneck for large sites. What is needed is an indexed approach
 		such as that used in databases.
@@ -1109,12 +1109,12 @@ to be removed.
 <a class="indexterm" name="id2592738"></a>
 <a class="indexterm" name="id2592745"></a>
 <a class="indexterm" name="id2592752"></a>
-<a class="indexterm" name="id2592758"></a>
+<a class="indexterm" name="id2592759"></a>
 		Finally, the amount of information that is stored in an smbpasswd entry leaves
 		no room for additional attributes such as a home directory, password expiration time,
 		or even a relative identifier (RID).
 		</p></li></ul></div><p>
-<a class="indexterm" name="id2592775"></a>
+<a class="indexterm" name="id2592776"></a>
 <a class="indexterm" name="id2592782"></a>
 <a class="indexterm" name="id2592789"></a>
 <a class="indexterm" name="id2592796"></a>
@@ -1124,9 +1124,9 @@ to be removed.
 		API and is still so named in the Samba source code trees).
 		</p><p>
 <a class="indexterm" name="id2592812"></a>
-<a class="indexterm" name="id2592818"></a>
+<a class="indexterm" name="id2592819"></a>
 <a class="indexterm" name="id2592826"></a>
-<a class="indexterm" name="id2592832"></a>
+<a class="indexterm" name="id2592833"></a>
 <a class="indexterm" name="id2592839"></a>
 		Samba provides an enhanced set of passdb backends that overcome the deficiencies
 		of the smbpasswd plaintext database. These are tdbsam and ldapsam.
@@ -1140,7 +1140,7 @@ to be removed.
 		recommended for new installations that do not require LDAP.
 		</p><p>
 <a class="indexterm" name="id2592896"></a>
-<a class="indexterm" name="id2592902"></a>
+<a class="indexterm" name="id2592903"></a>
 <a class="indexterm" name="id2592909"></a>
 <a class="indexterm" name="id2592916"></a>
 		As a general guide, the Samba Team does not recommend using the tdbsam backend for sites
@@ -1170,12 +1170,12 @@ to be removed.
 		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2593010"></a>ldapsam</h3></div></div></div><p>
 <a class="indexterm" name="id2593018"></a>
 <a class="indexterm" name="id2593025"></a>
-		<a class="indexterm" name="id2593031"></a>
+		<a class="indexterm" name="id2593032"></a>
 		There are a few points to stress that the ldapsam does not provide. The LDAP
 		support referred to in this documentation does not include:
 		</p><div class="itemizedlist"><ul type="disc"><li><p>A means of retrieving user account information from
 			a Windows 200x Active Directory server.</p></li><li><p>A means of replacing /etc/passwd.</p></li></ul></div><p>
-<a class="indexterm" name="id2593060"></a>
+<a class="indexterm" name="id2593061"></a>
 <a class="indexterm" name="id2593067"></a>
 <a class="indexterm" name="id2593074"></a>
 <a class="indexterm" name="id2593080"></a>
@@ -1211,7 +1211,7 @@ to be removed.
 			Idealx also produced the smbldap-tools and the Interactive Console Management tool.
 			</p></li></ul></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2593258"></a>Supported LDAP Servers</h4></div></div></div><p>
 <a class="indexterm" name="id2593266"></a>
-<a class="indexterm" name="id2593272"></a>
+<a class="indexterm" name="id2593273"></a>
 <a class="indexterm" name="id2593279"></a>
 <a class="indexterm" name="id2593286"></a>
 			The LDAP ldapsam code was developed and tested using the OpenLDAP 2.x server and
@@ -1245,7 +1245,7 @@ ObjectClass (1.3.6.1.4.1.7165.2.2.6 NAME 'sambaSamAccount' SUP top AUXILIARY
 			schema file as a patch to <a class="ulink" href="mailto:jerry@samba.org" target="_top">jerry@samba.org</a>.
 			</p><p>
 <a class="indexterm" name="id2593399"></a>
-<a class="indexterm" name="id2593405"></a>
+<a class="indexterm" name="id2593406"></a>
 <a class="indexterm" name="id2593412"></a>
 <a class="indexterm" name="id2593419"></a>
 <a class="indexterm" name="id2593426"></a>
@@ -1266,7 +1266,7 @@ ObjectClass (1.3.6.1.4.1.7165.2.2.6 NAME 'sambaSamAccount' SUP top AUXILIARY
 <a class="indexterm" name="id2593496"></a>
 <a class="indexterm" name="id2593503"></a>
 <a class="indexterm" name="id2593510"></a>
-<a class="indexterm" name="id2593516"></a>
+<a class="indexterm" name="id2593517"></a>
 <a class="indexterm" name="id2593523"></a>
 			In order to store all user account information (UNIX and Samba) in the directory,
 			it is necessary to use the sambaSamAccount and posixAccount ObjectClasses in
@@ -1292,8 +1292,8 @@ ObjectClass (1.3.6.1.4.1.7165.2.2.6 NAME 'sambaSamAccount' SUP top AUXILIARY
 <a class="indexterm" name="id2593614"></a>
 <a class="indexterm" name="id2593621"></a>
 <a class="indexterm" name="id2593628"></a>
-<a class="indexterm" name="id2593634"></a>
-<a class="indexterm" name="id2593641"></a>
+<a class="indexterm" name="id2593635"></a>
+<a class="indexterm" name="id2593642"></a>
 <a class="indexterm" name="id2593648"></a>
 <a class="indexterm" name="id2593655"></a>
 <a class="indexterm" name="id2593662"></a>
@@ -1319,7 +1319,7 @@ include            /etc/openldap/schema/samba.schema
 <a class="indexterm" name="id2593730"></a>
 <a class="indexterm" name="id2593737"></a>
 <a class="indexterm" name="id2593744"></a>
-<a class="indexterm" name="id2593750"></a>
+<a class="indexterm" name="id2593751"></a>
 		It is recommended that you maintain some indices on some of the most useful attributes,
 		as in the following example, to speed up searches made on sambaSamAccount ObjectClasses
 		(and possibly posixAccount and posixGroup as well):
@@ -1358,8 +1358,8 @@ index   default               sub
 <code class="prompt">root# </code><strong class="userinput"><code>/etc/init.d/slapd restart</code></strong>
 </pre><p>
 		</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2593820"></a>Initialize the LDAP Database</h4></div></div></div><p>
-<a class="indexterm" name="id2593828"></a>
-<a class="indexterm" name="id2593835"></a>
+<a class="indexterm" name="id2593829"></a>
+<a class="indexterm" name="id2593836"></a>
 <a class="indexterm" name="id2593842"></a>
 <a class="indexterm" name="id2593849"></a>
 		Before you can add accounts to the LDAP database, you must create the account containers
@@ -1439,7 +1439,7 @@ userPassword: {SSHA}c3ZM9tBaBo9autm1dL3waDS21+JSfQVz
 		Do not forget to secure your LDAP server with an adequate access control list
 		as well as an admin password.
 		</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2593963"></a>
+<a class="indexterm" name="id2593964"></a>
 		Before Samba can access the LDAP server, you need to store the LDAP admin password
 		in the Samba-3 <code class="filename">secrets.tdb</code> database by:
 <a class="indexterm" name="id2593978"></a>
@@ -1467,11 +1467,11 @@ userPassword: {SSHA}c3ZM9tBaBo9autm1dL3waDS21+JSfQVz
 			that includes <code class="literal">HAVE_LDAP_H</code> it is necessary to discover why the LDAP headers
 			and libraries were not found during compilation.
 			</p><p>LDAP-related smb.conf options include these:
-			</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2594077"></a><em class="parameter"><code>passdb backend = ldapsam:url</code></em></td></tr><tr><td><a class="indexterm" name="id2594089"></a></td></tr><tr><td><a class="indexterm" name="id2594096"></a></td></tr><tr><td><a class="indexterm" name="id2594103"></a></td></tr><tr><td><a class="indexterm" name="id2594110"></a></td></tr><tr><td><a class="indexterm" name="id2594116"></a></td></tr><tr><td><a class="indexterm" name="id2594123"></a></td></tr><tr><td><a class="indexterm" name="id2594130"></a></td></tr><tr><td><a class="indexterm" name="id2594137"></a></td></tr><tr><td><a class="indexterm" name="id2594144"></a></td></tr><tr><td><a class="indexterm" name="id2594151"></a></td></tr><tr><td><a class="indexterm" name="id2594158"></a></td></tr><tr><td><a class="indexterm" name="id2594165"></a></td></tr><tr><td><a class="indexterm" name="id2594172"></a></td></tr></table><p>
+			</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2594077"></a><em class="parameter"><code>passdb backend = ldapsam:url</code></em></td></tr><tr><td><a class="indexterm" name="id2594089"></a></td></tr><tr><td><a class="indexterm" name="id2594096"></a></td></tr><tr><td><a class="indexterm" name="id2594103"></a></td></tr><tr><td><a class="indexterm" name="id2594110"></a></td></tr><tr><td><a class="indexterm" name="id2594117"></a></td></tr><tr><td><a class="indexterm" name="id2594124"></a></td></tr><tr><td><a class="indexterm" name="id2594130"></a></td></tr><tr><td><a class="indexterm" name="id2594137"></a></td></tr><tr><td><a class="indexterm" name="id2594144"></a></td></tr><tr><td><a class="indexterm" name="id2594151"></a></td></tr><tr><td><a class="indexterm" name="id2594158"></a></td></tr><tr><td><a class="indexterm" name="id2594165"></a></td></tr><tr><td><a class="indexterm" name="id2594172"></a></td></tr></table><p>
 			</p><p>
 			These are described in the <code class="filename">smb.conf</code> man page and so are not repeated here. However, an example
 			for use with an LDAP directory is shown in <a class="link" href="passdb.html#confldapex" title="Example 11.2. Configuration with LDAP">the Configuration with LDAP.</a>
-			</p><div class="example"><a name="confldapex"></a><p class="title"><b>Example 11.2. Configuration with LDAP</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2594223"></a><em class="parameter"><code>security = user</code></em></td></tr><tr><td><a class="indexterm" name="id2594235"></a><em class="parameter"><code>encrypt passwords = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2594247"></a><em class="parameter"><code>netbios name = MORIA</code></em></td></tr><tr><td><a class="indexterm" name="id2594259"></a><em class="parameter"><code>workgroup = NOLDOR</code></em></td></tr><tr><td># LDAP related parameters:</td></tr><tr><td># Define the DN used when binding to the LDAP servers.</td></tr><tr><td># The password for this DN is not stored in smb.conf</td></tr><tr><td># Set it using 'smbpasswd -w secret' to store the</td></tr><tr><td># passphrase in the secrets.tdb file.</td></tr><tr><td># If the "ldap admin dn" value changes, it must be reset.</td></tr><tr><td><a class="indexterm" name="id2594295"></a><em class="parameter"><code>ldap admin dn = "cn=Manager,dc=quenya,dc=org"</code></em></td></tr><tr><td># SSL directory connections can be configured by:</td></tr><tr><td># ('off', 'start tls', or 'on' (default))</td></tr><tr><td><a class="indexterm" name="id2594315"></a><em class="parameter"><code>ldap ssl = start tls</code></em></td></tr><tr><td># syntax: passdb backend = ldapsam:ldap://server-name[:port]</td></tr><tr><td><a class="indexterm" name="id2594331"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://frodo.quenya.org</code></em></td></tr><tr><td># smbpasswd -x delete the entire dn-entry</td></tr><tr><td><a class="indexterm" name="id2594348"></a><em class="parameter"><code>ldap delete dn = no</code></em></td></tr><tr><td># The machine and user suffix are added to the base suffix</td></tr><tr><td># wrote WITHOUT quotes. NULL suffixes by default</td></tr><tr><td><a class="indexterm" name="id2594368"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2594380"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2594392"></a><em class="parameter"><code>ldap machine suffix = ou=Computers</code></em></td></tr><tr><td># Trust UNIX account information in LDAP</td></tr><tr><td>#  (see the smb.conf man page for details)</td></tr><tr><td># Specify the base DN to use when searching the directory</td></tr><tr><td><a class="indexterm" name="id2594416"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2594430"></a>Accounts and Groups Management</h4></div></div></div><p>
+			</p><div class="example"><a name="confldapex"></a><p class="title"><b>Example 11.2. Configuration with LDAP</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2594223"></a><em class="parameter"><code>security = user</code></em></td></tr><tr><td><a class="indexterm" name="id2594235"></a><em class="parameter"><code>encrypt passwords = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2594247"></a><em class="parameter"><code>netbios name = MORIA</code></em></td></tr><tr><td><a class="indexterm" name="id2594259"></a><em class="parameter"><code>workgroup = NOLDOR</code></em></td></tr><tr><td># LDAP related parameters:</td></tr><tr><td># Define the DN used when binding to the LDAP servers.</td></tr><tr><td># The password for this DN is not stored in smb.conf</td></tr><tr><td># Set it using 'smbpasswd -w secret' to store the</td></tr><tr><td># passphrase in the secrets.tdb file.</td></tr><tr><td># If the "ldap admin dn" value changes, it must be reset.</td></tr><tr><td><a class="indexterm" name="id2594295"></a><em class="parameter"><code>ldap admin dn = "cn=Manager,dc=quenya,dc=org"</code></em></td></tr><tr><td># SSL directory connections can be configured by:</td></tr><tr><td># ('off', 'start tls', or 'on' (default))</td></tr><tr><td><a class="indexterm" name="id2594315"></a><em class="parameter"><code>ldap ssl = start tls</code></em></td></tr><tr><td># syntax: passdb backend = ldapsam:ldap://server-name[:port]</td></tr><tr><td><a class="indexterm" name="id2594332"></a><em class="parameter"><code>passdb backend = ldapsam:ldap://frodo.quenya.org</code></em></td></tr><tr><td># smbpasswd -x delete the entire dn-entry</td></tr><tr><td><a class="indexterm" name="id2594348"></a><em class="parameter"><code>ldap delete dn = no</code></em></td></tr><tr><td># The machine and user suffix are added to the base suffix</td></tr><tr><td># wrote WITHOUT quotes. NULL suffixes by default</td></tr><tr><td><a class="indexterm" name="id2594368"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2594380"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2594392"></a><em class="parameter"><code>ldap machine suffix = ou=Computers</code></em></td></tr><tr><td># Trust UNIX account information in LDAP</td></tr><tr><td>#  (see the smb.conf man page for details)</td></tr><tr><td># Specify the base DN to use when searching the directory</td></tr><tr><td><a class="indexterm" name="id2594416"></a><em class="parameter"><code>ldap suffix = dc=quenya,dc=org</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2594430"></a>Accounts and Groups Management</h4></div></div></div><p>
 			<a class="indexterm" name="id2594438"></a>
 			<a class="indexterm" name="id2594445"></a>
 			Because user accounts are managed through the sambaSamAccount ObjectClass, you should
@@ -1488,7 +1488,7 @@ userPassword: {SSHA}c3ZM9tBaBo9autm1dL3waDS21+JSfQVz
 			NSS and PAM accordingly (usually, in the <code class="filename">/etc/openldap/sldap.conf</code>
 			configuration file).
 			</p><p>
-<a class="indexterm" name="id2594504"></a>
+<a class="indexterm" name="id2594505"></a>
 <a class="indexterm" name="id2594511"></a>
 <a class="indexterm" name="id2594518"></a>
 <a class="indexterm" name="id2594525"></a>
@@ -1498,7 +1498,7 @@ userPassword: {SSHA}c3ZM9tBaBo9autm1dL3waDS21+JSfQVz
 			groups). Samba-3 knows only about <code class="constant">Domain Groups</code>
 			and, unlike MS Windows 2000 and Active Directory, Samba-3 does not
 			support nested groups.
-			</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2594543"></a>Security and sambaSamAccount</h4></div></div></div><p>
+			</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2594544"></a>Security and sambaSamAccount</h4></div></div></div><p>
 <a class="indexterm" name="id2594552"></a>
 			There are two important points to remember when discussing the security
 			of sambaSAMAccount entries in the directory.
@@ -1527,7 +1527,7 @@ userPassword: {SSHA}c3ZM9tBaBo9autm1dL3waDS21+JSfQVz
 			</p><p>
 <a class="indexterm" name="id2594708"></a>
 <a class="indexterm" name="id2594715"></a>
-<a class="indexterm" name="id2594721"></a>
+<a class="indexterm" name="id2594722"></a>
 			Note that the LDAPS protocol is deprecated in favor of the LDAPv3 StartTLS
 			extended operation. However, the OpenLDAP library still provides support for
 			the older method of securing communication between clients and servers.
@@ -1588,7 +1588,7 @@ access to attrs=SambaLMPassword,SambaNTPassword
 			are only stored with the sambaSamAccount entry if the values are non-default values:
 			</p><div class="itemizedlist"><a class="indexterm" name="id2595156"></a><a class="indexterm" name="id2595163"></a><a class="indexterm" name="id2595170"></a><a class="indexterm" name="id2595177"></a><ul type="disc"><li><p>sambaHomePath</p></li><li><p>sambaLogonScript</p></li><li><p>sambaProfilePath</p></li><li><p>sambaHomeDrive</p></li></ul></div><p>
 <a class="indexterm" name="id2595206"></a>
-<a class="indexterm" name="id2595212"></a>
+<a class="indexterm" name="id2595213"></a>
 <a class="indexterm" name="id2595219"></a>
 			These attributes are only stored with the sambaSamAccount entry if
 			the values are non-default values. For example, assume MORIA has now been
@@ -1654,7 +1654,7 @@ sambaNTPassword: 878D8014606CDA29677A44EFA1353FC7
 			       and the <code class="constant">password</code> fields.</p></td></tr><tr><td align="left">no</td><td align="justify"><p>Only update <code class="constant">SambaNTPassword</code> and
 					<code class="constant">SambaLMPassword</code>.</p></td></tr><tr><td align="left">only</td><td align="justify"><p>Only update the LDAP password and let the LDAP server
 			worry about the other fields.  This option is only available on some LDAP servers and
-			only when the LDAP server supports LDAP_EXOP_X_MODIFY_PASSWD.</p></td></tr></tbody></table></div></div><br class="table-break"><p>More information can be found in the <code class="filename">smb.conf</code> man page.</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2595492"></a>Using OpenLDAP Overlay for Password Syncronization</h4></div></div></div><p>
+			only when the LDAP server supports LDAP_EXOP_X_MODIFY_PASSWD.</p></td></tr></tbody></table></div></div><br class="table-break"><p>More information can be found in the <code class="filename">smb.conf</code> man page.</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2595493"></a>Using OpenLDAP Overlay for Password Synchronization</h4></div></div></div><p>
 		Howard Chu has written a special overlay called <code class="literal">smbk5pwd</code>. This tool  modifies the
 		<code class="literal">SambaNTPassword</code>, <code class="literal">SambaLMPassword</code> and <code class="literal">Heimdal</code>
 		hashes in an OpenLDAP entry when an LDAP_EXOP_X_MODIFY_PASSWD operation is performed.
@@ -1662,7 +1662,7 @@ sambaNTPassword: 878D8014606CDA29677A44EFA1353FC7
 		The overlay is shipped with OpenLDAP-2.3 and can be found in the
 		<code class="filename">contrib/slapd-modules/smbk5pwd</code> subdirectory. This module can also be used with
 		OpenLDAP-2.2.
-		</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2595544"></a>Common Errors</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2595549"></a>Users Cannot Logon</h3></div></div></div><p>&#8220;<span class="quote">I've installed Samba, but now I can't log on with my UNIX account! </span>&#8221;</p><p>Make sure your user has been added to the current Samba <a class="link" href="smb.conf.5.html#PASSDBBACKEND" target="_top">passdb backend</a>.
+		</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2595544"></a>Common Errors</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2595550"></a>Users Cannot Logon</h3></div></div></div><p>&#8220;<span class="quote">I've installed Samba, but now I can't log on with my UNIX account! </span>&#8221;</p><p>Make sure your user has been added to the current Samba <a class="link" href="smb.conf.5.html#PASSDBBACKEND" target="_top">passdb backend</a>.
 		Read the <a class="link" href="passdb.html#acctmgmttools" title="Account Management Tools">Account Management Tools,</a> for details.</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2595586"></a>Configuration of <em class="parameter"><code>auth methods</code></em></h3></div></div></div><p>
 	When explicitly setting an <a class="link" href="smb.conf.5.html#AUTHMETHODS" target="_top">auth methods</a> parameter,
 	<em class="parameter"><code>guest</code></em> must be specified as the first entry on the line 

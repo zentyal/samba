@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 27. Desktop Profile Management</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies"><link rel="next" href="pam.html" title="Chapter 28. PAM-Based Distributed Authentication"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 27. Desktop Profile Management</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="PolicyMgmt.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="pam.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="ProfileMgmt"></a>Chapter 27. Desktop Profile Management</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">April 3 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="ProfileMgmt.html#id2660542">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2660592">Roaming Profiles</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2660646">Samba Configuration for Profile Handling</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2661251">Windows Client Profile Configuration Information</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662596">User Profile Hive Cleanup Service</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662629">Sharing Profiles between Windows 9x/Me and NT4/200x/XP Workstations</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662728">Profile Migration from Windows NT4/200x Server to Samba</a></span></dt></dl></dd><dt><span class="sect1"><a href="ProfileMgmt.html#id2663080">Mandatory Profiles</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2663220">Creating and Managing Group Profiles</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2663298">Default Profile for Windows Users</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2663329">MS Windows 9x/Me</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2663480">MS Windows NT4 Workstation</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664042">MS Windows 200x/XP</a></span></dt></dl></dd><dt><span class="sect1"><a href="ProfileMgmt.html#id2664547">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2664558">Configuring Roaming Profiles for a Few Users or Groups</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664620">Cannot Use Roaming Profiles</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664791">Changing the Default Profile</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664955">Debugging Roaming Profiles and NT4-style Domain Policies</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2660542"></a>Features and Benefits</h2></div></div></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 27. Desktop Profile Management</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies"><link rel="next" href="pam.html" title="Chapter 28. PAM-Based Distributed Authentication"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 27. Desktop Profile Management</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="PolicyMgmt.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="pam.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="ProfileMgmt"></a>Chapter 27. Desktop Profile Management</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">April 3 2003</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="ProfileMgmt.html#id2660542">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2660592">Roaming Profiles</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2660646">Samba Configuration for Profile Handling</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2661251">Windows Client Profile Configuration Information</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662596">User Profile Hive Cleanup Service</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662630">Sharing Profiles between Windows 9x/Me and NT4/200x/XP Workstations</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2662728">Profile Migration from Windows NT4/200x Server to Samba</a></span></dt></dl></dd><dt><span class="sect1"><a href="ProfileMgmt.html#id2663080">Mandatory Profiles</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2663220">Creating and Managing Group Profiles</a></span></dt><dt><span class="sect1"><a href="ProfileMgmt.html#id2663298">Default Profile for Windows Users</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2663329">MS Windows 9x/Me</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2663480">MS Windows NT4 Workstation</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664042">MS Windows 200x/XP</a></span></dt></dl></dd><dt><span class="sect1"><a href="ProfileMgmt.html#id2664548">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="ProfileMgmt.html#id2664558">Configuring Roaming Profiles for a Few Users or Groups</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664620">Cannot Use Roaming Profiles</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664791">Changing the Default Profile</a></span></dt><dt><span class="sect2"><a href="ProfileMgmt.html#id2664955">Debugging Roaming Profiles and NT4-style Domain Policies</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2660542"></a>Features and Benefits</h2></div></div></div><p>
 <a class="indexterm" name="id2660550"></a>
 Roaming profiles are feared by some, hated by a few, loved by many, and a godsend for
 some administrators.
@@ -26,13 +26,13 @@ profiles location. However, the response does not have room for a separate
 profiles location field, only the user's home share. This means that Windows 9x/Me
 profiles are restricted to being stored in the user's home directory.
 </p><p>
-<a class="indexterm" name="id2660628"></a>
+<a class="indexterm" name="id2660629"></a>
 <a class="indexterm" name="id2660635"></a>
 Windows NT4/200x  clients send a NetSAMLogon RPC request, which contains many fields
 including a separate field for the location of the user's profiles.
 </p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2660646"></a>Samba Configuration for Profile Handling</h3></div></div></div><p>
 This section documents how to configure Samba for MS Windows client profile support.
-</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2660656"></a>NT4/200x User Profiles</h4></div></div></div><p>
+</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2660657"></a>NT4/200x User Profiles</h4></div></div></div><p>
 For example, to support Windows NT4/200x clients, set the following in the [global] section of the <code class="filename">smb.conf</code> file:
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2660679"></a><em class="parameter"><code>logon path =  \\profileserver\profileshare\profilepath\%U\moreprofilepath</code></em></td></tr></table><p>
 This is typically implemented like:
@@ -62,7 +62,7 @@ on the <em class="parameter"><code>logon home</code></em> parameter.
 By using the <em class="parameter"><code>logon home</code></em> parameter, you are restricted to putting Windows 9x/Me profiles
 in the user's home directory.  But wait! There is a trick you can use. If you set the following in the
 <em class="parameter"><code>[global]</code></em> section of your <code class="filename">smb.conf</code> file:
-</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2660893"></a><em class="parameter"><code>logon home = \\%L\%U\.profiles</code></em></td></tr></table><p>
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2660894"></a><em class="parameter"><code>logon home = \\%L\%U\.profiles</code></em></td></tr></table><p>
 then your Windows 9x/Me clients will dutifully put their clients in a subdirectory
 of your home directory called <code class="filename">.profiles</code> (making them hidden).
 </p><p>
@@ -92,7 +92,7 @@ There are three ways of doing this:
 		The arguments to these parameters must be left blank. It is necessary to include the <code class="constant">=</code> sign
 		to specifically assign the empty value.
 		</p></dd><dt><span class="term">MS Windows Registry:</span></dt><dd><p>
-<a class="indexterm" name="id2661136"></a>
+<a class="indexterm" name="id2661137"></a>
 <a class="indexterm" name="id2661143"></a>
 		Use the Microsoft Management Console (MMC) <code class="literal">gpedit.msc</code> to instruct your MS Windows XP
 		machine to use only a local profile. This, of course, modifies registry settings. The full
@@ -177,8 +177,8 @@ shortcuts, the client will merge the profile contents downloaded with the conten
 directory already on the local client, taking the newest folders and shortcut from each set.
 </p><p>
 <a class="indexterm" name="id2661640"></a>
-<a class="indexterm" name="id2661646"></a>
-<a class="indexterm" name="id2661653"></a>
+<a class="indexterm" name="id2661647"></a>
+<a class="indexterm" name="id2661654"></a>
 <a class="indexterm" name="id2661660"></a>
 If you have made the folders/files read-only on the Samba server, then you will get errors from
 the Windows 9x/Me machine on logon and logout as it attempts to merge the local and remote profile.
@@ -231,12 +231,12 @@ in their profile directory, as well as the local &#8220;<span class="quote">desk
 If all else fails, increase Samba's debug log levels to between 3 and 10, and/or run a packet
 sniffer program such as ethereal or <code class="literal">netmon.exe</code>, and look for error messages.
 </p><p>
-<a class="indexterm" name="id2661933"></a>
+<a class="indexterm" name="id2661934"></a>
 <a class="indexterm" name="id2661940"></a>
 If you have access to an Windows NT4/200x server, then first set up roaming profiles and/or
 netlogons on the Windows NT4/200x server. Make a packet trace, or examine the example packet traces
 provided with Windows NT4/200x server, and see what the differences are with the equivalent Samba trace.
-</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2661954"></a>Windows NT4 Workstation</h4></div></div></div><p>
+</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2661955"></a>Windows NT4 Workstation</h4></div></div></div><p>
 When a user first logs in to a Windows NT workstation, the profile NTuser.DAT is created. The profile
 location can be now specified through the <a class="link" href="smb.conf.5.html#LOGONPATH" target="_top">logon path</a> parameter.
 </p><p>
@@ -259,7 +259,7 @@ The profile itself is stored in a file <code class="filename">NTuser.DAT</code>.
 in the .PDS directory, and its purpose is currently unknown.
 </p><p>
 <a class="indexterm" name="id2662086"></a>
-<a class="indexterm" name="id2662092"></a>
+<a class="indexterm" name="id2662093"></a>
 You can use the <span class="application">System Control Panel</span> to copy a local profile onto
 a Samba server (see NT help on profiles; it is also capable of firing up the correct location in the
 <span class="application">System Control Panel</span> for you). The NT help file also mentions that renaming
@@ -280,7 +280,7 @@ Done. You now have a profile that can be edited using the Samba <code class="lit
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 Under Windows NT/200x, the use of mandatory profiles forces the use of MS Exchange storage of mail
 data and keeps it out of the desktop profile. That keeps desktop profiles from becoming unusable.
-</p></div><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2662328"></a>Windows XP Service Pack 1</h5></div></div></div><p>
+</p></div><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2662329"></a>Windows XP Service Pack 1</h5></div></div></div><p>
 	There is a security check new to Windows XP (or maybe only Windows XP service pack 1).
 	It can be disabled via a group policy in the Active Directory. The policy is called:
 </p><pre class="screen">
@@ -303,9 +303,9 @@ the policy to force such deletion is set. To deal with that situation, a special
 and Windows 2003.
 </p><p>
 The UPHClean software package can be downloaded from the User Profile Hive Cleanup
-Service<sup>[<a name="id2662620" href="#ftn.id2662620" class="footnote">7</a>]</sup>
+Service<sup>[<a name="id2662621" href="#ftn.id2662621" class="footnote">7</a>]</sup>
 web site.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2662629"></a>Sharing Profiles between Windows 9x/Me and NT4/200x/XP Workstations</h3></div></div></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2662630"></a>Sharing Profiles between Windows 9x/Me and NT4/200x/XP Workstations</h3></div></div></div><p>
 <a class="indexterm" name="id2662638"></a>
 <a class="indexterm" name="id2662645"></a>
 Sharing of desktop profiles between Windows versions is not recommended. Desktop profiles are an
@@ -324,15 +324,15 @@ location for the profiles. The <code class="filename">smb.conf</code> parameters
 If you have this set up correctly, you will find separate <code class="filename">user.DAT</code> and
 <code class="filename">NTuser.DAT</code> files in the same profile directory.
 </p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2662728"></a>Profile Migration from Windows NT4/200x Server to Samba</h3></div></div></div><p>
-<a class="indexterm" name="id2662736"></a>
+<a class="indexterm" name="id2662737"></a>
 There is nothing to stop you from specifying any path that you like for the location of users' profiles.
 Therefore, you could specify that the profile be stored on a Samba server or any other SMB server,
 as long as that SMB server supports encrypted passwords.
 </p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="profilemigrn"></a>Windows NT4 Profile Management Tools</h4></div></div></div><p>
-<a class="indexterm" name="id2662761"></a>
+<a class="indexterm" name="id2662762"></a>
 Unfortunately, the resource kit information is specific to the version of MS Windows NT4/200x. The
 correct resource kit is required for each platform.
-</p><p>Here is a quick guide:</p><div class="procedure"><a name="id2662775"></a><p class="title"><b>Procedure 27.1. Profile Migration Procedure</b></p><ol type="1"><li><p> On your NT4 domain controller, right-click on <span class="guiicon">My Computer</span>, then select 
+</p><p>Here is a quick guide:</p><div class="procedure"><a name="id2662776"></a><p class="title"><b>Procedure 27.1. Profile Migration Procedure</b></p><ol type="1"><li><p> On your NT4 domain controller, right-click on <span class="guiicon">My Computer</span>, then select 
 	<span class="guilabel">Properties</span>, then the tab labeled <span class="guilabel">User Profiles</span>. </p></li><li><p> Select a user profile you want to migrate and click on it. </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>I am using the term &#8220;<span class="quote">migrate</span>&#8221; loosely. You can copy a profile to create a group
 	profile. You can give the user <em class="parameter"><code>Everyone</code></em> rights to the profile you copy this to. That
 	is what you need to do, since your Samba domain is not a member of a trust relationship with your NT4
@@ -342,7 +342,7 @@ correct resource kit is required for each platform.
 Follow these steps for every profile you need to migrate.
 </p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2662922"></a>Side Bar Notes</h4></div></div></div><p>
 <a class="indexterm" name="id2662930"></a>
-<a class="indexterm" name="id2662936"></a>
+<a class="indexterm" name="id2662937"></a>
 You should obtain the SID of your NT4 domain. You can use the <code class="literal">net rpc info</code> to do this.
 See <a class="link" href="NetCommand.html" title="Chapter 13. Remote and Local Management: The Net Command">The Net Command Chapter</a>, <a class="link" href="NetCommand.html#netmisc1" title="Other Miscellaneous Operations">Other Miscellaneous Operations</a> for more information.
 </p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2662973"></a>moveuser.exe</h4></div></div></div><p>
@@ -365,7 +365,7 @@ on to this computer. (To find the profile information for the user whose locally
 to move, find the SID for the user with the <code class="literal">GetSID.exe</code> utility.) Inside the appropriate user's subkey,
 you will see a string value named <em class="parameter"><code>ProfileImagePath</code></em>.
 </p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2663080"></a>Mandatory Profiles</h2></div></div></div><p>
-<a class="indexterm" name="id2663087"></a>
+<a class="indexterm" name="id2663088"></a>
 A mandatory profile is a profile that the user does not have the ability to overwrite. During the
 user's session, it may be possible to change the desktop environment; however, as the user logs out, all changes
 made will be lost. If it is desired to not allow the user any ability to change the desktop environment,
@@ -380,7 +380,7 @@ render the profile unusable.  Where it is essential to make a profile read-only 
 this can be done, but then you absolutely must use the <code class="literal">fake-permissions</code> VFS module to
 instruct MS Windows NT/200x/XP clients that the Profile has write permission for the user.  See <a class="link" href="VFS.html#fakeperms" title="fake_perms">fake_perms VFS module</a>.
 </p></div><p>
-<a class="indexterm" name="id2663156"></a>
+<a class="indexterm" name="id2663157"></a>
 <a class="indexterm" name="id2663163"></a>
 For MS Windows NT4/200x/XP, the procedure shown in <a class="link" href="ProfileMgmt.html#profilemigrn" title="Windows NT4 Profile Management Tools">Profile Migration from Windows
 NT4/200x Server to Samba</a> can also be used to create mandatory profiles. To convert a group profile into
@@ -392,7 +392,7 @@ For MS Windows 9x/Me, it is the <code class="filename">User.DAT</code> file that
 <code class="filename">User.MAN</code> to effect a mandatory profile.
 </p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2663220"></a>Creating and Managing Group Profiles</h2></div></div></div><p>
 <a class="indexterm" name="id2663228"></a>
-<a class="indexterm" name="id2663234"></a>
+<a class="indexterm" name="id2663235"></a>
 <a class="indexterm" name="id2663241"></a>
 <a class="indexterm" name="id2663248"></a>
 Most organizations are arranged into departments. There is a nice benefit in this fact, since usually
@@ -462,7 +462,7 @@ per user depending on the profile settings chosen/created.
 </p><p>
 When a new user first logs onto an MS Windows NT4 machine, a new profile is created from:
 </p><div class="itemizedlist"><ul type="disc"><li><p>All Users settings.</p></li><li><p>Default User settings (contains the default <code class="filename">NTUser.DAT</code> file).</p></li></ul></div><p>
-<a class="indexterm" name="id2663567"></a>
+<a class="indexterm" name="id2663568"></a>
 When a user logs on to an MS Windows NT4 machine that is a member of a Microsoft security domain,
 the following steps are followed for profile handling: 
 </p><div class="procedure"><ol type="1"><li><p> The user's account information that is obtained during the logon process
@@ -477,7 +477,7 @@ the following steps are followed for profile handling:
 <a class="indexterm" name="id2663645"></a>
 <a class="indexterm" name="id2663652"></a>
 <a class="indexterm" name="id2663658"></a>
-<a class="indexterm" name="id2663665"></a>
+<a class="indexterm" name="id2663666"></a>
 <a class="indexterm" name="id2663672"></a>
 	If the NETLOGON share on the authenticating server (logon server) contains
 	a policy file (<code class="filename">NTConfig.POL</code>), then its contents are applied to the
@@ -540,7 +540,7 @@ from itself. While there are benefits in doing this, the beauty of those MS Wind
 can participate in domain logon processes is that they allow the administrator to create a global default
 profile and enforce it through the use of Group Policy Objects (GPOs).
 </p></div><p>
-<a class="indexterm" name="id2664089"></a>
+<a class="indexterm" name="id2664090"></a>
 When a new user first logs onto an MS Windows 200x/XP machine, the default profile is obtained from
 <code class="filename">C:\Documents and Settings\Default User</code>. The administrator can modify or change the
 contents of this location, and MS Windows 200x/XP will gladly use it. This is far from the optimum arrangement,
@@ -593,7 +593,7 @@ MS Windows user as seen by the Linux/UNIX file system.	</p><p> Please note that 
 </p><p> </p><pre class="programlisting"> HKEY_LOCAL_MACHINE\SYSTEM\Software\Microsoft\Windows NT\CurrentVersion\
 	winlogon\"DeleteRoamingCache"=dword:00000001</pre><p>
 In this case, the local cache copy is deleted on logout.
-</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2664547"></a>Common Errors</h2></div></div></div><p>
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2664548"></a>Common Errors</h2></div></div></div><p>
 The following are some typical errors, problems, and questions that have been asked on the Samba mailing lists.
 </p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2664558"></a>Configuring Roaming Profiles for a Few Users or Groups</h3></div></div></div><p>
 With Samba-2.2.x, the choice you have is to enable or disable roaming profiles support. It is a

@@ -1,12 +1,12 @@
 .\"     Title: idmap_hash
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "IDMAP_HASH" "8" "01/27/2009" "Samba 3\&.3" "System Administration tools"
+.TH "IDMAP_HASH" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -170,7 +170,7 @@
 idmap_hash \- Samba\'s idmap_hash Backend for Winbind
 .SH "DESCRIPTION"
 .PP
-The idmap_hash plugin implements a hashing algorithm used map SIDs for domain users and groups to a 31\-bit uid and gid\&. This plugin also implements the nss_info API and can be used to support a local name mapping files if enabled via the "winbind normlaize names" and "winbind nss info" parameters in smb\&.conf\&.
+The idmap_hash plugin implements a hashing algorithm used to map SIDs for domain users and groups to 31\-bit uids and gids, respectively\&. This plugin also implements the nss_info API and can be used to support a local name mapping files if enabled via the "winbind normalize names" and "winbind nss info" parameters in smb\&.conf\&.
 .SH "IDMAP OPTIONS"
 .PP
 name_map

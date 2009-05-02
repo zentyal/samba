@@ -1,12 +1,12 @@
 .\"     Title: eventlogadm
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/27/2009
+.\"      Date: 04/30/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "EVENTLOGADM" "8" "01/27/2009" "Samba 3\&.3" "System Administration tools"
+.TH "EVENTLOGADM" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -177,6 +177,10 @@ eventlogadm \- push records into the Samba event log store
 .HP \w'\ 'u
 \FCeventlogadm\F[] [\fB\-d\fR] [\fB\-h\fR] \fB\-o\fR\ \FCwrite\F[]\ \fIEVENTLOG\fR
 .fam
+.fam C
+.HP \w'\ 'u
+\FCeventlogadm\F[] [\fB\-d\fR] [\fB\-h\fR] \fB\-o\fR\ \FCdump\F[]\ \fIEVENTLOG\fR\ \fIRECORD_NUMBER\fR
+.fam
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -207,7 +211,14 @@ option creates a new event log source\&.
 .RS 4
 The
 \FC\-o write\F[]
-reads event log records from standard input and writes them to theSamba event log store named by EVENTLOG\&.
+reads event log records from standard input and writes them to the Samba event log store named by EVENTLOG\&.
+.RE
+.PP
+\fB\-o\fR \FCwrite\F[] \fIEVENTLOG\fR \fIRECORD_NUMBER\fR
+.RS 4
+The
+\FC\-o dump\F[]
+reads event log records from a EVENTLOG tdb and dumps them to standard output on screen\&.
 .RE
 .PP
 \fB\-h\fR
@@ -390,7 +401,7 @@ will calculate this value\&.
 .\}
 
 \FCSRN\F[]
-\- he name of the machine on which the eventlog was generated\&. This is typically the host name\&.
+\- The name of the machine on which the eventlog was generated\&. This is typically the host name\&.
 .RE
 .sp
 .RS 4

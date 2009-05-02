@@ -1,12 +1,12 @@
-samba (2:3.3.4-1) UNRELEASED; urgency=low
+samba (2:3.3.4-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release:
     - Fixed daily winbind crash when retrieving users from an ADS server
       Closes: #522907.
   * Add idmap_tdb2 module to winbind package
-  * No longer shrink "dead" code from smbd as it prevents VFS modules
-    to properly load. Closes: #524048.
+  * No longer shrink "dead" code from smbd, winbindd and vfstest as it prevents
+    VFS modules to properly load. Closes: #524048.
 
   [ Debconf translations ]
   * Bengali added.
@@ -14,7 +14,7 @@ samba (2:3.3.4-1) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Recommend logrotate instead of depending on it.  Closes: #504219.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 19 Apr 2009 22:31:33 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 02 May 2009 10:06:16 +0200
 
 samba (2:3.3.3-1) unstable; urgency=low
 

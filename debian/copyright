@@ -1,15 +1,15 @@
 This is the Debian Linux prepackaged version of the Samba SMB
 (LAN-Manager) server.
 
-This package was put together by Eloy Paris <peloy@debian.org>, Steve
-Langasek <vorlon@debian.org>, Noèl Köthe <noel@debian.org> and
-Christian Perrier <bubulle@debian.org>, based on previous work by
-Peter Eisentraut <petere@debian.org>, Víctor Pérez Pereira
-<vperez@debianvenezuela.org>, Klee Dienes <klee@debian.org>, Andrew
-Howell <andrew@it.com.au> and Bruce Perens <bruce@pixar.com> from
-sources found at <URL:ftp://ftp.samba.org/pub/samba>.
+This package was put together by Steve Langasek <vorlon@debian.org>,
+Noèl Köthe <noel@debian.org> and Christian Perrier
+<bubulle@debian.org>, based on previous work by Eloy Paris
+<peloy@debian.org>, Peter Eisentraut <petere@debian.org>, Víctor Pérez
+Pereira <vperez@debianvenezuela.org>, Klee Dienes <klee@debian.org>,
+Andrew Howell <andrew@it.com.au> and Bruce Perens <bruce@pixar.com>
+from sources found at <URL:ftp://ftp.samba.org/pub/samba>.
 
-Copyright © 1992-2008 Andrew Tridgell and the Samba Team
+Copyright © 1992-2009 Andrew Tridgell and the Samba Team
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

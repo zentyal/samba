@@ -48,7 +48,7 @@ conf_args = \
 		--with-pam_smbpass \
 		--with-libsmbclient \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_tdb2 \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
@@ -60,6 +60,8 @@ conf_args = \
 		--datarootdir=/usr/share \
 		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \
+		--with-ctdb --with-cluster-support=yes \
+
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -176,6 +178,8 @@ install: build
 	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
 	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
 	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
+	mkdir -p $(DESTDIR)/usr/share/pam-configs
+	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 
 ifeq ($(mount_cifs),yes)
 	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs
@@ -269,6 +273,7 @@ binary: binary-indep binary-arch
 update-archs:
 	sed -i -e "s/libacl1-dev \(([^)]\+)\) \[[^]]\+\]/libacl1-dev \1 [`type-handling any linux-gnu`]/g" \
 	       -e "s/libkeyutils-dev \(([^)]\+)\) \[[^]]\+\]/libkeyutils-dev \1 [`type-handling any linux-gnu`]/g" \
+	       -e "s/libcap2-dev \(([^)]\+)\) \[[^]]\+\]/libcap2-dev \1 [`type-handling any linux-gnu`]/g" \
 		debian/control
 
 .PHONY: build clean binary-indep binary-arch binary install configure patch unpatch update-archs

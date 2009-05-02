@@ -1,3 +1,191 @@
+samba (2:3.3.4-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release:
+    - Fixed daily winbind crash when retrieving users from an ADS server
+      Closes: #522907.
+  * Add idmap_tdb2 module to winbind package
+  * No longer shrink "dead" code from smbd, winbindd and vfstest as it prevents
+    VFS modules to properly load. Closes: #524048.
+
+  [ Debconf translations ]
+  * Bengali added.
+
+  [ Steve Langasek ]
+  * Recommend logrotate instead of depending on it.  Closes: #504219.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 02 May 2009 10:06:16 +0200
+
+samba (2:3.3.3-1) unstable; urgency=low
+
+  * New upstream release:
+    - Fix map readonly. Closes: #521225
+    - Add missing whitespace in mount.cifs error message. Closes: #517021
+    - Includes our patch to fix detection of GNU ld version. As a
+      consequence, we dropped fix_wrong_gnu_ld_version_check.patch
+    - Fix segfault in lookup_sid. Closes: #521408
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 11 Apr 2009 10:12:23 +0200
+
+samba (2:3.3.2-2) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * libcap2-dev is only available on Linux, so make this build-dependency
+    conditional.  Closes: #519911.
+
+  [ Christian Perrier ]
+  * Switch samba-dbg to "Section: debug"
+  * Update debian/copyright for year 2009. Thanks to debian-devel
+    for the reminder.
+  * Dropping Adam Conrad from Uploaders
+  * Dropping Eloy Paris from Uploaders with special thanks for his tremendous
+    work maintaining the package between 1997 and 2004.
+
+  [ Mathieu Parent ]
+  * ensure clustering is enabled with --with-cluster-support=yes
+  * build-depends on ctdb >= 1.0.73. Closes: #520202.
+  * samba suggests ctdb
+
+  [ Debconf translations ]
+  * Esperanto updated.  Closes: #519237.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 29 Mar 2009 09:23:35 +0200
+
+samba (2:3.3.2-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release. Closes: #519626
+    - mounts with -o guest will now automatically try to connect anonymously.
+      Closes: #423971.
+    - fix for brokenness when using 'force group'.  Closes: #517760.
+    - fix for saving files on Samba shares using MS Office 2007.
+      LP: #337037.
+  * Re-fix slave links for manual pages in samba-common. Closes: #517204.
+
+  [ Steve Langasek ]
+  * Add missing debhelper token to libpam-smbpass.prerm.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 15 Mar 2009 12:16:48 +0100
+
+samba (2:3.3.1-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release. Closes: #516981
+    Upstream fixes in that release:
+    - Fixed various spelling errors/typos in manpages
+      Closes: #516047
+    - Fix renaming/deleting of files using Windows clients.
+      Closes: #516160
+    - Fix syntax error in mount.cifs(8). Closes: #454799
+  * Use a slave alternative for smbstatus.1 even though that manpage
+    is not provided by samba4
+
+  [ Jelmer Vernooij ]
+  * Fix slave links for manual pages in samba-common. Closes: #517204.
+
+  [ Steve Langasek ]
+  * Add Vcs-{Browser,Svn} fields to debian/control.
+  * When populating the sambashare group, it's not an error if the user
+    simply doesn't exist; test for this case and let the install continue
+    instead of aborting.  LP: #206036.
+  * debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+    debian/libpam-smbpass.files, debian/rules: provide a config block
+    for the new PAM framework, allowing this PAM module to
+    auto-configure itself
+  * debian/control: make libpam-smbpass depend on
+    libpam-runtime (>= 1.0.1-2ubuntu1) for the above
+  * debian/patches/fix_wrong_gnu_ld_version_check.patch: new patch to fix
+    wrong detection of the GNU ld version, so that the symbol export scripts
+    will be properly applied when building.
+  * refresh debian/libsmbclient.symbols for 3.3.1.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 02 Mar 2009 00:30:35 -0800
+
+samba (2:3.3.0-4) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * Build-Depend on libcap2-dev.  Closes: #515851.
+  * debian/patches/fhs-filespaths-debatable.patch: Add a missing prototype
+    for cache_path, which causes nearly undiagnoseable crashes when building
+    with -fPIE, because of a wrong return type!  LP: #330626.
+
+  [ Debconf translations ]
+  * Belarusian added.  Closes: #516052.
+  * Traditional Chinese updated. Closes: #516594
+  * Swedish updated.  Closes: #516681.
+
+  [ Mathieu Parent ]
+  * enable clustering by default (CTDB). Closes: #514050 
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 24 Feb 2009 16:58:58 -0800
+
+samba (2:3.3.0-3) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * Re-add smb.conf fixes that were dropped in the 3.3.0 merge to unstable.
+  * Make samba conflict with samba4, not with itself.
+
+  [ Debconf translations ]
+  * Vietnamese updated.  Closes: #515235.
+  * Slovak updated.  Closes: #515240.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 16 Feb 2009 07:15:47 -0800
+
+samba (2:3.3.0-2) unstable; urgency=low
+
+  * Upload to unstable
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 14 Feb 2009 13:38:14 +0100
+
+samba (2:3.2.5-4) unstable; urgency=low
+
+  * Fix segfault whan accessign some NAS devices running old versions of Samba
+    Closes: #500129
+  * Fix process crush when using gethostbyname_r in several threads
+    Closes: #509101, #510450
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 08 Jan 2009 05:59:17 +0100
+
+samba (2:3.2.5-3) unstable; urgency=high
+
+  * Security update
+  * Fix Potential access to "/" in setups with registry shares enabled
+    This fixes CVE-2009-0022, backported from 3.2.7
+  * Fix links in HTML documentation index file.
+    Closes: #508388
+  * Drop spurious docs-xml/smbdotconf/parameters.global.xml.new
+    file in the diff. Thanks to the release managers for spotting it
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 21 Dec 2008 08:09:31 +0100
+
+samba (2:3.2.5-2) unstable; urgency=low
+
+  * Fix typo in bug number in a comment for the default smb.conf file
+    Closes: #507620
+  * Document the need to set appropriate permissions on the printer
+    drivers directory, in the default smb.conf file. Also change
+    the example group from ntadmin to lpadmin
+    Closes: #459243
+  * Add missing rfc2307.so and sfu*.so links that prevent using the
+    'winbind nss info' feature properly
+    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
+    the patch. Closes: #506109
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 13 Dec 2008 13:56:07 +0100
+
+samba (2:3.2.5-1) unstable; urgency=high
+
+  * New upstream version. Security-only release.
+    This addresses CVE-2008-4314: potentially leaking
+    arbitrary memory contents to malicious clients.
+  * Better document cases where using a "master" file for smb.conf
+    is a bad idea. Closes: #483187
+  * Insert example "add machine script" and "add group script" scripts
+    in the default smb.conf. Closes: #349049
+  * Move homepage URL to Homepage filed in debian/control
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 27 Nov 2008 11:36:35 +0100
+
 samba (2:3.3.0-1) experimental; urgency=low
 
   * New upstream release. Fixes the following bugs:
@@ -11,7 +199,7 @@ samba (2:3.3.0-1) experimental; urgency=low
     - fix swat status table layout. Closes: #511275
 
   [ Jelmer Vernooij ]
-  * Use alternatives for the smbtatus, nmblookup, net and 
+  * Use alternatives for the smbstatus, nmblookup, net and 
     testparm binaries and various data files in samba-common 
     to allow installation of Samba 3 together with Samba 4. 
   * Add myself to uploaders.
@@ -114,11 +302,6 @@ samba (2:3.3.0~rc1-2) experimental; urgency=low
 
   * Provide idmap_adex and idmap_hash in winbind.
     Thanks to Jelmer Jaarsma for reporting and providing a patch
-  * Merged from unstable (needed for the above to work):
-    Add missing rfc2307.so and sfu*.so links that prevent using the
-    'winbind nss info' feature properly
-    Thans to Martin Dag Nilsson for reporting and Jelmer Jaarsma for
-    the patch. Closes: #506109
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
 

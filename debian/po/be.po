@@ -1,0 +1,208 @@
+# translation of samba_2:3.3.0-3_be.po to Belarusian (Official spelling)
+# Copyright (C) 2009 Hleb Rubanau
+# This file is distributed under the same license as the debian-installer package.
+#
+# Hleb Rubanau <g.rubanau@gmail.com>, 2009.
+# Pavel Piatruk <piatruk.p@gmail.com>, 2009.
+msgid ""
+msgstr ""
+"Project-Id-Version: samba_2:3.3.0-3_be\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
+"PO-Revision-Date: 2009-02-19 04:33+0200\n"
+"Last-Translator: Pavel Piatruk <piatruk.p@gmail.com>\n"
+"Language-Team: Belarusian (Official spelling) <be@d-i.tanatos.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.11.4\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr ""
+"Змяніць файл наладак smb.conf такім чынам, каб ужываліся наладкі WINS, "
+"атрыманыя ад DHCP?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Калі Ваша сістэма атрымлівае інфармацыю, датычную IP-адраса, ад сервера "
+"DHCP, той самы сервер можа паведамляць ёй і пра серверы WINS (\"Серверы "
+"імёнаў NetBIOS\"), якія прысутнічаюць у сетцы. Для гэтага неабходна "
+"адпаведным чынам змяніць Ваш файл наладак smb.conf. У выніку атрыманая праз "
+"DHCP інфармацыя аб WINS-серверах будзе аўтаматычна чытацца з файлу /etc/"
+"samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "Каб скарыстацца гэтай магчымасцю, трэба ўсталяваць пакет dhcp3-client."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "Наладзіць smb.conf аўтаматычна?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Астатняя частка наладкі Samba датычыцца пытанняў, ад адказу на якія залежаць "
+"значэнні параметраў ў файле наладак /etc/samba/smb.conf. Гэты файл ужываецца "
+"праграмамі Samba (nmbd ды smbd). У Вашым файле smb.conf прысутнічае радок "
+"\"include\" альбо шматрадковы параметр, што можа зблытаць працэс "
+"аўтаматычнай наладкі, і прывесці да немагчымасці працы Samba без ручнога "
+"выпраўлення файла smb.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Калі Вы не абярэце гэтую опцыю, змяняць наладкі давядзецца самастойна. Тады "
+"Вы будзеце пазбаўлены магчымасці спазнаць перавагі перыядычных паляпшэнняў "
+"канфігурацыі."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "Працоўная група/Імя дамену:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+"Пазначце працоўную групу сістэмы. Гэта наладка кантралюе: у якой групе "
+"з'явіцца ваша сістэма ў якасці сервера; стандартную групу пры прагляданні "
+"сеціва; імя дамену, якое ўжываецца пры выкарыстанні наладкі security=domain."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "Шыфраваць паролі?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Усе апошнія версіі кліентаў Windows стасуюцца з серверамі SMB/CIFS, "
+"выкарыстоўваючы шыфраванне пароляў. Каб ужываць паролі простым тэкстам, Вам "
+"давядзецца выправіць параметр у рэгістры Windows."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"Дужа рэкамендуем уключыць гэтую опцыю, бо прадукты Microsoft Windows больш "
+"не падтрымліваюць пароляў простым тэкстам . У гэтым выпадку пераканайцеся, "
+"што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для кожнага "
+"карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "Стварыць базу пароляў samba у файле /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"Каб адпавядаць стандартным наладкам большасці версіяў Windows, Samba мусіць "
+"выкарыстоўваць шыфраваныя паролі. Дзеля гэтага паролі трэба захоўваць у "
+"месцы, адрозным ад файлу /etc/passwd. Адпаведнае сховішча можна стварыць "
+"аўтаматычна, але паролі трэба дадаваць самастойна з дапамогай каманды "
+"smbpasswd, і сачыць за іх адпаведнасцю надалей."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"Калі сховішча не будзе створана, трэба пераналадзіць Samba (і, верагодна, "
+"кліентскія машыны таксама) такім чынам, каб выкарыстоўваць паролі простым "
+"тэкстам."
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
+msgstr ""
+"Больш інфармацыі даступна ў файле /usr/share/doc/samba-doc/htmldocs/Samba3-"
+"Developers-Guide/pwencrypt.html ю"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "дэманы"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Якім чынам мусіць запускацца Samba?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Служба Samba smbd можа запускацца як звычайны дэман, або з дапамогай inetd. "
+"Рэкамендаваны падыход -- запуск у якасці звычайнага дэмана."

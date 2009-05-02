@@ -1,0 +1,204 @@
+# Bengali translation of Samba
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Md. Rezwan Shahid <rezwan@ankur.org.bd>, 2009.
+msgid ""
+msgstr ""
+"Project-Id-Version: Samba\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2009-01-02 12:18-0800\n"
+"PO-Revision-Date: 2009-04-16 12:12+0600\n"
+"Last-Translator: Md. Rezwan Shahid <rezwan@ankur.org.bd>\n"
+"Language-Team: Bengali <ankur-bd-l10n@googlegroups.com>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: WordForge 0.5-beta1\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "DHCP থেকে WINS সেটিং ব্যবহারের জন্য smb.conf সম্পাদনা করা হবে?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"যদি আপনার কম্পিউটার তার আইপি ঠিকানার তথ্য নেটওয়ার্কের একটি DHCP সার্ভার থেকে "
+"পায়, তাহলে DHCP সার্ভার নেটওয়ার্কে উপস্থিত WINS সার্ভার (\"NetBIOS name servers"
+"\") সম্পর্কেও তথ্য দিতে পারে। এতে আপনার smb.conf ফাইলে একটু পরিবর্তন করতে হবে যেন "
+"DHCP-প্রদত্ত WINS সেটিং স্বয়ংক্রিয়ভাবে /etc/samba/dhcp.conf থেকে পড়া হয়।"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:1001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"এই বৈশিষ্ট্যের সুবিধা নেয়ার জন্য dhcp3-ক্লায়েন্ট প্যাকেজ অবশ্যই ইন্সটল করা থাকতে হবে।"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Configure smb.conf automatically?"
+msgstr "স্বয়ংক্রিয়ভাবে smb.conf কনফিগার করা হবে?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"সাম্বা কনফিগারেশনের বাকি অংশ প্রশ্ন নিয়ে কাজ করে যা /etc/samba/smb.conf (যেটি "
+"সাম্বা প্রোগ্রাম, যেমন nmbd এবং smbd, কনফিগার করার জন্য ব্যবহার করা হয়) এর "
+"প্যারামিটার পরিবর্তন করে। আপনার বর্তমান smb.conf একটি \"include\" লাইন বা একটি "
+"অপশন ধারন করে যা একাধিক লাইন বর্ধিত করে, যা স্বয়ংক্রিয় কনফিগারেশন প্রক্রিয়াতে "
+"একটি দ্বিধা তৈরি করতে পারে এবং আপনার smb.conf ম্যানুয়ালী সম্পাদনা করতে হতে পারে "
+"কাজ করার জন্য।"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"যদি আপনি এই অপশনটি নির্বাচন না করেন, আপনাকে যেকোনো কনফিগারেশন পরিবর্তন নিজেকেই "
+"হ্যান্ডল করতে হবে, এবং আপনি পিরিয়ডিক কনফিগারেশন এনহ্যান্সমেন্টের সুবিধা নিতে "
+"পারবেন না।"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid "Workgroup/Domain Name:"
+msgstr "ওয়ার্কগ্রুপ/ডোমেইন নাম:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:3001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+"অনুগ্রহ করে এই সিস্টেমের জন্য ওয়ার্কগ্রুপ উল্লেখ করুন। সার্ভার হিসেবে ব্যবহারের সময় "
+"সিস্টেম কোন ওয়ার্কগ্রুপের হয়ে দেখা দেবে, অনেক ফ্রন্টএন্ডের সাথে ব্রাউজিং এর সময় "
+"ব্যবহৃত ডিফল্ট ওয়ার্কগ্রুপ, এবং \"security=domain\" সেটিং এ ব্যবহৃত ডোমেইন নাম এই "
+"সেটিং নিয়ন্ত্রন করে।"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid "Use password encryption?"
+msgstr "পাসওয়ার্ড এনক্রিপশন ব্যবহার করা হবে?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"সকল সাম্প্রতিক উইন্ডো ক্লায়েন্ট এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করে SMB/CIFS সার্ভারের "
+"সাথে যোগাযোগ করে। যদি আপনি সরল টেক্সট পাসওয়ার্ড ব্যবহার করতে চান তাহলে আপনার "
+"উইন্ডোজ রেজিস্ট্রিতে একটি প্যারামিটার পরিবর্তন করতে হবে।"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"এই অপশনটি সক্রিয় করা সুপারিশকৃত কারন মাইক্রোসফট উইন্ডোজ প্রোডাক্টে এখন আর সরল টেক্সট "
+"পাসওয়ার্ড মেইনটেইন করা হয় না। যদি আপনি করেন তাহলে নিশ্চিত হয়ে নিন যে আপনার "
+"একটি বৈধ /etc/samba/smbpasswd ফাইল আছে এবং আপনি সেখানে smbpasswd কমান্ড "
+"ব্যবহার করে প্রত্যেক ব্যবহারকারীর জন্য পাসওয়ার্ড সেট করেন।"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+msgstr "সাম্বা পাসওয়ার্ড ডেটাবেজ তৈরি করা হবে, /var/lib/samba/passdb.tdb?"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"To be compatible with the defaults in most versions of Windows, Samba must "
+"be configured to use encrypted passwords.  This requires user passwords to "
+"be stored in a file separate from /etc/passwd.  This file can be created "
+"automatically, but the passwords must be added manually by running smbpasswd "
+"and be kept up-to-date in the future."
+msgstr ""
+"উইন্ডোজের বেশিরভাগ সংস্করনের ডিফল্টের সাথে সামঞ্জস্যপূর্ণ হওয়ার জন্য সাম্বাকে অবশ্যই "
+"এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করার জন্য কনফিগার করতে হবে। এর ফলে ব্যবহারকারীর "
+"পাসওয়ার্ড /etc/passwd থেকে পৃথক একটি ফাইলে সংরক্ষন করতে হবে। এই ফাইলটি "
+"স্বয়ংক্রিয়ভাবে তৈরি করা যায়, কিন্তু পাসওয়ার্ড যোগ করতে হবে ম্যানুয়ালী smbpasswd "
+"চালিয়ে এবং ভবিষ্যতে আপ-টু-ডেট রাখতে হবে।"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"If you do not create it, you will have to reconfigure Samba (and probably "
+"your client machines) to use plaintext passwords."
+msgstr ""
+"আপনি যদি এটি তৈরি না করেন, তাহলে সরল টেক্সট পাসওয়ার্ড ব্যবহারের জন্য আপনাকে "
+"সাম্বা (এবং হয়তো আপনার ক্লায়েন্ট মেশিনগুলো) পুনরায় কনফিগার করতে হবে।"
+
+#. Type: boolean
+#. Description
+#: ../samba.templates:1001
+msgid ""
+"See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt.html "
+"from the samba-doc package for more details."
+msgstr ""
+"আরো তথ্যের জন্য সাম্বা-ডক প্যাকেজ থেকে /usr/share/doc/samba-doc/htmldocs/Samba3-"
+"Developers-Guide/pwencrypt.html দেখুন।"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "ডিমন"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "আপনি সাম্বা কিভাবে চালাতে চান?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"সাম্বা ডিমন smbd একটি সাধারন ডিমন হিসেবে বা inetd থেকে চালানো যেতে পারে। ডিমন "
+"হিসেবে চালানো সুপারিশকৃত।"

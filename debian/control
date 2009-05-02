@@ -2,18 +2,28 @@ Source: samba
 Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
-Uploaders: Eloy A. Paris <peloy@debian.org>, Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Adam Conrad <adconrad@0c3.net>, Jelmer Vernooij <jelmer@debian.org>
-Build-Depends: debhelper, libpam0g-dev, libreadline5-dev, libcups2-dev | libcupsys2-dev, libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc], libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev, libtalloc-dev (>= 1.2.0~git20080616), libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc]
+Uploaders: Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Jelmer Vernooij <jelmer@debian.org>
+Build-Depends: debhelper, libpam0g-dev, libreadline5-dev,
+	libcups2-dev | libcupsys2-dev,
+	libacl1-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	libkrb5-dev, libldap2-dev, po-debconf, libpopt-dev, quilt, uuid-dev,
+	libtalloc-dev (>= 1.2.0~git20080616),
+	libcap2-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	libkeyutils-dev [alpha amd64 arm armeb armel hppa i386 ia64 lpia m32r m68k mips mipsel powerpc ppc64 s390 s390x sh3 sh3eb sh4 sh4eb sparc],
+	ctdb (>= 1.0.73)
 Build-Conflicts: libfam-dev
-Standards-Version: 3.8.0
+Standards-Version: 3.8.1
 Homepage: http://www.samba.org
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-samba/trunk/samba
+Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 
 Package: samba
 Architecture: any
-Depends: samba-common (= ${binary:Version}), logrotate, ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
-Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools
+Depends: samba-common (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 0.76-13.1), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
+Recommends: logrotate
+Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
 Replaces: samba-common (<= 2.0.5a-2)
-Conflicts: samba (<< 4.0.0~alpha6-2)
+Conflicts: samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -130,7 +140,8 @@ Package: libpam-smbpass
 Section: admin
 Priority: extra
 Architecture: any
-Depends: ${shlibs:Depends}, samba-common (= ${binary:Version}), ${misc:Depends}
+Depends: ${shlibs:Depends}, samba-common (= ${binary:Version}), ${misc:Depends},
+	 libpam-runtime (>= 1.0.1-6)
 Suggests: samba
 Description: pluggable authentication module for Samba
  This is a module for PAM that enables a system administrator to migrate
@@ -181,7 +192,7 @@ Description: Samba nameservice integration server
  module for PAM.
 
 Package: samba-dbg
-Section: devel
+Section: debug
 Priority: extra
 Architecture: any
 Depends: samba (= ${binary:Version}), ${misc:Depends}

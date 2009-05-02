@@ -2,7 +2,9 @@ Goal: Sane library interdependencies with static and dynamic linking
 
 Fixes:
 
-Status wrt upstream: not yet forwarded
+Status wrt upstream: basically gone into master and v3-4-test, with 
+                     a couple of subsequent patches as 
+                     f9eb77477b82740814e6143837d8a70f8090b9a5 in upstream git
 
 Note:
 

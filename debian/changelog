@@ -1,7 +1,9 @@
 samba (2:3.3.4-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
-  * New upstream release
+  * New upstream release:
+    - Fixed daily winbind crash when retrieving users from an ADS server
+      Closes: #522907.
   * Add idmap_tdb2 module to winbind package
   * No longer shrink "dead" code from smbd as it prevents VFS modules
     to properly load. Closes: #524048.

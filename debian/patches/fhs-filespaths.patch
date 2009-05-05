@@ -1,54 +1,14 @@
 Goal: Prepare the sources to better respect FHS
-      New configurable paths are introduced in fhs-newpaths.patch
-      This patch associates files with the new paths
-      This part seems acceptable by upstream
 
 Fixes: #49011
 
-Status wrt upstream: This is a greatly reduced patch; most of the
-                     changes are already accepted upstream in 3.2, only
-                     three bits remain: two need further analysis because
-                     Debian use of lp_private_dir() differs from that on
-                     other distros, the other is a newly-introduced tdb
-                     that went in the wrong dir
+Status wrt upstream: Everything is applied as of 3.4.0
 
-Note: Use dedicated directories for:
-      - discardable cache data (/var/cache/samba): 
-          browse.dat, printers.tbd, <printer>.tdb
-      - non discardable state data:
-          all TDB files that may need to be backed up
-      - shared data (/usr/share/samba):
-          codepage stuff
-
-      This patch needs work to be cleaner wrt people who want to run
-      multiple instances of samba
-
-      The patch *must* be reviewed after every new upstream release.
-      FAILURE TO DO SO MAY RESULT IN DATA LOSS FOR OUR USERS!
-
-      export QUILT_PATCHES=debian/patches
-      quilt push fhs.patch
-      grep -r lock_path source/ | grep -vE \
-         '"((brlock|connections|gencache|locking|messages|notify|sessionid|unexpected|wins|mutex)\.tdb|namelist.debug|lang_)|char \*lock_path|WINBINDD_PRIV_SOCKET_SUBDIR'
-
-      - This will get you the list of any new, unexpected references to
-        lock_path.  The files mentioned above are the known good uses of
-        lock_path; everything else needs to be investigated.
-      - If the file name occurs elsewhere in the fhs.patch, update the
-        patch to fix these new references to the same place (either
-        cache_path or state_path)
-      - If the file is a tdb file, and the code that opens it uses
-        TDB_CLEAR_IF_FIRST, lock_path is correct; just update the query
-        above with the new filename, no other changes are needed.
-      - Otherwise, if this is the first use of the file, you must
-        determine where the file belongs -- i.e., whether it's
-        persistent data, a cache, or runtime-only data.  Consult
-        upstream if necessary.
-      - Repeat these steps for lp_lockdir(), which is less common but
-        still used in the code.
-
-      grep -r lp_lockdir source/ | grep -vE \
-         '%s/smb_(tmp_)*krb5|source/(lib/util|param/loadparm|dynconfig|utils/testparm|smbd/oplock_irix)\.c|WINBINDD_PRIV_SOCKET_SUBDIR|(directory_exist|mkdir)\(lp_lockdir\(\),|koplock\.%d|%s/sync\.%d'
+Note: The last remaining bit is the location of "private files
+      We historically have them in /var/lib/samba while upstream
+      has them in /etc/samba
+      We need to provide a migraiton path and go back to the "normal"
+      file layout
 
 Index: samba-3.3.0rc2/source/passdb/pdb_tdb.c
 ===================================================================
@@ -63,19 +23,6 @@ Index: samba-3.3.0rc2/source/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: samba-3.3.0rc2/source/modules/vfs_xattr_tdb.c
-===================================================================
---- samba-3.3.0rc2.orig/source/modules/vfs_xattr_tdb.c
-+++ samba-3.3.0rc2/source/modules/vfs_xattr_tdb.c
-@@ -576,7 +576,7 @@
- 	const char *dbname;
- 
- 	dbname = lp_parm_const_string(snum, "xattr_tdb", "file",
--				      lock_path("xattr.tdb"));
-+				      state_path("xattr.tdb"));
- 
- 	if (dbname == NULL) {
- 		errno = ENOSYS;
 Index: samba-3.3.0rc2/source/passdb/secrets.c
 ===================================================================
 --- samba-3.3.0rc2.orig/source/passdb/secrets.c

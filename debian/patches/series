@@ -1,7 +1,5 @@
 documentation.patch
 fhs-filespaths.patch
-fhs-filespaths-debatable.patch
-fhs-assignpaths.patch
 installswat.sh.patch
 non-linux-ports.patch
 pam-examples.patch

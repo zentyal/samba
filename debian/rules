@@ -58,8 +58,11 @@ conf_args = \
 		--without-libnetapi \
 		--with-modulesdir=/usr/lib/samba \
 		--datarootdir=/usr/share \
+		--datadir=/usr/share/samba \
 		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \
+		--with-statedir=/var/lib/samba \
+		--with-cachedir=/var/cache/samba \
 		--with-ctdb --with-cluster-support=yes \
 
 
@@ -91,7 +94,7 @@ configure-stamp:
 		cp -f debian/config.cache source/config.cache; \
 	fi
 
-	[ -f source/Makefile ] || (cd source && CFLAGS="$(CFLAGS)" ./configure $(conf_args))
+	[ -f source3/Makefile ] || (cd source3 && CFLAGS="$(CFLAGS)" ./configure $(conf_args))
 
 	touch configure-stamp
 
@@ -99,8 +102,8 @@ build: configure build-stamp
 build-stamp:
 	dh_testdir
 
-	$(MAKE) -C source # headers
-	$(MAKE) -C source everything nsswitch/libnss_wins.so
+	$(MAKE) -C source3 # headers
+	$(MAKE) -C source3 everything nsswitch/libnss_wins.so
 
 	touch build-stamp
 
@@ -111,13 +114,13 @@ clean-patched:
 	dh_testroot
 	rm -f build-stamp configure-stamp
 
-	[ ! -f source/Makefile ] || $(MAKE) -C source distclean
+	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \
-	source/bin/libsmbclient.a \
-	source/client/mount.cifs source/client/umount.cifs \
-	source/include/stamp-h
+	rm -f source3/bin/wbinfo source3/bin/winbindd source3/bin/debug2html \
+	source3/bin/libsmbclient.a \
+	source3/client/mount.cifs source3/client/umount.cifs \
+	source3/include/stamp-h
 
 	debconf-updatepo
 
@@ -163,21 +166,21 @@ install: build
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
-	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
-	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	install -m 0644 source3/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
+	install -m 0644 source3/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
 	# Install torture stuff
-	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
-	install -m 0755 source/bin/msgtest $(DESTDIR)/usr/bin/msgtest
-	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest
-	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest
-	install -m 0755 source/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
-	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest
-	install -m 0755 source/bin/vfstest $(DESTDIR)/usr/bin/vfstest
-	install -m 0755 source/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
-	install -m 0755 source/bin/talloctort $(DESTDIR)/usr/bin/talloctort
-	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
-	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
-	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
+	install -m 0755 source3/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
+	install -m 0755 source3/bin/msgtest $(DESTDIR)/usr/bin/msgtest
+	install -m 0755 source3/bin/masktest $(DESTDIR)/usr/bin/masktest
+	install -m 0755 source3/bin/locktest $(DESTDIR)/usr/bin/locktest
+	install -m 0755 source3/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
+	install -m 0755 source3/bin/nsstest $(DESTDIR)/usr/bin/nsstest
+	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
+	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
+	install -m 0755 source3/bin/talloctort $(DESTDIR)/usr/bin/talloctort
+	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
+	install -m 0755 source3/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
+	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 
@@ -239,7 +242,7 @@ binary-arch: build install
 	  install -m 0644 -D debian/$$pkg.lintian debian/$$pkg/usr/share/lintian/overrides/$$pkg || exit; \
 	done
 	dh_installchangelogs -Nlibpam-smbpass
-	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source/pam_smbpass/CHANGELOG
+	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
 	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common --dbg-package=samba-dbg
 	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common
 	dh_link

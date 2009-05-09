@@ -24,10 +24,10 @@ Index: samba-3.3.0/docs/manpages/net.8
  .PP
  The usershare commands are:
  .RS 4
-Index: samba-3.3.0/source/param/loadparm.c
+Index: samba-3.3.0/source3/param/loadparm.c
 ===================================================================
---- samba-3.3.0.orig/source/param/loadparm.c
-+++ samba-3.3.0/source/param/loadparm.c
+--- samba-3.3.0.orig/source3/param/loadparm.c
++++ samba-3.3.0/source3/param/loadparm.c
 @@ -4906,7 +4906,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);

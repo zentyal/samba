@@ -8,12 +8,10 @@ smbclient-pager.patch
 undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
-proper-static-lib-linking.patch 
 autoconf.patch
 smbpasswd-syslog.patch
 usershare.patch
 swat-de.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
-shrink-dead-code.patch
 fix-manpages-warnings.patch

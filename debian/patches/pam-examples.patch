@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.3.0rc2/source/pam_smbpass/README
+Index: samba-3.3.0rc2/source3/pam_smbpass/README
 ===================================================================
---- samba-3.3.0rc2.orig/source/pam_smbpass/README
-+++ samba-3.3.0rc2/source/pam_smbpass/README
+--- samba-3.3.0rc2.orig/source3/pam_smbpass/README
++++ samba-3.3.0rc2/source3/pam_smbpass/README
 @@ -37,7 +37,7 @@
  	smbconf=<file>	-	specify an alternate path to the smb.conf
  				file.

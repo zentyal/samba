@@ -10,10 +10,10 @@ Note: The last remaining bit is the location of "private files
       We need to provide a migraiton path and go back to the "normal"
       file layout
 
-Index: samba-3.3.0rc2/source/passdb/pdb_tdb.c
+Index: samba-3.3.0rc2/source3/passdb/pdb_tdb.c
 ===================================================================
---- samba-3.3.0rc2.orig/source/passdb/pdb_tdb.c
-+++ samba-3.3.0rc2/source/passdb/pdb_tdb.c
+--- samba-3.3.0rc2.orig/source3/passdb/pdb_tdb.c
++++ samba-3.3.0rc2/source3/passdb/pdb_tdb.c
 @@ -1613,7 +1613,7 @@
  	/* save the path for later */
  
@@ -23,10 +23,10 @@ Index: samba-3.3.0rc2/source/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: samba-3.3.0rc2/source/passdb/secrets.c
+Index: samba-3.3.0rc2/source3/passdb/secrets.c
 ===================================================================
---- samba-3.3.0rc2.orig/source/passdb/secrets.c
-+++ samba-3.3.0rc2/source/passdb/secrets.c
+--- samba-3.3.0rc2.orig/source3/passdb/secrets.c
++++ samba-3.3.0rc2/source3/passdb/secrets.c
 @@ -59,7 +59,7 @@
  		return True;
  

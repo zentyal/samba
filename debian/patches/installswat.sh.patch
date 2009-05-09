@@ -6,10 +6,10 @@ Status wrt upstream: Debian specific
 
 Note: 
 
-Index: samba-3.3.0rc2/source/script/installswat.sh
+Index: samba-3.3.0rc2/source3/script/installswat.sh
 ===================================================================
---- samba-3.3.0rc2.orig/source/script/installswat.sh
-+++ samba-3.3.0rc2/source/script/installswat.sh
+--- samba-3.3.0rc2.orig/source3/script/installswat.sh
++++ samba-3.3.0rc2/source3/script/installswat.sh
 @@ -198,7 +198,11 @@
  
  # Install/ remove Using Samba book (but only if it is there)

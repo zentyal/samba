@@ -91,7 +91,7 @@ configure-stamp:
 	dh_testdir
 
 	if [ -f debian/config.cache ]; then \
-		cp -f debian/config.cache source/config.cache; \
+		cp -f debian/config.cache source3/config.cache; \
 	fi
 
 	[ -f source3/Makefile ] || (cd source3 && CFLAGS="$(CFLAGS)" ./configure $(conf_args))

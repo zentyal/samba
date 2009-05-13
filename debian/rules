@@ -60,11 +60,11 @@ conf_args = \
 		--datarootdir=/usr/share \
 		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \
-		--with-ctdb --with-cluster-support=yes \
 
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
+		--with-ctdb --with-cluster-support=yes \
 		--with-cifsmount \
 		--with-cifsupcall \
 		--with-acl-support \

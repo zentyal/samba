@@ -1,7 +1,11 @@
 samba (2:3.3.4-2) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Do no compile with clustering support on non-Linux platforms
     Closes: #528382
+
+  [ Debconf translations ]
+  * Basque. Closes: #528757
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 13 May 2009 10:44:04 +0200
 

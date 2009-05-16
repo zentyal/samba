@@ -1,24 +1,283 @@
-Goal:  Fix missing symbols in libsmbclient (and libnss_wins), and add
-       -Wl,-z,defs to the libsmbclient link options to prevent future
-       instances of undefined symbols
+Goal:	Add -Wl,-z,defs to the link options for shared libraries, to prevent
+	future instances of undefined symbols
 
 Fixes: #281181
 
-Status wrt upstream: Not forwarded. Should be once there is a configure test 
-for it.
+Status wrt upstream: forwarded in <20090516224019.GA7314@dario.dodds.net>
 
 Note: 
 
-Index: samba-3.3.0rc2/source/Makefile.in
+Index: samba-deb/source/Makefile.in
 ===================================================================
---- samba-3.3.0rc2.orig/source/Makefile.in
-+++ samba-3.3.0rc2/source/Makefile.in
-@@ -1962,7 +1962,7 @@
+--- samba-deb.orig/source/Makefile.in
++++ samba-deb/source/Makefile.in
+@@ -27,7 +27,7 @@
+ ## Dynamic shared libraries build settings
+ DSO_EXPORTS_CMD=-Wl,--version-script,$(srcdir)/exports/`basename $@ | sed 's/@SHLIBEXT@\(.[0-9]\{1,\}\)\{0,1\}$$/@SYMSEXT@/'`
+ DSO_EXPORTS=@DSO_EXPORTS@
+-SHLD_DSO = $(SHLD) $(LDSHFLAGS) $(DSO_EXPORTS) -o $@
++SHLD_LIBS = $(SHLD) $(LDSHFLAGS) $(DSO_EXPORTS) -o $@
+ 
+ # The MODULE_EXPORTS variable contains the platform-specific linker flags
+ # needed to restrict the exports for VFS, IDMAP, RPC and PASSDB modules.
+@@ -43,6 +43,7 @@
+ EXEEXT=@EXEEXT@
+ AR=@AR@
+ LDSHFLAGS=@LDSHFLAGS@ @RELRO_LDFLAGS@ @LDFLAGS@
++LDDSOFLAGS=@LDDSOFLAGS@ @RELRO_LDFLAGS@ @LDFLAGS@
+ LDFLAGS=@PIE_LDFLAGS@ @RELRO_LDFLAGS@ @LDFLAGS@
+ 
+ WINBIND_NSS_LDSHFLAGS=@WINBIND_NSS_LDSHFLAGS@ @LDFLAGS@
+@@ -1230,6 +1231,7 @@
+ 	@echo "      LDFLAGS    = $(LDFLAGS)"
+ 	@echo "      DYNEXP     = $(DYNEXP)"
+ 	@echo "      LDSHFLAGS  = $(LDSHFLAGS)"
++	@echo "      LDDSOFLAGS = $(LDDSOFLAGS)"
+ 	@echo "      SHLIBEXT   = @SHLIBEXT@"
+ 	@echo "      SONAMEFLAG = @SONAMEFLAG@"
+ 
+@@ -1625,7 +1627,7 @@
+ 
+ $(LIBTALLOC_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBTALLOC_OBJ) $(LIBTALLOC_SYMS)
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBTALLOC_OBJ) @SONAMEFLAG@`basename $@`
++	@$(SHLD_LIBS) $(LIBTALLOC_OBJ) @SONAMEFLAG@`basename $@`
+ 
+ $(LIBTALLOC_SHARED_TARGET): $(LIBTALLOC_SHARED_TARGET_SONAME)
+ 	@rm -f $@
+@@ -1690,7 +1692,7 @@
+ 
+ $(LIBTDB_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBTDB_OBJ) $(LIBTDB_SYMS)
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBTDB_OBJ) \
++	@$(SHLD_LIBS) $(LIBTDB_OBJ) \
+ 		@SONAMEFLAG@`basename $@`
+ 
+ $(LIBTDB_SHARED_TARGET): $(LIBTDB_SHARED_TARGET_SONAME)
+@@ -1765,7 +1767,7 @@
+ 
+ $(LIBWBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBWBCLIENT_OBJ) $(LIBWBCLIENT_SYMS) @LIBTALLOC_SHARED@
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBTALLOC_LIBS) $(LIBWBCLIENT_OBJ) \
++	@$(SHLD_LIBS) $(LIBTALLOC_LIBS) $(LIBWBCLIENT_OBJ) \
+ 		@SONAMEFLAG@`basename $@`
+ 
+ $(LIBWBCLIENT_SHARED_TARGET): $(LIBWBCLIENT_SHARED_TARGET_SONAME)
+@@ -1825,7 +1827,7 @@
+ 
+ $(LIBADDNS_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBADDNS_OBJ) @LIBTALLOC_SHARED@
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBADDNS_OBJ) $(LIBS) \
++	@$(SHLD_LIBS) $(LIBADDNS_OBJ) $(LIBS) \
+ 		$(KRB5LIBS) $(UUID_LIBS) $(LIBTALLOC_LIBS) \
+ 		@SONAMEFLAG@`basename $@`
+ 
+@@ -1910,7 +1912,7 @@
+ 
+ $(LIBNETAPI_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBNETAPI_OBJ) $(LIBNETAPI_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBNETAPI_OBJ) \
++	@$(SHLD_LIBS) $(LIBNETAPI_OBJ) \
+ 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
+ 		$(LDAP_LIBS) $(KRB5LIBS) $(NSCD_LIBS) \
+ 		@SONAMEFLAG@`basename $@`
+@@ -1975,7 +1977,7 @@
  
  $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@ @LIBWBCLIENT_SHARED@
  	@echo Linking shared library $@
 -	@$(SHLD_DSO) $(LIBSMBCLIENT_OBJ) \
-+	@$(SHLD_DSO) -Wl,-z,defs $(LIBSMBCLIENT_OBJ) \
++	@$(SHLD_LIBS) $(LIBSMBCLIENT_OBJ) \
  		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS) $(LIBS) \
  		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
  		@SONAMEFLAG@`basename $@`
+@@ -2047,7 +2049,7 @@
+ 
+ $(LIBSMBSHAREMODES_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBSHAREMODES_OBJ) $(LIBSMBSHAREMODES_SYMS) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
+ 	@echo Linking shared library $@
+-	@$(SHLD_DSO) $(LIBSMBSHAREMODES_OBJ) \
++	@$(SHLD_LIBS) $(LIBSMBSHAREMODES_OBJ) \
+ 		$(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
+ 		$(KRB5LIBS) $(LDAP_LIBS) \
+ 		@SONAMEFLAG@`basename $@`
+@@ -2121,7 +2123,7 @@
+ #####################################################################
+ 
+ # Linker command to link a RPC, VFS, AUTH, CHARSET or PASSDB module.
+-SHLD_MODULE = $(SHLD) $(LDSHFLAGS) $(MODULE_EXPORTS) \
++SHLD_MODULE = $(SHLD) $(LDDSOFLAGS) $(MODULE_EXPORTS) \
+ 	      -o $@ @SONAMEFLAG@`basename $@`
+ 
+ bin/librpc_lsarpc.@SHLIBEXT@: $(BINARY_PREREQS) $(RPC_LSA_OBJ)
+@@ -2201,18 +2203,18 @@
+ 
+ @WINBIND_WINS_NSS@: $(BINARY_PREREQS) $(WINBIND_WINS_NSS_OBJ) @LIBTALLOC_SHARED@ @LIBTDB_SHARED@
+ 	@echo "Linking $@"
+-	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_WINS_NSS_OBJ) \
++	@$(SHLD) $(LDDSOFLAGS) -o $@ $(WINBIND_WINS_NSS_OBJ) \
+ 		$(LDAP_LIBS) $(KRB5LIBS) $(LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS) \
+ 		@SONAMEFLAG@`basename $@`@NSSSONAMEVERSIONSUFFIX@
+ 
+ bin/winbind_krb5_locator.@SHLIBEXT@: $(BINARY_PREREQS) $(WINBIND_KRB5_LOCATOR_OBJ) @LIBWBCLIENT_SHARED@
+ 	@echo "Linking $@"
+-	@$(SHLD) $(LDSHFLAGS) -o $@ $(WINBIND_KRB5_LOCATOR_OBJ) $(WINBIND_LIBS) \
++	@$(SHLD) $(LDDSOFLAGS) -o $@ $(WINBIND_KRB5_LOCATOR_OBJ) $(WINBIND_LIBS) \
+ 		@SONAMEFLAG@`basename $@`
+ 
+ bin/pam_winbind.@SHLIBEXT@: $(BINARY_PREREQS) $(PAM_WINBIND_OBJ) @LIBTALLOC_SHARED@ @LIBWBCLIENT_SHARED@
+ 	@echo "Linking shared library $@"
+-	@$(SHLD) $(LDSHFLAGS) -o $@ $(PAM_WINBIND_OBJ) -lpam @INIPARSERLIBS@ \
++	@$(SHLD) $(LDDSOFLAGS) -o $@ $(PAM_WINBIND_OBJ) -lpam @INIPARSERLIBS@ \
+ 		$(PAM_WINBIND_EXTRA_LIBS) $(LIBTALLOC_LIBS) $(WINBIND_LIBS) @SONAMEFLAG@`basename $@`
+ 
+ bin/builtin.@SHLIBEXT@: $(BINARY_PREREQS) $(AUTH_BUILTIN_OBJ)
+@@ -2492,7 +2494,7 @@
+ 
+ bin/pam_smbpass.@SHLIBEXT@: $(BINARY_PREREQS) $(PAM_SMBPASS_OBJ) @LIBTALLOC_SHARED@ @LIBWBCLIENT_SHARED@ @LIBTDB_SHARED@
+ 	@echo "Linking shared library $@"
+-	@$(SHLD) $(LDSHFLAGS) -o $@ $(PAM_SMBPASS_OBJ) -lpam $(DYNEXP) \
++	@$(SHLD) $(LDDSOFLAGS) -o $@ $(PAM_SMBPASS_OBJ) -lpam $(DYNEXP) \
+ 		$(LIBS) $(LDAP_LIBS) $(KRB5LIBS) $(NSCD_LIBS) \
+ 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(WINBIND_LIBS)
+ 
+Index: samba-deb/source/configure.in
+===================================================================
+--- samba-deb.orig/source/configure.in
++++ samba-deb/source/configure.in
+@@ -65,6 +65,7 @@
+ AC_SUBST(SAMBA_CPPFLAGS)
+ AC_SUBST(SHELL)
+ AC_SUBST(LDSHFLAGS)
++AC_SUBST(LDDSOFLAGS)
+ AC_SUBST(SONAMEFLAG)
+ AC_SUBST(SHLD)
+ AC_SUBST(MODULE_EXPORTS)
+@@ -1768,6 +1769,7 @@
+ # these are the defaults, good for lots of systems
+ HOST_OS="$host_os"
+ LDSHFLAGS="-shared"
++LDDSOFLAGS="-shared"
+ MODULE_EXPORTS=""
+ SONAMEFLAG="#"
+ SHLD="\${CC} \${CFLAGS}"
+@@ -1789,9 +1791,11 @@
+ 			esac
+ 			BLDSHARED="true"
+ 			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
+-				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
+-			else
++				LDDSOFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
+ 				LDSHFLAGS="-shared -Wl,-Bsymbolic"
++			else
++				LDDSOFLAGS="-shared -Wl,-Bsymbolic"
++				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,-z,defs"
+ 			fi
+ 			DYNEXP="-Wl,--export-dynamic"
+ 			PICFLAG="-fPIC"
+@@ -1801,6 +1805,7 @@
+ 		*solaris*) AC_DEFINE(SUNOS5,1,[Whether the host os is solaris])
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-h "
+ 			if test "${GCC}" = "yes"; then
+ 				PICFLAG="-fPIC"
+@@ -1813,6 +1818,7 @@
+ 				## ${CFLAGS} added for building 64-bit shared
+ 				## libs using Sun's Compiler
+ 				LDSHFLAGS="-G \${CFLAGS}"
++				LDDSOFLAGS="$LDSHFLAGS"
+ 			fi
+ 			AC_DEFINE(STAT_ST_BLOCKSIZE,512,[The size of a block])
+ 			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
+@@ -1820,6 +1826,7 @@
+ 		*sunos*) AC_DEFINE(SUNOS4,1,[Whether the host os is sunos4])
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-Wl,-h,"
+ 			PICFLAG="-KPIC"   # Is this correct for SunOS
+ 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
+@@ -1827,7 +1834,6 @@
+ 			;;
+ 		*netbsd* | *freebsd* | *dragonfly* )
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			DYNEXP="-Wl,--export-dynamic"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC -DPIC"
+@@ -1835,7 +1841,6 @@
+ 			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
+ 			;;
+ 		*openbsd*)  BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			DYNEXP="-Wl,-Bdynamic"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC"
+@@ -1849,6 +1854,7 @@
+ 			esac
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-set_version sgi1.0 -shared"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-soname "
+ 			SHLD="\${LD}"
+ 			if test "${GCC}" = "yes"; then
+@@ -1863,6 +1869,7 @@
+ 			# use expfull to export underscored symbols
+ 			# add rtl to remove /lib/crt0.o warning
+ 			LDSHFLAGS="-Wl,-G,-bexpfull,-bbigtoc,-brtl"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			DYNEXP="-Wl,-brtl,-bexpfull,-bbigtoc"
+ 			PICFLAG="-O2"
+ 			# as AIX code is always position independent...
+@@ -1881,6 +1888,7 @@
+ 				BLDSHARED="true"
+ 				SHLD="cc"
+ 				LDSHFLAGS="-b -Wl,-B,symbolic,-b,-z"
++				LDDSOFLAGS="$LDSHFLAGS"
+ 				SONAMEFLAG="-Wl,+h "
+ 				PICFLAG="+z"
+ 			if test "${GCC}" = "yes"; then
+@@ -1904,7 +1912,6 @@
+ 			;;
+ 		*osf*) AC_DEFINE(OSF1,1,[Whether the host os is osf1])
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC"
+ 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
+@@ -1915,7 +1922,6 @@
+ 			;;
+ 		*unixware*) AC_DEFINE(UNIXWARE,1,[Whether the host os is unixware])
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-KPIC"
+ 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
+@@ -1932,6 +1938,7 @@
+ 						AC_DEFINE(HAVE_MEMSET,1,[Whether memset() is available])
+ 					fi
+ 					LDSHFLAGS="-G"
++					LDDSOFLAGS="$LDSHFLAGS"
+                              		DYNEXP="-Bexport"
+ 				;;
+ 				*mips-sni-sysv4*) AC_DEFINE(RELIANTUNIX,1,[Whether the host os is reliantunix]);;
+@@ -1944,16 +1951,19 @@
+ 				AC_DEFINE(HAVE_MEMSET,1,[Whether memset() is available])
+ 			fi
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
+ 			;;
+ 		*vos*) AC_DEFINE(STAT_ST_BLOCKSIZE,4096)
+ 			BLDSHARED="false"
+ 			LDSHFLAGS=""
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			;;
+ 
+ 		*darwin*)   AC_DEFINE(DARWINOS,1,[Whether the host os is Darwin/MacOSX])
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-dynamiclib -flat_namespace -undefined suppress"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			CFLAGS="$CFLAGS -fno-common"
+ 			SHLD="\${CC}"
+ 			SHLIBEXT="dylib"

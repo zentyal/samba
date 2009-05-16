@@ -25,10 +25,10 @@ Note: This patch will normally have to be updated by hand after every
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba/source/configure
+Index: samba-deb/source/configure
 ===================================================================
---- samba.orig/source/configure
-+++ samba/source/configure
+--- samba-deb.orig/source/configure
++++ samba-deb/source/configure
 @@ -678,6 +678,7 @@
  LIBADDNS_SOVER
  UNINSTALL_LIBADDNS
@@ -77,7 +77,15 @@ Index: samba/source/configure
  LIBTALLOC_LIBS
  LIBTALLOC_STATIC
  LIBTALLOC_SHARED
-@@ -2412,9 +2418,9 @@
+@@ -801,6 +807,7 @@
+ MODULE_EXPORTS
+ SHLD
+ SONAMEFLAG
++LDDSOFLAGS
+ LDSHFLAGS
+ SAMBA_CPPFLAGS
+ TDB_OBJS
+@@ -2412,9 +2419,9 @@
  pammodulesdir="${libdir}/security"
  configdir="${libdir}"
  swatdir="\${prefix}/swat"
@@ -90,7 +98,7 @@ Index: samba/source/configure
  localedir="\${prefix}/share/locale"
  
  
-@@ -2430,10 +2436,10 @@
+@@ -2430,10 +2437,10 @@
      test "${libdir}" || libdir="\${prefix}/lib"
      modulesdir="${libdir}/samba"
      configdir="\${sysconfdir}/samba"
@@ -103,7 +111,15 @@ Index: samba/source/configure
  
  cat >>confdefs.h <<\_ACEOF
  #define FHS_COMPATIBLE 1
-@@ -13719,6 +13725,27 @@
+@@ -11953,6 +11960,7 @@
+ 
+ 
+ 
++
+ # compile with optimization and without debugging by default, but
+ # allow people to set their own preference.
+ # do this here since AC_CACHE_CHECK apparently sets the CFLAGS to "-g -O2"
+@@ -13719,6 +13727,27 @@
        fi
      ;;
  
@@ -131,7 +147,7 @@ Index: samba/source/configure
  # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
  #
      *linux*)
-@@ -44065,7 +44092,7 @@
+@@ -44065,7 +44094,7 @@
  #
  #
  case "$host_os" in
@@ -140,7 +156,15 @@ Index: samba/source/configure
         # glibc <= 2.3.2 has a broken getgrouplist
         if test "$cross_compiling" = yes; then
    { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-@@ -49880,11 +49907,14 @@
+@@ -49864,6 +49893,7 @@
+ # these are the defaults, good for lots of systems
+ HOST_OS="$host_os"
+ LDSHFLAGS="-shared"
++LDDSOFLAGS="-shared"
+ MODULE_EXPORTS=""
+ SONAMEFLAG="#"
+ SHLD="\${CC} \${CFLAGS}"
+@@ -49880,16 +49910,21 @@
  
    # and these are for particular systems
    case "$host_os" in
@@ -156,8 +180,129 @@ Index: samba/source/configure
 +			esac
  			BLDSHARED="true"
  			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
- 				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
-@@ -71932,7 +71962,8 @@
+-				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
+-			else
++				LDDSOFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
+ 				LDSHFLAGS="-shared -Wl,-Bsymbolic"
++			else
++				LDDSOFLAGS="-shared -Wl,-Bsymbolic"
++				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,-z,defs"
+ 			fi
+ 			DYNEXP="-Wl,--export-dynamic"
+ 			PICFLAG="-fPIC"
+@@ -49906,6 +49941,7 @@
+ 
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-h "
+ 			if test "${GCC}" = "yes"; then
+ 				PICFLAG="-fPIC"
+@@ -49918,6 +49954,7 @@
+ 				## ${CFLAGS} added for building 64-bit shared
+ 				## libs using Sun's Compiler
+ 				LDSHFLAGS="-G \${CFLAGS}"
++				LDDSOFLAGS="$LDSHFLAGS"
+ 			fi
+ 
+ cat >>confdefs.h <<\_ACEOF
+@@ -49937,6 +49974,7 @@
+ 
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-Wl,-h,"
+ 			PICFLAG="-KPIC"   # Is this correct for SunOS
+ 			cat >>confdefs.h <<\_ACEOF
+@@ -49951,7 +49989,6 @@
+ 			;;
+ 		*netbsd* | *freebsd* | *dragonfly* )
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			DYNEXP="-Wl,--export-dynamic"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC -DPIC"
+@@ -49967,7 +50004,6 @@
+ 
+ 			;;
+ 		*openbsd*)  BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			DYNEXP="-Wl,-Bdynamic"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC"
+@@ -49997,6 +50033,7 @@
+ 			esac
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-set_version sgi1.0 -shared"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			SONAMEFLAG="-soname "
+ 			SHLD="\${LD}"
+ 			if test "${GCC}" = "yes"; then
+@@ -50019,6 +50056,7 @@
+ 			# use expfull to export underscored symbols
+ 			# add rtl to remove /lib/crt0.o warning
+ 			LDSHFLAGS="-Wl,-G,-bexpfull,-bbigtoc,-brtl"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			DYNEXP="-Wl,-brtl,-bexpfull,-bbigtoc"
+ 			PICFLAG="-O2"
+ 			# as AIX code is always position independent...
+@@ -50053,6 +50091,7 @@
+ 				BLDSHARED="true"
+ 				SHLD="cc"
+ 				LDSHFLAGS="-b -Wl,-B,symbolic,-b,-z"
++				LDDSOFLAGS="$LDSHFLAGS"
+ 				SONAMEFLAG="-Wl,+h "
+ 				PICFLAG="+z"
+ 			if test "${GCC}" = "yes"; then
+@@ -50095,7 +50134,6 @@
+ _ACEOF
+ 
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-fPIC"
+ 			cat >>confdefs.h <<\_ACEOF
+@@ -50124,7 +50162,6 @@
+ _ACEOF
+ 
+ 			BLDSHARED="true"
+-			LDSHFLAGS="-shared"
+ 			SONAMEFLAG="-Wl,-soname,"
+ 			PICFLAG="-KPIC"
+ 			cat >>confdefs.h <<\_ACEOF
+@@ -50198,6 +50235,7 @@
+ 
+ 					fi
+ 					LDSHFLAGS="-G"
++					LDDSOFLAGS="$LDSHFLAGS"
+                              		DYNEXP="-Bexport"
+ 				;;
+ 				*mips-sni-sysv4*)
+@@ -50225,6 +50263,7 @@
+ 
+ 			fi
+ 			LDSHFLAGS="-G"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			cat >>confdefs.h <<\_ACEOF
+ #define STAT_ST_BLOCKSIZE 512
+ _ACEOF
+@@ -50236,6 +50275,7 @@
+ 
+ 			BLDSHARED="false"
+ 			LDSHFLAGS=""
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			;;
+ 
+ 		*darwin*)
+@@ -50245,6 +50285,7 @@
+ 
+ 			BLDSHARED="true"
+ 			LDSHFLAGS="-dynamiclib -flat_namespace -undefined suppress"
++			LDDSOFLAGS="$LDSHFLAGS"
+ 			CFLAGS="$CFLAGS -fno-common"
+ 			SHLD="\${CC}"
+ 			SHLIBEXT="dylib"
+@@ -71932,7 +71973,8 @@
  LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
  LIBTALLOC_SHARED=
  LIBTALLOC_STATIC=
@@ -167,7 +312,7 @@ Index: samba/source/configure
  INSTALL_LIBTALLOC=
  UNINSTALL_LIBTALLOC=
  
-@@ -71947,6 +71978,7 @@
+@@ -71947,6 +71989,7 @@
  
  
  
@@ -175,7 +320,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libtalloc shared library" >&5
  $as_echo_n "checking whether to build the libtalloc shared library... " >&6; }
  
-@@ -71981,15 +72013,17 @@
+@@ -71981,15 +72024,17 @@
  	UNINSTALL_LIBTALLOC=uninstalllibtalloc
  	if eval $BLDSHARED = true; then
  		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
@@ -195,7 +340,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -72016,7 +72050,8 @@
+@@ -72016,7 +72061,8 @@
  LIBTDB_STATIC_TARGET=bin/libtdb.a
  LIBTDB_SHARED=
  LIBTDB_STATIC=
@@ -205,7 +350,7 @@ Index: samba/source/configure
  INSTALL_LIBTDB=
  UNINSTALL_LIBTDB=
  
-@@ -72031,6 +72066,7 @@
+@@ -72031,6 +72077,7 @@
  
  
  
@@ -213,7 +358,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libtdb shared library" >&5
  $as_echo_n "checking whether to build the libtdb shared library... " >&6; }
  
-@@ -72065,15 +72101,17 @@
+@@ -72065,15 +72112,17 @@
  	UNINSTALL_LIBTDB=uninstalllibtdb
  	if eval $BLDSHARED = true; then
  		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
@@ -233,7 +378,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -72100,7 +72138,8 @@
+@@ -72100,7 +72149,8 @@
  LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
  LIBNETAPI_SHARED=
  LIBNETAPI_STATIC=
@@ -243,7 +388,7 @@ Index: samba/source/configure
  INSTALL_LIBNETAPI=
  UNINSTALL_LIBNETAPI=
  
-@@ -72115,6 +72154,7 @@
+@@ -72115,6 +72165,7 @@
  
  
  
@@ -251,7 +396,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libnetapi shared library" >&5
  $as_echo_n "checking whether to build the libnetapi shared library... " >&6; }
  
-@@ -72149,15 +72189,17 @@
+@@ -72149,15 +72200,17 @@
  	UNINSTALL_LIBNETAPI=uninstalllibnetapi
  	if eval $BLDSHARED = true; then
  		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
@@ -271,7 +416,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -72184,7 +72226,8 @@
+@@ -72184,7 +72237,8 @@
  LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
  LIBSMBCLIENT_SHARED=
  LIBSMBCLIENT_STATIC=
@@ -281,7 +426,7 @@ Index: samba/source/configure
  INSTALL_LIBSMBCLIENT=
  UNINSTALL_LIBSMBCLIENT=
  
-@@ -72199,6 +72242,7 @@
+@@ -72199,6 +72253,7 @@
  
  
  
@@ -289,7 +434,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libsmbclient shared library" >&5
  $as_echo_n "checking whether to build the libsmbclient shared library... " >&6; }
  
-@@ -72233,15 +72277,17 @@
+@@ -72233,15 +72288,17 @@
  	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
  	if eval $BLDSHARED = true; then
  		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
@@ -309,7 +454,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -72268,7 +72314,8 @@
+@@ -72268,7 +72325,8 @@
  LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
  LIBSMBSHAREMODES_SHARED=
  LIBSMBSHAREMODES_STATIC=
@@ -319,7 +464,7 @@ Index: samba/source/configure
  INSTALL_LIBSMBSHAREMODES=
  UNINSTALL_LIBSMBSHAREMODES=
  
-@@ -72283,6 +72330,7 @@
+@@ -72283,6 +72341,7 @@
  
  
  
@@ -327,7 +472,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libsmbsharemodes shared library" >&5
  $as_echo_n "checking whether to build the libsmbsharemodes shared library... " >&6; }
  
-@@ -72317,15 +72365,17 @@
+@@ -72317,15 +72376,17 @@
  	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
  	if eval $BLDSHARED = true; then
  		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
@@ -347,7 +492,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -72352,7 +72402,8 @@
+@@ -72352,7 +72413,8 @@
  LIBADDNS_STATIC_TARGET=bin/libaddns.a
  LIBADDNS_SHARED=
  LIBADDNS_STATIC=
@@ -357,7 +502,7 @@ Index: samba/source/configure
  INSTALL_LIBADDNS=
  UNINSTALL_LIBADDNS=
  
-@@ -72367,6 +72418,7 @@
+@@ -72367,6 +72429,7 @@
  
  
  
@@ -365,7 +510,7 @@ Index: samba/source/configure
  { $as_echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
  $as_echo_n "checking whether to build the libaddns shared library... " >&6; }
  
-@@ -72403,15 +72455,17 @@
+@@ -72403,15 +72466,17 @@
  	UNINSTALL_LIBADDNS=uninstalllibaddns
  	if eval $BLDSHARED = true; then
  		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
@@ -385,7 +530,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
  $as_echo "no shared library support -- will supply static library" >&6; }
  	fi
-@@ -75300,7 +75354,7 @@
+@@ -75300,7 +75365,7 @@
  $as_echo "yes" >&6; };
  
  	case "$host_os" in
@@ -394,7 +539,7 @@ Index: samba/source/configure
  		{ $as_echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
  $as_echo_n "checking for linux sendfile64 support... " >&6; }
  if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
-@@ -76562,11 +76616,11 @@
+@@ -76562,11 +76627,11 @@
  WINBIND_NSS_PTHREAD=""
  
  case "$host_os" in
@@ -408,10 +553,10 @@ Index: samba/source/configure
  		# FreeBSD winbind client is implemented as a wrapper around
  		# the Linux version.
  		NSSSONAMEVERSIONSUFFIX=".1"
-Index: samba/source/include/config.h.in
+Index: samba-deb/source/include/config.h.in
 ===================================================================
---- samba.orig/source/include/config.h.in
-+++ samba/source/include/config.h.in
+--- samba-deb.orig/source/include/config.h.in
++++ samba-deb/source/include/config.h.in
 @@ -69,6 +69,9 @@
  /* Whether to use fully FHS-compatible paths */
  #undef FHS_COMPATIBLE

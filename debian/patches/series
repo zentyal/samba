@@ -15,3 +15,4 @@ swat-de.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 fix-manpages-warnings.patch
+smbclient-link.patch

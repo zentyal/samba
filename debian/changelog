@@ -1,4 +1,4 @@
-samba (2:3.3.4-2) UNRELEASED; urgency=low
+samba (2:3.3.4-2) unstable; urgency=low
 
   [ Christian Perrier ]
   * Do no compile with clustering support on non-Linux platforms
@@ -7,7 +7,7 @@ samba (2:3.3.4-2) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Basque. Closes: #528757
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 13 May 2009 10:44:04 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 16 May 2009 17:31:09 +0200
 
 samba (2:3.3.4-1) unstable; urgency=low
 

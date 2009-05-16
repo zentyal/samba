@@ -103,7 +103,7 @@ build-stamp:
 	dh_testdir
 
 	$(MAKE) -C source3 # headers
-	$(MAKE) -C source3 everything nsswitch/libnss_wins.so
+	$(MAKE) -C source3 everything
 
 	touch build-stamp
 
@@ -140,7 +140,7 @@ install: build
 	mkdir -p $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
 	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 
-	$(MAKE) -C source install DESTDIR=$(DESTDIR)
+	$(MAKE) -C source3 install DESTDIR=$(DESTDIR)
 
 	# Rename to *.samba3 for alternatives
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3

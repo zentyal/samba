@@ -1,10 +1,14 @@
 samba (2:3.3.4-3) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * debian/patches/undefined-symbols.patch: fix up patch so that it's
     suitable for submission upstream.
   * debian/patches/proper-static-lib-linking.patch: apply the rules to
     vfstest, ldbrename, nss_wins, pam_winbind, pam_smbpass, and
     rpc_open_tcp.
+
+  [ Debconf translations ]
+  * Italian. Closes: #529350
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 

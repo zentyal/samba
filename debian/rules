@@ -104,6 +104,7 @@ build-stamp:
 
 	$(MAKE) -C source3 # headers
 	$(MAKE) -C source3 everything
+	$(MAKE) -C source3 nsswitch
 
 	touch build-stamp
 
@@ -166,8 +167,8 @@ install: build
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
-	install -m 0644 source3/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
-	install -m 0644 source3/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
+	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
 	# Install torture stuff
 	install -m 0755 source3/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
 	install -m 0755 source3/bin/msgtest $(DESTDIR)/usr/bin/msgtest

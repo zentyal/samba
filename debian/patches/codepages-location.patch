@@ -1,0 +1,21 @@
+Goal:  Move codepage files to the datadir (codepagedir is not configurable)
+
+Fixes: Build failure..:-)
+
+Status wrt upstream: Should be forwarded after discussion
+
+Note: 
+
+Index: samba-3.4.0pre1/source3/Makefile.in
+===================================================================
+--- samba-3.4.0pre1.orig/source3/Makefile.in
++++ samba-3.4.0pre1/source3/Makefile.in
+@@ -156,7 +156,7 @@
+ STATEDIR = @statedir@
+ 
+ # Where to look for (and install) codepage databases.
+-CODEPAGEDIR = @codepagedir@
++CODEPAGEDIR = @datadir@
+ 
+ # the directory where pid files go
+ PIDDIR = @piddir@

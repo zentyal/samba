@@ -16,3 +16,4 @@ smbtar-bashism.patch
 no-unnecessary-cups.patch
 fix-manpages-warnings.patch
 smbclient-link.patch
+codepages-location.patch

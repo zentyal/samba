@@ -43,7 +43,7 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
-"Zure sistemak IP helbidea sareko DHCP zerbitzari batetatik jaso ezkero, "
+"Zure sistemak IP helbidea sareko DHCP zerbitzari batetatik jasoaz gero, "
 "zerbitzari horrek sareko WINS (\"NetBIOS name servers\") zerbitzarien datuak "
 "eman ditzake.  Honek smb.conf fitxategian aldaketa bat behar du DHCP bidezko "
 "WINS ezarpenak /etc/samba/dhcp.conf-etik irakurtzeko."
@@ -88,32 +88,29 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Aukera hau ez erabili ezkero, konfigurazioko edozein aldaketa eskuz egin "
+"Aukera hau ez erabiliaz gero, konfigurazioko edozein aldaketa eskuz egin "
 "beharko duzu eta ezingo duzu konfigurazio aldaketa automatikoez baliatu."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
 msgid "Workgroup/Domain Name:"
-msgstr "Lan Talde/Domeinu izena?"
+msgstr "Lan Talde/Domeinu izena:"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Mesede ezarri zure zerbitzariari sareko bezeroek galdetzean bistaraziko duen "
-"lan taldea. Kontutan izan parametro honek security=domain ezarpeneko domeinu "
-"izena ere ezartzen duela."
+"Mesedez zehaztu sistema honetarako lan-taldea. Ezarpen honek sistema "
+"zerbitzari moduan erabiltzean agertuko den lan-taldea, zenbait interfaze "
+"bidez bistaratzean erabiliko den lehenetsitako lan-taldea eta "
+"\"security=domain\" ezarpenak erabiltzen duen domeinu izena kontrolatzen "
+"ditu."
 
 #. Type: boolean
 #. Description
@@ -124,37 +121,28 @@ msgstr "Zifraturiko pasahitzak erabili?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Windows bezero berrienek SMB zerbitzariekiko harremanak zifraturiko "
+"Windows bezero berri guztiek SMB zerbitzariekiko harremanak zifraturiko "
 "pasahitzak erabiliaz egiten dituzte. Testu laueko pasahitzak erabili nahi "
-"izan ezkero parametro bat aldatu behar duzu Windows erregistroan."
+"izanez gero parametro bat aldatu behar duzu Windows erregistroan."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Aukera hau erabiltzea oso gomendagarri da. Erabiltzea hautatu ezkero "
-"ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula eta pasahitzak "
-"smbpasswd programaren bidez ezarri dituzula."
+"Aukera hau gaitzea oso gomendagarri da testu laueko pasahitzen onarpena ez "
+"bait da aurrerantzean mantendurik egongo Microsoft produktuetan. Erabiltzea "
+"hautatuaz gero ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula "
+"eta pasahitzak smbpasswd programaren bidez ezarri dituzula."
 
 #. Type: boolean
 #. Description
@@ -186,7 +174,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-" Fitxategi hau ez sortu ezkero beharrezkoa da Samba (eta ziurrenik Windows "
+"Fitxategi hau ez sortuaz gero beharrezkoa da Samba (eta ziurrenik Windows "
 "bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
 
 #. Type: boolean
@@ -197,7 +185,7 @@ msgid ""
 "from the samba-doc package for more details."
 msgstr ""
 "Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-"pwencrypt.html begiratu argibide gehiagorako"
+"pwencrypt.html begiratu argibide gehiagorako."
 
 #. Type: select
 #. Choices

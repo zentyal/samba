@@ -63,11 +63,11 @@ conf_args = \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
-		--with-ctdb --with-cluster-support=yes \
 
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
+		--with-ctdb --with-cluster-support=yes \
 		--with-cifsmount \
 		--with-cifsupcall \
 		--with-acl-support \

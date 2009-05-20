@@ -1,10 +1,10 @@
-samba (2:3.4.0~pre1-1) UNRELEASED-experimental; urgency=low
+samba (2:3.4.0~pre1-1) experimental; urgency=low
 
   * New upstream pre-release
   * "Using samba" is dropped from upstream source. Therefore, drop
     debian/samba-doc.doc-base.samba-using
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 20 May 2009 18:38:08 +0200
+ -- Christian Perrier <bubulle@debian.org>  Wed, 20 May 2009 18:50:35 +0200
 
 samba (2:3.3.4-2) unstable; urgency=low
 

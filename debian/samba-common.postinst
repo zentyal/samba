@@ -4,21 +4,6 @@
 
 set -e
 
-if [ "$1" = "configure" ]
-then
-	update-alternatives --install /usr/bin/nmblookup nmblookup /usr/bin/nmblookup.samba3 0 \
-		--slave /usr/share/man/man1/nmblookup.1.gz nmblookup.1.gz /usr/share/man/man1/nmblookup.samba3.1.gz
-	update-alternatives --install /usr/bin/net net /usr/bin/net.samba3 10 \
-		--slave /usr/share/man/man8/net.8.gz net.8.gz /usr/share/man/man8/net.samba3.8.gz
-	update-alternatives --install /usr/bin/testparm testparm /usr/bin/testparm.samba3 10 \
-		--slave /usr/share/man/man1/testparm.1.gz testparm.1.gz /usr/share/man/man1/testparm.samba3.1.gz
-	for N in valid.dat upcase.dat lowcase.dat
-	do
-		update-alternatives --install /usr/share/samba/$N $N /usr/share/samba/$N.samba3 0
-	done
-	update-alternatives --install /usr/share/samba/panic-action samba-panic-action /usr/share/samba/panic-action.samba3 0
-fi
-
 # Do debconf stuff here
 . /usr/share/debconf/confmodule
 

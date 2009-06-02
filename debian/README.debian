@@ -22,7 +22,8 @@ Contents of this README file:
 Currently, the Samba sources produce the following binary packages:
 
 samba:		A LanManager like file and printer server for Unix.
-samba-common:	Samba common files used by both the server and the client.
+samba-common:	Samba common configuration/data files used by both Samba 3 and Samba 4.
+samba-common-bin:	Samba common binaries used by both the server and the client.
 smbclient:	A LanManager like simple client for Unix.
 swat:		Samba Web Administration Tool
 samba-doc:	Samba documentation.

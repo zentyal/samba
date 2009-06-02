@@ -152,10 +152,6 @@ install: build
 	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
 	mv $(DESTDIR)/usr/share/man/man1/testparm.1 $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
 
-	mv $(DESTDIR)/usr/share/samba/lowcase.dat $(DESTDIR)/usr/share/samba/lowcase.dat.samba3
-	mv $(DESTDIR)/usr/share/samba/upcase.dat $(DESTDIR)/usr/share/samba/upcase.dat.samba3
-	mv $(DESTDIR)/usr/share/samba/valid.dat $(DESTDIR)/usr/share/samba/valid.dat.samba3
-
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the
 	# default library path. Here we move it to /usr/lib/.
@@ -195,7 +191,7 @@ endif
 	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
-	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action.samba3
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_movefiles.
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
@@ -244,8 +240,8 @@ binary-arch: build install
 	done
 	dh_installchangelogs -Nlibpam-smbpass
 	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
-	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common --dbg-package=samba-dbg
-	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common
+	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg
+	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common-bin
 	dh_link
 	dh_compress
 	dh_fixperms

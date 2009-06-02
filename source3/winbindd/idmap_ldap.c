@@ -765,7 +765,6 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 	NTSTATUS ret;
 	struct idmap_ldap_context *ctx = NULL;
 	char *config_option = NULL;
-	const char *range = NULL;
 	const char *tmp = NULL;
 
 	/* Only do init if we are online */
@@ -779,23 +778,63 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
-	if ( ! config_option) {
-		DEBUG(0, ("Out of memory!\n"));
-		ret = NT_STATUS_NO_MEMORY;
-		goto done;
+	if (strequal(dom->name, "*")) {
+		uid_t low_uid = 0;
+		uid_t high_uid = 0;
+		gid_t low_gid = 0;
+		gid_t high_gid = 0;
+
+		ctx->filter_low_id = 0;
+		ctx->filter_high_id = 0;
+
+		if (lp_idmap_uid(&low_uid, &high_uid)) {
+			ctx->filter_low_id = low_uid;
+			ctx->filter_high_id = high_uid;
+		} else {
+			DEBUG(3, ("Warning: 'idmap uid' not set!\n"));
+		}
+
+		if (lp_idmap_gid(&low_gid, &high_gid)) {
+			if ((low_gid != low_uid) || (high_gid != high_uid)) {
+				DEBUG(1, ("Warning: 'idmap uid' and 'idmap gid'"
+				      " ranges do not agree -- building "
+				      "intersection\n"));
+				ctx->filter_low_id = MAX(ctx->filter_low_id,
+							 low_gid);
+				ctx->filter_high_id = MIN(ctx->filter_high_id,
+							  high_gid);
+			}
+		} else {
+			DEBUG(3, ("Warning: 'idmap gid' not set!\n"));
+		}
+	} else {
+		const char *range = NULL;
+
+		config_option = talloc_asprintf(ctx, "idmap config %s", dom->name);
+		if ( ! config_option) {
+			DEBUG(0, ("Out of memory!\n"));
+			ret = NT_STATUS_NO_MEMORY;
+			goto done;
+		}
+
+		/* load ranges */
+		range = lp_parm_const_string(-1, config_option, "range", NULL);
+		if (range && range[0]) {
+			if ((sscanf(range, "%u - %u", &ctx->filter_low_id,
+							&ctx->filter_high_id) != 2))
+			{
+				DEBUG(1, ("ERROR: invalid filter range [%s]", range));
+				ctx->filter_low_id = 0;
+				ctx->filter_high_id = 0;
+			}
+		}
 	}
 
-	/* load ranges */
-	range = lp_parm_const_string(-1, config_option, "range", NULL);
-	if (range && range[0]) {
-		if ((sscanf(range, "%u - %u", &ctx->filter_low_id,
-						&ctx->filter_high_id) != 2) ||
-		    (ctx->filter_low_id > ctx->filter_high_id)) {
-			DEBUG(1, ("ERROR: invalid filter range [%s]", range));
-			ctx->filter_low_id = 0;
-			ctx->filter_high_id = 0;
-		}
+	if (ctx->filter_low_id > ctx->filter_high_id) {
+		DEBUG(1, ("ERROR: invalid filter range [%u-%u]",
+		      ctx->filter_low_id, ctx->filter_high_id));
+		ctx->filter_low_id = 0;
+		ctx->filter_high_id = 0;
 	}
 
 	if (params != NULL) {
@@ -892,6 +931,7 @@ static NTSTATUS idmap_ldap_unixids_to_sids(struct idmap_domain *dom,
 	TALLOC_CTX *memctx;
 	struct idmap_ldap_context *ctx;
 	LDAPMessage *result = NULL;
+	LDAPMessage *entry = NULL;
 	const char *uidNumber;
 	const char *gidNumber;
 	const char **attr_list;
@@ -979,7 +1019,6 @@ again:
 	}
 
 	for (i = 0; i < count; i++) {
-		LDAPMessage *entry = NULL;
 		char *sidstr = NULL;
 	       	char *tmp = NULL;
 		enum id_type type;
@@ -1055,6 +1094,14 @@ again:
 			TALLOC_FREE(sidstr);
 			continue;
 		}
+
+		if (map->status == ID_MAPPED) {
+			DEBUG(1, ("WARNING: duplicate %s mapping in LDAP. "
+			      "overwriting mapping %u -> %s with %u -> %s\n",
+			      (type == ID_TYPE_UID) ? "UID" : "GID",
+			      id, sid_string_dbg(map->sid), id, sidstr));
+		}
+
 		TALLOC_FREE(sidstr);
 
 		/* mapped */
@@ -1249,8 +1296,6 @@ again:
 			continue;
 		}
 
-		TALLOC_FREE(sidstr);
-
 		/* now try to see if it is a uid, if not try with a gid
 		 * (gid is more common, but in case both uidNumber and
 		 * gidNumber are returned the SID is mapped to the uid
@@ -1268,6 +1313,7 @@ again:
 		if ( ! tmp) { /* no ids ?? */
 			DEBUG(5, ("no uidNumber, "
 				  "nor gidNumber attributes found\n"));
+			TALLOC_FREE(sidstr);
 			continue;
 		}
 
@@ -1278,10 +1324,20 @@ again:
 			DEBUG(5, ("Requested id (%u) out of range (%u - %u). "
 				  "Filtered!\n", id,
 				  ctx->filter_low_id, ctx->filter_high_id));
+			TALLOC_FREE(sidstr);
 			TALLOC_FREE(tmp);
 			continue;
 		}
 		TALLOC_FREE(tmp);
+
+		if (map->status == ID_MAPPED) {
+			DEBUG(1, ("WARNING: duplicate %s mapping in LDAP. "
+			      "overwriting mapping %s -> %u with %s -> %u\n",
+			      (type == ID_TYPE_UID) ? "UID" : "GID",
+			      sidstr, map->xid.id, sidstr, id));
+		}
+
+		TALLOC_FREE(sidstr);
 
 		/* mapped */
 		map->xid.type = type;

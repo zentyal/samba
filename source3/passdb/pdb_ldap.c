@@ -559,7 +559,7 @@ static bool init_sam_from_ldap(struct ldapsam_privates *ldap_state,
 		goto fn_exit;
 	}
 
-	if (!(username = smbldap_talloc_single_attribute(priv2ld(ldap_state),
+	if (!(username = smbldap_talloc_smallest_attribute(priv2ld(ldap_state),
 					entry,
 					"uid",
 					ctx))) {
@@ -1908,7 +1908,7 @@ static NTSTATUS ldapsam_update_sam_account(struct pdb_methods *my_methods, struc
 	}
 
 	entry = ldap_first_entry(ldap_state->smbldap_state->ldap_struct, result);
-	dn = smbldap_talloc_dn(NULL, ldap_state->smbldap_state->ldap_struct, entry);
+	dn = smbldap_talloc_dn(talloc_tos(), ldap_state->smbldap_state->ldap_struct, entry);
 	if (!dn) {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -2858,8 +2858,8 @@ static NTSTATUS ldapsam_enum_group_memberships(struct pdb_methods *methods,
 	}
 
 	filter = talloc_asprintf(mem_ctx,
-				 "(&(objectClass=%s)(|(memberUid=%s)(gidNumber=%d)))",
-				 LDAP_OBJ_POSIXGROUP, escape_name, primary_gid);
+				 "(&(objectClass=%s)(|(memberUid=%s)(gidNumber=%u)))",
+				 LDAP_OBJ_POSIXGROUP, escape_name, (unsigned int)primary_gid);
 	if (filter == NULL) {
 		ret = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -2968,7 +2968,7 @@ static NTSTATUS ldapsam_map_posixgroup(TALLOC_CTX *mem_ctx,
 
 	filter = talloc_asprintf(mem_ctx,
 				 "(&(objectClass=%s)(gidNumber=%u))",
-				 LDAP_OBJ_POSIXGROUP, map->gid);
+				 LDAP_OBJ_POSIXGROUP, (unsigned int)map->gid);
 	if (filter == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -3091,8 +3091,8 @@ static NTSTATUS ldapsam_add_group_mapping_entry(struct pdb_methods *methods,
 	}
 
 	if (pdb_gid_to_sid(map->gid, &sid)) {
-		DEBUG(3, ("Gid %d is already mapped to SID %s, refusing to "
-			  "add\n", map->gid, sid_string_dbg(&sid)));
+		DEBUG(3, ("Gid %u is already mapped to SID %s, refusing to "
+			  "add\n", (unsigned int)map->gid, sid_string_dbg(&sid)));
 		result = NT_STATUS_GROUP_EXISTS;
 		goto done;
 	}
@@ -3123,7 +3123,7 @@ static NTSTATUS ldapsam_add_group_mapping_entry(struct pdb_methods *methods,
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "description",
 			 map->comment);
 	smbldap_make_mod(ldap_state->smbldap_state->ldap_struct, NULL, &mods, "gidNumber",
-			 talloc_asprintf(mem_ctx, "%u", map->gid));
+			 talloc_asprintf(mem_ctx, "%u", (unsigned int)map->gid));
 	talloc_autofree_ldapmod(mem_ctx, mods);
 
 	rc = smbldap_add(ldap_state->smbldap_state, dn, mods);
@@ -3169,7 +3169,7 @@ static NTSTATUS ldapsam_update_group_mapping_entry(struct pdb_methods *methods,
 				 "(sambaGroupType=%d))",
 				 LDAP_OBJ_GROUPMAP,
 				 sid_string_talloc(mem_ctx, &map->sid),
-				 map->gid, map->sid_name_use);
+				 (unsigned int)map->gid, map->sid_name_use);
 	if (filter == NULL) {
 		result = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -3269,6 +3269,7 @@ static NTSTATUS ldapsam_delete_group_mapping_entry(struct pdb_methods *methods,
 						groupmap_attr_list_to_delete));
  
 	if ((rc == LDAP_NAMING_VIOLATION) ||
+	    (rc == LDAP_NOT_ALLOWED_ON_RDN) ||
 	    (rc == LDAP_OBJECT_CLASS_VIOLATION)) {
 		const char *attrs[] = { "sambaGroupType", "description",
 					"displayName", "sambaSIDList",
@@ -3283,6 +3284,7 @@ static NTSTATUS ldapsam_delete_group_mapping_entry(struct pdb_methods *methods,
 	}
 
 	if ((rc == LDAP_NAMING_VIOLATION) ||
+	    (rc == LDAP_NOT_ALLOWED_ON_RDN) ||
 	    (rc == LDAP_OBJECT_CLASS_VIOLATION)) {
 		const char *attrs[] = { "sambaGroupType", "description",
 					"displayName", "sambaSIDList",
@@ -3512,7 +3514,7 @@ static NTSTATUS ldapsam_modify_aliasmem(struct pdb_methods *methods,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	dn = smbldap_talloc_dn(NULL, ldap_state->smbldap_state->ldap_struct, entry);
+	dn = smbldap_talloc_dn(talloc_tos(), ldap_state->smbldap_state->ldap_struct, entry);
 	if (!dn) {
 		ldap_msgfree(result);
 		return NT_STATUS_UNSUCCESSFUL;
@@ -5116,8 +5118,8 @@ static NTSTATUS ldapsam_create_user(struct pdb_methods *my_methods,
 			homedir = talloc_sub_specified(tmp_ctx, lp_template_homedir(), name, ldap_state->domain_name, uid, gid);
 			shell = talloc_sub_specified(tmp_ctx, lp_template_shell(), name, ldap_state->domain_name, uid, gid);
 		}
-		uidstr = talloc_asprintf(tmp_ctx, "%d", uid);
-		gidstr = talloc_asprintf(tmp_ctx, "%d", gid);
+		uidstr = talloc_asprintf(tmp_ctx, "%u", (unsigned int)uid);
+		gidstr = talloc_asprintf(tmp_ctx, "%u", (unsigned int)gid);
 
 		escape_name = escape_rdn_val_string_alloc(name);
 		if (!escape_name) {
@@ -5326,7 +5328,7 @@ static NTSTATUS ldapsam_create_dom_group(struct pdb_methods *my_methods,
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 
-		gidstr = talloc_asprintf(tmp_ctx, "%d", gid);
+		gidstr = talloc_asprintf(tmp_ctx, "%u", (unsigned int)gid);
 
 		escape_name = escape_rdn_val_string_alloc(name);
 		if (!escape_name) {
@@ -5687,7 +5689,7 @@ static NTSTATUS ldapsam_set_primary_group(struct pdb_methods *my_methods,
 		DEBUG(0,("ldapsam_set_primary_group: failed to retrieve gid from user's group SID!\n"));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
-	gidstr = talloc_asprintf(mem_ctx, "%d", gid);
+	gidstr = talloc_asprintf(mem_ctx, "%u", (unsigned int)gid);
 	if (!gidstr) {
 		DEBUG(0,("ldapsam_set_primary_group: Out of Memory!\n"));
 		return NT_STATUS_NO_MEMORY;

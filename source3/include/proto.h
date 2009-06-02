@@ -604,6 +604,7 @@ bool revoke_privilege(const DOM_SID *sid, const SE_PRIV *priv_mask);
 bool revoke_all_privileges( DOM_SID *sid );
 bool revoke_privilege_by_name(DOM_SID *sid, const char *name);
 NTSTATUS privilege_create_account(const DOM_SID *sid );
+NTSTATUS privilege_delete_account(const struct dom_sid *sid);
 NTSTATUS privilege_set_init(PRIVILEGE_SET *priv_set);
 NTSTATUS privilege_set_init_by_ctx(TALLOC_CTX *mem_ctx, PRIVILEGE_SET *priv_set);
 void privilege_set_free(PRIVILEGE_SET *priv_set);
@@ -1118,7 +1119,7 @@ char *clean_name(TALLOC_CTX *ctx, const char *s);
 ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos);
 int set_blocking(int fd, bool set);
 void smb_msleep(unsigned int t);
-bool reinit_after_fork(struct messaging_context *msg_ctx,
+NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 		       struct event_context *ev_ctx,
 		       bool parent_longlived);
 bool yesno(const char *p);
@@ -4354,13 +4355,6 @@ int lp_min_receive_file_size(void);
 char* lp_perfcount_module(void);
 
 
-/* The following definitions come from param/params.c  */
-
-bool pm_process( const char *FileName,
-		bool (*sfunc)(const char *, void *),
-		bool (*pfunc)(const char *, const char *, void *),
-		void *userdata);
-
 /* The following definitions come from param/util.c  */
 
 uint32 get_int_param( const char* param );
@@ -4930,12 +4924,9 @@ bool print_job_end(int snum, uint32 jobid, enum file_close_type close_type);
 int print_queue_status(int snum, 
 		       print_queue_struct **ppqueue,
 		       print_status_struct *status);
-bool print_queue_pause(struct auth_serversupplied_info *server_info, int snum,
-		       WERROR *errcode);
-bool print_queue_resume(struct auth_serversupplied_info *server_info, int snum,
-			WERROR *errcode);
-bool print_queue_purge(struct auth_serversupplied_info *server_info, int snum,
-		       WERROR *errcode);
+WERROR print_queue_pause(struct auth_serversupplied_info *server_info, int snum);
+WERROR print_queue_resume(struct auth_serversupplied_info *server_info, int snum);
+WERROR print_queue_purge(struct auth_serversupplied_info *server_info, int snum);
 
 /* The following definitions come from printing/printing_db.c  */
 
@@ -5894,6 +5885,28 @@ NTSTATUS np_read_recv(struct tevent_req *req, ssize_t *nread,
 
 /* The following definitions come from rpc_server/srv_samr_util.c  */
 
+void copy_id2_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo2 *from);
+void copy_id4_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo4 *from);
+void copy_id6_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo6 *from);
+void copy_id8_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo8 *from);
+void copy_id10_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo10 *from);
+void copy_id11_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo11 *from);
+void copy_id12_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo12 *from);
+void copy_id13_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo13 *from);
+void copy_id14_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo14 *from);
+void copy_id16_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo16 *from);
+void copy_id17_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo17 *from);
 void copy_id18_to_sam_passwd(struct samu *to,
 			     struct samr_UserInfo18 *from);
 void copy_id20_to_sam_passwd(struct samu *to,
@@ -6213,7 +6226,7 @@ void dptr_SeekDir(struct dptr_struct *dptr, long offset);
 long dptr_TellDir(struct dptr_struct *dptr);
 bool dptr_has_wild(struct dptr_struct *dptr);
 int dptr_dnum(struct dptr_struct *dptr);
-const char *dptr_ReadDirName(TALLOC_CTX *ctx,
+char *dptr_ReadDirName(TALLOC_CTX *ctx,
 			struct dptr_struct *dptr,
 			long *poffset,
 			SMB_STRUCT_STAT *pst);
@@ -6356,6 +6369,10 @@ void file_close_pid(uint16 smbpid, int vuid);
 void file_init(void);
 void file_close_user(int vuid);
 void file_dump_open_table(void);
+struct files_struct *file_walk_table(
+	struct files_struct *(*fn)(struct files_struct *fsp,
+				   void *private_data),
+	void *private_data);
 files_struct *file_find_fd(int fd);
 files_struct *file_find_dif(struct file_id id, unsigned long gen_id);
 files_struct *file_find_fsp(files_struct *orig_fsp);
@@ -7226,4 +7243,11 @@ void *avahi_start_register(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 
 /* Misc protos */
 
+/* The following definitions come from rpc_server/srv_samr_nt.c */
+NTSTATUS access_check_object( SEC_DESC *psd, NT_USER_TOKEN *token,
+				SE_PRIV *rights, uint32 rights_mask,
+				uint32 des_access, uint32 *acc_granted,
+				const char *debug);
+void map_max_allowed_access(const NT_USER_TOKEN *token,
+				uint32_t *pacc_requested);
 #endif /*  _PROTO_H_  */

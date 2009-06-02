@@ -468,12 +468,15 @@ static bool lookup_rids(TALLOC_CTX *mem_ctx, const DOM_SID *domain_sid,
 		   sid_string_dbg(domain_sid)));
 
 	if (num_rids) {
-		*names = TALLOC_ARRAY(mem_ctx, const char *, num_rids);
+		*names = TALLOC_ZERO_ARRAY(mem_ctx, const char *, num_rids);
 		*types = TALLOC_ARRAY(mem_ctx, enum lsa_SidType, num_rids);
 
 		if ((*names == NULL) || (*types == NULL)) {
 			return false;
 		}
+
+		for (i = 0; i < num_rids; i++)
+			(*types)[i] = SID_NAME_UNKNOWN;
 	} else {
 		*names = NULL;
 		*types = NULL;
@@ -1319,7 +1322,7 @@ void uid_to_sid(DOM_SID *psid, uid_t uid)
 			 * the next time we ask.
 			 */
 			DEBUG(5, ("uid_to_sid: winbind failed to find a sid "
-				  "for uid %u\n", uid));
+				  "for uid %u\n", (unsigned int)uid));
 
 			legacy_uid_to_sid(psid, uid);
 			return;
@@ -1372,7 +1375,7 @@ void gid_to_sid(DOM_SID *psid, gid_t gid)
 			 * the next time we ask.
 			 */
 			DEBUG(5, ("gid_to_sid: winbind failed to find a sid "
-				  "for gid %u\n", gid));
+				  "for gid %u\n", (unsigned int)gid));
 
 			legacy_gid_to_sid(psid, gid);
 			return;
@@ -1430,13 +1433,10 @@ bool sid_to_uid(const DOM_SID *psid, uid_t *puid)
 	if (!ret || expired) {
 		/* Not in cache. Ask winbindd. */
 		if (!winbind_sid_to_uid(puid, psid)) {
-			if (!winbind_ping()) {
-				return legacy_sid_to_uid(psid, puid);
-			}
-
 			DEBUG(5, ("winbind failed to find a uid for sid %s\n",
 				  sid_string_dbg(psid)));
-			return false;
+			/* winbind failed. do legacy */
+			return legacy_sid_to_uid(psid, puid);
 		}
 	}
 
@@ -1497,13 +1497,11 @@ bool sid_to_gid(const DOM_SID *psid, gid_t *pgid)
 		 * (Idmap will check it is a valid SID and of the right type) */
 
 		if ( !winbind_sid_to_gid(pgid, psid) ) {
-			if (!winbind_ping()) {
-				return legacy_sid_to_gid(psid, pgid);
-			}
 
 			DEBUG(10,("winbind failed to find a gid for sid %s\n",
 				  sid_string_dbg(psid)));
-			return false;
+			/* winbind failed. do legacy */
+			return legacy_sid_to_gid(psid, pgid);
 		}
 	}
 

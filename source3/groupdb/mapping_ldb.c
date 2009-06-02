@@ -509,8 +509,8 @@ static NTSTATUS enum_aliasmem(const DOM_SID *alias, DOM_SID **sids, size_t *num)
 	}
 
 	ret = ldb_search(ldb, ldb, &res, dn, LDB_SCOPE_BASE, attrs, NULL);
-	talloc_steal(dn, res);
 	if (ret == LDB_SUCCESS && res->count == 0) {
+		talloc_free(res);
 		talloc_free(dn);
 		return NT_STATUS_OK;
 	}
@@ -519,6 +519,7 @@ static NTSTATUS enum_aliasmem(const DOM_SID *alias, DOM_SID **sids, size_t *num)
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
+	talloc_steal(dn, res);
 	el = ldb_msg_find_element(res->msgs[0], "member");
 	if (el == NULL) {
 		talloc_free(dn);

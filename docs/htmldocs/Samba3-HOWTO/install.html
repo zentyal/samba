@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 1. How to Install and Test SAMBA</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="introduction.html" title="Part I. General Installation"><link rel="prev" href="introduction.html" title="Part I. General Installation"><link rel="next" href="FastStart.html" title="Chapter 2. Fast Start: Cure for Impatience"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 1. How to Install and Test SAMBA</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="introduction.html">Prev</a> </td><th width="60%" align="center">Part I. General Installation</th><td width="20%" align="right"> <a accesskey="n" href="FastStart.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="install"></a>Chapter 1. How to Install and Test SAMBA</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Karl</span> <span class="orgname">Samba Team</span> <span class="surname">Auer</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:kauer@biplane.com.au">kauer@biplane.com.au</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Dan</span> <span class="orgname">Samba Team</span> <span class="surname">Shearer</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:dan@samba.org">dan@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="install.html#id2551936">Obtaining and Installing Samba</a></span></dt><dt><span class="sect1"><a href="install.html#id2551976">Configuring Samba (smb.conf)</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2552018">Configuration File Syntax</a></span></dt><dt><span class="sect2"><a href="install.html#tdbdocs">TDB Database File Information</a></span></dt><dt><span class="sect2"><a href="install.html#id2552921">Starting Samba</a></span></dt><dt><span class="sect2"><a href="install.html#id2553100">Example Configuration</a></span></dt><dt><span class="sect2"><a href="install.html#id2553503">SWAT</a></span></dt></dl></dd><dt><span class="sect1"><a href="install.html#id2553560">List Shares Available on the Server</a></span></dt><dt><span class="sect1"><a href="install.html#id2553613">Connect with a UNIX Client</a></span></dt><dt><span class="sect1"><a href="install.html#id2553704">Connect from a Remote SMB Client</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2553785">What If Things Don't Work?</a></span></dt><dt><span class="sect2"><a href="install.html#id2553826">Still Stuck?</a></span></dt></dl></dd><dt><span class="sect1"><a href="install.html#id2553858">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2553868">Large Number of smbd Processes</a></span></dt><dt><span class="sect2"><a href="install.html#id2553955">Error Message: open_oplock_ipc</a></span></dt><dt><span class="sect2"><a href="install.html#id2553988">The network name cannot be found</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2551936"></a>Obtaining and Installing Samba</h2></div></div></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 1. How to Install and Test SAMBA</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.4.x HOWTO and Reference Guide"><link rel="up" href="introduction.html" title="Part I. General Installation"><link rel="prev" href="introduction.html" title="Part I. General Installation"><link rel="next" href="FastStart.html" title="Chapter 2. Fast Start: Cure for Impatience"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 1. How to Install and Test SAMBA</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="introduction.html">Prev</a> </td><th width="60%" align="center">Part I. General Installation</th><td width="20%" align="right"> <a accesskey="n" href="FastStart.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="install"></a>Chapter 1. How to Install and Test SAMBA</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Karl</span> <span class="orgname">Samba Team</span> <span class="surname">Auer</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:kauer@biplane.com.au">kauer@biplane.com.au</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Dan</span> <span class="orgname">Samba Team</span> <span class="surname">Shearer</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:dan@samba.org">dan@samba.org</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="install.html#id2551936">Obtaining and Installing Samba</a></span></dt><dt><span class="sect1"><a href="install.html#id2551976">Configuring Samba (smb.conf)</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2552018">Configuration File Syntax</a></span></dt><dt><span class="sect2"><a href="install.html#tdbdocs">TDB Database File Information</a></span></dt><dt><span class="sect2"><a href="install.html#id2552921">Starting Samba</a></span></dt><dt><span class="sect2"><a href="install.html#id2553100">Example Configuration</a></span></dt><dt><span class="sect2"><a href="install.html#id2553503">SWAT</a></span></dt></dl></dd><dt><span class="sect1"><a href="install.html#id2553562">List Shares Available on the Server</a></span></dt><dt><span class="sect1"><a href="install.html#id2553614">Connect with a UNIX Client</a></span></dt><dt><span class="sect1"><a href="install.html#id2553705">Connect from a Remote SMB Client</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2553786">What If Things Don't Work?</a></span></dt><dt><span class="sect2"><a href="install.html#id2553827">Still Stuck?</a></span></dt></dl></dd><dt><span class="sect1"><a href="install.html#id2553859">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="install.html#id2553870">Large Number of smbd Processes</a></span></dt><dt><span class="sect2"><a href="install.html#id2553957">Error Message: open_oplock_ipc</a></span></dt><dt><span class="sect2"><a href="install.html#id2553989">The network name cannot be found</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2551936"></a>Obtaining and Installing Samba</h2></div></div></div><p>
 	<a class="indexterm" name="id2551944"></a>
 	Binary packages of Samba are included in almost any Linux or UNIX distribution. There are also some
 	packages available at <a class="ulink" href="http://samba.org/" target="_top">the Samba home page</a>. Refer to the manual of your
@@ -199,7 +199,7 @@
 	and thus the need to keep this file small goes against good documentation wisdom. One solution that may
 	be adopted is to do all documentation and configuration in a file that has another name, such as
 	<code class="filename">smb.conf.master</code>. The <code class="literal">testparm</code> utility can be used to generate a
-	fully optimized <code class="filename">smb.conf</code> file from this master configuration and documtenation file as shown here:
+	fully optimized <code class="filename">smb.conf</code> file from this master configuration and documentation file as shown here:
 </p><pre class="screen">
 <code class="prompt">root# </code> testparm -s smb.conf.master &gt; smb.conf
 </pre><p>
@@ -208,8 +208,7 @@
 	</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553503"></a>SWAT</h3></div></div></div><p>
 	<a class="indexterm" name="id2553511"></a>
 	SWAT is a Web-based interface that can be used to facilitate the configuration of Samba.  SWAT might not
-	be available in the Samba package that shipped with your platform, but in a separate package. If it is
-	necesaary to built SWAT please read the SWAT man page regarding compilation, installation, and
+	be available in the Samba package that shipped with your platform, but in a separate package. If you need to build SWAT please read the SWAT man page regarding compilation, installation, and
 	configuration of SWAT from the source code.
 	</p><p>
 	To launch SWAT, just run your favorite Web browser and point it to
@@ -218,10 +217,12 @@
 	Samba is running if that is a different computer than your browser.
 	</p><p>
 	SWAT can be used from a browser on any IP-connected machine, but be aware that connecting from a remote
-	machine leaves your connection open to password sniffing because passwords will be sent over the wire in the clear. 
+	machine leaves your connection open to password sniffing because passwords will be sent over the wire in the clear.
 	</p><p>
+	Please note that re-writing the configuration file using SWAT will
+	remove all comments!
 	More information about SWAT can be found in <a class="link" href="SWAT.html" title="Chapter 37. SWAT: The Samba Web Administration Tool">The Samba Web Administration Tool</a>.
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553560"></a>List Shares Available on the Server</h2></div></div></div><p>
+	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553562"></a>List Shares Available on the Server</h2></div></div></div><p>
 	To list shares that are available from the configured Samba server, execute the
 	following command:
 	</p><pre class="screen">
@@ -235,7 +236,7 @@
 	before it will list the shares. See the <code class="literal">smbclient</code> man page for details.
 	You can force it to list the shares without a password by adding the option
 	<code class="option">-N</code> to the command line. 
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553613"></a>Connect with a UNIX Client</h2></div></div></div><p>
+	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553614"></a>Connect with a UNIX Client</h2></div></div></div><p>
 	Enter the following command:
 </p><pre class="screen">
 <code class="prompt">$ </code><strong class="userinput"><code>smbclient <em class="replaceable"><code> //yourhostname/aservice</code></em></code></strong>
@@ -244,7 +245,7 @@
 	file. Try your username if you just have a <em class="parameter"><code>[homes]</code></em> section in the <code class="filename">smb.conf</code> file.</p><p>Example: If the UNIX host is called <em class="replaceable"><code>bambi</code></em> and a valid login name
 	is <em class="replaceable"><code>fred</code></em>, you would type:</p><pre class="screen">
 <code class="prompt">$ </code><strong class="userinput"><code>smbclient //<em class="replaceable"><code>bambi</code></em>/<em class="replaceable"><code>fred</code></em></code></strong>
-</pre></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553704"></a>Connect from a Remote SMB Client</h2></div></div></div><p>
+</pre></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553705"></a>Connect from a Remote SMB Client</h2></div></div></div><p>
 	Now that Samba is working correctly locally, you can try to access it from other clients. Within a few
 	minutes, the Samba host should be listed in the Network Neighborhood on all Windows clients of its subnet.
 	Try browsing the server from another client or "mounting" it.
@@ -265,7 +266,7 @@
 	be sent to the printer that owns the spoolservice that has been specified.
 	</p><p>
 </p><pre class="screen"><code class="prompt">C:\&gt; </code><strong class="userinput"><code>print filename</code></strong>
-</pre><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553785"></a>What If Things Don't Work?</h3></div></div></div><p>
+</pre><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553786"></a>What If Things Don't Work?</h3></div></div></div><p>
 	You might want to read <a class="link" href="diagnosis.html" title="Chapter 38. The Samba Checklist">The Samba Checklist</a>.  If you are still
 	stuck, refer to <a class="link" href="problems.html" title="Chapter 39. Analyzing and Solving Samba Problems">Analyzing and Solving Samba Problems</a>.  Samba has
 	been successfully installed at thousands of sites worldwide.  It is unlikely that your particular problem is
@@ -277,7 +278,7 @@
 	Simply choose from the first five chapters the network design that most closely matches site needs,
 	then follow the simple step-by-step procedure to deploy it. Later, when you have a working network
 	you may well want to refer back to this book for further insight into opportunities for improvement.
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553826"></a>Still Stuck?</h3></div></div></div><p>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553827"></a>Still Stuck?</h3></div></div></div><p>
 	The best advice under the stress of abject frustration is to cool down! That may be challenging
 	of itself, but while you are angry or annoyed your ability to seek out a solution is somewhat
 	undermined. A cool head clears the way to finding the answer you are looking for. Just remember,
@@ -286,9 +287,9 @@
 	</p><p>
 	Now that you have cooled down a bit, please refer to <a class="link" href="diagnosis.html" title="Chapter 38. The Samba Checklist">the Samba Checklist</a>
 	for a process that can be followed to identify the cause of your problem.
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553858"></a>Common Errors</h2></div></div></div><p>
+	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2553859"></a>Common Errors</h2></div></div></div><p>
 The following questions and issues are raised repeatedly on the Samba mailing list.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553868"></a>Large Number of smbd Processes</h3></div></div></div><p>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553870"></a>Large Number of smbd Processes</h3></div></div></div><p>
 	Samba consists of three core programs: <span class="application">nmbd</span>, <span class="application">smbd</span>, and <span class="application">winbindd</span>. <span class="application">nmbd</span> is the name server message daemon,
 	<span class="application">smbd</span> is the server message daemon, and <span class="application">winbindd</span> is the daemon that handles communication with domain controllers.
 	</p><p>
@@ -301,14 +302,14 @@ The following questions and issues are raised repeatedly on the Samba mailing li
 	</p><p>
 	<span class="application">winbindd</span> will run as one or two daemons, depending on whether or not it is being
 	run in <span class="emphasis"><em>split mode</em></span> (in which case there will be two instances).
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553955"></a>Error Message: open_oplock_ipc</h3></div></div></div><p>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553957"></a>Error Message: open_oplock_ipc</h3></div></div></div><p>
 	An error message is observed in the log files when <span class="application">smbd</span> is started: &#8220;<span class="quote">open_oplock_ipc: Failed to
 	get local UDP socket for address 100007f. Error was Cannot assign requested.</span>&#8221;
 	</p><p>
 	Your loopback device isn't working correctly. Make sure it is configured correctly. The loopback
 	device is an internal (virtual) network device with the IP address <span class="emphasis"><em>127.0.0.1</em></span>.
 	Read your OS documentation for details on how to configure the loopback on your system.
-	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553988"></a>&#8220;<span class="quote"><span class="errorname">The network name cannot be found</span></span>&#8221;</h3></div></div></div><p>
+	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2553989"></a>&#8220;<span class="quote"><span class="errorname">The network name cannot be found</span></span>&#8221;</h3></div></div></div><p>
 		This error can be caused by one of these misconfigurations:
 		</p><div class="itemizedlist"><ul type="disc"><li><p>You specified a nonexisting path
 			for the share in <code class="filename">smb.conf</code>.</p></li><li><p>The user you are trying to access the share with does not 

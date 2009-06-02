@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/30/2009
+.\"      Date: 06/02/2009
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "04/30/2009" "Samba 3\&.4" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "06/02/2009" "Samba 3\&.4" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -6307,6 +6307,22 @@ Example:
 \fI\fImap to guest\fR\fR\fI = \fR\fI\FCBad User\F[]\fR\fI \fR
 .RE
 
+map untrusted to domain (G)
+.\" map untrusted to domain
+.PP
+.RS 4
+If a client connects to smbd using an untrusted domain name, such as BOGUS\euser, smbd replaces the BOGUS domain with it\'s SAM name before attempting to authenticate that user\&. In the case where smbd is acting as a PDC this will be DOMAIN\euser\&. In the case where smbd is acting as a domain member server or a standalone server this will be WORKSTATION\euser\&.
+.sp
+In previous versions of Samba (pre 3\&.4), if smbd was acting as a domain member server, the BOGUS domain name would instead be replaced by the primary domain which smbd was a member of\&. In this case authentication would be deferred off to a DC using the credentials DOMAIN\euser\&.
+.sp
+When this parameter is set to
+\fByes\fR
+smbd provides the legacy behavior of mapping untrusted domain names to the primary domain\&. When smbd is not acting as a domain member server, this parameter has no effect\&.
+.sp
+Default:
+\fI\fImap untrusted to domain\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 max connections (S)
 .\" max connections
 .PP
@@ -7250,7 +7266,7 @@ Available backends can include:
 .IP \(bu 2.3
 .\}
 \FCsmbpasswd\F[]
-\- The default smbpasswd backend\&. Takes a path to the smbpasswd file as an optional argument\&.
+\- The old plaintext passdb backend\&. Some Samba features will not work if this passdb backend is used\&. Takes a path to the smbpasswd file as an optional argument\&.
 .RE
 .sp
 .RS 4
@@ -7323,7 +7339,7 @@ passdb backend = ldapsam:"ldap://ldap\-1\&.example\&.com ldap\-2\&.example\&.com
 .\}
 .sp
 Default:
-\fI\fIpassdb backend\fR\fR\fI = \fR\fI\FCsmbpasswd\F[]\fR\fI \fR
+\fI\fIpassdb backend\fR\fR\fI = \fR\fI\FCtdbsam\F[]\fR\fI \fR
 .RE
 
 passdb expand explicit (G)

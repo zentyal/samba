@@ -677,6 +677,8 @@ static void set_allowed_client_auth(void);
 
 static void *lp_local_ptr(struct service *service, void *ptr);
 
+static void add_to_file_list(const char *fname, const char *subfname);
+
 static const struct enum_list enum_protocol[] = {
 	{PROTOCOL_NT1, "NT1"},
 	{PROTOCOL_LANMAN2, "LANMAN2"},
@@ -1032,7 +1034,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &Globals.ConfigBackend,
 		.special	= NULL,
 		.enum_list	= enum_config_backend,
-		.flags		= FLAG_ADVANCED,
+		.flags		= FLAG_HIDE|FLAG_ADVANCED|FLAG_META,
 	},
 
 	{N_("Security Options"), P_SEP, P_SEPARATOR},
@@ -3734,7 +3736,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &Globals.szConfigFile,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_HIDE,
+		.flags		= FLAG_HIDE|FLAG_META,
 	},
 	{
 		.label		= "preload",
@@ -3997,7 +3999,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.szInclude,
 		.special	= handle_include,
 		.enum_list	= NULL,
-		.flags		= FLAG_HIDE,
+		.flags		= FLAG_HIDE|FLAG_META,
 	},
 	{
 		.label		= "preexec",
@@ -4980,7 +4982,7 @@ static void init_globals(bool first_time_only)
 	   a large number of sites (tridge) */
 	Globals.bHostnameLookups = False;
 
-	string_set(&Globals.szPassdbBackend, "smbpasswd");
+	string_set(&Globals.szPassdbBackend, "tdbsam");
 	string_set(&Globals.szLdapSuffix, "");
 	string_set(&Globals.szLdapMachineSuffix, "");
 	string_set(&Globals.szLdapUserSuffix, "");
@@ -6785,7 +6787,7 @@ static bool process_smbconf_service(struct smbconf_service *service)
 		}
 	}
 	if (iServiceIndex >= 0) {
-		ret = service_ok(iServiceIndex);
+		return service_ok(iServiceIndex);
 	}
 	return true;
 }
@@ -6840,6 +6842,8 @@ done:
 static bool process_registry_globals(void)
 {
 	bool ret;
+
+	add_to_file_list(INCLUDE_REGISTRY_NAME, INCLUDE_REGISTRY_NAME);
 
 	ret = do_parameter("registry shares", "yes", NULL);
 	if (!ret) {
@@ -6939,6 +6943,26 @@ static void add_to_file_list(const char *fname, const char *subfname)
 }
 
 /**
+ * Free the file lists
+ */
+static void free_file_list(void)
+{
+	struct file_lists *f;
+	struct file_lists *next;
+
+	f = file_lists;
+	while( f ) {
+		next = f->next;
+		SAFE_FREE( f->name );
+		SAFE_FREE( f->subfname );
+		SAFE_FREE( f );
+		f = next;
+	}
+	file_lists = NULL;
+}
+
+
+/**
  * Utility function for outsiders to check if we're running on registry.
  */
 bool lp_config_backend_is_registry(void)
@@ -6964,45 +6988,51 @@ bool lp_file_list_changed(void)
 
  	DEBUG(6, ("lp_file_list_changed()\n"));
 
-	if (lp_config_backend_is_registry()) {
-		struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
-
-		if (conf_ctx == NULL) {
-			return false;
-		}
-		if (smbconf_changed(conf_ctx, &conf_last_csn, NULL, NULL)) {
-			DEBUGADD(6, ("registry config changed\n"));
-			return true;
-		}
-	}
-
 	while (f) {
 		char *n2 = NULL;
 		time_t mod_time;
 
-		n2 = alloc_sub_basic(get_current_username(),
-				    current_user_info.domain,
-				    f->name);
-		if (!n2) {
-			return false;
-		}
-		DEBUGADD(6, ("file %s -> %s  last mod_time: %s\n",
-			     f->name, n2, ctime(&f->modtime)));
+		if (strequal(f->name, INCLUDE_REGISTRY_NAME)) {
+			struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
 
-		mod_time = file_modtime(n2);
+			if (conf_ctx == NULL) {
+				return false;
+			}
+			if (smbconf_changed(conf_ctx, &conf_last_csn, NULL,
+					    NULL))
+			{
+				DEBUGADD(6, ("registry config changed\n"));
+				return true;
+			}
+		} else {
+			n2 = alloc_sub_basic(get_current_username(),
+					    current_user_info.domain,
+					    f->name);
+			if (!n2) {
+				return false;
+			}
+			DEBUGADD(6, ("file %s -> %s  last mod_time: %s\n",
+				     f->name, n2, ctime(&f->modtime)));
 
-		if (mod_time && ((f->modtime != mod_time) || (f->subfname == NULL) || (strcmp(n2, f->subfname) != 0))) {
-			DEBUGADD(6,
-				 ("file %s modified: %s\n", n2,
-				  ctime(&mod_time)));
-			f->modtime = mod_time;
-			SAFE_FREE(f->subfname);
-			f->subfname = n2; /* Passing ownership of
-					     return from alloc_sub_basic
-					     above. */
-			return true;
+			mod_time = file_modtime(n2);
+
+			if (mod_time &&
+			    ((f->modtime != mod_time) ||
+			     (f->subfname == NULL) ||
+			     (strcmp(n2, f->subfname) != 0)))
+			{
+				DEBUGADD(6,
+					 ("file %s modified: %s\n", n2,
+					  ctime(&mod_time)));
+				f->modtime = mod_time;
+				SAFE_FREE(f->subfname);
+				f->subfname = n2; /* Passing ownership of
+						     return from alloc_sub_basic
+						     above. */
+				return true;
+			}
+			SAFE_FREE(n2);
 		}
-		SAFE_FREE(n2);
 		f = f->next;
 	}
 	return (False);
@@ -7742,6 +7772,7 @@ static void dump_globals(FILE *f)
 
 	for (i = 0; parm_table[i].label; i++)
 		if (parm_table[i].p_class == P_GLOBAL &&
+		    !(parm_table[i].flags & FLAG_META) &&
 		    parm_table[i].ptr &&
 		    (i == 0 || (parm_table[i].ptr != parm_table[i - 1].ptr))) {
 			if (defaults_saved && is_default(i))
@@ -7788,6 +7819,7 @@ static void dump_a_service(struct service *pService, FILE * f)
 	for (i = 0; parm_table[i].label; i++) {
 
 		if (parm_table[i].p_class == P_LOCAL &&
+		    !(parm_table[i].flags & FLAG_META) &&
 		    parm_table[i].ptr &&
 		    (*parm_table[i].label != '-') &&
 		    (i == 0 || (parm_table[i].ptr != parm_table[i - 1].ptr))) 
@@ -7864,6 +7896,7 @@ bool dump_a_parameter(int snum, char *parm_name, FILE * f, bool isGlobal)
 
 	for (i = 0; parm_table[i].label; i++) {
 		if (strwicmp(parm_table[i].label, parm_name) == 0 &&
+		    !(parm_table[i].flags & FLAG_META) &&
 		    (parm_table[i].p_class == p_class || parm_table[i].flags & flag) &&
 		    parm_table[i].ptr &&
 		    (*parm_table[i].label != '-') &&
@@ -8918,21 +8951,9 @@ int load_usershare_shares(void)
 
 void gfree_loadparm(void)
 {
-	struct file_lists *f;
-	struct file_lists *next;
 	int i;
 
-	/* Free the file lists */
-
-	f = file_lists;
-	while( f ) {
-		next = f->next;
-		SAFE_FREE( f->name );
-		SAFE_FREE( f->subfname );
-		SAFE_FREE( f );
-		f = next;
-	}
-	file_lists = NULL;
+	free_file_list();
 
 	/* Free resources allocated to services */
 
@@ -8995,6 +9016,8 @@ bool lp_load_ex(const char *pszFname,
 
 	init_globals(! initialize_globals);
 	debug_init();
+
+	free_file_list();
 
 	if (save_defaults) {
 		init_locals();

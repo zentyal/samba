@@ -222,7 +222,8 @@ BIN_PROGS = @EXTRA_BIN_PROGS@ \
 EVERYTHING_PROGS = bin/debug2html@EXEEXT@ bin/smbfilter@EXEEXT@ \
 	bin/talloctort@EXEEXT@ bin/replacetort@EXEEXT@ \
 	bin/log2pcap@EXEEXT@ \
-	bin/vlp@EXEEXT@ bin/smbiconv@EXEEXT@
+	bin/vlp@EXEEXT@ bin/smbiconv@EXEEXT@ \
+	bin/dbwrap_tool@EXEEXT@
 
 PAM_MODULES = @PAM_MODULES@
 
@@ -1045,7 +1046,7 @@ SMBFILTER_OBJ = utils/smbfilter.o $(PARAM_OBJ) $(LIBSMB_OBJ) $(LDB_OBJ) \
 
 WINBIND_WINS_NSS_OBJ = ../nsswitch/wins.o $(PARAM_OBJ) \
 	$(LIBSMB_OBJ) $(LIB_NONSMBD_OBJ) $(NSSWINS_OBJ) $(KRBCLIENT_OBJ) \
-	$(LIBNDR_GEN_OBJ0)
+	$(LIBNDR_GEN_OBJ0) $(LDB_OBJ)
 
 PAM_SMBPASS_OBJ_0 = pam_smbpass/pam_smb_auth.o pam_smbpass/pam_smb_passwd.o \
 		pam_smbpass/pam_smb_acct.o pam_smbpass/support.o
@@ -1199,6 +1200,10 @@ RPC_OPEN_TCP_OBJ = torture/rpc_open_tcp.o \
 		   ../librpc/rpc/binding.o \
 		   $(LIBMSRPC_GEN_OBJ)
 
+DBWRAP_TOOL_OBJ = utils/dbwrap_tool.o \
+		  $(PARAM_OBJ) \
+		  $(LIB_NONSMBD_OBJ) \
+		  $(LIBSAMBA_OBJ)
 
 ######################################################################
 # now the rules...
@@ -2017,7 +2022,8 @@ LIBNETAPI_OBJ0 = lib/netapi/netapi.o \
 		 lib/netapi/samr.o \
 		 lib/netapi/sid.o \
 		 lib/netapi/share.o \
-		 lib/netapi/file.o
+		 lib/netapi/file.o \
+		 lib/netapi/shutdown.o
 
 LIBNETAPI_OBJ  = $(LIBNETAPI_OBJ0) $(LIBNET_OBJ) \
 		 $(LIBSMBCONF_OBJ) \
@@ -2124,7 +2130,7 @@ $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LI
 	@echo Linking shared library $@
 	@$(SHLD_DSO) $(LIBSMBCLIENT_OBJ) \
 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(LIBWBCLIENT_LIBS) $(LIBS) \
-		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) \
+		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) $(ZLIB_LIBS) \
 		@SONAMEFLAG@`basename $@`
 
 $(LIBSMBCLIENT_SHARED_TARGET): $(LIBSMBCLIENT_SHARED_TARGET_SONAME)
@@ -2753,6 +2759,16 @@ bin/test_lp_load@EXEEXT@: $(BINARY_PREREQS) $(TEST_LP_LOAD_OBJ) @BUILD_POPT@ @LI
 		$(LDFLAGS) $(DYNEEXP) $(LIBS) \
 		$(LDAP_LIBS) \
 		$(POPT_LIBS) $(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
+
+bin/dbwrap_tool@EXEEXT@: $(DBWRAP_TOOL_OBJ) @LIBTALLOC_TARGET@ @LIBTDB_TARGET@
+	@echo "Linking $@"
+	@$(CC) -o $@ $(DBWRAP_TOOL_OBJ)\
+		$(LDFLAGS) $(DYNEEXP) $(LIBS) \
+		$(LDAP_LIBS) \
+		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS)
+
+install-dbwrap_tool:: bin/dbwrap_tool@EXEEXT@
+	@$(SHELL) script/installbin.sh $(INSTALLPERMS_BIN) $(DESTDIR) $(prefix) $(BINDIR) $<
 
 install:: installservers installbin @INSTALL_CIFSMOUNT@ @INSTALL_CIFSUPCALL@ installman \
 		installscripts installdat installmodules @SWAT_INSTALL_TARGETS@ \

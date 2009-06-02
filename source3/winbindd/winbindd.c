@@ -908,6 +908,7 @@ static bool remove_idle_client(void)
 
 	for (state = winbindd_client_list(); state; state = state->next) {
 		if (state->response.result != WINBINDD_PENDING &&
+		    state->fd_event.flags == EVENT_FD_READ &&
 		    !state->getpwent_state && !state->getgrent_state) {
 			nidle++;
 			if (!last_access || state->last_access < last_access) {
@@ -1308,8 +1309,9 @@ int main(int argc, char **argv, char **envp)
 	 * winbindd-specific resources we must free yet. JRA.
 	 */
 
-	if (!reinit_after_fork(winbind_messaging_context(),
-			       winbind_event_context(), false)) {
+	if (!NT_STATUS_IS_OK(reinit_after_fork(winbind_messaging_context(),
+					       winbind_event_context(),
+					       false))) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}

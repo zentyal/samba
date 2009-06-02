@@ -1,10 +1,10 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 4. Domain Control</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="type.html" title="Part II. Server Configuration Basics"><link rel="prev" href="ServerType.html" title="Chapter 3. Server Types and Security Modes"><link rel="next" href="samba-bdc.html" title="Chapter 5. Backup Domain Control"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 4. Domain Control</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ServerType.html">Prev</a> </td><th width="60%" align="center">Part II. Server Configuration Basics</th><td width="20%" align="right"> <a accesskey="n" href="samba-bdc.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="samba-pdc"></a>Chapter 4. Domain Control</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="orgname">Samba Team</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">David</span> <span class="orgname">Samba Team</span> <span class="surname">Bannon</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:dbannon@samba.org">dbannon@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><span class="contrib">LDAP updates</span> <div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="samba-pdc.html#id2561252">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2561886">Single Sign-On and Domain Security</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2562486">Basics of Domain Control</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2562506">Domain Controller Types</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2563011">Preparing for Domain Control</a></span></dt></dl></dd><dt><span class="sect1"><a href="samba-pdc.html#id2563522">Domain Control: Example Configuration</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2564264">Samba ADS Domain Control</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2564317">Domain and Network Logon Configuration</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2564336">Domain Network Logon Service</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2564928">Security Mode and Master Browsers</a></span></dt></dl></dd><dt><span class="sect1"><a href="samba-pdc.html#id2565201">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2565206">$ Cannot Be Included in Machine Name</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565307">Joining Domain Fails Because of Existing Machine Account</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565372">The System Cannot Log You On (C000019B)</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565448">The Machine Trust Account Is Not Accessible</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565568">Account Disabled</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565595">Domain Controller Unavailable</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565614">Cannot Log onto Domain Member Workstation After Joining Domain</a></span></dt></dl></dd></dl></div><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 4. Domain Control</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.4.x HOWTO and Reference Guide"><link rel="up" href="type.html" title="Part II. Server Configuration Basics"><link rel="prev" href="ServerType.html" title="Chapter 3. Server Types and Security Modes"><link rel="next" href="samba-bdc.html" title="Chapter 5. Backup Domain Control"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 4. Domain Control</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ServerType.html">Prev</a> </td><th width="60%" align="center">Part II. Server Configuration Basics</th><td width="20%" align="right"> <a accesskey="n" href="samba-bdc.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="samba-pdc"></a>Chapter 4. Domain Control</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Gerald</span> <span class="othername">(Jerry)</span> <span class="orgname">Samba Team</span> <span class="surname">Carter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jerry@samba.org">jerry@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">David</span> <span class="orgname">Samba Team</span> <span class="surname">Bannon</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:dbannon@samba.org">dbannon@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><span class="contrib">LDAP updates</span> <div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="samba-pdc.html#id2561254">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2561889">Single Sign-On and Domain Security</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2562489">Basics of Domain Control</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2562509">Domain Controller Types</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2563014">Preparing for Domain Control</a></span></dt></dl></dd><dt><span class="sect1"><a href="samba-pdc.html#id2563524">Domain Control: Example Configuration</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2564267">Samba ADS Domain Control</a></span></dt><dt><span class="sect1"><a href="samba-pdc.html#id2564320">Domain and Network Logon Configuration</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2564339">Domain Network Logon Service</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2564930">Security Mode and Master Browsers</a></span></dt></dl></dd><dt><span class="sect1"><a href="samba-pdc.html#id2565210">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="samba-pdc.html#id2565216">$ Cannot Be Included in Machine Name</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565317">Joining Domain Fails Because of Existing Machine Account</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565381">The System Cannot Log You On (C000019B)</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565458">The Machine Trust Account Is Not Accessible</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565577">Account Disabled</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565604">Domain Controller Unavailable</a></span></dt><dt><span class="sect2"><a href="samba-pdc.html#id2565623">Cannot Log onto Domain Member Workstation After Joining Domain</a></span></dt></dl></dd></dl></div><p>
 There are many who approach MS Windows networking with incredible misconceptions.
 That's okay, because it gives the rest of us plenty of opportunity to be of assistance.
 Those who really want help are well advised to become familiar with information
 that is already available.
 </p><p>
-<a class="indexterm" name="id2561114"></a>
+<a class="indexterm" name="id2561116"></a>
 You are advised not to tackle this section without having first understood
 and mastered some basics. MS Windows networking is not particularly forgiving of
 misconfiguration. Users of MS Windows networking are likely to complain 
@@ -32,14 +32,14 @@ organization.
 Where is the right place to make mistakes? Only out of harms way. If you are going to
 make mistakes, then please do it on a test network, away from users, and in such a way as
 to not inflict pain on others. Do your learning on a test network.
-</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2561252"></a>Features and Benefits</h2></div></div></div><p>
-<a class="indexterm" name="id2561260"></a>
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2561254"></a>Features and Benefits</h2></div></div></div><p>
+<a class="indexterm" name="id2561262"></a>
 <span class="emphasis"><em>What is the key benefit of Microsoft Domain Security?</em></span>
 </p><p>
-<a class="indexterm" name="id2561274"></a>
-<a class="indexterm" name="id2561283"></a>
-<a class="indexterm" name="id2561290"></a>
-<a class="indexterm" name="id2561297"></a>
+<a class="indexterm" name="id2561276"></a>
+<a class="indexterm" name="id2561286"></a>
+<a class="indexterm" name="id2561293"></a>
+<a class="indexterm" name="id2561300"></a>
 In a word, <span class="emphasis"><em>single sign-on</em></span>, or SSO for short. To many, this is the Holy Grail of MS
 Windows NT and beyond networking. SSO allows users in a well-designed network to log onto any workstation that
 is a member of the domain that contains their user account (or in a domain that has an appropriate trust
@@ -47,24 +47,24 @@ relationship with the domain they are visiting) and they will be able to log ont
 resources (shares, files, and printers) as if they are sitting at their home (personal) workstation. This is a
 feature of the domain security protocols.
 </p><p>
-<a class="indexterm" name="id2561325"></a>
-<a class="indexterm" name="id2561332"></a>
-<a class="indexterm" name="id2561339"></a>
-<a class="indexterm" name="id2561348"></a>
-<a class="indexterm" name="id2561357"></a>
+<a class="indexterm" name="id2561327"></a>
+<a class="indexterm" name="id2561334"></a>
+<a class="indexterm" name="id2561341"></a>
+<a class="indexterm" name="id2561350"></a>
+<a class="indexterm" name="id2561359"></a>
 The benefits of domain security are available to those sites that deploy a Samba PDC.  A domain provides a
 unique network security identifier (SID). Domain user and group security identifiers are comprised of the
 network SID plus a relative identifier (RID) that is unique to the account. User and group SIDs (the network
 SID plus the RID) can be used to create access control lists (ACLs) attached to network resources to provide
 organizational access control. UNIX systems recognize only local security identifiers.
 </p><p>
-<a class="indexterm" name="id2561376"></a>
+<a class="indexterm" name="id2561378"></a>
 A SID represents a security context. For example, every Windows machine has local accounts within the security
 context of the local machine which has a unique SID. Every domain (NT4, ADS, Samba) contains accounts that
 exist within the domain security context which is defined by the domain SID.
 </p><p>
-<a class="indexterm" name="id2561391"></a>
-<a class="indexterm" name="id2561397"></a>
+<a class="indexterm" name="id2561393"></a>
+<a class="indexterm" name="id2561400"></a>
 A domain member server will have a SID that differs from the domain SID.  The domain member server can be
 configured to regard all domain users as local users. It can also be configured to recognize domain users and
 groups as non-local. SIDs are persistent. A typical domain of user SID looks like this:
@@ -82,9 +82,9 @@ S-1-5-21-726309263-4128913605-1168186429-500
 </pre><p>
 The result is that every account in the Windows networking world has a globally unique security identifier.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2561444"></a>
-<a class="indexterm" name="id2561453"></a>
-<a class="indexterm" name="id2561460"></a>
+<a class="indexterm" name="id2561447"></a>
+<a class="indexterm" name="id2561456"></a>
+<a class="indexterm" name="id2561463"></a>
 Network clients of an MS Windows domain security environment must be domain members to be able to gain access
 to the advanced features provided. Domain membership involves more than just setting the workgroup name to the
 domain name. It requires the creation of a domain trust account for the workstation (called a machine
@@ -92,44 +92,44 @@ account). Refer to <a class="link" href="domain-member.html" title="Chapter 6. D
 </p></div><p>
 The following functionalities are new to the Samba-3 release:
 </p><div class="itemizedlist"><ul type="disc"><li><p>
-	<a class="indexterm" name="id2561494"></a>
+	<a class="indexterm" name="id2561496"></a>
 	Samba-3 supports the use of a choice of backends that may be used in which user, group and machine
 	accounts may be stored. Multiple passwd backends can be used in combination, either as additive backend
 	data sets, or as fail-over data sets.
 	</p><p>
-	<a class="indexterm" name="id2561511"></a>
-	<a class="indexterm" name="id2561517"></a>
-	<a class="indexterm" name="id2561524"></a>
-	<a class="indexterm" name="id2561531"></a>
-	<a class="indexterm" name="id2561538"></a>
+	<a class="indexterm" name="id2561513"></a>
+	<a class="indexterm" name="id2561520"></a>
+	<a class="indexterm" name="id2561527"></a>
+	<a class="indexterm" name="id2561534"></a>
+	<a class="indexterm" name="id2561540"></a>
 	An LDAP passdb backend confers the benefit that the account backend can be distributed and replicated,
 	which is of great value because it confers scalability and provides a high degree of reliability. 
 	</p></li><li><p>
-	<a class="indexterm" name="id2561552"></a>
-	<a class="indexterm" name="id2561564"></a>
-	<a class="indexterm" name="id2561573"></a>
+	<a class="indexterm" name="id2561555"></a>
+	<a class="indexterm" name="id2561567"></a>
+	<a class="indexterm" name="id2561576"></a>
 	Windows NT4 domain trusts. Samba-3 supports workstation and server (machine) trust accounts. It also
 	supports Windows NT4 style interdomain trust accounts, which further assists in network scalability
 	and interoperability.
 	</p></li><li><p>
-	<a class="indexterm" name="id2561589"></a>
-	<a class="indexterm" name="id2561595"></a>
-	<a class="indexterm" name="id2561602"></a>
-	<a class="indexterm" name="id2561609"></a>
-	<a class="indexterm" name="id2561618"></a>
-	<a class="indexterm" name="id2561628"></a>
+	<a class="indexterm" name="id2561591"></a>
+	<a class="indexterm" name="id2561598"></a>
+	<a class="indexterm" name="id2561605"></a>
+	<a class="indexterm" name="id2561612"></a>
+	<a class="indexterm" name="id2561621"></a>
+	<a class="indexterm" name="id2561630"></a>
 	Operation without NetBIOS over TCP/IP, rather using the raw SMB over TCP/IP. Note, this is feasible
 	only when operating as a Microsoft active directory domain member server. When acting as a Samba domain
 	controller the use of NetBIOS is necessary to provide network browsing support.
 	</p></li><li><p>
-	<a class="indexterm" name="id2561646"></a>
-	<a class="indexterm" name="id2561653"></a>
-	<a class="indexterm" name="id2561660"></a>
+	<a class="indexterm" name="id2561649"></a>
+	<a class="indexterm" name="id2561655"></a>
+	<a class="indexterm" name="id2561662"></a>
 	Samba-3 provides NetBIOS name services (WINS), NetBIOS over TCP/IP (TCP port 139) session services, SMB over
 	TCP/IP (TCP port 445) session services, and Microsoft compatible ONC DCE RPC services (TCP port 135)
 	services.
 	</p></li><li><p>
-	<a class="indexterm" name="id2561675"></a>
+	<a class="indexterm" name="id2561677"></a>
 	Management of users and groups via the User Manager for Domains. This can be done on any MS Windows client
 	using the <code class="filename">Nexus.exe</code> toolkit for Windows 9x/Me, or using the SRVTOOLS.EXE package for MS
 	Windows NT4/200x/XP platforms. These packages are available from Microsoft's Web site.
@@ -139,55 +139,55 @@ The following functionalities are new to the Samba-3 release:
 	</p></li></ul></div><p>
 The following functionalities are not provided by Samba-3:
 </p><div class="itemizedlist"><ul type="disc"><li><p>
-	<a class="indexterm" name="id2561712"></a>
-	<a class="indexterm" name="id2561719"></a>
+	<a class="indexterm" name="id2561715"></a>
+	<a class="indexterm" name="id2561721"></a>
 	SAM replication with Windows NT4 domain controllers (i.e., a Samba PDC and a Windows NT BDC, or vice versa).
 	This means Samba cannot operate as a BDC when the PDC is Microsoft-based Windows NT PDC. Samba-3 can not
 	participate in replication of account data to Windows PDCs and BDCs.
 	</p></li><li><p>
-	<a class="indexterm" name="id2561735"></a>
-	<a class="indexterm" name="id2561741"></a>
+	<a class="indexterm" name="id2561737"></a>
+	<a class="indexterm" name="id2561744"></a>
 	Acting as a Windows 2000 active directory domain controller (i.e., Kerberos and Active Directory). In point of
 	fact, Samba-3 does have some Active Directory domain control ability that is at this time purely experimental.
 	Active directory domain control is one of the features that is being developed in Samba-4, the next
 	generation Samba release. At this time there are no plans to enable active directory domain control
 	support during the Samba-3 series life-cycle.
 	</p></li><li><p>
-	<a class="indexterm" name="id2561761"></a>
-	<a class="indexterm" name="id2561767"></a>
-	<a class="indexterm" name="id2561774"></a>
+	<a class="indexterm" name="id2561763"></a>
+	<a class="indexterm" name="id2561770"></a>
+	<a class="indexterm" name="id2561777"></a>
 	The Windows 200x/XP Microsoft Management Console (MMC) cannot be used to manage a Samba-3 server. For this you
 	can use only the MS Windows NT4 Domain Server Manager and the MS Windows NT4 Domain User Manager. Both are
 	part of the SVRTOOLS.EXE package mentioned later.
 	</p></li></ul></div><p>
-<a class="indexterm" name="id2561792"></a>
-<a class="indexterm" name="id2561799"></a>
+<a class="indexterm" name="id2561795"></a>
+<a class="indexterm" name="id2561802"></a>
 Windows 9x/Me/XP Home clients are not true members of a domain for reasons outlined in this chapter. The
 protocol for support of Windows 9x/Me-style network (domain) logons is completely different from NT4/Windows
 200x-type domain logons and has been officially supported for some time. These clients use the old LanMan
 network logon facilities that are supported in Samba since approximately the Samba-1.9.15 series.
 </p><p>
-<a class="indexterm" name="id2561816"></a>
+<a class="indexterm" name="id2561819"></a>
 Samba-3 implements group mapping between Windows NT groups and UNIX groups (this is really quite complicated
 to explain in a short space). This is discussed more fully in <a class="link" href="groupmapping.html" title="Chapter 12. Group Mapping: MS Windows and UNIX">Group Mapping: MS
 Windows and UNIX</a>.
 </p><p>
-<a class="indexterm" name="id2561840"></a>
-<a class="indexterm" name="id2561847"></a>
-<a class="indexterm" name="id2561856"></a>
+<a class="indexterm" name="id2561842"></a>
+<a class="indexterm" name="id2561849"></a>
+<a class="indexterm" name="id2561858"></a>
 Samba-3, like an MS Windows NT4 PDC or a Windows 200x Active Directory, needs to store user and Machine Trust
 Account information in a suitable backend data-store.  Refer to <a class="link" href="domain-member.html#machine-trust-accounts" title="MS Windows Workstation/Server Machine Trust Accounts">MS
 Windows Workstation/Server Machine Trust Accounts</a>. With Samba-3 there can be multiple backends for
 this. A complete discussion of account database backends can be found in <a class="link" href="passdb.html" title="Chapter 11. Account Information Databases">Account
 Information Databases</a>.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2561886"></a>Single Sign-On and Domain Security</h2></div></div></div><p>
-<a class="indexterm" name="id2561894"></a>
-<a class="indexterm" name="id2561903"></a>
-<a class="indexterm" name="id2561910"></a>
-<a class="indexterm" name="id2561917"></a>
-<a class="indexterm" name="id2561924"></a>
-<a class="indexterm" name="id2561930"></a>
-<a class="indexterm" name="id2561937"></a>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2561889"></a>Single Sign-On and Domain Security</h2></div></div></div><p>
+<a class="indexterm" name="id2561897"></a>
+<a class="indexterm" name="id2561906"></a>
+<a class="indexterm" name="id2561912"></a>
+<a class="indexterm" name="id2561919"></a>
+<a class="indexterm" name="id2561926"></a>
+<a class="indexterm" name="id2561933"></a>
+<a class="indexterm" name="id2561940"></a>
 When network administrators  are asked to describe the benefits of Windows NT4 and active directory networking
 the most often mentioned feature is that of single sign-on (SSO). Many companies have implemented SSO
 solutions. The mode of implementation of a single sign-on solution is an important factor in the practice of
@@ -197,16 +197,16 @@ uncommon that users may need to remember more than ten login IDs and passwords. 
 when the password for each system must be changed at regular intervals, and particularly so where password
 uniqueness and history limits are applied.
 </p><p>
-<a class="indexterm" name="id2561961"></a>
+<a class="indexterm" name="id2561963"></a>
 There is a broadly held perception that SSO is the answer to the problem of users having to deal with too many
 information system access credentials (username/password pairs). Many elaborate schemes have been devised to
 make it possible to deliver a user-friendly SSO solution. The trouble is that if this implementation is not
 done correctly, the site may end up paying dearly by way of complexity and management overheads. Simply put,
 many SSO solutions are an administrative nightmare.
 </p><p>
-<a class="indexterm" name="id2561979"></a>
-<a class="indexterm" name="id2561986"></a>
-<a class="indexterm" name="id2561993"></a>
+<a class="indexterm" name="id2561982"></a>
+<a class="indexterm" name="id2561988"></a>
+<a class="indexterm" name="id2561995"></a>
 SSO implementations utilize centralization of all user account information. Depending on environmental
 complexity and the age of the systems over which a SSO solution is implemented, it may not be possible to
 change the solution architecture so as to accomodate a new identity management and user authentication system.
@@ -215,11 +215,11 @@ behalf of the user. The software that gets layered over the old system may simpl
 authentication system. This means that the addition of SSO increases over-all information systems complexity.
 Ideally, the implementation of SSO should reduce complexity and reduce administative overheads.
 </p><p>
-<a class="indexterm" name="id2562015"></a>
-<a class="indexterm" name="id2562022"></a>
-<a class="indexterm" name="id2562032"></a>
-<a class="indexterm" name="id2562041"></a>
-<a class="indexterm" name="id2562048"></a>
+<a class="indexterm" name="id2562018"></a>
+<a class="indexterm" name="id2562025"></a>
+<a class="indexterm" name="id2562034"></a>
+<a class="indexterm" name="id2562043"></a>
+<a class="indexterm" name="id2562050"></a>
 The initial goal of many network administrators is often to create and use a centralized identity management
 system. It is often assumed that such a centralized system will use a single authentication infrastructure
 that can be used by all information systems. The Microsoft Windows NT4 security domain architecture and the
@@ -232,14 +232,14 @@ system it uses because its implementation will be excessively invasive from a re
 because application software has built-in dependencies on particular elements of the way user authentication
 and access control were designed and built.
 </p><p>
-<a class="indexterm" name="id2562096"></a>
-<a class="indexterm" name="id2562103"></a>
-<a class="indexterm" name="id2562109"></a>
-<a class="indexterm" name="id2562117"></a>
-<a class="indexterm" name="id2562124"></a>
-<a class="indexterm" name="id2562131"></a>
-<a class="indexterm" name="id2562137"></a>
-<a class="indexterm" name="id2562144"></a>
+<a class="indexterm" name="id2562098"></a>
+<a class="indexterm" name="id2562105"></a>
+<a class="indexterm" name="id2562112"></a>
+<a class="indexterm" name="id2562119"></a>
+<a class="indexterm" name="id2562126"></a>
+<a class="indexterm" name="id2562133"></a>
+<a class="indexterm" name="id2562140"></a>
+<a class="indexterm" name="id2562147"></a>
 Over the past decade an industry has been developed around the various methods that have been built to get
 around the key limitations of legacy information technology systems. One approach that is often used involves
 the use of a meta-directory. The meta-directory stores user credentials for all disparate information systems
@@ -248,22 +248,22 @@ rigidly enforced work-flow protocol for managing user rights and privileges with
 are provisioned by the new infrastructure makes possible user access to all systems using a single set of user
 credentials.
 </p><p>
-<a class="indexterm" name="id2562166"></a>
-<a class="indexterm" name="id2562176"></a>
-<a class="indexterm" name="id2562185"></a>
-<a class="indexterm" name="id2562195"></a>
+<a class="indexterm" name="id2562168"></a>
+<a class="indexterm" name="id2562178"></a>
+<a class="indexterm" name="id2562188"></a>
+<a class="indexterm" name="id2562197"></a>
 The Organization for the Advancement of Structured Information Standards (OASIS) has developed the Security
 Assertion Markup Language (SAML), a structured method for communication of authentication information. The
 over-all umbrella name for the technologies and methods that deploy SAML is called Federated Identity
 Management (FIM). FIM depends on each system in the complex maze of disparate information systems to
 authenticate their respective users and vouch for secure access to the services each provides.
 </p><p>
-<a class="indexterm" name="id2562214"></a>
-<a class="indexterm" name="id2562223"></a>
-<a class="indexterm" name="id2562230"></a>
-<a class="indexterm" name="id2562237"></a>
-<a class="indexterm" name="id2562244"></a>
-<a class="indexterm" name="id2562250"></a>
+<a class="indexterm" name="id2562216"></a>
+<a class="indexterm" name="id2562226"></a>
+<a class="indexterm" name="id2562233"></a>
+<a class="indexterm" name="id2562240"></a>
+<a class="indexterm" name="id2562247"></a>
+<a class="indexterm" name="id2562252"></a>
 SAML documents can be wrapped in a Simple Object Access Protocol (SOAP) message for the computer-to-computer
 communications needed for Web services. Or they may be passed between Web servers of federated organizations
 that share live services. The Liberty Alliance, an industry group formed to promote federated-identity
@@ -273,11 +273,11 @@ converge when the SAML 2.0 standard is introduced. A few Web access-management p
 but implemention of the technology mostly requires customization to integrate applications and develop user
 interfaces. In a nust-shell, that is why FIM is a big and growing industry.
 </p><p>
-<a class="indexterm" name="id2562286"></a>
-<a class="indexterm" name="id2562293"></a>
-<a class="indexterm" name="id2562299"></a>
-<a class="indexterm" name="id2562306"></a>
-<a class="indexterm" name="id2562313"></a>
+<a class="indexterm" name="id2562288"></a>
+<a class="indexterm" name="id2562295"></a>
+<a class="indexterm" name="id2562302"></a>
+<a class="indexterm" name="id2562309"></a>
+<a class="indexterm" name="id2562316"></a>
 Ignoring the bigger picture, which is beyond the scope of this book, the migration of all user and group
 management to a centralized system is a step in the right direction. It is essential for interoperability
 reasons to locate the identity management system data in a directory such as Microsoft Active Directory
@@ -286,20 +286,20 @@ access (such as LDAP) and that can be coupled with a flexible array of authentic
 kerberos) that use the protocols that are defined by the various general security service application
 programming interface (GSSAPI) services.
 </p><p>
-<a class="indexterm" name="id2562338"></a>
-<a class="indexterm" name="id2562344"></a>
-<a class="indexterm" name="id2562351"></a>
+<a class="indexterm" name="id2562340"></a>
+<a class="indexterm" name="id2562347"></a>
+<a class="indexterm" name="id2562353"></a>
 A growing number of companies provide authentication agents for disparate legacy platforms to permit the use
 of LDAP systems. Thus the use of OpenLDAP, the dominant open source software implementation of the light
 weight directory access protocol standard. This fact, means that by providing support in Samba for the use of
 LDAP and Microsoft ADS make Samba a highly scalable and forward reaching organizational networking technology.
 </p><p>
-<a class="indexterm" name="id2562369"></a>
-<a class="indexterm" name="id2562375"></a>
-<a class="indexterm" name="id2562382"></a>
-<a class="indexterm" name="id2562389"></a>
-<a class="indexterm" name="id2562396"></a>
-<a class="indexterm" name="id2562403"></a>
+<a class="indexterm" name="id2562371"></a>
+<a class="indexterm" name="id2562378"></a>
+<a class="indexterm" name="id2562384"></a>
+<a class="indexterm" name="id2562392"></a>
+<a class="indexterm" name="id2562398"></a>
+<a class="indexterm" name="id2562405"></a>
 Microsoft ADS provides purely proprietary services that, with limitation, can be extended to provide a
 centralized authentication infrastructure. Samba plus LDAP provides a similar opportunity for extension of a
 centralized authentication architecture, but it is the fact that the Samba Team are pro-active in introducing
@@ -307,29 +307,29 @@ the extension of authentication services, using LDAP or otherwise, to applicatio
 source proxy server) through tools such as the <code class="literal">ntlm_auth</code> utility, that does much to create
 sustainable choice and competition in the FIM market place.
 </p><p>
-<a class="indexterm" name="id2562428"></a>
-<a class="indexterm" name="id2562435"></a>
-<a class="indexterm" name="id2562442"></a>
+<a class="indexterm" name="id2562430"></a>
+<a class="indexterm" name="id2562437"></a>
+<a class="indexterm" name="id2562444"></a>
 Primary domain control, if it is to be scalable to meet the needs of large sites, must therefore be capable of
 using LDAP. The rapid adoption of OpenLDAP, and Samba configurations that use it, is ample proof that the era
 of the directory has started. Samba-3 does not demand the use of LDAP, but the demand for a mechanism by which
 user and group identity information can be distributed makes it an an unavoidable option.
 </p><p>
-<a class="indexterm" name="id2562459"></a>
-<a class="indexterm" name="id2562466"></a>
-<a class="indexterm" name="id2562472"></a>
+<a class="indexterm" name="id2562462"></a>
+<a class="indexterm" name="id2562468"></a>
+<a class="indexterm" name="id2562475"></a>
 At this time, the use of Samba based BDCs, necessitates the use of LDAP. The most commonly used LDAP
 implementation used by Samba sites is OpenLDAP. It is possible to use any standards compliant LDAP server.
 Those known to work includes those manufactured by: IBM, CA, Novell (e-Directory), and others.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2562486"></a>Basics of Domain Control</h2></div></div></div><p>
-<a class="indexterm" name="id2562494"></a>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2562489"></a>Basics of Domain Control</h2></div></div></div><p>
+<a class="indexterm" name="id2562497"></a>
 Over the years, public perceptions of what domain control really is has taken on an almost mystical nature.
 Before we branch into a brief overview of domain control, there are three basic types of domain controllers.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562506"></a>Domain Controller Types</h3></div></div></div><div class="itemizedlist"><ul type="disc"><li><p>NT4 style Primary Domain Controller</p></li><li><p>NT4 style Backup Domain Controller</p></li><li><p>ADS Domain Controller</p></li></ul></div><p>
-<a class="indexterm" name="id2562532"></a>
-<a class="indexterm" name="id2562539"></a>
-<a class="indexterm" name="id2562545"></a>
-<a class="indexterm" name="id2562555"></a>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562509"></a>Domain Controller Types</h3></div></div></div><div class="itemizedlist"><ul type="disc"><li><p>NT4 style Primary Domain Controller</p></li><li><p>NT4 style Backup Domain Controller</p></li><li><p>ADS Domain Controller</p></li></ul></div><p>
+<a class="indexterm" name="id2562535"></a>
+<a class="indexterm" name="id2562541"></a>
+<a class="indexterm" name="id2562548"></a>
+<a class="indexterm" name="id2562557"></a>
 The <span class="emphasis"><em>Primary Domain Controller</em></span> or PDC plays an important role in MS Windows NT4. In
 Windows 200x domain control architecture, this role is held by domain controllers.  Folklore dictates that
 because of its role in the MS Windows network, the domain controller should be the most powerful and most
@@ -337,37 +337,37 @@ capable machine in the network.  As strange as it may seem to say this here, goo
 dictates that the entire infrastructure needs to be balanced. It is advisable to invest more in standalone
 (domain member) servers than in the domain controllers.
 </p><p>
-<a class="indexterm" name="id2562583"></a>
-<a class="indexterm" name="id2562589"></a>
-<a class="indexterm" name="id2562596"></a>
-<a class="indexterm" name="id2562603"></a>
-<a class="indexterm" name="id2562610"></a>
+<a class="indexterm" name="id2562585"></a>
+<a class="indexterm" name="id2562592"></a>
+<a class="indexterm" name="id2562598"></a>
+<a class="indexterm" name="id2562605"></a>
+<a class="indexterm" name="id2562612"></a>
 In the case of MS Windows NT4-style domains, it is the PDC that initiates a new domain control database.
 This forms a part of the Windows registry called the Security Account Manager (SAM). It plays a key
 part in NT4-type domain user authentication and in synchronization of the domain authentication
 database with BDCs. 
 </p><p>
-<a class="indexterm" name="id2562627"></a>
-<a class="indexterm" name="id2562639"></a>
-<a class="indexterm" name="id2562646"></a>
-<a class="indexterm" name="id2562655"></a>
+<a class="indexterm" name="id2562630"></a>
+<a class="indexterm" name="id2562642"></a>
+<a class="indexterm" name="id2562648"></a>
+<a class="indexterm" name="id2562658"></a>
 With MS Windows 200x Server-based Active Directory domains, one domain controller initiates a potential
 hierarchy of domain controllers, each with its own area of delegated control. The master domain
 controller has the ability to override any downstream controller, but a downline controller has
 control only over its downline. With Samba-3, this functionality can be implemented using an
 LDAP-based user and machine account backend.
 </p><p>
-<a class="indexterm" name="id2562672"></a>
-<a class="indexterm" name="id2562679"></a>
+<a class="indexterm" name="id2562675"></a>
+<a class="indexterm" name="id2562682"></a>
 New to Samba-3 is the ability to use a backend database that holds the same type of data as the NT4-style SAM
-database (one of the registry files)<sup>[<a name="id2562689" href="#ftn.id2562689" class="footnote">1</a>]</sup>
+database (one of the registry files)<sup>[<a name="id2562691" href="#ftn.id2562691" class="footnote">1</a>]</sup>
 </p><p>
-<a class="indexterm" name="id2562705"></a>
-<a class="indexterm" name="id2562711"></a>
-<a class="indexterm" name="id2562718"></a>
-<a class="indexterm" name="id2562724"></a>
-<a class="indexterm" name="id2562731"></a>
-<a class="indexterm" name="id2562738"></a>
+<a class="indexterm" name="id2562707"></a>
+<a class="indexterm" name="id2562714"></a>
+<a class="indexterm" name="id2562720"></a>
+<a class="indexterm" name="id2562727"></a>
+<a class="indexterm" name="id2562734"></a>
+<a class="indexterm" name="id2562741"></a>
 The <span class="emphasis"><em>Backup Domain Controller</em></span> or BDC plays a key role in servicing network authentication
 requests. The BDC is biased to answer logon requests in preference to the PDC.  On a network segment that has
 a BDC and a PDC, the BDC will most likely service network logon requests. The PDC will answer network logon
@@ -379,13 +379,13 @@ the UDP broadcast protocol. This means that the netlogon server that the windows
 by a number of variables, thus there is no simple determinant of whether a PDC or a BDC will serve a
 particular logon authentication request.
 </p><p>
-<a class="indexterm" name="id2562768"></a>
-<a class="indexterm" name="id2562775"></a>
+<a class="indexterm" name="id2562771"></a>
+<a class="indexterm" name="id2562778"></a>
 A Windows NT4 BDC can be promoted to a PDC. If the PDC is online at the time that a BDC is promoted to PDC,
 the previous PDC is automatically demoted to a BDC. With Samba-3, this is not an automatic operation; the PDC
 and BDC must be manually configured, and other appropriate changes also need to be made.
 </p><p>
-<a class="indexterm" name="id2562791"></a>
+<a class="indexterm" name="id2562793"></a>
 With MS Windows NT4, a decision is made at installation to determine what type of machine the server will be.
 It is possible to promote a BDC to a PDC, and vice versa. The only method Microsoft provide to convert a
 Windows NT4 domain controller to a domain member server or a standalone server is to reinstall it. The install
@@ -393,28 +393,28 @@ time choices offered are:
 </p><div class="itemizedlist"><ul type="disc"><li><p><span class="emphasis"><em>Primary Domain Controller</em></span>  the one that seeds the domain SAM.</p></li><li><p><span class="emphasis"><em>Backup Domain Controller</em></span>  one that obtains a copy of the domain SAM.</p></li><li><p><span class="emphasis"><em>Domain Member Server</em></span>  one that has no copy of the domain SAM; rather
 		it obtains authentication from a domain controller for all access controls.</p></li><li><p><span class="emphasis"><em>Standalone Server</em></span>  one that plays no part in SAM synchronization,
 		has its own authentication database, and plays no role in domain security.</p></li></ul></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2562860"></a>
+<a class="indexterm" name="id2562862"></a>
 Algin Technology LLC provide a commercial tool that makes it possible to promote a Windows NT4 standalone
 server to a PDC or a BDC, and also permits this process to be reversed. Refer to the <a class="ulink" href="http://utools.com/UPromote.asp" target="_top">Algin</a> web site for further information.
 </p></div><p>
-<a class="indexterm" name="id2562879"></a>
-<a class="indexterm" name="id2562891"></a>
+<a class="indexterm" name="id2562882"></a>
+<a class="indexterm" name="id2562893"></a>
 Samba-3 servers can readily be converted to and from domain controller roles through simple changes to the
 <code class="filename">smb.conf</code> file. Samba-3 is capable of acting fully as a native member of a Windows 200x server Active
 Directory domain.
 </p><p>
-<a class="indexterm" name="id2562911"></a>
+<a class="indexterm" name="id2562913"></a>
 For the sake of providing a complete picture, MS Windows 2000 domain control configuration is done after the server has been
 installed. Please refer to Microsoft documentation for the procedures that should be followed to convert a
 domain member server to or from a domain control, and to install or remove active directory service support.
 </p><p>
-<a class="indexterm" name="id2562929"></a>
-<a class="indexterm" name="id2562938"></a>
+<a class="indexterm" name="id2562932"></a>
+<a class="indexterm" name="id2562941"></a>
 New to Samba-3 is the ability to function fully as an MS Windows NT4-style domain controller,
 excluding the SAM replication components. However, please be aware that Samba-3 also supports the
 MS Windows 200x domain control protocols.
 </p><p>
-<a class="indexterm" name="id2562954"></a>
+<a class="indexterm" name="id2562957"></a>
 At this time any appearance that Samba-3 is capable of acting as a <span class="emphasis"><em>domain controller</em></span> in
 native ADS mode is limited and experimental in nature.  This functionality should not be used until the Samba
 Team offers formal support for it.  At such a time, the documentation will be revised to duly reflect all
@@ -422,19 +422,19 @@ configuration and management requirements. Samba can act as a NT4-style domain c
 environment. However, there are certain compromises:
 </p><div class="itemizedlist"><ul type="disc"><li><p>No machine policy files.</p></li><li><p>No Group Policy Objects.</p></li><li><p>No synchronously executed Active Directory logon scripts.</p></li><li><p>Can't use Active Directory management tools to manage users and machines.</p></li><li><p>Registry changes tattoo the main registry, while with Active Directory they do not leave
 		permanent changes in effect.</p></li><li><p>Without Active Directory you cannot perform the function of exporting specific
-		applications to specific users or groups.</p></li></ul></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563011"></a>Preparing for Domain Control</h3></div></div></div><p>
-<a class="indexterm" name="id2563019"></a>
-<a class="indexterm" name="id2563026"></a>
-<a class="indexterm" name="id2563033"></a>
-<a class="indexterm" name="id2563040"></a>
+		applications to specific users or groups.</p></li></ul></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563014"></a>Preparing for Domain Control</h3></div></div></div><p>
+<a class="indexterm" name="id2563022"></a>
+<a class="indexterm" name="id2563028"></a>
+<a class="indexterm" name="id2563035"></a>
+<a class="indexterm" name="id2563042"></a>
 There are two ways that MS Windows machines may interact with each other, with other servers,
 and with domain controllers: either as <span class="emphasis"><em>standalone</em></span> systems, more commonly
 called <span class="emphasis"><em>workgroup</em></span> members, or as full participants in a security system,
 more commonly called <span class="emphasis"><em>domain</em></span> members.
 </p><p>
-<a class="indexterm" name="id2563065"></a>
-<a class="indexterm" name="id2563072"></a>
-<a class="indexterm" name="id2563081"></a>
+<a class="indexterm" name="id2563067"></a>
+<a class="indexterm" name="id2563074"></a>
+<a class="indexterm" name="id2563083"></a>
 It should be noted that workgroup membership involves no special configuration other than the machine being
 configured so the network configuration has a commonly used name for its workgroup entry. It is not uncommon
 for the name WORKGROUP to be used for this. With this mode of configuration, there are no Machine Trust
@@ -442,16 +442,16 @@ Accounts, and any concept of membership as such is limited to the fact that all 
 neighborhood to be logically grouped together. Again, just to be clear: <span class="emphasis"><em>workgroup mode does not
 involve security machine accounts</em></span>.
 </p><p>
-<a class="indexterm" name="id2563104"></a>
-<a class="indexterm" name="id2563111"></a>
-<a class="indexterm" name="id2563120"></a>
+<a class="indexterm" name="id2563106"></a>
+<a class="indexterm" name="id2563113"></a>
+<a class="indexterm" name="id2563123"></a>
 Domain member machines have a machine trust account in the domain accounts database. A special procedure
 must be followed on each machine to effect domain membership. This procedure, which can be done
 only by the local machine Administrator account, creates the domain machine account (if it does
 not exist), and then initializes that account. When the client first logs onto the
 domain, a machine trust account password change will be automatically triggered.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2563139"></a>
+<a class="indexterm" name="id2563142"></a>
 When Samba is configured as a domain controller, secure network operation demands that
 all MS Windows NT4/200x/XP Professional clients should be configured as domain members.
 If a machine is not made a member of the domain, then it will operate like a workgroup
@@ -460,14 +460,14 @@ information regarding domain membership.
 </p></div><p>
 The following are necessary for configuring Samba-3 as an MS Windows NT4-style PDC for MS Windows
 NT4/200x/XP clients:
-</p><div class="itemizedlist"><ul type="disc"><li><p>Configuration of basic TCP/IP and MS Windows networking.</p></li><li><p>Correct designation of the server role (<a class="link" href="smb.conf.5.html#SECURITY" target="_top">security = user</a>).</p></li><li><p>Consistent configuration of name resolution.<sup>[<a name="id2563195" href="#ftn.id2563195" class="footnote">2</a>]</sup></p></li><li><p>Domain logons for Windows NT4/200x/XP Professional clients.</p></li><li><p>Configuration of roaming profiles or explicit configuration to force local profile usage.</p></li><li><p>Configuration of network/system policies.</p></li><li><p>Adding and managing domain user accounts.</p></li><li><p>Configuring MS Windows NT4/2000 Professional and Windows XP Professional client machines to become domain members.</p></li></ul></div><p>
+</p><div class="itemizedlist"><ul type="disc"><li><p>Configuration of basic TCP/IP and MS Windows networking.</p></li><li><p>Correct designation of the server role (<a class="link" href="smb.conf.5.html#SECURITY" target="_top">security = user</a>).</p></li><li><p>Consistent configuration of name resolution.<sup>[<a name="id2563197" href="#ftn.id2563197" class="footnote">2</a>]</sup></p></li><li><p>Domain logons for Windows NT4/200x/XP Professional clients.</p></li><li><p>Configuration of roaming profiles or explicit configuration to force local profile usage.</p></li><li><p>Configuration of network/system policies.</p></li><li><p>Adding and managing domain user accounts.</p></li><li><p>Configuring MS Windows NT4/2000 Professional and Windows XP Professional client machines to become domain members.</p></li></ul></div><p>
 The following provisions are required to serve MS Windows 9x/Me clients:
 </p><div class="itemizedlist"><ul type="disc"><li><p>Configuration of basic TCP/IP and MS Windows networking.</p></li><li><p>Correct designation of the server role (<a class="link" href="smb.conf.5.html#SECURITY" target="_top">security = user</a>).</p></li><li><p>Network logon configuration (since Windows 9x/Me/XP Home are not technically domain
 	members, they do not really participate in  the security aspects of Domain logons as such).</p></li><li><p>Roaming profile configuration.</p></li><li><p>Configuration of system policy handling.</p></li><li><p>Installation of the network driver &#8220;<span class="quote">Client for MS Windows Networks</span>&#8221; and configuration
 	to log onto the domain.</p></li><li><p>Placing Windows 9x/Me clients in user-level security  if it is desired to allow
 	all client-share access to be controlled according to domain user/group identities.</p></li><li><p>Adding and managing domain user accounts.</p></li></ul></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2563317"></a>
-<a class="indexterm" name="id2563323"></a>
+<a class="indexterm" name="id2563319"></a>
+<a class="indexterm" name="id2563325"></a>
 Roaming profiles and system/network policies are advanced network administration topics
 that are covered in <a class="link" href="ProfileMgmt.html" title="Chapter 27. Desktop Profile Management">Desktop Profile Management</a> and
 <a class="link" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies">System and Account Policies</a> of this document. However, these are not
@@ -475,102 +475,102 @@ necessarily specific to a Samba PDC as much as they are related to Windows NT ne
 </p></div><p>
 A domain controller is an SMB/CIFS server that:
 </p><div class="itemizedlist"><ul type="disc"><li><p>
-	<a class="indexterm" name="id2563359"></a>
-	<a class="indexterm" name="id2563368"></a>
-	<a class="indexterm" name="id2563375"></a>
-	<a class="indexterm" name="id2563382"></a>
-	<a class="indexterm" name="id2563389"></a>
+	<a class="indexterm" name="id2563362"></a>
+	<a class="indexterm" name="id2563370"></a>
+	<a class="indexterm" name="id2563377"></a>
+	<a class="indexterm" name="id2563384"></a>
+	<a class="indexterm" name="id2563391"></a>
 	Registers and advertises itself as a domain controller (through NetBIOS broadcasts
 	as well as by way of name registrations either by Mailslot Broadcasts over UDP broadcast,
 	to a WINS server over UDP unicast, or via DNS and Active Directory).
 	</p></li><li><p>
-	<a class="indexterm" name="id2563404"></a>
-	<a class="indexterm" name="id2563411"></a>
+	<a class="indexterm" name="id2563407"></a>
+	<a class="indexterm" name="id2563413"></a>
 	Provides the NETLOGON service. (This is actually a collection of services that runs over
 	multiple protocols. These include the LanMan logon service, the Netlogon service,
 	the Local Security Account service, and variations of them.)
 	</p></li><li><p>
 	Provides a share called NETLOGON.
 	</p></li></ul></div><p>
-<a class="indexterm" name="id2563431"></a>
-<a class="indexterm" name="id2563443"></a>
-<a class="indexterm" name="id2563455"></a>
-<a class="indexterm" name="id2563462"></a>
-<a class="indexterm" name="id2563468"></a>
+<a class="indexterm" name="id2563434"></a>
+<a class="indexterm" name="id2563446"></a>
+<a class="indexterm" name="id2563457"></a>
+<a class="indexterm" name="id2563464"></a>
+<a class="indexterm" name="id2563471"></a>
 It is rather easy to configure Samba to provide these. Each Samba domain controller must provide the NETLOGON
 service that Samba calls the <a class="link" href="smb.conf.5.html#DOMAINLOGONS" target="_top">domain logons</a> functionality (after the name of the
 parameter in the <code class="filename">smb.conf</code> file). Additionally, one server in a Samba-3 domain must advertise itself as the
-domain master browser.<sup>[<a name="id2563500" href="#ftn.id2563500" class="footnote">3</a>]</sup> This causes the PDC to claim a domain-specific NetBIOS name that identifies
+domain master browser.<sup>[<a name="id2563502" href="#ftn.id2563502" class="footnote">3</a>]</sup> This causes the PDC to claim a domain-specific NetBIOS name that identifies
 it as a DMB for its given domain or workgroup. Local master browsers (LMBs) in the same domain or workgroup on
 broadcast-isolated subnets then ask for a complete copy of the browse list for the whole wide-area network.
 Browser clients then contact their LMB, and will receive the domain-wide browse list instead of just the list
 for their broadcast-isolated subnet.
-</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2563522"></a>Domain Control: Example Configuration</h2></div></div></div><p>
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2563524"></a>Domain Control: Example Configuration</h2></div></div></div><p>
 The first step in creating a working Samba PDC is to understand the parameters necessary
 in <code class="filename">smb.conf</code>. An example <code class="filename">smb.conf</code> for acting as a PDC can be found in <a class="link" href="samba-pdc.html#pdc-example" title="Example 4.1. smb.conf for being a PDC">the
 smb.conf file for an example PDC</a>. 
-</p><div class="example"><a name="pdc-example"></a><p class="title"><b>Example 4.1. smb.conf for being a PDC</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2563577"></a></td></tr><tr><td><a class="indexterm" name="id2563584"></a></td></tr><tr><td><a class="indexterm" name="id2563590"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id2563602"></a><em class="parameter"><code>os level = 33</code></em></td></tr><tr><td><a class="indexterm" name="id2563614"></a><em class="parameter"><code>preferred master = auto</code></em></td></tr><tr><td><a class="indexterm" name="id2563626"></a><em class="parameter"><code>domain master = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563637"></a><em class="parameter"><code>local master = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563649"></a><em class="parameter"><code>security = user</code></em></td></tr><tr><td><a class="indexterm" name="id2563661"></a><em class="parameter"><code>domain logons = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563672"></a><em class="parameter"><code>logon path = \\%N\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2563684"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id2563696"></a><em class="parameter"><code>logon home = \\homeserver\%U\winprofile</code></em></td></tr><tr><td><a class="indexterm" name="id2563708"></a><em class="parameter"><code>logon script = logon.cmd</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2563729"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2563741"></a><em class="parameter"><code>read only = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563752"></a></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2563768"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2563780"></a><em class="parameter"><code>read only = no</code></em></td></tr><tr><td><a class="indexterm" name="id2563791"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2563803"></a><em class="parameter"><code>directory mask = 0700</code></em></td></tr></table></div></div><br class="example-break"><p>
+</p><div class="example"><a name="pdc-example"></a><p class="title"><b>Example 4.1. smb.conf for being a PDC</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2563579"></a></td></tr><tr><td><a class="indexterm" name="id2563586"></a></td></tr><tr><td><a class="indexterm" name="id2563593"></a><em class="parameter"><code>passdb backend = tdbsam</code></em></td></tr><tr><td><a class="indexterm" name="id2563605"></a><em class="parameter"><code>os level = 33</code></em></td></tr><tr><td><a class="indexterm" name="id2563616"></a><em class="parameter"><code>preferred master = auto</code></em></td></tr><tr><td><a class="indexterm" name="id2563628"></a><em class="parameter"><code>domain master = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563640"></a><em class="parameter"><code>local master = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563652"></a><em class="parameter"><code>security = user</code></em></td></tr><tr><td><a class="indexterm" name="id2563663"></a><em class="parameter"><code>domain logons = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563675"></a><em class="parameter"><code>logon path = \\%N\profiles\%U</code></em></td></tr><tr><td><a class="indexterm" name="id2563687"></a><em class="parameter"><code>logon drive = H:</code></em></td></tr><tr><td><a class="indexterm" name="id2563698"></a><em class="parameter"><code>logon home = \\homeserver\%U\winprofile</code></em></td></tr><tr><td><a class="indexterm" name="id2563710"></a><em class="parameter"><code>logon script = logon.cmd</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2563731"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2563743"></a><em class="parameter"><code>read only = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2563755"></a></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[profiles]</code></em></td></tr><tr><td><a class="indexterm" name="id2563770"></a><em class="parameter"><code>path = /var/lib/samba/profiles</code></em></td></tr><tr><td><a class="indexterm" name="id2563782"></a><em class="parameter"><code>read only = no</code></em></td></tr><tr><td><a class="indexterm" name="id2563794"></a><em class="parameter"><code>create mask = 0600</code></em></td></tr><tr><td><a class="indexterm" name="id2563806"></a><em class="parameter"><code>directory mask = 0700</code></em></td></tr></table></div></div><br class="example-break"><p>
 The basic options shown in <a class="link" href="samba-pdc.html#pdc-example" title="Example 4.1. smb.conf for being a PDC">this example</a> are explained as follows:
 </p><div class="variablelist"><dl><dt><span class="term">passdb backend </span></dt><dd><p>
-		<a class="indexterm" name="id2563837"></a>
-		<a class="indexterm" name="id2563846"></a>
-		<a class="indexterm" name="id2563853"></a>
-		<a class="indexterm" name="id2563860"></a>
-		<a class="indexterm" name="id2563867"></a>
-		<a class="indexterm" name="id2563874"></a>
+		<a class="indexterm" name="id2563840"></a>
+		<a class="indexterm" name="id2563849"></a>
+		<a class="indexterm" name="id2563856"></a>
+		<a class="indexterm" name="id2563862"></a>
+		<a class="indexterm" name="id2563869"></a>
+		<a class="indexterm" name="id2563876"></a>
 		This contains all the user and group account information. Acceptable values for a PDC
 		are: <span class="emphasis"><em>smbpasswd, tdbsam, and ldapsam</em></span>. The &#8220;<span class="quote">guest</span>&#8221; entry provides
 		default accounts and is included by default; there is no need to add it explicitly.
 		</p><p>
-		<a class="indexterm" name="id2563895"></a>
-		<a class="indexterm" name="id2563902"></a>
-		<a class="indexterm" name="id2563909"></a>
-		<a class="indexterm" name="id2563915"></a>
+		<a class="indexterm" name="id2563897"></a>
+		<a class="indexterm" name="id2563904"></a>
+		<a class="indexterm" name="id2563911"></a>
+		<a class="indexterm" name="id2563918"></a>
 		Where use of BDCs is intended, the only logical choice is
 		to use LDAP so the passdb backend can be distributed. The tdbsam and smbpasswd files
 		cannot effectively be distributed and therefore should not be used.
 		</p></dd><dt><span class="term">Domain Control Parameters </span></dt><dd><p>
-		<a class="indexterm" name="id2563936"></a>
-		<a class="indexterm" name="id2563943"></a>
-		<a class="indexterm" name="id2563950"></a>
-		<a class="indexterm" name="id2563957"></a>
+		<a class="indexterm" name="id2563939"></a>
+		<a class="indexterm" name="id2563946"></a>
+		<a class="indexterm" name="id2563952"></a>
+		<a class="indexterm" name="id2563959"></a>
 		The parameters <span class="emphasis"><em>os level, preferred master, domain master, security, 
 		encrypt passwords</em></span>, and <span class="emphasis"><em>domain logons</em></span> play a central role in assuring domain
 		control and network logon support.
 		</p><p>
-		<a class="indexterm" name="id2563980"></a>
-		<a class="indexterm" name="id2563986"></a>
+		<a class="indexterm" name="id2563982"></a>
+		<a class="indexterm" name="id2563989"></a>
 		The <span class="emphasis"><em>os level</em></span> must be set at or above a value of 32. A domain controller
 		must be the DMB, must be set in <span class="emphasis"><em>user</em></span> mode security,
 		must support Microsoft-compatible encrypted passwords, and must provide the network logon
 		service (domain logons). Encrypted passwords must be enabled. For more details on how 
 		to do this, refer to <a class="link" href="passdb.html" title="Chapter 11. Account Information Databases">Account Information Databases</a>.
 		</p></dd><dt><span class="term">Environment Parameters </span></dt><dd><p>
-		<a class="indexterm" name="id2564023"></a>
-		<a class="indexterm" name="id2564030"></a>
-		<a class="indexterm" name="id2564037"></a>
-		<a class="indexterm" name="id2564044"></a>
+		<a class="indexterm" name="id2564026"></a>
+		<a class="indexterm" name="id2564033"></a>
+		<a class="indexterm" name="id2564039"></a>
+		<a class="indexterm" name="id2564046"></a>
 		The parameters <span class="emphasis"><em>logon path, logon home, logon drive</em></span>, and <span class="emphasis"><em>logon script</em></span> are
 		environment support settings that help to facilitate client logon operations and that help
 		to provide automated control facilities to ease network management overheads. Please refer
 		to the man page information for these parameters.
 		</p></dd><dt><span class="term">NETLOGON Share </span></dt><dd><p>
-		<a class="indexterm" name="id2564073"></a>
-		<a class="indexterm" name="id2564080"></a>
-		<a class="indexterm" name="id2564087"></a>
-		<a class="indexterm" name="id2564094"></a>
-		<a class="indexterm" name="id2564101"></a>
-		<a class="indexterm" name="id2564108"></a>
+		<a class="indexterm" name="id2564076"></a>
+		<a class="indexterm" name="id2564082"></a>
+		<a class="indexterm" name="id2564089"></a>
+		<a class="indexterm" name="id2564096"></a>
+		<a class="indexterm" name="id2564103"></a>
+		<a class="indexterm" name="id2564110"></a>
 		The NETLOGON share plays a central role in domain logon and domain membership support.
 		This share is provided on all Microsoft domain controllers. It is used to provide logon
 		scripts, to store group policy files (NTConfig.POL), as well as to locate other common
 		tools that may be needed for logon processing. This is an essential share on a domain controller.
 		</p></dd><dt><span class="term">PROFILE Share </span></dt><dd><p>
-		<a class="indexterm" name="id2564131"></a>
-		<a class="indexterm" name="id2564138"></a>
-		<a class="indexterm" name="id2564144"></a>
-		<a class="indexterm" name="id2564151"></a>
-		<a class="indexterm" name="id2564158"></a>
+		<a class="indexterm" name="id2564133"></a>
+		<a class="indexterm" name="id2564140"></a>
+		<a class="indexterm" name="id2564147"></a>
+		<a class="indexterm" name="id2564154"></a>
+		<a class="indexterm" name="id2564160"></a>
 		This share is used to store user desktop profiles. Each user must have a directory at the root
 		of this share. This directory must be write-enabled for the user and must be globally read-enabled.
 		Samba-3 has a VFS module called &#8220;<span class="quote">fake_permissions</span>&#8221; that may be installed on this share. This will
@@ -580,12 +580,12 @@ The basic options shown in <a class="link" href="samba-pdc.html#pdc-example" tit
 The above parameters make for a full set of functionality that may define the server's mode
 of operation. The following <code class="filename">smb.conf</code> parameters are the essentials alone:
 </p><p>
-</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2564198"></a><em class="parameter"><code>netbios name = BELERIAND</code></em></td></tr><tr><td><a class="indexterm" name="id2564210"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2564222"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564234"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564245"></a><em class="parameter"><code>security = User</code></em></td></tr></table><p>
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2564201"></a><em class="parameter"><code>netbios name = BELERIAND</code></em></td></tr><tr><td><a class="indexterm" name="id2564213"></a><em class="parameter"><code>workgroup = MIDEARTH</code></em></td></tr><tr><td><a class="indexterm" name="id2564224"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564236"></a><em class="parameter"><code>domain master = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564248"></a><em class="parameter"><code>security = User</code></em></td></tr></table><p>
 </p><p>
 The additional parameters shown in the longer listing in this section just make for
 a more complete explanation.
-</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2564264"></a>Samba ADS Domain Control</h2></div></div></div><p>
-<a class="indexterm" name="id2564272"></a>
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2564267"></a>Samba ADS Domain Control</h2></div></div></div><p>
+<a class="indexterm" name="id2564275"></a>
 Samba-3 is not, and cannot act as, an Active Directory server. It cannot truly function as an Active Directory
 PDC. The protocols for some of the functionality of Active Directory domain controllers has been partially
 implemented on an experimental only basis. Please do not expect Samba-3 to support these protocols. Do not
@@ -594,24 +594,24 @@ features or may change their behavior. This is mentioned for the benefit of thos
 capabilities in Samba-3 and who have asked when this functionality will be completed. The answer is maybe
 someday or maybe never!
 </p><p>
-<a class="indexterm" name="id2564294"></a>
-<a class="indexterm" name="id2564301"></a>
+<a class="indexterm" name="id2564296"></a>
+<a class="indexterm" name="id2564303"></a>
 To be sure, Samba-3 is designed to provide most of the functionality that Microsoft Windows NT4-style
 domain controllers have. Samba-3 does not have all the capabilities of Windows NT4, but it does have
 a number of features that Windows NT4 domain controllers do not have. In short, Samba-3 is not NT4 and it
 is not Windows Server 200x: it is not an Active Directory server. We hope this is plain and simple
 enough for all to understand.
-</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2564317"></a>Domain and Network Logon Configuration</h2></div></div></div><p>
-<a class="indexterm" name="id2564325"></a>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2564320"></a>Domain and Network Logon Configuration</h2></div></div></div><p>
+<a class="indexterm" name="id2564328"></a>
 The subject of network or domain logons is discussed here because it forms
 an integral part of the essential functionality that is provided by a domain controller.
-</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564336"></a>Domain Network Logon Service</h3></div></div></div><p>
-<a class="indexterm" name="id2564344"></a>
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564339"></a>Domain Network Logon Service</h3></div></div></div><p>
+<a class="indexterm" name="id2564347"></a>
 All domain controllers must run the netlogon service (<span class="emphasis"><em>domain logons</em></span>
 in Samba). One domain controller must be configured with <a class="link" href="smb.conf.5.html#DOMAINMASTER" target="_top">domain master = Yes</a>
 (the PDC); on all BDCs set the parameter <a class="link" href="smb.conf.5.html#DOMAINMASTER" target="_top">domain master = No</a>.
-</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564384"></a>Example Configuration</h4></div></div></div><div class="example"><a name="PDC-config"></a><p class="title"><b>Example 4.2. smb.conf for being a PDC</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2564413"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564425"></a><em class="parameter"><code>domain master = (Yes on PDC, No on BDCs)</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2564445"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2564457"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2564469"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564481"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564494"></a>The Special Case of MS Windows XP Home Edition</h4></div></div></div><p>
-<a class="indexterm" name="id2564503"></a>
+</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564386"></a>Example Configuration</h4></div></div></div><div class="example"><a name="PDC-config"></a><p class="title"><b>Example 4.2. smb.conf for being a PDC</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2564416"></a><em class="parameter"><code>domain logons = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564428"></a><em class="parameter"><code>domain master = (Yes on PDC, No on BDCs)</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[netlogon]</code></em></td></tr><tr><td><a class="indexterm" name="id2564448"></a><em class="parameter"><code>comment = Network Logon Service</code></em></td></tr><tr><td><a class="indexterm" name="id2564460"></a><em class="parameter"><code>path = /var/lib/samba/netlogon</code></em></td></tr><tr><td><a class="indexterm" name="id2564472"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2564483"></a><em class="parameter"><code>browseable = No</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564497"></a>The Special Case of MS Windows XP Home Edition</h4></div></div></div><p>
+<a class="indexterm" name="id2564505"></a>
 To be completely clear: If you want MS Windows XP Home Edition to integrate with your
 MS Windows NT4 or Active Directory domain security, understand it cannot be done.
 The only option is to purchase the upgrade from MS Windows XP Home Edition to
@@ -625,12 +625,12 @@ Now that this has been said, please do not ask the mailing list or email any of 
 Samba Team members with your questions asking how to make this work. It can't be done.
 If it can be done, then to do so would violate your software license agreement with
 Microsoft, and we recommend that you do not do that.
-</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564533"></a>The Special Case of Windows 9x/Me</h4></div></div></div><p>
-<a class="indexterm" name="id2564541"></a>
-<a class="indexterm" name="id2564548"></a>
-<a class="indexterm" name="id2564555"></a>
-<a class="indexterm" name="id2564562"></a>
-<a class="indexterm" name="id2564568"></a>
+</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2564536"></a>The Special Case of Windows 9x/Me</h4></div></div></div><p>
+<a class="indexterm" name="id2564544"></a>
+<a class="indexterm" name="id2564550"></a>
+<a class="indexterm" name="id2564557"></a>
+<a class="indexterm" name="id2564564"></a>
+<a class="indexterm" name="id2564571"></a>
 A domain and a workgroup are exactly the same in terms of network
 browsing. The difference is that a distributable authentication
 database is associated with a domain, for secure login access to a
@@ -638,22 +638,22 @@ network. Also, different access rights can be granted to users if they
 successfully authenticate against a domain logon server. Samba-3 does this
 now in the same way as MS Windows NT/200x.
 </p><p>
-<a class="indexterm" name="id2564585"></a>
+<a class="indexterm" name="id2564588"></a>
 The SMB client logging on to a domain has an expectation that every other
 server in the domain should accept the same authentication information.
 Network browsing functionality of domains and workgroups is identical and
 is explained in this documentation under the browsing discussions.
 It should be noted that browsing is totally orthogonal to logon support.
 </p><p>
-<a class="indexterm" name="id2564601"></a>
-<a class="indexterm" name="id2564608"></a>
-<a class="indexterm" name="id2564615"></a>
+<a class="indexterm" name="id2564604"></a>
+<a class="indexterm" name="id2564611"></a>
+<a class="indexterm" name="id2564618"></a>
 Issues related to the single-logon network model are discussed in this
 section. Samba supports domain logons, network logon scripts, and user
 profiles for MS Windows for Workgroups and MS Windows 9x/Me clients,
 which are the focus of this section.
 </p><p>
-<a class="indexterm" name="id2564629"></a>
+<a class="indexterm" name="id2564632"></a>
 When an SMB client in a domain wishes to log on, it broadcasts requests for a logon server. The first one to
 reply gets the job and validates its password using whatever mechanism the Samba administrator has installed.
 It is possible (but ill advised) to create a domain where the user database is not shared between servers;
@@ -669,8 +669,8 @@ MS Windows XP Home edition is not able to join a domain and does not permit the 
 Before launching into the configuration instructions, it is worthwhile to look at how a Windows 9x/Me client
 performs a logon:
 </p><div class="orderedlist"><ol type="1"><li><p>
-	<a class="indexterm" name="id2564676"></a>
-	<a class="indexterm" name="id2564683"></a>
+	<a class="indexterm" name="id2564678"></a>
+	<a class="indexterm" name="id2564685"></a>
 	The client broadcasts (to the IP broadcast address of the subnet it is in)
 	a NetLogon request. This is sent to the NetBIOS name DOMAIN&lt;1C&gt; at the
 	NetBIOS layer. The client chooses the first response it receives, which
@@ -679,13 +679,13 @@ performs a logon:
 	type that is registered by domain controllers (SMB/CIFS servers that provide
 	the netlogon service).
 	</p></li><li><p>
-	<a class="indexterm" name="id2564724"></a>
-	<a class="indexterm" name="id2564731"></a>
-	<a class="indexterm" name="id2564738"></a>
+	<a class="indexterm" name="id2564727"></a>
+	<a class="indexterm" name="id2564734"></a>
+	<a class="indexterm" name="id2564741"></a>
 	The client connects to that server, logs on (does an SMBsessetupX) and
 	then connects to the IPC$ share (using an SMBtconX).
 	</p></li><li><p>
-	<a class="indexterm" name="id2564754"></a>
+	<a class="indexterm" name="id2564756"></a>
 	The client does a NetWkstaUserLogon request, which retrieves the name
 	of the user's logon script. 
 	</p></li><li><p>
@@ -693,60 +693,60 @@ performs a logon:
 	If it is found and can be read, it is retrieved and executed by the client.
 	After this, the client disconnects from the NetLogon share.
 	</p></li><li><p>
-	<a class="indexterm" name="id2564779"></a>
-	<a class="indexterm" name="id2564786"></a>
+	<a class="indexterm" name="id2564782"></a>
+	<a class="indexterm" name="id2564788"></a>
 	The client sends a NetUserGetInfo request to the server to retrieve
 	the user's home share, which is used to search for profiles. Since the
 	response to the NetUserGetInfo request does not contain much more than	
 	the user's home share, profiles for Windows 9x clients must reside in the user
 	home directory.
 	</p></li><li><p>
-	<a class="indexterm" name="id2564804"></a>
+	<a class="indexterm" name="id2564807"></a>
 	The client connects to the user's home share and searches for the 
 	user's profile. As it turns out, you can specify the user's home share as
 	a share name and path. For example, <code class="filename">\\server\fred\.winprofile</code>.
 	If the profiles are found, they are implemented.
 	</p></li><li><p>
-	<a class="indexterm" name="id2564828"></a>
+	<a class="indexterm" name="id2564830"></a>
 	The client then disconnects from the user's home share and reconnects to
 	the NetLogon share and looks for <code class="filename">CONFIG.POL</code>, the policies file. If this is
 	found, it is read and implemented.
 	</p></li></ol></div><p>
 The main difference between a PDC and a Windows 9x/Me logon server configuration is:
 </p><div class="itemizedlist"><ul type="disc"><li><p>
-	<a class="indexterm" name="id2564857"></a>
-	<a class="indexterm" name="id2564866"></a>
+	<a class="indexterm" name="id2564860"></a>
+	<a class="indexterm" name="id2564869"></a>
 	Password encryption is not required for a Windows 9x/Me logon server. But note
 	that beginning with MS Windows 98 the default setting is that plaintext
 	password support is disabled. It can be re-enabled with the registry
 	changes that are documented in <a class="link" href="PolicyMgmt.html" title="Chapter 26. System and Account Policies">System and Account Policies</a>.
 	</p></li><li><p>
-	<a class="indexterm" name="id2564889"></a>
+	<a class="indexterm" name="id2564892"></a>
 	Windows 9x/Me clients do not require and do not use Machine Trust Accounts.
 	</p></li></ul></div><p>
-<a class="indexterm" name="id2564902"></a>
+<a class="indexterm" name="id2564904"></a>
 A Samba PDC will act as a Windows 9x/Me logon server; after all, it does provide the
 network logon services that MS Windows 9x/Me expect to find.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2564916"></a>
+<a class="indexterm" name="id2564918"></a>
 Use of plaintext passwords is strongly discouraged. Where used they are easily detected
 using a sniffer tool to examine network traffic.
-</p></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564928"></a>Security Mode and Master Browsers</h3></div></div></div><p>
-<a class="indexterm" name="id2564936"></a>
-<a class="indexterm" name="id2564943"></a>
-<a class="indexterm" name="id2564950"></a>
+</p></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564930"></a>Security Mode and Master Browsers</h3></div></div></div><p>
+<a class="indexterm" name="id2564939"></a>
+<a class="indexterm" name="id2564946"></a>
+<a class="indexterm" name="id2564952"></a>
 There are a few comments to make in order to tie up some loose ends. There has been much debate over the issue
 of whether it is okay to configure Samba as a domain controller that operates with security mode other than
 user-mode. The only security mode that will not work due to technical reasons is share-mode security. Domain
 and server mode security are really just a variation on SMB user-level security.
 </p><p>
-<a class="indexterm" name="id2564967"></a>
-<a class="indexterm" name="id2564974"></a>
-<a class="indexterm" name="id2564981"></a>
-<a class="indexterm" name="id2564987"></a>
-<a class="indexterm" name="id2564994"></a>
-<a class="indexterm" name="id2565001"></a>
-<a class="indexterm" name="id2565008"></a>
+<a class="indexterm" name="id2564976"></a>
+<a class="indexterm" name="id2564983"></a>
+<a class="indexterm" name="id2564990"></a>
+<a class="indexterm" name="id2564997"></a>
+<a class="indexterm" name="id2565003"></a>
+<a class="indexterm" name="id2565010"></a>
+<a class="indexterm" name="id2565017"></a>
 Actually, this issue is also closely tied to the debate on whether Samba must be the DMB for its workgroup
 when operating as a domain controller.  In a pure Microsoft Windows NT domain, the PDC wins the election to be
 the DMB, and then registers the DOMAIN&lt;1B&gt; NetBIOS name. This is not the name used by Windows clients
@@ -757,11 +757,11 @@ DMB, if it loses that election it will report a continuous and rapid sequence of
 Windows event logger complaining that it has lost the election to become a DMB.  For this reason, in networks
 where a Samba server is the PDC it is wise to configure the Samba domain controller as the DMB.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2565062"></a>
-<a class="indexterm" name="id2565068"></a>
-<a class="indexterm" name="id2565075"></a>
-<a class="indexterm" name="id2565082"></a>
-<a class="indexterm" name="id2565089"></a>
+<a class="indexterm" name="id2565071"></a>
+<a class="indexterm" name="id2565078"></a>
+<a class="indexterm" name="id2565085"></a>
+<a class="indexterm" name="id2565092"></a>
+<a class="indexterm" name="id2565099"></a>
 SMB/CIFS servers that register the DOMAIN&lt;1C&gt; name do so because they provide the network logon
 service. Server that register the DOMAIN&lt;1B&gt; name are DMBs  meaning that they are responsible
 for browse list synchronization across all machines that have registered the DOMAIN&lt;1D&gt; name. The later
@@ -782,15 +782,15 @@ Configuring a Samba box as a domain controller for a domain that already by defi
 PDC is asking for trouble. Therefore, you should always configure the Samba domain controller
 to be the DMB for its domain and set <a class="link" href="smb.conf.5.html#SECURITY" target="_top">security = user</a>.
 This is the only officially supported mode of operation.
-</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2565201"></a>Common Errors</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565206"></a>&#8220;<span class="quote">$</span>&#8221; Cannot Be Included in Machine Name</h3></div></div></div><p>
-<a class="indexterm" name="id2565217"></a>
-<a class="indexterm" name="id2565223"></a>
-<a class="indexterm" name="id2565230"></a>
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2565210"></a>Common Errors</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565216"></a>&#8220;<span class="quote">$</span>&#8221; Cannot Be Included in Machine Name</h3></div></div></div><p>
+<a class="indexterm" name="id2565226"></a>
+<a class="indexterm" name="id2565233"></a>
+<a class="indexterm" name="id2565239"></a>
 A machine account, typically stored in <code class="filename">/etc/passwd</code>, takes the form of the machine
 name with a &#8220;<span class="quote">$</span>&#8221; appended. Some BSD systems will not create a user with a &#8220;<span class="quote">$</span>&#8221; in the name.
 Recent versions of FreeBSD have removed this limitation, but older releases are still in common use.
 </p><p>
-<a class="indexterm" name="id2565256"></a>
+<a class="indexterm" name="id2565266"></a>
 The problem is only in the program used to make the entry. Once made, it works perfectly.  Create a user
 without the &#8220;<span class="quote">$</span>&#8221;. Then use <code class="literal">vipw</code> to edit the entry, adding the &#8220;<span class="quote">$</span>&#8221;.
 Or create the whole entry with vipw if you like; make sure you use a unique user login ID.
@@ -798,8 +798,8 @@ Or create the whole entry with vipw if you like; make sure you use a unique user
 The UNIX tool <code class="literal">vipw</code> is a common tool for directly editing the <code class="filename">/etc/passwd</code> file.
 The use of vipw will ensure that shadow files (where used) will remain current with the passwd file. This is
 important for security reasons.
-</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565307"></a>Joining Domain Fails Because of Existing Machine Account</h3></div></div></div><p>
-<a class="indexterm" name="id2565316"></a>
+</p></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565317"></a>Joining Domain Fails Because of Existing Machine Account</h3></div></div></div><p>
+<a class="indexterm" name="id2565325"></a>
 &#8220;<span class="quote">I get told, `You already have a connection to the Domain....' or `Cannot join domain, the
 credentials supplied conflict with an existing set...' when creating a Machine Trust Account.</span>&#8221;
 </p><p>
@@ -814,12 +814,12 @@ This will break all network connections.
 Further, if the machine is already a &#8220;<span class="quote">member of a workgroup</span>&#8221; that is the same name as the domain
 you are joining (bad idea), you will get this message. Change the workgroup name to something else 
 it does not matter what  reboot, and try again.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565372"></a>The System Cannot Log You On (C000019B)</h3></div></div></div><p>&#8220;<span class="quote">
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565381"></a>The System Cannot Log You On (C000019B)</h3></div></div></div><p>&#8220;<span class="quote">
 I joined the domain successfully but after upgrading to a newer version of the Samba code I get the message,
 <span class="errorname">`The system cannot log you on (C000019B). Please try again or consult your system
 administrator</span> when attempting to logon.'</span>&#8221;
 </p><p>
-<a class="indexterm" name="id2565393"></a>
+<a class="indexterm" name="id2565402"></a>
 This occurs when the domain SID stored in the secrets.tdb database is changed. The most common cause of a
 change in domain SID is when the domain name and/or the server name (NetBIOS name) is changed.  The only way
 to correct the problem is to restore the original domain SID or remove the domain client from the domain and
@@ -836,7 +836,7 @@ Workstation Machine Trust Accounts work only with the domain (or network) SID. I
 domain members (workstations) will not be able to log onto the domain. The original domain SID
 can be recovered from the secrets.tdb file. The alternative is to visit each workstation to rejoin
 it to the domain.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565448"></a>The Machine Trust Account Is Not Accessible</h3></div></div></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565458"></a>The Machine Trust Account Is Not Accessible</h3></div></div></div><p>
 &#8220;<span class="quote">When I try to join the domain I get the message, <span class="errorname">"The machine account 
 for this computer either does not exist or is not accessible</span>." What's wrong?</span>&#8221;
 </p><p>
@@ -858,16 +858,16 @@ by alternative settings in the NSS <code class="filename">/etc/nsswitch.conf</co
 </p><p>
 Some people have also reported that inconsistent subnet masks between the Samba server and the NT 
 client can cause this problem.  Make sure that these are consistent for both client and server.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565568"></a>Account Disabled</h3></div></div></div><p>&#8220;<span class="quote">When I attempt to log in to a Samba domain from a NT4/W200x workstation,
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565577"></a>Account Disabled</h3></div></div></div><p>&#8220;<span class="quote">When I attempt to log in to a Samba domain from a NT4/W200x workstation,
 I get a message about my account being disabled.</span>&#8221;</p><p>
 Enable the user accounts with <strong class="userinput"><code>smbpasswd -e <em class="replaceable"><code>username</code></em>
 </code></strong>. This is normally done as an account is created.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565595"></a>Domain Controller Unavailable</h3></div></div></div><p>&#8220;<span class="quote">Until a few minutes after Samba has started, clients get the error `Domain Controller Unavailable'</span>&#8221;</p><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565604"></a>Domain Controller Unavailable</h3></div></div></div><p>&#8220;<span class="quote">Until a few minutes after Samba has started, clients get the error `Domain Controller Unavailable'</span>&#8221;</p><p>
 A domain controller has to announce its role on the network. This usually takes a while. Be patient for up to 15 minutes,
 then try again.
-</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565614"></a>Cannot Log onto Domain Member Workstation After Joining Domain</h3></div></div></div><p>
-<a class="indexterm" name="id2565622"></a>
-<a class="indexterm" name="id2565629"></a>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565623"></a>Cannot Log onto Domain Member Workstation After Joining Domain</h3></div></div></div><p>
+<a class="indexterm" name="id2565632"></a>
+<a class="indexterm" name="id2565639"></a>
 After successfully joining the domain, user logons fail with one of two messages: one to the
 effect that the domain controller cannot be found; the other claims that the account does not
 exist in the domain or that the password is incorrect. This may be due to incompatible
@@ -884,7 +884,7 @@ Control Panel. The Policy settings are found in the Local Policies/Security Opti
 <span class="emphasis"><em>Secure Channel:..., and Digitally sign...</em></span>.
 </p><p>
 It is important that these be set consistently with the Samba-3 server settings.
-</p></div></div><div class="footnotes"><br><hr width="100" align="left"><div class="footnote"><p><sup>[<a name="ftn.id2562689" href="#id2562689" class="para">1</a>] </sup>See also <a class="link" href="passdb.html" title="Chapter 11. Account Information Databases">Account Information
-Databases</a>.</p>.</div><div class="footnote"><p><sup>[<a name="ftn.id2563195" href="#id2563195" class="para">2</a>] </sup>See <a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network Browsing</a>, and 
-		<a class="link" href="integrate-ms-networks.html" title="Chapter 29. Integrating MS Windows Networks with Samba">Integrating MS Windows Networks with Samba</a>.</p></div><div class="footnote"><p><sup>[<a name="ftn.id2563500" href="#id2563500" class="para">3</a>] </sup>See <a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network
+</p></div></div><div class="footnotes"><br><hr width="100" align="left"><div class="footnote"><p><sup>[<a name="ftn.id2562691" href="#id2562691" class="para">1</a>] </sup>See also <a class="link" href="passdb.html" title="Chapter 11. Account Information Databases">Account Information
+Databases</a>.</p>.</div><div class="footnote"><p><sup>[<a name="ftn.id2563197" href="#id2563197" class="para">2</a>] </sup>See <a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network Browsing</a>, and 
+		<a class="link" href="integrate-ms-networks.html" title="Chapter 29. Integrating MS Windows Networks with Samba">Integrating MS Windows Networks with Samba</a>.</p></div><div class="footnote"><p><sup>[<a name="ftn.id2563502" href="#id2563502" class="para">3</a>] </sup>See <a class="link" href="NetworkBrowsing.html" title="Chapter 10. Network Browsing">Network
 Browsing</a>.</p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ServerType.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="type.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="samba-bdc.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 3. Server Types and Security Modes </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 5. Backup Domain Control</td></tr></table></div></body></html>

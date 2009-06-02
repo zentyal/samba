@@ -507,13 +507,16 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 {
 	NTSTATUS status;
 	uint32_t srv_flgs;
+	/* r->in.negotiate_flags is an aliased pointer to r->out.negotiate_flags,
+	 * so use a copy to avoid destroying the client values. */
+	uint32_t in_neg_flags = *r->in.negotiate_flags;
 	struct netr_Credential srv_chal_out;
 	const char *fn;
 
 	/* According to Microsoft (see bugid #6099)
 	 * Windows 7 looks at the negotiate_flags
 	 * returned in this structure *even if the
-	 * call fails with access denied ! So in order
+	 * call fails with access denied* ! So in order
 	 * to allow Win7 to connect to a Samba NT style
 	 * PDC we set the flags before we know if it's
 	 * an error or not.
@@ -530,11 +533,14 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 		   NETLOGON_NEG_REDO |
 		   NETLOGON_NEG_PASSWORD_CHANGE_REFUSAL;
 
+	/* Ensure we support strong (128-bit) keys. */
+	if (in_neg_flags & NETLOGON_NEG_STRONG_KEYS) {
+		srv_flgs |= NETLOGON_NEG_STRONG_KEYS;
+	}
+
 	if (lp_server_schannel() != false) {
 		srv_flgs |= NETLOGON_NEG_SCHANNEL;
 	}
-
-	*r->out.negotiate_flags = srv_flgs;
 
 	switch (p->hdr_req.opnum) {
 		case NDR_NETR_SERVERAUTHENTICATE2:
@@ -553,17 +559,19 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 	if (!p->dc || !p->dc->challenge_sent) {
 		DEBUG(0,("%s: no challenge sent to client %s\n", fn,
 			r->in.computer_name));
-		return NT_STATUS_ACCESS_DENIED;
+		status = NT_STATUS_ACCESS_DENIED;
+		goto out;
 	}
 
 	if ( (lp_server_schannel() == true) &&
-	     ((*r->in.negotiate_flags & NETLOGON_NEG_SCHANNEL) == 0) ) {
+	     ((in_neg_flags & NETLOGON_NEG_SCHANNEL) == 0) ) {
 
 		/* schannel must be used, but client did not offer it. */
 		DEBUG(0,("%s: schannel required but client failed "
 			"to offer it. Client was %s\n",
 			fn, r->in.account_name));
-		return NT_STATUS_ACCESS_DENIED;
+		status = NT_STATUS_ACCESS_DENIED;
+		goto out;
 	}
 
 	status = get_md4pw((char *)p->dc->mach_pw,
@@ -575,11 +583,12 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 			"account %s: %s\n",
 			fn, r->in.account_name, nt_errstr(status) ));
 		/* always return NT_STATUS_ACCESS_DENIED */
-		return NT_STATUS_ACCESS_DENIED;
+		status = NT_STATUS_ACCESS_DENIED;
+		goto out;
 	}
 
 	/* From the client / server challenges and md4 password, generate sess key */
-	creds_server_init(*r->in.negotiate_flags,
+	creds_server_init(in_neg_flags,
 			p->dc,
 			&p->dc->clnt_chal,	/* Stored client chal. */
 			&p->dc->srv_chal,	/* Stored server chal. */
@@ -592,7 +601,8 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 			"request from client %s machine account %s\n",
 			fn, r->in.computer_name,
 			r->in.account_name));
-		return NT_STATUS_ACCESS_DENIED;
+		status = NT_STATUS_ACCESS_DENIED;
+		goto out;
 	}
 	/* set up the LSA AUTH 2 response */
 	memcpy(r->out.return_credentials->data, &srv_chal_out.data,
@@ -610,8 +620,12 @@ NTSTATUS _netr_ServerAuthenticate3(pipes_struct *p,
 					    r->in.computer_name,
 					    p->dc);
 	unbecome_root();
+	status = NT_STATUS_OK;
 
-	return NT_STATUS_OK;
+  out:
+
+	*r->out.negotiate_flags = srv_flgs;
+	return status;
 }
 
 /*************************************************************************
@@ -867,6 +881,13 @@ NTSTATUS _netr_LogonSamLogon(pipes_struct *p,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
+	*r->out.authoritative = true; /* authoritative response */
+	if (r->in.validation_level != 2 && r->in.validation_level != 3) {
+		DEBUG(0,("%s: bad validation_level value %d.\n",
+			fn, (int)r->in.validation_level));
+		return NT_STATUS_INVALID_INFO_CLASS;
+	}
+
 	sam3 = TALLOC_ZERO_P(p->mem_ctx, struct netr_SamInfo3);
 	if (!sam3) {
 		return NT_STATUS_NO_MEMORY;
@@ -874,12 +895,6 @@ NTSTATUS _netr_LogonSamLogon(pipes_struct *p,
 
  	/* store the user information, if there is any. */
 	r->out.validation->sam3 = sam3;
-	*r->out.authoritative = true; /* authoritative response */
-	if (r->in.validation_level != 2 && r->in.validation_level != 3) {
-		DEBUG(0,("%s: bad validation_level value %d.\n",
-			fn, (int)r->in.validation_level));
-		return NT_STATUS_ACCESS_DENIED;
-	}
 
 	if (process_creds) {
 

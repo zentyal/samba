@@ -1609,6 +1609,13 @@ void chain_reply(struct smb_request *req)
 		}
 		req->outbuf = NULL;
 	} else {
+		/*
+		 * Update smb headers where subsequent chained commands
+		 * may have updated them.
+		 */
+		SCVAL(req->chain_outbuf, smb_tid, CVAL(req->outbuf, smb_tid));
+		SCVAL(req->chain_outbuf, smb_uid, CVAL(req->outbuf, smb_uid));
+
 		if (!smb_splice_chain(&req->chain_outbuf,
 				      CVAL(req->outbuf, smb_com),
 				      CVAL(req->outbuf, smb_wct),
@@ -1875,8 +1882,15 @@ received when we should release a specific IP
 static void release_ip(const char *ip, void *priv)
 {
 	char addr[INET6_ADDRSTRLEN];
+	char *p = addr;
 
-	if (strcmp(client_socket_addr(get_client_fd(),addr,sizeof(addr)), ip) == 0) {
+	client_socket_addr(get_client_fd(),addr,sizeof(addr));
+
+	if (strncmp("::ffff:", addr, 7) == 0) {
+		p = addr + 7;
+	}
+
+	if ((strcmp(p, ip) == 0) || ((p != addr) && strcmp(addr, ip) == 0)) {
 		/* we can't afford to do a clean exit - that involves
 		   database writes, which would potentially mean we
 		   are still running after the failover has finished -

@@ -49,6 +49,15 @@ static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 	return 0;
 }
 
+static int vfs_gpfs_close(vfs_handle_struct *handle, files_struct *fsp)
+{
+	if ((fsp->fh != NULL) && (fsp->fh->fd != -1)) {
+		set_gpfs_sharemode(fsp, 0, 0);
+	}
+
+	return SMB_VFS_NEXT_CLOSE(handle, fsp);
+}
+
 static int vfs_gpfs_setlease(vfs_handle_struct *handle, files_struct *fsp, 
 			     int leasetype)
 {
@@ -921,6 +930,10 @@ static vfs_op_tuple gpfs_op_tuples[] = {
 
         { SMB_VFS_OP(vfs_gpfs_fchmod), 
 	  SMB_VFS_OP_FCHMOD,
+	  SMB_VFS_LAYER_TRANSPARENT },
+
+        { SMB_VFS_OP(vfs_gpfs_close),
+	  SMB_VFS_OP_CLOSE,
 	  SMB_VFS_LAYER_TRANSPARENT },
 
         { SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP }

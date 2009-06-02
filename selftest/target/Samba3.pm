@@ -114,6 +114,7 @@ sub setup_dc($$)
 	my $dc_options = "
 	domain master = yes
 	domain logons = yes
+	lanman auth = yes
 ";
 
 	my $vars = $self->provision($path,
@@ -455,9 +456,13 @@ sub provision($$$$$$)
 
 	time server = yes
 
-	add user script = $nss_wrapper_pl --path $nss_wrapper_passwd --type passwd --action add --name %u
-	add machine script = $nss_wrapper_pl --path $nss_wrapper_passwd --type passwd --action add --name %u
-	delete user script = $nss_wrapper_pl --path $nss_wrapper_passwd --type passwd --action delete --name %u
+	add user script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u
+	add group script =		$nss_wrapper_pl --group_path  $nss_wrapper_group  --type group  --action add --name %g
+	add machine script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action add --name %u
+	add user to group script =	$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type member --action add --member %u --name %g --group_path $nss_wrapper_group
+	delete user script =		$nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type passwd --action delete --name %u
+	delete group script =		$nss_wrapper_pl --group_path  $nss_wrapper_group  --type group  --action delete --name %g
+	delete user from group script = $nss_wrapper_pl --passwd_path $nss_wrapper_passwd --type member --action delete --member %u --name %g --group_path $nss_wrapper_group
 
 	kernel oplocks = no
 	kernel change notify = no
@@ -504,13 +509,13 @@ sub provision($$$$$$)
 	copy = tmp
 	printable = yes
 	printing = vlp
-	print command = $bindir_abs/vlp print %p %s
-	lpq command = $bindir_abs/vlp lpq %p
-	lp rm command = $bindir_abs/vlp lprm %p %j
-	lp pause command = $bindir_abs/vlp lppause %p %j
-	lp resume command = $bindir_abs/vlp lpresume %p %j
-	queue pause command = $bindir_abs/vlp queuepause %p
-	queue resume command = $bindir_abs/vlp queueresume %p
+	print command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb print %p %s
+	lpq command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpq %p
+	lp rm command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lprm %p %j
+	lp pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lppause %p %j
+	lp resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb lpresume %p %j
+	queue pause command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queuepause %p
+	queue resume command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb queueresume %p
 
 [print2]
 	copy = print1

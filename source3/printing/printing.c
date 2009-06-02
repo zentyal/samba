@@ -1436,8 +1436,9 @@ void start_background_queue(void)
 		close(pause_pipe[0]);
 		pause_pipe[0] = -1;
 
-		if (!reinit_after_fork(smbd_messaging_context(),
-				       smbd_event_context(), true)) {
+		if (!NT_STATUS_IS_OK(reinit_after_fork(smbd_messaging_context(),
+						       smbd_event_context(),
+						       true))) {
 			DEBUG(0,("reinit_after_fork() failed\n"));
 			smb_panic("reinit_after_fork() failed");
 		}
@@ -2313,10 +2314,14 @@ static bool allocate_print_jobid(struct tdb_print_db *pdb, int snum, const char 
 			if (tdb_error(pdb->tdb) != TDB_ERR_NOEXIST) {
 				DEBUG(0, ("allocate_print_jobid: failed to fetch INFO/nextjob for print queue %s\n",
 					sharename));
+				tdb_unlock_bystring(pdb->tdb, "INFO/nextjob");
 				return False;
 			}
+			DEBUG(10,("allocate_print_jobid: no existing jobid in %s\n", sharename));
 			jobid = 0;
 		}
+
+		DEBUG(10,("allocate_print_jobid: read jobid %u from %s\n", jobid, sharename));
 
 		jobid = NEXT_JOBID(jobid);
 
@@ -2329,8 +2334,10 @@ static bool allocate_print_jobid(struct tdb_print_db *pdb, int snum, const char 
 		/* We've finished with the INFO/nextjob lock. */
 		tdb_unlock_bystring(pdb->tdb, "INFO/nextjob");
 
-		if (!print_job_exists(sharename, jobid))
+		if (!print_job_exists(sharename, jobid)) {
 			break;
+		}
+		DEBUG(10,("allocate_print_jobid: found jobid %u in %s\n", jobid, sharename));
 	}
 
 	if (i > 2) {
@@ -2797,16 +2804,14 @@ int print_queue_status(int snum,
  Pause a queue.
 ****************************************************************************/
 
-bool print_queue_pause(struct auth_serversupplied_info *server_info, int snum,
-		       WERROR *errcode)
+WERROR print_queue_pause(struct auth_serversupplied_info *server_info, int snum)
 {
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 
 	if (!print_access_check(server_info, snum,
 				PRINTER_ACCESS_ADMINISTER)) {
-		*errcode = WERR_ACCESS_DENIED;
-		return False;
+		return WERR_ACCESS_DENIED;
 	}
 
 
@@ -2817,8 +2822,7 @@ bool print_queue_pause(struct auth_serversupplied_info *server_info, int snum,
 	unbecome_root();
 
 	if (ret != 0) {
-		*errcode = WERR_INVALID_PARAM;
-		return False;
+		return WERR_INVALID_PARAM;
 	}
 
 	/* force update the database */
@@ -2828,23 +2832,21 @@ bool print_queue_pause(struct auth_serversupplied_info *server_info, int snum,
 
 	notify_printer_status(snum, PRINTER_STATUS_PAUSED);
 
-	return True;
+	return WERR_OK;
 }
 
 /****************************************************************************
  Resume a queue.
 ****************************************************************************/
 
-bool print_queue_resume(struct auth_serversupplied_info *server_info, int snum,
-			WERROR *errcode)
+WERROR print_queue_resume(struct auth_serversupplied_info *server_info, int snum)
 {
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 
 	if (!print_access_check(server_info, snum,
 				PRINTER_ACCESS_ADMINISTER)) {
-		*errcode = WERR_ACCESS_DENIED;
-		return False;
+		return WERR_ACCESS_DENIED;
 	}
 
 	become_root();
@@ -2854,8 +2856,7 @@ bool print_queue_resume(struct auth_serversupplied_info *server_info, int snum,
 	unbecome_root();
 
 	if (ret != 0) {
-		*errcode = WERR_INVALID_PARAM;
-		return False;
+		return WERR_INVALID_PARAM;
 	}
 
 	/* make sure the database is up to date */
@@ -2866,15 +2867,14 @@ bool print_queue_resume(struct auth_serversupplied_info *server_info, int snum,
 
 	notify_printer_status(snum, PRINTER_STATUS_OK);
 
-	return True;
+	return WERR_OK;
 }
 
 /****************************************************************************
  Purge a queue - implemented by deleting all jobs that we can delete.
 ****************************************************************************/
 
-bool print_queue_purge(struct auth_serversupplied_info *server_info, int snum,
-		       WERROR *errcode)
+WERROR print_queue_purge(struct auth_serversupplied_info *server_info, int snum)
 {
 	print_queue_struct *queue;
 	print_status_struct status;
@@ -2908,5 +2908,5 @@ bool print_queue_purge(struct auth_serversupplied_info *server_info, int snum,
 
 	SAFE_FREE(queue);
 
-	return True;
+	return WERR_OK;
 }

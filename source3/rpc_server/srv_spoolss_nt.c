@@ -53,12 +53,6 @@ extern userdom_struct current_user_info;
 #define MAGIC_DISPLAY_FREQUENCY 0xfade2bad
 #define PHANTOM_DEVMODE_KEY "_p_f_a_n_t_0_m_"
 
-struct table_node {
-	const char    *long_archi;
-	const char    *short_archi;
-	int     version;
-};
-
 static Printer_entry *printers_list;
 
 typedef struct _counter_printer_0 {
@@ -1638,7 +1632,7 @@ WERROR _spoolss_OpenPrinterEx(pipes_struct *p,
 			/* if the user is not root, doesn't have SE_PRINT_OPERATOR privilege,
 			   and not a printer admin, then fail */
 
-			if ((p->server_info->utok.uid != 0) &&
+			if ((p->server_info->utok.uid != sec_initial_uid()) &&
 			    !user_has_privileges(p->server_info->ptok,
 						 &se_printop ) &&
 			    !token_contains_name_in_list(
@@ -2078,7 +2072,7 @@ WERROR _spoolss_DeletePrinter(pipes_struct *p,
 static int get_version_id(const char *arch)
 {
 	int i;
-	struct table_node archi_table[]= {
+	struct print_architecture_table_node archi_table[]= {
 
 	        {"Windows 4.0",          "WIN40",       0 },
 	        {"Windows NT x86",       "W32X86",      2 },
@@ -2116,7 +2110,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 	/* if the user is not root, doesn't have SE_PRINT_OPERATOR privilege,
 	   and not a printer admin, then fail */
 
-	if ( (p->server_info->utok.uid != 0)
+	if ( (p->server_info->utok.uid != sec_initial_uid())
 		&& !user_has_privileges(p->server_info->ptok, &se_printop )
 		&& !token_contains_name_in_list(
 			uidtoname(p->server_info->utok.uid), NULL,
@@ -2216,7 +2210,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 	/* if the user is not root, doesn't have SE_PRINT_OPERATOR privilege,
 	   and not a printer admin, then fail */
 
-	if ( (p->server_info->utok.uid != 0)
+	if ( (p->server_info->utok.uid != sec_initial_uid())
 		&& !user_has_privileges(p->server_info->ptok, &se_printop )
 		&& !token_contains_name_in_list(
 			uidtoname(p->server_info->utok.uid), NULL, NULL,
@@ -5729,20 +5723,14 @@ static WERROR control_printer(struct policy_handle *handle, uint32_t command,
 
 	switch (command) {
 	case SPOOLSS_PRINTER_CONTROL_PAUSE:
-		if (print_queue_pause(p->server_info, snum, &errcode)) {
-			errcode = WERR_OK;
-		}
+		errcode = print_queue_pause(p->server_info, snum);
 		break;
 	case SPOOLSS_PRINTER_CONTROL_RESUME:
 	case SPOOLSS_PRINTER_CONTROL_UNPAUSE:
-		if (print_queue_resume(p->server_info, snum, &errcode)) {
-			errcode = WERR_OK;
-		}
+		errcode = print_queue_resume(p->server_info, snum);
 		break;
 	case SPOOLSS_PRINTER_CONTROL_PURGE:
-		if (print_queue_purge(p->server_info, snum, &errcode)) {
-			errcode = WERR_OK;
-		}
+		errcode = print_queue_purge(p->server_info, snum);
 		break;
 	default:
 		return WERR_UNKNOWN_LEVEL;

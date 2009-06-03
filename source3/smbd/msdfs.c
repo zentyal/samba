@@ -272,6 +272,8 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 		return status;
 	}
 
+	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn);
+
 	/*
 	 * Windows seems to insist on doing trans2getdfsreferral() calls on
 	 * the IPC$ share as the anonymous user. If we try to chdir as that
@@ -411,7 +413,11 @@ static bool is_msdfs_link_internal(TALLOC_CTX *ctx,
 {
 	SMB_STRUCT_STAT st;
 	int referral_len = 0;
+#if defined(HAVE_BROKEN_READLINK)
+	char link_target_buf[PATH_MAX];
+#else
 	char link_target_buf[7];
+#endif
 	size_t bufsize = 0;
 	char *link_target = NULL;
 

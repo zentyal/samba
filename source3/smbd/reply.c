@@ -2664,7 +2664,7 @@ static ssize_t fake_sendfile(files_struct *fsp, SMB_OFF_T startpos,
 
 		/* If we had a short read, fill with zeros. */
 		if (ret < cur_read) {
-			memset(buf, '\0', cur_read - ret);
+			memset(buf + ret, '\0', cur_read - ret);
 		}
 
 		if (write_data(smbd_server_fd(),buf,cur_read) != cur_read) {
@@ -2690,6 +2690,7 @@ static void sendfile_short_send(files_struct *fsp,
 				size_t headersize,
 				size_t smb_maxcnt)
 {
+#define SHORT_SEND_BUFSIZE 1024
 	if (nread < headersize) {
 		DEBUG(0,("sendfile_short_send: sendfile failed to send "
 			"header for file %s (%s). Terminating\n",
@@ -2700,7 +2701,7 @@ static void sendfile_short_send(files_struct *fsp,
 	nread -= headersize;
 
 	if (nread < smb_maxcnt) {
-		char *buf = SMB_CALLOC_ARRAY(char, 1024);
+		char *buf = SMB_CALLOC_ARRAY(char, SHORT_SEND_BUFSIZE);
 		if (!buf) {
 			exit_server_cleanly("sendfile_short_send: "
 				"malloc failed");
@@ -2726,7 +2727,7 @@ static void sendfile_short_send(files_struct *fsp,
 			 */
 			size_t to_write;
 
-			to_write = MIN(sizeof(buf), smb_maxcnt - nread);
+			to_write = MIN(SHORT_SEND_BUFSIZE, smb_maxcnt - nread);
 			if (write_data(smbd_server_fd(), buf, to_write) != to_write) {
 				exit_server_cleanly("sendfile_short_send: "
 					"write_data failed");
@@ -3257,20 +3258,29 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 {
 	SMB_STRUCT_STAT sbuf;
 	ssize_t nread = -1;
+	struct lock_struct lock;
 
 	if(SMB_VFS_FSTAT(fsp, &sbuf) == -1) {
 		reply_unixerror(req, ERRDOS, ERRnoaccess);
 		return;
 	}
 
-	if (startpos > sbuf.st_size) {
-		smb_maxcnt = 0;
-	} else if (smb_maxcnt > (sbuf.st_size - startpos)) {
-		smb_maxcnt = (sbuf.st_size - startpos);
+	init_strict_lock_struct(fsp, (uint32)req->smbpid,
+	    (uint64_t)startpos, (uint64_t)smb_maxcnt, READ_LOCK,
+	    &lock);
+
+	if (!SMB_VFS_STRICT_LOCK(conn, fsp, &lock)) {
+		reply_doserror(req, ERRDOS, ERRlock);
+		return;
 	}
 
-	if (smb_maxcnt == 0) {
-		goto normal_read;
+	if (!S_ISREG(sbuf.st_mode) || (startpos > sbuf.st_size)
+	    || (smb_maxcnt > (sbuf.st_size - startpos))) {
+		/*
+		 * We already know that we would do a short read, so don't
+		 * try the sendfile() path.
+		 */
+		goto nosendfile_read;
 	}
 
 #if defined(WITH_SENDFILE)
@@ -3324,8 +3334,7 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 				DEBUG( 3, ( "send_file_readX: fake_sendfile fnum=%d max=%d nread=%d\n",
 					fsp->fnum, (int)smb_maxcnt, (int)nread ) );
 				/* No outbuf here means successful sendfile. */
-				TALLOC_FREE(req->outbuf);
-				return;
+				goto strict_unlock;
 			}
 
 			DEBUG(0,("send_file_readX: sendfile failed for file %s (%s). Terminating\n",
@@ -3352,16 +3361,15 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 		if (nread != smb_maxcnt + sizeof(headerbuf)) {
 			sendfile_short_send(fsp, nread, sizeof(headerbuf), smb_maxcnt);
 		}
-
 		/* No outbuf here means successful sendfile. */
-		TALLOC_FREE(req->outbuf);
 		SMB_PERFCOUNT_SET_MSGLEN_OUT(&req->pcd, nread);
 		SMB_PERFCOUNT_END(&req->pcd);
-		return;
+		goto strict_unlock;
 	}
-#endif
 
 normal_read:
+
+#endif
 
 	if ((smb_maxcnt & 0xFF0000) > 0x10000) {
 		uint8 headerbuf[smb_size + 2*12];
@@ -3382,13 +3390,17 @@ normal_read:
 				fsp->fsp_name, strerror(errno) ));
 			exit_server_cleanly("send_file_readX: fake_sendfile failed");
 		}
-		TALLOC_FREE(req->outbuf);
-		return;
+		goto strict_unlock;
 	}
+
+nosendfile_read:
 
 	reply_outbuf(req, 12, smb_maxcnt);
 
 	nread = read_file(fsp, smb_buf(req->outbuf), startpos, smb_maxcnt);
+
+	SMB_VFS_STRICT_UNLOCK(conn, fsp, &lock);
+
 	if (nread < 0) {
 		reply_unixerror(req, ERRDOS, ERRnoaccess);
 		return;
@@ -3400,6 +3412,12 @@ normal_read:
 		    fsp->fnum, (int)smb_maxcnt, (int)nread ) );
 
 	chain_reply(req);
+	return;
+
+ strict_unlock:
+	SMB_VFS_STRICT_UNLOCK(conn, fsp, &lock);
+	TALLOC_FREE(req->outbuf);
+	return;
 }
 
 /****************************************************************************
@@ -3412,7 +3430,6 @@ void reply_read_and_X(struct smb_request *req)
 	files_struct *fsp;
 	SMB_OFF_T startpos;
 	size_t smb_maxcnt;
-	struct lock_struct lock;
 	bool big_readX = False;
 #if 0
 	size_t smb_mincnt = SVAL(req->vwv+6, 0);
@@ -3500,26 +3517,14 @@ void reply_read_and_X(struct smb_request *req)
 
 	}
 
-	init_strict_lock_struct(fsp, (uint32)req->smbpid,
-	    (uint64_t)startpos, (uint64_t)smb_maxcnt, READ_LOCK,
-	    &lock);
-
-	if (!SMB_VFS_STRICT_LOCK(conn, fsp, &lock)) {
-		END_PROFILE(SMBreadX);
-		reply_doserror(req, ERRDOS, ERRlock);
-		return;
-	}
-
 	if (!big_readX &&
 	    schedule_aio_read_and_X(conn, req, fsp, startpos, smb_maxcnt)) {
-		goto strict_unlock;
+		goto out;
 	}
 
 	send_file_readX(conn, req, fsp,	startpos, smb_maxcnt);
 
-strict_unlock:
-	SMB_VFS_STRICT_UNLOCK(conn, fsp, &lock);
-
+ out:
 	END_PROFILE(SMBreadX);
 	return;
 }
@@ -5915,8 +5920,6 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 		/*
 		 * No wildcards - just process the one file.
 		 */
-		bool is_short_name = mangle_is_8_3(name, True, conn->params);
-
 		/* Add a terminating '/' to the directory name. */
 		directory = talloc_asprintf_append(directory,
 				"/%s",
@@ -5938,10 +5941,10 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 		DEBUG(3, ("rename_internals: case_sensitive = %d, "
 			  "case_preserve = %d, short case preserve = %d, "
 			  "directory = %s, newname = %s, "
-			  "last_component_dest = %s, is_8_3 = %d\n",
+			  "last_component_dest = %s\n",
 			  conn->case_sensitive, conn->case_preserve,
 			  conn->short_case_preserve, directory,
-			  newname, last_component_dest, is_short_name));
+			  newname, last_component_dest));
 
 		/* The dest name still may have wildcards. */
 		if (dest_has_wild) {

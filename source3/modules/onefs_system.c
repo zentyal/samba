@@ -94,7 +94,7 @@ int onefs_sys_create_file(connection_struct *conn,
 	enum oplock_type onefs_oplock;
 	enum oplock_type onefs_granted_oplock = OPLOCK_NONE;
 	struct ifs_security_descriptor ifs_sd = {}, *pifs_sd = NULL;
-	int secinfo = 0;
+	uint32_t sec_info_effective = 0;
 	int ret_fd = -1;
 	uint32_t onefs_dos_attributes;
 	struct ifs_createfile_flags cf_flags = CF_FLAGS_NONE;
@@ -104,10 +104,12 @@ int onefs_sys_create_file(connection_struct *conn,
 	/* Setup security descriptor and get secinfo. */
 	if (sd != NULL) {
 		NTSTATUS status;
+		uint32_t sec_info_sent = 0;
 
-		secinfo = (get_sec_info(sd) & IFS_SEC_INFO_KNOWN_MASK);
+		sec_info_sent = (get_sec_info(sd) & IFS_SEC_INFO_KNOWN_MASK);
 
-		status = onefs_samba_sd_to_sd(secinfo, sd, &ifs_sd, SNUM(conn));
+		status = onefs_samba_sd_to_sd(sec_info_sent, sd, &ifs_sd,
+					      SNUM(conn), &sec_info_effective);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(1, ("SD initialization failure: %s\n",
@@ -172,7 +174,7 @@ int onefs_sys_create_file(connection_struct *conn,
 		  (unsigned int)mode,
 		  onefs_oplock_str(onefs_oplock),
 		  (unsigned int)id,
-		  (unsigned int)secinfo, sd,
+		  sec_info_effective, sd,
 		  (unsigned int)onefs_dos_attributes, path,
 		  cf_flags_and_bool(cf_flags, CF_FLAGS_DEFAULT_ACL) ?
 		      "true" : "false"));
@@ -188,8 +190,8 @@ int onefs_sys_create_file(connection_struct *conn,
 
 	ret_fd = ifs_createfile(base_fd, path,
 	    (enum ifs_ace_rights)open_access_mask, flags & ~O_ACCMODE, mode,
-	    onefs_oplock, id, psml, secinfo, pifs_sd, onefs_dos_attributes,
-	    cf_flags, &onefs_granted_oplock);
+	    onefs_oplock, id, psml, sec_info_effective, pifs_sd,
+	    onefs_dos_attributes, cf_flags, &onefs_granted_oplock);
 
 	DEBUG(10,("onefs_sys_create_file(%s): ret_fd = %d, "
 		  "onefs_granted_oplock = %s\n",
@@ -580,7 +582,7 @@ ssize_t onefs_sys_recvfile(int fromfd, int tofd, SMB_OFF_T offset,
 
 	/* Log if recvfile didn't write everything it read. */
 	if (total_rbytes != total_wbytes) {
-		DEBUG(0, ("partial recvfile: total_rbytes=%llu but "
+		DEBUG(3, ("partial recvfile: total_rbytes=%llu but "
 			  "total_wbytes=%llu, diff = %llu\n", total_rbytes,
 			  total_wbytes, total_rbytes - total_wbytes));
 		SMB_ASSERT(total_rbytes > total_wbytes);
@@ -591,7 +593,7 @@ ssize_t onefs_sys_recvfile(int fromfd, int tofd, SMB_OFF_T offset,
 	 */
 	while (total_rbytes < count) {
 
-		DEBUG(0, ("shallow recvfile (%s), reading %llu\n",
+		DEBUG(3, ("shallow recvfile (%s), reading %llu\n",
 			  strerror(errno), count - total_rbytes));
 
 		/*
@@ -628,7 +630,7 @@ ssize_t onefs_sys_recvfile(int fromfd, int tofd, SMB_OFF_T offset,
 	 */
 	while (total_wbytes < count) {
 
-		DEBUG(0, ("partial recvfile, writing %llu\n", count - total_wbytes));
+		DEBUG(3, ("partial recvfile, writing %llu\n", count - total_wbytes));
 
 		ret = sys_pwrite(tofd, spill_buffer, count - total_wbytes,
 				 offset + total_wbytes);

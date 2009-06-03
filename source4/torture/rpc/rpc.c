@@ -379,6 +379,7 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_simple_test(suite, "LSALOOKUP", torture_rpc_lsa_lookup);
 	torture_suite_add_simple_test(suite, "LSA-GETUSER", torture_rpc_lsa_get_user);
 	torture_suite_add_suite(suite, torture_rpc_lsa_lookup_sids(suite));
+	torture_suite_add_suite(suite, torture_rpc_lsa_lookup_names(suite));
 	torture_suite_add_suite(suite, torture_rpc_lsa_secrets(suite));
 	torture_suite_add_suite(suite, torture_rpc_echo(suite));
 	torture_suite_add_simple_test(suite, "DFS", torture_rpc_dfs);
@@ -407,6 +408,8 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_suite(suite, torture_rpc_svcctl(suite));
 	torture_suite_add_suite(suite, torture_rpc_samr_accessmask(suite));
 	torture_suite_add_suite(suite, torture_rpc_samr_passwords_pwdlastset(suite));
+	torture_suite_add_suite(suite, torture_rpc_samr_user_privileges(suite));
+	torture_suite_add_suite(suite, torture_rpc_samr_large_dc(suite));
 	torture_suite_add_suite(suite, torture_rpc_epmapper(suite));
 	torture_suite_add_suite(suite, torture_rpc_initshutdown(suite));
 	torture_suite_add_suite(suite, torture_rpc_oxidresolve(suite));

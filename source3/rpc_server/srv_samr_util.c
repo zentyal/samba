@@ -36,6 +36,245 @@
 		((s1) && (s2) && (strcmp((s1), (s2)) != 0))
 
 /*************************************************************
+ Copies a struct samr_UserInfo2 to a struct samu
+**************************************************************/
+
+void copy_id2_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo2 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_COMMENT |
+				  SAMR_FIELD_COUNTRY_CODE |
+				  SAMR_FIELD_CODE_PAGE;
+	i.comment		= from->comment;
+	i.country_code		= from->country_code;
+	i.code_page		= from->code_page;
+
+	copy_id21_to_sam_passwd("INFO_2", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo4 to a struct samu
+**************************************************************/
+
+void copy_id4_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo4 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_LOGON_HOURS;
+	i.logon_hours		= from->logon_hours;
+
+	copy_id21_to_sam_passwd("INFO_4", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo6 to a struct samu
+**************************************************************/
+
+void copy_id6_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo6 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_ACCOUNT_NAME |
+				  SAMR_FIELD_FULL_NAME;
+	i.account_name		= from->account_name;
+	i.full_name		= from->full_name;
+
+	copy_id21_to_sam_passwd("INFO_6", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo8 to a struct samu
+**************************************************************/
+
+void copy_id8_to_sam_passwd(struct samu *to,
+			    struct samr_UserInfo8 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_FULL_NAME;
+	i.full_name		= from->full_name;
+
+	copy_id21_to_sam_passwd("INFO_8", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo10 to a struct samu
+**************************************************************/
+
+void copy_id10_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo10 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_HOME_DIRECTORY |
+				  SAMR_FIELD_HOME_DRIVE;
+	i.home_directory	= from->home_directory;
+	i.home_drive		= from->home_drive;
+
+	copy_id21_to_sam_passwd("INFO_10", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo11 to a struct samu
+**************************************************************/
+
+void copy_id11_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo11 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_LOGON_SCRIPT;
+	i.logon_script		= from->logon_script;
+
+	copy_id21_to_sam_passwd("INFO_11", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo12 to a struct samu
+**************************************************************/
+
+void copy_id12_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo12 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_PROFILE_PATH;
+	i.profile_path		= from->profile_path;
+
+	copy_id21_to_sam_passwd("INFO_12", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo13 to a struct samu
+**************************************************************/
+
+void copy_id13_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo13 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_DESCRIPTION;
+	i.description		= from->description;
+
+	copy_id21_to_sam_passwd("INFO_13", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo14 to a struct samu
+**************************************************************/
+
+void copy_id14_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo14 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_WORKSTATIONS;
+	i.workstations		= from->workstations;
+
+	copy_id21_to_sam_passwd("INFO_14", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo16 to a struct samu
+**************************************************************/
+
+void copy_id16_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo16 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_ACCT_FLAGS;
+	i.acct_flags		= from->acct_flags;
+
+	copy_id21_to_sam_passwd("INFO_16", to, &i);
+}
+
+/*************************************************************
+ Copies a struct samr_UserInfo17 to a struct samu
+**************************************************************/
+
+void copy_id17_to_sam_passwd(struct samu *to,
+			     struct samr_UserInfo17 *from)
+{
+	struct samr_UserInfo21 i;
+
+	if (from == NULL || to == NULL) {
+		return;
+	}
+
+	ZERO_STRUCT(i);
+
+	i.fields_present	= SAMR_FIELD_ACCT_EXPIRY;
+	i.acct_expiry		= from->acct_expiry;
+
+	copy_id21_to_sam_passwd("INFO_17", to, &i);
+}
+
+/*************************************************************
  Copies a struct samr_UserInfo18 to a struct samu
 **************************************************************/
 
@@ -295,6 +534,16 @@ void copy_id21_to_sam_passwd(const char *log_prefix,
 		DEBUG(10,("%s SAMR_FIELD_ACCT_FLAGS: %08X -> %08X\n", l,
 			pdb_get_acct_ctrl(to), from->acct_flags));
 		if (from->acct_flags != pdb_get_acct_ctrl(to)) {
+
+			/* You cannot autolock an unlocked account via
+			 * setuserinfo calls, so make sure to remove the
+			 * ACB_AUTOLOCK bit here - gd */
+
+			if ((from->acct_flags & ACB_AUTOLOCK) &&
+			    !(pdb_get_acct_ctrl(to) & ACB_AUTOLOCK)) {
+				from->acct_flags &= ~ACB_AUTOLOCK;
+			}
+
 			if (!(from->acct_flags & ACB_AUTOLOCK) &&
 			     (pdb_get_acct_ctrl(to) & ACB_AUTOLOCK)) {
 				/* We're unlocking a previously locked user. Reset bad password counts.

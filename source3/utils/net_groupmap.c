@@ -61,7 +61,7 @@ static void print_map_entry ( GROUP_MAP map, bool long_list )
 	else {
 		d_printf("%s\n", map.nt_name);
 		d_printf("\tSID       : %s\n", sid_string_tos(&map.sid));
-		d_printf("\tUnix gid  : %d\n", map.gid);
+		d_printf("\tUnix gid  : %u\n", (unsigned int)map.gid);
 		d_printf("\tUnix group: %s\n", gidtoname(map.gid));
 		d_printf("\tGroup type: %s\n",
 			 sid_type_lookup(map.sid_name_use));
@@ -619,11 +619,13 @@ static int net_groupmap_set(struct net_context *c, int argc, const char **argv)
 
 	/* The case (opt_domaingroup && opt_localgroup) was tested for above */
 
-	if (strlen(c->opt_comment) > 0)
+	if ((c->opt_comment != NULL) && (strlen(c->opt_comment) > 0)) {
 		fstrcpy(map.comment, c->opt_comment);
+	}
 
-	if (strlen(c->opt_newntname) > 0)
+	if ((c->opt_newntname != NULL) && (strlen(c->opt_newntname) > 0)) {
 		fstrcpy(map.nt_name, c->opt_newntname);
+	}
 
 	if (grp != NULL)
 		map.gid = grp->gr_gid;

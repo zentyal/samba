@@ -207,21 +207,15 @@ NTSTATUS make_user_info_map(auth_usersupplied_info **user_info,
 	DEBUG(5, ("Mapping user [%s]\\[%s] from workstation [%s]\n",
 		 client_domain, smb_name, wksta_name));
 
-	/* don't allow "" as a domain, fixes a Win9X bug
-	   where it doens't supply a domain for logon script
-	   'net use' commands.                                 */
-
-	if ( *client_domain )
-		domain = client_domain;
-	else
-		domain = lp_workgroup();
+	domain = client_domain;
 
 	/* If you connect to a Windows domain member using a bogus domain name,
 	 * the Windows box will map the BOGUS\user to SAMNAME\user.  Thus, if
 	 * the Windows box is a DC the name will become DOMAIN\user and be
 	 * authenticated against AD, if the Windows box is a member server but
 	 * not a DC the name will become WORKSTATION\user.  A standalone
-	 * non-domain member box will also map to WORKSTATION\user. */
+	 * non-domain member box will also map to WORKSTATION\user.
+	 * This also deals with the client passing in a "" domain */
 
 	if (!is_trusted_domain(domain) &&
 	    !strequal(domain, get_global_sam_name()) )
@@ -309,8 +303,7 @@ bool make_user_info_netlogon_interactive(auth_usersupplied_info **user_info,
 	unsigned char local_nt_response[24];
 	unsigned char key[16];
 	
-	ZERO_STRUCT(key);
-	memcpy(key, dc_sess_key, 8);
+	memcpy(key, dc_sess_key, 16);
 	
 	if (lm_interactive_pwd)
 		memcpy(lm_pwd, lm_interactive_pwd, sizeof(lm_pwd));
@@ -777,7 +770,7 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 
 	if (!uid_to_unix_users_sid(server_info->utok.uid, &tmp_sid)) {
 		DEBUG(1,("create_local_token: Failed to create SID "
-			"for uid %d!\n", server_info->utok.uid));
+			"for uid %u!\n", (unsigned int)server_info->utok.uid));
 	}
 	add_sid_to_array_unique(server_info->ptok, &tmp_sid,
 				&server_info->ptok->user_sids,
@@ -786,7 +779,7 @@ NTSTATUS create_local_token(auth_serversupplied_info *server_info)
 	for ( i=0; i<server_info->utok.ngroups; i++ ) {
 		if (!gid_to_unix_groups_sid( server_info->utok.groups[i], &tmp_sid ) ) {
 			DEBUG(1,("create_local_token: Failed to create SID "
-				"for gid %d!\n", server_info->utok.groups[i]));
+				"for gid %u!\n", (unsigned int)server_info->utok.groups[i]));
 			continue;
 		}
 		add_sid_to_array_unique(server_info->ptok, &tmp_sid,
@@ -901,6 +894,33 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		*found_username = talloc_strdup(mem_ctx,
 						pdb_get_username(sam_acct));
 
+		/*
+		 * If the SID from lookup_name() was the guest sid, passdb knows
+		 * about the mapping of guest sid to lp_guestaccount()
+		 * username and will return the unix_pw info for a guest
+		 * user. Use it if it's there, else lookup the *uid details
+		 * using getpwnam_alloc(). See bug #6291 for details. JRA.
+		 */
+
+		/* We must always assign the *uid. */
+		if (sam_acct->unix_pw == NULL) {
+			struct passwd *pwd = getpwnam_alloc(sam_acct, *found_username );
+			if (!pwd) {
+				DEBUG(10, ("getpwnam_alloc failed for %s\n",
+					*found_username));
+				result = NT_STATUS_NO_SUCH_USER;
+				goto done;
+			}
+			result = samu_set_unix(sam_acct, pwd );
+			if (!NT_STATUS_IS_OK(result)) {
+				DEBUG(10, ("samu_set_unix failed for %s\n",
+					*found_username));
+				result = NT_STATUS_NO_SUCH_USER;
+				goto done;
+			}
+		}
+		*uid = sam_acct->unix_pw->pw_uid;
+
 	} else 	if (sid_check_is_in_unix_users(&user_sid)) {
 
 		/* This is a unix user not in passdb. We need to ask nss
@@ -917,8 +937,9 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 	unix_user:
 
 		if (!sid_to_uid(&user_sid, uid)) {
-			DEBUG(1, ("sid_to_uid for %s (%s) failed\n",
+			DEBUG(1, ("unix_user case, sid_to_uid for %s (%s) failed\n",
 				  username, sid_string_dbg(&user_sid)));
+			result = NT_STATUS_NO_SUCH_USER;
 			goto done;
 		}
 
@@ -926,8 +947,8 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 
 		pass = getpwuid_alloc(tmp_ctx, *uid);
 		if (pass == NULL) {
-			DEBUG(1, ("getpwuid(%d) for user %s failed\n",
-				  *uid, username));
+			DEBUG(1, ("getpwuid(%u) for user %s failed\n",
+				  (unsigned int)*uid, username));
 			goto done;
 		}
 
@@ -971,6 +992,14 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 
 		uint32 dummy;
 
+		/* We must always assign the *uid. */
+		if (!sid_to_uid(&user_sid, uid)) {
+			DEBUG(1, ("winbindd case, sid_to_uid for %s (%s) failed\n",
+				  username, sid_string_dbg(&user_sid)));
+			result = NT_STATUS_NO_SUCH_USER;
+			goto done;
+		}
+
 		num_group_sids = 1;
 		group_sids = TALLOC_ARRAY(tmp_ctx, DOM_SID, num_group_sids);
 		if (group_sids == NULL) {
@@ -1013,7 +1042,7 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 
 		if ( !gid_to_unix_groups_sid( gids[i], &unix_group_sid ) ) {
 			DEBUG(1,("create_token_from_username: Failed to create SID "
-				"for gid %d!\n", gids[i]));
+				"for gid %u!\n", (unsigned int)gids[i]));
 			continue;
 		}
 		result = add_sid_to_array_unique(tmp_ctx, &unix_group_sid,

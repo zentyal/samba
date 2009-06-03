@@ -357,6 +357,14 @@ static void aio_child_loop(int sockfd, struct mmap_area *map)
 			ret_struct.ret_errno = errno;
 		}
 
+		/*
+		 * Close the fd before telling our parent we're done. The
+		 * parent might close and re-open the file very quickly, and
+		 * with system-level share modes (GPFS) we would get an
+		 * unjustified SHARING_VIOLATION.
+		 */
+		close(fd);
+
 		ret = write_data(sockfd, (char *)&ret_struct,
 				 sizeof(ret_struct));
 		if (ret != sizeof(ret_struct)) {
@@ -364,8 +372,6 @@ static void aio_child_loop(int sockfd, struct mmap_area *map)
 				   strerror(errno)));
 			exit(2);
 		}
-
-		close(fd);
 	}
 }
 
@@ -417,6 +423,21 @@ static int aio_child_destructor(struct aio_child *child)
 	return 0;
 }
 
+/*
+ * We have to close all fd's in open files, we might incorrectly hold a system
+ * level share mode on a file.
+ */
+
+static struct files_struct *close_fsp_fd(struct files_struct *fsp,
+					 void *private_data)
+{
+	if ((fsp->fh != NULL) && (fsp->fh->fd != -1)) {
+		close(fsp->fh->fd);
+		fsp->fh->fd = -1;
+	}
+	return NULL;
+}
+
 static NTSTATUS create_aio_child(struct aio_child_list *children,
 				 size_t map_size,
 				 struct aio_child **presult)
@@ -455,6 +476,7 @@ static NTSTATUS create_aio_child(struct aio_child_list *children,
 	if (result->pid == 0) {
 		close(fdpair[0]);
 		result->sockfd = fdpair[1];
+		file_walk_table(close_fsp_fd, NULL);
 		aio_child_loop(result->sockfd, result->map);
 	}
 

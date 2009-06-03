@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/30/2009
+.\"      Date: 06/02/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "NET" "8" "04/30/2009" "Samba 3\&.4" "System Administration tools"
+.TH "NET" "8" "06/02/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1091,7 +1091,7 @@ tdb based representation of eventlogs\&.
 net eventlog export \- Export the samba internal tdb based representation
 of eventlogs into an eventlog *\&.evt file\&.
 .RE
-.SS "EVENTLOG DUMP"
+.SS "EVENTLOG DUMP filename"
 .PP
 Prints a eventlog *\&.evt file to standard output\&.
 .SS "EVENTLOG IMPORT filename eventlog"
@@ -1118,6 +1118,203 @@ needs to part of the
 defined in smb\&.conf\&. See the
 \fBsmb.conf\fR(5)
 manpage for details\&.
+.SS "DOM"
+.PP
+Starting with version 3\&.2\&.0 Samba has support for remote join and unjoin APIs, both client and server\-side\&. Windows supports remote join capabilities since Windows 2000\&.
+.PP
+In order for Samba to be joined or unjoined remotely an account must be used that is either member of the Domain Admins group, a member of the local Administrators group or a user that is granted the SeMachineAccountPrivilege privilege\&.
+.PP
+The client side support for remote join is implemented in the net dom commands which are:
+.RS 4
+net dom join \- Join a remote computer into a domain\&.
+.RE
+.RS 4
+net dom unjoin \- Unjoin a remote computer from a domain\&.
+.RE
+.RS 4
+net dom renamecomputer \- Renames a remote computer joined to a domain\&.
+.RE
+.SS "DOM JOIN	domain=DOMAIN ou=OU account=ACCOUNT password=PASSWORD reboot"
+.PP
+Joins a computer into a domain\&. This command supports the following additional parameters:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIDOMAIN\fR
+can be a NetBIOS domain name (also known as short domain name) or a DNS domain name for Active Directory Domains\&. As in Windows, it is also possible to control which Domain Controller to use\&. This can be achieved by appending the DC name using the \e separator character\&. Example: MYDOM\eMYDC\&. The
+\fIDOMAIN\fR
+parameter cannot be NULL\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIOU\fR
+can be set to a RFC 1779 LDAP DN, like
+\fIou=mymachines,cn=Users,dc=example,dc=com\fR
+in order to create the machine account in a non\-default LDAP containter\&. This optional parameter is only supported when joining Active Directory Domains\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIACCOUNT\fR
+defines a domain account that will be used to join the machine to the domain\&. This domain account needs to have sufficient privileges to join machines\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIPASSWORD\fR
+defines the password for the domain account defined with
+\fIACCOUNT\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIREBOOT\fR
+is an optional parameter that can be set to reboot the remote machine after successful join to the domain\&.
+.sp
+.RE
+.PP
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
+.PP
+Example: net dom join \-S xp \-U XP\e\eadministrator%secret domain=MYDOM account=MYDOM\e\eadministrator password=topsecret reboot\&.
+.PP
+This example would connect to a computer named XP as the local administrator using password secret, and join the computer into a domain called MYDOM using the MYDOM domain administrator account and password topsecret\&. After successful join, the computer would reboot\&.
+.SS "DOM UNJOIN account=ACCOUNT password=PASSWORD reboot"
+.PP
+Unjoins a computer from a domain\&. This command supports the following additional parameters:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIACCOUNT\fR
+defines a domain account that will be used to unjoin the machine from the domain\&. This domain account needs to have sufficient privileges to unjoin machines\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIPASSWORD\fR
+defines the password for the domain account defined with
+\fIACCOUNT\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIREBOOT\fR
+is an optional parameter that can be set to reboot the remote machine after successful unjoin from the domain\&.
+.sp
+.RE
+.PP
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
+.PP
+Example: net dom unjoin \-S xp \-U XP\e\eadministrator%secret account=MYDOM\e\eadministrator password=topsecret reboot\&.
+.PP
+This example would connect to a computer named XP as the local administrator using password secret, and unjoin the computer from the domain using the MYDOM domain administrator account and password topsecret\&. After successful unjoin, the computer would reboot\&.
+.SS "DOM RENAMECOMPUTER newname=NEWNAME account=ACCOUNT password=PASSWORD reboot"
+.PP
+Renames a computer that is joined to a domain\&. This command supports the following additional parameters:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fINEWNAME\fR
+defines the new name of the machine in the domain\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIACCOUNT\fR
+defines a domain account that will be used to rename the machine in the domain\&. This domain account needs to have sufficient privileges to rename machines\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIPASSWORD\fR
+defines the password for the domain account defined with
+\fIACCOUNT\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIREBOOT\fR
+is an optional parameter that can be set to reboot the remote machine after successful rename in the domain\&.
+.sp
+.RE
+.PP
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
+.PP
+Example: net dom renamecomputer \-S xp \-U XP\e\eadministrator%secret newname=XPNEW account=MYDOM\e\eadministrator password=topsecret reboot\&.
+.PP
+This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret\&. After successful rename, the computer would reboot\&.
 .SS "HELP [COMMAND]"
 .PP
 Gives usage information for the specified command\&.

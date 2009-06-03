@@ -81,6 +81,12 @@ typedef struct join_state {
 	uid_t uid;
 } join_state;
 
+static void callback_creds_prompt(GtkWidget *widget,
+				  gpointer data,
+				  const char *label_string,
+				  gpointer cont_fn);
+
+
 static void debug(const char *format, ...)
 {
 	va_list args;
@@ -459,9 +465,50 @@ static void callback_do_hostname_change(GtkWidget *widget,
 	struct join_state *state = (struct join_state *)data;
 
 	switch (state->name_type_initial) {
-		case NetSetupDomainName:
+		case NetSetupDomainName: {
+#if 0
+			NET_API_STATUS status;
+			const char *newname;
+			char *p = NULL;
+
+			newname = strdup(gtk_label_get_text(GTK_LABEL(state->label_full_computer_name)));
+			if (!newname) {
+				return;
+			}
+
+			p = strchr(newname, '.');
+			if (p) {
+				*p = NULL;
+			}
+
+			if (!state->account || !state->password) {
+				debug("callback_do_hostname_change: no creds yet\n");
+				callback_creds_prompt(NULL, state,
+						      "Enter the name and password of an account with permission to change a computer name in a the domain.",
+						      callback_do_storeauth_and_continue);
+			}
+
+			if (!state->account || !state->password) {
+				debug("callback_do_hostname_change: still no creds???\n");
+				return;
+			}
+
+			status = NetRenameMachineInDomain(state->target_hostname,
+							  newname,
+							  state->account,
+							  state->password,
+							  NETSETUP_ACCT_CREATE);
+			SAFE_FREE(newname);
+			/* we renamed the machine in the domain */
+			if (status == 0) {
+				return;
+			}
+			str = libnetapi_get_error_string(state->ctx, status);
+#else
 			str = "To be implemented: call NetRenameMachineInDomain\n";
+#endif
 			break;
+		}
 		case NetSetupWorkgroupName:
 			str = "To be implemented: call SetComputerNameEx\n";
 			break;
@@ -655,7 +702,8 @@ static void callback_do_join(GtkWidget *widget,
 		unjoin_creds_required = TRUE;
 		join_creds_required = FALSE;
 		unjoin_flags = NETSETUP_JOIN_DOMAIN |
-			       NETSETUP_ACCT_DELETE;
+			       NETSETUP_ACCT_DELETE |
+			       NETSETUP_IGNORE_UNSUPPORTED_FLAGS;
 	}
 
 	if (try_unjoin) {
@@ -745,7 +793,7 @@ static void callback_do_join(GtkWidget *widget,
 		if (!state->account || !state->password) {
 			debug("callback_do_join: no creds yet\n");
 			callback_creds_prompt(NULL, state,
-					      "Enter the name and password of an account with permission to leave the domain.",
+					      "Enter the name and password of an account with permission to join the domain.",
 					      callback_do_storeauth_and_continue);
 		}
 
@@ -830,6 +878,7 @@ static void callback_enter_hostname_and_unlock(GtkWidget *widget,
 	if (!entry_text || entry_text[0] == 0) {
 		state->hostname_changed = FALSE;
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
+		gtk_label_set_text(GTK_LABEL(state->label_full_computer_name), "");
 		return;
 	}
 	if (strcasecmp(state->my_hostname, entry_text) == 0) {
@@ -852,7 +901,7 @@ static void callback_enter_hostname_and_unlock(GtkWidget *widget,
 	gtk_label_set_text(GTK_LABEL(state->label_full_computer_name), str);
 	free(str);
 
-	if (state->hostname_changed && str && str[0] != 0 && str[0] != '.') {
+	if (state->hostname_changed && entry_text && entry_text[0] != 0 && entry_text[0] != '.') {
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), TRUE);
 	}
 }
@@ -901,7 +950,8 @@ static void callback_enter_workgroup_and_unlock(GtkWidget *widget,
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
 		return;
 	}
-	if (strcasecmp(state->name_buffer_initial, entry_text) == 0) {
+	if ((strcasecmp(state->name_buffer_initial, entry_text) == 0) &&
+	    (state->name_type_initial == NetSetupWorkgroupName)) {
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
 		return;
 	}
@@ -923,7 +973,8 @@ static void callback_enter_domain_and_unlock(GtkWidget *widget,
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
 		return;
 	}
-	if (strcasecmp(state->name_buffer_initial, entry_text) == 0) {
+	if ((strcasecmp(state->name_buffer_initial, entry_text) == 0) &&
+	    (state->name_type_initial == NetSetupDomainName)) {
 		gtk_widget_set_sensitive(GTK_WIDGET(state->button_ok), FALSE);
 		return;
 	}
@@ -1442,7 +1493,7 @@ static int draw_main_window(struct join_state *state)
 		entry = gtk_entry_new();
 		gtk_entry_set_max_length(GTK_ENTRY(entry), 256);
 
-		if (state->uid != 0) {
+		if (!state->target_hostname && state->uid != 0) {
 			gtk_widget_set_sensitive(GTK_WIDGET(entry), FALSE);
 		}
 		g_signal_connect(G_OBJECT(entry), "changed",
@@ -1531,7 +1582,7 @@ static int draw_main_window(struct join_state *state)
 			 G_CALLBACK(callback_do_change),
 			 (gpointer)state);
 	gtk_box_pack_start(GTK_BOX(bbox), button, TRUE, TRUE, 0);
-	if (state->uid != 0) {
+	if (!state->target_hostname && state->uid != 0) {
 		gtk_widget_set_sensitive(GTK_WIDGET(button), FALSE);
 	}
 	gtk_widget_show(button);
@@ -1541,7 +1592,7 @@ static int draw_main_window(struct join_state *state)
 	gtk_label_set_line_wrap(GTK_LABEL(state->label_reboot), TRUE);
 	gtk_misc_set_alignment(GTK_MISC(state->label_reboot), 0, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), state->label_reboot, TRUE, TRUE, 0);
-	if (state->uid != 0) {
+	if (!state->target_hostname && state->uid != 0) {
 		gtk_label_set_text(GTK_LABEL(state->label_reboot),
 			   "You cannot change computer description as you're not running with root permissions");
 	}
@@ -1622,7 +1673,7 @@ static int init_join_state(struct join_state **state)
 	return 0;
 }
 
-static NET_API_STATUS get_server_comment(struct join_state *state)
+static NET_API_STATUS get_server_properties(struct join_state *state)
 {
 	struct SERVER_INFO_101 *info101 = NULL;
 	struct SERVER_INFO_1005 *info1005 = NULL;
@@ -1634,6 +1685,11 @@ static NET_API_STATUS get_server_comment(struct join_state *state)
 	if (status == 0) {
 		state->comment = strdup(info101->sv101_comment);
 		if (!state->comment) {
+			return -1;
+		}
+		SAFE_FREE(state->my_hostname);
+		state->my_hostname = strdup(info101->sv101_name);
+		if (!state->my_hostname) {
 			return -1;
 		}
 		NetApiBufferFree(info101);
@@ -1771,7 +1827,7 @@ static int initialize_join_state(struct join_state *state,
 		NetApiBufferFree((void *)buffer);
 	}
 
-	status = get_server_comment(state);
+	status = get_server_properties(state);
 	if (status != 0) {
 		return -1;
 	}

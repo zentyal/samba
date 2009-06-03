@@ -447,22 +447,53 @@ See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry
 </p><table class="simplelist" border="0" summary="Simple list"><tr><td>net eventlog dump - Dump a eventlog *.evt file on the screen.</td></tr><tr><td>net eventlog import - Import a eventlog *.evt into the samba internal
 tdb based representation of eventlogs.</td></tr><tr><td>net eventlog export - Export the samba internal tdb based representation
 of eventlogs into an eventlog *.evt file.</td></tr></table><p>
-</p><div class="refsect3" lang="en"><a name="id2534507"></a><h4>EVENTLOG DUMP</h4><p>
+</p><div class="refsect3" lang="en"><a name="id2534507"></a><h4>EVENTLOG DUMP <em class="replaceable"><code>filename</code></em></h4><p>
 Prints a eventlog *.evt file to standard output.
-</p></div><div class="refsect3" lang="en"><a name="id2534517"></a><h4>EVENTLOG IMPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534520"></a><h4>EVENTLOG IMPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
 Imports a eventlog *.evt file defined by <em class="replaceable"><code>filename</code></em> into the
 samba internal tdb representation of eventlog defined by <em class="replaceable"><code>eventlog</code></em>.
 <em class="replaceable"><code>eventlog</code></em> needs to part of the <em class="parameter"><code>eventlog list</code></em>
 defined in smb.conf.
 See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> manpage for details.
-</p></div><div class="refsect3" lang="en"><a name="id2534557"></a><h4>EVENTLOG EXPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
+</p></div><div class="refsect3" lang="en"><a name="id2534559"></a><h4>EVENTLOG EXPORT <em class="replaceable"><code>filename</code></em> <em class="replaceable"><code>eventlog</code></em></h4><p>
 Exports the samba internal tdb representation of eventlog defined by <em class="replaceable"><code>eventlog</code></em>
 to a eventlog *.evt file defined by <em class="replaceable"><code>filename</code></em>.
 <em class="replaceable"><code>eventlog</code></em> needs to part of the <em class="parameter"><code>eventlog list</code></em>
 defined in smb.conf.
 See the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> manpage for details.
-</p></div></div><div class="refsect2" lang="en"><a name="id2534598"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2534610"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
-	suite.</p></div><div class="refsect1" lang="en"><a name="id2534621"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></div></div><div class="refsect2" lang="en"><a name="id2534600"></a><h3>DOM</h3><p>Starting with version 3.2.0 Samba has support for remote join and unjoin APIs, both client and server-side. Windows supports remote join capabilities since Windows 2000.
+</p><p>In order for Samba to be joined or unjoined remotely an account must be used that is either member of the Domain Admins group, a member of the local Administrators group or a user that is granted the SeMachineAccountPrivilege privilege.
+</p><p>The client side support for remote join is implemented in the net dom commands which are:
+</p><table class="simplelist" border="0" summary="Simple list"><tr><td>net dom join - Join a remote computer into a domain.</td></tr><tr><td>net dom unjoin - Unjoin a remote computer from a domain.</td></tr><tr><td>net dom renamecomputer - Renames a remote computer joined to a domain.</td></tr></table><p>
+</p><div class="refsect3" lang="en"><a name="id2534642"></a><h4>DOM JOIN	<em class="replaceable"><code>domain=DOMAIN</code></em> <em class="replaceable"><code>ou=OU</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+Joins a computer into a domain. This command supports the following additional parameters:
+</p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>DOMAIN</code></em> can be a NetBIOS domain name (also known as short domain name) or a DNS domain name for Active Directory Domains. As in Windows, it is also possible to control which Domain Controller to use. This can be achieved by appending the DC name using the \ separator character. Example: MYDOM\MYDC. The <em class="replaceable"><code>DOMAIN</code></em> parameter cannot be NULL.</p></li><li><p><em class="replaceable"><code>OU</code></em> can be set to a RFC 1779 LDAP DN, like <span class="emphasis"><em>ou=mymachines,cn=Users,dc=example,dc=com</em></span> in order to create the machine account in a non-default LDAP containter. This optional parameter is only supported when joining Active Directory Domains.</p></li><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to join the machine to the domain. This domain account needs to have sufficient privileges to join machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful join to the domain.</p></li></ul></div><p>
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join. These additional parameters include: -S computer and -U user.
+</p><p>
+	Example:
+	net dom join -S xp -U XP\\administrator%secret domain=MYDOM account=MYDOM\\administrator password=topsecret reboot.
+</p><p>
+This example would connect to a computer named XP as the local administrator using password secret, and join the computer into a domain called MYDOM using the MYDOM domain administrator account and password topsecret. After successful join, the computer would reboot.
+</p></div><div class="refsect3" lang="en"><a name="id2534748"></a><h4>DOM UNJOIN <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+Unjoins a computer from a domain. This command supports the following additional parameters:
+</p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to unjoin the machine from the domain. This domain account needs to have sufficient privileges to unjoin machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful unjoin from the domain.</p></li></ul></div><p>
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin. These additional parameters include: -S computer and -U user.
+</p><p>
+	Example:
+	net dom unjoin -S xp -U XP\\administrator%secret account=MYDOM\\administrator password=topsecret reboot.
+</p><p>
+This example would connect to a computer named XP as the local administrator using password secret, and unjoin the computer from the domain using the MYDOM domain administrator account and password topsecret. After successful unjoin, the computer would reboot.
+</p></div><div class="refsect3" lang="en"><a name="id2534819"></a><h4>DOM RENAMECOMPUTER <em class="replaceable"><code>newname=NEWNAME</code></em> <em class="replaceable"><code>account=ACCOUNT</code></em> <em class="replaceable"><code>password=PASSWORD</code></em> <em class="replaceable"><code>reboot</code></em></h4><p>
+Renames a computer that is joined to a domain. This command supports the following additional parameters:
+</p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>NEWNAME</code></em> defines the new name of the machine in the domain.</p></li><li><p><em class="replaceable"><code>ACCOUNT</code></em> defines a domain account that will be used to rename the machine in the domain. This domain account needs to have sufficient privileges to rename machines.</p></li><li><p><em class="replaceable"><code>PASSWORD</code></em> defines the password for the domain account defined with <em class="replaceable"><code>ACCOUNT</code></em>.</p></li><li><p><em class="replaceable"><code>REBOOT</code></em> is an optional parameter that can be set to reboot the remote machine after successful rename in the domain.</p></li></ul></div><p>
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain. These additional parameters include: -S computer and -U user.
+</p><p>
+	Example:
+	net dom renamecomputer -S xp -U XP\\administrator%secret newname=XPNEW account=MYDOM\\administrator password=topsecret reboot.
+</p><p>
+This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret. After successful rename, the computer would reboot.
+</p></div></div><div class="refsect2" lang="en"><a name="id2534902"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2534914"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
+	suite.</p></div><div class="refsect1" lang="en"><a name="id2534925"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The net manpage was written by Jelmer Vernooij.</p></div></div></body></html>

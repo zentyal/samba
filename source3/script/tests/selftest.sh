@@ -213,11 +213,16 @@ cat >$SERVERCONFFILE<<EOF
 
 	domain master = yes
 	domain logons = yes
+	lanman auth = yes
 	time server = yes
 
-	add user script = $PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
-	add machine script = $PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
-	delete user script = $PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --path $NSS_WRAPPER_PASSWD --type passwd --action delete --name %u
+	add user script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
+	add group script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type group  --action add --name %g
+	add user to group script =	$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type member --action add --name %g --member %u --passwd_path $NSS_WRAPPER_PASSWD
+	add machine script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action add --name %u
+	delete user script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --passwd_path $NSS_WRAPPER_PASSWD --type passwd --action delete --name %u
+	delete group script =		$PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type group  --action delete --name %g
+	delete user from group script = $PERL $SRCDIR/../lib/nss_wrapper/nss_wrapper.pl --group_path  $NSS_WRAPPER_GROUP  --type member --action delete --name %g --member %u --passwd_path $NSS_WRAPPER_PASSWD
 
 	kernel oplocks = no
 	kernel change notify = no
@@ -255,13 +260,13 @@ cat >$SERVERCONFFILE<<EOF
 	copy = tmp
 	printable = yes
 	printing = vlp
-	print command = $BINDIR/vlp print %p %s
-	lpq command = $BINDIR/vlp lpq %p
-	lp rm command = $BINDIR/vlp lprm %p %j
-	lp pause command = $BINDIR/vlp lppause %p %j
-	lp resume command = $BINDIR/vlp lpresume %p %j
-	queue pause command = $BINDIR/vlp queuepause %p
-	queue resume command = $BINDIR/vlp queueresume %p
+	print command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb print %p %s
+	lpq command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpq %p
+	lp rm command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lprm %p %j
+	lp pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lppause %p %j
+	lp resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb lpresume %p %j
+	queue pause command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queuepause %p
+	queue resume command = $BINDIR/vlp tdbfile=$LOCKDIR/vlp.tdb queueresume %p
 
 [print2]
 	copy = print1

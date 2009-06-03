@@ -249,6 +249,9 @@
 /* Whether readdir() returns the wrong name offset */
 #undef HAVE_BROKEN_READDIR_NAME
 
+/* Whether the readlink syscall is broken */
+#undef HAVE_BROKEN_READLINK
+
 /* Define to 1 if you have the `bswap16' function. */
 #undef HAVE_BSWAP16
 

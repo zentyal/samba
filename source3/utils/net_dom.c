@@ -1,7 +1,7 @@
 /*
    Samba Unix/Linux SMB client library
    net dom commands for remote join/unjoin
-   Copyright (C) 2007 Günther Deschner
+   Copyright (C) 2007,2009 Günther Deschner
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,10 @@ int net_dom_usage(struct net_context *c, int argc, const char **argv)
 	d_printf("usage: net dom unjoin "
 		 "<account=ACCOUNT> <password=PASSWORD> <reboot>\n"
 		 "  Unjoin a remote machine\n");
+	d_printf("usage: net dom renamecomputer "
+		 "<newname=NEWNAME> "
+		 "<account=ACCOUNT> <password=PASSWORD> <reboot>\n"
+		 "  Rename joined computer\n");
 
 	return -1;
 }
@@ -38,7 +42,8 @@ static int net_dom_unjoin(struct net_context *c, int argc, const char **argv)
 	const char *account = NULL;
 	const char *password = NULL;
 	uint32_t unjoin_flags = NETSETUP_ACCT_DELETE |
-				NETSETUP_JOIN_DOMAIN;
+				NETSETUP_JOIN_DOMAIN |
+				NETSETUP_IGNORE_UNSUPPORTED_FLAGS;
 	struct cli_state *cli = NULL;
 	bool do_reboot = false;
 	NTSTATUS ntstatus;
@@ -224,6 +229,103 @@ static int net_dom_join(struct net_context *c, int argc, const char **argv)
 	return ret;
 }
 
+static int net_dom_renamecomputer(struct net_context *c, int argc, const char **argv)
+{
+	const char *server_name = NULL;
+	const char *account = NULL;
+	const char *password = NULL;
+	const char *newname = NULL;
+	uint32_t rename_options = NETSETUP_ACCT_CREATE;
+	struct cli_state *cli = NULL;
+	bool do_reboot = false;
+	NTSTATUS ntstatus;
+	NET_API_STATUS status;
+	int ret = -1;
+	int i;
+
+	if (argc < 1 || c->display_usage) {
+		return net_dom_usage(c, argc, argv);
+	}
+
+	if (c->opt_host) {
+		server_name = c->opt_host;
+	}
+
+	for (i=0; i<argc; i++) {
+		if (strnequal(argv[i], "account", strlen("account"))) {
+			account = get_string_param(argv[i]);
+			if (!account) {
+				return -1;
+			}
+		}
+		if (strnequal(argv[i], "password", strlen("password"))) {
+			password = get_string_param(argv[i]);
+			if (!password) {
+				return -1;
+			}
+		}
+		if (strnequal(argv[i], "newname", strlen("newname"))) {
+			newname = get_string_param(argv[i]);
+			if (!newname) {
+				return -1;
+			}
+		}
+		if (strequal(argv[i], "reboot")) {
+			do_reboot = true;
+		}
+	}
+
+	if (do_reboot) {
+		ntstatus = net_make_ipc_connection_ex(c, c->opt_workgroup,
+						      server_name, NULL, 0,
+						      &cli);
+		if (!NT_STATUS_IS_OK(ntstatus)) {
+			return -1;
+		}
+	}
+
+	status = NetRenameMachineInDomain(server_name, newname,
+					  account, password, rename_options);
+	if (status != 0) {
+		printf("Failed to rename machine: ");
+		if (status == W_ERROR_V(WERR_SETUP_NOT_JOINED)) {
+			printf("Computer is not joined to a Domain\n");
+			goto done;
+		}
+		printf("%s\n",
+			libnetapi_get_error_string(c->netapi_ctx, status));
+		goto done;
+	}
+
+	if (do_reboot) {
+		c->opt_comment = "Shutting down due to a computer rename";
+		c->opt_reboot = true;
+		c->opt_timeout = 30;
+
+		ret = run_rpc_command(c, cli,
+				      &ndr_table_initshutdown.syntax_id,
+				      0, rpc_init_shutdown_internals,
+				      argc, argv);
+		if (ret == 0) {
+			goto done;
+		}
+
+		ret = run_rpc_command(c, cli, &ndr_table_winreg.syntax_id, 0,
+				      rpc_reg_shutdown_internals,
+				      argc, argv);
+		goto done;
+	}
+
+	ret = 0;
+
+ done:
+	if (cli) {
+		cli_shutdown(cli);
+	}
+
+	return ret;
+}
+
 int net_dom(struct net_context *c, int argc, const char **argv)
 {
 	NET_API_STATUS status;
@@ -247,6 +349,17 @@ int net_dom(struct net_context *c, int argc, const char **argv)
 			"<reboot>\n"
 			"  Unjoin a remote machine"
 		},
+		{
+			"renamecomputer",
+			net_dom_renamecomputer,
+			NET_TRANSPORT_LOCAL,
+			"Rename a computer that is joined to a domain",
+			"net dom renamecomputer <newname=NEWNAME> "
+			"<account=ACCOUNT> <password=PASSWORD> "
+			"<reboot>\n"
+			"  Rename joined computer"
+		},
+
 		{NULL, NULL, 0, NULL, NULL}
 	};
 
@@ -255,9 +368,11 @@ int net_dom(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	libnetapi_set_username(c->netapi_ctx, c->opt_user_name);
-	libnetapi_set_password(c->netapi_ctx, c->opt_password);
-	if (c->opt_kerberos) {
+	libnetapi_set_username(c->netapi_ctx,
+			       get_cmdline_auth_info_username(c->auth_info));
+	libnetapi_set_password(c->netapi_ctx,
+			       get_cmdline_auth_info_password(c->auth_info));
+	if (get_cmdline_auth_info_use_kerberos(c->auth_info)) {
 		libnetapi_set_use_kerberos(c->netapi_ctx);
 	}
 

@@ -1,7 +1,14 @@
-samba (2:3.4.0~pre1-2) UNRELEASED; urgency=low
+samba (2:3.4.0~pre2-1) UNRELEASED; urgency=low
 
+  [ Jelmer Vernooij ]
   * Split binaries out of samba-common into samba-common-bin. Closes:
     #524661
+
+  [ Christian Perrier ]
+  * New upstream version
+  * Drop non-linux-ports.patch that was integrated upstream
+  * Drop smbpasswd-syslog.patch that was integrated upstream
+  * Drop smbclient-link.patch that was integrated upstream
 
  -- Jelmer Vernooij <jelmer@debian.org>  Tue, 02 Jun 2009 14:07:37 +0200
 

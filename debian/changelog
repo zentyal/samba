@@ -13,6 +13,9 @@ samba (2:3.4.0~pre2-1) UNRELEASED; urgency=low
   * Drop smbpasswd-syslog.patch that was integrated upstream
   * Drop smbclient-link.patch that was integrated upstream
 
+  [ Debconf translations ]
+  * Italian. Closes: #529350
+
  -- Christian Perrier <bubulle@debian.org>  Wed, 03 Jun 2009 22:49:44 +0200
 
 samba (2:3.4.0~pre1-1) experimental; urgency=low

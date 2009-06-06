@@ -1,14 +1,14 @@
 # Italian (it) translation of debconf templates for samba
 # Copyright (C) 2004 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Luca Monducci <luca.mo@tiscali.it>, 2004-2007.
+# Luca Monducci <luca.mo@tiscali.it>, 2004-2009.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 3.0.24-4 italian debconf templates\n"
+"Project-Id-Version: samba 3.3.4 italian debconf templates\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2006-03-13 13:47+0100\n"
+"PO-Revision-Date: 2009-05-18 21:47+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -91,20 +91,16 @@ msgstr "Nome del Workgroup/Dominio:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Specificare in quale workgroup deve apparire il server quando verrà "
-"interrogato dai client. Notare che questo parametro controlla anche il nome "
-"del dominio quando è usato il parametro «security=domain»."
+"Specificare il workgroup per questo sistema. Questa impostazione controlla "
+"in quale workgroup appare il sistema quando viene usato come server, il "
+"workgroup predefinito da usare nelle varie interfacce di navigazione e il "
+"nome del dominio quando è usato il parametro «security=domain»."
 
 #. Type: boolean
 #. Description
@@ -115,37 +111,29 @@ msgstr "Usare password cifrate?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Tutti i client Windows recenti comunicano con i server SMB usando password "
-"cifrate. Per usare password in chiaro è necessario cambiare un parametro nel "
-"registro di Windows."
+"Tutti i client Windows recenti comunicano con i server SMB/CIFS usando "
+"password cifrate. Per usare password in chiaro è necessario cambiare un "
+"parametro nel registro di Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Si raccomanda d'accettare, in questo caso assicurarsi che il file /etc/samba/"
-"smbpasswd sia valido e che le password di tutti gli utenti siano state "
-"inserite con il comando smbpasswd."
+"È raccomandata l'attivazione di questa opzione visto che il supporto per le "
+"password in chiaro non è più portato avanti nei prodotti Microsoft Windows. "
+"Se si accetta, assicurarsi che il file /etc/samba/smbpasswd sia valido e che "
+"le password di tutti gli utenti siano state inserite usando il comando "
+"smbpasswd."
 
 #. Type: boolean
 #. Description
@@ -167,8 +155,8 @@ msgstr ""
 "Windows, Samba deve essere configurato per usare password cifrate. Ciò "
 "richiede che le password degli utenti siano memorizzate in un file diverso "
 "da /etc/passwd. Questo file può essere creato automaticamente ma le password "
-"dovranno essere inserite manualmente con smbpasswd e in futuro il file dovrà "
-"essere tenuto aggiornato."
+"dovranno essere inserite manualmente usando smbpasswd e in futuro il file "
+"dovrà essere tenuto aggiornato."
 
 #. Type: boolean
 #. Description
@@ -177,7 +165,7 @@ msgid ""
 "If you do not create it, you will have to reconfigure Samba (and probably "
 "your client machines) to use plaintext passwords."
 msgstr ""
-"Se non si crea questo file è necessario riconfigurare samba (e probabilmente "
+"Se non si crea questo file è necessario riconfigurare Samba (e probabilmente "
 "anche le macchine client) per usare password in chiaro."
 
 #. Type: boolean

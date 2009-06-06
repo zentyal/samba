@@ -5,7 +5,9 @@ samba (2:3.4.0~pre2-1) UNRELEASED; urgency=low
     #524661
 
   [ Christian Perrier ]
-  * New upstream version
+  * New upstream version. That fixes the following bugs:
+    - Do not limit the number of network interfaces. Closes: #428618
+    - Fix Connect4 in samr.idl. Closes: #526229
   * "Using samba" is back.
   * Drop non-linux-ports.patch that was integrated upstream
   * Drop smbpasswd-syslog.patch that was integrated upstream

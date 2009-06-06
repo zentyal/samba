@@ -13,4 +13,3 @@ smbtar-bashism.patch
 no-unnecessary-cups.patch
 fix-manpages-warnings.patch
 codepages-location.patch
-shrink-dead-code.patch

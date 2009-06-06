@@ -1,3 +1,11 @@
+samba (2:3.2.5-4lenny4) UNRELEASED; urgency=low
+
+  * Fix Connect4 in samr.idl. 
+    This should allow Windows 2000 SP4 workstations to join a Samba
+    domain. Closes: #526229  
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 06 Jun 2009 11:46:12 +0200
+
 samba (2:3.2.5-4lenny3) stable-proposed-updates; urgency=low
 
   * Have ldap_search_with_timeout() always returns LDAP_TIMELIMIT_EXCEEDED

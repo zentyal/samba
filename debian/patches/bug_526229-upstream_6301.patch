@@ -1,0 +1,44 @@
+Goal: Fix Connect4 in samr.idl broken. It prevents Windows 2000 SP4
+      machines to join samba domains
+
+Fixes: #526229
+
+Status wrt upstream: Fixed in 3.2.12, 3.3.5 and 3.4.0
+
+Author: Volker Lendecke <vl@samba.org>
+
+Index: lenny/source/librpc/gen_ndr/ndr_samr.c
+===================================================================
+--- lenny.orig/source/librpc/gen_ndr/ndr_samr.c
++++ lenny/source/librpc/gen_ndr/ndr_samr.c
+@@ -4430,14 +4430,14 @@
+ 
+ static enum ndr_err_code ndr_push_samr_ConnectVersion(struct ndr_push *ndr, int ndr_flags, enum samr_ConnectVersion r)
+ {
+-	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r));
++	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r));
+ 	return NDR_ERR_SUCCESS;
+ }
+ 
+ static enum ndr_err_code ndr_pull_samr_ConnectVersion(struct ndr_pull *ndr, int ndr_flags, enum samr_ConnectVersion *r)
+ {
+-	uint16_t v;
+-	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &v));
++	uint32_t v;
++	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &v));
+ 	*r = v;
+ 	return NDR_ERR_SUCCESS;
+ }
+Index: lenny/source/librpc/idl/samr.idl
+===================================================================
+--- lenny.orig/source/librpc/idl/samr.idl
++++ lenny/source/librpc/idl/samr.idl
+@@ -1246,7 +1246,7 @@
+ 	/************************/
+ 	/* Function    0x3e     */
+ 
+-	typedef enum {
++	typedef [v1_enum] enum {
+ 		SAMR_CONNECT_PRE_W2K	= 1,
+ 		SAMR_CONNECT_W2K	= 2,
+ 		SAMR_CONNECT_AFTER_W2K	= 3

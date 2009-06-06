@@ -10,6 +10,11 @@ samba (2:3.3.4-3) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Italian. Closes: #529350
 
+  [ Christian Perrier ]
+  * debian/patches/no-unnecessary-cups.patch dropped: "cups connection
+    timeout" was introduced in 3.3.0 to address the issue that
+    motivated this workaround
+
  -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 
 samba (2:3.3.4-2) unstable; urgency=low

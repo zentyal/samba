@@ -2,8 +2,8 @@ Goal: Localize SWAT in German entirely
 
 Fixes: bug #487681
 
-Upstream status: should be forwarded (however, a translation round
-                 was made a while ago, which is rotting in upstream's BTS)
+Upstream status: Forwarded in upstream #4755 that also contains
+                 a full translation round
 
 Index: samba-3.3.0rc2/source/po/de.msg
 ===================================================================

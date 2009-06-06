@@ -2,7 +2,7 @@ Goal:  Move codepage files to the datadir (codepagedir is not configurable)
 
 Fixes: Build failure..:-)
 
-Status wrt upstream: Should be forwarded after discussion
+Status wrt upstream: Forwarded as Bugzilla #6444
 
 Note: 
 

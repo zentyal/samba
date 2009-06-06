@@ -1,8 +1,8 @@
 samba (2:3.4.0~pre2-1) UNRELEASED; urgency=low
 
   [ Jelmer Vernooij ]
-  * Split binaries out of samba-common into samba-common-bin. Closes:
-    #524661
+  * Split binaries out of samba-common into samba-common-bin.
+    Closes: #524661
 
   [ Christian Perrier ]
   * New upstream version. That fixes the following bugs:

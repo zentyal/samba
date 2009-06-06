@@ -59,3 +59,6 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcRemoveGidMapping@Base 2:3.3.0
  wbcRemoveUidMapping@Base 2:3.3.0
  wbcStringToGuid@Base 2:3.3.0
+ wbcGetSidAliases@Base 2:3.4.0~pre2
+ wbcGetpwsid@Base 2:3.4.0~pre2
+ 

@@ -670,6 +670,8 @@ static void set_server_role(void);
 static void set_default_server_announce_type(void);
 static void set_allowed_client_auth(void);
 
+static void add_to_file_list(const char *fname, const char *subfname);
+
 static const struct enum_list enum_protocol[] = {
 	{PROTOCOL_NT1, "NT1"},
 	{PROTOCOL_LANMAN2, "LANMAN2"},
@@ -6585,6 +6587,9 @@ static bool process_registry_service(struct smbconf_service *service)
 			return false;
 		}
 	}
+	if (iServiceIndex >= 0) {
+		return  service_ok(iServiceIndex);
+	}
 	return true;
 }
 
@@ -6602,6 +6607,8 @@ static bool process_registry_globals(void)
 	if (conf_ctx == NULL) {
 		goto done;
 	}
+
+	add_to_file_list(INCLUDE_REGISTRY_NAME, INCLUDE_REGISTRY_NAME);
 
 	ret = do_parameter("registry shares", "yes", NULL);
 	if (!ret) {
@@ -6671,6 +6678,10 @@ done:
 	TALLOC_FREE(mem_ctx);
 	return ret;
 }
+
+#define MAX_INCLUDE_DEPTH 100
+
+static uint8_t include_depth;
 
 static struct file_lists {
 	struct file_lists *next;
@@ -6744,45 +6755,51 @@ bool lp_file_list_changed(void)
 
  	DEBUG(6, ("lp_file_list_changed()\n"));
 
-	if (lp_config_backend_is_registry()) {
-		struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
-
-		if (conf_ctx == NULL) {
-			return false;
-		}
-		if (smbconf_changed(conf_ctx, &conf_last_csn, NULL, NULL)) {
-			DEBUGADD(6, ("registry config changed\n"));
-			return true;
-		}
-	}
-
 	while (f) {
 		char *n2 = NULL;
 		time_t mod_time;
 
-		n2 = alloc_sub_basic(get_current_username(),
-				    current_user_info.domain,
-				    f->name);
-		if (!n2) {
-			return false;
-		}
-		DEBUGADD(6, ("file %s -> %s  last mod_time: %s\n",
-			     f->name, n2, ctime(&f->modtime)));
+		if (strequal(f->name, INCLUDE_REGISTRY_NAME)) {
+			struct smbconf_ctx *conf_ctx = lp_smbconf_ctx();
 
-		mod_time = file_modtime(n2);
+			if (conf_ctx == NULL) {
+				return false;
+			}
+			if (smbconf_changed(conf_ctx, &conf_last_csn, NULL,
+					    NULL))
+			{
+				DEBUGADD(6, ("registry config changed\n"));
+				return true;
+			}
+		} else {
+			n2 = alloc_sub_basic(get_current_username(),
+					    current_user_info.domain,
+					    f->name);
+			if (!n2) {
+				return false;
+			}
+			DEBUGADD(6, ("file %s -> %s  last mod_time: %s\n",
+				     f->name, n2, ctime(&f->modtime)));
 
-		if (mod_time && ((f->modtime != mod_time) || (f->subfname == NULL) || (strcmp(n2, f->subfname) != 0))) {
-			DEBUGADD(6,
-				 ("file %s modified: %s\n", n2,
-				  ctime(&mod_time)));
-			f->modtime = mod_time;
-			SAFE_FREE(f->subfname);
-			f->subfname = n2; /* Passing ownership of
-					     return from alloc_sub_basic
-					     above. */
-			return true;
+			mod_time = file_modtime(n2);
+
+			if (mod_time &&
+			    ((f->modtime != mod_time) ||
+			     (f->subfname == NULL) ||
+			     (strcmp(n2, f->subfname) != 0)))
+			{
+				DEBUGADD(6,
+					 ("file %s modified: %s\n", n2,
+					  ctime(&mod_time)));
+				f->modtime = mod_time;
+				SAFE_FREE(f->subfname);
+				f->subfname = n2; /* Passing ownership of
+						     return from alloc_sub_basic
+						     above. */
+				return true;
+			}
+			SAFE_FREE(n2);
 		}
-		SAFE_FREE(n2);
 		f = f->next;
 	}
 	return (False);
@@ -6859,12 +6876,22 @@ static bool handle_include(int snum, const char *pszParmValue, char **ptr)
 {
 	char *fname;
 
+	if (include_depth >= MAX_INCLUDE_DEPTH) {
+		DEBUG(0, ("Error: Maximum include depth (%u) exceeded!\n",
+			  include_depth));
+		return false;
+	}
+
 	if (strequal(pszParmValue, INCLUDE_REGISTRY_NAME)) {
 		if (!bAllowIncludeRegistry) {
 			return true;
 		}
 		if (bInGlobalSection) {
-			return process_registry_globals();
+			bool ret;
+			include_depth++;
+			ret = process_registry_globals();
+			include_depth--;
+			return ret;
 		} else {
 			DEBUG(1, ("\"include = registry\" only effective "
 				  "in %s section\n", GLOBAL_NAME));
@@ -6881,7 +6908,10 @@ static bool handle_include(int snum, const char *pszParmValue, char **ptr)
 	string_set(ptr, fname);
 
 	if (file_exist(fname, NULL)) {
-		bool ret = pm_process(fname, do_section, do_parameter, NULL);
+		bool ret;
+		include_depth++;
+		ret = pm_process(fname, do_section, do_parameter, NULL);
+		include_depth--;
 		SAFE_FREE(fname);
 		return ret;
 	}

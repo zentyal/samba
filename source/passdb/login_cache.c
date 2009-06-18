@@ -35,7 +35,7 @@ bool login_cache_init(void)
 	/* skip file open if it's already opened */
 	if (cache) return True;
 
-	if (asprintf(&cache_fname, "%s/%s", lp_lockdir(), LOGIN_CACHE_FILE) == -1) {
+	if (asprintf(&cache_fname, "%s/%s", get_dyn_CACHEDIR(), LOGIN_CACHE_FILE) == -1) {
 		DEBUG(0, ("Filename allocation failed.\n"));
 		return False;
 	}

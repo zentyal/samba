@@ -1,12 +1,12 @@
 .\"     Title: ntlm_auth
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 04/28/2009
+.\"      Date: 06/16/2009
 .\"    Manual: User Commands
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "NTLM_AUTH" "1" "04/28/2009" "Samba 3\&.3" "User Commands"
+.TH "NTLM_AUTH" "1" "06/16/2009" "Samba 3\&.3" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -193,7 +193,7 @@ daemon must be operational for many of these commands to function\&.
 Some of these commands also require access to the directory
 \FCwinbindd_privileged\F[]
 in
-\FC$LOCKDIR\F[]\&. This should be done either by running this command as root or providing group access to the
+\FC/var/run/samba\F[]\&. This should be done either by running this command as root or providing group access to the
 \FCwinbindd_privileged\F[]
 directory\&. For security reasons, this directory should not be world\-accessable\&.
 .SH "OPTIONS"
@@ -219,7 +219,7 @@ Server\-side helper for use with Squid 2\&.5\'s NTLMSSP authentication\&.
 Requires access to the directory
 \FCwinbindd_privileged\F[]
 in
-\FC$LOCKDIR\F[]\&. The protocol used is described here:
+\FC/var/run/samba\F[]\&. The protocol used is described here:
 http://devel\&.squid\-cache\&.org/ntlm/squid_helper_protocol\&.html\&. This protocol has been extended to allow the NTLMSSP Negotiate packet to be included as an argument to the
 \FCYR\F[]
 command\&. (Thus avoiding loss of information in the protocol exchange)\&.
@@ -242,7 +242,7 @@ Server\-side helper that implements GSS\-SPNEGO\&. This uses a protocol that is 
 Requires access to the directory
 \FCwinbindd_privileged\F[]
 in
-\FC$LOCKDIR\F[]\&.
+\FC/var/run/samba\F[]\&.
 .RE
 .PP
 gss\-spnego\-client

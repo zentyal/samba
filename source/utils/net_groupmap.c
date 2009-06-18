@@ -619,13 +619,11 @@ static int net_groupmap_set(struct net_context *c, int argc, const char **argv)
 
 	/* The case (opt_domaingroup && opt_localgroup) was tested for above */
 
-	if ((c->opt_comment != NULL) && (strlen(c->opt_comment) > 0)) {
+	if (strlen(c->opt_comment) > 0)
 		fstrcpy(map.comment, c->opt_comment);
-	}
 
-	if ((c->opt_newntname != NULL) && (strlen(c->opt_newntname) > 0)) {
+	if (strlen(c->opt_newntname) > 0)
 		fstrcpy(map.nt_name, c->opt_newntname);
-	}
 
 	if (grp != NULL)
 		map.gid = grp->gr_gid;

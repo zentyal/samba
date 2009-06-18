@@ -1315,7 +1315,6 @@ char *lib_path(const char *name);
 char *modules_path(const char *name);
 char *data_path(const char *name);
 char *state_path(const char *name);
-char *cache_path(const char *name);
 const char *shlib_ext(void);
 char *parent_dirname(const char *path);
 bool parent_dirname_talloc(TALLOC_CTX *mem_ctx, const char *dir,

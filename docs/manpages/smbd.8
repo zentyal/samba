@@ -1,12 +1,12 @@
 .\"     Title: smbd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/16/2009
+.\"      Date: 04/28/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "SMBD" "8" "06/16/2009" "Samba 3\&.3" "System Administration tools"
+.TH "SMBD" "8" "04/28/2009" "Samba 3\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -319,11 +319,14 @@ If running the server via the meta\-daemon
 \FCinetd\F[], this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
 .RE
 .PP
-\FC/etc/samba/smb\&.conf\F[]
+\FC/usr/local/samba/lib/smb\&.conf\F[]
 .RS 4
 This is the default location of the
 \fBsmb.conf\fR(5)
-server configuration file\&.
+server configuration file\&. Other common places that systems install this file are
+\FC/usr/samba/lib/smb\&.conf\F[]
+and
+\FC/etc/samba/smb\&.conf\F[]\&.
 .sp
 This file describes all the services the server is to make available to clients\&. See
 \fBsmb.conf\fR(5)

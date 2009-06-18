@@ -69,9 +69,6 @@
 /* Whether to use fully FHS-compatible paths */
 #undef FHS_COMPATIBLE
 
-/* Whether to use fully FHS-compatible paths */
-#undef FHS_COMPATIBLE
-
 /* Whether the host os is FreeBSD */
 #undef FREEBSD
 
@@ -239,9 +236,6 @@
 
 /* Whether readdir() returns the wrong name offset */
 #undef HAVE_BROKEN_READDIR_NAME
-
-/* Whether the readlink syscall is broken */
-#undef HAVE_BROKEN_READLINK
 
 /* Define to 1 if you have the `bzero' function. */
 #undef HAVE_BZERO

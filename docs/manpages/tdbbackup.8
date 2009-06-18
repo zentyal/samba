@@ -1,12 +1,12 @@
 .\"     Title: tdbbackup
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/16/2009
+.\"      Date: 04/28/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "TDBBACKUP" "8" "06/16/2009" "Samba 3\&.3" "System Administration tools"
+.TH "TDBBACKUP" "8" "04/28/2009" "Samba 3\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -227,7 +227,7 @@ Samba \&.tdb files are stored in various locations, be sure to run backup all \&
 .\}
 
 \FCsecrets\&.tdb\F[]
-\- usual location is in the /var/lib/samba directory\&.
+\- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba\&.
 .RE
 .sp
 .RS 4
@@ -240,7 +240,7 @@ Samba \&.tdb files are stored in various locations, be sure to run backup all \&
 .\}
 
 \FCpassdb\&.tdb\F[]
-\- usual location is in the /var/lib/samba directory\&.
+\- usual location is in the /usr/local/samba/private directory, or on some systems in /etc/samba\&.
 .RE
 .sp
 .RS 4
@@ -253,7 +253,7 @@ Samba \&.tdb files are stored in various locations, be sure to run backup all \&
 .\}
 
 \FC*\&.tdb\F[]
-located in the /var/lib/samba and /var/run/samba directories\&.
+located in the /usr/local/samba/var directory or on some systems in the /var/cache or /var/lib/samba directories\&.
 .SH "VERSION"
 .PP
 This man page is correct for version 3 of the Samba suite\&.

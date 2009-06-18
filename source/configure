@@ -678,7 +678,6 @@ CTDB_CFLAGS
 LIBADDNS_SOVER
 UNINSTALL_LIBADDNS
 INSTALL_LIBADDNS
-LIBADDNS_TARGET
 LIBADDNS_LIBS
 LIBADDNS_STATIC
 LIBADDNS_SHARED
@@ -687,7 +686,6 @@ LIBADDNS_SHARED_TARGET
 LIBSMBSHAREMODES_SOVER
 UNINSTALL_LIBSMBSHAREMODES
 INSTALL_LIBSMBSHAREMODES
-LIBSMBSHAREMODES_TARGET
 LIBSMBSHAREMODES_LIBS
 LIBSMBSHAREMODES_STATIC
 LIBSMBSHAREMODES_SHARED
@@ -696,7 +694,6 @@ LIBSMBSHAREMODES_SHARED_TARGET
 LIBSMBCLIENT_SOVER
 UNINSTALL_LIBSMBCLIENT
 INSTALL_LIBSMBCLIENT
-LIBSMBCLIENT_TARGET
 LIBSMBCLIENT_LIBS
 LIBSMBCLIENT_STATIC
 LIBSMBCLIENT_SHARED
@@ -705,7 +702,6 @@ LIBSMBCLIENT_SHARED_TARGET
 LIBNETAPI_SOVER
 UNINSTALL_LIBNETAPI
 INSTALL_LIBNETAPI
-LIBNETAPI_TARGET
 LIBNETAPI_LIBS
 LIBNETAPI_STATIC
 LIBNETAPI_SHARED
@@ -714,7 +710,6 @@ LIBNETAPI_SHARED_TARGET
 LIBTDB_SOVER
 UNINSTALL_LIBTDB
 INSTALL_LIBTDB
-LIBTDB_TARGET
 LIBTDB_LIBS
 LIBTDB_STATIC
 LIBTDB_SHARED
@@ -723,7 +718,6 @@ LIBTDB_SHARED_TARGET
 LIBTALLOC_SOVER
 UNINSTALL_LIBTALLOC
 INSTALL_LIBTALLOC
-LIBTALLOC_TARGET
 LIBTALLOC_LIBS
 LIBTALLOC_STATIC
 LIBTALLOC_SHARED
@@ -2418,9 +2412,9 @@ modulesdir="${libdir}"
 pammodulesdir="${libdir}/security"
 configdir="${libdir}"
 swatdir="\${prefix}/swat"
-codepagedir="\${prefix}/share/samba"
-statedir="\${VARDIR}/lib/samba"
-cachedir="\${VARDIR}/cache/samba"
+codepagedir="\${MODULESDIR}"
+statedir="\${LOCKDIR}"
+cachedir="\${LOCKDIR}"
 localedir="\${prefix}/share/locale"
 
 
@@ -2436,10 +2430,10 @@ if test "${with_fhs+set}" = set; then
     test "${libdir}" || libdir="\${prefix}/lib"
     modulesdir="${libdir}/samba"
     configdir="\${sysconfdir}/samba"
-    swatdir="\${prefix}/swat"
-    codepagedir="\${prefix}/share/samba"
+    swatdir="\${DATADIR}/samba/swat"
+    codepagedir="\${MODULESDIR}"
     statedir="\${VARDIR}/lib/samba"
-    cachedir="\${VARDIR}/cache/samba"
+    cachedir="\${VARDIR}/lib/samba"
 
 cat >>confdefs.h <<\_ACEOF
 #define FHS_COMPATIBLE 1
@@ -13724,27 +13718,6 @@ _ACEOF
 $as_echo "$SINIX_LFS_SUPPORT" >&6; }
       fi
     ;;
-
-# Systems with LFS support.
-#
-    gnu* | k*bsd*-gnu)
-	CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-
-cat >>confdefs.h <<\_ACEOF
-#define _LARGEFILE64_SOURCE 1
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define _FILE_OFFSET_BITS 64
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define _GNU_SOURCE 1
-_ACEOF
-
-	;;
 
 # Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
 #
@@ -44092,7 +44065,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 #
 #
 case "$host_os" in
-    linux*-gnu* | gnu* | k*bsd*-gnu)
+    *linux*)
        # glibc <= 2.3.2 has a broken getgrouplist
        if test "$cross_compiling" = yes; then
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
@@ -49907,14 +49880,11 @@ $as_echo_n "checking ability to build shared libraries... " >&6; }
 
   # and these are for particular systems
   case "$host_os" in
-		linux*-gnu* | gnu* | k*bsd*-gnu)
-			case "$host_os" in linux*)
-
+		*linux*)
 cat >>confdefs.h <<\_ACEOF
 #define LINUX 1
 _ACEOF
- ;;
-			esac
+
 			BLDSHARED="true"
 			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
 				LDSHFLAGS="-shared -Wl,-Bsymbolic -Wl,--allow-shlib-undefined"
@@ -71962,13 +71932,11 @@ LIBTALLOC_SHARED_TARGET=bin/libtalloc.$SHLIBEXT
 LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
 LIBTALLOC_SHARED=
 LIBTALLOC_STATIC=
-LIBTALLOC_LIBS=-ltalloc
-LIBTALLOC_TARGET=
+LIBTALLOC_LIBS=
 INSTALL_LIBTALLOC=
 UNINSTALL_LIBTALLOC=
 
 LIBTALLOC_SOVER=1
-
 
 
 
@@ -72013,17 +71981,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBTALLOC=uninstalllibtalloc
 	if eval $BLDSHARED = true; then
 		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
-		LIBTALLOC_TARGET=$LIBTALLOC_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
 			enable_static=yes
-			LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
-			LIBTALLOC_LIBS=$LIBTALLOC_STATIC_TARGET
+		else
+			LIBTALLOC_LIBS=-ltalloc
 		fi
 	else
 		enable_static=yes
-		LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -72050,13 +72016,11 @@ LIBTDB_SHARED_TARGET=bin/libtdb.$SHLIBEXT
 LIBTDB_STATIC_TARGET=bin/libtdb.a
 LIBTDB_SHARED=
 LIBTDB_STATIC=
-LIBTDB_LIBS=-ltdb
-LIBTDB_TARGET=
+LIBTDB_LIBS=
 INSTALL_LIBTDB=
 UNINSTALL_LIBTDB=
 
 LIBTDB_SOVER=1
-
 
 
 
@@ -72101,17 +72065,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBTDB=uninstalllibtdb
 	if eval $BLDSHARED = true; then
 		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
-		LIBTDB_TARGET=$LIBTDB_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
 			enable_static=yes
-			LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
-			LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
+		else
+			LIBTDB_LIBS=-ltdb
 		fi
 	else
 		enable_static=yes
-		LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -72138,13 +72100,11 @@ LIBNETAPI_SHARED_TARGET=bin/libnetapi.$SHLIBEXT
 LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
 LIBNETAPI_SHARED=
 LIBNETAPI_STATIC=
-LIBNETAPI_LIBS=-lnetapi
-LIBNETAPI_TARGET=
+LIBNETAPI_LIBS=
 INSTALL_LIBNETAPI=
 UNINSTALL_LIBNETAPI=
 
 LIBNETAPI_SOVER=0
-
 
 
 
@@ -72189,17 +72149,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBNETAPI=uninstalllibnetapi
 	if eval $BLDSHARED = true; then
 		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
-		LIBNETAPI_TARGET=$LIBNETAPI_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
 			enable_static=yes
-			LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
-			LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
+		else
+			LIBNETAPI_LIBS=-lnetapi
 		fi
 	else
 		enable_static=yes
-		LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -72226,13 +72184,11 @@ LIBSMBCLIENT_SHARED_TARGET=bin/libsmbclient.$SHLIBEXT
 LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
 LIBSMBCLIENT_SHARED=
 LIBSMBCLIENT_STATIC=
-LIBSMBCLIENT_LIBS=-lsmbclient
-LIBSMBCLIENT_TARGET=
+LIBSMBCLIENT_LIBS=
 INSTALL_LIBSMBCLIENT=
 UNINSTALL_LIBSMBCLIENT=
 
 LIBSMBCLIENT_SOVER=0
-
 
 
 
@@ -72277,17 +72233,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
 	if eval $BLDSHARED = true; then
 		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
-		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
 			enable_static=yes
-			LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
-			LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
+		else
+			LIBSMBCLIENT_LIBS=-lsmbclient
 		fi
 	else
 		enable_static=yes
-		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -72314,13 +72268,11 @@ LIBSMBSHAREMODES_SHARED_TARGET=bin/libsmbsharemodes.$SHLIBEXT
 LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
 LIBSMBSHAREMODES_SHARED=
 LIBSMBSHAREMODES_STATIC=
-LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
-LIBSMBSHAREMODES_TARGET=
+LIBSMBSHAREMODES_LIBS=
 INSTALL_LIBSMBSHAREMODES=
 UNINSTALL_LIBSMBSHAREMODES=
 
 LIBSMBSHAREMODES_SOVER=0
-
 
 
 
@@ -72365,17 +72317,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
 	if eval $BLDSHARED = true; then
 		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
-		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
 			enable_static=yes
-			LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
-			LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
+		else
+			LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
 		fi
 	else
 		enable_static=yes
-		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -72402,13 +72352,11 @@ LIBADDNS_SHARED_TARGET=bin/libaddns.$SHLIBEXT
 LIBADDNS_STATIC_TARGET=bin/libaddns.a
 LIBADDNS_SHARED=
 LIBADDNS_STATIC=
-LIBADDNS_LIBS=-laddns
-LIBADDNS_TARGET=
+LIBADDNS_LIBS=
 INSTALL_LIBADDNS=
 UNINSTALL_LIBADDNS=
 
 LIBADDNS_SOVER=0
-
 
 
 
@@ -72455,17 +72403,15 @@ if eval test x"$build_lib" = "xyes" ; then
 	UNINSTALL_LIBADDNS=uninstalllibaddns
 	if eval $BLDSHARED = true; then
 		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
-		LIBADDNS_TARGET=$LIBADDNS_SHARED_TARGET
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
 			enable_static=yes
-			LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
-			LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
+		else
+			LIBADDNS_LIBS=-laddns
 		fi
 	else
 		enable_static=yes
-		LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
 		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
 $as_echo "no shared library support -- will supply static library" >&6; }
 	fi
@@ -75354,7 +75300,7 @@ if test "${with_sendfile_support+set}" = set; then
 $as_echo "yes" >&6; };
 
 	case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		{ $as_echo "$as_me:$LINENO: checking for linux sendfile64 support" >&5
 $as_echo_n "checking for linux sendfile64 support... " >&6; }
 if test "${samba_cv_HAVE_SENDFILE64+set}" = set; then
@@ -76594,73 +76540,6 @@ _ACEOF
  fi
 
 
-############################################
-# See if we have the a broken readlink syscall.
-
-{ $as_echo "$as_me:$LINENO: checking for a broken readlink syscall" >&5
-$as_echo_n "checking for a broken readlink syscall... " >&6; }
-if test "${samba_cv_HAVE_BROKEN_READLINK+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-
-if test "$cross_compiling" = yes; then
-  samba_cv_HAVE_BROKEN_READLINK=cross
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include "${srcdir-.}/../tests/readlink.c"
-_ACEOF
-rm -f conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  samba_cv_HAVE_BROKEN_READLINK=no
-else
-  $as_echo "$as_me: program exited with status $ac_status" >&5
-$as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-( exit $ac_status )
-samba_cv_HAVE_BROKEN_READLINK=yes
-fi
-rm -rf conftest.dSYM
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
-fi
-
-
-
-fi
-{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_BROKEN_READLINK" >&5
-$as_echo "$samba_cv_HAVE_BROKEN_READLINK" >&6; }
-if test x"$samba_cv_HAVE_BROKEN_READLINK" = x"yes"; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_BROKEN_READLINK 1
-_ACEOF
-
-fi
 
 #################################################
 # Check whether winbind is supported on this platform.  If so we need to
@@ -76683,11 +76562,11 @@ NSSSONAMEVERSIONSUFFIX=""
 WINBIND_NSS_PTHREAD=""
 
 case "$host_os" in
-	linux*-gnu* | gnu* | k*bsd*-gnu)
+	*linux*)
 		NSSSONAMEVERSIONSUFFIX=".2"
 		WINBIND_NSS_EXTRA_OBJS="nsswitch/winbind_nss_linux.o"
 		;;
-	freebsd5*|*freebsd[6-9]*)
+	*freebsd[5-9]*)
 		# FreeBSD winbind client is implemented as a wrapper around
 		# the Linux version.
 		NSSSONAMEVERSIONSUFFIX=".1"

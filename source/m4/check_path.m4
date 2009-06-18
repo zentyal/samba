@@ -26,9 +26,9 @@ modulesdir="${libdir}"
 pammodulesdir="${libdir}/security"
 configdir="${libdir}"
 swatdir="\${prefix}/swat"
-codepagedir="\${prefix}/share/samba"
-statedir="\${VARDIR}/lib/samba"
-cachedir="\${VARDIR}/cache/samba"
+codepagedir="\${MODULESDIR}"
+statedir="\${LOCKDIR}"
+cachedir="\${LOCKDIR}"
 localedir="\${prefix}/share/locale"
 
 AC_ARG_WITH(fhs,
@@ -43,10 +43,10 @@ AC_ARG_WITH(fhs,
     test "${libdir}" || libdir="\${prefix}/lib"
     modulesdir="${libdir}/samba"
     configdir="\${sysconfdir}/samba"
-    swatdir="\${prefix}/swat"
-    codepagedir="\${prefix}/share/samba"
+    swatdir="\${DATADIR}/samba/swat"
+    codepagedir="\${MODULESDIR}"
     statedir="\${VARDIR}/lib/samba"
-    cachedir="\${VARDIR}/cache/samba"
+    cachedir="\${VARDIR}/lib/samba"
     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
     ;;
   esac])

@@ -1,12 +1,12 @@
 .\"     Title: nmbd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/16/2009
+.\"      Date: 04/28/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.3
 .\"  Language: English
 .\"
-.TH "NMBD" "8" "06/16/2009" "Samba 3\&.3" "System Administration tools"
+.TH "NMBD" "8" "04/28/2009" "Samba 3\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -265,7 +265,10 @@ used by
 to answer any name queries\&. Adding a line to this file affects name NetBIOS resolution from this host
 \fIONLY\fR\&.
 .sp
-The default path to this file is
+The default path to this file is compiled into Samba as part of the build process\&. Common defaults are
+\FC/usr/local/samba/lib/lmhosts\F[],
+\FC/usr/samba/lib/lmhosts\F[]
+or
 \FC/etc/samba/lmhosts\F[]\&. See the
 \fBlmhosts\fR(5)
 man page for details on the contents of this file\&.
@@ -334,11 +337,14 @@ If running the server via the meta\-daemon
 \FCinetd\F[], this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
 .RE
 .PP
-\FC/etc/samba/smb\&.conf\F[]
+\FC/usr/local/samba/lib/smb\&.conf\F[]
 .RS 4
 This is the default location of the
 \fBsmb.conf\fR(5)
-server configuration file\&.
+server configuration file\&. Other common places that systems install this file are
+\FC/usr/samba/lib/smb\&.conf\F[]
+and
+\FC/etc/samba/smb\&.conf\F[]\&.
 .sp
 When run as a WINS server (see the
 \m[blue]\fBwins support\fR\m[]
@@ -382,8 +388,10 @@ is to send it a SIGTERM (\-15) signal and wait for it to die on its own\&.
 will accept SIGHUP, which will cause it to dump out its namelists into the file
 \FCnamelist\&.debug \F[]
 in the
-\FC/var/run/samba\F[]
-directory\&. This will also cause
+\FC/usr/local/samba/var/locks\F[]
+directory (or the
+\FCvar/locks\F[]
+directory configured under wherever Samba was configured to install itself)\&. This will also cause
 \FCnmbd\F[]
 to dump out its server database in the
 \FClog\&.nmb\F[]

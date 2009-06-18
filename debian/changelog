@@ -1,4 +1,4 @@
-samba (2:3.3.5-1) unstable; urgency=low
+samba (2:3.3.5-1) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * debian/patches/undefined-symbols.patch: fix up patch so that it's
@@ -13,7 +13,7 @@ samba (2:3.3.5-1) unstable; urgency=low
   [ Christian Perrier ]
   * New upstream version
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 18 Jun 2009 22:40:52 +0200
+ -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 
 samba (2:3.3.4-2) unstable; urgency=low
 

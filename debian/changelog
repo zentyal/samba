@@ -1,4 +1,4 @@
-samba (2:3.3.4-3) UNRELEASED; urgency=low
+samba (2:3.3.5-1) UNRELEASED; urgency=low
 
   [ Steve Langasek ]
   * debian/patches/undefined-symbols.patch: fix up patch so that it's
@@ -9,6 +9,9 @@ samba (2:3.3.4-3) UNRELEASED; urgency=low
 
   [ Debconf translations ]
   * Italian. Closes: #529350
+
+  [ Christian Perrier ]
+  * New upstream version
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 

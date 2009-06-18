@@ -36,6 +36,10 @@ static NTSTATUS build_stream_path(TALLOC_CTX *mem_ctx,
 static int get_real_filename_mangled(connection_struct *conn, const char *path,
 				     const char *name, TALLOC_CTX *mem_ctx,
 				     char **found_name);
+static int get_real_filename_internal(connection_struct *conn,
+				      const char *path, const char *name,
+				      bool mangled,
+				      TALLOC_CTX *mem_ctx, char **found_name);
 
 /****************************************************************************
  Mangle the 2nd name and check if it is then equal to the first name.
@@ -493,8 +497,14 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 					goto fail;
 				}
 
-				/* ENOENT is the only valid error here. */
-				if ((errno != 0) && (errno != ENOENT)) {
+				/*
+				 * ENOENT/EACCESS are the only valid errors
+				 * here. EACCESS needs handling here for
+				 * "dropboxes", i.e. directories where users
+				 * can only put stuff with permission -wx.
+				 */
+				if ((errno != 0) && (errno != ENOENT)
+				    && (errno != EACCES)) {
 					/*
 					 * ENOTDIR and ELOOP both map to
 					 * NT_STATUS_OBJECT_PATH_NOT_FOUND
@@ -504,8 +514,7 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 							errno == ELOOP) {
 						result =
 						NT_STATUS_OBJECT_PATH_NOT_FOUND;
-					}
-					else {
+					} else {
 						result =
 						map_nt_error_from_unix(errno);
 					}
@@ -837,22 +846,34 @@ static int get_real_filename_mangled(connection_struct *conn, const char *path,
 		if (!mangled) {
 			/* Name is now unmangled. */
 			name = unmangled_name;
+		} else {
+			/*
+			 * If we have mangled names, do not ask the VFS'es
+			 * GET_REAL_FILENAME. The Unix file system below does
+			 * not know about Samba's style of mangling.
+			 *
+			 * Boolean flags passed down are evil, the alternative
+			 * would be to pass a comparison function down into
+			 * the loop in get_real_filename_internal(). For now,
+			 * do the quick&dirty boolean flag approach.
+			 */
+			return get_real_filename_internal(conn, path, name,
+							  true,
+							  mem_ctx, found_name);
 		}
-		return get_real_filename(conn, path, name, mem_ctx,
-					 found_name);
 	}
 
 	return SMB_VFS_GET_REAL_FILENAME(conn, path, name, mem_ctx,
 					 found_name);
 }
 
-int get_real_filename(connection_struct *conn, const char *path,
-		      const char *name, TALLOC_CTX *mem_ctx,
-		      char **found_name)
+static int get_real_filename_internal(connection_struct *conn,
+				      const char *path, const char *name,
+				      bool mangled,
+				      TALLOC_CTX *mem_ctx, char **found_name)
 {
 	struct smb_Dir *cur_dir;
 	const char *dname;
-	bool mangled;
 	char *unmangled_name = NULL;
 	long curpos;
 
@@ -901,6 +922,20 @@ int get_real_filename(connection_struct *conn, const char *path,
 	TALLOC_FREE(cur_dir);
 	errno = ENOENT;
 	return -1;
+}
+
+
+
+int get_real_filename(connection_struct *conn,
+		      const char *path, const char *name,
+		      TALLOC_CTX *mem_ctx, char **found_name)
+{
+	/*
+	 * This is the default VFS function. If we end up here, we know we
+	 * don't have mangled names around.
+	 */
+	return get_real_filename_internal(conn, path, name, false,
+					  mem_ctx, found_name);
 }
 
 static NTSTATUS build_stream_path(TALLOC_CTX *mem_ctx,

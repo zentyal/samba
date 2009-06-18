@@ -76540,6 +76540,73 @@ _ACEOF
  fi
 
 
+############################################
+# See if we have the a broken readlink syscall.
+
+{ $as_echo "$as_me:$LINENO: checking for a broken readlink syscall" >&5
+$as_echo_n "checking for a broken readlink syscall... " >&6; }
+if test "${samba_cv_HAVE_BROKEN_READLINK+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+if test "$cross_compiling" = yes; then
+  samba_cv_HAVE_BROKEN_READLINK=cross
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include "${srcdir-.}/../tests/readlink.c"
+_ACEOF
+rm -f conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  samba_cv_HAVE_BROKEN_READLINK=no
+else
+  $as_echo "$as_me: program exited with status $ac_status" >&5
+$as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+samba_cv_HAVE_BROKEN_READLINK=yes
+fi
+rm -rf conftest.dSYM
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+
+
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_BROKEN_READLINK" >&5
+$as_echo "$samba_cv_HAVE_BROKEN_READLINK" >&6; }
+if test x"$samba_cv_HAVE_BROKEN_READLINK" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BROKEN_READLINK 1
+_ACEOF
+
+fi
 
 #################################################
 # Check whether winbind is supported on this platform.  If so we need to

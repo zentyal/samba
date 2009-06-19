@@ -1,4 +1,5 @@
 documentation.patch
+security-upstream_6478.patch
 fhs-filespaths.patch
 fhs-filespaths-debatable.patch
 fhs-assignpaths.patch

@@ -1,10 +1,10 @@
-                   =================================
-                   Release Notes for Samba 3.4.0pre2
-			    June 02, 2009
-                   =================================
+                   ================================
+                   Release Notes for Samba 3.4.0rc1
+			    June 19, 2009
+                   ================================
 
 
-This is the second preview release of Samba 3.4.  This is *not*
+This is the first release candidate of Samba 3.4.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -34,9 +34,6 @@ o Samba3 and Samba4 do now share a common tevent library.
 o The code has been cleaned up and the major basic interfaces are shared with
   Samba4 now.
 o An asynchronous API has been added.
-
-net Command Changes:
-o Parameter syntax made more consistent.
 
 
 Configuration changes
@@ -119,38 +116,6 @@ these two versions.
 
 An asynchronous API has been added.
 
-
-net Command Changes
-===================
-
-The net command now accepts the common command line parameters most other Samba
-command line utilities use, with a couple of remaining differences:
-
--l still gives long output for net commands supporting the --long flag. This was
-more useful than the common --log-base parameter.
-
--i still tells net to read data from stdin (like --stdin) instead of toggling
-the common --scope flag.
-
--S still tells net the server to connect to (like --server) instead of
-negotiating the common --signing flag. As -S is probably used by most scripts
-doing net rpc commands, this would have been a high-impact change for little
-gain.
-
-This change was mainly done to unify the authentification options. Here, one
-flag changed it's meaning and one useful flag was added.
-
--N used to be the short version of --ntname. It now matches the Samba default of
---no-pass. Use this to stop net from prompting for a password if you want
-anonymous authentication.
-
--A --authentication-file now takes an authentication file with the username and
-password you want net to use, avoiding a password prompt as with plain -U user
-or having to give a password on the command line as in -U user%pass.
-
-Last but not least net now always falls back to your local unix username if no
--U is specified and a username is needed. net rpc commands will now prompt for a
-password unless one is specified using either -U user%pass or -A auth_file
 
 ######################################################################
 Changes
@@ -240,6 +205,52 @@ o   Jelmer Vernooij <jelmer@samba.org>
     * Move common libraries to the shared lib/ directory.
 
 
+Changes since 3.4.0pre2
+-----------------------
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6297: Owner of sticky directory cannot delete files created by
+      others.
+    * BUG 6476: Fix smbd-zombies in memory when using [x]inetd.
+    * BUG 6487: Add missing DFS call in trans2 mkdir call.
+    * BUG 6488: acl_group_override() call in posix acls references an
+      uninitialized variable.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 5456: Fix "net ads testjoin".
+    * BUG 6253: Use correct value for password expiry calculation in
+      pam_winbind.
+    * BUG 6305: Correctly prompt for a password when a username was given.
+    * BUG 6451: net/libnetapi user rename using wrong access bits.
+    * BUG 6458: Fix uninitialized variable in local_password_change().
+    * BUG 6465: Fix enumeration of empty aliases.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 4699: Remove pidfile on clean shutdown.
+    * BUG 6449: 'net rap user add' crashes without -C option.
+
+
+o   David Markey <admin@dmarkey.com>
+    * BUG 6328: Add support for multiple rights to
+      "net sam rights grant/revoke".
+
+
+o   Andreas Schneider <mail@cynapses.org>
+    * Improve pam_winbind documentation.
+
+
+o   Simo Sorce <idra@samba.org>
+    * BUG 6081: Make it possible to change machine account sids.
+    * BUG 6333: Consolidate create/delete account paths in pdbedit.
+
+
+o   Jelmer Vernooij <jelmer@samba.org>
+    * Remove outdated Debian package sources.
+
+
 Changes since 3.4.0pre1
 -----------------------
 
@@ -270,10 +281,6 @@ o   Michael Adam <obnox@samba.org>
     * Add dbwrap_tool - a tdb tool that is CTDB-aware.
     * Hide "config backend" from swat.
     * Fix linking with --disable-shared-libs.
-
-
-o   Kai Blin <kai@samba.org>
-    * BUG #6357: Use Samba default command line arguments in 'net'.
 
 
 o   Steven Danneman <steven.danneman@isilon.com>

@@ -842,6 +842,9 @@ static void exit_server_common(enum server_exit_reason how,
 	} else {    
 		DEBUG(3,("Server exit (%s)\n",
 			(reason ? reason : "normal exit")));
+		if (am_parent) {
+			pidfile_unlink();
+		}
 	}
 
 	/* if we had any open SMB connections when we exited then we
@@ -1045,6 +1048,11 @@ extern void build_options(bool screen);
 	BlockSignals(False, SIGUSR1);
 	BlockSignals(False, SIGTERM);
 
+	/* Ensure we leave no zombies until we
+	 * correctly set up child handling below. */
+
+	CatchChild();
+
 	/* we want total control over the permissions on created files,
 	   so set our umask to 0 */
 	umask(0);
@@ -1210,6 +1218,13 @@ extern void build_options(bool screen);
 
 		/* close our standard file descriptors */
 		close_low_fds(False); /* Don't close stderr */
+
+#ifdef HAVE_ATEXIT
+		atexit(killkids);
+#endif
+
+	        /* Stop zombies */
+		smbd_setup_sig_chld_handler();
 
 		smbd_process();
 

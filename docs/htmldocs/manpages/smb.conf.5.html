@@ -365,7 +365,7 @@ chmod 1770 /usr/local/samba/lib/usershares
 abort shutdown script (G)
 </h3></div></div></div><a class="indexterm" name="id2533431"></a><a name="ABORTSHUTDOWNSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This a full path name to a script called by <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> that
 	should stop a shutdown procedure issued by the <a class="link" href="smb.conf.5.html#SHUTDOWNSCRIPT" target="_top">shutdown script</a>.</p><p>If the connected user posseses the <code class="constant">SeRemoteShutdownPrivilege</code>,
-	right, this command will be run as user.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">""</code>
+	right, this command will be run as root.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">""</code>
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">/sbin/shutdown -c</code>
 </em></span>
@@ -5309,7 +5309,7 @@ shutdown script (G)
 </h3></div></div></div><a class="indexterm" name="id2560608"></a><a name="SHUTDOWNSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This a full path name to a script called by 
 	 <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> that should 
 	start a shutdown procedure.</p><p>If the connected user posseses the <code class="constant">SeRemoteShutdownPrivilege</code>,
-	right, this command will be run as user.</p><p>The %z %t %r %f variables are expanded as follows:</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>%z</code></em> will be substituted with the
+	right, this command will be run as root.</p><p>The %z %t %r %f variables are expanded as follows:</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>%z</code></em> will be substituted with the
 			shutdown message sent to the server.</p></li><li><p><em class="parameter"><code>%t</code></em> will be substituted with the
 			number of seconds to wait before effectively starting the
 			shutdown procedure.</p></li><li><p><em class="parameter"><code>%r</code></em> will be substituted with the
@@ -5594,8 +5594,8 @@ unix charset (G)
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562185"></a>
 
 unix extensions (G)
-</h3></div></div></div><a class="indexterm" name="id2562186"></a><a name="UNIXEXTENSIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean parameter controls whether Samba 
-    implments the CIFS UNIX extensions, as defined by HP. 
+</h3></div></div></div><a class="indexterm" name="id2562186"></a><a name="UNIXEXTENSIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean parameter controls whether Samba
+    implements the CIFS UNIX extensions, as defined by HP.
     These extensions enable Samba to better serve UNIX CIFS clients
     by supporting features such as symbolic links, hard links, etc...
     These extensions require a similarly enabled client, and are of

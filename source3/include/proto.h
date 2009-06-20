@@ -587,6 +587,7 @@ int nt_status_to_pam(NTSTATUS nt_status);
 
 pid_t pidfile_pid(const char *name);
 void pidfile_create(const char *program_name);
+void pidfile_unlink(void);
 
 /* The following definitions come from lib/popt_common.c  */
 
@@ -4353,7 +4354,7 @@ enum brl_flavour lp_posix_cifsu_locktype(files_struct *fsp);
 void lp_set_posix_default_cifsx_readwrite_locktype(enum brl_flavour val);
 int lp_min_receive_file_size(void);
 char* lp_perfcount_module(void);
-
+void lp_set_passdb_backend(const char *backend);
 
 /* The following definitions come from param/util.c  */
 

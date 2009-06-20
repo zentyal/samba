@@ -698,10 +698,10 @@ Index: samba-3.3.0/docs/manpages/ntlm_auth.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/pam_winbind.7
+Index: samba-3.3.0/docs/manpages/pam_winbind.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/pam_winbind.7
-+++ samba-3.3.0/docs/manpages/pam_winbind.7
+--- samba-3.3.0.orig/docs/manpages/pam_winbind.8
++++ samba-3.3.0/docs/manpages/pam_winbind.8
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

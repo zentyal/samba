@@ -8,7 +8,7 @@ usr/lib/samba/idmap/hash.so
 usr/lib/samba/idmap/tdb2.so
 usr/share/man/man1/wbinfo.1
 usr/share/man/man1/ntlm_auth.1
-usr/share/man/man7/pam_winbind.7
+usr/share/man/man8/pam_winbind.8
 usr/share/man/man8/winbindd.8
 usr/share/man/man8/idmap_ad.8
 usr/share/man/man8/idmap_ldap.8

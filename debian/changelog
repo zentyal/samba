@@ -12,6 +12,9 @@ samba (2:3.3.5-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * New upstream version
+  * Lintian fixes:
+    -  Declare versioned dependency on debhelper to fit what we have in
+       debian/compat
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 

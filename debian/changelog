@@ -1,4 +1,4 @@
-samba (2:3.3.5-1) UNRELEASED; urgency=low
+samba (2:3.3.5-1) unstable; urgency=low
 
   [ Steve Langasek ]
   * debian/patches/undefined-symbols.patch: fix up patch so that it's
@@ -19,7 +19,7 @@ samba (2:3.3.5-1) UNRELEASED; urgency=low
   * Upgrade Standard to 3.8.2 (checked, no change)
   * Upgrade debhelper compatibility level to 6
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
+ -- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 08:01:16 +0200
 
 samba (2:3.3.4-2) unstable; urgency=low
 

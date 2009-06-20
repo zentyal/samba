@@ -6,7 +6,7 @@ samba (2:3.4.0~rc1-1) UNRELEASED; urgency=low
   * Bump debhelper compatibility level to 6 and declare a versioned
     dependency on debhelper >= 6.0.0
 
--- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 15:06:55 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 15:06:55 +0200
 
 samba (2:3.4.0~pre2-1) experimental; urgency=low
 

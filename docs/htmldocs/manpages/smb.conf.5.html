@@ -365,7 +365,7 @@ chmod 1770 /usr/local/samba/lib/usershares
 abort shutdown script (G)
 </h3></div></div></div><a class="indexterm" name="id2533431"></a><a name="ABORTSHUTDOWNSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This a full path name to a script called by <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> that
 	should stop a shutdown procedure issued by the <a class="link" href="smb.conf.5.html#SHUTDOWNSCRIPT" target="_top">shutdown script</a>.</p><p>If the connected user posseses the <code class="constant">SeRemoteShutdownPrivilege</code>,
-	right, this command will be run as user.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">""</code>
+	right, this command will be run as root.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">""</code>
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>abort shutdown script</code></em> = <code class="literal">/sbin/shutdown -c</code>
 </em></span>
@@ -5210,7 +5210,7 @@ shutdown script (G)
 </h3></div></div></div><a class="indexterm" name="id2560115"></a><a name="SHUTDOWNSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This a full path name to a script called by 
 	 <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> that should 
 	start a shutdown procedure.</p><p>If the connected user posseses the <code class="constant">SeRemoteShutdownPrivilege</code>,
-	right, this command will be run as user.</p><p>The %z %t %r %f variables are expanded as follows:</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>%z</code></em> will be substituted with the
+	right, this command will be run as root.</p><p>The %z %t %r %f variables are expanded as follows:</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>%z</code></em> will be substituted with the
 			shutdown message sent to the server.</p></li><li><p><em class="parameter"><code>%t</code></em> will be substituted with the
 			number of seconds to wait before effectively starting the
 			shutdown procedure.</p></li><li><p><em class="parameter"><code>%r</code></em> will be substituted with the
@@ -5220,22 +5220,23 @@ shutdown script (G)
 			even if applications do not respond for NT.</p></li></ul></div><p>Shutdown script example:
 </p><pre class="programlisting">
 #!/bin/bash
-		
-$time=0
-let "time/60"
-let "time++"
+
+time=$2
+let time="${time} / 60"
+let time="${time} + 1"
 
 /sbin/shutdown $3 $4 +$time $1 &amp;
+
 </pre><p>
         Shutdown does not return so we need to launch it in background.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>shutdown script</code></em> = <code class="literal"></code>
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>shutdown script</code></em> = <code class="literal">/usr/local/samba/sbin/shutdown %m %t %r %f</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560267"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560268"></a>
 
 smb encrypt (S)
-</h3></div></div></div><a class="indexterm" name="id2560268"></a><a name="SMBENCRYPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a new feature introduced with Samba 3.2 and above. It is an
+</h3></div></div></div><a class="indexterm" name="id2560269"></a><a name="SMBENCRYPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a new feature introduced with Samba 3.2 and above. It is an
     extension to the SMB/CIFS protocol negotiated as part of the UNIX extensions.
     SMB encryption uses the GSSAPI (SSPI on Windows) ability to encrypt
     and sign every request/response in a SMB protocol stream. When
@@ -5263,10 +5264,10 @@ smb encrypt (S)
     When set to mandatory, SMB encryption is required and if set 
     to disabled, SMB encryption can not be negotiated.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>smb encrypt</code></em> = <code class="literal">auto</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560373"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560374"></a>
 
 smb passwd file (G)
-</h3></div></div></div><a class="indexterm" name="id2560374"></a><a name="SMBPASSWDFILE"></a><div class="variablelist"><dl><dt></dt><dd><p>This option sets the path to the encrypted smbpasswd file. By
+</h3></div></div></div><a class="indexterm" name="id2560375"></a><a name="SMBPASSWDFILE"></a><div class="variablelist"><dl><dt></dt><dd><p>This option sets the path to the encrypted smbpasswd file. By
     default the path to the smbpasswd file  is compiled into Samba.</p><p>
     An example of use is:
 </p><pre class="programlisting">
@@ -5274,10 +5275,10 @@ smb passwd file = /etc/samba/smbpasswd
 </pre><p>
     </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>smb passwd file</code></em> = <code class="literal">${prefix}/private/smbpasswd</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560427"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560428"></a>
 
 smb ports (G)
-</h3></div></div></div><a class="indexterm" name="id2560428"></a><a name="SMBPORTS"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies which ports the server should listen on for SMB traffic.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>smb ports</code></em> = <code class="literal">445 139</code>
+</h3></div></div></div><a class="indexterm" name="id2560429"></a><a name="SMBPORTS"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies which ports the server should listen on for SMB traffic.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>smb ports</code></em> = <code class="literal">445 139</code>
 </em></span>
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560469"></a>
 
@@ -5291,10 +5292,10 @@ socket address (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>socket address</code></em> = <code class="literal">192.168.2.20</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560539"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560540"></a>
 
 socket options (G)
-</h3></div></div></div><a class="indexterm" name="id2560540"></a><a name="SOCKETOPTIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This option allows you to set socket options 
+</h3></div></div></div><a class="indexterm" name="id2560541"></a><a name="SOCKETOPTIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This option allows you to set socket options 
     to be used when talking with the client.</p><p>Socket options are controls on the networking layer 
     of the operating systems which allow the connection to be 
     tuned.</p><p>This option will typically be used to tune your Samba  server
@@ -5322,10 +5323,10 @@ socket options (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>socket options</code></em> = <code class="literal">IPTOS_LOWDELAY</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560749"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560750"></a>
 
 stat cache (G)
-</h3></div></div></div><a class="indexterm" name="id2560750"></a><a name="STATCACHE"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter determines if <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> will use a cache in order to 
+</h3></div></div></div><a class="indexterm" name="id2560751"></a><a name="STATCACHE"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter determines if <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> will use a cache in order to 
 	speed up case insensitive name mappings. You should never need 
 	to change this parameter.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>stat cache</code></em> = <code class="literal">yes</code>
 </em></span>
@@ -5344,10 +5345,10 @@ store dos attributes (S)
 	extended attributes to work, also extended attributes must be compiled into the Linux kernel.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>store dos attributes</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560922"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2560923"></a>
 
 strict allocate (S)
-</h3></div></div></div><a class="indexterm" name="id2560923"></a><a name="STRICTALLOCATE"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls the handling of 
+</h3></div></div></div><a class="indexterm" name="id2560924"></a><a name="STRICTALLOCATE"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls the handling of 
     disk space allocation in the server. When this is set to <code class="constant">yes</code> 
     the server will change from UNIX behaviour of not committing real
     disk storage blocks when a file is extended to the Windows behaviour
@@ -5378,10 +5379,10 @@ strict locking (S)
 	 <code class="literal">strict locking = no</code> is acceptable.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>strict locking</code></em> = <code class="literal">Auto</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561072"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561073"></a>
 
 strict sync (S)
-</h3></div></div></div><a class="indexterm" name="id2561073"></a><a name="STRICTSYNC"></a><div class="variablelist"><dl><dt></dt><dd><p>Many Windows applications (including the Windows 98 explorer
+</h3></div></div></div><a class="indexterm" name="id2561074"></a><a name="STRICTSYNC"></a><div class="variablelist"><dl><dt></dt><dd><p>Many Windows applications (including the Windows 98 explorer
     shell) seem to confuse flushing buffer contents to disk with doing
     a sync to disk. Under UNIX, a sync call forces the process to be
     suspended until the kernel has ensured that all outstanding data in
@@ -5395,10 +5396,10 @@ strict sync (S)
     addition, this fixes many performance problems that people have
     reported with the new Windows98 explorer shell file copies.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>strict sync</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561137"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561138"></a>
 
 svcctl list (G)
-</h3></div></div></div><a class="indexterm" name="id2561138"></a><a name="SVCCTLLIST"></a><div class="variablelist"><dl><dt></dt><dd><p>This option defines a list of init scripts that smbd
+</h3></div></div></div><a class="indexterm" name="id2561139"></a><a name="SVCCTLLIST"></a><div class="variablelist"><dl><dt></dt><dd><p>This option defines a list of init scripts that smbd
     will use for starting and stopping Unix services via the Win32 
     ServiceControl API.  This allows Windows administrators to 
     utilize the MS Management Console plug-ins to manage a 
@@ -5411,10 +5412,10 @@ svcctl list (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>svcctl list</code></em> = <code class="literal">cups postfix portmap httpd</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561222"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561223"></a>
 
 sync always (S)
-</h3></div></div></div><a class="indexterm" name="id2561223"></a><a name="SYNCALWAYS"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean parameter that controls 
+</h3></div></div></div><a class="indexterm" name="id2561224"></a><a name="SYNCALWAYS"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean parameter that controls 
     whether writes will always be written to stable storage before 
     the write call returns. If this is <code class="constant">no</code> then the server will be 
     guided by the client's request in each write call (clients can 
@@ -5425,10 +5426,10 @@ sync always (S)
     <code class="constant">yes</code> in order for this parameter to have 
     any affect.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>sync always</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561293"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561294"></a>
 
 syslog only (G)
-</h3></div></div></div><a class="indexterm" name="id2561294"></a><a name="SYSLOGONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2561295"></a><a name="SYSLOGONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
     If this parameter is set then Samba debug messages are logged into the system 
     syslog only, and not to the debug log files. There still will be some
 	logging to log.[sn]mbd even if <span class="emphasis"><em>syslog only</em></span> is enabled.
@@ -5448,10 +5449,10 @@ syslog (G)
     logging to log.[sn]mbd even if <span class="emphasis"><em>syslog only</em></span> is enabled.
     </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>syslog</code></em> = <code class="literal">1</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561411"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561412"></a>
 
 template homedir (G)
-</h3></div></div></div><a class="indexterm" name="id2561412"></a><a name="TEMPLATEHOMEDIR"></a><div class="variablelist"><dl><dt></dt><dd><p>When filling out the user information for a Windows NT 
+</h3></div></div></div><a class="indexterm" name="id2561413"></a><a name="TEMPLATEHOMEDIR"></a><div class="variablelist"><dl><dt></dt><dd><p>When filling out the user information for a Windows NT 
 	user, the <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon  uses this
 	parameter to fill in the home directory for that user. If the
 	string <em class="parameter"><code>%D</code></em> is present it
@@ -5464,26 +5465,26 @@ template homedir (G)
 template shell (G)
 </h3></div></div></div><a class="indexterm" name="id2561478"></a><a name="TEMPLATESHELL"></a><div class="variablelist"><dl><dt></dt><dd><p>When filling out the user information for a Windows NT 
 	user, the <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon uses this
-	parameter to fill in the login shell for that user.</p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561516"></a>
+	parameter to fill in the login shell for that user.</p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561517"></a>
 
 time offset (G)
-</h3></div></div></div><a class="indexterm" name="id2561517"></a><a name="TIMEOFFSET"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a setting in minutes to add 
+</h3></div></div></div><a class="indexterm" name="id2561518"></a><a name="TIMEOFFSET"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a setting in minutes to add 
 	to the normal GMT to local time conversion. This is useful if 
 	you are serving a lot of PCs that have incorrect daylight 
 	saving time handling.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>time offset</code></em> = <code class="literal">0</code>
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>time offset</code></em> = <code class="literal">60</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561576"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561577"></a>
 
 time server (G)
-</h3></div></div></div><a class="indexterm" name="id2561577"></a><a name="TIMESERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter determines if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> advertises itself as a time server to Windows 
+</h3></div></div></div><a class="indexterm" name="id2561578"></a><a name="TIMESERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter determines if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> advertises itself as a time server to Windows 
 clients.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>time server</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561626"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561627"></a>
 
 unix charset (G)
-</h3></div></div></div><a class="indexterm" name="id2561627"></a><a name="UNIXCHARSET"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies the charset the unix machine 
+</h3></div></div></div><a class="indexterm" name="id2561628"></a><a name="UNIXCHARSET"></a><div class="variablelist"><dl><dt></dt><dd><p>Specifies the charset the unix machine 
 		Samba runs on uses. Samba needs to know this in order to be able to 
 		convert text to the charsets other SMB clients use.
 	</p><p>This is also the charset Samba will use when specifying arguments 
@@ -5492,11 +5493,11 @@ unix charset (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>unix charset</code></em> = <code class="literal">ASCII</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561692"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561693"></a>
 
 unix extensions (G)
-</h3></div></div></div><a class="indexterm" name="id2561693"></a><a name="UNIXEXTENSIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean parameter controls whether Samba 
-    implments the CIFS UNIX extensions, as defined by HP. 
+</h3></div></div></div><a class="indexterm" name="id2561694"></a><a name="UNIXEXTENSIONS"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean parameter controls whether Samba
+    implements the CIFS UNIX extensions, as defined by HP.
     These extensions enable Samba to better serve UNIX CIFS clients
     by supporting features such as symbolic links, hard links, etc...
     These extensions require a similarly enabled client, and are of
@@ -5535,10 +5536,10 @@ update encrypted (G)
 	passwords.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>update encrypted</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561919"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2561920"></a>
 
 use client driver (S)
-</h3></div></div></div><a class="indexterm" name="id2561920"></a><a name="USECLIENTDRIVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter applies only to Windows NT/2000
+</h3></div></div></div><a class="indexterm" name="id2561921"></a><a name="USECLIENTDRIVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter applies only to Windows NT/2000
     clients.  It has no effect on Windows 95/98/ME clients.  When 
     serving a printer to Windows NT/2000 clients without first installing
     a valid printer driver on the Samba host, the client will be required
@@ -5563,10 +5564,10 @@ use client driver (S)
     on a print share which has valid print driver installed on the Samba 
 	server.</em></span></p><p>Default: <span class="emphasis"><em><em class="parameter"><code>use client driver</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562000"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562001"></a>
 
 use kerberos keytab (G)
-</h3></div></div></div><a class="indexterm" name="id2562001"></a><a name="USEKERBEROSKEYTAB"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2562002"></a><a name="USEKERBEROSKEYTAB"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	Specifies whether Samba should attempt to maintain service principals in the systems
 	keytab file for <code class="constant">host/FQDN</code> and <code class="constant">cifs/FQDN</code>.
 	</p><p>
@@ -5578,7 +5579,7 @@ default_keytab_name = FILE:/etc/krb5.keytab
 </pre><p>
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>use kerberos keytab</code></em> = <code class="literal">False</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562068"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562069"></a>
 
 use mmap (G)
 </h3></div></div></div><a class="indexterm" name="id2562070"></a><a name="USEMMAP"></a><div class="variablelist"><dl><dt></dt><dd><p>This global parameter determines if the tdb internals of Samba can
@@ -5590,7 +5591,7 @@ use mmap (G)
     the tdb internal code.
     </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>use mmap</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562120"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562121"></a>
 
 username level (G)
 </h3></div></div></div><a class="indexterm" name="id2562122"></a><a name="USERNAMELEVEL"></a><div class="variablelist"><dl><dt></dt><dd><p>This option helps Samba to try and 'guess' at 
@@ -5608,10 +5609,10 @@ username level (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>username level</code></em> = <code class="literal">5</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562202"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562203"></a>
 
 username map script (G)
-</h3></div></div></div><a class="indexterm" name="id2562203"></a><a name="USERNAMEMAPSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This script is a mutually exclusive alternative to the 
+</h3></div></div></div><a class="indexterm" name="id2562204"></a><a name="USERNAMEMAPSCRIPT"></a><div class="variablelist"><dl><dt></dt><dd><p>This script is a mutually exclusive alternative to the 
 	<a class="link" href="smb.conf.5.html#USERNAMEMAP" target="_top">username map</a> parameter.  This parameter 
 	specifies and external program or script that must accept a single 
 	command line option (the username transmitted in the authentication
@@ -5622,10 +5623,10 @@ username map script (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>username map script</code></em> = <code class="literal">/etc/samba/scripts/mapusers.sh</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562279"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562280"></a>
 
 username map (G)
-</h3></div></div></div><a class="indexterm" name="id2562280"></a><a name="USERNAMEMAP"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2562281"></a><a name="USERNAMEMAP"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This option allows you to specify a file containing a mapping of usernames from the clients to the server.
 	This can be used for several purposes. The most common is to map usernames that users use on DOS or Windows
 	machines to those that the UNIX box uses. The other is to map multiple users to a single username so that they
@@ -5709,13 +5710,13 @@ username map = /usr/local/samba/lib/users.map
     </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>username map</code></em> = <code class="literal">
 # no username map</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562559"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562560"></a>
 
 <a name="USER"></a>user
-</h3></div></div></div><a class="indexterm" name="id2562560"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#USERNAME">username</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562591"></a>
+</h3></div></div></div><a class="indexterm" name="id2562561"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#USERNAME">username</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562592"></a>
 
 <a name="USERS"></a>users
-</h3></div></div></div><a class="indexterm" name="id2562592"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#USERNAME">username</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562623"></a>
+</h3></div></div></div><a class="indexterm" name="id2562593"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#USERNAME">username</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562623"></a>
 
 username (S)
 </h3></div></div></div><a class="indexterm" name="id2562624"></a><a name="USERNAME"></a><div class="variablelist"><dl><dt></dt><dd><p>Multiple users may be specified in a comma-delimited 
@@ -5756,28 +5757,28 @@ username (S)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>username</code></em> = <code class="literal">fred, mary, jack, jane, @users, @pcgroup</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562793"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562794"></a>
 
 usershare allow guests (G)
-</h3></div></div></div><a class="indexterm" name="id2562794"></a><a name="USERSHAREALLOWGUESTS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether user defined shares are allowed
+</h3></div></div></div><a class="indexterm" name="id2562795"></a><a name="USERSHAREALLOWGUESTS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether user defined shares are allowed
 	to be accessed by non-authenticated users or not. It is the equivalent
 	of allowing people who can create a share the option of setting
 	<em class="parameter"><code>guest ok = yes</code></em> in a share
 	definition. Due to its security sensitive nature, the default
 	is set to off.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>usershare allow guests</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562845"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562846"></a>
 
 usershare max shares (G)
-</h3></div></div></div><a class="indexterm" name="id2562846"></a><a name="USERSHAREMAXSHARES"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of user defined shares
+</h3></div></div></div><a class="indexterm" name="id2562847"></a><a name="USERSHAREMAXSHARES"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of user defined shares
 	that are allowed to be created by users belonging to the group owning the
 	usershare directory. If set to zero (the default) user defined shares are ignored.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>usershare max shares</code></em> = <code class="literal">0</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562891"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2562892"></a>
 
 usershare owner only (G)
-</h3></div></div></div><a class="indexterm" name="id2562892"></a><a name="USERSHAREOWNERONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether the pathname exported by
+</h3></div></div></div><a class="indexterm" name="id2562893"></a><a name="USERSHAREOWNERONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether the pathname exported by
 	a user defined shares must be owned by the user creating the
 	user defined share or not. If set to True (the default) then
 	smbd checks that the directory path being shared is owned by
@@ -5829,10 +5830,10 @@ usershare prefix allow list (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>usershare prefix allow list</code></em> = <code class="literal">/home /data /space</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563084"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563085"></a>
 
 usershare prefix deny list (G)
-</h3></div></div></div><a class="indexterm" name="id2563085"></a><a name="USERSHAREPREFIXDENYLIST"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies a list of absolute pathnames
+</h3></div></div></div><a class="indexterm" name="id2563086"></a><a name="USERSHAREPREFIXDENYLIST"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies a list of absolute pathnames
 	the root of which are NOT allowed to be exported by user defined share definitions.
 	If the pathname exported starts with one of the strings in this
 	list the user defined share will not be allowed. Any pathname not
@@ -5869,7 +5870,7 @@ usershare template share (G)
 </p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563232"></a>
 
 use sendfile (S)
-</h3></div></div></div><a class="indexterm" name="id2563233"></a><a name="USESENDFILE"></a><div class="variablelist"><dl><dt></dt><dd><p>If this parameter is <code class="constant">yes</code>, and the <code class="constant">sendfile()</code> 
+</h3></div></div></div><a class="indexterm" name="id2563234"></a><a name="USESENDFILE"></a><div class="variablelist"><dl><dt></dt><dd><p>If this parameter is <code class="constant">yes</code>, and the <code class="constant">sendfile()</code> 
     system call is supported by the underlying operating system, then some SMB read calls 
     (mainly ReadAndX and ReadRaw) will use the more efficient sendfile system call for files that
     are exclusively oplocked. This may make more efficient use of the system CPU's
@@ -5878,10 +5879,10 @@ use sendfile (S)
     Windows 9x (using sendfile from Linux will cause these clients to fail).
     </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>use sendfile</code></em> = <code class="literal">false</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563289"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563290"></a>
 
 use spnego (G)
-</h3></div></div></div><a class="indexterm" name="id2563290"></a><a name="USESPNEGO"></a><div class="variablelist"><dl><dt></dt><dd><p>This variable controls controls whether samba will try 
+</h3></div></div></div><a class="indexterm" name="id2563291"></a><a name="USESPNEGO"></a><div class="variablelist"><dl><dt></dt><dd><p>This variable controls controls whether samba will try 
     to use Simple and Protected NEGOciation (as specified by rfc2478) with 
     WindowsXP and Windows2000 clients to agree upon an authentication mechanism. 
 </p><p>
@@ -5889,10 +5890,10 @@ use spnego (G)
     implementation, there is no reason this should ever be
 	disabled.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>use spnego</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563339"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563340"></a>
 
 utmp directory (G)
-</h3></div></div></div><a class="indexterm" name="id2563340"></a><a name="UTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is only available if Samba has 
+</h3></div></div></div><a class="indexterm" name="id2563341"></a><a name="UTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is only available if Samba has 
 	been configured and compiled with the option <code class="literal">
 	--with-utmp</code>. It specifies a directory pathname that is
 	used to store the utmp or utmpx files (depending on the UNIX system) that
@@ -5904,10 +5905,10 @@ utmp directory (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>utmp directory</code></em> = <code class="literal">/var/run/utmp</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563417"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563418"></a>
 
 utmp (G)
-</h3></div></div></div><a class="indexterm" name="id2563418"></a><a name="UTMP"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2563419"></a><a name="UTMP"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This boolean parameter is only available if Samba has been configured and compiled  
 	with the option <code class="literal">--with-utmp</code>. If set to 
 	 <code class="constant">yes</code> then Samba will attempt to add utmp or utmpx records 
@@ -5938,10 +5939,10 @@ valid users (S)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>valid users</code></em> = <code class="literal">greg, @pcusers</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563571"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563572"></a>
 
 -valid (S)
-</h3></div></div></div><a class="indexterm" name="id2563572"></a><a name="-VALID"></a><div class="variablelist"><dl><dt></dt><dd><p> This parameter indicates whether a share is 
+</h3></div></div></div><a class="indexterm" name="id2563573"></a><a name="-VALID"></a><div class="variablelist"><dl><dt></dt><dd><p> This parameter indicates whether a share is 
 	valid and thus can be used. When this parameter is set to false, 
 	the share will be in no way visible nor accessible.
 	</p><p>
@@ -5984,10 +5985,10 @@ veto files = /.AppleDouble/.bin/.AppleDesktop/Network Trash Folder/
 </pre><p>
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>veto files</code></em> = <code class="literal">No files or directories are vetoed.</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563739"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563740"></a>
 
 veto oplock files (S)
-</h3></div></div></div><a class="indexterm" name="id2563740"></a><a name="VETOOPLOCKFILES"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2563741"></a><a name="VETOOPLOCKFILES"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This parameter is only valid when the <a class="link" href="smb.conf.5.html#OPLOCKS" target="_top">oplocks</a>
 	parameter is turned on for a share. It allows the Samba administrator
 	to selectively turn off the granting of oplocks on selected files that
@@ -6008,10 +6009,10 @@ veto oplock files = /.*SEM/
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>veto oplock files</code></em> = <code class="literal">
 # No files are vetoed for oplock grants</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563832"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563833"></a>
 
 <a name="VFSOBJECT"></a>vfs object
-</h3></div></div></div><a class="indexterm" name="id2563834"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#VFSOBJECTS">vfs objects</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563864"></a>
+</h3></div></div></div><a class="indexterm" name="id2563834"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#VFSOBJECTS">vfs objects</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563865"></a>
 
 vfs objects (S)
 </h3></div></div></div><a class="indexterm" name="id2563866"></a><a name="VFSOBJECTS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the backend names which 
@@ -6021,7 +6022,7 @@ vfs objects (S)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>vfs objects</code></em> = <code class="literal">extd_audit recycle</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563924"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563925"></a>
 
 volume (S)
 </h3></div></div></div><a class="indexterm" name="id2563926"></a><a name="VOLUME"></a><div class="variablelist"><dl><dt></dt><dd><p>This allows you to override the volume label 
@@ -6029,10 +6030,10 @@ volume (S)
 	that insist on a particular volume label.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>volume</code></em> = <code class="literal">
 # the name of the share</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563968"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2563969"></a>
 
 wide links (S)
-</h3></div></div></div><a class="indexterm" name="id2563969"></a><a name="WIDELINKS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether or not links 
+</h3></div></div></div><a class="indexterm" name="id2563970"></a><a name="WIDELINKS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether or not links 
 	in the UNIX file system may be followed by the server. Links 
 	that point to areas within the directory tree exported by the 
 	server are always allowed; this parameter controls access only 
@@ -6040,10 +6041,10 @@ wide links (S)
 	effect on your server performance due to the extra system calls 
 	that Samba has to  do in order to perform the link checks.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>wide links</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564020"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564021"></a>
 
 winbind cache time (G)
-</h3></div></div></div><a class="indexterm" name="id2564021"></a><a name="WINBINDCACHETIME"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of 
+</h3></div></div></div><a class="indexterm" name="id2564022"></a><a name="WINBINDCACHETIME"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of 
 	seconds the <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon will cache 
 	user and group information before querying a Windows NT server 
 	again.</p><p>
@@ -6051,10 +6052,10 @@ winbind cache time (G)
 	evaluated in real time unless the <a class="link" href="smb.conf.5.html#WINBINDOFFLINELOGON" target="_top">winbind   offline logon</a> option has been enabled.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind cache time</code></em> = <code class="literal">300</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564092"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564093"></a>
 
 winbind enum groups (G)
-</h3></div></div></div><a class="indexterm" name="id2564093"></a><a name="WINBINDENUMGROUPS"></a><div class="variablelist"><dl><dt></dt><dd><p>On large installations using <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> it may be necessary to suppress 
+</h3></div></div></div><a class="indexterm" name="id2564094"></a><a name="WINBINDENUMGROUPS"></a><div class="variablelist"><dl><dt></dt><dd><p>On large installations using <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> it may be necessary to suppress 
 	the enumeration of groups through the <code class="literal">setgrent()</code>,
 	<code class="literal">getgrent()</code> and
 	<code class="literal">endgrent()</code> group of system calls.  If
@@ -6062,7 +6063,7 @@ winbind enum groups (G)
 	<code class="constant">no</code>, calls to the <code class="literal">getgrent()</code> system
 	call will not return any data. </p><div class="warning" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Warning</h3><p>Turning off group enumeration may cause some programs to behave oddly.  </p></div><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind enum groups</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564182"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564183"></a>
 
 winbind enum users (G)
 </h3></div></div></div><a class="indexterm" name="id2564184"></a><a name="WINBINDENUMUSERS"></a><div class="variablelist"><dl><dt></dt><dd><p>On large installations using <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> it may be
@@ -6077,10 +6078,10 @@ winbind enum users (G)
 	full user list when searching for matching
 	usernames. </p></div><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind enum users</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564276"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564277"></a>
 
 winbind expand groups (G)
-</h3></div></div></div><a class="indexterm" name="id2564277"></a><a name="WINBINDEXPANDGROUPS"></a><div class="variablelist"><dl><dt></dt><dd><p>This option controls the maximum depth that winbindd
+</h3></div></div></div><a class="indexterm" name="id2564278"></a><a name="WINBINDEXPANDGROUPS"></a><div class="variablelist"><dl><dt></dt><dd><p>This option controls the maximum depth that winbindd
               will traverse when flattening nested group memberships
 	      of Windows domain groups.  This is different from the
 	      <a class="link" href="smb.conf.5.html#WINBINDNESTEDGROUPS" target="_top">winbind nested groups</a> option
@@ -6103,10 +6104,10 @@ winbind nested groups (G)
                  global groups from any trusted SAM. To be able to use nested
                  groups, you need to run nss_winbind.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind nested groups</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564395"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564396"></a>
 
 winbind normalize names (G)
-</h3></div></div></div><a class="indexterm" name="id2564396"></a><a name="WINBINDNORMALIZENAMES"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether winbindd will replace
+</h3></div></div></div><a class="indexterm" name="id2564397"></a><a name="WINBINDNORMALIZENAMES"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether winbindd will replace
 	whitespace in user and group names with an underscore (_) character.
 	For example, whether the name "Space Kadet" should be
 	replaced with the string "space_kadet".
@@ -6143,10 +6144,10 @@ winbind nss info (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind nss info</code></em> = <code class="literal">template sfu</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564580"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564581"></a>
 
 winbind offline logon (G)
-</h3></div></div></div><a class="indexterm" name="id2564581"></a><a name="WINBINDOFFLINELOGON"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should
+</h3></div></div></div><a class="indexterm" name="id2564582"></a><a name="WINBINDOFFLINELOGON"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should
 	allow to login with the <em class="parameter"><code>pam_winbind</code></em> 
 	module using Cached Credentials. If enabled, winbindd will store user credentials
 	from successful logins encrypted in a local cache.
@@ -6164,10 +6165,10 @@ winbind refresh tickets (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind refresh tickets</code></em> = <code class="literal">true</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564716"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564717"></a>
 
 winbind rpc only (G)
-</h3></div></div></div><a class="indexterm" name="id2564717"></a><a name="WINBINDRPCONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2564718"></a><a name="WINBINDRPCONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	Setting this parameter to <code class="literal">yes</code> forces 
 	winbindd to use RPC instead of LDAP to retrieve information from Domain
         Controllers.
@@ -6187,10 +6188,10 @@ winbind separator (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind separator</code></em> = <code class="literal">+</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564852"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564853"></a>
 
 winbind trusted domains only (G)
-</h3></div></div></div><a class="indexterm" name="id2564853"></a><a name="WINBINDTRUSTEDDOMAINSONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2564854"></a><a name="WINBINDTRUSTEDDOMAINSONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This parameter is designed to allow Samba servers that are members 
 	of a Samba controlled domain to use UNIX accounts distributed via NIS, 
 	rsync, or LDAP as the uid's for winbindd users in the hosts primary domain.
@@ -6202,10 +6203,10 @@ winbind trusted domains only (G)
 	the <a class="citerefentry" href="idmap_nss.8.html"><span class="citerefentry"><span class="refentrytitle">idmap_nss</span>(8)</span></a> man page for more information.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind trusted domains only</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564931"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2564932"></a>
 
 winbind use default domain (G)
-</h3></div></div></div><a class="indexterm" name="id2564932"></a><a name="WINBINDUSEDEFAULTDOMAIN"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies whether the
+</h3></div></div></div><a class="indexterm" name="id2564933"></a><a name="WINBINDUSEDEFAULTDOMAIN"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies whether the
 	 <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon should operate on users  
 	without domain component in their username. Users without a domain
 	component are treated as is part of the winbindd server's own
@@ -6239,17 +6240,17 @@ wins hook (G)
 			addresses currently registered for that name. If this list is 
 			empty then the name should be deleted.</p></li></ul></div><p>An example script that calls the BIND dynamic DNS update 
 	program <code class="literal">nsupdate</code> is provided in the examples 
-	directory of the Samba source code. </p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565110"></a>
+	directory of the Samba source code. </p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565111"></a>
 
 wins proxy (G)
-</h3></div></div></div><a class="indexterm" name="id2565111"></a><a name="WINSPROXY"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> will respond to broadcast name 
+</h3></div></div></div><a class="indexterm" name="id2565112"></a><a name="WINSPROXY"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> will respond to broadcast name 
 	queries on behalf of  other hosts. You may need to set this 
 	to <code class="constant">yes</code> for some older clients.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>wins proxy</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565165"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565166"></a>
 
 wins server (G)
-</h3></div></div></div><a class="indexterm" name="id2565166"></a><a name="WINSSERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This specifies the IP address (or DNS name: IP 
+</h3></div></div></div><a class="indexterm" name="id2565167"></a><a name="WINSSERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This specifies the IP address (or DNS name: IP 
 	address for preference) of the WINS server that <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> should register with. If you have a WINS server on 
 	your network then you should set this to the WINS server's IP.</p><p>You should point this at your WINS server if you have a
 	multi-subnetted network.</p><p>If you want to work in multiple namespaces, you can 
@@ -6268,10 +6269,10 @@ wins server (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>wins server</code></em> = <code class="literal">192.9.200.1 192.168.2.61</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565275"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565276"></a>
 
 wins support (G)
-</h3></div></div></div><a class="indexterm" name="id2565276"></a><a name="WINSSUPPORT"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean controls if the <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> process in Samba will act as a WINS server. You should 
+</h3></div></div></div><a class="indexterm" name="id2565277"></a><a name="WINSSUPPORT"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean controls if the <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> process in Samba will act as a WINS server. You should 
 	not set this to <code class="constant">yes</code> unless you have a multi-subnetted network and 
 	you wish a particular <code class="literal">nmbd</code> to be your WINS server. 
 	Note that you should <span class="emphasis"><em>NEVER</em></span> set this to <code class="constant">yes</code>
@@ -6288,10 +6289,10 @@ workgroup (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>workgroup</code></em> = <code class="literal">MYGROUP</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565417"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565418"></a>
 
 <a name="WRITABLE"></a>writable
-</h3></div></div></div><a class="indexterm" name="id2565418"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#WRITEABLE">writeable</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565449"></a>
+</h3></div></div></div><a class="indexterm" name="id2565419"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#WRITEABLE">writeable</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565449"></a>
 
 writeable (S)
 </h3></div></div></div><a class="indexterm" name="id2565450"></a><a name="WRITEABLE"></a><div class="variablelist"><dl><dt></dt><dd><p>Inverted synonym for <a class="link" href="smb.conf.5.html#READONLY" target="_top">read only</a>.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>writeable</code></em> = <code class="literal">no</code>
@@ -6317,10 +6318,10 @@ write cache size (S)
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>write cache size</code></em> = <code class="literal">262144
 #  for a 256k cache size per file</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565583"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565584"></a>
 
 write list (S)
-</h3></div></div></div><a class="indexterm" name="id2565584"></a><a name="WRITELIST"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2565585"></a><a name="WRITELIST"></a><div class="variablelist"><dl><dt></dt><dd><p>
     This is a list of users that are given read-write access to a service. If the 
     connecting user is in this list then they will be given write access, no matter 
     what the <a class="link" href="smb.conf.5.html#READONLY" target="_top">read only</a> option is set to. The list can 
@@ -6335,17 +6336,17 @@ write list (S)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>write list</code></em> = <code class="literal">admin, root, @staff</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565676"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565677"></a>
 
 write raw (G)
 </h3></div></div></div><a class="indexterm" name="id2565678"></a><a name="WRITERAW"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether or not the server 
     will support raw write SMB's when transferring data from clients. 
     You should never need to change this parameter.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>write raw</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565720"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2565721"></a>
 
 wtmp directory (G)
-</h3></div></div></div><a class="indexterm" name="id2565721"></a><a name="WTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2565722"></a><a name="WTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This parameter is only available if Samba has been configured and compiled with the option <code class="literal">
 	--with-utmp</code>. It specifies a directory pathname that is used to store the wtmp or wtmpx files (depending on 
 	the UNIX system) that record user connections to a Samba server. The difference with the utmp directory is the fact 
@@ -6357,7 +6358,7 @@ wtmp directory (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>wtmp directory</code></em> = <code class="literal">/var/log/wtmp</code>
 </em></span>
-</p></dd></dl></div></div></div></div><div class="refsect1" lang="en"><a name="id2565804"></a><h2>WARNINGS</h2><p>
+</p></dd></dl></div></div></div></div><div class="refsect1" lang="en"><a name="id2565805"></a><h2>WARNINGS</h2><p>
 	Although the configuration file permits service names to contain spaces, your client software may not.
 	Spaces will be ignored in comparisons anyway, so it shouldn't be a problem - but be aware of the possibility.
 	</p><p>
@@ -6370,8 +6371,8 @@ wtmp directory (G)
 	for an administrator easy, but the various combinations of default attributes can be tricky. Take extreme
 	care when designing these sections. In particular, ensure that the permissions on spool directories are
 	correct.
-	</p></div><div class="refsect1" lang="en"><a name="id2565854"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2565865"></a><h2>SEE ALSO</h2><p>
-	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="smbpasswd.8.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(8)</span></a>, <a class="citerefentry" href="swat.8.html"><span class="citerefentry"><span class="refentrytitle">swat</span>(8)</span></a>, <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="smbclient.1.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(1)</span></a>, <a class="citerefentry" href="nmblookup.1.html"><span class="citerefentry"><span class="refentrytitle">nmblookup</span>(1)</span></a>, <a class="citerefentry" href="testparm.1.html"><span class="citerefentry"><span class="refentrytitle">testparm</span>(1)</span></a>, <a class="citerefentry" href="testprns.1.html"><span class="citerefentry"><span class="refentrytitle">testprns</span>(1)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2565944"></a><h2>AUTHOR</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2565855"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2565866"></a><h2>SEE ALSO</h2><p>
+	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="smbpasswd.8.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(8)</span></a>, <a class="citerefentry" href="swat.8.html"><span class="citerefentry"><span class="refentrytitle">swat</span>(8)</span></a>, <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="smbclient.1.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(1)</span></a>, <a class="citerefentry" href="nmblookup.1.html"><span class="citerefentry"><span class="refentrytitle">nmblookup</span>(1)</span></a>, <a class="citerefentry" href="testparm.1.html"><span class="citerefentry"><span class="refentrytitle">testparm</span>(1)</span></a>, <a class="citerefentry" href="testprns.1.html"><span class="citerefentry"><span class="refentrytitle">testprns</span>(1)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2565945"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar to the way the Linux kernel is developed.
 	</p><p>

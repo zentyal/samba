@@ -10,7 +10,7 @@
 	start a shutdown procedure.</para>
 
 	<para>If the connected user posseses the <constant>SeRemoteShutdownPrivilege</constant>,
-	right, this command will be run as user.</para>
+	right, this command will be run as root.</para>
 
 	<para>The %z %t %r %f variables are expanded as follows:</para>
 	
@@ -42,12 +42,13 @@
 	<para>Shutdown script example:
 <programlisting format="linespecific">
 #!/bin/bash
-		
-$time=0
-let &quot;time/60&quot;
-let &quot;time++&quot;
+
+time=$2
+let time=&quot;${time} / 60&quot;
+let time=&quot;${time} + 1&quot;
 
 /sbin/shutdown $3 $4 +$time $1 &amp;
+
 </programlisting>
         Shutdown does not return so we need to launch it in background.
 	</para>

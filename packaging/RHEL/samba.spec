@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.2.11
+Version:      3.2.12
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -28,7 +28,7 @@ Provides: samba = %{version}
 
 Prefix: /usr
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel
+BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, keyutils-devel
 
 # Working around perl dependency problem from docs
 %define __perl_requires %{SOURCE998}
@@ -122,8 +122,7 @@ cd source
 # RPM_OPT_FLAGS="$RPM_OPT_FLAGS -D_FILE_OFFSET_BITS=64"
 
 ## check for ccache
- ccache -h 2>&1 > /dev/null
-if [ $? -eq 0 ]; then
+if [ "$(which ccache 2> /dev/null)" != "" ]; then
 	CC="ccache gcc"
 else
 	CC="gcc"

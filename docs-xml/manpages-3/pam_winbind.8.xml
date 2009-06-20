@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="iso-8859-1"?>
 <!DOCTYPE refentry PUBLIC "-//Samba-Team//DTD DocBook V4.2-Based Variant V1.0//EN" "http://www.samba.org/samba/DTD/samba-doc">
-<refentry id="pam_winbind.7">
+<refentry id="pam_winbind.8">
 
 <refmeta>
 	<refentrytitle>pam_winbind</refentrytitle>
-	<manvolnum>7</manvolnum>
+	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
-	<refmiscinfo class="manual">7</refmiscinfo>
 	<refmiscinfo class="version">3.2</refmiscinfo>
+	<refmiscinfo class="manual">8</refmiscinfo>
 </refmeta>
 
 
@@ -26,6 +26,31 @@
 	pam_winbind is a PAM module that can authenticate users against the local domain by talking to the Winbind daemon.
 	</para>
 
+</refsect1>
+
+<refsect1>
+	<title>SYNOPSIS</title>
+
+	<para>
+		Edit the PAM system config /etc/pam.d/service and modify it as the following example shows:
+		<programlisting>
+			    ...
+			    auth      required        pam_env.so
+			    auth      sufficient      pam_unix2.so
+			+++ auth      required        pam_winbind.so  use_first_pass
+			    account   requisite       pam_unix2.so
+			+++ account   required        pam_winbind.so  use_first_pass
+			+++ password  sufficient      pam_winbind.so
+			    password  requisite       pam_pwcheck.so  cracklib
+			    password  required        pam_unix2.so    use_authtok
+			    session   required        pam_unix2.so
+			+++ session   required        pam_winbind.so
+			    ...
+		</programlisting>
+
+		Make sure that pam_winbind is one of the first modules in the session part. It may retrieve
+		kerberos tickets which are needed by other modules.
+	</para>
 </refsect1>
 
 <refsect1>
@@ -64,16 +89,19 @@
 		</varlistentry>
 
 		<varlistentry>
-		<term>try_first_pass</term>
-		<listitem><para></para></listitem>
-		</varlistentry>
-
-		<varlistentry>
 		<term>use_first_pass</term>
 		<listitem><para>
 		By default, pam_winbind tries to get the authentication token from a previous module. If no token is available
 		it asks the user for the old password. With this option, pam_winbind aborts with an error if no authentication
 		token from a previous module is available.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>try_first_pass</term>
+		<listitem><para>
+				Same as the use_first_pass option (previous item), except that if the primary password is not
+				valid, PAM will prompt for a password.
 		</para></listitem>
 		</varlistentry>
 
@@ -139,6 +167,50 @@
 
 	</para>
 
+</refsect1>
+
+<refsect1>
+	<title>PAM DATA EXPORTS</title>
+
+	<para>This section describes the data exported in the PAM stack which could be used in other PAM modules.</para>
+
+	<varlistentry>
+		<term>PAM_WINBIND_HOMEDIR</term>
+		<listitem>
+			<para>
+				This is the Windows Home Directory set in the profile tab in the user settings
+				on the Active Directory Server. This could be a local path or a directory on a
+				share mapped to a drive.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term>PAM_WINBIND_LOGONSCRIPT</term>
+		<listitem>
+			<para>
+				The path to the logon script which should be executed if a user logs in. This is
+				normally a relative path to the script stored on the server.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term>PAM_WINBIND_LOGONSERVER</term>
+		<listitem>
+			<para>
+				This exports the Active Directory server we are authenticating against. This can be
+				used as a variable later.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term>PAM_WINBIND_PROFILEPATH</term>
+		<listitem>
+			<para>
+				This is the profile path set in the profile tab in the user settings. Noramlly
+				the home directory is synced with this directory on a share.
+			</para>
+		</listitem>
+	</varlistentry>
 </refsect1>
 
 <refsect1>

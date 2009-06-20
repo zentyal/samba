@@ -8,7 +8,6 @@ undefined-symbols.patch
 VERSION.patch
 adapt_machine_creation_script.patch
 usershare.patch
-swat-de.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
 fix-manpages-warnings.patch

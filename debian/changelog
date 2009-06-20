@@ -1,4 +1,4 @@
-samba (2:3.4.0~rc1-1-2) UNRELEASED; urgency=low
+samba (2:3.4.0~rc1-1) UNRELEASED; urgency=low
 
   * New upstream version. That fixes the following bugs:
     - Remove pidfile on clean shutdown. Closes: #299433, #454112

@@ -17,6 +17,7 @@ samba (2:3.3.5-1) UNRELEASED; urgency=low
        debian/compat
     - samba.postinst: do not call mksmbpasswd with an absolute path
   * Upgrade Standard to 3.8.2 (checked, no change)
+  * Upgrade debhelper compatibility level to 6
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 16 May 2009 15:44:12 -0700
 

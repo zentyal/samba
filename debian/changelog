@@ -3,7 +3,7 @@ samba (2:3.2.5-4lenny5) stable-security; urgency=high
   * Fix Formatstring vulnerability in smbclient. CVE ID
     not assigned yet.
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 19 Jun 2009 20:06:07 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 19 Jun 2009 20:11:40 +0200
 
 samba (2:3.2.5-4lenny4) stable-proposed-updates; urgency=low
 

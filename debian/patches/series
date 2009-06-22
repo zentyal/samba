@@ -30,4 +30,4 @@ bug_520284_upstream_6160.patch
 bug_520794.patch
 bug_522907_upstream_6279.patch
 bug_526229-upstream_6301.patch
-security-upstream_6478.patch
+security-CVE-2009-1888.patch

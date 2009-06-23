@@ -1,6 +1,7 @@
 samba (2:3.2.5-4lenny6) UNRELEASED; urgency=low
 
   * CVE 2009-1886: Fix Formatstring vulnerability in smbclient
+  * CVE 2009-1888: Fix uninitialized read of a data value
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 23 Jun 2009 08:37:27 +0200
 

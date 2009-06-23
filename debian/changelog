@@ -1,3 +1,9 @@
+samba (2:3.2.5-4lenny6) UNRELEASED; urgency=low
+
+  * CVE 2009-1886: Fix Formatstring vulnerability in smbclient
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 23 Jun 2009 08:37:27 +0200
+
 samba (2:3.2.5-4lenny5) stable-security; urgency=high
 
   * Fix Formatstring vulnerability in smbclient. CVE ID

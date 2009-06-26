@@ -40,8 +40,8 @@ Description: SMB/CIFS file, print, and login server for Unix
 
 Package: samba-common-bin
 Architecture: any
-Depends: libpam-modules, ${shlibs:Depends}, ${misc:Depends}, samba-common (>= 2:3.4.0pre1-2)
-Replaces: samba (<< 3.0.20b-1), samba-common (<< 2:3.4.0pre1-2)
+Depends: libpam-modules, ${shlibs:Depends}, ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
+Replaces: samba (<< 3.0.20b-1), samba-common (<< 2:3.4.0~pre1-2)
 Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -178,7 +178,7 @@ Package: libsmbclient-dev
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}, samba-common (>= 2:3.4.0pre1-2)
+Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)
  required for building applications against libsmbclient, a library that

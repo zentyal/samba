@@ -1,3 +1,9 @@
+samba (2:3.4.0~rc1-2) UNRELEASED; urgency=low
+
+  * Correct dependencies for samba-common-bin. Closes: #534595
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:32:20 +0200
+
 samba (2:3.4.0~rc1-1) experimental; urgency=low
 
   * New upstream version. That fixes the following bugs:

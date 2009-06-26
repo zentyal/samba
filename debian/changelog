@@ -1,3 +1,11 @@
+samba (2:3.3.6-1) UNRELEASED; urgency=high
+
+  * New upstream release. Security release.
+  * CVE 2009-1886: Fix Formatstring vulnerability in smbclient
+  * CVE 2009-1888: Fix uninitialized read of a data value
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 24 Jun 2009 07:24:28 +0200
+
 samba (2:3.3.5-1) unstable; urgency=low
 
   [ Steve Langasek ]

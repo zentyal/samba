@@ -2,6 +2,7 @@ samba (2:3.3.6-2) UNRELEASED; urgency=low
 
   [ Debconf translations ]
   * Czech. Closes: #534793
+  * Russian. Closes: #534796
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 30 Jun 2009 22:58:39 +0200
 

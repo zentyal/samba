@@ -1,19 +1,22 @@
-# Translation of samba_3.0.23c-1.po to Russian
+# translation of ru.po to Russian
 # Yuriy Talakan' <yt@amur.elektra.ru>, 2005, 2006.
 # Pavel Maryanov <acid_jack@ukr.net>, 2006, 2007.
+# Yuri Kozlov <yuray@komyakino.ru>, 2009.
+# Translation of samba_3.0.23c-1.po to Russian
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_3.0.23c-1\n"
+"Project-Id-Version: samba 2:3.3.5-1\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-13 22:22+0200\n"
-"Last-Translator: Pavel Maryanov <acid_jack@ukr.net>\n"
-"Language-Team: Russian <ru@li.org>\n"
+"PO-Revision-Date: 2009-06-27 13:27+0400\n"
+"Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
+"Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms:  nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%"
+"10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #. Type: boolean
 #. Description
@@ -90,20 +93,17 @@ msgstr "Рабочая группа/домен:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Укажите рабочую группу, к которой будет принадлежать сервер при опросе "
-"клиентами. Обратите внимание, что этот параметр также определяет имя домена, "
-"используемое вместе с параметром security=domain."
+"Укажите рабочую группу системы. Этой настройкой задаётся рабочая группа, в "
+"которой будет появляться данный компьютер, если он используется как сервер, "
+"в качестве рабочей группы по умолчанию при просмотре сети из различных "
+"клиентских программ, а также в качестве имени домена при использовании "
+"параметра \"security=domain\"."
 
 #. Type: boolean
 #. Description
@@ -114,35 +114,27 @@ msgstr "Использовать шифрование паролей?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Все последние Windows-клиенты связываются с серверами SMB с использованием "
-"шифрованных паролей. Если нужно использовать нешифрованные пароли, тогда "
-"надо будет изменить параметр в реестре Windows."
+"Все последние Windows-клиенты связываются с серверами SMB/CIFS с "
+"использованием шифрованных паролей. Если вы хотите использовать "
+"нешифрованные пароли, то тогда нужно изменить определённый параметр в "
+"реестре Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Крайне рекомендуется включить этот параметр. В этом случае нужно убедиться в "
+"Крайне рекомендуется включить этот параметр, так как нешифрованные пароли "
+"больше не используются в Microsoft Windows. В этом случае нужно убедиться в "
 "правильности файла /etc/samba/smbpasswd и в том, что для всех пользователей "
 "в нём установлены пароли с помощью команды smbpasswd."
 
@@ -216,40 +208,3 @@ msgid ""
 msgstr ""
 "Samba-демон smbd может запускаться как обычный демон или из inetd. "
 "Рекомендуется использовать запуск в виде демона."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Объединение СУБД паролей не поддерживается."
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Начиная с версии 3.0.23, в samba больше не поддерживается использование "
-#~ "нескольких СУБД в параметре \"passdb backend\". Похоже, что в текущем "
-#~ "файле smb.conf есть этот параметр, состоящий из нескольких систем "
-#~ "управления БД паролей. Новая версия samba не сможет работать с этим "
-#~ "параметром. Его необходимо исправить."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Переместить /etc/samba/smbpasswd в /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "В Samba 3.0 представлен новый, более полный интерфейс базы данных SAM, "
-#~ "замещающий файл /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Подтвердите автоматическую миграцию существующего файла smbpasswd в /var/"
-#~ "lib/samba/passdb.tdb. Не выбирайте этот вариант, если вместо него будет "
-#~ "использоваться другая БД паролей (например, LDAP)."
-
-#~ msgid "daemons, inetd"
-#~ msgstr "daemons, inetd"

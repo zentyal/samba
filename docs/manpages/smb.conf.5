@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/23/2009
+.\"      Date: 07/03/2009
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 3.3
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "06/23/2009" "Samba 3\&.3" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "07/03/2009" "Samba 3\&.4" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1039,6 +1039,26 @@ Example:
 \fI\fIabort shutdown script\fR\fR\fI = \fR\fI\FC/sbin/shutdown \-c\F[]\fR\fI \fR
 .RE
 
+public
+.\" public
+.PP
+.RS 4
+This parameter is a synonym for
+access based share enum\&.
+.RE
+
+access based share enum (S)
+.\" access based share enum
+.PP
+.RS 4
+If this parameter is
+\fByes\fR
+for a service, then the share hosted by the service will only be visible to users who have read or write access to the share during share enumeration (for example net view \e\esambaserver)\&. This has parallels to access based enumeration, the main difference being that only share permissions are evaluated, and security descriptors on files contained on the share are not used in computing enumeration access rights\&.
+.sp
+Default:
+\fI\fIaccess based share enum\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 acl check permissions (S)
 .\" acl check permissions
 .PP
@@ -1994,7 +2014,7 @@ Default:
 \fI\fIcheck password script\fR\fR\fI = \fR\fI\FCDisabled\F[]\fR\fI \fR
 .sp
 Example:
-\fI\fIcheck password script\fR\fR\fI = \fR\fI\FCcheck password script = /usr/local/sbin/crackcheck\F[]\fR\fI \fR
+\fI\fIcheck password script\fR\fR\fI = \fR\fI\FC/usr/local/sbin/crackcheck\F[]\fR\fI \fR
 .RE
 
 client lanman auth (G)
@@ -2491,6 +2511,21 @@ must be on for this to have an effect\&.
 .sp
 Default:
 \fI\fIdebug uid\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
+dedicated keytab file (G)
+.\" dedicated keytab file
+.PP
+.RS 4
+Specifies the path to the kerberos keytab file when
+\m[blue]\fBkerberos method\fR\m[]
+is set to "dedicated keytab"\&.
+.sp
+Default:
+\fI\fIdedicated keytab file\fR\fR\fI = \fR\fI\FC\F[]\fR\fI \fR
+.sp
+Example:
+\fI\fIdedicated keytab file\fR\fR\fI = \fR\fI\FC/usr/local/etc/krb5\&.keytab\F[]\fR\fI \fR
 .RE
 
 default case (S)
@@ -4497,6 +4532,68 @@ Example:
 \fI\fIkeepalive\fR\fR\fI = \fR\fI\FC600\F[]\fR\fI \fR
 .RE
 
+kerberos method (G)
+.\" kerberos method
+.PP
+.RS 4
+Controls how kerberos tickets are verified\&.
+.sp
+Valid options are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+secrets only \- use only the secrets\&.tdb for ticket verification (default)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+system keytab \- use only the system keytab for ticket verification
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+dedicated keytab \- use a dedicated keytab for ticket verification
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+secrets and keytab \- use the secrets\&.tdb first, then the system keytab
+.sp
+.RE
+The major difference between "system keytab" and "dedicated keytab" is that the latter method relies on kerberos to find the correct keytab entry instead of filtering based on expected principals\&.
+.sp
+When the kerberos method is in "dedicated keytab" mode,
+\m[blue]\fBdedicated keytab file\fR\m[]
+must be set to specify the location of the keytab file\&.
+.sp
+Default:
+\fI\fIkerberos method\fR\fR\fI = \fR\fI\FCsecrets only\F[]\fR\fI \fR
+.RE
+
 kernel change notify (S)
 .\" kernel change notify
 .PP
@@ -6287,6 +6384,22 @@ Example:
 \fI\fImap to guest\fR\fR\fI = \fR\fI\FCBad User\F[]\fR\fI \fR
 .RE
 
+map untrusted to domain (G)
+.\" map untrusted to domain
+.PP
+.RS 4
+If a client connects to smbd using an untrusted domain name, such as BOGUS\euser, smbd replaces the BOGUS domain with it\'s SAM name before attempting to authenticate that user\&. In the case where smbd is acting as a PDC this will be DOMAIN\euser\&. In the case where smbd is acting as a domain member server or a standalone server this will be WORKSTATION\euser\&.
+.sp
+In previous versions of Samba (pre 3\&.4), if smbd was acting as a domain member server, the BOGUS domain name would instead be replaced by the primary domain which smbd was a member of\&. In this case authentication would be deferred off to a DC using the credentials DOMAIN\euser\&.
+.sp
+When this parameter is set to
+\fByes\fR
+smbd provides the legacy behavior of mapping untrusted domain names to the primary domain\&. When smbd is not acting as a domain member server, this parameter has no effect\&.
+.sp
+Default:
+\fI\fImap untrusted to domain\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
+.RE
+
 max connections (S)
 .\" max connections
 .PP
@@ -7230,7 +7343,7 @@ Available backends can include:
 .IP \(bu 2.3
 .\}
 \FCsmbpasswd\F[]
-\- The default smbpasswd backend\&. Takes a path to the smbpasswd file as an optional argument\&.
+\- The old plaintext passdb backend\&. Some Samba features will not work if this passdb backend is used\&. Takes a path to the smbpasswd file as an optional argument\&.
 .RE
 .sp
 .RS 4
@@ -7303,7 +7416,7 @@ passdb backend = ldapsam:"ldap://ldap\-1\&.example\&.com ldap\-2\&.example\&.com
 .\}
 .sp
 Default:
-\fI\fIpassdb backend\fR\fR\fI = \fR\fI\FCsmbpasswd\F[]\fR\fI \fR
+\fI\fIpassdb backend\fR\fR\fI = \fR\fI\FCtdbsam\F[]\fR\fI \fR
 .RE
 
 passdb expand explicit (G)
@@ -7610,6 +7723,15 @@ Default:
 .sp
 Example:
 \fI\fIpath\fR\fR\fI = \fR\fI\FC/home/fred\F[]\fR\fI \fR
+.RE
+
+perfcount module (G)
+.\" perfcount module
+.PP
+.RS 4
+This parameter specifies the perfcount backend to be used when monitoring SMB operations\&. Only one perfcount module may be used, and it must implement all of the apis contained in the smb_perfcount_handler structure defined in smb\&.h\&.
+.sp
+\fINo default\fR
 .RE
 
 pid directory (G)
@@ -9260,13 +9382,12 @@ Shutdown script example:
 .sp -1
 
 #!/bin/bash
-
-time=$2
-let time="${time} / 60"
-let time="${time} + 1"
+		
+$time=0
+let "time/60"
+let "time++"
 
 /sbin/shutdown $3 $4 +$time $1 &
-
 .EB lightgray adjust-for-leading-newline
 .if t \{\
 .sp 1
@@ -9648,7 +9769,7 @@ call to ensure the data is written to disk\&. Note that the
 \fIstrict sync\fR
 parameter must be set to
 \fByes\fR
-in order for this parameter to have any affect\&.
+in order for this parameter to have any effect\&.
 .sp
 Default:
 \fI\fIsync always\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
@@ -9816,47 +9937,6 @@ If this parameter is enabled for a printer, then any attempt to open the printer
 .sp
 Default:
 \fI\fIuse client driver\fR\fR\fI = \fR\fI\FCno\F[]\fR\fI \fR
-.RE
-
-use kerberos keytab (G)
-.\" use kerberos keytab
-.PP
-.RS 4
-Specifies whether Samba should attempt to maintain service principals in the systems keytab file for
-\fBhost/FQDN\fR
-and
-\fBcifs/FQDN\fR\&.
-.sp
-When you are using the heimdal Kerberos libraries, you must also specify the following in
-\FC/etc/krb5\&.conf\F[]:
-.sp
-.if n \{\
-.RS 4
-.\}
-.fam C
-.ps -1
-.nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
-[libdefaults]
-default_keytab_name = FILE:/etc/krb5\&.keytab
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
-.fi
-.fam
-.ps +1
-.if n \{\
-.RE
-.\}
-.sp
-Default:
-\fI\fIuse kerberos keytab\fR\fR\fI = \fR\fI\FCFalse\F[]\fR\fI \fR
 .RE
 
 use mmap (G)

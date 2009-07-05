@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">3.3</refmiscinfo>
+	<refmiscinfo class="version">3.4</refmiscinfo>
 </refmeta>
 
 
@@ -1056,6 +1056,33 @@ the rid and description is also provided for each account.
 </refsect2>
 
 <refsect2>
+<title>SAM RIGHTS LIST</title>
+
+<para>
+List all available privileges.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>SAM RIGHTS GRANT &lt;NAME&gt; &lt;PRIVILEGE&gt;</title>
+
+<para>
+Grant one or more privileges to a user.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>SAM RIGHTS REVOKE &lt;NAME&gt; &lt;PRIVILEGE&gt;</title>
+
+<para>
+Revoke one or more privileges from a user.
+</para>
+
+</refsect2>
+
+<refsect2>
 <title>SAM SHOW &lt;NAME&gt;</title>
 
 <para>
@@ -1582,6 +1609,65 @@ Delete the list of includes from the provided section (global or share).
 </refsect2>
 
 <refsect2>
+<title>EVENTLOG</title>
+
+<para>Starting with version 3.4.0 net can read, dump, import and export native
+win32 eventlog files (usually *.evt). evt files are used by the native Windows eventviewer tools.
+</para>
+
+<para>
+The import and export of evt files can only succeed when <parameter>eventlog list</parameter> is used in
+<emphasis>smb.conf</emphasis> file.
+See the <citerefentry><refentrytitle>smb.conf</refentrytitle> <manvolnum>5</manvolnum></citerefentry> manpage for details.
+</para>
+
+<para>The eventlog commands are:
+<simplelist>
+<member>net eventlog dump - Dump a eventlog *.evt file on the screen.</member>
+<member>net eventlog import - Import a eventlog *.evt into the samba internal
+tdb based representation of eventlogs.</member>
+<member>net eventlog export - Export the samba internal tdb based representation
+of eventlogs into an eventlog *.evt file.</member>
+</simplelist>
+</para>
+
+<refsect3>
+<title>EVENTLOG DUMP <replaceable>filename</replaceable></title>
+
+<para>
+Prints a eventlog *.evt file to standard output.
+</para>
+</refsect3>
+
+<refsect3>
+<title>EVENTLOG IMPORT <replaceable>filename</replaceable> <replaceable>eventlog</replaceable></title>
+
+<para>
+Imports a eventlog *.evt file defined by <replaceable>filename</replaceable> into the
+samba internal tdb representation of eventlog defined by <replaceable>eventlog</replaceable>.
+<replaceable>eventlog</replaceable> needs to part of the <parameter>eventlog list</parameter>
+defined in smb.conf.
+See the <citerefentry><refentrytitle>smb.conf</refentrytitle> <manvolnum>5</manvolnum></citerefentry> manpage for details.
+</para>
+
+</refsect3>
+
+<refsect3>
+<title>EVENTLOG EXPORT <replaceable>filename</replaceable> <replaceable>eventlog</replaceable></title>
+
+<para>
+Exports the samba internal tdb representation of eventlog defined by <replaceable>eventlog</replaceable>
+to a eventlog *.evt file defined by <replaceable>filename</replaceable>.
+<replaceable>eventlog</replaceable> needs to part of the <parameter>eventlog list</parameter>
+defined in smb.conf.
+See the <citerefentry><refentrytitle>smb.conf</refentrytitle> <manvolnum>5</manvolnum></citerefentry> manpage for details.
+</para>
+
+</refsect3>
+
+</refsect2>
+
+<refsect2>
 <title>DOM</title>
 
 <para>Starting with version 3.2.0 Samba has support for remote join and unjoin APIs, both client and server-side. Windows supports remote join capabilities since Windows 2000.
@@ -1593,6 +1679,7 @@ Delete the list of includes from the provided section (global or share).
 <simplelist>
 <member>net dom join - Join a remote computer into a domain.</member>
 <member>net dom unjoin - Unjoin a remote computer from a domain.</member>
+<member>net dom renamecomputer - Renames a remote computer joined to a domain.</member>
 </simplelist>
 </para>
 
@@ -1660,10 +1747,41 @@ This example would connect to a computer named XP as the local administrator usi
 
 </refsect3>
 
+<refsect3>
+<title>DOM RENAMECOMPUTER <replaceable>newname=NEWNAME</replaceable> <replaceable>account=ACCOUNT</replaceable> <replaceable>password=PASSWORD</replaceable> <replaceable>reboot</replaceable></title>
+
+<para>
+Renames a computer that is joined to a domain. This command supports the following additional parameters:
+</para>
+
+<itemizedlist>
+
+<listitem><para><replaceable>NEWNAME</replaceable> defines the new name of the machine in the domain.</para></listitem>
+
+<listitem><para><replaceable>ACCOUNT</replaceable> defines a domain account that will be used to rename the machine in the domain. This domain account needs to have sufficient privileges to rename machines.</para></listitem>
+
+<listitem><para><replaceable>PASSWORD</replaceable> defines the password for the domain account defined with <replaceable>ACCOUNT</replaceable>.</para></listitem>
+
+<listitem><para><replaceable>REBOOT</replaceable> is an optional parameter that can be set to reboot the remote machine after successful rename in the domain.</para></listitem>
+
+</itemizedlist>
+
+<para>
+Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain. These additional parameters include: -S computer and -U user.
+</para>
+<para>
+	Example:
+	net dom renamecomputer -S xp -U XP\\administrator%secret newname=XPNEW account=MYDOM\\administrator password=topsecret reboot.
+</para>
+<para>
+This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret. After successful rename, the computer would reboot.
+</para>
+
+</refsect3>
+
 </refsect2>
 
 <refsect2>
-
 <title>HELP [COMMAND]</title>
 
 <para>Gives usage information for the specified command.</para>

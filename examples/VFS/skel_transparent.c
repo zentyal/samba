@@ -46,9 +46,9 @@ static void skel_disconnect(vfs_handle_struct *handle)
 	SMB_VFS_NEXT_DISCONNECT(handle);
 }
 
-static SMB_BIG_UINT skel_disk_free(vfs_handle_struct *handle,  const char *path,
-	bool small_query, SMB_BIG_UINT *bsize,
-	SMB_BIG_UINT *dfree, SMB_BIG_UINT *dsize)
+static uint64_t skel_disk_free(vfs_handle_struct *handle,  const char *path,
+	bool small_query, uint64_t *bsize,
+	uint64_t *dfree, uint64_t *dsize)
 {
 	return SMB_VFS_NEXT_DISK_FREE(handle, path, small_query, bsize, 
 					 dfree, dsize);
@@ -79,9 +79,11 @@ static SMB_STRUCT_DIR *skel_opendir(vfs_handle_struct *handle,  const char *fnam
 	return SMB_VFS_NEXT_OPENDIR(handle, fname, mask, attr);
 }
 
-static SMB_STRUCT_DIRENT *skel_readdir(vfs_handle_struct *handle,  SMB_STRUCT_DIR *dirp)
+static SMB_STRUCT_DIRENT *skel_readdir(vfs_handle_struct *handle,
+				       SMB_STRUCT_DIR *dirp,
+				       SMB_STRUCT_STAT *sbuf)
 {
-	return SMB_VFS_NEXT_READDIR(handle, dirp);
+	return SMB_VFS_NEXT_READDIR(handle, dirp, sbuf);
 }
 
 static void skel_seekdir(vfs_handle_struct *handle,  SMB_STRUCT_DIR *dirp, long offset)
@@ -224,9 +226,9 @@ static char *skel_getwd(vfs_handle_struct *handle,  char *buf)
 	return SMB_VFS_NEXT_GETWD(handle, buf);
 }
 
-static int skel_ntimes(vfs_handle_struct *handle,  const char *path, const struct timespec ts[2])
+static int skel_ntimes(vfs_handle_struct *handle,  const char *path, struct smb_file_time *ft)
 {
-	return SMB_VFS_NEXT_NTIMES(handle, path, ts);
+	return SMB_VFS_NEXT_NTIMES(handle, path, ft);
 }
 
 static int skel_ftruncate(vfs_handle_struct *handle, files_struct *fsp, SMB_OFF_T offset)
@@ -284,9 +286,9 @@ static int skel_chflags(vfs_handle_struct *handle,  const char *path, uint flags
 }
 
 static struct file_id skel_file_id_create(vfs_handle_struct *handle,
-					  SMB_DEV_T dev, SMB_INO_T inode)
+					  const SMB_STRUCT_STAT *sbuf)
 {
-	return SMB_VFS_NEXT_FILE_ID_CREATE(handle, dev, inode);
+	return SMB_VFS_NEXT_FILE_ID_CREATE(handle, sbuf);
 }
 
 static NTSTATUS skel_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,

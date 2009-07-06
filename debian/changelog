@@ -1,10 +1,52 @@
-samba (2:3.3.6-2) UNRELEASED; urgency=low
+samba (2:3.4.0-1) UNRELEASED; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release: first upload to unstable for 3.4
+  * Correct dependencies for samba-common-bin. Closes: #534595
 
   [ Debconf translations ]
   * Czech. Closes: #534793
   * Russian. Closes: #534796
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 30 Jun 2009 22:58:39 +0200
+ -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:32:20 +0200
+
+samba (2:3.4.0~rc1-1) experimental; urgency=low
+
+  * New upstream version. That fixes the following bugs:
+    - Remove pidfile on clean shutdown. Closes: #299433, #454112
+  * Drop swat-de.patch that was applied upstream
+  * Bump debhelper compatibility level to 6 and declare a versioned
+    dependency on debhelper >= 6.0.0
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 18:43:20 +0200
+
+samba (2:3.4.0~pre2-1) experimental; urgency=low
+
+  [ Jelmer Vernooij ]
+  * Split binaries out of samba-common into samba-common-bin.
+    Closes: #524661
+
+  [ Christian Perrier ]
+  * New upstream version. That fixes the following bugs:
+    - Do not limit the number of network interfaces. Closes: #428618
+    - Fix Connect4 in samr.idl. Closes: #526229
+  * "Using samba" is back.
+  * Drop non-linux-ports.patch that was integrated upstream
+  * Drop smbpasswd-syslog.patch that was integrated upstream
+  * Drop smbclient-link.patch that was integrated upstream
+
+  [ Debconf translations ]
+  * Italian. Closes: #529350
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 06 Jun 2009 11:45:35 +0200
+
+samba (2:3.4.0~pre1-1) experimental; urgency=low
+
+  * New upstream pre-release
+  * "Using samba" is dropped from upstream source. Therefore, drop
+    debian/samba-doc.doc-base.samba-using
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 20 May 2009 18:50:35 +0200
 
 samba (2:3.3.6-1) unstable; urgency=high
 

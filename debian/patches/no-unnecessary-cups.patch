@@ -5,10 +5,10 @@ Fixes: bug #479512
 
 Upstream status: submitted as bugzilla bug #5525
 
-Index: samba-3.3.0rc2/source/smbd/server.c
+Index: samba-3.3.0rc2/source3/smbd/server.c
 ===================================================================
---- samba-3.3.0rc2.orig/source/smbd/server.c
-+++ samba-3.3.0rc2/source/smbd/server.c
+--- samba-3.3.0rc2.orig/source3/smbd/server.c
++++ samba-3.3.0rc2/source3/smbd/server.c
 @@ -806,6 +806,10 @@
  	int pnum = lp_servicenumber(PRINTERS_NAME);
  	const char *pname;

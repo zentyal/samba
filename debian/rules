@@ -58,8 +58,11 @@ conf_args = \
 		--without-libnetapi \
 		--with-modulesdir=/usr/lib/samba \
 		--datarootdir=/usr/share \
+		--datadir=/usr/share/samba \
 		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \
+		--with-statedir=/var/lib/samba \
+		--with-cachedir=/var/cache/samba \
 
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
@@ -88,10 +91,10 @@ configure-stamp:
 	dh_testdir
 
 	if [ -f debian/config.cache ]; then \
-		cp -f debian/config.cache source/config.cache; \
+		cp -f debian/config.cache source3/config.cache; \
 	fi
 
-	[ -f source/Makefile ] || (cd source && CFLAGS="$(CFLAGS)" ./configure $(conf_args))
+	[ -f source3/Makefile ] || (cd source3 && CFLAGS="$(CFLAGS)" ./configure $(conf_args))
 
 	touch configure-stamp
 
@@ -99,8 +102,9 @@ build: configure build-stamp
 build-stamp:
 	dh_testdir
 
-	$(MAKE) -C source # headers
-	$(MAKE) -C source everything nsswitch/libnss_wins.so
+	$(MAKE) -C source3 # headers
+	$(MAKE) -C source3 everything
+	$(MAKE) -C source3 nsswitch
 
 	touch build-stamp
 
@@ -111,13 +115,13 @@ clean-patched:
 	dh_testroot
 	rm -f build-stamp configure-stamp
 
-	[ ! -f source/Makefile ] || $(MAKE) -C source distclean
+	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source/bin/wbinfo source/bin/winbindd source/bin/debug2html \
-	source/bin/libsmbclient.a \
-	source/client/mount.cifs source/client/umount.cifs \
-	source/include/stamp-h
+	rm -f source3/bin/wbinfo source3/bin/winbindd source3/bin/debug2html \
+	source3/bin/libsmbclient.a \
+	source3/client/mount.cifs source3/client/umount.cifs \
+	source3/include/stamp-h
 
 	debconf-updatepo
 
@@ -137,7 +141,7 @@ install: build
 	mkdir -p $(DESTDIR)/usr/lib/cups/backend $(DESTDIR)/usr/share/samba \
 	         $(DESTDIR)/etc/pam.d $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 
-	$(MAKE) -C source install DESTDIR=$(DESTDIR)
+	$(MAKE) -C source3 install DESTDIR=$(DESTDIR)
 
 	# Rename to *.samba3 for alternatives
 	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
@@ -147,10 +151,6 @@ install: build
 	mv $(DESTDIR)/usr/share/man/man8/net.8 $(DESTDIR)/usr/share/man/man8/net.samba3.8
 	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
 	mv $(DESTDIR)/usr/share/man/man1/testparm.1 $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
-
-	mv $(DESTDIR)/usr/share/samba/lowcase.dat $(DESTDIR)/usr/share/samba/lowcase.dat.samba3
-	mv $(DESTDIR)/usr/share/samba/upcase.dat $(DESTDIR)/usr/share/samba/upcase.dat.samba3
-	mv $(DESTDIR)/usr/share/samba/valid.dat $(DESTDIR)/usr/share/samba/valid.dat.samba3
 
 	# Starting with Samba 3.0.6 libsmbclient.so is installed in
 	# /usr/lib/samba. We don't want it there since it is not in the
@@ -163,21 +163,21 @@ install: build
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	install -m 0644 debian/mksmbpasswd.8 $(DESTDIR)/usr/share/man/man8/mksmbpasswd.8
-	install -m 0644 source/nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
-	install -m 0644 source/nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
+	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/libnss_winbind.so.2
+	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/libnss_wins.so.2
 	# Install torture stuff
-	install -m 0755 source/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
-	install -m 0755 source/bin/msgtest $(DESTDIR)/usr/bin/msgtest
-	install -m 0755 source/bin/masktest $(DESTDIR)/usr/bin/masktest
-	install -m 0755 source/bin/locktest $(DESTDIR)/usr/bin/locktest
-	install -m 0755 source/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
-	install -m 0755 source/bin/nsstest $(DESTDIR)/usr/bin/nsstest
-	install -m 0755 source/bin/vfstest $(DESTDIR)/usr/bin/vfstest
-	install -m 0755 source/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
-	install -m 0755 source/bin/talloctort $(DESTDIR)/usr/bin/talloctort
-	install -m 0755 source/bin/replacetort $(DESTDIR)/usr/bin/replacetort
-	install -m 0755 source/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
-	install -m 0755 source/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
+	install -m 0755 source3/bin/smbtorture $(DESTDIR)/usr/bin/smbtorture
+	install -m 0755 source3/bin/msgtest $(DESTDIR)/usr/bin/msgtest
+	install -m 0755 source3/bin/masktest $(DESTDIR)/usr/bin/masktest
+	install -m 0755 source3/bin/locktest $(DESTDIR)/usr/bin/locktest
+	install -m 0755 source3/bin/locktest2 $(DESTDIR)/usr/bin/locktest2
+	install -m 0755 source3/bin/nsstest $(DESTDIR)/usr/bin/nsstest
+	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
+	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
+	install -m 0755 source3/bin/talloctort $(DESTDIR)/usr/bin/talloctort
+	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
+	install -m 0755 source3/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
+	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 
@@ -191,7 +191,7 @@ endif
 	ln -s ../../../bin/smbspool $(DESTDIR)/usr/lib/cups/backend/smb
 
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
-	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action.samba3
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_movefiles.
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
@@ -239,9 +239,9 @@ binary-arch: build install
 	  install -m 0644 -D debian/$$pkg.lintian debian/$$pkg/usr/share/lintian/overrides/$$pkg || exit; \
 	done
 	dh_installchangelogs -Nlibpam-smbpass
-	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source/pam_smbpass/CHANGELOG
-	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common --dbg-package=samba-dbg
-	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common
+	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
+	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg
+	DH_OPTIONS= dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common-bin
 	dh_link
 	dh_compress
 	dh_fixperms

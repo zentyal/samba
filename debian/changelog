@@ -1,4 +1,4 @@
-samba (2:3.4.0-1) UNRELEASED; urgency=low
+samba (2:3.4.0-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release: first upload to unstable for 3.4
@@ -8,7 +8,7 @@ samba (2:3.4.0-1) UNRELEASED; urgency=low
   * Czech. Closes: #534793
   * Russian. Closes: #534796
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:32:20 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Jul 2009 20:42:19 +0200
 
 samba (2:3.4.0~rc1-1) experimental; urgency=low
 

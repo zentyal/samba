@@ -1,22 +1,15 @@
-# translation of samba_3.0.23b-2 to German
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
-#    Developers do not need to manually edit POT or PO files.
-# Holger Wansing <linux@wansing-online.de>, 2006.
+# Translation of samba to German
+#
+# Holger Wansing <linux@wansing-online.de>, 2006, 2009.
 # Martin Krüger <mkrueger@mkru.de>, 2005.
+#
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
+"Project-Id-Version: samba 3.4.0-1\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-12 22:27+0100\n"
+"PO-Revision-Date: 2009-07-09 22:59+0200\n"
 "Last-Translator: Holger Wansing <linux@wansing-online.de>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -99,23 +92,22 @@ msgstr ""
 msgid "Workgroup/Domain Name:"
 msgstr "Arbeitsgruppen-/Domain-Name:"
 
+#
+#
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Bitte geben Sie die Arbeitsgruppe an, in der der Server bei Anfragen von "
-"Clients erscheinen soll. Beachten Sie, dass dieser Parameter auch den Domain-"
-"Namen festlegt, der für die Einstellung security=domain verwendet wird."
+"Bitte geben Sie die Arbeitsgruppe für dieses System an. Diese Einstellung "
+"beeinflußt, in welcher Arbeitsgruppe das System erscheint, wenn es als "
+"Server verwendet wird, die zu verwendende Standard-Arbeitsgruppe, wenn das "
+"Netzwerk mit verschiedenen Frontends durchsucht wird sowie den Domain-Namen, "
+"der für die Einstellung »security=domain« verwendet wird."
 
 #. Type: boolean
 #. Description
@@ -123,40 +115,35 @@ msgstr ""
 msgid "Use password encryption?"
 msgstr "Verschlüsselte Passwörter verwenden?"
 
+#
+#
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Alle aktuellen Windows-Clients kommunizieren mit SMB-Servern mittels "
-"verschlüsselter Passwörter. Wenn Sie Passwörter im Klartext verwenden "
-"möchten, müssen Sie einen Parameter in der Windows Registry ändern. "
+"Alle aktuellen Windows-Clients kommunizieren mit SMB-/CIFS-Servern mittels "
+"verschlüsselter Passwörter. Wenn Sie Klartext-Passwörter verwenden möchten, "
+"müssen Sie einen Parameter in der Windows-Registry ändern."
 
+#
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Es wird dringendst empfohlen, diese Option zu aktivieren. Stellen Sie in dem "
-"Fall sicher, dass Sie eine gültige /etc/samba/smbpasswd-Datei haben und dort "
-"mittels dem smbpasswd-Befehl Passwörter für alle Benutzer setzen."
+"Es wird dringendst empfohlen, diese Option zu aktivieren, da die "
+"Unterstützung für Klartext-Passwörter in Microsoft-Windows-Produkten nicht "
+"länger betreut wird. Wenn Sie dies aktvieren, stellen Sie sicher, dass Sie "
+"eine gültige /etc/samba/smbpasswd-Datei haben und dort mittels dem smbpasswd-"
+"Befehl Passwörter für alle Benutzer setzen."
 
 #. Type: boolean
 #. Description
@@ -229,38 +216,3 @@ msgid ""
 msgstr ""
 "Der Samba-Prozess smbd kann als normaler Hintergrunddienst (Daemon) laufen "
 "oder über inetd gestartet werden. Ersteres wird jedoch empfohlen."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Auflistung mehrerer passdb-Backends wird nicht unterstützt."
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Seit Version 3.0.23 wird die Angabe von mehreren Backends im »passdb "
-#~ "backend«-Parameter von Samba nicht mehr unterstützt. Es scheint so, als ob "
-#~ "Ihre smb.conf-Datei einen »passdb backend«-Parameter mit einer Auflistung "
-#~ "mehrerer Backends enthält. Die neue Samba-Version wird nicht "
-#~ "funktionieren, bevor dies behoben wurde."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Daten von /etc/samba/smbpasswd nach /var/lib/samba/passdb.tdb verschieben?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Mit Samba 3.0 wurde eine vollständigere SAM-Datenbank-Schnittstelle "
-#~ "eingeführt, die die /etc/samba/smbpasswd-Datei ersetzt."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Möchten Sie die bestehende smbpasswd-Datei automatisch nach /var/lib/"
-#~ "samba/passdb.tdb migrieren? Wenn Sie vorhaben, ein anderes pdb-Backend (z."
-#~ "B. LDAP) zu verwenden, sollten Sie hier mit »Nein« antworten."

@@ -5,6 +5,7 @@ usr/lib/samba/idmap/rid.so
 usr/lib/samba/idmap/ad.so
 usr/lib/samba/idmap/adex.so
 usr/lib/samba/idmap/hash.so
+usr/lib/samba/idmap/ldap.so
 usr/lib/samba/idmap/tdb2.so
 usr/share/man/man1/wbinfo.1
 usr/share/man/man1/ntlm_auth.1

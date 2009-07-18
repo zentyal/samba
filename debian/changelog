@@ -3,6 +3,9 @@ samba (2:3.4.0-2) UNRELEASED; urgency=low
   [ Debconf translations ]
   * German. Closes: #536433
 
+  [ Steve Langasek ]
+  * Enable the ldap idmap module; thanks to Aaron J. Zirbes.  Closes: #536786.
+
  -- Christian Perrier <bubulle@debian.org>  Sat, 11 Jul 2009 13:34:32 +0200
 
 samba (2:3.4.0-1) unstable; urgency=low

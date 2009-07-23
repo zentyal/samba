@@ -1,8 +1,12 @@
 samba (2:3.4.0~rc1-2) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Correct dependencies for samba-common-bin. Closes: #534595
 
- -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:32:20 +0200
+  [ Jelmer Vernooij ]
+  * Properly rename smbstatus.1 for alternatives. Closes: #534772
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Thu, 23 Jul 2009 17:50:38 +0200
 
 samba (2:3.4.0~rc1-1) experimental; urgency=low
 

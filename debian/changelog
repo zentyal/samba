@@ -6,10 +6,7 @@ samba (2:3.4.0-2) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Enable the ldap idmap module; thanks to Aaron J. Zirbes.  Closes: #536786.
 
-  [ Noèl Köthe ]
-  * Document the samba-common-bin split in NEWS.Debian. Closes: #534717
-
- -- Noèl Köthe <noel@debian.org>  Thu, 23 Jul 2009 16:06:35 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 11 Jul 2009 13:34:32 +0200
 
 samba (2:3.4.0-1) unstable; urgency=low
 

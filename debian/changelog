@@ -1,4 +1,4 @@
-samba (2:3.4.0-2) UNRELEASED; urgency=low
+samba (2:3.4.0-2) unstable; urgency=low
 
   [ Debconf translations ]
   * German. Closes: #536433
@@ -9,7 +9,7 @@ samba (2:3.4.0-2) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Properly rename smbstatus.1 for alternatives. Closes: #534772
 
- -- Jelmer Vernooij <jelmer@debian.org>  Thu, 23 Jul 2009 20:50:41 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sun, 02 Aug 2009 12:20:51 +0200
 
 samba (2:3.4.0-1) unstable; urgency=low
 

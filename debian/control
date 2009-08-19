@@ -40,7 +40,7 @@ Description: SMB/CIFS file, print, and login server for Unix
 
 Package: samba-common-bin
 Architecture: any
-Depends: libpam-modules, ${shlibs:Depends}, ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
 Replaces: samba (<< 3.0.20b-1), samba-common (<< 2:3.4.0~pre1-2)
 Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

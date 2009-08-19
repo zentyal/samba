@@ -1,3 +1,10 @@
+samba (2:3.4.0-3) UNRELEASED; urgency=low
+
+  * debian/control: samba-common-bin has no reason to depend on
+    libpam-modules.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 18 Aug 2009 18:34:30 -0700
+
 samba (2:3.4.0-2) unstable; urgency=low
 
   [ Debconf translations ]

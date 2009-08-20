@@ -1,0 +1,20 @@
+Goal: fix failure to copy files when the size returned from a read is
+      zero
+
+Fixes: bug #536757
+
+Upstream status: will be fixed in 3.4.1
+
+Index: samba/source3/libsmb/clireadwrite.c
+===================================================================
+--- samba.orig/source3/libsmb/clireadwrite.c	2009-08-20 15:52:33.000000000 +0200
++++ samba/source3/libsmb/clireadwrite.c	2009-08-20 16:06:12.000000000 +0200
+@@ -185,7 +185,7 @@
+ 	buf = (uint8_t *)smb_base(cli_req->inbuf) + SVAL(vwv+6, 0);
+ 
+ 	if (trans_oob(smb_len(cli_req->inbuf), SVAL(vwv+6, 0), size)
+-	    || (buf < bytes)) {
++	    || (size && (buf < bytes))) {
+ 		DEBUG(5, ("server returned invalid read&x data offset\n"));
+ 		return NT_STATUS_INVALID_NETWORK_RESPONSE;
+ 	}

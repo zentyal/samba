@@ -1,7 +1,13 @@
 samba (2:3.4.0-3) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * debian/control: samba-common-bin has no reason to depend on
     libpam-modules.
+
+  [ Christian Perrier ]
+  * Fix "invalid argument" when trying to copy a file from smb share
+    Use an upstream patch that will be included in 3.4.1
+    Closes: #536757
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 18 Aug 2009 18:34:30 -0700
 

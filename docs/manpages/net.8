@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/22/2009
+.\"      Date: 08/12/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.2
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/22/2009" "Samba 3\&.2" "System Administration tools"
+.TH "NET" "8" "08/12/2009" "Samba 3\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -840,6 +840,15 @@ List Local group members\&. The group must be specified by name\&.
 .SS "SAM LIST <users|groups|localgroups|builtin|workstations> [verbose]"
 .PP
 List the specified set of accounts by name\&. If verbose is specified, the rid and description is also provided for each account\&.
+.SS "SAM RIGHTS LIST"
+.PP
+List all available privileges\&.
+.SS "SAM RIGHTS GRANT <NAME> <PRIVILEGE>"
+.PP
+Grant a certain privilege to a user\&.
+.SS "SAM RIGHTS REVOKE <NAME> <PRIVILEGE>"
+.PP
+Revoke a certain privilege from a user\&.
 .SS "SAM SHOW <NAME>"
 .PP
 Show the full DOMAIN\e\eNAME the SID and the type for the corresponding account\&.

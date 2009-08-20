@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.2.13
+Version:      3.2.14
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -483,7 +483,7 @@ fi
 %{_mandir}/man5/lmhosts.5*
 %{_mandir}/man8/smbpasswd.8*
 %{_mandir}/man7/libsmbclient.7*
-%{_mandir}/man7/pam_winbind.7*
+%{_mandir}/man8/pam_winbind.8*
 
 %{_mandir}/man1/ldbadd.1*
 %{_mandir}/man1/ldbdel.1*

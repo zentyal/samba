@@ -1,5 +1,5 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 13. Remote and Local Management: The Net Command</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="groupmapping.html" title="Chapter 12. Group Mapping: MS Windows and UNIX"><link rel="next" href="idmapper.html" title="Chapter 14. Identity Mapping (IDMAP)"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 13. Remote and Local Management: The Net Command</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="groupmapping.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="idmapper.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="NetCommand"></a>Chapter 13. Remote and Local Management: The Net Command</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Volker</span> <span class="orgname">Samba Team</span> <span class="surname">Lendecke</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:Volker.Lendecke@SerNet.DE">Volker.Lendecke@SerNet.DE</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 9, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="NetCommand.html#id2599024">Overview</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2599318">Administrative Tasks and Methods</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2599400">UNIX and Windows Group Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2599558">Adding, Renaming, or Deletion of Group Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#grpmemshipchg">Manipulating Group Memberships</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#nestedgrpmgmgt">Nested Group Support</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2600927">UNIX and Windows User Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#sbeuseraddn">Adding User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601139">Deletion of User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601187">Managing User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601256">User Mapping</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2601339">Administering User Rights and Privileges</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2601684">Managing Trust Relationships</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2601699">Machine Trust Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602068">Interdomain Trusts</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2602302">Managing Security Identifiers (SIDS)</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2602524">Share Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2602569">Creating, Editing, and Removing Shares</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602757">Creating and Changing Share ACLs</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602787">Share, Directory, and File Migration</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2603410">Printer Migration</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2603661">Controlling Open Files</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603680">Session and Connection Management</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603746">Printers and ADS</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603861">Manipulating the Samba Cache</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603879">Managing IDMAP UID/SID Mappings</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2603923">Creating an IDMAP Database Dump File</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2603958">Restoring the IDMAP Database Dump File</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#netmisc1">Other Miscellaneous Operations</a></span></dt></dl></div><p>
-<a class="indexterm" name="id2598885"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 13. Remote and Local Management: The Net Command</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="groupmapping.html" title="Chapter 12. Group Mapping: MS Windows and UNIX"><link rel="next" href="idmapper.html" title="Chapter 14. Identity Mapping (IDMAP)"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 13. Remote and Local Management: The Net Command</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="groupmapping.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="idmapper.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="NetCommand"></a>Chapter 13. Remote and Local Management: The Net Command</h2></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Volker</span> <span class="orgname">Samba Team</span> <span class="surname">Lendecke</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:Volker.Lendecke@SerNet.DE">Volker.Lendecke@SerNet.DE</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Guenther</span> <span class="orgname">SuSE</span> <span class="surname">Deschner</span></h3><div class="affiliation"><span class="orgname">SuSE<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:gd@suse.de">gd@suse.de</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">May 9, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="NetCommand.html#id2599024">Overview</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2599319">Administrative Tasks and Methods</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2599400">UNIX and Windows Group Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2599558">Adding, Renaming, or Deletion of Group Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#grpmemshipchg">Manipulating Group Memberships</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#nestedgrpmgmgt">Nested Group Support</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2600928">UNIX and Windows User Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#sbeuseraddn">Adding User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601139">Deletion of User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601187">Managing User Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2601256">User Mapping</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2601339">Administering User Rights and Privileges</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2601684">Managing Trust Relationships</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2601699">Machine Trust Accounts</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602068">Interdomain Trusts</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2602302">Managing Security Identifiers (SIDS)</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2602524">Share Management</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2602569">Creating, Editing, and Removing Shares</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602757">Creating and Changing Share ACLs</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2602787">Share, Directory, and File Migration</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2603410">Printer Migration</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#id2603661">Controlling Open Files</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603680">Session and Connection Management</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603746">Printers and ADS</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603862">Manipulating the Samba Cache</a></span></dt><dt><span class="sect1"><a href="NetCommand.html#id2603879">Managing IDMAP UID/SID Mappings</a></span></dt><dd><dl><dt><span class="sect2"><a href="NetCommand.html#id2603923">Creating an IDMAP Database Dump File</a></span></dt><dt><span class="sect2"><a href="NetCommand.html#id2603958">Restoring the IDMAP Database Dump File</a></span></dt></dl></dd><dt><span class="sect1"><a href="NetCommand.html#netmisc1">Other Miscellaneous Operations</a></span></dt></dl></div><p>
+<a class="indexterm" name="id2598886"></a>
 <a class="indexterm" name="id2598892"></a>
 <a class="indexterm" name="id2598899"></a>
 <a class="indexterm" name="id2598906"></a>
@@ -39,10 +39,10 @@ the infliction of self-induced pain, agony, and desperation. Be warned: this is 
 <a class="indexterm" name="id2599090"></a>
 <a class="indexterm" name="id2599097"></a>
 <a class="indexterm" name="id2599104"></a>
-<a class="indexterm" name="id2599110"></a>
+<a class="indexterm" name="id2599111"></a>
 <a class="indexterm" name="id2599117"></a>
 <a class="indexterm" name="id2599124"></a>
-<a class="indexterm" name="id2599130"></a>
+<a class="indexterm" name="id2599131"></a>
 	Regardless of the type of server being installed, local UNIX groups must be mapped to the Windows
 	networking domain global group accounts. Do you ask why? Because Samba always limits its access to
 	the resources of the host server by way of traditional UNIX UID and GID controls. This means that local
@@ -80,7 +80,7 @@ the infliction of self-induced pain, agony, and desperation. Be warned: this is 
 	on the Samba-3 stage. This role will continue to be developed. The inclusion of this chapter is
 	evidence of its importance, one that has grown in complexity to the point that it is no longer considered
 	prudent to cover its use fully in the online UNIX man pages.
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2599318"></a>Administrative Tasks and Methods</h2></div></div></div><p>
+	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2599319"></a>Administrative Tasks and Methods</h2></div></div></div><p>
 <a class="indexterm" name="id2599327"></a>
 <a class="indexterm" name="id2599333"></a>
 <a class="indexterm" name="id2599340"></a>
@@ -229,7 +229,7 @@ SupportEngrs (S-1-5-21-72630-4128915-11681869-3007) -&gt; SupportEngrs
 	</p><p>
 <a class="indexterm" name="id2599844"></a>
 <a class="indexterm" name="id2599851"></a>
-<a class="indexterm" name="id2599857"></a>
+<a class="indexterm" name="id2599858"></a>
 <a class="indexterm" name="id2599864"></a>
 	All file system (file and directory) access controls, within the file system of a UNIX/Linux server that is
 	hosting a Samba server, are implemented using a UID/GID identity tuple. Samba does not in any way override
@@ -239,8 +239,8 @@ SupportEngrs (S-1-5-21-72630-4128915-11681869-3007) -&gt; SupportEngrs
 	command does not call any RPC-functions here but directly accesses the passdb.
 	</p><p>
 <a class="indexterm" name="id2599890"></a>
-<a class="indexterm" name="id2599896"></a>
-<a class="indexterm" name="id2599903"></a>
+<a class="indexterm" name="id2599897"></a>
+<a class="indexterm" name="id2599904"></a>
 <a class="indexterm" name="id2599910"></a>
 <a class="indexterm" name="id2599917"></a>
 <a class="indexterm" name="id2599924"></a>
@@ -251,7 +251,7 @@ SupportEngrs (S-1-5-21-72630-4128915-11681869-3007) -&gt; SupportEngrs
 	to a Windows group. This operation, in effect, creates a Windows group account as a consequence
 	of creation of the mapping.
 	</p><p>
-<a class="indexterm" name="id2599954"></a>
+<a class="indexterm" name="id2599955"></a>
 <a class="indexterm" name="id2599966"></a>
 <a class="indexterm" name="id2599977"></a>
 	The operations that are permitted include: <code class="constant">add</code>, <code class="constant">modify</code>,
@@ -290,15 +290,15 @@ SupportEngrs (S-1-5-21-72630-4128915-11681869-3007) -&gt; SupportEngrs
 	Supported mapping types are 'd' (domain global) and 'l' (domain local), a domain local group in Samba is
 	treated as local to the individual Samba server. Local groups can be used with Samba to enable multiple
 	nested group support.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600109"></a>Deleting a Group Account</h4></div></div></div><p>
-<a class="indexterm" name="id2600117"></a>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600110"></a>Deleting a Group Account</h4></div></div></div><p>
+<a class="indexterm" name="id2600118"></a>
 	A group account may be deleted by executing the following command:
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc group delete SupportEngineers -Uroot%not24get
 </pre><p>
 	</p><p>
 	Validation of the deletion is advisable. The same commands may be executed as shown above.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600149"></a>Rename Group Accounts</h4></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600150"></a>Rename Group Accounts</h4></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 	This command is not documented in the man pages; it is implemented in the source code, but it does not
 	work at this time. The example given documents, from the source code, how it should work. Watch the
 	release notes of a future release to see when this may have been fixed.
@@ -440,7 +440,7 @@ DOM\jht
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc group delmem demo "DOM\jht" -Uroot%not24get
 </pre><p>
-	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600628"></a>Managing Nest Groups on Workstations from the Samba Server</h4></div></div></div><p>
+	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2600629"></a>Managing Nest Groups on Workstations from the Samba Server</h4></div></div></div><p>
 	Windows network administrators often ask on the Samba mailing list how it is possible to grant everyone
 	administrative rights on their own workstation. This is of course a very bad practice, but commonly done
 	to avoid user complaints. Here is how it can be done remotely from a Samba PDC or BDC:
@@ -484,14 +484,14 @@ exit 0
 	in which case there is little justification for the use of this procedure. The key justification
 	for the use of this method is that it will guarantee that all users have appropriate rights on
 	the workstation.
-	</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2600927"></a>UNIX and Windows User Management</h2></div></div></div><p>
+	</p></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2600928"></a>UNIX and Windows User Management</h2></div></div></div><p>
 <a class="indexterm" name="id2600936"></a>
 <a class="indexterm" name="id2600942"></a>
 <a class="indexterm" name="id2600949"></a>
 <a class="indexterm" name="id2600956"></a>
 <a class="indexterm" name="id2600963"></a>
-<a class="indexterm" name="id2600969"></a>
-<a class="indexterm" name="id2600976"></a>
+<a class="indexterm" name="id2600970"></a>
+<a class="indexterm" name="id2600977"></a>
 <a class="indexterm" name="id2600983"></a>
 	Every Windows network user account must be translated to a UNIX/Linux user account. In actual fact,
 	the only account information the UNIX/Linux Samba server needs is a UID.  The UID is available either
@@ -534,7 +534,7 @@ Added user jacko
 net [&lt;method&gt;] user DELETE &lt;name&gt; [misc. options] [targets]
 </pre><p>
 	The following command will delete the user account <code class="constant">jacko</code>:
-<a class="indexterm" name="id2601161"></a>
+<a class="indexterm" name="id2601162"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc user delete jacko -Uroot%not24get
 Deleted user account
@@ -563,7 +563,7 @@ Emergency Services
 	Windows Servers.
 
 	</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2601256"></a>User Mapping</h3></div></div></div><p>
-<a class="indexterm" name="id2601263"></a>
+<a class="indexterm" name="id2601264"></a>
 <a class="indexterm" name="id2601270"></a>
 <a class="indexterm" name="id2601277"></a>
 	In some situations it is unavoidable that a user's Windows logon name will differ from the login ID
@@ -595,8 +595,8 @@ marygee: geeringm
 <a class="indexterm" name="id2601394"></a>
 <a class="indexterm" name="id2601402"></a>
 <a class="indexterm" name="id2601408"></a>
-<a class="indexterm" name="id2601415"></a>
-<a class="indexterm" name="id2601422"></a>
+<a class="indexterm" name="id2601416"></a>
+<a class="indexterm" name="id2601423"></a>
 	New to Samba version 3.0.11 is the ability to delegate administrative privileges as necessary to either
 	a normal user or to groups of users. The significance of the administrative privileges is documented
 	in <a class="link" href="rights.html" title="Chapter 15. User Rights and Privileges">&#8220;User Rights and Privileges&#8221;</a>. Examples of use of the <code class="literal">net</code> for user rights and privilege
@@ -678,7 +678,7 @@ Successfully granted rights.
 </pre><p>
 	</p><p>
 	The following step permits validation of the changes just made:
-<a class="indexterm" name="id2601649"></a>
+<a class="indexterm" name="id2601650"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc rights list accounts -U root%not24get
 MIDEARTH\jht
@@ -837,7 +837,7 @@ none
 	It is necessary to create a trust account in the local domain. A domain controller in a second domain can
 	create a trusted connection with this account. That means that the foreign domain is being trusted
 	to access resources in the local domain. This command creates the local trust account:
-<a class="indexterm" name="id2602117"></a>
+<a class="indexterm" name="id2602118"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc trustdom add DAMNATION f00db4r -Uroot%not24get
 </pre><p>
@@ -911,8 +911,8 @@ DAMNATION           S-1-5-21-1385457007-882775198-1210191635
 <a class="indexterm" name="id2602310"></a>
 <a class="indexterm" name="id2602317"></a>
 <a class="indexterm" name="id2602324"></a>
-<a class="indexterm" name="id2602330"></a>
-<a class="indexterm" name="id2602337"></a>
+<a class="indexterm" name="id2602331"></a>
+<a class="indexterm" name="id2602338"></a>
 	The basic security identifier that is used by all Windows networking operations is the Windows security
 	identifier (SID). All Windows network machines (servers and workstations), users, and groups are
 	identified by their respective SID. All desktop profiles are also encoded with user and group SIDs that
@@ -920,7 +920,7 @@ DAMNATION           S-1-5-21-1385457007-882775198-1210191635
 	</p><p>
 <a class="indexterm" name="id2602354"></a>
 <a class="indexterm" name="id2602361"></a>
-<a class="indexterm" name="id2602367"></a>
+<a class="indexterm" name="id2602368"></a>
 <a class="indexterm" name="id2602374"></a>
 	It is truly prudent to store the machine and/or domain SID in a file for safekeeping. Why? Because 
 	a change in hostname or in the domain (workgroup) name may result in a change in the SID. When you
@@ -1003,7 +1003,7 @@ ADMIN$
 	</p><p>
 	Often it is desirable also to permit a share to be removed using a command-line tool.
 	The following step permits the share that was previously added to be removed:
-<a class="indexterm" name="id2602716"></a>
+<a class="indexterm" name="id2602717"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc share delete Bulge -S MERLIN -Uroot%not24get
 </pre><p>
@@ -1091,7 +1091,7 @@ net rpc share MIGRATE SHARES &lt;share-name&gt; -S &lt;source&gt;
 	When the parameter &lt;share-name&gt; is omitted, all shares will be migrated. The potentially
 	large list of available shares on the system that is being migrated can be limited using the
 	<em class="parameter"><code>--exclude</code></em> switch. For example:
-<a class="indexterm" name="id2603010"></a>
+<a class="indexterm" name="id2603011"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc share migrate shares myshare\
          -S win2k -U administrator%secret"
@@ -1110,7 +1110,7 @@ net rpc share MIGRATE SHARES &lt;share-name&gt; -S &lt;source&gt;
 </pre><p>
 	The steps taken so far perform only the migration of shares. Directories and directory contents
 	are not migrated by the steps covered up to this point.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2603093"></a>File and Directory Migration</h4></div></div></div><p>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2603094"></a>File and Directory Migration</h4></div></div></div><p>
 	Everything covered to this point has been done in preparation for the migration of file and directory
 	data. For many people preparation is potentially boring and the real excitement only begins when file
 	data can be used. The next steps demonstrate the techniques that can be used to transfer (migrate)
@@ -1170,7 +1170,7 @@ net rpc share MIGRATE FILES &lt;share-name&gt; -S &lt;source&gt;
 	This command  will migrate all files and directories from all file shares on the Windows server called
 	<code class="constant">nt4box</code> to the Samba server from which migration is initiated. Files that are group-owned
 	will be owned by the user account <code class="constant">administrator</code>.
-	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2603308"></a>Share-ACL Migration</h4></div></div></div><p>
+	</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2603309"></a>Share-ACL Migration</h4></div></div></div><p>
 	It is possible to have share-ACLs (security descriptors) that won't allow you, even as Administrator, to
 	copy any files or directories into it. Therefor the migration of the share-ACLs has been put into a separate
 	function:
@@ -1231,7 +1231,7 @@ net rpc share MIGRATE ALL &lt;share-name&gt; -S &lt;source&gt;
 	</p><p>
 	Printer migration from a Windows print server (NT4 or 200x) is shown. This instruction causes the
 	printer share to be created together with the underlying print queue:
-<a class="indexterm" name="id2603545"></a>
+<a class="indexterm" name="id2603546"></a>
 </p><pre class="screen">
 net rpc printer MIGRATE PRINTERS [printer] [misc. options] [targets]
 </pre><p>
@@ -1314,7 +1314,7 @@ net ads printer remove &lt;printer_name&gt; -Uadministrator%secret
 </p><pre class="screen">
 net ads printer search &lt;printer_name&gt; -Uadministrator%secret
 </pre><p>
-	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2603861"></a>Manipulating the Samba Cache</h2></div></div></div><p>
+	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2603862"></a>Manipulating the Samba Cache</h2></div></div></div><p>
 	Please refer to the <code class="literal">net</code> command man page for information regarding cache management.
 	</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2603879"></a>Managing IDMAP UID/SID Mappings</h2></div></div></div><p>
 	The IDMAP UID to SID, and SID to UID, mappings that are created by <code class="literal">winbindd</code> can be

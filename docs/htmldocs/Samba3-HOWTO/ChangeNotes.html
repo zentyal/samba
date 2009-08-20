@@ -64,7 +64,7 @@ An example helps to illustrate the change:
 <a class="indexterm" name="id2578857"></a>
 <a class="indexterm" name="id2578864"></a>
 Assume that a group named <span class="emphasis"><em>developers</em></span> exists with a UNIX GID of 782. In this
-case this user does not exist in Samba's group mapping table. It would be perfectly normal for
+case this group does not exist in Samba's group mapping table. It would be perfectly normal for
 this group to be appear in an ACL editor.  Prior to Samba-3.0.23, the group SID might appear as
 <code class="literal">S-1-5-21-647511796-4126122067-3123570092-2565</code>.
 </p><p>
@@ -107,7 +107,7 @@ and UNIX</a>.
 <a class="indexterm" name="id2579110"></a>
 <a class="indexterm" name="id2579116"></a>
 <a class="indexterm" name="id2579123"></a>
-The <a class="link" href="smb.conf.5.html#PASSDBBACKEND" target="_top">passdb backend</a> parameter no long accepts multiple passdb backends in a
+The <a class="link" href="smb.conf.5.html#PASSDBBACKEND" target="_top">passdb backend</a> parameter no longer accepts multiple passdb backends in a
 chained configuration.  Also be aware that the SQL and XML based passdb modules have been
 removed in the Samba-3.0.23 release.  More information regarding external support for a SQL
 passdb module can be found on the  <a class="ulink" href="http://pdbsql.sourceforge.net/" target="_top">pdbsql</a> web site.
@@ -116,11 +116,11 @@ passdb module can be found on the  <a class="ulink" href="http://pdbsql.sourcefo
 <a class="indexterm" name="id2579170"></a>
 <a class="indexterm" name="id2579177"></a>
 <a class="indexterm" name="id2579184"></a>
-<a class="indexterm" name="id2579190"></a>
-<a class="indexterm" name="id2579197"></a>
+<a class="indexterm" name="id2579191"></a>
+<a class="indexterm" name="id2579198"></a>
 <a class="indexterm" name="id2579204"></a>
 <a class="indexterm" name="id2579211"></a>
-<a class="indexterm" name="id2579217"></a>
+<a class="indexterm" name="id2579218"></a>
 <a class="indexterm" name="id2579224"></a>
 <a class="indexterm" name="id2579231"></a>
 The default mapping entries for groups such as <code class="literal">Domain Admins</code> are no longer
@@ -134,7 +134,7 @@ for domain groups.
 <a class="indexterm" name="id2579291"></a>
 <a class="indexterm" name="id2579298"></a>
 <a class="indexterm" name="id2579305"></a>
-<a class="indexterm" name="id2579311"></a>
+<a class="indexterm" name="id2579312"></a>
 There has been a minor update the Samba LDAP schema file. A substring matching rule has been
 added to the <code class="literal">sambaSID</code> attribute definition.  For OpenLDAP servers, this
 will require the addition of <code class="literal">index sambaSID sub</code> to the

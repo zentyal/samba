@@ -1,5 +1,5 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 24. Winbind: Use of Domain Accounts</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="VFS.html" title="Chapter 23. Stackable VFS modules"><link rel="next" href="AdvancedNetworkManagement.html" title="Chapter 25. Advanced Network Management"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 24. Winbind: Use of Domain Accounts</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="VFS.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="AdvancedNetworkManagement.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="winbind"></a>Chapter 24. Winbind: Use of Domain Accounts</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Tim</span> <span class="orgname">Samba Team</span> <span class="surname">Potter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tpot@linuxcare.com.au">tpot@linuxcare.com.au</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Naag</span> <span class="surname">Mummaneni</span></h3><span class="contrib">Notes for Solaris</span> <div class="affiliation"><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:getnag@rediffmail.com">getnag@rediffmail.com</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="orgname">SNAP</span> <span class="surname">Trostel</span></h3><div class="affiliation"><span class="orgname">SNAP<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jtrostel@snapserver.com">jtrostel@snapserver.com</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 15, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="winbind.html#id2653117">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2653461">Introduction</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2653550">What Winbind Provides</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2653704">Target Uses</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2653749">Handling of Foreign SIDs</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2653875">How Winbind Works</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2653925">Microsoft Remote Procedure Calls</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654018">Microsoft Active Directory Services</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654066">Name Service Switch</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654298">Pluggable Authentication Modules</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654453">User and Group ID Allocation</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654529">Result Caching</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2654586">Installation and Configuration</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2654592">Introduction</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654706">Requirements</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654858">Testing Things Out</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2657317">Conclusion</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2657366">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2657408">NSCD Problem Warning</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2657444">Winbind Is Not Resolving Users and Groups</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2653117"></a>Features and Benefits</h2></div></div></div><p>
-<a class="indexterm" name="id2653125"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 24. Winbind: Use of Domain Accounts</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="The Official Samba 3.2.x HOWTO and Reference Guide"><link rel="up" href="optional.html" title="Part III. Advanced Configuration"><link rel="prev" href="VFS.html" title="Chapter 23. Stackable VFS modules"><link rel="next" href="AdvancedNetworkManagement.html" title="Chapter 25. Advanced Network Management"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 24. Winbind: Use of Domain Accounts</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="VFS.html">Prev</a> </td><th width="60%" align="center">Part III. Advanced Configuration</th><td width="20%" align="right"> <a accesskey="n" href="AdvancedNetworkManagement.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="winbind"></a>Chapter 24. Winbind: Use of Domain Accounts</h2></div><div><div class="author"><h3 class="author"><span class="firstname">Tim</span> <span class="orgname">Samba Team</span> <span class="surname">Potter</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tpot@linuxcare.com.au">tpot@linuxcare.com.au</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Andrew</span> <span class="orgname">Samba Team</span> <span class="surname">Tridgell</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:tridge@samba.org">tridge@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Naag</span> <span class="surname">Mummaneni</span></h3><span class="contrib">Notes for Solaris</span> <div class="affiliation"><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:getnag@rediffmail.com">getnag@rediffmail.com</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="orgname">SNAP</span> <span class="surname">Trostel</span></h3><div class="affiliation"><span class="orgname">SNAP<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jtrostel@snapserver.com">jtrostel@snapserver.com</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">Jelmer</span> <span class="othername">R.</span> <span class="orgname">The Samba Team</span> <span class="surname">Vernooij</span></h3><div class="affiliation"><span class="orgname">The Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jelmer@samba.org">jelmer@samba.org</a>&gt;</code></p></div></div></div></div><div><div class="author"><h3 class="author"><span class="firstname">John</span> <span class="othername">H.</span> <span class="orgname">Samba Team</span> <span class="surname">Terpstra</span></h3><div class="affiliation"><span class="orgname">Samba Team<br></span><div class="address"><p><code class="email">&lt;<a class="email" href="mailto:jht@samba.org">jht@samba.org</a>&gt;</code></p></div></div></div></div><div><p class="pubdate">June 15, 2005</p></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="winbind.html#id2653118">Features and Benefits</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2653461">Introduction</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2653551">What Winbind Provides</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2653704">Target Uses</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2653749">Handling of Foreign SIDs</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2653875">How Winbind Works</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2653925">Microsoft Remote Procedure Calls</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654018">Microsoft Active Directory Services</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654066">Name Service Switch</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654298">Pluggable Authentication Modules</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654453">User and Group ID Allocation</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654529">Result Caching</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2654586">Installation and Configuration</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2654592">Introduction</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654706">Requirements</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2654858">Testing Things Out</a></span></dt></dl></dd><dt><span class="sect1"><a href="winbind.html#id2657317">Conclusion</a></span></dt><dt><span class="sect1"><a href="winbind.html#id2657366">Common Errors</a></span></dt><dd><dl><dt><span class="sect2"><a href="winbind.html#id2657408">NSCD Problem Warning</a></span></dt><dt><span class="sect2"><a href="winbind.html#id2657444">Winbind Is Not Resolving Users and Groups</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2653118"></a>Features and Benefits</h2></div></div></div><p>
+<a class="indexterm" name="id2653126"></a>
 <a class="indexterm" name="id2653132"></a>
 	Integration of UNIX and Microsoft Windows NT through a unified logon has
 	been considered a &#8220;<span class="quote">holy grail</span>&#8221; in heterogeneous computing environments for
@@ -14,7 +14,7 @@
 	mechanism for sharing files across UNIX systems and to be able to assign
 	domain user and group ownerships with integrity.
 	</p><p>
-<a class="indexterm" name="id2653184"></a>
+<a class="indexterm" name="id2653185"></a>
 <a class="indexterm" name="id2653194"></a>
 <a class="indexterm" name="id2653201"></a>
 <a class="indexterm" name="id2653207"></a>
@@ -33,8 +33,8 @@
 		log onto a UNIX/Linux system using user and group accounts from a Windows
 		NT4 (including a Samba domain) or an Active Directory domain.
 		</p></li><li><p>
-<a class="indexterm" name="id2653256"></a>
-<a class="indexterm" name="id2653263"></a>
+<a class="indexterm" name="id2653257"></a>
+<a class="indexterm" name="id2653264"></a>
 		Identity resolution (via NSS). This is the default when winbind is not used.
 		</p></li><li><p>
 <a class="indexterm" name="id2653276"></a>
@@ -52,7 +52,7 @@
 		then instead of using a local mapping, Winbind will obtain this information
 		from the LDAP database.
 		</p></li></ul></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-	<a class="indexterm" name="id2653345"></a>
+	<a class="indexterm" name="id2653346"></a>
 	<a class="indexterm" name="id2653352"></a>
 <a class="indexterm" name="id2653362"></a>
 <a class="indexterm" name="id2653368"></a>
@@ -89,8 +89,8 @@
 	tasks for the system administrator when maintaining users and
 	groups on either system. The Winbind system provides a simple
 	and elegant solution to all three components of the unified logon
-	problem.</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2653550"></a>What Winbind Provides</h2></div></div></div><p>
-<a class="indexterm" name="id2653558"></a>
+	problem.</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2653551"></a>What Winbind Provides</h2></div></div></div><p>
+<a class="indexterm" name="id2653559"></a>
 <a class="indexterm" name="id2653566"></a>
 <a class="indexterm" name="id2653572"></a>
 <a class="indexterm" name="id2653579"></a>
@@ -100,8 +100,8 @@
 	they were &#8220;<span class="quote">native</span>&#8221; UNIX users and groups, allowing the NT domain
 	to be used in much the same manner that NIS+ is used within
 	UNIX-only environments.</p><p>
-<a class="indexterm" name="id2653598"></a>
-<a class="indexterm" name="id2653605"></a>
+<a class="indexterm" name="id2653599"></a>
+<a class="indexterm" name="id2653606"></a>
 <a class="indexterm" name="id2653612"></a>
 <a class="indexterm" name="id2653619"></a>
 	The end result is that whenever a
@@ -131,7 +131,7 @@
 	applications. This capability solves the problem of synchronizing
 	passwords between systems, since all passwords are stored in a single
 	location (on the domain controller).</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2653704"></a>Target Uses</h3></div></div></div><p>
-<a class="indexterm" name="id2653711"></a>
+<a class="indexterm" name="id2653712"></a>
 		Winbind is targeted at organizations that have an
 		existing NT-based domain infrastructure into which they wish
 		to put UNIX workstations or servers. Winbind will allow these
@@ -139,7 +139,7 @@
 		maintain a separate account infrastructure. This greatly
 		simplifies the administrative overhead of deploying UNIX
 		workstations into an NT-based organization.</p><p>
-<a class="indexterm" name="id2653728"></a>
+<a class="indexterm" name="id2653729"></a>
 <a class="indexterm" name="id2653735"></a>
 		Another interesting way in which we expect Winbind to
 		be used is as a central part of UNIX-based appliances. Appliances
@@ -163,7 +163,7 @@
 	</p><p>
 <a class="indexterm" name="id2653804"></a>
 <a class="indexterm" name="id2653811"></a>
-<a class="indexterm" name="id2653817"></a>
+<a class="indexterm" name="id2653818"></a>
 	If the Samba server will be accessed from a domain other than the local Samba domain, or
 	if there will be access from machines that are not local domain members, winbind will
 	permit the allocation of UIDs and GIDs from the assigned pool that will keep the identity
@@ -184,7 +184,7 @@
 	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2653875"></a>How Winbind Works</h2></div></div></div><p>
 <a class="indexterm" name="id2653883"></a>
 <a class="indexterm" name="id2653890"></a>
-<a class="indexterm" name="id2653896"></a>
+<a class="indexterm" name="id2653897"></a>
 <a class="indexterm" name="id2653903"></a>
 	The Winbind system is designed around a client/server
 	architecture. A long-running <code class="literal">winbindd</code> daemon
@@ -192,18 +192,18 @@
 	to arrive. These requests are generated by the NSS and PAM
 	clients and are processed sequentially.</p><p>The technologies used to implement Winbind are described
 	in detail below.</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2653925"></a>Microsoft Remote Procedure Calls</h3></div></div></div><p>
-<a class="indexterm" name="id2653933"></a>
+<a class="indexterm" name="id2653934"></a>
 <a class="indexterm" name="id2653943"></a>
 <a class="indexterm" name="id2653950"></a>
-<a class="indexterm" name="id2653956"></a>
-<a class="indexterm" name="id2653963"></a>
+<a class="indexterm" name="id2653957"></a>
+<a class="indexterm" name="id2653964"></a>
 		Over the last few years, efforts have been underway by various Samba Team members to implement various aspects of
 		the Microsoft Remote Procedure Call (MSRPC) system. This system is used for most network-related operations
 		between Windows NT machines, including remote management, user authentication, and print spooling. Although
 		initially this work was done to aid the implementation of Primary Domain Controller (PDC) functionality in
 		Samba, it has also yielded a body of code that can be used for other purposes.
 		</p><p>
-<a class="indexterm" name="id2653982"></a>
+<a class="indexterm" name="id2653983"></a>
 <a class="indexterm" name="id2653989"></a>
 <a class="indexterm" name="id2653996"></a>
 		Winbind uses various MSRPC calls to enumerate domain users and groups and to obtain detailed information about
@@ -211,7 +211,7 @@
 		passwords. By directly querying a Windows PDC for user and group information, Winbind maps the NT account
 		information onto UNIX user and group names.
 		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2654018"></a>Microsoft Active Directory Services</h3></div></div></div><p>
-<a class="indexterm" name="id2654026"></a>
+<a class="indexterm" name="id2654027"></a>
 <a class="indexterm" name="id2654033"></a>
 <a class="indexterm" name="id2654040"></a>
 <a class="indexterm" name="id2654047"></a>
@@ -222,7 +222,7 @@
 		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2654066"></a>Name Service Switch</h3></div></div></div><p>
 <a class="indexterm" name="id2654074"></a>
 <a class="indexterm" name="id2654080"></a>
-<a class="indexterm" name="id2654087"></a>
+<a class="indexterm" name="id2654088"></a>
 <a class="indexterm" name="id2654094"></a>
 		The NSS is a feature that is present in many UNIX operating systems. It allows system
 		information such as hostnames, mail aliases, and user information
@@ -334,7 +334,7 @@ passwd: files example
 		cached information is discarded and up-to-date information is requested directly from the PDC.
 		</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2654586"></a>Installation and Configuration</h2></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2654592"></a>Introduction</h3></div></div></div><p>
 <a class="indexterm" name="id2654600"></a>
-<a class="indexterm" name="id2654606"></a>
+<a class="indexterm" name="id2654607"></a>
 <a class="indexterm" name="id2654613"></a>
 This section describes the procedures used to get Winbind up and running. Winbind is capable of providing
 access and authentication control for Windows Domain users through an NT or Windows 200x PDC for regular
@@ -352,7 +352,7 @@ the Samba server.
 	</p></li><li><p>
 	<span class="emphasis"><em>Who should be reading this document?</em></span>
 	</p><p>
-<a class="indexterm" name="id2654684"></a>
+<a class="indexterm" name="id2654685"></a>
 <a class="indexterm" name="id2654691"></a>
 This document is designed for system administrators. If you are implementing Samba on a file server and wish
 to (fairly easily) integrate existing Windows NT/200x users from your PDC onto the Samba server, this document
@@ -360,7 +360,7 @@ is for you.
 	</p></li></ul></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2654706"></a>Requirements</h3></div></div></div><p>
 <a class="indexterm" name="id2654714"></a>
 <a class="indexterm" name="id2654721"></a>
-<a class="indexterm" name="id2654727"></a>
+<a class="indexterm" name="id2654728"></a>
 If you have a Samba configuration file that you are currently using, <span class="emphasis"><em>BACK IT UP!</em></span>
 If your system already uses PAM, <span class="emphasis"><em>back up the <code class="filename">/etc/pam.d</code> directory
 contents!</em></span> If you haven't already made a boot disk, <span class="emphasis"><em>MAKE ONE NOW!</em></span>
@@ -390,7 +390,7 @@ on your system. Please refer to the PAM Web site <a class="ulink" href="http://w
 <a class="indexterm" name="id2654866"></a>
 <a class="indexterm" name="id2654873"></a>
 <a class="indexterm" name="id2654880"></a>
-<a class="indexterm" name="id2654886"></a>
+<a class="indexterm" name="id2654887"></a>
 <a class="indexterm" name="id2654893"></a>
 Before starting, it is probably best to kill off all the Samba-related daemons running on your server.
 Kill off all <span class="application">smbd</span>, <span class="application">nmbd</span>, and <span class="application">winbindd</span> processes that may be running. To use PAM,
@@ -437,7 +437,7 @@ passwd:     files winbind
 shadow:     files
 group:      files winbind
 </pre><p>
-<a class="indexterm" name="id2655152"></a>
+<a class="indexterm" name="id2655153"></a>
 <a class="indexterm" name="id2655159"></a>
 <a class="indexterm" name="id2655166"></a>
 <a class="indexterm" name="id2655173"></a>
@@ -454,7 +454,7 @@ filters the output of the <code class="literal">ldconfig</code> command so that 
 this library is indeed recognized by the dynamic link loader.
 </p><p>
 <a class="indexterm" name="id2655244"></a>
-<a class="indexterm" name="id2655250"></a>
+<a class="indexterm" name="id2655251"></a>
 <a class="indexterm" name="id2655257"></a>
 <a class="indexterm" name="id2655264"></a>
 <a class="indexterm" name="id2655271"></a>
@@ -483,9 +483,9 @@ in the search dynamic link libraries in order to satisfy object module dependenc
 </p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655343"></a>NSS Winbind on AIX</h4></div></div></div><p>(This section is only for those running AIX.)</p><p>
 <a class="indexterm" name="id2655355"></a>
 <a class="indexterm" name="id2655362"></a>
-<a class="indexterm" name="id2655368"></a>
-<a class="indexterm" name="id2655375"></a>
-<a class="indexterm" name="id2655382"></a>
+<a class="indexterm" name="id2655369"></a>
+<a class="indexterm" name="id2655376"></a>
+<a class="indexterm" name="id2655383"></a>
 <a class="indexterm" name="id2655390"></a>
 The Winbind AIX identification module gets built as <code class="filename">libnss_winbind.so</code> in the
 nsswitch directory of the Samba source. This file can be copied to <code class="filename">/usr/lib/security</code>,
@@ -505,25 +505,25 @@ Loadable Authentication Module Programming Interface</a> for AIX. Further inform
 can be found in the <a class="ulink" href="http://publibn.boulder.ibm.com/doc_link/en_US/a_doc_lib/aixbman/baseadmn/iandaadmin.htm" target="_top">System
 Management Guide: Operating System and Devices.</a>
 </p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655457"></a>Configure smb.conf</h4></div></div></div><p>
-<a class="indexterm" name="id2655464"></a>
+<a class="indexterm" name="id2655465"></a>
 <a class="indexterm" name="id2655471"></a>
 <a class="indexterm" name="id2655478"></a>
 Several parameters are needed in the <code class="filename">smb.conf</code> file to control the behavior of <span class="application">winbindd</span>. These
 are described in more detail in the <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> man page. My <code class="filename">smb.conf</code> file, as shown in <a class="link" href="winbind.html#winbindcfg" title="Example 24.1. smb.conf for Winbind Setup">the smb.conf for Winbind Setup</a>, was modified to include the necessary entries in the [global] section.
-</p><div class="example"><a name="winbindcfg"></a><p class="title"><b>Example 24.1. smb.conf for Winbind Setup</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td>#  separate domain and username with '\', like DOMAIN\username</td></tr><tr><td><a class="indexterm" name="id2655552"></a><em class="parameter"><code>winbind separator = \</code></em></td></tr><tr><td>#  use uids from 10000 to 20000 for domain users</td></tr><tr><td><a class="indexterm" name="id2655568"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td>#  use gids from 10000 to 20000 for domain groups</td></tr><tr><td><a class="indexterm" name="id2655583"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td>#  allow enumeration of winbind users and groups</td></tr><tr><td><a class="indexterm" name="id2655599"></a><em class="parameter"><code>winbind enum users = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2655611"></a><em class="parameter"><code>winbind enum groups = yes</code></em></td></tr><tr><td>#  give winbind users a real shell (only needed if they have telnet access)</td></tr><tr><td><a class="indexterm" name="id2655628"></a><em class="parameter"><code>template homedir = /home/winnt/%D/%U</code></em></td></tr><tr><td><a class="indexterm" name="id2655640"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655654"></a>Join the Samba Server to the PDC Domain</h4></div></div></div><p>
+</p><div class="example"><a name="winbindcfg"></a><p class="title"><b>Example 24.1. smb.conf for Winbind Setup</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td>#  separate domain and username with '\', like DOMAIN\username</td></tr><tr><td><a class="indexterm" name="id2655552"></a><em class="parameter"><code>winbind separator = \</code></em></td></tr><tr><td>#  use uids from 10000 to 20000 for domain users</td></tr><tr><td><a class="indexterm" name="id2655568"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td>#  use gids from 10000 to 20000 for domain groups</td></tr><tr><td><a class="indexterm" name="id2655584"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td>#  allow enumeration of winbind users and groups</td></tr><tr><td><a class="indexterm" name="id2655599"></a><em class="parameter"><code>winbind enum users = yes</code></em></td></tr><tr><td><a class="indexterm" name="id2655611"></a><em class="parameter"><code>winbind enum groups = yes</code></em></td></tr><tr><td>#  give winbind users a real shell (only needed if they have telnet access)</td></tr><tr><td><a class="indexterm" name="id2655628"></a><em class="parameter"><code>template homedir = /home/winnt/%D/%U</code></em></td></tr><tr><td><a class="indexterm" name="id2655640"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655654"></a>Join the Samba Server to the PDC Domain</h4></div></div></div><p>
 <a class="indexterm" name="id2655662"></a>
 <a class="indexterm" name="id2655669"></a>
-<a class="indexterm" name="id2655675"></a>
+<a class="indexterm" name="id2655676"></a>
 All machines that will participate in domain security should be members of
 the domain. This applies also to the PDC and all BDCs.
 </p><p>
-<a class="indexterm" name="id2655687"></a>
+<a class="indexterm" name="id2655688"></a>
 <a class="indexterm" name="id2655694"></a>
 <a class="indexterm" name="id2655701"></a>
 <a class="indexterm" name="id2655712"></a>
 <a class="indexterm" name="id2655719"></a>
 <a class="indexterm" name="id2655726"></a>
-<a class="indexterm" name="id2655732"></a>
+<a class="indexterm" name="id2655733"></a>
 <a class="indexterm" name="id2655739"></a>
 <a class="indexterm" name="id2655746"></a>
 The process of joining a domain requires the use of the <code class="literal">net rpc join</code>
@@ -533,7 +533,7 @@ process must be running on the target domain controller. It is therefore necessa
 start Samba on a PDC so that it can join its own domain.
 </p><p>
 <a class="indexterm" name="id2655774"></a>
-<a class="indexterm" name="id2655780"></a>
+<a class="indexterm" name="id2655781"></a>
 <a class="indexterm" name="id2655788"></a>
 Enter the following command to make the Samba server join the domain, where <em class="replaceable"><code>PDC</code></em> is
 the name of your PDC and <em class="replaceable"><code>Administrator</code></em> is a domain user who has administrative
@@ -547,7 +547,7 @@ Before attempting to join a machine to the domain, verify that Samba is running
 on the target domain controller (usually PDC) and that it is capable of being reached via ports
 137/udp, 135/tcp, 139/tcp, and 445/tcp (if Samba or Windows Server 2Kx).
 </p></div><p>
-<a class="indexterm" name="id2655843"></a>
+<a class="indexterm" name="id2655844"></a>
 The use of the <code class="literal">net rpc join</code> facility is shown here:
 </p><pre class="screen">
 <code class="prompt">root# </code><strong class="userinput"><code>/usr/local/samba/bin/net rpc join -S PDC -U Administrator</code></strong>
@@ -555,8 +555,8 @@ The use of the <code class="literal">net rpc join</code> facility is shown here:
 The proper response to the command should be &#8220;<span class="quote">Joined the domain
 <em class="replaceable"><code>DOMAIN</code></em></span>&#8221; where <em class="replaceable"><code>DOMAIN</code></em>
 is your domain name.
-</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655891"></a>Starting and Testing the <code class="literal">winbindd</code> Daemon</h4></div></div></div><p>
-<a class="indexterm" name="id2655905"></a>
+</p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2655892"></a>Starting and Testing the <code class="literal">winbindd</code> Daemon</h4></div></div></div><p>
+<a class="indexterm" name="id2655906"></a>
 <a class="indexterm" name="id2655912"></a>
 <a class="indexterm" name="id2655919"></a>
 Eventually, you will want to modify your Samba startup script to automatically invoke the winbindd daemon when
@@ -567,7 +567,7 @@ Winbind services, enter the following command as root:
 </pre><p>
 Use the appropriate path to the location of the <code class="literal">winbindd</code> executable file.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2655958"></a>
+<a class="indexterm" name="id2655959"></a>
 <a class="indexterm" name="id2655965"></a>
 The command to start up Winbind services assumes that Samba has been installed in the
 <code class="filename">/usr/local/samba</code> directory tree. You may need to search for the location of Samba files
@@ -580,7 +580,7 @@ I'm always paranoid and like to make sure the daemon is really running.
 <code class="prompt">root# </code><strong class="userinput"><code>ps -ae | grep winbindd</code></strong>
 </pre><p>
 </p><p>
-<a class="indexterm" name="id2656025"></a>
+<a class="indexterm" name="id2656026"></a>
 This command should produce output like the following if the daemon is running.
 </p><pre class="screen">
 3025 ?        00:00:00 winbindd
@@ -623,10 +623,10 @@ CEO\Group Policy Creator Owners
 <a class="indexterm" name="id2656144"></a>
 <a class="indexterm" name="id2656151"></a>
 <a class="indexterm" name="id2656158"></a>
-<a class="indexterm" name="id2656164"></a>
+<a class="indexterm" name="id2656165"></a>
 <a class="indexterm" name="id2656171"></a>
 <a class="indexterm" name="id2656178"></a>
-<a class="indexterm" name="id2656184"></a>
+<a class="indexterm" name="id2656185"></a>
 The function <code class="literal">getent</code> can now be used to get unified lists of both local and PDC users and
 groups. Try the following command:
 </p><pre class="screen">
@@ -719,7 +719,7 @@ for details.
 <a class="indexterm" name="id2656493"></a>
 <a class="indexterm" name="id2656500"></a>
 <a class="indexterm" name="id2656507"></a>
-<a class="indexterm" name="id2656513"></a>
+<a class="indexterm" name="id2656514"></a>
 On Solaris, you need to modify the <code class="filename">/etc/init.d/samba.server</code> startup script. It
 usually only starts smbd and nmbd but should now start winbindd, too. If you have Samba installed in
 <code class="filename">/usr/local/samba/bin</code>, the file could contains something like this:
@@ -801,7 +801,7 @@ need to be altered in this step. (Did you remember to make backups of your origi
 <a class="indexterm" name="id2656716"></a>
 <a class="indexterm" name="id2656723"></a>
 <a class="indexterm" name="id2656730"></a>
-<a class="indexterm" name="id2656736"></a>
+<a class="indexterm" name="id2656737"></a>
 You will need a PAM module to use winbindd with these other services. This module will be compiled in the
 <code class="filename">../source/nsswitch</code> directory by invoking the command:
 </p><pre class="screen">
@@ -825,7 +825,7 @@ account required  /lib/security/pam_stack.so service=system-auth
 <a class="indexterm" name="id2656853"></a>
 <a class="indexterm" name="id2656860"></a>
 <a class="indexterm" name="id2656867"></a>
-<a class="indexterm" name="id2656873"></a>
+<a class="indexterm" name="id2656874"></a>
 <a class="indexterm" name="id2656880"></a>
 <a class="indexterm" name="id2656887"></a>
 <a class="indexterm" name="id2656894"></a>
@@ -844,13 +844,13 @@ to
 	enable = yes
 </pre><p>
 <a class="indexterm" name="id2656954"></a>
-<a class="indexterm" name="id2656960"></a>
+<a class="indexterm" name="id2656961"></a>
 <a class="indexterm" name="id2656968"></a>
 For ftp services to work properly, you will also need to either have individual directories for the domain
 users already present on the server or change the home directory template to a general directory for all
 domain users. These can be easily set using the <code class="filename">smb.conf</code> global entry <a class="link" href="smb.conf.5.html#TEMPLATEHOMEDIR" target="_top">template homedir</a>.
 </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-<a class="indexterm" name="id2657003"></a>
+<a class="indexterm" name="id2657004"></a>
 The directory in <a class="link" href="smb.conf.5.html#TEMPLATEHOMEDIR" target="_top">template homedir</a> is not created automatically! Use pam_mkhomedir or
 pre-create the directories of users to make sure users can log in on UNIX with their own home directory.
 </p></div><p>

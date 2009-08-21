@@ -1,4 +1,4 @@
-samba (2:3.4.0-3) UNRELEASED; urgency=low
+samba (2:3.4.0-3) unstable; urgency=low
 
   [ Steve Langasek ]
   * debian/control: samba-common-bin has no reason to depend on
@@ -9,7 +9,7 @@ samba (2:3.4.0-3) UNRELEASED; urgency=low
     Use an upstream patch that will be included in 3.4.1
     Closes: #536757
 
- -- Steve Langasek <vorlon@debian.org>  Tue, 18 Aug 2009 18:34:30 -0700
+ -- Christian Perrier <bubulle@debian.org>  Fri, 21 Aug 2009 11:08:43 +0200
 
 samba (2:3.4.0-2) unstable; urgency=low
 

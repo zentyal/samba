@@ -5,6 +5,9 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
     logins such as pam_ck_connector.
   * debian/control: samba depends on libpam-runtime (>= 1.0.1-11) for the
     above.
+  * rename debian/samba.pamd to debian/samba.pam and call dh_installpam
+    from debian/rules install, bringing us a smidge closer to a stock
+    debhelper build
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

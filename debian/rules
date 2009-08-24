@@ -116,7 +116,9 @@ clean-patched:
 	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source3/bin/cifs.upcall
+	rm -f source3/bin/cifs.upcall source3/pkgconfig/*.pc \
+	      source3/exports/libsmbclient.syms \
+	      source3/exports/libsmbsharemodes.syms
 
 	debconf-updatepo
 

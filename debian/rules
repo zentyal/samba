@@ -116,10 +116,7 @@ clean-patched:
 	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source3/bin/wbinfo source3/bin/winbindd source3/bin/debug2html \
-	source3/bin/libsmbclient.a \
-	source3/client/mount.cifs source3/client/umount.cifs \
-	source3/include/stamp-h
+	rm -f source3/bin/cifs.upcall
 
 	debconf-updatepo
 

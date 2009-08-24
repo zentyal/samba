@@ -13,8 +13,6 @@ export DEB_HOST_GNU_TYPE
 export DEB_BUILD_GNU_TYPE
 export DEB_HOST_ARCH_OS
 
-pyversion := $(shell pyversions -vd)
-
 CFLAGS = -g -Wall
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))

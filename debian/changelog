@@ -1,3 +1,13 @@
+samba (2:3.4.0-4) UNRELEASED; urgency=low
+
+  * debian/samba.pamd: include common-session-noninteractive instead of
+    common-session, to avoid pulling in modules specific to interactive
+    logins such as pam_ck_connector.
+  * debian/control: samba depends on libpam-runtime (>= 1.0.1-11) for the
+    above.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
+
 samba (2:3.4.0-3) unstable; urgency=low
 
   [ Steve Langasek ]

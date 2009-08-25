@@ -14,6 +14,7 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
     target; the majority of these are now correctly handled upstream.
   * debian/rules: fix the update-arch target for the case of unversioned
     build-deps.
+  * Pull avr32 into the list of supported Linux archs.  Closes: #543543.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

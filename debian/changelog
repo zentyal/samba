@@ -12,6 +12,8 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
     message during build.
   * fix up the list of files that need to be removed by hand in the clean
     target; the majority of these are now correctly handled upstream.
+  * debian/rules: fix the update-arch target for the case of unversioned
+    build-deps.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

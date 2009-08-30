@@ -1,5 +1,6 @@
 samba (2:3.4.0-4) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * debian/samba.pamd: include common-session-noninteractive instead of
     common-session, to avoid pulling in modules specific to interactive
     logins such as pam_ck_connector.
@@ -17,6 +18,10 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   * Pull avr32 into the list of supported Linux archs.  Closes: #543543.
   * Fix LSB header in winbind.init; thanks to Petter Reinholdtsen for the
     patch. Closes: #541367.
+
+  [ Christian Perrier ]
+  * Use DEP-3 for patches meta-information:
+    - adapt_machine_creation_script.patch
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

@@ -1,10 +1,8 @@
-Goal: Do not install the Using Samba book when installing SWAT
-
-Fixes: 
-
-Status wrt upstream: Debian specific
-
-Note: 
+Description: Do not install the Using Samba book when installing SWAT
+ Using Samba is packaged in samba-doc, however upstream also
+ installs it in SWAT install dirs
+Author: Christian Perrier <bubulle@debian.org>
+Forwarded: not-needed
 
 Index: samba-3.3.0rc2/source3/script/installswat.sh
 ===================================================================

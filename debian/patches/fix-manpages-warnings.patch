@@ -1,3 +1,7 @@
+Description: Fix warnings in manpages
+ Lintian report non-existing macros in manpages.
+Author: Christian Perrier <bubulle@debian.org>
+
 Index: samba-3.3.0/docs/manpages/cifs.upcall.8
 ===================================================================
 --- samba-3.3.0.orig/docs/manpages/cifs.upcall.8

@@ -1,10 +1,6 @@
-Goal: The pam_smbpass examples are not in samples/ but examples/
-
-Fixes: ?
-
-Status wrt upstream: Debian specific
-
-Note: 
+Description: Fix examples directory location  in pam_smbpass README
+Author: Christian Perrier <bubulle@debian.org>
+Forwarded: not-needed
 
 Index: samba-3.3.0rc2/source3/pam_smbpass/README
 ===================================================================

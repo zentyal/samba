@@ -20,8 +20,7 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
     patch. Closes: #541367.
 
   [ Christian Perrier ]
-  * Use DEP-3 for patches meta-information:
-    - adapt_machine_creation_script.patch
+  * Use DEP-3 for patches meta-information
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

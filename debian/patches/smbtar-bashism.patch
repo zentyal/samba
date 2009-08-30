@@ -1,12 +1,7 @@
-Goal: Avoid using bashism in smbtar
-
-Status wrt upstream: Debian-specific. 
-
-Fixes: #486056
-
+Description: Avoid using bashism in smbtar
 Author: Jelmer Vernooij <jelmer@samba.org>
-
-Note:
+Bug-Debian: http://bugs.debian.org/486056
+Forwarded: no
 
 Index: samba-3.3.0rc2/source3/script/smbtar
 ===================================================================

@@ -1,10 +1,6 @@
-Goal: Add "Debian" as vendor suffix
-
-Fixes: nothing
-
-Status wrt upstream: Debian specific
-
-Note: Should be kept
+Description: Add "Debian" as vendor suffix
+Author: Eloy A. Paris <peloy@debian.org>
+Forwarded: not-needed
 
 Index: samba-3.3.0rc2/source3/VERSION
 ===================================================================

@@ -1,12 +1,11 @@
-Goal: enable net usershares by default at build time, with a limit of
-100, and update the corresponding documentation
-
-Fixes: Debian bug #443230
-
-Authors: Mathias Gug <mathiaz@ubuntu.com>,
-	Steve Langasek <vorlon@debian.org>
-
-Status wrt upstream: Debian-specific
+Description: Enable net usershares by default at build time
+ Enable net usershares by default at build time, with a limit of
+ 100, and update the corresponding documentation.
+Author: Mathias Gug <mathiaz@ubuntu.com>,
+Author: Steve Langasek <vorlon@debian.org>
+Bug-Debian: http://bugs.debian.org/443230
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/samba/+bug/128548
+Forwarded: not-needed
 
 Index: samba-3.3.0/docs/manpages/net.8
 ===================================================================

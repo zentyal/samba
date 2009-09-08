@@ -1,0 +1,40 @@
+Index: samba-deb.clean/source3/Makefile.in
+===================================================================
+--- samba-deb.clean.orig/source3/Makefile.in
++++ samba-deb.clean/source3/Makefile.in
+@@ -1694,11 +1694,11 @@
+ LIBTALLOC_SHARED_TARGET_SONAME=$(LIBTALLOC_SHARED_TARGET).$(LIBTALLOC_SOVER)
+ LIBTALLOC_STATIC_TARGET=@LIBTALLOC_STATIC_TARGET@
+ LIBTALLOC=@LIBTALLOC_STATIC@ @LIBTALLOC_SHARED@
+-LIBTALLOC_SYMS=$(srcdir)/exports/libtalloc.@SYMSEXT@
+-LIBTALLOC_HEADERS=$(srcdir)/@tallocdir@/talloc.h
++@NO_LIBTALLOC@LIBTALLOC_SYMS=$(srcdir)/exports/libtalloc.@SYMSEXT@
++@NO_LIBTALLOC@LIBTALLOC_HEADERS=$(srcdir)/@tallocdir@/talloc.h
+ 
+-$(LIBTALLOC_SYMS): $(LIBTALLOC_HEADERS)
+-	@$(MKSYMS_SH) $(AWK) $@ $(LIBTALLOC_HEADERS)
++@NO_LIBTALLOC@$(LIBTALLOC_SYMS): $(LIBTALLOC_HEADERS)
++@NO_LIBTALLOC@	@$(MKSYMS_SH) $(AWK) $@ $(LIBTALLOC_HEADERS)
+ 
+ $(LIBTALLOC_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBTALLOC_OBJ) $(LIBTALLOC_SYMS)
+ 	@echo Linking shared library $@
+Index: samba-deb.clean/source3/configure.in
+===================================================================
+--- samba-deb.clean.orig/source3/configure.in
++++ samba-deb.clean/source3/configure.in
+@@ -33,6 +33,7 @@
+ 		[ enable_external_libtalloc=yes ],
+ 		[ if x$enable_external_libtalloc = xyes; then 
+ 		 	AC_MSG_ERROR([Unable to find libtalloc])
++			NO_LIBTALLOC='#'
+ 	      else 
+ 			enable_external_libtalloc=no
+ 		  fi
+@@ -49,6 +50,7 @@
+ 	LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
+ done
+ AC_SUBST(LIBTALLOC_OBJ0)
++AC_SUBST(NO_LIBTALLOC)
+ 
+ m4_include(../lib/tevent/libtevent.m4)
+ 

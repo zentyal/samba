@@ -28,6 +28,8 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   * Add missing build-dependency on pkg-config, needed to fix libtdb
     detection (which will make the package FTBFS until the makefile
     substitutions are fixed)    
+  * debian/patches/external-tdb-support.patch: fix the Makefile so it works
+    when using external tdb instead of giving a missing-depend error.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

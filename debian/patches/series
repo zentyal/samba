@@ -13,3 +13,4 @@ no-unnecessary-cups.patch
 fix-manpages-warnings.patch
 codepages-location.patch
 536757.patch
+external-tdb-support.patch

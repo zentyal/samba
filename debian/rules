@@ -61,7 +61,8 @@ conf_args = \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
-
+		--enable-external-libtalloc \
+		--without-libtalloc \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

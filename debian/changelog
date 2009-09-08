@@ -32,6 +32,8 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
     error.
   * debian/patches/autoconf.patch: resurrect this patch, needed for the
     above.
+  * debian/rules: build with --without-libtalloc
+    --enable-external-libtalloc, also needed to fix the build failure.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

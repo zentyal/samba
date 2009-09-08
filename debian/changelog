@@ -1,4 +1,4 @@
-samba (2:3.4.0-4) UNRELEASED; urgency=low
+samba (2:3.4.0-4) unstable; urgency=low
 
   [ Steve Langasek ]
   * debian/samba.pamd: include common-session-noninteractive instead of
@@ -35,7 +35,7 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   * debian/rules: build with --without-libtalloc
     --enable-external-libtalloc, also needed to fix the build failure.
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
+ -- Steve Langasek <vorlon@debian.org>  Mon, 07 Sep 2009 22:58:29 -0700
 
 samba (2:3.4.0-3) unstable; urgency=low
 

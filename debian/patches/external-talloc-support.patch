@@ -35,7 +35,7 @@ Index: samba-deb.clean/source3/configure.in
  
  m4_include(../lib/tevent/libtevent.m4)
  
-@@ -4749,6 +4750,12 @@
+@@ -4749,6 +4750,13 @@
  #  be extracted from their respective source directories
  #
  SMB_LIBRARY(talloc, 1)
@@ -43,6 +43,7 @@ Index: samba-deb.clean/source3/configure.in
 +then
 +	NO_LIBTALLOC='#'
 +	LIBTALLOC_STATIC=
++	tallocdir=../lib/talloc
 +fi
 +
  SMB_LIBRARY(tdb, 1)

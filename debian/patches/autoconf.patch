@@ -79874,7 +79874,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -73807,6 +30183,12 @@
+@@ -73807,6 +30183,13 @@
  
  
  
@@ -79882,12 +79882,13 @@ Index: samba-deb.clean/source3/configure
 +then
 +	NO_LIBTALLOC='#'
 +	LIBTALLOC_STATIC=
++	tallocdir=../lib/talloc
 +fi
 +
  
  
  
-@@ -73833,16 +30215,16 @@
+@@ -73833,16 +30216,16 @@
  
  
  
@@ -79907,7 +79908,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  		build_lib=no
  		;;
-@@ -73868,7 +30250,7 @@
+@@ -73868,7 +30251,7 @@
  	if eval $BLDSHARED = true; then
  		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
  		LIBTDB_TARGET=$LIBTDB_SHARED_TARGET
@@ -79916,7 +79917,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
  			enable_static=yes
-@@ -73881,12 +30263,12 @@
+@@ -73881,12 +30264,12 @@
  		enable_static=yes
  		LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
  		LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
@@ -79931,7 +79932,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -73924,16 +30306,16 @@
+@@ -73924,16 +30307,16 @@
  
  
  
@@ -79951,7 +79952,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  		build_lib=no
  		;;
-@@ -73959,7 +30341,7 @@
+@@ -73959,7 +30342,7 @@
  	if eval $BLDSHARED = true; then
  		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
  		LIBNETAPI_TARGET=$LIBNETAPI_SHARED_TARGET
@@ -79960,7 +79961,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
  			enable_static=yes
-@@ -73972,12 +30354,12 @@
+@@ -73972,12 +30355,12 @@
  		enable_static=yes
  		LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
  		LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
@@ -79975,7 +79976,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -74015,16 +30397,16 @@
+@@ -74015,16 +30398,16 @@
  
  
  
@@ -79995,7 +79996,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  		build_lib=no
  		;;
-@@ -74050,7 +30432,7 @@
+@@ -74050,7 +30433,7 @@
  	if eval $BLDSHARED = true; then
  		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
  		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_SHARED_TARGET
@@ -80004,7 +80005,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
  			enable_static=yes
-@@ -74063,12 +30445,12 @@
+@@ -74063,12 +30446,12 @@
  		enable_static=yes
  		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
  		LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
@@ -80019,7 +80020,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -74106,16 +30488,16 @@
+@@ -74106,16 +30489,16 @@
  
  
  
@@ -80039,7 +80040,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  		build_lib=no
  		;;
-@@ -74141,7 +30523,7 @@
+@@ -74141,7 +30524,7 @@
  	if eval $BLDSHARED = true; then
  		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
  		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_SHARED_TARGET
@@ -80048,7 +80049,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
  			enable_static=yes
-@@ -74154,12 +30536,12 @@
+@@ -74154,12 +30537,12 @@
  		enable_static=yes
  		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
  		LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
@@ -80063,7 +80064,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -74197,19 +30579,19 @@
+@@ -74197,19 +30580,19 @@
  
  
  
@@ -80086,7 +80087,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		build_lib=no
  		;;
-@@ -74218,7 +30600,7 @@
+@@ -74218,7 +30601,7 @@
  else
  
  # if unspecified, default is not to build
@@ -80095,7 +80096,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  build_lib=no
  
-@@ -74234,7 +30616,7 @@
+@@ -74234,7 +30617,7 @@
  	if eval $BLDSHARED = true; then
  		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
  		LIBADDNS_TARGET=$LIBADDNS_SHARED_TARGET
@@ -80104,7 +80105,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
  			enable_static=yes
-@@ -74247,12 +30629,12 @@
+@@ -74247,12 +30630,12 @@
  		enable_static=yes
  		LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
  		LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
@@ -80119,7 +80120,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared library not selected" >&6; }
  fi
  if test $enable_static = yes; then
-@@ -74268,26 +30650,22 @@
+@@ -74268,26 +30651,22 @@
  
  #################################################
  # these tests are taken from the GNU fileutils package
@@ -80151,7 +80152,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_UNISTD_H)
-@@ -74301,51 +30679,22 @@
+@@ -74301,51 +30680,22 @@
      exit (statvfs64 (".", &fsd));
    }
  _ACEOF
@@ -80209,7 +80210,7 @@ Index: samba-deb.clean/source3/configure
  
    fi
  fi
-@@ -74358,16 +30707,12 @@
+@@ -74358,16 +30708,12 @@
  # is what it gets when this test fails.
  if test $space = no; then
    # SVR4
@@ -80229,7 +80230,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -74379,47 +30724,20 @@
+@@ -74379,47 +30725,20 @@
    return 0;
  }
  _ACEOF
@@ -80283,7 +80284,7 @@ Index: samba-deb.clean/source3/configure
  
    fi
  fi
-@@ -74427,17 +30745,13 @@
+@@ -74427,17 +30746,13 @@
  # smbd/statvfs.c assumes that statvfs.f_fsid is an integer.
  # This is not the case on ancient Linux systems.
  
@@ -80304,7 +80305,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -74449,57 +30763,30 @@
+@@ -74449,57 +30764,30 @@
    return 0;
  }
  _ACEOF
@@ -80369,7 +80370,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -74511,56 +30798,29 @@
+@@ -74511,56 +30799,29 @@
    return 0;
  }
  _ACEOF
@@ -80433,7 +80434,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -74572,55 +30832,28 @@
+@@ -74572,55 +30833,28 @@
    return 0;
  }
  _ACEOF
@@ -80496,7 +80497,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -74632,59 +30865,32 @@
+@@ -74632,59 +30866,32 @@
    return 0;
  }
  _ACEOF
@@ -80564,7 +80565,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <sys/param.h>
-@@ -74697,71 +30903,38 @@
+@@ -74697,71 +30904,38 @@
      exit (statfs (".", &fsd, sizeof (struct statfs)));
    }
  _ACEOF
@@ -80646,7 +80647,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #ifdef HAVE_SYS_PARAM_H
-@@ -74780,71 +30953,38 @@
+@@ -74780,71 +30954,38 @@
    exit (statfs (".", &fsd));
    }
  _ACEOF
@@ -80728,7 +80729,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statfs.h>
-@@ -74854,71 +30994,38 @@
+@@ -74854,71 +30995,38 @@
    exit (statfs (".", &fsd, sizeof fsd, 0));
    }
  _ACEOF
@@ -80810,7 +80811,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #ifdef HAVE_SYS_PARAM_H
-@@ -74934,71 +31041,38 @@
+@@ -74934,71 +31042,38 @@
    exit (statfs (".", &fsd));
    }
  _ACEOF
@@ -80892,7 +80893,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #ifdef HAVE_SYS_PARAM_H
-@@ -75018,52 +31092,23 @@
+@@ -75018,52 +31093,23 @@
    exit (statfs (".", &fsd) != 1);
    }
  _ACEOF
@@ -80951,7 +80952,7 @@ Index: samba-deb.clean/source3/configure
  
    fi
  fi
-@@ -75076,13 +31121,9 @@
+@@ -75076,13 +31122,9 @@
  # If we don't have all of these then disable large
  # file support.
  #
@@ -80967,7 +80968,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_LONGLONG) && (defined(HAVE_OFF64_T) || (defined(SIZEOF_OFF_T) && (SIZEOF_OFF_T == 8)))
-@@ -75099,41 +31140,18 @@
+@@ -75099,41 +31141,18 @@
    return 0;
  }
  _ACEOF
@@ -81013,7 +81014,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT" >&6; }
  
  #################################################
-@@ -75143,10 +31161,10 @@
+@@ -75143,10 +31162,10 @@
  
  
  # Check whether --with-ctdb was given.
@@ -81026,7 +81027,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: --with-ctdb called without argument" >&2;}
      ;;
    *)
-@@ -75160,71 +31178,23 @@
+@@ -75160,71 +31179,23 @@
  CPPFLAGS="$CPPFLAGS $CTDB_CPPFLAGS"
  ctdb_broken="missing or broken headers"
  
@@ -81108,7 +81109,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -75235,17 +31205,13 @@
+@@ -75235,17 +31206,13 @@
  
  
  
@@ -81129,7 +81130,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include "confdefs.h"
-@@ -75266,41 +31232,18 @@
+@@ -75266,41 +31233,18 @@
    return 0;
  }
  _ACEOF
@@ -81175,7 +81176,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -75311,397 +31254,79 @@
+@@ -75311,397 +31255,79 @@
  fi
  
  # in ctdb 1.0.57 ctdb_control_tcp was temparary renamed to ctdb_tcp_client
@@ -81614,7 +81615,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_cluster_support;
  fi
  
-@@ -75712,44 +31337,38 @@
+@@ -75712,44 +31338,38 @@
  
  if test x"$ac_cv_header_ctdb_private_h" != x"yes"; then
  	if test "x$with_cluster_support" = "xyes"; then
@@ -81666,7 +81667,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_acl_support;  case "$withval" in
  	yes|no)
  		with_acl_support="$withval"
-@@ -75762,105 +31381,85 @@
+@@ -75762,105 +31382,85 @@
  	with_acl_support="auto"
  fi
  
@@ -81793,7 +81794,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -75878,60 +31477,31 @@
+@@ -75878,60 +31478,31 @@
    return 0;
  }
  _ACEOF
@@ -81863,7 +81864,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -75949,61 +31519,32 @@
+@@ -75949,61 +31520,32 @@
    return 0;
  }
  _ACEOF
@@ -81934,7 +81935,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				#include <sys/types.h>
-@@ -76022,64 +31563,33 @@
+@@ -76022,64 +31564,33 @@
    return 0;
  }
  _ACEOF
@@ -82009,7 +82010,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  					#include <sys/types.h>
-@@ -76097,58 +31607,29 @@
+@@ -76097,58 +31608,29 @@
    return 0;
  }
  _ACEOF
@@ -82076,7 +82077,7 @@ Index: samba-deb.clean/source3/configure
  
  		fi
  		;;
-@@ -76160,31 +31641,27 @@
+@@ -76160,31 +31642,27 @@
  #################################################
  # check for AIO support
  
@@ -82114,7 +82115,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -76202,58 +31679,29 @@
+@@ -76202,58 +31680,29 @@
    return 0;
  }
  _ACEOF
@@ -82182,7 +82183,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -76271,59 +31719,30 @@
+@@ -76271,59 +31720,30 @@
    return 0;
  }
  _ACEOF
@@ -82251,7 +82252,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <aio.h>
-@@ -76335,55 +31754,26 @@
+@@ -76335,55 +31755,26 @@
    return 0;
  }
  _ACEOF
@@ -82315,7 +82316,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <aio.h>
-@@ -76395,716 +31785,317 @@
+@@ -76395,716 +31786,317 @@
    return 0;
  }
  _ACEOF
@@ -83170,7 +83171,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  
  fi
-@@ -77121,30 +32112,26 @@
+@@ -77121,30 +32113,26 @@
  # check for sendfile support
  
  with_sendfile_support=yes
@@ -83207,7 +83208,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/sendfile.h>
  int
-@@ -77160,53 +32147,24 @@
+@@ -77160,53 +32148,24 @@
    return 0;
  }
  _ACEOF
@@ -83269,7 +83270,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/sendfile.h>
  int
-@@ -77222,54 +32180,25 @@
+@@ -77222,54 +32181,25 @@
    return 0;
  }
  _ACEOF
@@ -83332,7 +83333,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #if defined(_FILE_OFFSET_BITS) && (_FILE_OFFSET_BITS == 64)
-@@ -77289,103 +32218,58 @@
+@@ -77289,103 +32219,58 @@
    return 0;
  }
  _ACEOF
@@ -83453,7 +83454,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/types.h>
-@@ -77412,76 +32296,41 @@
+@@ -77412,76 +32297,41 @@
    return 0;
  }
  _ACEOF
@@ -83542,7 +83543,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/socket.h>
-@@ -77505,73 +32354,38 @@
+@@ -77505,73 +32355,38 @@
    return 0;
  }
  _ACEOF
@@ -83628,7 +83629,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/socket.h>
-@@ -77595,77 +32409,41 @@
+@@ -77595,77 +32410,41 @@
    return 0;
  }
  _ACEOF
@@ -83718,7 +83719,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -77683,43 +32461,18 @@
+@@ -77683,43 +32462,18 @@
    return 0;
  }
  _ACEOF
@@ -83768,7 +83769,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBSENDFILE 1
  _ACEOF
-@@ -77728,17 +32481,13 @@
+@@ -77728,17 +32482,13 @@
  
  fi
  
@@ -83789,7 +83790,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/sendfile.h>
-@@ -77769,74 +32518,39 @@
+@@ -77769,74 +32519,39 @@
    return 0;
  }
  _ACEOF
@@ -83876,7 +83877,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/sendfile.h>
-@@ -77867,75 +32581,40 @@
+@@ -77867,75 +32582,40 @@
    return 0;
  }
  _ACEOF
@@ -83964,7 +83965,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  \
  #include <sys/socket.h>
-@@ -77963,59 +32642,28 @@
+@@ -77963,59 +32643,28 @@
    return 0;
  }
  _ACEOF
@@ -84033,7 +84034,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; };
  	fi
  	;;
-@@ -78024,12 +32672,12 @@
+@@ -78024,12 +32673,12 @@
          esac
          ;;
    *)
@@ -84048,7 +84049,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  
  fi
-@@ -78038,17 +32686,13 @@
+@@ -78038,17 +32687,13 @@
  ############################################
  # See if we have the Linux readahead syscall.
  
@@ -84069,7 +84070,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_UNISTD_H)
-@@ -78063,62 +32707,31 @@
+@@ -78063,62 +32708,31 @@
    return 0;
  }
  _ACEOF
@@ -84141,7 +84142,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <fcntl.h>
  int
-@@ -78129,41 +32742,18 @@
+@@ -78129,41 +32743,18 @@
    return 0;
  }
  _ACEOF
@@ -84187,7 +84188,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -78171,17 +32761,13 @@
+@@ -78171,17 +32762,13 @@
  ############################################
  # See if we have the posix_fadvise syscall.
  
@@ -84208,7 +84209,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_UNISTD_H)
-@@ -78196,47 +32782,20 @@
+@@ -78196,47 +32783,20 @@
    return 0;
  }
  _ACEOF
@@ -84262,7 +84263,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -78245,17 +32804,13 @@
+@@ -78245,17 +32805,13 @@
  
  case "$host_os" in
  *linux*)
@@ -84283,7 +84284,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_UNISTD_H)
-@@ -78270,40 +32825,15 @@
+@@ -78270,40 +32826,15 @@
    return 0;
  }
  _ACEOF
@@ -84329,7 +84330,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$samba_cv_HAVE_LINUX_SPLICE" >&6; }
  ;;
  *)
-@@ -78313,24 +32843,18 @@
+@@ -78313,24 +32844,18 @@
  
  if test x"$samba_cv_HAVE_LINUX_SPLICE" = x"yes"; then
  
@@ -84358,7 +84359,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <fcntl.h>
  int
-@@ -78341,41 +32865,18 @@
+@@ -78341,41 +32866,18 @@
    return 0;
  }
  _ACEOF
@@ -84404,7 +84405,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -78383,68 +32884,35 @@
+@@ -78383,68 +32885,35 @@
  ############################################
  # See if we have the a broken readlink syscall.
  
@@ -84483,7 +84484,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -78452,7 +32920,7 @@
+@@ -78452,7 +32921,7 @@
  # Check whether winbind is supported on this platform.  If so we need to
  # build and install client programs, sbin programs and shared libraries
  
@@ -84492,7 +84493,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking whether to build winbind... " >&6; }
  
  # Initially, the value of $host_os decides whether winbind is supported
-@@ -78464,7 +32932,7 @@
+@@ -78464,7 +32933,7 @@
  # We define this here so --with-winbind can override it.
  
  # Check whether --with-wbclient was given.
@@ -84501,7 +84502,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_wbclient;
    case "$withval" in
          no)
-@@ -78565,7 +33033,7 @@
+@@ -78565,7 +33034,7 @@
  
  
  # Check whether --with-winbind was given.
@@ -84510,7 +84511,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_winbind;
    case "$withval" in
  	yes)
-@@ -78596,18 +33064,14 @@
+@@ -78596,18 +33065,14 @@
  	WINBIND_WINS_NSS=""
  fi
  if test x"$HAVE_WBCLIENT" = x"yes"; then
@@ -84532,7 +84533,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -78625,57 +33089,28 @@
+@@ -78625,57 +33090,28 @@
    return 0;
  }
  _ACEOF
@@ -84599,7 +84600,7 @@ Index: samba-deb.clean/source3/configure
  
  	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo\$(EXEEXT)"
  else
-@@ -78706,12 +33141,10 @@
+@@ -78706,12 +33142,10 @@
  fi
  
  if test x"$HAVE_WINBIND" = x"yes"; then
@@ -84614,7 +84615,7 @@ Index: samba-deb.clean/source3/configure
  
  
  	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo\$(EXEEXT)"
-@@ -78722,624 +33155,112 @@
+@@ -78722,624 +33156,112 @@
  		UNINSTALL_PAM_MODULES="uninstallpammodules"
  	fi
  else
@@ -85328,7 +85329,7 @@ Index: samba-deb.clean/source3/configure
  
  cat >>confdefs.h <<_ACEOF
  #define HAVE_STRUCT_SECMETHOD_TABLE_METHOD_VERSION 1
-@@ -79349,17 +33270,13 @@
+@@ -79349,17 +33271,13 @@
  fi
  
  
@@ -85349,7 +85350,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/socket.h>
-@@ -79374,41 +33291,18 @@
+@@ -79374,41 +33292,18 @@
    return 0;
  }
  _ACEOF
@@ -85395,7 +85396,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -79418,7 +33312,7 @@
+@@ -79418,7 +33313,7 @@
  
  
  # Check whether --with-included-popt was given.
@@ -85404,7 +85405,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_included_popt;
    case "$withval" in
  	yes)
-@@ -79431,18 +33325,14 @@
+@@ -79431,18 +33326,14 @@
  fi
  
  if test x"$INCLUDED_POPT" != x"yes"; then
@@ -85426,7 +85427,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -79460,43 +33350,18 @@
+@@ -79460,43 +33351,18 @@
    return 0;
  }
  _ACEOF
@@ -85476,7 +85477,7 @@ Index: samba-deb.clean/source3/configure
    INCLUDED_POPT=no
  else
    INCLUDED_POPT=yes
-@@ -79504,16 +33369,16 @@
+@@ -79504,16 +33370,16 @@
  
  fi
  
@@ -85496,7 +85497,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	BUILD_POPT=""
      POPTLIBS="-lpopt"
-@@ -79526,7 +33391,7 @@
+@@ -79526,7 +33392,7 @@
  # Check if user wants DNS service discovery support
  
  # Check whether --enable-dnssd was given.
@@ -85505,7 +85506,7 @@ Index: samba-deb.clean/source3/configure
    enableval=$enable_dnssd;
  fi
  
-@@ -79535,151 +33400,12 @@
+@@ -79535,151 +33401,12 @@
  if test x"$enable_dnssd" = x"yes"; then
      have_dnssd_support=yes
  
@@ -85662,7 +85663,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -79692,102 +33418,12 @@
+@@ -79692,102 +33419,12 @@
  
      # On Darwin the DNSSD API is in libc, but on other platforms it's
      # probably in -ldns_sd
@@ -85770,7 +85771,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -79795,23 +33431,17 @@
+@@ -79795,23 +33432,17 @@
  
  
  
@@ -85797,7 +85798,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -79829,54 +33459,28 @@
+@@ -79829,54 +33460,28 @@
    return 0;
  }
  _ACEOF
@@ -85859,7 +85860,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBDNS_SD 1
  _ACEOF
-@@ -79891,7 +33495,6 @@
+@@ -79891,7 +33496,6 @@
  
  
  fi
@@ -85867,7 +85868,7 @@ Index: samba-deb.clean/source3/configure
      if test x"$ac_cv_func_DNSServiceRegister" != x"yes" -a \
              x"$ac_cv_lib_ext_dns_sd_DNSServiceRegister" != x"yes"; then
  	have_dnssd_support=no
-@@ -79899,15 +33502,11 @@
+@@ -79899,15 +33503,11 @@
  
      if test x"$have_dnssd_support" = x"yes"; then
  
@@ -85885,7 +85886,7 @@ Index: samba-deb.clean/source3/configure
  	fi
      fi
  
-@@ -79917,7 +33516,7 @@
+@@ -79917,7 +33517,7 @@
  # Check if user wants avahi support
  
  # Check whether --enable-avahi was given.
@@ -85894,7 +85895,7 @@ Index: samba-deb.clean/source3/configure
    enableval=$enable_avahi;
  fi
  
-@@ -79926,151 +33525,12 @@
+@@ -79926,151 +33526,12 @@
  if test x"$enable_avahi" != x"no"; then
      have_avahi_support=yes
  
@@ -86051,7 +86052,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -80081,151 +33541,12 @@
+@@ -80081,151 +33542,12 @@
  	have_avahi_support=no
      fi
  
@@ -86208,7 +86209,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -80238,23 +33559,17 @@
+@@ -80238,23 +33560,17 @@
  
  
  
@@ -86235,7 +86236,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -80272,54 +33587,28 @@
+@@ -80272,54 +33588,28 @@
    return 0;
  }
  _ACEOF
@@ -86297,7 +86298,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBAVAHI_CLIENT 1
  _ACEOF
-@@ -80334,24 +33623,19 @@
+@@ -80334,24 +33624,19 @@
  
  
  fi
@@ -86324,7 +86325,7 @@ Index: samba-deb.clean/source3/configure
  	fi
      fi
  fi
-@@ -80361,7 +33645,7 @@
+@@ -80361,7 +33646,7 @@
  
  
  # Check whether --with-included-iniparser was given.
@@ -86333,7 +86334,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_included_iniparser;
    case "$withval" in
  	yes)
-@@ -80374,18 +33658,14 @@
+@@ -80374,18 +33659,14 @@
  fi
  
  if test x"$INCLUDED_INIPARSER" != x"yes"; then
@@ -86355,7 +86356,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -80403,43 +33683,18 @@
+@@ -80403,43 +33684,18 @@
    return 0;
  }
  _ACEOF
@@ -86405,7 +86406,7 @@ Index: samba-deb.clean/source3/configure
    INCLUDED_INIPARSER=no
  else
    INCLUDED_INIPARSER=yes
-@@ -80447,260 +33702,40 @@
+@@ -80447,260 +33703,40 @@
  
  fi
  
@@ -86685,7 +86686,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -80708,20 +33743,16 @@
+@@ -80708,20 +33744,16 @@
  done
  
  
@@ -86710,7 +86711,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  		#include <sys/types.h>
-@@ -80733,46 +33764,19 @@
+@@ -80733,46 +33765,19 @@
  			return statfs (".", &fsd);
  		}
  _ACEOF
@@ -86762,7 +86763,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$vfsfileid_cv_statfs" >&6; }
  
  if test x"$ac_cv_func_getmntent" = x"yes" -a \
-@@ -80807,7 +33811,7 @@
+@@ -80807,7 +33812,7 @@
  
  
  # Check whether --with-static-modules was given.
@@ -86771,7 +86772,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_static_modules;  if test $withval; then
  	for i in `echo $withval | sed -e 's/,/ /g'`
  	do
-@@ -80819,7 +33823,7 @@
+@@ -80819,7 +33824,7 @@
  
  
  # Check whether --with-shared-modules was given.
@@ -86780,7 +86781,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_shared_modules;  if test $withval; then
  	for i in `echo $withval | sed -e 's/,/ /g'`
  	do
-@@ -80830,7 +33834,7 @@
+@@ -80830,7 +33835,7 @@
  
  
  
@@ -86789,7 +86790,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build pdb_ldap... " >&6; }
  	if test "$MODULE_pdb_ldap"; then
  		DEST=$MODULE_pdb_ldap
-@@ -80842,12 +33846,10 @@
+@@ -80842,12 +33847,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86804,7 +86805,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules pdb_ldap"
-@@ -80858,16 +33860,16 @@
+@@ -80858,16 +33861,16 @@
  		PDB_STATIC="$PDB_STATIC passdb/pdb_ldap.o passdb/pdb_nds.o"
  
  		 PASSDB_LIBS="$PASSDB_LIBS $LDAP_LIBS"
@@ -86824,7 +86825,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build pdb_smbpasswd... " >&6; }
  	if test "$MODULE_pdb_smbpasswd"; then
  		DEST=$MODULE_pdb_smbpasswd
-@@ -80879,12 +33881,10 @@
+@@ -80879,12 +33882,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86839,7 +86840,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules pdb_smbpasswd"
-@@ -80895,16 +33895,16 @@
+@@ -80895,16 +33896,16 @@
  		PDB_STATIC="$PDB_STATIC passdb/pdb_smbpasswd.o"
  
  
@@ -86859,7 +86860,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build pdb_tdbsam... " >&6; }
  	if test "$MODULE_pdb_tdbsam"; then
  		DEST=$MODULE_pdb_tdbsam
-@@ -80916,12 +33916,10 @@
+@@ -80916,12 +33917,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86874,7 +86875,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules pdb_tdbsam"
-@@ -80932,16 +33930,16 @@
+@@ -80932,16 +33931,16 @@
  		PDB_STATIC="$PDB_STATIC passdb/pdb_tdb.o"
  
  
@@ -86894,7 +86895,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build pdb_wbc_sam... " >&6; }
  	if test "$MODULE_pdb_wbc_sam"; then
  		DEST=$MODULE_pdb_wbc_sam
-@@ -80953,12 +33951,10 @@
+@@ -80953,12 +33952,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86909,7 +86910,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules pdb_wbc_sam"
-@@ -80969,11 +33965,11 @@
+@@ -80969,11 +33966,11 @@
  		PDB_STATIC="$PDB_STATIC passdb/pdb_wbc_sam.o"
  
  
@@ -86923,7 +86924,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -80995,7 +33991,7 @@
+@@ -80995,7 +33992,7 @@
  
  
  
@@ -86932,7 +86933,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_lsarpc... " >&6; }
  	if test "$MODULE_rpc_lsarpc"; then
  		DEST=$MODULE_rpc_lsarpc
-@@ -81007,12 +34003,10 @@
+@@ -81007,12 +34004,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86947,7 +86948,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_lsarpc"
-@@ -81023,16 +34017,16 @@
+@@ -81023,16 +34018,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_LSA_OBJ)"
  
  
@@ -86967,7 +86968,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_winreg... " >&6; }
  	if test "$MODULE_rpc_winreg"; then
  		DEST=$MODULE_rpc_winreg
-@@ -81044,12 +34038,10 @@
+@@ -81044,12 +34039,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -86982,7 +86983,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_winreg"
-@@ -81060,16 +34052,16 @@
+@@ -81060,16 +34053,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_REG_OBJ)"
  
  
@@ -87002,7 +87003,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_initshutdown... " >&6; }
  	if test "$MODULE_rpc_initshutdown"; then
  		DEST=$MODULE_rpc_initshutdown
-@@ -81081,12 +34073,10 @@
+@@ -81081,12 +34074,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87017,7 +87018,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_initshutdown"
-@@ -81097,16 +34087,16 @@
+@@ -81097,16 +34088,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_INITSHUTDOWN_OBJ)"
  
  
@@ -87037,7 +87038,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_dssetup... " >&6; }
  	if test "$MODULE_rpc_dssetup"; then
  		DEST=$MODULE_rpc_dssetup
-@@ -81118,12 +34108,10 @@
+@@ -81118,12 +34109,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87052,7 +87053,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_dssetup"
-@@ -81134,16 +34122,16 @@
+@@ -81134,16 +34123,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_DSSETUP_OBJ)"
  
  
@@ -87072,7 +87073,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_wkssvc... " >&6; }
  	if test "$MODULE_rpc_wkssvc"; then
  		DEST=$MODULE_rpc_wkssvc
-@@ -81155,12 +34143,10 @@
+@@ -81155,12 +34144,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87087,7 +87088,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_wkssvc"
-@@ -81171,16 +34157,16 @@
+@@ -81171,16 +34158,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_WKS_OBJ)"
  
  
@@ -87107,7 +87108,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_svcctl... " >&6; }
  	if test "$MODULE_rpc_svcctl"; then
  		DEST=$MODULE_rpc_svcctl
-@@ -81192,12 +34178,10 @@
+@@ -81192,12 +34179,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87122,7 +87123,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_svcctl"
-@@ -81208,16 +34192,16 @@
+@@ -81208,16 +34193,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_SVCCTL_OBJ)"
  
  
@@ -87142,7 +87143,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_ntsvcs... " >&6; }
  	if test "$MODULE_rpc_ntsvcs"; then
  		DEST=$MODULE_rpc_ntsvcs
-@@ -81229,12 +34213,10 @@
+@@ -81229,12 +34214,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87157,7 +87158,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_ntsvcs"
-@@ -81245,16 +34227,16 @@
+@@ -81245,16 +34228,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_NTSVCS_OBJ)"
  
  
@@ -87177,7 +87178,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_netlogon... " >&6; }
  	if test "$MODULE_rpc_netlogon"; then
  		DEST=$MODULE_rpc_netlogon
-@@ -81266,12 +34248,10 @@
+@@ -81266,12 +34249,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87192,7 +87193,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_netlogon"
-@@ -81282,16 +34262,16 @@
+@@ -81282,16 +34263,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_NETLOG_OBJ)"
  
  
@@ -87212,7 +87213,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_netdfs... " >&6; }
  	if test "$MODULE_rpc_netdfs"; then
  		DEST=$MODULE_rpc_netdfs
-@@ -81303,12 +34283,10 @@
+@@ -81303,12 +34284,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87227,7 +87228,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_netdfs"
-@@ -81319,16 +34297,16 @@
+@@ -81319,16 +34298,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_DFS_OBJ)"
  
  
@@ -87247,7 +87248,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_srvsvc... " >&6; }
  	if test "$MODULE_rpc_srvsvc"; then
  		DEST=$MODULE_rpc_srvsvc
-@@ -81340,12 +34318,10 @@
+@@ -81340,12 +34319,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87262,7 +87263,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_srvsvc"
-@@ -81356,16 +34332,16 @@
+@@ -81356,16 +34333,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_SVC_OBJ)"
  
  
@@ -87282,7 +87283,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_spoolss... " >&6; }
  	if test "$MODULE_rpc_spoolss"; then
  		DEST=$MODULE_rpc_spoolss
-@@ -81377,12 +34353,10 @@
+@@ -81377,12 +34354,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87297,7 +87298,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_spoolss"
-@@ -81393,16 +34367,16 @@
+@@ -81393,16 +34368,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_SPOOLSS_OBJ)"
  
  
@@ -87317,7 +87318,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_eventlog... " >&6; }
  	if test "$MODULE_rpc_eventlog"; then
  		DEST=$MODULE_rpc_eventlog
-@@ -81414,12 +34388,10 @@
+@@ -81414,12 +34389,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87332,7 +87333,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_eventlog"
-@@ -81430,16 +34402,16 @@
+@@ -81430,16 +34403,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_EVENTLOG_OBJ)"
  
  
@@ -87352,7 +87353,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_samr... " >&6; }
  	if test "$MODULE_rpc_samr"; then
  		DEST=$MODULE_rpc_samr
-@@ -81451,12 +34423,10 @@
+@@ -81451,12 +34424,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87367,7 +87368,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_samr"
-@@ -81467,16 +34437,16 @@
+@@ -81467,16 +34438,16 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_SAMR_OBJ)"
  
  
@@ -87387,7 +87388,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build rpc_rpcecho... " >&6; }
  	if test "$MODULE_rpc_rpcecho"; then
  		DEST=$MODULE_rpc_rpcecho
-@@ -81488,12 +34458,10 @@
+@@ -81488,12 +34459,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87402,7 +87403,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules rpc_rpcecho"
-@@ -81504,11 +34472,11 @@
+@@ -81504,11 +34473,11 @@
  		RPC_STATIC="$RPC_STATIC \$(RPC_ECHO_OBJ)"
  
  
@@ -87416,7 +87417,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -81529,7 +34497,7 @@
+@@ -81529,7 +34498,7 @@
  
  
  
@@ -87425,7 +87426,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_ldap... " >&6; }
  	if test "$MODULE_idmap_ldap"; then
  		DEST=$MODULE_idmap_ldap
-@@ -81541,12 +34509,10 @@
+@@ -81541,12 +34510,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87440,7 +87441,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_ldap"
-@@ -81557,16 +34523,16 @@
+@@ -81557,16 +34524,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_ldap.o"
  
  
@@ -87460,7 +87461,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_tdb... " >&6; }
  	if test "$MODULE_idmap_tdb"; then
  		DEST=$MODULE_idmap_tdb
-@@ -81578,12 +34544,10 @@
+@@ -81578,12 +34545,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87475,7 +87476,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_tdb"
-@@ -81594,16 +34558,16 @@
+@@ -81594,16 +34559,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_tdb.o"
  
  
@@ -87495,7 +87496,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_tdb2... " >&6; }
  	if test "$MODULE_idmap_tdb2"; then
  		DEST=$MODULE_idmap_tdb2
-@@ -81615,12 +34579,10 @@
+@@ -81615,12 +34580,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87510,7 +87511,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_tdb2"
-@@ -81631,16 +34593,16 @@
+@@ -81631,16 +34594,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_tdb2.o"
  
  
@@ -87530,7 +87531,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_passdb... " >&6; }
  	if test "$MODULE_idmap_passdb"; then
  		DEST=$MODULE_idmap_passdb
-@@ -81652,12 +34614,10 @@
+@@ -81652,12 +34615,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87545,7 +87546,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_passdb"
-@@ -81668,16 +34628,16 @@
+@@ -81668,16 +34629,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_passdb.o"
  
  
@@ -87565,7 +87566,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_nss... " >&6; }
  	if test "$MODULE_idmap_nss"; then
  		DEST=$MODULE_idmap_nss
-@@ -81689,12 +34649,10 @@
+@@ -81689,12 +34650,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87580,7 +87581,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_nss"
-@@ -81705,16 +34663,16 @@
+@@ -81705,16 +34664,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_nss.o"
  
  
@@ -87600,7 +87601,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_rid... " >&6; }
  	if test "$MODULE_idmap_rid"; then
  		DEST=$MODULE_idmap_rid
-@@ -81726,12 +34684,10 @@
+@@ -81726,12 +34685,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87615,7 +87616,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_rid"
-@@ -81742,16 +34698,16 @@
+@@ -81742,16 +34699,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_rid.o"
  
  
@@ -87635,7 +87636,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_ad... " >&6; }
  	if test "$MODULE_idmap_ad"; then
  		DEST=$MODULE_idmap_ad
-@@ -81763,12 +34719,10 @@
+@@ -81763,12 +34720,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87650,7 +87651,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_ad"
-@@ -81779,16 +34733,16 @@
+@@ -81779,16 +34734,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC winbindd/idmap_ad.o"
  
  
@@ -87670,7 +87671,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_hash... " >&6; }
  	if test "$MODULE_idmap_hash"; then
  		DEST=$MODULE_idmap_hash
-@@ -81800,12 +34754,10 @@
+@@ -81800,12 +34755,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87685,7 +87686,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_hash"
-@@ -81816,16 +34768,16 @@
+@@ -81816,16 +34769,16 @@
  		IDMAP_STATIC="$IDMAP_STATIC \$(IDMAP_HASH_OBJ)"
  
  
@@ -87705,7 +87706,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build idmap_adex... " >&6; }
  	if test "$MODULE_idmap_adex"; then
  		DEST=$MODULE_idmap_adex
-@@ -81837,12 +34789,10 @@
+@@ -81837,12 +34790,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87720,7 +87721,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules idmap_adex"
-@@ -81853,11 +34803,11 @@
+@@ -81853,11 +34804,11 @@
  		IDMAP_STATIC="$IDMAP_STATIC \$(IDMAP_ADEX_OBJ)"
  
  
@@ -87734,7 +87735,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -81878,7 +34828,7 @@
+@@ -81878,7 +34829,7 @@
  
  
  
@@ -87743,7 +87744,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build nss_info_template... " >&6; }
  	if test "$MODULE_nss_info_template"; then
  		DEST=$MODULE_nss_info_template
-@@ -81890,12 +34840,10 @@
+@@ -81890,12 +34841,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87758,7 +87759,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules nss_info_template"
-@@ -81906,11 +34854,11 @@
+@@ -81906,11 +34855,11 @@
  		NSS_INFO_STATIC="$NSS_INFO_STATIC winbindd/nss_info_template.o"
  
  
@@ -87772,7 +87773,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -81931,7 +34879,7 @@
+@@ -81931,7 +34880,7 @@
  
  
  
@@ -87781,7 +87782,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build charset_weird... " >&6; }
  	if test "$MODULE_charset_weird"; then
  		DEST=$MODULE_charset_weird
-@@ -81943,12 +34891,10 @@
+@@ -81943,12 +34892,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87796,7 +87797,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules charset_weird"
-@@ -81959,16 +34905,16 @@
+@@ -81959,16 +34906,16 @@
  		CHARSET_STATIC="$CHARSET_STATIC modules/weird.o"
  
  
@@ -87816,7 +87817,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build charset_CP850... " >&6; }
  	if test "$MODULE_charset_CP850"; then
  		DEST=$MODULE_charset_CP850
-@@ -81980,12 +34926,10 @@
+@@ -81980,12 +34927,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87831,7 +87832,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules charset_CP850"
-@@ -81996,16 +34940,16 @@
+@@ -81996,16 +34941,16 @@
  		CHARSET_STATIC="$CHARSET_STATIC modules/CP850.o"
  
  
@@ -87851,7 +87852,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build charset_CP437... " >&6; }
  	if test "$MODULE_charset_CP437"; then
  		DEST=$MODULE_charset_CP437
-@@ -82017,12 +34961,10 @@
+@@ -82017,12 +34962,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87866,7 +87867,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules charset_CP437"
-@@ -82033,16 +34975,16 @@
+@@ -82033,16 +34976,16 @@
  		CHARSET_STATIC="$CHARSET_STATIC modules/CP437.o"
  
  
@@ -87886,7 +87887,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build charset_macosxfs... " >&6; }
  	if test "$MODULE_charset_macosxfs"; then
  		DEST=$MODULE_charset_macosxfs
-@@ -82054,12 +34996,10 @@
+@@ -82054,12 +34997,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87901,7 +87902,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules charset_macosxfs"
-@@ -82070,11 +35010,11 @@
+@@ -82070,11 +35011,11 @@
  		CHARSET_STATIC="$CHARSET_STATIC modules/charset_macosxfs.o"
  
  
@@ -87915,7 +87916,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -82095,7 +35035,7 @@
+@@ -82095,7 +35036,7 @@
  
  
  
@@ -87924,7 +87925,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_sam... " >&6; }
  	if test "$MODULE_auth_sam"; then
  		DEST=$MODULE_auth_sam
-@@ -82107,12 +35047,10 @@
+@@ -82107,12 +35048,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87939,7 +87940,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_sam"
-@@ -82123,16 +35061,16 @@
+@@ -82123,16 +35062,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_SAM_OBJ)"
  
  
@@ -87959,7 +87960,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_unix... " >&6; }
  	if test "$MODULE_auth_unix"; then
  		DEST=$MODULE_auth_unix
-@@ -82144,12 +35082,10 @@
+@@ -82144,12 +35083,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -87974,7 +87975,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_unix"
-@@ -82160,16 +35096,16 @@
+@@ -82160,16 +35097,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_UNIX_OBJ)"
  
  
@@ -87994,7 +87995,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_winbind... " >&6; }
  	if test "$MODULE_auth_winbind"; then
  		DEST=$MODULE_auth_winbind
-@@ -82181,12 +35117,10 @@
+@@ -82181,12 +35118,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88009,7 +88010,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_winbind"
-@@ -82197,16 +35131,16 @@
+@@ -82197,16 +35132,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_WINBIND_OBJ)"
  
  
@@ -88029,7 +88030,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_wbc... " >&6; }
  	if test "$MODULE_auth_wbc"; then
  		DEST=$MODULE_auth_wbc
-@@ -82218,12 +35152,10 @@
+@@ -82218,12 +35153,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88044,7 +88045,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_wbc"
-@@ -82234,16 +35166,16 @@
+@@ -82234,16 +35167,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_WBC_OBJ)"
  
  
@@ -88064,7 +88065,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_server... " >&6; }
  	if test "$MODULE_auth_server"; then
  		DEST=$MODULE_auth_server
-@@ -82255,12 +35187,10 @@
+@@ -82255,12 +35188,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88079,7 +88080,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_server"
-@@ -82271,16 +35201,16 @@
+@@ -82271,16 +35202,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_SERVER_OBJ)"
  
  
@@ -88099,7 +88100,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_domain... " >&6; }
  	if test "$MODULE_auth_domain"; then
  		DEST=$MODULE_auth_domain
-@@ -82292,12 +35222,10 @@
+@@ -82292,12 +35223,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88114,7 +88115,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_domain"
-@@ -82308,16 +35236,16 @@
+@@ -82308,16 +35237,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_DOMAIN_OBJ)"
  
  
@@ -88134,7 +88135,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_builtin... " >&6; }
  	if test "$MODULE_auth_builtin"; then
  		DEST=$MODULE_auth_builtin
-@@ -82329,12 +35257,10 @@
+@@ -82329,12 +35258,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88149,7 +88150,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_builtin"
-@@ -82345,16 +35271,16 @@
+@@ -82345,16 +35272,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_BUILTIN_OBJ)"
  
  
@@ -88169,7 +88170,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_script... " >&6; }
  	if test "$MODULE_auth_script"; then
  		DEST=$MODULE_auth_script
-@@ -82366,12 +35292,10 @@
+@@ -82366,12 +35293,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88184,7 +88185,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_script"
-@@ -82382,16 +35306,16 @@
+@@ -82382,16 +35307,16 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_SCRIPT_OBJ)"
  
  
@@ -88204,7 +88205,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build auth_netlogond... " >&6; }
  	if test "$MODULE_auth_netlogond"; then
  		DEST=$MODULE_auth_netlogond
-@@ -82403,12 +35327,10 @@
+@@ -82403,12 +35328,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88219,7 +88220,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules auth_netlogond"
-@@ -82419,11 +35341,11 @@
+@@ -82419,11 +35342,11 @@
  		AUTH_STATIC="$AUTH_STATIC \$(AUTH_NETLOGOND_OBJ)"
  
  
@@ -88233,7 +88234,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -82444,7 +35366,7 @@
+@@ -82444,7 +35367,7 @@
  
  
  
@@ -88242,7 +88243,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_default... " >&6; }
  	if test "$MODULE_vfs_default"; then
  		DEST=$MODULE_vfs_default
-@@ -82456,12 +35378,10 @@
+@@ -82456,12 +35379,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88257,7 +88258,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_default"
-@@ -82472,16 +35392,16 @@
+@@ -82472,16 +35393,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_DEFAULT_OBJ)"
  
  
@@ -88277,7 +88278,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_recycle... " >&6; }
  	if test "$MODULE_vfs_recycle"; then
  		DEST=$MODULE_vfs_recycle
-@@ -82493,12 +35413,10 @@
+@@ -82493,12 +35414,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88292,7 +88293,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_recycle"
-@@ -82509,16 +35427,16 @@
+@@ -82509,16 +35428,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_RECYCLE_OBJ)"
  
  
@@ -88312,7 +88313,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_audit... " >&6; }
  	if test "$MODULE_vfs_audit"; then
  		DEST=$MODULE_vfs_audit
-@@ -82530,12 +35448,10 @@
+@@ -82530,12 +35449,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88327,7 +88328,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_audit"
-@@ -82546,16 +35462,16 @@
+@@ -82546,16 +35463,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_AUDIT_OBJ)"
  
  
@@ -88347,7 +88348,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_extd_audit... " >&6; }
  	if test "$MODULE_vfs_extd_audit"; then
  		DEST=$MODULE_vfs_extd_audit
-@@ -82567,12 +35483,10 @@
+@@ -82567,12 +35484,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88362,7 +88363,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_extd_audit"
-@@ -82583,16 +35497,16 @@
+@@ -82583,16 +35498,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_EXTD_AUDIT_OBJ)"
  
  
@@ -88382,7 +88383,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_full_audit... " >&6; }
  	if test "$MODULE_vfs_full_audit"; then
  		DEST=$MODULE_vfs_full_audit
-@@ -82604,12 +35518,10 @@
+@@ -82604,12 +35519,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88397,7 +88398,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_full_audit"
-@@ -82620,16 +35532,16 @@
+@@ -82620,16 +35533,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_FULL_AUDIT_OBJ)"
  
  
@@ -88417,7 +88418,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_netatalk... " >&6; }
  	if test "$MODULE_vfs_netatalk"; then
  		DEST=$MODULE_vfs_netatalk
-@@ -82641,12 +35553,10 @@
+@@ -82641,12 +35554,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88432,7 +88433,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_netatalk"
-@@ -82657,16 +35567,16 @@
+@@ -82657,16 +35568,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_NETATALK_OBJ)"
  
  
@@ -88452,7 +88453,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_fake_perms... " >&6; }
  	if test "$MODULE_vfs_fake_perms"; then
  		DEST=$MODULE_vfs_fake_perms
-@@ -82678,12 +35588,10 @@
+@@ -82678,12 +35589,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88467,7 +88468,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_fake_perms"
-@@ -82694,16 +35602,16 @@
+@@ -82694,16 +35603,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_FAKE_PERMS_OBJ)"
  
  
@@ -88487,7 +88488,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_default_quota... " >&6; }
  	if test "$MODULE_vfs_default_quota"; then
  		DEST=$MODULE_vfs_default_quota
-@@ -82715,12 +35623,10 @@
+@@ -82715,12 +35624,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88502,7 +88503,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_default_quota"
-@@ -82731,16 +35637,16 @@
+@@ -82731,16 +35638,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_DEFAULT_QUOTA_OBJ)"
  
  
@@ -88522,7 +88523,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_readonly... " >&6; }
  	if test "$MODULE_vfs_readonly"; then
  		DEST=$MODULE_vfs_readonly
-@@ -82752,12 +35658,10 @@
+@@ -82752,12 +35659,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88537,7 +88538,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_readonly"
-@@ -82768,16 +35672,16 @@
+@@ -82768,16 +35673,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_READONLY_OBJ)"
  
  
@@ -88557,7 +88558,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_cap... " >&6; }
  	if test "$MODULE_vfs_cap"; then
  		DEST=$MODULE_vfs_cap
-@@ -82789,12 +35693,10 @@
+@@ -82789,12 +35694,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88572,7 +88573,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_cap"
-@@ -82805,16 +35707,16 @@
+@@ -82805,16 +35708,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_CAP_OBJ)"
  
  
@@ -88592,7 +88593,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_expand_msdfs... " >&6; }
  	if test "$MODULE_vfs_expand_msdfs"; then
  		DEST=$MODULE_vfs_expand_msdfs
-@@ -82826,12 +35728,10 @@
+@@ -82826,12 +35729,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88607,7 +88608,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_expand_msdfs"
-@@ -82842,16 +35742,16 @@
+@@ -82842,16 +35743,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_EXPAND_MSDFS_OBJ)"
  
  
@@ -88627,7 +88628,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_shadow_copy... " >&6; }
  	if test "$MODULE_vfs_shadow_copy"; then
  		DEST=$MODULE_vfs_shadow_copy
-@@ -82863,12 +35763,10 @@
+@@ -82863,12 +35764,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88642,7 +88643,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_shadow_copy"
-@@ -82879,16 +35777,16 @@
+@@ -82879,16 +35778,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_SHADOW_COPY_OBJ)"
  
  
@@ -88662,7 +88663,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_shadow_copy2... " >&6; }
  	if test "$MODULE_vfs_shadow_copy2"; then
  		DEST=$MODULE_vfs_shadow_copy2
-@@ -82900,12 +35798,10 @@
+@@ -82900,12 +35799,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88677,7 +88678,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_shadow_copy2"
-@@ -82916,16 +35812,16 @@
+@@ -82916,16 +35813,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_SHADOW_COPY2_OBJ)"
  
  
@@ -88697,7 +88698,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_afsacl... " >&6; }
  	if test "$MODULE_vfs_afsacl"; then
  		DEST=$MODULE_vfs_afsacl
-@@ -82937,12 +35833,10 @@
+@@ -82937,12 +35834,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88712,7 +88713,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_afsacl"
-@@ -82953,16 +35847,16 @@
+@@ -82953,16 +35848,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_AFSACL_OBJ)"
  
  
@@ -88732,7 +88733,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_xattr_tdb... " >&6; }
  	if test "$MODULE_vfs_xattr_tdb"; then
  		DEST=$MODULE_vfs_xattr_tdb
-@@ -82974,12 +35868,10 @@
+@@ -82974,12 +35869,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88747,7 +88748,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_xattr_tdb"
-@@ -82990,16 +35882,16 @@
+@@ -82990,16 +35883,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_XATTR_TDB_OBJ)"
  
  
@@ -88767,7 +88768,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_posixacl... " >&6; }
  	if test "$MODULE_vfs_posixacl"; then
  		DEST=$MODULE_vfs_posixacl
-@@ -83011,12 +35903,10 @@
+@@ -83011,12 +35904,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88782,7 +88783,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_posixacl"
-@@ -83027,16 +35917,16 @@
+@@ -83027,16 +35918,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_POSIXACL_OBJ)"
  
  
@@ -88802,7 +88803,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_aixacl... " >&6; }
  	if test "$MODULE_vfs_aixacl"; then
  		DEST=$MODULE_vfs_aixacl
-@@ -83048,12 +35938,10 @@
+@@ -83048,12 +35939,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88817,7 +88818,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_aixacl"
-@@ -83064,16 +35952,16 @@
+@@ -83064,16 +35953,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_AIXACL_OBJ)"
  
  
@@ -88837,7 +88838,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_aixacl2... " >&6; }
  	if test "$MODULE_vfs_aixacl2"; then
  		DEST=$MODULE_vfs_aixacl2
-@@ -83085,12 +35973,10 @@
+@@ -83085,12 +35974,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88852,7 +88853,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_aixacl2"
-@@ -83101,16 +35987,16 @@
+@@ -83101,16 +35988,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_AIXACL2_OBJ)"
  
  
@@ -88872,7 +88873,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_solarisacl... " >&6; }
  	if test "$MODULE_vfs_solarisacl"; then
  		DEST=$MODULE_vfs_solarisacl
-@@ -83122,12 +36008,10 @@
+@@ -83122,12 +36009,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88887,7 +88888,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_solarisacl"
-@@ -83138,16 +36022,16 @@
+@@ -83138,16 +36023,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_SOLARISACL_OBJ)"
  
  
@@ -88907,7 +88908,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_irixacl... " >&6; }
  	if test "$MODULE_vfs_irixacl"; then
  		DEST=$MODULE_vfs_irixacl
-@@ -83159,12 +36043,10 @@
+@@ -83159,12 +36044,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88922,7 +88923,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_irixacl"
-@@ -83175,16 +36057,16 @@
+@@ -83175,16 +36058,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_IRIXACL_OBJ)"
  
  
@@ -88942,7 +88943,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_hpuxacl... " >&6; }
  	if test "$MODULE_vfs_hpuxacl"; then
  		DEST=$MODULE_vfs_hpuxacl
-@@ -83196,12 +36078,10 @@
+@@ -83196,12 +36079,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88957,7 +88958,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_hpuxacl"
-@@ -83212,16 +36092,16 @@
+@@ -83212,16 +36093,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_HPUXACL_OBJ)"
  
  
@@ -88977,7 +88978,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_tru64acl... " >&6; }
  	if test "$MODULE_vfs_tru64acl"; then
  		DEST=$MODULE_vfs_tru64acl
-@@ -83233,12 +36113,10 @@
+@@ -83233,12 +36114,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -88992,7 +88993,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_tru64acl"
-@@ -83249,16 +36127,16 @@
+@@ -83249,16 +36128,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_TRU64ACL_OBJ)"
  
  
@@ -89012,7 +89013,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_catia... " >&6; }
  	if test "$MODULE_vfs_catia"; then
  		DEST=$MODULE_vfs_catia
-@@ -83270,12 +36148,10 @@
+@@ -83270,12 +36149,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89027,7 +89028,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_catia"
-@@ -83286,16 +36162,16 @@
+@@ -83286,16 +36163,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_CATIA_OBJ)"
  
  
@@ -89047,7 +89048,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_streams_xattr... " >&6; }
  	if test "$MODULE_vfs_streams_xattr"; then
  		DEST=$MODULE_vfs_streams_xattr
-@@ -83307,12 +36183,10 @@
+@@ -83307,12 +36184,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89062,7 +89063,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_streams_xattr"
-@@ -83323,16 +36197,16 @@
+@@ -83323,16 +36198,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_STREAMS_XATTR_OBJ)"
  
  
@@ -89082,7 +89083,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_streams_depot... " >&6; }
  	if test "$MODULE_vfs_streams_depot"; then
  		DEST=$MODULE_vfs_streams_depot
-@@ -83344,12 +36218,10 @@
+@@ -83344,12 +36219,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89097,7 +89098,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_streams_depot"
-@@ -83360,16 +36232,16 @@
+@@ -83360,16 +36233,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_STREAMS_DEPOT_OBJ)"
  
  
@@ -89117,7 +89118,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_cacheprime... " >&6; }
  	if test "$MODULE_vfs_cacheprime"; then
  		DEST=$MODULE_vfs_cacheprime
-@@ -83381,12 +36253,10 @@
+@@ -83381,12 +36254,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89132,7 +89133,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_cacheprime"
-@@ -83397,16 +36267,16 @@
+@@ -83397,16 +36268,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_CACHEPRIME_OBJ)"
  
  
@@ -89152,7 +89153,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_prealloc... " >&6; }
  	if test "$MODULE_vfs_prealloc"; then
  		DEST=$MODULE_vfs_prealloc
-@@ -83418,12 +36288,10 @@
+@@ -83418,12 +36289,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89167,7 +89168,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_prealloc"
-@@ -83434,16 +36302,16 @@
+@@ -83434,16 +36303,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_PREALLOC_OBJ)"
  
  
@@ -89187,7 +89188,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_commit... " >&6; }
  	if test "$MODULE_vfs_commit"; then
  		DEST=$MODULE_vfs_commit
-@@ -83455,12 +36323,10 @@
+@@ -83455,12 +36324,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89202,7 +89203,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_commit"
-@@ -83471,16 +36337,16 @@
+@@ -83471,16 +36338,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_COMMIT_OBJ)"
  
  
@@ -89222,7 +89223,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_gpfs... " >&6; }
  	if test "$MODULE_vfs_gpfs"; then
  		DEST=$MODULE_vfs_gpfs
-@@ -83492,12 +36358,10 @@
+@@ -83492,12 +36359,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89237,7 +89238,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_gpfs"
-@@ -83508,16 +36372,16 @@
+@@ -83508,16 +36373,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_GPFS_OBJ)"
  
  
@@ -89257,7 +89258,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_readahead... " >&6; }
  	if test "$MODULE_vfs_readahead"; then
  		DEST=$MODULE_vfs_readahead
-@@ -83529,12 +36393,10 @@
+@@ -83529,12 +36394,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89272,7 +89273,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_readahead"
-@@ -83545,16 +36407,16 @@
+@@ -83545,16 +36408,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_READAHEAD_OBJ)"
  
  
@@ -89292,7 +89293,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_tsmsm... " >&6; }
  	if test "$MODULE_vfs_tsmsm"; then
  		DEST=$MODULE_vfs_tsmsm
-@@ -83566,12 +36428,10 @@
+@@ -83566,12 +36429,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89307,7 +89308,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_tsmsm"
-@@ -83582,16 +36442,16 @@
+@@ -83582,16 +36443,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_TSMSM_OBJ)"
  
  
@@ -89327,7 +89328,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_fileid... " >&6; }
  	if test "$MODULE_vfs_fileid"; then
  		DEST=$MODULE_vfs_fileid
-@@ -83603,12 +36463,10 @@
+@@ -83603,12 +36464,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89342,7 +89343,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_fileid"
-@@ -83619,16 +36477,16 @@
+@@ -83619,16 +36478,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_FILEID_OBJ)"
  
  
@@ -89362,7 +89363,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_aio_fork... " >&6; }
  	if test "$MODULE_vfs_aio_fork"; then
  		DEST=$MODULE_vfs_aio_fork
-@@ -83640,12 +36498,10 @@
+@@ -83640,12 +36499,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89377,7 +89378,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_aio_fork"
-@@ -83656,16 +36512,16 @@
+@@ -83656,16 +36513,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_AIO_FORK_OBJ)"
  
  
@@ -89397,7 +89398,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_preopen... " >&6; }
  	if test "$MODULE_vfs_preopen"; then
  		DEST=$MODULE_vfs_preopen
-@@ -83677,12 +36533,10 @@
+@@ -83677,12 +36534,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89412,7 +89413,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_preopen"
-@@ -83693,16 +36547,16 @@
+@@ -83693,16 +36548,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_PREOPEN_OBJ)"
  
  
@@ -89432,7 +89433,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_syncops... " >&6; }
  	if test "$MODULE_vfs_syncops"; then
  		DEST=$MODULE_vfs_syncops
-@@ -83714,12 +36568,10 @@
+@@ -83714,12 +36569,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89447,7 +89448,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_syncops"
-@@ -83730,16 +36582,16 @@
+@@ -83730,16 +36583,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_SYNCOPS_OBJ)"
  
  
@@ -89467,7 +89468,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_zfsacl... " >&6; }
  	if test "$MODULE_vfs_zfsacl"; then
  		DEST=$MODULE_vfs_zfsacl
-@@ -83751,12 +36603,10 @@
+@@ -83751,12 +36604,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89482,7 +89483,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_zfsacl"
-@@ -83767,16 +36617,16 @@
+@@ -83767,16 +36618,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_ZFSACL_OBJ)"
  
  
@@ -89502,7 +89503,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_notify_fam... " >&6; }
  	if test "$MODULE_vfs_notify_fam"; then
  		DEST=$MODULE_vfs_notify_fam
-@@ -83788,12 +36638,10 @@
+@@ -83788,12 +36639,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89517,7 +89518,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_notify_fam"
-@@ -83804,16 +36652,16 @@
+@@ -83804,16 +36653,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_NOTIFY_FAM_OBJ)"
  
  
@@ -89537,7 +89538,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_acl_xattr... " >&6; }
  	if test "$MODULE_vfs_acl_xattr"; then
  		DEST=$MODULE_vfs_acl_xattr
-@@ -83825,12 +36673,10 @@
+@@ -83825,12 +36674,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89552,7 +89553,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_acl_xattr"
-@@ -83841,16 +36687,16 @@
+@@ -83841,16 +36688,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_ACL_XATTR_OBJ)"
  
  
@@ -89572,7 +89573,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_acl_tdb... " >&6; }
  	if test "$MODULE_vfs_acl_tdb"; then
  		DEST=$MODULE_vfs_acl_tdb
-@@ -83862,12 +36708,10 @@
+@@ -83862,12 +36709,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89587,7 +89588,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_acl_tdb"
-@@ -83878,16 +36722,16 @@
+@@ -83878,16 +36723,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_ACL_TDB_OBJ)"
  
  
@@ -89607,7 +89608,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_smb_traffic_analyzer... " >&6; }
  	if test "$MODULE_vfs_smb_traffic_analyzer"; then
  		DEST=$MODULE_vfs_smb_traffic_analyzer
-@@ -83899,12 +36743,10 @@
+@@ -83899,12 +36744,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89622,7 +89623,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_smb_traffic_analyzer"
-@@ -83915,16 +36757,16 @@
+@@ -83915,16 +36758,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_SMB_TRAFFIC_ANALYZER_OBJ)"
  
  
@@ -89642,7 +89643,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_onefs... " >&6; }
  	if test "$MODULE_vfs_onefs"; then
  		DEST=$MODULE_vfs_onefs
-@@ -83936,12 +36778,10 @@
+@@ -83936,12 +36779,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89657,7 +89658,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_onefs"
-@@ -83952,16 +36792,16 @@
+@@ -83952,16 +36793,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_ONEFS)"
  
  
@@ -89677,7 +89678,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_onefs_shadow_copy... " >&6; }
  	if test "$MODULE_vfs_onefs_shadow_copy"; then
  		DEST=$MODULE_vfs_onefs_shadow_copy
-@@ -83973,12 +36813,10 @@
+@@ -83973,12 +36814,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89692,7 +89693,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_onefs_shadow_copy"
-@@ -83989,16 +36827,16 @@
+@@ -83989,16 +36828,16 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_ONEFS_SHADOW_COPY)"
  
  
@@ -89712,7 +89713,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build vfs_dirsort... " >&6; }
  	if test "$MODULE_vfs_dirsort"; then
  		DEST=$MODULE_vfs_dirsort
-@@ -84010,12 +36848,10 @@
+@@ -84010,12 +36849,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89727,7 +89728,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules vfs_dirsort"
-@@ -84026,11 +36862,11 @@
+@@ -84026,11 +36863,11 @@
  		VFS_STATIC="$VFS_STATIC \$(VFS_DIRSORT_OBJ)"
  
  
@@ -89741,7 +89742,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -84052,7 +36888,7 @@
+@@ -84052,7 +36889,7 @@
  
  
  
@@ -89750,7 +89751,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build perfcount_onefs... " >&6; }
  	if test "$MODULE_perfcount_onefs"; then
  		DEST=$MODULE_perfcount_onefs
-@@ -84064,12 +36900,10 @@
+@@ -84064,12 +36901,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89765,7 +89766,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules perfcount_onefs"
-@@ -84080,16 +36914,16 @@
+@@ -84080,16 +36915,16 @@
  		PERFCOUNT_STATIC="$PERFCOUNT_STATIC \$(PERFCOUNT_ONEFS)"
  
  
@@ -89785,7 +89786,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build perfcount_test... " >&6; }
  	if test "$MODULE_perfcount_test"; then
  		DEST=$MODULE_perfcount_test
-@@ -84101,12 +36935,10 @@
+@@ -84101,12 +36936,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89800,7 +89801,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules perfcount_test"
-@@ -84117,11 +36949,11 @@
+@@ -84117,11 +36950,11 @@
  		PERFCOUNT_STATIC="$PERFCOUNT_STATIC \$(PERFCOUNT_TEST)"
  
  
@@ -89814,7 +89815,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -84142,7 +36974,7 @@
+@@ -84142,7 +36975,7 @@
  
  
  
@@ -89823,7 +89824,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build gpext_registry... " >&6; }
  	if test "$MODULE_gpext_registry"; then
  		DEST=$MODULE_gpext_registry
-@@ -84154,12 +36986,10 @@
+@@ -84154,12 +36987,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89838,7 +89839,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules gpext_registry"
-@@ -84170,16 +37000,16 @@
+@@ -84170,16 +37001,16 @@
  		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/registry.o"
  
  
@@ -89858,7 +89859,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build gpext_scripts... " >&6; }
  	if test "$MODULE_gpext_scripts"; then
  		DEST=$MODULE_gpext_scripts
-@@ -84191,12 +37021,10 @@
+@@ -84191,12 +37022,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89873,7 +89874,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules gpext_scripts"
-@@ -84207,16 +37035,16 @@
+@@ -84207,16 +37036,16 @@
  		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/scripts.o"
  
  
@@ -89893,7 +89894,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking how to build gpext_security... " >&6; }
  	if test "$MODULE_gpext_security"; then
  		DEST=$MODULE_gpext_security
-@@ -84228,12 +37056,10 @@
+@@ -84228,12 +37057,10 @@
  
  	if test x"$DEST" = xSHARED; then
  
@@ -89908,7 +89909,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "shared" >&6; }
  
  		string_shared_modules="$string_shared_modules gpext_security"
-@@ -84244,11 +37070,11 @@
+@@ -84244,11 +37071,11 @@
  		GPEXT_STATIC="$GPEXT_STATIC libgpo/gpext/security.o"
  
  
@@ -89922,7 +89923,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "not" >&6; }
  	fi
  
-@@ -84284,18 +37110,16 @@
+@@ -84284,18 +37111,16 @@
  #################################################
  # If run from the build farm, enable NASTY hacks
  #################################################
@@ -89945,7 +89946,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -84312,11 +37136,11 @@
+@@ -84312,11 +37137,11 @@
      rt_signal_lease_works=yes
      rt_signal_aio_works=yes
  
@@ -89960,7 +89961,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "cross" >&6; }
  
  	    # cross compiling, I hope you know what you are doing
-@@ -84324,11 +37148,7 @@
+@@ -84324,11 +37149,7 @@
  
  
  else
@@ -89973,7 +89974,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <sys/types.h>
-@@ -84384,41 +37204,16 @@
+@@ -84384,41 +37205,16 @@
  }
  
  _ACEOF
@@ -90019,7 +90020,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  int
-@@ -84429,61 +37224,31 @@
+@@ -84429,61 +37225,31 @@
    return 0;
  }
  _ACEOF
@@ -90088,7 +90089,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	    case "$ac_status" in
  		1|11|101|111)  rt_signal_lease_ok=no ;;
-@@ -84497,13 +37262,9 @@
+@@ -84497,13 +37263,9 @@
  
  	    # no RT_SIGNAL bug, we are golden
  
@@ -90104,7 +90105,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  int
-@@ -84514,65 +37275,39 @@
+@@ -84514,65 +37276,39 @@
    return 0;
  }
  _ACEOF
@@ -90179,7 +90180,7 @@ Index: samba-deb.clean/source3/configure
    enableval=$enable_merged_build;  enable_merged_build=$enableval
  else
     enable_merged_build=auto
-@@ -84581,9 +37316,7 @@
+@@ -84581,9 +37317,7 @@
  
  if test x"$enable_merged_build" = x"yes" -a \
  	x"$merged_build_possible" = x"no" ; then
@@ -90190,7 +90191,7 @@ Index: samba-deb.clean/source3/configure
  fi
  
  
-@@ -84603,9 +37336,9 @@
+@@ -84603,9 +37337,9 @@
  
  	# Extract the first word of "python[$PYTHON_VERSION]", so it can be a program name with args.
  set dummy python$PYTHON_VERSION; ac_word=$2
@@ -90202,7 +90203,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON in
-@@ -84618,14 +37351,14 @@
+@@ -84618,14 +37352,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90220,7 +90221,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -84633,17 +37366,17 @@
+@@ -84633,17 +37367,17 @@
  fi
  PYTHON=$ac_cv_path_PYTHON
  if test -n "$PYTHON"; then
@@ -90241,7 +90242,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: No python found" >&2;}
  	fi
  
-@@ -84654,9 +37387,9 @@
+@@ -84654,9 +37388,9 @@
  do
    # Extract the first word of "$ac_prog", so it can be a program name with args.
  set dummy $ac_prog; ac_word=$2
@@ -90253,7 +90254,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON_CONFIG in
-@@ -84669,14 +37402,14 @@
+@@ -84669,14 +37403,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90271,7 +90272,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -84684,10 +37417,10 @@
+@@ -84684,10 +37418,10 @@
  fi
  PYTHON_CONFIG=$ac_cv_path_PYTHON_CONFIG
  if test -n "$PYTHON_CONFIG"; then
@@ -90284,7 +90285,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -84698,9 +37431,9 @@
+@@ -84698,9 +37432,9 @@
  	else
  		# Extract the first word of "python[$PYTHON_VERSION]-config", so it can be a program name with args.
  set dummy python$PYTHON_VERSION-config; ac_word=$2
@@ -90296,7 +90297,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON_CONFIG in
-@@ -84713,14 +37446,14 @@
+@@ -84713,14 +37447,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90314,7 +90315,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -84728,10 +37461,10 @@
+@@ -84728,10 +37462,10 @@
  fi
  PYTHON_CONFIG=$ac_cv_path_PYTHON_CONFIG
  if test -n "$PYTHON_CONFIG"; then
@@ -90327,7 +90328,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -84739,7 +37472,7 @@
+@@ -84739,7 +37473,7 @@
  	fi
  
  	if test -z "$PYTHON_CONFIG"; then
@@ -90336,7 +90337,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: No python-config found" >&2;}
  	else
  
-@@ -84749,11 +37482,7 @@
+@@ -84749,11 +37483,7 @@
  		LIBS="$LIBS `$PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --includes`"
  
@@ -90349,7 +90350,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -84769,42 +37498,15 @@
+@@ -84769,42 +37499,15 @@
    return 0;
  }
  _ACEOF
@@ -90395,7 +90396,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -84816,11 +37518,7 @@
+@@ -84816,11 +37519,7 @@
  		LIBS="$LIBS `$PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --cflags`"
  
@@ -90408,7 +90409,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -84836,42 +37534,15 @@
+@@ -84836,42 +37535,15 @@
    return 0;
  }
  _ACEOF
@@ -90454,7 +90455,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -84886,11 +37557,7 @@
+@@ -84886,11 +37558,7 @@
  		LIBS="$LIBS `echo -n -L${base}/lib " "; $PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --includes`"
  
@@ -90467,7 +90468,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -84906,42 +37573,15 @@
+@@ -84906,42 +37574,15 @@
    return 0;
  }
  _ACEOF
@@ -90513,7 +90514,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -84953,11 +37593,7 @@
+@@ -84953,11 +37594,7 @@
  		LIBS="$LIBS `echo -n -L${base}/lib " "; $PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --cflags`"
  
@@ -90526,7 +90527,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -84973,42 +37609,15 @@
+@@ -84973,42 +37610,15 @@
    return 0;
  }
  _ACEOF
@@ -90572,7 +90573,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -85038,11 +37647,7 @@
+@@ -85038,11 +37648,7 @@
  		LIBS="$LIBS $DISTUTILS_LDFLAGS"
  		CFLAGS="$CFLAGS $DISTUTILS_CFLAGS"
  
@@ -90585,7 +90586,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85058,64 +37663,37 @@
+@@ -85058,64 +37664,37 @@
    return 0;
  }
  _ACEOF
@@ -90658,7 +90659,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$merged_build_possible" >&6; }
  
  	# Enable merged build automatically if possible, when in developer mode
-@@ -85168,9 +37746,9 @@
+@@ -85168,9 +37747,9 @@
  
  	# Extract the first word of "python[$PYTHON_VERSION]", so it can be a program name with args.
  set dummy python$PYTHON_VERSION; ac_word=$2
@@ -90670,7 +90671,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON in
-@@ -85183,14 +37761,14 @@
+@@ -85183,14 +37762,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90688,7 +90689,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -85198,17 +37776,17 @@
+@@ -85198,17 +37777,17 @@
  fi
  PYTHON=$ac_cv_path_PYTHON
  if test -n "$PYTHON"; then
@@ -90709,7 +90710,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: No python found" >&2;}
  	fi
  
-@@ -85219,9 +37797,9 @@
+@@ -85219,9 +37798,9 @@
  do
    # Extract the first word of "$ac_prog", so it can be a program name with args.
  set dummy $ac_prog; ac_word=$2
@@ -90721,7 +90722,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON_CONFIG in
-@@ -85234,14 +37812,14 @@
+@@ -85234,14 +37813,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90739,7 +90740,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -85249,10 +37827,10 @@
+@@ -85249,10 +37828,10 @@
  fi
  PYTHON_CONFIG=$ac_cv_path_PYTHON_CONFIG
  if test -n "$PYTHON_CONFIG"; then
@@ -90752,7 +90753,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -85263,9 +37841,9 @@
+@@ -85263,9 +37842,9 @@
  	else
  		# Extract the first word of "python[$PYTHON_VERSION]-config", so it can be a program name with args.
  set dummy python$PYTHON_VERSION-config; ac_word=$2
@@ -90764,7 +90765,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PYTHON_CONFIG in
-@@ -85278,14 +37856,14 @@
+@@ -85278,14 +37857,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -90782,7 +90783,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    ;;
-@@ -85293,10 +37871,10 @@
+@@ -85293,10 +37872,10 @@
  fi
  PYTHON_CONFIG=$ac_cv_path_PYTHON_CONFIG
  if test -n "$PYTHON_CONFIG"; then
@@ -90795,7 +90796,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -85304,7 +37882,7 @@
+@@ -85304,7 +37883,7 @@
  	fi
  
  	if test -z "$PYTHON_CONFIG"; then
@@ -90804,7 +90805,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: No python-config found" >&2;}
  	else
  
-@@ -85314,11 +37892,7 @@
+@@ -85314,11 +37893,7 @@
  		LIBS="$LIBS `$PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --includes`"
  
@@ -90817,7 +90818,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85334,42 +37908,15 @@
+@@ -85334,42 +37909,15 @@
    return 0;
  }
  _ACEOF
@@ -90863,7 +90864,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -85381,11 +37928,7 @@
+@@ -85381,11 +37929,7 @@
  		LIBS="$LIBS `$PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --cflags`"
  
@@ -90876,7 +90877,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85401,42 +37944,15 @@
+@@ -85401,42 +37945,15 @@
    return 0;
  }
  _ACEOF
@@ -90922,7 +90923,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -85451,11 +37967,7 @@
+@@ -85451,11 +37968,7 @@
  		LIBS="$LIBS `echo -n -L${base}/lib " "; $PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --includes`"
  
@@ -90935,7 +90936,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85471,42 +37983,15 @@
+@@ -85471,42 +37984,15 @@
    return 0;
  }
  _ACEOF
@@ -90981,7 +90982,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -85518,11 +38003,7 @@
+@@ -85518,11 +38004,7 @@
  		LIBS="$LIBS `echo -n -L${base}/lib " "; $PYTHON_CONFIG --ldflags`"
  		CFLAGS="$CFLAGS `$PYTHON_CONFIG --cflags`"
  
@@ -90994,7 +90995,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85538,42 +38019,15 @@
+@@ -85538,42 +38020,15 @@
    return 0;
  }
  _ACEOF
@@ -91040,7 +91041,7 @@ Index: samba-deb.clean/source3/configure
  		LIBS="$ac_save_LIBS"
  		CFLAGS="$ac_save_CFLAGS"
  	fi
-@@ -85603,11 +38057,7 @@
+@@ -85603,11 +38058,7 @@
  		LIBS="$LIBS $DISTUTILS_LDFLAGS"
  		CFLAGS="$CFLAGS $DISTUTILS_CFLAGS"
  
@@ -91053,7 +91054,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  				/* we have our own configure tests */
-@@ -85623,52 +38073,25 @@
+@@ -85623,52 +38074,25 @@
    return 0;
  }
  _ACEOF
@@ -91111,7 +91112,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  
  
-@@ -85696,20 +38119,18 @@
+@@ -85696,20 +38120,18 @@
  
  
  	else
@@ -91136,7 +91137,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$pythondir" >&6; }
  
  
-@@ -85732,545 +38153,125 @@
+@@ -85732,545 +38154,125 @@
  
  
  
@@ -91762,7 +91763,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -86288,63 +38289,32 @@
+@@ -86288,63 +38290,32 @@
    return 0;
  }
  _ACEOF
@@ -91837,7 +91838,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -86362,43 +38332,18 @@
+@@ -86362,43 +38333,18 @@
    return 0;
  }
  _ACEOF
@@ -91887,7 +91888,7 @@ Index: samba-deb.clean/source3/configure
    TERMLIBS="-lreadline $TERMLIBS"
         EXTERNAL_READLINE=yes
         break
-@@ -86412,11 +38357,11 @@
+@@ -86412,11 +38358,11 @@
  
      ;;
    no)
@@ -91901,7 +91902,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  
      # Needed for AC_CHECK_HEADERS and AC_CHECK_LIB to look at
-@@ -86428,151 +38373,12 @@
+@@ -86428,151 +38374,12 @@
      LDFLAGS="-L$with_readline/lib $LDFLAGS"
      CPPFLAGS="-I$with_readline/include $CPPFLAGS"
  
@@ -92059,7 +92060,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -86581,151 +38387,12 @@
+@@ -86581,151 +38388,12 @@
  
  done
  
@@ -92216,7 +92217,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -86733,168 +38400,26 @@
+@@ -86733,168 +38401,26 @@
  done
  
  
@@ -92394,7 +92395,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -86912,63 +38437,32 @@
+@@ -86912,63 +38438,32 @@
    return 0;
  }
  _ACEOF
@@ -92469,7 +92470,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -86986,43 +38480,18 @@
+@@ -86986,43 +38481,18 @@
    return 0;
  }
  _ACEOF
@@ -92519,7 +92520,7 @@ Index: samba-deb.clean/source3/configure
    TERMLDFLAGS="-L$with_readline/lib"
         TERMCPPFLAGS="-I$with_readline/include"
         LDFLAGS="-L$with_readline/lib $LDFLAGS"
-@@ -87042,7 +38511,7 @@
+@@ -87042,7 +38512,7 @@
      ;;
    esac
  else
@@ -92528,7 +92529,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  
  fi
-@@ -87051,163 +38520,70 @@
+@@ -87051,163 +38521,70 @@
  # The readline API changed slightly from readline3 to readline4, so
  # code will generate warnings on one of them unless we have a few
  # special cases.
@@ -92729,7 +92730,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -87225,60 +38601,31 @@
+@@ -87225,60 +38602,31 @@
    return 0;
  }
  _ACEOF
@@ -92800,7 +92801,7 @@ Index: samba-deb.clean/source3/configure
  
  
  MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -87333,7 +38680,7 @@
+@@ -87333,7 +38681,7 @@
  ###################################
  "
  
@@ -92809,7 +92810,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -87342,102 +38689,9 @@
+@@ -87342,102 +38690,9 @@
  
  
  
@@ -92914,7 +92915,7 @@ Index: samba-deb.clean/source3/configure
  else
  
  cat >>confdefs.h <<_ACEOF
-@@ -87446,102 +38700,9 @@
+@@ -87446,102 +38701,9 @@
  
  fi
  
@@ -93019,7 +93020,7 @@ Index: samba-deb.clean/source3/configure
  else
  
  cat >>confdefs.h <<_ACEOF
-@@ -87551,151 +38712,12 @@
+@@ -87551,151 +38713,12 @@
  fi
  
  
@@ -93175,7 +93176,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  else
-@@ -87705,30 +38727,6 @@
+@@ -87705,30 +38728,6 @@
  done
  
  
@@ -93206,7 +93207,7 @@ Index: samba-deb.clean/source3/configure
  for ac_header in 				\
  	crypt.h					\
  	curses.h				\
-@@ -87755,147 +38753,11 @@
+@@ -87755,147 +38754,11 @@
  	netinet6/in6.h				\
  	libintl.h
  
@@ -93359,7 +93360,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -87905,42 +38767,6 @@
+@@ -87905,42 +38768,6 @@
  done
  
  
@@ -93402,7 +93403,7 @@ Index: samba-deb.clean/source3/configure
  for ac_func in 				\
  	atexit					\
  	cgetent					\
-@@ -87979,98 +38805,11 @@
+@@ -87979,98 +38806,11 @@
  	freehostent				\
  	writev
  
@@ -93506,7 +93507,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
  _ACEOF
-@@ -88081,17 +38820,13 @@
+@@ -88081,17 +38821,13 @@
  
  
  
@@ -93527,7 +93528,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #ifdef HAVE_SYS_BSWAP_H
  #include <sys/bswap.h>
-@@ -88104,140 +38839,25 @@
+@@ -88104,140 +38840,25 @@
    return 0;
  }
  _ACEOF
@@ -93677,7 +93678,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -88253,177 +38873,58 @@
+@@ -88253,177 +38874,58 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -93882,7 +93883,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -88439,11 +38940,11 @@
+@@ -88439,11 +38941,11 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -93896,7 +93897,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	;;
  esac
-@@ -88454,25 +38955,21 @@
+@@ -88454,25 +38956,21 @@
  
  
  
@@ -93926,7 +93927,7 @@ Index: samba-deb.clean/source3/configure
    ac_cv_struct_winsize=yes; break
  fi
  rm -f conftest*
-@@ -88482,63 +38979,45 @@
+@@ -88482,63 +38980,45 @@
  
  if test "$ac_cv_struct_winsize" = "yes"; then
  
@@ -94001,7 +94002,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <signal.h>
-@@ -88551,35 +39030,14 @@
+@@ -88551,35 +39031,14 @@
    return 0;
  }
  _ACEOF
@@ -94040,7 +94041,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$ac_cv_type_signal" >&6; }
  
  cat >>confdefs.h <<_ACEOF
-@@ -88589,9 +39047,7 @@
+@@ -88589,9 +39048,7 @@
  
  if test "$ac_cv_type_signal" = "void" ; then
  
@@ -94051,7 +94052,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -88622,18 +39078,14 @@
+@@ -88622,18 +39079,14 @@
  
  
  
@@ -94073,7 +94074,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #ifdef HAVE_SYS_TYPES_H
  #include <sys/types.h>
-@@ -88650,44 +39102,15 @@
+@@ -88650,44 +39103,15 @@
    return 0;
  }
  _ACEOF
@@ -94123,7 +94124,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  extern int h_errno;
  int foo(void) { return h_errno; }
-@@ -88699,44 +39122,19 @@
+@@ -88699,44 +39123,19 @@
    return 0;
  }
  _ACEOF
@@ -94173,7 +94174,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$ac_foo" >&6; }
  if test "$ac_foo" = yes; then
  
-@@ -88744,81 +39142,23 @@
+@@ -88744,81 +39143,23 @@
  #define HAVE_H_ERRNO 1
  _ACEOF
  
@@ -94261,7 +94262,7 @@ Index: samba-deb.clean/source3/configure
  fi
  
  
-@@ -88837,23 +39177,17 @@
+@@ -88837,23 +39178,17 @@
  
  
  
@@ -94288,7 +94289,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -88871,54 +39205,28 @@
+@@ -88871,54 +39206,28 @@
    return 0;
  }
  _ACEOF
@@ -94350,7 +94351,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBUTIL 1
  _ACEOF
-@@ -88935,7 +39243,6 @@
+@@ -88935,7 +39244,6 @@
  fi
  
  
@@ -94358,7 +94359,7 @@ Index: samba-deb.clean/source3/configure
  	MAKE_SETTINGS="$MAKE_SETTINGS
  OPENPTY_ENABLE = YES
  "
-@@ -88955,23 +39262,17 @@
+@@ -88955,23 +39263,17 @@
  
  
  
@@ -94385,7 +94386,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -88989,54 +39290,28 @@
+@@ -88989,54 +39291,28 @@
    return 0;
  }
  _ACEOF
@@ -94447,7 +94448,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBINTL 1
  _ACEOF
-@@ -89053,7 +39328,6 @@
+@@ -89053,7 +39329,6 @@
  fi
  
  
@@ -94455,7 +94456,7 @@ Index: samba-deb.clean/source3/configure
  	MAKE_SETTINGS="$MAKE_SETTINGS
  INTL_ENABLE = YES
  "
-@@ -89077,151 +39351,12 @@
+@@ -89077,151 +39352,12 @@
  
  
  
@@ -94611,7 +94612,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -89229,22 +39364,9 @@
+@@ -89229,22 +39365,9 @@
  done
  
  
@@ -94636,7 +94637,7 @@ Index: samba-deb.clean/source3/configure
  #ifdef HAVE_SYS_TYPES_H
  #include <sys/types.h>
  #endif
-@@ -89255,46 +39377,10 @@
+@@ -89255,46 +39378,10 @@
  #include <arpa/nameser.h>
  #endif
  
@@ -94686,7 +94687,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -89306,9 +39392,9 @@
+@@ -89306,9 +39393,9 @@
  
  
  
@@ -94698,7 +94699,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -89323,11 +39409,7 @@
+@@ -89323,11 +39410,7 @@
  		*) ac_lib="-l$ac_lib" ;;
  		esac
  		LIBS=" $ac_lib  $ac_save_LIBS"
@@ -94711,7 +94712,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <stdio.h>
-@@ -89352,38 +39434,11 @@
+@@ -89352,38 +39435,11 @@
    return 0;
  }
  _ACEOF
@@ -94753,7 +94754,7 @@ Index: samba-deb.clean/source3/configure
  	done
  	eval "ac_cv_funclib_res_search=\${ac_cv_funclib_res_search-no}"
  	LIBS="$ac_save_LIBS"
-@@ -89395,102 +39450,12 @@
+@@ -89395,102 +39451,12 @@
  eval "ac_res=\$ac_cv_funclib_res_search"
  
  if false; then
@@ -94861,7 +94862,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -89510,13 +39475,13 @@
+@@ -89510,13 +39476,13 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -94877,7 +94878,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	;;
  	*)
-@@ -89530,7 +39495,7 @@
+@@ -89530,7 +39496,7 @@
  #define $ac_tr_lib 1
  _ACEOF
  
@@ -94886,7 +94887,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes, in $ac_res" >&6; }
  	;;
  esac
-@@ -89545,9 +39510,9 @@
+@@ -89545,9 +39511,9 @@
  
  
  
@@ -94898,7 +94899,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -89562,11 +39527,7 @@
+@@ -89562,11 +39528,7 @@
  		*) ac_lib="-l$ac_lib" ;;
  		esac
  		LIBS=" $ac_lib  $ac_save_LIBS"
@@ -94911,7 +94912,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <stdio.h>
-@@ -89591,38 +39552,11 @@
+@@ -89591,38 +39553,11 @@
    return 0;
  }
  _ACEOF
@@ -94953,7 +94954,7 @@ Index: samba-deb.clean/source3/configure
  	done
  	eval "ac_cv_funclib_res_nsearch=\${ac_cv_funclib_res_nsearch-no}"
  	LIBS="$ac_save_LIBS"
-@@ -89634,102 +39568,12 @@
+@@ -89634,102 +39569,12 @@
  eval "ac_res=\$ac_cv_funclib_res_nsearch"
  
  if false; then
@@ -95061,7 +95062,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -89749,13 +39593,13 @@
+@@ -89749,13 +39594,13 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -95077,7 +95078,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	;;
  	*)
-@@ -89769,7 +39613,7 @@
+@@ -89769,7 +39614,7 @@
  #define $ac_tr_lib 1
  _ACEOF
  
@@ -95086,7 +95087,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes, in $ac_res" >&6; }
  	;;
  esac
-@@ -89784,9 +39628,9 @@
+@@ -89784,9 +39629,9 @@
  
  
  
@@ -95098,7 +95099,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -89801,11 +39645,7 @@
+@@ -89801,11 +39646,7 @@
  		*) ac_lib="-l$ac_lib" ;;
  		esac
  		LIBS=" $ac_lib  $ac_save_LIBS"
@@ -95111,7 +95112,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <stdio.h>
-@@ -89830,38 +39670,11 @@
+@@ -89830,38 +39671,11 @@
    return 0;
  }
  _ACEOF
@@ -95153,7 +95154,7 @@ Index: samba-deb.clean/source3/configure
  	done
  	eval "ac_cv_funclib_res_ndestroy=\${ac_cv_funclib_res_ndestroy-no}"
  	LIBS="$ac_save_LIBS"
-@@ -89872,103 +39685,13 @@
+@@ -89872,103 +39686,13 @@
  
  eval "ac_res=\$ac_cv_funclib_res_ndestroy"
  
@@ -95263,7 +95264,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -89988,13 +39711,13 @@
+@@ -89988,13 +39712,13 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -95279,7 +95280,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	;;
  	*)
-@@ -90008,7 +39731,7 @@
+@@ -90008,7 +39732,7 @@
  #define $ac_tr_lib 1
  _ACEOF
  
@@ -95288,7 +95289,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes, in $ac_res" >&6; }
  	;;
  esac
-@@ -90023,9 +39746,9 @@
+@@ -90023,9 +39747,9 @@
  
  
  
@@ -95300,7 +95301,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -90040,11 +39763,7 @@
+@@ -90040,11 +39764,7 @@
  		*) ac_lib="-l$ac_lib" ;;
  		esac
  		LIBS=" $ac_lib  $ac_save_LIBS"
@@ -95313,7 +95314,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <stdio.h>
-@@ -90069,38 +39788,11 @@
+@@ -90069,38 +39789,11 @@
    return 0;
  }
  _ACEOF
@@ -95355,7 +95356,7 @@ Index: samba-deb.clean/source3/configure
  	done
  	eval "ac_cv_funclib_dn_expand=\${ac_cv_funclib_dn_expand-no}"
  	LIBS="$ac_save_LIBS"
-@@ -90112,102 +39804,12 @@
+@@ -90112,102 +39805,12 @@
  eval "ac_res=\$ac_cv_funclib_dn_expand"
  
  if false; then
@@ -95463,7 +95464,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -90227,13 +39829,13 @@
+@@ -90227,13 +39830,13 @@
  #define $ac_tr_func 1
  _ACEOF
  
@@ -95479,7 +95480,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  	;;
  	*)
-@@ -90247,7 +39849,7 @@
+@@ -90247,7 +39850,7 @@
  #define $ac_tr_lib 1
  _ACEOF
  
@@ -95488,7 +95489,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes, in $ac_res" >&6; }
  	;;
  esac
-@@ -90259,18 +39861,14 @@
+@@ -90259,18 +39862,14 @@
  
  
  
@@ -95510,7 +95511,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdio.h>
  #ifdef HAVE_SYS_TYPES_H
-@@ -90294,44 +39892,15 @@
+@@ -90294,44 +39893,15 @@
    return 0;
  }
  _ACEOF
@@ -95560,7 +95561,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  extern int _res;
  int foo(void) { return _res; }
-@@ -90343,44 +39912,19 @@
+@@ -90343,44 +39913,19 @@
    return 0;
  }
  _ACEOF
@@ -95610,7 +95611,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$ac_foo" >&6; }
  if test "$ac_foo" = yes; then
  
-@@ -90388,18 +39932,7 @@
+@@ -90388,18 +39933,7 @@
  #define HAVE__RES 1
  _ACEOF
  
@@ -95630,7 +95631,7 @@ Index: samba-deb.clean/source3/configure
  #ifdef HAVE_SYS_TYPES_H
  #include <sys/types.h>
  #endif
-@@ -90412,64 +39945,17 @@
+@@ -90412,64 +39946,17 @@
  #ifdef HAVE_RESOLV_H
  #include <resolv.h>
  #endif
@@ -95700,7 +95701,7 @@ Index: samba-deb.clean/source3/configure
  fi
  
  
-@@ -90535,9 +40021,9 @@
+@@ -90535,9 +40022,9 @@
  do
    # Extract the first word of "$ac_prog", so it can be a program name with args.
  set dummy $ac_prog; ac_word=$2
@@ -95712,7 +95713,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    if test -n "$LEX"; then
-@@ -90548,24 +40034,24 @@
+@@ -90548,24 +40035,24 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -95742,7 +95743,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -90594,20 +40080,20 @@
+@@ -90594,20 +40081,20 @@
    return ! yylex () + ! yywrap ();
  }
  _ACEOF
@@ -95770,7 +95771,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -90616,19 +40102,17 @@
+@@ -90616,19 +40103,17 @@
  elif test -f lexyy.c; then
    ac_cv_prog_lex_root=lexyy
  else
@@ -95794,7 +95795,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
  
-@@ -90636,55 +40120,29 @@
+@@ -90636,55 +40121,29 @@
      ac_cv_lib_lex='none needed'
      for ac_lib in '' -lfl -ll; do
        LIBS="$ac_lib $ac_save_LIBS"
@@ -95858,7 +95859,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    # POSIX says lex can declare yytext either as a pointer or an array; the
-@@ -90693,52 +40151,24 @@
+@@ -90693,52 +40152,24 @@
  ac_cv_prog_lex_yytext_pointer=no
  ac_save_LIBS=$LIBS
  LIBS="$LEXLIB $ac_save_LIBS"
@@ -95918,7 +95919,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  rm -f conftest.l $LEX_OUTPUT_ROOT.c
-@@ -90748,9 +40178,9 @@
+@@ -90748,9 +40179,9 @@
  if test x"$LEX_BASENAME" = x"flex"; then
  	# "flex 2.5.33"
  	FLEX_VERSION=`$LEX --version | cut -d ' ' -f2`
@@ -95930,7 +95931,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$FLEX_VERSION" >&6; }
  	FLEX_MAJOR=`echo $FLEX_VERSION | cut -d '.' -f1`
  	FLEX_MINOR=`echo $FLEX_VERSION | cut -d '.' -f2`
-@@ -90763,9 +40193,9 @@
+@@ -90763,9 +40194,9 @@
  do
    # Extract the first word of "$ac_prog", so it can be a program name with args.
  set dummy $ac_prog; ac_word=$2
@@ -95942,7 +95943,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    if test -n "$YACC"; then
-@@ -90776,24 +40206,24 @@
+@@ -90776,24 +40207,24 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -95972,7 +95973,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -90806,9 +40236,9 @@
+@@ -90806,9 +40237,9 @@
  if test x"$YACC_BASENAME" = x"bison -y"; then
  	# bison (GNU Bison) 2.3
  	BISON_VERSION=`$YACC --version | head -1 | cut -d ' ' -f4`
@@ -95984,7 +95985,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$BISON_VERSION" >&6; }
  	BISON_MAJOR=`echo $BISON_VERSION | cut -d '.' -f1`
  	BISON_MINOR=`echo $BISON_VERSION | cut -d '.' -f2`
-@@ -90816,7 +40246,7 @@
+@@ -90816,7 +40247,7 @@
  	YACC_VERSION="bison-$BISON_MAJOR.$BISON_MINOR"
  fi
  
@@ -95993,7 +95994,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo_n "checking working LEX YACC combination... " >&6; }
  LEX_YACC="no"
  if test x"$LEX_VERSION" != x"" -a x"$YACC_VERSION" != x""; then
-@@ -90832,7 +40262,7 @@
+@@ -90832,7 +40263,7 @@
  	LEX=false
  	YACC=false
  fi
@@ -96002,7 +96003,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$LEX_YACC" >&6; }
  
  # Portions of heimdal kerberos are unpacked into source/heimdal
-@@ -90840,21 +40270,15 @@
+@@ -90840,21 +40271,15 @@
  
  # if we ever get to using a host kerberos, we might add conditionals here
  
@@ -96027,7 +96028,7 @@ Index: samba-deb.clean/source3/configure
  
  HAVE_GSSAPI=YES
  
-@@ -90946,9 +40370,7 @@
+@@ -90946,9 +40371,7 @@
  VPATH="$VPATH:\$(HEIMDAL_VPATH)"
  
  
@@ -96038,7 +96039,7 @@ Index: samba-deb.clean/source3/configure
  
  
  
-@@ -90957,170 +40379,27 @@
+@@ -90957,170 +40380,27 @@
  "
  
  
@@ -96216,7 +96217,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -91138,46 +40417,15 @@
+@@ -91138,46 +40418,15 @@
    return 0;
  }
  _ACEOF
@@ -96267,7 +96268,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -91195,65 +40443,32 @@
+@@ -91195,65 +40444,32 @@
    return 0;
  }
  _ACEOF
@@ -96341,7 +96342,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  /* Define backtrace to an innocuous variant, in case <limits.h> declares backtrace.
     For example, HP-UX 11i <limits.h> declares gettimeofday.  */
-@@ -91294,43 +40509,18 @@
+@@ -91294,43 +40510,18 @@
    return 0;
  }
  _ACEOF
@@ -96391,7 +96392,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_BACKTRACE 1
  _ACEOF
-@@ -91338,7 +40528,6 @@
+@@ -91338,7 +40529,6 @@
  fi
  
  
@@ -96399,7 +96400,7 @@ Index: samba-deb.clean/source3/configure
  if test x"$ac_cv_header_execinfo_h" = x"yes" -a x"$ac_cv_func_ext_backtrace" = x"yes";then
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -91369,362 +40558,43 @@
+@@ -91369,362 +40559,43 @@
  "
  
  
@@ -96796,7 +96797,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -91734,65 +40604,16 @@
+@@ -91734,65 +40605,16 @@
  done
  
  
@@ -96867,7 +96868,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -91805,19 +40626,15 @@
+@@ -91805,19 +40627,15 @@
  # Test for statvfs64.
  if test $space = no; then
    # SVR4
@@ -96891,7 +96892,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #if defined(HAVE_UNISTD_H)
-@@ -91831,51 +40648,22 @@
+@@ -91831,51 +40649,22 @@
      exit (statvfs64 (".", &fsd));
    }
  _ACEOF
@@ -96949,7 +96950,7 @@ Index: samba-deb.clean/source3/configure
  
    fi
  fi
-@@ -91888,16 +40676,12 @@
+@@ -91888,16 +40677,12 @@
  # is what it gets when this test fails.
  if test $space = no; then
    # SVR4
@@ -96969,7 +96970,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -91909,64 +40693,33 @@
+@@ -91909,64 +40694,33 @@
    return 0;
  }
  _ACEOF
@@ -97043,7 +97044,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statvfs.h>
-@@ -91978,59 +40731,32 @@
+@@ -91978,59 +40732,32 @@
    return 0;
  }
  _ACEOF
@@ -97111,7 +97112,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <sys/param.h>
-@@ -92043,71 +40769,38 @@
+@@ -92043,71 +40770,38 @@
      exit (statfs (".", &fsd, sizeof (struct statfs)));
    }
  _ACEOF
@@ -97193,7 +97194,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #ifdef HAVE_SYS_PARAM_H
-@@ -92126,71 +40819,38 @@
+@@ -92126,71 +40820,38 @@
    exit (statfs (".", &fsd));
    }
  _ACEOF
@@ -97275,7 +97276,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/statfs.h>
-@@ -92200,71 +40860,38 @@
+@@ -92200,71 +40861,38 @@
    exit (statfs (".", &fsd, sizeof fsd, 0));
    }
  _ACEOF
@@ -97357,7 +97358,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #ifdef HAVE_SYS_PARAM_H
-@@ -92280,71 +40907,38 @@
+@@ -92280,71 +40908,38 @@
    exit (statfs (".", &fsd));
    }
  _ACEOF
@@ -97439,7 +97440,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #ifdef HAVE_SYS_PARAM_H
-@@ -92364,201 +40958,33 @@
+@@ -92364,201 +40959,33 @@
    exit (statfs (".", &fsd) != 1);
    }
  _ACEOF
@@ -97652,7 +97653,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -92567,19 +40993,15 @@
+@@ -92567,19 +40994,15 @@
  
  done
  
@@ -97675,7 +97676,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -92597,46 +41019,15 @@
+@@ -92597,46 +41020,15 @@
    return 0;
  }
  _ACEOF
@@ -97726,7 +97727,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -92654,65 +41045,32 @@
+@@ -92654,65 +41046,32 @@
    return 0;
  }
  _ACEOF
@@ -97800,7 +97801,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  /* Define flistxattr to an innocuous variant, in case <limits.h> declares flistxattr.
     For example, HP-UX 11i <limits.h> declares gettimeofday.  */
-@@ -92753,50 +41111,24 @@
+@@ -92753,50 +41112,24 @@
    return 0;
  }
  _ACEOF
@@ -97857,7 +97858,7 @@ Index: samba-deb.clean/source3/configure
  MAKE_SETTINGS="$MAKE_SETTINGS
  XATTR_LIBS = ${XATTR_LIBS}
  XATTR_CFLAGS = ${XATTR_CFLAGS}
-@@ -92806,18 +41138,14 @@
+@@ -92806,18 +41139,14 @@
  
  
  if test x"$ac_cv_func_ext_flistxattr" = x"yes"; then
@@ -97879,7 +97880,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  	 	#include <sys/types.h>
-@@ -92840,48 +41168,23 @@
+@@ -92840,48 +41169,23 @@
    return 0;
  }
  _ACEOF
@@ -97933,7 +97934,7 @@ Index: samba-deb.clean/source3/configure
  
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -92893,20 +41196,16 @@
+@@ -92893,20 +41197,16 @@
  fi
  
  
@@ -97958,7 +97959,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <sys/types.h>
  #include <sys/capability.h>
-@@ -92921,117 +41220,55 @@
+@@ -92921,117 +41221,55 @@
  }
  
  _ACEOF
@@ -98092,7 +98093,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -93039,7 +41276,7 @@
+@@ -93039,7 +41277,7 @@
  INCLUDED_POPT=auto
  
  # Check whether --with-included-popt was given.
@@ -98101,7 +98102,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_included_popt;  INCLUDED_POPT=$withval
  fi
  
-@@ -93048,169 +41285,26 @@
+@@ -93048,169 +41286,26 @@
  
  
  if test x"$INCLUDED_POPT" != x"yes"; then
@@ -98279,7 +98280,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -93228,43 +41322,18 @@
+@@ -93228,43 +41323,18 @@
    return 0;
  }
  _ACEOF
@@ -98329,7 +98330,7 @@ Index: samba-deb.clean/source3/configure
     POPT_LIBS="-lpopt"
  fi
  
-@@ -93276,9 +41345,9 @@
+@@ -93276,9 +41346,9 @@
  	fi
  fi
  
@@ -98341,7 +98342,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$INCLUDED_POPT" >&6; }
  if test x"$INCLUDED_POPT" != x"no"; then
  			poptdir=""
-@@ -93291,157 +41360,17 @@
+@@ -93291,157 +41361,17 @@
  			break
  		fi
  	done
@@ -98509,7 +98510,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -93480,12 +41409,10 @@
+@@ -93480,12 +41410,10 @@
  LOOK_DIRS="/usr /usr/local /sw"
  
  # Check whether --with-libiconv was given.
@@ -98524,7 +98525,7 @@ Index: samba-deb.clean/source3/configure
    else
       if test "$withval" != "yes" ; then
  
-@@ -93497,26 +41424,20 @@
+@@ -93497,26 +41425,20 @@
  	LIBS=-liconv
  
  
@@ -98559,7 +98560,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <giconv.h>
-@@ -93529,33 +41450,10 @@
+@@ -93529,33 +41451,10 @@
  }
  
  _ACEOF
@@ -98596,7 +98597,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes;
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -93563,29 +41461,17 @@
+@@ -93563,29 +41462,17 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -98631,7 +98632,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <iconv.h>
-@@ -93598,33 +41484,10 @@
+@@ -93598,33 +41485,10 @@
  }
  
  _ACEOF
@@ -98668,7 +98669,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes;
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -93632,28 +41495,17 @@
+@@ -93632,28 +41496,17 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -98703,7 +98704,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <giconv.h>
-@@ -93666,33 +41518,10 @@
+@@ -93666,33 +41519,10 @@
  }
  
  _ACEOF
@@ -98740,7 +98741,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes;
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -93700,31 +41529,22 @@
+@@ -93700,31 +41530,22 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -98778,7 +98779,7 @@ Index: samba-deb.clean/source3/configure
  	CPPFLAGS="$save_CPPFLAGS"
  	LDFLAGS="$save_LDFLAGS"
  	LIBS="$save_LIBS"
-@@ -93737,17 +41557,13 @@
+@@ -93737,17 +41558,13 @@
  
  if test x$ICONV_FOUND = xno; then
  
@@ -98800,7 +98801,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <iconv.h>
-@@ -93760,49 +41576,20 @@
+@@ -93760,49 +41577,20 @@
  }
  
  _ACEOF
@@ -98856,7 +98857,7 @@ Index: samba-deb.clean/source3/configure
  fi
  
  for i in $LOOK_DIRS ; do
-@@ -93819,24 +41606,20 @@
+@@ -93819,24 +41607,20 @@
  	LIBS=-liconv
  
  
@@ -98888,7 +98889,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <giconv.h>
-@@ -93849,33 +41632,10 @@
+@@ -93849,33 +41633,10 @@
  }
  
  _ACEOF
@@ -98925,7 +98926,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -93883,27 +41643,17 @@
+@@ -93883,27 +41644,17 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -98957,7 +98958,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <iconv.h>
-@@ -93916,33 +41666,10 @@
+@@ -93916,33 +41667,10 @@
  }
  
  _ACEOF
@@ -98994,7 +98995,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -93950,26 +41677,17 @@
+@@ -93950,26 +41678,17 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -99026,7 +99027,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <stdlib.h>
  #include <giconv.h>
-@@ -93982,33 +41700,10 @@
+@@ -93982,33 +41701,10 @@
  }
  
  _ACEOF
@@ -99063,7 +99064,7 @@ Index: samba-deb.clean/source3/configure
  
  		ICONV_FOUND=yes
  		ICONV_CPPFLAGS="$CPPFLAGS"
-@@ -94016,29 +41711,22 @@
+@@ -94016,29 +41712,22 @@
  		ICONV_LDFLAGS="$LDFLAGS"
  
  else
@@ -99098,7 +99099,7 @@ Index: samba-deb.clean/source3/configure
  	CPPFLAGS="$save_CPPFLAGS"
  	LDFLAGS="$save_LDFLAGS"
  	LIBS="$save_LIBS"
-@@ -94046,7 +41734,7 @@
+@@ -94046,7 +41735,7 @@
  done
  
  if test x"$ICONV_FOUND" = x"no"; then
@@ -99107,7 +99108,7 @@ Index: samba-deb.clean/source3/configure
      Install libiconv from http://www.gnu.org/software/libiconv/ for better charset compatibility!" >&5
  $as_echo "$as_me: WARNING: Sufficient support for iconv function was not found.
      Install libiconv from http://www.gnu.org/software/libiconv/ for better charset compatibility!" >&2;}
-@@ -94059,9 +41747,7 @@
+@@ -94059,9 +41748,7 @@
  
  else
  
@@ -99118,7 +99119,7 @@ Index: samba-deb.clean/source3/configure
  
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -94082,203 +41768,23 @@
+@@ -94082,203 +41769,23 @@
  
  
  
@@ -99330,7 +99331,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -94357,151 +41863,12 @@
+@@ -94357,151 +41864,12 @@
  
  
  
@@ -99486,7 +99487,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -94511,23 +41878,17 @@
+@@ -94511,23 +41879,17 @@
  
  
  
@@ -99513,7 +99514,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -94545,54 +41906,28 @@
+@@ -94545,54 +41907,28 @@
    return 0;
  }
  _ACEOF
@@ -99575,7 +99576,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBZ 1
  _ACEOF
-@@ -94608,18 +41943,13 @@
+@@ -94608,18 +41944,13 @@
  
  fi
  
@@ -99597,7 +99598,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  		#include <zlib.h>
-@@ -94637,40 +41967,19 @@
+@@ -94637,40 +41968,19 @@
    return 0;
  }
  _ACEOF
@@ -99640,7 +99641,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$samba_cv_zlib_1_2_3" >&6; }
  
  if test x"$ac_cv_header_zlib_h" = x"yes" -a \
-@@ -94729,9 +42038,9 @@
+@@ -94729,9 +42039,9 @@
  	if test -z "$PKG_CONFIG"; then
  		# Extract the first word of "pkg-config", so it can be a program name with args.
  set dummy pkg-config; ac_word=$2
@@ -99652,7 +99653,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PKG_CONFIG in
-@@ -94744,14 +42053,14 @@
+@@ -94744,14 +42054,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -99670,7 +99671,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    test -z "$ac_cv_path_PKG_CONFIG" && ac_cv_path_PKG_CONFIG="no"
-@@ -94760,10 +42069,10 @@
+@@ -94760,10 +42070,10 @@
  fi
  PKG_CONFIG=$ac_cv_path_PKG_CONFIG
  if test -n "$PKG_CONFIG"; then
@@ -99683,7 +99684,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -94779,52 +42088,27 @@
+@@ -94779,52 +42089,27 @@
  	else
  		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
  		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
@@ -99743,7 +99744,7 @@ Index: samba-deb.clean/source3/configure
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
  LIBTALLOC_ENABLE = YES
-@@ -94832,22 +42116,16 @@
+@@ -94832,22 +42117,16 @@
  SMB_INFO_ENABLES="$SMB_INFO_ENABLES
  \$enabled{LIBTALLOC} = \"YES\";"
  
@@ -99770,7 +99771,7 @@ Index: samba-deb.clean/source3/configure
  				CFLAGS="$OLD_CFLAGS"
  
  
-@@ -94862,7 +42140,7 @@
+@@ -94862,7 +42141,7 @@
  				ac_cv_LIBTALLOC_found=yes
  
  			else
@@ -99779,7 +99780,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  				$PKG_CONFIG --errors-to-stdout --print-errors 'talloc >= $TALLOC_MIN_VERSION'
  				ac_cv_LIBTALLOC_found=no
-@@ -94892,9 +42170,9 @@
+@@ -94892,9 +42171,9 @@
  	if test -z "$PKG_CONFIG"; then
  		# Extract the first word of "pkg-config", so it can be a program name with args.
  set dummy pkg-config; ac_word=$2
@@ -99791,7 +99792,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PKG_CONFIG in
-@@ -94907,14 +42185,14 @@
+@@ -94907,14 +42186,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -99809,7 +99810,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    test -z "$ac_cv_path_PKG_CONFIG" && ac_cv_path_PKG_CONFIG="no"
-@@ -94923,10 +42201,10 @@
+@@ -94923,10 +42202,10 @@
  fi
  PKG_CONFIG=$ac_cv_path_PKG_CONFIG
  if test -n "$PKG_CONFIG"; then
@@ -99822,7 +99823,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -94942,52 +42220,27 @@
+@@ -94942,52 +42221,27 @@
  	else
  		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
  		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
@@ -99882,7 +99883,7 @@ Index: samba-deb.clean/source3/configure
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
  LIBTDB_ENABLE = YES
-@@ -94995,22 +42248,16 @@
+@@ -94995,22 +42249,16 @@
  SMB_INFO_ENABLES="$SMB_INFO_ENABLES
  \$enabled{LIBTDB} = \"YES\";"
  
@@ -99909,7 +99910,7 @@ Index: samba-deb.clean/source3/configure
  				CFLAGS="$OLD_CFLAGS"
  
  
-@@ -95025,7 +42272,7 @@
+@@ -95025,7 +42273,7 @@
  				ac_cv_LIBTDB_found=yes
  
  			else
@@ -99918,7 +99919,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  				$PKG_CONFIG --errors-to-stdout --print-errors 'tdb >= $TDB_MIN_VERSION'
  				ac_cv_LIBTDB_found=no
-@@ -95050,9 +42297,7 @@
+@@ -95050,9 +42298,7 @@
  	fi
  done
  if test x"$tdbdir" = "x"; then
@@ -99929,7 +99930,7 @@ Index: samba-deb.clean/source3/configure
  fi
  TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
  TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o"
-@@ -95065,104 +42310,12 @@
+@@ -95065,104 +42311,12 @@
  TDB_CFLAGS="-I$tdbdir/include"
  
  
@@ -100039,7 +100040,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
  _ACEOF
-@@ -95170,151 +42323,12 @@
+@@ -95170,151 +42324,12 @@
  fi
  done
  
@@ -100197,7 +100198,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -95325,17 +42339,13 @@
+@@ -95325,17 +42340,13 @@
  
  
  
@@ -100218,7 +100219,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <unistd.h>
  int
-@@ -95346,56 +42356,29 @@
+@@ -95346,56 +42357,29 @@
    return 0;
  }
  _ACEOF
@@ -100282,7 +100283,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <unistd.h>
  int
-@@ -95406,41 +42389,18 @@
+@@ -95406,41 +42390,18 @@
    return 0;
  }
  _ACEOF
@@ -100328,7 +100329,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -95466,9 +42426,9 @@
+@@ -95466,9 +42427,9 @@
  	if test -z "$PKG_CONFIG"; then
  		# Extract the first word of "pkg-config", so it can be a program name with args.
  set dummy pkg-config; ac_word=$2
@@ -100340,7 +100341,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PKG_CONFIG in
-@@ -95481,14 +42441,14 @@
+@@ -95481,14 +42442,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -100358,7 +100359,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    test -z "$ac_cv_path_PKG_CONFIG" && ac_cv_path_PKG_CONFIG="no"
-@@ -95497,10 +42457,10 @@
+@@ -95497,10 +42458,10 @@
  fi
  PKG_CONFIG=$ac_cv_path_PKG_CONFIG
  if test -n "$PKG_CONFIG"; then
@@ -100371,7 +100372,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -95516,52 +42476,27 @@
+@@ -95516,52 +42477,27 @@
  	else
  		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
  		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
@@ -100431,7 +100432,7 @@ Index: samba-deb.clean/source3/configure
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
  LIBTEVENT_ENABLE = YES
-@@ -95569,22 +42504,16 @@
+@@ -95569,22 +42505,16 @@
  SMB_INFO_ENABLES="$SMB_INFO_ENABLES
  \$enabled{LIBTEVENT} = \"YES\";"
  
@@ -100458,7 +100459,7 @@ Index: samba-deb.clean/source3/configure
  				CFLAGS="$OLD_CFLAGS"
  
  
-@@ -95599,7 +42528,7 @@
+@@ -95599,7 +42529,7 @@
  				ac_cv_LIBTEVENT_found=yes
  
  			else
@@ -100467,7 +100468,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  				$PKG_CONFIG --errors-to-stdout --print-errors 'tevent = $TEVENT_REQUIRED_VERSION'
  				ac_cv_LIBTEVENT_found=no
-@@ -95628,9 +42557,7 @@
+@@ -95628,9 +42558,7 @@
  		fi
  	done
  	if test x"$teventdir" = "x"; then
@@ -100478,7 +100479,7 @@ Index: samba-deb.clean/source3/configure
  	fi
  fi
  
-@@ -95648,253 +42575,24 @@
+@@ -95648,253 +42576,24 @@
  TEVENT_OBJ="$TEVENT_OBJ tevent_req.o tevent_wakeup.o tevent_queue.o"
  TEVENT_OBJ="$TEVENT_OBJ tevent_standard.o tevent_select.o"
  
@@ -100740,7 +100741,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -95903,9 +42601,7 @@
+@@ -95903,9 +42602,7 @@
  if test x"$ac_cv_header_sys_epoll_h" = x"yes" -a x"$ac_cv_func_epoll_create" = x"yes"; then
     TEVENT_OBJ="$TEVENT_OBJ tevent_epoll.o"
  
@@ -100751,7 +100752,7 @@ Index: samba-deb.clean/source3/configure
  
  fi
  
-@@ -95971,9 +42667,9 @@
+@@ -95971,9 +42668,9 @@
  	if test -z "$PKG_CONFIG"; then
  		# Extract the first word of "pkg-config", so it can be a program name with args.
  set dummy pkg-config; ac_word=$2
@@ -100763,7 +100764,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PKG_CONFIG in
-@@ -95986,14 +42682,14 @@
+@@ -95986,14 +42683,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -100781,7 +100782,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    test -z "$ac_cv_path_PKG_CONFIG" && ac_cv_path_PKG_CONFIG="no"
-@@ -96002,10 +42698,10 @@
+@@ -96002,10 +42699,10 @@
  fi
  PKG_CONFIG=$ac_cv_path_PKG_CONFIG
  if test -n "$PKG_CONFIG"; then
@@ -100794,7 +100795,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -96021,52 +42717,27 @@
+@@ -96021,52 +42718,27 @@
  	else
  		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
  		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
@@ -100854,7 +100855,7 @@ Index: samba-deb.clean/source3/configure
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
  LIBLDB_ENABLE = YES
-@@ -96074,22 +42745,16 @@
+@@ -96074,22 +42746,16 @@
  SMB_INFO_ENABLES="$SMB_INFO_ENABLES
  \$enabled{LIBLDB} = \"YES\";"
  
@@ -100881,7 +100882,7 @@ Index: samba-deb.clean/source3/configure
  				CFLAGS="$OLD_CFLAGS"
  
  
-@@ -96104,7 +42769,7 @@
+@@ -96104,7 +42770,7 @@
  				ac_cv_LIBLDB_found=yes
  
  			else
@@ -100890,7 +100891,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  				$PKG_CONFIG --errors-to-stdout --print-errors 'ldb = $LDB_REQUIRED_VERSION'
  				ac_cv_LIBLDB_found=no
-@@ -96150,12 +42815,12 @@
+@@ -96150,12 +42816,12 @@
  
  SQLITE3_LIBS=""
  with_sqlite3_support=no
@@ -100905,7 +100906,7 @@ Index: samba-deb.clean/source3/configure
    withval=$with_sqlite3;  case "$withval" in
      yes|no|auto)
  	with_sqlite3_support=$withval
-@@ -96164,157 +42829,18 @@
+@@ -96164,157 +42830,18 @@
  fi
  
  
@@ -101069,7 +101070,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -96324,11 +42850,9 @@
+@@ -96324,11 +42851,9 @@
  
    if test x"$ac_cv_header_sqlite3_h" != x"yes"; then
  	if test x"$with_sqlite3_support" = x"yes"; then
@@ -101083,7 +101084,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: sqlite3.h is needed for SQLITE3 support" >&2;}
  	fi
  
-@@ -96343,23 +42867,17 @@
+@@ -96343,23 +42868,17 @@
    # now see if we can find the sqlite3 libs in standard paths
  
  
@@ -101110,7 +101111,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -96377,54 +42895,28 @@
+@@ -96377,54 +42896,28 @@
    return 0;
  }
  _ACEOF
@@ -101172,7 +101173,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBSQLITE3 1
  _ACEOF
-@@ -96440,21 +42932,16 @@
+@@ -96440,21 +42933,16 @@
  
  fi
  
@@ -101198,7 +101199,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
      with_sqlite3_support=yes
  
-@@ -96466,11 +42953,9 @@
+@@ -96466,11 +42954,9 @@
  
    else
      if test x"$with_sqlite3_support" = x"yes"; then
@@ -101212,7 +101213,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: libsqlite3 is needed for SQLITE3 support" >&2;}
      fi
  
-@@ -96531,7 +43016,7 @@
+@@ -96531,7 +43017,7 @@
  
  use_gnutls=auto
  # Check whether --enable-gnutls was given.
@@ -101221,7 +101222,7 @@ Index: samba-deb.clean/source3/configure
    enableval=$enable_gnutls; if test x$enable_gnutls = xno; then
          use_gnutls=no
      fi
-@@ -96545,9 +43030,9 @@
+@@ -96545,9 +43031,9 @@
  	if test -z "$PKG_CONFIG"; then
  		# Extract the first word of "pkg-config", so it can be a program name with args.
  set dummy pkg-config; ac_word=$2
@@ -101233,7 +101234,7 @@ Index: samba-deb.clean/source3/configure
    $as_echo_n "(cached) " >&6
  else
    case $PKG_CONFIG in
-@@ -96560,14 +43045,14 @@
+@@ -96560,14 +43046,14 @@
  do
    IFS=$as_save_IFS
    test -z "$as_dir" && as_dir=.
@@ -101251,7 +101252,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
    test -z "$ac_cv_path_PKG_CONFIG" && ac_cv_path_PKG_CONFIG="no"
-@@ -96576,10 +43061,10 @@
+@@ -96576,10 +43062,10 @@
  fi
  PKG_CONFIG=$ac_cv_path_PKG_CONFIG
  if test -n "$PKG_CONFIG"; then
@@ -101264,7 +101265,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  fi
  
-@@ -96595,52 +43080,27 @@
+@@ -96595,52 +43081,27 @@
  	else
  		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
  		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
@@ -101324,7 +101325,7 @@ Index: samba-deb.clean/source3/configure
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
  GNUTLS_ENABLE = YES
-@@ -96648,22 +43108,16 @@
+@@ -96648,22 +43109,16 @@
  SMB_INFO_ENABLES="$SMB_INFO_ENABLES
  \$enabled{GNUTLS} = \"YES\";"
  
@@ -101351,7 +101352,7 @@ Index: samba-deb.clean/source3/configure
  				CFLAGS="$OLD_CFLAGS"
  
  
-@@ -96678,7 +43132,7 @@
+@@ -96678,7 +43133,7 @@
  				ac_cv_GNUTLS_found=yes
  
  			else
@@ -101360,7 +101361,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  				$PKG_CONFIG --errors-to-stdout --print-errors 'gnutls < 2.6.0'
  				ac_cv_GNUTLS_found=no
-@@ -96695,770 +43149,161 @@
+@@ -96695,770 +43150,161 @@
  		use_gnutls=no
  	fi
  
@@ -102226,7 +102227,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -97467,23 +43312,17 @@
+@@ -97467,23 +43313,17 @@
  
  
  
@@ -102253,7 +102254,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -97501,54 +43340,28 @@
+@@ -97501,54 +43341,28 @@
    return 0;
  }
  _ACEOF
@@ -102315,7 +102316,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBGCRYPT 1
  _ACEOF
-@@ -97564,7 +43377,6 @@
+@@ -97564,7 +43378,6 @@
  
  fi
  
@@ -102323,7 +102324,7 @@ Index: samba-deb.clean/source3/configure
  MAKE_SETTINGS="$MAKE_SETTINGS
  GCRYPT_LIBS = $GCRYPT_LIBS
  GCRYPT_CFLAGS =
-@@ -97602,19 +43414,17 @@
+@@ -97602,19 +43415,17 @@
  
  #################################################
  # check for pthread support
@@ -102347,7 +102348,7 @@ Index: samba-deb.clean/source3/configure
  		fi
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -97632,12 +43442,12 @@
+@@ -97632,12 +43443,12 @@
  
  	;;
  	*)
@@ -102362,7 +102363,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  
  fi
-@@ -97653,274 +43463,45 @@
+@@ -97653,274 +43464,45 @@
  
  
  
@@ -102650,7 +102651,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -97938,54 +43519,28 @@
+@@ -97938,54 +43520,28 @@
    return 0;
  }
  _ACEOF
@@ -102712,7 +102713,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBSETPROCTITLE 1
  _ACEOF
-@@ -98001,15 +43556,14 @@
+@@ -98001,15 +43557,14 @@
  
  fi
  
@@ -102730,7 +102731,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "yes" >&6; }
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -98019,22 +43573,20 @@
+@@ -98019,22 +43574,20 @@
  \$enabled{SETPROCTITLE} = \"YES\";"
  
  
@@ -102757,7 +102758,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "no" >&6; }
  
  fi
-@@ -98052,17 +43604,13 @@
+@@ -98052,17 +43605,13 @@
  
  
  
@@ -102778,7 +102779,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  #include <sys/types.h>
-@@ -98081,209 +43629,43 @@
+@@ -98081,209 +43630,43 @@
    return 0;
  }
  _ACEOF
@@ -102999,7 +103000,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -98301,46 +43683,15 @@
+@@ -98301,46 +43684,15 @@
    return 0;
  }
  _ACEOF
@@ -103050,7 +103051,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -98353,70 +43704,37 @@
+@@ -98353,70 +43705,37 @@
  int
  main ()
  {
@@ -103134,7 +103135,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  /* Define blkid_get_cache to an innocuous variant, in case <limits.h> declares blkid_get_cache.
     For example, HP-UX 11i <limits.h> declares gettimeofday.  */
-@@ -98457,50 +43775,24 @@
+@@ -98457,50 +43776,24 @@
    return 0;
  }
  _ACEOF
@@ -103191,7 +103192,7 @@ Index: samba-deb.clean/source3/configure
  MAKE_SETTINGS="$MAKE_SETTINGS
  BLKID_LIBS = ${BLKID_LIBS}
  BLKID_CFLAGS = ${BLKID_CFLAGS}
-@@ -98511,9 +43803,7 @@
+@@ -98511,9 +43804,7 @@
  
  if test x"$ac_cv_func_ext_blkid_get_cache" = x"yes"; then
  
@@ -103202,7 +103203,7 @@ Index: samba-deb.clean/source3/configure
  
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -98541,102 +43831,12 @@
+@@ -98541,102 +43832,12 @@
  
  fi
  
@@ -103309,7 +103310,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -98646,151 +43846,12 @@
+@@ -98646,151 +43847,12 @@
  ###############################
  # start SMB_EXT_LIB_PAM
  # check for security/pam_appl.h and -lpam
@@ -103465,7 +103466,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -98799,23 +43860,17 @@
+@@ -98799,23 +43861,17 @@
  
  
  
@@ -103492,7 +103493,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -98833,54 +43888,28 @@
+@@ -98833,54 +43889,28 @@
    return 0;
  }
  _ACEOF
@@ -103554,7 +103555,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBPAM 1
  _ACEOF
-@@ -98895,7 +43924,6 @@
+@@ -98895,7 +43925,6 @@
  
  
  fi
@@ -103562,7 +103563,7 @@ Index: samba-deb.clean/source3/configure
  if test x"$ac_cv_header_security_pam_appl_h" = x"yes" -a x"$ac_cv_lib_ext_pam_pam_start" = x"yes";then
  
  	MAKE_SETTINGS="$MAKE_SETTINGS
-@@ -98921,23 +43949,17 @@
+@@ -98921,23 +43950,17 @@
  # test for where we get crypt() from
  
  
@@ -103589,7 +103590,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -98955,54 +43977,28 @@
+@@ -98955,54 +43978,28 @@
    return 0;
  }
  _ACEOF
@@ -103651,7 +103652,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBCRYPT 1
  _ACEOF
-@@ -99018,7 +44014,6 @@
+@@ -99018,7 +44015,6 @@
  
  fi
  
@@ -103659,7 +103660,7 @@ Index: samba-deb.clean/source3/configure
  	MAKE_SETTINGS="$MAKE_SETTINGS
  CRYPT_ENABLE = YES
  "
-@@ -99035,102 +44030,12 @@
+@@ -99035,102 +44031,12 @@
  
  
  
@@ -103767,7 +103768,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
  _ACEOF
-@@ -99139,151 +44044,12 @@
+@@ -99139,151 +44045,12 @@
  done
  
  
@@ -103923,7 +103924,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -99292,330 +44058,18 @@
+@@ -99292,330 +44059,18 @@
  
  
  
@@ -104258,7 +104259,7 @@ Index: samba-deb.clean/source3/configure
  
  /* Override any GCC internal prototype to avoid an error.
     Use char because int might match the return type of a GCC
-@@ -99623,70 +44077,125 @@
+@@ -99623,70 +44078,125 @@
  #ifdef __cplusplus
  extern "C"
  #endif
@@ -104430,7 +104431,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <asm/unistd.h>
  int
-@@ -99697,41 +44206,18 @@
+@@ -99697,41 +44207,18 @@
    return 0;
  }
  _ACEOF
@@ -104476,7 +104477,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -99775,17 +44261,13 @@
+@@ -99775,17 +44262,13 @@
  fi
  
  
@@ -104497,7 +104498,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <fcntl.h>
  int
-@@ -99796,56 +44278,29 @@
+@@ -99796,56 +44279,29 @@
    return 0;
  }
  _ACEOF
@@ -104561,7 +104562,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  #include <signal.h>
  int
-@@ -99856,41 +44311,18 @@
+@@ -99856,41 +44312,18 @@
    return 0;
  }
  _ACEOF
@@ -104607,7 +104608,7 @@ Index: samba-deb.clean/source3/configure
  
   fi
  
-@@ -99914,151 +44346,12 @@
+@@ -99914,151 +44347,12 @@
  
  fi
  
@@ -104764,7 +104765,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
  _ACEOF
-@@ -100372,151 +44665,12 @@
+@@ -100372,151 +44666,12 @@
  
  
  
@@ -104920,7 +104921,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  fi
-@@ -100526,23 +44680,17 @@
+@@ -100526,23 +44681,17 @@
  
  
  
@@ -104947,7 +104948,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  /* Override any GCC internal prototype to avoid an error.
-@@ -100560,54 +44708,28 @@
+@@ -100560,54 +44709,28 @@
    return 0;
  }
  _ACEOF
@@ -105009,7 +105010,7 @@ Index: samba-deb.clean/source3/configure
    cat >>confdefs.h <<_ACEOF
  #define HAVE_LIBZ 1
  _ACEOF
-@@ -100623,18 +44745,13 @@
+@@ -100623,18 +44746,13 @@
  
  fi
  
@@ -105031,7 +105032,7 @@ Index: samba-deb.clean/source3/configure
  /* end confdefs.h.  */
  
  		#include <zlib.h>
-@@ -100652,40 +44769,19 @@
+@@ -100652,40 +44770,19 @@
    return 0;
  }
  _ACEOF
@@ -105074,7 +105075,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$samba_cv_zlib_1_2_3" >&6; }
  
  if test x"$ac_cv_header_zlib_h" = x"yes" -a \
-@@ -100799,87 +44895,54 @@
+@@ -100799,87 +44896,54 @@
  #################################################
  # Display summary of libraries detected
  
@@ -105178,7 +105179,7 @@ Index: samba-deb.clean/source3/configure
  if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes" -o x"$picky_developer" = x"yes"; then
      CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS)"
  fi
-@@ -100938,13 +45001,13 @@
+@@ -100938,13 +45002,13 @@
      case $ac_val in #(
      *${as_nl}*)
        case $ac_var in #(
@@ -105194,7 +105195,7 @@ Index: samba-deb.clean/source3/configure
        esac ;;
      esac
    done
-@@ -100952,8 +45015,8 @@
+@@ -100952,8 +45016,8 @@
    (set) 2>&1 |
      case $as_nl`(ac_space=' '; set) 2>&1` in #(
      *${as_nl}ac_space=\ *)
@@ -105205,7 +105206,7 @@ Index: samba-deb.clean/source3/configure
        sed -n \
  	"s/'/'\\\\''/g;
  	  s/^\\([_$as_cr_alnum]*_cv_[_$as_cr_alnum]*\\)=\\(.*\\)/\\1='\\2'/p"
-@@ -100976,11 +45039,11 @@
+@@ -100976,11 +45040,11 @@
  if diff "$cache_file" confcache >/dev/null 2>&1; then :; else
    if test -w "$cache_file"; then
      test "x$cache_file" != "x/dev/null" &&
@@ -105219,7 +105220,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: not updating unwritable cache $cache_file" >&6;}
    fi
  fi
-@@ -101000,8 +45063,8 @@
+@@ -101000,8 +45064,8 @@
    ac_i=`$as_echo "$ac_i" | sed "$ac_script"`
    # 2. Prepend LIBOBJDIR.  When used with automake>=1.10 LIBOBJDIR
    #    will be set to the directory where LIBOBJS objects are built.
@@ -105230,7 +105231,7 @@ Index: samba-deb.clean/source3/configure
  done
  LIBOBJS=$ac_libobjs
  
-@@ -101025,9 +45088,10 @@
+@@ -101025,9 +45089,10 @@
  ac_write_fail=0
  ac_clean_files_save=$ac_clean_files
  ac_clean_files="$ac_clean_files $CONFIG_STATUS"
@@ -105243,7 +105244,7 @@ Index: samba-deb.clean/source3/configure
  #! $SHELL
  # Generated by $as_me.
  # Run this file to recreate the current configuration.
-@@ -101037,17 +45101,18 @@
+@@ -101037,17 +45102,18 @@
  debug=false
  ac_cs_recheck=false
  ac_cs_silent=false
@@ -105269,7 +105270,7 @@ Index: samba-deb.clean/source3/configure
    emulate sh
    NULLCMD=:
    # Pre-4.2 versions of Zsh do word splitting on ${1+"$@"}, which
-@@ -101055,23 +45120,15 @@
+@@ -101055,23 +45121,15 @@
    alias -g '${1+"$@"}'='"$@"'
    setopt NO_GLOB_SUBST
  else
@@ -105298,7 +105299,7 @@ Index: samba-deb.clean/source3/configure
  as_nl='
  '
  export as_nl
-@@ -101079,7 +45136,13 @@
+@@ -101079,7 +45137,13 @@
  as_echo='\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\'
  as_echo=$as_echo$as_echo$as_echo$as_echo$as_echo
  as_echo=$as_echo$as_echo$as_echo$as_echo$as_echo$as_echo
@@ -105313,7 +105314,7 @@ Index: samba-deb.clean/source3/configure
    as_echo='printf %s\n'
    as_echo_n='printf %s'
  else
-@@ -101090,7 +45153,7 @@
+@@ -101090,7 +45154,7 @@
      as_echo_body='eval expr "X$1" : "X\\(.*\\)"'
      as_echo_n_body='eval
        arg=$1;
@@ -105322,7 +105323,7 @@ Index: samba-deb.clean/source3/configure
        *"$as_nl"*)
  	expr "X$arg" : "X\\(.*\\)$as_nl";
  	arg=`expr "X$arg" : ".*$as_nl\\(.*\\)"`;;
-@@ -101113,13 +45176,6 @@
+@@ -101113,13 +45177,6 @@
    }
  fi
  
@@ -105336,7 +105337,7 @@ Index: samba-deb.clean/source3/configure
  
  # IFS
  # We need space, tab and new line, in precisely that order.  Quoting is
-@@ -101129,15 +45185,15 @@
+@@ -101129,15 +45186,15 @@
  IFS=" ""	$as_nl"
  
  # Find who we are.  Look in the path if we contain no directory separator.
@@ -105355,7 +105356,7 @@ Index: samba-deb.clean/source3/configure
  IFS=$as_save_IFS
  
       ;;
-@@ -101149,12 +45205,16 @@
+@@ -101149,12 +45206,16 @@
  fi
  if test ! -f "$as_myself"; then
    $as_echo "$as_myself: error: cannot find myself; rerun with an absolute file name" >&2
@@ -105376,7 +105377,7 @@ Index: samba-deb.clean/source3/configure
  done
  PS1='$ '
  PS2='> '
-@@ -101166,7 +45226,89 @@
+@@ -101166,7 +45227,89 @@
  LANGUAGE=C
  export LANGUAGE
  
@@ -105467,7 +105468,7 @@ Index: samba-deb.clean/source3/configure
  if expr a : '\(a\)' >/dev/null 2>&1 &&
     test "X`expr 00001 : '.*\(...\)'`" = X001; then
    as_expr=expr
-@@ -101180,8 +45322,12 @@
+@@ -101180,8 +45323,12 @@
    as_basename=false
  fi
  
@@ -105481,7 +105482,7 @@ Index: samba-deb.clean/source3/configure
  as_me=`$as_basename -- "$0" ||
  $as_expr X/"$0" : '.*/\([^/][^/]*\)/*$' \| \
  	 X"$0" : 'X\(//\)$' \| \
-@@ -101201,76 +45347,25 @@
+@@ -101201,76 +45348,25 @@
  	  }
  	  s/.*/./; q'`
  
@@ -105569,7 +105570,7 @@ Index: samba-deb.clean/source3/configure
  
  rm -f conf$$ conf$$.exe conf$$.file
  if test -d conf$$.dir; then
-@@ -101299,8 +45394,56 @@
+@@ -101299,8 +45395,56 @@
  rm -f conf$$ conf$$.exe conf$$.dir/conf$$.file conf$$.file
  rmdir conf$$.dir 2>/dev/null
  
@@ -105627,7 +105628,7 @@ Index: samba-deb.clean/source3/configure
  else
    test -d ./-p && rmdir ./-p
    as_mkdir_p=false
-@@ -101319,10 +45462,10 @@
+@@ -101319,10 +45463,10 @@
        if test -d "$1"; then
  	test -d "$1/.";
        else
@@ -105640,7 +105641,7 @@ Index: samba-deb.clean/source3/configure
  	???[sx]*):;;*)false;;esac;fi
      '\'' sh
    '
-@@ -101337,13 +45480,19 @@
+@@ -101337,13 +45481,19 @@
  
  
  exec 6>&1
@@ -105662,7 +105663,7 @@ Index: samba-deb.clean/source3/configure
  
    CONFIG_FILES    = $CONFIG_FILES
    CONFIG_HEADERS  = $CONFIG_HEADERS
-@@ -101375,10 +45524,11 @@
+@@ -101375,10 +45525,11 @@
  
  cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
  ac_cs_usage="\
@@ -105677,7 +105678,7 @@ Index: samba-deb.clean/source3/configure
  
    -h, --help       print this help, then exit
    -V, --version    print version number and configuration settings, then exit
-@@ -101400,16 +45550,16 @@
+@@ -101400,16 +45551,16 @@
  Configuration commands:
  $config_commands
  
@@ -105697,7 +105698,7 @@ Index: samba-deb.clean/source3/configure
  This config.status script is free software; the Free Software Foundation
  gives unlimited permission to copy, distribute and modify it."
  
-@@ -101451,20 +45601,19 @@
+@@ -101451,20 +45602,19 @@
      case $ac_optarg in
      *\'*) ac_optarg=`$as_echo "$ac_optarg" | sed "s/'/'\\\\\\\\''/g"` ;;
      esac
@@ -105722,7 +105723,7 @@ Index: samba-deb.clean/source3/configure
    --help | --hel | -h )
      $as_echo "$ac_cs_usage"; exit ;;
    -q | -quiet | --quiet | --quie | --qui | --qu | --q \
-@@ -101472,11 +45621,10 @@
+@@ -101472,11 +45622,10 @@
      ac_cs_silent=: ;;
  
    # This is an error.
@@ -105737,7 +105738,7 @@ Index: samba-deb.clean/source3/configure
       ac_need_defaults=false ;;
  
    esac
-@@ -101569,9 +45717,7 @@
+@@ -101569,9 +45718,7 @@
      "pkgconfig/smbsharemodes.pc") CONFIG_FILES="$CONFIG_FILES pkgconfig/smbsharemodes.pc" ;;
      "../examples/libsmbclient/Makefile.internal") CONFIG_FILES="$CONFIG_FILES ../examples/libsmbclient/Makefile.internal" ;;
  
@@ -105748,7 +105749,7 @@ Index: samba-deb.clean/source3/configure
    esac
  done
  
-@@ -101598,7 +45744,7 @@
+@@ -101598,7 +45745,7 @@
    trap 'exit_status=$?
    { test -z "$tmp" || test ! -d "$tmp" || rm -fr "$tmp"; } && exit $exit_status
  ' 0
@@ -105757,7 +105758,7 @@ Index: samba-deb.clean/source3/configure
  }
  # Create a (secure) tmp directory for tmp files.
  
-@@ -101609,11 +45755,7 @@
+@@ -101609,11 +45756,7 @@
  {
    tmp=./conf$$-$RANDOM
    (umask 077 && mkdir "$tmp")
@@ -105770,7 +105771,7 @@ Index: samba-deb.clean/source3/configure
  
  # Set up the scripts for CONFIG_FILES section.
  # No need to generate them if there are no CONFIG_FILES.
-@@ -101621,10 +45763,16 @@
+@@ -101621,10 +45764,16 @@
  if test -n "$CONFIG_FILES"; then
  
  
@@ -105789,7 +105790,7 @@ Index: samba-deb.clean/source3/configure
  else
    ac_cs_awk_cr=$ac_cr
  fi
-@@ -101638,24 +45786,18 @@
+@@ -101638,24 +45787,18 @@
    echo "$ac_subst_vars" | sed 's/.*/&!$&$ac_delim/' &&
    echo "_ACEOF"
  } >conf$$subs.sh ||
@@ -105817,7 +105818,7 @@ Index: samba-deb.clean/source3/configure
    else
      ac_delim="$ac_delim!$ac_delim _$ac_delim!! "
    fi
-@@ -101744,9 +45886,7 @@
+@@ -101744,9 +45887,7 @@
  else
    cat
  fi < "$tmp/subs1.awk" > "$tmp/subs.awk" \
@@ -105828,7 +105829,7 @@ Index: samba-deb.clean/source3/configure
  _ACEOF
  
  # VPATH may cause trouble with some makes, so we remove $(srcdir),
-@@ -101787,9 +45927,7 @@
+@@ -101787,9 +45928,7 @@
    if test -z "$ac_t"; then
      break
    elif $ac_last_try; then
@@ -105839,7 +105840,7 @@ Index: samba-deb.clean/source3/configure
    else
      ac_delim="$ac_delim!$ac_delim _$ac_delim!! "
    fi
-@@ -101874,9 +46012,7 @@
+@@ -101874,9 +46013,7 @@
  _ACAWK
  _ACEOF
  cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
@@ -105850,7 +105851,7 @@ Index: samba-deb.clean/source3/configure
  fi # test -n "$CONFIG_HEADERS"
  
  
-@@ -101889,9 +46025,7 @@
+@@ -101889,9 +46026,7 @@
    esac
    case $ac_mode$ac_tag in
    :[FHL]*:*);;
@@ -105861,7 +105862,7 @@ Index: samba-deb.clean/source3/configure
    :[FH]-) ac_tag=-:-;;
    :[FH]*) ac_tag=$ac_tag:$ac_tag.in;;
    esac
-@@ -101919,12 +46053,10 @@
+@@ -101919,12 +46054,10 @@
  	   [\\/$]*) false;;
  	   *) test -f "$srcdir/$ac_f" && ac_f="$srcdir/$ac_f";;
  	   esac ||
@@ -105876,7 +105877,7 @@ Index: samba-deb.clean/source3/configure
      done
  
      # Let's still pretend it is `configure' which instantiates (i.e., don't
-@@ -101935,7 +46067,7 @@
+@@ -101935,7 +46068,7 @@
  	`' by configure.'
      if test x"$ac_file" != x-; then
        configure_input="$ac_file.  $configure_input"
@@ -105885,7 +105886,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: creating $ac_file" >&6;}
      fi
      # Neutralize special characters interpreted by sed in replacement strings.
-@@ -101948,9 +46080,7 @@
+@@ -101948,9 +46081,7 @@
  
      case $ac_tag in
      *:-:* | *:-) cat >"$tmp/stdin" \
@@ -105896,7 +105897,7 @@ Index: samba-deb.clean/source3/configure
      esac
      ;;
    esac
-@@ -101978,47 +46108,7 @@
+@@ -101978,47 +46109,7 @@
  	    q
  	  }
  	  s/.*/./; q'`
@@ -105945,7 +105946,7 @@ Index: samba-deb.clean/source3/configure
    ac_builddir=.
  
  case "$ac_dir" in
-@@ -102070,7 +46160,6 @@
+@@ -102070,7 +46161,6 @@
  # If the template does not know about datarootdir, expand it.
  # FIXME: This hack should be removed a few years after 2.60.
  ac_datarootdir_hack=; ac_datarootdir_seen=
@@ -105953,7 +105954,7 @@ Index: samba-deb.clean/source3/configure
  ac_sed_dataroot='
  /datarootdir/ {
    p
-@@ -102080,12 +46169,11 @@
+@@ -102080,12 +46170,11 @@
  /@docdir@/p
  /@infodir@/p
  /@localedir@/p
@@ -105968,7 +105969,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: $ac_file_inputs seems to ignore the --datarootdir setting" >&2;}
  _ACEOF
  cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
-@@ -102095,7 +46183,7 @@
+@@ -102095,7 +46184,7 @@
    s&@infodir@&$infodir&g
    s&@localedir@&$localedir&g
    s&@mandir@&$mandir&g
@@ -105977,7 +105978,7 @@ Index: samba-deb.clean/source3/configure
  esac
  _ACEOF
  
-@@ -102123,14 +46211,12 @@
+@@ -102123,14 +46212,12 @@
  $ac_datarootdir_hack
  "
  eval sed \"\$ac_sed_extra\" "$ac_file_inputs" | $AWK -f "$tmp/subs.awk" >$tmp/out \
@@ -105994,7 +105995,7 @@ Index: samba-deb.clean/source3/configure
  which seems to be undefined.  Please make sure it is defined." >&5
  $as_echo "$as_me: WARNING: $ac_file contains a reference to the variable \`datarootdir'
  which seems to be undefined.  Please make sure it is defined." >&2;}
-@@ -102140,9 +46226,7 @@
+@@ -102140,9 +46227,7 @@
    -) cat "$tmp/out" && rm -f "$tmp/out";;
    *) rm -f "$ac_file" && mv "$tmp/out" "$ac_file";;
    esac \
@@ -106005,7 +106006,7 @@ Index: samba-deb.clean/source3/configure
   ;;
    :H)
    #
-@@ -102153,29 +46237,23 @@
+@@ -102153,29 +46238,23 @@
        $as_echo "/* $configure_input  */" \
        && eval '$AWK -f "$tmp/defines.awk"' "$ac_file_inputs"
      } >"$tmp/config.h" \
@@ -106040,7 +106041,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: executing $ac_file commands" >&6;}
   ;;
    esac
-@@ -102201,15 +46279,12 @@
+@@ -102201,15 +46280,12 @@
  done # for ac_tag
  
  
@@ -106058,7 +106059,7 @@ Index: samba-deb.clean/source3/configure
  
  
  # configure is writing to config.log, and then calls config.status.
-@@ -102230,10 +46305,10 @@
+@@ -102230,10 +46306,10 @@
    exec 5>>config.log
    # Use ||, not &&, to avoid exiting from the if with $? = 1, which
    # would make configure fail if this is the last instruction.
@@ -106071,7 +106072,7 @@ Index: samba-deb.clean/source3/configure
  $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
  fi
  
-@@ -102244,8 +46319,8 @@
+@@ -102244,8 +46320,8 @@
  # Print very concise instructions on building/use
  if test "x$enable_dmalloc" = xyes
  then

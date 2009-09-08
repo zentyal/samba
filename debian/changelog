@@ -26,8 +26,7 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   * Change swat update-inetd call to use --remove only on purge,
     and --disable on removal.
   * Add missing build-dependency on pkg-config, needed to fix libtalloc
-    detection (which will make the package FTBFS until the makefile
-    substitutions are fixed)
+    detection
   * debian/patches/external-talloc-support.patch: fix the Makefile so it
     works when using external talloc instead of giving a missing-depend
     error.

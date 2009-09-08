@@ -1,3 +1,8 @@
+Description: Fix build against external libtalloc
+ Upstream Makefile is untested with builds against external libtalloc; fix a
+ make error when libtalloc is not being built.
+Author: Steve Langasek <vorlon@debian.org>
+
 Index: samba-deb.clean/source3/Makefile.in
 ===================================================================
 --- samba-deb.clean.orig/source3/Makefile.in

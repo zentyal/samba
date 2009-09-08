@@ -25,11 +25,14 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Change swat update-inetd call to use --remove only on purge,
     and --disable on removal.
-  * Add missing build-dependency on pkg-config, needed to fix libtdb
+  * Add missing build-dependency on pkg-config, needed to fix libtalloc
     detection (which will make the package FTBFS until the makefile
-    substitutions are fixed)    
-  * debian/patches/external-tdb-support.patch: fix the Makefile so it works
-    when using external tdb instead of giving a missing-depend error.
+    substitutions are fixed)
+  * debian/patches/external-talloc-support.patch: fix the Makefile so it
+    works when using external talloc instead of giving a missing-depend
+    error.
+  * debian/patches/autoconf.patch: resurrect this patch, needed for the
+    above.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 

@@ -22,6 +22,10 @@ samba (2:3.4.0-4) UNRELEASED; urgency=low
   [ Christian Perrier ]
   * Use DEP-3 for patches meta-information
 
+  [ Steve Langasek ]
+  * Change swat update-inetd call to use --remove only on purge,
+    and --disable on removal.
+
  -- Steve Langasek <vorlon@debian.org>  Sun, 23 Aug 2009 22:35:16 -0700
 
 samba (2:3.4.0-3) unstable; urgency=low

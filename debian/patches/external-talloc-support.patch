@@ -27,15 +27,16 @@ Index: samba-deb.clean/source3/configure.in
 ===================================================================
 --- samba-deb.clean.orig/source3/configure.in
 +++ samba-deb.clean/source3/configure.in
-@@ -33,6 +33,7 @@
- 		[ enable_external_libtalloc=yes ],
- 		[ if x$enable_external_libtalloc = xyes; then 
- 		 	AC_MSG_ERROR([Unable to find libtalloc])
-+			NO_LIBTALLOC='#'
- 	      else 
- 			enable_external_libtalloc=no
- 		  fi
-@@ -49,6 +50,7 @@
+@@ -42,6 +42,8 @@
+ if test "x$enable_external_libtalloc" = xno
+ then
+ 	m4_include(../lib/talloc/libtalloc.m4)
++else
++	NO_LIBTALLOC='#'
+ fi
+ 
+ LIBTALLOC_OBJ0=""
+@@ -49,6 +51,7 @@
  	LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
  done
  AC_SUBST(LIBTALLOC_OBJ0)

@@ -12,6 +12,5 @@ smbtar-bashism.patch
 no-unnecessary-cups.patch
 fix-manpages-warnings.patch
 codepages-location.patch
-536757.patch
 external-talloc-support.patch
 autoconf.patch

@@ -197,7 +197,7 @@ endif
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
 
 	dh_movefiles
-	dh_installpam
+	dh_installpam --name=samba
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.

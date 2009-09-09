@@ -1700,6 +1700,7 @@ static NTSTATUS ldapsam_modify_entry(struct pdb_methods *my_methods,
 		char *utf8_password;
 		char *utf8_dn;
 		size_t converted_size;
+		int ret;
 
 		if (!ldap_state->is_nds_ldap) {
 
@@ -1731,14 +1732,31 @@ static NTSTATUS ldapsam_modify_entry(struct pdb_methods *my_methods,
 		}
 
 		if ((ber_printf (ber, "{") < 0) ||
-		    (ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_ID, utf8_dn) < 0) ||
-		    (ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_NEW, utf8_password) < 0) ||
-		    (ber_printf (ber, "n}") < 0)) {
-			DEBUG(0,("ldapsam_modify_entry: ber_printf returns a value <0\n"));
-                       ber_free(ber,1);
-                       SAFE_FREE(utf8_dn);
-                       SAFE_FREE(utf8_password);
-                       return NT_STATUS_UNSUCCESSFUL;
+		    (ber_printf (ber, "ts", LDAP_TAG_EXOP_MODIFY_PASSWD_ID,
+				 utf8_dn) < 0)) {
+			DEBUG(0,("ldapsam_modify_entry: ber_printf returns a "
+				 "value <0\n"));
+			ber_free(ber,1);
+			SAFE_FREE(utf8_dn);
+			SAFE_FREE(utf8_password);
+			return NT_STATUS_UNSUCCESSFUL;
+		}
+
+		if ((utf8_password != NULL) && (*utf8_password != '\0')) {
+			ret = ber_printf(ber, "ts}",
+					 LDAP_TAG_EXOP_MODIFY_PASSWD_NEW,
+					 utf8_password);
+		} else {
+			ret = ber_printf(ber, "}");
+		}
+
+		if (ret < 0) {
+			DEBUG(0,("ldapsam_modify_entry: ber_printf returns a "
+				 "value <0\n"));
+			ber_free(ber,1);
+			SAFE_FREE(utf8_dn);
+			SAFE_FREE(utf8_password);
+			return NT_STATUS_UNSUCCESSFUL;
 		}
 
 	        if ((rc = ber_flatten (ber, &bv))<0) {
@@ -5169,6 +5187,18 @@ static NTSTATUS ldapsam_create_user(struct pdb_methods *my_methods,
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS ldapsam_del_groupmem(struct pdb_methods *my_methods,
+				     TALLOC_CTX *tmp_ctx,
+				     uint32 group_rid,
+				     uint32 member_rid);
+
+static NTSTATUS ldapsam_enum_group_memberships(struct pdb_methods *methods,
+					       TALLOC_CTX *mem_ctx,
+					       struct samu *user,
+					       DOM_SID **pp_sids,
+					       gid_t **pp_gids,
+					       size_t *p_num_groups);
+
 static NTSTATUS ldapsam_delete_user(struct pdb_methods *my_methods, TALLOC_CTX *tmp_ctx, struct samu *sam_acct)
 {
 	struct ldapsam_privates *ldap_state = (struct ldapsam_privates *)my_methods->private_data;
@@ -5222,6 +5252,40 @@ static NTSTATUS ldapsam_delete_user(struct pdb_methods *my_methods, TALLOC_CTX *
 		DEBUG(0,("ldapsam_delete_user: Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
+
+	/* try to remove memberships first */
+	{
+		NTSTATUS status;
+		struct dom_sid *sids = NULL;
+		gid_t *gids = NULL;
+		size_t num_groups = 0;
+		int i;
+		uint32_t user_rid = pdb_get_user_rid(sam_acct);
+
+		status = ldapsam_enum_group_memberships(my_methods,
+							tmp_ctx,
+							sam_acct,
+							&sids,
+							&gids,
+							&num_groups);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto delete_dn;
+		}
+
+		for (i=0; i < num_groups; i++) {
+
+			uint32_t group_rid;
+
+			sid_peek_rid(&sids[i], &group_rid);
+
+			ldapsam_del_groupmem(my_methods,
+					     tmp_ctx,
+					     group_rid,
+					     user_rid);
+		}
+	}
+
+ delete_dn:
 
 	rc = smbldap_delete(ldap_state->smbldap_state, dn);
 	if (rc != LDAP_SUCCESS) {

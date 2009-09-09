@@ -759,6 +759,7 @@ void reply_tcon_and_X(struct smb_request *req)
 
 	END_PROFILE(SMBtconX);
 
+	req->tid = conn->cnum;
 	chain_reply(req);
 	return;
 }
@@ -1924,6 +1925,7 @@ void reply_ulogoffX(struct smb_request *req)
 	DEBUG( 3, ( "ulogoffX vuid=%d\n", req->vuid ) );
 
 	END_PROFILE(SMBulogoffX);
+	req->vuid = UID_FIELD_INVALID;
 	chain_reply(req);
 }
 
@@ -7163,18 +7165,18 @@ void reply_lockingX(struct smb_request *req)
 		}
 
 		if (NT_STATUS_V(status)) {
-			END_PROFILE(SMBlockingX);
-			reply_nterror(req, status);
-			return;
+			break;
 		}
 	}
 
 	/* If any of the above locks failed, then we must unlock
 	   all of the previous locks (X/Open spec). */
+	if (num_locks != 0 && !NT_STATUS_IS_OK(status)) {
 
-	if (!(locktype & LOCKING_ANDX_CANCEL_LOCK) &&
-			(i != num_locks) &&
-			(num_locks != 0)) {
+		if (locktype & LOCKING_ANDX_CANCEL_LOCK) {
+			i = -1; /* we want to skip the for loop */
+		}
+
 		/*
 		 * Ensure we don't do a remove on the lock that just failed,
 		 * as under POSIX rules, if we have a lock already there, we

@@ -3,7 +3,7 @@
 <a class="indexterm" name="id2618090"></a>
 <a class="indexterm" name="id2618097"></a>
 <a class="indexterm" name="id2618104"></a>
-<a class="indexterm" name="id2618110"></a>
+<a class="indexterm" name="id2618111"></a>
 <a class="indexterm" name="id2618117"></a>
 <a class="indexterm" name="id2618124"></a>
 The information contained in this chapter applies in general to all Samba installations. Security is
@@ -26,7 +26,7 @@ of knowledge with which we may unlock the secrets of the masters.
 <a class="indexterm" name="id2618182"></a>
 <a class="indexterm" name="id2618189"></a>
 <a class="indexterm" name="id2618196"></a>
-<a class="indexterm" name="id2618202"></a>
+<a class="indexterm" name="id2618203"></a>
 There are three levels at which security principles must be observed in order to render a site
 at least moderately secure. They are the perimeter firewall, the configuration of the host
 server that is running Samba, and Samba itself.
@@ -57,7 +57,7 @@ fortress! Given the history of information systems so far, it is only a matter o
 before someone will find yet another vulnerability.
 </p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2618336"></a>Using Host-Based Protection</h3></div></div></div><p>
 <a class="indexterm" name="id2618344"></a>
-<a class="indexterm" name="id2618350"></a>
+<a class="indexterm" name="id2618351"></a>
 <a class="indexterm" name="id2618357"></a>
 	In many installations of Samba, the greatest threat comes from outside
 	your immediate network. By default, Samba accepts connections from
@@ -65,8 +65,8 @@ before someone will find yet another vulnerability.
 	a host that is directly connected to the Internet, you can be
 	especially vulnerable.
 	</p><p>
-<a class="indexterm" name="id2618372"></a>
-<a class="indexterm" name="id2618379"></a>
+<a class="indexterm" name="id2618373"></a>
+<a class="indexterm" name="id2618380"></a>
 	One of the simplest fixes in this case is to use the <a class="link" href="smb.conf.5.html#HOSTSALLOW" target="_top">hosts allow</a> and
 	<a class="link" href="smb.conf.5.html#HOSTSDENY" target="_top">hosts deny</a> options in the Samba <code class="filename">smb.conf</code> configuration file to
 	allow access to your server only from a specific range of hosts. An example might be:
@@ -97,9 +97,9 @@ before someone will find yet another vulnerability.
 	links. This may not be what you want.
 	</p><p>
 	You can change this behavior using options like this:
-	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2618592"></a><em class="parameter"><code>interfaces = eth* lo</code></em></td></tr><tr><td><a class="indexterm" name="id2618604"></a><em class="parameter"><code>bind interfaces only = yes</code></em></td></tr></table><p>
+	</p><table class="simplelist" border="0" summary="Simple list"><tr><td><a class="indexterm" name="id2618593"></a><em class="parameter"><code>interfaces = eth* lo</code></em></td></tr><tr><td><a class="indexterm" name="id2618604"></a><em class="parameter"><code>bind interfaces only = yes</code></em></td></tr></table><p>
 	</p><p>
-<a class="indexterm" name="id2618619"></a>
+<a class="indexterm" name="id2618620"></a>
 <a class="indexterm" name="id2618626"></a>
 <a class="indexterm" name="id2618633"></a>
 <a class="indexterm" name="id2618640"></a>
@@ -108,9 +108,9 @@ before someone will find yet another vulnerability.
 	<code class="constant">lo</code>. The name you will need to use depends on what OS you are using. In the above, I used
 	the common name for Ethernet adapters on Linux.
 	</p><p>
-<a class="indexterm" name="id2618669"></a>
+<a class="indexterm" name="id2618670"></a>
 <a class="indexterm" name="id2618676"></a>
-<a class="indexterm" name="id2618682"></a>
+<a class="indexterm" name="id2618683"></a>
 <a class="indexterm" name="id2618689"></a>
 	If you use the above and someone tries to make an SMB connection to your host over a PPP interface called
 	<code class="constant">ppp0</code>, then [s]he will get a TCP connection refused reply. In that case, no Samba code
@@ -166,7 +166,7 @@ before someone will find yet another vulnerability.
 	</p><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[IPC$]</code></em></td></tr><tr><td><a class="indexterm" name="id2618952"></a><em class="parameter"><code>hosts allow = 192.168.115.0/24 127.0.0.1</code></em></td></tr><tr><td><a class="indexterm" name="id2618964"></a><em class="parameter"><code>hosts deny = 0.0.0.0/0</code></em></td></tr></table><p>
 	</p><p>
 <a class="indexterm" name="id2618979"></a>
-<a class="indexterm" name="id2618985"></a>
+<a class="indexterm" name="id2618986"></a>
 <a class="indexterm" name="id2618993"></a>
 	This instructs Samba that IPC$ connections are not allowed from anywhere except the two listed network
 	addresses (localhost and the 192.168.115 subnet). Connections to other shares are still allowed. Because the
@@ -175,7 +175,7 @@ before someone will find yet another vulnerability.
 	</p><p>
 <a class="indexterm" name="id2619010"></a>
 <a class="indexterm" name="id2619017"></a>
-<a class="indexterm" name="id2619023"></a>
+<a class="indexterm" name="id2619024"></a>
 	If you use this method, then clients will be given an <code class="literal">`access denied'</code> reply when they try
 	to access the IPC$ share. Those clients will not be able to browse shares and may also be unable to access
 	some other resources.  This is not recommended unless for some reason you cannot use one of the other methods
@@ -202,7 +202,7 @@ before someone will find yet another vulnerability.
 	NtlmMinServerSec is set to 0x00080000, the connection will fail if NTLMv2
 	session security is negotiated.
 	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2619099"></a>Upgrading Samba</h2></div></div></div><p>
-<a class="indexterm" name="id2619106"></a>
+<a class="indexterm" name="id2619107"></a>
 <a class="indexterm" name="id2619113"></a>
 <a class="indexterm" name="id2619120"></a>
 Please check regularly on <a class="ulink" href="http://www.samba.org/" target="_top">http://www.samba.org/</a> for
@@ -245,8 +245,8 @@ problem request are totally convinced that the problem is with Samba.
 	into another user's directory and execute <code class="literal">ls</code>, the UNIX security solution is to change file
 	permissions on the user's home directories so that the <code class="literal">cd</code> and <code class="literal">ls</code> are denied.
 	</p><p>
-<a class="indexterm" name="id2619292"></a>
-<a class="indexterm" name="id2619299"></a>
+<a class="indexterm" name="id2619293"></a>
+<a class="indexterm" name="id2619300"></a>
 	Samba tries very hard not to second guess the UNIX administrator's security policies and
 	trusts the UNIX admin to set the policies and permissions he or she desires.
 	</p><p>

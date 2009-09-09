@@ -1373,7 +1373,7 @@ ssize_t read_udp_v4_socket(int fd,
 			char *buf,
 			size_t len,
 			struct sockaddr_storage *psa);
-NTSTATUS read_socket_with_timeout(int fd, char *buf,
+NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				  size_t mincnt, size_t maxcnt,
 				  unsigned int time_out,
 				  size_t *size_ret);
@@ -2371,7 +2371,7 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			const char *path,
 			CLIENT_DFS_REFERRAL**refs,
 			size_t *num_refs,
-			uint16 *consumed);
+			size_t *consumed);
 bool cli_resolve_path(TALLOC_CTX *ctx,
 			const char *mountpt,
 			const struct user_auth_info *dfs_auth_info,

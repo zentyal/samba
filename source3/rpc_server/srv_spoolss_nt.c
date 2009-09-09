@@ -309,7 +309,9 @@ WERROR delete_printer_hook(TALLOC_CTX *ctx, NT_USER_TOKEN *token, const char *sh
 		return WERR_BADFID; /* What to return here? */
 
 	/* go ahead and re-read the services immediately */
+	become_root();
 	reload_services(false);
+	unbecome_root();
 
 	if ( lp_servicenumber( sharename )  < 0 )
 		return WERR_ACCESS_DENIED;
@@ -6031,7 +6033,9 @@ bool add_printer_hook(TALLOC_CTX *ctx, NT_USER_TOKEN *token, NT_PRINTER_INFO_LEV
 	}
 
 	/* reload our services immediately */
+	become_root();
 	reload_services(false);
+	unbecome_root();
 
 	numlines = 0;
 	/* Get lines and convert them back to dos-codepage */
@@ -7526,7 +7530,7 @@ static WERROR spoolss_addprinterex_level_2(pipes_struct *p,
 	}
 
 	/* you must be a printer admin to add a new printer */
-	if (!print_access_check(NULL, snum, PRINTER_ACCESS_ADMINISTER)) {
+	if (!print_access_check(p->server_info, snum, PRINTER_ACCESS_ADMINISTER)) {
 		free_a_printer(&printer,2);
 		return WERR_ACCESS_DENIED;
 	}
@@ -9594,8 +9598,12 @@ WERROR _spoolss_GetPrintProcessorDirectory(pipes_struct *p,
 
 	/* r->in.level is ignored */
 
+	/* We always should reply with a local print processor directory so that
+	 * users are not forced to have a [prnproc$] share on the Samba spoolss
+	 * server - Guenther */
+
 	result = getprintprocessordirectory_level_1(p->mem_ctx,
-						    r->in.server,
+						    NULL, /* r->in.server */
 						    r->in.environment,
 						    &r->out.info->info1);
 	if (!W_ERROR_IS_OK(result)) {

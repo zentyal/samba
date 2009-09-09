@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 07/03/2009
+.\"      Date: 09/09/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "NET" "8" "07/03/2009" "Samba 3\&.4" "System Administration tools"
+.TH "NET" "8" "09/09/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1213,7 +1213,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom join \-S xp \-U XP\e\eadministrator%secret domain=MYDOM account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1260,7 +1260,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom unjoin \-S xp \-U XP\e\eadministrator%secret account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1319,7 +1319,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom renamecomputer \-S xp \-U XP\e\eadministrator%secret newname=XPNEW account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP

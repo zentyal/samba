@@ -127,7 +127,7 @@ static NTSTATUS read_packet_remainder(int fd, char *buffer,
 		return NT_STATUS_OK;
 	}
 
-	return read_socket_with_timeout(fd, buffer, len, len, timeout, NULL);
+	return read_fd_with_timeout(fd, buffer, len, len, timeout, NULL);
 }
 
 /****************************************************************************
@@ -161,7 +161,7 @@ static NTSTATUS receive_smb_raw_talloc_partial_read(TALLOC_CTX *mem_ctx,
 
 	memcpy(writeX_header, lenbuf, 4);
 
-	status = read_socket_with_timeout(
+	status = read_fd_with_timeout(
 		fd, writeX_header + 4,
 		STANDARD_WRITE_AND_X_HEADER_SIZE,
 		STANDARD_WRITE_AND_X_HEADER_SIZE,
@@ -377,6 +377,7 @@ void init_smb_request(struct smb_request *req,
 	req->conn = conn_find(req->tid);
 	req->chain_fsp = NULL;
 	req->chain_outbuf = NULL;
+	req->done = false;
 	smb_init_perfcount_data(&req->pcd);
 
 	/* Ensure we have at least wct words and 2 bytes of bcc. */
@@ -1395,6 +1396,11 @@ static void construct_reply(char *inbuf, int size, size_t unread_bytes,
 		req->unread_bytes = 0;
 	}
 
+	if (req->done) {
+		TALLOC_FREE(req);
+		return;
+	}
+
 	if (req->outbuf == NULL) {
 		return;
 	}
@@ -1650,8 +1656,8 @@ void chain_reply(struct smb_request *req)
 			exit_server_cleanly("chain_reply: srv_send_smb "
 					    "failed.");
 		}
-		TALLOC_FREE(req);
-
+		TALLOC_FREE(req->chain_outbuf);
+		req->done = true;
 		return;
 	}
 
@@ -1772,7 +1778,8 @@ void chain_reply(struct smb_request *req)
 			  &req->pcd)) {
 		exit_server_cleanly("construct_reply: srv_send_smb failed.");
 	}
-	TALLOC_FREE(req);
+	TALLOC_FREE(req->chain_outbuf);
+	req->done = true;
 }
 
 /****************************************************************************

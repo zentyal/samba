@@ -207,9 +207,6 @@
 /* Define to 1 if you have the <avahi-client/client.h> header file. */
 #undef HAVE_AVAHI_CLIENT_CLIENT_H
 
-/* Define to 1 if you have the `avahi_client_new' function. */
-#undef HAVE_AVAHI_CLIENT_NEW
-
 /* Define to 1 if you have the <avahi-common/watch.h> header file. */
 #undef HAVE_AVAHI_COMMON_WATCH_H
 
@@ -1228,6 +1225,9 @@
 
 /* Define to 1 if you have the `avahi-client' library (-lavahi-client). */
 #undef HAVE_LIBAVAHI_CLIENT
+
+/* Define to 1 if you have the `avahi-common' library (-lavahi-common). */
+#undef HAVE_LIBAVAHI_COMMON
 
 /* Whether we have blkid support (e2fsprogs) */
 #undef HAVE_LIBBLKID

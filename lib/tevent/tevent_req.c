@@ -104,7 +104,7 @@ struct tevent_req *_tevent_req_create(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	data = talloc_size(req, data_size);
+	data = talloc_zero_size(req, data_size);
 	if (data == NULL) {
 		talloc_free(req);
 		return NULL;
@@ -117,22 +117,27 @@ struct tevent_req *_tevent_req_create(TALLOC_CTX *mem_ctx,
 	return req;
 }
 
-static void tevent_req_finish(struct tevent_req *req,
-			      enum tevent_req_state state,
-			      const char *location)
+void _tevent_req_notify_callback(struct tevent_req *req, const char *location)
 {
-	req->internal.state = state;
 	req->internal.finish_location = location;
 	if (req->async.fn != NULL) {
 		req->async.fn(req);
 	}
 }
 
+static void tevent_req_finish(struct tevent_req *req,
+			      enum tevent_req_state state,
+			      const char *location)
+{
+	req->internal.state = state;
+	_tevent_req_notify_callback(req, location);
+}
+
 /**
  * @brief An async request has successfully finished
  * @param[in] req	The finished request
  *
- * async_req_done is to be used by implementors of async requests. When a
+ * tevent_req_done is to be used by implementors of async requests. When a
  * request is successfully finished, this function calls the user's completion
  * function.
  */
@@ -251,6 +256,16 @@ struct tevent_req *tevent_req_post(struct tevent_req *req,
 	return req;
 }
 
+/**
+ * @brief This function destroys the attached private data
+ * @param[in] req	The request to poll
+ * @retval		The boolean form of "is in progress".
+ *
+ * This function can be used to ask if the given request
+ * is still in progress.
+ *
+ * This function is typically used by sync wrapper functions.
+ */
 bool tevent_req_is_in_progress(struct tevent_req *req)
 {
 	if (req->internal.state == TEVENT_REQ_IN_PROGRESS) {
@@ -278,6 +293,23 @@ void tevent_req_received(struct tevent_req *req)
 	req->internal.state = TEVENT_REQ_RECEIVED;
 }
 
+/**
+ * @brief This function destroys the attached private data
+ * @param[in] req	The request to poll
+ * @param[in] ev	The tevent_context to be used
+ * @retval		If a critical error has happened in the
+ * 			tevent loop layer false is returned.
+ * 			Otherwise true is returned.
+ * 			This is not the return value of the given request!
+ *
+ * This function can be used to actively poll for the
+ * given request to finish.
+ *
+ * Note: this should only be used if the given tevent context
+ *       was created by the caller, to avoid event loop nesting.
+ *
+ * This function is typically used by sync wrapper functions.
+ */
 bool tevent_req_poll(struct tevent_req *req,
 		     struct tevent_context *ev)
 {
@@ -351,7 +383,61 @@ void *_tevent_req_data(struct tevent_req *req)
 	return req->data;
 }
 
+/**
+ * @brief This function sets a print function for the given request
+ * @param[in] req	The given request
+ * @param[in] fn	A pointer to the print function
+ *
+ * This function can be used to setup a print function for the given request.
+ * This will be triggered if the tevent_req_print() function was
+ * called on the given request.
+ *
+ * Note: this function should only be used for debugging.
+ */
 void tevent_req_set_print_fn(struct tevent_req *req, tevent_req_print_fn fn)
 {
 	req->private_print = fn;
+}
+
+/**
+ * @brief This function sets a cancel function for the given request
+ * @param[in] req	The given request
+ * @param[in] fn	A pointer to the cancel function
+ *
+ * This function can be used to setup a cancel function for the given request.
+ * This will be triggered if the tevent_req_cancel() function was
+ * called on the given request.
+ *
+ */
+void tevent_req_set_cancel_fn(struct tevent_req *req, tevent_req_cancel_fn fn)
+{
+	req->private_cancel = fn;
+}
+
+/**
+ * @brief This function tries to cancel the given request
+ * @param[in] req	The given request
+ * @param[in] location	Automaticly filled with the __location__ macro
+ * 			via the tevent_req_cancel() macro. This is for debugging
+ * 			only!
+ * @retval		This function returns true is the request is cancelable.
+ * 			Otherwise false is returned.
+ *
+ * This function can be used to cancel the given request.
+ *
+ * It is only possible to cancel a request when the implementation
+ * has registered a cancel function via the tevent_req_set_cancel_fn().
+ *
+ * Note: Even if the function returns true, the caller need to wait
+ *       for the function to complete normally.
+ *       Only the _recv() function of the given request indicates
+ *       if the request was really canceled.
+ */
+bool _tevent_req_cancel(struct tevent_req *req, const char *location)
+{
+	if (req->private_cancel == NULL) {
+		return false;
+	}
+
+	return req->private_cancel(req);
 }

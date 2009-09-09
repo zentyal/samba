@@ -1,4 +1,144 @@
                    =============================
+                   Release Notes for Samba 3.4.1
+			 September 9, 2009
+                   =============================
+
+
+This is the latest stable release of Samba 3.4.
+
+
+Major enhancements in Samba 3.4.1 include:
+
+   o Fix authentication on member servers without Winbind (bug #6650).
+   o Nautilus fails to copy files from an SMB share (bug #6649).
+   o Fix connections of Win98 clients (bug #6551).
+   o Fix interdomain trusts with Windows 2008 R2 DCs (bug #6697).
+   o Fix Winbind authentication issue (bug #6646).
+
+
+######################################################################
+Changes
+#######
+
+Changes since 3.4.0
+-------------------
+
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 6650: Fix authentication on member servers without Winbind.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6437: Make open_udp_socket() IPv6 clean.
+    * BUG 6506: Smbd server doesn't set EAs when a file is overwritten in
+      NT_TRANSACT_CREATE.
+    * BUG 6551: Fix connections of Win98 clients.
+    * BUG 6564: SetPrinter fails (panics) as non root.
+    * BUG 6593: Correctly implement SMB_INFO_STANDARD setfileinfo.
+    * BUG 6649: Nautilus fails to copy files from an SMB share.
+    * BUG 6651: Fix smbd SIGSEGV when breaking oplocks.
+    * BUG 6673: Fix 'smbpasswd' with "unix password sync = yes".
+
+
+o   Yannick Bergeron <burgergold@hotmail.com>
+    * Increase the max_grp value to 128 (AIX NGROUPS_MAX value) instead of 32 to
+      allow AIX to call sys_getgrouplist only once.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 6568: Fix _spoolss_GetPrintProcessorDirectory() implementation.
+    * BUG 6607: Fix crash bug in spoolss_addprinterex_level_2.
+    * BUG 6680: Fix authentication failure from Windows 7 when domain joined.
+    * BUG 6697: Fix interdomain trusts with Windows 2008 R2 DCs.
+
+
+o   Olaf Flebbe <flebbe@nix.science-computing.de>
+    * BUG 6655: Fix 'smbcontrol smbd ping'.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 6105: Make linking of rpcclient --as-needed safe.
+
+
+o   Matt Kraai <mkraai@beckman.com>
+    * BUG 6630: Fix opening of sockets on QNX.
+
+
+o   Robert LeBlanc <robert@leblancnet.us>
+    * BUG 6700: Use dns domain name when needing to guess server principal.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 5886: Fix password change propagation with ldapsam.
+    * BUG 6585: Fix unqualified "net join".
+    * BUG 6611: Fix a valgrind error in chain_reply.
+    * BUG 6646: Fix Winbind authentication issue.
+    * Fix linking on Solaris.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 6222: Default to DRSUAPI replication for net rpc vampire keytab.
+    * BUG 6532: Fix the build with external talloc.
+    * BUG 6538: Cancel all locks that are made before the first failure.
+    * BUG 6627: Raise the timeout for lsa_Lookup*() calls from 10 to 35 seconds.
+    * BUG 6651: Fix smbd SIGSEGV when breaking oplocks.
+    * BUG 6664: Fix truncation of the session key.
+
+
+o   Tim Prouty <tprouty@samba.org>
+    * BUG 6620: Fix a bug in renames of directories.
+
+
+o   Rusty Russell <rusty@rustcorp.com.au>
+    * BUG 6601: Avoid global fd limits.
+
+
+o   SATOH Fumiyasu <fumiyas@osstech.co.jp>
+    * BUG 6496: MS-DFS cannot follow multibyte char link name in libsmbclient.
+
+
+o   Simo Sorce <idra@samba.org>
+    * BUG 6693: Check we read off the complete event from inotify.
+
+
+o   Peter Volkov <pva@gentoo.org>
+    * BUG 6105: Make linking of cifs.upcall --as-needed safe.
+
+
+o   TAKEDA Yasuma <yasuma@osstech.co.jp>
+    * BUG 5879: Update LDAP schema for Netscape DS 5.
+
+
+o   Bo Yang <boyang@samba.org>
+    * BUG 6560: Fix lookupname.
+    * BUG 6615: Fix browsing of DFS when using kerberos in libsmbclient.
+    * BUG 6688: Fix crash in 'net usershare list'.
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.4 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older versions follow:
+----------------------------------------
+
+                   =============================
                    Release Notes for Samba 3.4.0
 			   July 3, 2009
                    =============================
@@ -261,6 +401,7 @@ o   Jeremy Allison <jra@samba.org>
 
 
 o   Günther Deschner <gd@samba.org>
+    * BUG 4296: Clean up group membership while deleting a user.
     * BUG 5456: Fix "net ads testjoin".
     * BUG 6253: Use correct value for password expiry calculation in
       pam_winbind.
@@ -272,6 +413,7 @@ o   Günther Deschner <gd@samba.org>
 
 o   Volker Lendecke <vl@samba.org>
     * BUG 4699: Remove pidfile on clean shutdown.
+    * BUG 6349: Initialize domain info struct.
     * BUG 6449: 'net rap user add' crashes without -C option.
 
 
@@ -287,6 +429,7 @@ o   Andreas Schneider <mail@cynapses.org>
 o   Simo Sorce <idra@samba.org>
     * BUG 6081: Make it possible to change machine account sids.
     * BUG 6333: Consolidate create/delete account paths in pdbedit.
+    * BUG 6584: Allow DOM\user when changing passwords remotely.
 
 
 o   Jelmer Vernooij <jelmer@samba.org>

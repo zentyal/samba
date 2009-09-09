@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.4.0
+Version:      3.4.1
 Release:      1
 Epoch:        0
 License: GNU GPL version 3
@@ -122,8 +122,7 @@ cd source3
 # RPM_OPT_FLAGS="$RPM_OPT_FLAGS -D_FILE_OFFSET_BITS=64"
 
 ## check for ccache
- ccache -h 2>&1 > /dev/null
-if [ $? -eq 0 ]; then
+if [ "$(which ccache 2> /dev/null)" != "" ]; then
 	CC="ccache gcc"
 else
 	CC="gcc"

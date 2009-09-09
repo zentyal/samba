@@ -19,7 +19,7 @@
 	to browse) using Samba.
 	</p><p>
 <a class="indexterm" name="id2621543"></a>
-<a class="indexterm" name="id2621549"></a>
+<a class="indexterm" name="id2621550"></a>
 <a class="indexterm" name="id2621556"></a>
 <a class="indexterm" name="id2621563"></a>
 	A Samba server can be made a DFS server by setting the global Boolean <a class="link" href="smb.conf.5.html#HOSTMSDFS" target="_top">host msdfs</a>
@@ -32,7 +32,7 @@
 	</p><p>
 <a class="indexterm" name="id2621625"></a>
 <a class="indexterm" name="id2621632"></a>
-<a class="indexterm" name="id2621638"></a>
+<a class="indexterm" name="id2621639"></a>
 <a class="indexterm" name="id2621645"></a>
 	DFS trees on Samba work with all DFS-aware clients ranging from Windows 95 to 200x.
 	<a class="link" href="msdfs.html#dfscfg" title="Example 20.1. smb.conf with DFS Configured">The following sample configuration</a> shows how to setup a DFS tree on a Samba server.
@@ -45,9 +45,9 @@
 <code class="prompt">root# </code><strong class="userinput"><code>ln -s msdfs:storageA\\shareA linka</code></strong>
 <code class="prompt">root# </code><strong class="userinput"><code>ln -s msdfs:serverB\\share,serverC\\share linkb</code></strong>
 </pre><p>
-</p><div class="example"><a name="dfscfg"></a><p class="title"><b>Example 20.1. smb.conf with DFS Configured</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2621755"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id2621766"></a><em class="parameter"><code>host msdfs   = yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[dfs]</code></em></td></tr><tr><td><a class="indexterm" name="id2621787"></a><em class="parameter"><code>path = /export/dfsroot</code></em></td></tr><tr><td><a class="indexterm" name="id2621799"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+</p><div class="example"><a name="dfscfg"></a><p class="title"><b>Example 20.1. smb.conf with DFS Configured</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2621755"></a><em class="parameter"><code>netbios name = GANDALF</code></em></td></tr><tr><td><a class="indexterm" name="id2621767"></a><em class="parameter"><code>host msdfs   = yes</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[dfs]</code></em></td></tr><tr><td><a class="indexterm" name="id2621787"></a><em class="parameter"><code>path = /export/dfsroot</code></em></td></tr><tr><td><a class="indexterm" name="id2621799"></a><em class="parameter"><code>msdfs root = yes</code></em></td></tr></table></div></div><br class="example-break"><p>
 <a class="indexterm" name="id2621814"></a>
-<a class="indexterm" name="id2621820"></a>
+<a class="indexterm" name="id2621821"></a>
 <a class="indexterm" name="id2621827"></a>
 	You should set up the permissions and ownership of the directory acting as the DFS root so that only
 	designated users can create, delete, or modify the msdfs links. Also note that symlink names should be all
@@ -55,7 +55,7 @@
 	name. Finally, set up the symbolic links to point to the network shares you want and start Samba.
 	</p><p>
 <a class="indexterm" name="id2621852"></a>
-<a class="indexterm" name="id2621858"></a>
+<a class="indexterm" name="id2621859"></a>
 	Users on DFS-aware clients can now browse the DFS tree on the Samba server at
 	<code class="constant">\\samba\dfs</code>. Accessing links linka or linkb (which appear as directories to the client)
 	takes users directly to the appropriate shares on the network.

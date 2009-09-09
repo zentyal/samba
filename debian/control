@@ -23,7 +23,7 @@ Architecture: any
 Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
 Recommends: logrotate
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
-Replaces: samba-common (<< 2:3.4.0-4)
+Replaces: samba-common (<= 2.0.5a-2)
 Conflicts: samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

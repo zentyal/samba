@@ -4,6 +4,8 @@ samba (2:3.4.1-1) UNRELEASED; urgency=low
     - smbd SIGSEGV when breaking oplocks. Thanks to Petr Vandrovec
       for the clever analysis and collaboration with upstream.
       Closes: #541171
+    - Fix password change propagation with ldapsam. Closes: #505215
+    - Source package contains non-free IETF RFC/I-D. Closes: #538034
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 09 Sep 2009 22:18:59 +0200
 

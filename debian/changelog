@@ -1,3 +1,12 @@
+samba (2:3.4.1-1) UNRELEASED; urgency=low
+
+  * New upstream release. This fixes the following bugs:
+    - smbd SIGSEGV when breaking oplocks. Thanks to Petr Vandrovec
+      for the clever analysis and collaboration with upstream.
+      Closes: #541171
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 09 Sep 2009 22:18:59 +0200
+
 samba (2:3.4.0-5) unstable; urgency=low
 
   * Move /etc/pam.d/samba back to samba-common, because it's shared with

@@ -6,6 +6,9 @@ samba (2:3.4.1-1) UNRELEASED; urgency=low
       Closes: #541171
     - Fix password change propagation with ldapsam. Closes: #505215
     - Source package contains non-free IETF RFC/I-D. Closes: #538034
+  * Turn the build dependency on libreadline5-dev to libreadline-dev
+    to make further binNMUs easier when libreadline soname changes
+    Thanks to Matthias Klose for the suggestion
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 09 Sep 2009 22:18:59 +0200
 

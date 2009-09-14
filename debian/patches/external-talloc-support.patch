@@ -3,49 +3,16 @@ Description: Fix build against external libtalloc
  make error when libtalloc is not being built.
 Author: Steve Langasek <vorlon@debian.org>
 
-Index: samba-deb.clean/source3/Makefile.in
-===================================================================
---- samba-deb.clean.orig/source3/Makefile.in
-+++ samba-deb.clean/source3/Makefile.in
-@@ -1694,11 +1694,11 @@
- LIBTALLOC_SHARED_TARGET_SONAME=$(LIBTALLOC_SHARED_TARGET).$(LIBTALLOC_SOVER)
- LIBTALLOC_STATIC_TARGET=@LIBTALLOC_STATIC_TARGET@
- LIBTALLOC=@LIBTALLOC_STATIC@ @LIBTALLOC_SHARED@
--LIBTALLOC_SYMS=$(srcdir)/exports/libtalloc.@SYMSEXT@
--LIBTALLOC_HEADERS=$(srcdir)/@tallocdir@/talloc.h
-+@NO_LIBTALLOC@LIBTALLOC_SYMS=$(srcdir)/exports/libtalloc.@SYMSEXT@
-+@NO_LIBTALLOC@LIBTALLOC_HEADERS=$(srcdir)/@tallocdir@/talloc.h
- 
--$(LIBTALLOC_SYMS): $(LIBTALLOC_HEADERS)
--	@$(MKSYMS_SH) $(AWK) $@ $(LIBTALLOC_HEADERS)
-+@NO_LIBTALLOC@$(LIBTALLOC_SYMS): $(LIBTALLOC_HEADERS)
-+@NO_LIBTALLOC@	@$(MKSYMS_SH) $(AWK) $@ $(LIBTALLOC_HEADERS)
- 
- $(LIBTALLOC_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBTALLOC_OBJ) $(LIBTALLOC_SYMS)
- 	@echo Linking shared library $@
 Index: samba-deb.clean/source3/configure.in
 ===================================================================
 --- samba-deb.clean.orig/source3/configure.in
 +++ samba-deb.clean/source3/configure.in
-@@ -49,6 +49,7 @@
- 	LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
- done
- AC_SUBST(LIBTALLOC_OBJ0)
-+AC_SUBST(NO_LIBTALLOC)
+@@ -42,6 +42,8 @@
+ if test "x$enable_external_libtalloc" != xyes
+ then
+ 	m4_include(../lib/talloc/libtalloc.m4)
++else
++	tallocdir=../lib/talloc
+ fi
  
  m4_include(../lib/tevent/libtevent.m4)
- 
-@@ -4749,6 +4750,13 @@
- #  be extracted from their respective source directories
- #
- SMB_LIBRARY(talloc, 1)
-+if test "x$enable_external_libtalloc" = xyes
-+then
-+	NO_LIBTALLOC='#'
-+	LIBTALLOC_STATIC=
-+	tallocdir=../lib/talloc
-+fi
-+
- SMB_LIBRARY(tdb, 1)
- SMB_LIBRARY(netapi, 0)
- SMB_LIBRARY(smbclient, 0)

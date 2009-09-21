@@ -6,7 +6,6 @@ usr/bin/locktest2
 usr/bin/nsstest
 usr/bin/vfstest
 usr/bin/pdbtest
-usr/bin/talloctort
 usr/bin/replacetort
 usr/bin/tdbtorture
 usr/bin/smbconftort

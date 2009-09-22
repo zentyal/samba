@@ -173,7 +173,6 @@ install: build
 	install -m 0755 source3/bin/nsstest $(DESTDIR)/usr/bin/nsstest
 	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
 	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
-	install -m 0755 source3/bin/talloctort $(DESTDIR)/usr/bin/talloctort
 	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
 	install -m 0755 source3/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
 	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort

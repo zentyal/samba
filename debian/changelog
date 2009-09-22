@@ -1,4 +1,4 @@
-samba (2:3.4.1-1) UNRELEASED; urgency=low
+samba (2:3.4.1-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release. This fixes the following bugs:
@@ -16,7 +16,7 @@ samba (2:3.4.1-1) UNRELEASED; urgency=low
     try to include talloctort in the samba-tools package, since we're
     building with --enable-external-talloc. :)  Closes: #546828.
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 09 Sep 2009 22:18:59 +0200
+ -- Steve Langasek <vorlon@debian.org>  Mon, 21 Sep 2009 22:20:22 -0700
 
 samba (2:3.4.0-5) unstable; urgency=low
 

@@ -63,6 +63,7 @@ conf_args = \
 		--with-cachedir=/var/cache/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
+		--disable-avahi \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

@@ -1,9 +1,9 @@
-samba (2:3.4.1-2) UNRELEASED; urgency=low
+samba (2:3.4.1-2) unstable; urgency=low
 
   * ./configure --disable-avahi, to avoid accidentally picking up an avahi
     dependency when libavahi-common-dev is installed.
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 25 Sep 2009 23:56:20 -0700
+ -- Steve Langasek <vorlon@debian.org>  Sat, 26 Sep 2009 00:01:12 -0700
 
 samba (2:3.4.1-1) unstable; urgency=low
 

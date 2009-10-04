@@ -1,3 +1,22 @@
+samba (2:3.4.2-1) unstable; urgency=high
+
+  * New upstream release. Security update.
+  * CVE-2009-2813:
+    Connecting to the home share of a user will use the root of the
+    filesystem as the home directory if this user is misconfigured to
+    have an empty home directory in /etc/passwd.
+  * CVE-2009-2948:
+    If mount.cifs is installed as a setuid program, a user can pass it
+    a credential or password path to which he or she does not have
+    access and then use the --verbose option to view the first line of
+    that file.
+  * CVE-2009-2906:
+    Specially crafted SMB requests on authenticated SMB connections
+    can send smbd into a 100% CPU loop, causing a DoS on the Samba
+    server.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 03 Oct 2009 08:30:33 +0200
+
 samba (2:3.4.1-2) unstable; urgency=low
 
   * ./configure --disable-avahi, to avoid accidentally picking up an avahi

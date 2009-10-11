@@ -1,3 +1,11 @@
+samba (3.0.24-6etch10) stable-security; urgency=high
+
+  * debian/patches/security-CVE-2008-1105.patch: fix a heap overflow
+    when parsing SMB responses in client code.  (CVE-2008-1105)
+    Closes: #483410
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 28 May 2008 20:32:04 +0200
+
 samba (3.0.24-6etch9) stable-security; urgency=high
 
   * debian/patches/security-CVE-2007-6015.patch: fix a remote code

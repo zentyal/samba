@@ -1223,12 +1223,6 @@
 /* Define to 1 if you have the `asn1' library (-lasn1). */
 #undef HAVE_LIBASN1
 
-/* Define to 1 if you have the `avahi-client' library (-lavahi-client). */
-#undef HAVE_LIBAVAHI_CLIENT
-
-/* Define to 1 if you have the `avahi-common' library (-lavahi-common). */
-#undef HAVE_LIBAVAHI_COMMON
-
 /* Whether we have blkid support (e2fsprogs) */
 #undef HAVE_LIBBLKID
 
@@ -2347,6 +2341,9 @@
 
 /* Define to 1 if you have the <sys/syscall.h> header file. */
 #undef HAVE_SYS_SYSCALL_H
+
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#undef HAVE_SYS_SYSCTL_H
 
 /* Define to 1 if you have the <sys/syslog.h> header file. */
 #undef HAVE_SYS_SYSLOG_H

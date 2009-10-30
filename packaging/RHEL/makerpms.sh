@@ -20,7 +20,7 @@ SRCDIR=`rpm --eval %_sourcedir`
 
 USERID=`id -u`
 GRPID=`id -g`
-VERSION='3.4.2'
+VERSION='3.4.3'
 REVISION=''
 SPECFILE="samba.spec"
 RPMVER=`rpm --version | awk '{print $3}'`
@@ -40,8 +40,8 @@ case $RPMVER in
 esac
 
 pushd .
-cd ../../source
-if [ -f Makefile ]; then 
+cd ../../source3
+if [ -f Makefile ]; then
 	make distclean
 fi
 popd

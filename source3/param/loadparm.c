@@ -54,6 +54,10 @@
 #include "includes.h"
 #include "printing.h"
 
+#ifdef HAVE_SYS_SYSCTL_H
+#include <sys/sysctl.h>
+#endif
+
 bool bLoaded = False;
 
 extern enum protocol_types Protocol;
@@ -3241,6 +3245,8 @@ static struct parm_struct parm_table[] = {
 		.type		= P_LIST,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.szInitLogonDelayedHosts,
+		.special        = NULL,
+		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
 	},
 
@@ -3249,6 +3255,8 @@ static struct parm_struct parm_table[] = {
 		.type		= P_INTEGER,
 		.p_class	= P_GLOBAL,
 		.ptr		= &Globals.InitLogonDelay,
+		.special        = NULL,
+		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
 
 	},

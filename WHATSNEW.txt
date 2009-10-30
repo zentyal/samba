@@ -1,4 +1,144 @@
                    =============================
+                   Release Notes for Samba 3.4.3
+			 October 29, 2009
+                   =============================
+
+
+This is the latest stable release of Samba 3.4.
+
+Major enhancements in Samba 3.4.3 include:
+
+   o Fix trust relationships to windows 2008 (2008 r2) (bug #6711).
+   o Fix file corruption using smbclient with NT4 server (bug #6606).
+   o Fix Windows 7 share access (which defaults to NTLMv2) (bug #6680).
+
+
+######################################################################
+Changes
+#######
+
+Changes since 3.4.2
+-------------------
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6529: Offline files conflict with Vista and Office 2003.
+    * BUG 6726: SIVAL should have been an SVAL.
+    * BUG 6769: Fix symlink unlink.
+    * BUG 6774: smbd crashes if "aio write behind" is set.
+    * BUG 6776: Fix core dump caused by running overlapping Byte Lock test.
+    * BUG 6781: Fix renaming subfolders in Explorer view.
+    * BUG 6793: Fix Winbind crash with "INTERNAL ERROR: Signal 6".
+    * BUG 6796: Deleting an event context on shutdown can cause smbd to crash.
+    * BUG 6828: Fix infinite timeout when byte lock held outside of Samba.
+    * BUG 6829: Fix displaying of multibyte characters in smbclient.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 6711: Fix trust relationships to windows 2008 (2008 r2).
+    * BUG 6815: Fix Windows 2008 R2 SPNEGO negTokenTarg parsing failure.
+
+
+o   Olaf Flebbe <o.flebbe@science-computing.de>
+    * BUG 6772: Allow outstanding_aio_calls to be decremented.
+    * BUG 6804: Fix hpux compiler issue.
+    * BUG 6805: Correctly handle aio_error() and errno.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 6704: Fix syntax error in avahi configure test.
+    * BUG 6728: BSD needs sys/sysctl.h included to build properly.
+    * BUG 6824: Fix avahi activation.
+    * QNX doesn't know uint - replace with uint_t.
+
+
+o   Andrew Klosterman <andrew.klosterman+samba_bugzilla@gmail.com>
+    * BUG 6690: Fix wrong error check in profile.
+
+
+o   Marc Aurele La France <tsi@ualberta.ca>
+    * BUG 6707: Fix an occasional segfault in config file parsing.
+
+
+o   Jeff Layton <jlayton@redhat.com>
+    * BUG 6810: Add support for finding alternate credcaches to cifs.upcall.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 6606: Fix file corruption using smbclient with NT4 server.
+    * BUG 6703: Allow smbstatus as non-root.
+    * BUG 6731: Fix reading beyond the end of a named stream in xattr_streams.
+    * BUG 6765: Add a "hidden" parameter "share:fake_fscaps".
+    * BUG 6793: Fix segfault in winbindd_pam_auth.
+    * BUG 6797: Fix a memleak in libwbclient.
+    * BUG 6807: Fix a segfault in "net rpc trustdom list" for long domain names.
+    * Fix an uninitialized variable.
+    * Only ever handle one event after a select call.
+
+
+o   Derrell Lipman <derrell.lipman@unwireduniverse.com>
+    * BUG 6532: Fix domain enumeration if master browser has space in name.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 6711: Fix trust relationships to windows 2008 (2008 r2).
+
+
+o   Buchan Milne <bgmilne@mandriva.org>
+    * BUG 6791: Fix linking order in cifs.upcall.
+
+
+o   Lars Müller <lars@samba.org>
+    * BUG 6710: Adjust regex to match variable names including underscores.
+    * Conditional install of the cifs.upcall man page.
+
+
+o   Shirish Pargaonkar <shirishpargaonkar@gmail.com>
+    * BUG 4675: mount.cifs: Do not attempt to update /etc/mtab if it is
+      a symbolic link.
+
+
+o   Karolin Seeger <kseeger@samba.org>
+    * Fix warning occuring when building the manpages.
+
+
+o   Simo Sorce <ssorce@redhat.com>
+    * BUG 6764: Fix timeval calculation.
+
+
+o   Bo Yang <boyang@samba.org>
+    * BUG 6735: Don't overwrite password in pam_winbind, subsequent pam modules
+      might use the old password and new password.
+    * BUG 6811: Fix reference to freed memory in pam_winbind.
+    * BUG 6826: Don't fail authentication when one or some group of
+      require-membership-of is invalid.
+    * BUG 6840: Fix crash in pam_winbind.
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.4 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older versions follow:
+----------------------------------------
+
+                   =============================
                    Release Notes for Samba 3.4.2
 			  October 1, 2009
                    =============================
@@ -61,8 +201,8 @@ database (https://bugzilla.samba.org/).
 ======================================================================
 
 
-Release notes for older versions follow:
-----------------------------------------
+----------------------------------------------------------------------
+
 
                    =============================
                    Release Notes for Samba 3.4.1

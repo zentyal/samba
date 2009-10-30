@@ -1280,7 +1280,7 @@ static struct async_req *rpc_api_pipe_send(TALLOC_CTX *mem_ctx,
 
 	max_recv_frag = cli->max_recv_frag;
 
-#ifdef DEVELOPER
+#if 0
 	max_recv_frag = RPC_HEADER_LEN + 10 + (sys_random() % 32);
 #endif
 
@@ -1966,7 +1966,7 @@ static uint32 calculate_data_len_tosend(struct rpc_pipe_client *cli,
 {
 	uint32 data_space, data_len;
 
-#ifdef DEVELOPER
+#if 0
 	if ((data_left > 0) && (sys_random() % 2)) {
 		data_left = MAX(data_left/2, 1);
 	}
@@ -3233,6 +3233,8 @@ static NTSTATUS rpc_pipe_open_tcp_port(TALLOC_CTX *mem_ctx, const char *host,
 		goto fail;
 	}
 
+	result->transport->transport = NCACN_IP_TCP;
+
 	*presult = result;
 	return NT_STATUS_OK;
 
@@ -3451,6 +3453,8 @@ NTSTATUS rpc_pipe_open_ncalrpc(TALLOC_CTX *mem_ctx, const char *socket_path,
 		goto fail;
 	}
 
+	result->transport->transport = NCALRPC;
+
 	*presult = result;
 	return NT_STATUS_OK;
 
@@ -3523,6 +3527,8 @@ static NTSTATUS rpc_pipe_open_np(struct cli_state *cli,
 		return status;
 	}
 
+	result->transport->transport = NCACN_NP;
+
 	DLIST_ADD(cli->pipe_list, result);
 	talloc_set_destructor(result, rpc_pipe_client_np_destructor);
 
@@ -3581,6 +3587,8 @@ NTSTATUS rpc_pipe_open_local(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
+	result->transport->transport = NCACN_INTERNAL;
+
 	*presult = result;
 	return NT_STATUS_OK;
 }
@@ -3590,34 +3598,35 @@ NTSTATUS rpc_pipe_open_local(TALLOC_CTX *mem_ctx,
  ****************************************************************************/
 
 static NTSTATUS cli_rpc_pipe_open(struct cli_state *cli,
+				  enum dcerpc_transport_t transport,
 				  const struct ndr_syntax_id *interface,
 				  struct rpc_pipe_client **presult)
 {
-	if (ndr_syntax_id_equal(interface, &ndr_table_drsuapi.syntax_id)) {
-		/*
-		 * We should have a better way to figure out this drsuapi
-		 * speciality...
-		 */
+	switch (transport) {
+	case NCACN_IP_TCP:
 		return rpc_pipe_open_tcp(NULL, cli->desthost, interface,
 					 presult);
+	case NCACN_NP:
+		return rpc_pipe_open_np(cli, interface, presult);
+	default:
+		return NT_STATUS_NOT_IMPLEMENTED;
 	}
-
-	return rpc_pipe_open_np(cli, interface, presult);
 }
 
 /****************************************************************************
  Open a named pipe to an SMB server and bind anonymously.
  ****************************************************************************/
 
-NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
-				  const struct ndr_syntax_id *interface,
-				  struct rpc_pipe_client **presult)
+NTSTATUS cli_rpc_pipe_open_noauth_transport(struct cli_state *cli,
+					    enum dcerpc_transport_t transport,
+					    const struct ndr_syntax_id *interface,
+					    struct rpc_pipe_client **presult)
 {
 	struct rpc_pipe_client *result;
 	struct cli_pipe_auth_data *auth;
 	NTSTATUS status;
 
-	status = cli_rpc_pipe_open(cli, interface, &result);
+	status = cli_rpc_pipe_open(cli, transport, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -3676,11 +3685,23 @@ NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
 }
 
 /****************************************************************************
+ ****************************************************************************/
+
+NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
+				  const struct ndr_syntax_id *interface,
+				  struct rpc_pipe_client **presult)
+{
+	return cli_rpc_pipe_open_noauth_transport(cli, NCACN_NP,
+						  interface, presult);
+}
+
+/****************************************************************************
  Open a named pipe to an SMB server and bind using NTLMSSP or SPNEGO NTLMSSP
  ****************************************************************************/
 
 static NTSTATUS cli_rpc_pipe_open_ntlmssp_internal(struct cli_state *cli,
 						   const struct ndr_syntax_id *interface,
+						   enum dcerpc_transport_t transport,
 						   enum pipe_auth_type auth_type,
 						   enum pipe_auth_level auth_level,
 						   const char *domain,
@@ -3692,7 +3713,7 @@ static NTSTATUS cli_rpc_pipe_open_ntlmssp_internal(struct cli_state *cli,
 	struct cli_pipe_auth_data *auth;
 	NTSTATUS status;
 
-	status = cli_rpc_pipe_open(cli, interface, &result);
+	status = cli_rpc_pipe_open(cli, transport, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -3734,6 +3755,7 @@ static NTSTATUS cli_rpc_pipe_open_ntlmssp_internal(struct cli_state *cli,
 
 NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 				   const struct ndr_syntax_id *interface,
+				   enum dcerpc_transport_t transport,
 				   enum pipe_auth_level auth_level,
 				   const char *domain,
 				   const char *username,
@@ -3742,6 +3764,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 {
 	return cli_rpc_pipe_open_ntlmssp_internal(cli,
 						interface,
+						transport,
 						PIPE_AUTH_TYPE_NTLMSSP,
 						auth_level,
 						domain,
@@ -3757,6 +3780,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 
 NTSTATUS cli_rpc_pipe_open_spnego_ntlmssp(struct cli_state *cli,
 					  const struct ndr_syntax_id *interface,
+					  enum dcerpc_transport_t transport,
 					  enum pipe_auth_level auth_level,
 					  const char *domain,
 					  const char *username,
@@ -3765,6 +3789,7 @@ NTSTATUS cli_rpc_pipe_open_spnego_ntlmssp(struct cli_state *cli,
 {
 	return cli_rpc_pipe_open_ntlmssp_internal(cli,
 						interface,
+						transport,
 						PIPE_AUTH_TYPE_SPNEGO_NTLMSSP,
 						auth_level,
 						domain,
@@ -3862,6 +3887,7 @@ NTSTATUS get_schannel_session_key(struct cli_state *cli,
 
 NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 					     const struct ndr_syntax_id *interface,
+					     enum dcerpc_transport_t transport,
 					     enum pipe_auth_level auth_level,
 					     const char *domain,
 					     const struct dcinfo *pdc,
@@ -3871,7 +3897,7 @@ NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 	struct cli_pipe_auth_data *auth;
 	NTSTATUS status;
 
-	status = cli_rpc_pipe_open(cli, interface, &result);
+	status = cli_rpc_pipe_open(cli, transport, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -3931,7 +3957,8 @@ static NTSTATUS get_schannel_session_key_auth_ntlmssp(struct cli_state *cli,
 	NTSTATUS status;
 
 	status = cli_rpc_pipe_open_spnego_ntlmssp(
-		cli, &ndr_table_netlogon.syntax_id, PIPE_AUTH_LEVEL_PRIVACY,
+		cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
+		PIPE_AUTH_LEVEL_PRIVACY,
 		domain, username, password, &netlogon_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -3956,6 +3983,7 @@ static NTSTATUS get_schannel_session_key_auth_ntlmssp(struct cli_state *cli,
 
 NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 						 const struct ndr_syntax_id *interface,
+						 enum dcerpc_transport_t transport,
 						 enum pipe_auth_level auth_level,
 						 const char *domain,
 						 const char *username,
@@ -3977,7 +4005,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 	}
 
 	status = cli_rpc_pipe_open_schannel_with_key(
-		cli, interface, auth_level, domain, netlogon_pipe->dc,
+		cli, interface, transport, auth_level, domain, netlogon_pipe->dc,
 		&result);
 
 	/* Now we've bound using the session key we can close the netlog pipe. */
@@ -3996,6 +4024,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 
 NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
 				    const struct ndr_syntax_id *interface,
+				    enum dcerpc_transport_t transport,
 				    enum pipe_auth_level auth_level,
 				    const char *domain,
 				    struct rpc_pipe_client **presult)
@@ -4015,7 +4044,7 @@ NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
 	}
 
 	status = cli_rpc_pipe_open_schannel_with_key(
-		cli, interface, auth_level, domain, netlogon_pipe->dc,
+		cli, interface, transport, auth_level, domain, netlogon_pipe->dc,
 		&result);
 
 	/* Now we've bound using the session key we can close the netlog pipe. */
@@ -4047,7 +4076,7 @@ NTSTATUS cli_rpc_pipe_open_krb5(struct cli_state *cli,
 	struct cli_pipe_auth_data *auth;
 	NTSTATUS status;
 
-	status = cli_rpc_pipe_open(cli, interface, &result);
+	status = cli_rpc_pipe_open(cli, NCACN_NP, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}

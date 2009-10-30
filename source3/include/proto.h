@@ -1017,7 +1017,8 @@ char *current_timestring(TALLOC_CTX *ctx, bool hires);
 void srv_put_dos_date(char *buf,int offset,time_t unixdate);
 void srv_put_dos_date2(char *buf,int offset, time_t unixdate);
 void srv_put_dos_date3(char *buf,int offset,time_t unixdate);
-void put_long_date_timespec(char *p, struct timespec ts);
+void round_timespec(enum timestamp_set_resolution res, struct timespec *ts);
+void put_long_date_timespec(enum timestamp_set_resolution res, char *p, struct timespec ts);
 void put_long_date(char *p, time_t t);
 struct timespec get_create_timespec(const SMB_STRUCT_STAT *st,bool fake_dirs);
 struct timespec get_atimespec(const SMB_STRUCT_STAT *pst);
@@ -1038,6 +1039,8 @@ struct timespec timespec_current(void);
 struct timespec timespec_min(const struct timespec *ts1,
 			   const struct timespec *ts2);
 int timespec_compare(const struct timespec *ts1, const struct timespec *ts2);
+void round_timespec_to_sec(struct timespec *ts);
+void round_timespec_to_usec(struct timespec *ts);
 struct timespec interpret_long_date(const char *p);
 void cli_put_dos_date(struct cli_state *cli, char *buf, int offset, time_t unixdate);
 void cli_put_dos_date2(struct cli_state *cli, char *buf, int offset, time_t unixdate);
@@ -2729,14 +2732,14 @@ bool cli_ns_check_server_type(struct cli_state *cli, char *workgroup, uint32 sty
 bool cli_NetWkstaUserLogoff(struct cli_state *cli, const char *user, const char *workstation);
 int cli_NetPrintQEnum(struct cli_state *cli,
 		void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint,uint,const char*));
+		void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*));
 int cli_NetPrintQGetInfo(struct cli_state *cli, const char *printer,
 	void (*qfn)(const char*,uint16,uint16,uint16,const char*,const char*,const char*,const char*,const char*,uint16,uint16),
-	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint,uint,const char*));
+	void (*jfn)(uint16,const char*,const char*,const char*,const char*,uint16,uint16,const char*,uint_t,uint_t,const char*));
 int cli_RNetServiceEnum(struct cli_state *cli, void (*fn)(const char *, const char *, void *), void *state);
-int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, uint, uint, uint, char *));
+int cli_NetSessionEnum(struct cli_state *cli, void (*fn)(char *, char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, char *));
 int cli_NetSessionGetInfo(struct cli_state *cli, const char *workstation,
-		void (*fn)(const char *, const char *, uint16, uint16, uint16, uint, uint, uint, const char *));
+		void (*fn)(const char *, const char *, uint16, uint16, uint16, uint_t, uint_t, uint_t, const char *));
 int cli_NetSessionDel(struct cli_state *cli, const char *workstation);
 int cli_NetConnectionEnum(struct cli_state *cli, const char *qualifier,
 			void (*fn)(uint16_t conid, uint16_t contype,
@@ -3290,7 +3293,7 @@ WERROR map_werror_from_unix(int error);
 
 /* The following definitions come from libsmb/spnego.c  */
 
-ssize_t read_spnego_data(DATA_BLOB data, SPNEGO_DATA *token);
+ssize_t read_spnego_data(TALLOC_CTX *mem_ctx, DATA_BLOB data, SPNEGO_DATA *token);
 ssize_t write_spnego_data(DATA_BLOB *blob, SPNEGO_DATA *spnego);
 bool free_spnego_data(SPNEGO_DATA *spnego);
 
@@ -5174,6 +5177,14 @@ NTSTATUS rpccli_lsa_lookup_sids(struct rpc_pipe_client *cli,
 				char ***pdomains,
 				char ***pnames,
 				enum lsa_SidType **ptypes);
+NTSTATUS rpccli_lsa_lookup_sids3(struct rpc_pipe_client *cli,
+				 TALLOC_CTX *mem_ctx,
+				 struct policy_handle *pol,
+				 int num_sids,
+				 const DOM_SID *sids,
+				 char ***pdomains,
+				 char ***pnames,
+				 enum lsa_SidType **ptypes);
 NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 TALLOC_CTX *mem_ctx,
 				 struct policy_handle *pol, int num_names,
@@ -5182,6 +5193,15 @@ NTSTATUS rpccli_lsa_lookup_names(struct rpc_pipe_client *cli,
 				 int level,
 				 DOM_SID **sids,
 				 enum lsa_SidType **types);
+NTSTATUS rpccli_lsa_lookup_names4(struct rpc_pipe_client *cli,
+				  TALLOC_CTX *mem_ctx,
+				  struct policy_handle *pol, int num_names,
+				  const char **names,
+				  const char ***dom_names,
+				  int level,
+				  DOM_SID **sids,
+				  enum lsa_SidType **types);
+
 bool fetch_domain_sid( char *domain, char *remote_machine, DOM_SID *psid);
 
 /* The following definitions come from rpc_client/cli_netlogon.c  */
@@ -5286,8 +5306,13 @@ NTSTATUS rpc_pipe_open_internal(TALLOC_CTX *mem_ctx, const struct ndr_syntax_id 
 NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
 				  const struct ndr_syntax_id *interface,
 				  struct rpc_pipe_client **presult);
+NTSTATUS cli_rpc_pipe_open_noauth_transport(struct cli_state *cli,
+					    enum dcerpc_transport_t transport,
+					    const struct ndr_syntax_id *interface,
+					    struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 				   const struct ndr_syntax_id *interface,
+				   enum dcerpc_transport_t transport,
 				   enum pipe_auth_level auth_level,
 				   const char *domain,
 				   const char *username,
@@ -5295,6 +5320,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
 				   struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_spnego_ntlmssp(struct cli_state *cli,
 					  const struct ndr_syntax_id *interface,
+					  enum dcerpc_transport_t transport,
 					  enum pipe_auth_level auth_level,
 					  const char *domain,
 					  const char *username,
@@ -5306,12 +5332,14 @@ NTSTATUS get_schannel_session_key(struct cli_state *cli,
 				  struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 					     const struct ndr_syntax_id *interface,
+					     enum dcerpc_transport_t transport,
 					     enum pipe_auth_level auth_level,
 					     const char *domain,
 					     const struct dcinfo *pdc,
 					     struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 						 const struct ndr_syntax_id *interface,
+						 enum dcerpc_transport_t transport,
 						 enum pipe_auth_level auth_level,
 						 const char *domain,
 						 const char *username,
@@ -5319,6 +5347,7 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
 						 struct rpc_pipe_client **presult);
 NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
 				    const struct ndr_syntax_id *interface,
+				    enum dcerpc_transport_t transport,
 				    enum pipe_auth_level auth_level,
 				    const char *domain,
 				    struct rpc_pipe_client **presult);

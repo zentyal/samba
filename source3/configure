@@ -758,6 +758,8 @@ LIBTDB_STATIC
 LIBTDB_SHARED
 LIBTDB_STATIC_TARGET
 LIBTDB_SHARED_TARGET
+TALLOCTORT
+BIN_TALLOCTORT
 LIBTALLOC_OBJ0
 LIBTALLOC_SOVER
 UNINSTALL_LIBTALLOC
@@ -31167,7 +31169,8 @@ done
 
 
 
-for ac_header in sys/param.h ctype.h sys/wait.h sys/resource.h sys/ioctl.h sys/ipc.h sys/prctl.h
+
+for ac_header in sys/param.h ctype.h sys/wait.h sys/resource.h sys/ioctl.h sys/ipc.h sys/prctl.h sys/sysctl.h
 do
 as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -73814,6 +73817,10 @@ fi
 		LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
 	done
 
+	BIN_TALLOCTORT="bin/talloctort"
+
+	TALLOCTORT="talloctort"
+
 else
 	LIBTALLOC_LIBS="${TALLOC_LIBS}"
 fi
@@ -80247,8 +80254,7 @@ done
     fi
 
     save_LIBS="$LIBS"
-
-{ $as_echo "$as_me:$LINENO: checking for avahi_client_new in -lavahi-client" >&5
+    { $as_echo "$as_me:$LINENO: checking for avahi_client_new in -lavahi-client" >&5
 $as_echo_n "checking for avahi_client_new in -lavahi-client... " >&6; }
 if test "${ac_cv_lib_avahi_client_avahi_client_new+set}" = set; then
   $as_echo_n "(cached) " >&6
@@ -80314,16 +80320,10 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_avahi_client_avahi_client_new" >&5
 $as_echo "$ac_cv_lib_avahi_client_avahi_client_new" >&6; }
 if test "x$ac_cv_lib_avahi_client_avahi_client_new" = x""yes; then
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBAVAHI_CLIENT 1
-_ACEOF
-
-  LIBS="-lavahi-client $LIBS"
-
+  have_avahi_client_new=yes
 fi
 
-
-{ $as_echo "$as_me:$LINENO: checking for avahi_strerror in -lavahi-common" >&5
+    { $as_echo "$as_me:$LINENO: checking for avahi_strerror in -lavahi-common" >&5
 $as_echo_n "checking for avahi_strerror in -lavahi-common... " >&6; }
 if test "${ac_cv_lib_avahi_common_avahi_strerror+set}" = set; then
   $as_echo_n "(cached) " >&6
@@ -80389,18 +80389,13 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_avahi_common_avahi_strerror" >&5
 $as_echo "$ac_cv_lib_avahi_common_avahi_strerror" >&6; }
 if test "x$ac_cv_lib_avahi_common_avahi_strerror" = x""yes; then
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBAVAHI_COMMON 1
-_ACEOF
-
-  LIBS="-lavahi-common $LIBS"
-
+  have_avahi_strerror=yes
 fi
 
     LIBS="$save_LIBS"
 
-    if test x"$ac_cv_lib_ext_avahi_client_avahi_client_new" != x"yes" -o \
-       test x"$ac_cv_lib_ext_avahi_common_avahi_strerror" != x"yes" ; then
+    if test x"$have_avahi_client_new" != x"yes" -o \
+       x"$have_avahi_strerror" != x"yes" ; then
 	have_avahi_support=no
     fi
 

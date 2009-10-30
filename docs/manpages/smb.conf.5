@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 09/30/2009
+.\"      Date: 10/29/2009
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "09/30/2009" "Samba 3\&.4" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "10/29/2009" "Samba 3\&.4" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -1037,14 +1037,6 @@ Default:
 .sp
 Example:
 \fI\fIabort shutdown script\fR\fR\fI = \fR\fI\FC/sbin/shutdown \-c\F[]\fR\fI \fR
-.RE
-
-public
-.\" public
-.PP
-.RS 4
-This parameter is a synonym for
-access based share enum\&.
 .RE
 
 access based share enum (S)
@@ -9228,6 +9220,18 @@ Default:
 .sp
 Example:
 \fI\fIset quota command\fR\fR\fI = \fR\fI\FC/usr/local/sbin/set_quota\F[]\fR\fI \fR
+.RE
+
+share:fake_fscaps (G)
+.\" share:fake_fscaps
+.PP
+.RS 4
+This is needed to support some special application that makes QFSINFO calls to check whether we set the SPARSE_FILES bit (0x40)\&. If this bit is not set that particular application refuses to work against Samba\&. With
+\m[blue]\fBshare:fake_fscaps = 64\fR\m[]
+the SPARSE_FILES file system capability flag is set\&. Use other decimal values to specify the bitmask you need to fake\&.
+.sp
+Default:
+\fI\fIshare:fake_fscaps\fR\fR\fI = \fR\fI\FC0\F[]\fR\fI \fR
 .RE
 
 share modes (S)

@@ -1,12 +1,12 @@
 .\"     Title: mount.cifs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 09/30/2009
+.\"      Date: 10/29/2009
 .\"    Manual: System Administration tools
 .\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "MOUNT\&.CIFS" "8" "09/30/2009" "Samba 3\&.4" "System Administration tools"
+.TH "MOUNT\&.CIFS" "8" "10/29/2009" "Samba 3\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -194,6 +194,14 @@ are specified as a comma\-separated list of key=value pairs\&. It is possible to
 .PP
 \fImount\&.cifs\fR
 causes the cifs vfs to launch a thread named cifsd\&. After mounting it keeps running until the mounted resource is unmounted (usually via the umount utility)\&.
+.PP
+
+\fImount\&.cifs \-V\fR
+command displays the version of cifs mount helper\&.
+.PP
+
+\fImodinfo cifs\fR
+command displays the version of cifs module\&.
 .SH "OPTIONS"
 .PP
 user=\fIarg\fR

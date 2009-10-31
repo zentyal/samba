@@ -1,6 +1,7 @@
 samba (2:3.4.3-1) UNRELEASED; urgency=low
 
   * New upstream release
+  * Bump Standards-Version to 3.8.3 (checked)
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 12:56:41 +0100
 

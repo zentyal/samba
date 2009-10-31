@@ -13,5 +13,4 @@ no-unnecessary-cups.patch
 fix-manpages-warnings.patch
 codepages-location.patch
 external-talloc-support.patch
-disable-talloctort.patch
 autoconf.patch

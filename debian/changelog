@@ -1,3 +1,9 @@
+samba (2:3.4.3-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 12:56:41 +0100
+
 samba (2:3.4.2-1) unstable; urgency=high
 
   * New upstream release. Security update.

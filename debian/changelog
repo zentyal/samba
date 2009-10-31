@@ -1,6 +1,8 @@
 samba (2:3.4.3-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. This fixes the following bugs:
+    - Do not attempt to update /etc/mtab if it is
+      a symbolic link. Closes: #408394
   * Bump Standards-Version to 3.8.3 (checked)
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 12:56:41 +0100

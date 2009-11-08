@@ -3,11 +3,11 @@ Author: Christian Perrier <bubulle@debian.org>
 Bug-Debian: http://bugs.debian.org/346234
 Forwarded: not-needed
 
-Index: samba-3.3.0/docs/manpages/smb.conf.5
+Index: b/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smb.conf.5
-+++ samba-3.3.0/docs/manpages/smb.conf.5
-@@ -1141,8 +1141,8 @@
+--- a/docs/manpages/smb.conf.5	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/smb.conf.5	2009-11-08 15:55:35.000000000 +0100
+@@ -1153,8 +1153,8 @@
  Default:
  \fI\fIadd machine script\fR\fR\fI = \fR\fI\FC\F[]\fR\fI \fR
  .sp

@@ -3,10 +3,10 @@ Description: Fix build against external libtalloc
  make error when libtalloc is not being built.
 Author: Steve Langasek <vorlon@debian.org>
 
-Index: samba-deb.clean/source3/configure.in
+Index: b/source3/configure.in
 ===================================================================
---- samba-deb.clean.orig/source3/configure.in
-+++ samba-deb.clean/source3/configure.in
+--- a/source3/configure.in	2009-11-08 15:54:25.000000000 +0100
++++ b/source3/configure.in	2009-11-08 15:55:38.000000000 +0100
 @@ -42,6 +42,8 @@
  if test "x$enable_external_libtalloc" != xyes
  then

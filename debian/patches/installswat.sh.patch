@@ -4,10 +4,10 @@ Description: Do not install the Using Samba book when installing SWAT
 Author: Christian Perrier <bubulle@debian.org>
 Forwarded: not-needed
 
-Index: samba-3.3.0rc2/source3/script/installswat.sh
+Index: b/source3/script/installswat.sh
 ===================================================================
---- samba-3.3.0rc2.orig/source3/script/installswat.sh
-+++ samba-3.3.0rc2/source3/script/installswat.sh
+--- a/source3/script/installswat.sh	2009-11-08 15:54:27.000000000 +0100
++++ b/source3/script/installswat.sh	2009-11-08 15:55:33.000000000 +0100
 @@ -198,7 +198,11 @@
  
  # Install/ remove Using Samba book (but only if it is there)

@@ -2,10 +2,10 @@ Description: Remove documentation parts that do not apply to Debian
 Author: Christian Perrier <bubulle@debian.org>
 Forwarded: not-needed
 
-Index: samba-3.3.0/docs/manpages/swat.8
+Index: b/docs/manpages/swat.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/swat.8
-+++ samba-3.3.0/docs/manpages/swat.8
+--- a/docs/manpages/swat.8	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/swat.8	2009-11-08 15:55:33.000000000 +0100
 @@ -261,85 +261,6 @@
  .RS 4
  Print a summary of command line options\&.
@@ -109,10 +109,10 @@ Index: samba-3.3.0/docs/manpages/swat.8
  .RE
  .SH "WARNINGS"
  .PP
-Index: samba-3.3.0/docs/manpages/nmbd.8
+Index: b/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/nmbd.8
-+++ samba-3.3.0/docs/manpages/nmbd.8
+--- a/docs/manpages/nmbd.8	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/nmbd.8	2009-11-08 15:55:33.000000000 +0100
 @@ -265,10 +265,7 @@
  to answer any name queries\&. Adding a line to this file affects name NetBIOS resolution from this host
  \fIONLY\fR\&.
@@ -155,10 +155,10 @@ Index: samba-3.3.0/docs/manpages/nmbd.8
  \FCnmbd\F[]
  to dump out its server database in the
  \FClog\&.nmb\F[]
-Index: samba-3.3.0/docs/manpages/smbd.8
+Index: b/docs/manpages/smbd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbd.8
-+++ samba-3.3.0/docs/manpages/smbd.8
+--- a/docs/manpages/smbd.8	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/smbd.8	2009-11-08 15:55:33.000000000 +0100
 @@ -319,14 +319,11 @@
  \FCinetd\F[], this file must contain a mapping of service name (e\&.g\&., netbios\-ssn) to service port (e\&.g\&., 139) and protocol type (e\&.g\&., tcp)\&.
  .RE
@@ -176,10 +176,10 @@ Index: samba-3.3.0/docs/manpages/smbd.8
  .sp
  This file describes all the services the server is to make available to clients\&. See
  \fBsmb.conf\fR(5)
-Index: samba-3.3.0/docs/manpages/lmhosts.5
+Index: b/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/lmhosts.5
-+++ samba-3.3.0/docs/manpages/lmhosts.5
+--- a/docs/manpages/lmhosts.5	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/lmhosts.5	2009-11-08 15:55:33.000000000 +0100
 @@ -257,10 +257,8 @@
  file\&.
  .SH "FILES"
@@ -193,10 +193,10 @@ Index: samba-3.3.0/docs/manpages/lmhosts.5
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\&.
-Index: samba-3.3.0/docs/manpages/ntlm_auth.1
+Index: b/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ntlm_auth.1
-+++ samba-3.3.0/docs/manpages/ntlm_auth.1
+--- a/docs/manpages/ntlm_auth.1	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/ntlm_auth.1	2009-11-08 15:55:33.000000000 +0100
 @@ -193,7 +193,7 @@
  Some of these commands also require access to the directory
  \FCwinbindd_privileged\F[]
@@ -224,10 +224,10 @@ Index: samba-3.3.0/docs/manpages/ntlm_auth.1
  .RE
  .PP
  gss\-spnego\-client
-Index: samba-3.3.0/docs/manpages/tdbbackup.8
+Index: b/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/tdbbackup.8
-+++ samba-3.3.0/docs/manpages/tdbbackup.8
+--- a/docs/manpages/tdbbackup.8	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/tdbbackup.8	2009-11-08 15:55:33.000000000 +0100
 @@ -227,7 +227,7 @@
  .\}
  
@@ -255,10 +255,10 @@ Index: samba-3.3.0/docs/manpages/tdbbackup.8
  .SH "VERSION"
  .PP
  This man page is correct for version 3 of the Samba suite\&.
-Index: samba-3.3.0/docs/manpages/winbindd.8
+Index: b/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/winbindd.8
-+++ samba-3.3.0/docs/manpages/winbindd.8
+--- a/docs/manpages/winbindd.8	2009-11-08 15:54:28.000000000 +0100
++++ b/docs/manpages/winbindd.8	2009-11-08 15:55:33.000000000 +0100
 @@ -771,16 +771,16 @@
  file are owned by root\&.
  .RE

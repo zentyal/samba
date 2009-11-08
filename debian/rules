@@ -21,8 +21,6 @@ else
   CFLAGS += -O2
 endif
 
-include /usr/share/quilt/quilt.make
-
 DESTDIR=`pwd`/debian/tmp
 
 conf_args = \
@@ -86,8 +84,7 @@ else
   conf_args += --build $(DEB_BUILD_GNU_TYPE) --host $(DEB_HOST_GNU_TYPE)
 endif
 
-configure: patch configure-stamp
-configure-stamp:
+configure:
 	dh_testdir
 
 	if [ -f debian/config.cache ]; then \
@@ -108,9 +105,7 @@ build-stamp:
 
 	touch build-stamp
 
-clean:	clean-patched unpatch
-
-clean-patched: 
+clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp configure-stamp
@@ -275,4 +270,4 @@ update-archs:
 	       -e "s/libcap2-dev\( ([^)]\+)\)* \[[^]]\+\]/libcap2-dev \1 [`type-handling any linux-gnu`]/g" \
 		debian/control
 
-.PHONY: build clean binary-indep binary-arch binary install configure patch unpatch update-archs
+.PHONY: build clean binary-indep binary-arch binary install configure update-archs

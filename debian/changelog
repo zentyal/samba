@@ -1,11 +1,17 @@
-samba (2:3.4.3-1) UNRELEASED; urgency=low
+samba (2:3.4.3-2) UNRELEASED; urgency=low
+
+  * Switch to source format 3.0 (quilt)
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+
+samba (2:3.4.3-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:
     - Do not attempt to update /etc/mtab if it is
       a symbolic link. Closes: #408394
   * Bump Standards-Version to 3.8.3 (checked)
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 12:56:41 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 14:32:07 +0100
 
 samba (2:3.4.2-1) unstable; urgency=high
 

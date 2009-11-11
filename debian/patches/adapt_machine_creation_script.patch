@@ -14,7 +14,7 @@ Index: b/docs/manpages/smb.conf.5
 -Example:
 -\fI\fIadd machine script\fR\fR\fI = \fR\fI\FC/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/nobody \-s /bin/false %u\F[]\fR\fI \fR
 +Example for Debian:
-+\fI\fIadd machine script\fR\fR\fI = \fR\fI\FC/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/samba \-s /bin/false %u\F[]\fR\fI \fR
++\fI\fIadd machine script\fR\fR\fI = \fR\fI\FC/usr/sbin/adduser \-\-disabled-password \-\-ingroup machines \-\-gecos Machine \-\-home /var/lib/samba \-\-shell /bin/false %u\F[]\fR\fI \fR
  .RE
  
  add port command (G)

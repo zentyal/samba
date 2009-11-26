@@ -1,0 +1,117 @@
+                   =================================
+                   Release Notes for Samba 3.5.0pre1
+			   November 26, 2009
+                   =================================
+
+This is the first preview release of Samba 3.5.  This is *not*
+intended for production environments and is designed for testing
+purposes only.  Please report any defects via the Samba bug reporting
+system at https://bugzilla.samba.org/.
+
+Major enhancements in Samba 3.5.0 include:
+
+General changes:
+o Add support for full Windows timestamp resolution
+
+Protocol changes:
+o Experimental implementation of SMB2
+
+Printing Changes:
+o Add encryption support for connections to a CUPS server
+
+Winbind changes:
+o Major refactoring
+o Asynchronous
+
+
+General changes:
+================
+
+Support for full Windows timestamp resolution has been added. This effectively
+makes us use Windows' full 100ns timestamp resolution if supported by the
+kernel (2.6.22 and higher) and the glibc (2.6 and higher).
+
+Protocol changes
+================
+
+An EXPERIMENTAL implementation of the SMB2 protocol has been added. SMB2 can be
+enabled by setting "max protocol = smb2". SMB2 is a new implementation of the
+SMB protocol used by Windows Vista and higher.
+
+Printing Changes
+================
+
+A new parameter "cups encrypt" has been added to control whether connections to
+CUPS servers will be encrypted or not. The default is to use unencrypted
+connections.
+
+Winbind changes
+===============
+
+The Winbind daemon has been refactored internally to be asynchronous. The new
+Winbind will not be blocked by running 'wbinfo -g' or 'wbinfo -u'.
+
+
+######################################################################
+Changes
+#######
+
+smb.conf changes
+----------------
+
+   Parameter Name                      Description     Default
+   --------------                      -----------     -------
+
+   create krb5 conf		       New	       yes
+   ctdb timeout			       New	       0
+   cups encrypt			       New	       no
+   debug hires timestamp	       Changed Default yes
+   ldap follow referral		       New	       auto
+
+
+New configure options
+---------------------
+
+--enable-external-libtalloc	Enable external tdb
+--enable-netapi			Turn on netapi support
+--enable-pthreadpool		Enable pthreads pool helper support
+--with-cifsumount		Include umount.cifs (Linux only) support
+--with-codepagedir=DIR		Where to put codepages
+
+
+Commit Highlights
+=================
+
+o   Björn Jacke <bjacke@sernet.de>
+    * Add support for full Windows timestamp resolution.
+    * Add encryption support for connections to a CUPS server.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * Major internal refactoring of the Winbind daemon.
+    * Make Winbind asynchronous.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * Implement the new SMB2 protocol (experimental).
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.5 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+

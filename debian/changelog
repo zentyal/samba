@@ -1,12 +1,141 @@
-samba (2:3.4.0~rc1-2) UNRELEASED; urgency=low
+samba (2:3.4.3-1) unstable; urgency=low
+
+  * New upstream release. This fixes the following bugs:
+    - Do not attempt to update /etc/mtab if it is
+      a symbolic link. Closes: #408394
+  * Bump Standards-Version to 3.8.3 (checked)
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 14:32:07 +0100
+
+samba (2:3.4.2-1) unstable; urgency=high
+
+  * New upstream release. Security update.
+  * CVE-2009-2813:
+    Connecting to the home share of a user will use the root of the
+    filesystem as the home directory if this user is misconfigured to
+    have an empty home directory in /etc/passwd.
+  * CVE-2009-2948:
+    If mount.cifs is installed as a setuid program, a user can pass it
+    a credential or password path to which he or she does not have
+    access and then use the --verbose option to view the first line of
+    that file.
+  * CVE-2009-2906:
+    Specially crafted SMB requests on authenticated SMB connections
+    can send smbd into a 100% CPU loop, causing a DoS on the Samba
+    server.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 03 Oct 2009 08:30:33 +0200
+
+samba (2:3.4.1-2) unstable; urgency=low
+
+  * ./configure --disable-avahi, to avoid accidentally picking up an avahi
+    dependency when libavahi-common-dev is installed.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 26 Sep 2009 00:01:12 -0700
+
+samba (2:3.4.1-1) unstable; urgency=low
 
   [ Christian Perrier ]
-  * Correct dependencies for samba-common-bin. Closes: #534595
+  * New upstream release. This fixes the following bugs:
+    - smbd SIGSEGV when breaking oplocks. Thanks to Petr Vandrovec
+      for the clever analysis and collaboration with upstream.
+      Closes: #541171
+    - Fix password change propagation with ldapsam. Closes: #505215
+    - Source package contains non-free IETF RFC/I-D. Closes: #538034
+  * Turn the build dependency on libreadline5-dev to libreadline-dev
+    to make further binNMUs easier when libreadline soname changes
+    Thanks to Matthias Klose for the suggestion
+
+  [ Steve Langasek ]
+  * Don't build talloctort when using --enable-external-talloc; and don't
+    try to include talloctort in the samba-tools package, since we're
+    building with --enable-external-talloc. :)  Closes: #546828.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 21 Sep 2009 22:20:22 -0700
+
+samba (2:3.4.0-5) unstable; urgency=low
+
+  * Move /etc/pam.d/samba back to samba-common, because it's shared with
+    samba4.  Closes: #545764.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 08 Sep 2009 18:43:17 -0700
+
+samba (2:3.4.0-4) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * debian/samba.pamd: include common-session-noninteractive instead of
+    common-session, to avoid pulling in modules specific to interactive
+    logins such as pam_ck_connector.
+  * debian/control: samba depends on libpam-runtime (>= 1.0.1-11) for the
+    above.
+  * rename debian/samba.pamd to debian/samba.pam and call dh_installpam
+    from debian/rules install, bringing us a smidge closer to a stock
+    debhelper build
+  * don't call pyversions from debian/rules, this throws a useless error
+    message during build.
+  * fix up the list of files that need to be removed by hand in the clean
+    target; the majority of these are now correctly handled upstream.
+  * debian/rules: fix the update-arch target for the case of unversioned
+    build-deps.
+  * Pull avr32 into the list of supported Linux archs.  Closes: #543543.
+  * Fix LSB header in winbind.init; thanks to Petter Reinholdtsen for the
+    patch. Closes: #541367.
+
+  [ Christian Perrier ]
+  * Use DEP-3 for patches meta-information
+
+  [ Steve Langasek ]
+  * Change swat update-inetd call to use --remove only on purge,
+    and --disable on removal.
+  * Add missing build-dependency on pkg-config, needed to fix libtalloc
+    detection
+  * debian/patches/external-talloc-support.patch: fix the Makefile so it
+    works when using external talloc instead of giving a missing-depend
+    error.
+  * debian/patches/autoconf.patch: resurrect this patch, needed for the
+    above.
+  * debian/rules: build with --without-libtalloc
+    --enable-external-libtalloc, also needed to fix the build failure.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 07 Sep 2009 22:58:29 -0700
+
+samba (2:3.4.0-3) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * debian/control: samba-common-bin has no reason to depend on
+    libpam-modules.
+
+  [ Christian Perrier ]
+  * Fix "invalid argument" when trying to copy a file from smb share
+    Use an upstream patch that will be included in 3.4.1
+    Closes: #536757
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 21 Aug 2009 11:08:43 +0200
+
+samba (2:3.4.0-2) unstable; urgency=low
+
+  [ Debconf translations ]
+  * German. Closes: #536433
+
+  [ Steve Langasek ]
+  * Enable the ldap idmap module; thanks to Aaron J. Zirbes.  Closes: #536786.
 
   [ Jelmer Vernooij ]
   * Properly rename smbstatus.1 for alternatives. Closes: #534772
 
- -- Jelmer Vernooij <jelmer@debian.org>  Thu, 23 Jul 2009 17:50:38 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sun, 02 Aug 2009 12:20:51 +0200
+
+samba (2:3.4.0-1) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * New upstream release: first upload to unstable for 3.4
+  * Correct dependencies for samba-common-bin. Closes: #534595
+
+  [ Debconf translations ]
+  * Czech. Closes: #534793
+  * Russian. Closes: #534796
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Jul 2009 20:42:19 +0200
 
 samba (2:3.4.0~rc1-1) experimental; urgency=low
 
@@ -45,6 +174,37 @@ samba (2:3.4.0~pre1-1) experimental; urgency=low
     debian/samba-doc.doc-base.samba-using
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 20 May 2009 18:50:35 +0200
+
+samba (2:3.3.6-1) unstable; urgency=high
+
+  * New upstream release. Security release.
+  * CVE 2009-1886: Fix Formatstring vulnerability in smbclient
+  * CVE 2009-1888: Fix uninitialized read of a data value
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:21:51 +0200
+
+samba (2:3.3.5-1) unstable; urgency=low
+
+  [ Steve Langasek ]
+  * debian/patches/undefined-symbols.patch: fix up patch so that it's
+    suitable for submission upstream.
+  * debian/patches/proper-static-lib-linking.patch: apply the rules to
+    vfstest, ldbrename, nss_wins, pam_winbind, pam_smbpass, and
+    rpc_open_tcp.
+
+  [ Debconf translations ]
+  * Italian. Closes: #529350
+
+  [ Christian Perrier ]
+  * New upstream version
+  * Lintian fixes:
+    -  Declare versioned dependency on debhelper to fit what we have in
+       debian/compat
+    - samba.postinst: do not call mksmbpasswd with an absolute path
+  * Upgrade Standard to 3.8.2 (checked, no change)
+  * Upgrade debhelper compatibility level to 6
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 08:01:16 +0200
 
 samba (2:3.3.4-2) unstable; urgency=low
 

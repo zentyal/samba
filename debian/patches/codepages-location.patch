@@ -1,10 +1,8 @@
-Goal:  Move codepage files to the datadir (codepagedir is not configurable)
-
-Fixes: Build failure..:-)
-
-Status wrt upstream: Forwarded as Bugzilla #6444
-
-Note: 
+Description: Move codepage files to the datadir
+ "codepagedir" is not configurable and the leads to build failures.
+Author: Christian Perrier <bubulle@debian.org>
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=6444
+Forwarded: yes
 
 Index: samba-3.4.0pre1/source3/Makefile.in
 ===================================================================

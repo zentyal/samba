@@ -1,9 +1,10 @@
-Goal: Don't try to contact the CUPS server when we can reliably
-determine that no printers are needed
-
-Fixes: bug #479512
-
-Upstream status: submitted as bugzilla bug #5525
+Description: Drop unneeded calls to CUPS server
+ Don't try to contact the CUPS server when we can reliably
+ determine that no printers are needed
+Author: Steve Langasek <vorlon@debian.org>
+Bug-Debian: http://bugs.debian.org/479512
+Bug: https://bugzilla.samba.org/show_bug.cgi?id=5525
+Forwarded: yes
 
 Index: samba-3.3.0rc2/source3/smbd/server.c
 ===================================================================

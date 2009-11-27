@@ -13,8 +13,6 @@ export DEB_HOST_GNU_TYPE
 export DEB_BUILD_GNU_TYPE
 export DEB_HOST_ARCH_OS
 
-pyversion := $(shell pyversions -vd)
-
 CFLAGS = -g -Wall
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
@@ -48,7 +46,7 @@ conf_args = \
 		--with-pam_smbpass \
 		--with-libsmbclient \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_tdb2 \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
@@ -63,7 +61,9 @@ conf_args = \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
-
+		--enable-external-libtalloc \
+		--without-libtalloc \
+		--disable-avahi \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -118,10 +118,9 @@ clean-patched:
 	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source3/bin/wbinfo source3/bin/winbindd source3/bin/debug2html \
-	source3/bin/libsmbclient.a \
-	source3/client/mount.cifs source3/client/umount.cifs \
-	source3/include/stamp-h
+	rm -f source3/bin/cifs.upcall source3/pkgconfig/*.pc \
+	      source3/exports/libsmbclient.syms \
+	      source3/exports/libsmbsharemodes.syms
 
 	debconf-updatepo
 
@@ -175,7 +174,6 @@ install: build
 	install -m 0755 source3/bin/nsstest $(DESTDIR)/usr/bin/nsstest
 	install -m 0755 source3/bin/vfstest $(DESTDIR)/usr/bin/vfstest
 	install -m 0755 source3/bin/pdbtest $(DESTDIR)/usr/bin/pdbtest
-	install -m 0755 source3/bin/talloctort $(DESTDIR)/usr/bin/talloctort
 	install -m 0755 source3/bin/replacetort $(DESTDIR)/usr/bin/replacetort
 	install -m 0755 source3/bin/tdbtorture $(DESTDIR)/usr/bin/tdbtorture
 	install -m 0755 source3/bin/smbconftort $(DESTDIR)/usr/bin/smbconftort
@@ -196,10 +194,10 @@ endif
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_movefiles.
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
-	cp debian/samba.pamd $(DESTDIR)/etc/pam.d/samba
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
 
 	dh_movefiles
+	dh_installpam --name=samba
 
 # Build architecture-independent files here.
 # Pass -i to all debhelper commands in this target to reduce clutter.
@@ -272,9 +270,9 @@ endif
 binary: binary-indep binary-arch
 
 update-archs:
-	sed -i -e "s/libacl1-dev \(([^)]\+)\) \[[^]]\+\]/libacl1-dev \1 [`type-handling any linux-gnu`]/g" \
-	       -e "s/libkeyutils-dev \(([^)]\+)\) \[[^]]\+\]/libkeyutils-dev \1 [`type-handling any linux-gnu`]/g" \
-	       -e "s/libcap2-dev \(([^)]\+)\) \[[^]]\+\]/libcap2-dev \1 [`type-handling any linux-gnu`]/g" \
+	sed -i -e "s/libacl1-dev\( ([^)]\+)\)* \[[^]]\+\]/libacl1-dev \1 [`type-handling any linux-gnu`]/g" \
+	       -e "s/libkeyutils-dev\( ([^)]\+)\)* \[[^]]\+\]/libkeyutils-dev \1 [`type-handling any linux-gnu`]/g" \
+	       -e "s/libcap2-dev\( ([^)]\+)\)* \[[^]]\+\]/libcap2-dev \1 [`type-handling any linux-gnu`]/g" \
 		debian/control
 
 .PHONY: build clean binary-indep binary-arch binary install configure patch unpatch update-archs

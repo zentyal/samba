@@ -1,10 +1,7 @@
-Goal: Amend the LDAP/README example as smbldap-tools are packaged separately
-
-Fixes: #341934
-
-Status wrt upstream: Debian specific
-
-Note: 
+Description: Mention smbldap-tools package in examples/LDAP/README
+Author: Christian Perrier <bubulle@debian.org>
+Bug-Debian: http://bugs.debian.org/341934
+Forwarded: not-needed
 
 Index: samba-3.3.0rc2/examples/LDAP/README
 ===================================================================

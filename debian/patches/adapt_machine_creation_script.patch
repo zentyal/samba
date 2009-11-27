@@ -1,10 +1,7 @@
-Goal: Adapt example script to Debian
-
-Fixes: #346234
-
-Status wrt upstream: Debian specific
-
-Note: 
+Description: Adapt example script to Debian
+Author: Christian Perrier <bubulle@debian.org>
+Bug-Debian: http://bugs.debian.org/346234
+Forwarded: not-needed
 
 Index: samba-3.3.0/docs/manpages/smb.conf.5
 ===================================================================

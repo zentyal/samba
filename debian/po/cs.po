@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: samba@packages.debian.org\n"
 "POT-Creation-Date: 2009-01-02 12:18-0800\n"
-"PO-Revision-Date: 2007-03-13 22:31+0100\n"
+"PO-Revision-Date: 2009-06-27 10:58+0200\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -72,7 +72,7 @@ msgid ""
 msgstr ""
 "Zbytek konfigurace Samby se zabývá otázkami, které mění parametry v /etc/"
 "samba/smb.conf, což je soubor používaný pro nastavení programů nmbd a smbd "
-"(dohromady tvoří Sambu). Váš stávající smb.conf obsahuje řádek 'include' "
+"(dohromady tvoří Sambu). Váš stávající smb.conf obsahuje řádek „include“ "
 "nebo volbu, která se táhne přes více řádků, což může zmást proces "
 "automatického nastavení a může způsobit, že pro znovuzprovoznění Samby "
 "budete muset upravit smb.conf ručně."
@@ -97,20 +97,17 @@ msgstr "Skupina/název domény:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the workgroup you want this server to appear to be in when "
-#| "queried by clients. Note that this parameter also controls the domain "
-#| "name used with the security=domain setting."
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Zadejte prosím jméno skupiny, do které má server patřit (resp. se to tak "
-"bude jevit klientům. Tento parametr také určuje název domény v případech, "
-"kdy používáte nastavení security=domain)."
+"Zadejte jméno skupiny, do které má počítač patřit. Při použití počítače v "
+"roli serveru se klientům bude jevit, že server patří do zadané skupiny. "
+"Jméno skupiny se také použije jako výchozí skupina v různých programech pro "
+"procházení sítí. A konečně tento parametr určuje název domény v případech, "
+"kdy používáte nastavení „security=domain“."
 
 #. Type: boolean
 #. Description
@@ -121,37 +118,28 @@ msgstr "Použít šifrování hesel?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "All recent Windows clients communicate with SMB servers using encrypted "
-#| "passwords. If you want to use clear text passwords you will need to "
-#| "change a parameter in your Windows registry."
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Všichni současní windowsoví klienti používají pro komunikaci se SMB servery "
-"šifrovaná hesla. Pokud chcete použít hesla nešifrovaná, musíte změnit jeden "
-"parametr v registrech systému Windows."
+"Všichni současní windowsoví klienti používají pro komunikaci se SMB/CIFS "
+"servery šifrovaná hesla. Pokud chcete použít hesla nešifrovaná, musíte "
+"změnit jeden parametr v registrech systému Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
-#| msgid ""
-#| "Enabling this option is highly recommended. If you do, make sure you have "
-#| "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#| "each user using the smbpasswd command."
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Povolení této volby je silně doporučeno. Dáte-li na naši radu, měli byste se "
-"ujistit, že máte platný soubor /etc/samba/smbpasswd a že v něm nastavíte "
-"hesla všech uživatelů příkazem smbpasswd."
+"Povolení této volby je silně doporučeno, protože podpora nešifrovaných hesel "
+"již není v Microsoft Windows dále udržována. Dáte-li na naši radu, měli "
+"byste se ujistit, že máte platný soubor /etc/samba/smbpasswd a že v něm "
+"nastavíte hesla všech uživatelů příkazem smbpasswd."
 
 #. Type: boolean
 #. Description
@@ -232,10 +220,10 @@ msgstr ""
 #~ "conf file contains a passdb backend parameter consisting of a list of "
 #~ "backends.  The new version of samba will not work until you correct this."
 #~ msgstr ""
-#~ "Počínaje verzi 3.0.23 již Samba v parametru \"passdb backend\" "
-#~ "nepodporuje řetězení několika backendů. Zdá se, že váš soubor smb.conf "
-#~ "obsahuje v parametru passdb backend několik backendů. Dokud to "
-#~ "neopravíte, nová verze Samby nebude fungovat."
+#~ "Počínaje verzi 3.0.23 již Samba v parametru „passdb backend“ nepodporuje "
+#~ "řetězení několika backendů. Zdá se, že váš soubor smb.conf obsahuje v "
+#~ "parametru passdb backend několik backendů. Dokud to neopravíte, nová "
+#~ "verze Samby nebude fungovat."
 
 #~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 #~ msgstr "Přesunout /etc/samba/smbpasswd do /var/lib/samba/passdb.tdb?"

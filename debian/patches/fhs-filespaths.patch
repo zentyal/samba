@@ -1,14 +1,17 @@
-Goal: Prepare the sources to better respect FHS
+Description: Prepare the sources to better respect FHS
+ This patch was historically very long but most parts have
+ been integrated upstream.
+ .
+ The last remaining bit is the location of "private files
+ We historically have them in /var/lib/samba while upstream
+ has them in /etc/samba
+ .
+ We need to provide a migraiton path and go back to the "normal"
+ file layout
+Author: Eloy A. Paris <peloy@debian.org>
+Bug-Debian: http://bugs.debian.org/49011
+Forwarded: not-needed
 
-Fixes: #49011
-
-Status wrt upstream: Everything is applied as of 3.4.0
-
-Note: The last remaining bit is the location of "private files
-      We historically have them in /var/lib/samba while upstream
-      has them in /etc/samba
-      We need to provide a migraiton path and go back to the "normal"
-      file layout
 
 Index: samba-3.3.0rc2/source3/passdb/pdb_tdb.c
 ===================================================================

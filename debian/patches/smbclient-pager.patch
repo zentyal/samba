@@ -1,12 +1,7 @@
-Goal: Use the pager alternative as pager is PAGER is undefined
-
-Fixes: #125603
-
-Status wrt upstream: Debian specific
-
+Description: Use the pager alternative as pager is PAGER is undefined
 Author: Steve Langasek <vorlon@debian.org>
-
-Note: 
+Bug-Debian: http://bugs.debian.org/135603
+Forwarded: not-needed
 
 Index: samba-3.3.0rc2/source3/include/local.h
 ===================================================================

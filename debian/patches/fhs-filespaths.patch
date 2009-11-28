@@ -13,11 +13,11 @@ Bug-Debian: http://bugs.debian.org/49011
 Forwarded: not-needed
 
 
-Index: samba-3.3.0rc2/source3/passdb/pdb_tdb.c
+Index: b/source3/passdb/pdb_tdb.c
 ===================================================================
---- samba-3.3.0rc2.orig/source3/passdb/pdb_tdb.c
-+++ samba-3.3.0rc2/source3/passdb/pdb_tdb.c
-@@ -1613,7 +1613,7 @@
+--- a/source3/passdb/pdb_tdb.c	2009-11-08 15:54:27.000000000 +0100
++++ b/source3/passdb/pdb_tdb.c	2009-11-08 15:55:33.000000000 +0100
+@@ -1252,7 +1252,7 @@
  	/* save the path for later */
  
  	if (!location) {
@@ -26,10 +26,10 @@ Index: samba-3.3.0rc2/source3/passdb/pdb_tdb.c
  			     PASSDB_FILE_NAME) < 0) {
  			return NT_STATUS_NO_MEMORY;
  		}
-Index: samba-3.3.0rc2/source3/passdb/secrets.c
+Index: b/source3/passdb/secrets.c
 ===================================================================
---- samba-3.3.0rc2.orig/source3/passdb/secrets.c
-+++ samba-3.3.0rc2/source3/passdb/secrets.c
+--- a/source3/passdb/secrets.c	2009-11-08 15:54:27.000000000 +0100
++++ b/source3/passdb/secrets.c	2009-11-08 15:55:33.000000000 +0100
 @@ -59,7 +59,7 @@
  		return True;
  
@@ -39,7 +39,7 @@ Index: samba-3.3.0rc2/source3/passdb/secrets.c
  	if (fname == NULL) {
  		return false;
  	}
-@@ -1113,7 +1113,7 @@
+@@ -1138,7 +1138,7 @@
  	TDB_DATA vers;
  	uint32 ver;
  	TDB_CONTEXT *tdb_sc = NULL;

@@ -1,3 +1,13 @@
+samba (2:3.5.0~pre1-1) UNRELEASED-experimental; urgency=low
+
+  * New upstream pre-release
+  * Switch to source format 3.0 (quilt)
+  * Better adapt "add machine script" example to adduser
+    Thanks to Heiko Schlittermann for the suggestion
+    Closes: #555466
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+
 samba (2:3.4.3-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:

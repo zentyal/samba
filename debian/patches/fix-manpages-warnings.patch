@@ -2,10 +2,10 @@ Description: Fix warnings in manpages
  Lintian report non-existing macros in manpages.
 Author: Christian Perrier <bubulle@debian.org>
 
-Index: samba-3.3.0/docs/manpages/cifs.upcall.8
+Index: b/docs/manpages/cifs.upcall.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/cifs.upcall.8
-+++ samba-3.3.0/docs/manpages/cifs.upcall.8
+--- a/docs/manpages/cifs.upcall.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/cifs.upcall.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,10 +30,10 @@ Index: samba-3.3.0/docs/manpages/cifs.upcall.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/eventlogadm.8
+Index: b/docs/manpages/eventlogadm.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/eventlogadm.8
-+++ samba-3.3.0/docs/manpages/eventlogadm.8
+--- a/docs/manpages/eventlogadm.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/eventlogadm.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,10 +58,10 @@ Index: samba-3.3.0/docs/manpages/eventlogadm.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/findsmb.1
+Index: b/docs/manpages/findsmb.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/findsmb.1
-+++ samba-3.3.0/docs/manpages/findsmb.1
+--- a/docs/manpages/findsmb.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/findsmb.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -86,10 +86,10 @@ Index: samba-3.3.0/docs/manpages/findsmb.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_ad.8
+Index: b/docs/manpages/idmap_ad.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_ad.8
-+++ samba-3.3.0/docs/manpages/idmap_ad.8
+--- a/docs/manpages/idmap_ad.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_ad.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -114,10 +114,10 @@ Index: samba-3.3.0/docs/manpages/idmap_ad.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_adex.8
+Index: b/docs/manpages/idmap_adex.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_adex.8
-+++ samba-3.3.0/docs/manpages/idmap_adex.8
+--- a/docs/manpages/idmap_adex.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_adex.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -142,10 +142,10 @@ Index: samba-3.3.0/docs/manpages/idmap_adex.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_hash.8
+Index: b/docs/manpages/idmap_hash.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_hash.8
-+++ samba-3.3.0/docs/manpages/idmap_hash.8
+--- a/docs/manpages/idmap_hash.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_hash.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -170,10 +170,10 @@ Index: samba-3.3.0/docs/manpages/idmap_hash.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_ldap.8
+Index: b/docs/manpages/idmap_ldap.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_ldap.8
-+++ samba-3.3.0/docs/manpages/idmap_ldap.8
+--- a/docs/manpages/idmap_ldap.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_ldap.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -198,10 +198,10 @@ Index: samba-3.3.0/docs/manpages/idmap_ldap.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_nss.8
+Index: b/docs/manpages/idmap_nss.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_nss.8
-+++ samba-3.3.0/docs/manpages/idmap_nss.8
+--- a/docs/manpages/idmap_nss.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_nss.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -226,10 +226,10 @@ Index: samba-3.3.0/docs/manpages/idmap_nss.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_rid.8
+Index: b/docs/manpages/idmap_rid.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_rid.8
-+++ samba-3.3.0/docs/manpages/idmap_rid.8
+--- a/docs/manpages/idmap_rid.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_rid.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -254,10 +254,10 @@ Index: samba-3.3.0/docs/manpages/idmap_rid.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_tdb.8
+Index: b/docs/manpages/idmap_tdb.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_tdb.8
-+++ samba-3.3.0/docs/manpages/idmap_tdb.8
+--- a/docs/manpages/idmap_tdb.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_tdb.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -282,10 +282,10 @@ Index: samba-3.3.0/docs/manpages/idmap_tdb.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/idmap_tdb2.8
+Index: b/docs/manpages/idmap_tdb2.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/idmap_tdb2.8
-+++ samba-3.3.0/docs/manpages/idmap_tdb2.8
+--- a/docs/manpages/idmap_tdb2.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/idmap_tdb2.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -310,10 +310,10 @@ Index: samba-3.3.0/docs/manpages/idmap_tdb2.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldb.3
+Index: b/docs/manpages/ldb.3
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldb.3
-+++ samba-3.3.0/docs/manpages/ldb.3
+--- a/docs/manpages/ldb.3	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/ldb.3	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -338,10 +338,10 @@ Index: samba-3.3.0/docs/manpages/ldb.3
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldbadd.1
+Index: b/docs/manpages/ldbadd.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldbadd.1
-+++ samba-3.3.0/docs/manpages/ldbadd.1
+--- a/docs/manpages/ldbadd.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/ldbadd.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -366,10 +366,10 @@ Index: samba-3.3.0/docs/manpages/ldbadd.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldbdel.1
+Index: b/docs/manpages/ldbdel.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldbdel.1
-+++ samba-3.3.0/docs/manpages/ldbdel.1
+--- a/docs/manpages/ldbdel.1	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/ldbdel.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -394,10 +394,10 @@ Index: samba-3.3.0/docs/manpages/ldbdel.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldbedit.1
+Index: b/docs/manpages/ldbedit.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldbedit.1
-+++ samba-3.3.0/docs/manpages/ldbedit.1
+--- a/docs/manpages/ldbedit.1	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/ldbedit.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -422,10 +422,10 @@ Index: samba-3.3.0/docs/manpages/ldbedit.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldbmodify.1
+Index: b/docs/manpages/ldbmodify.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldbmodify.1
-+++ samba-3.3.0/docs/manpages/ldbmodify.1
+--- a/docs/manpages/ldbmodify.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/ldbmodify.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -450,10 +450,10 @@ Index: samba-3.3.0/docs/manpages/ldbmodify.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ldbsearch.1
+Index: b/docs/manpages/ldbsearch.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ldbsearch.1
-+++ samba-3.3.0/docs/manpages/ldbsearch.1
+--- a/docs/manpages/ldbsearch.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/ldbsearch.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -478,10 +478,10 @@ Index: samba-3.3.0/docs/manpages/ldbsearch.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/libsmbclient.7
+Index: b/docs/manpages/libsmbclient.7
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/libsmbclient.7
-+++ samba-3.3.0/docs/manpages/libsmbclient.7
+--- a/docs/manpages/libsmbclient.7	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/libsmbclient.7	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -506,10 +506,10 @@ Index: samba-3.3.0/docs/manpages/libsmbclient.7
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/lmhosts.5
+Index: b/docs/manpages/lmhosts.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/lmhosts.5
-+++ samba-3.3.0/docs/manpages/lmhosts.5
+--- a/docs/manpages/lmhosts.5	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/lmhosts.5	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -534,10 +534,10 @@ Index: samba-3.3.0/docs/manpages/lmhosts.5
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/log2pcap.1
+Index: b/docs/manpages/log2pcap.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/log2pcap.1
-+++ samba-3.3.0/docs/manpages/log2pcap.1
+--- a/docs/manpages/log2pcap.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/log2pcap.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -562,10 +562,10 @@ Index: samba-3.3.0/docs/manpages/log2pcap.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/mount.cifs.8
+Index: b/docs/manpages/mount.cifs.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/mount.cifs.8
-+++ samba-3.3.0/docs/manpages/mount.cifs.8
+--- a/docs/manpages/mount.cifs.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/mount.cifs.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -590,10 +590,10 @@ Index: samba-3.3.0/docs/manpages/mount.cifs.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/net.8
+Index: b/docs/manpages/net.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/net.8
-+++ samba-3.3.0/docs/manpages/net.8
+--- a/docs/manpages/net.8	2009-11-08 15:55:35.000000000 +0100
++++ b/docs/manpages/net.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -618,10 +618,10 @@ Index: samba-3.3.0/docs/manpages/net.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/nmbd.8
+Index: b/docs/manpages/nmbd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/nmbd.8
-+++ samba-3.3.0/docs/manpages/nmbd.8
+--- a/docs/manpages/nmbd.8	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/nmbd.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -646,10 +646,10 @@ Index: samba-3.3.0/docs/manpages/nmbd.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/nmblookup.1
+Index: b/docs/manpages/nmblookup.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/nmblookup.1
-+++ samba-3.3.0/docs/manpages/nmblookup.1
+--- a/docs/manpages/nmblookup.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/nmblookup.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -674,10 +674,10 @@ Index: samba-3.3.0/docs/manpages/nmblookup.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/ntlm_auth.1
+Index: b/docs/manpages/ntlm_auth.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/ntlm_auth.1
-+++ samba-3.3.0/docs/manpages/ntlm_auth.1
+--- a/docs/manpages/ntlm_auth.1	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/ntlm_auth.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -702,10 +702,10 @@ Index: samba-3.3.0/docs/manpages/ntlm_auth.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/pam_winbind.8
+Index: b/docs/manpages/pam_winbind.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/pam_winbind.8
-+++ samba-3.3.0/docs/manpages/pam_winbind.8
+--- a/docs/manpages/pam_winbind.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/pam_winbind.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -730,10 +730,10 @@ Index: samba-3.3.0/docs/manpages/pam_winbind.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/pdbedit.8
+Index: b/docs/manpages/pdbedit.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/pdbedit.8
-+++ samba-3.3.0/docs/manpages/pdbedit.8
+--- a/docs/manpages/pdbedit.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/pdbedit.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -758,10 +758,10 @@ Index: samba-3.3.0/docs/manpages/pdbedit.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/profiles.1
+Index: b/docs/manpages/profiles.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/profiles.1
-+++ samba-3.3.0/docs/manpages/profiles.1
+--- a/docs/manpages/profiles.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/profiles.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -786,10 +786,10 @@ Index: samba-3.3.0/docs/manpages/profiles.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/rpcclient.1
+Index: b/docs/manpages/rpcclient.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/rpcclient.1
-+++ samba-3.3.0/docs/manpages/rpcclient.1
+--- a/docs/manpages/rpcclient.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/rpcclient.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -814,10 +814,10 @@ Index: samba-3.3.0/docs/manpages/rpcclient.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/samba.7
+Index: b/docs/manpages/samba.7
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/samba.7
-+++ samba-3.3.0/docs/manpages/samba.7
+--- a/docs/manpages/samba.7	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/samba.7	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -842,10 +842,10 @@ Index: samba-3.3.0/docs/manpages/samba.7
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smb.conf.5
+Index: b/docs/manpages/smb.conf.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smb.conf.5
-+++ samba-3.3.0/docs/manpages/smb.conf.5
+--- a/docs/manpages/smb.conf.5	2009-11-08 15:55:35.000000000 +0100
++++ b/docs/manpages/smb.conf.5	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -870,10 +870,10 @@ Index: samba-3.3.0/docs/manpages/smb.conf.5
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbcacls.1
+Index: b/docs/manpages/smbcacls.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbcacls.1
-+++ samba-3.3.0/docs/manpages/smbcacls.1
+--- a/docs/manpages/smbcacls.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbcacls.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -898,10 +898,10 @@ Index: samba-3.3.0/docs/manpages/smbcacls.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbclient.1
+Index: b/docs/manpages/smbclient.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbclient.1
-+++ samba-3.3.0/docs/manpages/smbclient.1
+--- a/docs/manpages/smbclient.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbclient.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -926,10 +926,10 @@ Index: samba-3.3.0/docs/manpages/smbclient.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbcontrol.1
+Index: b/docs/manpages/smbcontrol.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbcontrol.1
-+++ samba-3.3.0/docs/manpages/smbcontrol.1
+--- a/docs/manpages/smbcontrol.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbcontrol.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -954,10 +954,10 @@ Index: samba-3.3.0/docs/manpages/smbcontrol.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbcquotas.1
+Index: b/docs/manpages/smbcquotas.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbcquotas.1
-+++ samba-3.3.0/docs/manpages/smbcquotas.1
+--- a/docs/manpages/smbcquotas.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbcquotas.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -982,10 +982,10 @@ Index: samba-3.3.0/docs/manpages/smbcquotas.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbd.8
+Index: b/docs/manpages/smbd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbd.8
-+++ samba-3.3.0/docs/manpages/smbd.8
+--- a/docs/manpages/smbd.8	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/smbd.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1010,10 +1010,10 @@ Index: samba-3.3.0/docs/manpages/smbd.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbget.1
+Index: b/docs/manpages/smbget.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbget.1
-+++ samba-3.3.0/docs/manpages/smbget.1
+--- a/docs/manpages/smbget.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbget.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1038,10 +1038,10 @@ Index: samba-3.3.0/docs/manpages/smbget.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbgetrc.5
+Index: b/docs/manpages/smbgetrc.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbgetrc.5
-+++ samba-3.3.0/docs/manpages/smbgetrc.5
+--- a/docs/manpages/smbgetrc.5	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbgetrc.5	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1066,10 +1066,10 @@ Index: samba-3.3.0/docs/manpages/smbgetrc.5
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbpasswd.5
+Index: b/docs/manpages/smbpasswd.5
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbpasswd.5
-+++ samba-3.3.0/docs/manpages/smbpasswd.5
+--- a/docs/manpages/smbpasswd.5	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbpasswd.5	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1094,10 +1094,10 @@ Index: samba-3.3.0/docs/manpages/smbpasswd.5
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbpasswd.8
+Index: b/docs/manpages/smbpasswd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbpasswd.8
-+++ samba-3.3.0/docs/manpages/smbpasswd.8
+--- a/docs/manpages/smbpasswd.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbpasswd.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1122,10 +1122,10 @@ Index: samba-3.3.0/docs/manpages/smbpasswd.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbspool.8
+Index: b/docs/manpages/smbspool.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbspool.8
-+++ samba-3.3.0/docs/manpages/smbspool.8
+--- a/docs/manpages/smbspool.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbspool.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1150,10 +1150,10 @@ Index: samba-3.3.0/docs/manpages/smbspool.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbstatus.1
+Index: b/docs/manpages/smbstatus.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbstatus.1
-+++ samba-3.3.0/docs/manpages/smbstatus.1
+--- a/docs/manpages/smbstatus.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbstatus.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1178,10 +1178,10 @@ Index: samba-3.3.0/docs/manpages/smbstatus.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbtar.1
+Index: b/docs/manpages/smbtar.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbtar.1
-+++ samba-3.3.0/docs/manpages/smbtar.1
+--- a/docs/manpages/smbtar.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbtar.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1206,10 +1206,10 @@ Index: samba-3.3.0/docs/manpages/smbtar.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/smbtree.1
+Index: b/docs/manpages/smbtree.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/smbtree.1
-+++ samba-3.3.0/docs/manpages/smbtree.1
+--- a/docs/manpages/smbtree.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/smbtree.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1234,10 +1234,10 @@ Index: samba-3.3.0/docs/manpages/smbtree.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/swat.8
+Index: b/docs/manpages/swat.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/swat.8
-+++ samba-3.3.0/docs/manpages/swat.8
+--- a/docs/manpages/swat.8	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/swat.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1262,10 +1262,10 @@ Index: samba-3.3.0/docs/manpages/swat.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/tdbbackup.8
+Index: b/docs/manpages/tdbbackup.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/tdbbackup.8
-+++ samba-3.3.0/docs/manpages/tdbbackup.8
+--- a/docs/manpages/tdbbackup.8	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/tdbbackup.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1290,10 +1290,10 @@ Index: samba-3.3.0/docs/manpages/tdbbackup.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/tdbdump.8
+Index: b/docs/manpages/tdbdump.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/tdbdump.8
-+++ samba-3.3.0/docs/manpages/tdbdump.8
+--- a/docs/manpages/tdbdump.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/tdbdump.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1318,10 +1318,10 @@ Index: samba-3.3.0/docs/manpages/tdbdump.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/tdbtool.8
+Index: b/docs/manpages/tdbtool.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/tdbtool.8
-+++ samba-3.3.0/docs/manpages/tdbtool.8
+--- a/docs/manpages/tdbtool.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/tdbtool.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1346,10 +1346,10 @@ Index: samba-3.3.0/docs/manpages/tdbtool.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/testparm.1
+Index: b/docs/manpages/testparm.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/testparm.1
-+++ samba-3.3.0/docs/manpages/testparm.1
+--- a/docs/manpages/testparm.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/testparm.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1374,10 +1374,10 @@ Index: samba-3.3.0/docs/manpages/testparm.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/umount.cifs.8
+Index: b/docs/manpages/umount.cifs.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/umount.cifs.8
-+++ samba-3.3.0/docs/manpages/umount.cifs.8
+--- a/docs/manpages/umount.cifs.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/umount.cifs.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1402,10 +1402,10 @@ Index: samba-3.3.0/docs/manpages/umount.cifs.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_audit.8
+Index: b/docs/manpages/vfs_audit.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_audit.8
-+++ samba-3.3.0/docs/manpages/vfs_audit.8
+--- a/docs/manpages/vfs_audit.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_audit.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1430,10 +1430,10 @@ Index: samba-3.3.0/docs/manpages/vfs_audit.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_cacheprime.8
+Index: b/docs/manpages/vfs_cacheprime.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_cacheprime.8
-+++ samba-3.3.0/docs/manpages/vfs_cacheprime.8
+--- a/docs/manpages/vfs_cacheprime.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_cacheprime.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1458,10 +1458,10 @@ Index: samba-3.3.0/docs/manpages/vfs_cacheprime.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_cap.8
+Index: b/docs/manpages/vfs_cap.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_cap.8
-+++ samba-3.3.0/docs/manpages/vfs_cap.8
+--- a/docs/manpages/vfs_cap.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_cap.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1486,10 +1486,10 @@ Index: samba-3.3.0/docs/manpages/vfs_cap.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_catia.8
+Index: b/docs/manpages/vfs_catia.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_catia.8
-+++ samba-3.3.0/docs/manpages/vfs_catia.8
+--- a/docs/manpages/vfs_catia.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_catia.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1514,10 +1514,10 @@ Index: samba-3.3.0/docs/manpages/vfs_catia.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_commit.8
+Index: b/docs/manpages/vfs_commit.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_commit.8
-+++ samba-3.3.0/docs/manpages/vfs_commit.8
+--- a/docs/manpages/vfs_commit.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_commit.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1542,10 +1542,10 @@ Index: samba-3.3.0/docs/manpages/vfs_commit.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_default_quota.8
+Index: b/docs/manpages/vfs_default_quota.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_default_quota.8
-+++ samba-3.3.0/docs/manpages/vfs_default_quota.8
+--- a/docs/manpages/vfs_default_quota.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_default_quota.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1570,10 +1570,10 @@ Index: samba-3.3.0/docs/manpages/vfs_default_quota.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_extd_audit.8
+Index: b/docs/manpages/vfs_extd_audit.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_extd_audit.8
-+++ samba-3.3.0/docs/manpages/vfs_extd_audit.8
+--- a/docs/manpages/vfs_extd_audit.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_extd_audit.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1598,10 +1598,10 @@ Index: samba-3.3.0/docs/manpages/vfs_extd_audit.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_fake_perms.8
+Index: b/docs/manpages/vfs_fake_perms.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_fake_perms.8
-+++ samba-3.3.0/docs/manpages/vfs_fake_perms.8
+--- a/docs/manpages/vfs_fake_perms.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_fake_perms.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1626,10 +1626,10 @@ Index: samba-3.3.0/docs/manpages/vfs_fake_perms.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_fileid.8
+Index: b/docs/manpages/vfs_fileid.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_fileid.8
-+++ samba-3.3.0/docs/manpages/vfs_fileid.8
+--- a/docs/manpages/vfs_fileid.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_fileid.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1654,10 +1654,10 @@ Index: samba-3.3.0/docs/manpages/vfs_fileid.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_full_audit.8
+Index: b/docs/manpages/vfs_full_audit.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_full_audit.8
-+++ samba-3.3.0/docs/manpages/vfs_full_audit.8
+--- a/docs/manpages/vfs_full_audit.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_full_audit.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1682,10 +1682,10 @@ Index: samba-3.3.0/docs/manpages/vfs_full_audit.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_gpfs.8
+Index: b/docs/manpages/vfs_gpfs.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_gpfs.8
-+++ samba-3.3.0/docs/manpages/vfs_gpfs.8
+--- a/docs/manpages/vfs_gpfs.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_gpfs.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1710,10 +1710,10 @@ Index: samba-3.3.0/docs/manpages/vfs_gpfs.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_netatalk.8
+Index: b/docs/manpages/vfs_netatalk.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_netatalk.8
-+++ samba-3.3.0/docs/manpages/vfs_netatalk.8
+--- a/docs/manpages/vfs_netatalk.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_netatalk.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1738,10 +1738,10 @@ Index: samba-3.3.0/docs/manpages/vfs_netatalk.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_notify_fam.8
+Index: b/docs/manpages/vfs_notify_fam.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_notify_fam.8
-+++ samba-3.3.0/docs/manpages/vfs_notify_fam.8
+--- a/docs/manpages/vfs_notify_fam.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_notify_fam.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1766,10 +1766,10 @@ Index: samba-3.3.0/docs/manpages/vfs_notify_fam.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_prealloc.8
+Index: b/docs/manpages/vfs_prealloc.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_prealloc.8
-+++ samba-3.3.0/docs/manpages/vfs_prealloc.8
+--- a/docs/manpages/vfs_prealloc.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_prealloc.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1794,10 +1794,10 @@ Index: samba-3.3.0/docs/manpages/vfs_prealloc.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_readahead.8
+Index: b/docs/manpages/vfs_readahead.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_readahead.8
-+++ samba-3.3.0/docs/manpages/vfs_readahead.8
+--- a/docs/manpages/vfs_readahead.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_readahead.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1822,10 +1822,10 @@ Index: samba-3.3.0/docs/manpages/vfs_readahead.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_readonly.8
+Index: b/docs/manpages/vfs_readonly.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_readonly.8
-+++ samba-3.3.0/docs/manpages/vfs_readonly.8
+--- a/docs/manpages/vfs_readonly.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_readonly.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1850,10 +1850,10 @@ Index: samba-3.3.0/docs/manpages/vfs_readonly.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_recycle.8
+Index: b/docs/manpages/vfs_recycle.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_recycle.8
-+++ samba-3.3.0/docs/manpages/vfs_recycle.8
+--- a/docs/manpages/vfs_recycle.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_recycle.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1878,10 +1878,10 @@ Index: samba-3.3.0/docs/manpages/vfs_recycle.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_shadow_copy.8
+Index: b/docs/manpages/vfs_shadow_copy.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_shadow_copy.8
-+++ samba-3.3.0/docs/manpages/vfs_shadow_copy.8
+--- a/docs/manpages/vfs_shadow_copy.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_shadow_copy.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1906,10 +1906,10 @@ Index: samba-3.3.0/docs/manpages/vfs_shadow_copy.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_shadow_copy2.8
+Index: b/docs/manpages/vfs_shadow_copy2.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_shadow_copy2.8
-+++ samba-3.3.0/docs/manpages/vfs_shadow_copy2.8
+--- a/docs/manpages/vfs_shadow_copy2.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_shadow_copy2.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1934,10 +1934,10 @@ Index: samba-3.3.0/docs/manpages/vfs_shadow_copy2.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_smb_traffic_analyzer.8
+Index: b/docs/manpages/vfs_smb_traffic_analyzer.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_smb_traffic_analyzer.8
-+++ samba-3.3.0/docs/manpages/vfs_smb_traffic_analyzer.8
+--- a/docs/manpages/vfs_smb_traffic_analyzer.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_smb_traffic_analyzer.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1962,10 +1962,10 @@ Index: samba-3.3.0/docs/manpages/vfs_smb_traffic_analyzer.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_streams_depot.8
+Index: b/docs/manpages/vfs_streams_depot.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_streams_depot.8
-+++ samba-3.3.0/docs/manpages/vfs_streams_depot.8
+--- a/docs/manpages/vfs_streams_depot.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_streams_depot.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1990,10 +1990,10 @@ Index: samba-3.3.0/docs/manpages/vfs_streams_depot.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_streams_xattr.8
+Index: b/docs/manpages/vfs_streams_xattr.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_streams_xattr.8
-+++ samba-3.3.0/docs/manpages/vfs_streams_xattr.8
+--- a/docs/manpages/vfs_streams_xattr.8	2009-11-08 15:54:27.000000000 +0100
++++ b/docs/manpages/vfs_streams_xattr.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2018,10 +2018,10 @@ Index: samba-3.3.0/docs/manpages/vfs_streams_xattr.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfs_xattr_tdb.8
+Index: b/docs/manpages/vfs_xattr_tdb.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfs_xattr_tdb.8
-+++ samba-3.3.0/docs/manpages/vfs_xattr_tdb.8
+--- a/docs/manpages/vfs_xattr_tdb.8	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfs_xattr_tdb.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2046,10 +2046,10 @@ Index: samba-3.3.0/docs/manpages/vfs_xattr_tdb.8
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/vfstest.1
+Index: b/docs/manpages/vfstest.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/vfstest.1
-+++ samba-3.3.0/docs/manpages/vfstest.1
+--- a/docs/manpages/vfstest.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/vfstest.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2074,10 +2074,10 @@ Index: samba-3.3.0/docs/manpages/vfstest.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/wbinfo.1
+Index: b/docs/manpages/wbinfo.1
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/wbinfo.1
-+++ samba-3.3.0/docs/manpages/wbinfo.1
+--- a/docs/manpages/wbinfo.1	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/wbinfo.1	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2102,10 +2102,10 @@ Index: samba-3.3.0/docs/manpages/wbinfo.1
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/winbind_krb5_locator.7
+Index: b/docs/manpages/winbind_krb5_locator.7
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/winbind_krb5_locator.7
-+++ samba-3.3.0/docs/manpages/winbind_krb5_locator.7
+--- a/docs/manpages/winbind_krb5_locator.7	2009-11-08 15:54:26.000000000 +0100
++++ b/docs/manpages/winbind_krb5_locator.7	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2130,10 +2130,10 @@ Index: samba-3.3.0/docs/manpages/winbind_krb5_locator.7
  .ps +2
  .ft B
  .ne (2v + 1u)
-Index: samba-3.3.0/docs/manpages/winbindd.8
+Index: b/docs/manpages/winbindd.8
 ===================================================================
---- samba-3.3.0.orig/docs/manpages/winbindd.8
-+++ samba-3.3.0/docs/manpages/winbindd.8
+--- a/docs/manpages/winbindd.8	2009-11-08 15:55:33.000000000 +0100
++++ b/docs/manpages/winbindd.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

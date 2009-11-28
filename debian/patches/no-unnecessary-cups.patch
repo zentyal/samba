@@ -6,11 +6,11 @@ Bug-Debian: http://bugs.debian.org/479512
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=5525
 Forwarded: yes
 
-Index: samba-3.3.0rc2/source3/smbd/server.c
+Index: b/source3/smbd/server.c
 ===================================================================
---- samba-3.3.0rc2.orig/source3/smbd/server.c
-+++ samba-3.3.0rc2/source3/smbd/server.c
-@@ -806,6 +806,10 @@
+--- a/source3/smbd/server.c	2009-11-08 15:54:27.000000000 +0100
++++ b/source3/smbd/server.c	2009-11-08 15:55:36.000000000 +0100
+@@ -699,6 +699,10 @@
  	int pnum = lp_servicenumber(PRINTERS_NAME);
  	const char *pname;
  

@@ -4,10 +4,10 @@ Author: Christian Perrier <bubulle@debian.org>
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=6444
 Forwarded: yes
 
-Index: samba-3.4.0pre1/source3/Makefile.in
+Index: b/source3/Makefile.in
 ===================================================================
---- samba-3.4.0pre1.orig/source3/Makefile.in
-+++ samba-3.4.0pre1/source3/Makefile.in
+--- a/source3/Makefile.in	2009-11-08 15:55:34.000000000 +0100
++++ b/source3/Makefile.in	2009-11-08 15:55:38.000000000 +0100
 @@ -156,7 +156,7 @@
  STATEDIR = @statedir@
  

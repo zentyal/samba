@@ -70,6 +70,11 @@ bool event_add_to_select_args(struct tevent_context *ev,
 		}
 	}
 
+	if (ev->immediate_events != NULL) {
+		*timeout = timeval_zero();
+		return true;
+	}
+
 	if (ev->timer_events == NULL) {
 		return ret;
 	}
@@ -137,8 +142,12 @@ struct timeval *get_timed_events_timeout(struct tevent_context *ev,
 {
 	struct timeval now;
 
-	if (ev->timer_events == NULL) {
+	if ((ev->timer_events == NULL) && (ev->immediate_events == NULL)) {
 		return NULL;
+	}
+	if (ev->immediate_events != NULL) {
+		*to_ret = timeval_zero();
+		return to_ret;
 	}
 
 	now = timeval_current();
@@ -277,7 +286,7 @@ static void s3_event_debug(void *context, enum tevent_debug_level level,
 		samba_level = 2;
 		break;
 	case TEVENT_DEBUG_TRACE:
-		samba_level = 10;
+		samba_level = 11;
 		break;
 
 	};

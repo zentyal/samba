@@ -56,7 +56,17 @@ static void ldb_debug_stderr(void *context, enum ldb_debug_level level,
 {
 	if (level <= LDB_DEBUG_WARNING) {
 		vfprintf(stderr, fmt, ap);
+		fprintf(stderr, "\n");
 	}
+}
+
+static void ldb_debug_stderr_all(void *context, enum ldb_debug_level level, 
+			     const char *fmt, va_list ap) PRINTF_ATTRIBUTE(3,0);
+static void ldb_debug_stderr_all(void *context, enum ldb_debug_level level, 
+			     const char *fmt, va_list ap)
+{
+	vfprintf(stderr, fmt, ap);
+	fprintf(stderr, "\n");
 }
 
 /*
@@ -75,13 +85,42 @@ void ldb_debug(struct ldb_context *ldb, enum ldb_debug_level level, const char *
 {
 	va_list ap;
 	if (ldb->debug_ops.debug == NULL) {
-		ldb_set_debug_stderr(ldb);
+		if (ldb->flags & LDB_FLG_ENABLE_TRACING) {
+			ldb_set_debug(ldb, ldb_debug_stderr_all, ldb);
+		} else {
+			ldb_set_debug_stderr(ldb);
+		}
 	}
 	va_start(ap, fmt);
 	ldb->debug_ops.debug(ldb->debug_ops.context, level, fmt, ap);
 	va_end(ap);
 }
 
+/*
+  add to an accumulated log message
+ */
+void ldb_debug_add(struct ldb_context *ldb, const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	if (ldb->partial_debug == NULL) {
+		ldb->partial_debug = talloc_vasprintf(ldb, fmt, ap);
+	} else {
+		ldb->partial_debug = talloc_vasprintf_append(ldb->partial_debug, 
+							     fmt, ap);
+	}
+	va_end(ap);
+}
+
+/*
+  send the accumulated log message, and free it
+ */
+void ldb_debug_end(struct ldb_context *ldb, enum ldb_debug_level level)
+{
+	ldb_debug(ldb, level, "%s", ldb->partial_debug);
+	talloc_free(ldb->partial_debug);
+	ldb->partial_debug = NULL;
+}
 
 /*
   log a message, and set the ldb error string to the same message

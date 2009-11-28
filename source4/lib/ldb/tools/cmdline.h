@@ -44,6 +44,8 @@ struct ldb_cmdline {
 	const char *input;
 	const char *output;
 	char **controls;
+	int show_binary;
+	int tracing;
 };
 
 struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb, int argc, const char **argv,
@@ -51,3 +53,5 @@ struct ldb_cmdline *ldb_cmdline_process(struct ldb_context *ldb, int argc, const
 
 
 int handle_controls_reply(struct ldb_control **reply, struct ldb_control **request);
+void ldb_cmdline_help(const char *cmdname, FILE *f);
+

@@ -62,9 +62,11 @@ const char *wbcErrorString(wbcErr error);
  *       Added wbcRemoveGidMapping()
  *  0.3: Added wbcGetpwsid()
  *	 Added wbcGetSidAliases()
+ *  0.4: Added wbcSidTypeString()
+ *  0.5: Added wbcChangeTrustCredentials()
  **/
 #define WBCLIENT_MAJOR_VERSION 0
-#define WBCLIENT_MINOR_VERSION 3
+#define WBCLIENT_MINOR_VERSION 5
 #define WBCLIENT_VENDOR_VERSION "Samba libwbclient"
 struct wbcLibraryDetails {
 	uint16_t major_version;
@@ -505,6 +507,15 @@ void wbcFreeMemory(void*);
 /*
  * Utility functions for dealing with SIDs
  */
+
+/**
+ * @brief Get a string representation of the SID type
+ *
+ * @param type		type of the SID
+ *
+ * @return string representation of the SID type
+ */
+const char* wbcSidTypeString(enum wbcSidType type);
 
 /**
  * @brief Convert a binary SID to a character string
@@ -1173,15 +1184,24 @@ wbcErr wbcResolveWinsByIP(const char *ip, char **name);
 /**
  * @brief Trigger a verification of the trust credentials of a specific domain
  *
- * @param *domain      The name of the domain, only NULL for the default domain is
- *                     supported yet. Other values than NULL will result in
- *                     WBC_ERR_NOT_IMPLEMENTED.
+ * @param *domain      The name of the domain.
  * @param error        Output details on WBC_ERR_AUTH_ERROR
  *
  * @return #wbcErr
  **/
 wbcErr wbcCheckTrustCredentials(const char *domain,
 				struct wbcAuthErrorInfo **error);
+
+/**
+ * @brief Trigger a change of the trust credentials for a specific domain
+ *
+ * @param *domain      The name of the domain.
+ * @param error        Output details on WBC_ERR_AUTH_ERROR
+ *
+ * @return #wbcErr
+ **/
+wbcErr wbcChangeTrustCredentials(const char *domain,
+				 struct wbcAuthErrorInfo **error);
 
 /**********************************************************
  * Helper functions

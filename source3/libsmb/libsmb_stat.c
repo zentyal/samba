@@ -188,9 +188,9 @@ SMBC_stat_ctx(SMBCCTX *context,
         
 	setup_stat(context, st, (char *) fname, size, mode);
         
-	set_atimespec(st, access_time_ts);
-	set_ctimespec(st, change_time_ts);
-	set_mtimespec(st, write_time_ts);
+	st->st_atime = convert_timespec_to_time_t(access_time_ts);
+	st->st_ctime = convert_timespec_to_time_t(change_time_ts);
+	st->st_mtime = convert_timespec_to_time_t(write_time_ts);
 	st->st_dev   = srv->dev;
         
 	TALLOC_FREE(frame);
@@ -276,8 +276,8 @@ SMBC_fstat_ctx(SMBCCTX *context,
                 
 		time_t change_time, access_time, write_time;
                 
-		if (!cli_getattrE(targetcli, file->cli_fd, &mode, &size,
-                                  &change_time, &access_time, &write_time)) {
+		if (!NT_STATUS_IS_OK(cli_getattrE(targetcli, file->cli_fd, &mode, &size,
+                                  &change_time, &access_time, &write_time))) {
                         
 			errno = EINVAL;
 			TALLOC_FREE(frame);
@@ -293,9 +293,9 @@ SMBC_fstat_ctx(SMBCCTX *context,
         
 	setup_stat(context, st, file->fname, size, mode);
         
-	set_atimespec(st, access_time_ts);
-	set_ctimespec(st, change_time_ts);
-	set_mtimespec(st, write_time_ts);
+	st->st_atime = convert_timespec_to_time_t(access_time_ts);
+	st->st_ctime = convert_timespec_to_time_t(change_time_ts);
+	st->st_mtime = convert_timespec_to_time_t(write_time_ts);
 	st->st_dev = file->srv->dev;
         
 	TALLOC_FREE(frame);

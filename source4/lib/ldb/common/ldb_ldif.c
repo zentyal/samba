@@ -185,10 +185,14 @@ char *ldb_base64_encode(void *mem_ctx, const char *buf, int len)
 /*
   see if a buffer should be base64 encoded
 */
-int ldb_should_b64_encode(const struct ldb_val *val)
+int ldb_should_b64_encode(struct ldb_context *ldb, const struct ldb_val *val)
 {
 	unsigned int i;
 	uint8_t *p = val->data;
+
+	if (ldb->flags & LDB_FLG_SHOW_BINARY) {
+		return 0;
+	}
 
 	if (val->length == 0) {
 		return 0;
@@ -296,7 +300,7 @@ int ldb_ldif_write(struct ldb_context *ldb,
 			}
 		}
 		if (!ldb_changetypes[i].name) {
-			ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: Invalid ldif changetype %d\n",
+			ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: Invalid ldif changetype %d",
 				  ldif->changetype);
 			talloc_free(mem_ctx);
 			return -1;
@@ -333,7 +337,7 @@ int ldb_ldif_write(struct ldb_context *ldb,
 			if (ret != LDB_SUCCESS) {
 				v = msg->elements[i].values[j];
 			}
-			if (ret != LDB_SUCCESS || ldb_should_b64_encode(&v)) {
+			if (ret != LDB_SUCCESS || ldb_should_b64_encode(ldb, &v)) {
 				ret = fprintf_fn(private_data, "%s:: ", 
 						 msg->elements[i].name);
 				CHECK_RET;
@@ -346,9 +350,14 @@ int ldb_ldif_write(struct ldb_context *ldb,
 			} else {
 				ret = fprintf_fn(private_data, "%s: ", msg->elements[i].name);
 				CHECK_RET;
-				ret = fold_string(fprintf_fn, private_data,
-						  (char *)v.data, v.length,
-						  strlen(msg->elements[i].name)+2);
+				if (ldb->flags & LDB_FLG_SHOW_BINARY) {
+					ret = fprintf_fn(private_data, "%*.*s", 
+							 v.length, v.length, (char *)v.data);
+				} else {
+					ret = fold_string(fprintf_fn, private_data,
+							  (char *)v.data, v.length,
+							  strlen(msg->elements[i].name)+2);
+				}
 				CHECK_RET;
 				ret = fprintf_fn(private_data, "\n");
 				CHECK_RET;
@@ -561,7 +570,7 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 	
 	/* first line must be a dn */
 	if (ldb_attr_cmp(attr, "dn") != 0) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: First line of ldif must be a dn not '%s'\n", 
+		ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: First line of ldif must be a dn not '%s'",
 			  attr);
 		goto failed;
 	}
@@ -569,7 +578,7 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 	msg->dn = ldb_dn_from_ldb_val(msg, ldb, &value);
 
 	if ( ! ldb_dn_validate(msg->dn)) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: Unable to parse dn '%s'\n", 
+		ldb_debug(ldb, LDB_DEBUG_ERROR, "Error: Unable to parse dn '%s'",
 			  (char *)value.data);
 		goto failed;
 	}
@@ -588,8 +597,8 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 				}
 			}
 			if (!ldb_changetypes[i].name) {
-				ldb_debug(ldb, LDB_DEBUG_ERROR, 
-					  "Error: Bad ldif changetype '%s'\n",(char *)value.data);
+				ldb_debug(ldb, LDB_DEBUG_ERROR,
+					  "Error: Bad ldif changetype '%s'",(char *)value.data);
 			}
 			flags = 0;
 			continue;
@@ -632,13 +641,13 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 			if (!el->values) {
 				goto failed;
 			}
-			ret = a->syntax->ldif_read_fn(ldb, ldif, &value, &el->values[el->num_values]);
+			ret = a->syntax->ldif_read_fn(ldb, el->values, &value, &el->values[el->num_values]);
 			if (ret != 0) {
 				goto failed;
 			}
 			if (value.length == 0) {
 				ldb_debug(ldb, LDB_DEBUG_ERROR,
-					  "Error: Attribute value cannot be empty for attribute '%s'\n", el->name);
+					  "Error: Attribute value cannot be empty for attribute '%s'", el->name);
 				goto failed;
 			}
 			if (value.data != el->values[el->num_values].data) {
@@ -647,7 +656,7 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 			el->num_values++;
 		} else {
 			/* its a new attribute */
-			msg->elements = talloc_realloc(ldif, msg->elements, 
+			msg->elements = talloc_realloc(msg, msg->elements, 
 							 struct ldb_message_element, 
 							 msg->num_elements+1);
 			if (!msg->elements) {
@@ -661,7 +670,7 @@ struct ldb_ldif *ldb_ldif_read(struct ldb_context *ldb,
 				goto failed;
 			}
 			el->num_values = 1;
-			ret = a->syntax->ldif_read_fn(ldb, ldif, &value, &el->values[0]);
+			ret = a->syntax->ldif_read_fn(ldb, el->values, &value, &el->values[0]);
 			if (ret != 0) {
 				goto failed;
 			}
@@ -758,4 +767,60 @@ int ldb_ldif_write_file(struct ldb_context *ldb, FILE *f, const struct ldb_ldif 
 	struct ldif_write_file_state state;
 	state.f = f;
 	return ldb_ldif_write(ldb, fprintf_file, &state, ldif);
+}
+
+/*
+  wrapper around ldif_write() for a string
+*/
+struct ldif_write_string_state {
+	char *string;
+};
+
+static int ldif_printf_string(void *private_data, const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+
+static int ldif_printf_string(void *private_data, const char *fmt, ...)
+{
+	struct ldif_write_string_state *state =
+		(struct ldif_write_string_state *)private_data;
+	va_list ap;
+	size_t oldlen = talloc_get_size(state->string);
+	va_start(ap, fmt);
+	
+	state->string = talloc_vasprintf_append(state->string, fmt, ap);
+	va_end(ap);
+	if (!state->string) {
+		return -1;
+	}
+
+	return talloc_get_size(state->string) - oldlen;
+}
+
+char *ldb_ldif_write_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, 
+			    const struct ldb_ldif *ldif)
+{
+	struct ldif_write_string_state state;
+	state.string = talloc_strdup(mem_ctx, "");
+	if (!state.string) {
+		return NULL;
+	}
+	if (ldb_ldif_write(ldb, ldif_printf_string, &state, ldif) == -1) {
+		return NULL;
+	}
+	return state.string;
+}
+
+/*
+  convenient function to turn a ldb_message into a string. Useful for
+  debugging
+ */
+char *ldb_ldif_message_string(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, 
+			      enum ldb_changetype changetype,
+			      const struct ldb_message *msg)
+{
+	struct ldb_ldif ldif;
+
+	ldif.changetype = changetype;
+	ldif.msg = discard_const_p(struct ldb_message, msg);
+
+	return ldb_ldif_write_string(ldb, mem_ctx, &ldif);
 }

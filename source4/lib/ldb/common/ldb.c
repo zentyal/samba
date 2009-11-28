@@ -41,8 +41,8 @@ static int ldb_context_destructor(void *ptr)
 
 	if (ldb->transaction_active) {
 		ldb_debug(ldb, LDB_DEBUG_FATAL,
-			  "A transaction is still active in ldb context [%p]",
-			  ldb);
+			  "A transaction is still active in ldb context [%p] on %s",
+			  ldb, (const char *)ldb_get_opaque(ldb, "ldb_url"));
 	}
 
 	return 0;
@@ -240,7 +240,7 @@ int ldb_connect(struct ldb_context *ldb, const char *url,
 
 	if (ldb_load_modules(ldb, options) != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_FATAL,
-			  "Unable to load modules for %s: %s\n",
+			  "Unable to load modules for %s: %s",
 			  url, ldb_errstring(ldb));
 		return LDB_ERR_OTHER;
 	}
@@ -257,6 +257,9 @@ void ldb_set_errstring(struct ldb_context *ldb, const char *err_string)
 		talloc_free(ldb->err_string);
 	}
 	ldb->err_string = talloc_strdup(ldb, err_string);
+	if (ldb->flags & LDB_FLG_ENABLE_TRACING) {
+		ldb_debug(ldb, LDB_DEBUG_TRACE, "ldb_set_errstring: %s", ldb->err_string);
+	}
 }
 
 void ldb_asprintf_errstring(struct ldb_context *ldb, const char *format, ...)
@@ -282,14 +285,19 @@ void ldb_reset_err_string(struct ldb_context *ldb)
 	}
 }
 
-#define FIRST_OP(ldb, op) do { \
+#define FIRST_OP_NOERR(ldb, op) do { \
 	module = ldb->modules;					\
 	while (module && module->ops->op == NULL) module = module->next; \
-	if (module == NULL) {						\
+} while (0)
+
+#define FIRST_OP(ldb, op) do { \
+	FIRST_OP_NOERR(ldb, op); \
+	if (module == NULL) {	       				\
 		ldb_asprintf_errstring(ldb, "unable to find module or backend to handle operation: " #op); \
 		return LDB_ERR_OPERATIONS_ERROR;			\
 	} \
 } while (0)
+
 
 /*
   start a transaction
@@ -311,6 +319,7 @@ int ldb_transaction_start(struct ldb_context *ldb)
 
 	/* start a new transaction */
 	ldb->transaction_active++;
+	ldb->prepare_commit_done = false;
 
 	FIRST_OP(ldb, start_transaction);
 
@@ -330,12 +339,68 @@ int ldb_transaction_start(struct ldb_context *ldb)
 }
 
 /*
+  prepare for transaction commit (first phase of two phase commit)
+*/
+int ldb_transaction_prepare_commit(struct ldb_context *ldb)
+{
+	struct ldb_module *module;
+	int status;
+
+	if (ldb->prepare_commit_done) {
+		return LDB_SUCCESS;
+	}
+
+	/* commit only when all nested transactions are complete */
+	if (ldb->transaction_active > 1) {
+		return LDB_SUCCESS;
+	}
+
+	ldb->prepare_commit_done = true;
+
+	if (ldb->transaction_active < 0) {
+		ldb_debug(ldb, LDB_DEBUG_FATAL,
+			  "prepare commit called but no ldb transactions are active!");
+		ldb->transaction_active = 0;
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	/* call prepare transaction if available */
+	FIRST_OP_NOERR(ldb, prepare_commit);
+	if (module == NULL) {
+		return LDB_SUCCESS;
+	}
+
+	status = module->ops->prepare_commit(module);
+	if (status != LDB_SUCCESS) {
+		/* if a module fails the prepare then we need
+		   to call the end transaction for everyone */
+		FIRST_OP(ldb, end_transaction);
+		module->ops->end_transaction(module);
+		if (ldb->err_string == NULL) {
+			/* no error string was setup by the backend */
+			ldb_asprintf_errstring(ldb,
+					       "ldb transaction prepare commit: %s (%d)",
+					       ldb_strerror(status),
+					       status);
+		}
+	}
+
+	return status;
+}
+
+
+/*
   commit a transaction
 */
 int ldb_transaction_commit(struct ldb_context *ldb)
 {
 	struct ldb_module *module;
 	int status;
+
+	status = ldb_transaction_prepare_commit(ldb);
+	if (status != LDB_SUCCESS) {
+		return status;
+	}
 
 	ldb->transaction_active--;
 
@@ -355,10 +420,9 @@ int ldb_transaction_commit(struct ldb_context *ldb)
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
-	FIRST_OP(ldb, end_transaction);
-
 	ldb_reset_err_string(ldb);
 
+	FIRST_OP(ldb, end_transaction);
 	status = module->ops->end_transaction(module);
 	if (status != LDB_SUCCESS) {
 		if (ldb->err_string == NULL) {
@@ -368,9 +432,13 @@ int ldb_transaction_commit(struct ldb_context *ldb)
 				ldb_strerror(status),
 				status);
 		}
+		/* cancel the transaction */
+		FIRST_OP(ldb, del_transaction);
+		module->ops->del_transaction(module);
 	}
 	return status;
 }
+
 
 /*
   cancel a transaction
@@ -393,7 +461,7 @@ int ldb_transaction_cancel(struct ldb_context *ldb)
 
 	if (ldb->transaction_active < 0) {
 		ldb_debug(ldb, LDB_DEBUG_FATAL,
-			  "commit called but no ldb transactions are active!");
+			  "cancel called but no ldb transactions are active!");
 		ldb->transaction_active = 0;
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
@@ -557,6 +625,99 @@ int ldb_request_get_status(struct ldb_request *req)
 	return req->handle->status;
 }
 
+
+/*
+  trace a ldb request
+*/
+static void ldb_trace_request(struct ldb_context *ldb, struct ldb_request *req)
+{
+	TALLOC_CTX *tmp_ctx = talloc_new(req);
+	int i;
+
+	switch (req->operation) {
+	case LDB_SEARCH:
+		ldb_debug_add(ldb, "ldb_trace_request: SEARCH\n");
+		ldb_debug_add(ldb, " dn: %s\n",
+			      ldb_dn_is_null(req->op.search.base)?"<rootDSE>":
+			      ldb_dn_get_linearized(req->op.search.base));
+		ldb_debug_add(ldb, " scope: %s\n", 
+			  req->op.search.scope==LDB_SCOPE_BASE?"base":
+			  req->op.search.scope==LDB_SCOPE_ONELEVEL?"one":
+			  req->op.search.scope==LDB_SCOPE_SUBTREE?"sub":"UNKNOWN");
+		ldb_debug_add(ldb, " expr: %s\n", 
+			  ldb_filter_from_tree(tmp_ctx, req->op.search.tree));
+		if (req->op.search.attrs == NULL) {
+			ldb_debug_add(ldb, " attr: <ALL>\n");
+		} else {
+			for (i=0; req->op.search.attrs[i]; i++) {
+				ldb_debug_add(ldb, " attr: %s\n", req->op.search.attrs[i]);
+			}
+		}
+		break;
+	case LDB_DELETE:
+		ldb_debug_add(ldb, "ldb_trace_request: DELETE\n");
+		ldb_debug_add(ldb, " dn: %s\n", 
+			      ldb_dn_get_linearized(req->op.del.dn));
+		break;
+	case LDB_RENAME:
+		ldb_debug_add(ldb, "ldb_trace_request: RENAME\n");
+		ldb_debug_add(ldb, " olddn: %s\n", 
+			      ldb_dn_get_linearized(req->op.rename.olddn));
+		ldb_debug_add(ldb, " newdn: %s\n", 
+			      ldb_dn_get_linearized(req->op.rename.newdn));
+		break;
+	case LDB_EXTENDED:
+		ldb_debug_add(ldb, "ldb_trace_request: EXTENDED\n");
+		ldb_debug_add(ldb, " oid: %s\n", req->op.extended.oid);
+		ldb_debug_add(ldb, " data: %s\n", req->op.extended.data?"yes":"no");
+		break;
+	case LDB_ADD:
+		ldb_debug_add(ldb, "ldb_trace_request: ADD\n");
+		ldb_debug_add(req->handle->ldb, "%s\n", 
+			      ldb_ldif_message_string(req->handle->ldb, tmp_ctx, 
+						      LDB_CHANGETYPE_ADD, 
+						      req->op.add.message));
+		break;
+	case LDB_MODIFY:
+		ldb_debug_add(ldb, "ldb_trace_request: MODIFY\n");
+		ldb_debug_add(req->handle->ldb, "%s\n", 
+			      ldb_ldif_message_string(req->handle->ldb, tmp_ctx, 
+						      LDB_CHANGETYPE_ADD, 
+						      req->op.mod.message));
+		break;
+	case LDB_REQ_REGISTER_CONTROL:
+		ldb_debug_add(ldb, "ldb_trace_request: REGISTER_CONTROL\n");
+		ldb_debug_add(req->handle->ldb, "%s\n", 
+			      req->op.reg_control.oid);
+		break;
+	case LDB_REQ_REGISTER_PARTITION:
+		ldb_debug_add(ldb, "ldb_trace_request: REGISTER_PARTITION\n");
+		ldb_debug_add(req->handle->ldb, "%s\n", 
+			      ldb_dn_get_linearized(req->op.reg_partition.dn));
+		break;
+	default:
+		ldb_debug_add(ldb, "ldb_trace_request: UNKNOWN(%u)\n", 
+			      req->operation);
+		break;
+	}
+
+	if (req->controls == NULL) {
+		ldb_debug_add(ldb, " control: <NONE>\n");
+	} else {
+		for (i=0; req->controls && req->controls[i]; i++) {
+			ldb_debug_add(ldb, " control: %s  crit:%u  data:%s\n", 
+				      req->controls[i]->oid, 
+				      req->controls[i]->critical, 
+				      req->controls[i]->data?"yes":"no");
+		}
+	}
+	
+	ldb_debug_end(ldb, LDB_DEBUG_TRACE);
+
+	talloc_free(tmp_ctx);
+}
+
+
 /*
   start an ldb request
   NOTE: the request must be a talloc context.
@@ -573,6 +734,10 @@ int ldb_request(struct ldb_context *ldb, struct ldb_request *req)
 	}
 
 	ldb_reset_err_string(ldb);
+
+	if (ldb->flags & LDB_FLG_ENABLE_TRACING) {
+		ldb_trace_request(ldb, req);
+	}
 
 	/* call the first module in the chain */
 	switch (req->operation) {
@@ -677,10 +842,12 @@ int ldb_search_default_callback(struct ldb_request *req,
 		/* this is the last message, and means the request is done */
 		/* we have to signal and eventual ldb_wait() waiting that the
 		 * async request operation was completed */
+		talloc_free(ares);
 		return ldb_request_done(req, LDB_SUCCESS);
 	}
 
 	talloc_free(ares);
+
 	return LDB_SUCCESS;
 }
 
@@ -758,6 +925,10 @@ int ldb_build_search_req_ex(struct ldb_request **ret_req,
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
+	if (parent) {
+		req->handle->nesting++;
+	}
+
 	*ret_req = req;
 	return LDB_SUCCESS;
 }
@@ -825,6 +996,10 @@ int ldb_build_add_req(struct ldb_request **ret_req,
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
+	if (parent) {
+		req->handle->nesting++;
+	}
+
 	*ret_req = req;
 
 	return LDB_SUCCESS;
@@ -861,6 +1036,10 @@ int ldb_build_mod_req(struct ldb_request **ret_req,
 	if (req->handle == NULL) {
 		ldb_oom(ldb);
 		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	if (parent) {
+		req->handle->nesting++;
 	}
 
 	*ret_req = req;
@@ -901,6 +1080,10 @@ int ldb_build_del_req(struct ldb_request **ret_req,
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
+	if (parent) {
+		req->handle->nesting++;
+	}
+
 	*ret_req = req;
 
 	return LDB_SUCCESS;
@@ -939,6 +1122,10 @@ int ldb_build_rename_req(struct ldb_request **ret_req,
 	if (req->handle == NULL) {
 		ldb_oom(ldb);
 		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	if (parent) {
+		req->handle->nesting++;
 	}
 
 	*ret_req = req;
@@ -1008,6 +1195,10 @@ int ldb_build_extended_req(struct ldb_request **ret_req,
 	if (req->handle == NULL) {
 		ldb_oom(ldb);
 		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	if (parent) {
+		req->handle->nesting++;
 	}
 
 	*ret_req = req;
@@ -1429,4 +1620,22 @@ void *ldb_get_opaque(struct ldb_context *ldb, const char *name)
 		}
 	}
 	return NULL;
+}
+
+int ldb_global_init(void)
+{
+	/* Provided for compatibility with some older versions of ldb */
+	return 0;
+}
+
+/* return the ldb flags */
+unsigned int ldb_get_flags(struct ldb_context *ldb)
+{
+	return ldb->flags;
+}
+
+/* set the ldb flags */
+void ldb_set_flags(struct ldb_context *ldb, unsigned flags)
+{
+	ldb->flags = flags;
 }

@@ -267,7 +267,7 @@ net_share_enum_rpc(struct cli_state *cli,
 	struct srvsvc_NetShareCtr1 ctr1;
 	fstring name = "";
         fstring comment = "";
-	struct rpc_pipe_client *pipe_hnd;
+	struct rpc_pipe_client *pipe_hnd = NULL;
         NTSTATUS nt_status;
 	uint32_t resume_handle = 0;
 	uint32_t total_entries = 0;
@@ -615,9 +615,13 @@ SMBC_opendir_ctx(SMBCCTX *context,
                          */
 			if (!srv &&
                             !is_ipaddress(server) &&
-			    (resolve_name(server, &rem_ss, 0x1d) ||   /* LMB */
-                             resolve_name(server, &rem_ss, 0x1b) )) { /* DMB */
-
+			    (resolve_name(server, &rem_ss, 0x1d, false) ||   /* LMB */
+                             resolve_name(server, &rem_ss, 0x1b, false) )) { /* DMB */
+				/*
+				 * "server" is actually a workgroup name,
+				 * not a server. Make this clear.
+				 */
+				char *wgroup = server;
 				fstring buserver;
 
 				dir->dir_type = SMBC_SERVER;
@@ -625,12 +629,17 @@ SMBC_opendir_ctx(SMBCCTX *context,
 				/*
 				 * Get the backup list ...
 				 */
-				if (!name_status_find(server, 0, 0,
+				if (!name_status_find(wgroup, 0, 0,
                                                       &rem_ss, buserver)) {
+					char addr[INET6_ADDRSTRLEN];
 
+					print_sockaddr(addr, sizeof(addr), &rem_ss);
                                         DEBUG(0,("Could not get name of "
-                                                 "local/domain master browser "
-                                                 "for server %s\n", server));
+                                                "local/domain master browser "
+                                                "for workgroup %s from "
+						"address %s\n",
+						wgroup,
+						addr));
 					if (dir) {
 						SAFE_FREE(dir->fname);
 						SAFE_FREE(dir);
@@ -663,7 +672,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
 				dir->srv = srv;
 
 				/* Now, list the servers ... */
-				if (!cli_NetServerEnum(srv->cli, server,
+				if (!cli_NetServerEnum(srv->cli, wgroup,
                                                        0x0000FFFE, list_fn,
 						       (void *)dir)) {
 
@@ -675,7 +684,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
 					return NULL;
 				}
 			} else if (srv ||
-                                   (resolve_name(server, &rem_ss, 0x20))) {
+                                   (resolve_name(server, &rem_ss, 0x20, false))) {
 
                                 /*
                                  * If we hadn't found the server, get one now
@@ -1177,8 +1186,7 @@ SMBC_mkdir_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>mkdir: resolved path as %s\n", targetpath);*/
 
-	if (!cli_mkdir(targetcli, targetpath)) {
-
+	if (!NT_STATUS_IS_OK(cli_mkdir(targetcli, targetpath))) {
 		errno = SMBC_errno(context, targetcli);
 		TALLOC_FREE(frame);
 		return -1;
@@ -1285,8 +1293,7 @@ SMBC_rmdir_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>rmdir: resolved path as %s\n", targetpath);*/
 
-
-	if (!cli_rmdir(targetcli, targetpath)) {
+	if (!NT_STATUS_IS_OK(cli_rmdir(targetcli, targetpath))) {
 
 		errno = SMBC_errno(context, targetcli);
 
@@ -1575,7 +1582,7 @@ SMBC_chmod_ctx(SMBCCTX *context,
 	if ((newmode & S_IXGRP) && lp_map_system(-1)) mode |= aSYSTEM;
 	if ((newmode & S_IXOTH) && lp_map_hidden(-1)) mode |= aHIDDEN;
 
-	if (!cli_setatr(targetcli, targetpath, mode, 0)) {
+	if (!NT_STATUS_IS_OK(cli_setatr(targetcli, targetpath, mode, 0))) {
 		errno = SMBC_errno(context, targetcli);
 		TALLOC_FREE(frame);
 		return -1;
@@ -1762,7 +1769,7 @@ SMBC_unlink_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>unlink: resolved path as %s\n", targetpath);*/
 
-	if (!cli_unlink(targetcli, targetpath)) {
+	if (!NT_STATUS_IS_OK(cli_unlink(targetcli, targetpath, aSYSTEM | aHIDDEN))) {
 
 		errno = SMBC_errno(context, targetcli);
 
@@ -1964,12 +1971,12 @@ SMBC_rename_ctx(SMBCCTX *ocontext,
 		return -1;
 	}
 
-	if (!cli_rename(targetcli1, targetpath1, targetpath2)) {
+	if (!NT_STATUS_IS_OK(cli_rename(targetcli1, targetpath1, targetpath2))) {
 		int eno = SMBC_errno(ocontext, targetcli1);
 
 		if (eno != EEXIST ||
-		    !cli_unlink(targetcli1, targetpath2) ||
-		    !cli_rename(targetcli1, targetpath1, targetpath2)) {
+		    !NT_STATUS_IS_OK(cli_unlink(targetcli1, targetpath2, aSYSTEM | aHIDDEN)) ||
+		    !NT_STATUS_IS_OK(cli_rename(targetcli1, targetpath1, targetpath2))) {
 
 			errno = eno;
 			TALLOC_FREE(frame);

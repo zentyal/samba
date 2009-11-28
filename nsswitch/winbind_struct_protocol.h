@@ -15,6 +15,11 @@
 #define SAFE_FREE(x) do { if(x) {free(x); x=NULL;} } while(0)
 #endif
 
+#ifndef FSTRING_LEN
+#define FSTRING_LEN 256
+typedef char fstring[FSTRING_LEN];
+#endif
+
 #ifndef _WINBINDD_NTDOM_H
 #define _WINBINDD_NTDOM_H
 
@@ -113,6 +118,7 @@ enum winbindd_cmd {
 	/* Miscellaneous other stuff */
 
 	WINBINDD_CHECK_MACHACC,     /* Check machine account pw works */
+	WINBINDD_CHANGE_MACHACC,    /* Change machine account pw */
 	WINBINDD_PING,              /* Just tell me winbind is running */
 	WINBINDD_INFO,              /* Various bit of info.  Currently just tidbits */
 	WINBINDD_DOMAIN_NAME,       /* The domain this winbind server is a member of (lp_workgroup()) */
@@ -163,6 +169,8 @@ enum winbindd_cmd {
 	/* Wrapper around possibly blocking unix nss calls */
 	WINBINDD_DUAL_USERINFO,
 	WINBINDD_DUAL_GETSIDALIASES,
+
+	WINBINDD_DUAL_NDRCMD,
 
 	/* Complete the challenge phase of the NTLM authentication
 	   protocol using cached password. */
@@ -242,6 +250,7 @@ struct winbindd_request {
 		fstring groupname;   /* getgrnam */
 		uid_t uid;           /* getpwuid, uid_to_sid */
 		gid_t gid;           /* getgrgid, gid_to_sid */
+		uint32_t ndrcmd;
 		struct {
 			/* We deliberatedly don't split into domain/user to
                            avoid having the client know what the separator

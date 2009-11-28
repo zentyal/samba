@@ -1,12 +1,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/02/2009
+.\"      Date: 11/26/2009
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "06/02/2009" "Samba 3\&.4" "User Commands"
+.TH "SMBCLIENT" "1" "11/26/2009" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -373,20 +373,6 @@ This option allows you to look at what services are available on a server\&. You
 and a list should appear\&. The
 \fI\-I \fR
 option may be useful if your NetBIOS names don\'t match your TCP/IP DNS host names or if you are trying to reach a host on another network\&.
-.RE
-.PP
-\-t terminal code
-.RS 4
-This option tells
-\FCsmbclient\F[]
-how to interpret filenames coming from the remote server\&. Usually Asian language multibyte UNIX implementations use different character sets than SMB/CIFS servers (\fIEUC\fR
-instead of
-\fI SJIS\fR
-for example)\&. Setting this parameter will let
-\FCsmbclient\F[]
-convert between the UNIX filenames and the SMB filenames correctly\&. This option has not been seriously tested and may have some problems\&.
-.sp
-The terminal codes include CWsjis, CWeuc, CWjis7, CWjis8, CWjunet, CWhex, CWcap\&. This is not a complete list, check the Samba source code for the complete list\&.
 .RE
 .PP
 \-b buffersize
@@ -1050,6 +1036,11 @@ Displays the print queue, showing the job id, name, size and current status\&.
 quit
 .RS 4
 See the exit command\&.
+.RE
+.PP
+readlink symlinkname
+.RS 4
+This command depends on the server supporting the CIFS UNIX extensions and will fail if the server does not\&. Print the value of the symlink "symlinkname"\&.
 .RE
 .PP
 rd <directory name>

@@ -153,10 +153,12 @@ static bool tsmsm_is_offline(struct vfs_handle_struct *handle,
 
         /* if the file has more than FILE_IS_ONLINE_RATIO of blocks available,
 	   then assume it is not offline (it may not be 100%, as it could be sparse) */
-	if (512 * (off_t)stbuf->st_blocks >= stbuf->st_size * tsmd->online_ratio) {
+	if (512 * (off_t)stbuf->st_ex_blocks >=
+	    stbuf->st_ex_size * tsmd->online_ratio) {
 		DEBUG(10,("%s not offline: st_blocks=%ld st_size=%ld "
-			  "online_ratio=%.2f\n", path, (long)stbuf->st_blocks,
-			  (long)stbuf->st_size, tsmd->online_ratio));
+			  "online_ratio=%.2f\n", path,
+			  (long)stbuf->st_ex_blocks,
+			  (long)stbuf->st_ex_size, tsmd->online_ratio));
 		return false;
 	}
 
@@ -254,9 +256,10 @@ static bool tsmsm_aio_force(struct vfs_handle_struct *handle, struct files_struc
 	*/
 	if(SMB_VFS_FSTAT(fsp, &sbuf) == 0) {
 		DEBUG(10,("tsmsm_aio_force st_blocks=%ld st_size=%ld "
-			  "online_ratio=%.2f\n", (long)sbuf.st_blocks,
-			  (long)sbuf.st_size, tsmd->online_ratio));
-		return !(512 * (off_t)sbuf.st_blocks >= sbuf.st_size * tsmd->online_ratio);
+			  "online_ratio=%.2f\n", (long)sbuf.st_ex_blocks,
+			  (long)sbuf.st_ex_size, tsmd->online_ratio));
+		return !(512 * (off_t)sbuf.st_ex_blocks >=
+			 sbuf.st_ex_size * tsmd->online_ratio);
 	}
 	return false;
 }
@@ -270,7 +273,7 @@ static ssize_t tsmsm_aio_return(struct vfs_handle_struct *handle, struct files_s
 	if(result >= 0) {
 		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-			     fsp->fsp_name);
+			     fsp->fsp_name->base_name);
 	}
 
 	return result;
@@ -304,14 +307,14 @@ static ssize_t tsmsm_pread(struct vfs_handle_struct *handle, struct files_struct
 	    */
 		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-			     fsp->fsp_name);
+			     fsp->fsp_name->base_name);
 	}
 
 	return result;
 }
 
 static ssize_t tsmsm_pwrite(struct vfs_handle_struct *handle, struct files_struct *fsp, 
-			   void *data, size_t n, SMB_OFF_T offset) {
+			    const void *data, size_t n, SMB_OFF_T offset) {
 	ssize_t result;
 	bool notify_online = tsmsm_aio_force(handle, fsp);
 
@@ -322,7 +325,7 @@ static ssize_t tsmsm_pwrite(struct vfs_handle_struct *handle, struct files_struc
 	    */
 		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-			     fsp->fsp_name);
+			     fsp->fsp_name->base_name);
 	}
 
 	return result;
@@ -354,43 +357,27 @@ static int tsmsm_set_offline(struct vfs_handle_struct *handle,
 	return result;
 }
 
-static uint32_t tsmsm_fs_capabilities(struct vfs_handle_struct *handle)
+static uint32_t tsmsm_fs_capabilities(struct vfs_handle_struct *handle,
+			enum timestamp_set_resolution *p_ts_res)
 {
-	return SMB_VFS_NEXT_FS_CAPABILITIES(handle) | FILE_SUPPORTS_REMOTE_STORAGE | FILE_SUPPORTS_REPARSE_POINTS;
+	return SMB_VFS_NEXT_FS_CAPABILITIES(handle, p_ts_res) | FILE_SUPPORTS_REMOTE_STORAGE | FILE_SUPPORTS_REPARSE_POINTS;
 }
 
-static vfs_op_tuple vfs_tsmsm_ops[] = {
-
-	/* Disk operations */
-
-	{SMB_VFS_OP(tsmsm_connect),	SMB_VFS_OP_CONNECT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_fs_capabilities),	SMB_VFS_OP_FS_CAPABILITIES,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_aio_force),	SMB_VFS_OP_AIO_FORCE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_aio_return),	SMB_VFS_OP_AIO_RETURN,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_pread),	SMB_VFS_OP_PREAD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_pwrite),	SMB_VFS_OP_PWRITE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_sendfile),	SMB_VFS_OP_SENDFILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(tsmsm_is_offline),	SMB_VFS_OP_IS_OFFLINE,
-	 SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(tsmsm_set_offline),	SMB_VFS_OP_SET_OFFLINE,
-	 SMB_VFS_LAYER_OPAQUE},
-
-	/* Finish VFS operations definition */
-
-	{SMB_VFS_OP(NULL),		SMB_VFS_OP_NOOP,
-	 SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers tsmsm_fns = {
+	.connect_fn = tsmsm_connect,
+	.fs_capabilities = tsmsm_fs_capabilities,
+	.aio_force = tsmsm_aio_force,
+	.aio_return_fn = tsmsm_aio_return,
+	.pread = tsmsm_pread,
+	.pwrite = tsmsm_pwrite,
+	.sendfile = tsmsm_sendfile,
+	.is_offline = tsmsm_is_offline,
+	.set_offline = tsmsm_set_offline,
 };
 
 NTSTATUS vfs_tsmsm_init(void);
 NTSTATUS vfs_tsmsm_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
-				"tsmsm", vfs_tsmsm_ops);
+				"tsmsm", &tsmsm_fns);
 }

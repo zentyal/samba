@@ -33,7 +33,7 @@
 
 #include "kdc_locl.h"
 
-RCSID("$Id$");
+#ifdef KRB4
 
 #include <krb5-v4compat.h>
 #include <rx.h>
@@ -493,10 +493,10 @@ do_authenticate (krb5_context context,
 	goto out;
     }
 
-    ret = _kdc_check_flags (context, config,
-			    client_entry, client_name,
-			    server_entry, server_name,
-			    TRUE);
+    ret = kdc_check_flags (context, config,
+			   client_entry, client_name,
+			   server_entry, server_name,
+			   TRUE);
     if (ret) {
 	make_error_reply (hdr, KAPWEXPIRED, reply);
 	goto out;
@@ -790,10 +790,10 @@ do_getticket (krb5_context context,
 	goto out;
     }
 
-    ret = _kdc_check_flags (context, config,
-			    client_entry, client_name,
-			    server_entry, server_name,
-			    FALSE);
+    ret = kdc_check_flags (context, config,
+			   client_entry, client_name,
+			   server_entry, server_name,
+			   FALSE);
     if (ret) {
 	make_error_reply (hdr, KAPWEXPIRED, reply);
 	goto out;
@@ -949,3 +949,5 @@ out:
     krb5_storage_free (sp);
     return ret;
 }
+
+#endif /* KRB4 */

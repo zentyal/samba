@@ -52,7 +52,7 @@ import "misc.idl", "security.idl", "nbt.idl";
 		[out,switch_is(level)] nbtd_info info
 		);
 
-	/* Send a GetDCName from the privilaged port (owned by nbtd),
+	/* Send a GetDCName from the privileged port (owned by nbtd),
 	 * and await a reply */
 
 	void nbtd_getdcname(
@@ -139,6 +139,13 @@ import "misc.idl", "security.idl", "nbt.idl";
 	void smbsrv_information(
 		[in]  smbsrv_info_level level,
 		[out,switch_is(level)] smbsrv_info info
+		);
+
+	/*
+	  called when samba should shutdown
+	 */
+	void samba_terminate(
+		[in] astring reason
 		);
 
 }

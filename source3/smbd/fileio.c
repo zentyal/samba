@@ -57,6 +57,7 @@ ssize_t read_file(files_struct *fsp,char *data,SMB_OFF_T pos,size_t n)
 
 	/* you can't read from print files */
 	if (fsp->print_file) {
+		errno = EBADF;
 		return -1;
 	}
 
@@ -102,7 +103,7 @@ tryagain:
 	}
 
 	DEBUG(10,("read_file (%s): pos = %.0f, size = %lu, returned %lu\n",
-		fsp->fsp_name, (double)pos, (unsigned long)n, (long)ret ));
+		  fsp_str_dbg(fsp), (double)pos, (unsigned long)n, (long)ret));
 
 	fsp->fh->pos += ret;
 	fsp->fh->position_information = fsp->fh->pos;
@@ -135,7 +136,7 @@ static ssize_t real_write_file(struct smb_request *req,
 	}
 
 	DEBUG(10,("real_write_file (%s): pos = %.0f, size = %lu, returned %ld\n",
-		fsp->fsp_name, (double)pos, (unsigned long)n, (long)ret ));
+		  fsp_str_dbg(fsp), (double)pos, (unsigned long)n, (long)ret));
 
 	if (ret != -1) {
 		fsp->fh->pos += ret;
@@ -163,25 +164,31 @@ static int wcp_file_size_change(files_struct *fsp)
 	wcp->file_size = wcp->offset + wcp->data_size;
 	ret = SMB_VFS_FTRUNCATE(fsp, wcp->file_size);
 	if (ret == -1) {
-		DEBUG(0,("wcp_file_size_change (%s): ftruncate of size %.0f error %s\n",
-			fsp->fsp_name, (double)wcp->file_size, strerror(errno) ));
+		DEBUG(0,("wcp_file_size_change (%s): ftruncate of size %.0f "
+			 "error %s\n", fsp_str_dbg(fsp),
+			 (double)wcp->file_size, strerror(errno)));
 	}
 	return ret;
 }
 
-static void update_write_time_handler(struct event_context *ctx,
+void update_write_time_handler(struct event_context *ctx,
 				      struct timed_event *te,
 				      struct timeval now,
 				      void *private_data)
 {
 	files_struct *fsp = (files_struct *)private_data;
 
+	DEBUG(5, ("Update write time on %s\n", fsp_str_dbg(fsp)));
+
+	/* change the write time in the open file db. */
+	(void)set_write_time(fsp->file_id, timespec_current());
+
+	/* And notify. */
+        notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
+                     FILE_NOTIFY_CHANGE_LAST_WRITE, fsp->fsp_name->base_name);
+
 	/* Remove the timed event handler. */
 	TALLOC_FREE(fsp->update_write_time_event);
-	DEBUG(5, ("Update write time on %s\n", fsp->fsp_name));
-
-	/* change the write time if not already changed by someone else */
-	update_write_time(fsp);
 }
 
 /*********************************************************
@@ -193,6 +200,11 @@ void trigger_write_time_update(struct files_struct *fsp)
 {
 	int delay;
 
+	if (fsp->posix_open) {
+		/* Don't use delayed writes on POSIX files. */
+		return;
+	}
+
 	if (fsp->write_time_forced) {
 		/* No point - "sticky" write times
 		 * in effect.
@@ -200,11 +212,16 @@ void trigger_write_time_update(struct files_struct *fsp)
 		return;
 	}
 
+	/* We need to remember someone did a write
+	 * and update to current time on close. */
+
+	fsp->update_write_time_on_close = true;
+
 	if (fsp->update_write_time_triggered) {
 		/*
-		 * We only update the write time
-		 * on the first write. After that
-		 * no other writes affect this.
+		 * We only update the write time after 2 seconds
+		 * on the first normal write. After that
+		 * no other writes affect this until close.
 		 */
 		return;
 	}
@@ -214,8 +231,10 @@ void trigger_write_time_update(struct files_struct *fsp)
 			    "smbd", "writetimeupdatedelay",
 			    WRITE_TIME_UPDATE_USEC_DELAY);
 
+	DEBUG(5, ("Update write time %d usec later on %s\n",
+		  delay, fsp_str_dbg(fsp)));
+
 	/* trigger the update 2 seconds later */
-	fsp->update_write_time_on_close = true;
 	fsp->update_write_time_event =
 		event_add_timed(smbd_event_context(), NULL,
 				timeval_current_ofs(0, delay),
@@ -224,6 +243,13 @@ void trigger_write_time_update(struct files_struct *fsp)
 
 void trigger_write_time_update_immediate(struct files_struct *fsp)
 {
+	struct smb_file_time ft;
+
+	if (fsp->posix_open) {
+		/* Don't use delayed writes on POSIX files. */
+		return;
+	}
+
         if (fsp->write_time_forced) {
 		/*
 		 * No point - "sticky" write times
@@ -233,12 +259,21 @@ void trigger_write_time_update_immediate(struct files_struct *fsp)
         }
 
 	TALLOC_FREE(fsp->update_write_time_event);
-	DEBUG(5, ("Update write time immediate on %s\n", fsp->fsp_name));
+	DEBUG(5, ("Update write time immediate on %s\n",
+		  fsp_str_dbg(fsp)));
 
+	/* After an immediate update, reset the trigger. */
 	fsp->update_write_time_triggered = true;
-
         fsp->update_write_time_on_close = false;
-	update_write_time(fsp);
+
+	ZERO_STRUCT(ft);
+	ft.mtime = timespec_current();
+
+	/* Update the time in the open file db. */
+	(void)set_write_time(fsp->file_id, ft.mtime);
+
+	/* Now set on disk - takes care of notify. */
+	(void)smb_set_file_time(fsp->conn, fsp, fsp->fsp_name, &ft, false);
 }
 
 /****************************************************************************
@@ -274,20 +309,17 @@ ssize_t write_file(struct smb_request *req,
 	}
 
 	if (!fsp->modified) {
-		SMB_STRUCT_STAT st;
 		fsp->modified = True;
 
-		if (SMB_VFS_FSTAT(fsp, &st) == 0) {
+		if (SMB_VFS_FSTAT(fsp, &fsp->fsp_name->st) == 0) {
 			int dosmode;
 			trigger_write_time_update(fsp);
-			dosmode = dos_mode(fsp->conn,fsp->fsp_name,&st);
+			dosmode = dos_mode(fsp->conn, fsp->fsp_name);
 			if ((lp_store_dos_attributes(SNUM(fsp->conn)) ||
 					MAP_ARCHIVE(fsp->conn)) &&
 					!IS_DOS_ARCHIVE(dosmode)) {
-				file_set_dosmode(fsp->conn,fsp->fsp_name,
-						dosmode | aARCH,&st,
-						NULL,
-						false);
+				file_set_dosmode(fsp->conn, fsp->fsp_name,
+						 dosmode | aARCH, NULL, false);
 			}
 
 			/*
@@ -296,7 +328,8 @@ ssize_t write_file(struct smb_request *req,
 			 */
 
 			if (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type) && !wcp) {
-				setup_write_cache(fsp, st.st_size);
+				setup_write_cache(fsp,
+						 fsp->fsp_name->st.st_ex_size);
 				wcp = fsp->wcp;
 			}
 		}
@@ -361,8 +394,10 @@ nonop=%u allocated=%u active=%u direct=%u perfect=%u readhits=%u\n",
 		return total_written;
 	}
 
-	DEBUG(9,("write_file (%s)(fd=%d pos=%.0f size=%u) wcp->offset=%.0f wcp->data_size=%u\n",
-		fsp->fsp_name, fsp->fh->fd, (double)pos, (unsigned int)n, (double)wcp->offset, (unsigned int)wcp->data_size));
+	DEBUG(9,("write_file (%s)(fd=%d pos=%.0f size=%u) wcp->offset=%.0f "
+		 "wcp->data_size=%u\n", fsp_str_dbg(fsp), fsp->fh->fd,
+		 (double)pos, (unsigned int)n, (double)wcp->offset,
+		 (unsigned int)wcp->data_size));
 
 	fsp->fh->pos = pos + n;
 
@@ -807,7 +842,8 @@ void delete_write_cache(files_struct *fsp)
 	SAFE_FREE(wcp->data);
 	SAFE_FREE(fsp->wcp);
 
-	DEBUG(10,("delete_write_cache: File %s deleted write cache\n", fsp->fsp_name ));
+	DEBUG(10,("delete_write_cache: File %s deleted write cache\n",
+		  fsp_str_dbg(fsp)));
 }
 
 /****************************************************************************
@@ -850,7 +886,7 @@ static bool setup_write_cache(files_struct *fsp, SMB_OFF_T file_size)
 	allocated_write_caches++;
 
 	DEBUG(10,("setup_write_cache: File %s allocated write cache size %lu\n",
-		fsp->fsp_name, (unsigned long)wcp->alloc_size ));
+		  fsp_str_dbg(fsp), (unsigned long)wcp->alloc_size));
 
 	return True;
 }
@@ -867,7 +903,7 @@ void set_filelen_write_cache(files_struct *fsp, SMB_OFF_T file_size)
 			char *msg;
 			if (asprintf(&msg, "set_filelen_write_cache: size change "
 				 "on file %s with write cache size = %lu\n",
-				 fsp->fsp_name,
+				 fsp->fsp_name->base_name,
 				 (unsigned long)fsp->wcp->data_size) != -1) {
 				smb_panic(msg);
 			} else {
@@ -946,11 +982,15 @@ NTSTATUS sync_file(connection_struct *conn, files_struct *fsp, bool write_throug
  Perform a stat whether a valid fd or not.
 ************************************************************/
 
-int fsp_stat(files_struct *fsp, SMB_STRUCT_STAT *pst)
+int fsp_stat(files_struct *fsp)
 {
 	if (fsp->fh->fd == -1) {
-		return SMB_VFS_STAT(fsp->conn, fsp->fsp_name, pst);
+		if (fsp->posix_open) {
+			return SMB_VFS_LSTAT(fsp->conn, fsp->fsp_name);
+		} else {
+			return SMB_VFS_STAT(fsp->conn, fsp->fsp_name);
+		}
 	} else {
-		return SMB_VFS_FSTAT(fsp, pst);
+		return SMB_VFS_FSTAT(fsp, &fsp->fsp_name->st);
 	}
 }

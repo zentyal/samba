@@ -24,6 +24,7 @@
 
 #include "includes.h"
 #include "libnet/libnet.h"
+#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -53,9 +54,9 @@ static void create_wks_info_100(struct wkssvc_NetWkstaInfo100 *info100)
 WERROR _wkssvc_NetWkstaGetInfo(pipes_struct *p, struct wkssvc_NetWkstaGetInfo *r)
 {
 	struct wkssvc_NetWkstaInfo100 *wks100 = NULL;
-	
+
 	/* We only support info level 100 currently */
-	
+
 	if ( r->in.level != 100 ) {
 		return WERR_UNKNOWN_LEVEL;
 	}
@@ -65,7 +66,7 @@ WERROR _wkssvc_NetWkstaGetInfo(pipes_struct *p, struct wkssvc_NetWkstaGetInfo *r
 	}
 
 	create_wks_info_100( wks100 );
-	
+
 	r->out.info->info100 = wks100;
 
 	return WERR_OK;
@@ -305,7 +306,7 @@ WERROR _wkssvc_NetrJoinDomain2(pipes_struct *p,
 
 	if (!user_has_privileges(token, &se_machine_account) &&
 	    !nt_token_check_domain_rid(token, DOMAIN_GROUP_RID_ADMINS) &&
-	    !nt_token_check_domain_rid(token, BUILTIN_ALIAS_RID_ADMINS)) {
+	    !nt_token_check_sid(&global_sid_Builtin_Administrators, token)) {
 		DEBUG(5,("_wkssvc_NetrJoinDomain2: account doesn't have "
 			"sufficient privileges\n"));
 		return WERR_ACCESS_DENIED;
@@ -376,7 +377,7 @@ WERROR _wkssvc_NetrUnjoinDomain2(pipes_struct *p,
 
 	if (!user_has_privileges(token, &se_machine_account) &&
 	    !nt_token_check_domain_rid(token, DOMAIN_GROUP_RID_ADMINS) &&
-	    !nt_token_check_domain_rid(token, BUILTIN_ALIAS_RID_ADMINS)) {
+	    !nt_token_check_sid(&global_sid_Builtin_Administrators, token)) {
 		DEBUG(5,("_wkssvc_NetrUnjoinDomain2: account doesn't have "
 			"sufficient privileges\n"));
 		return WERR_ACCESS_DENIED;

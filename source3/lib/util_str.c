@@ -96,15 +96,15 @@ int StrCaseCmp(const char *s, const char *t)
 			return +1;
 	}
 
-	if (!push_ucs2_allocate(&buffer_s, ps, &size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &buffer_s, ps, &size)) {
 		return strcmp(ps, pt);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive, and it's pretty
 		   close */
 	}
 
-	if (!push_ucs2_allocate(&buffer_t, pt, &size)) {
-		SAFE_FREE(buffer_s);
+	if (!push_ucs2_talloc(talloc_tos(), &buffer_t, pt, &size)) {
+		TALLOC_FREE(buffer_s);
 		return strcmp(ps, pt);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive, and it's pretty
@@ -112,8 +112,8 @@ int StrCaseCmp(const char *s, const char *t)
 	}
 
 	ret = strcasecmp_w(buffer_s, buffer_t);
-	SAFE_FREE(buffer_s);
-	SAFE_FREE(buffer_t);
+	TALLOC_FREE(buffer_s);
+	TALLOC_FREE(buffer_t);
 	return ret;
 }
 
@@ -157,15 +157,15 @@ int StrnCaseCmp(const char *s, const char *t, size_t len)
 		return 0;
 	}
 
-	if (!push_ucs2_allocate(&buffer_s, ps, &size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &buffer_s, ps, &size)) {
 		return strncmp(ps, pt, len-n);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive,
 		   and it's pretty close */
 	}
 
-	if (!push_ucs2_allocate(&buffer_t, pt, &size)) {
-		SAFE_FREE(buffer_s);
+	if (!push_ucs2_talloc(talloc_tos(), &buffer_t, pt, &size)) {
+		TALLOC_FREE(buffer_s);
 		return strncmp(ps, pt, len-n);
 		/* Not quite the right answer, but finding the right one
 		   under this failure case is expensive,
@@ -173,8 +173,8 @@ int StrnCaseCmp(const char *s, const char *t, size_t len)
 	}
 
 	ret = strncasecmp_w(buffer_s, buffer_t, len-n);
-	SAFE_FREE(buffer_s);
-	SAFE_FREE(buffer_t);
+	TALLOC_FREE(buffer_s);
+	TALLOC_FREE(buffer_t);
 	return ret;
 }
 
@@ -366,11 +366,11 @@ size_t str_charnum(const char *s)
 {
 	size_t ret, converted_size;
 	smb_ucs2_t *tmpbuf2 = NULL;
-	if (!push_ucs2_allocate(&tmpbuf2, s, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &tmpbuf2, s, &converted_size)) {
 		return 0;
 	}
 	ret = strlen_w(tmpbuf2);
-	SAFE_FREE(tmpbuf2);
+	TALLOC_FREE(tmpbuf2);
 	return ret;
 }
 
@@ -384,11 +384,11 @@ size_t str_ascii_charnum(const char *s)
 {
 	size_t ret, converted_size;
 	char *tmpbuf2 = NULL;
-	if (!push_ascii_allocate(&tmpbuf2, s, &converted_size)) {
+	if (!push_ascii_talloc(talloc_tos(), &tmpbuf2, s, &converted_size)) {
 		return 0;
 	}
 	ret = strlen(tmpbuf2);
-	SAFE_FREE(tmpbuf2);
+	TALLOC_FREE(tmpbuf2);
 	return ret;
 }
 
@@ -455,7 +455,7 @@ bool strhasupper(const char *s)
 	bool ret;
 	size_t converted_size;
 
-	if (!push_ucs2_allocate(&tmp, s, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &tmp, s, &converted_size)) {
 		return false;
 	}
 
@@ -466,7 +466,7 @@ bool strhasupper(const char *s)
 	}
 
 	ret = (*p != 0);
-	SAFE_FREE(tmp);
+	TALLOC_FREE(tmp);
 	return ret;
 }
 
@@ -480,7 +480,7 @@ bool strhaslower(const char *s)
 	bool ret;
 	size_t converted_size;
 
-	if (!push_ucs2_allocate(&tmp, s, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &tmp, s, &converted_size)) {
 		return false;
 	}
 
@@ -491,7 +491,7 @@ bool strhaslower(const char *s)
 	}
 
 	ret = (*p != 0);
-	SAFE_FREE(tmp);
+	TALLOC_FREE(tmp);
 	return ret;
 }
 
@@ -1177,24 +1177,24 @@ char *strchr_m(const char *src, char c)
 	s = src;
 #endif
 
-	if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &ws, s, &converted_size)) {
 		/* Wrong answer, but what can we do... */
 		return strchr(src, c);
 	}
 	p = strchr_w(ws, UCS2_CHAR(c));
 	if (!p) {
-		SAFE_FREE(ws);
+		TALLOC_FREE(ws);
 		return NULL;
 	}
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
+	if (!pull_ucs2_talloc(talloc_tos(), &s2, ws, &converted_size)) {
 		SAFE_FREE(ws);
 		/* Wrong answer, but what can we do... */
 		return strchr(src, c);
 	}
 	ret = (char *)(s+strlen(s2));
-	SAFE_FREE(ws);
-	SAFE_FREE(s2);
+	TALLOC_FREE(ws);
+	TALLOC_FREE(s2);
 	return ret;
 }
 
@@ -1248,24 +1248,24 @@ char *strrchr_m(const char *s, char c)
 		char *ret;
 		size_t converted_size;
 
-		if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+		if (!push_ucs2_talloc(talloc_tos(), &ws, s, &converted_size)) {
 			/* Wrong answer, but what can we do. */
 			return strrchr(s, c);
 		}
 		p = strrchr_w(ws, UCS2_CHAR(c));
 		if (!p) {
-			SAFE_FREE(ws);
+			TALLOC_FREE(ws);
 			return NULL;
 		}
 		*p = 0;
-		if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
-			SAFE_FREE(ws);
+		if (!pull_ucs2_talloc(talloc_tos(), &s2, ws, &converted_size)) {
+			TALLOC_FREE(ws);
 			/* Wrong answer, but what can we do. */
 			return strrchr(s, c);
 		}
 		ret = (char *)(s+strlen(s2));
-		SAFE_FREE(ws);
-		SAFE_FREE(s2);
+		TALLOC_FREE(ws);
+		TALLOC_FREE(s2);
 		return ret;
 	}
 }
@@ -1283,24 +1283,24 @@ char *strnrchr_m(const char *s, char c, unsigned int n)
 	char *ret;
 	size_t converted_size;
 
-	if (!push_ucs2_allocate(&ws, s, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &ws, s, &converted_size)) {
 		/* Too hard to try and get right. */
 		return NULL;
 	}
 	p = strnrchr_w(ws, UCS2_CHAR(c), n);
 	if (!p) {
-		SAFE_FREE(ws);
+		TALLOC_FREE(ws);
 		return NULL;
 	}
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, ws, &converted_size)) {
-		SAFE_FREE(ws);
+	if (!pull_ucs2_talloc(talloc_tos(), &s2, ws, &converted_size)) {
+		TALLOC_FREE(ws);
 		/* Too hard to try and get right. */
 		return NULL;
 	}
 	ret = (char *)(s+strlen(s2));
-	SAFE_FREE(ws);
-	SAFE_FREE(s2);
+	TALLOC_FREE(ws);
+	TALLOC_FREE(s2);
 	return ret;
 }
 
@@ -1352,13 +1352,13 @@ char *strstr_m(const char *src, const char *findstr)
 	s = src;
 #endif
 
-	if (!push_ucs2_allocate(&src_w, src, &converted_size)) {
+	if (!push_ucs2_talloc(talloc_tos(), &src_w, src, &converted_size)) {
 		DEBUG(0,("strstr_m: src malloc fail\n"));
 		return NULL;
 	}
 
-	if (!push_ucs2_allocate(&find_w, findstr, &converted_size)) {
-		SAFE_FREE(src_w);
+	if (!push_ucs2_talloc(talloc_tos(), &find_w, findstr, &converted_size)) {
+		TALLOC_FREE(src_w);
 		DEBUG(0,("strstr_m: find malloc fail\n"));
 		return NULL;
 	}
@@ -1366,22 +1366,22 @@ char *strstr_m(const char *src, const char *findstr)
 	p = strstr_w(src_w, find_w);
 
 	if (!p) {
-		SAFE_FREE(src_w);
-		SAFE_FREE(find_w);
+		TALLOC_FREE(src_w);
+		TALLOC_FREE(find_w);
 		return NULL;
 	}
 
 	*p = 0;
-	if (!pull_ucs2_allocate(&s2, src_w, &converted_size)) {
-		SAFE_FREE(src_w);
-		SAFE_FREE(find_w);
+	if (!pull_ucs2_talloc(talloc_tos(), &s2, src_w, &converted_size)) {
+		TALLOC_FREE(src_w);
+		TALLOC_FREE(find_w);
 		DEBUG(0,("strstr_m: dest malloc fail\n"));
 		return NULL;
 	}
 	retp = (char *)(s+strlen(s2));
-	SAFE_FREE(src_w);
-	SAFE_FREE(find_w);
-	SAFE_FREE(s2);
+	TALLOC_FREE(src_w);
+	TALLOC_FREE(find_w);
+	TALLOC_FREE(s2);
 	return retp;
 }
 
@@ -1529,14 +1529,15 @@ size_t strlen_m_term_null(const char *s)
  Caller must free.
 **/
 
-char *binary_string_rfc2254(char *buf, int len)
+char *binary_string_rfc2254(TALLOC_CTX *mem_ctx, const uint8_t *buf, int len)
 {
 	char *s;
 	int i, j;
 	const char *hex = "0123456789ABCDEF";
-	s = (char *)SMB_MALLOC(len * 3 + 1);
-	if (!s)
+	s = talloc_array(mem_ctx, char, len * 3 + 1);
+	if (s == NULL) {
 		return NULL;
+	}
 	for (j=i=0;i<len;i++) {
 		s[j] = '\\';
 		s[j+1] = hex[((unsigned char)buf[i]) >> 4];
@@ -1615,7 +1616,7 @@ bool str_list_sub_basic( char **list, const char *smb_name,
 }
 
 /******************************************************************************
- substritute a specific pattern in a string list
+ substitute a specific pattern in a string list
  *****************************************************************************/
 
 bool str_list_substitute(char **list, const char *pattern, const char *insert)
@@ -1931,7 +1932,7 @@ char *base64_encode_data_blob(TALLOC_CTX *mem_ctx, DATA_BLOB data)
 	result = TALLOC_ARRAY(mem_ctx, char, output_len); /* get us plenty of space */
 	SMB_ASSERT(result != NULL);
 
-	while (len-- && out_cnt < (data.length * 2) - 5) {
+	while (len--) {
 		int c = (unsigned char) *(data.data++);
 		bits += c;
 		char_count++;
@@ -2429,13 +2430,13 @@ char *escape_shell_string(const char *src)
 
 #define S_LIST_ABS 16 /* List Allocation Block Size */
 
-char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string, const char *sep)
+char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
+	const char *sep)
 {
 	char **list;
 	const char *str;
-	char *s;
+	char *s, *tok;
 	int num, lsize;
-	char *tok;
 
 	if (!string || !*string)
 		return NULL;

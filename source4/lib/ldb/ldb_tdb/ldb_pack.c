@@ -236,6 +236,10 @@ int ltdb_unpack_data(struct ldb_module *module,
 			errno = EIO;
 			goto failed;
 		}
+		if (len == 0) {
+			errno = EIO;
+			goto failed;
+		}
 		message->elements[i].flags = 0;
 		message->elements[i].name = talloc_strndup(message->elements, (char *)p, len);
 		if (message->elements[i].name == NULL) {
@@ -280,7 +284,7 @@ int ltdb_unpack_data(struct ldb_module *module,
 
 	if (remaining != 0) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR, 
-			  "Error: %d bytes unread in ltdb_unpack_data\n", remaining);
+			  "Error: %d bytes unread in ltdb_unpack_data", remaining);
 	}
 
 	return 0;

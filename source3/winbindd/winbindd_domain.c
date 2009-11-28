@@ -25,19 +25,12 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
-static const struct winbindd_child_dispatch_table domain_dispatch_table[];
-
-void setup_domain_child(struct winbindd_domain *domain,
-			struct winbindd_child *child)
-{
-	setup_child(child, domain_dispatch_table,
-		    "log.wb", domain->name);
-
-	child->domain = domain;
-}
-
 static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 	{
+		.name		= "PING",
+		.struct_cmd	= WINBINDD_PING,
+		.struct_fn	= winbindd_dual_ping,
+	},{
 		.name		= "LOOKUPSID",
 		.struct_cmd	= WINBINDD_LOOKUPSID,
 		.struct_fn	= winbindd_dual_lookupsid,
@@ -45,18 +38,6 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.name		= "LOOKUPNAME",
 		.struct_cmd	= WINBINDD_LOOKUPNAME,
 		.struct_fn	= winbindd_dual_lookupname,
-	},{
-		.name		= "LOOKUPRIDS",
-		.struct_cmd	= WINBINDD_LOOKUPRIDS,
-		.struct_fn	= winbindd_dual_lookuprids,
-	},{
-		.name		= "LIST_USERS",
-		.struct_cmd	= WINBINDD_LIST_USERS,
-		.struct_fn	= winbindd_dual_list_users,
-	},{
-		.name		= "LIST_GROUPS",
-		.struct_cmd	= WINBINDD_LIST_GROUPS,
-		.struct_fn	= winbindd_dual_list_groups,
 	},{
 		.name		= "LIST_TRUSTDOM",
 		.struct_cmd	= WINBINDD_LIST_TRUSTDOM,
@@ -94,10 +75,6 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.struct_cmd	= WINBINDD_PAM_CHAUTHTOK,
 		.struct_fn	= winbindd_dual_pam_chauthtok,
 	},{
-		.name		= "CHECK_MACHACC",
-		.struct_cmd	= WINBINDD_CHECK_MACHACC,
-		.struct_fn	= winbindd_dual_check_machine_acct,
-	},{
 		.name		= "DUAL_USERINFO",
 		.struct_cmd	= WINBINDD_DUAL_USERINFO,
 		.struct_fn	= winbindd_dual_userinfo,
@@ -118,6 +95,19 @@ static const struct winbindd_child_dispatch_table domain_dispatch_table[] = {
 		.struct_cmd	= WINBINDD_CCACHE_NTLMAUTH,
 		.struct_fn	= winbindd_dual_ccache_ntlm_auth,
 	},{
+		.name		= "NDRCMD",
+		.struct_cmd	= WINBINDD_DUAL_NDRCMD,
+		.struct_fn	= winbindd_dual_ndrcmd,
+	},{
 		.name		= NULL,
 	}
 };
+
+void setup_domain_child(struct winbindd_domain *domain,
+			struct winbindd_child *child)
+{
+	setup_child(domain, child, domain_dispatch_table,
+		    "log.wb", domain->name);
+
+	child->domain = domain;
+}

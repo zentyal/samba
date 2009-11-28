@@ -204,12 +204,12 @@ sub ParseArrayPushHeader($$$$$$)
 	}
 
 	if ((!$l->{IS_SURROUNDING}) and $l->{IS_CONFORMANT}) {
-		$self->pidl("NDR_CHECK(ndr_push_uint32($ndr, NDR_SCALARS, $size));");
+		$self->pidl("NDR_CHECK(ndr_push_uint3264($ndr, NDR_SCALARS, $size));");
 	}
 	
 	if ($l->{IS_VARYING}) {
-		$self->pidl("NDR_CHECK(ndr_push_uint32($ndr, NDR_SCALARS, 0));");  # array offset
-		$self->pidl("NDR_CHECK(ndr_push_uint32($ndr, NDR_SCALARS, $length));");
+		$self->pidl("NDR_CHECK(ndr_push_uint3264($ndr, NDR_SCALARS, 0));");  # array offset
+		$self->pidl("NDR_CHECK(ndr_push_uint3264($ndr, NDR_SCALARS, $length));");
 	} 
 
 	return $length;
@@ -326,7 +326,7 @@ sub ParseArrayPullHeader($$$$$$)
 
 	if ($l->{IS_CONFORMANT}) {
 		$length = $size = "ndr_get_array_size($ndr, " . get_pointer_to($var_name) . ")";
-	} elsif ($l->{IS_ZERO_TERMINATED}) { # Noheader arrays
+	} elsif ($l->{IS_ZERO_TERMINATED} and $l->{SIZE_IS} == 0 and $l->{LENGTH_IS} == 0) { # Noheader arrays
 		$length = $size = "ndr_get_string_size($ndr, sizeof(*$var_name))";
 	} else {
 		$length = $size = ParseExprExt($l->{SIZE_IS}, $env, $e->{ORIGINAL},
@@ -1065,6 +1065,10 @@ sub ParseElementPullLevel
 		my $counter = "cntr_$e->{NAME}_$l->{LEVEL_INDEX}";
 		my $array_name = $var_name;
 
+		if ($l->{IS_VARYING}) {
+			$length = "ndr_get_array_length($ndr, " . get_pointer_to($var_name) .")";
+		}
+
 		$var_name = get_array_element($var_name, $counter);
 
 		$self->ParseMemCtxPullStart($e, $l, $ndr, $array_name);
@@ -1216,9 +1220,9 @@ sub ParseStructPushPrimitives($$$$$)
 				$size = ParseExpr($e->{LEVELS}[0]->{SIZE_IS}, $env, $e->{ORIGINAL});
 			}
 
-			$self->pidl("NDR_CHECK(ndr_push_uint32($ndr, NDR_SCALARS, $size));");
+			$self->pidl("NDR_CHECK(ndr_push_uint3264($ndr, NDR_SCALARS, $size));");
 		} else {
-			$self->pidl("NDR_CHECK(ndr_push_uint32($ndr, NDR_SCALARS, ndr_string_array_size($ndr, $varname->$e->{NAME})));");
+			$self->pidl("NDR_CHECK(ndr_push_uint3264($ndr, NDR_SCALARS, ndr_string_array_size($ndr, $varname->$e->{NAME})));");
 		}
 	}
 
@@ -1231,6 +1235,8 @@ sub ParseStructPushPrimitives($$$$$)
 	}
 
 	$self->ParseElementPush($_, $ndr, $env, 1, 0) foreach (@{$struct->{ELEMENTS}});
+
+	$self->pidl("NDR_CHECK(ndr_push_trailer_align($ndr, $struct->{ALIGN}));");
 }
 
 sub ParseStructPushDeferred($$$$)
@@ -1283,7 +1289,7 @@ sub ParseEnumPush($$$$)
 	my($type_fn) = $enum->{BASE_TYPE};
 
 	$self->start_flags($enum, $ndr);
-	$self->pidl("NDR_CHECK(ndr_push_$type_fn($ndr, NDR_SCALARS, $varname));");
+	$self->pidl("NDR_CHECK(ndr_push_enum_$type_fn($ndr, NDR_SCALARS, $varname));");
 	$self->end_flags($enum, $ndr);
 }
 
@@ -1297,7 +1303,7 @@ sub ParseEnumPull($$$$)
 
 	$self->pidl("$type_v_decl v;");
 	$self->start_flags($enum, $ndr);
-	$self->pidl("NDR_CHECK(ndr_pull_$type_fn($ndr, NDR_SCALARS, &v));");
+	$self->pidl("NDR_CHECK(ndr_pull_enum_$type_fn($ndr, NDR_SCALARS, &v));");
 	$self->pidl("*$varname = v;");
 
 	$self->end_flags($enum, $ndr);
@@ -1529,6 +1535,8 @@ sub ParseStructPullPrimitives($$$$$)
 	$self->ParseElementPull($_, $ndr, $env, 1, 0) foreach (@{$struct->{ELEMENTS}});
 
 	$self->add_deferred();
+
+	$self->pidl("NDR_CHECK(ndr_pull_trailer_align($ndr, $struct->{ALIGN}));");
 }
 
 sub ParseStructPullDeferred($$$$$)
@@ -1640,6 +1648,10 @@ sub ParseUnionPushPrimitives($$$$)
 		$self->pidl("NDR_CHECK(ndr_push_$e->{SWITCH_TYPE}($ndr, NDR_SCALARS, level));");
 	}
 
+	if (defined($e->{ALIGN})) {
+		$self->pidl("NDR_CHECK(ndr_push_union_align($ndr, $e->{ALIGN}));");
+	}
+
 	$self->pidl("switch (level) {");
 	$self->indent;
 	foreach my $el (@{$e->{ELEMENTS}}) {
@@ -1665,7 +1677,7 @@ sub ParseUnionPushPrimitives($$$$)
 	}
 	if (! $have_default) {
 		$self->pidl("default:");
-		$self->pidl("\treturn ndr_push_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u\", level);");
+		$self->pidl("\treturn ndr_push_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u at \%s\", level, __location__);");
 	}
 	$self->deindent;
 	$self->pidl("}");
@@ -1701,7 +1713,7 @@ sub ParseUnionPushDeferred($$$$)
 	}
 	if (! $have_default) {
 		$self->pidl("default:");
-		$self->pidl("\treturn ndr_push_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u\", level);");
+		$self->pidl("\treturn ndr_push_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u at \%s\", level, __location__);");
 	}
 	$self->deindent;
 	$self->pidl("}");
@@ -1780,8 +1792,12 @@ sub ParseUnionPullPrimitives($$$$$)
 	if (defined($switch_type)) {
 		$self->pidl("NDR_CHECK(ndr_pull_$switch_type($ndr, NDR_SCALARS, &_level));");
 		$self->pidl("if (_level != level) {"); 
-		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value %u for $varname\", _level);");
+		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value %u for $varname at \%s\", _level, __location__);");
 		$self->pidl("}");
+	}
+
+	if (defined($e->{ALIGN})) {
+		$self->pidl("NDR_CHECK(ndr_pull_union_align($ndr, $e->{ALIGN}));");
 	}
 
 	$self->pidl("switch (level) {");
@@ -1810,7 +1826,7 @@ sub ParseUnionPullPrimitives($$$$$)
 	}
 	if (! $have_default) {
 		$self->pidl("default:");
-		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u\", level);");
+		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u at \%s\", level, __location__);");
 	}
 	$self->deindent;
 	$self->pidl("}");
@@ -1844,7 +1860,7 @@ sub ParseUnionPullDeferred($$$$)
 	}
 	if (! $have_default) {
 		$self->pidl("default:");
-		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u\", level);");
+		$self->pidl("\treturn ndr_pull_error($ndr, NDR_ERR_BAD_SWITCH, \"Bad switch value \%u at \%s\", level, __location__);");
 	}
 	$self->deindent;
 	$self->pidl("}");
@@ -2119,7 +2135,7 @@ sub AllocateArrayLevel($$$$$$)
 		$self->pidl("}");
 		if (grep(/in/,@{$e->{DIRECTION}}) and
 		    grep(/out/,@{$e->{DIRECTION}})) {
-			$self->pidl("memcpy(r->out.$e->{NAME}, r->in.$e->{NAME}, $size * sizeof(*r->in.$e->{NAME}));");
+			$self->pidl("memcpy(r->out.$e->{NAME}, r->in.$e->{NAME}, ($size) * sizeof(*r->in.$e->{NAME}));");
 		}
 		return;
 	}

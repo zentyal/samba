@@ -22,6 +22,7 @@
 
 /* Required Headers */
 
+#include "replace.h"
 #include "libwbclient.h"
 
 /* Authenticate a username/password pair */
@@ -255,7 +256,7 @@ done:
 }
 
 static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
-				    const struct winbindd_response *resp,
+				    struct winbindd_response *resp,
 				    struct wbcLogonUserInfo **_i)
 {
 	wbcErr wbc_status = WBC_ERR_SUCCESS;
@@ -267,7 +268,8 @@ static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
 	wbc_status = wbc_create_auth_info(i, resp, &i->info);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	if (resp->data.auth.krb5ccname) {
+	if (resp->data.auth.krb5ccname &&
+	    strlen(resp->data.auth.krb5ccname)) {
 		wbc_status = wbcAddNamedBlob(&i->num_blobs,
 					     &i->blobs,
 					     "krb5ccname",
@@ -277,7 +279,8 @@ static wbcErr wbc_create_logon_info(TALLOC_CTX *mem_ctx,
 		BAIL_ON_WBC_ERROR(wbc_status);
 	}
 
-	if (resp->data.auth.unix_username) {
+	if (resp->data.auth.unix_username &&
+	    strlen(resp->data.auth.unix_username)) {
 		wbc_status = wbcAddNamedBlob(&i->num_blobs,
 					     &i->blobs,
 					     "unix_username",
@@ -423,15 +426,24 @@ wbcErr wbcAuthenticateUserEx(const struct wbcAuthUserParams *params,
 		request.data.auth_crap.lm_resp_len =
 				MIN(params->password.response.lm_length,
 				    sizeof(request.data.auth_crap.lm_resp));
-		request.data.auth_crap.nt_resp_len =
-				MIN(params->password.response.nt_length,
-				    sizeof(request.data.auth_crap.nt_resp));
 		if (params->password.response.lm_data) {
 			memcpy(request.data.auth_crap.lm_resp,
 			       params->password.response.lm_data,
 			       request.data.auth_crap.lm_resp_len);
 		}
-		if (params->password.response.nt_data) {
+		request.data.auth_crap.nt_resp_len = params->password.response.nt_length;
+		if (params->password.response.nt_length > sizeof(request.data.auth_crap.nt_resp)) {
+			request.flags |= WBFLAG_BIG_NTLMV2_BLOB;
+			request.extra_len = params->password.response.nt_length;
+			request.extra_data.data = talloc_zero_array(NULL, char, request.extra_len);
+			if (request.extra_data.data == NULL) {
+				wbc_status = WBC_ERR_NO_MEMORY;
+				BAIL_ON_WBC_ERROR(wbc_status);
+			}
+			memcpy(request.extra_data.data,
+			       params->password.response.nt_data,
+			       request.data.auth_crap.nt_resp_len);
+		} else if (params->password.response.nt_data) {
 			memcpy(request.data.auth_crap.nt_resp,
 			       params->password.response.nt_data,
 			       request.data.auth_crap.nt_resp_len);
@@ -477,6 +489,8 @@ done:
 	if (response.extra_data.data)
 		free(response.extra_data.data);
 
+	talloc_free(request.extra_data.data);
+
 	return wbc_status;
 }
 
@@ -488,21 +502,55 @@ wbcErr wbcCheckTrustCredentials(const char *domain,
 	struct winbindd_response response;
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 
-	if (domain) {
-		/*
-		 * the current protocol doesn't support
-		 * specifying a domain
-		 */
-		wbc_status = WBC_ERR_NOT_IMPLEMENTED;
-		BAIL_ON_WBC_ERROR(wbc_status);
-	}
-
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
+
+	if (domain) {
+		strncpy(request.domain_name, domain,
+			sizeof(request.domain_name)-1);
+	}
 
 	/* Send request */
 
 	wbc_status = wbcRequestResponse(WINBINDD_CHECK_MACHACC,
+					&request,
+					&response);
+	if (response.data.auth.nt_status != 0) {
+		if (error) {
+			wbc_status = wbc_create_error_info(NULL,
+							   &response,
+							   error);
+			BAIL_ON_WBC_ERROR(wbc_status);
+		}
+
+		wbc_status = WBC_ERR_AUTH_ERROR;
+		BAIL_ON_WBC_ERROR(wbc_status);
+	}
+	BAIL_ON_WBC_ERROR(wbc_status);
+
+ done:
+	return wbc_status;
+}
+
+/* Trigger a change of the trust credentials for a specific domain */
+wbcErr wbcChangeTrustCredentials(const char *domain,
+				 struct wbcAuthErrorInfo **error)
+{
+	struct winbindd_request request;
+	struct winbindd_response response;
+	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
+
+	ZERO_STRUCT(request);
+	ZERO_STRUCT(response);
+
+	if (domain) {
+		strncpy(request.domain_name, domain,
+			sizeof(request.domain_name)-1);
+	}
+
+	/* Send request */
+
+	wbc_status = wbcRequestResponse(WINBINDD_CHANGE_MACHACC,
 					&request,
 					&response);
 	if (response.data.auth.nt_status != 0) {

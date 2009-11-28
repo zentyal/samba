@@ -1,7 +1,7 @@
 TALLOC_OBJ = $(tallocdir)/talloc.o 
 
-TALLOC_SOLIB = libtalloc.$(SHLIBEXT).$(PACKAGE_VERSION)
-TALLOC_SONAME = libtalloc.$(SHLIBEXT).1
+TALLOC_SOLIB = libtalloc.$(SHLIBEXT).$(TALLOC_VERSION)
+TALLOC_SONAME = libtalloc.$(SHLIBEXT).$(TALLOC_VERSION_MAJOR)
 TALLOC_STLIB = libtalloc.a
 
 all:: $(TALLOC_STLIB) $(TALLOC_SOLIB) testsuite
@@ -30,9 +30,18 @@ doc:: talloc.3 talloc.3.html
 
 clean::
 	rm -f *~ $(LIBOBJ) $(TALLOC_SOLIB) $(TALLOC_STLIB) testsuite testsuite.o testsuite_main.o *.gc?? talloc.3 talloc.3.html
+	rm -fr abi
+	rm -f talloc.exports.sort talloc.exports.check talloc.exports.check.sort
+	rm -f talloc.signatures.sort talloc.signatures.check talloc.signatures.check.sort
 
 test:: testsuite
 	./testsuite
+
+abi_checks::
+	@echo ABI checks:
+	@./script/abi_checks.sh talloc talloc.h
+
+test:: abi_checks
 
 gcov::
 	gcov talloc.c

@@ -9,9 +9,9 @@
 # * Testsuite hangs indefinitely
 #
 # If a testsuite is partially succeeding, please list the failing bits 
-# in the samba4-knownfail file rather than disabling the testsuite completely.
+# in the selftest/knownfail file rather than disabling the testsuite completely.
 #
-# If a testsuite is very slow, please add it to samba4-slow instead.
+# If a testsuite is very slow, please add it to selftest/slow instead.
 #
 # Please add a comment for each testsuite you disable explaining why 
 # it is being skipped.
@@ -27,6 +27,8 @@ raw.scan.eamax
 samba4.ntvfs.cifs.raw.qfileinfo.ipc
 smb2.notify
 smb2.scan
+smb2.lease
+smb2.durable.open
 ntvfs.cifs.base.charset
 ntvfs.cifs.base.iometer
 ntvfs.cifs.base.casetable
@@ -59,3 +61,6 @@ samba4.ntvfs.cifs.raw.
 ^samba4.net.api.become.dc.*$			# Fails
 nss.test						# Fails
 raw.offline 			# Samba 4 doesn't have much offline support yet
+rpc.autoidl  # this one just generates a lot of noise, and is no longer useful
+samba4.rpc.countcalls # this is not useful now we have full IDL
+samba4.rap.scan # same thing here - we have docs now

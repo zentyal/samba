@@ -143,7 +143,26 @@ onefs_shadow_copy_get_shadow_copy_data(vfs_handle_struct *handle,
 	return ret;						      \
 	} while (0)						      \
 
-
+/*
+ * XXX: Convert osc_canonicalize_path to use talloc instead of malloc.
+ */
+#define SHADOW_NEXT_SMB_FNAME(op, args, rtype) do {		      \
+		char *smb_base_name_tmp = NULL;			      \
+		char *cpath = NULL;				      \
+		char *snap_component = NULL;			      \
+		rtype ret;					      \
+		smb_base_name_tmp = smb_fname->base_name;	      \
+		if (shadow_copy_match_name(smb_fname->base_name,      \
+			&snap_component)) {				\
+			cpath = osc_canonicalize_path(smb_fname->base_name, \
+			    snap_component);				\
+			smb_fname->base_name = cpath;			\
+		}							\
+		ret = SMB_VFS_NEXT_ ## op args;				\
+		smb_fname->base_name = smb_base_name_tmp;		\
+		SAFE_FREE(cpath);					\
+		return ret;						\
+	} while (0)							\
 
 static uint64_t
 onefs_shadow_copy_disk_free(vfs_handle_struct *handle, const char *path,
@@ -193,20 +212,20 @@ onefs_shadow_copy_rmdir(vfs_handle_struct *handle, const char *path)
 }
 
 static int
-onefs_shadow_copy_open(vfs_handle_struct *handle, const char *path,
-		       files_struct *fsp, int flags, mode_t mode)
+onefs_shadow_copy_open(vfs_handle_struct *handle,
+		       struct smb_filename *smb_fname, files_struct *fsp,
+		       int flags, mode_t mode)
 {
-	SHADOW_NEXT(OPEN,
-		    (handle, cpath ?: path, fsp, flags, mode),
-		    int);
+	SHADOW_NEXT_SMB_FNAME(OPEN,
+			      (handle, smb_fname, fsp, flags, mode),
+			      int);
 }
 
 static NTSTATUS
 onefs_shadow_copy_create_file(vfs_handle_struct *handle,
 			      struct smb_request *req,
 			      uint16_t root_dir_fid,
-			      const char *path,
-			      uint32_t create_file_flags,
+			      struct smb_filename *smb_fname,
 			      uint32_t access_mask,
 			      uint32_t share_access,
 			      uint32_t create_disposition,
@@ -217,70 +236,107 @@ onefs_shadow_copy_create_file(vfs_handle_struct *handle,
 			      struct security_descriptor *sd,
 			      struct ea_list *ea_list,
 			      files_struct **result,
-			      int *pinfo,
-			      SMB_STRUCT_STAT *psbuf)
+			      int *pinfo)
 {
-	SHADOW_NEXT(CREATE_FILE,
-		    (handle, req, root_dir_fid, cpath ?: path,
-			create_file_flags, access_mask, share_access,
-			create_disposition, create_options, file_attributes,
-			oplock_request, allocation_size, sd, ea_list, result,
-			pinfo, psbuf),
-		    NTSTATUS);
+	SHADOW_NEXT_SMB_FNAME(CREATE_FILE,
+			      (handle, req, root_dir_fid, smb_fname,
+				  access_mask, share_access,
+				  create_disposition, create_options,
+				  file_attributes, oplock_request,
+				  allocation_size, sd, ea_list, result, pinfo),
+			      NTSTATUS);
 }
 
 /**
  * XXX: macro-ize
  */
 static int
-onefs_shadow_copy_rename(vfs_handle_struct *handle, const char *old_name,
-			 const char *new_name)
+onefs_shadow_copy_rename(vfs_handle_struct *handle,
+			 const struct smb_filename *smb_fname_src,
+			 const struct smb_filename *smb_fname_dst)
 {
 	char *old_cpath = NULL;
 	char *old_snap_component = NULL;
 	char *new_cpath = NULL;
 	char *new_snap_component = NULL;
-	int ret;
+	struct smb_filename *smb_fname_src_tmp = NULL;
+	struct smb_filename *smb_fname_dst_tmp = NULL;
+	NTSTATUS status;
+	int ret = -1;
 
-	if (shadow_copy_match_name(old_name, &old_snap_component))
-		old_cpath = osc_canonicalize_path(old_name, old_snap_component);
+	status = copy_smb_filename(talloc_tos(), smb_fname_src,
+				   &smb_fname_src_tmp);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		goto out;
+	}
+	status = copy_smb_filename(talloc_tos(), smb_fname_dst,
+				   &smb_fname_dst_tmp);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		goto out;
+	}
 
-	if (shadow_copy_match_name(new_name, &new_snap_component))
-		new_cpath = osc_canonicalize_path(new_name, new_snap_component);
+	if (shadow_copy_match_name(smb_fname_src_tmp->base_name,
+				   &old_snap_component)) {
+		old_cpath = osc_canonicalize_path(smb_fname_src_tmp->base_name,
+					  old_snap_component);
+		smb_fname_src_tmp->base_name = old_cpath;
+	}
 
-        ret = SMB_VFS_NEXT_RENAME(handle, old_cpath ?: old_name,
-	    new_cpath ?: new_name);
+	if (shadow_copy_match_name(smb_fname_dst_tmp->base_name,
+				   &new_snap_component)) {
+		new_cpath = osc_canonicalize_path(smb_fname_dst_tmp->base_name,
+					  new_snap_component);
+		smb_fname_dst_tmp->base_name = new_cpath;
+	}
 
+	ret = SMB_VFS_NEXT_RENAME(handle, smb_fname_src_tmp,
+				  smb_fname_dst_tmp);
+
+ out:
 	SAFE_FREE(old_cpath);
 	SAFE_FREE(new_cpath);
+	TALLOC_FREE(smb_fname_src_tmp);
+	TALLOC_FREE(smb_fname_dst_tmp);
 
 	return ret;
 }
 
 static int
-onefs_shadow_copy_stat(vfs_handle_struct *handle, const char *path,
-		       SMB_STRUCT_STAT *sbuf)
+onefs_shadow_copy_stat(vfs_handle_struct *handle,
+		       struct smb_filename *smb_fname)
 {
-	SHADOW_NEXT(STAT,
-		    (handle, cpath ?: path, sbuf),
-		    int);
+	SHADOW_NEXT_SMB_FNAME(STAT,
+			      (handle, smb_fname),
+			      int);
 }
 
 static int
-onefs_shadow_copy_lstat(vfs_handle_struct *handle, const char *path,
-			SMB_STRUCT_STAT *sbuf)
+onefs_shadow_copy_lstat(vfs_handle_struct *handle,
+			struct smb_filename *smb_fname)
 {
-	SHADOW_NEXT(LSTAT,
-		    (handle, cpath ?: path, sbuf),
-		    int);
+	SHADOW_NEXT_SMB_FNAME(LSTAT,
+			      (handle, smb_fname),
+			      int);
 }
 
 static int
-onefs_shadow_copy_unlink(vfs_handle_struct *handle, const char *path)
+onefs_shadow_copy_unlink(vfs_handle_struct *handle,
+			 const struct smb_filename *smb_fname_in)
 {
-	SHADOW_NEXT(UNLINK,
-		    (handle, cpath ?: path),
-		    int);
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
+	status = copy_smb_filename(talloc_tos(), smb_fname_in, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+
+	SHADOW_NEXT_SMB_FNAME(UNLINK,
+			      (handle, smb_fname),
+			      int);
 }
 
 static int
@@ -319,19 +375,29 @@ onefs_shadow_copy_chdir(vfs_handle_struct *handle, const char *path)
 }
 
 static int
-onefs_shadow_copy_ntimes(vfs_handle_struct *handle, const char *path,
+onefs_shadow_copy_ntimes(vfs_handle_struct *handle,
+			const struct smb_filename *smb_fname_in,
 			struct smb_file_time *ft)
 {
-	SHADOW_NEXT(NTIMES,
-		    (handle, cpath ?: path, ft),
-		    int);
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
+	status = copy_smb_filename(talloc_tos(), smb_fname_in, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+
+	SHADOW_NEXT_SMB_FNAME(NTIMES,
+			      (handle, smb_fname, ft),
+			      int);
 
 }
 
 /**
  * XXX: macro-ize
  */
-static bool
+static int
 onefs_shadow_copy_symlink(vfs_handle_struct *handle,
     const char *oldpath, const char *newpath)
 {
@@ -356,13 +422,13 @@ onefs_shadow_copy_symlink(vfs_handle_struct *handle,
 	return ret;
 }
 
-static bool
+static int
 onefs_shadow_copy_readlink(vfs_handle_struct *handle, const char *path,
 			   char *buf, size_t bufsiz)
 {
 	SHADOW_NEXT(READLINK,
 		    (handle, cpath ?: path, buf, bufsiz),
-		    bool);
+		    int);
 }
 
 /**
@@ -585,111 +651,48 @@ onefs_shadow_copy_set_offline(struct vfs_handle_struct *handle,
 
 /* VFS operations structure */
 
-static vfs_op_tuple onefs_shadow_copy_ops[] = {
-
-	/* Disk operations */
-
-	{SMB_VFS_OP(onefs_shadow_copy_disk_free), SMB_VFS_OP_DISK_FREE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_get_shadow_copy_data),
-	 SMB_VFS_OP_GET_SHADOW_COPY_DATA, SMB_VFS_LAYER_OPAQUE},
-	{SMB_VFS_OP(onefs_shadow_copy_statvfs), SMB_VFS_OP_STATVFS,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	/* Directory operations */
-
-	{SMB_VFS_OP(onefs_shadow_copy_opendir), SMB_VFS_OP_OPENDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_mkdir), SMB_VFS_OP_MKDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_rmdir), SMB_VFS_OP_RMDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	/* File operations */
-
-	{SMB_VFS_OP(onefs_shadow_copy_open), SMB_VFS_OP_OPEN,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_create_file), SMB_VFS_OP_CREATE_FILE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_rename), SMB_VFS_OP_RENAME,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_stat), SMB_VFS_OP_STAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_stat), SMB_VFS_OP_STAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_lstat), SMB_VFS_OP_LSTAT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_unlink), SMB_VFS_OP_UNLINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_chmod), SMB_VFS_OP_CHMOD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_chown), SMB_VFS_OP_CHOWN,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_lchown), SMB_VFS_OP_LCHOWN,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_chdir), SMB_VFS_OP_CHDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_ntimes), SMB_VFS_OP_NTIMES,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_symlink), SMB_VFS_OP_SYMLINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_readlink), SMB_VFS_OP_READLINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_link), SMB_VFS_OP_LINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_mknod), SMB_VFS_OP_MKNOD,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_realpath), SMB_VFS_OP_REALPATH,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_chflags), SMB_VFS_OP_CHFLAGS,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_streaminfo), SMB_VFS_OP_STREAMINFO,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_get_real_filename),
-	 SMB_VFS_OP_GET_REAL_FILENAME, SMB_VFS_LAYER_TRANSPARENT},
-
-	/* NT File ACL operations */
-
-	{SMB_VFS_OP(onefs_shadow_copy_get_nt_acl), SMB_VFS_OP_GET_NT_ACL,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	/* POSIX ACL operations */
-
-	{SMB_VFS_OP(onefs_shadow_copy_chmod_acl), SMB_VFS_OP_CHMOD_ACL,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_sys_acl_get_file),
-	 SMB_VFS_OP_SYS_ACL_GET_FILE, SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_sys_acl_set_file),
-	 SMB_VFS_OP_SYS_ACL_SET_FILE, SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_sys_acl_delete_def_file),
-	 SMB_VFS_OP_SYS_ACL_DELETE_DEF_FILE, SMB_VFS_LAYER_TRANSPARENT},
-
-        /* EA operations. */
-
-	{SMB_VFS_OP(onefs_shadow_copy_getxattr), SMB_VFS_OP_GETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_lgetxattr), SMB_VFS_OP_LGETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_listxattr), SMB_VFS_OP_LISTXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_llistxattr), SMB_VFS_OP_LLISTXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_removexattr), SMB_VFS_OP_REMOVEXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_lremovexattr), SMB_VFS_OP_LREMOVEXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_setxattr), SMB_VFS_OP_SETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_lsetxattr), SMB_VFS_OP_LSETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	/* offline operations */
-	{SMB_VFS_OP(onefs_shadow_copy_is_offline), SMB_VFS_OP_IS_OFFLINE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(onefs_shadow_copy_set_offline), SMB_VFS_OP_SET_OFFLINE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-
-	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers onefs_shadow_copy_fns = {
+	.disk_free = onefs_shadow_copy_disk_free,
+	.get_shadow_copy_data = onefs_shadow_copy_get_shadow_copy_data,
+	.statvfs = onefs_shadow_copy_statvfs,
+	.opendir = onefs_shadow_copy_opendir,
+	.mkdir = onefs_shadow_copy_mkdir,
+	.rmdir = onefs_shadow_copy_rmdir,
+	.open = onefs_shadow_copy_open,
+	.create_file = onefs_shadow_copy_create_file,
+	.rename = onefs_shadow_copy_rename,
+	.stat = onefs_shadow_copy_stat,
+	.stat = onefs_shadow_copy_stat,
+	.lstat = onefs_shadow_copy_lstat,
+	.unlink = onefs_shadow_copy_unlink,
+	.chmod = onefs_shadow_copy_chmod,
+	.chown = onefs_shadow_copy_chown,
+	.lchown = onefs_shadow_copy_lchown,
+	.chdir = onefs_shadow_copy_chdir,
+	.ntimes = onefs_shadow_copy_ntimes,
+	.symlink = onefs_shadow_copy_symlink,
+	.vfs_readlink = onefs_shadow_copy_readlink,
+	.link = onefs_shadow_copy_link,
+	.mknod = onefs_shadow_copy_mknod,
+	.realpath = onefs_shadow_copy_realpath,
+	.chflags = onefs_shadow_copy_chflags,
+	.streaminfo = onefs_shadow_copy_streaminfo,
+	.get_real_filename = onefs_shadow_copy_get_real_filename,
+	.get_nt_acl = onefs_shadow_copy_get_nt_acl,
+	.chmod_acl = onefs_shadow_copy_chmod_acl,
+	.sys_acl_get_file = onefs_shadow_copy_sys_acl_get_file,
+	.sys_acl_set_file = onefs_shadow_copy_sys_acl_set_file,
+	.sys_acl_delete_def_file = onefs_shadow_copy_sys_acl_delete_def_file,
+	.getxattr = onefs_shadow_copy_getxattr,
+	.lgetxattr = onefs_shadow_copy_lgetxattr,
+	.listxattr = onefs_shadow_copy_listxattr,
+	.llistxattr = onefs_shadow_copy_llistxattr,
+	.removexattr = onefs_shadow_copy_removexattr,
+	.lremovexattr = onefs_shadow_copy_lremovexattr,
+	.setxattr = onefs_shadow_copy_setxattr,
+	.lsetxattr = onefs_shadow_copy_lsetxattr,
+	.is_offline = onefs_shadow_copy_is_offline,
+	.set_offline = onefs_shadow_copy_set_offline,
 };
 
 NTSTATUS vfs_shadow_copy_init(void)
@@ -698,7 +701,7 @@ NTSTATUS vfs_shadow_copy_init(void)
 
 	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
 			       "onefs_shadow_copy",
-			       onefs_shadow_copy_ops);
+			       &onefs_shadow_copy_fns);
 
 	if (!NT_STATUS_IS_OK(ret))
 		return ret;

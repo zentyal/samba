@@ -23,7 +23,7 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS regdb_ops;		/* these are the default */
+extern struct registry_ops regdb_ops;		/* these are the default */
 
 static int smbconf_fetch_keys( const char *key, struct regsubkey_ctr *subkey_ctr )
 {
@@ -45,12 +45,12 @@ static WERROR smbconf_delete_subkey(const char *key, const char *subkey)
 	return regdb_ops.delete_subkey(key, subkey);
 }
 
-static int smbconf_fetch_values( const char *key, REGVAL_CTR *val )
+static int smbconf_fetch_values(const char *key, struct regval_ctr *val)
 {
 	return regdb_ops.fetch_values(key, val);
 }
 
-static bool smbconf_store_values( const char *key, REGVAL_CTR *val )
+static bool smbconf_store_values(const char *key, struct regval_ctr *val)
 {
 	return regdb_ops.store_values(key, val);
 }
@@ -84,7 +84,7 @@ static WERROR smbconf_set_secdesc(const char *key,
  * Table of function pointers for accessing smb.conf data
  */
 
-REGISTRY_OPS smbconf_reg_ops = {
+struct registry_ops smbconf_reg_ops = {
 	.fetch_subkeys = smbconf_fetch_keys,
 	.fetch_values = smbconf_fetch_values,
 	.store_subkeys = smbconf_store_keys,

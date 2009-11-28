@@ -46,9 +46,9 @@ kerb_prompter(krb5_context ctx, void *data,
 	memset(prompts[0].reply->data, '\0', prompts[0].reply->length);
 	if (prompts[0].reply->length > 0) {
 		if (data) {
-			strncpy(prompts[0].reply->data, (const char *)data,
+			strncpy((char *)prompts[0].reply->data, (const char *)data,
 				prompts[0].reply->length-1);
-			prompts[0].reply->length = strlen(prompts[0].reply->data);
+			prompts[0].reply->length = strlen((const char *)prompts[0].reply->data);
 		} else {
 			prompts[0].reply->length = 0;
 		}
@@ -817,7 +817,7 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 						const char *sitename,
 						struct sockaddr_storage *pss)
 {
-	char *dname = lock_path("smb_krb5");
+	char *dname;
 	char *tmpname = NULL;
 	char *fname = NULL;
 	char *file_contents = NULL;
@@ -828,6 +828,11 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 	char *realm_upper = NULL;
 	bool result = false;
 
+	if (!lp_create_krb5_conf()) {
+		return false;
+	}
+
+	dname = lock_path("smb_krb5");
 	if (!dname) {
 		return false;
 	}
@@ -874,7 +879,7 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 
 	flen = strlen(file_contents);
 
-	fd = smb_mkstemp(tmpname);
+	fd = mkstemp(tmpname);
 	if (fd == -1) {
 		DEBUG(0,("create_local_private_krb5_conf_for_domain: smb_mkstemp failed,"
 			" for file %s. Errno %s\n",

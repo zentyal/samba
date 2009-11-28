@@ -339,13 +339,10 @@ static bool test_SetUserInfo(struct dcerpc_pipe *p, struct torture_context *tctx
 	q0.in.level = 12;
 	do { TESTCALL(QueryUserInfo, q0) } while (0);
 
-	/* Samba 3 cannot store comment fields atm. - gd */
-	if (!torture_setting_bool(tctx, "samba3", false)) {
-		TEST_USERINFO_STRING(2, comment,  1, comment, "xx2-1 comment", 0);
-		TEST_USERINFO_STRING(2, comment, 21, comment, "xx2-21 comment", 0);
-		TEST_USERINFO_STRING(21, comment, 21, comment, "xx21-21 comment",
-				   SAMR_FIELD_COMMENT);
-	}
+	TEST_USERINFO_STRING(2, comment,  1, comment, "xx2-1 comment", 0);
+	TEST_USERINFO_STRING(2, comment, 21, comment, "xx2-21 comment", 0);
+	TEST_USERINFO_STRING(21, comment, 21, comment, "xx21-21 comment",
+			   SAMR_FIELD_COMMENT);
 
 	test_account_name = talloc_asprintf(tctx, "%sxx7-1", base_account_name);
 	TEST_USERINFO_STRING(7, account_name,  1, account_name, base_account_name, 0);
@@ -636,7 +633,7 @@ static bool test_SetUserPass(struct dcerpc_pipe *p, struct torture_context *tctx
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -647,7 +644,7 @@ static bool test_SetUserPass(struct dcerpc_pipe *p, struct torture_context *tctx
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -692,7 +689,7 @@ static bool test_SetUserPass_23(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -703,7 +700,7 @@ static bool test_SetUserPass_23(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -714,7 +711,7 @@ static bool test_SetUserPass_23(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -727,7 +724,7 @@ static bool test_SetUserPass_23(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("SetUserInfo level %u should have failed with WRONG_PASSWORD- %s\n",
+		torture_warning(tctx, "SetUserInfo level %u should have failed with WRONG_PASSWORD- %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	}
@@ -774,7 +771,7 @@ static bool test_SetUserPassEx(struct dcerpc_pipe *p, struct torture_context *tc
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -793,7 +790,7 @@ static bool test_SetUserPassEx(struct dcerpc_pipe *p, struct torture_context *tc
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -810,7 +807,7 @@ static bool test_SetUserPassEx(struct dcerpc_pipe *p, struct torture_context *tc
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("SetUserInfo level %u should have failed with WRONG_PASSWORD: %s\n",
+		torture_warning(tctx, "SetUserInfo level %u should have failed with WRONG_PASSWORD: %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -857,7 +854,7 @@ static bool test_SetUserPass_25(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -876,7 +873,7 @@ static bool test_SetUserPass_25(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -893,7 +890,7 @@ static bool test_SetUserPass_25(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("SetUserInfo level %u should have failed with WRONG_PASSWORD- %s\n",
+		torture_warning(tctx, "SetUserInfo level %u should have failed with WRONG_PASSWORD- %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	}
@@ -938,7 +935,7 @@ static bool test_SetUserPass_18(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -962,7 +959,7 @@ static bool test_SetUserPass_18(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -1023,7 +1020,7 @@ static bool test_SetUserPass_21(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -1050,7 +1047,7 @@ static bool test_SetUserPass_21(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -1065,7 +1062,7 @@ static bool test_SetUserPass_21(struct dcerpc_pipe *p, struct torture_context *t
 		status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-			printf("SetUserInfo level %u should have failed with NT_STATUS_INVALID_PARAMETER - %s\n",
+			torture_warning(tctx, "SetUserInfo level %u should have failed with NT_STATUS_INVALID_PARAMETER - %s\n",
 			       s.in.level, nt_errstr(status));
 			ret = false;
 		}
@@ -1078,7 +1075,7 @@ static bool test_SetUserPass_21(struct dcerpc_pipe *p, struct torture_context *t
 		status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-			printf("SetUserInfo level %u should have failed with NT_STATUS_INVALID_PARAMETER - %s\n",
+			torture_warning(tctx, "SetUserInfo level %u should have failed with NT_STATUS_INVALID_PARAMETER - %s\n",
 			       s.in.level, nt_errstr(status));
 			ret = false;
 		}
@@ -1206,7 +1203,7 @@ static bool test_SetUserPass_level_ex(struct dcerpc_pipe *p,
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -1300,7 +1297,7 @@ static bool test_SetUserPass_level_ex(struct dcerpc_pipe *p,
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo%s level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo%s level %u failed - %s\n",
 		       use_setinfo2 ? "2":"", level, nt_errstr(status));
 		ret = false;
 	} else {
@@ -1335,12 +1332,12 @@ static bool test_SetAliasInfo(struct dcerpc_pipe *p, struct torture_context *tct
 		    case ALIASINFONAME: init_lsa_String(&r.in.info->name,TEST_ALIASNAME); break;
 		    case ALIASINFODESCRIPTION: init_lsa_String(&r.in.info->description,
 				"Test Description, should test I18N as well"); break;
-		    case ALIASINFOALL: printf("ALIASINFOALL ignored\n"); break;
+		    case ALIASINFOALL: torture_comment(tctx, "ALIASINFOALL ignored\n"); break;
 		}
 
 		status = dcerpc_samr_SetAliasInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("SetAliasInfo level %u failed - %s\n",
+			torture_warning(tctx, "SetAliasInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -1351,7 +1348,7 @@ static bool test_SetAliasInfo(struct dcerpc_pipe *p, struct torture_context *tct
 
 		status = dcerpc_samr_QueryAliasInfo(p, tctx, &q);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryAliasInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryAliasInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -1460,7 +1457,7 @@ static NTSTATUS test_LookupName(struct dcerpc_pipe *p, struct torture_context *t
 	n.in.num_names = 2;
 	status = dcerpc_samr_LookupNames(p, tctx, &n);
 	if (!NT_STATUS_EQUAL(status, STATUS_SOME_UNMAPPED)) {
-		printf("LookupNames[2] failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "LookupNames[2] failed - %s\n", nt_errstr(status));
 		if (NT_STATUS_IS_OK(status)) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
@@ -1470,7 +1467,7 @@ static NTSTATUS test_LookupName(struct dcerpc_pipe *p, struct torture_context *t
 	n.in.num_names = 0;
 	status = dcerpc_samr_LookupNames(p, tctx, &n);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("LookupNames[0] failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "LookupNames[0] failed - %s\n", nt_errstr(status));
 		return status;
 	}
 
@@ -1478,7 +1475,7 @@ static NTSTATUS test_LookupName(struct dcerpc_pipe *p, struct torture_context *t
 	n.in.num_names = 1;
 	status = dcerpc_samr_LookupNames(p, tctx, &n);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
-		printf("LookupNames[1 bad name] failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "LookupNames[1 bad name] failed - %s\n", nt_errstr(status));
 		if (NT_STATUS_IS_OK(status)) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
@@ -1490,7 +1487,7 @@ static NTSTATUS test_LookupName(struct dcerpc_pipe *p, struct torture_context *t
 	n.in.num_names = 2;
 	status = dcerpc_samr_LookupNames(p, tctx, &n);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
-		printf("LookupNames[2 bad names] failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "LookupNames[2 bad names] failed - %s\n", nt_errstr(status));
 		if (NT_STATUS_IS_OK(status)) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
@@ -1520,7 +1517,7 @@ static NTSTATUS test_OpenUser_byname(struct dcerpc_pipe *p,
 	r.out.user_handle = user_handle;
 	status = dcerpc_samr_OpenUser(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("OpenUser_byname(%s -> %d) failed - %s\n", name, rid, nt_errstr(status));
+		torture_warning(tctx, "OpenUser_byname(%s -> %d) failed - %s\n", name, rid, nt_errstr(status));
 	}
 
 	return status;
@@ -1546,10 +1543,10 @@ static bool test_ChangePasswordNT3(struct dcerpc_pipe *p,
 		return false;
 	}
 
-	printf("Testing ChangePasswordUser for user 'testuser'\n");
+	torture_comment(tctx, "Testing ChangePasswordUser for user 'testuser'\n");
 
-	printf("old password: %s\n", oldpass);
-	printf("new password: %s\n", newpass);
+	torture_comment(tctx, "old password: %s\n", oldpass);
+	torture_comment(tctx, "new password: %s\n", newpass);
 
 	E_md4hash(oldpass, old_nt_hash);
 	E_md4hash(newpass, new_nt_hash);
@@ -1577,7 +1574,7 @@ static bool test_ChangePasswordNT3(struct dcerpc_pipe *p,
 
 	status = dcerpc_samr_ChangePasswordUser(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("ChangePasswordUser failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -1698,7 +1695,7 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 
 	status = dcerpc_samr_ChangePasswordUser(p, tctx, &r);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we broke the LM cross-hash, got %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we broke the LM cross-hash, got %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -1721,7 +1718,7 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 
 	status = dcerpc_samr_ChangePasswordUser(p, tctx, &r);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we broke the NT cross-hash, got %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we broke the NT cross-hash, got %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -1754,7 +1751,7 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 		changed = true;
 		*password = newpass;
 	} else if (!NT_STATUS_EQUAL(NT_STATUS_PASSWORD_RESTRICTION, status)) {
-		printf("ChangePasswordUser failed: expected NT_STATUS_OK, or at least NT_STATUS_PASSWORD_RESTRICTION, got %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed: expected NT_STATUS_OK, or at least NT_STATUS_PASSWORD_RESTRICTION, got %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -1792,7 +1789,7 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 		changed = true;
 		*password = newpass;
 	} else if (!NT_STATUS_EQUAL(NT_STATUS_PASSWORD_RESTRICTION, status)) {
-		printf("ChangePasswordUser failed: expected NT_STATUS_NT_CROSS_ENCRYPTION_REQUIRED, got %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed: expected NT_STATUS_NT_CROSS_ENCRYPTION_REQUIRED, got %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -1827,9 +1824,9 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 
 	status = dcerpc_samr_ChangePasswordUser(p, tctx, &r);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
-		printf("ChangePasswordUser returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
+		torture_comment(tctx, "ChangePasswordUser returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
 	} else 	if (!NT_STATUS_IS_OK(status)) {
-		printf("ChangePasswordUser failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		changed = true;
@@ -1851,9 +1848,9 @@ static bool test_ChangePasswordUser(struct dcerpc_pipe *p, struct torture_contex
 	if (changed) {
 		status = dcerpc_samr_ChangePasswordUser(p, tctx, &r);
 		if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
-			printf("ChangePasswordUser returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
+			torture_comment(tctx, "ChangePasswordUser returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
 		} else if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-			printf("ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we already changed the password, got %s\n", nt_errstr(status));
+			torture_warning(tctx, "ChangePasswordUser failed: expected NT_STATUS_WRONG_PASSWORD because we already changed the password, got %s\n", nt_errstr(status));
 			ret = false;
 		}
 	}
@@ -1927,7 +1924,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)
 	    && !NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalid password verifier - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalid password verifier - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -1949,7 +1946,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)
 	    && !NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalidly encrpted password - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalidly encrpted password - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -1966,7 +1963,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)
 	    && !NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-		printf("OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER (or at least 'PASSWORD_RESTRICTON') for no supplied validation hash - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER (or at least 'PASSWORD_RESTRICTON') for no supplied validation hash - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -1978,7 +1975,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 	status = dcerpc_samr_OemChangePasswordUser2(p, tctx, &r);
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-		printf("OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER for no supplied validation hash and invalid user - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER for no supplied validation hash and invalid user - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -1992,7 +1989,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 	status = dcerpc_samr_OemChangePasswordUser2(p, tctx, &r);
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD for invalid user - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned WRONG_PASSWORD for invalid user - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -2006,7 +2003,7 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 	status = dcerpc_samr_OemChangePasswordUser2(p, tctx, &r);
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-		printf("OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER for no supplied password and invalid user - %s\n",
+		torture_warning(tctx, "OemChangePasswordUser2 failed, should have returned INVALID_PARAMETER for no supplied password and invalid user - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -2025,9 +2022,9 @@ static bool test_OemChangePasswordUser2(struct dcerpc_pipe *p, struct torture_co
 
 	status = dcerpc_samr_OemChangePasswordUser2(p, tctx, &r);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
-		printf("OemChangePasswordUser2 returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
+		torture_comment(tctx, "OemChangePasswordUser2 returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
 	} else if (!NT_STATUS_IS_OK(status)) {
-		printf("OemChangePasswordUser2 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "OemChangePasswordUser2 failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		*password = newpass;
@@ -2104,9 +2101,9 @@ static bool test_ChangePasswordUser2(struct dcerpc_pipe *p, struct torture_conte
 
 	status = dcerpc_samr_ChangePasswordUser2(p, tctx, &r);
 	if (allow_password_restriction && NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
-		printf("ChangePasswordUser2 returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
+		torture_comment(tctx, "ChangePasswordUser2 returned: %s perhaps min password age? (not fatal)\n", nt_errstr(status));
 	} else if (!NT_STATUS_IS_OK(status)) {
-		printf("ChangePasswordUser2 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser2 failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		*password = newpass;
@@ -2189,7 +2186,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 	status = dcerpc_samr_ChangePasswordUser3(p, tctx, &r);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION) &&
 	    (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD))) {
-		printf("ChangePasswordUser3 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalid password verifier - %s\n",
+		torture_warning(tctx, "ChangePasswordUser3 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalid password verifier - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -2220,7 +2217,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 	status = dcerpc_samr_ChangePasswordUser3(p, tctx, &r);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION) &&
 	    (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD))) {
-		printf("ChangePasswordUser3 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalidly encrpted password - %s\n",
+		torture_warning(tctx, "ChangePasswordUser3 failed, should have returned WRONG_PASSWORD (or at least 'PASSWORD_RESTRICTON') for invalidly encrpted password - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -2231,7 +2228,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 	r.in.account = &account_bad;
 	status = dcerpc_samr_ChangePasswordUser3(p, tctx, &r);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
-		printf("ChangePasswordUser3 failed, should have returned WRONG_PASSWORD for invalid username - %s\n",
+		torture_warning(tctx, "ChangePasswordUser3 failed, should have returned WRONG_PASSWORD for invalid username - %s\n",
 			nt_errstr(status));
 		ret = false;
 	}
@@ -2273,7 +2270,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 		if (dominfo->password_properties & DOMAIN_REFUSE_PASSWORD_CHANGE ) {
 
 			if (reject && (reject->reason != SAMR_REJECT_OTHER)) {
-				printf("expected SAMR_REJECT_OTHER (%d), got %d\n",
+				torture_warning(tctx, "expected SAMR_REJECT_OTHER (%d), got %d\n",
 					SAMR_REJECT_OTHER, reject->reason);
 				return false;
 			}
@@ -2292,7 +2289,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 			   (last_password_change + dominfo->min_password_age > t)) {
 
 			if (reject->reason != SAMR_REJECT_OTHER) {
-				printf("expected SAMR_REJECT_OTHER (%d), got %d\n",
+				torture_warning(tctx, "expected SAMR_REJECT_OTHER (%d), got %d\n",
 					SAMR_REJECT_OTHER, reject->reason);
 				return false;
 			}
@@ -2301,7 +2298,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 			   (strlen(newpass) < dominfo->min_password_length)) {
 
 			if (reject->reason != SAMR_REJECT_TOO_SHORT) {
-				printf("expected SAMR_REJECT_TOO_SHORT (%d), got %d\n",
+				torture_warning(tctx, "expected SAMR_REJECT_TOO_SHORT (%d), got %d\n",
 					SAMR_REJECT_TOO_SHORT, reject->reason);
 				return false;
 			}
@@ -2310,14 +2307,14 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 			    strequal(oldpass, newpass)) {
 
 			if (reject->reason != SAMR_REJECT_IN_HISTORY) {
-				printf("expected SAMR_REJECT_IN_HISTORY (%d), got %d\n",
+				torture_warning(tctx, "expected SAMR_REJECT_IN_HISTORY (%d), got %d\n",
 					SAMR_REJECT_IN_HISTORY, reject->reason);
 				return false;
 			}
 		} else if (dominfo->password_properties & DOMAIN_PASSWORD_COMPLEX) {
 
 			if (reject->reason != SAMR_REJECT_COMPLEXITY) {
-				printf("expected SAMR_REJECT_COMPLEXITY (%d), got %d\n",
+				torture_warning(tctx, "expected SAMR_REJECT_COMPLEXITY (%d), got %d\n",
 					SAMR_REJECT_COMPLEXITY, reject->reason);
 				return false;
 			}
@@ -2334,7 +2331,7 @@ bool test_ChangePasswordUser3(struct dcerpc_pipe *p, struct torture_context *tct
 
 	} else if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
 		if (reject && reject->reason != SAMR_REJECT_OTHER) {
-			printf("expected SAMR_REJECT_OTHER (%d), got %d\n",
+			torture_warning(tctx, "expected SAMR_REJECT_OTHER (%d), got %d\n",
 			       SAMR_REJECT_OTHER, reject->reason);
 			return false;
 		}
@@ -2395,7 +2392,7 @@ bool test_ChangePasswordRandomBytes(struct dcerpc_pipe *p, struct torture_contex
 
 	status = dcerpc_fetch_session_key(p, &session_key);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u - no session key - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u - no session key - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -2414,7 +2411,7 @@ bool test_ChangePasswordRandomBytes(struct dcerpc_pipe *p, struct torture_contex
 
 	status = dcerpc_samr_SetUserInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetUserInfo level %u failed - %s\n",
+		torture_warning(tctx, "SetUserInfo level %u failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		ret = false;
 	}
@@ -2448,14 +2445,14 @@ bool test_ChangePasswordRandomBytes(struct dcerpc_pipe *p, struct torture_contex
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
 		if (reject && reject->reason != SAMR_REJECT_OTHER) {
-			printf("expected SAMR_REJECT_OTHER (%d), got %d\n",
+			torture_warning(tctx, "expected SAMR_REJECT_OTHER (%d), got %d\n",
 			       SAMR_REJECT_OTHER, reject->reason);
 			return false;
 		}
 		/* Perhaps the server has a 'min password age' set? */
 
 	} else if (!NT_STATUS_IS_OK(status)) {
-		printf("ChangePasswordUser3 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "ChangePasswordUser3 failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -2486,7 +2483,7 @@ bool test_ChangePasswordRandomBytes(struct dcerpc_pipe *p, struct torture_contex
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PASSWORD_RESTRICTION)) {
 		if (reject && reject->reason != SAMR_REJECT_OTHER) {
-			printf("expected SAMR_REJECT_OTHER (%d), got %d\n",
+			torture_warning(tctx, "expected SAMR_REJECT_OTHER (%d), got %d\n",
 			       SAMR_REJECT_OTHER, reject->reason);
 			return false;
 		}
@@ -2642,7 +2639,7 @@ static bool test_QueryUserInfo_pwdlastset(struct dcerpc_pipe *p,
 
 		if (!NT_STATUS_IS_OK(status) &&
 		    !NT_STATUS_EQUAL(status, NT_STATUS_INVALID_INFO_CLASS)) {
-			printf("QueryUserInfo%s level %u failed - %s\n",
+			torture_warning(tctx, "QueryUserInfo%s level %u failed - %s\n",
 			       use_info2 ? "2":"", levels[i], nt_errstr(status));
 			return false;
 		}
@@ -2673,21 +2670,20 @@ static bool test_QueryUserInfo_pwdlastset(struct dcerpc_pipe *p,
 	return true;
 }
 
-static bool test_SamLogon_Creds(struct dcerpc_pipe *p, struct torture_context *tctx,
-				struct cli_credentials *machine_credentials,
-				struct cli_credentials *test_credentials,
-				struct creds_CredentialState *creds,
-				NTSTATUS expected_result)
+static bool test_SamLogon(struct torture_context *tctx,
+			  struct dcerpc_pipe *p,
+			  struct cli_credentials *test_credentials,
+			  NTSTATUS expected_result)
 {
 	NTSTATUS status;
-	struct netr_LogonSamLogon r;
-	struct netr_Authenticator auth, auth2;
+	struct netr_LogonSamLogonEx r;
 	union netr_LogonLevel logon;
 	union netr_Validation validation;
 	uint8_t authoritative;
 	struct netr_NetworkInfo ninfo;
 	DATA_BLOB names_blob, chal, lm_resp, nt_resp;
 	int flags = CLI_CRED_NTLM_AUTH;
+	uint32_t samlogon_flags = 0;
 
 	if (lp_client_lanman_auth(tctx->lp_ctx)) {
 		flags |= CLI_CRED_LANMAN_AUTH;
@@ -2706,8 +2702,8 @@ static bool test_SamLogon_Creds(struct dcerpc_pipe *p, struct torture_context *t
 	chal = data_blob_const(ninfo.challenge,
 			       sizeof(ninfo.challenge));
 
-	names_blob = NTLMv2_generate_names_blob(tctx, cli_credentials_get_workstation(machine_credentials),
-						cli_credentials_get_domain(machine_credentials));
+	names_blob = NTLMv2_generate_names_blob(tctx, cli_credentials_get_workstation(test_credentials),
+						cli_credentials_get_domain(test_credentials));
 
 	status = cli_credentials_get_ntlm_response(test_credentials, tctx,
 						   &flags,
@@ -2728,54 +2724,36 @@ static bool test_SamLogon_Creds(struct dcerpc_pipe *p, struct torture_context *t
 		MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT;
 	ninfo.identity_info.logon_id_low = 0;
 	ninfo.identity_info.logon_id_high = 0;
-	ninfo.identity_info.workstation.string = cli_credentials_get_workstation(machine_credentials);
+	ninfo.identity_info.workstation.string = cli_credentials_get_workstation(test_credentials);
 
 	logon.network = &ninfo;
 
 	r.in.server_name = talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
-	r.in.computer_name = cli_credentials_get_workstation(machine_credentials);
-	r.in.credential = &auth;
-	r.in.return_authenticator = &auth2;
-	r.in.logon_level = 2;
+	r.in.computer_name = cli_credentials_get_workstation(test_credentials);
+	r.in.logon_level = NetlogonNetworkInformation;
 	r.in.logon = &logon;
+	r.in.flags = &samlogon_flags;
+	r.out.flags = &samlogon_flags;
 	r.out.validation = &validation;
 	r.out.authoritative = &authoritative;
 
-	d_printf("Testing LogonSamLogon with name %s\n", ninfo.identity_info.account_name.string);
+	torture_comment(tctx, "Testing LogonSamLogon with name %s\n", ninfo.identity_info.account_name.string);
 
-	ZERO_STRUCT(auth2);
-	creds_client_authenticator(creds, &auth);
+	r.in.validation_level = 6;
 
-	r.in.validation_level = 2;
-
-	status = dcerpc_netr_LogonSamLogon(p, tctx, &r);
+	status = dcerpc_netr_LogonSamLogonEx(p, tctx, &r);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_INFO_CLASS)) {
+		r.in.validation_level = 3;
+		status = dcerpc_netr_LogonSamLogonEx(p, tctx, &r);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
-		torture_assert_ntstatus_equal(tctx, status, expected_result, "LogonSamLogon failed");
+		torture_assert_ntstatus_equal(tctx, status, expected_result, "LogonSamLogonEx failed");
 		return true;
 	} else {
-		torture_assert_ntstatus_ok(tctx, status, "LogonSamLogon failed");
+		torture_assert_ntstatus_ok(tctx, status, "LogonSamLogonEx failed");
 	}
-
-	torture_assert(tctx, creds_client_check(creds, &r.out.return_authenticator->cred),
-			"Credential chaining failed");
 
 	return true;
-}
-
-static bool test_SamLogon(struct torture_context *tctx,
-			  struct dcerpc_pipe *p,
-			  struct cli_credentials *machine_credentials,
-			  struct cli_credentials *test_credentials,
-			  NTSTATUS expected_result)
-{
-	struct creds_CredentialState *creds;
-
-	if (!test_SetupCredentials(p, tctx, machine_credentials, &creds)) {
-		return false;
-	}
-
-	return test_SamLogon_Creds(p, tctx, machine_credentials, test_credentials,
-				   creds, expected_result);
 }
 
 static bool test_SamLogon_with_creds(struct torture_context *tctx,
@@ -2791,19 +2769,18 @@ static bool test_SamLogon_with_creds(struct torture_context *tctx,
 	test_credentials = cli_credentials_init(tctx);
 
 	cli_credentials_set_workstation(test_credentials,
-					TEST_ACCOUNT_NAME_PWD, CRED_SPECIFIED);
+					cli_credentials_get_workstation(machine_creds), CRED_SPECIFIED);
 	cli_credentials_set_domain(test_credentials,
-				   lp_workgroup(tctx->lp_ctx), CRED_SPECIFIED);
+				   cli_credentials_get_domain(machine_creds), CRED_SPECIFIED);
 	cli_credentials_set_username(test_credentials,
 				     acct_name, CRED_SPECIFIED);
 	cli_credentials_set_password(test_credentials,
 				     password, CRED_SPECIFIED);
-	cli_credentials_set_secure_channel_type(test_credentials, SEC_CHAN_BDC);
 
-	printf("testing samlogon as %s@%s password: %s\n",
-		acct_name, TEST_ACCOUNT_NAME_PWD, password);
+	torture_comment(tctx, "testing samlogon as %s password: %s\n",
+		acct_name, password);
 
-	if (!test_SamLogon(tctx, p, machine_creds, test_credentials,
+	if (!test_SamLogon(tctx, p, test_credentials,
 			   expected_samlogon_result)) {
 		torture_warning(tctx, "new password did not work\n");
 		ret = false;
@@ -2886,11 +2863,12 @@ static bool test_SetPassword_pwdlastset(struct dcerpc_pipe *p,
 					struct cli_credentials *machine_credentials)
 {
 	int s = 0, q = 0, f = 0, l = 0, z = 0;
+	struct dcerpc_binding *b;
 	bool ret = true;
-	int delay = 500000;
+	int delay = 50000;
 	bool set_levels[] = { false, true };
 	bool query_levels[] = { false, true };
-	uint32_t levels[] = { 18, 21, 23, 24, 25, 26 };
+	uint32_t levels[] = { 18, 21, 26, 23, 24, 25 }; /* Second half only used when TEST_ALL_LEVELS defined */
 	uint32_t nonzeros[] = { 1, 24 };
 	uint32_t fields_present[] = {
 		0,
@@ -2910,24 +2888,46 @@ static bool test_SetPassword_pwdlastset(struct dcerpc_pipe *p,
 	struct dcerpc_pipe *np = NULL;
 
 	if (torture_setting_bool(tctx, "samba3", false)) {
-		delay = 1000000;
-		printf("Samba3 has second granularity, setting delay to: %d\n",
+		delay = 999999;
+		torture_comment(tctx, "Samba3 has second granularity, setting delay to: %d\n",
 			delay);
 	}
 
-	status = torture_rpc_connection(tctx, &np, &ndr_table_netlogon);
+	status = torture_rpc_binding(tctx, &b);
 	if (!NT_STATUS_IS_OK(status)) {
-		return false;
+		ret = false;
+		return ret;
+	}
+
+	/* We have to use schannel, otherwise the SamLogonEx fails
+	 * with INTERNAL_ERROR */
+
+	b->flags &= ~DCERPC_AUTH_OPTIONS;
+	b->flags |= DCERPC_SCHANNEL | DCERPC_SIGN | DCERPC_SCHANNEL_128;
+
+	status = dcerpc_pipe_connect_b(tctx, &np, b,
+				       &ndr_table_netlogon,
+				       machine_credentials, tctx->ev, tctx->lp_ctx);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		torture_warning(tctx, "RPC pipe connect as domain member failed: %s\n", nt_errstr(status));
+		ret = false;
+		return ret;
 	}
 
 	/* set to 1 to enable testing for all possible opcode
 	   (SetUserInfo, SetUserInfo2, QueryUserInfo, QueryUserInfo2)
 	   combinations */
 #if 0
+#define TEST_ALL_LEVELS 1
 #define TEST_SET_LEVELS 1
 #define TEST_QUERY_LEVELS 1
 #endif
+#ifdef TEST_ALL_LEVELS
 	for (l=0; l<ARRAY_SIZE(levels); l++) {
+#else
+	for (l=0; l<(ARRAY_SIZE(levels))/2; l++) {
+#endif
 	for (z=0; z<ARRAY_SIZE(nonzeros); z++) {
 	for (f=0; f<ARRAY_SIZE(fields_present); f++) {
 #ifdef TEST_SET_LEVELS
@@ -3275,6 +3275,8 @@ static bool test_SetPassword_pwdlastset(struct dcerpc_pipe *p,
 #undef TEST_SET_LEVELS
 #undef TEST_QUERY_LEVELS
 
+	talloc_free(np);
+
 	return ret;
 }
 
@@ -3300,7 +3302,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_EnumAccountRights r;
 		struct lsa_RightSet rights;
 
-		printf("Testing LSA EnumAccountRights\n");
+		torture_comment(tctx, "Testing LSA EnumAccountRights\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3316,7 +3318,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_StringLarge names[2];
 		struct lsa_AddAccountRights r;
 
-		printf("Testing LSA AddAccountRights\n");
+		torture_comment(tctx, "Testing LSA AddAccountRights\n");
 
 		init_lsa_StringLarge(&names[0], "SeMachineAccountPrivilege");
 		init_lsa_StringLarge(&names[1], NULL);
@@ -3340,7 +3342,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		int i;
 		bool found_sid = false;
 
-		printf("Testing LSA EnumAccounts\n");
+		torture_comment(tctx, "Testing LSA EnumAccounts\n");
 
 		r.in.handle = lsa_handle;
 		r.in.num_entries = 0x1000;
@@ -3366,7 +3368,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_EnumAccountRights r;
 		struct lsa_RightSet user_rights;
 
-		printf("Testing LSA EnumAccountRights\n");
+		torture_comment(tctx, "Testing LSA EnumAccountRights\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3385,7 +3387,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 	{
 		struct lsa_OpenAccount r;
 
-		printf("Testing LSA OpenAccount\n");
+		torture_comment(tctx, "Testing LSA OpenAccount\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3401,7 +3403,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_GetSystemAccessAccount r;
 		uint32_t access_mask;
 
-		printf("Testing LSA GetSystemAccessAccount\n");
+		torture_comment(tctx, "Testing LSA GetSystemAccessAccount\n");
 
 		r.in.handle = &lsa_acct_handle;
 		r.out.access_mask = &access_mask;
@@ -3414,7 +3416,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 	{
 		struct lsa_Close r;
 
-		printf("Testing LSA Close\n");
+		torture_comment(tctx, "Testing LSA Close\n");
 
 		r.in.handle = &lsa_acct_handle;
 		r.out.handle = &lsa_acct_handle;
@@ -3427,7 +3429,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 	{
 		struct samr_DeleteUser r;
 
-		printf("Testing SAMR DeleteUser\n");
+		torture_comment(tctx, "Testing SAMR DeleteUser\n");
 
 		r.in.user_handle = user_handle;
 		r.out.user_handle = user_handle;
@@ -3443,7 +3445,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		int i;
 		bool found_sid = false;
 
-		printf("Testing LSA EnumAccounts\n");
+		torture_comment(tctx, "Testing LSA EnumAccounts\n");
 
 		r.in.handle = lsa_handle;
 		r.in.num_entries = 0x1000;
@@ -3469,7 +3471,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_EnumAccountRights r;
 		struct lsa_RightSet user_rights;
 
-		printf("Testing LSA EnumAccountRights\n");
+		torture_comment(tctx, "Testing LSA EnumAccountRights\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3488,7 +3490,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 	{
 		struct lsa_OpenAccount r;
 
-		printf("Testing LSA OpenAccount\n");
+		torture_comment(tctx, "Testing LSA OpenAccount\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3504,7 +3506,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_GetSystemAccessAccount r;
 		uint32_t access_mask;
 
-		printf("Testing LSA GetSystemAccessAccount\n");
+		torture_comment(tctx, "Testing LSA GetSystemAccessAccount\n");
 
 		r.in.handle = &lsa_acct_handle;
 		r.out.access_mask = &access_mask;
@@ -3517,7 +3519,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 	{
 		struct lsa_DeleteObject r;
 
-		printf("Testing LSA DeleteObject\n");
+		torture_comment(tctx, "Testing LSA DeleteObject\n");
 
 		r.in.handle = &lsa_acct_handle;
 		r.out.handle = &lsa_acct_handle;
@@ -3534,7 +3536,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		int i;
 		bool found_sid = false;
 
-		printf("Testing LSA EnumAccounts\n");
+		torture_comment(tctx, "Testing LSA EnumAccounts\n");
 
 		r.in.handle = lsa_handle;
 		r.in.num_entries = 0x1000;
@@ -3560,7 +3562,7 @@ static bool test_DeleteUser_with_privs(struct dcerpc_pipe *p,
 		struct lsa_EnumAccountRights r;
 		struct lsa_RightSet user_rights;
 
-		printf("Testing LSA EnumAccountRights\n");
+		torture_comment(tctx, "Testing LSA EnumAccountRights\n");
 
 		r.in.handle = lsa_handle;
 		r.in.sid = user_sid;
@@ -3642,7 +3644,7 @@ static bool test_user_ops(struct dcerpc_pipe *p,
 			ZERO_STRUCT(simple_pass);
 			memset(simple_pass, *v, sizeof(simple_pass) - 1);
 
-			printf("Testing machine account password policy rules\n");
+			torture_comment(tctx, "Testing machine account password policy rules\n");
 
 			/* Workstation trust accounts don't seem to need to honour password quality policy */
 			if (!test_SetUserPassEx(p, tctx, user_handle, true, &password)) {
@@ -3700,7 +3702,7 @@ static bool test_user_ops(struct dcerpc_pipe *p,
 		}
 
 		if (torture_setting_bool(tctx, "samba4", false)) {
-			printf("skipping Set Password level 18 and 21 against Samba4\n");
+			torture_comment(tctx, "skipping Set Password level 18 and 21 against Samba4\n");
 		} else {
 
 			if (!test_SetUserPass_18(p, tctx, user_handle, &password)) {
@@ -3736,13 +3738,13 @@ static bool test_user_ops(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryUserInfo(p, tctx, &q);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryUserInfo level %u failed - %s\n",
 			       q.in.level, nt_errstr(status));
 			ret = false;
 		} else {
 			uint32_t expected_flags = (base_acct_flags | ACB_PWNOTREQ | ACB_DISABLED);
 			if ((info->info5.acct_flags) != expected_flags) {
-				printf("QuerUserInfo level 5 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
+				torture_warning(tctx, "QuerUserInfo level 5 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
 				       info->info5.acct_flags,
 				       expected_flags);
 				/* FIXME: GD */
@@ -3751,7 +3753,7 @@ static bool test_user_ops(struct dcerpc_pipe *p,
 				}
 			}
 			if (info->info5.rid != rid) {
-				printf("QuerUserInfo level 5 failed, it returned %u when we expected rid of %u\n",
+				torture_warning(tctx, "QuerUserInfo level 5 failed, it returned %u when we expected rid of %u\n",
 				       info->info5.rid, rid);
 
 			}
@@ -3837,8 +3839,9 @@ static bool test_alias_ops(struct dcerpc_pipe *p, struct torture_context *tctx,
 		ret = false;
 	}
 
-	if (torture_setting_bool(tctx, "samba4", false)) {
-		printf("skipping MultipleMembers Alias tests against Samba4\n");
+	if (torture_setting_bool(tctx, "samba3", false) ||
+	    torture_setting_bool(tctx, "samba4", false)) {
+		torture_comment(tctx, "skipping MultipleMembers Alias tests against Samba\n");
 		return ret;
 	}
 
@@ -3895,7 +3898,7 @@ bool test_DeleteUser_byname(struct dcerpc_pipe *p,
 	return true;
 
 failed:
-	printf("DeleteUser_byname(%s) failed - %s\n", name, nt_errstr(status));
+	torture_warning(tctx, "DeleteUser_byname(%s) failed - %s\n", name, nt_errstr(status));
 	return false;
 }
 
@@ -3934,7 +3937,7 @@ static bool test_DeleteGroup_byname(struct dcerpc_pipe *p,
 	return true;
 
 failed:
-	printf("DeleteGroup_byname(%s) failed - %s\n", name, nt_errstr(status));
+	torture_warning(tctx, "DeleteGroup_byname(%s) failed - %s\n", name, nt_errstr(status));
 	return false;
 }
 
@@ -3950,7 +3953,7 @@ static bool test_DeleteAlias_byname(struct dcerpc_pipe *p,
 	struct policy_handle alias_handle;
 	uint32_t rid;
 
-	printf("testing DeleteAlias_byname\n");
+	torture_comment(tctx, "testing DeleteAlias_byname\n");
 
 	status = test_LookupName(p, tctx, domain_handle, name, &rid);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -3976,7 +3979,7 @@ static bool test_DeleteAlias_byname(struct dcerpc_pipe *p,
 	return true;
 
 failed:
-	printf("DeleteAlias_byname(%s) failed - %s\n", name, nt_errstr(status));
+	torture_warning(tctx, "DeleteAlias_byname(%s) failed - %s\n", name, nt_errstr(status));
 	return false;
 }
 
@@ -3987,14 +3990,15 @@ static bool test_DeleteAlias(struct dcerpc_pipe *p,
     	struct samr_DeleteDomAlias d;
 	NTSTATUS status;
 	bool ret = true;
-	printf("Testing DeleteAlias\n");
+
+	torture_comment(tctx, "Testing DeleteAlias\n");
 
 	d.in.alias_handle = alias_handle;
 	d.out.alias_handle = alias_handle;
 
 	status = dcerpc_samr_DeleteDomAlias(p, tctx, &d);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("DeleteAlias failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "DeleteAlias failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -4021,16 +4025,16 @@ static bool test_CreateAlias(struct dcerpc_pipe *p, struct torture_context *tctx
 	r.out.alias_handle = alias_handle;
 	r.out.rid = &rid;
 
-	printf("Testing CreateAlias (%s)\n", r.in.alias_name->string);
+	torture_comment(tctx, "Testing CreateAlias (%s)\n", r.in.alias_name->string);
 
 	status = dcerpc_samr_CreateDomAlias(p, tctx, &r);
 
 	if (dom_sid_equal(domain_sid, dom_sid_parse_talloc(tctx, SID_BUILTIN))) {
 		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
-			printf("Server correctly refused create of '%s'\n", r.in.alias_name->string);
+			torture_comment(tctx, "Server correctly refused create of '%s'\n", r.in.alias_name->string);
 			return true;
 		} else {
-			printf("Server should have refused create of '%s', got %s instead\n", r.in.alias_name->string,
+			torture_warning(tctx, "Server should have refused create of '%s', got %s instead\n", r.in.alias_name->string,
 			       nt_errstr(status));
 			return false;
 		}
@@ -4044,7 +4048,7 @@ static bool test_CreateAlias(struct dcerpc_pipe *p, struct torture_context *tctx
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("CreateAlias failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "CreateAlias failed - %s\n", nt_errstr(status));
 		return false;
 	}
 
@@ -4116,7 +4120,7 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 		r.in.level = 1;
 		r.out.info = &info;
 
-		printf("testing samr_QueryDomainInfo level 1\n");
+		torture_comment(tctx, "testing samr_QueryDomainInfo level 1\n");
 		status = dcerpc_samr_QueryDomainInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
 			return false;
@@ -4136,13 +4140,13 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 		min_pwd_age_old = s.in.info->info1.min_password_age;
 		s.in.info->info1.min_password_age = 0;
 
-		printf("testing samr_SetDomainInfo level 1\n");
+		torture_comment(tctx, "testing samr_SetDomainInfo level 1\n");
 		status = dcerpc_samr_SetDomainInfo(p, tctx, &s);
 		if (!NT_STATUS_IS_OK(status)) {
 			return false;
 		}
 
-		printf("calling test_ChangePasswordUser3 with too short password\n");
+		torture_comment(tctx, "calling test_ChangePasswordUser3 with too short password\n");
 
 		if (!test_ChangePasswordUser3(p, tctx, acct_name, len - 1, password, NULL, 0, true)) {
 			ret = false;
@@ -4152,7 +4156,7 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 		s.in.info->info1.password_properties = pwd_prop_old;
 		s.in.info->info1.min_password_age = min_pwd_age_old;
 
-		printf("testing samr_SetDomainInfo level 1\n");
+		torture_comment(tctx, "testing samr_SetDomainInfo level 1\n");
 		status = dcerpc_samr_SetDomainInfo(p, tctx, &s);
 		if (!NT_STATUS_IS_OK(status)) {
 			return false;
@@ -4178,7 +4182,7 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_LookupNames(p, tctx, &n);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("LookupNames failed - %s\n", nt_errstr(status));
+			torture_warning(tctx, "LookupNames failed - %s\n", nt_errstr(status));
 			return false;
 		}
 
@@ -4189,7 +4193,7 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_OpenUser(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("OpenUser(%u) failed - %s\n", n.out.rids->ids[0], nt_errstr(status));
+			torture_warning(tctx, "OpenUser(%u) failed - %s\n", n.out.rids->ids[0], nt_errstr(status));
 			return false;
 		}
 
@@ -4199,11 +4203,11 @@ static bool test_ChangePassword(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryUserInfo(p, tctx, &q);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo failed - %s\n", nt_errstr(status));
+			torture_warning(tctx, "QueryUserInfo failed - %s\n", nt_errstr(status));
 			return false;
 		}
 
-		printf("calling test_ChangePasswordUser3 with too early password change\n");
+		torture_comment(tctx, "calling test_ChangePasswordUser3 with too early password change\n");
 
 		if (!test_ChangePasswordUser3(p, tctx, acct_name, 0, password, NULL,
 					      info->info5.last_password_change, true)) {
@@ -4258,16 +4262,16 @@ static bool test_CreateUser(struct dcerpc_pipe *p, struct torture_context *tctx,
 	r.out.user_handle = &user_handle;
 	r.out.rid = &rid;
 
-	printf("Testing CreateUser(%s)\n", r.in.account_name->string);
+	torture_comment(tctx, "Testing CreateUser(%s)\n", r.in.account_name->string);
 
 	status = dcerpc_samr_CreateUser(p, user_ctx, &r);
 
 	if (dom_sid_equal(domain_sid, dom_sid_parse_talloc(tctx, SID_BUILTIN))) {
 		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) || NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-			printf("Server correctly refused create of '%s'\n", r.in.account_name->string);
+			torture_comment(tctx, "Server correctly refused create of '%s'\n", r.in.account_name->string);
 			return true;
 		} else {
-			printf("Server should have refused create of '%s', got %s instead\n", r.in.account_name->string,
+			torture_warning(tctx, "Server should have refused create of '%s', got %s instead\n", r.in.account_name->string,
 			       nt_errstr(status));
 			return false;
 		}
@@ -4283,7 +4287,7 @@ static bool test_CreateUser(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(user_ctx);
-		printf("CreateUser failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "CreateUser failed - %s\n", nt_errstr(status));
 		return false;
 	}
 
@@ -4301,12 +4305,12 @@ static bool test_CreateUser(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 		status = dcerpc_samr_QueryUserInfo(p, user_ctx, &q);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryUserInfo level %u failed - %s\n",
 			       q.in.level, nt_errstr(status));
 			ret = false;
 		} else {
 			if ((info->info16.acct_flags & acct_flags) != acct_flags) {
-				printf("QuerUserInfo level 16 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
+				torture_warning(tctx, "QuerUserInfo level 16 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
 				       info->info16.acct_flags,
 				       acct_flags);
 				ret = false;
@@ -4322,14 +4326,14 @@ static bool test_CreateUser(struct dcerpc_pipe *p, struct torture_context *tctx,
 		if (user_handle_out) {
 			*user_handle_out = user_handle;
 		} else {
-			printf("Testing DeleteUser (createuser test)\n");
+			torture_comment(tctx, "Testing DeleteUser (createuser test)\n");
 
 			d.in.user_handle = &user_handle;
 			d.out.user_handle = &user_handle;
 
 			status = dcerpc_samr_DeleteUser(p, user_ctx, &d);
 			if (!NT_STATUS_IS_OK(status)) {
-				printf("DeleteUser failed - %s\n", nt_errstr(status));
+				torture_warning(tctx, "DeleteUser failed - %s\n", nt_errstr(status));
 				ret = false;
 			}
 		}
@@ -4373,7 +4377,7 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 		{ ACB_SVRTRUST, TEST_MACHINENAME, NT_STATUS_OK },
 		{ ACB_SVRTRUST | ACB_DISABLED, TEST_MACHINENAME, NT_STATUS_INVALID_PARAMETER },
 		{ ACB_SVRTRUST | ACB_PWNOEXP, TEST_MACHINENAME, NT_STATUS_INVALID_PARAMETER },
-		{ ACB_DOMTRUST, TEST_DOMAINNAME, NT_STATUS_OK },
+		{ ACB_DOMTRUST, TEST_DOMAINNAME, NT_STATUS_ACCESS_DENIED },
 		{ ACB_DOMTRUST | ACB_DISABLED, TEST_DOMAINNAME, NT_STATUS_INVALID_PARAMETER },
 		{ ACB_DOMTRUST | ACB_PWNOEXP, TEST_DOMAINNAME, NT_STATUS_INVALID_PARAMETER },
 		{ 0, TEST_ACCOUNT_NAME, NT_STATUS_INVALID_PARAMETER },
@@ -4396,16 +4400,16 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 		r.out.access_granted = &access_granted;
 		r.out.rid = &rid;
 
-		printf("Testing CreateUser2(%s, 0x%x)\n", r.in.account_name->string, acct_flags);
+		torture_comment(tctx, "Testing CreateUser2(%s, 0x%x)\n", r.in.account_name->string, acct_flags);
 
 		status = dcerpc_samr_CreateUser2(p, user_ctx, &r);
 
 		if (dom_sid_equal(domain_sid, dom_sid_parse_talloc(tctx, SID_BUILTIN))) {
 			if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) || NT_STATUS_EQUAL(status, NT_STATUS_INVALID_PARAMETER)) {
-				printf("Server correctly refused create of '%s'\n", r.in.account_name->string);
+				torture_comment(tctx, "Server correctly refused create of '%s'\n", r.in.account_name->string);
 				continue;
 			} else {
-				printf("Server should have refused create of '%s', got %s instead\n", r.in.account_name->string,
+				torture_warning(tctx, "Server should have refused create of '%s', got %s instead\n", r.in.account_name->string,
 				       nt_errstr(status));
 				ret = false;
 				continue;
@@ -4422,7 +4426,7 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 
 		}
 		if (!NT_STATUS_EQUAL(status, account_types[i].nt_status)) {
-			printf("CreateUser2 failed gave incorrect error return - %s (should be %s)\n",
+			torture_warning(tctx, "CreateUser2 failed gave incorrect error return - %s (should be %s)\n",
 			       nt_errstr(status), nt_errstr(account_types[i].nt_status));
 			ret = false;
 		}
@@ -4434,7 +4438,7 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 
 			status = dcerpc_samr_QueryUserInfo(p, user_ctx, &q);
 			if (!NT_STATUS_IS_OK(status)) {
-				printf("QueryUserInfo level %u failed - %s\n",
+				torture_warning(tctx, "QueryUserInfo level %u failed - %s\n",
 				       q.in.level, nt_errstr(status));
 				ret = false;
 			} else {
@@ -4443,7 +4447,7 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 					expected_flags |= ACB_PW_EXPIRED;
 				}
 				if ((info->info5.acct_flags) != expected_flags) {
-					printf("QuerUserInfo level 5 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
+					torture_warning(tctx, "QuerUserInfo level 5 failed, it returned 0x%08x when we expected flags of 0x%08x\n",
 					       info->info5.acct_flags,
 					       expected_flags);
 					ret = false;
@@ -4451,21 +4455,21 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 				switch (acct_flags) {
 				case ACB_SVRTRUST:
 					if (info->info5.primary_gid != DOMAIN_RID_DCS) {
-						printf("QuerUserInfo level 5: DC should have had Primary Group %d, got %d\n",
+						torture_warning(tctx, "QuerUserInfo level 5: DC should have had Primary Group %d, got %d\n",
 						       DOMAIN_RID_DCS, info->info5.primary_gid);
 						ret = false;
 					}
 					break;
 				case ACB_WSTRUST:
 					if (info->info5.primary_gid != DOMAIN_RID_DOMAIN_MEMBERS) {
-						printf("QuerUserInfo level 5: Domain Member should have had Primary Group %d, got %d\n",
+						torture_warning(tctx, "QuerUserInfo level 5: Domain Member should have had Primary Group %d, got %d\n",
 						       DOMAIN_RID_DOMAIN_MEMBERS, info->info5.primary_gid);
 						ret = false;
 					}
 					break;
 				case ACB_NORMAL:
 					if (info->info5.primary_gid != DOMAIN_RID_USERS) {
-						printf("QuerUserInfo level 5: Users should have had Primary Group %d, got %d\n",
+						torture_warning(tctx, "QuerUserInfo level 5: Users should have had Primary Group %d, got %d\n",
 						       DOMAIN_RID_USERS, info->info5.primary_gid);
 						ret = false;
 					}
@@ -4480,14 +4484,14 @@ static bool test_CreateUser2(struct dcerpc_pipe *p, struct torture_context *tctx
 			}
 
 			if (!policy_handle_empty(&user_handle)) {
-				printf("Testing DeleteUser (createuser2 test)\n");
+				torture_comment(tctx, "Testing DeleteUser (createuser2 test)\n");
 
 				d.in.user_handle = &user_handle;
 				d.out.user_handle = &user_handle;
 
 				status = dcerpc_samr_DeleteUser(p, user_ctx, &d);
 				if (!NT_STATUS_IS_OK(status)) {
-					printf("DeleteUser failed - %s\n", nt_errstr(status));
+					torture_warning(tctx, "DeleteUser failed - %s\n", nt_errstr(status));
 					ret = false;
 				}
 			}
@@ -4510,7 +4514,7 @@ static bool test_QueryAliasInfo(struct dcerpc_pipe *p,
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryAliasInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryAliasInfo level %u\n", levels[i]);
 
 		r.in.alias_handle = handle;
 		r.in.level = levels[i];
@@ -4518,7 +4522,7 @@ static bool test_QueryAliasInfo(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryAliasInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryAliasInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryAliasInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -4539,7 +4543,7 @@ static bool test_QueryGroupInfo(struct dcerpc_pipe *p,
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryGroupInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryGroupInfo level %u\n", levels[i]);
 
 		r.in.group_handle = handle;
 		r.in.level = levels[i];
@@ -4547,7 +4551,7 @@ static bool test_QueryGroupInfo(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryGroupInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryGroupInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryGroupInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -4565,14 +4569,14 @@ static bool test_QueryGroupMember(struct dcerpc_pipe *p,
 	struct samr_RidTypeArray *rids = NULL;
 	bool ret = true;
 
-	printf("Testing QueryGroupMember\n");
+	torture_comment(tctx, "Testing QueryGroupMember\n");
 
 	r.in.group_handle = handle;
 	r.out.rids = &rids;
 
 	status = dcerpc_samr_QueryGroupMember(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("QueryGroupInfo failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "QueryGroupInfo failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -4594,7 +4598,7 @@ static bool test_SetGroupInfo(struct dcerpc_pipe *p,
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryGroupInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryGroupInfo level %u\n", levels[i]);
 
 		r.in.group_handle = handle;
 		r.in.level = levels[i];
@@ -4602,12 +4606,12 @@ static bool test_SetGroupInfo(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryGroupInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryGroupInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryGroupInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
 
-		printf("Testing SetGroupInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing SetGroupInfo level %u\n", levels[i]);
 
 		s.in.group_handle = handle;
 		s.in.level = levels[i];
@@ -4630,14 +4634,14 @@ static bool test_SetGroupInfo(struct dcerpc_pipe *p,
 		status = dcerpc_samr_SetGroupInfo(p, tctx, &s);
 		if (set_ok[i]) {
 			if (!NT_STATUS_IS_OK(status)) {
-				printf("SetGroupInfo level %u failed - %s\n",
+				torture_warning(tctx, "SetGroupInfo level %u failed - %s\n",
 				       r.in.level, nt_errstr(status));
 				ret = false;
 				continue;
 			}
 		} else {
 			if (!NT_STATUS_EQUAL(NT_STATUS_INVALID_INFO_CLASS, status)) {
-				printf("SetGroupInfo level %u gave %s - should have been NT_STATUS_INVALID_INFO_CLASS\n",
+				torture_warning(tctx, "SetGroupInfo level %u gave %s - should have been NT_STATUS_INVALID_INFO_CLASS\n",
 				       r.in.level, nt_errstr(status));
 				ret = false;
 				continue;
@@ -4661,7 +4665,7 @@ static bool test_QueryUserInfo(struct dcerpc_pipe *p,
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryUserInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryUserInfo level %u\n", levels[i]);
 
 		r.in.user_handle = handle;
 		r.in.level = levels[i];
@@ -4669,7 +4673,7 @@ static bool test_QueryUserInfo(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryUserInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryUserInfo level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -4691,7 +4695,7 @@ static bool test_QueryUserInfo2(struct dcerpc_pipe *p,
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryUserInfo2 level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryUserInfo2 level %u\n", levels[i]);
 
 		r.in.user_handle = handle;
 		r.in.level = levels[i];
@@ -4699,7 +4703,7 @@ static bool test_QueryUserInfo2(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryUserInfo2(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo2 level %u failed - %s\n",
+			torture_warning(tctx, "QueryUserInfo2 level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -4717,7 +4721,7 @@ static bool test_OpenUser(struct dcerpc_pipe *p,
 	struct policy_handle user_handle;
 	bool ret = true;
 
-	printf("Testing OpenUser(%u)\n", rid);
+	torture_comment(tctx, "Testing OpenUser(%u)\n", rid);
 
 	r.in.domain_handle = handle;
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -4726,7 +4730,7 @@ static bool test_OpenUser(struct dcerpc_pipe *p,
 
 	status = dcerpc_samr_OpenUser(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("OpenUser(%u) failed - %s\n", rid, nt_errstr(status));
+		torture_warning(tctx, "OpenUser(%u) failed - %s\n", rid, nt_errstr(status));
 		return false;
 	}
 
@@ -4766,7 +4770,7 @@ static bool test_OpenGroup(struct dcerpc_pipe *p,
 	struct policy_handle group_handle;
 	bool ret = true;
 
-	printf("Testing OpenGroup(%u)\n", rid);
+	torture_comment(tctx, "Testing OpenGroup(%u)\n", rid);
 
 	r.in.domain_handle = handle;
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -4775,7 +4779,7 @@ static bool test_OpenGroup(struct dcerpc_pipe *p,
 
 	status = dcerpc_samr_OpenGroup(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("OpenGroup(%u) failed - %s\n", rid, nt_errstr(status));
+		torture_warning(tctx, "OpenGroup(%u) failed - %s\n", rid, nt_errstr(status));
 		return false;
 	}
 
@@ -4817,7 +4821,7 @@ static bool test_OpenAlias(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_OpenAlias(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("OpenAlias(%u) failed - %s\n", rid, nt_errstr(status));
+		torture_warning(tctx, "OpenAlias(%u) failed - %s\n", rid, nt_errstr(status));
 		return false;
 	}
 
@@ -4862,7 +4866,7 @@ static bool check_mask(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_OpenUser(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("OpenUser(%u) failed - %s\n", rid, nt_errstr(status));
+		torture_warning(tctx, "OpenUser(%u) failed - %s\n", rid, nt_errstr(status));
 		return false;
 	}
 
@@ -4872,12 +4876,12 @@ static bool check_mask(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_QueryUserInfo(p, tctx, &q);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("QueryUserInfo level 16 failed - %s\n",
+		torture_warning(tctx, "QueryUserInfo level 16 failed - %s\n",
 		       nt_errstr(status));
 		ret = false;
 	} else {
 		if ((acct_flag_mask & info->info16.acct_flags) == 0) {
-			printf("Server failed to filter for 0x%x, allowed 0x%x (%d) on EnumDomainUsers\n",
+			torture_warning(tctx, "Server failed to filter for 0x%x, allowed 0x%x (%d) on EnumDomainUsers\n",
 			       acct_flag_mask, info->info16.acct_flags, rid);
 			ret = false;
 		}
@@ -4911,7 +4915,7 @@ static bool test_EnumDomainUsers_all(struct dcerpc_pipe *p,
 			    ACB_SVRTRUST | ACB_DOMTRUST | ACB_WSTRUST,
 			    ACB_PWNOEXP, 0};
 
-	printf("Testing EnumDomainUsers\n");
+	torture_comment(tctx, "Testing EnumDomainUsers\n");
 
 	for (mask_idx=0;mask_idx<ARRAY_SIZE(masks);mask_idx++) {
 		r.in.domain_handle = handle;
@@ -4925,7 +4929,7 @@ static bool test_EnumDomainUsers_all(struct dcerpc_pipe *p,
 		status = dcerpc_samr_EnumDomainUsers(p, tctx, &r);
 		if (!NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES) &&
 		    !NT_STATUS_IS_OK(status)) {
-			printf("EnumDomainUsers failed - %s\n", nt_errstr(status));
+			torture_warning(tctx, "EnumDomainUsers failed - %s\n", nt_errstr(status));
 			return false;
 		}
 
@@ -4946,7 +4950,7 @@ static bool test_EnumDomainUsers_all(struct dcerpc_pipe *p,
 		}
 	}
 
-	printf("Testing LookupNames\n");
+	torture_comment(tctx, "Testing LookupNames\n");
 	n.in.domain_handle = handle;
 	n.in.num_names = sam->count;
 	n.in.names = talloc_array(tctx, struct lsa_String, sam->count);
@@ -4957,12 +4961,12 @@ static bool test_EnumDomainUsers_all(struct dcerpc_pipe *p,
 	}
 	status = dcerpc_samr_LookupNames(p, tctx, &n);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("LookupNames failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "LookupNames failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
 
-	printf("Testing LookupRids\n");
+	torture_comment(tctx, "Testing LookupRids\n");
 	lr.in.domain_handle = handle;
 	lr.in.num_rids = sam->count;
 	lr.in.rids = talloc_array(tctx, uint32_t, sam->count);
@@ -5009,7 +5013,7 @@ static bool test_EnumDomainUsers_async(struct dcerpc_pipe *p, struct torture_con
 	for (i=0;i<ASYNC_COUNT;i++) {
 		status = dcerpc_ndr_request_recv(req[i]);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("EnumDomainUsers[%d] failed - %s\n",
+			torture_warning(tctx, "EnumDomainUsers[%d] failed - %s\n",
 			       i, nt_errstr(status));
 			return false;
 		}
@@ -5032,7 +5036,7 @@ static bool test_EnumDomainGroups_all(struct dcerpc_pipe *p,
 	int i;
 	bool ret = true;
 
-	printf("Testing EnumDomainGroups\n");
+	torture_comment(tctx, "Testing EnumDomainGroups\n");
 
 	r.in.domain_handle = handle;
 	r.in.resume_handle = &resume_handle;
@@ -5043,7 +5047,7 @@ static bool test_EnumDomainGroups_all(struct dcerpc_pipe *p,
 
 	status = dcerpc_samr_EnumDomainGroups(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("EnumDomainGroups failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "EnumDomainGroups failed - %s\n", nt_errstr(status));
 		return false;
 	}
 
@@ -5072,7 +5076,7 @@ static bool test_EnumDomainAliases_all(struct dcerpc_pipe *p,
 	int i;
 	bool ret = true;
 
-	printf("Testing EnumDomainAliases\n");
+	torture_comment(tctx, "Testing EnumDomainAliases\n");
 
 	r.in.domain_handle = handle;
 	r.in.resume_handle = &resume_handle;
@@ -5083,7 +5087,7 @@ static bool test_EnumDomainAliases_all(struct dcerpc_pipe *p,
 
 	status = dcerpc_samr_EnumDomainAliases(p, tctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("EnumDomainAliases failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "EnumDomainAliases failed - %s\n", nt_errstr(status));
 		return false;
 	}
 
@@ -5114,7 +5118,7 @@ static bool test_GetDisplayEnumerationIndex(struct dcerpc_pipe *p,
 	int i;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing GetDisplayEnumerationIndex level %u\n", levels[i]);
+		torture_comment(tctx, "Testing GetDisplayEnumerationIndex level %u\n", levels[i]);
 
 		init_lsa_String(&name, TEST_ACCOUNT_NAME);
 
@@ -5128,7 +5132,7 @@ static bool test_GetDisplayEnumerationIndex(struct dcerpc_pipe *p,
 		if (ok_lvl[i] &&
 		    !NT_STATUS_IS_OK(status) &&
 		    !NT_STATUS_EQUAL(NT_STATUS_NO_MORE_ENTRIES, status)) {
-			printf("GetDisplayEnumerationIndex level %u failed - %s\n",
+			torture_warning(tctx, "GetDisplayEnumerationIndex level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5138,7 +5142,7 @@ static bool test_GetDisplayEnumerationIndex(struct dcerpc_pipe *p,
 		status = dcerpc_samr_GetDisplayEnumerationIndex(p, tctx, &r);
 
 		if (ok_lvl[i] && !NT_STATUS_EQUAL(NT_STATUS_NO_MORE_ENTRIES, status)) {
-			printf("GetDisplayEnumerationIndex level %u failed - %s\n",
+			torture_warning(tctx, "GetDisplayEnumerationIndex level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5161,7 +5165,7 @@ static bool test_GetDisplayEnumerationIndex2(struct dcerpc_pipe *p,
 	int i;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing GetDisplayEnumerationIndex2 level %u\n", levels[i]);
+		torture_comment(tctx, "Testing GetDisplayEnumerationIndex2 level %u\n", levels[i]);
 
 		init_lsa_String(&name, TEST_ACCOUNT_NAME);
 
@@ -5174,7 +5178,7 @@ static bool test_GetDisplayEnumerationIndex2(struct dcerpc_pipe *p,
 		if (ok_lvl[i] &&
 		    !NT_STATUS_IS_OK(status) &&
 		    !NT_STATUS_EQUAL(NT_STATUS_NO_MORE_ENTRIES, status)) {
-			printf("GetDisplayEnumerationIndex2 level %u failed - %s\n",
+			torture_warning(tctx, "GetDisplayEnumerationIndex2 level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5183,7 +5187,7 @@ static bool test_GetDisplayEnumerationIndex2(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_GetDisplayEnumerationIndex2(p, tctx, &r);
 		if (ok_lvl[i] && !NT_STATUS_EQUAL(NT_STATUS_NO_MORE_ENTRIES, status)) {
-			printf("GetDisplayEnumerationIndex2 level %u failed - %s\n",
+			torture_warning(tctx, "GetDisplayEnumerationIndex2 level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5196,13 +5200,13 @@ static bool test_GetDisplayEnumerationIndex2(struct dcerpc_pipe *p,
 	if (s1.string == NULL && s2.string != NULL && s2.string[0] == '\0') { \
 		/* odd, but valid */						\
 	} else if ((s1.string && !s2.string) || (s2.string && !s1.string) || strcmp(s1.string, s2.string)) { \
-			printf("%s mismatch for %s: %s != %s (%s)\n", \
+			torture_warning(tctx, "%s mismatch for %s: %s != %s (%s)\n", \
 			       #s1, user.string,  s1.string, s2.string, __location__);   \
 			ret = false; \
 	}
 #define INT_EQUAL_QUERY(s1, s2, user)		\
 		if (s1 != s2) { \
-			printf("%s mismatch for %s: 0x%llx != 0x%llx (%s)\n", \
+			torture_warning(tctx, "%s mismatch for %s: 0x%llx != 0x%llx (%s)\n", \
 			       #s1, user.string, (unsigned long long)s1, (unsigned long long)s2, __location__); \
 			ret = false; \
 		}
@@ -5249,7 +5253,7 @@ static bool test_each_DisplayInfo_user(struct dcerpc_pipe *p,
 		case 2:
 			status = dcerpc_samr_OpenUser(p, tctx, &r);
 			if (!NT_STATUS_IS_OK(status)) {
-				printf("OpenUser(%u) failed - %s\n", r.in.rid, nt_errstr(status));
+				torture_warning(tctx, "OpenUser(%u) failed - %s\n", r.in.rid, nt_errstr(status));
 				return false;
 			}
 		}
@@ -5259,7 +5263,7 @@ static bool test_each_DisplayInfo_user(struct dcerpc_pipe *p,
 		q.out.info = &info;
 		status = dcerpc_samr_QueryUserInfo(p, tctx, &q);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryUserInfo(%u) failed - %s\n", r.in.rid, nt_errstr(status));
+			torture_warning(tctx, "QueryUserInfo(%u) failed - %s\n", r.in.rid, nt_errstr(status));
 			return false;
 		}
 
@@ -5291,12 +5295,12 @@ static bool test_each_DisplayInfo_user(struct dcerpc_pipe *p,
 					info->info21.acct_flags, info->info21.account_name);
 
 			if (!(querydisplayinfo->out.info->info2.entries[i].acct_flags & ACB_NORMAL)) {
-				printf("Missing ACB_NORMAL in querydisplayinfo->out.info.info2.entries[i].acct_flags on %s\n",
+				torture_warning(tctx, "Missing ACB_NORMAL in querydisplayinfo->out.info.info2.entries[i].acct_flags on %s\n",
 				       info->info21.account_name.string);
 			}
 
 			if (!(info->info21.acct_flags & (ACB_WSTRUST | ACB_SVRTRUST))) {
-				printf("Found non-trust account %s in trust account listing: 0x%x 0x%x\n",
+				torture_warning(tctx, "Found non-trust account %s in trust account listing: 0x%x 0x%x\n",
 				       info->info21.account_name.string,
 				       querydisplayinfo->out.info->info2.entries[i].acct_flags,
 				       info->info21.acct_flags);
@@ -5331,7 +5335,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryDisplayInfo level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryDisplayInfo level %u\n", levels[i]);
 
 		r.in.start_idx = 0;
 		status = STATUS_MORE_ENTRIES;
@@ -5346,7 +5350,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 
 			status = dcerpc_samr_QueryDisplayInfo(p, tctx, &r);
 			if (!NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES) && !NT_STATUS_IS_OK(status)) {
-				printf("QueryDisplayInfo level %u failed - %s\n",
+				torture_warning(tctx, "QueryDisplayInfo level %u failed - %s\n",
 				       levels[i], nt_errstr(status));
 				ret = false;
 			}
@@ -5381,7 +5385,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 		/* Check number of users returned is correct */
 		status = dcerpc_samr_QueryDomainInfo(p, tctx, &dom_info);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDomainInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryDomainInfo level %u failed - %s\n",
 			       r.in.level, nt_errstr(status));
 				ret = false;
 				break;
@@ -5390,7 +5394,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 		case 1:
 		case 4:
 			if (info->general.num_users < r.in.start_idx) {
-				printf("QueryDomainInfo indicates that QueryDisplayInfo returned more users (%d/%d) than the domain %s is said to contain!\n",
+				torture_warning(tctx, "QueryDomainInfo indicates that QueryDisplayInfo returned more users (%d/%d) than the domain %s is said to contain!\n",
 				       r.in.start_idx, info->general.num_groups,
 				       info->general.domain_name.string);
 				ret = false;
@@ -5398,7 +5402,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 			if (!seen_testuser) {
 				struct policy_handle user_handle;
 				if (NT_STATUS_IS_OK(test_OpenUser_byname(p, tctx, handle, TEST_ACCOUNT_NAME, &user_handle))) {
-					printf("Didn't find test user " TEST_ACCOUNT_NAME " in enumeration of %s\n",
+					torture_warning(tctx, "Didn't find test user " TEST_ACCOUNT_NAME " in enumeration of %s\n",
 					       info->general.domain_name.string);
 					ret = false;
 					test_samr_handle_Close(p, tctx, &user_handle);
@@ -5408,7 +5412,7 @@ static bool test_QueryDisplayInfo(struct dcerpc_pipe *p,
 		case 3:
 		case 5:
 			if (info->general.num_groups != r.in.start_idx) {
-				printf("QueryDomainInfo indicates that QueryDisplayInfo didn't return all (%d/%d) the groups in %s\n",
+				torture_warning(tctx, "QueryDomainInfo indicates that QueryDisplayInfo didn't return all (%d/%d) the groups in %s\n",
 				       r.in.start_idx, info->general.num_groups,
 				       info->general.domain_name.string);
 				ret = false;
@@ -5436,7 +5440,7 @@ static bool test_QueryDisplayInfo2(struct dcerpc_pipe *p,
 	union samr_DispInfo info;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryDisplayInfo2 level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryDisplayInfo2 level %u\n", levels[i]);
 
 		r.in.domain_handle = handle;
 		r.in.level = levels[i];
@@ -5449,7 +5453,7 @@ static bool test_QueryDisplayInfo2(struct dcerpc_pipe *p,
 
 		status = dcerpc_samr_QueryDisplayInfo2(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDisplayInfo2 level %u failed - %s\n",
+			torture_warning(tctx, "QueryDisplayInfo2 level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5484,7 +5488,7 @@ static bool test_QueryDisplayInfo3(struct dcerpc_pipe *p, struct torture_context
 
 		status = dcerpc_samr_QueryDisplayInfo3(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDisplayInfo3 level %u failed - %s\n",
+			torture_warning(tctx, "QueryDisplayInfo3 level %u failed - %s\n",
 			       levels[i], nt_errstr(status));
 			ret = false;
 		}
@@ -5505,7 +5509,7 @@ static bool test_QueryDisplayInfo_continue(struct dcerpc_pipe *p,
 	uint32_t returned_size;
 	union samr_DispInfo info;
 
-	printf("Testing QueryDisplayInfo continuation\n");
+	torture_comment(tctx, "Testing QueryDisplayInfo continuation\n");
 
 	r.in.domain_handle = handle;
 	r.in.level = 1;
@@ -5520,7 +5524,7 @@ static bool test_QueryDisplayInfo_continue(struct dcerpc_pipe *p,
 		status = dcerpc_samr_QueryDisplayInfo(p, tctx, &r);
 		if (NT_STATUS_IS_OK(status) && *r.out.returned_size != 0) {
 			if (r.out.info->info1.entries[0].idx != r.in.start_idx + 1) {
-				printf("expected idx %d but got %d\n",
+				torture_warning(tctx, "expected idx %d but got %d\n",
 				       r.in.start_idx + 1,
 				       r.out.info->info1.entries[0].idx);
 				break;
@@ -5528,7 +5532,7 @@ static bool test_QueryDisplayInfo_continue(struct dcerpc_pipe *p,
 		}
 		if (!NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES) &&
 		    !NT_STATUS_IS_OK(status)) {
-			printf("QueryDisplayInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryDisplayInfo level %u failed - %s\n",
 			       r.in.level, nt_errstr(status));
 			ret = false;
 			break;
@@ -5563,7 +5567,7 @@ static bool test_QueryDomainInfo(struct dcerpc_pipe *p, struct torture_context *
 	s.in.info->oem.oem_information.string = domain_comment;
 	status = dcerpc_samr_SetDomainInfo(p, tctx, &s);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("SetDomainInfo level %u (set comment) failed - %s\n",
+		torture_warning(tctx, "SetDomainInfo level %u (set comment) failed - %s\n",
 		       s.in.level, nt_errstr(status));
 		return false;
 	}
@@ -5577,7 +5581,7 @@ static bool test_QueryDomainInfo(struct dcerpc_pipe *p, struct torture_context *
 
 		status = dcerpc_samr_QueryDomainInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDomainInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryDomainInfo level %u failed - %s\n",
 			       r.in.level, nt_errstr(status));
 			ret = false;
 			continue;
@@ -5586,40 +5590,46 @@ static bool test_QueryDomainInfo(struct dcerpc_pipe *p, struct torture_context *
 		switch (levels[i]) {
 		case 2:
 			if (strcmp(info->general.oem_information.string, domain_comment) != 0) {
-				printf("QueryDomainInfo level %u returned different oem_information (comment) (%s, expected %s)\n",
+				torture_warning(tctx, "QueryDomainInfo level %u returned different oem_information (comment) (%s, expected %s)\n",
 				       levels[i], info->general.oem_information.string, domain_comment);
-				ret = false;
+				if (!torture_setting_bool(tctx, "samba3", false)) {
+					ret = false;
+				}
 			}
 			if (!info->general.primary.string) {
-				printf("QueryDomainInfo level %u returned no PDC name\n",
+				torture_warning(tctx, "QueryDomainInfo level %u returned no PDC name\n",
 				       levels[i]);
 				ret = false;
 			} else if (info->general.role == SAMR_ROLE_DOMAIN_PDC) {
 				if (dcerpc_server_name(p) && strcasecmp_m(dcerpc_server_name(p), info->general.primary.string) != 0) {
-					printf("QueryDomainInfo level %u returned different PDC name (%s) compared to server name (%s), despite claiming to be the PDC\n",
+					torture_warning(tctx, "QueryDomainInfo level %u returned different PDC name (%s) compared to server name (%s), despite claiming to be the PDC\n",
 					       levels[i], info->general.primary.string, dcerpc_server_name(p));
 				}
 			}
 			break;
 		case 4:
 			if (strcmp(info->oem.oem_information.string, domain_comment) != 0) {
-				printf("QueryDomainInfo level %u returned different oem_information (comment) (%s, expected %s)\n",
+				torture_warning(tctx, "QueryDomainInfo level %u returned different oem_information (comment) (%s, expected %s)\n",
 				       levels[i], info->oem.oem_information.string, domain_comment);
-				ret = false;
+				if (!torture_setting_bool(tctx, "samba3", false)) {
+					ret = false;
+				}
 			}
 			break;
 		case 6:
 			if (!info->info6.primary.string) {
-				printf("QueryDomainInfo level %u returned no PDC name\n",
+				torture_warning(tctx, "QueryDomainInfo level %u returned no PDC name\n",
 				       levels[i]);
 				ret = false;
 			}
 			break;
 		case 11:
 			if (strcmp(info->general2.general.oem_information.string, domain_comment) != 0) {
-				printf("QueryDomainInfo level %u returned different comment (%s, expected %s)\n",
+				torture_warning(tctx, "QueryDomainInfo level %u returned different comment (%s, expected %s)\n",
 				       levels[i], info->general2.general.oem_information.string, domain_comment);
-				ret = false;
+				if (!torture_setting_bool(tctx, "samba3", false)) {
+					ret = false;
+				}
 			}
 			break;
 		}
@@ -5633,14 +5643,14 @@ static bool test_QueryDomainInfo(struct dcerpc_pipe *p, struct torture_context *
 		status = dcerpc_samr_SetDomainInfo(p, tctx, &s);
 		if (set_ok[i]) {
 			if (!NT_STATUS_IS_OK(status)) {
-				printf("SetDomainInfo level %u failed - %s\n",
+				torture_warning(tctx, "SetDomainInfo level %u failed - %s\n",
 				       r.in.level, nt_errstr(status));
 				ret = false;
 				continue;
 			}
 		} else {
 			if (!NT_STATUS_EQUAL(NT_STATUS_INVALID_INFO_CLASS, status)) {
-				printf("SetDomainInfo level %u gave %s - should have been NT_STATUS_INVALID_INFO_CLASS\n",
+				torture_warning(tctx, "SetDomainInfo level %u gave %s - should have been NT_STATUS_INVALID_INFO_CLASS\n",
 				       r.in.level, nt_errstr(status));
 				ret = false;
 				continue;
@@ -5649,7 +5659,7 @@ static bool test_QueryDomainInfo(struct dcerpc_pipe *p, struct torture_context *
 
 		status = dcerpc_samr_QueryDomainInfo(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDomainInfo level %u failed - %s\n",
+			torture_warning(tctx, "QueryDomainInfo level %u failed - %s\n",
 			       r.in.level, nt_errstr(status));
 			ret = false;
 			continue;
@@ -5671,7 +5681,7 @@ static bool test_QueryDomainInfo2(struct dcerpc_pipe *p, struct torture_context 
 	bool ret = true;
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
-		printf("Testing QueryDomainInfo2 level %u\n", levels[i]);
+		torture_comment(tctx, "Testing QueryDomainInfo2 level %u\n", levels[i]);
 
 		r.in.domain_handle = handle;
 		r.in.level = levels[i];
@@ -5679,7 +5689,7 @@ static bool test_QueryDomainInfo2(struct dcerpc_pipe *p, struct torture_context 
 
 		status = dcerpc_samr_QueryDomainInfo2(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("QueryDomainInfo2 level %u failed - %s\n",
+			torture_warning(tctx, "QueryDomainInfo2 level %u failed - %s\n",
 			       r.in.level, nt_errstr(status));
 			ret = false;
 			continue;
@@ -5769,7 +5779,7 @@ static bool test_GroupList(struct dcerpc_pipe *p, struct torture_context *tctx,
 			}
 
 			if (!found) {
-				printf("QueryDisplayInfo gave name [%s] that EnumDomainGroups did not\n",
+				torture_warning(tctx, "QueryDisplayInfo gave name [%s] that EnumDomainGroups did not\n",
 				       name);
 				ret = false;
 			}
@@ -5778,14 +5788,14 @@ static bool test_GroupList(struct dcerpc_pipe *p, struct torture_context *tctx,
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("QueryDisplayInfo level 5 failed - %s\n",
+		torture_warning(tctx, "QueryDisplayInfo level 5 failed - %s\n",
 		       nt_errstr(status));
 		ret = false;
 	}
 
 	for (i=0; i<num_names; i++) {
 		if (names[i] != NULL) {
-			printf("EnumDomainGroups gave name [%s] that QueryDisplayInfo did not\n",
+			torture_warning(tctx, "EnumDomainGroups gave name [%s] that QueryDisplayInfo did not\n",
 			       names[i]);
 			ret = false;
 		}
@@ -5849,13 +5859,13 @@ static bool test_RidToSid(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 		status = dcerpc_samr_RidToSid(p, tctx, &r);
 		if (!NT_STATUS_IS_OK(status)) {
-			printf("RidToSid for %d failed - %s\n", rids[i], nt_errstr(status));
+			torture_warning(tctx, "RidToSid for %d failed - %s\n", rids[i], nt_errstr(status));
 			ret = false;
 		} else {
 			calc_sid = dom_sid_add_rid(calc_sid, calc_sid, rids[i]);
 
 			if (!dom_sid_equal(calc_sid, out_sid)) {
-				printf("RidToSid for %d failed - got %s, expected %s\n", rids[i],
+				torture_warning(tctx, "RidToSid for %d failed - got %s, expected %s\n", rids[i],
 				       dom_sid_string(tctx, out_sid),
 				       dom_sid_string(tctx, calc_sid));
 				ret = false;
@@ -5899,6 +5909,8 @@ static bool test_AddGroupMember(struct dcerpc_pipe *p, struct torture_context *t
 	struct samr_RidTypeArray *rids = NULL;
 	struct samr_SetMemberAttributesOfGroup s;
 	uint32_t rid;
+	bool found_member = false;
+	int i;
 
 	status = test_LookupName(p, tctx, domain_handle, TEST_ACCOUNT_NAME, &rid);
 	torture_assert_ntstatus_ok(tctx, status, "test_AddGroupMember looking up name " TEST_ACCOUNT_NAME);
@@ -5907,7 +5919,7 @@ static bool test_AddGroupMember(struct dcerpc_pipe *p, struct torture_context *t
 	r.in.rid = rid;
 	r.in.flags = 0; /* ??? */
 
-	torture_comment(tctx, "Testing AddGroupMember and DeleteGroupMember\n");
+	torture_comment(tctx, "Testing AddGroupMember, QueryGroupMember and DeleteGroupMember\n");
 
 	d.in.group_handle = group_handle;
 	d.in.rid = rid;
@@ -5923,7 +5935,7 @@ static bool test_AddGroupMember(struct dcerpc_pipe *p, struct torture_context *t
 
 	if (torture_setting_bool(tctx, "samba4", false) ||
 	    torture_setting_bool(tctx, "samba3", false)) {
-		torture_comment(tctx, "skipping SetMemberAttributesOfGroup test against Samba4\n");
+		torture_comment(tctx, "skipping SetMemberAttributesOfGroup test against Samba\n");
 	} else {
 		/* this one is quite strange. I am using random inputs in the
 		   hope of triggering an error that might give us a clue */
@@ -5941,9 +5953,33 @@ static bool test_AddGroupMember(struct dcerpc_pipe *p, struct torture_context *t
 
 	status = dcerpc_samr_QueryGroupMember(p, tctx, &q);
 	torture_assert_ntstatus_ok(tctx, status, "QueryGroupMember");
+	torture_assert(tctx, rids, "QueryGroupMember did not fill in rids structure");
+
+	for (i=0; i < rids->count; i++) {
+		if (rids->rids[i] == rid) {
+			found_member = true;
+		}
+	}
+
+	torture_assert(tctx, found_member, "QueryGroupMember did not list newly added member");
 
 	status = dcerpc_samr_DeleteGroupMember(p, tctx, &d);
 	torture_assert_ntstatus_ok(tctx, status, "DeleteGroupMember");
+
+	rids = NULL;
+	found_member = false;
+
+	status = dcerpc_samr_QueryGroupMember(p, tctx, &q);
+	torture_assert_ntstatus_ok(tctx, status, "QueryGroupMember");
+	torture_assert(tctx, rids, "QueryGroupMember did not fill in rids structure");
+
+	for (i=0; i < rids->count; i++) {
+		if (rids->rids[i] == rid) {
+			found_member = true;
+		}
+	}
+
+	torture_assert(tctx, !found_member, "QueryGroupMember does still list removed member");
 
 	status = dcerpc_samr_AddGroupMember(p, tctx, &r);
 	torture_assert_ntstatus_ok(tctx, status, "AddGroupMember");
@@ -5974,7 +6010,7 @@ static bool test_CreateDomainGroup(struct dcerpc_pipe *p,
 	r.out.group_handle = group_handle;
 	r.out.rid = &rid;
 
-	printf("Testing CreateDomainGroup(%s)\n", r.in.name->string);
+	torture_comment(tctx, "Testing CreateDomainGroup(%s)\n", r.in.name->string);
 
 	status = dcerpc_samr_CreateDomainGroup(p, tctx, &r);
 
@@ -5983,7 +6019,7 @@ static bool test_CreateDomainGroup(struct dcerpc_pipe *p,
 			torture_comment(tctx, "Server correctly refused create of '%s'\n", r.in.name->string);
 			return true;
 		} else {
-			printf("Server should have refused create of '%s', got %s instead\n", r.in.name->string,
+			torture_warning(tctx, "Server should have refused create of '%s', got %s instead\n", r.in.name->string,
 			       nt_errstr(status));
 			return false;
 		}
@@ -5991,7 +6027,7 @@ static bool test_CreateDomainGroup(struct dcerpc_pipe *p,
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_GROUP_EXISTS)) {
 		if (!test_DeleteGroup_byname(p, tctx, domain_handle, r.in.name->string)) {
-			printf("CreateDomainGroup failed: Could not delete domain group %s - %s\n", r.in.name->string,
+			torture_warning(tctx, "CreateDomainGroup failed: Could not delete domain group %s - %s\n", r.in.name->string,
 			       nt_errstr(status));
 			return false;
 		}
@@ -6000,7 +6036,7 @@ static bool test_CreateDomainGroup(struct dcerpc_pipe *p,
 	if (NT_STATUS_EQUAL(status, NT_STATUS_USER_EXISTS)) {
 		if (!test_DeleteUser_byname(p, tctx, domain_handle, r.in.name->string)) {
 
-			printf("CreateDomainGroup failed: Could not delete user %s - %s\n", r.in.name->string,
+			torture_warning(tctx, "CreateDomainGroup failed: Could not delete user %s - %s\n", r.in.name->string,
 			       nt_errstr(status));
 			return false;
 		}
@@ -6013,7 +6049,7 @@ static bool test_CreateDomainGroup(struct dcerpc_pipe *p,
 	}
 
 	if (!test_AddGroupMember(p, tctx, domain_handle, group_handle)) {
-		printf("CreateDomainGroup failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "CreateDomainGroup failed - %s\n", nt_errstr(status));
 		ret = false;
 	}
 
@@ -6057,7 +6093,7 @@ static bool test_EnumDomainUsers(struct dcerpc_pipe *p,
 	struct samr_SamArray *sam;
 
 	r.in.domain_handle = domain_handle;
-	r.in.acct_flags = ACB_NORMAL;
+	r.in.acct_flags = 0;
 	r.in.max_size = (uint32_t)-1;
 	r.in.resume_handle = &resume_handle;
 
@@ -6065,7 +6101,7 @@ static bool test_EnumDomainUsers(struct dcerpc_pipe *p,
 	r.out.num_entries = &num_entries;
 	r.out.resume_handle = &resume_handle;
 
-	printf("Testing EnumDomainUsers\n");
+	torture_comment(tctx, "Testing EnumDomainUsers\n");
 
 	do {
 		status = dcerpc_samr_EnumDomainUsers(p, tctx, &r);
@@ -6104,7 +6140,7 @@ static bool test_EnumDomainGroups(struct dcerpc_pipe *p,
 	r.out.num_entries = &num_entries;
 	r.out.resume_handle = &resume_handle;
 
-	printf("Testing EnumDomainGroups\n");
+	torture_comment(tctx, "Testing EnumDomainGroups\n");
 
 	do {
 		status = dcerpc_samr_EnumDomainGroups(p, tctx, &r);
@@ -6143,7 +6179,7 @@ static bool test_EnumDomainAliases(struct dcerpc_pipe *p,
 	r.out.num_entries = &num_entries;
 	r.out.resume_handle = &resume_handle;
 
-	printf("Testing EnumDomainAliases\n");
+	torture_comment(tctx, "Testing EnumDomainAliases\n");
 
 	do {
 		status = dcerpc_samr_EnumDomainAliases(p, tctx, &r);
@@ -6153,6 +6189,77 @@ static bool test_EnumDomainAliases(struct dcerpc_pipe *p,
 		}
 
 		total_num_entries += num_entries;
+	} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
+
+	if (total_num_entries_p) {
+		*total_num_entries_p = total_num_entries;
+	}
+
+	return true;
+}
+
+static bool test_QueryDisplayInfo_level(struct dcerpc_pipe *p,
+					struct torture_context *tctx,
+					struct policy_handle *handle,
+					uint16_t level,
+					uint32_t *total_num_entries_p)
+{
+	NTSTATUS status;
+	struct samr_QueryDisplayInfo r;
+	uint32_t total_num_entries = 0;
+
+	r.in.domain_handle = handle;
+	r.in.level = level;
+	r.in.start_idx = 0;
+	r.in.max_entries = (uint32_t)-1;
+	r.in.buf_size = (uint32_t)-1;
+
+	torture_comment(tctx, "Testing QueryDisplayInfo\n");
+
+	do {
+		uint32_t total_size;
+		uint32_t returned_size;
+		union samr_DispInfo info;
+
+		r.out.total_size = &total_size;
+		r.out.returned_size = &returned_size;
+		r.out.info = &info;
+
+		status = dcerpc_samr_QueryDisplayInfo(p, tctx, &r);
+		if (NT_STATUS_IS_ERR(status)) {
+			torture_assert_ntstatus_ok(tctx, status,
+				"failed to query displayinfo");
+		}
+
+		if (*r.out.returned_size == 0) {
+			break;
+		}
+
+		switch (r.in.level) {
+		case 1:
+			total_num_entries += info.info1.count;
+			r.in.start_idx += info.info1.entries[info.info1.count - 1].idx + 1;
+			break;
+		case 2:
+			total_num_entries += info.info2.count;
+			r.in.start_idx += info.info2.entries[info.info2.count - 1].idx + 1;
+			break;
+		case 3:
+			total_num_entries += info.info3.count;
+			r.in.start_idx += info.info3.entries[info.info3.count - 1].idx + 1;
+			break;
+		case 4:
+			total_num_entries += info.info4.count;
+			r.in.start_idx += info.info4.entries[info.info4.count - 1].idx + 1;
+			break;
+		case 5:
+			total_num_entries += info.info5.count;
+			r.in.start_idx += info.info5.entries[info.info5.count - 1].idx + 1;
+			break;
+		default:
+			return false;
+		}
+
 	} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
 
 	if (total_num_entries_p) {
@@ -6176,6 +6283,8 @@ static bool test_ManyObjects(struct dcerpc_pipe *p,
 	bool ret = true;
 	NTSTATUS status;
 	uint32_t i;
+
+	struct policy_handle *handles = talloc_zero_array(tctx, struct policy_handle, num_total);
 
 	/* query */
 
@@ -6209,29 +6318,25 @@ static bool test_ManyObjects(struct dcerpc_pipe *p,
 
 	for (i=0; i < num_total; i++) {
 
-		struct policy_handle handle;
 		const char *name = NULL;
-
-		ZERO_STRUCT(handle);
 
 		switch (which_ops) {
 		case TORTURE_SAMR_MANY_ACCOUNTS:
 			name = talloc_asprintf(tctx, "%s%04d", TEST_ACCOUNT_NAME, i);
-			ret &= test_CreateUser(p, tctx, domain_handle, name, &handle, domain_sid, 0, NULL, false);
+			ret &= test_CreateUser(p, tctx, domain_handle, name, &handles[i], domain_sid, 0, NULL, false);
 			break;
 		case TORTURE_SAMR_MANY_GROUPS:
 			name = talloc_asprintf(tctx, "%s%04d", TEST_GROUPNAME, i);
-			ret &= test_CreateDomainGroup(p, tctx, domain_handle, name, &handle, domain_sid, false);
+			ret &= test_CreateDomainGroup(p, tctx, domain_handle, name, &handles[i], domain_sid, false);
 			break;
 		case TORTURE_SAMR_MANY_ALIASES:
 			name = talloc_asprintf(tctx, "%s%04d", TEST_ALIASNAME, i);
-			ret &= test_CreateAlias(p, tctx, domain_handle, name, &handle, domain_sid, false);
+			ret &= test_CreateAlias(p, tctx, domain_handle, name, &handles[i], domain_sid, false);
 			break;
 		default:
 			return false;
 		}
-		if (!policy_handle_empty(&handle)) {
-			ret &= test_samr_handle_Close(p, tctx, &handle);
+		if (!policy_handle_empty(&handles[i])) {
 			num_created++;
 		}
 	}
@@ -6252,25 +6357,60 @@ static bool test_ManyObjects(struct dcerpc_pipe *p,
 		return false;
 	}
 
-	torture_assert_int_equal(tctx, num_enum, num_anounced + num_created,
-		"unexpected number of results returned in enum call");
-#if 0
-	/* TODO: dispinfo */
+	/* dispinfo */
 
 	switch (which_ops) {
 	case TORTURE_SAMR_MANY_ACCOUNTS:
+		ret &= test_QueryDisplayInfo_level(p, tctx, domain_handle, 1, &num_disp);
 		break;
 	case TORTURE_SAMR_MANY_GROUPS:
+		ret &= test_QueryDisplayInfo_level(p, tctx, domain_handle, 3, &num_disp);
 		break;
 	case TORTURE_SAMR_MANY_ALIASES:
+		/* no aliases in dispinfo */
 		break;
 	default:
 		return false;
 	}
 
-	torture_assert_int_equal(tctx, num_disp, num_anounced + num_created,
-		"unexpected number of results returned in dispinfo call");
-#endif
+	/* close or delete */
+
+	for (i=0; i < num_total; i++) {
+
+		if (policy_handle_empty(&handles[i])) {
+			continue;
+		}
+
+		if (torture_setting_bool(tctx, "samba3", false)) {
+			ret &= test_samr_handle_Close(p, tctx, &handles[i]);
+		} else {
+			switch (which_ops) {
+			case TORTURE_SAMR_MANY_ACCOUNTS:
+				ret &= test_DeleteUser(p, tctx, &handles[i]);
+				break;
+			case TORTURE_SAMR_MANY_GROUPS:
+				ret &= test_DeleteDomainGroup(p, tctx, &handles[i]);
+				break;
+			case TORTURE_SAMR_MANY_ALIASES:
+				ret &= test_DeleteAlias(p, tctx, &handles[i]);
+				break;
+			default:
+				return false;
+			}
+		}
+	}
+
+	talloc_free(handles);
+
+	if (which_ops == TORTURE_SAMR_MANY_ACCOUNTS && num_enum != num_anounced + num_created) {
+		torture_comment(tctx,
+				"unexpected number of results (%u) returned in enum call, expected %u\n",
+				num_enum, num_anounced + num_created);
+
+		torture_comment(tctx,
+				"unexpected number of results (%u) returned in dispinfo, call, expected %u\n",
+				num_disp, num_anounced + num_created);
+	}
 	return ret;
 }
 
@@ -6307,12 +6447,20 @@ static bool test_OpenDomain(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	/* run the domain tests with the main handle closed - this tests
 	   the servers reference counting */
-	ret &= test_samr_handle_Close(p, tctx, handle);
+	torture_assert(tctx, test_samr_handle_Close(p, tctx, handle), "Failed to close SAMR handle");
 
 	switch (which_ops) {
-	case TORTURE_SAMR_USER_ATTRIBUTES:
-	case TORTURE_SAMR_USER_PRIVILEGES:
 	case TORTURE_SAMR_PASSWORDS:
+	case TORTURE_SAMR_USER_PRIVILEGES:
+		if (!torture_setting_bool(tctx, "samba3", false)) {
+			ret &= test_CreateUser2(p, tctx, &domain_handle, sid, which_ops, NULL);
+		}
+		ret &= test_CreateUser(p, tctx, &domain_handle, TEST_ACCOUNT_NAME, &user_handle, sid, which_ops, NULL, true);
+		if (!ret) {
+			torture_warning(tctx, "Testing PASSWORDS or PRIVILEGES on domain %s failed!\n", dom_sid_string(tctx, sid));
+		}
+		break;
+	case TORTURE_SAMR_USER_ATTRIBUTES:
 		if (!torture_setting_bool(tctx, "samba3", false)) {
 			ret &= test_CreateUser2(p, tctx, &domain_handle, sid, which_ops, NULL);
 		}
@@ -6320,7 +6468,7 @@ static bool test_OpenDomain(struct dcerpc_pipe *p, struct torture_context *tctx,
 		/* This test needs 'complex' users to validate */
 		ret &= test_QueryDisplayInfo(p, tctx, &domain_handle);
 		if (!ret) {
-			printf("Testing PASSWORDS or ATTRIBUTES on domain %s failed!\n", dom_sid_string(tctx, sid));
+			torture_warning(tctx, "Testing ATTRIBUTES on domain %s failed!\n", dom_sid_string(tctx, sid));
 		}
 		break;
 	case TORTURE_SAMR_PASSWORDS_PWDLASTSET:
@@ -6329,18 +6477,21 @@ static bool test_OpenDomain(struct dcerpc_pipe *p, struct torture_context *tctx,
 		}
 		ret &= test_CreateUser(p, tctx, &domain_handle, TEST_ACCOUNT_NAME, &user_handle, sid, which_ops, machine_credentials, true);
 		if (!ret) {
-			printf("Testing PASSWORDS PWDLASTSET on domain %s failed!\n", dom_sid_string(tctx, sid));
+			torture_warning(tctx, "Testing PASSWORDS PWDLASTSET on domain %s failed!\n", dom_sid_string(tctx, sid));
 		}
 		break;
 	case TORTURE_SAMR_MANY_ACCOUNTS:
 	case TORTURE_SAMR_MANY_GROUPS:
 	case TORTURE_SAMR_MANY_ALIASES:
 		ret &= test_ManyObjects(p, tctx, &domain_handle, sid, which_ops);
+		if (!ret) {
+			torture_warning(tctx, "Testing MANY-{ACCOUNTS,GROUPS,ALIASES} on domain %s failed!\n", dom_sid_string(tctx, sid));
+		}
 		break;
 	case TORTURE_SAMR_OTHER:
 		ret &= test_CreateUser(p, tctx, &domain_handle, TEST_ACCOUNT_NAME, &user_handle, sid, which_ops, NULL, true);
 		if (!ret) {
-			printf("Failed to CreateUser in SAMR-OTHER on domain %s!\n", dom_sid_string(tctx, sid));
+			torture_warning(tctx, "Failed to CreateUser in SAMR-OTHER on domain %s!\n", dom_sid_string(tctx, sid));
 		}
 		if (!torture_setting_bool(tctx, "samba3", false)) {
 			ret &= test_QuerySecurity(p, tctx, &domain_handle);
@@ -6389,13 +6540,13 @@ static bool test_OpenDomain(struct dcerpc_pipe *p, struct torture_context *tctx,
 		ret = false;
 	}
 
-	ret &= test_samr_handle_Close(p, tctx, &domain_handle);
+	torture_assert(tctx, test_samr_handle_Close(p, tctx, &domain_handle), "Failed to close SAMR domain handle");
 
+	torture_assert(tctx, test_Connect(p, tctx, handle), "Faile to re-connect SAMR handle");
 	/* reconnect the main handle */
-	ret &= test_Connect(p, tctx, handle);
 
 	if (!ret) {
-		printf("Testing domain %s failed!\n", dom_sid_string(tctx, sid));
+		torture_warning(tctx, "Testing domain %s failed!\n", dom_sid_string(tctx, sid));
 	}
 
 	return ret;
@@ -6547,7 +6698,7 @@ static bool test_Connect(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_Connect3(p, tctx, &r3);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Connect3 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "Connect3 failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		if (got_handle) {
@@ -6566,7 +6717,7 @@ static bool test_Connect(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_Connect4(p, tctx, &r4);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Connect4 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "Connect4 failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		if (got_handle) {
@@ -6591,7 +6742,7 @@ static bool test_Connect(struct dcerpc_pipe *p, struct torture_context *tctx,
 
 	status = dcerpc_samr_Connect5(p, tctx, &r5);
 	if (!NT_STATUS_IS_OK(status)) {
-		printf("Connect5 failed - %s\n", nt_errstr(status));
+		torture_warning(tctx, "Connect5 failed - %s\n", nt_errstr(status));
 		ret = false;
 	} else {
 		if (got_handle) {
@@ -6716,7 +6867,7 @@ struct torture_suite *torture_rpc_samr_passwords_pwdlastset(TALLOC_CTX *mem_ctx)
 	struct torture_suite *suite = torture_suite_create(mem_ctx, "SAMR-PASSWORDS-PWDLASTSET");
 	struct torture_rpc_tcase *tcase;
 
-	tcase = torture_suite_add_machine_rpc_iface_tcase(suite, "samr",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "samr",
 							  &ndr_table_samr,
 							  TEST_ACCOUNT_NAME_PWD);
 
@@ -6756,7 +6907,7 @@ struct torture_suite *torture_rpc_samr_user_privileges(TALLOC_CTX *mem_ctx)
 	struct torture_suite *suite = torture_suite_create(mem_ctx, "SAMR-USERS-PRIVILEGES");
 	struct torture_rpc_tcase *tcase;
 
-	tcase = torture_suite_add_machine_rpc_iface_tcase(suite, "samr",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "samr",
 							  &ndr_table_samr,
 							  TEST_ACCOUNT_NAME_PWD);
 
@@ -6846,7 +6997,7 @@ struct torture_suite *torture_rpc_samr_large_dc(TALLOC_CTX *mem_ctx)
 	struct torture_suite *suite = torture_suite_create(mem_ctx, "SAMR-LARGE-DC");
 	struct torture_rpc_tcase *tcase;
 
-	tcase = torture_suite_add_machine_rpc_iface_tcase(suite, "samr",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "samr",
 							  &ndr_table_samr,
 							  TEST_ACCOUNT_NAME);
 

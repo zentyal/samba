@@ -39,7 +39,6 @@ struct ldb_control *ldb_request_get_control(struct ldb_request *req, const char 
 {
 	int i;
 
-	/* check if there's a paged request control */
 	if (req->controls != NULL) {
 		for (i = 0; req->controls[i]; i++) {
 			if (strcmp(oid, req->controls[i]->oid) == 0) {
@@ -59,7 +58,6 @@ struct ldb_control *ldb_reply_get_control(struct ldb_reply *rep, const char *oid
 {
 	int i;
 
-	/* check if there's a paged request control */
 	if (rep->controls != NULL) {
 		for (i = 0; rep->controls[i]; i++) {
 			if (strcmp(oid, rep->controls[i]->oid) == 0) {
@@ -75,7 +73,7 @@ struct ldb_control *ldb_reply_get_control(struct ldb_reply *rep, const char *oid
 
 /* saves the current controls list into the "saver" and replace the one in req with a new one excluding
 the "exclude" control */
-/* returns False on error */
+/* returns 0 on error */
 int save_controls(struct ldb_control *exclude, struct ldb_request *req, struct ldb_control ***saver)
 {
 	struct ldb_control **lcs;
@@ -129,7 +127,13 @@ int ldb_request_add_control(struct ldb_request *req, const char *oid, bool criti
 	struct ldb_control **ctrls;
 	struct ldb_control *ctrl;
 
-	for (n=0; req->controls && req->controls[n];) { n++; }
+	for (n=0; req->controls && req->controls[n];) { 
+		/* having two controls of the same OID makes no sense */
+		if (strcmp(oid, req->controls[n]->oid) == 0) {
+			return LDB_ERR_ATTRIBUTE_OR_VALUE_EXISTS;
+		}
+		n++; 
+	}
 
 	ctrls = talloc_realloc(req, req->controls,
 			       struct ldb_control *,
@@ -551,6 +555,60 @@ struct ldb_control **ldb_parse_control_strings(struct ldb_context *ldb, void *me
 				return NULL;
 			}
 			ctrl[i]->oid = LDB_CONTROL_SHOW_DELETED_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "show_deactivated_link:", 22) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][22]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid show_deactivated_link control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_SHOW_DEACTIVATED_LINK_OID;
+			ctrl[i]->critical = crit;
+			ctrl[i]->data = NULL;
+
+			continue;
+		}
+
+		if (strncmp(control_strings[i], "show_recycled:", 14) == 0) {
+			const char *p;
+			int crit, ret;
+
+			p = &(control_strings[i][14]);
+			ret = sscanf(p, "%d", &crit);
+			if ((ret != 1) || (crit < 0) || (crit > 1)) {
+				error_string = talloc_asprintf(mem_ctx, "invalid show_recycled control syntax\n");
+				error_string = talloc_asprintf_append(error_string, " syntax: crit(b)\n");
+				error_string = talloc_asprintf_append(error_string, "   note: b = boolean");
+				ldb_set_errstring(ldb, error_string);
+				talloc_free(error_string);
+				return NULL;
+			}
+
+			ctrl[i] = talloc(ctrl, struct ldb_control);
+			if (!ctrl[i]) {
+				ldb_oom(ldb);
+				return NULL;
+			}
+			ctrl[i]->oid = LDB_CONTROL_SHOW_RECYCLED_OID;
 			ctrl[i]->critical = crit;
 			ctrl[i]->data = NULL;
 

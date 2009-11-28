@@ -26,6 +26,7 @@
    */
 
 #include "includes.h"
+#include "smbd/globals.h"
 
 #ifdef CHECK_TYPES
 #undef CHECK_TYPES
@@ -645,10 +646,8 @@ static void fill_printq_info_52(connection_struct *conn, int snum,
 {
 	int 				i;
 	fstring 			location;
-	NT_PRINTER_DRIVER_INFO_LEVEL 	driver;
+	union spoolss_DriverInfo *driver = NULL;
 	NT_PRINTER_INFO_LEVEL 		*printer = NULL;
-
-	ZERO_STRUCT(driver);
 
 	if ( !W_ERROR_IS_OK(get_a_printer( NULL, &printer, 2, lp_servicename(snum))) ) {
 		DEBUG(3,("fill_printq_info_52: Failed to lookup printer [%s]\n", 
@@ -656,7 +655,7 @@ static void fill_printq_info_52(connection_struct *conn, int snum,
 		goto err;
 	}
 
-	if ( !W_ERROR_IS_OK(get_a_printer_driver(&driver, 3, printer->info_2->drivername, 
+	if (!W_ERROR_IS_OK(get_a_printer_driver(talloc_tos(), &driver, 3, printer->info_2->drivername,
 		"Windows 4.0", 0)) )
 	{
 		DEBUG(3,("fill_printq_info_52: Failed to lookup driver [%s]\n", 
@@ -664,38 +663,38 @@ static void fill_printq_info_52(connection_struct *conn, int snum,
 		goto err;
 	}
 
-	trim_string(driver.info_3->driverpath, "\\print$\\WIN40\\0\\", 0);
-	trim_string(driver.info_3->datafile, "\\print$\\WIN40\\0\\", 0);
-	trim_string(driver.info_3->helpfile, "\\print$\\WIN40\\0\\", 0);
+	trim_string((char *)driver->info3.driver_path, "\\print$\\WIN40\\0\\", 0);
+	trim_string((char *)driver->info3.data_file, "\\print$\\WIN40\\0\\", 0);
+	trim_string((char *)driver->info3.help_file, "\\print$\\WIN40\\0\\", 0);
 
 	PACKI(desc, "W", 0x0400);                     /* don't know */
-	PACKS(desc, "z", driver.info_3->name);        /* long printer name */
-	PACKS(desc, "z", driver.info_3->driverpath);  /* Driverfile Name */
-	PACKS(desc, "z", driver.info_3->datafile);    /* Datafile name */
-	PACKS(desc, "z", driver.info_3->monitorname); /* language monitor */
+	PACKS(desc, "z", driver->info3.driver_name);        /* long printer name */
+	PACKS(desc, "z", driver->info3.driver_path);  /* Driverfile Name */
+	PACKS(desc, "z", driver->info3.data_file);    /* Datafile name */
+	PACKS(desc, "z", driver->info3.monitor_name); /* language monitor */
 
 	fstrcpy(location, "\\\\%L\\print$\\WIN40\\0");
 	standard_sub_basic( "", "", location, sizeof(location)-1 );
 	PACKS(desc,"z", location);                          /* share to retrieve files */
 
-	PACKS(desc,"z", driver.info_3->defaultdatatype);    /* default data type */
-	PACKS(desc,"z", driver.info_3->helpfile);           /* helpfile name */
-	PACKS(desc,"z", driver.info_3->driverpath);               /* driver name */
+	PACKS(desc,"z", driver->info3.default_datatype);    /* default data type */
+	PACKS(desc,"z", driver->info3.help_file);           /* helpfile name */
+	PACKS(desc,"z", driver->info3.driver_path);               /* driver name */
 
-	DEBUG(3,("Printer Driver Name: %s:\n",driver.info_3->name));
-	DEBUG(3,("Driver: %s:\n",driver.info_3->driverpath));
-	DEBUG(3,("Data File: %s:\n",driver.info_3->datafile));
-	DEBUG(3,("Language Monitor: %s:\n",driver.info_3->monitorname));
+	DEBUG(3,("Printer Driver Name: %s:\n",driver->info3.driver_name));
+	DEBUG(3,("Driver: %s:\n",driver->info3.driver_path));
+	DEBUG(3,("Data File: %s:\n",driver->info3.data_file));
+	DEBUG(3,("Language Monitor: %s:\n",driver->info3.monitor_name));
 	DEBUG(3,("Driver Location: %s:\n",location));
-	DEBUG(3,("Data Type: %s:\n",driver.info_3->defaultdatatype));
-	DEBUG(3,("Help File: %s:\n",driver.info_3->helpfile));
+	DEBUG(3,("Data Type: %s:\n",driver->info3.default_datatype));
+	DEBUG(3,("Help File: %s:\n",driver->info3.help_file));
 	PACKI(desc,"N",count);                     /* number of files to copy */
 
-	for ( i=0; i<count && driver.info_3->dependentfiles && *driver.info_3->dependentfiles[i]; i++) 
+	for ( i=0; i<count && driver->info3.dependent_files && *driver->info3.dependent_files[i]; i++)
 	{
-		trim_string(driver.info_3->dependentfiles[i], "\\print$\\WIN40\\0\\", 0);
-		PACKS(desc,"z",driver.info_3->dependentfiles[i]);         /* driver files to copy */
-		DEBUG(3,("Dependent File: %s:\n",driver.info_3->dependentfiles[i]));
+		trim_string((char *)driver->info3.dependent_files[i], "\\print$\\WIN40\\0\\", 0);
+		PACKS(desc,"z",driver->info3.dependent_files[i]);         /* driver files to copy */
+		DEBUG(3,("Dependent File: %s:\n", driver->info3.dependent_files[i]));
 	}
 
 	/* sanity check */
@@ -716,8 +715,7 @@ done:
 	if ( printer )
 		free_a_printer( &printer, 2 );
 
-	if ( driver.info_3 )
-		free_a_printer_driver( driver, 3 );
+	free_a_printer_driver(driver);
 }
 
 
@@ -806,7 +804,7 @@ static void fill_printq_info(connection_struct *conn, int snum, int uLevel,
 static int get_printerdrivernumber(int snum)
 {
 	int 				result = 0;
-	NT_PRINTER_DRIVER_INFO_LEVEL 	driver;
+	union spoolss_DriverInfo *driver;
 	NT_PRINTER_INFO_LEVEL 		*printer = NULL;
 
 	ZERO_STRUCT(driver);
@@ -817,7 +815,7 @@ static int get_printerdrivernumber(int snum)
 		goto done;
 	}
 
-	if ( !W_ERROR_IS_OK(get_a_printer_driver(&driver, 3, printer->info_2->drivername, 
+	if (!W_ERROR_IS_OK(get_a_printer_driver(talloc_tos(), &driver, 3, printer->info_2->drivername,
 		"Windows 4.0", 0)) )
 	{
 		DEBUG(3,("get_printerdrivernumber: Failed to lookup driver [%s]\n", 
@@ -826,15 +824,13 @@ static int get_printerdrivernumber(int snum)
 	}
 
 	/* count the number of files */
-	while ( driver.info_3->dependentfiles && *driver.info_3->dependentfiles[result] )
-			result++;
-			\
+	while (driver->info3.dependent_files && *driver->info3.dependent_files[result])
+		result++;
  done:
 	if ( printer )
 		free_a_printer( &printer, 2 );
 
-	if ( driver.info_3 )
-		free_a_printer_driver( driver, 3 );
+	free_a_printer_driver(driver);
 
 	return result;
 }
@@ -1214,6 +1210,7 @@ static int get_server_info(uint32 servertype,
 			continue;
 		}
 		fstrcpy(s->comment, p);
+		string_truncate(s->comment, MAX_SERVER_STRING_LENGTH);
 
 		s->domain[0] = '\0';
 		if (!next_token_talloc(frame,&ptr,&p, NULL)) {
@@ -2673,6 +2670,7 @@ static bool api_SamOEMChangePassword(connection_struct *conn,uint16 vuid,
 				char **rdata,char **rparam,
 				int *rdata_len,int *rparam_len)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	fstring user;
 	char *p = get_safe_str_ptr(param,tpscnt,param,2);
 	*rparam_len = 2;
@@ -2730,7 +2728,7 @@ static bool api_SamOEMChangePassword(connection_struct *conn,uint16 vuid,
 	 * function.
 	 */
 
-	(void)map_username(user);
+	(void)map_username(sconn, user);
 
 	if (NT_STATUS_IS_OK(pass_oem_change(user, (uchar*) data, (uchar *)&data[516], NULL, NULL, NULL))) {
 		SSVAL(*rparam,0,NERR_Success);
@@ -3452,6 +3450,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 				char **rdata,char **rparam,
 				int *rdata_len,int *rparam_len)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	char *str1 = get_safe_str_ptr(param,tpscnt,param,2);
 	char *str2 = skip_string(param,tpscnt,str1);
 	char *UserName = skip_string(param,tpscnt,str2);
@@ -3464,7 +3463,7 @@ static bool api_RNetUserGetInfo(connection_struct *conn, uint16 vuid,
 	/* get NIS home of a previously validated user - simeon */
 	/* With share level security vuid will always be zero.
 	   Don't depend on vuser being non-null !!. JRA */
-	user_struct *vuser = get_valid_user_struct(vuid);
+	user_struct *vuser = get_valid_user_struct(sconn, vuid);
 	if(vuser != NULL) {
 		DEBUG(3,("  Username of UID %d is %s\n",
 			 (int)vuser->server_info->utok.uid,
@@ -3707,6 +3706,7 @@ static bool api_WWkstaUserLogon(connection_struct *conn,uint16 vuid,
 				char **rdata,char **rparam,
 				int *rdata_len,int *rparam_len)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	char *str1 = get_safe_str_ptr(param,tpscnt,param,2);
 	char *str2 = skip_string(param,tpscnt,str1);
 	char *p = skip_string(param,tpscnt,str2);
@@ -3715,7 +3715,7 @@ static bool api_WWkstaUserLogon(connection_struct *conn,uint16 vuid,
 	char* name;
 		/* With share level security vuid will always be zero.
 		   Don't depend on vuser being non-null !!. JRA */
-	user_struct *vuser = get_valid_user_struct(vuid);
+	user_struct *vuser = get_valid_user_struct(sconn, vuid);
 
 	if (!str1 || !str2 || !p) {
 		return False;
@@ -4654,6 +4654,7 @@ void api_reply(connection_struct *conn, uint16 vuid,
 	       int tdscnt, int tpscnt,
 	       int mdrcnt, int mprcnt)
 {
+	struct smbd_server_connection *sconn = smbd_server_conn;
 	int api_command;
 	char *rdata = NULL;
 	char *rparam = NULL;
@@ -4702,7 +4703,7 @@ void api_reply(connection_struct *conn, uint16 vuid,
 	/* Check whether this api call can be done anonymously */
 
 	if (api_commands[i].auth_user && lp_restrict_anonymous()) {
-		user_struct *user = get_valid_user_struct(vuid);
+		user_struct *user = get_valid_user_struct(sconn, vuid);
 
 		if (!user || user->server_info->guest) {
 			reply_nterror(req, NT_STATUS_ACCESS_DENIED);

@@ -233,15 +233,15 @@ enum winbindd_result winbindd_dual_lookupsid(struct winbindd_domain *domain,
 	char *dom_name;
 
 	/* Ensure null termination */
-	state->request.data.sid[sizeof(state->request.data.sid)-1]='\0';
+	state->request->data.sid[sizeof(state->request->data.sid)-1]='\0';
 
 	DEBUG(3, ("[%5lu]: lookupsid %s\n", (unsigned long)state->pid, 
-		  state->request.data.sid));
+		  state->request->data.sid));
 
 	/* Lookup sid from PDC using lsa_lookup_sids() */
 
-	if (!string_to_sid(&sid, state->request.data.sid)) {
-		DEBUG(5, ("%s not a SID\n", state->request.data.sid));
+	if (!string_to_sid(&sid, state->request->data.sid)) {
+		DEBUG(5, ("%s not a SID\n", state->request->data.sid));
 		return WINBINDD_ERROR;
 	}
 
@@ -255,9 +255,9 @@ enum winbindd_result winbindd_dual_lookupsid(struct winbindd_domain *domain,
 		return WINBINDD_ERROR;
 	}
 
-	fstrcpy(state->response.data.name.dom_name, dom_name);
-	fstrcpy(state->response.data.name.name, name);
-	state->response.data.name.type = type;
+	fstrcpy(state->response->data.name.dom_name, dom_name);
+	fstrcpy(state->response->data.name.name, name);
+	state->response->data.name.type = type;
 
 	TALLOC_FREE(dom_name);
 	TALLOC_FREE(name);
@@ -382,7 +382,8 @@ void winbindd_lookupname_async(TALLOC_CTX *mem_ctx,
 	struct winbindd_domain *domain;
 	struct lookupname_state *s;
 
-	if ( (domain = find_lookup_domain_from_name(dom_name)) == NULL ) {
+	domain = find_lookup_domain_from_name(dom_name);
+	if (domain == NULL) {
 		DEBUG(5, ("Could not find domain for name '%s'\n", dom_name));
 		cont(private_data, False, NULL, SID_NAME_UNKNOWN);
 		return;
@@ -422,191 +423,33 @@ enum winbindd_result winbindd_dual_lookupname(struct winbindd_domain *domain,
 	char *p;
 
 	/* Ensure null termination */
-	state->request.data.name.dom_name[sizeof(state->request.data.name.dom_name)-1]='\0';
+	state->request->data.name.dom_name[sizeof(state->request->data.name.dom_name)-1]='\0';
 
 	/* Ensure null termination */
-	state->request.data.name.name[sizeof(state->request.data.name.name)-1]='\0';
+	state->request->data.name.name[sizeof(state->request->data.name.name)-1]='\0';
 
 	/* cope with the name being a fully qualified name */
-	p = strstr(state->request.data.name.name, lp_winbind_separator());
+	p = strstr(state->request->data.name.name, lp_winbind_separator());
 	if (p) {
 		*p = 0;
-		name_domain = state->request.data.name.name;
+		name_domain = state->request->data.name.name;
 		name_user = p+1;
 	} else {
-		name_domain = state->request.data.name.dom_name;
-		name_user = state->request.data.name.name;
+		name_domain = state->request->data.name.dom_name;
+		name_user = state->request->data.name.name;
 	}
 
 	DEBUG(3, ("[%5lu]: lookupname %s%s%s\n", (unsigned long)state->pid,
 		  name_domain, lp_winbind_separator(), name_user));
 
 	/* Lookup name from DC using lsa_lookup_names() */
-	if (!winbindd_lookup_sid_by_name(state->mem_ctx, state->request.original_cmd, domain, name_domain,
+	if (!winbindd_lookup_sid_by_name(state->mem_ctx, state->request->original_cmd, domain, name_domain,
 					 name_user, &sid, &type)) {
 		return WINBINDD_ERROR;
 	}
 
-	sid_to_fstring(state->response.data.sid.sid, &sid);
-	state->response.data.sid.type = type;
-
-	return WINBINDD_OK;
-}
-
-/* This is the first callback after enumerating users/groups from a domain */
-static void listent_recv(TALLOC_CTX *mem_ctx, bool success,
-	                    struct winbindd_response *response,
-			    void *c, void *private_data)
-{
-	void (*cont)(void *priv, bool succ, fstring dom_name, char *data) =
-		(void (*)(void *, bool, fstring, char*))c;
-
-	if (!success || response->result != WINBINDD_OK) {
-		DEBUG(5, ("list_ent() failed!\n"));
-		cont(private_data, False, response->data.name.dom_name, NULL);
-		return;
-	}
-
-	cont(private_data, True, response->data.name.dom_name,
-	     (char *)response->extra_data.data);
-
-	SAFE_FREE(response->extra_data.data);
-}
-
-/* Request the name of all users/groups in a single domain */
-void winbindd_listent_async(TALLOC_CTX *mem_ctx,
-	                       struct winbindd_domain *domain,
-	                       void (*cont)(void *private_data, bool success,
-				     fstring dom_name, char* extra_data),
-			       void *private_data, enum ent_type type)
-{
-	struct winbindd_request request;
-
-	ZERO_STRUCT(request);
-	if (type == LIST_USERS)
-		request.cmd = WINBINDD_LIST_USERS;
-	else if (type == LIST_GROUPS)
-		request.cmd = WINBINDD_LIST_GROUPS;
-
-	do_async_domain(mem_ctx, domain, &request, listent_recv,
-		        (void *)cont, private_data);
-}
-
-enum winbindd_result winbindd_dual_list_users(struct winbindd_domain *domain,
-                                              struct winbindd_cli_state *state)
-{
-	WINBIND_USERINFO *info;
-	NTSTATUS status;
-	struct winbindd_methods *methods;
-	uint32 num_entries = 0;
-	char *extra_data = NULL;
-	uint32_t extra_data_len = 0, i;
-
-	/* Must copy domain into response first for debugging in parent */
-	fstrcpy(state->response.data.name.dom_name, domain->name);
-
-	/* Query user info */
-	methods = domain->methods;
-	status = methods->query_user_list(domain, state->mem_ctx, 
-					  &num_entries, &info);
-
-	if (!NT_STATUS_IS_OK(status))
-		return WINBINDD_ERROR;
-
-	if (num_entries == 0)
-		return WINBINDD_OK;
-
-	/* Allocate some memory for extra data.  Note that we limit
-	   account names to sizeof(fstring) = 256 characters.		
-	   +1 for the ',' between group names */
-	extra_data = (char *)SMB_REALLOC(extra_data, 
-		(sizeof(fstring) + 1) * num_entries);
-
-	if (!extra_data) {
-		DEBUG(0,("failed to enlarge buffer!\n"));
-		return WINBINDD_ERROR;
-	}
-
-	/* Pack user list into extra data fields */
-	for (i = 0; i < num_entries; i++) {
-		fstring acct_name, name;
-
-		if (info[i].acct_name == NULL)
-			fstrcpy(acct_name, "");
-		else
-			fstrcpy(acct_name, info[i].acct_name);
-
-		fill_domain_username(name, domain->name, acct_name, True);
-		/* Append to extra data */
-		memcpy(&extra_data[extra_data_len], name, strlen(name));
-		extra_data_len += strlen(name);
-		extra_data[extra_data_len++] = ',';
-	}   
-
-	/* Assign extra_data fields in response structure */
-	if (extra_data) {
-		/* remove trailing ',' */
-		extra_data[extra_data_len - 1] = '\0';
-		state->response.extra_data.data = extra_data;
-		state->response.length += extra_data_len;
-	}
-
-	return WINBINDD_OK;
-}
-
-enum winbindd_result winbindd_dual_list_groups(struct winbindd_domain *domain,
-                                               struct winbindd_cli_state *state)
-{
-	struct getent_state groups;
-	char *extra_data = NULL;
-	uint32_t extra_data_len = 0, i;
-
-	ZERO_STRUCT(groups);
-
-	/* Must copy domain into response first for debugging in parent */
-	fstrcpy(state->response.data.name.dom_name, domain->name);
-	fstrcpy(groups.domain_name, domain->name);
-
-	/* Get list of sam groups */
-	if (!get_sam_group_entries(&groups)) {
-		/* this domain is empty or in an error state */
-		return WINBINDD_ERROR;
-	}
-
-	/* Allocate some memory for extra data.  Note that we limit
-	   account names to sizeof(fstring) = 256 characters.
-	   +1 for the ',' between group names */
-	extra_data = (char *)SMB_REALLOC(extra_data,
-		(sizeof(fstring) + 1) * groups.num_sam_entries);
-
-	if (!extra_data) {
-		DEBUG(0,("failed to enlarge buffer!\n"));
-		SAFE_FREE(groups.sam_entries);
-		return WINBINDD_ERROR;
-	}
-
-	/* Pack group list into extra data fields */
-	for (i = 0; i < groups.num_sam_entries; i++) {
-		char *group_name = ((struct acct_info *)
-				    groups.sam_entries)[i].acct_name;
-		fstring name;
-
-		fill_domain_username(name, domain->name, group_name, True);
-		/* Append to extra data */
-		memcpy(&extra_data[extra_data_len], name, strlen(name));
-		extra_data_len += strlen(name);
-		extra_data[extra_data_len++] = ',';
-	}
-
-	SAFE_FREE(groups.sam_entries);
-
-	/* Assign extra_data fields in response structure */
-	if (extra_data) {
-		/* remove trailing ',' */
-		extra_data[extra_data_len - 1] = '\0';
-		state->response.extra_data.data = extra_data;
-		state->response.length += extra_data_len;
-	}
+	sid_to_fstring(state->response->data.sid.sid, &sid);
+	state->response->data.sid.type = type;
 
 	return WINBINDD_OK;
 }
@@ -632,25 +475,32 @@ bool print_sidlist(TALLOC_CTX *mem_ctx, const DOM_SID *sids,
 	return True;
 }
 
-bool parse_sidlist(TALLOC_CTX *mem_ctx, char *sidstr,
+bool parse_sidlist(TALLOC_CTX *mem_ctx, const char *sidstr,
 		   DOM_SID **sids, size_t *num_sids)
 {
-	char *p, *q;
+	const char *p, *q;
 
 	p = sidstr;
 	if (p == NULL)
 		return False;
 
 	while (p[0] != '\0') {
+		fstring tmp;
+		size_t sidlen;
 		DOM_SID sid;
 		q = strchr(p, '\n');
 		if (q == NULL) {
 			DEBUG(0, ("Got invalid sidstr: %s\n", p));
 			return False;
 		}
-		*q = '\0';
+		sidlen = PTR_DIFF(q, p);
+		if (sidlen >= sizeof(tmp)-1) {
+			return false;
+		}
+		memcpy(tmp, p, sidlen);
+		tmp[sidlen] = '\0';
 		q += 1;
-		if (!string_to_sid(&sid, p)) {
+		if (!string_to_sid(&sid, tmp)) {
 			DEBUG(0, ("Could not parse sid %s\n", p));
 			return False;
 		}
@@ -662,90 +512,6 @@ bool parse_sidlist(TALLOC_CTX *mem_ctx, char *sidstr,
 		p = q;
 	}
 	return True;
-}
-
-static bool parse_ridlist(TALLOC_CTX *mem_ctx, char *ridstr,
-			  uint32 **rids, size_t *num_rids)
-{
-	char *p;
-
-	p = ridstr;
-	if (p == NULL)
-		return False;
-
-	while (p[0] != '\0') {
-		uint32 rid;
-		char *q;
-		rid = strtoul(p, &q, 10);
-		if (*q != '\n') {
-			DEBUG(0, ("Got invalid ridstr: %s\n", p));
-			return False;
-		}
-		p = q+1;
-		ADD_TO_ARRAY(mem_ctx, uint32, rid, rids, num_rids);
-	}
-	return True;
-}
-
-enum winbindd_result winbindd_dual_lookuprids(struct winbindd_domain *domain,
-					      struct winbindd_cli_state *state)
-{
-	uint32 *rids = NULL;
-	size_t i, buflen, num_rids = 0;
-	ssize_t len;
-	DOM_SID domain_sid;
-	char *domain_name;
-	char **names;
-	enum lsa_SidType *types;
-	NTSTATUS status;
-	char *result;
-
-	DEBUG(10, ("Looking up RIDs for domain %s (%s)\n",
-		   state->request.domain_name,
-		   state->request.data.sid));
-
-	if (!parse_ridlist(state->mem_ctx, state->request.extra_data.data,
-			   &rids, &num_rids)) {
-		DEBUG(5, ("Could not parse ridlist\n"));
-		return WINBINDD_ERROR;
-	}
-
-	if (!string_to_sid(&domain_sid, state->request.data.sid)) {
-		DEBUG(5, ("Could not parse domain sid %s\n",
-			  state->request.data.sid));
-		return WINBINDD_ERROR;
-	}
-
-	status = domain->methods->rids_to_names(domain, state->mem_ctx,
-						&domain_sid, rids, num_rids,
-						&domain_name,
-						&names, &types);
-
-	if (!NT_STATUS_IS_OK(status) &&
-	    !NT_STATUS_EQUAL(status, STATUS_SOME_UNMAPPED)) {
-		return WINBINDD_ERROR;
-	}
-
-	len = 0;
-	buflen = 0;
-	result = NULL;
-
-	for (i=0; i<num_rids; i++) {
-		sprintf_append(state->mem_ctx, &result, &len, &buflen,
-			       "%d %s\n", types[i], names[i]);
-	}
-
-	fstrcpy(state->response.data.domain_name, domain_name);
-
-	if (result != NULL) {
-		state->response.extra_data.data = SMB_STRDUP(result);
-		if (!state->response.extra_data.data) {
-			return WINBINDD_ERROR;
-		}
-		state->response.length += len+1;
-	}
-
-	return WINBINDD_OK;
 }
 
 static void getsidaliases_recv(TALLOC_CTX *mem_ctx, bool success,
@@ -785,8 +551,6 @@ static void getsidaliases_recv(TALLOC_CTX *mem_ctx, bool success,
 		return;
 	}
 
-	SAFE_FREE(response->extra_data.data);
-
 	cont(private_data, True, sids, num_sids);
 }
 
@@ -820,173 +584,6 @@ void winbindd_getsidaliases_async(struct winbindd_domain *domain,
 
 	do_async_domain(mem_ctx, domain, &request, getsidaliases_recv,
 			(void *)cont, private_data);
-}
-
-struct gettoken_state {
-	TALLOC_CTX *mem_ctx;
-	DOM_SID user_sid;
-	struct winbindd_domain *alias_domain;
-	struct winbindd_domain *local_alias_domain;
-	struct winbindd_domain *builtin_domain;
-	DOM_SID *sids;
-	size_t num_sids;
-	void (*cont)(void *private_data, bool success, DOM_SID *sids, size_t num_sids);
-	void *private_data;
-};
-
-static void gettoken_recvdomgroups(TALLOC_CTX *mem_ctx, bool success,
-				   struct winbindd_response *response,
-				   void *c, void *private_data);
-static void gettoken_recvaliases(void *private_data, bool success,
-				 const DOM_SID *aliases,
-				 size_t num_aliases);
-
-
-void winbindd_gettoken_async(TALLOC_CTX *mem_ctx, const DOM_SID *user_sid,
-			     void (*cont)(void *private_data, bool success,
-					  DOM_SID *sids, size_t num_sids),
-			     void *private_data)
-{
-	struct winbindd_domain *domain;
-	struct winbindd_request request;
-	struct gettoken_state *state;
-
-	state = TALLOC_ZERO_P(mem_ctx, struct gettoken_state);
-	if (state == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		cont(private_data, False, NULL, 0);
-		return;
-	}
-
-	state->mem_ctx = mem_ctx;
-	sid_copy(&state->user_sid, user_sid);
-	state->alias_domain = find_our_domain();
-	state->local_alias_domain = find_domain_from_name( get_global_sam_name() );
-	state->builtin_domain = find_builtin_domain();
-	state->cont = cont;
-	state->private_data = private_data;
-
-	domain = find_domain_from_sid_noinit(user_sid);
-	if (domain == NULL) {
-		DEBUG(5, ("Could not find domain from SID %s\n",
-			  sid_string_dbg(user_sid)));
-		cont(private_data, False, NULL, 0);
-		return;
-	}
-
-	ZERO_STRUCT(request);
-	request.cmd = WINBINDD_GETUSERDOMGROUPS;
-	sid_to_fstring(request.data.sid, user_sid);
-
-	do_async_domain(mem_ctx, domain, &request, gettoken_recvdomgroups,
-			NULL, state);
-}
-
-static void gettoken_recvdomgroups(TALLOC_CTX *mem_ctx, bool success,
-				   struct winbindd_response *response,
-				   void *c, void *private_data)
-{
-	struct gettoken_state *state =
-		talloc_get_type_abort(private_data, struct gettoken_state);
-	char *sids_str;
-
-	if (!success) {
-		DEBUG(10, ("Could not get domain groups\n"));
-		state->cont(state->private_data, False, NULL, 0);
-		return;
-	}
-
-	sids_str = (char *)response->extra_data.data;
-
-	if (sids_str == NULL) {
-		/* This could be normal if we are dealing with a
-		   local user and local groups */
-
-		if ( !sid_check_is_in_our_domain( &state->user_sid ) ) {
-			DEBUG(10, ("Received no domain groups\n"));
-			state->cont(state->private_data, True, NULL, 0);
-			return;
-		}
-	}
-
-	state->sids = NULL;
-	state->num_sids = 0;
-
-	if (!NT_STATUS_IS_OK(add_sid_to_array(mem_ctx, &state->user_sid,
-					      &state->sids, &state->num_sids)))
-	{
-		DEBUG(0, ("Out of memory\n"));
-		state->cont(state->private_data, False, NULL, 0);
-		return;
-	}
-
-	if (sids_str && !parse_sidlist(mem_ctx, sids_str, &state->sids,
-			   &state->num_sids)) {
-		DEBUG(0, ("Could not parse sids\n"));
-		state->cont(state->private_data, False, NULL, 0);
-		return;
-	}
-
-	SAFE_FREE(response->extra_data.data);
-
-	if (state->alias_domain == NULL) {
-		DEBUG(10, ("Don't expand domain local groups\n"));
-		state->cont(state->private_data, True, state->sids,
-			    state->num_sids);
-		return;
-	}
-
-	winbindd_getsidaliases_async(state->alias_domain, mem_ctx,
-				     state->sids, state->num_sids,
-				     gettoken_recvaliases, state);
-}
-
-static void gettoken_recvaliases(void *private_data, bool success,
-				 const DOM_SID *aliases,
-				 size_t num_aliases)
-{
-	struct gettoken_state *state = (struct gettoken_state *)private_data;
-	size_t i;
-
-	if (!success) {
-		DEBUG(10, ("Could not receive domain local groups\n"));
-		state->cont(state->private_data, False, NULL, 0);
-		return;
-	}
-
-	for (i=0; i<num_aliases; i++) {
-		if (!NT_STATUS_IS_OK(add_sid_to_array(state->mem_ctx,
-						      &aliases[i],
-						      &state->sids,
-						      &state->num_sids)))
-		{
-			DEBUG(0, ("Out of memory\n"));
-			state->cont(state->private_data, False, NULL, 0);
-			return;
-		}
-	}
-
-	if (state->local_alias_domain != NULL) {
-		struct winbindd_domain *local_domain = state->local_alias_domain;
-		DEBUG(10, ("Expanding our own local groups\n"));
-		state->local_alias_domain = NULL;
-		winbindd_getsidaliases_async(local_domain, state->mem_ctx,
-					     state->sids, state->num_sids,
-					     gettoken_recvaliases, state);
-		return;
-	}
-
-	if (state->builtin_domain != NULL) {
-		struct winbindd_domain *builtin_domain = state->builtin_domain;
-		DEBUG(10, ("Expanding our own BUILTIN groups\n"));
-		state->builtin_domain = NULL;
-		winbindd_getsidaliases_async(builtin_domain, state->mem_ctx,
-					     state->sids, state->num_sids,
-					     gettoken_recvaliases, state);
-		return;
-	}
-
-	state->cont(state->private_data, True, state->sids, state->num_sids);
 }
 
 static void query_user_recv(TALLOC_CTX *mem_ctx, bool success,
@@ -1036,4 +633,10 @@ void query_user_async(TALLOC_CTX *mem_ctx, struct winbindd_domain *domain,
 	sid_to_fstring(request.data.sid, sid);
 	do_async_domain(mem_ctx, domain, &request, query_user_recv,
 			(void *)cont, private_data);
+}
+
+enum winbindd_result winbindd_dual_ping(struct winbindd_domain *domain,
+					struct winbindd_cli_state *state)
+{
+	return WINBINDD_OK;
 }

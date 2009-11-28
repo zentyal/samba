@@ -46,6 +46,7 @@
    */
 
 #include "includes.h"
+#include "../libcli/auth/libcli_auth.h"
 
 static NTSTATUS check_oem_password(const char *user,
 				   uchar password_encrypted_with_lm_hash[516],
@@ -268,7 +269,7 @@ static int expect(int master, char *issue, char *expected)
 		buffer[nread] = 0;
 
 		while (True) {
-			status = read_socket_with_timeout(
+			status = read_fd_with_timeout(
 				master, buffer + nread, 1,
 				sizeof(buffer) - nread - 1,
 				timeout, &len);
@@ -849,7 +850,7 @@ static NTSTATUS check_oem_password(const char *user,
 	const uint8 *encryption_key;
 	const uint8 *lanman_pw, *nt_pw;
 	uint32 acct_ctrl;
-	uint32 new_pw_len;
+	size_t new_pw_len;
 	uchar new_nt_hash[16];
 	uchar new_lm_hash[16];
 	uchar verifier[16];
@@ -918,13 +919,13 @@ static NTSTATUS check_oem_password(const char *user,
 	/*
 	 * Decrypt the password with the key
 	 */
-	SamOEMhash( password_encrypted, encryption_key, 516);
+	arcfour_crypt( password_encrypted, encryption_key, 516);
 
 	if (!decode_pw_buffer(talloc_tos(),
 				password_encrypted,
 				pp_new_passwd,
 				&new_pw_len,
-				nt_pass_set ? STR_UNICODE : STR_ASCII)) {
+				nt_pass_set ? CH_UTF16 : CH_DOS)) {
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 
@@ -1023,7 +1024,7 @@ static bool check_passwd_history(struct samu *sampass, const char *plaintext)
 	int i;
 	uint32 pwHisLen, curr_pwHisLen;
 
-	pdb_get_account_policy(AP_PASSWORD_HISTORY, &pwHisLen);
+	pdb_get_account_policy(PDB_POLICY_PASSWORD_HISTORY, &pwHisLen);
 	if (pwHisLen == 0) {
 		return False;
 	}
@@ -1084,6 +1085,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 {
 	uint32 min_len;
 	uint32 refuse;
+	TALLOC_CTX *tosctx = talloc_tos();
 	struct passwd *pass = NULL;
 	const char *username = pdb_get_username(hnd);
 	time_t can_change_time = pdb_get_pass_can_change_time(hnd);
@@ -1105,7 +1107,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 	 * denies machines to change the password. *
 	 * Should we deny also SRVTRUST and/or DOMSTRUST ? .SSS. */
 	if (pdb_get_acct_ctrl(hnd) & ACB_WSTRUST) {
-		if (pdb_get_account_policy(AP_REFUSE_MACHINE_PW_CHANGE, &refuse) && refuse) {
+		if (pdb_get_account_policy(PDB_POLICY_REFUSE_MACHINE_PW_CHANGE, &refuse) && refuse) {
 			DEBUG(1, ("Machine %s cannot change password now, "
 				  "denied by Refuse Machine Password Change policy\n",
 				  username));
@@ -1121,14 +1123,14 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 	if ((can_change_time != 0) && (time(NULL) < can_change_time)) {
 		DEBUG(1, ("user %s cannot change password now, must "
 			  "wait until %s\n", username,
-			  http_timestring(talloc_tos(), can_change_time)));
+			  http_timestring(tosctx, can_change_time)));
 		if (samr_reject_reason) {
 			*samr_reject_reason = SAMR_REJECT_OTHER;
 		}
 		return NT_STATUS_ACCOUNT_RESTRICTION;
 	}
 
-	if (pdb_get_account_policy(AP_MIN_PASSWORD_LEN, &min_len) && (str_charnum(new_passwd) < min_len)) {
+	if (pdb_get_account_policy(PDB_POLICY_MIN_PASSWORD_LEN, &min_len) && (str_charnum(new_passwd) < min_len)) {
 		DEBUG(1, ("user %s cannot change password - password too short\n", 
 			  username));
 		DEBUGADD(1, (" account policy min password len = %d\n", min_len));
@@ -1146,7 +1148,7 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 		return NT_STATUS_PASSWORD_RESTRICTION;
 	}
 
-	pass = Get_Pwnam_alloc(talloc_tos(), username);
+	pass = Get_Pwnam_alloc(tosctx, username);
 	if (!pass) {
 		DEBUG(1, ("change_oem_password: Username %s does not exist in system !?!\n", username));
 		return NT_STATUS_ACCESS_DENIED;
@@ -1155,9 +1157,16 @@ NTSTATUS change_oem_password(struct samu *hnd, char *old_passwd, char *new_passw
 	/* Use external script to check password complexity */
 	if (lp_check_password_script() && *(lp_check_password_script())) {
 		int check_ret;
+		char *cmd;
 
-		check_ret = smbrunsecret(lp_check_password_script(), new_passwd);
-		DEBUG(5, ("change_oem_password: check password script (%s) returned [%d]\n", lp_check_password_script(), check_ret));
+		cmd = talloc_string_sub(tosctx, lp_check_password_script(), "%u", username);
+        	if (!cmd) {
+                	return NT_STATUS_PASSWORD_RESTRICTION;
+        	}
+
+		check_ret = smbrunsecret(cmd, new_passwd);
+		DEBUG(5, ("change_oem_password: check password script (%s) returned [%d]\n", cmd, check_ret));
+		TALLOC_FREE(cmd);
 
 		if (check_ret != 0) {
 			DEBUG(1, ("change_oem_password: check password script said new password is not good enough!\n"));

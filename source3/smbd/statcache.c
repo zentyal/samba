@@ -175,6 +175,7 @@ bool stat_cache_lookup(connection_struct *conn,
 	DATA_BLOB data_val;
 	char *name;
 	TALLOC_CTX *ctx = talloc_tos();
+	struct smb_filename smb_fname;
 
 	*pp_dirpath = NULL;
 	*pp_start = *pp_name;
@@ -205,7 +206,7 @@ bool stat_cache_lookup(connection_struct *conn,
 	} else {
 		chk_name = talloc_strdup_upper(ctx,name);
 		if (!chk_name) {
-			DEBUG(0, ("stat_cache_lookup: strdup_upper failed!\n"));
+			DEBUG(0, ("stat_cache_lookup: talloc_strdup_upper failed!\n"));
 			return False;
 		}
 
@@ -274,7 +275,10 @@ bool stat_cache_lookup(connection_struct *conn,
 		  "-> [%s]\n", chk_name, translated_path ));
 	DO_PROFILE_INC(statcache_hits);
 
-	if (SMB_VFS_STAT(conn, translated_path, pst) != 0) {
+	ZERO_STRUCT(smb_fname);
+	smb_fname.base_name = translated_path;
+
+	if (SMB_VFS_STAT(conn, &smb_fname) != 0) {
 		/* Discard this entry - it doesn't exist in the filesystem. */
 		memcache_delete(smbd_memcache(), STAT_CACHE,
 				data_blob_const(chk_name, strlen(chk_name)));
@@ -282,6 +286,7 @@ bool stat_cache_lookup(connection_struct *conn,
 		TALLOC_FREE(translated_path);
 		return False;
 	}
+	*pst = smb_fname.st;
 
 	if (!sizechanged) {
 		memcpy(*pp_name, translated_path,

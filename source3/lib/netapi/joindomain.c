@@ -24,6 +24,7 @@
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
 #include "libnet/libnet.h"
+#include "libcli/auth/libcli_auth.h"
 
 /****************************************************************
 ****************************************************************/
@@ -203,6 +204,7 @@ WERROR NetUnjoinDomain_l(struct libnetapi_ctx *mem_ctx,
 
 	u->in.domain_name = domain;
 	u->in.unjoin_flags = r->in.unjoin_flags;
+	u->in.delete_machine_account = false;
 	u->in.modify_config = true;
 	u->in.debug = true;
 

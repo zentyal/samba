@@ -32,7 +32,7 @@
  */
 
 #include "krb5_locl.h"
-RCSID("$Id$");
+
 #ifdef HAVE_DLFCN_H
 #include <dlfcn.h>
 #endif
@@ -40,21 +40,36 @@ RCSID("$Id$");
 
 struct krb5_plugin {
     void *symbol;
-    void *dsohandle;
     struct krb5_plugin *next;
 };
 
 struct plugin {
-    enum krb5_plugin_type type;
-    void *name;
-    void *symbol;
+    enum { DSO, SYMBOL } type;
+    union {
+	struct {
+	    char *path;
+	    void *dsohandle;
+	} dso;
+	struct {
+	    enum krb5_plugin_type type;
+	    char *name;
+	    char *symbol;
+	} symbol;
+    } u;
     struct plugin *next;
 };
 
 static HEIMDAL_MUTEX plugin_mutex = HEIMDAL_MUTEX_INITIALIZER;
 static struct plugin *registered = NULL;
+static int plugins_needs_scan = 1;
 
-static const char *plugin_dir = LIBDIR "/plugin/krb5";
+static const char *sysplugin_dirs[] =  { 
+    LIBDIR "/plugin/krb5",
+#ifdef __APPLE__
+    "/System/Library/KerberosPlugins/KerberosFrameworkPlugins",
+#endif
+    NULL
+};
 
 /*
  *
@@ -79,39 +94,30 @@ _krb5_plugin_get_next(struct krb5_plugin *p)
 #ifdef HAVE_DLOPEN
 
 static krb5_error_code
-loadlib(krb5_context context,
-	enum krb5_plugin_type type,
-	const char *name,
-	const char *lib,
-	struct krb5_plugin **e)
+loadlib(krb5_context context, char *path)
 {
-    *e = calloc(1, sizeof(**e));
-    if (*e == NULL) {
+    struct plugin *e;
+
+    e = calloc(1, sizeof(*e));
+    if (e == NULL) {
 	krb5_set_error_message(context, ENOMEM, "malloc: out of memory");
+	free(path);
 	return ENOMEM;
     }
 
 #ifndef RTLD_LAZY
 #define RTLD_LAZY 0
 #endif
+#ifndef RTLD_LOCAL
+#define RTLD_LOCAL 0
+#endif
+    e->type = DSO;
+    /* ignore error from dlopen, and just keep it as negative cache entry */
+    e->u.dso.dsohandle = dlopen(path, RTLD_LOCAL|RTLD_LAZY);
+    e->u.dso.path = path;
 
-    (*e)->dsohandle = dlopen(lib, RTLD_LAZY);
-    if ((*e)->dsohandle == NULL) {
-	free(*e);
-	*e = NULL;
-	krb5_set_error_message(context, ENOMEM, "Failed to load %s: %s",
-			       lib, dlerror());
-	return ENOMEM;
-    }
-
-    /* dlsym doesn't care about the type */
-    (*e)->symbol = dlsym((*e)->dsohandle, name);
-    if ((*e)->symbol == NULL) {
-	dlclose((*e)->dsohandle);
-	free(*e);
-	krb5_clear_error_message(context);
-	return ENOMEM;
-    }
+    e->next = registered;
+    registered = e;
 
     return 0;
 }
@@ -137,26 +143,35 @@ krb5_plugin_register(krb5_context context,
 {
     struct plugin *e;
 
+    HEIMDAL_MUTEX_lock(&plugin_mutex);
+
     /* check for duplicates */
-    for (e = registered; e != NULL; e = e->next)
-	if (e->type == type && strcmp(e->name,name)== 0 && e->symbol == symbol)
+    for (e = registered; e != NULL; e = e->next) {
+	if (e->type == SYMBOL &&
+	    strcmp(e->u.symbol.name, name) == 0 &&
+	    e->u.symbol.type == type && e->u.symbol.symbol == symbol) {
+	    HEIMDAL_MUTEX_unlock(&plugin_mutex);
 	    return 0;
+	}
+    }
 
     e = calloc(1, sizeof(*e));
     if (e == NULL) {
+	HEIMDAL_MUTEX_unlock(&plugin_mutex);
 	krb5_set_error_message(context, ENOMEM, "malloc: out of memory");
 	return ENOMEM;
     }
-    e->type = type;
-    e->name = strdup(name);
-    if (e->name == NULL) {
+    e->type = SYMBOL;
+    e->u.symbol.type = type;
+    e->u.symbol.name = strdup(name);
+    if (e->u.symbol.name == NULL) {
+	HEIMDAL_MUTEX_unlock(&plugin_mutex);
 	free(e);
 	krb5_set_error_message(context, ENOMEM, "malloc: out of memory");
 	return ENOMEM;
     }
-    e->symbol = symbol;
+    e->u.symbol.symbol = symbol;
 
-    HEIMDAL_MUTEX_lock(&plugin_mutex);
     e->next = registered;
     registered = e;
     HEIMDAL_MUTEX_unlock(&plugin_mutex);
@@ -164,51 +179,26 @@ krb5_plugin_register(krb5_context context,
     return 0;
 }
 
-krb5_error_code
-_krb5_plugin_find(krb5_context context,
-		  enum krb5_plugin_type type,
-		  const char *name,
-		  struct krb5_plugin **list)
+static krb5_error_code
+load_plugins(krb5_context context)
 {
-    struct krb5_plugin *e;
-    struct plugin *p;
+    struct plugin *e;
     krb5_error_code ret;
-    char *sysdirs[2] = { NULL, NULL };
     char **dirs = NULL, **di;
     struct dirent *entry;
     char *path;
     DIR *d = NULL;
 
-    *list = NULL;
-
-    HEIMDAL_MUTEX_lock(&plugin_mutex);
-
-    for (p = registered; p != NULL; p = p->next) {
-	if (p->type != type || strcmp(p->name, name) != 0)
-	    continue;
-
-	e = calloc(1, sizeof(*e));
-	if (e == NULL) {
-	    HEIMDAL_MUTEX_unlock(&plugin_mutex);
-	    ret = ENOMEM;
-	    krb5_set_error_message(context, ret, "malloc: out of memory");
-	    goto out;
-	}
-	e->symbol = p->symbol;
-	e->dsohandle = NULL;
-	e->next = *list;
-	*list = e;
-    }
-    HEIMDAL_MUTEX_unlock(&plugin_mutex);
+    if (!plugins_needs_scan)
+	return 0;
+    plugins_needs_scan = 0;
 
 #ifdef HAVE_DLOPEN
 
     dirs = krb5_config_get_strings(context, NULL, "libdefaults",
 				   "plugin_dir", NULL);
-    if (dirs == NULL) {
-	sysdirs[0] = rk_UNCONST(plugin_dir);
-	dirs = sysdirs;
-    }
+    if (dirs == NULL)
+	dirs = rk_UNCONST(sysplugin_dirs);
 
     for (di = dirs; *di != NULL; di++) {
 
@@ -218,25 +208,103 @@ _krb5_plugin_find(krb5_context context,
 	rk_cloexec(dirfd(d));
 
 	while ((entry = readdir(d)) != NULL) {
-	    asprintf(&path, "%s/%s", *di, entry->d_name);
+	    char *n = entry->d_name;
+
+	    /* skip . and .. */
+	    if (n[0] == '.' && (n[1] == '\0' || (n[1] == '.' && n[2] == '\0')))
+		continue;
+
+	    path = NULL;
+#ifdef __APPLE__
+	    { /* support loading bundles on MacOS */
+		size_t len = strlen(n);
+		if (len > 7 && strcmp(&n[len - 7],  ".bundle") == 0)
+		    asprintf(&path, "%s/%s/Contents/MacOS/%.*s", *di, n, (int)(len - 7), n);
+	    }
+#endif
+	    if (path == NULL)
+		asprintf(&path, "%s/%s", *di, n);
+
 	    if (path == NULL) {
 		ret = ENOMEM;
 		krb5_set_error_message(context, ret, "malloc: out of memory");
-		goto out;
+		return ret;
 	    }
-	    ret = loadlib(context, type, name, path, &e);
-	    free(path);
-	    if (ret)
-		continue;
-	
-	    e->next = *list;
-	    *list = e;
+
+	    /* check if already tried */
+	    for (e = registered; e != NULL; e = e->next)
+		if (e->type == DSO && strcmp(e->u.dso.path, path) == 0)
+		    break;
+	    if (e) {
+		free(path);
+	    } else {
+		loadlib(context, path); /* store or frees path */
+	    }
 	}
 	closedir(d);
     }
-    if (dirs != sysdirs)
+    if (dirs != rk_UNCONST(sysplugin_dirs))
 	krb5_config_free_strings(dirs);
 #endif /* HAVE_DLOPEN */
+    return 0;
+}
+
+static krb5_error_code
+add_symbol(krb5_context context, struct krb5_plugin **list, void *symbol)
+{
+    struct krb5_plugin *e;
+    
+    e = calloc(1, sizeof(*e));
+    if (e == NULL) {
+	krb5_set_error_message(context, ENOMEM, "malloc: out of memory");
+	return ENOMEM;
+    }
+    e->symbol = symbol;
+    e->next = *list;
+    *list = e;
+    return 0;
+}
+
+krb5_error_code
+_krb5_plugin_find(krb5_context context,
+		  enum krb5_plugin_type type,
+		  const char *name,
+		  struct krb5_plugin **list)
+{
+    struct plugin *e;
+    krb5_error_code ret;
+
+    *list = NULL;
+
+    HEIMDAL_MUTEX_lock(&plugin_mutex);
+    
+    load_plugins(context);
+
+    for (ret = 0, e = registered; e != NULL; e = e->next) {
+	switch(e->type) {
+	case DSO: {
+	    void *sym;
+	    if (e->u.dso.dsohandle == NULL)
+		continue;
+	    sym = dlsym(e->u.dso.dsohandle, name);
+	    if (sym)
+		ret = add_symbol(context, list, sym);
+	    break;
+	}
+	case SYMBOL:
+	    if (strcmp(e->u.symbol.name, name) == 0 && e->u.symbol.type == type)
+		ret = add_symbol(context, list, e->u.symbol.symbol);
+	    break;
+	}
+	if (ret) {
+	    _krb5_plugin_free(*list);
+	    *list = NULL;
+	}
+    }
+
+    HEIMDAL_MUTEX_unlock(&plugin_mutex);
+    if (ret)
+	return ret;
 
     if (*list == NULL) {
 	krb5_set_error_message(context, ENOENT, "Did not find a plugin for %s", name);
@@ -244,16 +312,6 @@ _krb5_plugin_find(krb5_context context,
     }
 
     return 0;
-
-out:
-    if (dirs && dirs != sysdirs)
-	krb5_config_free_strings(dirs);
-    if (d)
-	closedir(d);
-    _krb5_plugin_free(*list);
-    *list = NULL;
-
-    return ret;
 }
 
 void
@@ -262,8 +320,6 @@ _krb5_plugin_free(struct krb5_plugin *list)
     struct krb5_plugin *next;
     while (list) {
 	next = list->next;
-	if (list->dsohandle)
-	    dlclose(list->dsohandle);
 	free(list);
 	list = next;
     }

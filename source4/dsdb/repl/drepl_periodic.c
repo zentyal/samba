@@ -46,7 +46,7 @@ static void dreplsrv_periodic_handler_te(struct tevent_context *ev, struct teven
 
 	status = dreplsrv_periodic_schedule(service, service->periodic.interval);
 	if (!W_ERROR_IS_OK(status)) {
-		task_server_terminate(service->task, win_errstr(status));
+		task_server_terminate(service->task, win_errstr(status), false);
 		return;
 	}
 }
@@ -103,7 +103,12 @@ static void dreplsrv_periodic_run(struct dreplsrv_service *service)
 	dreplsrv_schedule_pull_replication(service, mem_ctx);
 	talloc_free(mem_ctx);
 
-	DEBUG(2,("dreplsrv_periodic_run(): run pending_ops\n"));
+	DEBUG(2,("dreplsrv_periodic_run(): run pending_ops memory=%u\n", 
+		 (unsigned)talloc_total_blocks(service)));
+
+	/* the KCC might have changed repsFrom */
+	dreplsrv_refresh_partitions(service);
 
 	dreplsrv_run_pending_ops(service);
+	dreplsrv_notify_run_ops(service);
 }

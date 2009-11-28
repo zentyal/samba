@@ -34,8 +34,6 @@
 #include "hdb_locl.h"
 #include <der.h>
 
-RCSID("$Id$");
-
 krb5_error_code
 hdb_entry_check_mandatory(krb5_context context, const hdb_entry *ent)
 {
@@ -228,6 +226,20 @@ hdb_entry_get_pkinit_hash(const hdb_entry *entry, const HDB_Ext_PKINIT_hash **a)
     ext = hdb_find_extension(entry, choice_HDB_extension_data_pkinit_cert_hash);
     if (ext)
 	*a = &ext->data.u.pkinit_cert_hash;
+    else
+	*a = NULL;
+
+    return 0;
+}
+
+krb5_error_code
+hdb_entry_get_pkinit_cert(const hdb_entry *entry, const HDB_Ext_PKINIT_cert **a)
+{
+    const HDB_extension *ext;
+
+    ext = hdb_find_extension(entry, choice_HDB_extension_data_pkinit_cert);
+    if (ext)
+	*a = &ext->data.u.pkinit_cert;
     else
 	*a = NULL;
 

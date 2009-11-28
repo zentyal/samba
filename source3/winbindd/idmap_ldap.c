@@ -131,6 +131,7 @@ static NTSTATUS get_credentials( TALLOC_CTX *mem_ctx,
 			DEBUG(2, ("get_credentials: Failed to lookup ldap "
 				  "bind creds. Using anonymous connection.\n"));
 			anon = True;
+			*dn = NULL;
 		} else {
 			*dn = talloc_strdup(mem_ctx, user_dn);
 			SAFE_FREE( user_dn );
@@ -304,6 +305,8 @@ static NTSTATUS idmap_ldap_alloc_init(const char *params)
 		idmap_alloc_ldap->url = talloc_strdup(idmap_alloc_ldap, tmp);
 	}
 	CHECK_ALLOC_DONE( idmap_alloc_ldap->url );
+
+	trim_char(idmap_alloc_ldap->url, '\"', '\"');
 
 	tmp = lp_parm_const_string(-1, "idmap alloc config",
 				   "ldap_base_dn", NULL);
@@ -852,6 +855,8 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom,
 		ctx->url = talloc_strdup(ctx, tmp);
 	}
 	CHECK_ALLOC_DONE(ctx->url);
+
+	trim_char(ctx->url, '\"', '\"');
 
         tmp = lp_parm_const_string(-1, config_option, "ldap_base_dn", NULL);
         if ( ! tmp || ! *tmp) {

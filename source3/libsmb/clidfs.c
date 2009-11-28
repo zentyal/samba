@@ -32,16 +32,6 @@
    as a separator when looking at the pathname part.... JRA.
 ********************************************************************/
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
-				struct cli_state *cli,
-				const char *sharename,
-				char **pp_newserver,
-				char **pp_newshare,
-				bool force_encrypt,
-				const char *username,
-				const char *password,
-				const char *domain);
-
 /********************************************************************
  Ensure a connection is encrypted.
 ********************************************************************/
@@ -216,6 +206,15 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 			return NULL;
 		}
 		d_printf("Anonymous login successful\n");
+		status = cli_init_creds(c, "", lp_workgroup(), "");
+	} else {
+		status = cli_init_creds(c, username, lp_workgroup(), password);
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10,("cli_init_creds() failed: %s\n", nt_errstr(status)));
+		cli_shutdown(c);
+		return NULL;
 	}
 
 	if ( show_sessetup ) {
@@ -232,7 +231,7 @@ static struct cli_state *do_connect(TALLOC_CTX *ctx,
 	/* here's the fun part....to support 'msdfs proxy' shares
 	   (on Samba or windows) we have to issues a TRANS_GET_DFS_REFERRAL
 	   here before trying to connect to the original share.
-	   check_dfs_proxy() will fail if it is a normal share. */
+	   cli_check_msdfs_proxy() will fail if it is a normal share. */
 
 	if ((c->capabilities & CAP_DFS) &&
 			cli_check_msdfs_proxy(ctx, c, sharename,
@@ -323,8 +322,10 @@ static struct cli_state *cli_cm_connect(TALLOC_CTX *ctx,
 	if (referring_cli && referring_cli->posix_capabilities) {
 		uint16 major, minor;
 		uint32 caplow, caphigh;
-		if (cli_unix_extensions_version(cli, &major,
-					&minor, &caplow, &caphigh)) {
+		NTSTATUS status;
+		status = cli_unix_extensions_version(cli, &major, &minor,
+						     &caplow, &caphigh);
+		if (NT_STATUS_IS_OK(status)) {
 			cli_set_unix_extensions_capabilities(cli,
 					major, minor,
 					caplow, caphigh);
@@ -603,16 +604,19 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			const char *path,
 			CLIENT_DFS_REFERRAL**refs,
 			size_t *num_refs,
-			uint16 *consumed)
+			size_t *consumed)
 {
 	unsigned int data_len = 0;
 	unsigned int param_len = 0;
 	uint16 setup = TRANSACT2_GET_DFS_REFERRAL;
-	char *param;
+	char *param = NULL;
 	char *rparam=NULL, *rdata=NULL;
 	char *p;
 	char *endp;
 	size_t pathlen = 2*(strlen(path)+1);
+	smb_ucs2_t *path_ucs;
+	char *consumed_path = NULL;
+	uint16_t consumed_ucs;
 	uint16 num_referrals;
 	CLIENT_DFS_REFERRAL *referrals = NULL;
 	bool ret = false;
@@ -622,11 +626,12 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 
 	param = SMB_MALLOC_ARRAY(char, 2+pathlen+2);
 	if (!param) {
-		return false;
+		goto out;
 	}
 	SSVAL(param, 0, 0x03);	/* max referral level */
 	p = &param[2];
 
+	path_ucs = (smb_ucs2_t *)p;
 	p += clistr_push(cli, p, path, pathlen, STR_TERMINATE);
 	param_len = PTR_DIFF(p, param);
 
@@ -637,16 +642,13 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 			param, param_len, 2,            /* param, length, max */
 			NULL, 0, cli->max_xmit /* data, length, max */
 			)) {
-		SAFE_FREE(param);
-		return false;
+		goto out;
 	}
-
-	SAFE_FREE(param);
 
 	if (!cli_receive_trans(cli, SMBtrans2,
 		&rparam, &param_len,
 		&rdata, &data_len)) {
-			return false;
+		goto out;
 	}
 
 	if (data_len < 4) {
@@ -655,8 +657,29 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 
 	endp = rdata + data_len;
 
-	*consumed     = SVAL(rdata, 0);
+	consumed_ucs  = SVAL(rdata, 0);
 	num_referrals = SVAL(rdata, 2);
+
+	/* consumed_ucs is the number of bytes
+	 * of the UCS2 path consumed not counting any
+	 * terminating null. We need to convert
+	 * back to unix charset and count again
+	 * to get the number of bytes consumed from
+	 * the incoming path. */
+
+	if (pull_string_talloc(talloc_tos(),
+			NULL,
+			0,
+			&consumed_path,
+			path_ucs,
+			consumed_ucs,
+			STR_UNICODE) == 0) {
+		goto out;
+	}
+	if (consumed_path == NULL) {
+		goto out;
+	}
+	*consumed = strlen(consumed_path);
 
 	if (num_referrals != 0) {
 		uint16 ref_version;
@@ -714,6 +737,8 @@ bool cli_dfs_get_referral(TALLOC_CTX *ctx,
 
   out:
 
+	TALLOC_FREE(consumed_path);
+	SAFE_FREE(param);
 	SAFE_FREE(rdata);
 	SAFE_FREE(rparam);
 	return ret;
@@ -732,7 +757,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 {
 	CLIENT_DFS_REFERRAL *refs = NULL;
 	size_t num_refs = 0;
-	uint16 consumed;
+	size_t consumed = 0;
 	struct cli_state *cli_ipc = NULL;
 	char *dfs_path = NULL;
 	char *cleanpath = NULL;
@@ -840,13 +865,13 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 	if (!dfs_path) {
 		return false;
 	}
-	pathlen = strlen(dfs_path)*2;
+	pathlen = strlen(dfs_path);
 	consumed = MIN(pathlen, consumed);
-	*pp_targetpath = talloc_strdup(ctx, &dfs_path[consumed/2]);
+	*pp_targetpath = talloc_strdup(ctx, &dfs_path[consumed]);
 	if (!*pp_targetpath) {
 		return false;
 	}
-	dfs_path[consumed/2] = '\0';
+	dfs_path[consumed] = '\0';
 
 	/*
  	 * *pp_targetpath is now the unconsumed part of the path.
@@ -951,7 +976,7 @@ bool cli_resolve_path(TALLOC_CTX *ctx,
 /********************************************************************
 ********************************************************************/
 
-static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
+bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 				struct cli_state *cli,
 				const char *sharename,
 				char **pp_newserver,
@@ -963,7 +988,7 @@ static bool cli_check_msdfs_proxy(TALLOC_CTX *ctx,
 {
 	CLIENT_DFS_REFERRAL *refs = NULL;
 	size_t num_refs = 0;
-	uint16 consumed;
+	size_t consumed = 0;
 	char *fullpath = NULL;
 	bool res;
 	uint16 cnum;

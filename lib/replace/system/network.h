@@ -195,6 +195,20 @@ int rep_socketpair(int d, int type, int protocol, int sv[2]);
 #endif
 #endif
 
+/*
+ * Some of the functions in source3/lib/util_sock.c use AI_ADDRCONFIG. On QNX
+ * 6.3.0, this macro is defined but, if it's used, getaddrinfo will fail. This
+ * prevents smbd from opening any sockets.
+ *
+ * If I undefine AI_ADDRCONFIG on such systems and define it to be 0,
+ * this works around the issue.
+ */
+#ifdef __QNX__
+#include <sys/neutrino.h>
+#if _NTO_VERSION == 630
+#undef AI_ADDRCONFIG
+#endif
+#endif
 #ifndef AI_ADDRCONFIG
 /*
  * logic copied from AI_NUMERICHOST
@@ -305,6 +319,22 @@ typedef unsigned short int sa_family_t;
 #define ss_family __ss_family
 #define HAVE_SS_FAMILY 1
 #endif
+#endif
+
+#ifndef IOV_MAX
+# ifdef UIO_MAXIOV
+#  define IOV_MAX UIO_MAXIOV
+# else
+#  ifdef __sgi
+    /*
+     * IRIX 6.5 has sysconf(_SC_IOV_MAX)
+     * which might return 512 or bigger
+     */
+#   define IOV_MAX 512
+#  else
+#   error IOV_MAX and UIO_MAXIOV undefined
+#  endif
+# endif
 #endif
 
 #ifndef HAVE_STRUCT_ADDRINFO

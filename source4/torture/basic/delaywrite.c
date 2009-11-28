@@ -30,6 +30,10 @@
 #include "libcli/libcli.h"
 #include "torture/util.h"
 
+#define W2K8R2_TIMEDELAY_SECS 1
+#define W2K3_TIMEDELAY_SECS 2
+#define TIMEDELAY_SECS W2K3_TIMEDELAY_SECS
+
 #define BASEDIR "\\delaywrite"
 
 static bool test_delayed_write_update(struct torture_context *tctx, struct smbcli_state *cli)
@@ -70,10 +74,6 @@ static bool test_delayed_write_update(struct torture_context *tctx, struct smbcl
 	torture_comment(tctx, "Initial write time %s\n", 
 	       nt_time_string(tctx, finfo1.basic_info.out.write_time));
 
-	/* 3 second delay to ensure we get past any 2 second time
-	   granularity (older systems may have that) */
-	msleep(3 * msec);
-
 	written =  smbcli_write(cli->tree, fnum1, 0, "x", 0, 1);
 
 	if (written != 1) {
@@ -97,7 +97,7 @@ static bool test_delayed_write_update(struct torture_context *tctx, struct smbcl
 		       nt_time_string(tctx, finfo2.basic_info.out.write_time));
 		if (finfo1.basic_info.out.write_time != finfo2.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds"
 						"(1 sec == %.2f)(wrong!)\n",
 						diff, sec);
@@ -178,6 +178,10 @@ static bool test_delayed_write_update1(struct torture_context *tctx, struct smbc
 	torture_comment(tctx, "Initial write time %s\n", 
 	       nt_time_string(tctx, finfo1.all_info.out.write_time));
 
+	/* 3 second delay to ensure we get past any 2 second time
+	   granularity (older systems may have that) */
+	msleep(3 * msec);
+
 	/* Do a zero length SMBwrite call to truncate. */
 	written = smbcli_smbwrite(cli->tree, fnum1, "x", 1024, 0);
 
@@ -236,6 +240,9 @@ static bool test_delayed_write_update1(struct torture_context *tctx, struct smbc
 		ret = false;
 	}
 
+	fflush(stdout);
+	msleep(2 * msec);
+
 	/* Do a non-zero length SMBwrite and make sure it doesn't update the write time. */
 	written = smbcli_smbwrite(cli->tree, fnum1, "x", 0, 1);
 
@@ -270,7 +277,7 @@ static bool test_delayed_write_update1(struct torture_context *tctx, struct smbc
 			double diff = timeval_elapsed(&start);
 
 			torture_comment(tctx, "server updated write_time after %.2f seconds"
-					"(1 sec == %.2f)(correct)\n",
+					"(1 sec == %.2f)(wrong)\n",
 					diff, sec);
 			break;
 		}
@@ -283,6 +290,9 @@ static bool test_delayed_write_update1(struct torture_context *tctx, struct smbc
 					   "Server updated write time (wrong!)");
 		ret = false;
 	}
+
+	fflush(stdout);
+	msleep(2 * msec);
 
 	/* the close should trigger an write time update */
 	smbcli_close(cli->tree, fnum1);
@@ -416,6 +426,9 @@ static bool test_delayed_write_update1a(struct torture_context *tctx, struct smb
 					   "Server did not update write time (wrong!)");
 		ret = false;
 	}
+
+	fflush(stdout);
+	msleep(2 * msec);
 
 	/* Do a non-zero length SMBwrite and make sure it doesn't update the write time. */
 	written = smbcli_smbwrite(cli->tree, fnum1, "x", 0, 1);
@@ -591,6 +604,9 @@ static bool test_delayed_write_update1b(struct torture_context *tctx, struct smb
 					   "Server did not update write time (wrong!)");
 		ret = false;
 	}
+
+	fflush(stdout);
+	msleep(2 * msec);
 
 	/* Do a non-zero length SMBwrite and make sure it doesn't update the write time. */
 	written = smbcli_smbwrite(cli->tree, fnum1, "x", 0, 1);
@@ -768,6 +784,9 @@ static bool test_delayed_write_update1c(struct torture_context *tctx, struct smb
 					   "Server did not update write time (wrong!)");
 		ret = false;
 	}
+
+	fflush(stdout);
+	msleep(2 * msec);
 
 	/* Do a non-zero length SMBwrite and make sure it doesn't update the write time. */
 	written = smbcli_smbwrite(cli->tree, fnum1, "x", 0, 1);
@@ -995,6 +1014,9 @@ static bool test_delayed_write_update2(struct torture_context *tctx, struct smbc
 		torture_comment(tctx, "Server did not update write time (correct)\n");
 	}
 
+	fflush(stdout);
+	msleep(2 * msec);
+
 	fnum2 = smbcli_open(cli->tree, fname, O_RDWR, DENY_NONE);
 	if (fnum2 == -1) {
 		torture_comment(tctx, "Failed to open %s\n", fname);
@@ -1151,7 +1173,7 @@ static bool test_delayed_write_update2(struct torture_context *tctx, struct smbc
 		       nt_time_string(tctx, finfo2.basic_info.out.write_time));
 		if (finfo1.basic_info.out.write_time != finfo2.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds"
 						"(1sec == %.2f) (wrong!)\n",
 						diff, sec);
@@ -1396,6 +1418,19 @@ static bool test_finfo_after_write(struct torture_context *tctx, struct smbcli_s
 			nt_time_string(tctx, finfo.basic_info.out.access_time), \
 			nt_time_string(tctx, finfo.basic_info.out.write_time)); \
 } while (0)
+#define GET_INFO_FILE2(finfo) do { \
+	NTSTATUS _status; \
+	_status = smb_raw_fileinfo(cli2->tree, tctx, &finfo); \
+	if (!NT_STATUS_IS_OK(_status)) { \
+		ret = false; \
+		torture_result(tctx, TORTURE_FAIL, __location__": fileinfo failed: %s", \
+			       nt_errstr(_status)); \
+		goto done; \
+	} \
+	torture_comment(tctx, "fileinfo: Access(%s) Write(%s)\n", \
+			nt_time_string(tctx, finfo.basic_info.out.access_time), \
+			nt_time_string(tctx, finfo.basic_info.out.write_time)); \
+} while (0)
 #define GET_INFO_PATH(pinfo) do { \
 	NTSTATUS _status; \
 	_status = smb_raw_pathinfo(cli2->tree, tctx, &pinfo); \
@@ -1435,6 +1470,26 @@ static bool test_finfo_after_write(struct torture_context *tctx, struct smbcli_s
 } while (0)
 #define SET_INFO_FILE(finfo, wrtime) \
 	SET_INFO_FILE_EX(finfo, wrtime, cli->tree, fnum1)
+
+#define SET_INFO_FILE_NS(finfo, wrtime, ns, tree, tfnum) do { \
+	NTSTATUS _status; \
+	union smb_setfileinfo sfinfo; \
+	sfinfo.basic_info.level = RAW_SFILEINFO_BASIC_INFO; \
+	sfinfo.basic_info.in.file.fnum = tfnum; \
+	sfinfo.basic_info.in.create_time = 0; \
+	sfinfo.basic_info.in.access_time = 0; \
+	unix_to_nt_time(&sfinfo.basic_info.in.write_time, (wrtime)); \
+	sfinfo.basic_info.in.write_time += (ns); \
+	sfinfo.basic_info.in.change_time = 0; \
+	sfinfo.basic_info.in.attrib = finfo1.basic_info.out.attrib; \
+	_status = smb_raw_setfileinfo(tree, &sfinfo); \
+	if (!NT_STATUS_IS_OK(_status)) { \
+		torture_result(tctx, TORTURE_FAIL, __location__": setfileinfo failed: %s", \
+			       nt_errstr(_status)); \
+		ret = false; \
+		goto done; \
+	} \
+} while (0)
 
 static bool test_delayed_write_update3(struct torture_context *tctx,
 				       struct smbcli_state *cli,
@@ -1505,7 +1560,7 @@ static bool test_delayed_write_update3(struct torture_context *tctx,
 
 		if (finfo1.basic_info.out.write_time > finfo0.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds "
 						"(1sec == %.2f) (wrong!)\n",
 						diff, sec);
@@ -1547,7 +1602,7 @@ static bool test_delayed_write_update3(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -1671,7 +1726,7 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 
 		if (finfo1.basic_info.out.write_time > finfo0.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds "
 						"(1sec == %.2f) (wrong!)\n",
 						diff, sec);
@@ -1690,12 +1745,14 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 	GET_INFO_BOTH(finfo1,pinfo1);
 	COMPARE_WRITE_TIME_GREATER(pinfo1, pinfo0);
 
+	msleep(3 * msec);
+
 	/*
 	 * demonstrate that a truncate write always
 	 * updates the write time immediately
 	 */
 	for (i=0; i < 3; i++) {
-		msleep(1 * msec);
+		msleep(2 * msec);
 		/* do a write */
 		torture_comment(tctx, "Do a truncate SMBwrite [%d] on the file handle\n", i);
 		written = smbcli_smbwrite(cli->tree, fnum1, "x", 10240, 0);
@@ -1709,6 +1766,8 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 		COMPARE_WRITE_TIME_GREATER(finfo2, finfo1);
 		finfo1 = finfo2;
 	}
+
+	msleep(3 * msec);
 
 	/* sure any further write doesn't update the write time */
 	start = timeval_current();
@@ -1733,7 +1792,7 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -1743,7 +1802,7 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 	}
 
 	/* sleep */
-	msleep(5 * msec);
+	msleep(3 * msec);
 
 	/* get the initial times */
 	GET_INFO_BOTH(finfo1,pinfo1);
@@ -1754,7 +1813,7 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 	 * updates the write time immediately
 	 */
 	for (i=0; i < 3; i++) {
-		msleep(1 * msec);
+		msleep(2 * msec);
 		/* do a write */
 		torture_comment(tctx, "Do a truncate SMBwrite [%d] on the file handle\n", i);
 		written = smbcli_smbwrite(cli->tree, fnum1, "x", 512, 0);
@@ -1770,7 +1829,7 @@ static bool test_delayed_write_update3a(struct torture_context *tctx,
 	}
 
 	/* sleep */
-	msleep(5 * msec);
+	msleep(3 * msec);
 
 	GET_INFO_BOTH(finfo3,pinfo3);
 	COMPARE_WRITE_TIME_EQUAL(finfo3, finfo2);
@@ -1882,7 +1941,7 @@ static bool test_delayed_write_update3b(struct torture_context *tctx,
 
 		if (finfo1.basic_info.out.write_time > finfo0.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds "
 						"(1sec == %.2f) (wrong!)\n",
 						diff, sec);
@@ -1924,7 +1983,7 @@ static bool test_delayed_write_update3b(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -2034,7 +2093,7 @@ static bool test_delayed_write_update3c(struct torture_context *tctx,
 	 * updates the write time immediately
 	 */
 	for (i=0; i < 3; i++) {
-		msleep(1 * msec);
+		msleep(2 * msec);
 		/* do a write */
 		torture_comment(tctx, "Do a truncate SMBwrite [%d] on the file handle\n", i);
 		written = smbcli_smbwrite(cli->tree, fnum1, "x", 512, 0);
@@ -2071,7 +2130,7 @@ static bool test_delayed_write_update3c(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -2092,7 +2151,7 @@ static bool test_delayed_write_update3c(struct torture_context *tctx,
 	 * updates the write time immediately
 	 */
 	for (i=0; i < 3; i++) {
-		msleep(1 * msec);
+		msleep(2 * msec);
 		/* do a write */
 		torture_comment(tctx, "Do a truncate write [%d] on the file handle\n", i);
 		written = smbcli_smbwrite(cli->tree, fnum1, "x", 512, 0);
@@ -2136,7 +2195,7 @@ static bool test_delayed_write_update3c(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -2257,7 +2316,7 @@ static bool test_delayed_write_update4(struct torture_context *tctx,
 
 		if (finfo1.basic_info.out.write_time > finfo0.basic_info.out.write_time) {
 			double diff = timeval_elapsed(&start);
-			if (diff < (2 * sec * 0.75)) { /* 0.75 to cope with vmware timing */
+			if (diff < (TIMEDELAY_SECS * sec * 0.3)) { /* 0.3 to cope with vmware timing */
 				torture_comment(tctx, "Server updated write_time after %.2f seconds "
 						"(1sec == %.2f) (wrong!)\n",
 						diff, sec);
@@ -2299,7 +2358,7 @@ static bool test_delayed_write_update4(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo2,pinfo2);
@@ -2430,7 +2489,7 @@ static bool test_delayed_write_update5(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo3,pinfo3);
@@ -2462,7 +2521,7 @@ static bool test_delayed_write_update5(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo4,pinfo4);
@@ -2592,7 +2651,7 @@ static bool test_delayed_write_update5b(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo3,pinfo3);
@@ -2624,7 +2683,7 @@ static bool test_delayed_write_update5b(struct torture_context *tctx,
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo4,pinfo4);
@@ -2757,7 +2816,7 @@ again:
 
 	/* make sure the 2 second delay from the first write are canceled */
 	start = timeval_current();
-	end = timeval_add(&start, 15 * sec, 0);
+	end = timeval_add(&start, 10 * sec, 0);
 	while (!timeval_expired(&end)) {
 
 		/* get the times after the first write */
@@ -2771,7 +2830,7 @@ again:
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo3,pinfo3);
@@ -2782,7 +2841,7 @@ again:
 
 	/* sure any further write doesn't update the write time */
 	start = timeval_current();
-	end = timeval_add(&start, 15 * sec, 0);
+	end = timeval_add(&start, 10 * sec, 0);
 	while (!timeval_expired(&end)) {
 		/* do a write */
 		torture_comment(tctx, "Do a write on the file handle\n");
@@ -2803,7 +2862,7 @@ again:
 			ret = false;
 			break;
 		}
-		msleep(2 * msec);
+		msleep(1 * msec);
 	}
 
 	GET_INFO_BOTH(finfo4,pinfo4);
@@ -2832,6 +2891,70 @@ again:
 	if (pinfo6.basic_info.out.write_time > pinfo5.basic_info.out.write_time) {
 		torture_comment(tctx, "Server updated the write_time on close (correct)\n");
 	}
+
+	/* See what the second write handle thinks the time is ? */
+	finfo5.basic_info.in.file.fnum = fnum2;
+	GET_INFO_FILE2(finfo5);
+	COMPARE_WRITE_TIME_EQUAL(finfo5, pinfo6);
+
+	/* See if we have lost the sticky write time on handle2 */
+	msleep(3 * msec);
+	torture_comment(tctx, "Have we lost the sticky write time ?\n");
+
+	/* Make sure any further normal write doesn't update the write time */
+	start = timeval_current();
+	end = timeval_add(&start, 10 * sec, 0);
+	while (!timeval_expired(&end)) {
+		/* do a write */
+		torture_comment(tctx, "Do a write on the second file handle\n");
+		written = smbcli_write(cli2->tree, fnum2, 0, "x", 0, 1);
+		if (written != 1) {
+			torture_result(tctx, TORTURE_FAIL, __location__": written gave %d - should have been 1", (int)written);
+			ret = false;
+			goto done;
+		}
+		/* get the times after the write */
+		GET_INFO_FILE2(finfo5);
+		GET_INFO_PATH(pinfo6);
+
+		if (finfo5.basic_info.out.write_time > pinfo6.basic_info.out.write_time) {
+			double diff = timeval_elapsed(&start);
+			torture_comment(tctx, "Server updated write_time after %.2f seconds "
+					"(1sec == %.2f) (wrong!)\n",
+					diff, sec);
+			ret = false;
+			break;
+		}
+		msleep(1 * msec);
+	}
+
+	/* What about a truncate write ? */
+	start = timeval_current();
+	end = timeval_add(&start, 10 * sec, 0);
+	while (!timeval_expired(&end)) {
+		/* do a write */
+		torture_comment(tctx, "Do a truncate write on the second file handle\n");
+		written = smbcli_write(cli2->tree, fnum2, 0, "x", 0, 0);
+		if (written != 0) {
+			torture_result(tctx, TORTURE_FAIL, __location__": written gave %d - should have been 1", (int)written);
+			ret = false;
+			goto done;
+		}
+		/* get the times after the write */
+		GET_INFO_FILE2(finfo5);
+		GET_INFO_PATH(pinfo6);
+
+		if (finfo5.basic_info.out.write_time > pinfo6.basic_info.out.write_time) {
+			double diff = timeval_elapsed(&start);
+			torture_comment(tctx, "Server updated write_time after %.2f seconds "
+					"(1sec == %.2f) (wrong!)\n",
+					diff, sec);
+			ret = false;
+			break;
+		}
+		msleep(1 * msec);
+	}
+
 
 	/* keep the 2nd handle open and rerun tests */
 	if (first) {
@@ -2865,6 +2988,115 @@ again:
 	return ret;
 }
 
+static bool test_delayed_write_update7(struct torture_context *tctx, struct smbcli_state *cli)
+{
+	union smb_open open_parms;
+	union smb_fileinfo finfo1, finfo2, finfo3;
+	const char *fname = BASEDIR "\\torture_file7.txt";
+	NTSTATUS status;
+	int fnum1 = -1;
+	bool ret = true;
+	TALLOC_CTX *mem_ctx; 
+
+	torture_comment(tctx, "\nRunning test_delayed_write_update7 (timestamp resolution test)\n");
+
+        mem_ctx = talloc_init("test_delayed_write_update7");
+        if (!mem_ctx) return false;
+
+	ZERO_STRUCT(finfo1);
+	ZERO_STRUCT(finfo2);
+	ZERO_STRUCT(finfo3);
+	ZERO_STRUCT(open_parms);
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
+	/* Create the file. */
+	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
+	if (fnum1 == -1) {
+		torture_result(tctx, TORTURE_FAIL, "Failed to open %s", fname);
+		return false;
+	}
+
+	finfo1.basic_info.level = RAW_FILEINFO_BASIC_INFO;
+	finfo1.basic_info.in.file.fnum = fnum1;
+	finfo2 = finfo1;
+	finfo3 = finfo1;
+
+	/* Get the initial timestamps. */
+	status = smb_raw_fileinfo(cli->tree, tctx, &finfo1);
+
+	torture_assert_ntstatus_ok(tctx, status, "fileinfo failed");
+	
+	/* Set the pending write time to a value with ns. */
+	SET_INFO_FILE_NS(finfo, time(NULL) + 86400, 103, cli->tree, fnum1);
+
+	/* Get the current pending write time by fnum. */
+	status = smb_raw_fileinfo(cli->tree, tctx, &finfo2);
+
+	torture_assert_ntstatus_ok(tctx, status, "fileinfo failed");
+
+	/* Ensure the time is actually different. */
+	if (finfo1.basic_info.out.write_time == finfo2.basic_info.out.write_time) {
+		torture_result(tctx, TORTURE_FAIL,
+			"setfileinfo time matches original fileinfo time");
+		ret = false;
+	}
+
+	/* Get the current pending write time by path. */
+	finfo3.basic_info.in.file.path = fname;
+	status = smb_raw_pathinfo(cli->tree, tctx, &finfo3);
+
+	if (finfo2.basic_info.out.write_time != finfo3.basic_info.out.write_time) {
+		torture_result(tctx, TORTURE_FAIL, 
+			"qpathinfo time doens't match fileinfo time");
+		ret = false;
+	}
+
+	/* Now close the file. Re-open and check that the write
+	   time is identical to the one we wrote. */
+
+	smbcli_close(cli->tree, fnum1);
+
+	open_parms.ntcreatex.level = RAW_OPEN_NTCREATEX;
+	open_parms.ntcreatex.in.flags = 0;
+	open_parms.ntcreatex.in.access_mask = SEC_GENERIC_READ;
+	open_parms.ntcreatex.in.file_attr = 0;
+	open_parms.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_DELETE|
+					NTCREATEX_SHARE_ACCESS_READ|
+					NTCREATEX_SHARE_ACCESS_WRITE;
+	open_parms.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
+	open_parms.ntcreatex.in.create_options = 0;
+	open_parms.ntcreatex.in.fname = fname;
+
+	status = smb_raw_open(cli->tree, mem_ctx, &open_parms);
+	talloc_free(mem_ctx);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		torture_result(tctx, TORTURE_FAIL,
+			"setfileinfo time matches original fileinfo time");
+		ret = false;
+	}
+
+	fnum1 = open_parms.ntcreatex.out.file.fnum;
+
+	/* Check the returned time matches. */
+        if (open_parms.ntcreatex.out.write_time != finfo2.basic_info.out.write_time) {
+		torture_result(tctx, TORTURE_FAIL,
+			"final open time does not match set time");
+		ret = false;
+	}
+
+ done:
+
+	smbcli_close(cli->tree, fnum1);
+
+	smbcli_unlink(cli->tree, fname);
+	smbcli_deltree(cli->tree, BASEDIR);
+	return ret;
+}
+
 /*
    testing of delayed update of write_time
 */
@@ -2887,6 +3119,8 @@ struct torture_suite *torture_delay_write(void)
 	torture_suite_add_2smb_test(suite, "delayed update of write time 5", test_delayed_write_update5);
 	torture_suite_add_2smb_test(suite, "delayed update of write time 5b", test_delayed_write_update5b);
 	torture_suite_add_2smb_test(suite, "delayed update of write time 6", test_delayed_write_update6);
+	torture_suite_add_1smb_test(suite, "timestamp resolution test", test_delayed_write_update7);
+	torture_suite_add_1smb_test(suite, "timestamp resolution test", test_delayed_write_update7);
 
 	return suite;
 }

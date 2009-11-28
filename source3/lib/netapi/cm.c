@@ -42,8 +42,12 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 	}
 	auth_info->signing_state = Undefined;
 	set_cmdline_auth_info_use_kerberos(auth_info, ctx->use_kerberos);
-	set_cmdline_auth_info_password(auth_info, ctx->password);
 	set_cmdline_auth_info_username(auth_info, ctx->username);
+	if (ctx->password) {
+		set_cmdline_auth_info_password(auth_info, ctx->password);
+	} else {
+		set_cmdline_auth_info_getpass(auth_info);
+	}
 
 	if (ctx->username && ctx->username[0] &&
 	    ctx->password && ctx->password[0] &&
@@ -195,7 +199,7 @@ WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 	status = pipe_cm_open(ctx, cli, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnetapi_set_error_string(ctx, "failed to open PIPE %s: %s",
-			get_pipe_name_from_iface(interface),
+			get_pipe_name_from_syntax(talloc_tos(), interface),
 			get_friendly_nt_error_msg(status));
 		return WERR_DEST_NOT_FOUND;
 	}

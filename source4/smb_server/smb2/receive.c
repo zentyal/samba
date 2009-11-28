@@ -23,13 +23,11 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "smb_server/smb_server.h"
-#include "smb_server/service_smb_proto.h"
 #include "smb_server/smb2/smb2_server.h"
 #include "smbd/service_stream.h"
 #include "lib/stream/packet.h"
 #include "ntvfs/ntvfs.h"
 #include "param/param.h"
-#include "auth/gensec/gensec.h"
 #include "auth/auth.h"
 
 
@@ -149,18 +147,22 @@ static void smb2srv_chain_reply(struct smb2srv_request *p_req)
 	uint32_t protocol_version;
 	uint16_t buffer_code;
 	uint32_t dynamic_size;
+	uint32_t flags;
+	uint32_t last_hdr_offset;
+
+	last_hdr_offset = p_req->in.hdr - p_req->in.buffer;
 
 	chain_offset = p_req->chain_offset;
 	p_req->chain_offset = 0;
 
-	if (p_req->in.size < (NBT_HDR_SIZE + chain_offset + SMB2_MIN_SIZE_NO_BODY)) {
-		DEBUG(2,("Invalid SMB2 chained packet at offset 0x%X\n",
-			chain_offset));
+	if (p_req->in.size < (last_hdr_offset + chain_offset + SMB2_MIN_SIZE_NO_BODY)) {
+		DEBUG(2,("Invalid SMB2 chained packet at offset 0x%X from last hdr 0x%X\n",
+			chain_offset, last_hdr_offset));
 		smbsrv_terminate_connection(p_req->smb_conn, "Invalid SMB2 chained packet");
 		return;
 	}
 
-	protocol_version = IVAL(p_req->in.buffer, NBT_HDR_SIZE + chain_offset);
+	protocol_version = IVAL(p_req->in.buffer, last_hdr_offset + chain_offset);
 	if (protocol_version != SMB2_MAGIC) {
 		DEBUG(2,("Invalid SMB chained packet: protocol prefix: 0x%08X\n",
 			 protocol_version));
@@ -179,9 +181,9 @@ static void smb2srv_chain_reply(struct smb2srv_request *p_req)
 	req->request_time	= p_req->request_time;
 	req->in.allocated	= req->in.size;
 
-	req->in.hdr		= req->in.buffer+ NBT_HDR_SIZE + chain_offset;
+	req->in.hdr		= req->in.buffer+ last_hdr_offset + chain_offset;
 	req->in.body		= req->in.hdr	+ SMB2_HDR_BODY;
-	req->in.body_size	= req->in.size	- (NBT_HDR_SIZE+ chain_offset + SMB2_HDR_BODY);
+	req->in.body_size	= req->in.size	- (last_hdr_offset+ chain_offset + SMB2_HDR_BODY);
 	req->in.dynamic 	= NULL;
 
 	req->seqnum		= BVAL(req->in.hdr, SMB2_HDR_MESSAGE_ID);
@@ -213,11 +215,15 @@ static void smb2srv_chain_reply(struct smb2srv_request *p_req)
 
 	smb2srv_setup_bufinfo(req);
 
-	if (p_req->chained_file_handle) {
-		memcpy(req->_chained_file_handle,
-		       p_req->_chained_file_handle,
-		       sizeof(req->_chained_file_handle));
-		req->chained_file_handle = req->_chained_file_handle;
+	flags = IVAL(req->in.hdr, SMB2_HDR_FLAGS);
+	if (flags & SMB2_HDR_FLAG_CHAINED) {
+		if (p_req->chained_file_handle) {
+			memcpy(req->_chained_file_handle,
+			       p_req->_chained_file_handle,
+			       sizeof(req->_chained_file_handle));
+			req->chained_file_handle = req->_chained_file_handle;
+		}
+		req->chain_status = p_req->chain_status;
 	}
 
 	/* 
@@ -293,6 +299,8 @@ void smb2srv_send_error(struct smb2srv_request *req, NTSTATUS error)
 	SSVAL(req->out.body, 0x02, 0);
 	SIVAL(req->out.body, 0x04, 0);
 
+	req->chain_status = NT_STATUS_INVALID_PARAMETER;
+
 	smb2srv_send_reply(req);
 }
 
@@ -347,7 +355,10 @@ static NTSTATUS smb2srv_reply(struct smb2srv_request *req)
 		return NT_STATUS_OK;					
 	}
 
-	/* TODO: check the seqnum */
+	if (!NT_STATUS_IS_OK(req->chain_status)) {
+		smb2srv_send_error(req, req->chain_status);
+		return NT_STATUS_OK;
+	}
 
 	switch (opcode) {
 	case SMB2_OP_NEGPROT:
@@ -457,6 +468,7 @@ NTSTATUS smbsrv_recv_smb2_request(void *private_data, DATA_BLOB blob)
 	uint32_t protocol_version;
 	uint16_t buffer_code;
 	uint32_t dynamic_size;
+	uint32_t flags;
 
 	smb_conn->statistics.last_request_time = cur_time;
 
@@ -502,8 +514,10 @@ NTSTATUS smbsrv_recv_smb2_request(void *private_data, DATA_BLOB blob)
 		uint16_t opcode	= SVAL(req->in.hdr, SMB2_HDR_OPCODE);
 		if (opcode == SMB2_OP_NEGPROT) {
 			smbsrv_terminate_connection(req->smb_conn, "Bad body size in SMB2 negprot");			
+			return NT_STATUS_OK;
 		} else {
 			smb2srv_send_error(req, NT_STATUS_INVALID_PARAMETER);
+			return NT_STATUS_OK;
 		}
 	}
 
@@ -527,6 +541,12 @@ NTSTATUS smbsrv_recv_smb2_request(void *private_data, DATA_BLOB blob)
 	 * TODO: - make sure the length field is 64
 	 *       - make sure it's a request
 	 */
+
+	flags = IVAL(req->in.hdr, SMB2_HDR_FLAGS);
+	/* the first request should never have the related flag set */
+	if (flags & SMB2_HDR_FLAG_CHAINED) {
+		req->chain_status = NT_STATUS_INVALID_PARAMETER;
+	}
 
 	return smb2srv_reply(req);
 }

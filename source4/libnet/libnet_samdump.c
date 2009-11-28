@@ -25,6 +25,7 @@
 #include "../lib/util/dlinklist.h"
 #include "samba3/samba3.h"
 #include "libcli/security/security.h"
+#include "param/param.h"
 
 
 struct samdump_secret {
@@ -163,7 +164,6 @@ NTSTATUS libnet_SamDump(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 
 	r2.out.error_string            = NULL;
 	r2.in.binding_string           = r->in.binding_string;
-	r2.in.rid_crypt                = lp_parm_bool(ctx->lp_ctx, NULL, "vampire", "rid decrypt", true);
 	r2.in.init_fn                  = NULL;
 	r2.in.delta_fn                 = libnet_samdump_fn;
 	r2.in.fn_ctx                   = samdump_state;

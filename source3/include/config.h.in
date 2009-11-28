@@ -69,6 +69,9 @@
 /* Whether we have gnutls support (SSL) */
 #undef ENABLE_GNUTLS
 
+/* Whether we have libnetapi on the host system */
+#undef ENABLE_LIBNETAPI
+
 /* Whether to use fully FHS-compatible paths */
 #undef FHS_COMPATIBLE
 
@@ -207,9 +210,6 @@
 /* Define to 1 if you have the <avahi-client/client.h> header file. */
 #undef HAVE_AVAHI_CLIENT_CLIENT_H
 
-/* Define to 1 if you have the `avahi_client_new' function. */
-#undef HAVE_AVAHI_CLIENT_NEW
-
 /* Define to 1 if you have the <avahi-common/watch.h> header file. */
 #undef HAVE_AVAHI_COMMON_WATCH_H
 
@@ -231,11 +231,20 @@
 /* Whether bigcrypt is available */
 #undef HAVE_BIGCRYPT
 
+/* Define to 1 if you have the `bindtextdomain' function. */
+#undef HAVE_BINDTEXTDOMAIN
+
+/* Define to 1 if the system has the type `blkcnt_t'. */
+#undef HAVE_BLKCNT_T
+
 /* Define to 1 if you have the <blkid/blkid.h> header file. */
 #undef HAVE_BLKID_BLKID_H
 
 /* Define to 1 if you have the `blkid_get_cache' function. */
 #undef HAVE_BLKID_GET_CACHE
+
+/* Define to 1 if the system has the type `blksize_t'. */
+#undef HAVE_BLKSIZE_T
 
 /* Whether the bool type is available */
 #undef HAVE_BOOL
@@ -346,6 +355,9 @@
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H
 
+/* Whether CTDB_CONTROL_TRANS2_ACTIVE() is available */
+#undef HAVE_CTDB_CONTROL_TRANS2_ACTIVE_DECL
+
 /* Whether CTDB_CONTROL_TRANS2_COMMIT_RETRY() is available */
 #undef HAVE_CTDB_CONTROL_TRANS2_COMMIT_RETRY_DECL
 
@@ -380,6 +392,14 @@
 /* Define to 1 if you have the declaration of `h_errno', and to 0 if you
    don't. */
 #undef HAVE_DECL_H_ERRNO
+
+/* Define to 1 if you have the declaration of
+   `krb5_auth_con_set_req_cksumtype', and to 0 if you don't. */
+#undef HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+
+/* Define to 1 if you have the declaration of `krb5_get_credentials_for_user',
+   and to 0 if you don't. */
+#undef HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER
 
 /* Define to 1 if you have the declaration of `rl_event_hook', and to 0 if you
    don't. */
@@ -465,8 +485,14 @@
 /* Define to 1 if you have the `DNSServiceRegister' function. */
 #undef HAVE_DNSSERVICEREGISTER
 
+/* Define to 1 if you have the <dns.h> header file. */
+#undef HAVE_DNS_H
+
 /* Define to 1 if you have the <dns_sd.h> header file. */
 #undef HAVE_DNS_SD_H
+
+/* Define to 1 if you have the `dns_search' function. */
+#undef HAVE_DNS_SEARCH
 
 /* Define to 1 if you have the `dn_expand' function. */
 #undef HAVE_DN_EXPAND
@@ -846,8 +872,11 @@
 /* gnutls set_version */
 #undef HAVE_GNUTLS_X509_CRT_SET_VERSION
 
-/* Whether GPFS GPL libs are available */
+/* Whether GPFS GPL headers are available */
 #undef HAVE_GPFS
+
+/* Define to 1 if you have the <gpfs_gpl.h> header file. */
+#undef HAVE_GPFS_GPL_H
 
 /* Define to 1 if you have the `grantpt' function. */
 #undef HAVE_GRANTPT
@@ -881,6 +910,9 @@
 
 /* Define to 1 if you have the `hstrerror' function. */
 #undef HAVE_HSTRERROR
+
+/* Define to 1 if you have the `httpConnectEncrypt' function. */
+#undef HAVE_HTTPCONNECTENCRYPT
 
 /* Define if you have the `h_errno' variable. */
 #undef HAVE_H_ERRNO
@@ -947,6 +979,9 @@
 
 /* Whether int32 typedef is included by rpc/rpc.h */
 #undef HAVE_INT32_FROM_RPC_RPC_H
+
+/* Define to 1 if the system has the type `intptr_t'. */
+#undef HAVE_INTPTR_T
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
@@ -1050,6 +1085,19 @@
 /* Define to 1 if you have the `krb5_fwd_tgt_creds' function. */
 #undef HAVE_KRB5_FWD_TGT_CREDS
 
+/* Define to 1 if you have the `krb5_get_credentials_for_user' function. */
+#undef HAVE_KRB5_GET_CREDENTIALS_FOR_USER
+
+/* Define to 1 if you have the `krb5_get_creds' function. */
+#undef HAVE_KRB5_GET_CREDS
+
+/* Define to 1 if you have the `krb5_get_creds_opt_alloc' function. */
+#undef HAVE_KRB5_GET_CREDS_OPT_ALLOC
+
+/* Define to 1 if you have the `krb5_get_creds_opt_set_impersonate' function.
+   */
+#undef HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE
+
 /* Define to 1 if you have the `krb5_get_default_in_tkt_etypes' function. */
 #undef HAVE_KRB5_GET_DEFAULT_IN_TKT_ETYPES
 
@@ -1096,6 +1144,9 @@
 
 /* Whether KRB5_KEYUSAGE_APP_DATA_CKSUM is available */
 #undef HAVE_KRB5_KEYUSAGE_APP_DATA_CKSUM
+
+/* Define to 1 if you have the <krb5/krb5.h> header file. */
+#undef HAVE_KRB5_KRB5_H
 
 /* Define to 1 if you have the `krb5_krbhst_get_addrinfo' function. */
 #undef HAVE_KRB5_KRBHST_GET_ADDRINFO
@@ -1226,9 +1277,6 @@
 /* Define to 1 if you have the `asn1' library (-lasn1). */
 #undef HAVE_LIBASN1
 
-/* Define to 1 if you have the `avahi-client' library (-lavahi-client). */
-#undef HAVE_LIBAVAHI_CLIENT
-
 /* Whether we have blkid support (e2fsprogs) */
 #undef HAVE_LIBBLKID
 
@@ -1240,6 +1288,9 @@
 
 /* Define to 1 if you have the `crypto' library (-lcrypto). */
 #undef HAVE_LIBCRYPTO
+
+/* Define to 1 if you have the `cups' library (-lcups). */
+#undef HAVE_LIBCUPS
 
 /* Define to 1 if you have the `dns_sd' library (-ldns_sd). */
 #undef HAVE_LIBDNS_SD
@@ -1288,6 +1339,12 @@
 
 /* Define to 1 if you have the `ldap' library (-lldap). */
 #undef HAVE_LIBLDAP
+
+/* Define to 1 if you have the `netapi' library (-lnetapi). */
+#undef HAVE_LIBNETAPI
+
+/* Define to 1 if you have the `libnetapi_init' function. */
+#undef HAVE_LIBNETAPI_INIT
 
 /* Define to 1 if you have the `nscd' library (-lnscd). */
 #undef HAVE_LIBNSCD
@@ -1342,6 +1399,9 @@
 
 /* Define to 1 if you have the `util' library (-lutil). */
 #undef HAVE_LIBUTIL
+
+/* Define to 1 if you have the <libutil.h> header file. */
+#undef HAVE_LIBUTIL_H
 
 /* Define to 1 if you have the `z' library (-lz). */
 #undef HAVE_LIBZ
@@ -1484,6 +1544,9 @@
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 #undef HAVE_NDIR_H
 
+/* Define to 1 if you have the <netapi.h> header file. */
+#undef HAVE_NETAPI_H
+
 /* Define to 1 if you have the <netdb.h> header file. */
 #undef HAVE_NETDB_H
 
@@ -1510,6 +1573,18 @@
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #undef HAVE_NETINET_TCP_H
+
+/* Define to 1 if you have the `NetUserGetGroups' function. */
+#undef HAVE_NETUSERGETGROUPS
+
+/* Define to 1 if you have the `NetUserGetInfo' function. */
+#undef HAVE_NETUSERGETINFO
+
+/* Define to 1 if you have the `NetUserModalsGet' function. */
+#undef HAVE_NETUSERMODALSGET
+
+/* Define to 1 if you have the `NetUserSetInfo' function. */
+#undef HAVE_NETUSERSETINFO
 
 /* usability of net/if.h */
 #undef HAVE_NET_IF_H
@@ -1636,6 +1711,9 @@
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
+
+/* Define to 1 if the system has the type `ptrdiff_t'. */
+#undef HAVE_PTRDIFF_T
 
 /* Define to 1 if you have the <pty.h> header file. */
 #undef HAVE_PTY_H
@@ -2348,6 +2426,9 @@
 /* Define to 1 if you have the <sys/syscall.h> header file. */
 #undef HAVE_SYS_SYSCALL_H
 
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#undef HAVE_SYS_SYSCTL_H
+
 /* Define to 1 if you have the <sys/syslog.h> header file. */
 #undef HAVE_SYS_SYSLOG_H
 
@@ -2405,6 +2486,9 @@
 /* Define to 1 if you have the <term.h> header file. */
 #undef HAVE_TERM_H
 
+/* Define to 1 if you have the `textdomain' function. */
+#undef HAVE_TEXTDOMAIN
+
 /* Whether the krb5_ap_req struct has a ticket pointer */
 #undef HAVE_TICKET_POINTER_IN_KRB5_AP_REQ
 
@@ -2432,6 +2516,9 @@
 /* Whether uint32 typedef is included by rpc/rpc.h */
 #undef HAVE_UINT32_FROM_RPC_RPC_H
 
+/* Define to 1 if the system has the type `uintptr_t'. */
+#undef HAVE_UINTPTR_T
+
 /* Define to 1 if you have the `umask' function. */
 #undef HAVE_UMASK
 
@@ -2446,6 +2533,9 @@
 
 /* Whether UnixWare ACLs are available */
 #undef HAVE_UNIXWARE_ACLS
+
+/* Define to 1 if you have the <unix.h> header file. */
+#undef HAVE_UNIX_H
 
 /* Define to 1 if you have the `unsetenv' function. */
 #undef HAVE_UNSETENV
@@ -2462,11 +2552,17 @@
 /* Define to 1 if you have the `usleep' function. */
 #undef HAVE_USLEEP
 
+/* Define to 1 if you have the <util.h> header file. */
+#undef HAVE_UTIL_H
+
 /* Whether struct utimbuf is available */
 #undef HAVE_UTIMBUF
 
 /* Define to 1 if you have the `utime' function. */
 #undef HAVE_UTIME
+
+/* Define to 1 if you have the `utimensat' function. */
+#undef HAVE_UTIMENSAT
 
 /* Define to 1 if you have the `utimes' function. */
 #undef HAVE_UTIMES
@@ -2548,6 +2644,9 @@
 
 /* Define to 1 if you have the `vsyslog' function. */
 #undef HAVE_VSYSLOG
+
+/* Define to 1 if you have the `wait4' function. */
+#undef HAVE_WAIT4
 
 /* Define to 1 if you have the `waitpid' function. */
 #undef HAVE_WAITPID
@@ -3133,8 +3232,11 @@
 /* Whether to enable avahi support */
 #undef WITH_AVAHI_SUPPORT
 
-/* Whether to build mount.cifs and umount.cifs */
+/* Whether to build mount.cifs */
 #undef WITH_CIFSMOUNT
+
+/* Whether to build umount.cifs */
+#undef WITH_CIFSUMOUNT
 
 /* whether to build cifs.upcall */
 #undef WITH_CIFSUPCALL
@@ -3162,6 +3264,9 @@
 
 /* Whether to use profiling */
 #undef WITH_PROFILE
+
+/* Whether to include pthreadpool helpers */
+#undef WITH_PTHREADPOOL
 
 /* Whether to use disk quota support */
 #undef WITH_QUOTAS
@@ -3374,6 +3479,9 @@
 /* Define to `loff_t' if <sys/types.h> does not define. */
 #undef offset_t
 
+/* Whether to build pdb_ads as shared module */
+#undef pdb_ads_init
+
 /* Whether to build pdb_ldap as shared module */
 #undef pdb_ldap_init
 
@@ -3394,9 +3502,6 @@
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
-
-/* Define to `unsigned long long' if <sys/types.h> does not define. */
-#undef ptrdiff_t
 
 /* Whether to build rpc_dssetup as shared module */
 #undef rpc_dssetup_init
@@ -3523,9 +3628,6 @@
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef uint_t
-
-/* Define to `unsigned long long' if <sys/types.h> does not define. */
-#undef uintptr_t
 
 /* Whether to build vfs_acl_tdb as shared module */
 #undef vfs_acl_tdb_init

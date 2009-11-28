@@ -21,15 +21,15 @@
 #ifndef _REG_OBJECTS_H /* _REG_OBJECTS_H */
 #define _REG_OBJECTS_H
 
-/* structure to contain registry values */
+/* low level structure to contain registry values */
 
-typedef struct {
+struct regval_blob {
 	fstring		valuename;
 	uint16		type;
 	/* this should be encapsulated in an RPC_DATA_BLOB */
 	uint32		size;	/* in bytes */
 	uint8           *data_p;
-} REGISTRY_VALUE;
+};
 
 /*
  * A REG_SZ string is not necessarily NULL terminated. When retrieving it from
@@ -58,11 +58,11 @@ struct registry_value {
 
 /* container for registry values */
 
-typedef struct {
+struct regval_ctr {
 	uint32          num_values;
-	REGISTRY_VALUE	**values;
+	struct regval_blob **values;
 	int seqnum;
-} REGVAL_CTR;
+};
 
 /* container for registry subkey names */
 
@@ -126,14 +126,14 @@ struct regsubkey_ctr;
  * for virtual registry view 
  */ 
  
-typedef struct {
+struct registry_ops {
 	/* functions for enumerating subkeys and values */	
 	int 	(*fetch_subkeys)( const char *key, struct regsubkey_ctr *subkeys);
-	int 	(*fetch_values) ( const char *key, REGVAL_CTR *val );
+	int 	(*fetch_values) ( const char *key, struct regval_ctr *val );
 	bool 	(*store_subkeys)( const char *key, struct regsubkey_ctr *subkeys );
 	WERROR	(*create_subkey)(const char *key, const char *subkey);
 	WERROR	(*delete_subkey)(const char *key, const char *subkey);
-	bool 	(*store_values)( const char *key, REGVAL_CTR *val );
+	bool 	(*store_values)( const char *key, struct regval_ctr *val );
 	bool	(*reg_access_check)( const char *keyname, uint32 requested,
 				     uint32 *granted,
 				     const NT_USER_TOKEN *token );
@@ -142,28 +142,28 @@ typedef struct {
 	WERROR (*set_secdesc)(const char *key,
 			      struct security_descriptor *sec_desc);
 	bool	(*subkeys_need_update)(struct regsubkey_ctr *subkeys);
-	bool	(*values_need_update)(REGVAL_CTR *values);
-} REGISTRY_OPS;
+	bool	(*values_need_update)(struct regval_ctr *values);
+};
 
-typedef struct {
+struct registry_hook {
 	const char	*keyname;	/* full path to name of key */
-	REGISTRY_OPS	*ops;		/* registry function hooks */
-} REGISTRY_HOOK;
+	struct registry_ops	*ops;	/* registry function hooks */
+};
 
 
 /* structure to store the registry handles */
 
-typedef struct _RegistryKey {
+struct registry_key_handle {
 	uint32		type;
 	char		*name; 		/* full name of registry key */
 	uint32 		access_granted;
-	REGISTRY_OPS	*ops;
-} REGISTRY_KEY;
+	struct registry_ops	*ops;
+};
 
 struct registry_key {
-	REGISTRY_KEY *key;
+	struct registry_key_handle *key;
 	struct regsubkey_ctr *subkeys;
-	REGVAL_CTR *values;
+	struct regval_ctr *values;
 	struct nt_user_token *token;
 };
 

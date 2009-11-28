@@ -74,6 +74,7 @@ clustersrcdir := $(samba4srcdir)/cluster
 libnetsrcdir := $(samba4srcdir)/libnet
 authsrcdir := $(samba4srcdir)/auth
 nsswitchsrcdir := $(samba4srcdir)/../nsswitch
+libwbclientsrcdir := $(nsswitchsrcdir)/libwbclient
 libsrcdir := $(samba4srcdir)/lib
 libsocketsrcdir := $(samba4srcdir)/lib/socket
 libcharsetsrcdir := $(samba4srcdir)/../lib/util/charset
@@ -87,9 +88,10 @@ libcmdlinesrcdir := $(samba4srcdir)/lib/cmdline
 poptsrcdir := $(samba4srcdir)/../lib/popt
 socketwrappersrcdir := $(samba4srcdir)/../lib/socket_wrapper
 nsswrappersrcdir := $(samba4srcdir)/../lib/nss_wrapper
+uidwrappersrcdir := $(samba4srcdir)/../lib/uid_wrapper
 libstreamsrcdir := $(samba4srcdir)/lib/stream
 libutilsrcdir := $(samba4srcdir)/../lib/util
-libtdrsrcdir := $(samba4srcdir)/lib/tdr
+libtdrsrcdir := ../lib/tdr
 libcryptosrcdir := $(samba4srcdir)/../lib/crypto
 libtorturesrcdir := ../lib/torture
 libcompressionsrcdir := $(samba4srcdir)/../lib/compression
@@ -122,7 +124,7 @@ tallocsrcdir := $(samba4srcdir)/../lib/talloc
 comsrcdir := $(samba4srcdir)/lib/com
 override ASN1C = bin/asn1_compile4
 override ET_COMPILER = bin/compile_et4
-include $(samba4srcdir)/build/make/python.mk
+#include $(samba4srcdir)/build/make/python.mk
 include samba4-data.mk
 include $(samba4srcdir)/static_deps.mk
 
@@ -163,15 +165,22 @@ clean::
 proto:: $(PROTO_HEADERS)
 modules:: $(PLUGINS)
 
-pythonmods:: $(PYTHON_PYS) $(PYTHON_SO)
+#pythonmods:: $(PYTHON_PYS) $(PYTHON_SO)
 
-all:: bin/samba4 bin/regpatch4 bin/regdiff4 bin/regshell4 bin/regtree4 bin/smbclient4 bin/wbinfo4 pythonmods setup plugins
+all:: bin/samba4 bin/regpatch4 bin/regdiff4 bin/regshell4 bin/regtree4 bin/smbclient4 setup plugins
 torture:: bin/smbtorture4
+
+#
+## This is a fake rule to stop any python being invoked as currently the
+## build system is broken in source3 with python. JRA.
+#
+installpython:: bin/smbtorture4
+
 everything:: $(patsubst %,%4,$(BINARIES))
 setup:
 	@ln -sf ../source4/setup setup
 
-S4_LD_LIBPATH_OVERRIDE = $(LIB_PATH_VAR)="$(builddir)/bin/shared"
+S4_LD_LIBPATH_OVERRIDE = $(LIB_PATH_VAR)="$(builddir)/bin/shared:$$$(LIB_PATH_VAR)"
 
 SELFTEST4 = $(S4_LD_LIBPATH_OVERRIDE) EXEEXT="4" PYTHON="$(PYTHON)" PERL="$(PERL)" \
     $(PERL) $(selftestdir)/selftest.pl --prefix=st4 \
@@ -225,32 +234,32 @@ test4-%::
 valgrindtest4:: valgrindtest-all
 
 valgrindtest4-quick:: all
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
 	VALGRIND="valgrind -q --num-callers=30 --log-file=${selftest_prefix}/valgrind.log" \
 	$(SELFTEST4) $(SELFTEST4_QUICK_OPTS) --immediate --socket-wrapper $(TESTS)
 
 valgrindtest4-all:: everything
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
 	VALGRIND="valgrind -q --num-callers=30 --log-file=${selftest_prefix}/valgrind.log" \
 	$(SELFTEST4) $(SELFTEST4_NOSLOW_OPTS) --immediate --socket-wrapper $(TESTS)
 
 valgrindtest4-env:: everything
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/valgrind_run $(LD_LIBPATH_OVERRIDE)" \
 	VALGRIND="valgrind -q --num-callers=30 --log-file=${selftest_prefix}/valgrind.log" \
 	$(SELFTEST4) $(SELFTEST4_NOSLOW_OPTS) --socket-wrapper --testenv
 
 gdbtest4:: gdbtest4-all
 
 gdbtest4-quick:: all
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
 	$(SELFTEST4) $(SELFTEST4_QUICK_OPTS) --immediate --socket-wrapper $(TESTS)
 
 gdbtest4-all:: everything
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
 	$(SELFTEST4) $(SELFTEST4_NOSLOW_OPTS) --immediate --socket-wrapper $(TESTS)
 
 gdbtest4-env:: everything
-	SMBD_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
+	SAMBA_VALGRIND="xterm -n server -e $(selftestdir)/gdb_run $(LD_LIBPATH_OVERRIDE)" \
 	$(SELFTEST4) $(SELFTEST4_NOSLOW_OPTS) --socket-wrapper --testenv
 
 plugins: $(PLUGINS)

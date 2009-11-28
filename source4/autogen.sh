@@ -22,7 +22,12 @@ TESTAUTOCONF="autoconf autoconf-2.53 autoconf2.50 autoconf259 autoconf253"
 AUTOHEADERFOUND="0"
 AUTOCONFFOUND="0"
 
-
+if which which > /dev/null 2>&1; then
+        echo -n
+else
+	echo "$0: need 'which' to figure out if we have the right autoconf to build samba from git" >&2
+	exit 1
+fi
 ##
 ## Look for autoheader
 ##
@@ -75,5 +80,5 @@ $AUTOCONF $IPATHS || exit 1
 
 rm -rf autom4te*.cache
 
-echo "Now run ./configure and then make."
+echo "Now run ./configure (or ./configure.developer) and then make."
 exit 0

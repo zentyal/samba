@@ -28,7 +28,7 @@ Provides: samba = %{version}
 
 Prefix: /usr
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel
+BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, keyutils-devel
 
 # Working around perl dependency problem from docs
 %define __perl_requires %{SOURCE998}
@@ -118,12 +118,11 @@ utilized by SWAT as well as the HTML and PDF version of "Using Samba",
 
 /bin/cp setup/filter-requires-samba.sh %{SOURCE998}
 
-cd source
+cd source3
 # RPM_OPT_FLAGS="$RPM_OPT_FLAGS -D_FILE_OFFSET_BITS=64"
 
 ## check for ccache
- ccache -h 2>&1 > /dev/null
-if [ $? -eq 0 ]; then
+if [ "$(which ccache 2> /dev/null)" != "" ]; then
 	CC="ccache gcc"
 else
 	CC="gcc"
@@ -175,8 +174,7 @@ if [ ${CC_MAJOR} -ge 3 ]; then
 fi
 
 
-make CFLAGS="$RPM_OPT_FLAGS -D_GNU_SOURCE" %{?_smp_mflags} \
-	all modules pam_smbpass
+make all modules pam_smbpass
 
 # Remove some permission bits to avoid to many dependencies
 cd ..
@@ -205,14 +203,14 @@ mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/xinetd.d
 mkdir -p $RPM_BUILD_ROOT/var/lib/samba/winbindd_privileged
 mkdir -p $RPM_BUILD_ROOT/var/{log,run/winbindd,spool}/samba
 
-cd source
+cd source3
 make DESTDIR=$RPM_BUILD_ROOT \
         install
 cd ..
 
 # NSS winbind support
-install -m 755 source/nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
-install -m 755 source/nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so.2
+install -m 755 nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_winbind.so.2
+install -m 755 nsswitch/libnss_wins.so $RPM_BUILD_ROOT/%{_libarch}/libnss_wins.so.2
 ( cd $RPM_BUILD_ROOT/%{_libarch};
   ln -sf libnss_winbind.so.2  libnss_winbind.so;
   ln -sf libnss_wins.so.2  libnss_wins.so )
@@ -232,9 +230,9 @@ install -m644 setup/samba.pamd $RPM_BUILD_ROOT%{_sysconfdir}/pam.d/samba
 install -m755 setup/smbprint $RPM_BUILD_ROOT%{_bindir}
 install -m644 setup/smbusers $RPM_BUILD_ROOT%{_sysconfdir}/samba/smbusers
 install -m644 setup/smb.conf $RPM_BUILD_ROOT%{_sysconfdir}/samba/smb.conf
-install -m755 source/bin/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
-install -m755 source/bin/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
-install -m755 source/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
+install -m755 source3/bin/mount.cifs $RPM_BUILD_ROOT/sbin/mount.cifs
+install -m755 source3/bin/umount.cifs $RPM_BUILD_ROOT/sbin/umount.cifs
+install -m755 source3/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
 
 /bin/rm $RPM_BUILD_ROOT%{_sbindir}/*mount.cifs
 
@@ -441,6 +439,24 @@ fi
 %attr(755,root,root) /%{_libarch}/security/pam_winbind.so
 %attr(755,root,root) /%{_libarch}/security/pam_smbpass.so
 /usr/share/locale/de/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ar/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/cs/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/da/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/es/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/fi/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/fr/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/hu/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/it/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ja/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ko/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/nb/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/nl/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/pl/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/pt_BR/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/ru/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/sv/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/zh_CN/LC_MESSAGES/pam_winbind.mo
+/usr/share/locale/zh_TW/LC_MESSAGES/pam_winbind.mo
 
 %{_includedir}/libsmbclient.h
 %{_libarchdir}/libsmbclient.*
@@ -477,7 +493,7 @@ fi
 %{_mandir}/man5/lmhosts.5*
 %{_mandir}/man8/smbpasswd.8*
 %{_mandir}/man7/libsmbclient.7*
-%{_mandir}/man7/pam_winbind.7*
+%{_mandir}/man8/pam_winbind.8*
 
 %{_mandir}/man1/ldbadd.1*
 %{_mandir}/man1/ldbdel.1*

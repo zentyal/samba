@@ -42,7 +42,7 @@ void debug_unix_user_token(int dbg_class, int dbg_lev, uid_t uid, gid_t gid,
 
 /* The following definitions come from utils/net.c  */
 
-uint32 get_sec_channel_type(const char *param);
+enum netr_SchannelType get_sec_channel_type(const char *param);
 
 /* The following definitions come from utils/net_ads.c  */
 
@@ -423,10 +423,6 @@ int net_usershare_usage(struct net_context *c, int argc, const char **argv);
 int net_usershare_help(struct net_context *c, int argc, const char **argv);
 int net_usershare(struct net_context *c, int argc, const char **argv);
 
-/* The following definitions come from utils/net_lua.c  */
-
-int net_lua(struct net_context *c, int argc, const char **argv);
-
 /* The following definitions come from utils/net_eventlog.c  */
 
 int net_eventlog(struct net_context *c, int argc, const char **argv);
@@ -459,6 +455,8 @@ NTSTATUS connect_to_ipc_krb5(struct net_context *c,
 NTSTATUS connect_dst_pipe(struct net_context *c, struct cli_state **cli_dst,
 			  struct rpc_pipe_client **pp_pipe_hnd,
 			  const struct ndr_syntax_id *interface);
+int net_use_krb_machine_account(struct net_context *c);
+int net_use_machine_account(struct net_context *c);
 bool net_find_server(struct net_context *c,
 			const char *domain,
 			unsigned flags,
@@ -473,6 +471,7 @@ NTSTATUS net_make_ipc_connection_ex(struct net_context *c ,const char *domain,
 				    const char *server,
 				    struct sockaddr_storage *pss,
 				    unsigned flags, struct cli_state **pcli);
+const char *net_prompt_pass(struct net_context *c, const char *user);
 int net_run_function(struct net_context *c, int argc, const char **argv,
 		      const char *whoami, struct functable *table);
 void net_display_usage_from_functable(struct functable *table);

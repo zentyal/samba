@@ -1,5 +1,19 @@
 #!/usr/bin/perl
+# HTML output for selftest
+# Copyright (C) 2008 Jelmer Vernooij <jelmer@samba.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package output::html;
 use Exporter;
 @ISA = qw(Exporter);
@@ -9,8 +23,6 @@ use warnings;
 
 use FindBin qw($RealBin);
 use lib "$RealBin/..";
-
-use Subunit qw(parse_results);
 
 sub new($$$) {
 	my ($class, $dirname, $statistics) = @_;
@@ -49,6 +61,10 @@ sub new($$$) {
 	return $self;
 }
 
+sub testsuite_count($$)
+{
+}
+
 sub print_html_header($$$)
 {
 	my ($self, $title, $fh) = @_;
@@ -80,6 +96,8 @@ sub start_testsuite($$)
 {
 	my ($self, $name) = @_;
 
+	$self->{START_TIME} = $self->{last_time};
+
 	$self->{local_statistics} = {
 		success => 0,
 		skip => 0,
@@ -104,6 +122,7 @@ sub control_msg($$)
 {
 	my ($self, $output) = @_;
 
+	# Perhaps the CSS should hide this by default?
 	$self->{msg} .=  "<span class=\"control\">$output<br/></span>\n";
 }
 
@@ -112,19 +131,21 @@ sub output_msg($$)
 	my ($self, $output) = @_;
 
 	unless (defined($self->{active_test})) {
-		print TEST "$output<br/>";
+		if (defined($self->{NAME})) {
+			print TEST "$output<br/>";
+		}
 	} else {
 		$self->{msg} .= "$output<br/>";
 	}
 }
 
-sub end_testsuite($$$$)
+sub end_testsuite($$$)
 {
-	my ($self, $name, $result, $unexpected, $reason) = @_;
+	my ($self, $name, $result, $reason) = @_;
 
 	print TEST "</table>\n";
 
-	print TEST "<div class=\"duration\">Duration: " . (time() - $self->{START_TIME}) . "s</div>\n";
+	print TEST "<div class=\"duration\">Duration: " . ($self->{last_time} - $self->{START_TIME}) . "s</div>\n";
 
 	$self->print_html_footer(*TEST);
 
@@ -134,12 +155,10 @@ sub end_testsuite($$$$)
 	print INDEX "  <td class=\"testSuite\"><a href=\"$self->{HTMLFILE}\">$name</a></td>\n";
 	my $st = $self->{local_statistics};
 
-	if (not $unexpected) {
-		if ($result eq "failure") {
-			print INDEX "  <td class=\"resultExpectedFailure\">";
-		} else {
-			print INDEX "  <td class=\"resultOk\">";
-		}
+	if ($result eq "xfail") {
+		print INDEX "  <td class=\"resultExpectedFailure\">";
+	} elsif ($result eq "success") {
+		print INDEX "  <td class=\"resultOk\">";
 	} else {
 		print INDEX "  <td class=\"resultFailure\">";
 	}
@@ -166,40 +185,33 @@ sub end_testsuite($$$$)
 	}
 
 	if ($l == 0) {
-		if (not $unexpected) {
-			print INDEX "OK";
-		} else {
-			print INDEX "FAIL";
-		}
+		print INDEX uc($result);
 	}
 
 	print INDEX "</td>";
 		
 	print INDEX "</tr>\n";
+
+	$self->{NAME} = undef;
+}
+
+sub report_time($$)
+{
+	my ($self, $time) = @_;
+	$self->{last_time} = $time;
 }
 
 sub start_test($$)
 {
-	my ($self, $parents, $testname) = @_;
-
-	if ($#$parents == -1) {
-		$self->{START_TIME} = time();
-		$self->start_testsuite($testname);
-		return;
-	}
+	my ($self, $testname) = @_;
 
 	$self->{active_test} = $testname;
 	$self->{msg} = "";
 }
 
-sub end_test($$$$$$)
+sub end_test($$$$)
 {
-	my ($self, $parents, $testname, $result, $unexpected, $reason) = @_;
-
-	if ($#$parents == -1) {
-		$self->end_testsuite($testname, $result, $unexpected, $reason);
-		return;
-	}
+	my ($self, $testname, $result, $unexpected, $reason) = @_;
 
 	print TEST "<tr>";
 

@@ -14,8 +14,10 @@ chdir("smbdotconf");
 open(IN,"xsltproc --xinclude --param smb.context ALL generate-context.xsl parameters.all.xml|");
 
 while(<IN>) {
-	if( /<listitem><para><link linkend="([^"]*)"><parameter moreinfo="none">([^<]*)<\/parameter><\/link><\/para><\/listitem>/g ){
-		$doc{$2} = $1;
+	if( /<samba:parameter .*?name="([^"]*?)"/g ){
+		my $name = $1;
+	    $name =~ s/ //g;
+		$doc{$name} = "NOTFOUND";
 	}
 }
 
@@ -37,12 +39,15 @@ while ($ln = <SOURCE>) {
   last if $ln =~ m/^\s*\}\;\s*$/;
   #pull in the param names only
   next if $ln =~ m/.*P_SEPARATOR.*/;
-  next unless $ln =~ /\s*\{\"(.*)\".*/;
+  next unless $ln =~ /\s*\.label\s*=\s*\"(.*)\".*/;
 
-  if($doc{lc($1)}) {
-	$doc{lc($1)} = "FOUND";
+  my $name = $1;
+  $name =~ s/ //g;
+
+  if($doc{lc($name)}) {
+	$doc{lc($name)} = "FOUND";
   } else {
-	print "'$1' is not documented\n";
+	print "'$name' is not documented\n";
   }
 }
 close SOURCE;

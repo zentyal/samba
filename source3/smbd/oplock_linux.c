@@ -98,6 +98,10 @@ static void linux_oplock_signal_handler(struct tevent_context *ev_ctx,
 	files_struct *fsp;
 
 	fsp = file_find_fd(fd);
+	if (fsp == NULL) {
+		DEBUG(0,("linux_oplock_signal_handler: failed to find fsp for file fd=%d (file was closed ?)\n", fd ));
+		return;
+	}
 	break_kernel_oplock(smbd_messaging_context(), fsp);
 }
 
@@ -111,7 +115,7 @@ static bool linux_set_kernel_oplock(struct kernel_oplocks *ctx,
 	if ( SMB_VFS_LINUX_SETLEASE(fsp, F_WRLCK) == -1) {
 		DEBUG(3,("linux_set_kernel_oplock: Refused oplock on file %s, "
 			 "fd = %d, file_id = %s. (%s)\n",
-			 fsp->fsp_name, fsp->fh->fd, 
+			 fsp_str_dbg(fsp), fsp->fh->fd,
 			 file_id_string_tos(&fsp->file_id),
 			 strerror(errno)));
 		return False;
@@ -119,7 +123,7 @@ static bool linux_set_kernel_oplock(struct kernel_oplocks *ctx,
 	
 	DEBUG(3,("linux_set_kernel_oplock: got kernel oplock on file %s, "
 		 "file_id = %s gen_id = %lu\n",
-		 fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+		 fsp_str_dbg(fsp), file_id_string_tos(&fsp->file_id),
 		 fsp->fh->gen_id));
 
 	return True;
@@ -140,7 +144,8 @@ static void linux_release_kernel_oplock(struct kernel_oplocks *ctx,
 		int state = fcntl(fsp->fh->fd, F_GETLEASE, 0);
 		dbgtext("linux_release_kernel_oplock: file %s, file_id = %s "
 			"gen_id = %lu has kernel oplock state "
-			"of %x.\n", fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+			"of %x.\n", fsp_str_dbg(fsp),
+		        file_id_string_tos(&fsp->file_id),
 			fsp->fh->gen_id, state );
 	}
 
@@ -152,7 +157,7 @@ static void linux_release_kernel_oplock(struct kernel_oplocks *ctx,
 			dbgtext("linux_release_kernel_oplock: Error when "
 				"removing kernel oplock on file " );
 			dbgtext("%s, file_id = %s, gen_id = %lu. "
-				"Error was %s\n", fsp->fsp_name,
+				"Error was %s\n", fsp_str_dbg(fsp),
 				file_id_string_tos(&fsp->file_id),
 				fsp->fh->gen_id, strerror(errno) );
 		}

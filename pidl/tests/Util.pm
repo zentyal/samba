@@ -13,6 +13,8 @@ use strict;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
 
+use Parse::Pidl::Samba4 qw(is_intree);
+
 use Parse::Pidl;
 my $warnings = "";
 undef &Parse::Pidl::warning;
@@ -66,12 +68,15 @@ sub test_samba4_ndr
 
 SKIP: {
 
-	skip "no samba environment available, skipping compilation", 3 
-		if (system("pkg-config --exists ndr") != 0);
+	my $flags;
+	if (system("pkg-config --exists ndr") == 0 and !is_intree()) {
+		$flags = `pkg-config --libs --cflags ndr`;
+	} else {
+		skip "no samba environment available, skipping compilation", 3;
+	}
 
 	my $main = "
 #define uint_t unsigned int
-#define _GNU_SOURCE
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -133,8 +138,6 @@ $c
 	unless (defined($cc)) {
 		$cc = "cc";
 	}
-
-	my $flags = `pkg-config --libs --cflags ndr`;
 
 	my $cmd = "$cc $cflags -x c - -o $outfile $flags $ldflags";
 	$cmd =~ s/\n//g;

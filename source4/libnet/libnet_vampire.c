@@ -38,6 +38,7 @@
 #include "auth/auth.h"
 #include "param/param.h"
 #include "param/provision.h"
+#include "libcli/security/dom_sid.h"
 
 /* 
 List of tasks vampire.py must perform:
@@ -71,6 +72,8 @@ struct vampire_state {
 
 	struct loadparm_context *lp_ctx;
 	struct tevent_context *event_ctx;
+	unsigned total_objects;
+	char *last_partition;
 };
 
 static NTSTATUS vampire_prepare_db(void *private_data,
@@ -81,6 +84,7 @@ static NTSTATUS vampire_prepare_db(void *private_data,
 	struct provision_result result;
 	NTSTATUS status;
 
+	ZERO_STRUCT(settings);
 	settings.site_name = p->dest_dsa->site_name;
 	settings.root_dn_str = p->forest->root_dn_str;
 	settings.domain_dn_str = p->domain->dn_str;
@@ -101,6 +105,19 @@ static NTSTATUS vampire_prepare_db(void *private_data,
 
 	s->ldb = result.samdb;
 	s->lp_ctx = result.lp_ctx;
+
+	/* wrap the entire vapire operation in a transaction.  This
+	   isn't just cosmetic - we use this to ensure that linked
+	   attribute back links are added at the end by relying on a
+	   transaction commit hook in the linked attributes module. We
+	   need to do this as the order of objects coming from the
+	   server is not sufficiently deterministic to know that the
+	   record that a backlink needs to be created in has itself
+	   been created before the object containing the forward link
+	   has come over the wire */
+	if (ldb_transaction_start(s->ldb) != LDB_SUCCESS) {
+		return NT_STATUS_FOOBAR;
+	}
 
         return NT_STATUS_OK;
 
@@ -152,6 +169,7 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 	uint32_t i;
 	int ret;
 	bool ok;
+	uint64_t seq_num;
 
 	DEBUG(0,("Analyze and apply schema objects\n"));
 
@@ -176,8 +194,8 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 		mapping_ctr			= &c->ctr6->mapping_ctr;
 		object_count			= s->schema_part.object_count;
 		first_object			= s->schema_part.first_object;
-		linked_attributes_count		= 0; /* TODO: ! */
-		linked_attributes		= NULL; /* TODO: ! */;
+		linked_attributes_count		= c->ctr6->linked_attributes_count;
+		linked_attributes		= c->ctr6->linked_attributes;
 		s_dsa->highwatermark		= c->ctr6->new_highwatermark;
 		s_dsa->source_dsa_obj_guid	= c->ctr6->source_dsa_guid;
 		s_dsa->source_dsa_invocation_id = c->ctr6->source_dsa_invocation_id;
@@ -218,9 +236,9 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 				for (j=0; j < a->value_ctr.num_values; j++) {
 					uint32_t val = 0xFFFFFFFF;
 
-					if (a->value_ctr.values[i].blob
-					    && a->value_ctr.values[i].blob->length == 4) {
-						val = IVAL(a->value_ctr.values[i].blob->data,0);
+					if (a->value_ctr.values[j].blob
+					    && a->value_ctr.values[j].blob->length == 4) {
+						val = IVAL(a->value_ctr.values[j].blob->data,0);
 					}
 
 					if (val == DRSUAPI_OBJECTCLASS_attributeSchema) {
@@ -243,7 +261,7 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 			sa = talloc_zero(s->self_made_schema, struct dsdb_attribute);
 			NT_STATUS_HAVE_NO_MEMORY(sa);
 
-			status = dsdb_attribute_from_drsuapi(s->self_made_schema, &cur->object, s, sa);
+			status = dsdb_attribute_from_drsuapi(s->ldb, s->self_made_schema, &cur->object, s, sa);
 			if (!W_ERROR_IS_OK(status)) {
 				return werror_to_ntstatus(status);
 			}
@@ -285,7 +303,7 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 							 s_dsa,
 							 uptodateness_vector,
 							 c->gensec_skey,
-							 s, &objs);
+							 s, &objs, &seq_num);
 	if (!W_ERROR_IS_OK(status)) {
 		DEBUG(0,("Failed to commit objects: %s\n", win_errstr(status)));
 		return werror_to_ntstatus(status);
@@ -328,19 +346,8 @@ static NTSTATUS vampire_apply_schema(struct vampire_state *s,
 	talloc_free(s_dsa);
 	talloc_free(objs);
 
-	/* reopen the ldb */
-	talloc_free(s->ldb); /* this also free's the s->schema, because dsdb_set_schema() steals it */
-	s->schema = NULL;
-
-	DEBUG(0,("Reopen the SAM LDB with system credentials and a already stored schema\n"));
-	s->ldb = samdb_connect(s, s->event_ctx, s->lp_ctx, 
-			       system_session(s, s->lp_ctx));
-	if (!s->ldb) {
-		DEBUG(0,("Failed to reopen sam.ldb\n"));
-		return NT_STATUS_INTERNAL_DB_ERROR;
-	}
-
-	/* We must set these up to ensure the replMetaData is written correctly, before our NTDS Settings entry is replicated */
+	/* We must set these up to ensure the replMetaData is written
+	 * correctly, before our NTDS Settings entry is replicated */
 	ok = samdb_set_ntds_invocation_id(s->ldb, &c->dest_dsa->invocation_id);
 	if (!ok) {
 		DEBUG(0,("Failed to set cached ntds invocationId\n"));
@@ -373,6 +380,7 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 	struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t nc_linked_attributes_count;
 	uint32_t linked_attributes_count;
+	struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 
 	switch (c->ctr_level) {
 	case 1:
@@ -382,6 +390,7 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 		first_object			= c->ctr1->first_object;
 		nc_linked_attributes_count	= 0;
 		linked_attributes_count		= 0;
+		linked_attributes		= NULL;
 		break;
 	case 6:
 		mapping_ctr			= &c->ctr6->mapping_ctr;
@@ -390,6 +399,7 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 		first_object			= c->ctr6->first_object;
 		nc_linked_attributes_count	= c->ctr6->nc_linked_attributes_count;
 		linked_attributes_count		= c->ctr6->linked_attributes_count;
+		linked_attributes		= c->ctr6->linked_attributes;
 		break;
 	default:
 		return NT_STATUS_INVALID_PARAMETER;
@@ -400,7 +410,7 @@ static NTSTATUS vampire_schema_chunk(void *private_data,
 			c->partition->nc.dn, object_count, nc_object_count,
 			linked_attributes_count, nc_linked_attributes_count));
 	} else {
-		DEBUG(0,("Schema-DN[%s] objects[%u] linked_values[%u\n",
+		DEBUG(0,("Schema-DN[%s] objects[%u] linked_values[%u]\n",
 		c->partition->nc.dn, object_count, linked_attributes_count));
 	}
 
@@ -457,6 +467,7 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 	struct repsFromTo1 *s_dsa;
 	char *tmp_dns_name;
 	uint32_t i;
+	uint64_t seq_num;
 
 	s_dsa			= talloc_zero(s, struct repsFromTo1);
 	NT_STATUS_HAVE_NO_MEMORY(s_dsa);
@@ -505,14 +516,23 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 	NT_STATUS_HAVE_NO_MEMORY(tmp_dns_name);
 	s_dsa->other_info->dns_name = tmp_dns_name;
 
+	/* we want to show a count per partition */
+	if (!s->last_partition || strcmp(s->last_partition, c->partition->nc.dn) != 0) {
+		s->total_objects = 0;
+		talloc_free(s->last_partition);
+		s->last_partition = talloc_strdup(s, c->partition->nc.dn);
+	}
+	s->total_objects += object_count;
+
 	if (nc_object_count) {
 		DEBUG(0,("Partition[%s] objects[%u/%u] linked_values[%u/%u]\n",
-			c->partition->nc.dn, object_count, nc_object_count,
+			c->partition->nc.dn, s->total_objects, nc_object_count,
 			linked_attributes_count, nc_linked_attributes_count));
 	} else {
-		DEBUG(0,("Partition[%s] objects[%u] linked_values[%u\n",
-		c->partition->nc.dn, object_count, linked_attributes_count));
+		DEBUG(0,("Partition[%s] objects[%u] linked_values[%u]\n",
+		c->partition->nc.dn, s->total_objects, linked_attributes_count));
 	}
+
 
 	status = dsdb_extended_replicated_objects_commit(s->ldb,
 							 c->partition->nc.dn,
@@ -524,7 +544,7 @@ static NTSTATUS vampire_store_chunk(void *private_data,
 							 s_dsa,
 							 uptodateness_vector,
 							 c->gensec_skey,
-							 s, &objs);
+							 s, &objs, &seq_num);
 	if (!W_ERROR_IS_OK(status)) {
 		DEBUG(0,("Failed to commit objects: %s\n", win_errstr(status)));
 		return werror_to_ntstatus(status);
@@ -576,10 +596,11 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 			struct libnet_Vampire *r)
 {
 	struct libnet_JoinDomain *join;
-	struct libnet_set_join_secrets *set_secrets;
+	struct provision_store_self_join_settings *set_secrets;
 	struct libnet_BecomeDC b;
 	struct vampire_state *s;
 	struct ldb_message *msg;
+	const char *error_string;
 	int ldb_ret;
 	uint32_t i;
 	NTSTATUS status;
@@ -690,31 +711,52 @@ NTSTATUS libnet_Vampire(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INTERNAL_DB_ERROR;
 	}
 
-	set_secrets = talloc_zero(s, struct libnet_set_join_secrets);
+	/* prepare the transaction - this prepares to commit all the changes in
+	   the ldb from the whole vampire.  Note that this 
+	   triggers the writing of the linked attribute backlinks.
+	*/
+	if (ldb_transaction_prepare_commit(s->ldb) != LDB_SUCCESS) {
+		printf("Failed to prepare_commit vampire transaction\n");
+		return NT_STATUS_INTERNAL_DB_ERROR;
+	}
+
+	set_secrets = talloc(s, struct provision_store_self_join_settings);
 	if (!set_secrets) {
+		r->out.error_string = NULL;
+		talloc_free(s);
 		return NT_STATUS_NO_MEMORY;
 	}
-		
-	set_secrets->in.domain_name = join->out.domain_name;
-	set_secrets->in.realm = join->out.realm;
-	set_secrets->in.account_name = account_name;
-	set_secrets->in.netbios_name = netbios_name;
-	set_secrets->in.join_type = SEC_CHAN_BDC;
-	set_secrets->in.join_password = join->out.join_password;
-	set_secrets->in.kvno = join->out.kvno;
-	set_secrets->in.domain_sid = join->out.domain_sid;
 	
-	status = libnet_set_join_secrets(ctx, set_secrets, set_secrets);
+	ZERO_STRUCTP(set_secrets);
+	set_secrets->domain_name = join->out.domain_name;
+	set_secrets->realm = join->out.realm;
+	set_secrets->account_name = account_name;
+	set_secrets->netbios_name = netbios_name;
+	set_secrets->secure_channel_type = SEC_CHAN_BDC;
+	set_secrets->machine_password = join->out.join_password;
+	set_secrets->key_version_number = join->out.kvno;
+	set_secrets->domain_sid = join->out.domain_sid;
+	
+	status = provision_store_self_join(ctx, ctx->lp_ctx, ctx->event_ctx, set_secrets, &error_string);
 	if (!NT_STATUS_IS_OK(status)) {
-		r->out.error_string = talloc_steal(mem_ctx, set_secrets->out.error_string);
+		r->out.error_string = talloc_steal(mem_ctx, error_string);
 		talloc_free(s);
 		return status;
 	}
 
 	r->out.domain_name = talloc_steal(r, join->out.domain_name);
-	r->out.domain_sid = talloc_steal(r, join->out.domain_sid);
-	talloc_free(s);
+	r->out.domain_sid = dom_sid_dup(r, join->out.domain_sid);
 	
+	/* commit the transaction now we know the secrets were written
+	 * out properly
+	*/
+	if (ldb_transaction_commit(s->ldb) != LDB_SUCCESS) {
+		printf("Failed to commit vampire transaction\n");
+		return NT_STATUS_INTERNAL_DB_ERROR;
+	}
+
+	talloc_free(s);
+
 	return NT_STATUS_OK;
 
 }

@@ -466,7 +466,7 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 			       &user_handle);
 
  done:
-	if (is_valid_policy_hnd(&user_handle)) {
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 
@@ -770,7 +770,7 @@ static uint32_t samr_acb_flags_to_netapi_flags(uint32_t acb)
 {
 	uint32_t fl = UF_SCRIPT; /* god knows why */
 
-	fl |= ads_acb2uf(acb);
+	fl |= ds_acb2uf(acb);
 
 	return fl;
 }
@@ -1474,10 +1474,10 @@ static WERROR convert_samr_dispinfo_to_NET_DISPLAY(TALLOC_CTX *mem_ctx,
 									  entries_read,
 									  buffer);
 		default:
-			return WERR_UNKNOWN_LEVEL;
+			break;
 	}
 
-	return WERR_OK;
+	return WERR_UNKNOWN_LEVEL;
 }
 
 /****************************************************************
@@ -1696,7 +1696,7 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 	}
 
  done:
-	if (is_valid_policy_hnd(&user_handle)) {
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 
@@ -1746,6 +1746,8 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 
 	switch (r->in.level) {
 		case 0:
+			user_mask = SAMR_USER_ACCESS_SET_ATTRIBUTES;
+			break;
 		case 1003:
 			user_mask = SAMR_USER_ACCESS_SET_PASSWORD;
 			break;
@@ -1862,7 +1864,7 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 	werr = WERR_OK;
 
  done:
-	if (is_valid_policy_hnd(&user_handle)) {
+	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 

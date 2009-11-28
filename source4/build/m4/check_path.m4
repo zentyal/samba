@@ -49,6 +49,22 @@ else
 fi
 
 #################################################
+# set modules directory location
+AC_ARG_WITH(modulesdir,
+[AS_HELP_STRING([--with-modulesdir=DIR],[Where to put dynamically loadable modules ($modulesdir)])],
+[ case "$withval" in
+  yes|no)
+  #
+  # Just in case anybody calls it without argument
+  #
+    AC_MSG_WARN([--with-modulesdir called without argument - will use default])
+  ;;
+  * )
+    modulesdir="$withval"
+    ;;
+  esac])
+
+#################################################
 # set private directory location
 AC_ARG_WITH(privatedir,
 [AS_HELP_STRING([--with-privatedir=DIR],[Where to put sam.ldb and other private files containing key material ($ac_default_prefix/private)])],
@@ -81,7 +97,7 @@ AC_ARG_WITH(winbindd-socket-dir,
   esac])
 
 #################################################
-# set where the winbindd privilaged socket should be put
+# set where the winbindd privileged socket should be put
 AC_ARG_WITH(winbindd-privileged-socket-dir,
 [AS_HELP_STRING([--with-winbindd-privileged-socket-dir=DIR],[Where to put the winbindd socket ($winbindd_privileged_socket_dir)])],
 [ case "$withval" in

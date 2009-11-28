@@ -418,6 +418,8 @@ static void state_handler(struct composite_context *c)
 	case CONNECT_TCON:
 		c->status = connect_tcon(c, state->io);
 		break;
+	case CONNECT_DONE:
+		break;
 	}
 
 	if (state->stage == CONNECT_DONE) {
@@ -464,7 +466,7 @@ struct composite_context *smb_composite_connect_send(struct smb_composite_connec
 	c = talloc_zero(mem_ctx, struct composite_context);
 	if (c == NULL) goto failed;
 
-	c->event_ctx = talloc_reference(c, event_ctx);
+	c->event_ctx = event_ctx;
 	if (c->event_ctx == NULL) goto failed;
 
 	state = talloc_zero(c, struct connect_state);
@@ -478,7 +480,7 @@ struct composite_context *smb_composite_connect_send(struct smb_composite_connec
 
 	state->stage = CONNECT_RESOLVE;
 	make_nbt_name_server(&name, io->in.dest_host);
-	state->creq = resolve_name_send(resolve_ctx, &name, c->event_ctx);
+	state->creq = resolve_name_send(resolve_ctx, state, &name, c->event_ctx);
 
 	if (state->creq == NULL) goto failed;
 	state->creq->async.private_data = c;

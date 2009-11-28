@@ -1,11 +1,14 @@
-[SUBSYSTEM::LIBSAMBA-UTIL]
+[LIBRARY::LIBSAMBA-UTIL]
 PUBLIC_DEPENDENCIES = \
 		LIBTALLOC LIBCRYPTO \
 		SOCKET_WRAPPER LIBREPLACE_NETWORK \
-		CHARSET EXECINFO
+		CHARSET EXECINFO UID_WRAPPER
+
+LIBSAMBA-UTIL_VERSION = 0.0.1
+LIBSAMBA-UTIL_SOVERSION = 0
 
 LIBSAMBA-UTIL_OBJ_FILES = $(addprefix $(libutilsrcdir)/, \
-	xfile.o \
+		xfile.o \
 		debug.o \
 		fault.o \
 		signal.o \
@@ -14,11 +17,13 @@ LIBSAMBA-UTIL_OBJ_FILES = $(addprefix $(libutilsrcdir)/, \
 		genrand.o \
 		dprintf.o \
 		util_str.o \
+		rfc1738.o \
 		substitute.o \
 		util_strlist.o \
 		util_file.o \
 		data_blob.o \
 		util.o \
+		blocking.o \
 		util_net.o \
 		fsusage.o \
 		ms_fnmatch.o \
@@ -27,7 +32,10 @@ LIBSAMBA-UTIL_OBJ_FILES = $(addprefix $(libutilsrcdir)/, \
 		become_daemon.o \
 		rbtree.o \
 		talloc_stack.o \
-		params.o)
+		smb_threads.o \
+		params.o \
+		parmlist.o \
+		util_id.o)
 
 PUBLIC_HEADERS += $(addprefix $(libutilsrcdir)/, util.h \
 				 dlinklist.h \
@@ -48,6 +56,7 @@ PUBLIC_HEADERS += $(addprefix $(libutilsrcdir)/, util.h \
 ASN1_UTIL_OBJ_FILES = $(libutilsrcdir)/asn1.o
 
 [SUBSYSTEM::UNIX_PRIVS]
+PRIVATE_DEPENDENCIES = UID_WRAPPER
 
 UNIX_PRIVS_OBJ_FILES = $(libutilsrcdir)/unix_privs.o
 
@@ -67,6 +76,13 @@ WRAP_XATTR_OBJ_FILES = $(libutilsrcdir)/wrap_xattr.o
 PUBLIC_DEPENDENCIES = LIBTDB
 
 UTIL_TDB_OBJ_FILES = $(libutilsrcdir)/util_tdb.o
+
+[SUBSYSTEM::UTIL_TEVENT]
+PUBLIC_DEPENDENCIES = LIBTEVENT
+
+UTIL_TEVENT_OBJ_FILES = $(addprefix $(libutilsrcdir)/, \
+			tevent_unix.o \
+			tevent_ntstatus.o)
 
 [SUBSYSTEM::UTIL_LDB]
 PUBLIC_DEPENDENCIES = LIBLDB

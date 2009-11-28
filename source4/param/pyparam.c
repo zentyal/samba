@@ -43,7 +43,7 @@ PyAPI_DATA(PyTypeObject) PyLoadparmService;
 
 PyObject *PyLoadparmService_FromService(struct loadparm_service *service)
 {
-	return py_talloc_import(&PyLoadparmService, service);
+	return py_talloc_reference(&PyLoadparmService, service);
 }
 
 static PyObject *py_lp_ctx_get_helper(struct loadparm_context *lp_ctx, const char *service_name, const char *param_name)
@@ -129,7 +129,13 @@ static PyObject *py_lp_ctx_get_helper(struct loadparm_context *lp_ctx, const cha
 	{
 	    int j;
 	    const char **strlist = *(const char ***)parm_ptr;
-	    PyObject *pylist = PyList_New(str_list_length(strlist));
+	    PyObject *pylist;
+		
+		if(strlist == NULL) {
+			return PyList_New(0);
+		}
+		
+		pylist = PyList_New(str_list_length(strlist));
 	    for (j = 0; strlist[j]; j++) 
 		PyList_SetItem(pylist, j, 
 			       PyString_FromString(strlist[j]));
@@ -232,6 +238,21 @@ static PyObject *py_lp_ctx_private_path(py_talloc_Object *self, PyObject *args)
 	return ret;
 }
 
+static PyObject *py_lp_ctx_services(py_talloc_Object *self)
+{
+	struct loadparm_context *lp_ctx = PyLoadparmContext_AsLoadparmContext(self);
+	PyObject *ret;
+	int i;
+	ret = PyList_New(lp_numservices(lp_ctx));
+	for (i = 0; i < lp_numservices(lp_ctx); i++) {
+		struct loadparm_service *service = lp_servicebynum(lp_ctx, i);
+		if (service != NULL) {
+			PyList_SetItem(ret, i, PyString_FromString(lp_servicename(service)));
+		}
+	}
+	return ret;
+}
+
 static PyMethodDef py_lp_ctx_methods[] = {
 	{ "load", (PyCFunction)py_lp_ctx_load, METH_VARARGS, 
 		"S.load(filename) -> None\n"
@@ -253,6 +274,8 @@ static PyMethodDef py_lp_ctx_methods[] = {
 		"Change a parameter." },
 	{ "private_path", (PyCFunction)py_lp_ctx_private_path, METH_VARARGS,
 		"S.private_path(name) -> path\n" },
+	{ "services", (PyCFunction)py_lp_ctx_services, METH_NOARGS,
+		"S.services() -> list" },
 	{ NULL }
 };
 
@@ -279,7 +302,18 @@ static PyGetSetDef py_lp_ctx_getset[] = {
 
 static PyObject *py_lp_ctx_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
-	return py_talloc_import(type, loadparm_init(NULL));
+	py_talloc_Object *ret = (py_talloc_Object *)type->tp_alloc(type, 0);
+	if (ret == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	ret->talloc_ctx = talloc_new(NULL);
+	if (ret->talloc_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	ret->ptr = loadparm_init(ret->talloc_ctx);
+	return (PyObject *)ret;
 }
 
 static Py_ssize_t py_lp_ctx_len(py_talloc_Object *self)
@@ -324,39 +358,6 @@ PyTypeObject PyLoadparmService = {
 	.tp_basicsize = sizeof(py_talloc_Object),
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
-
-_PUBLIC_ struct loadparm_context *lp_from_py_object(PyObject *py_obj)
-{
-    struct loadparm_context *lp_ctx;
-    if (PyString_Check(py_obj)) {
-        lp_ctx = loadparm_init(NULL);
-        if (!lp_load(lp_ctx, PyString_AsString(py_obj))) {
-            talloc_free(lp_ctx);
-	    PyErr_Format(PyExc_RuntimeError, 
-			 "Unable to load %s", PyString_AsString(py_obj));
-            return NULL;
-        }
-        return lp_ctx;
-    }
-
-    if (py_obj == Py_None) {
-        lp_ctx = loadparm_init(NULL);
-	/* We're not checking that loading the file succeeded *on purpose */
-        lp_load_default(lp_ctx);
-        return lp_ctx;
-    }
-
-    return PyLoadparmContext_AsLoadparmContext(py_obj);
-}
-
-struct loadparm_context *py_default_loadparm_context(TALLOC_CTX *mem_ctx)
-{
-    struct loadparm_context *ret;
-    ret = loadparm_init(mem_ctx);
-    if (!lp_load_default(ret))
-        return NULL;
-    return ret;
-}
 
 static PyObject *py_default_path(PyObject *self)
 {

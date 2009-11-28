@@ -153,23 +153,23 @@ void winbindd_ccache_ntlm_auth(struct winbindd_cli_state *state)
 	fstring name_domain, name_user;
 
 	/* Ensure null termination */
-	state->request.data.ccache_ntlm_auth.user[
-			sizeof(state->request.data.ccache_ntlm_auth.user)-1]='\0';
+	state->request->data.ccache_ntlm_auth.user[
+			sizeof(state->request->data.ccache_ntlm_auth.user)-1]='\0';
 
 	DEBUG(3, ("[%5lu]: perform NTLM auth on behalf of user %s\n", (unsigned long)state->pid,
-		state->request.data.ccache_ntlm_auth.user));
+		state->request->data.ccache_ntlm_auth.user));
 
 	/* Parse domain and username */
 
-	if (!canonicalize_username(state->request.data.ccache_ntlm_auth.user,
+	if (!canonicalize_username(state->request->data.ccache_ntlm_auth.user,
 				name_domain, name_user)) {
 		DEBUG(5,("winbindd_ccache_ntlm_auth: cannot parse domain and user from name [%s]\n",
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		request_error(state);
 		return;
 	}
 
-	domain = find_auth_domain(state, name_domain);
+	domain = find_auth_domain(state->request->flags, name_domain);
 
 	if (domain == NULL) {
 		DEBUG(5,("winbindd_ccache_ntlm_auth: can't get domain [%s]\n",
@@ -178,7 +178,7 @@ void winbindd_ccache_ntlm_auth(struct winbindd_cli_state *state)
 		return;
 	}
 
-	if (!check_client_uid(state, state->request.data.ccache_ntlm_auth.uid)) {
+	if (!check_client_uid(state, state->request->data.ccache_ntlm_auth.uid)) {
 		request_error(state);
 		return;
 	}
@@ -196,17 +196,17 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 	uint32 initial_blob_len, challenge_blob_len, extra_len;
 
 	/* Ensure null termination */
-	state->request.data.ccache_ntlm_auth.user[
-		sizeof(state->request.data.ccache_ntlm_auth.user)-1]='\0';
+	state->request->data.ccache_ntlm_auth.user[
+		sizeof(state->request->data.ccache_ntlm_auth.user)-1]='\0';
 
 	DEBUG(3, ("winbindd_dual_ccache_ntlm_auth: [%5lu]: perform NTLM auth on "
 		"behalf of user %s (dual)\n", (unsigned long)state->pid,
-		state->request.data.ccache_ntlm_auth.user));
+		state->request->data.ccache_ntlm_auth.user));
 
 	/* validate blob lengths */
-	initial_blob_len = state->request.data.ccache_ntlm_auth.initial_blob_len;
-	challenge_blob_len = state->request.data.ccache_ntlm_auth.challenge_blob_len;
-	extra_len = state->request.extra_len;
+	initial_blob_len = state->request->data.ccache_ntlm_auth.initial_blob_len;
+	challenge_blob_len = state->request->data.ccache_ntlm_auth.challenge_blob_len;
+	extra_len = state->request->extra_len;
 
 	if (initial_blob_len > extra_len || challenge_blob_len > extra_len ||
 		initial_blob_len + challenge_blob_len > extra_len ||
@@ -222,37 +222,37 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 	}
 
 	/* Parse domain and username */
-	if (!parse_domain_user(state->request.data.ccache_ntlm_auth.user, name_domain, name_user)) {
+	if (!parse_domain_user(state->request->data.ccache_ntlm_auth.user, name_domain, name_user)) {
 		DEBUG(10,("winbindd_dual_ccache_ntlm_auth: cannot parse "
 			"domain and user from name [%s]\n",
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		goto process_result;
 	}
 
-	entry = find_memory_creds_by_name(state->request.data.ccache_ntlm_auth.user);
+	entry = find_memory_creds_by_name(state->request->data.ccache_ntlm_auth.user);
 	if (entry == NULL || entry->nt_hash == NULL || entry->lm_hash == NULL) {
 		DEBUG(10,("winbindd_dual_ccache_ntlm_auth: could not find "
 			"credentials for user %s\n", 
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		goto process_result;
 	}
 
 	DEBUG(10,("winbindd_dual_ccache_ntlm_auth: found ccache [%s]\n", entry->username));
 
-	if (!client_can_access_ccache_entry(state->request.data.ccache_ntlm_auth.uid, entry)) {
+	if (!client_can_access_ccache_entry(state->request->data.ccache_ntlm_auth.uid, entry)) {
 		goto process_result;
 	}
 
 	if (initial_blob_len == 0 && challenge_blob_len == 0) {
 		/* this is just a probe to see if credentials are available. */
 		result = NT_STATUS_OK;
-		state->response.data.ccache_ntlm_auth.auth_blob_len = 0;
+		state->response->data.ccache_ntlm_auth.auth_blob_len = 0;
 		goto process_result;
 	}
 
-	initial = data_blob(state->request.extra_data.data, initial_blob_len);
-	challenge = data_blob(state->request.extra_data.data + initial_blob_len, 
-				state->request.data.ccache_ntlm_auth.challenge_blob_len);
+	initial = data_blob(state->request->extra_data.data, initial_blob_len);
+	challenge = data_blob(state->request->extra_data.data + initial_blob_len,
+				state->request->data.ccache_ntlm_auth.challenge_blob_len);
 
 	if (!initial.data || !challenge.data) {
 		result = NT_STATUS_NO_MEMORY;
@@ -269,13 +269,14 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 		goto process_result;
 	}
 
-	state->response.extra_data.data = smb_xmemdup(auth.data, auth.length);
-	if (!state->response.extra_data.data) {
+	state->response->extra_data.data = talloc_memdup(
+		state->mem_ctx, auth.data, auth.length);
+	if (!state->response->extra_data.data) {
 		result = NT_STATUS_NO_MEMORY;
 		goto process_result;
 	}
-	state->response.length += auth.length;
-	state->response.data.ccache_ntlm_auth.auth_blob_len = auth.length;
+	state->response->length += auth.length;
+	state->response->data.ccache_ntlm_auth.auth_blob_len = auth.length;
 
 	data_blob_free(&auth);
 

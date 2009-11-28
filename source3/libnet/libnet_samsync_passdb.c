@@ -226,6 +226,66 @@ static NTSTATUS sam_account_from_delta(struct samu *account,
 	return NT_STATUS_OK;
 }
 
+
+/****************************************************************
+****************************************************************/
+
+static NTSTATUS smb_create_user(TALLOC_CTX *mem_ctx,
+				uint32_t acct_flags,
+				const char *account,
+				struct passwd **passwd_p)
+{
+	struct passwd *passwd;
+	char *add_script = NULL;
+
+	passwd = Get_Pwnam_alloc(mem_ctx, account);
+	if (passwd) {
+		*passwd_p = passwd;
+		return NT_STATUS_OK;
+	}
+
+	/* Create appropriate user */
+	if (acct_flags & ACB_NORMAL) {
+		add_script = talloc_strdup(mem_ctx, lp_adduser_script());
+	} else if ( (acct_flags & ACB_WSTRUST) ||
+		    (acct_flags & ACB_SVRTRUST) ||
+		    (acct_flags & ACB_DOMTRUST) ) {
+		add_script = talloc_strdup(mem_ctx, lp_addmachine_script());
+	} else {
+		DEBUG(1, ("Unknown user type: %s\n",
+			  pdb_encode_acct_ctrl(acct_flags, NEW_PW_FORMAT_SPACE_PADDED_LEN)));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	if (!add_script) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (*add_script) {
+		int add_ret;
+		add_script = talloc_all_string_sub(mem_ctx, add_script,
+						   "%u", account);
+		if (!add_script) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		add_ret = smbrun(add_script, NULL);
+		DEBUG(add_ret ? 0 : 1,("fetch_account: Running the command `%s' "
+			 "gave %d\n", add_script, add_ret));
+		if (add_ret == 0) {
+			smb_nscd_flush_user_cache();
+		}
+	}
+
+	/* try and find the possible unix account again */
+	passwd = Get_Pwnam_alloc(mem_ctx, account);
+	if (!passwd) {
+		return NT_STATUS_NO_SUCH_USER;
+	}
+
+	*passwd_p = passwd;
+
+	return NT_STATUS_OK;
+}
 /****************************************************************
 ****************************************************************/
 
@@ -616,21 +676,24 @@ static NTSTATUS fetch_domain_info(TALLOC_CTX *mem_ctx,
 	}
 
 
-	if (!pdb_set_account_policy(AP_PASSWORD_HISTORY,
+	if (!pdb_set_account_policy(PDB_POLICY_PASSWORD_HISTORY,
 				    r->password_history_length))
 		return nt_status;
 
-	if (!pdb_set_account_policy(AP_MIN_PASSWORD_LEN,
+	if (!pdb_set_account_policy(PDB_POLICY_MIN_PASSWORD_LEN,
 				    r->min_password_length))
 		return nt_status;
 
-	if (!pdb_set_account_policy(AP_MAX_PASSWORD_AGE, (uint32)u_max_age))
+	if (!pdb_set_account_policy(PDB_POLICY_MAX_PASSWORD_AGE,
+				    (uint32)u_max_age))
 		return nt_status;
 
-	if (!pdb_set_account_policy(AP_MIN_PASSWORD_AGE, (uint32)u_min_age))
+	if (!pdb_set_account_policy(PDB_POLICY_MIN_PASSWORD_AGE,
+				    (uint32)u_min_age))
 		return nt_status;
 
-	if (!pdb_set_account_policy(AP_TIME_TO_LOGOUT, (uint32)u_logout))
+	if (!pdb_set_account_policy(PDB_POLICY_TIME_TO_LOGOUT,
+				    (uint32)u_logout))
 		return nt_status;
 
 	if (lockstr) {
@@ -639,21 +702,23 @@ static NTSTATUS fetch_domain_info(TALLOC_CTX *mem_ctx,
 		u_lockoutreset = uint64s_nt_time_to_unix_abs(&lockstr->reset_count);
 		u_lockouttime = uint64s_nt_time_to_unix_abs((uint64_t *)&lockstr->lockout_duration);
 
-		if (!pdb_set_account_policy(AP_BAD_ATTEMPT_LOCKOUT,
+		if (!pdb_set_account_policy(PDB_POLICY_BAD_ATTEMPT_LOCKOUT,
 					    lockstr->bad_attempt_lockout))
 			return nt_status;
 
-		if (!pdb_set_account_policy(AP_RESET_COUNT_TIME, (uint32_t)u_lockoutreset/60))
+		if (!pdb_set_account_policy(PDB_POLICY_RESET_COUNT_TIME,
+					    (uint32_t)u_lockoutreset/60))
 			return nt_status;
 
 		if (u_lockouttime != -1)
 			u_lockouttime /= 60;
 
-		if (!pdb_set_account_policy(AP_LOCK_ACCOUNT_DURATION, (uint32_t)u_lockouttime))
+		if (!pdb_set_account_policy(PDB_POLICY_LOCK_ACCOUNT_DURATION,
+					    (uint32_t)u_lockouttime))
 			return nt_status;
 	}
 
-	if (!pdb_set_account_policy(AP_USER_MUST_LOGON_TO_CHG_PASS,
+	if (!pdb_set_account_policy(PDB_POLICY_USER_MUST_LOGON_TO_CHG_PASS,
 				    r->logon_to_chgpass))
 		return nt_status;
 

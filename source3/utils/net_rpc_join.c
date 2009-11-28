@@ -20,6 +20,7 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "../libcli/auth/libcli_auth.h"
 
 /* Macro for checking RPC error codes to make things more readable */
 
@@ -57,8 +58,7 @@ NTSTATUS net_rpc_join_ok(struct net_context *c, const char *domain,
 	if (sec == SEC_ADS) {
 		/* Connect to IPC$ using machine account's credentials. We don't use anonymous
 		   connection here, as it may be denied by server's local policy. */
-		set_cmdline_auth_info_use_machine_account(c->auth_info);
-		set_cmdline_auth_info_machine_account_creds(c->auth_info);
+		net_use_machine_account(c);
 
 	} else {
 		/* some servers (e.g. WinNT) don't accept machine-authenticated
@@ -101,8 +101,9 @@ NTSTATUS net_rpc_join_ok(struct net_context *c, const char *domain,
 	}
 
 	ntret = cli_rpc_pipe_open_schannel_with_key(
-		cli, &ndr_table_netlogon.syntax_id, PIPE_AUTH_LEVEL_PRIVACY,
-		domain, netlogon_pipe->dc, &pipe_hnd);
+		cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
+		DCERPC_AUTH_LEVEL_PRIVACY,
+		domain, &netlogon_pipe->dc, &pipe_hnd);
 
 	if (!NT_STATUS_IS_OK(ntret)) {
 		DEBUG(0,("net_rpc_join_ok: failed to open schannel session "
@@ -137,7 +138,7 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	TALLOC_CTX *mem_ctx;
         uint32 acb_info = ACB_WSTRUST;
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-	uint32 sec_channel_type;
+	enum netr_SchannelType sec_channel_type;
 	struct rpc_pipe_client *pipe_hnd = NULL;
 
 	/* rpc variables */
@@ -185,6 +186,10 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 		acb_info = ACB_DOMTRUST;
 		break;
 #endif
+	default:
+		DEBUG(0,("secure channel type %d not yet supported\n",
+			sec_channel_type));
+		break;
 	}
 
 	/* Make authenticated connection to remote machine */
@@ -285,16 +290,17 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 					 &access_granted,
 					 &user_rid);
 
-	if (!NT_STATUS_IS_OK(result) && 
+	if (!NT_STATUS_IS_OK(result) &&
 	    !NT_STATUS_EQUAL(result, NT_STATUS_USER_EXISTS)) {
-		d_fprintf(stderr, "Creation of workstation account failed\n");
+		d_fprintf(stderr,_("Creation of workstation account failed\n"));
 
 		/* If NT_STATUS_ACCESS_DENIED then we have a valid
 		   username/password combo but the user does not have
 		   administrator access. */
 
 		if (NT_STATUS_V(result) == NT_STATUS_V(NT_STATUS_ACCESS_DENIED))
-			d_fprintf(stderr, "User specified does not have administrator privileges\n");
+			d_fprintf(stderr, _("User specified does not have "
+					    "administrator privileges\n"));
 
 		goto done;
 	}
@@ -399,8 +405,9 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 		if ( NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) &&
 		     (sec_channel_type == SEC_CHAN_BDC) ) {
-			d_fprintf(stderr, "Please make sure that no computer account\n"
-				 "named like this machine (%s) exists in the domain\n",
+			d_fprintf(stderr, _("Please make sure that no computer "
+					    "account\nnamed like this machine "
+					    "(%s) exists in the domain\n"),
 				 global_myname());
 		}
 
@@ -416,8 +423,8 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 		struct rpc_pipe_client *netlogon_schannel_pipe;
 
 		result = cli_rpc_pipe_open_schannel_with_key(
-			cli, &ndr_table_netlogon.syntax_id,
-			PIPE_AUTH_LEVEL_PRIVACY, domain, pipe_hnd->dc,
+			cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
+			DCERPC_AUTH_LEVEL_PRIVACY, domain, &pipe_hnd->dc,
 			&netlogon_schannel_pipe);
 
 		if (!NT_STATUS_IS_OK(result)) {
@@ -426,8 +433,10 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 
 			if ( NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) &&
 			     (sec_channel_type == SEC_CHAN_BDC) ) {
-				d_fprintf(stderr, "Please make sure that no computer account\n"
-					 "named like this machine (%s) exists in the domain\n",
+				d_fprintf(stderr, _("Please make sure that no "
+						    "computer account\nnamed "
+						    "like this machine (%s) "
+						    "exists in the domain\n"),
 					 global_myname());
 			}
 
@@ -461,9 +470,9 @@ done:
 
 	if (domain) {
 		if (retval != 0) {
-			fprintf(stderr,"Unable to join domain %s.\n",domain);
+			fprintf(stderr,_("Unable to join domain %s.\n"),domain);
 		} else {
-			printf("Joined domain %s.\n",domain);
+			printf(_("Joined domain %s.\n"),domain);
 		}
 	}
 
@@ -485,20 +494,20 @@ int net_rpc_testjoin(struct net_context *c, int argc, const char **argv)
 	NTSTATUS nt_status;
 
 	if (c->display_usage) {
-		d_printf("Usage\n"
-			 "net rpc testjoin\n"
-			 "    Test if a join is OK\n");
+		d_printf(_("Usage\n"
+			   "net rpc testjoin\n"
+			   "    Test if a join is OK\n"));
 		return 0;
 	}
 
 	/* Display success or failure */
 	nt_status = net_rpc_join_ok(c, c->opt_target_workgroup, NULL, NULL);
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		fprintf(stderr,"Join to domain '%s' is not valid: %s\n",
+		fprintf(stderr, _("Join to domain '%s' is not valid: %s\n"),
 			c->opt_target_workgroup, nt_errstr(nt_status));
 		return -1;
 	}
 
-	printf("Join to '%s' is OK\n", c->opt_target_workgroup);
+	printf(_("Join to '%s' is OK\n"), c->opt_target_workgroup);
 	return 0;
 }

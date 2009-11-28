@@ -265,7 +265,7 @@ AC_ARG_WITH(mandir,
 ################################################
 # set locale directory location
 AC_ARG_WITH(localedir,
-[  --with-localedir=DIR    Where to put po files ($ac_default_prefix/share/locale)],
+[AS_HELP_STRING([--with-localedir=DIR],[Where to put po files ($ac_default_prefix/share/locale)])],
 [ case "$withval" in
   yes|no)
     #
@@ -276,6 +276,22 @@ AC_ARG_WITH(localedir,
   *)
   localedir="$withval"
   ;;
+  esac])
+
+#################################################
+# set codepage directory location
+AC_ARG_WITH(codepagedir,
+[AS_HELP_STRING([--with-codepagedir=DIR], [Where to put codepages ($ac_default_prefix/lib/samba)])],
+[ case "$withval" in
+  yes|no)
+  #
+  # Just in case anybody calls it without argument
+  #
+    AC_MSG_WARN([--with-codepagedir called without argument - will use default])
+  ;;
+  * )
+    codepagedir="$withval"
+    ;;
   esac])
 
 

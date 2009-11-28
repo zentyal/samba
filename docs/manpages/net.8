@@ -1,12 +1,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 06/02/2009
+.\"      Date: 11/26/2009
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "NET" "8" "06/02/2009" "Samba 3\&.4" "System Administration tools"
+.TH "NET" "8" "11/26/2009" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -719,7 +719,7 @@ Add a interdomain trust account for
 \fIDOMAIN$\fR
 with the account flag
 \fB\'I\'\fR
-(interdomain trust account)\&. If the command is used against localhost it has the same effect as
+(interdomain trust account)\&. This is required for incoming trusts to work\&. It makes Samba be a trusted domain of the foreign (trusting) domain\&. Users of the Samba domain will be made available in the foreign domain\&. If the command is used against localhost it has the same effect as
 \FCsmbpasswd \-a \-i DOMAIN\F[]\&. Please note that both commands expect a appropriate UNIX account\&.
 .SS "RPC TRUSTDOM DEL DOMAIN"
 .PP
@@ -728,13 +728,13 @@ Remove interdomain trust account for
 \FCsmbpasswd \-x DOMAIN$\F[]\&.
 .SS "RPC TRUSTDOM ESTABLISH DOMAIN"
 .PP
-Establish a trust relationship to a trusting domain\&. Interdomain account must already be created on the remote PDC\&.
+Establish a trust relationship to a trusted domain\&. Interdomain account must already be created on the remote PDC\&. This is required for outgoing trusts to work\&. It makes Samba be a trusting domain of a foreign (trusted) domain\&. Users of the foreign domain will be made available in our domain\&. You\'ll need winbind and a working idmap config to make them appear in your system\&.
 .SS "RPC TRUSTDOM REVOKE DOMAIN"
 .PP
 Abandon relationship to trusted domain
 .SS "RPC TRUSTDOM LIST"
 .PP
-List all current interdomain trust relationships\&.
+List all interdomain trust relationships\&.
 .SS "RPC RIGHTS"
 .PP
 This subcommand is used to view and manage Samba\'s rights assignments (also referred to as privileges)\&. There are three options currently available:
@@ -762,7 +762,6 @@ Force shutting down all applications\&.
 .RS 4
 Timeout before system will be shut down\&. An interactive user of the system can use this time to cancel the shutdown\&.
 .RE
-\'>
 .PP
 \-C message
 .RS 4
@@ -846,6 +845,15 @@ List Local group members\&. The group must be specified by name\&.
 .SS "SAM LIST <users|groups|localgroups|builtin|workstations> [verbose]"
 .PP
 List the specified set of accounts by name\&. If verbose is specified, the rid and description is also provided for each account\&.
+.SS "SAM RIGHTS LIST"
+.PP
+List all available privileges\&.
+.SS "SAM RIGHTS GRANT <NAME> <PRIVILEGE>"
+.PP
+Grant one or more privileges to a user\&.
+.SS "SAM RIGHTS REVOKE <NAME> <PRIVILEGE>"
+.PP
+Revoke one or more privileges from a user\&.
 .SS "SAM SHOW <NAME>"
 .PP
 Show the full DOMAIN\e\eNAME the SID and the type for the corresponding account\&.
@@ -1204,7 +1212,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to join\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom join \-S xp \-U XP\e\eadministrator%secret domain=MYDOM account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1251,7 +1259,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to unjoin\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom unjoin \-S xp \-U XP\e\eadministrator%secret account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP
@@ -1310,7 +1318,7 @@ is an optional parameter that can be set to reboot the remote machine after succ
 .sp
 .RE
 .PP
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to rename in the domain\&. These additional parameters include: \-S computer and \-U user\&.
 .PP
 Example: net dom renamecomputer \-S xp \-U XP\e\eadministrator%secret newname=XPNEW account=MYDOM\e\eadministrator password=topsecret reboot\&.
 .PP

@@ -26,13 +26,21 @@ bin/tdbdump$(EXEEXT): tools/tdbdump.o $(TDB_LIB)
 bin/tdbbackup$(EXEEXT): tools/tdbbackup.o $(TDB_LIB)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o bin/tdbbackup tools/tdbbackup.o -L. -ltdb
 
+test:: abi_checks
+
 test:: bin/tdbtorture$(EXEEXT) $(TDB_SONAME)
 	$(LIB_PATH_VAR)=. bin/tdbtorture$(EXEEXT)
+
+abi_checks::
+	@echo ABI checks:
+	@./script/abi_checks.sh tdb include/tdb.h
 
 clean:: 
 	rm -f test.db test.tdb torture.tdb test.gdbm
 	rm -f $(TDB_SONAME) $(TDB_SOLIB) $(TDB_STLIB) libtdb.$(SHLIBEXT)
 	rm -f $(ALL_PROGS) tdb.pc
+	rm -f tdb.exports.sort tdb.exports.check tdb.exports.check.sort
+	rm -f tdb.signatures.sort tdb.signatures.check tdb.signatures.check.sort
 
 build-python:: tdb.$(SHLIBEXT) 
 

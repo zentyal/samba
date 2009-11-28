@@ -7,7 +7,7 @@ AC_INIT([samba],[4],[samba-technical@samba.org])
 
 AC_CONFIG_SRCDIR([include/includes.h])
 AC_CONFIG_HEADER(include/config_tmp.h)
-AC_DEFINE(CONFIG_H_IS_FROM_SAMBA,1,[Marker for samba's config.h])
+AC_DEFINE(CONFIG_H_IS_FROM_SAMBA,1,[Marker for samba's config.h.])
 
 # Configuration rules.
 m4_include(build/m4/env.m4)
@@ -32,10 +32,12 @@ SMB_INCLUDE_MK(lib/zlib.mk)
 ])
 m4_include(../nsswitch/nsstest.m4)
 m4_include(../pidl/config.m4)
+m4_include(client/config.m4)
 
 AC_CONFIG_FILES(lib/registry/registry.pc)
 AC_CONFIG_FILES(librpc/dcerpc.pc)
 AC_CONFIG_FILES(../librpc/ndr.pc)
+AC_CONFIG_FILES(../librpc/ndr_standard.pc)
 AC_CONFIG_FILES(../lib/torture/torture.pc)
 AC_CONFIG_FILES(auth/gensec/gensec.pc)
 AC_CONFIG_FILES(param/samba-hostconfig.pc)
@@ -44,34 +46,47 @@ AC_CONFIG_FILES(librpc/dcerpc_atsvc.pc)
 
 m4_include(min_versions.m4)
 
-SMB_INCLUDED_LIB_PKGCONFIG(LIBTALLOC, talloc >= $TALLOC_MIN_VERSION, [],
+SMB_INCLUDED_LIB_PKGCONFIG(LIBTALLOC, talloc >= TALLOC_MIN_VERSION, [],
 	[
 		m4_include(../lib/talloc/libtalloc.m4)
 		SMB_INCLUDE_MK(../lib/talloc/config.mk)
 	]
 )
 
-SMB_INCLUDED_LIB_PKGCONFIG(LIBTDB, tdb >= $TDB_MIN_VERSION,
-	[],
+SMB_INCLUDED_LIB_PKGCONFIG(LIBTDB, tdb >= TDB_MIN_VERSION,
+	[
+		AC_MSG_CHECKING([for Python TDB bindings])
+		if $PYTHON -c "from tdb import open" 2>/dev/null; then
+			AC_MSG_RESULT(yes)
+		else
+			SMB_INCLUDE_MK(../lib/tdb/python.mk) 
+			AC_MSG_RESULT(no)
+		fi
+	 ],
 	[
 		m4_include(../lib/tdb/libtdb.m4)
 		SMB_INCLUDE_MK(../lib/tdb/config.mk)
+		SMB_INCLUDE_MK(../lib/tdb/python.mk) 
 	]
 )
-
-SMB_INCLUDE_MK(../lib/tdb/python.mk) 
 
 SMB_INCLUDED_LIB_PKGCONFIG(LIBTEVENT, tevent = TEVENT_REQUIRED_VERSION,
 	[],[m4_include(../lib/tevent/samba.m4)]
 )
 
-SMB_INCLUDE_MK(../lib/tevent/python.mk) 
-
-SMB_INCLUDED_LIB_PKGCONFIG(LIBLDB, ldb = $LDB_REQUIRED_VERSION,
+SMB_INCLUDED_LIB_PKGCONFIG(LIBLDB, ldb = LDB_REQUIRED_VERSION,
 	[
 		SMB_INCLUDE_MK(lib/ldb/ldb_ildap/config.mk)
 		SMB_INCLUDE_MK(lib/ldb/tools/config.mk)
 		define_ldb_modulesdir=no
+		AC_MSG_CHECKING([for Python LDB bindings])
+		if $PYTHON -c "import ldb" 2>/dev/null; then
+			AC_MSG_RESULT(yes)
+		else
+			SMB_INCLUDE_MK(lib/ldb/python.mk) 
+			AC_MSG_RESULT(no)
+		fi
+
 	],
 	[
 		# Here we need to do some tricks
@@ -97,10 +112,11 @@ SMB_INCLUDED_LIB_PKGCONFIG(LIBLDB, ldb = $LDB_REQUIRED_VERSION,
 		m4_include(lib/ldb/libldb.m4)
 		SMB_INCLUDE_MK(lib/ldb/config.mk)
 		AC_CONFIG_FILES(lib/ldb/ldb.pc)
-	], [no])
-SMB_INCLUDE_MK(lib/ldb/python.mk) 
+		SMB_INCLUDE_MK(lib/ldb/python.mk) 
+	])
 
 m4_include(lib/tls/config.m4)
+m4_include(torture/libnetapi/config.m4)
 
 dnl m4_include(auth/kerberos/config.m4)
 m4_include(auth/gensec/config.m4)
@@ -109,6 +125,7 @@ m4_include(ntvfs/posix/config.m4)
 m4_include(ntvfs/unixuid/config.m4)
 m4_include(../lib/socket_wrapper/config.m4)
 m4_include(../lib/nss_wrapper/config.m4)
+m4_include(../lib/uid_wrapper/config.m4)
 m4_include(auth/config.m4)
 m4_include(kdc/config.m4)
 m4_include(ntvfs/sysdep/config.m4)

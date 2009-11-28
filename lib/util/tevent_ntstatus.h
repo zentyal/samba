@@ -22,11 +22,11 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "config.h"
 #include "../libcli/util/ntstatus.h"
 #include "../tevent/tevent.h"
 
 bool tevent_req_nterror(struct tevent_req *req, NTSTATUS status);
 bool tevent_req_is_nterror(struct tevent_req *req, NTSTATUS *pstatus);
+NTSTATUS tevent_req_simple_recv_ntstatus(struct tevent_req *req);
 
 #endif

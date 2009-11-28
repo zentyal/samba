@@ -24,12 +24,28 @@
 
 #include "lib/netapi/netapi.h"
 #include "libnet/libnet.h"
+#include "localedir.h"
+
+#ifdef HAVE_LIBINTL_H
+#include <libintl.h>
+#endif
+
+#if defined(HAVE_GETTEXT) && !defined(__LCLINT__)
+#define _(foo) gettext(foo)
+#else
+#define _(foo) foo
+#endif
+
+#define MODULE_NAME "net"
 
 struct net_context {
 	const char *opt_requester_name;
 	const char *opt_host;
-	int opt_long_list_entries;
+	const char *opt_password;
+	const char *opt_user_name;
+	bool opt_user_specified;
 	const char *opt_workgroup;
+	int opt_long_list_entries;
 	int opt_reboot;
 	int opt_force;
 	int opt_stdin;
@@ -42,6 +58,7 @@ struct net_context {
 	int opt_timeout;
 	int opt_request_timeout;
 	const char *opt_target_workgroup;
+	int opt_machine_pass;
 	int opt_localgroup;
 	int opt_domaingroup;
 	int do_talloc_report;
@@ -53,14 +70,15 @@ struct net_context {
 	const char *opt_exclude;
 	const char *opt_destination;
 	int opt_testmode;
+	bool opt_kerberos;
 	int opt_force_full_repl;
 	int opt_single_obj_repl;
 	int opt_clean_old_entries;
 
 	int opt_have_ip;
 	struct sockaddr_storage opt_dest_ip;
+	bool smb_encrypt;
 	struct libnetapi_ctx *netapi_ctx;
-	struct user_auth_info *auth_info;
 
 	bool display_usage;
 	void *private_data;
@@ -152,6 +170,7 @@ enum netdom_domain_t { ND_TYPE_NT4, ND_TYPE_AD };
 #define NET_FLAGS_NO_PIPE 			0x00000020	/* don't open an RPC pipe */
 #define NET_FLAGS_SIGN				0x00000040	/* sign RPC connection */
 #define NET_FLAGS_SEAL				0x00000080	/* seal RPC connection */
+#define NET_FLAGS_TCP				0x00000100	/* use ncacn_ip_tcp */
 
 /* net share operation modes */
 #define NET_MODE_SHARE_MIGRATE 1

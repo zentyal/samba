@@ -273,7 +273,7 @@ static struct cli_state *connect_one(char *share, int snum)
 }
 
 
-static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS], int fnum[NSERVERS][NCONNECTIONS][NFILES],
+static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS], uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES],
 		      char *share[NSERVERS])
 {
 	int server, conn, f;
@@ -282,9 +282,9 @@ static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS], int fnum[NS
 	for (conn=0;conn<NCONNECTIONS;conn++) {
 		if (cli[server][conn]) {
 			for (f=0;f<NFILES;f++) {
-				if (fnum[server][conn][f] != -1) {
+				if (fnum[server][conn][f] != (uint16_t)-1) {
 					cli_close(cli[server][conn], fnum[server][conn][f]);
-					fnum[server][conn][f] = -1;
+					fnum[server][conn][f] = (uint16_t)-1;
 				}
 			}
 			cli_ulogoff(cli[server][conn]);
@@ -301,7 +301,7 @@ static void reconnect(struct cli_state *cli[NSERVERS][NCONNECTIONS], int fnum[NS
 
 
 static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
-		     int fnum[NSERVERS][NCONNECTIONS][NFILES],
+		     uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES],
 		     struct record *rec)
 {
 	unsigned conn = rec->conn;
@@ -341,9 +341,9 @@ static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 	case OP_UNLOCK:
 		/* unset a lock */
 		for (server=0;server<NSERVERS;server++) {
-			ret[server] = cli_unlock64(cli[server][conn], 
+			ret[server] = NT_STATUS_IS_OK(cli_unlock64(cli[server][conn], 
 						   fnum[server][conn][f],
-						   start, len);
+						   start, len));
 			status[server] = cli_nt_error(cli[server][conn]);
 		}
 		if (showall || 
@@ -362,13 +362,13 @@ static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 		/* reopen the file */
 		for (server=0;server<NSERVERS;server++) {
 			cli_close(cli[server][conn], fnum[server][conn][f]);
-			fnum[server][conn][f] = -1;
+			fnum[server][conn][f] = (uint16_t)-1;
 		}
 		for (server=0;server<NSERVERS;server++) {
-			fnum[server][conn][f] = cli_open(cli[server][conn], FILENAME,
+			fnum[server][conn][f] = (uint16_t)-1;
+			if (!NT_STATUS_IS_OK(cli_open(cli[server][conn], FILENAME,
 							 O_RDWR|O_CREAT,
-							 DENY_NONE);
-			if (fnum[server][conn][f] == -1) {
+							 DENY_NONE, &fnum[server][conn][f]))) {
 				printf("failed to reopen on share%d\n", server);
 				return False;
 			}
@@ -385,35 +385,36 @@ static bool test_one(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 }
 
 static void close_files(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
-			int fnum[NSERVERS][NCONNECTIONS][NFILES])
+			uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES])
 {
 	int server, conn, f; 
 
 	for (server=0;server<NSERVERS;server++)
 	for (conn=0;conn<NCONNECTIONS;conn++)
 	for (f=0;f<NFILES;f++) {
-		if (fnum[server][conn][f] != -1) {
+		if (fnum[server][conn][f] != (uint16_t)-1) {
 			cli_close(cli[server][conn], fnum[server][conn][f]);
-			fnum[server][conn][f] = -1;
+			fnum[server][conn][f] = (uint16_t)-1;
 		}
 	}
 	for (server=0;server<NSERVERS;server++) {
-		cli_unlink(cli[server][0], FILENAME);
+		cli_unlink(cli[server][0], FILENAME, aSYSTEM | aHIDDEN);
 	}
 }
 
 static void open_files(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
-		       int fnum[NSERVERS][NCONNECTIONS][NFILES])
+		       uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES])
 {
 	int server, conn, f; 
 
 	for (server=0;server<NSERVERS;server++)
 	for (conn=0;conn<NCONNECTIONS;conn++)
 	for (f=0;f<NFILES;f++) {
-		fnum[server][conn][f] = cli_open(cli[server][conn], FILENAME,
+		fnum[server][conn][f] = (uint16_t)-1;
+		if (!NT_STATUS_IS_OK(cli_open(cli[server][conn], FILENAME,
 						 O_RDWR|O_CREAT,
-						 DENY_NONE);
-		if (fnum[server][conn][f] == -1) {
+						 DENY_NONE,
+						 &fnum[server][conn][f]))) {
 			fprintf(stderr,"Failed to open fnum[%u][%u][%u]\n",
 				server, conn, f);
 			exit(1);
@@ -423,7 +424,7 @@ static void open_files(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 
 
 static int retest(struct cli_state *cli[NSERVERS][NCONNECTIONS], 
-		   int fnum[NSERVERS][NCONNECTIONS][NFILES],
+		   uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES],
 		   int n)
 {
 	int i;
@@ -449,7 +450,7 @@ static int retest(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 static void test_locks(char *share[NSERVERS])
 {
 	struct cli_state *cli[NSERVERS][NCONNECTIONS];
-	int fnum[NSERVERS][NCONNECTIONS][NFILES];
+	uint16_t fnum[NSERVERS][NCONNECTIONS][NFILES];
 	int n, i, n1, skip, r1, r2; 
 
 	ZERO_STRUCT(fnum);

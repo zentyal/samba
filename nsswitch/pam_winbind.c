@@ -11,6 +11,8 @@
 */
 
 #include "pam_winbind.h"
+#define CONST_DISCARD(type,ptr) ((type)(void *)ptr)
+
 
 static int wbc_error_to_pam_error(wbcErr status)
 {
@@ -410,49 +412,51 @@ static int _pam_parse(const pam_handle_t *pamh,
 		config_file = PAM_WINBIND_CONFIG_FILE;
 	}
 
-	d = iniparser_load(config_file);
+	d = iniparser_load(CONST_DISCARD(char *, config_file));
 	if (d == NULL) {
 		goto config_from_pam;
 	}
 
-	if (iniparser_getboolean(d, "global:debug", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:debug"), false)) {
 		ctrl |= WINBIND_DEBUG_ARG;
 	}
 
-	if (iniparser_getboolean(d, "global:debug_state", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:debug_state"), false)) {
 		ctrl |= WINBIND_DEBUG_STATE;
 	}
 
-	if (iniparser_getboolean(d, "global:cached_login", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:cached_login"), false)) {
 		ctrl |= WINBIND_CACHED_LOGIN;
 	}
 
-	if (iniparser_getboolean(d, "global:krb5_auth", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:krb5_auth"), false)) {
 		ctrl |= WINBIND_KRB5_AUTH;
 	}
 
-	if (iniparser_getboolean(d, "global:silent", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:silent"), false)) {
 		ctrl |= WINBIND_SILENT;
 	}
 
-	if (iniparser_getstr(d, "global:krb5_ccache_type") != NULL) {
+	if (iniparser_getstr(d, CONST_DISCARD(char *, "global:krb5_ccache_type")) != NULL) {
 		ctrl |= WINBIND_KRB5_CCACHE_TYPE;
 	}
 
-	if ((iniparser_getstr(d, "global:require-membership-of") != NULL) ||
-	    (iniparser_getstr(d, "global:require_membership_of") != NULL)) {
+	if ((iniparser_getstr(d, CONST_DISCARD(char *, "global:require-membership-of"))
+	     != NULL) ||
+	    (iniparser_getstr(d, CONST_DISCARD(char *, "global:require_membership_of"))
+	     != NULL)) {
 		ctrl |= WINBIND_REQUIRED_MEMBERSHIP;
 	}
 
-	if (iniparser_getboolean(d, "global:try_first_pass", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:try_first_pass"), false)) {
 		ctrl |= WINBIND_TRY_FIRST_PASS_ARG;
 	}
 
-	if (iniparser_getint(d, "global:warn_pwd_expire", 0)) {
+	if (iniparser_getint(d, CONST_DISCARD(char *, "global:warn_pwd_expire"), 0)) {
 		ctrl |= WINBIND_WARN_PWD_EXPIRE;
 	}
 
-	if (iniparser_getboolean(d, "global:mkhomedir", false)) {
+	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:mkhomedir"), false)) {
 		ctrl |= WINBIND_MKHOMEDIR;
 	}
 
@@ -914,7 +918,8 @@ static void _pam_warn_password_expiry(struct pwb_context *ctx,
 	/* now check for the global password policy */
 	/* good catch from Ralf Haferkamp: an expiry of "never" is translated
 	 * to -1 */
-	if (policy->expire == -1) {
+	if ((policy->expire == (int64_t)-1) ||
+	    (policy->expire == 0)) {
 		return;
 	}
 
@@ -975,7 +980,8 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 				       char *sid_list_buffer,
 				       int sid_list_buffer_size)
 {
-	const char* sid_string;
+	const char* sid_string = NULL;
+	char *sid_str = NULL;
 
 	/* lookup name? */
 	if (IS_SID_STRING(name)) {
@@ -984,7 +990,6 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 		wbcErr wbc_status;
 		struct wbcDomainSid sid;
 		enum wbcSidType type;
-		char *sid_str;
 
 		_pam_log_debug(ctx, LOG_DEBUG,
 			       "no sid given, looking up: %s\n", name);
@@ -1001,15 +1006,16 @@ static bool winbind_name_to_sid_string(struct pwb_context *ctx,
 			return false;
 		}
 
-		wbcFreeMemory(sid_str);
 		sid_string = sid_str;
 	}
 
 	if (!safe_append_string(sid_list_buffer, sid_string,
 				sid_list_buffer_size)) {
+		wbcFreeMemory(sid_str);
 		return false;
 	}
 
+	wbcFreeMemory(sid_str);
 	return true;
 }
 
@@ -1051,7 +1057,23 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 						current_name,
 						sid_list_buffer,
 						sid_list_buffer_size)) {
-			goto out;
+			/*
+			 * If one group name failed, we must not fail
+			 * the authentication totally, continue with
+			 * the following group names. If user belongs to
+			 * one of the valid groups, we must allow it
+			 * login. -- BoYang
+			 */
+
+			_pam_log(ctx, LOG_INFO, "cannot convert group %s to sid, "
+				 "check if group %s is valid group.", current_name,
+				 current_name);
+			_make_remark_format(ctx, PAM_TEXT_INFO, _("Cannot convert group %s "
+					"to sid, please contact your administrator to see "
+					"if group %s is valid."), current_name, current_name);
+			SAFE_FREE(current_name);
+			search_location = comma + 1;
+			continue;
 		}
 
 		SAFE_FREE(current_name);
@@ -1067,7 +1089,12 @@ static bool winbind_name_list_to_sid_string_list(struct pwb_context *ctx,
 	if (!winbind_name_to_sid_string(ctx, user, search_location,
 					sid_list_buffer,
 					sid_list_buffer_size)) {
-		goto out;
+		_pam_log(ctx, LOG_INFO, "cannot convert group %s to sid, "
+			 "check if group %s is valid group.", search_location,
+			 search_location);
+		_make_remark_format(ctx, PAM_TEXT_INFO, _("Cannot convert group %s "
+				"to sid, please contact your administrator to see "
+				"if group %s is valid."), search_location, search_location);
 	}
 
 	result = true;
@@ -1731,11 +1758,11 @@ static int winbind_auth_request(struct pwb_context *ctx,
 				       "Password has expired "
 				       "(Password was last set: %lld, "
 				       "the policy says it should expire here "
-				       "%lld (now it's: %lu))\n",
+				       "%lld (now it's: %ld))\n",
 				       (long long int)last_set,
 				       (long long int)last_set +
 				       policy->expire,
-				       time(NULL));
+				       (long)time(NULL));
 
 			return PAM_AUTHTOK_EXPIRED;
 		}
@@ -1761,7 +1788,7 @@ static int winbind_auth_request(struct pwb_context *ctx,
 	if (logon.blobs) {
 		wbcFreeMemory(logon.blobs);
 	}
-	if (info && info->blobs) {
+	if (info && info->blobs && !p_info) {
 		wbcFreeMemory(info->blobs);
 	}
 	if (error && !p_error) {
@@ -2283,6 +2310,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	enum wbcSidType type;
 	char *domain;
 	char *name;
+	char *p;
 
 	/* This cannot work when the winbind separator = @ */
 
@@ -2291,9 +2319,18 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 		return NULL;
 	}
 
+	name = talloc_strdup(ctx, upn);
+	if (!name) {
+		return NULL;
+	}
+	if ((p = strchr(name, '@')) != NULL) {
+		*p = 0;
+		domain = p + 1;
+	}
+
 	/* Convert the UPN to a SID */
 
-	wbc_status = wbcLookupName("", upn, &sid, &type);
+	wbc_status = wbcLookupName(domain, name, &sid, &type);
 	if (!WBC_ERROR_IS_OK(wbc_status)) {
 		return NULL;
 	}
@@ -3044,8 +3081,6 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 		ret = winbind_chauthtok_request(ctx, user, pass_old,
 						pass_new, pwdlastset_update);
 		if (ret) {
-			_pam_overwrite(pass_new);
-			_pam_overwrite(pass_old);
 			pass_old = pass_new = NULL;
 			goto out;
 		}
@@ -3074,8 +3109,6 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 						   member, cctype, 0,
 						   &error, &info, &policy,
 						   NULL, &username_ret);
-			_pam_overwrite(pass_new);
-			_pam_overwrite(pass_old);
 			pass_old = pass_new = NULL;
 
 			if (ret == PAM_SUCCESS) {
@@ -3108,9 +3141,13 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 					free(username_ret);
 				}
 
-				wbcFreeMemory(info);
-				wbcFreeMemory(policy);
 			}
+
+			if (info && info->blobs) {
+				wbcFreeMemory(info->blobs);
+			}
+			wbcFreeMemory(info);
+			wbcFreeMemory(policy);
 
 			goto out;
 		}

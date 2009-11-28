@@ -48,6 +48,22 @@ static void brl_timeout_fn(struct event_context *event_ctx,
 }
 
 /****************************************************************************
+ We need a version of timeval_min that treats zero timval as infinite.
+****************************************************************************/
+
+static struct timeval timeval_brl_min(const struct timeval *tv1,
+					const struct timeval *tv2)
+{
+	if (timeval_is_zero(tv1)) {
+		return *tv2;
+	}
+	if (timeval_is_zero(tv2)) {
+		return *tv1;
+	}
+	return timeval_min(tv1, tv2);
+}
+
+/****************************************************************************
  After a change to blocking_lock_queue, recalculate the timed_event for the
  next processing.
 ****************************************************************************/
@@ -70,19 +86,13 @@ static bool recalc_brl_timeout(void)
 			 */
                         if (blr->blocking_pid == 0xFFFFFFFF) {
 				struct timeval psx_to = timeval_current_ofs(10, 0);
-				next_timeout = timeval_min(&next_timeout, &psx_to);
+				next_timeout = timeval_brl_min(&next_timeout, &psx_to);
                         }
 
 			continue;
 		}
 
-		if (timeval_is_zero(&next_timeout)) {
-			next_timeout = blr->expire_time;
-		}
-		else {
-			next_timeout = timeval_min(&next_timeout,
-						   &blr->expire_time);
-		}
+		next_timeout = timeval_brl_min(&next_timeout, &blr->expire_time);
 	}
 
 	if (timeval_is_zero(&next_timeout)) {
@@ -202,10 +212,7 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 		"expiry time (%u sec. %u usec) (+%d msec) for fnum = %d, name = %s\n",
 		(unsigned int)blr->expire_time.tv_sec,
 		(unsigned int)blr->expire_time.tv_usec, lock_timeout,
-		blr->fsp->fnum, blr->fsp->fsp_name ));
-
-	/* Push the MID of this packet on the signing queue. */
-	srv_defer_sign_response(blr->req->mid);
+		blr->fsp->fnum, fsp_str_dbg(blr->fsp)));
 
 	return True;
 }
@@ -260,6 +267,7 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 
 	reply_nterror(blr->req, status);
 	if (!srv_send_smb(smbd_server_fd(), (char *)blr->req->outbuf,
+			  true, blr->req->seqnum+1,
 			  blr->req->encrypted, NULL)) {
 		exit_server_cleanly("generic_blocking_lock_error: srv_send_smb failed.");
 	}
@@ -343,6 +351,7 @@ static void blocking_lock_reply_error(struct blocking_lock_record *blr, NTSTATUS
 
 		if (!srv_send_smb(smbd_server_fd(),
 				  (char *)blr->req->outbuf,
+				  true, blr->req->seqnum+1,
 				  IS_CONN_ENCRYPTED(blr->fsp->conn),
 				  NULL)) {
 			exit_server_cleanly("blocking_lock_reply_error: "
@@ -419,8 +428,9 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 		 * Success - we got all the locks.
 		 */
 
-		DEBUG(3,("process_lockingX file = %s, fnum=%d type=%d num_locks=%d\n",
-			 fsp->fsp_name, fsp->fnum, (unsigned int)locktype, num_locks) );
+		DEBUG(3,("process_lockingX file = %s, fnum=%d type=%d "
+			 "num_locks=%d\n", fsp_str_dbg(fsp), fsp->fnum,
+			 (unsigned int)locktype, num_locks));
 
 		reply_lockingX_success(blr);
 		return True;
@@ -443,7 +453,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 
 	DEBUG(10,("process_lockingX: only got %d locks of %d needed for file %s, fnum = %d. \
 Waiting....\n", 
-		  blr->lock_num, num_locks, fsp->fsp_name, fsp->fnum));
+		 blr->lock_num, num_locks, fsp_str_dbg(fsp), fsp->fnum));
 
 	return False;
 }
@@ -534,7 +544,7 @@ void cancel_pending_lock_requests_by_fid(files_struct *fsp, struct byte_range_lo
 
 		DEBUG(10, ("remove_pending_lock_requests_by_fid - removing "
 			   "request type %d for file %s fnum = %d\n",
-			   blr->req->cmd, fsp->fsp_name, fsp->fnum));
+			   blr->req->cmd, fsp_str_dbg(fsp), fsp->fnum));
 
 		blr_cancelled = blocking_lock_cancel(fsp,
 				     blr->lock_pid,
@@ -584,7 +594,7 @@ void remove_pending_lock_requests_by_mid(int mid)
 		if (br_lck) {
 			DEBUG(10, ("remove_pending_lock_requests_by_mid - "
 				   "removing request type %d for file %s fnum "
-				   "= %d\n", blr->req->cmd, fsp->fsp_name,
+				   "= %d\n", blr->req->cmd, fsp_str_dbg(fsp),
 				   fsp->fnum ));
 
 			brl_lock_cancel(br_lck,
@@ -642,7 +652,6 @@ void process_blocking_lock_queue(void)
 {
 	struct timeval tv_curr = timeval_current();
 	struct blocking_lock_record *blr, *next = NULL;
-	bool recalc_timeout = False;
 
 	/*
 	 * Go through the queue and see if we can get any of the locks.
@@ -659,6 +668,14 @@ void process_blocking_lock_queue(void)
 		 */
 
 		DEBUG(10, ("Processing BLR = %p\n", blr));
+
+		/* We use set_current_service so connections with
+		 * pending locks are not marked as idle.
+		 */
+
+		set_current_service(blr->fsp->conn,
+				SVAL(blr->req->inbuf,smb_flg),
+				false);
 
 		if(blocking_lock_record_process(blr)) {
 			struct byte_range_lock *br_lck = brl_get_locks(
@@ -680,7 +697,6 @@ void process_blocking_lock_queue(void)
 
 			DLIST_REMOVE(blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
-			recalc_timeout = True;
 			continue;
 		}
 
@@ -704,7 +720,7 @@ void process_blocking_lock_queue(void)
 				DEBUG(5,("process_blocking_lock_queue: "
 					 "pending lock fnum = %d for file %s "
 					 "timed out.\n", blr->fsp->fnum,
-					 blr->fsp->fsp_name ));
+					 fsp_str_dbg(blr->fsp)));
 
 				brl_lock_cancel(br_lck,
 					blr->lock_pid,
@@ -719,13 +735,10 @@ void process_blocking_lock_queue(void)
 			blocking_lock_reply_error(blr,NT_STATUS_FILE_LOCK_CONFLICT);
 			DLIST_REMOVE(blocking_lock_queue, blr);
 			TALLOC_FREE(blr);
-			recalc_timeout = True;
 		}
 	}
 
-	if (recalc_timeout) {
-		recalc_brl_timeout();
-	}
+	recalc_brl_timeout();
 }
 
 /****************************************************************************

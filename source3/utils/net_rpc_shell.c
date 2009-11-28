@@ -69,19 +69,19 @@ static NTSTATUS net_sh_run(struct net_context *c,
 			   int argc, const char **argv)
 {
 	TALLOC_CTX *mem_ctx;
-	struct rpc_pipe_client *pipe_hnd;
+	struct rpc_pipe_client *pipe_hnd = NULL;
 	NTSTATUS status;
 
 	mem_ctx = talloc_new(ctx);
 	if (mem_ctx == NULL) {
-		d_fprintf(stderr, "talloc_new failed\n");
+		d_fprintf(stderr, _("talloc_new failed\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	status = cli_rpc_pipe_open_noauth(ctx->cli, cmd->interface,
 					  &pipe_hnd);
 	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, "Could not open pipe: %s\n",
+		d_fprintf(stderr, _("Could not open pipe: %s\n"),
 			  nt_errstr(status));
 		return status;
 	}
@@ -119,7 +119,9 @@ static bool net_sh_process(struct net_context *c,
 		}
 	}
 
-	if (strequal(argv[0], "exit") || strequal(argv[0], "quit")) {
+	if (strequal(argv[0], "exit") ||
+	    strequal(argv[0], "quit") ||
+	    strequal(argv[0], "q")) {
 		return false;
 	}
 
@@ -141,13 +143,13 @@ static bool net_sh_process(struct net_context *c,
 
 	if (cmd->name == NULL) {
 		/* None found */
-		d_fprintf(stderr, "%s: unknown cmd\n", argv[0]);
+		d_fprintf(stderr,_( "%s: unknown cmd\n"), argv[0]);
 		return true;
 	}
 
 	new_ctx = TALLOC_P(ctx, struct rpc_sh_ctx);
 	if (new_ctx == NULL) {
-		d_fprintf(stderr, "talloc failed\n");
+		d_fprintf(stderr, _("talloc failed\n"));
 		return false;
 	}
 	new_ctx->cli = ctx->cli;
@@ -179,7 +181,7 @@ static bool net_sh_process(struct net_context *c,
 	status = net_sh_run(c, new_ctx, cmd, argc, argv);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, "%s failed: %s\n", new_ctx->whoami,
+		d_fprintf(stderr, _("%s failed: %s\n"), new_ctx->whoami,
 			  nt_errstr(status));
 	}
 
@@ -189,19 +191,19 @@ static bool net_sh_process(struct net_context *c,
 static struct rpc_sh_cmd sh_cmds[6] = {
 
 	{ "info", NULL, &ndr_table_samr.syntax_id, rpc_sh_info,
-	  "Print information about the domain connected to" },
+	  N_("Print information about the domain connected to") },
 
 	{ "rights", net_rpc_rights_cmds, 0, NULL,
-	  "List/Grant/Revoke user rights" },
+	  N_("List/Grant/Revoke user rights") },
 
 	{ "share", net_rpc_share_cmds, 0, NULL,
-	  "List/Add/Remove etc shares" },
+	  N_("List/Add/Remove etc shares") },
 
 	{ "user", net_rpc_user_cmds, 0, NULL,
-	  "List/Add/Remove user info" },
+	  N_("List/Add/Remove user info") },
 
 	{ "account", net_rpc_acct_cmds, 0, NULL,
-	  "Show/Change account policy settings" },
+	  N_("Show/Change account policy settings") },
 
 	{ NULL, NULL, 0, NULL, NULL }
 };
@@ -212,32 +214,29 @@ int net_rpc_shell(struct net_context *c, int argc, const char **argv)
 	struct rpc_sh_ctx *ctx;
 
 	if (argc != 0 || c->display_usage) {
-		d_printf("Usage:\n"
-			 "net rpc shell\n");
+		d_printf(_("Usage:\n"
+			   "net rpc shell\n"));
 		return -1;
 	}
 
 	if (libnetapi_init(&c->netapi_ctx) != 0) {
 		return -1;
 	}
-	set_cmdline_auth_info_getpass(c->auth_info);
-	libnetapi_set_username(c->netapi_ctx,
-			       get_cmdline_auth_info_username(c->auth_info));
-	libnetapi_set_password(c->netapi_ctx,
-			       get_cmdline_auth_info_password(c->auth_info));
-	if (get_cmdline_auth_info_use_kerberos(c->auth_info)) {
+	libnetapi_set_username(c->netapi_ctx, c->opt_user_name);
+	libnetapi_set_password(c->netapi_ctx, c->opt_password);
+	if (c->opt_kerberos) {
 		libnetapi_set_use_kerberos(c->netapi_ctx);
 	}
 
 	ctx = TALLOC_P(NULL, struct rpc_sh_ctx);
 	if (ctx == NULL) {
-		d_fprintf(stderr, "talloc failed\n");
+		d_fprintf(stderr, _("talloc failed\n"));
 		return -1;
 	}
 
 	status = net_make_ipc_connection(c, 0, &(ctx->cli));
 	if (!NT_STATUS_IS_OK(status)) {
-		d_fprintf(stderr, "Could not open connection: %s\n",
+		d_fprintf(stderr, _("Could not open connection: %s\n"),
 			  nt_errstr(status));
 		return -1;
 	}
@@ -252,7 +251,7 @@ int net_rpc_shell(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	d_printf("Talking to domain %s (%s)\n", ctx->domain_name,
+	d_printf(_("Talking to domain %s (%s)\n"), ctx->domain_name,
 		 sid_string_tos(ctx->domain_sid));
 
 	this_ctx = ctx;
@@ -279,7 +278,7 @@ int net_rpc_shell(struct net_context *c, int argc, const char **argv)
 			continue;
 		}
 		if (ret != 0) {
-			d_fprintf(stderr, "cmdline invalid: %s\n",
+			d_fprintf(stderr, _("cmdline invalid: %s\n"),
 				  poptStrerror(ret));
 			SAFE_FREE(line);
 			return false;

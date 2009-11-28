@@ -185,7 +185,7 @@ static int tls_destructor(struct tls_context *tls)
 	int ret;
 	ret = gnutls_bye(tls->session, GNUTLS_SHUT_WR);
 	if (ret < 0) {
-		DEBUG(0,("TLS gnutls_bye failed - %s\n", gnutls_strerror(ret)));
+		DEBUG(4,("TLS gnutls_bye failed - %s\n", gnutls_strerror(ret)));
 	}
 	return 0;
 }
@@ -482,15 +482,8 @@ struct socket_context *tls_init_server(struct tls_params *params,
 	}
 
 	tls->socket          = socket_ctx;
+	talloc_steal(tls, socket_ctx);
 	tls->fde             = fde;
-	if (talloc_reference(tls, fde) == NULL) {
-		talloc_free(new_sock);
-		return NULL;
-	}
-	if (talloc_reference(tls, socket_ctx) == NULL) {
-		talloc_free(new_sock);
-		return NULL;
-	}
 
 	new_sock->private_data    = tls;
 
@@ -547,7 +540,6 @@ struct socket_context *tls_init_client(struct socket_context *socket_ctx,
 	struct tls_context *tls;
 	int ret = 0;
 	const int cert_type_priority[] = { GNUTLS_CRT_X509, GNUTLS_CRT_OPENPGP, 0 };
-	char *cafile;
 	struct socket_context *new_sock;
 	NTSTATUS nt_status;
 	
@@ -562,19 +554,15 @@ struct socket_context *tls_init_client(struct socket_context *socket_ctx,
 	if (tls == NULL) return NULL;
 
 	tls->socket          = socket_ctx;
+	talloc_steal(tls, socket_ctx);
 	tls->fde             = fde;
-	if (talloc_reference(tls, fde) == NULL) {
-		return NULL;
-	}
-	if (talloc_reference(tls, socket_ctx) == NULL) {
-		return NULL;
-	}
+
 	new_sock->private_data    = tls;
 
 	gnutls_global_init();
 
 	gnutls_certificate_allocate_credentials(&tls->xcred);
-	gnutls_certificate_set_x509_trust_file(tls->xcred, cafile, GNUTLS_X509_FMT_PEM);
+	gnutls_certificate_set_x509_trust_file(tls->xcred, ca_path, GNUTLS_X509_FMT_PEM);
 	TLSCHECK(gnutls_init(&tls->session, GNUTLS_CLIENT));
 	TLSCHECK(gnutls_set_default_priority(tls->session));
 	gnutls_certificate_type_set_priority(tls->session, cert_type_priority);

@@ -28,16 +28,30 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 				char **err_str)
 {
 	struct nmb_name calling, called;
-	struct cli_state *cli;
-	struct rpc_pipe_client *pipe_hnd;
+	struct cli_state *cli = NULL;
+	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct sockaddr_storage ss;
+	char *user, *domain, *p;
 
 	NTSTATUS result;
 	bool pass_must_change = False;
 
+	user = talloc_strdup(talloc_tos(), user_name);
+	SMB_ASSERT(user != NULL);
+	domain = talloc_strdup(talloc_tos(), "");
+	SMB_ASSERT(domain != NULL);
+
+	/* allow usernames of the form domain\\user or domain/user */
+	if ((p = strchr_m(user,'\\')) || (p = strchr_m(user,'/')) ||
+	    (p = strchr_m(user,*lp_winbind_separator()))) {
+		*p = 0;
+		domain = user;
+		user = p+1;
+	}
+
 	*err_str = NULL;
 
-	if(!resolve_name( remote_machine, &ss, 0x20)) {
+	if(!resolve_name( remote_machine, &ss, 0x20, false)) {
 		if (asprintf(err_str, "Unable to find an IP address for machine "
 			 "%s.\n", remote_machine) == -1) {
 			*err_str = NULL;
@@ -139,7 +153,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 			return result;
 		}
 	} else {
-		result = cli_init_creds(cli, user_name, "", old_passwd);
+		result = cli_init_creds(cli, user, domain, old_passwd);
 		if (!NT_STATUS_IS_OK(result)) {
 			cli_shutdown(cli);
 			return result;
@@ -162,9 +176,9 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 	if (!pass_must_change) {
 		result = cli_rpc_pipe_open_ntlmssp(cli,
 						   &ndr_table_samr.syntax_id,
-						   PIPE_AUTH_LEVEL_PRIVACY,
-						   "", /* what domain... ? */
-						   user_name,
+						   NCACN_NP,
+						   DCERPC_AUTH_LEVEL_PRIVACY,
+						   domain, user,
 						   old_passwd,
 						   &pipe_hnd);
 	} else {
@@ -196,8 +210,8 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		} else {
 			if (asprintf(err_str, "SAMR connection to machine %s "
 				 "failed. Error was %s, but LANMAN password "
-				 "changed are disabled\n",
-				 nt_errstr(result), remote_machine) == -1) {
+				 "changes are disabled\n",
+				 remote_machine, nt_errstr(result)) == -1) {
 				*err_str = NULL;
 			}
 			result = cli_nt_error(cli);

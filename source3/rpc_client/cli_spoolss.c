@@ -76,6 +76,56 @@ WERROR rpccli_spoolss_openprinter_ex(struct rpc_pipe_client *cli,
 }
 
 /**********************************************************************
+ convencience wrapper around rpccli_spoolss_GetPrinterDriver
+**********************************************************************/
+
+WERROR rpccli_spoolss_getprinterdriver(struct rpc_pipe_client *cli,
+				       TALLOC_CTX *mem_ctx,
+				       struct policy_handle *handle,
+				       const char *architecture,
+				       uint32_t level,
+				       uint32_t offered,
+				       union spoolss_DriverInfo *info)
+{
+	NTSTATUS status;
+	WERROR werror;
+	uint32_t needed;
+	DATA_BLOB buffer;
+
+	if (offered > 0) {
+		buffer = data_blob_talloc_zero(mem_ctx, offered);
+		W_ERROR_HAVE_NO_MEMORY(buffer.data);
+	}
+
+	status = rpccli_spoolss_GetPrinterDriver(cli, mem_ctx,
+						 handle,
+						 architecture,
+						 level,
+						 (offered > 0) ? &buffer : NULL,
+						 offered,
+						 info,
+						 &needed,
+						 &werror);
+	if (W_ERROR_EQUAL(werror, WERR_INSUFFICIENT_BUFFER)) {
+		offered = needed;
+		buffer = data_blob_talloc_zero(mem_ctx, needed);
+		W_ERROR_HAVE_NO_MEMORY(buffer.data);
+
+		status = rpccli_spoolss_GetPrinterDriver(cli, mem_ctx,
+							 handle,
+							 architecture,
+							 level,
+							 &buffer,
+							 offered,
+							 info,
+							 &needed,
+							 &werror);
+	}
+
+	return werror;
+}
+
+/**********************************************************************
  convencience wrapper around rpccli_spoolss_GetPrinterDriver2
 **********************************************************************/
 
@@ -760,25 +810,43 @@ WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	WERROR werror;
 	uint32_t needed;
+	uint16_t *buffer = NULL;
+
+	*key_buffer = NULL;
+
+	if (offered) {
+		buffer = talloc_array(mem_ctx, uint16_t, offered/2);
+		W_ERROR_HAVE_NO_MEMORY(buffer);
+	}
 
 	status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
 					       handle,
 					       key_name,
-					       key_buffer,
+					       buffer,
 					       offered,
 					       &needed,
 					       &werror);
 
 	if (W_ERROR_EQUAL(werror, WERR_MORE_DATA)) {
 		offered = needed;
-
+		buffer = talloc_realloc(mem_ctx, buffer, uint16_t, needed/2);
+		W_ERROR_HAVE_NO_MEMORY(buffer);
 		status = rpccli_spoolss_EnumPrinterKey(cli, mem_ctx,
 						       handle,
 						       key_name,
-						       key_buffer,
+						       buffer,
 						       offered,
 						       &needed,
 						       &werror);
+	}
+
+	if (W_ERROR_IS_OK(werror)) {
+		const char **array;
+		DATA_BLOB blob = data_blob_const((uint8_t *)buffer, offered);
+		if (!pull_reg_multi_sz(mem_ctx, &blob, &array)) {
+			return WERR_NOMEM;
+		}
+		*key_buffer = array;
 	}
 
 	return werror;

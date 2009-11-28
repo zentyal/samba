@@ -82,6 +82,10 @@ static void terminate(void)
 	/* If there was an async dns child - kill it. */
 	kill_async_dns_child();
 
+	gencache_stabilize();
+
+	pidfile_unlink();
+
 	exit(0);
 }
 
@@ -984,6 +988,12 @@ static bool open_sockets(bool isdaemon, int port)
 
 	if( False == register_my_workgroup_and_names() ) {
 		DEBUG(0,("ERROR: Failed when creating my my workgroup. Exiting.\n"));
+		kill_async_dns_child();
+		exit(1);
+	}
+
+	if (!initialize_nmbd_proxy_logon()) {
+		DEBUG(0,("ERROR: Failed setup nmbd_proxy_logon.\n"));
 		kill_async_dns_child();
 		exit(1);
 	}

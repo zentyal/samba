@@ -21,7 +21,6 @@
 #include "includes.h"
 #include "smbd/globals.h"
 
-extern enum protocol_types Protocol;
 extern const struct generic_mapping file_generic_mapping;
 
 static char *nttrans_realloc(char **ptr, size_t size)
@@ -58,6 +57,8 @@ void send_nt_replies(connection_struct *conn,
 	int params_sent_thistime, data_sent_thistime, total_sent_thistime;
 	int alignment_offset = 3;
 	int data_alignment_offset = 0;
+	struct smbd_server_connection *sconn = smbd_server_conn;
+	int max_send = sconn->smb1.sessions.max_send;
 
 	/*
 	 * If there genuinely are no parameters or data to send just send
@@ -66,7 +67,20 @@ void send_nt_replies(connection_struct *conn,
 
 	if(params_to_send == 0 && data_to_send == 0) {
 		reply_outbuf(req, 18, 0);
+		if (NT_STATUS_V(nt_error)) {
+			error_packet_set((char *)req->outbuf,
+					 0, 0, nt_error,
+					 __LINE__,__FILE__);
+		}
 		show_msg((char *)req->outbuf);
+		if (!srv_send_smb(smbd_server_fd(),
+				(char *)req->outbuf,
+				true, req->seqnum+1,
+				IS_CONN_ENCRYPTED(conn),
+				&req->pcd)) {
+			exit_server_cleanly("send_nt_replies: srv_send_smb failed.");
+		}
+		TALLOC_FREE(req->outbuf);
 		return;
 	}
 
@@ -230,6 +244,7 @@ void send_nt_replies(connection_struct *conn,
 		show_msg((char *)req->outbuf);
 		if (!srv_send_smb(smbd_server_fd(),
 				(char *)req->outbuf,
+				true, req->seqnum+1,
 				IS_CONN_ENCRYPTED(conn),
 				&req->pcd)) {
 			exit_server_cleanly("send_nt_replies: srv_send_smb failed.");
@@ -253,53 +268,6 @@ void send_nt_replies(connection_struct *conn,
 			exit_server_cleanly("send_nt_replies: internal error");
 		}
 	}
-}
-
-/****************************************************************************
- Is it an NTFS stream name ?
- An NTFS file name is <path>.<extention>:<stream name>:<stream type>
- $DATA can be used as both a stream name and a stream type. A missing stream
- name or type implies $DATA.
-
- Both Windows stream names and POSIX files can contain the ':' character.
- This function first checks for the existence of a colon in the last component
- of the given name.  If the name contains a colon we differentiate between a
- stream and POSIX file by checking if the latter exists through a POSIX stat.
-
- Function assumes we've already chdir() to the "root" directory of fname.
-****************************************************************************/
-
-bool is_ntfs_stream_name(const char *fname)
-{
-	const char *lastcomp;
-	SMB_STRUCT_STAT sbuf;
-
-	/* If all pathnames are treated as POSIX we ignore streams. */
-	if (lp_posix_pathnames()) {
-		return false;
-	}
-
-	/* Find the last component of the name. */
-	if ((lastcomp = strrchr_m(fname, '/')) != NULL)
-		++lastcomp;
-	else
-		lastcomp = fname;
-
-	/* If there is no colon in the last component, it's not a stream. */
-	if (strchr_m(lastcomp, ':') == NULL)
-		return false;
-
-	/*
-	 * If file already exists on disk, it's not a stream. The stat must
-	 * bypass the vfs layer so streams modules don't intefere.
-	 */
-	if (sys_stat(fname, &sbuf) == 0) {
-		DEBUG(5, ("is_ntfs_stream_name: file %s contains a ':' but is "
-			"not a stream\n", fname));
-		return false;
-	}
-
-	return true;
 }
 
 /****************************************************************************
@@ -406,6 +374,53 @@ static void do_ntcreate_pipe_open(connection_struct *conn,
 	chain_reply(req);
 }
 
+struct case_semantics_state {
+	connection_struct *conn;
+	bool case_sensitive;
+	bool case_preserve;
+	bool short_case_preserve;
+};
+
+/****************************************************************************
+ Restore case semantics.
+****************************************************************************/
+
+static int restore_case_semantics(struct case_semantics_state *state)
+{
+	state->conn->case_sensitive = state->case_sensitive;
+	state->conn->case_preserve = state->case_preserve;
+	state->conn->short_case_preserve = state->short_case_preserve;
+	return 0;
+}
+
+/****************************************************************************
+ Save case semantics.
+****************************************************************************/
+
+static struct case_semantics_state *set_posix_case_semantics(TALLOC_CTX *mem_ctx,
+						connection_struct *conn)
+{
+	struct case_semantics_state *result;
+
+	if (!(result = talloc(mem_ctx, struct case_semantics_state))) {
+		return NULL;
+	}
+
+	result->conn = conn;
+	result->case_sensitive = conn->case_sensitive;
+	result->case_preserve = conn->case_preserve;
+	result->short_case_preserve = conn->short_case_preserve;
+
+	/* Set to POSIX. */
+	conn->case_sensitive = True;
+	conn->case_preserve = True;
+	conn->short_case_preserve = True;
+
+	talloc_set_destructor(result, restore_case_semantics);
+
+	return result;
+}
+
 /****************************************************************************
  Reply to an NT create and X call.
 ****************************************************************************/
@@ -413,6 +428,7 @@ static void do_ntcreate_pipe_open(connection_struct *conn,
 void reply_ntcreate_and_X(struct smb_request *req)
 {
 	connection_struct *conn = req->conn;
+	struct smb_filename *smb_fname = NULL;
 	char *fname = NULL;
 	uint32 flags;
 	uint32 access_mask;
@@ -426,25 +442,25 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	   reply bits separately. */
 	uint32 fattr=0;
 	SMB_OFF_T file_len = 0;
-	SMB_STRUCT_STAT sbuf;
 	int info = 0;
 	files_struct *fsp = NULL;
 	char *p = NULL;
+	struct timespec create_timespec;
 	struct timespec c_timespec;
 	struct timespec a_timespec;
 	struct timespec m_timespec;
+	struct timespec write_time_ts;
 	NTSTATUS status;
 	int oplock_request;
 	uint8_t oplock_granted = NO_OPLOCK_RETURN;
+	struct case_semantics_state *case_state = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
 
 	START_PROFILE(SMBntcreateX);
 
-	SET_STAT_INVALID(sbuf);
-
 	if (req->wct < 24) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		return;
+		goto out;
 	}
 
 	flags = IVAL(req->vwv+3, 1);
@@ -465,8 +481,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
-		END_PROFILE(SMBntcreateX);
-		return;
+		goto out;
 	}
 
 	DEBUG(10,("reply_ntcreate_and_X: flags = 0x%x, access_mask = 0x%x "
@@ -495,12 +510,10 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	if (IS_IPC(conn)) {
 		if (lp_nt_pipe_support()) {
 			do_ntcreate_pipe_open(conn, req);
-			END_PROFILE(SMBntcreateX);
-			return;
+			goto out;
 		}
 		reply_doserror(req, ERRDOS, ERRnoaccess);
-		END_PROFILE(SMBntcreateX);
-		return;
+		goto out;
 	}
 
 	oplock_request = (flags & REQUEST_OPLOCK) ? EXCLUSIVE_OPLOCK : 0;
@@ -509,12 +522,47 @@ void reply_ntcreate_and_X(struct smb_request *req)
 			? BATCH_OPLOCK : 0;
 	}
 
+	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+		case_state = set_posix_case_semantics(ctx, conn);
+		if (!case_state) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			goto out;
+		}
+	}
+
+	status = filename_convert(ctx,
+				conn,
+				req->flags2 & FLAGS2_DFS_PATHNAMES,
+				fname,
+				0,
+				NULL,
+				&smb_fname);
+
+	TALLOC_FREE(case_state);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
+			reply_botherror(req,
+				NT_STATUS_PATH_NOT_COVERED,
+				ERRSRV, ERRbadpath);
+			goto out;
+		}
+		reply_nterror(req, status);
+		goto out;
+	}
+
+	/*
+	 * Bug #6898 - clients using Windows opens should
+	 * never be able to set this attribute into the
+	 * VFS.
+	 */
+	file_attributes &= ~FILE_FLAG_POSIX_SEMANTICS;
+
 	status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
 		root_dir_fid,				/* root_dir_fid */
-		fname,					/* fname */
-		CFF_DOS_PATH,				/* create_file_flags */
+		smb_fname,				/* fname */
 		access_mask,				/* access_mask */
 		share_access,				/* share_access */
 		create_disposition,			/* create_disposition*/
@@ -525,14 +573,12 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp,					/* result */
-		&info,					/* pinfo */
-		&sbuf);					/* psbuf */
+		&info);					/* pinfo */
 
 	if (!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
 			/* We have re-scheduled this call, no error. */
-			END_PROFILE(SMBntcreateX);
-			return;
+			goto out;
 		}
 		if (NT_STATUS_EQUAL(status, NT_STATUS_OBJECT_NAME_COLLISION)) {
 			reply_botherror(req, status, ERRDOS, ERRfilexists);
@@ -540,9 +586,12 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		else {
 			reply_nterror(req, status);
 		}
-		END_PROFILE(SMBntcreateX);
-		return;
+		goto out;
 	}
+
+	/* Ensure we're pointing at the correct stat struct. */
+	TALLOC_FREE(smb_fname);
+	smb_fname = fsp->fsp_name;
 
 	/*
 	 * If the caller set the extended oplock request bit
@@ -569,11 +618,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		oplock_granted = NO_OPLOCK_RETURN;
 	}
 
-	file_len = sbuf.st_size;
-	fattr = dos_mode(conn,fsp->fsp_name,&sbuf);
-	if (fattr == 0) {
-		fattr = FILE_ATTRIBUTE_NORMAL;
-	}
+	file_len = smb_fname->st.st_ex_size;
 
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
 		/* This is very strange. We
@@ -602,34 +647,66 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	}
 	p += 4;
 
-	/* Create time. */
-	c_timespec = get_create_timespec(
-		&sbuf,lp_fake_dir_create_times(SNUM(conn)));
-	a_timespec = get_atimespec(&sbuf);
-	m_timespec = get_mtimespec(&sbuf);
-
-	if (lp_dos_filetime_resolution(SNUM(conn))) {
-		dos_filetime_timespec(&c_timespec);
-		dos_filetime_timespec(&a_timespec);
-		dos_filetime_timespec(&m_timespec);
+	fattr = dos_mode(conn, smb_fname);
+	if (fattr == 0) {
+		fattr = FILE_ATTRIBUTE_NORMAL;
 	}
 
-	put_long_date_timespec(p, c_timespec); /* create time. */
+	/* Deal with other possible opens having a modified
+	   write time. JRA. */
+	ZERO_STRUCT(write_time_ts);
+	get_file_infos(fsp->file_id, NULL, &write_time_ts);
+	if (!null_timespec(write_time_ts)) {
+		update_stat_ex_mtime(&smb_fname->st, write_time_ts);
+	}
+
+	/* Create time. */
+	create_timespec = get_create_timespec(conn, fsp, smb_fname);
+	a_timespec = smb_fname->st.st_ex_atime;
+	m_timespec = smb_fname->st.st_ex_mtime;
+	c_timespec = get_change_timespec(conn, fsp, smb_fname);
+
+	if (lp_dos_filetime_resolution(SNUM(conn))) {
+		dos_filetime_timespec(&create_timespec);
+		dos_filetime_timespec(&a_timespec);
+		dos_filetime_timespec(&m_timespec);
+		dos_filetime_timespec(&c_timespec);
+	}
+
+	put_long_date_timespec(conn->ts_res, p, create_timespec); /* create time. */
 	p += 8;
-	put_long_date_timespec(p, a_timespec); /* access time */
+	put_long_date_timespec(conn->ts_res, p, a_timespec); /* access time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* write time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* write time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* change time */
+	put_long_date_timespec(conn->ts_res, p, c_timespec); /* change time */
 	p += 8;
 	SIVAL(p,0,fattr); /* File Attributes. */
 	p += 4;
-	SOFF_T(p, 0, SMB_VFS_GET_ALLOC_SIZE(conn,fsp,&sbuf));
+	SOFF_T(p, 0, SMB_VFS_GET_ALLOC_SIZE(conn,fsp,&smb_fname->st));
 	p += 8;
 	SOFF_T(p,0,file_len);
 	p += 8;
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
-		SSVAL(p,2,0x7);
+		uint16_t file_status = (NO_EAS|NO_SUBSTREAMS|NO_REPARSETAG);
+		size_t num_names = 0;
+		unsigned int num_streams;
+		struct stream_struct *streams = NULL;
+
+		/* Do we have any EA's ? */
+		status = get_ea_names_from_file(ctx, conn, fsp,
+				smb_fname->base_name, NULL, &num_names);
+		if (NT_STATUS_IS_OK(status) && num_names) {
+			file_status &= ~NO_EAS;
+		}
+		status = SMB_VFS_STREAMINFO(conn, NULL, smb_fname->base_name, ctx,
+			&num_streams, &streams);
+		/* There is always one stream, ::$DATA. */
+		if (NT_STATUS_IS_OK(status) && num_streams > 1) {
+			file_status &= ~NO_SUBSTREAMS;
+		}
+		TALLOC_FREE(streams);
+		SSVAL(p,2,file_status);
 	}
 	p += 4;
 	SCVAL(p,0,fsp->is_directory ? 1 : 0);
@@ -637,8 +714,8 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
 		uint32 perms = 0;
 		p += 25;
-		if (fsp->is_directory
-		    || can_write_to_file(conn, fsp->fsp_name, &sbuf)) {
+		if (fsp->is_directory ||
+		    can_write_to_file(conn, smb_fname)) {
 			perms = FILE_GENERIC_ALL;
 		} else {
 			perms = FILE_GENERIC_READ|FILE_EXECUTE;
@@ -647,9 +724,10 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	}
 
 	DEBUG(5,("reply_ntcreate_and_X: fnum = %d, open name = %s\n",
-		 fsp->fnum, fsp->fsp_name));
+		fsp->fnum, smb_fname_str_dbg(smb_fname)));
 
 	chain_reply(req);
+ out:
 	END_PROFILE(SMBntcreateX);
 	return;
 }
@@ -782,7 +860,7 @@ static NTSTATUS set_sd(files_struct *fsp, uint8 *data, uint32 sd_len,
 	security_acl_map_generic(psd->sacl, &file_generic_mapping);
 
 	if (DEBUGLEVEL >= 10) {
-		DEBUG(10,("set_sd for file %s\n", fsp->fsp_name ));
+		DEBUG(10,("set_sd for file %s\n", fsp_str_dbg(fsp)));
 		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
@@ -797,7 +875,7 @@ static NTSTATUS set_sd(files_struct *fsp, uint8 *data, uint32 sd_len,
  Read a list of EA names and data from an incoming data buffer. Create an ea_list with them.
 ****************************************************************************/
 
-static struct ea_list *read_nttrans_ea_list(TALLOC_CTX *ctx, const char *pdata, size_t data_size)
+struct ea_list *read_nttrans_ea_list(TALLOC_CTX *ctx, const char *pdata, size_t data_size)
 {
 	struct ea_list *ea_list_head = NULL;
 	size_t offset = 0;
@@ -835,13 +913,13 @@ static void call_nt_transact_create(connection_struct *conn,
 				    char **ppdata, uint32 data_count,
 				    uint32 max_data_count)
 {
+	struct smb_filename *smb_fname = NULL;
 	char *fname = NULL;
 	char *params = *ppparams;
 	char *data = *ppdata;
 	/* Breakout the oplock request bits so we can set the reply bits separately. */
 	uint32 fattr=0;
 	SMB_OFF_T file_len = 0;
-	SMB_STRUCT_STAT sbuf;
 	int info = 0;
 	files_struct *fsp = NULL;
 	char *p = NULL;
@@ -855,18 +933,19 @@ static void call_nt_transact_create(connection_struct *conn,
 	struct security_descriptor *sd = NULL;
 	uint32 ea_len;
 	uint16 root_dir_fid;
+	struct timespec create_timespec;
 	struct timespec c_timespec;
 	struct timespec a_timespec;
 	struct timespec m_timespec;
+	struct timespec write_time_ts;
 	struct ea_list *ea_list = NULL;
 	NTSTATUS status;
 	size_t param_len;
 	uint64_t allocation_size;
 	int oplock_request;
 	uint8_t oplock_granted;
+	struct case_semantics_state *case_state = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
-
-	SET_STAT_INVALID(sbuf);
 
 	DEBUG(5,("call_nt_transact_create\n"));
 
@@ -881,10 +960,10 @@ static void call_nt_transact_create(connection_struct *conn,
 				ppsetup, setup_count,
 				ppparams, parameter_count,
 				ppdata, data_count);
-			return;
+			goto out;
 		}
 		reply_doserror(req, ERRDOS, ERRnoaccess);
-		return;
+		goto out;
 	}
 
 	/*
@@ -894,7 +973,7 @@ static void call_nt_transact_create(connection_struct *conn,
 	if(parameter_count < 54) {
 		DEBUG(0,("call_nt_transact_create - insufficient parameters (%u)\n", (unsigned int)parameter_count));
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		return;
+		goto out;
 	}
 
 	flags = IVAL(params,0);
@@ -925,7 +1004,7 @@ static void call_nt_transact_create(connection_struct *conn,
 			   "%u, data_count = %u\n", (unsigned int)ea_len,
 			   (unsigned int)sd_len, (unsigned int)data_count));
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		return;
+		goto out;
 	}
 
 	if (sd_len) {
@@ -939,7 +1018,7 @@ static void call_nt_transact_create(connection_struct *conn,
 				   "unmarshall_sec_desc failed: %s\n",
 				   nt_errstr(status)));
 			reply_nterror(req, status);
-			return;
+			goto out;
 		}
 	}
 
@@ -949,7 +1028,7 @@ static void call_nt_transact_create(connection_struct *conn,
 				   "EA's not supported.\n",
 				   (unsigned int)ea_len));
 			reply_nterror(req, NT_STATUS_EAS_NOT_SUPPORTED);
-			return;
+			goto out;
 		}
 
 		if (ea_len < 10) {
@@ -957,7 +1036,7 @@ static void call_nt_transact_create(connection_struct *conn,
 				  "too small (should be more than 10)\n",
 				  (unsigned int)ea_len ));
 			reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-			return;
+			goto out;
 		}
 
 		/* We have already checked that ea_len <= data_count here. */
@@ -965,7 +1044,7 @@ static void call_nt_transact_create(connection_struct *conn,
 					       ea_len);
 		if (ea_list == NULL) {
 			reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-			return;
+			goto out;
 		}
 	}
 
@@ -974,7 +1053,36 @@ static void call_nt_transact_create(connection_struct *conn,
 			STR_TERMINATE, &status);
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
-		return;
+		goto out;
+	}
+
+	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+		case_state = set_posix_case_semantics(ctx, conn);
+		if (!case_state) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			goto out;
+		}
+	}
+
+	status = filename_convert(ctx,
+				conn,
+				req->flags2 & FLAGS2_DFS_PATHNAMES,
+				fname,
+				0,
+				NULL,
+				&smb_fname);
+
+	TALLOC_FREE(case_state);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
+			reply_botherror(req,
+				NT_STATUS_PATH_NOT_COVERED,
+				ERRSRV, ERRbadpath);
+			goto out;
+		}
+		reply_nterror(req, status);
+		goto out;
 	}
 
 	oplock_request = (flags & REQUEST_OPLOCK) ? EXCLUSIVE_OPLOCK : 0;
@@ -983,12 +1091,18 @@ static void call_nt_transact_create(connection_struct *conn,
 			? BATCH_OPLOCK : 0;
 	}
 
+	/*
+	 * Bug #6898 - clients using Windows opens should
+	 * never be able to set this attribute into the
+	 * VFS.
+	 */
+	file_attributes &= ~FILE_FLAG_POSIX_SEMANTICS;
+
 	status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
 		root_dir_fid,				/* root_dir_fid */
-		fname,					/* fname */
-		CFF_DOS_PATH,				/* create_file_flags */
+		smb_fname,				/* fname */
 		access_mask,				/* access_mask */
 		share_access,				/* share_access */
 		create_disposition,			/* create_disposition*/
@@ -999,8 +1113,7 @@ static void call_nt_transact_create(connection_struct *conn,
 		sd,					/* sd */
 		ea_list,				/* ea_list */
 		&fsp,					/* result */
-		&info,					/* pinfo */
-		&sbuf);					/* psbuf */
+		&info);					/* pinfo */
 
 	if(!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
@@ -1008,8 +1121,12 @@ static void call_nt_transact_create(connection_struct *conn,
 			return;
 		}
 		reply_openerror(req, status);
-		return;
+		goto out;
 	}
+
+	/* Ensure we're pointing at the correct stat struct. */
+	TALLOC_FREE(smb_fname);
+	smb_fname = fsp->fsp_name;
 
 	/*
 	 * If the caller set the extended oplock request bit
@@ -1036,11 +1153,7 @@ static void call_nt_transact_create(connection_struct *conn,
 		oplock_granted = NO_OPLOCK_RETURN;
 	}
 
-	file_len = sbuf.st_size;
-	fattr = dos_mode(conn,fsp->fsp_name,&sbuf);
-	if (fattr == 0) {
-		fattr = FILE_ATTRIBUTE_NORMAL;
-	}
+	file_len = smb_fname->st.st_ex_size;
 
 	/* Realloc the size of parameters and data we will return */
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
@@ -1052,7 +1165,7 @@ static void call_nt_transact_create(connection_struct *conn,
 	params = nttrans_realloc(ppparams, param_len);
 	if(params == NULL) {
 		reply_doserror(req, ERRDOS, ERRnomem);
-		return;
+		goto out;
 	}
 
 	p = params;
@@ -1069,29 +1182,43 @@ static void call_nt_transact_create(connection_struct *conn,
 	}
 	p += 8;
 
-	/* Create time. */
-	c_timespec = get_create_timespec(
-		&sbuf,lp_fake_dir_create_times(SNUM(conn)));
-	a_timespec = get_atimespec(&sbuf);
-	m_timespec = get_mtimespec(&sbuf);
-
-	if (lp_dos_filetime_resolution(SNUM(conn))) {
-		dos_filetime_timespec(&c_timespec);
-		dos_filetime_timespec(&a_timespec);
-		dos_filetime_timespec(&m_timespec);
+	fattr = dos_mode(conn, smb_fname);
+	if (fattr == 0) {
+		fattr = FILE_ATTRIBUTE_NORMAL;
 	}
 
-	put_long_date_timespec(p, c_timespec); /* create time. */
+	/* Deal with other possible opens having a modified
+	   write time. JRA. */
+	ZERO_STRUCT(write_time_ts);
+	get_file_infos(fsp->file_id, NULL, &write_time_ts);
+	if (!null_timespec(write_time_ts)) {
+		update_stat_ex_mtime(&smb_fname->st, write_time_ts);
+	}
+
+	/* Create time. */
+	create_timespec = get_create_timespec(conn, fsp, smb_fname);
+	a_timespec = smb_fname->st.st_ex_atime;
+	m_timespec = smb_fname->st.st_ex_mtime;
+	c_timespec = get_change_timespec(conn, fsp, smb_fname);
+
+	if (lp_dos_filetime_resolution(SNUM(conn))) {
+		dos_filetime_timespec(&create_timespec);
+		dos_filetime_timespec(&a_timespec);
+		dos_filetime_timespec(&m_timespec);
+		dos_filetime_timespec(&c_timespec);
+	}
+
+	put_long_date_timespec(conn->ts_res, p, create_timespec); /* create time. */
 	p += 8;
-	put_long_date_timespec(p, a_timespec); /* access time */
+	put_long_date_timespec(conn->ts_res, p, a_timespec); /* access time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* write time */
+	put_long_date_timespec(conn->ts_res, p, m_timespec); /* write time */
 	p += 8;
-	put_long_date_timespec(p, m_timespec); /* change time */
+	put_long_date_timespec(conn->ts_res, p, c_timespec); /* change time */
 	p += 8;
 	SIVAL(p,0,fattr); /* File Attributes. */
 	p += 4;
-	SOFF_T(p, 0, SMB_VFS_GET_ALLOC_SIZE(conn,fsp,&sbuf));
+	SOFF_T(p, 0, SMB_VFS_GET_ALLOC_SIZE(conn, fsp, &smb_fname->st));
 	p += 8;
 	SOFF_T(p,0,file_len);
 	p += 8;
@@ -1104,8 +1231,8 @@ static void call_nt_transact_create(connection_struct *conn,
 	if (flags & EXTENDED_RESPONSE_REQUIRED) {
 		uint32 perms = 0;
 		p += 25;
-		if (fsp->is_directory
-		    || can_write_to_file(conn, fsp->fsp_name, &sbuf)) {
+		if (fsp->is_directory ||
+		    can_write_to_file(conn, smb_fname)) {
 			perms = FILE_GENERIC_ALL;
 		} else {
 			perms = FILE_GENERIC_READ|FILE_EXECUTE;
@@ -1113,11 +1240,12 @@ static void call_nt_transact_create(connection_struct *conn,
 		SIVAL(p,0,perms);
 	}
 
-	DEBUG(5,("call_nt_transact_create: open name = %s\n", fsp->fsp_name));
+	DEBUG(5,("call_nt_transact_create: open name = %s\n",
+		 smb_fname_str_dbg(smb_fname)));
 
 	/* Send the required number of replies */
 	send_nt_replies(conn, req, NT_STATUS_OK, params, param_len, *ppdata, 0);
-
+ out:
 	return;
 }
 
@@ -1133,9 +1261,9 @@ void reply_ntcancel(struct smb_request *req)
 	 */
 
 	START_PROFILE(SMBntcancel);
+	srv_cancel_sign_response(smbd_server_conn);
 	remove_pending_change_notify_requests_by_mid(req->mid);
 	remove_pending_lock_requests_by_mid(req->mid);
-	srv_cancel_sign_response(req->mid, true);
 
 	DEBUG(3,("reply_ntcancel: cancel called on mid = %d.\n", req->mid));
 
@@ -1150,15 +1278,10 @@ void reply_ntcancel(struct smb_request *req)
 static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 				connection_struct *conn,
 				struct smb_request *req,
-				const char *oldname_in,
-				const char *newname_in,
+				struct smb_filename *smb_fname_src,
+				struct smb_filename *smb_fname_dst,
 				uint32 attrs)
 {
-	SMB_STRUCT_STAT sbuf1, sbuf2;
-	char *oldname = NULL;
-	char *newname = NULL;
-	char *last_component_oldname = NULL;
-	char *last_component_newname = NULL;
 	files_struct *fsp1,*fsp2;
 	uint32 fattr;
 	int info;
@@ -1166,70 +1289,45 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 	NTSTATUS status = NT_STATUS_OK;
 	char *parent;
 
-	ZERO_STRUCT(sbuf1);
-	ZERO_STRUCT(sbuf2);
-
 	if (!CAN_WRITE(conn)) {
-		return NT_STATUS_MEDIA_WRITE_PROTECTED;
-	}
-
-	status = unix_convert(ctx, conn, oldname_in, False, &oldname,
-			&last_component_oldname, &sbuf1);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = check_name(conn, oldname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		status = NT_STATUS_MEDIA_WRITE_PROTECTED;
+		goto out;
 	}
 
         /* Source must already exist. */
-	if (!VALID_STAT(sbuf1)) {
-		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	if (!VALID_STAT(smb_fname_src->st)) {
+		status = NT_STATUS_OBJECT_NAME_NOT_FOUND;
+		goto out;
 	}
+
 	/* Ensure attributes match. */
-	fattr = dos_mode(conn,oldname,&sbuf1);
+	fattr = dos_mode(conn, smb_fname_src);
 	if ((fattr & ~attrs) & (aHIDDEN | aSYSTEM)) {
-		return NT_STATUS_NO_SUCH_FILE;
+		status = NT_STATUS_NO_SUCH_FILE;
+		goto out;
 	}
 
-	status = unix_convert(ctx, conn, newname_in, False, &newname,
-			&last_component_newname, &sbuf2);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = check_name(conn, newname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	/* Disallow if newname already exists. */
-	if (VALID_STAT(sbuf2)) {
-		return NT_STATUS_OBJECT_NAME_COLLISION;
+	/* Disallow if dst file already exists. */
+	if (VALID_STAT(smb_fname_dst->st)) {
+		status = NT_STATUS_OBJECT_NAME_COLLISION;
+		goto out;
 	}
 
 	/* No links from a directory. */
-	if (S_ISDIR(sbuf1.st_mode)) {
-		return NT_STATUS_FILE_IS_A_DIRECTORY;
-	}
-
-	/* Ensure this is within the share. */
-	status = check_reduced_name(conn, oldname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (S_ISDIR(smb_fname_src->st.st_ex_mode)) {
+		status = NT_STATUS_FILE_IS_A_DIRECTORY;
+		goto out;
 	}
 
 	DEBUG(10,("copy_internals: doing file copy %s to %s\n",
-				oldname, newname));
+		  smb_fname_str_dbg(smb_fname_src),
+		  smb_fname_str_dbg(smb_fname_dst)));
 
         status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
 		0,					/* root_dir_fid */
-		oldname,				/* fname */
-		0,					/* create_file_flags */
+		smb_fname_src,				/* fname */
 		FILE_READ_DATA,				/* access_mask */
 		(FILE_SHARE_READ | FILE_SHARE_WRITE |	/* share_access */
 		    FILE_SHARE_DELETE),
@@ -1241,19 +1339,17 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp1,					/* result */
-		&info,					/* pinfo */
-		&sbuf1);				/* psbuf */
+		&info);					/* pinfo */
 
 	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		goto out;
 	}
 
         status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		req,					/* req */
 		0,					/* root_dir_fid */
-		newname,				/* fname */
-		0,					/* create_file_flags */
+		smb_fname_dst,				/* fname */
 		FILE_WRITE_DATA,			/* access_mask */
 		(FILE_SHARE_READ | FILE_SHARE_WRITE |	/* share_access */
 		    FILE_SHARE_DELETE),
@@ -1265,16 +1361,15 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp2,					/* result */
-		&info,					/* pinfo */
-		&sbuf2);				/* psbuf */
+		&info);					/* pinfo */
 
 	if (!NT_STATUS_IS_OK(status)) {
 		close_file(NULL, fsp1, ERROR_CLOSE);
-		return status;
+		goto out;
 	}
 
-	if (sbuf1.st_size) {
-		ret = vfs_transfer_file(fsp1, fsp2, sbuf1.st_size);
+	if (smb_fname_src->st.st_ex_size) {
+		ret = vfs_transfer_file(fsp1, fsp2, smb_fname_src->st.st_ex_size);
 	}
 
 	/*
@@ -1286,27 +1381,32 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 	close_file(NULL, fsp1, NORMAL_CLOSE);
 
 	/* Ensure the modtime is set correctly on the destination file. */
-	set_close_write_time(fsp2, get_mtimespec(&sbuf1));
+	set_close_write_time(fsp2, smb_fname_src->st.st_ex_mtime);
 
 	status = close_file(NULL, fsp2, NORMAL_CLOSE);
 
 	/* Grrr. We have to do this as open_file_ntcreate adds aARCH when it
 	   creates the file. This isn't the correct thing to do in the copy
 	   case. JRA */
-	if (!parent_dirname(talloc_tos(), newname, &parent, NULL)) {
-		return NT_STATUS_NO_MEMORY;
+	if (!parent_dirname(talloc_tos(), smb_fname_dst->base_name, &parent,
+			    NULL)) {
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
 	}
-	file_set_dosmode(conn, newname, fattr, &sbuf2, parent, false);
+	file_set_dosmode(conn, smb_fname_dst, fattr, parent, false);
 	TALLOC_FREE(parent);
 
-	if (ret < (SMB_OFF_T)sbuf1.st_size) {
-		return NT_STATUS_DISK_FULL;
+	if (ret < (SMB_OFF_T)smb_fname_src->st.st_ex_size) {
+		status = NT_STATUS_DISK_FULL;
+		goto out;
 	}
-
+ out:
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3,("copy_internals: Error %s copy file %s to %s\n",
-			nt_errstr(status), oldname, newname));
+			nt_errstr(status), smb_fname_str_dbg(smb_fname_src),
+			smb_fname_str_dbg(smb_fname_dst)));
 	}
+
 	return status;
 }
 
@@ -1317,6 +1417,8 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 void reply_ntrename(struct smb_request *req)
 {
 	connection_struct *conn = req->conn;
+	struct smb_filename *smb_fname_old = NULL;
+	struct smb_filename *smb_fname_new = NULL;
 	char *oldname = NULL;
 	char *newname = NULL;
 	const char *p;
@@ -1324,6 +1426,8 @@ void reply_ntrename(struct smb_request *req)
 	bool src_has_wcard = False;
 	bool dest_has_wcard = False;
 	uint32 attrs;
+	uint32_t ucf_flags_src = 0;
+	uint32_t ucf_flags_dst = 0;
 	uint16 rename_type;
 	TALLOC_CTX *ctx = talloc_tos();
 
@@ -1331,8 +1435,7 @@ void reply_ntrename(struct smb_request *req)
 
 	if (req->wct < 4) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
 	attrs = SVAL(req->vwv+0, 0);
@@ -1343,14 +1446,12 @@ void reply_ntrename(struct smb_request *req)
 				       &status, &src_has_wcard);
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
 	if (ms_has_wild(oldname)) {
 		reply_nterror(req, NT_STATUS_OBJECT_PATH_SYNTAX_BAD);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
 	p++;
@@ -1358,66 +1459,81 @@ void reply_ntrename(struct smb_request *req)
 				       &status, &dest_has_wcard);
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
-	status = resolve_dfspath(ctx, conn,
-				req->flags2 & FLAGS2_DFS_PATHNAMES,
-				oldname,
-				&oldname);
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
-			reply_botherror(req, NT_STATUS_PATH_NOT_COVERED,
-					ERRSRV, ERRbadpath);
-			END_PROFILE(SMBntrename);
-			return;
-		}
-		reply_nterror(req, status);
-		END_PROFILE(SMBntrename);
-		return;
-	}
-
-	status = resolve_dfspath(ctx, conn,
-				req->flags2 & FLAGS2_DFS_PATHNAMES,
-				newname,
-				&newname);
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
-			reply_botherror(req, NT_STATUS_PATH_NOT_COVERED,
-					ERRSRV, ERRbadpath);
-			END_PROFILE(SMBntrename);
-			return;
-		}
-		reply_nterror(req, status);
-		END_PROFILE(SMBntrename);
-		return;
-	}
-
-	/* The new name must begin with a ':' if the old name is a stream. */
-	if (is_ntfs_stream_name(oldname) && (newname[0] != ':')) {
+	/* The newname must begin with a ':' if the oldname contains a ':'. */
+	if (strchr_m(oldname, ':') && (newname[0] != ':')) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
-	DEBUG(3,("reply_ntrename : %s -> %s\n",oldname,newname));
+	/*
+	 * If this is a rename operation, allow wildcards and save the
+	 * destination's last component.
+	 */
+	if (rename_type == RENAME_FLAG_RENAME) {
+		ucf_flags_src = UCF_COND_ALLOW_WCARD_LCOMP;
+		ucf_flags_dst = UCF_COND_ALLOW_WCARD_LCOMP | UCF_SAVE_LCOMP;
+	}
+
+	/* rename_internals() calls unix_convert(), so don't call it here. */
+	status = filename_convert(ctx, conn,
+				  req->flags2 & FLAGS2_DFS_PATHNAMES,
+				  oldname,
+				  ucf_flags_src,
+				  NULL,
+				  &smb_fname_old);
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status,
+				    NT_STATUS_PATH_NOT_COVERED)) {
+			reply_botherror(req,
+					NT_STATUS_PATH_NOT_COVERED,
+					ERRSRV, ERRbadpath);
+			goto out;
+		}
+		reply_nterror(req, status);
+		goto out;
+	}
+
+	status = filename_convert(ctx, conn,
+				  req->flags2 & FLAGS2_DFS_PATHNAMES,
+				  newname,
+				  ucf_flags_dst,
+				  &dest_has_wcard,
+				  &smb_fname_new);
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status,
+				    NT_STATUS_PATH_NOT_COVERED)) {
+			reply_botherror(req,
+				        NT_STATUS_PATH_NOT_COVERED,
+					ERRSRV, ERRbadpath);
+			goto out;
+		}
+		reply_nterror(req, status);
+		goto out;
+	}
+
+	DEBUG(3,("reply_ntrename: %s -> %s\n",
+		 smb_fname_str_dbg(smb_fname_old),
+		 smb_fname_str_dbg(smb_fname_new)));
 
 	switch(rename_type) {
 		case RENAME_FLAG_RENAME:
-			status = rename_internals(ctx, conn, req, oldname,
-					newname, attrs, False, src_has_wcard,
-					dest_has_wcard, DELETE_ACCESS);
+			status = rename_internals(ctx, conn, req,
+						  smb_fname_old, smb_fname_new,
+						  attrs, False, src_has_wcard,
+						  dest_has_wcard,
+						  DELETE_ACCESS);
 			break;
 		case RENAME_FLAG_HARD_LINK:
 			if (src_has_wcard || dest_has_wcard) {
 				/* No wildcards. */
 				status = NT_STATUS_OBJECT_PATH_SYNTAX_BAD;
 			} else {
-				status = hardlink_internals(ctx,
-						conn,
-						oldname,
-						newname);
+				status = hardlink_internals(ctx, conn,
+							    smb_fname_old,
+							    smb_fname_new);
 			}
 			break;
 		case RENAME_FLAG_COPY:
@@ -1425,8 +1541,10 @@ void reply_ntrename(struct smb_request *req)
 				/* No wildcards. */
 				status = NT_STATUS_OBJECT_PATH_SYNTAX_BAD;
 			} else {
-				status = copy_internals(ctx, conn, req, oldname,
-							newname, attrs);
+				status = copy_internals(ctx, conn, req,
+							smb_fname_old,
+							smb_fname_new,
+							attrs);
 			}
 			break;
 		case RENAME_FLAG_MOVE_CLUSTER_INFORMATION:
@@ -1440,17 +1558,15 @@ void reply_ntrename(struct smb_request *req)
 	if (!NT_STATUS_IS_OK(status)) {
 		if (open_was_deferred(req->mid)) {
 			/* We have re-scheduled this call. */
-			END_PROFILE(SMBntrename);
-			return;
+			goto out;
 		}
 
 		reply_nterror(req, status);
-		END_PROFILE(SMBntrename);
-		return;
+		goto out;
 	}
 
 	reply_outbuf(req, 0, 0);
-
+ out:
 	END_PROFILE(SMBntrename);
 	return;
 }
@@ -1459,6 +1575,13 @@ void reply_ntrename(struct smb_request *req)
  Reply to a notify change - queue the request and
  don't allow a directory to be opened.
 ****************************************************************************/
+
+static void smbd_smb1_notify_reply(struct smb_request *req,
+				   NTSTATUS error_code,
+				   uint8_t *buf, size_t len)
+{
+	send_nt_replies(req->conn, req, error_code, (char *)buf, len, NULL, 0);
+}
 
 static void call_nt_transact_notify_change(connection_struct *conn,
 					   struct smb_request *req,
@@ -1502,7 +1625,7 @@ static void call_nt_transact_notify_change(connection_struct *conn,
 
 		DEBUG(3,("call_nt_transact_notify_change: notify change "
 			 "called on %s, filter = %s, recursive = %d\n",
-			 fsp->fsp_name, filter_string, recursive));
+			 fsp_str_dbg(fsp), filter_string, recursive));
 
 		TALLOC_FREE(filter_string);
 	}
@@ -1535,8 +1658,11 @@ static void call_nt_transact_notify_change(connection_struct *conn,
 		 * here.
 		 */
 
-		change_notify_reply(fsp->conn, req, max_param_count,
-				    fsp->notify);
+		change_notify_reply(fsp->conn, req,
+				    NT_STATUS_OK,
+				    max_param_count,
+				    fsp->notify,
+				    smbd_smb1_notify_reply);
 
 		/*
 		 * change_notify_reply() above has independently sent its
@@ -1552,7 +1678,8 @@ static void call_nt_transact_notify_change(connection_struct *conn,
 	status = change_notify_add_request(req,
 			max_param_count,
 			filter,
-			recursive, fsp);
+			recursive, fsp,
+			smbd_smb1_notify_reply);
 	if (!NT_STATUS_IS_OK(status)) {
 		reply_nterror(req, status);
 	}
@@ -1601,7 +1728,7 @@ static void call_nt_transact_rename(connection_struct *conn,
 	send_nt_replies(conn, req, NT_STATUS_OK, NULL, 0, NULL, 0);
 
 	DEBUG(3,("nt transact rename from = %s, to = %s ignored!\n",
-		 fsp->fsp_name, new_name));
+		 fsp_str_dbg(fsp), new_name));
 
 	return;
 }
@@ -1659,8 +1786,9 @@ static void call_nt_transact_query_security_desc(connection_struct *conn,
 
 	security_info_wanted = IVAL(params,4);
 
-	DEBUG(3,("call_nt_transact_query_security_desc: file = %s, info_wanted = 0x%x\n", fsp->fsp_name,
-			(unsigned int)security_info_wanted ));
+	DEBUG(3,("call_nt_transact_query_security_desc: file = %s, "
+		 "info_wanted = 0x%x\n", fsp_str_dbg(fsp),
+		 (unsigned int)security_info_wanted));
 
 	params = nttrans_realloc(ppparams, 4);
 	if(params == NULL) {
@@ -1697,7 +1825,8 @@ static void call_nt_transact_query_security_desc(connection_struct *conn,
 	DEBUG(3,("call_nt_transact_query_security_desc: sd_size = %lu.\n",(unsigned long)sd_size));
 
 	if (DEBUGLEVEL >= 10) {
-		DEBUG(10,("call_nt_transact_query_security_desc for file %s\n", fsp->fsp_name));
+		DEBUG(10,("call_nt_transact_query_security_desc for file %s\n",
+			  fsp_str_dbg(fsp)));
 		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
@@ -1771,8 +1900,8 @@ static void call_nt_transact_set_security_desc(connection_struct *conn,
 
 	security_info_sent = IVAL(params,4);
 
-	DEBUG(3,("call_nt_transact_set_security_desc: file = %s, sent 0x%x\n", fsp->fsp_name,
-		(unsigned int)security_info_sent ));
+	DEBUG(3,("call_nt_transact_set_security_desc: file = %s, sent 0x%x\n",
+		 fsp_str_dbg(fsp), (unsigned int)security_info_sent));
 
 	if (data_count == 0) {
 		reply_doserror(req, ERRDOS, ERRnoaccess);
@@ -1991,12 +2120,12 @@ static void call_nt_transact_ioctl(connection_struct *conn,
 		}
 
 		/* needed_data_count 4 bytes */
-		SIVAL(pdata,8,labels_data_count);
+		SIVAL(pdata, 8, labels_data_count+4);
 
 		cur_pdata+=12;
 
 		DEBUG(10,("FSCTL_GET_SHADOW_COPY_DATA: %u volumes for path[%s].\n",
-			shadow_data->num_volumes,fsp->fsp_name));
+			  shadow_data->num_volumes, fsp_str_dbg(fsp)));
 		if (labels && shadow_data->labels) {
 			for (i=0;i<shadow_data->num_volumes;i++) {
 				srvstr_push(pdata, req->flags2,
@@ -2493,7 +2622,7 @@ static void handle_nttrans(connection_struct *conn,
 			   struct trans_state *state,
 			   struct smb_request *req)
 {
-	if (Protocol >= PROTOCOL_NT1) {
+	if (get_Protocol() >= PROTOCOL_NT1) {
 		req->flags2 |= 0x40; /* IS_LONG_NAME */
 		SSVAL(req->inbuf,smb_flg2,req->flags2);
 	}

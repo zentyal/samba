@@ -22,7 +22,8 @@
 #ifndef __LIBCLI_RAW_INTERFACES_H__
 #define __LIBCLI_RAW_INTERFACES_H__
 
-#include "smb.h" 
+#include "libcli/raw/smb.h"
+#include "../libcli/smb/smb_common.h"
 #include "librpc/gen_ndr/misc.h" /* for struct GUID */
 
 /* this structure is just a wrapper for a string, the only reason we
@@ -51,6 +52,29 @@ struct smb_wire_string {
  */
 struct smb2_handle {
 	uint64_t data[2];
+};
+
+/*
+  SMB2 lease structure (per MS-SMB2 2.2.13)
+*/
+struct smb2_lease_key {
+	uint64_t data[2];
+};
+
+struct smb2_lease {
+	struct smb2_lease_key lease_key;
+	uint32_t lease_state;
+	uint32_t lease_flags; /* should be 0 */
+	uint64_t lease_duration; /* should be 0 */
+};
+
+struct smb2_lease_break {
+	struct smb2_lease current_lease;
+	uint32_t break_flags;
+	uint32_t new_lease_state;
+	uint32_t break_reason; /* should be 0 */
+	uint32_t access_mask_hint; /* should be 0 */
+	uint32_t share_mask_hint; /* should be 0 */
 };
 
 struct ntvfs_handle;
@@ -1633,15 +1657,10 @@ union smb_open {
 			bool   query_maximal_access;
 			NTTIME timewarp;
 			bool   query_on_disk_id;
+			struct smb2_lease *lease_request;
 			
 			/* and any additional blobs the caller wants */
-			struct smb2_create_blobs {
-				uint32_t num_blobs;
-				struct smb2_create_blob {
-					const char *tag;
-					DATA_BLOB data;
-				} *blobs;
-			} blobs;
+			struct smb2_create_blobs blobs;
 		} in;
 		struct {
 			union smb_handle file;
@@ -1666,6 +1685,7 @@ union smb_open {
 			/* optional return values matching tagged values in the call */
 			uint32_t maximal_access;
 			uint8_t on_disk_id[32];
+			struct smb2_lease lease_response;
 
 			/* tagged blobs in the reply */
 			struct smb2_create_blobs blobs;
@@ -1963,13 +1983,6 @@ union smb_lock {
 			struct smb2_lock_element {
 				uint64_t offset;
 				uint64_t length;
-/* these flags are the same as the SMB2 lock flags */
-#define SMB2_LOCK_FLAG_NONE		0x00000000
-#define SMB2_LOCK_FLAG_SHARED		0x00000001
-#define SMB2_LOCK_FLAG_EXCLUSIVE	0x00000002
-#define SMB2_LOCK_FLAG_UNLOCK		0x00000004
-#define SMB2_LOCK_FLAG_FAIL_IMMEDIATELY	0x00000010
-#define SMB2_LOCK_FLAG_ALL_MASK		0x00000017
 				uint32_t flags;
 				uint32_t reserved;
 			} *locks;
@@ -1994,6 +2007,14 @@ union smb_lock {
 			/* struct smb2_handle handle; */
 		} in, out;
 	} smb2_break;
+
+	/* SMB2 Lease Break Ack (same opcode as smb2_break) */
+	struct smb2_lease_break_ack {
+		struct {
+			uint32_t reserved;
+			struct smb2_lease lease;
+		} in, out;
+	} smb2_lease_break_ack;
 };
 
 
@@ -2420,22 +2441,6 @@ union smb_search_first {
 			uint16_t end_of_search;
 		} out;
 	} t2ffirst;
-
-/*
-  SMB2 uses different level numbers for the same old SMB trans2 search levels
-*/
-#define SMB2_FIND_DIRECTORY_INFO         0x01
-#define SMB2_FIND_FULL_DIRECTORY_INFO    0x02
-#define SMB2_FIND_BOTH_DIRECTORY_INFO    0x03
-#define SMB2_FIND_NAME_INFO              0x0C
-#define SMB2_FIND_ID_BOTH_DIRECTORY_INFO 0x25
-#define SMB2_FIND_ID_FULL_DIRECTORY_INFO 0x26
-
-/* flags for SMB2 find */
-#define SMB2_CONTINUE_FLAG_RESTART    0x01
-#define SMB2_CONTINUE_FLAG_SINGLE     0x02
-#define SMB2_CONTINUE_FLAG_INDEX      0x04
-#define SMB2_CONTINUE_FLAG_REOPEN     0x10
 
 	/* SMB2 Find */
 	struct smb2_find {

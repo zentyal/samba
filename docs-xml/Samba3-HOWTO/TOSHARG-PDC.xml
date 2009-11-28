@@ -80,7 +80,7 @@ to not inflict pain on others. Do your learning on a test network.
 </para>
 
 <para>
-<indexterm>single sign-on<primary></primary><see>SSO</see></indexterm>
+<indexterm><primary>single sign-on</primary><see>SSO</see></indexterm>
 <indexterm><primary>trust</primary></indexterm>
 <indexterm><primary>account</primary></indexterm>
 <indexterm><primary>domain</primary><secondary>security</secondary><tertiary>protocols</tertiary></indexterm>
@@ -306,7 +306,7 @@ many SSO solutions are an administrative nightmare.
 <indexterm><primary>SSO</primary></indexterm>
 SSO implementations utilize centralization of all user account information. Depending on environmental
 complexity and the age of the systems over which a SSO solution is implemented, it may not be possible to
-change the solution architecture so as to accomodate a new identity management and user authentication system.
+change the solution architecture so as to accommodate a new identity management and user authentication system.
 Many SSO solutions involving legacy systems consist of a new super-structure that handles authentication on
 behalf of the user. The software that gets layered over the old system may simply implement a proxy
 authentication system. This means that the addition of SSO increases over-all information systems complexity.
@@ -375,8 +375,8 @@ that share live services. The Liberty Alliance, an industry group formed to prom
 standards, has adopted SAML 1.1 as part of its application framework. Microsoft and IBM have proposed an
 alternative specification called WS-Security. Some believe that the competing technologies and methods may
 converge when the SAML 2.0 standard is introduced. A few Web access-management products support SAML today,
-but implemention of the technology mostly requires customization to integrate applications and develop user
-interfaces. In a nust-shell, that is why FIM is a big and growing industry.
+but implementation of the technology mostly requires customization to integrate applications and develop user
+interfaces. In a nutshell, that is why FIM is a big and growing industry.
 </para>
 
 <para>
@@ -462,7 +462,7 @@ Before we branch into a brief overview of domain control, there are three basic 
 <indexterm><primary>PDC</primary></indexterm>
 <indexterm><primary>powerful</primary></indexterm>
 <indexterm><primary>network</primary><secondary>performance</secondary></indexterm>
-<indexterm><primary>domain</primary><secondary>member</secondary><secondary>server</secondary></indexterm>
+<indexterm><primary>domain</primary><secondary>member</secondary><tertiary>server</tertiary></indexterm>
 The <emphasis>Primary Domain Controller</emphasis> or PDC plays an important role in MS Windows NT4. In
 Windows 200x domain control architecture, this role is held by domain controllers.  Folklore dictates that
 because of its role in the MS Windows network, the domain controller should be the most powerful and most
@@ -486,7 +486,7 @@ database with BDCs.
 <para>
 <indexterm><primary>domain</primary><secondary>controller</secondary><tertiary>hierarchy</tertiary></indexterm>
 <indexterm><primary>LDAP</primary></indexterm>
-<indexterm>account<primary></primary><secondary>backend</secondary></indexterm>
+<indexterm><primary>account</primary><secondary>backend</secondary></indexterm>
 <indexterm><primary>machine account</primary></indexterm>
 With MS Windows 200x Server-based Active Directory domains, one domain controller initiates a potential
 hierarchy of domain controllers, each with its own area of delegated control. The master domain
@@ -500,7 +500,7 @@ LDAP-based user and machine account backend.
 <indexterm><primary>registry</primary></indexterm>
 New to Samba-3 is the ability to use a backend database that holds the same type of data as the NT4-style SAM
 database (one of the registry files)<footnote><para>See also <link linkend="passdb">Account Information
-Databases</link>.</para>.</footnote>
+Databases</link>.</para></footnote>
 </para>
 
 <para>

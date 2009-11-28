@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">3.4</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -748,6 +748,9 @@ such as domain name, domain sid and number of users and groups.
 <para>Add a interdomain trust account for <replaceable>DOMAIN</replaceable>. 
 This is in fact a Samba account named <replaceable>DOMAIN$</replaceable> 
 with the account flag <constant>'I'</constant> (interdomain trust account). 
+This is required for incoming trusts to work. It makes Samba be a
+trusted domain of the foreign (trusting) domain.
+Users of the Samba domain will be made available in the foreign domain.
 If the command is used against localhost it has the same effect as 
 <command>smbpasswd -a -i DOMAIN</command>. Please note that both commands
 expect a appropriate UNIX account. 
@@ -769,8 +772,13 @@ it has the same effect as <command>smbpasswd -x DOMAIN$</command>.
 <title>RPC TRUSTDOM ESTABLISH <replaceable>DOMAIN</replaceable></title>
 
 <para>
-Establish a trust relationship to a trusting domain. 
+Establish a trust relationship to a trusted domain. 
 Interdomain account must already be created on the remote PDC.
+This is required for outgoing trusts to work. It makes Samba be a
+trusting domain of a foreign (trusted) domain.
+Users of the foreign domain will be made available in our domain.
+You'll need winbind and a working idmap config to make them
+appear in your system.
 </para>
 
 </refsect3>
@@ -784,7 +792,7 @@ Interdomain account must already be created on the remote PDC.
 <refsect3>
 <title>RPC TRUSTDOM LIST</title>
 
-<para>List all current interdomain trust relationships.</para>
+<para>List all interdomain trust relationships.</para>
 
 </refsect3>
 
@@ -835,7 +843,7 @@ Force shutting down all applications.
 Timeout before system will be shut down. An interactive 
 user of the system can use this time to cancel the shutdown.
 </para></listitem>
-</varlistentry>'>
+</varlistentry>
 
 <varlistentry>
 <term>-C message</term>
@@ -1051,6 +1059,33 @@ List Local group members. The group must be specified by name.
 <para>
 List the specified set of accounts by name. If verbose is specified,
 the rid and description is also provided for each account.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>SAM RIGHTS LIST</title>
+
+<para>
+List all available privileges.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>SAM RIGHTS GRANT &lt;NAME&gt; &lt;PRIVILEGE&gt;</title>
+
+<para>
+Grant one or more privileges to a user.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>SAM RIGHTS REVOKE &lt;NAME&gt; &lt;PRIVILEGE&gt;</title>
+
+<para>
+Revoke one or more privileges from a user.
 </para>
 
 </refsect2>
@@ -1678,7 +1713,7 @@ Joins a computer into a domain. This command supports the following additional p
 </itemizedlist>
 
 <para>
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to join. These additional parameters include: -S computer and -U user.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to join. These additional parameters include: -S computer and -U user.
 </para>
 <para>
 	Example:
@@ -1708,7 +1743,7 @@ Unjoins a computer from a domain. This command supports the following additional
 </itemizedlist>
 
 <para>
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to unjoin. These additional parameters include: -S computer and -U user.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to unjoin. These additional parameters include: -S computer and -U user.
 </para>
 <para>
 	Example:
@@ -1740,7 +1775,7 @@ Renames a computer that is joined to a domain. This command supports the followi
 </itemizedlist>
 
 <para>
-Note that you also need to use standard net paramters to connect and authenticate to the remote machine that you want to rename in the domain. These additional parameters include: -S computer and -U user.
+Note that you also need to use standard net parameters to connect and authenticate to the remote machine that you want to rename in the domain. These additional parameters include: -S computer and -U user.
 </para>
 <para>
 	Example:

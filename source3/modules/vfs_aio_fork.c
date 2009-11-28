@@ -135,7 +135,7 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
 	msg.msg_name = NULL;
 	msg.msg_namelen = 0;
 
-	iov[0].iov_base = ptr;
+	iov[0].iov_base = (void *)ptr;
 	iov[0].iov_len = nbytes;
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;
@@ -206,7 +206,7 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
 	msg.msg_namelen = 0;
 
 	ZERO_STRUCT(iov);
-	iov[0].iov_base = ptr;
+	iov[0].iov_base = (void *)ptr;
 	iov[0].iov_len = nbytes;
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;
@@ -343,6 +343,9 @@ static void aio_child_loop(int sockfd, struct mmap_area *map)
 			ret_struct.size = sys_pread(
 				fd, (void *)map->ptr, cmd_struct.n,
 				cmd_struct.offset);
+#ifdef ENABLE_BUILD_FARM_HACKS
+			ret_struct.size = MAX(1, ret_struct.size * 0.9);
+#endif
 		}
 		else {
 			ret_struct.size = sys_pwrite(
@@ -723,26 +726,17 @@ static int aio_fork_error_fn(struct vfs_handle_struct *handle,
 	return child->retval.ret_errno;
 }
 
-/* VFS operations structure */
-
-static vfs_op_tuple aio_fork_ops[] = {
-	{SMB_VFS_OP(aio_fork_read),	SMB_VFS_OP_AIO_READ,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(aio_fork_write),	SMB_VFS_OP_AIO_WRITE,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(aio_fork_return_fn), SMB_VFS_OP_AIO_RETURN,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(aio_fork_cancel),	SMB_VFS_OP_AIO_CANCEL,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(aio_fork_error_fn),	SMB_VFS_OP_AIO_ERROR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(NULL),		SMB_VFS_OP_NOOP,
-	 SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_aio_fork_fns = {
+	.aio_read = aio_fork_read,
+	.aio_write = aio_fork_write,
+	.aio_return_fn = aio_fork_return_fn,
+	.aio_cancel = aio_fork_cancel,
+	.aio_error_fn = aio_fork_error_fn,
 };
 
 NTSTATUS vfs_aio_fork_init(void);
 NTSTATUS vfs_aio_fork_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
-				"aio_fork", aio_fork_ops);
+				"aio_fork", &vfs_aio_fork_fns);
 }

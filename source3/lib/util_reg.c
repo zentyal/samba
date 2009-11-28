@@ -18,11 +18,12 @@
  */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/ndr_winreg.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS smbconf_reg_ops;
+extern struct registry_ops smbconf_reg_ops;
 
 const char *reg_type_lookup(enum winreg_Type type)
 {
@@ -72,41 +73,66 @@ const char *reg_type_lookup(enum winreg_Type type)
 	return result;
 }
 
-WERROR reg_pull_multi_sz(TALLOC_CTX *mem_ctx, const void *buf, size_t len,
-			 uint32 *num_values, char ***values)
+/*******************************************************************
+ push a string in unix charset into a REG_SZ UCS2 null terminated blob
+ ********************************************************************/
+
+bool push_reg_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char *s)
 {
-	const smb_ucs2_t *p = (const smb_ucs2_t *)buf;
-	*num_values = 0;
+	union winreg_Data data;
+	enum ndr_err_code ndr_err;
+	data.string = s;
+	ndr_err = ndr_push_union_blob(blob, mem_ctx, NULL, &data, REG_SZ,
+			(ndr_push_flags_fn_t)ndr_push_winreg_Data);
+	return NDR_ERR_CODE_IS_SUCCESS(ndr_err);
+}
 
-	/*
-	 * Make sure that a talloc context for the strings retrieved exists
-	 */
+/*******************************************************************
+ push a string_array in unix charset into a REG_MULTI_SZ UCS2 double-null
+ terminated blob
+ ********************************************************************/
 
-	if (!(*values = TALLOC_ARRAY(mem_ctx, char *, 1))) {
-		return WERR_NOMEM;
+bool push_reg_multi_sz(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, const char **a)
+{
+	union winreg_Data data;
+	enum ndr_err_code ndr_err;
+	data.string_array = a;
+	ndr_err = ndr_push_union_blob(blob, mem_ctx, NULL, &data, REG_MULTI_SZ,
+			(ndr_push_flags_fn_t)ndr_push_winreg_Data);
+	return NDR_ERR_CODE_IS_SUCCESS(ndr_err);
+}
+
+/*******************************************************************
+ pull a string in unix charset out of a REG_SZ UCS2 null terminated blob
+ ********************************************************************/
+
+bool pull_reg_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char **s)
+{
+	union winreg_Data data;
+	enum ndr_err_code ndr_err;
+	ndr_err = ndr_pull_union_blob(blob, mem_ctx, NULL, &data, REG_SZ,
+			(ndr_pull_flags_fn_t)ndr_pull_winreg_Data);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return false;
 	}
+	*s = data.string;
+	return true;
+}
 
-	len /= 2; 		/* buf is a set of UCS2 strings */
+/*******************************************************************
+ pull a string_array in unix charset out of a REG_MULTI_SZ UCS2 double-null
+ terminated blob
+ ********************************************************************/
 
-	while (len > 0) {
-		char *val;
-		size_t dstlen, thislen;
-
-		thislen = strnlen_w(p, len) + 1;
-		if (!convert_string_allocate(*values, CH_UTF16LE, CH_UNIX,
-			p, thislen*2, (void *)&val, &dstlen, true)) {
-			TALLOC_FREE(*values);
-			return WERR_NOMEM;
-		}
-
-		ADD_TO_ARRAY(*values, char *, val, values, num_values);
-		if (*values == NULL) {
-			return WERR_NOMEM;
-		}
-
-		p += thislen;
-		len -= thislen;
+bool pull_reg_multi_sz(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, const char ***a)
+{
+	union winreg_Data data;
+	enum ndr_err_code ndr_err;
+	ndr_err = ndr_pull_union_blob(blob, mem_ctx, NULL, &data, REG_MULTI_SZ,
+			(ndr_pull_flags_fn_t)ndr_pull_winreg_Data);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		return false;
 	}
-
-	return WERR_OK;
+	*a = data.string_array;
+	return true;
 }

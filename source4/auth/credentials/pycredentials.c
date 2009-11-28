@@ -29,15 +29,6 @@
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
 
-struct cli_credentials *cli_credentials_from_py_object(PyObject *py_obj)
-{
-    if (py_obj == Py_None) {
-        return cli_credentials_init_anon(NULL);
-    }
-
-    return PyCredentials_AsCliCredentials(py_obj);
-}
-
 static PyObject *PyString_FromStringOrNULL(const char *str)
 {
 	if (str == NULL)
@@ -47,7 +38,18 @@ static PyObject *PyString_FromStringOrNULL(const char *str)
 
 static PyObject *py_creds_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
-	return py_talloc_import(type, cli_credentials_init(NULL));
+	py_talloc_Object *ret = (py_talloc_Object *)type->tp_alloc(type, 0);
+	if (ret == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	ret->talloc_ctx = talloc_new(NULL);
+	if (ret->talloc_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	ret->ptr = cli_credentials_init(ret->talloc_ctx);
+	return (PyObject *)ret;
 }
 
 static PyObject *py_creds_get_username(py_talloc_Object *self)

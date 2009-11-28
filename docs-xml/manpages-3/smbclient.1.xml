@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.4</refmiscinfo>
+	<refmiscinfo class="version">3.5</refmiscinfo>
 </refmeta>
 
 
@@ -299,22 +299,6 @@
 		host on another network. </para></listitem>
 		</varlistentry>
 		
-		<varlistentry>
-		<term>-t terminal code</term>
-		<listitem><para>This option tells <command>smbclient</command> how to interpret 
-		filenames coming from the remote server. Usually Asian language 
-		multibyte UNIX implementations use different character sets than 
-		SMB/CIFS servers (<emphasis>EUC</emphasis> instead of <emphasis>
-		SJIS</emphasis> for example). Setting this parameter will let 
-		<command>smbclient</command> convert between the UNIX filenames and 
-		the SMB filenames correctly. This option has not been seriously tested 
-		and may have some problems. </para>
-
-		<para>The terminal codes include CWsjis, CWeuc, CWjis7, CWjis8,
-		CWjunet, CWhex, CWcap. This is not a complete list, check the Samba 
-		source code for the complete list. </para></listitem>
-		</varlistentry>
-			
 		<varlistentry>	
 		<term>-b buffersize</term>
 		<listitem><para>This option changes the transmit/send buffer 
@@ -913,6 +897,14 @@
 		<varlistentry>
 		<term>quit</term>
 		<listitem><para>See the exit command. </para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>readlink symlinkname</term>
+		<listitem><para>This command depends on the server supporting the CIFS
+		UNIX extensions and will fail if the server does not. Print
+		the value of the symlink "symlinkname".
+		</para></listitem>
 		</varlistentry>
 
 		<varlistentry>

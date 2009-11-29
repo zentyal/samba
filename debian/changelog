@@ -1,9 +1,27 @@
 samba (2:3.4.3-2) UNRELEASED; urgency=low
 
+  [ Christian Perrier ]
   * Switch to source format 3.0 (quilt)
   * Better adapt "add machine script" example to adduser
     Thanks to Heiko Schlittermann for the suggestion
     Closes: #555466
+
+  [ Steve Langasek ]
+  * The "I hate non-declarative alternatives" upload:
+    - debian/samba{,-common}.prerm: don't call update-alternatives --remove
+      on upgrade, /do/ call it on other invocations of the prerm script.  If
+      these tools ever go away, the removal needs to be handled on upgrade by
+      the maintainer scripts of the new package version.
+    - debian/samba{,-common-bin}.postinst: call update-alternatives
+      unconditionally, don't second-guess the maintainer script arguments.
+    - debian/samba.postinst: call update-alternatives after the debconf
+      handling, not before; debconf triggers a re-exec of the script so
+      anything done before invoking debconf is wasted because it will be
+      re-done, and if there's already a debconf frontend running when this
+      is called, the not-redirected update-alternatives output will confuse
+      it.  Closes: #558116.
+    - debian/samba-common.prerm: move to samba-common-bin, this is the package
+      that owns these binaries.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
 

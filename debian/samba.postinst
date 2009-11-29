@@ -4,23 +4,6 @@
 #
 #
 
-case "$1" in
-	configure)
-		update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
-			--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
-		# continue below
-	;;
-
-	abort-upgrade|abort-remove|abort-deconfigure)
-		exit 0
-	;;
-
-	*)
-		echo "postinst called with unknown argument \`$1'" >&2
-		exit 0
-	;;
-esac
-
 # Handle debconf
 . /usr/share/debconf/confmodule
 
@@ -138,6 +121,9 @@ if [ ! -e /var/lib/samba/usershares ]
 then
 	install -d -m 1770 -g sambashare /var/lib/samba/usershares
 fi
+
+update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
+	--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
 
 #DEBHELPER#
 

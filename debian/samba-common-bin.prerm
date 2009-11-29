@@ -2,13 +2,11 @@
 
 set -e 
 
-case "$1" in
-    remove|upgrade|deconfigure)
+if [ "x$1" != xupgrade ]; then
 	update-alternatives --remove nmblookup /usr/bin/nmblookup.samba3
 	update-alternatives --remove net /usr/bin/net.samba3
 	update-alternatives --remove testparm /usr/bin/testparm.samba3
-		;;
-esac
+fi
 
 #DEBHELPER#
 

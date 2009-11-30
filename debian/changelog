@@ -1,10 +1,15 @@
 samba (2:3.5.0~pre1-1) UNRELEASED-experimental; urgency=low
 
+  [ Christian Perrier ]
   * New upstream pre-release
   * Switch to source format 3.0 (quilt)
   * Better adapt "add machine script" example to adduser
     Thanks to Heiko Schlittermann for the suggestion
     Closes: #555466
+
+  [ Mathieu Parent ]
+  * Raise ctdb build-dep version to 1.0.103
+    (new CTDB control CTDB_CONTROL_TRANS2_ACTIVE)
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
 

@@ -10,6 +10,7 @@ samba (2:3.5.0~pre1-1) UNRELEASED-experimental; urgency=low
   [ Mathieu Parent ]
   * Raise ctdb build-dep version to 1.0.103
     (new CTDB control CTDB_CONTROL_TRANS2_ACTIVE)
+  * Explicit ctdb path (--with-ctdb=/usr) 
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
 

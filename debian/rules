@@ -65,7 +65,7 @@ conf_args = \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
-		--with-ctdb --with-cluster-support=yes \
+		--with-ctdb=/usr --with-cluster-support=yes \
 		--with-cifsmount \
 		--with-cifsupcall \
 		--with-acl-support \

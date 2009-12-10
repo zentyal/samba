@@ -11,6 +11,8 @@ samba (2:3.5.0~pre1-1) UNRELEASED-experimental; urgency=low
   * Raise ctdb build-dep version to 1.0.103
     (new CTDB control CTDB_CONTROL_TRANS2_ACTIVE)
   * Explicit ctdb path (--with-ctdb=/usr) 
+  * Removed --without-smbmount configure option, as smbmount as been 
+    removed in commit e1b32594c70ee57f16c84adb7910aa5c84a560f8
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
 

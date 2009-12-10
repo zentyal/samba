@@ -48,7 +48,6 @@ conf_args = \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
-		--without-smbmount \
 		--with-dnsupdate \
 		--without-libtdb \
 		--without-libnetapi \

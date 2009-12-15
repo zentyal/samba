@@ -27,6 +27,8 @@
    up, all the errors returned are DOS errors, not NT status codes. */
 
 #include "includes.h"
+#include "../librpc/gen_ndr/srv_spoolss.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
 
 /* macros stolen from s4 spoolss server */
 #define SPOOLSS_BUFFER_UNION(fn,ic,info,level) \
@@ -1482,8 +1484,11 @@ bool convert_devicemode(const char *printername,
 			return false;
 	}
 
-	rpcstr_push(nt_devmode->devicename, devmode->devicename, 31, 0);
-	rpcstr_push(nt_devmode->formname, devmode->formname, 31, 0);
+	fstrcpy(nt_devmode->devicename, devmode->devicename);
+	fstrcpy(nt_devmode->formname, devmode->formname);
+
+	nt_devmode->devicename[31] = '\0';
+	nt_devmode->formname[31] = '\0';
 
 	nt_devmode->specversion		= devmode->specversion;
 	nt_devmode->driverversion	= devmode->driverversion;
@@ -1669,6 +1674,10 @@ WERROR _spoolss_OpenPrinterEx(pipes_struct *p,
 			close_printer_handle(p, r->out.handle);
 			ZERO_STRUCTP(r->out.handle);
 			return WERR_BADFID;
+		}
+
+		if (r->in.access_mask == SEC_FLAG_MAXIMUM_ALLOWED) {
+			r->in.access_mask = PRINTER_ACCESS_ADMINISTER;
 		}
 
 		se_map_standard(&r->in.access_mask, &printer_std_mapping);
@@ -1919,8 +1928,8 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 				    struct spoolss_DeletePrinterDriver *r)
 {
 
-	union spoolss_DriverInfo *info = NULL;
-	union spoolss_DriverInfo *info_win2k = NULL;
+	struct spoolss_DriverInfo8 *info = NULL;
+	struct spoolss_DriverInfo8 *info_win2k = NULL;
 	int				version;
 	WERROR				status;
 	WERROR				status_win2k = WERR_ACCESS_DENIED;
@@ -1944,7 +1953,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 	if ((version = get_version_id(r->in.architecture)) == -1)
 		return WERR_INVALID_ENVIRONMENT;
 
-	if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info, 3, r->in.driver,
+	if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info, r->in.driver,
 						r->in.architecture,
 						version)))
 	{
@@ -1953,7 +1962,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 		if ( version == 2 ) {
 			version = 3;
 			if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx,
-								&info, 3,
+								&info,
 								r->in.driver,
 								r->in.architecture,
 								version))) {
@@ -1969,7 +1978,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 
 	}
 
-	if (printer_driver_in_use(&info->info3)) {
+	if (printer_driver_in_use(info)) {
 		status = WERR_PRINTER_DRIVER_IN_USE;
 		goto done;
 	}
@@ -1977,7 +1986,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 	if ( version == 2 )
 	{
 		if (W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx,
-						       &info_win2k, 3,
+						       &info_win2k,
 						       r->in.driver,
 						       r->in.architecture, 3)))
 		{
@@ -1985,7 +1994,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 			/* remove the Win2k driver first*/
 
 			status_win2k = delete_printer_driver(
-				p, &info_win2k->info3, 3, false);
+				p, info_win2k, 3, false);
 			free_a_printer_driver(info_win2k);
 
 			/* this should not have failed---if it did, report to client */
@@ -1997,7 +2006,7 @@ WERROR _spoolss_DeletePrinterDriver(pipes_struct *p,
 		}
 	}
 
-	status = delete_printer_driver(p, &info->info3, version, false);
+	status = delete_printer_driver(p, info, version, false);
 
 	/* if at least one of the deletes succeeded return OK */
 
@@ -2017,8 +2026,8 @@ done:
 WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 				      struct spoolss_DeletePrinterDriverEx *r)
 {
-	union spoolss_DriverInfo	*info = NULL;
-	union spoolss_DriverInfo	*info_win2k = NULL;
+	struct spoolss_DriverInfo8	*info = NULL;
+	struct spoolss_DriverInfo8	*info_win2k = NULL;
 	int				version;
 	bool				delete_files;
 	WERROR				status;
@@ -2046,7 +2055,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 	if (r->in.delete_flags & DPD_DELETE_SPECIFIC_VERSION)
 		version = r->in.version;
 
-	status = get_a_printer_driver(p->mem_ctx, &info, 3, r->in.driver,
+	status = get_a_printer_driver(p->mem_ctx, &info, r->in.driver,
 				      r->in.architecture, version);
 
 	if ( !W_ERROR_IS_OK(status) )
@@ -2063,7 +2072,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 		/* try for Win2k driver if "Windows NT x86" */
 
 		version = 3;
-		if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info, 3, r->in.driver,
+		if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info, r->in.driver,
 							r->in.architecture,
 							version))) {
 			status = WERR_UNKNOWN_PRINTER_DRIVER;
@@ -2071,7 +2080,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 		}
 	}
 
-	if ( printer_driver_in_use(&info->info3) ) {
+	if (printer_driver_in_use(info)) {
 		status = WERR_PRINTER_DRIVER_IN_USE;
 		goto done;
 	}
@@ -2092,7 +2101,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 
 	/* fail if any files are in use and DPD_DELETE_ALL_FILES is set */
 
-	if ( delete_files && printer_driver_files_in_use(info, &info->info3) & (r->in.delete_flags & DPD_DELETE_ALL_FILES) ) {
+	if (delete_files && printer_driver_files_in_use(info, info) & (r->in.delete_flags & DPD_DELETE_ALL_FILES)) {
 		/* no idea of the correct error here */
 		status = WERR_ACCESS_DENIED;
 		goto done;
@@ -2102,12 +2111,12 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 	/* also check for W32X86/3 if necessary; maybe we already have? */
 
 	if ( (version == 2) && ((r->in.delete_flags & DPD_DELETE_SPECIFIC_VERSION) != DPD_DELETE_SPECIFIC_VERSION)  ) {
-		if (W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info_win2k, 3,
+		if (W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &info_win2k,
 						       r->in.driver,
 						       r->in.architecture, 3)))
 		{
 
-			if ( delete_files && printer_driver_files_in_use(info, &info_win2k->info3) & (r->in.delete_flags & DPD_DELETE_ALL_FILES) ) {
+			if (delete_files && printer_driver_files_in_use(info, info_win2k) & (r->in.delete_flags & DPD_DELETE_ALL_FILES) ) {
 				/* no idea of the correct error here */
 				free_a_printer_driver(info_win2k);
 				status = WERR_ACCESS_DENIED;
@@ -2118,7 +2127,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 			/* remove the Win2k driver first*/
 
 			status_win2k = delete_printer_driver(
-				p, &info_win2k->info3, 3, delete_files);
+				p, info_win2k, 3, delete_files);
 			free_a_printer_driver(info_win2k);
 
 			/* this should not have failed---if it did, report to client */
@@ -2128,7 +2137,7 @@ WERROR _spoolss_DeletePrinterDriverEx(pipes_struct *p,
 		}
 	}
 
-	status = delete_printer_driver(p, &info->info3, version, delete_files);
+	status = delete_printer_driver(p, info, version, delete_files);
 
 	if ( W_ERROR_IS_OK(status) || W_ERROR_IS_OK(status_win2k) )
 		status = WERR_OK;
@@ -2296,6 +2305,8 @@ static WERROR getprinterdata_printer_server(TALLOC_CTX *mem_ctx,
 		return WERR_OK;
 	}
 
+	*type = REG_NONE;
+
 	return WERR_INVALID_PARAM;
 }
 
@@ -2306,92 +2317,17 @@ static WERROR getprinterdata_printer_server(TALLOC_CTX *mem_ctx,
 WERROR _spoolss_GetPrinterData(pipes_struct *p,
 			       struct spoolss_GetPrinterData *r)
 {
-	WERROR result;
-	Printer_entry *Printer = find_printer_index_by_hnd(p, r->in.handle);
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	int snum = 0;
+	struct spoolss_GetPrinterDataEx r2;
 
-	/*
-	 * Reminder: when it's a string, the length is in BYTES
-	 * even if UNICODE is negociated.
-	 *
-	 * JFM, 4/19/1999
-	 */
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
+	r2.in.offered		= r->in.offered;
+	r2.out.type		= r->out.type;
+	r2.out.data		= r->out.data;
+	r2.out.needed		= r->out.needed;
 
-	/* in case of problem, return some default values */
-
-	*r->out.needed	= 0;
-	*r->out.type	= 0;
-
-	DEBUG(4,("_spoolss_GetPrinterData\n"));
-
-	if (!Printer) {
-		DEBUG(2,("_spoolss_GetPrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		result = WERR_BADFID;
-		goto done;
-	}
-
-	if (Printer->printer_type == SPLHND_SERVER) {
-		result = getprinterdata_printer_server(p->mem_ctx,
-						       r->in.value_name,
-						       r->out.type,
-						       r->out.data);
-	} else {
-		if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-			result = WERR_BADFID;
-			goto done;
-		}
-
-		result = get_a_printer(Printer, &printer, 2, lp_servicename(snum));
-		if (!W_ERROR_IS_OK(result)) {
-			goto done;
-		}
-
-		/* XP sends this and wants to change id value from the PRINTER_INFO_0 */
-
-		if (strequal(r->in.value_name, "ChangeId")) {
-			*r->out.type = REG_DWORD;
-			r->out.data->value = printer->info_2->changeid;
-			result = WERR_OK;
-		} else {
-			struct regval_blob *v;
-			DATA_BLOB blob;
-
-			v = get_printer_data(printer->info_2,
-					     SPOOL_PRINTERDATA_KEY,
-					     r->in.value_name);
-			if (!v) {
-				result = WERR_BADFILE;
-				goto done;
-			}
-
-			*r->out.type = v->type;
-
-			blob = data_blob_const(v->data_p, v->size);
-
-			result = pull_spoolss_PrinterData(p->mem_ctx, &blob,
-							  r->out.data,
-							  *r->out.type);
-		}
-	}
-
- done:
-	/* cleanup & exit */
-
-	if (printer) {
-		free_a_printer(&printer, 2);
-	}
-
-	if (!W_ERROR_IS_OK(result)) {
-		return result;
-	}
-
-	*r->out.needed	= ndr_size_spoolss_PrinterData(r->out.data, *r->out.type, NULL, 0);
-	*r->out.type	= SPOOLSS_BUFFER_OK(*r->out.type, REG_NONE);
-	r->out.data	= SPOOLSS_BUFFER_OK(r->out.data, r->out.data);
-
-	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
+	return _spoolss_GetPrinterDataEx(p, &r2);
 }
 
 /*********************************************************
@@ -3781,6 +3717,110 @@ done:
 }
 
 /********************************************************************
+ * construct_printer_info1
+ * fill a spoolss_PrinterInfo1 struct
+********************************************************************/
+
+static WERROR construct_printer_info1(TALLOC_CTX *mem_ctx,
+				      const NT_PRINTER_INFO_LEVEL *ntprinter,
+				      uint32_t flags,
+				      struct spoolss_PrinterInfo1 *r,
+				      int snum)
+{
+	r->flags		= flags;
+
+	r->description		= talloc_asprintf(mem_ctx, "%s,%s,%s",
+						  ntprinter->info_2->printername,
+						  ntprinter->info_2->drivername,
+						  ntprinter->info_2->location);
+	W_ERROR_HAVE_NO_MEMORY(r->description);
+
+	if (*ntprinter->info_2->comment == '\0') {
+		r->comment	= talloc_strdup(mem_ctx, lp_comment(snum));
+	} else {
+		r->comment	= talloc_strdup(mem_ctx, ntprinter->info_2->comment); /* saved comment */
+	}
+	W_ERROR_HAVE_NO_MEMORY(r->comment);
+
+	r->name			= talloc_strdup(mem_ctx, ntprinter->info_2->printername);
+	W_ERROR_HAVE_NO_MEMORY(r->name);
+
+	return WERR_OK;
+}
+
+/********************************************************************
+ * construct_printer_info2
+ * fill a spoolss_PrinterInfo2 struct
+********************************************************************/
+
+static WERROR construct_printer_info2(TALLOC_CTX *mem_ctx,
+				      const NT_PRINTER_INFO_LEVEL *ntprinter,
+				      struct spoolss_PrinterInfo2 *r,
+				      int snum)
+{
+	int count;
+
+	print_status_struct status;
+
+	count = print_queue_length(snum, &status);
+
+	r->servername		= talloc_strdup(mem_ctx, ntprinter->info_2->servername);
+	W_ERROR_HAVE_NO_MEMORY(r->servername);
+	r->printername		= talloc_strdup(mem_ctx, ntprinter->info_2->printername);
+	W_ERROR_HAVE_NO_MEMORY(r->printername);
+	r->sharename		= talloc_strdup(mem_ctx, lp_servicename(snum));
+	W_ERROR_HAVE_NO_MEMORY(r->sharename);
+	r->portname		= talloc_strdup(mem_ctx, ntprinter->info_2->portname);
+	W_ERROR_HAVE_NO_MEMORY(r->portname);
+	r->drivername		= talloc_strdup(mem_ctx, ntprinter->info_2->drivername);
+	W_ERROR_HAVE_NO_MEMORY(r->drivername);
+
+	if (*ntprinter->info_2->comment == '\0') {
+		r->comment	= talloc_strdup(mem_ctx, lp_comment(snum));
+	} else {
+		r->comment	= talloc_strdup(mem_ctx, ntprinter->info_2->comment);
+	}
+	W_ERROR_HAVE_NO_MEMORY(r->comment);
+
+	r->location		= talloc_strdup(mem_ctx, ntprinter->info_2->location);
+	W_ERROR_HAVE_NO_MEMORY(r->location);
+	r->sepfile		= talloc_strdup(mem_ctx, ntprinter->info_2->sepfile);
+	W_ERROR_HAVE_NO_MEMORY(r->sepfile);
+	r->printprocessor	= talloc_strdup(mem_ctx, ntprinter->info_2->printprocessor);
+	W_ERROR_HAVE_NO_MEMORY(r->printprocessor);
+	r->datatype		= talloc_strdup(mem_ctx, ntprinter->info_2->datatype);
+	W_ERROR_HAVE_NO_MEMORY(r->datatype);
+	r->parameters		= talloc_strdup(mem_ctx, ntprinter->info_2->parameters);
+	W_ERROR_HAVE_NO_MEMORY(r->parameters);
+
+	r->attributes		= ntprinter->info_2->attributes;
+
+	r->priority		= ntprinter->info_2->priority;
+	r->defaultpriority	= ntprinter->info_2->default_priority;
+	r->starttime		= ntprinter->info_2->starttime;
+	r->untiltime		= ntprinter->info_2->untiltime;
+	r->status		= nt_printq_status(status.status);
+	r->cjobs		= count;
+	r->averageppm		= ntprinter->info_2->averageppm;
+
+	r->devmode = construct_dev_mode(mem_ctx, lp_const_servicename(snum));
+	if (!r->devmode) {
+		DEBUG(8,("Returning NULL Devicemode!\n"));
+	}
+
+	r->secdesc		= NULL;
+
+	if (ntprinter->info_2->secdesc_buf && ntprinter->info_2->secdesc_buf->sd_size != 0) {
+		/* don't use talloc_steal() here unless you do a deep steal of all
+		   the SEC_DESC members */
+
+		r->secdesc	= dup_sec_desc(mem_ctx, ntprinter->info_2->secdesc_buf->sd);
+	}
+
+	return WERR_OK;
+}
+
+/********************************************************************
  * construct_printer_info3
  * fill a spoolss_PrinterInfo3 struct
  ********************************************************************/
@@ -3925,110 +3965,6 @@ static WERROR construct_printer_info8(TALLOC_CTX *mem_ctx,
 	return WERR_OK;
 }
 
-
-/********************************************************************
- * construct_printer_info1
- * fill a spoolss_PrinterInfo1 struct
-********************************************************************/
-
-static WERROR construct_printer_info1(TALLOC_CTX *mem_ctx,
-				      const NT_PRINTER_INFO_LEVEL *ntprinter,
-				      uint32_t flags,
-				      struct spoolss_PrinterInfo1 *r,
-				      int snum)
-{
-	r->flags		= flags;
-
-	r->description		= talloc_asprintf(mem_ctx, "%s,%s,%s",
-						  ntprinter->info_2->printername,
-						  ntprinter->info_2->drivername,
-						  ntprinter->info_2->location);
-	W_ERROR_HAVE_NO_MEMORY(r->description);
-
-	if (*ntprinter->info_2->comment == '\0') {
-		r->comment	= talloc_strdup(mem_ctx, lp_comment(snum));
-	} else {
-		r->comment	= talloc_strdup(mem_ctx, ntprinter->info_2->comment); /* saved comment */
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->comment);
-
-	r->name			= talloc_strdup(mem_ctx, ntprinter->info_2->printername);
-	W_ERROR_HAVE_NO_MEMORY(r->name);
-
-	return WERR_OK;
-}
-
-/********************************************************************
- * construct_printer_info2
- * fill a spoolss_PrinterInfo2 struct
-********************************************************************/
-
-static WERROR construct_printer_info2(TALLOC_CTX *mem_ctx,
-				      const NT_PRINTER_INFO_LEVEL *ntprinter,
-				      struct spoolss_PrinterInfo2 *r,
-				      int snum)
-{
-	int count;
-
-	print_status_struct status;
-
-	count = print_queue_length(snum, &status);
-
-	r->servername		= talloc_strdup(mem_ctx, ntprinter->info_2->servername);
-	W_ERROR_HAVE_NO_MEMORY(r->servername);
-	r->printername		= talloc_strdup(mem_ctx, ntprinter->info_2->printername);
-	W_ERROR_HAVE_NO_MEMORY(r->printername);
-	r->sharename		= talloc_strdup(mem_ctx, lp_servicename(snum));
-	W_ERROR_HAVE_NO_MEMORY(r->sharename);
-	r->portname		= talloc_strdup(mem_ctx, ntprinter->info_2->portname);
-	W_ERROR_HAVE_NO_MEMORY(r->portname);
-	r->drivername		= talloc_strdup(mem_ctx, ntprinter->info_2->drivername);
-	W_ERROR_HAVE_NO_MEMORY(r->drivername);
-
-	if (*ntprinter->info_2->comment == '\0') {
-		r->comment	= talloc_strdup(mem_ctx, lp_comment(snum));
-	} else {
-		r->comment	= talloc_strdup(mem_ctx, ntprinter->info_2->comment);
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->comment);
-
-	r->location		= talloc_strdup(mem_ctx, ntprinter->info_2->location);
-	W_ERROR_HAVE_NO_MEMORY(r->location);
-	r->sepfile		= talloc_strdup(mem_ctx, ntprinter->info_2->sepfile);
-	W_ERROR_HAVE_NO_MEMORY(r->sepfile);
-	r->printprocessor	= talloc_strdup(mem_ctx, ntprinter->info_2->printprocessor);
-	W_ERROR_HAVE_NO_MEMORY(r->printprocessor);
-	r->datatype		= talloc_strdup(mem_ctx, ntprinter->info_2->datatype);
-	W_ERROR_HAVE_NO_MEMORY(r->datatype);
-	r->parameters		= talloc_strdup(mem_ctx, ntprinter->info_2->parameters);
-	W_ERROR_HAVE_NO_MEMORY(r->parameters);
-
-	r->attributes		= ntprinter->info_2->attributes;
-
-	r->priority		= ntprinter->info_2->priority;
-	r->defaultpriority	= ntprinter->info_2->default_priority;
-	r->starttime		= ntprinter->info_2->starttime;
-	r->untiltime		= ntprinter->info_2->untiltime;
-	r->status		= nt_printq_status(status.status);
-	r->cjobs		= count;
-	r->averageppm		= ntprinter->info_2->averageppm;
-
-	r->devmode = construct_dev_mode(mem_ctx, lp_const_servicename(snum));
-	if (!r->devmode) {
-		DEBUG(8,("Returning NULL Devicemode!\n"));
-	}
-
-	r->secdesc		= NULL;
-
-	if (ntprinter->info_2->secdesc_buf && ntprinter->info_2->secdesc_buf->sd_size != 0) {
-		/* don't use talloc_steal() here unless you do a deep steal of all
-		   the SEC_DESC members */
-
-		r->secdesc	= dup_sec_desc(mem_ctx, ntprinter->info_2->secdesc_buf->sd);
-	}
-
-	return WERR_OK;
-}
 
 /********************************************************************
 ********************************************************************/
@@ -4535,15 +4471,34 @@ static const char **string_array_from_driver_info(TALLOC_CTX *mem_ctx,
 	return array;
 }
 
+#define FILL_DRIVER_STRING(mem_ctx, in, out) \
+	do { \
+		if (in && strlen(in)) { \
+			out = talloc_strdup(mem_ctx, in); \
+			W_ERROR_HAVE_NO_MEMORY(out); \
+		} else { \
+			out = NULL; \
+		} \
+	} while (0);
+
+#define FILL_DRIVER_UNC_STRING(mem_ctx, server, in, out) \
+	do { \
+		if (in && strlen(in)) { \
+			out = talloc_asprintf(mem_ctx, "\\\\%s%s", server, in); \
+		} else { \
+			out = talloc_strdup(mem_ctx, ""); \
+		} \
+		W_ERROR_HAVE_NO_MEMORY(out); \
+	} while (0);
+
 /********************************************************************
  * fill a spoolss_DriverInfo1 struct
  ********************************************************************/
 
 static WERROR fill_printer_driver_info1(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo1 *r,
-					const struct spoolss_DriverInfo3 *driver,
-					const char *servername,
-					const char *architecture)
+					const struct spoolss_DriverInfo8 *driver,
+					const char *servername)
 {
 	r->driver_name		= talloc_strdup(mem_ctx, driver->driver_name);
 	W_ERROR_HAVE_NO_MEMORY(r->driver_name);
@@ -4557,7 +4512,7 @@ static WERROR fill_printer_driver_info1(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info2(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo2 *r,
-					const struct spoolss_DriverInfo3 *driver,
+					const struct spoolss_DriverInfo8 *driver,
 					const char *servername)
 
 {
@@ -4570,29 +4525,17 @@ static WERROR fill_printer_driver_info2(TALLOC_CTX *mem_ctx,
 	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
 	W_ERROR_HAVE_NO_MEMORY(r->architecture);
 
-	if (strlen(driver->driver_path)) {
-		r->driver_path	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->driver_path);
-	} else {
-		r->driver_path	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->driver_path);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
 
-	if (strlen(driver->data_file)) {
-		r->data_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->data_file);
-	} else {
-		r->data_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->data_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
 
-	if (strlen(driver->config_file)) {
-		r->config_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->config_file);
-	} else {
-		r->config_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->config_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
 
 	return WERR_OK;
 }
@@ -4603,7 +4546,7 @@ static WERROR fill_printer_driver_info2(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info3(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo3 *r,
-					const struct spoolss_DriverInfo3 *driver,
+					const struct spoolss_DriverInfo8 *driver,
 					const char *servername)
 {
 	const char *cservername = canon_servername(servername);
@@ -4615,42 +4558,29 @@ static WERROR fill_printer_driver_info3(TALLOC_CTX *mem_ctx,
 	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
 	W_ERROR_HAVE_NO_MEMORY(r->architecture);
 
-	if (strlen(driver->driver_path)) {
-		r->driver_path	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->driver_path);
-	} else {
-		r->driver_path	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->driver_path);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
 
-	if (strlen(driver->data_file)) {
-		r->data_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->data_file);
-	} else {
-		r->data_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->data_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
 
-	if (strlen(driver->config_file)) {
-		r->config_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->config_file);
-	} else {
-		r->config_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->config_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
 
-	if (strlen(driver->help_file)) {
-		r->help_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->help_file);
-	} else {
-		r->help_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->help_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->help_file,
+			       r->help_file);
 
-	r->monitor_name		= talloc_strdup(mem_ctx, driver->monitor_name);
-	W_ERROR_HAVE_NO_MEMORY(r->monitor_name);
-	r->default_datatype	= talloc_strdup(mem_ctx, driver->default_datatype);
-	W_ERROR_HAVE_NO_MEMORY(r->default_datatype);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->monitor_name,
+			   r->monitor_name);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->default_datatype,
+			   r->default_datatype);
 
 	r->dependent_files = string_array_from_driver_info(mem_ctx,
 							   driver->dependent_files,
@@ -4664,7 +4594,7 @@ static WERROR fill_printer_driver_info3(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info4(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo4 *r,
-					const struct spoolss_DriverInfo3 *driver,
+					const struct spoolss_DriverInfo8 *driver,
 					const char *servername)
 {
 	const char *cservername = canon_servername(servername);
@@ -4676,50 +4606,36 @@ static WERROR fill_printer_driver_info4(TALLOC_CTX *mem_ctx,
 	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
 	W_ERROR_HAVE_NO_MEMORY(r->architecture);
 
-	if (strlen(driver->driver_path)) {
-		r->driver_path	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->driver_path);
-	} else {
-		r->driver_path	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->driver_path);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
 
-	if (strlen(driver->data_file)) {
-		r->data_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->data_file);
-	} else {
-		r->data_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->data_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
 
-	if (strlen(driver->config_file)) {
-		r->config_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->config_file);
-	} else {
-		r->config_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->config_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
 
-	if (strlen(driver->help_file)) {
-		r->help_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->help_file);
-	} else {
-		r->help_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->help_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->help_file,
+			       r->help_file);
 
 	r->dependent_files = string_array_from_driver_info(mem_ctx,
 							   driver->dependent_files,
 							   cservername);
 
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->monitor_name,
+			   r->monitor_name);
 
-	r->monitor_name		= talloc_strdup(mem_ctx, driver->monitor_name);
-	W_ERROR_HAVE_NO_MEMORY(r->monitor_name);
-	r->default_datatype	= talloc_strdup(mem_ctx, driver->default_datatype);
-	W_ERROR_HAVE_NO_MEMORY(r->default_datatype);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->default_datatype,
+			   r->default_datatype);
 
 	r->previous_names = string_array_from_driver_info(mem_ctx,
-							  NULL,
+							  driver->previous_names,
 							  cservername);
 
 	return WERR_OK;
@@ -4731,7 +4647,7 @@ static WERROR fill_printer_driver_info4(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info5(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo5 *r,
-					const struct spoolss_DriverInfo3 *driver,
+					const struct spoolss_DriverInfo8 *driver,
 					const char *servername)
 {
 	const char *cservername = canon_servername(servername);
@@ -4743,29 +4659,17 @@ static WERROR fill_printer_driver_info5(TALLOC_CTX *mem_ctx,
 	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
 	W_ERROR_HAVE_NO_MEMORY(r->architecture);
 
-	if (strlen(driver->driver_path)) {
-		r->driver_path	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->driver_path);
-	} else {
-		r->driver_path	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->driver_path);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
 
-	if (strlen(driver->data_file)) {
-		r->data_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->data_file);
-	} else {
-		r->data_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->data_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
 
-	if (strlen(driver->config_file)) {
-		r->config_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->config_file);
-	} else {
-		r->config_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->config_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
 
 	r->driver_attributes	= 0;
 	r->config_version	= 0;
@@ -4779,7 +4683,7 @@ static WERROR fill_printer_driver_info5(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info6(TALLOC_CTX *mem_ctx,
 					struct spoolss_DriverInfo6 *r,
-					const struct spoolss_DriverInfo3 *driver,
+					const struct spoolss_DriverInfo8 *driver,
 					const char *servername)
 {
 	const char *cservername = canon_servername(servername);
@@ -4791,65 +4695,147 @@ static WERROR fill_printer_driver_info6(TALLOC_CTX *mem_ctx,
 	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
 	W_ERROR_HAVE_NO_MEMORY(r->architecture);
 
-	if (strlen(driver->driver_path)) {
-		r->driver_path	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->driver_path);
-	} else {
-		r->driver_path	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->driver_path);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
 
-	if (strlen(driver->data_file)) {
-		r->data_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->data_file);
-	} else {
-		r->data_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->data_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
 
-	if (strlen(driver->config_file)) {
-		r->config_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->config_file);
-	} else {
-		r->config_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->config_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
 
-	if (strlen(driver->help_file)) {
-		r->help_file	= talloc_asprintf(mem_ctx, "\\\\%s%s",
-				cservername, driver->help_file);
-	} else {
-		r->help_file	= talloc_strdup(mem_ctx, "");
-	}
-	W_ERROR_HAVE_NO_MEMORY(r->help_file);
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->help_file,
+			       r->help_file);
 
-	r->monitor_name		= talloc_strdup(mem_ctx, driver->monitor_name);
-	W_ERROR_HAVE_NO_MEMORY(r->monitor_name);
-	r->default_datatype	= talloc_strdup(mem_ctx, driver->default_datatype);
-	W_ERROR_HAVE_NO_MEMORY(r->default_datatype);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->monitor_name,
+			   r->monitor_name);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->default_datatype,
+			   r->default_datatype);
 
 	r->dependent_files = string_array_from_driver_info(mem_ctx,
 							   driver->dependent_files,
 							   cservername);
 	r->previous_names = string_array_from_driver_info(mem_ctx,
-							  NULL,
+							  driver->previous_names,
 							  cservername);
 
-	r->driver_date		= 0;
-	r->driver_version	= 0;
+	r->driver_date		= driver->driver_date;
+	r->driver_version	= driver->driver_version;
 
-	r->manufacturer_name	= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->manufacturer_name);
-	r->manufacturer_url	= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->manufacturer_url);
-	r->hardware_id		= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->hardware_id);
-	r->provider		= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->provider);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_name,
+			   r->manufacturer_name);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_url,
+			   r->manufacturer_url);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->hardware_id,
+			   r->hardware_id);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->provider,
+			   r->provider);
 
 	return WERR_OK;
 }
 
+/********************************************************************
+ * fill a spoolss_DriverInfo8 struct
+ ********************************************************************/
+
+static WERROR fill_printer_driver_info8(TALLOC_CTX *mem_ctx,
+					struct spoolss_DriverInfo8 *r,
+					const struct spoolss_DriverInfo8 *driver,
+					const char *servername)
+{
+	const char *cservername = canon_servername(servername);
+
+	r->version		= driver->version;
+
+	r->driver_name		= talloc_strdup(mem_ctx, driver->driver_name);
+	W_ERROR_HAVE_NO_MEMORY(r->driver_name);
+	r->architecture		= talloc_strdup(mem_ctx, driver->architecture);
+	W_ERROR_HAVE_NO_MEMORY(r->architecture);
+
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->driver_path,
+			       r->driver_path);
+
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->data_file,
+			       r->data_file);
+
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->config_file,
+			       r->config_file);
+
+	FILL_DRIVER_UNC_STRING(mem_ctx, cservername,
+			       driver->help_file,
+			       r->help_file);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->monitor_name,
+			   r->monitor_name);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->default_datatype,
+			   r->default_datatype);
+
+	r->dependent_files = string_array_from_driver_info(mem_ctx,
+							   driver->dependent_files,
+							   cservername);
+	r->previous_names = string_array_from_driver_info(mem_ctx,
+							  driver->previous_names,
+							  cservername);
+
+	r->driver_date		= driver->driver_date;
+	r->driver_version	= driver->driver_version;
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_name,
+			   r->manufacturer_name);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_url,
+			   r->manufacturer_url);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->hardware_id,
+			   r->hardware_id);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->provider,
+			   r->provider);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->print_processor,
+			   r->print_processor);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->vendor_setup,
+			   r->vendor_setup);
+
+	r->color_profiles = string_array_from_driver_info(mem_ctx,
+							  driver->color_profiles,
+							  cservername);
+
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->inf_path,
+			   r->inf_path);
+
+	r->printer_driver_attributes	= driver->printer_driver_attributes;
+
+	r->core_driver_dependencies = string_array_from_driver_info(mem_ctx,
+								    driver->core_driver_dependencies,
+								    cservername);
+
+	r->min_inbox_driver_ver_date	= driver->min_inbox_driver_ver_date;
+	r->min_inbox_driver_ver_version	= driver->min_inbox_driver_ver_version;
+
+	return WERR_OK;
+}
 /********************************************************************
  ********************************************************************/
 
@@ -4873,7 +4859,7 @@ static WERROR fill_spoolss_DriverFileInfo(TALLOC_CTX *mem_ctx,
  ********************************************************************/
 
 static WERROR spoolss_DriverFileInfo_from_driver(TALLOC_CTX *mem_ctx,
-						 const struct spoolss_DriverInfo3 *driver,
+						 const struct spoolss_DriverInfo8 *driver,
 						 const char *cservername,
 						 struct spoolss_DriverFileInfo **info_p,
 						 uint32_t *count_p)
@@ -4973,7 +4959,7 @@ static WERROR spoolss_DriverFileInfo_from_driver(TALLOC_CTX *mem_ctx,
 
 static WERROR fill_printer_driver_info101(TALLOC_CTX *mem_ctx,
 					  struct spoolss_DriverInfo101 *r,
-					  const struct spoolss_DriverInfo3 *driver,
+					  const struct spoolss_DriverInfo8 *driver,
 					  const char *servername)
 {
 	const char *cservername = canon_servername(servername);
@@ -4994,245 +4980,64 @@ static WERROR fill_printer_driver_info101(TALLOC_CTX *mem_ctx,
 		return result;
 	}
 
-	r->monitor_name		= talloc_strdup(mem_ctx, driver->monitor_name);
-	W_ERROR_HAVE_NO_MEMORY(r->monitor_name);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->monitor_name,
+			   r->monitor_name);
 
-	r->default_datatype	= talloc_strdup(mem_ctx, driver->default_datatype);
-	W_ERROR_HAVE_NO_MEMORY(r->default_datatype);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->default_datatype,
+			   r->default_datatype);
 
 	r->previous_names = string_array_from_driver_info(mem_ctx,
-							  NULL,
+							  driver->previous_names,
 							  cservername);
-	r->driver_date		= 0;
-	r->driver_version	= 0;
+	r->driver_date		= driver->driver_date;
+	r->driver_version	= driver->driver_version;
 
-	r->manufacturer_name	= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->manufacturer_name);
-	r->manufacturer_url	= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->manufacturer_url);
-	r->hardware_id		= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->hardware_id);
-	r->provider		= talloc_strdup(mem_ctx, "");
-	W_ERROR_HAVE_NO_MEMORY(r->provider);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_name,
+			   r->manufacturer_name);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->manufacturer_url,
+			   r->manufacturer_url);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->hardware_id,
+			   r->hardware_id);
+	FILL_DRIVER_STRING(mem_ctx,
+			   driver->provider,
+			   r->provider);
 
 	return WERR_OK;
 }
 
 /********************************************************************
- * construct_printer_driver_info_1
  ********************************************************************/
 
-static WERROR construct_printer_driver_info_1(TALLOC_CTX *mem_ctx,
-					      struct spoolss_DriverInfo1 *r,
-					      int snum,
-					      const char *servername,
-					      const char *architecture,
-					      uint32_t version)
+static WERROR construct_printer_driver_info_level(TALLOC_CTX *mem_ctx,
+						  uint32_t level,
+						  union spoolss_DriverInfo *r,
+						  int snum,
+						  const char *servername,
+						  const char *architecture,
+						  uint32_t version)
 {
 	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	union spoolss_DriverInfo *driver;
+	struct spoolss_DriverInfo8 *driver;
 	WERROR result;
-
-	if (!W_ERROR_IS_OK(get_a_printer(NULL, &printer, 2, lp_const_servicename(snum))))
-		return WERR_INVALID_PRINTER_NAME;
-
-	if (!W_ERROR_IS_OK(get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername, architecture, version))) {
-		free_a_printer(&printer, 2);
-		return WERR_UNKNOWN_PRINTER_DRIVER;
-	}
-
-	result = fill_printer_driver_info1(mem_ctx, r, &driver->info3, servername, architecture);
-
-	free_a_printer_driver(driver);
-	free_a_printer(&printer,2);
-
-	return result;
-}
-
-/********************************************************************
- * construct_printer_driver_info_2
- * fill a printer_info_2 struct
- ********************************************************************/
-
-static WERROR construct_printer_driver_info_2(TALLOC_CTX *mem_ctx,
-					      struct spoolss_DriverInfo2 *r,
-					      int snum,
-					      const char *servername,
-					      const char *architecture,
-					      uint32_t version)
-{
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	union spoolss_DriverInfo *driver;
-	WERROR result;
-
-	ZERO_STRUCT(printer);
-
-	if (!W_ERROR_IS_OK(get_a_printer(NULL, &printer, 2, lp_const_servicename(snum))))
-		return WERR_INVALID_PRINTER_NAME;
-
-	if (!W_ERROR_IS_OK(get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername, architecture, version))) {
-		free_a_printer(&printer, 2);
-		return WERR_UNKNOWN_PRINTER_DRIVER;
-	}
-
-	result = fill_printer_driver_info2(mem_ctx, r, &driver->info3, servername);
-
-	free_a_printer_driver(driver);
-	free_a_printer(&printer,2);
-
-	return result;
-}
-
-/********************************************************************
- * construct_printer_info_3
- * fill a printer_info_3 struct
- ********************************************************************/
-
-static WERROR construct_printer_driver_info_3(TALLOC_CTX *mem_ctx,
-					      struct spoolss_DriverInfo3 *r,
-					      int snum,
-					      const char *servername,
-					      const char *architecture,
-					      uint32_t version)
-{
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	union spoolss_DriverInfo *driver;
-	WERROR status;
-	ZERO_STRUCT(driver);
-
-	status=get_a_printer(NULL, &printer, 2, lp_const_servicename(snum) );
-	DEBUG(8,("construct_printer_driver_info_3: status: %s\n", win_errstr(status)));
-	if (!W_ERROR_IS_OK(status))
-		return WERR_INVALID_PRINTER_NAME;
-
-	status = get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername, architecture, version);
-	DEBUG(8,("construct_printer_driver_info_3: status: %s\n", win_errstr(status)));
-
-#if 0	/* JERRY */
-
-	/*
-	 * I put this code in during testing.  Helpful when commenting out the
-	 * support for DRIVER_INFO_6 in regards to win2k.  Not needed in general
-	 * as win2k always queries the driver using an infor level of 6.
-	 * I've left it in (but ifdef'd out) because I'll probably
-	 * use it in experimentation again in the future.   --jerry 22/01/2002
-	 */
-
-	if (!W_ERROR_IS_OK(status)) {
-		/*
-		 * Is this a W2k client ?
-		 */
-		if (version == 3) {
-			/* Yes - try again with a WinNT driver. */
-			version = 2;
-			status=get_a_printer_driver(&driver, 3, printer->info_2->drivername, architecture, version);
-			DEBUG(8,("construct_printer_driver_info_3: status: %s\n", win_errstr(status)));
-		}
-#endif
-
-		if (!W_ERROR_IS_OK(status)) {
-			free_a_printer(&printer,2);
-			return WERR_UNKNOWN_PRINTER_DRIVER;
-		}
-
-#if 0	/* JERRY */
-	}
-#endif
-
-
-	status = fill_printer_driver_info3(mem_ctx, r, &driver->info3, servername);
-
-	free_a_printer_driver(driver);
-	free_a_printer(&printer,2);
-
-	return status;
-}
-
-/********************************************************************
- * construct_printer_info_6
- * fill a printer_info_6 struct
- ********************************************************************/
-
-static WERROR construct_printer_driver_info_6(TALLOC_CTX *mem_ctx,
-					      struct spoolss_DriverInfo6 *r,
-					      int snum,
-					      const char *servername,
-					      const char *architecture,
-					      uint32_t version)
-{
-	NT_PRINTER_INFO_LEVEL 		*printer = NULL;
-	union spoolss_DriverInfo *driver;
-	WERROR 				status;
-
-	status=get_a_printer(NULL, &printer, 2, lp_const_servicename(snum) );
-
-	DEBUG(8,("construct_printer_driver_info_6: status: %s\n", win_errstr(status)));
-
-	if (!W_ERROR_IS_OK(status))
-		return WERR_INVALID_PRINTER_NAME;
-
-	status = get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername, architecture, version);
-
-	DEBUG(8,("construct_printer_driver_info_6: status: %s\n", win_errstr(status)));
-
-	if (!W_ERROR_IS_OK(status))
-	{
-		/*
-		 * Is this a W2k client ?
-		 */
-
-		if (version < 3) {
-			free_a_printer(&printer,2);
-			return WERR_UNKNOWN_PRINTER_DRIVER;
-		}
-
-		/* Yes - try again with a WinNT driver. */
-		version = 2;
-		status = get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername, architecture, version);
-		DEBUG(8,("construct_printer_driver_info_6: status: %s\n", win_errstr(status)));
-		if (!W_ERROR_IS_OK(status)) {
-			free_a_printer(&printer,2);
-			return WERR_UNKNOWN_PRINTER_DRIVER;
-		}
-	}
-
-	status = fill_printer_driver_info6(mem_ctx, r, &driver->info3, servername);
-
-	free_a_printer(&printer,2);
-	free_a_printer_driver(driver);
-
-	return status;
-}
-
-/********************************************************************
- * construct_printer_info_101
- * fill a printer_info_101 struct
- ********************************************************************/
-
-static WERROR construct_printer_driver_info_101(TALLOC_CTX *mem_ctx,
-						struct spoolss_DriverInfo101 *r,
-						int snum,
-						const char *servername,
-						const char *architecture,
-						uint32_t version)
-{
-	NT_PRINTER_INFO_LEVEL 		*printer = NULL;
-	union spoolss_DriverInfo *driver;
-	WERROR 				result;
 
 	result = get_a_printer(NULL, &printer, 2, lp_const_servicename(snum));
 
-	DEBUG(8,("construct_printer_driver_info_101: status: %s\n",
+	DEBUG(8,("construct_printer_driver_info_level: status: %s\n",
 		win_errstr(result)));
 
 	if (!W_ERROR_IS_OK(result)) {
 		return WERR_INVALID_PRINTER_NAME;
 	}
 
-	result = get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername,
+	result = get_a_printer_driver(mem_ctx, &driver, printer->info_2->drivername,
 				      architecture, version);
 
-	DEBUG(8,("construct_printer_driver_info_101: status: %s\n",
+	DEBUG(8,("construct_printer_driver_info_level: status: %s\n",
 		win_errstr(result)));
 
 	if (!W_ERROR_IS_OK(result)) {
@@ -5247,9 +5052,9 @@ static WERROR construct_printer_driver_info_101(TALLOC_CTX *mem_ctx,
 
 		/* Yes - try again with a WinNT driver. */
 		version = 2;
-		result = get_a_printer_driver(mem_ctx, &driver, 3, printer->info_2->drivername,
+		result = get_a_printer_driver(mem_ctx, &driver, printer->info_2->drivername,
 					      architecture, version);
-		DEBUG(8,("construct_printer_driver_info_6: status: %s\n",
+		DEBUG(8,("construct_printer_driver_level: status: %s\n",
 			win_errstr(result)));
 		if (!W_ERROR_IS_OK(result)) {
 			free_a_printer(&printer, 2);
@@ -5257,7 +5062,35 @@ static WERROR construct_printer_driver_info_101(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	result = fill_printer_driver_info101(mem_ctx, r, &driver->info3, servername);
+	switch (level) {
+	case 1:
+		result = fill_printer_driver_info1(mem_ctx, &r->info1, driver, servername);
+		break;
+	case 2:
+		result = fill_printer_driver_info2(mem_ctx, &r->info2, driver, servername);
+		break;
+	case 3:
+		result = fill_printer_driver_info3(mem_ctx, &r->info3, driver, servername);
+		break;
+	case 4:
+		result = fill_printer_driver_info4(mem_ctx, &r->info4, driver, servername);
+		break;
+	case 5:
+		result = fill_printer_driver_info5(mem_ctx, &r->info5, driver, servername);
+		break;
+	case 6:
+		result = fill_printer_driver_info6(mem_ctx, &r->info6, driver, servername);
+		break;
+	case 8:
+		result = fill_printer_driver_info8(mem_ctx, &r->info8, driver, servername);
+		break;
+	case 101:
+		result = fill_printer_driver_info101(mem_ctx, &r->info101, driver, servername);
+		break;
+	default:
+		result = WERR_UNKNOWN_LEVEL;
+		break;
+	}
 
 	free_a_printer(&printer, 2);
 	free_a_printer_driver(driver);
@@ -5301,52 +5134,11 @@ WERROR _spoolss_GetPrinterDriver2(pipes_struct *p,
 		return WERR_BADFID;
 	}
 
-	switch (r->in.level) {
-	case 1:
-		result = construct_printer_driver_info_1(p->mem_ctx,
-							 &r->out.info->info1,
-							 snum,
-							 servername,
-							 r->in.architecture,
-							 r->in.client_major_version);
-		break;
-	case 2:
-		result = construct_printer_driver_info_2(p->mem_ctx,
-							 &r->out.info->info2,
-							 snum,
-							 servername,
-							 r->in.architecture,
-							 r->in.client_major_version);
-		break;
-	case 3:
-		result = construct_printer_driver_info_3(p->mem_ctx,
-							 &r->out.info->info3,
-							 snum,
-							 servername,
-							 r->in.architecture,
-							 r->in.client_major_version);
-		break;
-	case 6:
-		result = construct_printer_driver_info_6(p->mem_ctx,
-							 &r->out.info->info6,
-							 snum,
-							 servername,
-							 r->in.architecture,
-							 r->in.client_major_version);
-		break;
-	case 101:
-		result = construct_printer_driver_info_101(p->mem_ctx,
-							   &r->out.info->info101,
-							   snum,
-							   servername,
-							   r->in.architecture,
-							   r->in.client_major_version);
-		break;
-	default:
-		result = WERR_UNKNOWN_LEVEL;
-		break;
-	}
-
+	result = construct_printer_driver_info_level(p->mem_ctx, r->in.level,
+						     r->out.info, snum,
+						     servername,
+						     r->in.architecture,
+						     r->in.client_major_version);
 	if (!W_ERROR_IS_OK(result)) {
 		TALLOC_FREE(r->out.info);
 		return result;
@@ -6556,7 +6348,7 @@ static WERROR enumprinterdrivers_level_by_architecture(TALLOC_CTX *mem_ctx,
 	int ndrivers;
 	uint32_t version;
 	fstring *list = NULL;
-	union spoolss_DriverInfo *driver;
+	struct spoolss_DriverInfo8 *driver;
 	union spoolss_DriverInfo *info = NULL;
 	uint32_t count = 0;
 	WERROR result = WERR_OK;
@@ -6580,7 +6372,7 @@ static WERROR enumprinterdrivers_level_by_architecture(TALLOC_CTX *mem_ctx,
 						    union spoolss_DriverInfo,
 						    count + ndrivers);
 			if (!info) {
-				DEBUG(0,("enumprinterdrivers_level1: "
+				DEBUG(0,("enumprinterdrivers_level_by_architecture: "
 					"failed to enlarge driver info buffer!\n"));
 				result = WERR_NOMEM;
 				goto out;
@@ -6590,7 +6382,7 @@ static WERROR enumprinterdrivers_level_by_architecture(TALLOC_CTX *mem_ctx,
 		for (i=0; i<ndrivers; i++) {
 			DEBUGADD(5,("\tdriver: [%s]\n", list[i]));
 			ZERO_STRUCT(driver);
-			result = get_a_printer_driver(mem_ctx, &driver, 3, list[i],
+			result = get_a_printer_driver(mem_ctx, &driver, list[i],
 						      architecture, version);
 			if (!W_ERROR_IS_OK(result)) {
 				goto out;
@@ -6599,28 +6391,31 @@ static WERROR enumprinterdrivers_level_by_architecture(TALLOC_CTX *mem_ctx,
 			switch (level) {
 			case 1:
 				result = fill_printer_driver_info1(info, &info[count+i].info1,
-								   &driver->info3, servername,
-								   architecture);
+								   driver, servername);
 				break;
 			case 2:
 				result = fill_printer_driver_info2(info, &info[count+i].info2,
-								   &driver->info3, servername);
+								   driver, servername);
 				break;
 			case 3:
 				result = fill_printer_driver_info3(info, &info[count+i].info3,
-								   &driver->info3, servername);
+								   driver, servername);
 				break;
 			case 4:
 				result = fill_printer_driver_info4(info, &info[count+i].info4,
-								   &driver->info3, servername);
+								   driver, servername);
 				break;
 			case 5:
 				result = fill_printer_driver_info5(info, &info[count+i].info5,
-								   &driver->info3, servername);
+								   driver, servername);
 				break;
 			case 6:
 				result = fill_printer_driver_info6(info, &info[count+i].info6,
-								   &driver->info3, servername);
+								   driver, servername);
+				break;
+			case 8:
+				result = fill_printer_driver_info8(info, &info[count+i].info8,
+								   driver, servername);
 				break;
 			default:
 				result = WERR_UNKNOWN_LEVEL;
@@ -6666,7 +6461,7 @@ static WERROR enumprinterdrivers_level(TALLOC_CTX *mem_ctx,
 	uint32_t a,i;
 	WERROR result = WERR_OK;
 
-	if (strequal(architecture, "all")) {
+	if (strequal(architecture, SPOOLSS_ARCHITECTURE_ALL)) {
 
 		for (a=0; archi_table[a].long_archi != NULL; a++) {
 
@@ -6700,91 +6495,6 @@ static WERROR enumprinterdrivers_level(TALLOC_CTX *mem_ctx,
 							count_p);
 }
 
-/****************************************************************************
- Enumerates all printer drivers at level 1.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level1(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 1,
-					info_p, count);
-}
-
-/****************************************************************************
- Enumerates all printer drivers at level 2.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level2(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 2,
-					info_p, count);
-}
-
-/****************************************************************************
- Enumerates all printer drivers at level 3.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level3(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 3,
-					info_p, count);
-}
-
-/****************************************************************************
- Enumerates all printer drivers at level 4.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level4(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 4,
-					info_p, count);
-}
-
-/****************************************************************************
- Enumerates all printer drivers at level 5.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level5(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 5,
-					info_p, count);
-}
-
-/****************************************************************************
- Enumerates all printer drivers at level 6.
-****************************************************************************/
-
-static WERROR enumprinterdrivers_level6(TALLOC_CTX *mem_ctx,
-					const char *servername,
-					const char *architecture,
-					union spoolss_DriverInfo **info_p,
-					uint32_t *count)
-{
-	return enumprinterdrivers_level(mem_ctx, servername, architecture, 6,
-					info_p, count);
-}
-
-
 /****************************************************************
  _spoolss_EnumPrinterDrivers
 ****************************************************************/
@@ -6813,41 +6523,11 @@ WERROR _spoolss_EnumPrinterDrivers(pipes_struct *p,
 		return WERR_UNKNOWN_PRINTER_DRIVER;
 	}
 
-	switch (r->in.level) {
-	case 1:
-		result = enumprinterdrivers_level1(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	case 2:
-		result = enumprinterdrivers_level2(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	case 3:
-		result = enumprinterdrivers_level3(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	case 4:
-		result = enumprinterdrivers_level4(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	case 5:
-		result = enumprinterdrivers_level5(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	case 6:
-		result = enumprinterdrivers_level6(p->mem_ctx, cservername,
-						   r->in.environment,
-						   r->out.info, r->out.count);
-		break;
-	default:
-		return WERR_UNKNOWN_LEVEL;
-	}
-
+	result = enumprinterdrivers_level(p->mem_ctx, cservername,
+					  r->in.environment,
+					  r->in.level,
+					  r->out.info,
+					  r->out.count);
 	if (!W_ERROR_IS_OK(result)) {
 		return result;
 	}
@@ -7601,9 +7281,9 @@ WERROR _spoolss_AddPrinterDriver(pipes_struct *p,
 		*/
 		case 2:
 		{
-			union spoolss_DriverInfo *driver1;
+			struct spoolss_DriverInfo8 *driver1;
 
-			if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &driver1, 3, driver_name, "Windows NT x86", 3))) {
+			if (!W_ERROR_IS_OK(get_a_printer_driver(p->mem_ctx, &driver1, driver_name, "Windows NT x86", 3))) {
 				/*
 				 * No 2k/Xp driver found, delete init data (if any) for the new Nt driver.
 				*/
@@ -7967,81 +7647,16 @@ done:
 WERROR _spoolss_SetPrinterData(pipes_struct *p,
 			       struct spoolss_SetPrinterData *r)
 {
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	int snum=0;
-	WERROR result = WERR_OK;
-	Printer_entry *Printer = find_printer_index_by_hnd(p, r->in.handle);
-	DATA_BLOB blob;
+	struct spoolss_SetPrinterDataEx r2;
 
-	DEBUG(5,("_spoolss_SetPrinterData\n"));
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
+	r2.in.type		= r->in.type;
+	r2.in.data		= r->in.data;
+	r2.in._offered		= r->in._offered;
 
-	if (!Printer) {
-		DEBUG(2,("_spoolss_SetPrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		return WERR_BADFID;
-	}
-
-	if (Printer->printer_type == SPLHND_SERVER) {
-		DEBUG(10,("_spoolss_SetPrinterData: "
-			"Not implemented for server handles yet\n"));
-		return WERR_INVALID_PARAM;
-	}
-
-	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
-	}
-
-	/*
-	 * Access check : NT returns "access denied" if you make a
-	 * SetPrinterData call without the necessary privildge.
-	 * we were originally returning OK if nothing changed
-	 * which made Win2k issue **a lot** of SetPrinterData
-	 * when connecting to a printer  --jerry
-	 */
-
-	if (Printer->access_granted != PRINTER_ACCESS_ADMINISTER) {
-		DEBUG(3,("_spoolss_SetPrinterData: "
-			"change denied by handle access permissions\n"));
-		result = WERR_ACCESS_DENIED;
-		goto done;
-	}
-
-	result = get_a_printer(Printer, &printer, 2, lp_const_servicename(snum));
-	if (!W_ERROR_IS_OK(result)) {
-		return result;
-	}
-
-	result = push_spoolss_PrinterData(p->mem_ctx, &blob,
-					  r->in.type, &r->in.data);
-	if (!W_ERROR_IS_OK(result)) {
-		goto done;
-	}
-
-	/*
-	 * When client side code sets a magic printer data key, detect it and save
-	 * the current printer data and the magic key's data (its the DEVMODE) for
-	 * future printer/driver initializations.
-	 */
-	if ((r->in.type == REG_BINARY) && strequal(r->in.value_name, PHANTOM_DEVMODE_KEY)) {
-		/* Set devmode and printer initialization info */
-		result = save_driver_init(printer, 2, blob.data, blob.length);
-
-		srv_spoolss_reset_printerdata(printer->info_2->drivername);
-
-		goto done;
-	}
-
-	result = set_printer_dataex(printer, SPOOL_PRINTERDATA_KEY,
-				    r->in.value_name, r->in.type,
-				    blob.data, blob.length);
-	if (W_ERROR_IS_OK(result)) {
-		result = mod_a_printer(printer, 2);
-	}
-
-done:
-	free_a_printer(&printer, 2);
-
-	return result;
+	return _spoolss_SetPrinterDataEx(p, &r2);
 }
 
 /****************************************************************
@@ -8083,46 +7698,13 @@ WERROR _spoolss_ResetPrinter(pipes_struct *p,
 WERROR _spoolss_DeletePrinterData(pipes_struct *p,
 				  struct spoolss_DeletePrinterData *r)
 {
-	NT_PRINTER_INFO_LEVEL 	*printer = NULL;
-	int 		snum=0;
-	WERROR 		status = WERR_OK;
-	Printer_entry 	*Printer = find_printer_index_by_hnd(p, r->in.handle);
+	struct spoolss_DeletePrinterDataEx r2;
 
-	DEBUG(5,("_spoolss_DeletePrinterData\n"));
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
 
-	if (!Printer) {
-		DEBUG(2,("_spoolss_DeletePrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		return WERR_BADFID;
-	}
-
-	if (!get_printer_snum(p, r->in.handle, &snum, NULL))
-		return WERR_BADFID;
-
-	if (Printer->access_granted != PRINTER_ACCESS_ADMINISTER) {
-		DEBUG(3, ("_spoolss_DeletePrinterData: "
-			"printer properties change denied by handle\n"));
-		return WERR_ACCESS_DENIED;
-	}
-
-	status = get_a_printer(Printer, &printer, 2, lp_const_servicename(snum));
-	if (!W_ERROR_IS_OK(status))
-		return status;
-
-	if (!r->in.value_name) {
-		free_a_printer(&printer, 2);
-		return WERR_NOMEM;
-	}
-
-	status = delete_printer_dataex( printer, SPOOL_PRINTERDATA_KEY,
-					r->in.value_name );
-
-	if ( W_ERROR_IS_OK(status) )
-		mod_a_printer( printer, 2 );
-
-	free_a_printer(&printer, 2);
-
-	return status;
+	return _spoolss_DeletePrinterDataEx(p, &r2);
 }
 
 /****************************************************************
@@ -8886,9 +8468,6 @@ WERROR _spoolss_GetJob(pipes_struct *p,
 
 /****************************************************************
  _spoolss_GetPrinterDataEx
-
- From MSDN documentation of GetPrinterDataEx: pass request
- to GetPrinterData if key is "PrinterDriverData".
 ****************************************************************/
 
 WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
@@ -8900,6 +8479,7 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	NT_PRINTER_INFO_LEVEL 	*printer = NULL;
 	int 			snum = 0;
 	WERROR result = WERR_OK;
+	DATA_BLOB blob;
 
 	DEBUG(4,("_spoolss_GetPrinterDataEx\n"));
 
@@ -8921,14 +8501,17 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	/* Is the handle to a printer or to the server? */
 
 	if (Printer->printer_type == SPLHND_SERVER) {
-		DEBUG(10,("_spoolss_GetPrinterDataEx: "
-			"Not implemented for server handles yet\n"));
-		result = WERR_INVALID_PARAM;
+
+		result = getprinterdata_printer_server(p->mem_ctx,
+						       r->in.value_name,
+						       r->out.type,
+						       r->out.data);
 		goto done;
 	}
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto done;
 	}
 
 	result = get_a_printer(Printer, &printer, 2, lp_servicename(snum));
@@ -8942,14 +8525,23 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 		goto done;
 	}
 
+	/* XP sends this and wants to change id value from the PRINTER_INFO_0 */
+
+	if (strequal(r->in.key_name, SPOOL_PRINTERDATA_KEY) &&
+	    strequal(r->in.value_name, "ChangeId")) {
+		*r->out.type = REG_DWORD;
+		*r->out.needed = 4;
+		r->out.data->value = printer->info_2->changeid;
+		result = WERR_OK;
+		goto done;
+	}
+
 	if (lookup_printerkey(printer->info_2->data, r->in.key_name) == -1) {
 		DEBUG(4,("_spoolss_GetPrinterDataEx: "
 			"Invalid keyname [%s]\n", r->in.key_name ));
 		result = WERR_BADFILE;
 		goto done;
 	}
-
-	/* When given a new keyname, we should just create it */
 
 	val = get_printer_data(printer->info_2,
 			       r->in.key_name, r->in.value_name);
@@ -8959,22 +8551,28 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	}
 
 	*r->out.needed = regval_size(val);
-
-	if (*r->out.needed > r->in.offered) {
-		result = WERR_MORE_DATA;
-		goto done;
-	}
-
 	*r->out.type = regval_type(val);
 
-	memcpy(r->out.buffer, regval_data_p(val), regval_size(val));
+	blob = data_blob_const(regval_data_p(val), regval_size(val));
+
+	result = pull_spoolss_PrinterData(p->mem_ctx, &blob,
+					  r->out.data,
+					  *r->out.type);
 
  done:
 	if (printer) {
 		free_a_printer(&printer, 2);
 	}
 
-	return result;
+	if (!W_ERROR_IS_OK(result)) {
+		return result;
+	}
+
+	*r->out.needed  = ndr_size_spoolss_PrinterData(r->out.data, *r->out.type, NULL, 0);
+	*r->out.type    = SPOOLSS_BUFFER_OK(*r->out.type, REG_NONE);
+	r->out.data     = SPOOLSS_BUFFER_OK(r->out.data, r->out.data);
+
+	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
 }
 
 /****************************************************************
@@ -8989,6 +8587,7 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 	WERROR 			result = WERR_OK;
 	Printer_entry 		*Printer = find_printer_index_by_hnd(p, r->in.handle);
 	char			*oid_string;
+	DATA_BLOB blob;
 
 	DEBUG(4,("_spoolss_SetPrinterDataEx\n"));
 
@@ -9038,10 +8637,30 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 		oid_string++;
 	}
 
+	result = push_spoolss_PrinterData(p->mem_ctx, &blob,
+					  r->in.type, &r->in.data);
+	if (!W_ERROR_IS_OK(result)) {
+		goto done;
+	}
+
+	/*
+	 * When client side code sets a magic printer data key, detect it and save
+	 * the current printer data and the magic key's data (its the DEVMODE) for
+	 * future printer/driver initializations.
+	 */
+	if ((r->in.type == REG_BINARY) && strequal(r->in.value_name, PHANTOM_DEVMODE_KEY)) {
+		/* Set devmode and printer initialization info */
+		result = save_driver_init(printer, 2, blob.data, blob.length);
+
+		srv_spoolss_reset_printerdata(printer->info_2->drivername);
+
+		goto done;
+	}
+
 	/* save the registry data */
 
 	result = set_printer_dataex(printer, r->in.key_name, r->in.value_name,
-				    r->in.type, r->in.buffer, r->in.offered);
+				    r->in.type, blob.data, blob.length);
 
 	if (W_ERROR_IS_OK(result)) {
 		/* save the OID if one was specified */
@@ -9167,14 +8786,18 @@ WERROR _spoolss_EnumPrinterKey(pipes_struct *p,
 		goto done;
 	}
 
-	/* two byte termination (a multisz) */
-
-	*r->out.needed = 2;
-
-	array = talloc_zero_array(r->out.key_buffer, const char *, num_keys + 1);
+	array = talloc_zero_array(r->out.key_buffer, const char *, num_keys + 2);
 	if (!array) {
 		result = WERR_NOMEM;
 		goto done;
+	}
+
+	if (!num_keys) {
+		array[0] = talloc_strdup(array, "");
+		if (!array[0]) {
+			result = WERR_NOMEM;
+			goto done;
+		}
 	}
 
 	for (i=0; i < num_keys; i++) {
@@ -9187,24 +8810,21 @@ WERROR _spoolss_EnumPrinterKey(pipes_struct *p,
 			result = WERR_NOMEM;
 			goto done;
 		}
-
-		*r->out.needed += strlen_m_term(keynames[i]) * 2;
 	}
-
-	if (r->in.offered < *r->out.needed) {
-		result = WERR_MORE_DATA;
-		goto done;
-	}
-
-	result = WERR_OK;
 
 	if (!push_reg_multi_sz(p->mem_ctx, &blob, array)) {
 		result = WERR_NOMEM;
 		goto done;
 	}
 
-	if (r->in.offered >= blob.length) {
-		memcpy(r->out.key_buffer, blob.data, blob.length);
+	*r->out._ndr_size = r->in.offered / 2;
+	*r->out.needed = blob.length;
+
+	if (r->in.offered < *r->out.needed) {
+		result = WERR_MORE_DATA;
+	} else {
+		result = WERR_OK;
+		r->out.key_buffer->string_array = array;
 	}
 
  done:

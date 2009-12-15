@@ -691,6 +691,7 @@ SEC_DESC_BUF *dup_sec_desc_buf(TALLOC_CTX *ctx, SEC_DESC_BUF *src);
 NTSTATUS sec_desc_add_sid(TALLOC_CTX *ctx, SEC_DESC **psd, DOM_SID *sid, uint32 mask, size_t *sd_size);
 NTSTATUS sec_desc_mod_sid(SEC_DESC *sd, DOM_SID *sid, uint32 mask);
 NTSTATUS sec_desc_del_sid(TALLOC_CTX *ctx, SEC_DESC **psd, DOM_SID *sid, size_t *sd_size);
+bool sd_has_inheritable_components(const SEC_DESC *parent_ctr, bool container);
 NTSTATUS se_create_child_secdesc(TALLOC_CTX *ctx,
                                         SEC_DESC **ppsd,
 					size_t *psize,
@@ -927,10 +928,14 @@ int sys_fcntl_ptr(int fd, int cmd, void *arg);
 int sys_fcntl_long(int fd, int cmd, long arg);
 void update_stat_ex_mtime(struct stat_ex *dst, struct timespec write_ts);
 void update_stat_ex_create_time(struct stat_ex *dst, struct timespec create_time);
-int sys_stat(const char *fname,SMB_STRUCT_STAT *sbuf);
-int sys_fstat(int fd,SMB_STRUCT_STAT *sbuf);
-int sys_lstat(const char *fname,SMB_STRUCT_STAT *sbuf);
+int sys_stat(const char *fname, SMB_STRUCT_STAT *sbuf,
+	     bool fake_dir_create_times);
+int sys_fstat(int fd, SMB_STRUCT_STAT *sbuf,
+	      bool fake_dir_create_times);
+int sys_lstat(const char *fname,SMB_STRUCT_STAT *sbuf,
+	      bool fake_dir_create_times);
 int sys_ftruncate(int fd, SMB_OFF_T offset);
+int sys_posix_fallocate(int fd, SMB_OFF_T offset, SMB_OFF_T len);
 SMB_OFF_T sys_lseek(int fd, SMB_OFF_T offset, int whence);
 int sys_fseek(FILE *fp, SMB_OFF_T offset, int whence);
 SMB_OFF_T sys_ftell(FILE *fp);
@@ -1118,9 +1123,9 @@ struct user_auth_info *get_cmdline_auth_info_copy(TALLOC_CTX *mem_ctx,
 						 const struct user_auth_info *info);
 bool set_cmdline_auth_info_machine_account_creds(struct user_auth_info *auth_info);
 void set_cmdline_auth_info_getpass(struct user_auth_info *auth_info);
-bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf);
+bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf,
+		     bool fake_dir_create_times);
 bool socket_exist(const char *fname);
-bool directory_exist_stat(char *dname,SMB_STRUCT_STAT *st);
 uint64_t get_file_size_stat(const SMB_STRUCT_STAT *sbuf);
 SMB_OFF_T get_file_size(char *file_name);
 char *attrib_string(uint16 mode);
@@ -2088,21 +2093,9 @@ WERROR reg_apply_registry_entry(TALLOC_CTX *mem_ctx,
 #include "librpc/gen_ndr/ndr_svcctl.h"
 #include "librpc/gen_ndr/ndr_winreg.h"
 #include "librpc/gen_ndr/ndr_wkssvc.h"
-
-#include "librpc/gen_ndr/srv_dfs.h"
-#include "librpc/gen_ndr/srv_dssetup.h"
-#include "librpc/gen_ndr/srv_echo.h"
-#include "librpc/gen_ndr/srv_eventlog.h"
-#include "librpc/gen_ndr/srv_initshutdown.h"
-#include "librpc/gen_ndr/srv_lsa.h"
-#include "librpc/gen_ndr/srv_netlogon.h"
-#include "librpc/gen_ndr/srv_ntsvcs.h"
-#include "librpc/gen_ndr/srv_samr.h"
-#include "librpc/gen_ndr/srv_srvsvc.h"
-#include "librpc/gen_ndr/srv_svcctl.h"
-#include "librpc/gen_ndr/srv_winreg.h"
-#include "librpc/gen_ndr/srv_wkssvc.h"
-#include "librpc/gen_ndr/srv_spoolss.h"
+#include "librpc/gen_ndr/ndr_drsuapi.h"
+#include "librpc/gen_ndr/ndr_spoolss.h"
+#include "librpc/gen_ndr/ndr_initshutdown.h"
 
 #include "librpc/ndr/libndr.h"
 
@@ -3493,8 +3486,7 @@ bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp);
 void del_deferred_open_entry(struct share_mode_lock *lck, uint16 mid);
 bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
 bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
-NTSTATUS can_set_delete_on_close(files_struct *fsp, bool delete_on_close,
-				 uint32 dosmode);
+NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode);
 void set_delete_on_close_token(struct share_mode_lock *lck, const UNIX_USER_TOKEN *tok);
 void set_delete_on_close_lck(struct share_mode_lock *lck, bool delete_on_close, const UNIX_USER_TOKEN *tok);
 bool set_delete_on_close(files_struct *fsp, bool delete_on_close, const UNIX_USER_TOKEN *tok);
@@ -4001,6 +3993,7 @@ char *lp_ldap_suffix(void);
 char *lp_ldap_admin_dn(void);
 int lp_ldap_ssl(void);
 bool lp_ldap_ssl_ads(void);
+int lp_ldap_deref(void);
 int lp_ldap_follow_referral(void);
 int lp_ldap_passwd_sync(void);
 bool lp_ldap_delete_dn(void);
@@ -4206,7 +4199,7 @@ bool lp_recursive_veto_delete(int );
 bool lp_dos_filemode(int );
 bool lp_dos_filetimes(int );
 bool lp_dos_filetime_resolution(int );
-bool lp_fake_dir_create_times(void);
+bool lp_fake_dir_create_times(int);
 bool lp_blocking_locks(int );
 bool lp_inherit_perms(int );
 bool lp_inherit_acls(int );
@@ -4864,15 +4857,15 @@ uint32_t add_a_printer_driver(TALLOC_CTX *mem_ctx,
 			      char **driver_name,
 			      uint32_t *version);
 WERROR get_a_printer_driver(TALLOC_CTX *mem_ctx,
-			    union spoolss_DriverInfo **driver_p, uint32_t level,
+			    struct spoolss_DriverInfo8 **driver_p,
 			    const char *drivername, const char *architecture,
 			    uint32_t version);
-uint32_t free_a_printer_driver(union spoolss_DriverInfo *driver);
-bool printer_driver_in_use(const struct spoolss_DriverInfo3 *info_3);
+uint32_t free_a_printer_driver(struct spoolss_DriverInfo8 *driver);
+bool printer_driver_in_use(const struct spoolss_DriverInfo8 *r);
 bool printer_driver_files_in_use(TALLOC_CTX *mem_ctx,
-				 struct spoolss_DriverInfo3 *info);
+				 struct spoolss_DriverInfo8 *r);
 WERROR delete_printer_driver(struct pipes_struct *rpc_pipe,
-			     const struct spoolss_DriverInfo3 *info_3,
+			     const struct spoolss_DriverInfo8 *r,
 			     uint32 version, bool delete_files );
 WERROR nt_printing_setsec(const char *sharename, SEC_DESC_BUF *secdesc_ctr);
 bool nt_printing_getsec(TALLOC_CTX *ctx, const char *sharename, SEC_DESC_BUF **secdesc_ctr);
@@ -6889,9 +6882,6 @@ void reply_printclose(struct smb_request *req);
 void reply_printqueue(struct smb_request *req);
 void reply_printwrite(struct smb_request *req);
 void reply_mkdir(struct smb_request *req);
-NTSTATUS rmdir_internals(TALLOC_CTX *ctx,
-			connection_struct *conn,
-			struct smb_filename *smb_dname);
 void reply_rmdir(struct smb_request *req);
 NTSTATUS rename_internals_fsp(connection_struct *conn,
 			files_struct *fsp,

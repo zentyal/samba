@@ -70,8 +70,8 @@ static bool samba_private_attr_name(const char *unix_ea_name)
 	static const char * const prohibited_ea_names[] = {
 		SAMBA_POSIX_INHERITANCE_EA_NAME,
 		SAMBA_XATTR_DOS_ATTRIB,
-		SAMBA_XATTR_DOSTIMESTAMPS,
 		SAMBA_XATTR_MARKER,
+		XATTR_NTACL_NAME,
 		NULL
 	};
 
@@ -5538,7 +5538,8 @@ static NTSTATUS smb_set_file_size(connection_struct *conn,
 				  files_struct *fsp,
 				  const struct smb_filename *smb_fname,
 				  const SMB_STRUCT_STAT *psbuf,
-				  SMB_OFF_T size)
+				  SMB_OFF_T size,
+				  bool fail_after_createfile)
 {
 	NTSTATUS status = NT_STATUS_OK;
 	struct smb_filename *smb_fname_tmp = NULL;
@@ -5596,6 +5597,12 @@ static NTSTATUS smb_set_file_size(connection_struct *conn,
 	if (!NT_STATUS_IS_OK(status)) {
 		/* NB. We check for open_was_deferred in the caller. */
 		return status;
+	}
+
+	/* See RAW-SFILEINFO-END-OF-FILE */
+	if (fail_after_createfile) {
+		close_file(req, new_fsp,NORMAL_CLOSE);
+		return NT_STATUS_INVALID_LEVEL;
 	}
 
 	if (vfs_set_filelen(new_fsp, size) == -1) {
@@ -5730,10 +5737,11 @@ static NTSTATUS smb_set_file_disposition_info(connection_struct *conn,
 		(unsigned int)dosmode,
 		(unsigned int)delete_on_close ));
 
-	status = can_set_delete_on_close(fsp, delete_on_close, dosmode);
- 
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (delete_on_close) {
+		status = can_set_delete_on_close(fsp, dosmode);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
 	}
 
 	/* The set is across all open files on this dev/inode pair. */
@@ -6474,7 +6482,8 @@ static NTSTATUS smb_set_file_end_of_file_info(connection_struct *conn,
 					const char *pdata,
 					int total_data,
 					files_struct *fsp,
-					const struct smb_filename *smb_fname)
+					const struct smb_filename *smb_fname,
+					bool fail_after_createfile)
 {
 	SMB_OFF_T size;
 
@@ -6499,7 +6508,8 @@ static NTSTATUS smb_set_file_end_of_file_info(connection_struct *conn,
 				fsp,
 				smb_fname,
 				&smb_fname->st,
-				size);
+				size,
+				fail_after_createfile);
 }
 
 /****************************************************************************
@@ -6785,7 +6795,8 @@ static NTSTATUS smb_set_file_unix_basic(connection_struct *conn,
 				   fsp,
 				   smb_fname,
 				   &sbuf,
-				   size);
+				   size,
+				   false);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -7381,11 +7392,22 @@ NTSTATUS smbd_do_setfilepathinfo(connection_struct *conn,
 		case SMB_FILE_END_OF_FILE_INFORMATION:
 		case SMB_SET_FILE_END_OF_FILE_INFO:
 		{
+			/*
+			 * XP/Win7 both fail after the createfile with
+			 * SMB_SET_FILE_END_OF_FILE_INFO but not
+			 * SMB_FILE_END_OF_FILE_INFORMATION (pass-through).
+			 * The level is known here, so pass it down
+			 * appropriately.
+			 */
+			bool should_fail =
+			    (info_level == SMB_SET_FILE_END_OF_FILE_INFO);
+
 			status = smb_set_file_end_of_file_info(conn, req,
 								pdata,
 								total_data,
 								fsp,
-								smb_fname);
+								smb_fname,
+								should_fail);
 			break;
 		}
 

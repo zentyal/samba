@@ -12,6 +12,7 @@
 
 #define PRINTER_STATUS_OK	( 0x00000000 )
 #define JOB_STATUS_QUEUED	( 0x0000 )
+#define MAXDEVICENAME	( 32 )
 #define PRINTER_ENUM_ICONMASK	( (PRINTER_ENUM_ICON1|PRINTER_ENUM_ICON2|PRINTER_ENUM_ICON3|PRINTER_ENUM_ICON4|PRINTER_ENUM_ICON5|PRINTER_ENUM_ICON6|PRINTER_ENUM_ICON7|PRINTER_ENUM_ICON8) )
 #define SPL_ARCH_WIN40	( "WIN40" )
 #define SPL_ARCH_W32X86	( "W32X86" )
@@ -20,8 +21,12 @@
 #define SPL_ARCH_W32PPC	( "W32PPC" )
 #define SPL_ARCH_IA64	( "IA64" )
 #define SPL_ARCH_X64	( "x64" )
-#define SPOOLSS_ARCHITECTURE_ALL	( "all" )
+#define SPOOLSS_ARCHITECTURE_ALL	( "All" )
+#define SPOOLSS_ARCHITECTURE_ALL_CLUSTER	( "AllCluster" )
 #define SPOOLSS_ARCHITECTURE_NT_X86	( "Windows NT x86" )
+#define SPOOLSS_ARCHITECTURE_IA_64	( "Windows IA64" )
+#define SPOOLSS_ARCHITECTURE_x64	( "Windows x64" )
+#define SPOOLSS_ARCHITECTURE_4_0	( "Windows 4.0" )
 #define SPOOLSS_DEFAULT_SERVER_PATH	( "C:\\WINDOWS\\system32\\spool" )
 #define SPOOL_PRINTERDATA_KEY	( "PrinterDriverData" )
 #define SPOOL_DSSPOOLER_KEY	( "DsSpooler" )
@@ -1428,9 +1433,9 @@ struct spoolss_DriverInfo8 {
 	const char * data_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * config_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * help_file;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+	const char ** dependent_files;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * monitor_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char * default_datatype;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	const char ** dependent_files;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	const char ** previous_names;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	NTTIME driver_date;
 	uint64_t driver_version;
@@ -1564,7 +1569,7 @@ union spoolss_PrinterData {
 	uint32_t value;/* [case(REG_DWORD)] */
 	const char ** string_array;/* [flag(LIBNDR_FLAG_STR_NULLTERM),case(REG_MULTI_SZ)] */
 	DATA_BLOB data;/* [flag(LIBNDR_FLAG_REMAINING),default] */
-}/* [gensize,public,nodiscriminant] */;
+}/* [nodiscriminant,public] */;
 
 enum spoolss_FormFlags
 #ifndef USE_UINT_ENUMS
@@ -1615,7 +1620,8 @@ struct spoolss_FormInfo2 {
 	const char * mui_dll;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
 	uint32_t ressource_id;
 	const char * display_name;/* [relative,flag(LIBNDR_FLAG_STR_NULLTERM)] */
-	uint32_t lang_id;
+	uint16_t lang_id;
+	uint16_t unused;
 }/* [gensize,public] */;
 
 union spoolss_FormInfo {
@@ -2047,6 +2053,10 @@ struct spoolss_PrinterEnumValues {
 	union spoolss_PrinterData *data;/* [relative,subcontext_size(r->data_length),subcontext(0),switch_is(type)] */
 	uint32_t data_length;/* [value(ndr_size_spoolss_PrinterData(data,type,ndr->iconv_convenience,ndr->flags))] */
 }/* [relative_base,gensize,public] */;
+
+union spoolss_KeyNames {
+	const char ** string_array;/* [default,flag(LIBNDR_FLAG_STR_NULLTERM)] */
+}/* [nodiscriminant] */;
 
 /* bitmap spoolss_DeleteDriverFlags */
 #define DPD_DELETE_UNUSED_FILES ( 0x00000001 )
@@ -3462,18 +3472,77 @@ struct spoolss_4c {
 };
 
 
+struct _spoolss_SetPrinterDataEx {
+	struct {
+		struct policy_handle *handle;/* [ref] */
+		const char *key_name;/* [charset(UTF16)] */
+		const char *value_name;/* [charset(UTF16)] */
+		enum winreg_Type type;
+		DATA_BLOB data;
+		uint32_t _offered;
+	} in;
+
+	struct {
+		WERROR result;
+	} out;
+
+};
+
+
+struct __spoolss_SetPrinterDataEx {
+	struct {
+		enum winreg_Type type;
+	} in;
+
+	struct {
+		union spoolss_PrinterData *data;/* [ref,switch_is(type)] */
+	} out;
+
+};
+
+
 struct spoolss_SetPrinterDataEx {
 	struct {
 		struct policy_handle *handle;/* [ref] */
 		const char *key_name;/* [charset(UTF16)] */
 		const char *value_name;/* [charset(UTF16)] */
 		enum winreg_Type type;
-		uint8_t *buffer;/* [ref,size_is(offered)] */
-		uint32_t offered;
+		union spoolss_PrinterData data;/* [subcontext(4),switch_is(type)] */
+		uint32_t _offered;/* [value(ndr_size_spoolss_PrinterData(&data,type,ndr->iconv_convenience,flags))] */
 	} in;
 
 	struct {
 		WERROR result;
+	} out;
+
+};
+
+
+struct _spoolss_GetPrinterDataEx {
+	struct {
+		struct policy_handle *handle;/* [ref] */
+		const char *key_name;/* [charset(UTF16)] */
+		const char *value_name;/* [charset(UTF16)] */
+		uint32_t offered;
+	} in;
+
+	struct {
+		enum winreg_Type *type;/* [ref] */
+		DATA_BLOB *data;/* [ref] */
+		uint32_t *needed;/* [ref] */
+		WERROR result;
+	} out;
+
+};
+
+
+struct __spoolss_GetPrinterDataEx {
+	struct {
+		enum winreg_Type type;
+	} in;
+
+	struct {
+		union spoolss_PrinterData *data;/* [ref,switch_is(type)] */
 	} out;
 
 };
@@ -3489,7 +3558,7 @@ struct spoolss_GetPrinterDataEx {
 
 	struct {
 		enum winreg_Type *type;/* [ref] */
-		uint8_t *buffer;/* [ref,size_is(offered)] */
+		union spoolss_PrinterData *data;/* [subcontext_size(offered),ref,subcontext(4),switch_is(*type)] */
 		uint32_t *needed;/* [ref] */
 		WERROR result;
 	} out;
@@ -3551,7 +3620,8 @@ struct spoolss_EnumPrinterKey {
 	} in;
 
 	struct {
-		uint16_t *key_buffer;/* [ref,size_is(offered/2)] */
+		uint32_t *_ndr_size;/* [ref] */
+		union spoolss_KeyNames *key_buffer;/* [subcontext_size(*_ndr_size*2),ref,subcontext(0),switch_is(*_ndr_size)] */
 		uint32_t *needed;/* [ref] */
 		WERROR result;
 	} out;

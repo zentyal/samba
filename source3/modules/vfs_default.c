@@ -487,7 +487,7 @@ static int copy_reg(const char *source, const char *dest)
 	int ifd = -1;
 	int ofd = -1;
 
-	if (sys_lstat (source, &source_stats) == -1)
+	if (sys_lstat(source, &source_stats, false) == -1)
 		return -1;
 
 	if (!S_ISREG (source_stats.st_ex_mode))
@@ -540,6 +540,27 @@ static int copy_reg(const char *source, const char *dest)
 		return -1;
 
 	/* Try to copy the old file's modtime and access time.  */
+#if defined(HAVE_UTIMENSAT)
+	{
+		struct timespec ts[2];
+
+		ts[0] = source_stats.st_ex_atime;
+		ts[1] = source_stats.st_ex_mtime;
+		utimensat(AT_FDCWD, dest, ts, AT_SYMLINK_NOFOLLOW);
+	}
+#elif defined(HAVE_UTIMES)
+	{
+		struct timeval tv[2];
+
+		tv[0] = convert_timespec_to_timeval(source_stats.st_ex_atime);
+		tv[1] = convert_timespec_to_timeval(source_stats.st_ex_mtime);
+#ifdef HAVE_LUTIMES
+		lutimes(dest, tv);
+#else
+		utimes(dest, tv);
+#endif
+	}
+#elif defined(HAVE_UTIME)
 	{
 		struct utimbuf tv;
 
@@ -547,6 +568,7 @@ static int copy_reg(const char *source, const char *dest)
 		tv.modtime = convert_timespec_to_time_t(source_stats.st_ex_mtime);
 		utime(dest, &tv);
 	}
+#endif
 
 	if (unlink (source) == -1)
 		return -1;
@@ -615,7 +637,8 @@ static int vfswrap_stat(vfs_handle_struct *handle,
 		goto out;
 	}
 
-	result = sys_stat(smb_fname->base_name, &smb_fname->st);
+	result = sys_stat(smb_fname->base_name, &smb_fname->st,
+			  lp_fake_dir_create_times(SNUM(handle->conn)));
  out:
 	END_PROFILE(syscall_stat);
 	return result;
@@ -626,7 +649,8 @@ static int vfswrap_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_STRUC
 	int result;
 
 	START_PROFILE(syscall_fstat);
-	result = sys_fstat(fsp->fh->fd, sbuf);
+	result = sys_fstat(fsp->fh->fd,
+			   sbuf, lp_fake_dir_create_times(SNUM(handle->conn)));
 	END_PROFILE(syscall_fstat);
 	return result;
 }
@@ -643,7 +667,8 @@ static int vfswrap_lstat(vfs_handle_struct *handle,
 		goto out;
 	}
 
-	result = sys_lstat(smb_fname->base_name, &smb_fname->st);
+	result = sys_lstat(smb_fname->base_name, &smb_fname->st,
+			   lp_fake_dir_create_times(SNUM(handle->conn)));
  out:
 	END_PROFILE(syscall_lstat);
 	return result;
@@ -912,14 +937,15 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	SMB_OFF_T currpos = SMB_VFS_LSEEK(fsp, 0, SEEK_CUR);
 	unsigned char zero_space[4096];
 	SMB_OFF_T space_to_write;
+	uint64_t space_avail;
+	uint64_t bsize,dfree,dsize;
+	int ret;
 
 	if (currpos == -1)
 		return -1;
 
 	if (SMB_VFS_FSTAT(fsp, &st) == -1)
 		return -1;
-
-	space_to_write = len - st.st_ex_size;
 
 #ifdef S_ISFIFO
 	if (S_ISFIFO(st.st_ex_mode))
@@ -933,27 +959,38 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	if (st.st_ex_size > len)
 		return sys_ftruncate(fsp->fh->fd, len);
 
-	/* available disk space is enough or not? */
-	if (lp_strict_allocate(SNUM(fsp->conn))){
-		uint64_t space_avail;
-		uint64_t bsize,dfree,dsize;
+	space_to_write = len - st.st_ex_size;
 
-		space_avail = get_dfree_info(fsp->conn,
-					     fsp->fsp_name->base_name, false,
-					     &bsize, &dfree, &dsize);
-		/* space_avail is 1k blocks */
-		if (space_avail == (uint64_t)-1 ||
-				((uint64_t)space_to_write/1024 > space_avail) ) {
-			errno = ENOSPC;
-			return -1;
-		}
+	/* for allocation try posix_fallocate first. This can fail on some
+	   platforms e.g. when the filesystem doesn't support it and no
+	   emulation is being done by the libc (like on AIX with JFS1). In that
+	   case we do our own emulation. posix_fallocate implementations can
+	   return ENOTSUP or EINVAL in cases like that. */
+	ret = sys_posix_fallocate(fsp->fh->fd, st.st_ex_size, space_to_write);
+	if (ret == ENOSPC) {
+		errno = ENOSPC;
+		return -1;
+	}
+	if (ret == 0) {
+		return 0;
+	}
+	DEBUG(10,("strict_allocate_ftruncate: sys_posix_fallocate failed with "
+		"error %d. Falling back to slow manual allocation\n", ret));
+
+	/* available disk space is enough or not? */
+	space_avail = get_dfree_info(fsp->conn,
+				     fsp->fsp_name->base_name, false,
+				     &bsize,&dfree,&dsize);
+	/* space_avail is 1k blocks */
+	if (space_avail == (uint64_t)-1 ||
+			((uint64_t)space_to_write/1024 > space_avail) ) {
+		errno = ENOSPC;
+		return -1;
 	}
 
 	/* Write out the real space on disk. */
 	if (SMB_VFS_LSEEK(fsp, st.st_ex_size, SEEK_SET) != st.st_ex_size)
 		return -1;
-
-	space_to_write = len - st.st_ex_size;
 
 	memset(zero_space, '\0', sizeof(zero_space));
 	while ( space_to_write > 0) {

@@ -24,6 +24,7 @@
 
 #include "includes.h"
 #include "rpcclient.h"
+#include "../librpc/gen_ndr/cli_spoolss.h"
 
 #define RPCCLIENT_PRINTERNAME(_printername, _cli, _arg) \
 { \
@@ -863,10 +864,9 @@ static WERROR cmd_spoolss_getprinterdataex(struct rpc_pipe_client *cli,
 	NTSTATUS	status;
 	fstring 	printername;
 	const char *valuename, *keyname;
-	struct regval_blob value;
 
 	enum winreg_Type type;
-	uint8_t *buffer = NULL;
+	union spoolss_PrinterData data;
 	uint32_t offered = 0;
 	uint32_t needed;
 
@@ -902,21 +902,20 @@ static WERROR cmd_spoolss_getprinterdataex(struct rpc_pipe_client *cli,
 						 &pol,
 						 keyname,
 						 valuename,
-						 &type,
-						 buffer,
 						 offered,
+						 &type,
+						 &data,
 						 &needed,
 						 &result);
 	if (W_ERROR_EQUAL(result, WERR_MORE_DATA)) {
 		offered = needed;
-		buffer = talloc_array(mem_ctx, uint8_t, needed);
 		status = rpccli_spoolss_GetPrinterDataEx(cli, mem_ctx,
 							 &pol,
 							 keyname,
 							 valuename,
-							 &type,
-							 buffer,
 							 offered,
+							 &type,
+							 &data,
 							 &needed,
 							 &result);
 	}
@@ -925,22 +924,13 @@ static WERROR cmd_spoolss_getprinterdataex(struct rpc_pipe_client *cli,
 		goto done;
 	}
 
-	if (!W_ERROR_IS_OK(result)) {
-		goto done;
-	}
-
-
 	if (!W_ERROR_IS_OK(result))
 		goto done;
 
 	/* Display printer data */
 
-	fstrcpy(value.valuename, valuename);
-	value.type = type;
-	value.size = needed;
-	value.data_p = buffer;
+	display_printer_data(valuename, type, &data);
 
-	display_reg_value(value);
 
  done:
 	if (is_valid_policy_hnd(&pol))
@@ -2916,16 +2906,21 @@ static WERROR cmd_spoolss_enum_printerkey(struct rpc_pipe_client *cli,
 	struct policy_handle hnd;
 	const char **key_buffer = NULL;
 	int i;
+	uint32_t offered = 0;
 
-	if (argc < 2 || argc > 3) {
-		printf("Usage: %s printername [keyname]\n", argv[0]);
+	if (argc < 2 || argc > 4) {
+		printf("Usage: %s printername [keyname] [offered]\n", argv[0]);
 		return WERR_OK;
 	}
 
-	if (argc == 3) {
+	if (argc >= 3) {
 		keyname = argv[2];
 	} else {
 		keyname = "";
+	}
+
+	if (argc == 4) {
+		offered = atoi(argv[3]);
 	}
 
 	/* Open printer handle */
@@ -2946,7 +2941,7 @@ static WERROR cmd_spoolss_enum_printerkey(struct rpc_pipe_client *cli,
 					       &hnd,
 					       keyname,
 					       &key_buffer,
-					       0);
+					       offered);
 
 	if (!W_ERROR_IS_OK(result)) {
 		goto done;

@@ -712,6 +712,12 @@ WBCLIENT_LIBS
 WBCLIENT_LDFLAGS
 WBCLIENT_INCLUDES
 CTDB_CFLAGS
+KRB5CONFIG
+LDBLDAP
+SMBLDAPUTIL
+SMBLDAP
+FAKE_KASERVER_OBJ
+SMB_FAM_LIBS
 LIBADDNS_SOVER
 UNINSTALL_LIBADDNS
 INSTALL_LIBADDNS
@@ -785,12 +791,6 @@ LIBTALLOC_LIBS
 LIBTALLOC_CFLAGS
 PKG_CONFIG
 USESHARED
-KRB5CONFIG
-LDBLDAP
-SMBLDAPUTIL
-SMBLDAP
-FAKE_KASERVER_OBJ
-SMB_FAM_LIBS
 LIB_PATH_VAR
 ROFF
 SYMSEXT
@@ -1003,6 +1003,16 @@ enable_static
 enable_shared
 enable_pie
 enable_relro
+enable_shared_libs
+with_static_libs
+enable_external_libtalloc
+with_libtalloc
+enable_external_libtdb
+with_libtdb
+with_libnetapi
+with_libsmbclient
+with_libsmbsharemodes
+with_libaddns
 with_libiconv
 enable_fam
 with_afs
@@ -1025,16 +1035,6 @@ with_syslog_facility
 with_quotas
 with_sys_quotas
 with_utmp
-enable_shared_libs
-with_static_libs
-enable_external_libtalloc
-with_libtalloc
-enable_external_libtdb
-with_libtdb
-with_libnetapi
-with_libsmbclient
-with_libsmbsharemodes
-with_libaddns
 with_ctdb
 with_cluster_support
 with_acl_support
@@ -1718,12 +1718,12 @@ Optional Features:
   --enable-pie            Turn on pie support if available (default=yes)
   --enable-relro          Turn on Relocations Read-Only (relro) support if
                           available (default=yes)
-  --enable-fam            Turn on FAM support (default=auto)
   --enable-shared-libs    Use shared libraries internally (default=yes)
   --enable-external-libtalloc
                           Enable external talloc [default=auto]
   --enable-external-libtdb
                           Enable external tdb [default=auto]
+  --enable-fam            Turn on FAM support (default=auto)
   --enable-dnssd          Enable DNS service discovery support (default=no)
   --enable-avahi          Enable Avahi support (default=auto)
   --enable-pthreadpool    Enable pthreads pool helper support (default=auto)
@@ -1777,6 +1777,21 @@ Optional Packages:
   --with-profiling-data   Include gathering source code profile information
                           (default=no)
   --with-readline=DIR     Look for readline include/libs in DIR (default=auto)
+  --with-static-libs=LIBS Comma-separated list of names of (internal)
+                          libraries to link statically (instead of
+                          dynamically)
+  --with-libtalloc        Build the libtalloc shared library (default=yes if
+                          shared libs supported)
+  --with-libtdb           Build the libtdb shared library (default=yes if
+                          shared libs supported)
+  --with-libnetapi        Build the libnetapi shared library (default=yes if
+                          shared libs supported)
+  --with-libsmbclient     Build the libsmbclient shared library (default=yes if
+                          shared libs supported)
+  --with-libsmbsharemodes Build the libsmbsharemodes shared library (default=yes if
+                          shared libs supported)
+  --with-libaddns         Build the libaddns shared library (default=no
+                          (undefined API))
   --with-libiconv=BASEDIR Use libiconv in BASEDIR/lib and BASEDIR/include
                           (default=auto)
   --with-afs              Include AFS clear-text auth support (default=no)
@@ -1804,21 +1819,6 @@ Optional Packages:
   --with-sys-quotas       Include lib/sysquotas.c support (default=auto)
   --with-utmp             Include utmp accounting (default, if supported by
                           OS)
-  --with-static-libs=LIBS Comma-separated list of names of (internal)
-                          libraries to link statically (instead of
-                          dynamically)
-  --with-libtalloc        Build the libtalloc shared library (default=yes if
-                          shared libs supported)
-  --with-libtdb           Build the libtdb shared library (default=yes if
-                          shared libs supported)
-  --with-libnetapi        Build the libnetapi shared library (default=yes if
-                          shared libs supported)
-  --with-libsmbclient     Build the libsmbclient shared library (default=yes if
-                          shared libs supported)
-  --with-libsmbsharemodes Build the libsmbsharemodes shared library (default=yes if
-                          shared libs supported)
-  --with-libaddns         Build the libaddns shared library (default=no
-                          (undefined API))
   --with-ctdb=DIR         Where to find ctdb sources
   --with-cluster-support  Enable cluster extensions (default=auto)
   --with-acl-support      Include ACL support (default=auto)
@@ -40631,7 +40631,9 @@ done
 
 
 
-for ac_func in lstat64 fopen64 atexit grantpt lseek64 ftruncate64
+
+
+for ac_func in lstat64 fopen64 atexit grantpt lseek64 ftruncate64 posix_fallocate posix_fallocate64
 do
 as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 { $as_echo "$as_me:$LINENO: checking for $ac_func" >&5
@@ -51471,11 +51473,16 @@ $as_echo_n "checking ability to build shared libraries... " >&6; }
 
   # and these are for particular systems
   case "$host_os" in
-		*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
-			case "$host_os" in *linux*)
-
+		*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu | *qnx*)
+			case "$host_os" in
+				*linux*)
 cat >>confdefs.h <<\_ACEOF
 #define LINUX 1
+_ACEOF
+ ;;
+				*qnx*)
+cat >>confdefs.h <<\_ACEOF
+#define QNX 1
 _ACEOF
  ;;
 			esac
@@ -51669,16 +51676,6 @@ _ACEOF
 
 cat >>confdefs.h <<\_ACEOF
 #define POSIX_ACL_NEEDS_MASK 1
-_ACEOF
-
-			;;
-		*qnx*)
-cat >>confdefs.h <<\_ACEOF
-#define QNX 1
-_ACEOF
-
-			cat >>confdefs.h <<\_ACEOF
-#define STAT_ST_BLOCKSIZE 512
 _ACEOF
 
 			;;
@@ -52124,6 +52121,2181 @@ _ACEOF
 			LIB_PATH_VAR=LD_LIBRARY_PATH
 			;;
 	esac
+
+
+
+
+
+###########################################################
+#
+# Configuration of subsystem / libraries
+#
+###########################################################
+
+INSTALLLIBCMD_SH=:
+INSTALLLIBCMD_A=:
+UNINSTALLLIBCMD_SH=:
+UNINSTALLLIBCMD_A=:
+
+if test $BLDSHARED = true; then
+	INSTALLLIBCMD_SH="\$(INSTALLCMD)"
+	UNINSTALLLIBCMD_SH="rm -f"
+fi
+if test $enable_static = yes; then
+	INSTALLLIBCMD_A="\$(INSTALLCMD)"
+	UNINSTALLLIBCMD_A="rm -f"
+fi
+
+#################################################
+# --disable-shared-libs
+# can be used to disable the internal use of shared libs altogether
+# (this only has an effect when building shared libs is enabled)
+#
+USESHARED=false
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to use shared libraries internally" >&5
+$as_echo_n "checking whether to use shared libraries internally... " >&6; }
+# Check whether --enable-shared-libs was given.
+if test "${enable_shared_libs+set}" = set; then
+  enableval=$enable_shared_libs; enable_shared_libs=$enableval
+else
+  enable_shared_libs=yes
+fi
+
+
+if test x"$enable_shared_libs" != x"no" ; then
+	USESHARED=$BLDSHARED
+fi
+
+{ $as_echo "$as_me:$LINENO: result: $USESHARED" >&5
+$as_echo "$USESHARED" >&6; }
+
+if test x"$enable_shared_libs" = x"yes" -a x"$BLDSHARED" != x"true" ; then
+	{ $as_echo "$as_me:$LINENO: WARNING: --enable-shared-libs: no support for shared libraries" >&5
+$as_echo "$as_me: WARNING: --enable-shared-libs: no support for shared libraries" >&2;}
+fi
+
+#################################################
+# --with-static-libs=LIBS:
+#   link (internal) libs dynamically or statically?
+#
+# If a subsystem is built as a library then this controls whether they are
+# linked into Samba targets statically or dynamically:
+#
+# * If we build the shared library at all, we link dynamically by default.
+#
+# * We only link statically if we don't build shared or if the library
+#   appears in the --with-static-libs configure option.
+#
+# Example:
+#   --with-static-libs=libtalloc makes use of libtalloc.a instead
+#   of linking the dynamic variant with -ltalloc.
+#
+# NOTE: This option only affects libraries that we do not only build
+# but that samba also links against as libraries (as opposed to linking
+# the plain object files. - This has to be configured in Makefile.in.
+# So in particular it does not harm to give invalid or unknown names here.
+#
+
+
+# Check whether --with-static-libs was given.
+if test "${with_static_libs+set}" = set; then
+  withval=$with_static_libs; if test $withval; then
+  for lib in `echo $withval | sed -e 's/,/ /g'` ; do
+			lib=`echo $lib | tr '[a-z]' '[A-Z]'`
+			eval LINK_$lib=STATIC
+		done
+fi
+
+fi
+
+
+#
+# WORKAROUND:
+#   until we have organized other internal subsystems (as util, registry
+#   and smbconf) into shared libraries, we CAN NOT link libnetapi
+#   dynamically to samba programs.
+#
+LINK_LIBNETAPI=STATIC
+
+LINK_LIBSMBCLIENT=STATIC
+
+#
+#  The library versions are hardcoded here
+#  and filled into the LIBFOO_SOVER variable.
+#
+#  TODO: for talloc and tdb (at least), these should
+#  be extracted from their respective source directories
+#
+# Check whether --enable-external_libtalloc was given.
+if test "${enable_external_libtalloc+set}" = set; then
+  enableval=$enable_external_libtalloc;  enable_external_libtalloc=$enableval
+else
+   enable_external_libtalloc=auto
+fi
+
+
+if test "x$enable_external_libtalloc" != xno
+then
+
+
+if test "x$ac_cv_env_PKG_CONFIG_set" != "xset"; then
+	if test -n "$ac_tool_prefix"; then
+  # Extract the first word of "${ac_tool_prefix}pkg-config", so it can be a program name with args.
+set dummy ${ac_tool_prefix}pkg-config; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_PKG_CONFIG+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $PKG_CONFIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_PKG_CONFIG="$PKG_CONFIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+PKG_CONFIG=$ac_cv_path_PKG_CONFIG
+if test -n "$PKG_CONFIG"; then
+  { $as_echo "$as_me:$LINENO: result: $PKG_CONFIG" >&5
+$as_echo "$PKG_CONFIG" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+fi
+if test -z "$ac_cv_path_PKG_CONFIG"; then
+  ac_pt_PKG_CONFIG=$PKG_CONFIG
+  # Extract the first word of "pkg-config", so it can be a program name with args.
+set dummy pkg-config; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_ac_pt_PKG_CONFIG+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $ac_pt_PKG_CONFIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_ac_pt_PKG_CONFIG="$ac_pt_PKG_CONFIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_ac_pt_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+ac_pt_PKG_CONFIG=$ac_cv_path_ac_pt_PKG_CONFIG
+if test -n "$ac_pt_PKG_CONFIG"; then
+  { $as_echo "$as_me:$LINENO: result: $ac_pt_PKG_CONFIG" >&5
+$as_echo "$ac_pt_PKG_CONFIG" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+  if test "x$ac_pt_PKG_CONFIG" = x; then
+    PKG_CONFIG=""
+  else
+    case $cross_compiling:$ac_tool_warned in
+yes:)
+{ $as_echo "$as_me:$LINENO: WARNING: using cross tools not prefixed with host triplet" >&5
+$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
+ac_tool_warned=yes ;;
+esac
+    PKG_CONFIG=$ac_pt_PKG_CONFIG
+  fi
+else
+  PKG_CONFIG="$ac_cv_path_PKG_CONFIG"
+fi
+
+fi
+if test -n "$PKG_CONFIG"; then
+	_pkg_min_version=0.9.0
+	{ $as_echo "$as_me:$LINENO: checking pkg-config is at least version $_pkg_min_version" >&5
+$as_echo_n "checking pkg-config is at least version $_pkg_min_version... " >&6; }
+	if $PKG_CONFIG --atleast-pkgconfig-version $_pkg_min_version; then
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+	else
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		PKG_CONFIG=""
+	fi
+
+fi
+
+pkg_failed=no
+{ $as_echo "$as_me:$LINENO: checking for LIBTALLOC" >&5
+$as_echo_n "checking for LIBTALLOC... " >&6; }
+
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTALLOC_CFLAGS"; then
+        pkg_cv_LIBTALLOC_CFLAGS="$LIBTALLOC_CFLAGS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"talloc >= 2.0.1\"") >&5
+  ($PKG_CONFIG --exists --print-errors "talloc >= 2.0.1") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_LIBTALLOC_CFLAGS=`$PKG_CONFIG --cflags "talloc >= 2.0.1" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTALLOC_LIBS"; then
+        pkg_cv_LIBTALLOC_LIBS="$LIBTALLOC_LIBS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"talloc >= 2.0.1\"") >&5
+  ($PKG_CONFIG --exists --print-errors "talloc >= 2.0.1") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_LIBTALLOC_LIBS=`$PKG_CONFIG --libs "talloc >= 2.0.1" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        LIBTALLOC_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "talloc >= 2.0.1"`
+        else
+	        LIBTALLOC_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "talloc >= 2.0.1"`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$LIBTALLOC_PKG_ERRORS" >&5
+
+	{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+                if test x$enable_external_libtalloc = xyes; then
+			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtalloc" >&5
+$as_echo "$as_me: error: Unable to find libtalloc" >&2;}
+   { (exit 1); exit 1; }; }
+		  else
+			enable_external_libtalloc=no
+		  fi
+
+elif test $pkg_failed = untried; then
+	if test x$enable_external_libtalloc = xyes; then
+			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtalloc" >&5
+$as_echo "$as_me: error: Unable to find libtalloc" >&2;}
+   { (exit 1); exit 1; }; }
+		  else
+			enable_external_libtalloc=no
+		  fi
+
+else
+	LIBTALLOC_CFLAGS=$pkg_cv_LIBTALLOC_CFLAGS
+	LIBTALLOC_LIBS=$pkg_cv_LIBTALLOC_LIBS
+        { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+	 enable_external_libtalloc=yes
+fi
+fi
+
+if test "x$enable_external_libtalloc" = xno
+then
+	tallocdir=""
+tallocpaths=". lib/talloc talloc ../talloc ../lib/talloc"
+for d in $tallocpaths; do
+	if test -f "$srcdir/$d/talloc.c"; then
+		tallocdir="$d"
+
+		break;
+	fi
+done
+if test x"$tallocdir" = "x"; then
+   { { $as_echo "$as_me:$LINENO: error: cannot find talloc source in $tallocpaths" >&5
+$as_echo "$as_me: error: cannot find talloc source in $tallocpaths" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+TALLOC_OBJ="talloc.o"
+
+
+TALLOC_CFLAGS="-I$srcdir/$tallocdir"
+
+
+TALLOC_LIBS=""
+
+
+# The cast to long int works around a bug in the HP C Compiler
+# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+# This bug is HP SR number 8606223364.
+{ $as_echo "$as_me:$LINENO: checking size of size_t" >&5
+$as_echo_n "checking size of size_t... " >&6; }
+if test "${ac_cv_sizeof_size_t+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  if test "$cross_compiling" = yes; then
+  # Depending upon the size, compute the lo and hi bounds.
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) >= 0)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_lo=0 ac_mid=0
+  while :; do
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) <= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=$ac_mid; break
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo=`expr $ac_mid + 1`
+			if test $ac_lo -le $ac_mid; then
+			  ac_lo= ac_hi=
+			  break
+			fi
+			ac_mid=`expr 2 '*' $ac_mid + 1`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  done
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) < 0)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=-1 ac_mid=-1
+  while :; do
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) >= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_lo=$ac_mid; break
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_hi=`expr '(' $ac_mid ')' - 1`
+			if test $ac_mid -le $ac_hi; then
+			  ac_lo= ac_hi=
+			  break
+			fi
+			ac_mid=`expr 2 '*' $ac_mid`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  done
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo= ac_hi=
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+# Binary search between lo and hi bounds.
+while test "x$ac_lo" != "x$ac_hi"; do
+  ac_mid=`expr '(' $ac_hi - $ac_lo ')' / 2 + $ac_lo`
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) <= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=$ac_mid
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo=`expr '(' $ac_mid ')' + 1`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+done
+case $ac_lo in
+?*) ac_cv_sizeof_size_t=$ac_lo;;
+'') if test "$ac_cv_type_size_t" = yes; then
+     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (size_t)
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: cannot compute sizeof (size_t)
+See \`config.log' for more details." >&2;}
+   { (exit 77); exit 77; }; }; }
+   else
+     ac_cv_sizeof_size_t=0
+   fi ;;
+esac
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+static long int longval () { return (long int) (sizeof (size_t)); }
+static unsigned long int ulongval () { return (long int) (sizeof (size_t)); }
+#include <stdio.h>
+#include <stdlib.h>
+int
+main ()
+{
+
+  FILE *f = fopen ("conftest.val", "w");
+  if (! f)
+    return 1;
+  if (((long int) (sizeof (size_t))) < 0)
+    {
+      long int i = longval ();
+      if (i != ((long int) (sizeof (size_t))))
+	return 1;
+      fprintf (f, "%ld", i);
+    }
+  else
+    {
+      unsigned long int i = ulongval ();
+      if (i != ((long int) (sizeof (size_t))))
+	return 1;
+      fprintf (f, "%lu", i);
+    }
+  /* Do not output a trailing newline, as this causes \r\n confusion
+     on some platforms.  */
+  return ferror (f) || fclose (f) != 0;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_sizeof_size_t=`cat conftest.val`
+else
+  $as_echo "$as_me: program exited with status $ac_status" >&5
+$as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+if test "$ac_cv_type_size_t" = yes; then
+     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (size_t)
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: cannot compute sizeof (size_t)
+See \`config.log' for more details." >&2;}
+   { (exit 77); exit 77; }; }; }
+   else
+     ac_cv_sizeof_size_t=0
+   fi
+fi
+rm -rf conftest.dSYM
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.val
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_sizeof_size_t" >&5
+$as_echo "$ac_cv_sizeof_size_t" >&6; }
+
+
+
+cat >>confdefs.h <<_ACEOF
+#define SIZEOF_SIZE_T $ac_cv_sizeof_size_t
+_ACEOF
+
+
+# The cast to long int works around a bug in the HP C Compiler
+# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+# This bug is HP SR number 8606223364.
+{ $as_echo "$as_me:$LINENO: checking size of void *" >&5
+$as_echo_n "checking size of void *... " >&6; }
+if test "${ac_cv_sizeof_void_p+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  if test "$cross_compiling" = yes; then
+  # Depending upon the size, compute the lo and hi bounds.
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (void *))) >= 0)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_lo=0 ac_mid=0
+  while :; do
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (void *))) <= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=$ac_mid; break
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo=`expr $ac_mid + 1`
+			if test $ac_lo -le $ac_mid; then
+			  ac_lo= ac_hi=
+			  break
+			fi
+			ac_mid=`expr 2 '*' $ac_mid + 1`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  done
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (void *))) < 0)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=-1 ac_mid=-1
+  while :; do
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (void *))) >= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_lo=$ac_mid; break
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_hi=`expr '(' $ac_mid ')' - 1`
+			if test $ac_mid -le $ac_hi; then
+			  ac_lo= ac_hi=
+			  break
+			fi
+			ac_mid=`expr 2 '*' $ac_mid`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  done
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo= ac_hi=
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+# Binary search between lo and hi bounds.
+while test "x$ac_lo" != "x$ac_hi"; do
+  ac_mid=`expr '(' $ac_hi - $ac_lo ')' / 2 + $ac_lo`
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(((long int) (sizeof (void *))) <= $ac_mid)];
+test_array [0] = 0
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_hi=$ac_mid
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_lo=`expr '(' $ac_mid ')' + 1`
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+done
+case $ac_lo in
+?*) ac_cv_sizeof_void_p=$ac_lo;;
+'') if test "$ac_cv_type_void_p" = yes; then
+     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (void *)
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: cannot compute sizeof (void *)
+See \`config.log' for more details." >&2;}
+   { (exit 77); exit 77; }; }; }
+   else
+     ac_cv_sizeof_void_p=0
+   fi ;;
+esac
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+static long int longval () { return (long int) (sizeof (void *)); }
+static unsigned long int ulongval () { return (long int) (sizeof (void *)); }
+#include <stdio.h>
+#include <stdlib.h>
+int
+main ()
+{
+
+  FILE *f = fopen ("conftest.val", "w");
+  if (! f)
+    return 1;
+  if (((long int) (sizeof (void *))) < 0)
+    {
+      long int i = longval ();
+      if (i != ((long int) (sizeof (void *))))
+	return 1;
+      fprintf (f, "%ld", i);
+    }
+  else
+    {
+      unsigned long int i = ulongval ();
+      if (i != ((long int) (sizeof (void *))))
+	return 1;
+      fprintf (f, "%lu", i);
+    }
+  /* Do not output a trailing newline, as this causes \r\n confusion
+     on some platforms.  */
+  return ferror (f) || fclose (f) != 0;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_sizeof_void_p=`cat conftest.val`
+else
+  $as_echo "$as_me: program exited with status $ac_status" >&5
+$as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+if test "$ac_cv_type_void_p" = yes; then
+     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (void *)
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: cannot compute sizeof (void *)
+See \`config.log' for more details." >&2;}
+   { (exit 77); exit 77; }; }; }
+   else
+     ac_cv_sizeof_void_p=0
+   fi
+fi
+rm -rf conftest.dSYM
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.val
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_sizeof_void_p" >&5
+$as_echo "$ac_cv_sizeof_void_p" >&6; }
+
+
+
+cat >>confdefs.h <<_ACEOF
+#define SIZEOF_VOID_P $ac_cv_sizeof_void_p
+_ACEOF
+
+
+
+if test $ac_cv_sizeof_size_t -lt $ac_cv_sizeof_void_p; then
+	{ $as_echo "$as_me:$LINENO: WARNING: size_t cannot represent the amount of used memory of a process" >&5
+$as_echo "$as_me: WARNING: size_t cannot represent the amount of used memory of a process" >&2;}
+	{ $as_echo "$as_me:$LINENO: WARNING: please report this to <samba-technical@samba.org>" >&5
+$as_echo "$as_me: WARNING: please report this to <samba-technical@samba.org>" >&2;}
+	{ $as_echo "$as_me:$LINENO: WARNING: sizeof(size_t) = $ac_cv_sizeof_size_t" >&5
+$as_echo "$as_me: WARNING: sizeof(size_t) = $ac_cv_sizeof_size_t" >&2;}
+	{ $as_echo "$as_me:$LINENO: WARNING: sizeof(void *) = $ac_cv_sizeof_void_p" >&5
+$as_echo "$as_me: WARNING: sizeof(void *) = $ac_cv_sizeof_void_p" >&2;}
+	{ { $as_echo "$as_me:$LINENO: error: sizeof(size_t) < sizeof(void *)" >&5
+$as_echo "$as_me: error: sizeof(size_t) < sizeof(void *)" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+if test x"$VERSIONSCRIPT" != "x"; then
+    EXPORTSFILE=talloc.exports
+
+fi
+
+	LINK_LIBTALLOC=STATIC
+
+
+
+
+
+LIBTALLOC_SHARED_TARGET=bin/libtalloc.$SHLIBEXT
+LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
+LIBTALLOC_SHARED=
+LIBTALLOC_STATIC=
+LIBTALLOC_LIBS=-ltalloc
+LIBTALLOC_TARGET=
+INSTALL_LIBTALLOC=
+UNINSTALL_LIBTALLOC=
+
+LIBTALLOC_SOVER=2
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libtalloc shared library" >&5
+$as_echo_n "checking whether to build the libtalloc shared library... " >&6; }
+
+
+# Check whether --with-libtalloc was given.
+if test "${with_libtalloc+set}" = set; then
+  withval=$with_libtalloc;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBTALLOC=installlibtalloc
+	UNINSTALL_LIBTALLOC=uninstalllibtalloc
+	if eval $BLDSHARED = true; then
+		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
+		LIBTALLOC_TARGET=$LIBTALLOC_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
+			enable_static=yes
+			LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
+			LIBTALLOC_LIBS=$LIBTALLOC_STATIC_TARGET
+		else
+			LIBTALLOC_LIBS=-ltalloc
+		fi
+	else
+		enable_static=yes
+		LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
+		LIBTALLOC_LIBS=$LIBTALLOC_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
+fi
+
+
+
+
+
+
+	LIBTALLOC_OBJ0=""
+	for obj in ${TALLOC_OBJ}; do
+		LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
+	done
+	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TALLOC_CFLAGS}"
+	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TALLOC_CFLAGS}"
+
+
+	TALLOCTORT="bin/talloctort\$(EXEEXT)"
+
+fi
+
+
+# Check whether --enable-external_libtdb was given.
+if test "${enable_external_libtdb+set}" = set; then
+  enableval=$enable_external_libtdb;  enable_external_libtalloc=$enableval
+else
+   enable_external_libtalloc=auto
+fi
+
+
+if test "x$enable_external_libtdb" != xno
+then
+
+pkg_failed=no
+{ $as_echo "$as_me:$LINENO: checking for LIBTDB" >&5
+$as_echo_n "checking for LIBTDB... " >&6; }
+
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTDB_CFLAGS"; then
+        pkg_cv_LIBTDB_CFLAGS="$LIBTDB_CFLAGS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.7\"") >&5
+  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.7") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_LIBTDB_CFLAGS=`$PKG_CONFIG --cflags "tdb >= 1.1.7" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTDB_LIBS"; then
+        pkg_cv_LIBTDB_LIBS="$LIBTDB_LIBS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.7\"") >&5
+  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.7") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_LIBTDB_LIBS=`$PKG_CONFIG --libs "tdb >= 1.1.7" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "tdb >= 1.1.7"`
+        else
+	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "tdb >= 1.1.7"`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$LIBTDB_PKG_ERRORS" >&5
+
+	{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		if test x$enable_external_libtdb = xyes; then
+			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtdb" >&5
+$as_echo "$as_me: error: Unable to find libtdb" >&2;}
+   { (exit 1); exit 1; }; }
+		else
+			enable_external_libtdb=no
+		fi
+
+elif test $pkg_failed = untried; then
+
+		if test x$enable_external_libtdb = xyes; then
+			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtdb" >&5
+$as_echo "$as_me: error: Unable to find libtdb" >&2;}
+   { (exit 1); exit 1; }; }
+		else
+			enable_external_libtdb=no
+		fi
+
+else
+	LIBTDB_CFLAGS=$pkg_cv_LIBTDB_CFLAGS
+	LIBTDB_LIBS=$pkg_cv_LIBTDB_LIBS
+        { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+	 enable_external_libtdb=yes
+fi
+fi
+
+
+if test "x$enable_external_libtdb" = xno
+then
+	tdbdir=""
+tdbpaths=". lib/tdb tdb ../tdb ../lib/tdb"
+for d in $tdbpaths; do
+	if test -f "$srcdir/$d/common/tdb.c"; then
+		tdbdir="$d"
+
+		break;
+	fi
+done
+if test x"$tdbdir" = "x"; then
+   { { $as_echo "$as_me:$LINENO: error: cannot find tdb source in $tdbpaths" >&5
+$as_echo "$as_me: error: cannot find tdb source in $tdbpaths" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
+TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o"
+
+
+
+TDB_LIBS=""
+
+
+TDB_CFLAGS="-I$tdbdir/include"
+
+
+
+
+
+
+
+for ac_func in mmap pread pwrite getpagesize utime
+do
+as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $ac_func" >&5
+$as_echo_n "checking for $ac_func... " >&6; }
+if { as_var=$as_ac_var; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define $ac_func to an innocuous variant, in case <limits.h> declares $ac_func.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define $ac_func innocuous_$ac_func
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char $ac_func (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef $ac_func
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char $ac_func ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_$ac_func || defined __stub___$ac_func
+choke me
+#endif
+
+int
+main ()
+{
+return $ac_func ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  eval "$as_ac_var=yes"
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	eval "$as_ac_var=no"
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+ac_res=`eval 'as_val=${'$as_ac_var'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+as_val=`eval 'as_val=${'$as_ac_var'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+done
+
+
+
+
+for ac_header in getopt.h sys/select.h sys/time.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
+$as_echo_n "checking $ac_header usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
+$as_echo_n "checking $ac_header presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+
+fi
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+
+
+ { $as_echo "$as_me:$LINENO: checking for pread declaration" >&5
+$as_echo_n "checking for pread declaration... " >&6; }
+if test "${ac_cv_have_pread_decl+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <unistd.h>
+int
+main ()
+{
+int i = (int)pread
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_have_pread_decl=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_have_pread_decl=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_pread_decl" >&5
+$as_echo "$ac_cv_have_pread_decl" >&6; }
+ if test x"$ac_cv_have_pread_decl" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PREAD_DECL 1
+_ACEOF
+
+ fi
+
+
+ { $as_echo "$as_me:$LINENO: checking for pwrite declaration" >&5
+$as_echo_n "checking for pwrite declaration... " >&6; }
+if test "${ac_cv_have_pwrite_decl+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <unistd.h>
+int
+main ()
+{
+int i = (int)pwrite
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_have_pwrite_decl=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_have_pwrite_decl=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_pwrite_decl" >&5
+$as_echo "$ac_cv_have_pwrite_decl" >&6; }
+ if test x"$ac_cv_have_pwrite_decl" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PWRITE_DECL 1
+_ACEOF
+
+ fi
+
+
+if test x"$VERSIONSCRIPT" != "x"; then
+    EXPORTSFILE=tdb.exports
+
+fi
+
+	LINK_LIBTDB=STATIC
+
+
+
+
+
+LIBTDB_SHARED_TARGET=bin/libtdb.$SHLIBEXT
+LIBTDB_STATIC_TARGET=bin/libtdb.a
+LIBTDB_SHARED=
+LIBTDB_STATIC=
+LIBTDB_LIBS=-ltdb
+LIBTDB_TARGET=
+INSTALL_LIBTDB=
+UNINSTALL_LIBTDB=
+
+LIBTDB_SOVER=1
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libtdb shared library" >&5
+$as_echo_n "checking whether to build the libtdb shared library... " >&6; }
+
+
+# Check whether --with-libtdb was given.
+if test "${with_libtdb+set}" = set; then
+  withval=$with_libtdb;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBTDB=installlibtdb
+	UNINSTALL_LIBTDB=uninstalllibtdb
+	if eval $BLDSHARED = true; then
+		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
+		LIBTDB_TARGET=$LIBTDB_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
+			enable_static=yes
+			LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
+			LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
+		else
+			LIBTDB_LIBS=-ltdb
+		fi
+	else
+		enable_static=yes
+		LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
+		LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
+fi
+
+
+
+
+
+
+	LIBTDB_OBJ0=""
+	for obj in ${TDB_OBJ}; do
+		LIBTDB_OBJ0="${LIBTDB_OBJ0} ${tdbdir}/${obj}"
+	done
+
+	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TDB_CFLAGS}"
+	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TDB_CFLAGS}"
+
+	TDBBACKUP="bin/tdbbackup\$(EXEEXT)"
+
+	TDBDUMP="bin/tdbdump\$(EXEEXT)"
+
+	TDBTOOL="bin/tdbtool\$(EXEEXT)"
+
+	TDBTORTURE="bin/tdbtorture\$(EXEEXT)"
+
+fi
+
+
+
+
+
+
+LIBNETAPI_SHARED_TARGET=bin/libnetapi.$SHLIBEXT
+LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
+LIBNETAPI_SHARED=
+LIBNETAPI_STATIC=
+LIBNETAPI_LIBS=-lnetapi
+LIBNETAPI_TARGET=
+INSTALL_LIBNETAPI=
+UNINSTALL_LIBNETAPI=
+
+LIBNETAPI_SOVER=0
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libnetapi shared library" >&5
+$as_echo_n "checking whether to build the libnetapi shared library... " >&6; }
+
+
+# Check whether --with-libnetapi was given.
+if test "${with_libnetapi+set}" = set; then
+  withval=$with_libnetapi;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBNETAPI=installlibnetapi
+	UNINSTALL_LIBNETAPI=uninstalllibnetapi
+	if eval $BLDSHARED = true; then
+		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
+		LIBNETAPI_TARGET=$LIBNETAPI_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
+			enable_static=yes
+			LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
+			LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
+		else
+			LIBNETAPI_LIBS=-lnetapi
+		fi
+	else
+		enable_static=yes
+		LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
+		LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
+fi
+
+
+
+
+
+
+
+
+
+
+
+LIBSMBCLIENT_SHARED_TARGET=bin/libsmbclient.$SHLIBEXT
+LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
+LIBSMBCLIENT_SHARED=
+LIBSMBCLIENT_STATIC=
+LIBSMBCLIENT_LIBS=-lsmbclient
+LIBSMBCLIENT_TARGET=
+INSTALL_LIBSMBCLIENT=
+UNINSTALL_LIBSMBCLIENT=
+
+LIBSMBCLIENT_SOVER=0
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libsmbclient shared library" >&5
+$as_echo_n "checking whether to build the libsmbclient shared library... " >&6; }
+
+
+# Check whether --with-libsmbclient was given.
+if test "${with_libsmbclient+set}" = set; then
+  withval=$with_libsmbclient;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBSMBCLIENT=installlibsmbclient
+	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
+	if eval $BLDSHARED = true; then
+		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
+		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
+			enable_static=yes
+			LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
+			LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
+		else
+			LIBSMBCLIENT_LIBS=-lsmbclient
+		fi
+	else
+		enable_static=yes
+		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
+		LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
+fi
+
+
+
+
+
+
+
+
+
+
+
+LIBSMBSHAREMODES_SHARED_TARGET=bin/libsmbsharemodes.$SHLIBEXT
+LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
+LIBSMBSHAREMODES_SHARED=
+LIBSMBSHAREMODES_STATIC=
+LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
+LIBSMBSHAREMODES_TARGET=
+INSTALL_LIBSMBSHAREMODES=
+UNINSTALL_LIBSMBSHAREMODES=
+
+LIBSMBSHAREMODES_SOVER=0
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libsmbsharemodes shared library" >&5
+$as_echo_n "checking whether to build the libsmbsharemodes shared library... " >&6; }
+
+
+# Check whether --with-libsmbsharemodes was given.
+if test "${with_libsmbsharemodes+set}" = set; then
+  withval=$with_libsmbsharemodes;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
+	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
+	if eval $BLDSHARED = true; then
+		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
+		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
+			enable_static=yes
+			LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
+			LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
+		else
+			LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
+		fi
+	else
+		enable_static=yes
+		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
+		LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
+fi
+
+
+
+
+
+
+
+
+
+
+
+LIBADDNS_SHARED_TARGET=bin/libaddns.$SHLIBEXT
+LIBADDNS_STATIC_TARGET=bin/libaddns.a
+LIBADDNS_SHARED=
+LIBADDNS_STATIC=
+LIBADDNS_LIBS=-laddns
+LIBADDNS_TARGET=
+INSTALL_LIBADDNS=
+UNINSTALL_LIBADDNS=
+
+LIBADDNS_SOVER=0
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
+$as_echo_n "checking whether to build the libaddns shared library... " >&6; }
+
+
+# Check whether --with-libaddns was given.
+if test "${with_libaddns+set}" = set; then
+  withval=$with_libaddns;
+case "$withval" in
+	yes)
+		build_lib=yes
+		;;
+	*)
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+esac
+
+else
+
+# if unspecified, default is not to build
+{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+build_lib=no
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBADDNS=installlibaddns
+	UNINSTALL_LIBADDNS=uninstalllibaddns
+	if eval $BLDSHARED = true; then
+		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
+		LIBADDNS_TARGET=$LIBADDNS_SHARED_TARGET
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
+			enable_static=yes
+			LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
+			LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
+		else
+			LIBADDNS_LIBS=-laddns
+		fi
+	else
+		enable_static=yes
+		LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
+		LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
+		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
+fi
+
+
+
+
+
 
 
 
@@ -54350,7 +56522,8 @@ if test x"$ac_cv_header_utmp_h" = x"yes"; then
 
 
 
-for ac_func in pututline pututxline updwtmp updwtmpx getutmpx
+
+for ac_func in pututline pututxline updwtmp updwtmpx getutmpx getutxent
 do
 as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 { $as_echo "$as_me:$LINENO: checking for $ac_func" >&5
@@ -55298,6 +57471,61 @@ $as_echo_n "checking for iconv in $i/$l... " >&6; }
     jm_cv_giconv=no
     jm_save_LIBS="$LIBS"
 
+    if test "$jm_cv_func_iconv" != yes; then
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <stdlib.h>
+#include <giconv.h>
+int
+main ()
+{
+iconv_t cd = iconv_open("","");
+       iconv(cd,NULL,NULL,NULL,NULL);
+       iconv_close(cd);
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  jm_cv_func_iconv=yes
+       jm_cv_include="giconv.h"
+       jm_cv_giconv="yes"
+       jm_cv_lib_iconv=""
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+
         if test "$jm_cv_func_iconv" != yes; then
       cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
@@ -55306,7 +57534,7 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 #include <stdlib.h>
-#include <giconv.h>
+#include <iconv.h>
 int
 main ()
 {
@@ -55338,9 +57566,8 @@ $as_echo "$ac_try_echo") >&5
 	 test "$cross_compiling" = yes ||
 	 $as_test_x conftest$ac_exeext
        }; then
-  jm_cv_func_iconv=yes
-         jm_cv_include="giconv.h"
-         jm_cv_giconv="yes"
+  jm_cv_include="iconv.h"
+         jm_cv_func_iconv=yes
          jm_cv_lib_iconv=""
 else
   $as_echo "$as_me: failed program was:" >&5
@@ -55354,6 +57581,8 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
 
             if test "$jm_cv_func_iconv" != yes; then
+        jm_save_LIBS="$LIBS"
+        LIBS="$LIBS -lgiconv"
         cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -55361,7 +57590,7 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 #include <stdlib.h>
-#include <iconv.h>
+#include <giconv.h>
 int
 main ()
 {
@@ -55393,67 +57622,11 @@ $as_echo "$ac_try_echo") >&5
 	 test "$cross_compiling" = yes ||
 	 $as_test_x conftest$ac_exeext
        }; then
-  jm_cv_include="iconv.h"
-           jm_cv_func_iconv=yes
-           jm_cv_lib_iconv=""
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-
-fi
-
-rm -rf conftest.dSYM
-rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
-      conftest$ac_exeext conftest.$ac_ext
-
-          if test "$jm_cv_lib_iconv" != yes; then
-            jm_save_LIBS="$LIBS"
-            LIBS="$LIBS -lgiconv"
-            cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include <stdlib.h>
-#include <giconv.h>
-int
-main ()
-{
-iconv_t cd = iconv_open("","");
-               iconv(cd,NULL,NULL,NULL,NULL);
-               iconv_close(cd);
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest$ac_exeext && {
-	 test "$cross_compiling" = yes ||
-	 $as_test_x conftest$ac_exeext
-       }; then
   jm_cv_lib_iconv=yes
-              jm_cv_func_iconv=yes
-              jm_cv_include="giconv.h"
-              jm_cv_giconv=yes
-              jm_cv_lib_iconv="giconv"
+          jm_cv_func_iconv=yes
+          jm_cv_include="giconv.h"
+          jm_cv_giconv=yes
+          jm_cv_lib_iconv="giconv"
 else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
@@ -55465,9 +57638,9 @@ rm -rf conftest.dSYM
 rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
 
-           LIBS="$jm_save_LIBS"
+        LIBS="$jm_save_LIBS"
 
-        if test "$jm_cv_func_iconv" != yes; then
+                if test "$jm_cv_func_iconv" != yes; then
           jm_save_LIBS="$LIBS"
           LIBS="$LIBS -liconv"
           cat >conftest.$ac_ext <<_ACEOF
@@ -55524,7 +57697,7 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
           LIBS="$jm_save_LIBS"
 
-          if test "$jm_cv_lib_iconv" != yes; then
+                    if test "$jm_cv_func_iconv" != yes; then
             jm_save_LIBS="$LIBS"
             LIBS="$LIBS -lbiconv"
             cat >conftest.$ac_ext <<_ACEOF
@@ -55583,7 +57756,7 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
 
             LIBS="$jm_save_LIBS"
-	  fi
+          fi
         fi
       fi
     fi
@@ -59445,6 +61618,74 @@ _ACEOF
   fi
 fi
 
+# glibc up to 2.3.6 had dangerously broken posix_fallocate(). DON'T USE IT.
+{ $as_echo "$as_me:$LINENO: checking for broken posix_fallocate" >&5
+$as_echo_n "checking for broken posix_fallocate... " >&6; }
+if test "${samba_cv_HAVE_BROKEN_POSIX_FALLOCATE+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+  #define _XOPEN_SOURCE 600
+  #include <stdlib.h>
+  #if defined(__GLIBC__) && ((__GLIBC__ < 2) || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 4))
+    probably broken posix_fallocate
+  #endif
+
+int
+main ()
+{
+
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_HAVE_BROKEN_POSIX_FALLOCATE=no
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_HAVE_BROKEN_POSIX_FALLOCATE=yes
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_BROKEN_POSIX_FALLOCATE" >&5
+$as_echo "$samba_cv_HAVE_BROKEN_POSIX_FALLOCATE" >&6; }
+if test x"$samba_cv_HAVE_BROKEN_POSIX_FALLOCATE" = xyes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BROKEN_POSIX_FALLOCATE /**/
+_ACEOF
+
+fi
+
+
 { $as_echo "$as_me:$LINENO: checking for st_blocks in struct stat" >&5
 $as_echo_n "checking for st_blocks in struct stat... " >&6; }
 if test "${samba_cv_HAVE_STAT_ST_BLOCKS+set}" = set; then
@@ -62059,8 +64300,7 @@ $as_echo "no" >&6; }
   # note that this check is done here to allow for different kerberos
   # include paths
 
-
-for ac_header in krb5.h krb5/krb5.h
+for ac_header in krb5.h
 do
 as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -62248,8 +64488,8 @@ _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
-#ifdef HAVE_KRB5_KRB5_H
- #include <krb5/krb5.h>
+#ifdef HAVE_KRB5_H
+ #include <krb5.h>
  #endif
 
 
@@ -62304,6 +64544,69 @@ done
 	if test x"$BLDSHARED" = x"true" ; then
 		EXTRA_ALL_TARGETS="$EXTRA_ALL_TARGETS $WINBIND_KRB5_LOCATOR"
 	fi
+  fi
+
+  # check for new heimdal KRB5_DEPRECATED handling
+
+  { $as_echo "$as_me:$LINENO: checking for KRB5_DEPRECATED define taking an identifier" >&5
+$as_echo_n "checking for KRB5_DEPRECATED define taking an identifier... " >&6; }
+if test "${samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#define KRB5_DEPRECATED 1
+      #include <krb5.h>
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER" >&5
+$as_echo "$samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER" >&6; }
+
+  if test x"$samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER 1
+_ACEOF
+
   fi
 fi
 
@@ -72118,6 +74421,82 @@ $as_echo "$create_pam_modules" >&6; }
 fi # try_pam != no
 
 #################################################
+# check for PAM_RADIO_TYPE
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#if (!defined(LINUX))
+
+#define PAM_EXTERN extern
+#if defined(HAVE_SECURITY_PAM_APPL_H)
+#include <security/pam_appl.h>
+#elif defined(HAVE_PAM_PAM_APPL_H)
+#include <pam/pam_appl.h>
+#endif
+
+#endif
+
+#if defined(HAVE_SECURITY_PAM_MODULES_H)
+#include <security/pam_modules.h>
+#elif defined(HAVE_PAM_PAM_MODULES_H)
+#include <pam/pam_modules.h>
+#endif
+
+#if defined(HAVE_SECURITY__PAM_MACROS_H)
+#include <security/_pam_macros.h>
+#elif defined(HAVE_PAM__PAM_MACROS_H)
+#include <pam/_pam_macros.h>
+#endif
+
+#ifdef HAVE_SECURITY_PAM_EXT_H
+#include <security/pam_ext.h>
+#endif
+
+int
+main ()
+{
+int i; i = PAM_RADIO_TYPE;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PAM_RADIO_TYPE 1
+_ACEOF
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+#################################################
 # check for pam_smbpass support
 PAM_MODULES=""
 INSTALL_PAM_MODULES=""
@@ -74324,2170 +76703,6 @@ else
 $as_echo "no$utmp_no_reason" >&6; }
 fi
 
-INSTALLLIBCMD_SH=:
-INSTALLLIBCMD_A=:
-UNINSTALLLIBCMD_SH=:
-UNINSTALLLIBCMD_A=:
-
-if test $BLDSHARED = true; then
-	INSTALLLIBCMD_SH="\$(INSTALLCMD)"
-	UNINSTALLLIBCMD_SH="rm -f"
-fi
-if test $enable_static = yes; then
-	INSTALLLIBCMD_A="\$(INSTALLCMD)"
-	UNINSTALLLIBCMD_A="rm -f"
-fi
-
-#################################################
-# --disable-shared-libs
-# can be used to disable the internal use of shared libs altogether
-# (this only has an effect when building shared libs is enabled)
-#
-USESHARED=false
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to use shared libraries internally" >&5
-$as_echo_n "checking whether to use shared libraries internally... " >&6; }
-# Check whether --enable-shared-libs was given.
-if test "${enable_shared_libs+set}" = set; then
-  enableval=$enable_shared_libs; enable_shared_libs=$enableval
-else
-  enable_shared_libs=yes
-fi
-
-
-if test x"$enable_shared_libs" != x"no" ; then
-	USESHARED=$BLDSHARED
-fi
-
-{ $as_echo "$as_me:$LINENO: result: $USESHARED" >&5
-$as_echo "$USESHARED" >&6; }
-
-if test x"$enable_shared_libs" = x"yes" -a x"$BLDSHARED" != x"true" ; then
-	{ $as_echo "$as_me:$LINENO: WARNING: --enable-shared-libs: no support for shared libraries" >&5
-$as_echo "$as_me: WARNING: --enable-shared-libs: no support for shared libraries" >&2;}
-fi
-
-#################################################
-# --with-static-libs=LIBS:
-#   link (internal) libs dynamically or statically?
-#
-# If a subsystem is built as a library then this controls whether they are
-# linked into Samba targets statically or dynamically:
-#
-# * If we build the shared library at all, we link dynamically by default.
-#
-# * We only link statically if we don't build shared or if the library
-#   appears in the --with-static-libs configure option.
-#
-# Example:
-#   --with-static-libs=libtalloc makes use of libtalloc.a instead
-#   of linking the dynamic variant with -ltalloc.
-#
-# NOTE: This option only affects libraries that we do not only build
-# but that samba also links against as libraries (as opposed to linking
-# the plain object files. - This has to be configured in Makefile.in.
-# So in particular it does not harm to give invalid or unknown names here.
-#
-
-
-# Check whether --with-static-libs was given.
-if test "${with_static_libs+set}" = set; then
-  withval=$with_static_libs; if test $withval; then
-  for lib in `echo $withval | sed -e 's/,/ /g'` ; do
-			lib=`echo $lib | tr '[a-z]' '[A-Z]'`
-			eval LINK_$lib=STATIC
-		done
-fi
-
-fi
-
-
-#
-# WORKAROUND:
-#   until we have organized other internal subsystems (as util, registry
-#   and smbconf) into shared libraries, we CAN NOT link libnetapi
-#   dynamically to samba programs.
-#
-LINK_LIBNETAPI=STATIC
-
-LINK_LIBSMBCLIENT=STATIC
-
-#
-#  The library versions are hardcoded here
-#  and filled into the LIBFOO_SOVER variable.
-#
-#  TODO: for talloc and tdb (at least), these should
-#  be extracted from their respective source directories
-#
-# Check whether --enable-external_libtalloc was given.
-if test "${enable_external_libtalloc+set}" = set; then
-  enableval=$enable_external_libtalloc;  enable_external_libtalloc=$enableval
-else
-   enable_external_libtalloc=auto
-fi
-
-
-if test "x$enable_external_libtalloc" != xno
-then
-
-
-if test "x$ac_cv_env_PKG_CONFIG_set" != "xset"; then
-	if test -n "$ac_tool_prefix"; then
-  # Extract the first word of "${ac_tool_prefix}pkg-config", so it can be a program name with args.
-set dummy ${ac_tool_prefix}pkg-config; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_PKG_CONFIG+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $PKG_CONFIG in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_PKG_CONFIG="$PKG_CONFIG" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-PKG_CONFIG=$ac_cv_path_PKG_CONFIG
-if test -n "$PKG_CONFIG"; then
-  { $as_echo "$as_me:$LINENO: result: $PKG_CONFIG" >&5
-$as_echo "$PKG_CONFIG" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-fi
-if test -z "$ac_cv_path_PKG_CONFIG"; then
-  ac_pt_PKG_CONFIG=$PKG_CONFIG
-  # Extract the first word of "pkg-config", so it can be a program name with args.
-set dummy pkg-config; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_ac_pt_PKG_CONFIG+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $ac_pt_PKG_CONFIG in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_ac_pt_PKG_CONFIG="$ac_pt_PKG_CONFIG" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_ac_pt_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-ac_pt_PKG_CONFIG=$ac_cv_path_ac_pt_PKG_CONFIG
-if test -n "$ac_pt_PKG_CONFIG"; then
-  { $as_echo "$as_me:$LINENO: result: $ac_pt_PKG_CONFIG" >&5
-$as_echo "$ac_pt_PKG_CONFIG" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-  if test "x$ac_pt_PKG_CONFIG" = x; then
-    PKG_CONFIG=""
-  else
-    case $cross_compiling:$ac_tool_warned in
-yes:)
-{ $as_echo "$as_me:$LINENO: WARNING: using cross tools not prefixed with host triplet" >&5
-$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
-ac_tool_warned=yes ;;
-esac
-    PKG_CONFIG=$ac_pt_PKG_CONFIG
-  fi
-else
-  PKG_CONFIG="$ac_cv_path_PKG_CONFIG"
-fi
-
-fi
-if test -n "$PKG_CONFIG"; then
-	_pkg_min_version=0.9.0
-	{ $as_echo "$as_me:$LINENO: checking pkg-config is at least version $_pkg_min_version" >&5
-$as_echo_n "checking pkg-config is at least version $_pkg_min_version... " >&6; }
-	if $PKG_CONFIG --atleast-pkgconfig-version $_pkg_min_version; then
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-	else
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		PKG_CONFIG=""
-	fi
-
-fi
-
-pkg_failed=no
-{ $as_echo "$as_me:$LINENO: checking for LIBTALLOC" >&5
-$as_echo_n "checking for LIBTALLOC... " >&6; }
-
-if test -n "$PKG_CONFIG"; then
-    if test -n "$LIBTALLOC_CFLAGS"; then
-        pkg_cv_LIBTALLOC_CFLAGS="$LIBTALLOC_CFLAGS"
-    else
-        if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"talloc >= 2.0.1\"") >&5
-  ($PKG_CONFIG --exists --print-errors "talloc >= 2.0.1") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; then
-  pkg_cv_LIBTALLOC_CFLAGS=`$PKG_CONFIG --cflags "talloc >= 2.0.1" 2>/dev/null`
-else
-  pkg_failed=yes
-fi
-    fi
-else
-	pkg_failed=untried
-fi
-if test -n "$PKG_CONFIG"; then
-    if test -n "$LIBTALLOC_LIBS"; then
-        pkg_cv_LIBTALLOC_LIBS="$LIBTALLOC_LIBS"
-    else
-        if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"talloc >= 2.0.1\"") >&5
-  ($PKG_CONFIG --exists --print-errors "talloc >= 2.0.1") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; then
-  pkg_cv_LIBTALLOC_LIBS=`$PKG_CONFIG --libs "talloc >= 2.0.1" 2>/dev/null`
-else
-  pkg_failed=yes
-fi
-    fi
-else
-	pkg_failed=untried
-fi
-
-
-
-if test $pkg_failed = yes; then
-
-if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
-        _pkg_short_errors_supported=yes
-else
-        _pkg_short_errors_supported=no
-fi
-        if test $_pkg_short_errors_supported = yes; then
-	        LIBTALLOC_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "talloc >= 2.0.1"`
-        else
-	        LIBTALLOC_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "talloc >= 2.0.1"`
-        fi
-	# Put the nasty error message in config.log where it belongs
-	echo "$LIBTALLOC_PKG_ERRORS" >&5
-
-	{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-                 if test x$enable_external_libtalloc = xyes; then
-		 	{ { $as_echo "$as_me:$LINENO: error: Unable to find libtalloc" >&5
-$as_echo "$as_me: error: Unable to find libtalloc" >&2;}
-   { (exit 1); exit 1; }; }
-	      else
-			enable_external_libtalloc=no
-		  fi
-
-elif test $pkg_failed = untried; then
-	 if test x$enable_external_libtalloc = xyes; then
-		 	{ { $as_echo "$as_me:$LINENO: error: Unable to find libtalloc" >&5
-$as_echo "$as_me: error: Unable to find libtalloc" >&2;}
-   { (exit 1); exit 1; }; }
-	      else
-			enable_external_libtalloc=no
-		  fi
-
-else
-	LIBTALLOC_CFLAGS=$pkg_cv_LIBTALLOC_CFLAGS
-	LIBTALLOC_LIBS=$pkg_cv_LIBTALLOC_LIBS
-        { $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-	 enable_external_libtalloc=yes
-fi
-fi
-
-if test "x$enable_external_libtalloc" = xno
-then
-	tallocdir=""
-tallocpaths=". lib/talloc talloc ../talloc ../lib/talloc"
-for d in $tallocpaths; do
-	if test -f "$srcdir/$d/talloc.c"; then
-		tallocdir="$d"
-
-		break;
-	fi
-done
-if test x"$tallocdir" = "x"; then
-   { { $as_echo "$as_me:$LINENO: error: cannot find talloc source in $tallocpaths" >&5
-$as_echo "$as_me: error: cannot find talloc source in $tallocpaths" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-TALLOC_OBJ="talloc.o"
-
-
-TALLOC_CFLAGS="-I$srcdir/$tallocdir"
-
-
-TALLOC_LIBS=""
-
-
-# The cast to long int works around a bug in the HP C Compiler
-# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
-# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
-# This bug is HP SR number 8606223364.
-{ $as_echo "$as_me:$LINENO: checking size of size_t" >&5
-$as_echo_n "checking size of size_t... " >&6; }
-if test "${ac_cv_sizeof_size_t+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  if test "$cross_compiling" = yes; then
-  # Depending upon the size, compute the lo and hi bounds.
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) >= 0)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_lo=0 ac_mid=0
-  while :; do
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) <= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=$ac_mid; break
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo=`expr $ac_mid + 1`
-			if test $ac_lo -le $ac_mid; then
-			  ac_lo= ac_hi=
-			  break
-			fi
-			ac_mid=`expr 2 '*' $ac_mid + 1`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  done
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) < 0)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=-1 ac_mid=-1
-  while :; do
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) >= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_lo=$ac_mid; break
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_hi=`expr '(' $ac_mid ')' - 1`
-			if test $ac_mid -le $ac_hi; then
-			  ac_lo= ac_hi=
-			  break
-			fi
-			ac_mid=`expr 2 '*' $ac_mid`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  done
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo= ac_hi=
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-# Binary search between lo and hi bounds.
-while test "x$ac_lo" != "x$ac_hi"; do
-  ac_mid=`expr '(' $ac_hi - $ac_lo ')' / 2 + $ac_lo`
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (size_t))) <= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=$ac_mid
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo=`expr '(' $ac_mid ')' + 1`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-done
-case $ac_lo in
-?*) ac_cv_sizeof_size_t=$ac_lo;;
-'') if test "$ac_cv_type_size_t" = yes; then
-     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (size_t)
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot compute sizeof (size_t)
-See \`config.log' for more details." >&2;}
-   { (exit 77); exit 77; }; }; }
-   else
-     ac_cv_sizeof_size_t=0
-   fi ;;
-esac
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-static long int longval () { return (long int) (sizeof (size_t)); }
-static unsigned long int ulongval () { return (long int) (sizeof (size_t)); }
-#include <stdio.h>
-#include <stdlib.h>
-int
-main ()
-{
-
-  FILE *f = fopen ("conftest.val", "w");
-  if (! f)
-    return 1;
-  if (((long int) (sizeof (size_t))) < 0)
-    {
-      long int i = longval ();
-      if (i != ((long int) (sizeof (size_t))))
-	return 1;
-      fprintf (f, "%ld", i);
-    }
-  else
-    {
-      unsigned long int i = ulongval ();
-      if (i != ((long int) (sizeof (size_t))))
-	return 1;
-      fprintf (f, "%lu", i);
-    }
-  /* Do not output a trailing newline, as this causes \r\n confusion
-     on some platforms.  */
-  return ferror (f) || fclose (f) != 0;
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_sizeof_size_t=`cat conftest.val`
-else
-  $as_echo "$as_me: program exited with status $ac_status" >&5
-$as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-( exit $ac_status )
-if test "$ac_cv_type_size_t" = yes; then
-     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (size_t)
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot compute sizeof (size_t)
-See \`config.log' for more details." >&2;}
-   { (exit 77); exit 77; }; }; }
-   else
-     ac_cv_sizeof_size_t=0
-   fi
-fi
-rm -rf conftest.dSYM
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
-fi
-rm -f conftest.val
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_sizeof_size_t" >&5
-$as_echo "$ac_cv_sizeof_size_t" >&6; }
-
-
-
-cat >>confdefs.h <<_ACEOF
-#define SIZEOF_SIZE_T $ac_cv_sizeof_size_t
-_ACEOF
-
-
-# The cast to long int works around a bug in the HP C Compiler
-# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
-# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
-# This bug is HP SR number 8606223364.
-{ $as_echo "$as_me:$LINENO: checking size of void *" >&5
-$as_echo_n "checking size of void *... " >&6; }
-if test "${ac_cv_sizeof_void_p+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  if test "$cross_compiling" = yes; then
-  # Depending upon the size, compute the lo and hi bounds.
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (void *))) >= 0)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_lo=0 ac_mid=0
-  while :; do
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (void *))) <= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=$ac_mid; break
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo=`expr $ac_mid + 1`
-			if test $ac_lo -le $ac_mid; then
-			  ac_lo= ac_hi=
-			  break
-			fi
-			ac_mid=`expr 2 '*' $ac_mid + 1`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  done
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (void *))) < 0)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=-1 ac_mid=-1
-  while :; do
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (void *))) >= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_lo=$ac_mid; break
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_hi=`expr '(' $ac_mid ')' - 1`
-			if test $ac_mid -le $ac_hi; then
-			  ac_lo= ac_hi=
-			  break
-			fi
-			ac_mid=`expr 2 '*' $ac_mid`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  done
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo= ac_hi=
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-# Binary search between lo and hi bounds.
-while test "x$ac_lo" != "x$ac_hi"; do
-  ac_mid=`expr '(' $ac_hi - $ac_lo ')' / 2 + $ac_lo`
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-static int test_array [1 - 2 * !(((long int) (sizeof (void *))) <= $ac_mid)];
-test_array [0] = 0
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_hi=$ac_mid
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_lo=`expr '(' $ac_mid ')' + 1`
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-done
-case $ac_lo in
-?*) ac_cv_sizeof_void_p=$ac_lo;;
-'') if test "$ac_cv_type_void_p" = yes; then
-     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (void *)
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot compute sizeof (void *)
-See \`config.log' for more details." >&2;}
-   { (exit 77); exit 77; }; }; }
-   else
-     ac_cv_sizeof_void_p=0
-   fi ;;
-esac
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-static long int longval () { return (long int) (sizeof (void *)); }
-static unsigned long int ulongval () { return (long int) (sizeof (void *)); }
-#include <stdio.h>
-#include <stdlib.h>
-int
-main ()
-{
-
-  FILE *f = fopen ("conftest.val", "w");
-  if (! f)
-    return 1;
-  if (((long int) (sizeof (void *))) < 0)
-    {
-      long int i = longval ();
-      if (i != ((long int) (sizeof (void *))))
-	return 1;
-      fprintf (f, "%ld", i);
-    }
-  else
-    {
-      unsigned long int i = ulongval ();
-      if (i != ((long int) (sizeof (void *))))
-	return 1;
-      fprintf (f, "%lu", i);
-    }
-  /* Do not output a trailing newline, as this causes \r\n confusion
-     on some platforms.  */
-  return ferror (f) || fclose (f) != 0;
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_sizeof_void_p=`cat conftest.val`
-else
-  $as_echo "$as_me: program exited with status $ac_status" >&5
-$as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-( exit $ac_status )
-if test "$ac_cv_type_void_p" = yes; then
-     { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot compute sizeof (void *)
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot compute sizeof (void *)
-See \`config.log' for more details." >&2;}
-   { (exit 77); exit 77; }; }; }
-   else
-     ac_cv_sizeof_void_p=0
-   fi
-fi
-rm -rf conftest.dSYM
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
-fi
-rm -f conftest.val
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_sizeof_void_p" >&5
-$as_echo "$ac_cv_sizeof_void_p" >&6; }
-
-
-
-cat >>confdefs.h <<_ACEOF
-#define SIZEOF_VOID_P $ac_cv_sizeof_void_p
-_ACEOF
-
-
-
-if test $ac_cv_sizeof_size_t -lt $ac_cv_sizeof_void_p; then
-	{ $as_echo "$as_me:$LINENO: WARNING: size_t cannot represent the amount of used memory of a process" >&5
-$as_echo "$as_me: WARNING: size_t cannot represent the amount of used memory of a process" >&2;}
-	{ $as_echo "$as_me:$LINENO: WARNING: please report this to <samba-technical@samba.org>" >&5
-$as_echo "$as_me: WARNING: please report this to <samba-technical@samba.org>" >&2;}
-	{ $as_echo "$as_me:$LINENO: WARNING: sizeof(size_t) = $ac_cv_sizeof_size_t" >&5
-$as_echo "$as_me: WARNING: sizeof(size_t) = $ac_cv_sizeof_size_t" >&2;}
-	{ $as_echo "$as_me:$LINENO: WARNING: sizeof(void *) = $ac_cv_sizeof_void_p" >&5
-$as_echo "$as_me: WARNING: sizeof(void *) = $ac_cv_sizeof_void_p" >&2;}
-	{ { $as_echo "$as_me:$LINENO: error: sizeof(size_t) < sizeof(void *)" >&5
-$as_echo "$as_me: error: sizeof(size_t) < sizeof(void *)" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-
-if test x"$VERSIONSCRIPT" != "x"; then
-    EXPORTSFILE=talloc.exports
-
-fi
-
-	LINK_LIBTALLOC=STATIC
-
-
-
-
-
-LIBTALLOC_SHARED_TARGET=bin/libtalloc.$SHLIBEXT
-LIBTALLOC_STATIC_TARGET=bin/libtalloc.a
-LIBTALLOC_SHARED=
-LIBTALLOC_STATIC=
-LIBTALLOC_LIBS=-ltalloc
-LIBTALLOC_TARGET=
-INSTALL_LIBTALLOC=
-UNINSTALL_LIBTALLOC=
-
-LIBTALLOC_SOVER=2
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libtalloc shared library" >&5
-$as_echo_n "checking whether to build the libtalloc shared library... " >&6; }
-
-
-# Check whether --with-libtalloc was given.
-if test "${with_libtalloc+set}" = set; then
-  withval=$with_libtalloc;
-case "$withval" in
-	no)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-	*)
-		build_lib=yes
-		;;
-esac
-
-else
-
-# if unspecified, default is to build it if possible.
-build_lib=yes
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBTALLOC=installlibtalloc
-	UNINSTALL_LIBTALLOC=uninstalllibtalloc
-	if eval $BLDSHARED = true; then
-		LIBTALLOC_SHARED=$LIBTALLOC_SHARED_TARGET
-		LIBTALLOC_TARGET=$LIBTALLOC_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTALLOC" = "xSTATIC" ; then
-			enable_static=yes
-			LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
-			LIBTALLOC_LIBS=$LIBTALLOC_STATIC_TARGET
-		else
-			LIBTALLOC_LIBS=-ltalloc
-		fi
-	else
-		enable_static=yes
-		LIBTALLOC_TARGET=$LIBTALLOC_STATIC_TARGET
-		LIBTALLOC_LIBS=$LIBTALLOC_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBTALLOC_STATIC=$LIBTALLOC_STATIC_TARGET
-fi
-
-
-
-
-
-
-	LIBTALLOC_OBJ0=""
-	for obj in ${TALLOC_OBJ}; do
-		LIBTALLOC_OBJ0="${LIBTALLOC_OBJ0} ${tallocdir}/${obj}"
-	done
-	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TALLOC_CFLAGS}"
-
-
-	TALLOCTORT="bin/talloctort\$(EXEEXT)"
-
-fi
-
-
-# Check whether --enable-external_libtdb was given.
-if test "${enable_external_libtdb+set}" = set; then
-  enableval=$enable_external_libtdb;  enable_external_libtalloc=$enableval
-else
-   enable_external_libtalloc=auto
-fi
-
-
-if test "x$enable_external_libtdb" != xno
-then
-
-pkg_failed=no
-{ $as_echo "$as_me:$LINENO: checking for LIBTDB" >&5
-$as_echo_n "checking for LIBTDB... " >&6; }
-
-if test -n "$PKG_CONFIG"; then
-    if test -n "$LIBTDB_CFLAGS"; then
-        pkg_cv_LIBTDB_CFLAGS="$LIBTDB_CFLAGS"
-    else
-        if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.4\"") >&5
-  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.4") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; then
-  pkg_cv_LIBTDB_CFLAGS=`$PKG_CONFIG --cflags "tdb >= 1.1.4" 2>/dev/null`
-else
-  pkg_failed=yes
-fi
-    fi
-else
-	pkg_failed=untried
-fi
-if test -n "$PKG_CONFIG"; then
-    if test -n "$LIBTDB_LIBS"; then
-        pkg_cv_LIBTDB_LIBS="$LIBTDB_LIBS"
-    else
-        if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.4\"") >&5
-  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.4") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; then
-  pkg_cv_LIBTDB_LIBS=`$PKG_CONFIG --libs "tdb >= 1.1.4" 2>/dev/null`
-else
-  pkg_failed=yes
-fi
-    fi
-else
-	pkg_failed=untried
-fi
-
-
-
-if test $pkg_failed = yes; then
-
-if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
-        _pkg_short_errors_supported=yes
-else
-        _pkg_short_errors_supported=no
-fi
-        if test $_pkg_short_errors_supported = yes; then
-	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "tdb >= 1.1.4"`
-        else
-	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "tdb >= 1.1.4"`
-        fi
-	# Put the nasty error message in config.log where it belongs
-	echo "$LIBTDB_PKG_ERRORS" >&5
-
-	{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		if test x$enable_external_libtdb = xyes; then
-			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtdb" >&5
-$as_echo "$as_me: error: Unable to find libtdb" >&2;}
-   { (exit 1); exit 1; }; }
-		else
-			enable_external_libtdb=no
-		fi
-
-elif test $pkg_failed = untried; then
-
-		if test x$enable_external_libtdb = xyes; then
-			{ { $as_echo "$as_me:$LINENO: error: Unable to find libtdb" >&5
-$as_echo "$as_me: error: Unable to find libtdb" >&2;}
-   { (exit 1); exit 1; }; }
-		else
-			enable_external_libtdb=no
-		fi
-
-else
-	LIBTDB_CFLAGS=$pkg_cv_LIBTDB_CFLAGS
-	LIBTDB_LIBS=$pkg_cv_LIBTDB_LIBS
-        { $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-	 enable_external_libtdb=yes
-fi
-fi
-
-
-if test "x$enable_external_libtdb" = xno
-then
-	tdbdir=""
-tdbpaths=". lib/tdb tdb ../tdb ../lib/tdb"
-for d in $tdbpaths; do
-	if test -f "$srcdir/$d/common/tdb.c"; then
-		tdbdir="$d"
-
-		break;
-	fi
-done
-if test x"$tdbdir" = "x"; then
-   { { $as_echo "$as_me:$LINENO: error: cannot find tdb source in $tdbpaths" >&5
-$as_echo "$as_me: error: cannot find tdb source in $tdbpaths" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
-TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o"
-
-
-
-TDB_LIBS=""
-
-
-TDB_CFLAGS="-I$tdbdir/include"
-
-
-
-
-
-
-
-for ac_func in mmap pread pwrite getpagesize utime
-do
-as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
-{ $as_echo "$as_me:$LINENO: checking for $ac_func" >&5
-$as_echo_n "checking for $ac_func... " >&6; }
-if { as_var=$as_ac_var; eval "test \"\${$as_var+set}\" = set"; }; then
-  $as_echo_n "(cached) " >&6
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-/* Define $ac_func to an innocuous variant, in case <limits.h> declares $ac_func.
-   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
-#define $ac_func innocuous_$ac_func
-
-/* System header to define __stub macros and hopefully few prototypes,
-    which can conflict with char $ac_func (); below.
-    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
-    <limits.h> exists even on freestanding compilers.  */
-
-#ifdef __STDC__
-# include <limits.h>
-#else
-# include <assert.h>
-#endif
-
-#undef $ac_func
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char $ac_func ();
-/* The GNU C library defines this for functions which it implements
-    to always fail with ENOSYS.  Some functions are actually named
-    something starting with __ and the normal name is an alias.  */
-#if defined __stub_$ac_func || defined __stub___$ac_func
-choke me
-#endif
-
-int
-main ()
-{
-return $ac_func ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest$ac_exeext && {
-	 test "$cross_compiling" = yes ||
-	 $as_test_x conftest$ac_exeext
-       }; then
-  eval "$as_ac_var=yes"
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	eval "$as_ac_var=no"
-fi
-
-rm -rf conftest.dSYM
-rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
-      conftest$ac_exeext conftest.$ac_ext
-fi
-ac_res=`eval 'as_val=${'$as_ac_var'}
-		 $as_echo "$as_val"'`
-	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-as_val=`eval 'as_val=${'$as_ac_var'}
-		 $as_echo "$as_val"'`
-   if test "x$as_val" = x""yes; then
-  cat >>confdefs.h <<_ACEOF
-#define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
-_ACEOF
-
-fi
-done
-
-
-
-
-for ac_header in getopt.h sys/select.h sys/time.h
-do
-as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
-  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
-$as_echo_n "checking for $ac_header... " >&6; }
-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
-  $as_echo_n "(cached) " >&6
-fi
-ac_res=`eval 'as_val=${'$as_ac_Header'}
-		 $as_echo "$as_val"'`
-	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-else
-  # Is the header compilable?
-{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
-$as_echo_n "checking $ac_header usability... " >&6; }
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-$ac_includes_default
-#include <$ac_header>
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_header_compiler=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_header_compiler=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
-$as_echo "$ac_header_compiler" >&6; }
-
-# Is the header present?
-{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
-$as_echo_n "checking $ac_header presence... " >&6; }
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include <$ac_header>
-_ACEOF
-if { (ac_try="$ac_cpp conftest.$ac_ext"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } >/dev/null && {
-	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       }; then
-  ac_header_preproc=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-  ac_header_preproc=no
-fi
-
-rm -f conftest.err conftest.$ac_ext
-{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
-$as_echo "$ac_header_preproc" >&6; }
-
-# So?  What about this header?
-case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
-  yes:no: )
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
-$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
-$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
-    ac_header_preproc=yes
-    ;;
-  no:yes:* )
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
-$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
-$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
-$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
-$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
-$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
-    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
-$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
-    ( cat <<\_ASBOX
-## ---------------------------------------- ##
-## Report this to samba-technical@samba.org ##
-## ---------------------------------------- ##
-_ASBOX
-     ) | sed "s/^/$as_me: WARNING:     /" >&2
-    ;;
-esac
-{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
-$as_echo_n "checking for $ac_header... " >&6; }
-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
-  $as_echo_n "(cached) " >&6
-else
-  eval "$as_ac_Header=\$ac_header_preproc"
-fi
-ac_res=`eval 'as_val=${'$as_ac_Header'}
-		 $as_echo "$as_val"'`
-	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-
-fi
-as_val=`eval 'as_val=${'$as_ac_Header'}
-		 $as_echo "$as_val"'`
-   if test "x$as_val" = x""yes; then
-  cat >>confdefs.h <<_ACEOF
-#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
-_ACEOF
-
-fi
-
-done
-
-
-
- { $as_echo "$as_me:$LINENO: checking for pread declaration" >&5
-$as_echo_n "checking for pread declaration... " >&6; }
-if test "${ac_cv_have_pread_decl+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include <unistd.h>
-int
-main ()
-{
-int i = (int)pread
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_have_pread_decl=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_have_pread_decl=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_pread_decl" >&5
-$as_echo "$ac_cv_have_pread_decl" >&6; }
- if test x"$ac_cv_have_pread_decl" = x"yes"; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PREAD_DECL 1
-_ACEOF
-
- fi
-
-
- { $as_echo "$as_me:$LINENO: checking for pwrite declaration" >&5
-$as_echo_n "checking for pwrite declaration... " >&6; }
-if test "${ac_cv_have_pwrite_decl+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include <unistd.h>
-int
-main ()
-{
-int i = (int)pwrite
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_have_pwrite_decl=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_have_pwrite_decl=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_pwrite_decl" >&5
-$as_echo "$ac_cv_have_pwrite_decl" >&6; }
- if test x"$ac_cv_have_pwrite_decl" = x"yes"; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PWRITE_DECL 1
-_ACEOF
-
- fi
-
-
-if test x"$VERSIONSCRIPT" != "x"; then
-    EXPORTSFILE=tdb.exports
-
-fi
-
-	LINK_LIBTDB=STATIC
-
-
-
-
-
-LIBTDB_SHARED_TARGET=bin/libtdb.$SHLIBEXT
-LIBTDB_STATIC_TARGET=bin/libtdb.a
-LIBTDB_SHARED=
-LIBTDB_STATIC=
-LIBTDB_LIBS=-ltdb
-LIBTDB_TARGET=
-INSTALL_LIBTDB=
-UNINSTALL_LIBTDB=
-
-LIBTDB_SOVER=1
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libtdb shared library" >&5
-$as_echo_n "checking whether to build the libtdb shared library... " >&6; }
-
-
-# Check whether --with-libtdb was given.
-if test "${with_libtdb+set}" = set; then
-  withval=$with_libtdb;
-case "$withval" in
-	no)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-	*)
-		build_lib=yes
-		;;
-esac
-
-else
-
-# if unspecified, default is to build it if possible.
-build_lib=yes
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBTDB=installlibtdb
-	UNINSTALL_LIBTDB=uninstalllibtdb
-	if eval $BLDSHARED = true; then
-		LIBTDB_SHARED=$LIBTDB_SHARED_TARGET
-		LIBTDB_TARGET=$LIBTDB_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTDB" = "xSTATIC" ; then
-			enable_static=yes
-			LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
-			LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
-		else
-			LIBTDB_LIBS=-ltdb
-		fi
-	else
-		enable_static=yes
-		LIBTDB_TARGET=$LIBTDB_STATIC_TARGET
-		LIBTDB_LIBS=$LIBTDB_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBTDB_STATIC=$LIBTDB_STATIC_TARGET
-fi
-
-
-
-
-
-
-	LIBTDB_OBJ0=""
-	for obj in ${TDB_OBJ}; do
-		LIBTDB_OBJ0="${LIBTDB_OBJ0} ${tdbdir}/${obj}"
-	done
-
-	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TDB_CFLAGS}"
-
-	TDBBACKUP="bin/tdbbackup\$(EXEEXT)"
-
-	TDBDUMP="bin/tdbdump\$(EXEEXT)"
-
-	TDBTOOL="bin/tdbtool\$(EXEEXT)"
-
-	TDBTORTURE="bin/tdbtorture\$(EXEEXT)"
-
-fi
-
-
-
-
-
-
-LIBNETAPI_SHARED_TARGET=bin/libnetapi.$SHLIBEXT
-LIBNETAPI_STATIC_TARGET=bin/libnetapi.a
-LIBNETAPI_SHARED=
-LIBNETAPI_STATIC=
-LIBNETAPI_LIBS=-lnetapi
-LIBNETAPI_TARGET=
-INSTALL_LIBNETAPI=
-UNINSTALL_LIBNETAPI=
-
-LIBNETAPI_SOVER=0
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libnetapi shared library" >&5
-$as_echo_n "checking whether to build the libnetapi shared library... " >&6; }
-
-
-# Check whether --with-libnetapi was given.
-if test "${with_libnetapi+set}" = set; then
-  withval=$with_libnetapi;
-case "$withval" in
-	no)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-	*)
-		build_lib=yes
-		;;
-esac
-
-else
-
-# if unspecified, default is to build it if possible.
-build_lib=yes
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBNETAPI=installlibnetapi
-	UNINSTALL_LIBNETAPI=uninstalllibnetapi
-	if eval $BLDSHARED = true; then
-		LIBNETAPI_SHARED=$LIBNETAPI_SHARED_TARGET
-		LIBNETAPI_TARGET=$LIBNETAPI_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBNETAPI" = "xSTATIC" ; then
-			enable_static=yes
-			LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
-			LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
-		else
-			LIBNETAPI_LIBS=-lnetapi
-		fi
-	else
-		enable_static=yes
-		LIBNETAPI_TARGET=$LIBNETAPI_STATIC_TARGET
-		LIBNETAPI_LIBS=$LIBNETAPI_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBNETAPI_STATIC=$LIBNETAPI_STATIC_TARGET
-fi
-
-
-
-
-
-
-
-
-
-
-
-LIBSMBCLIENT_SHARED_TARGET=bin/libsmbclient.$SHLIBEXT
-LIBSMBCLIENT_STATIC_TARGET=bin/libsmbclient.a
-LIBSMBCLIENT_SHARED=
-LIBSMBCLIENT_STATIC=
-LIBSMBCLIENT_LIBS=-lsmbclient
-LIBSMBCLIENT_TARGET=
-INSTALL_LIBSMBCLIENT=
-UNINSTALL_LIBSMBCLIENT=
-
-LIBSMBCLIENT_SOVER=0
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libsmbclient shared library" >&5
-$as_echo_n "checking whether to build the libsmbclient shared library... " >&6; }
-
-
-# Check whether --with-libsmbclient was given.
-if test "${with_libsmbclient+set}" = set; then
-  withval=$with_libsmbclient;
-case "$withval" in
-	no)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-	*)
-		build_lib=yes
-		;;
-esac
-
-else
-
-# if unspecified, default is to build it if possible.
-build_lib=yes
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBSMBCLIENT=installlibsmbclient
-	UNINSTALL_LIBSMBCLIENT=uninstalllibsmbclient
-	if eval $BLDSHARED = true; then
-		LIBSMBCLIENT_SHARED=$LIBSMBCLIENT_SHARED_TARGET
-		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBCLIENT" = "xSTATIC" ; then
-			enable_static=yes
-			LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
-			LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
-		else
-			LIBSMBCLIENT_LIBS=-lsmbclient
-		fi
-	else
-		enable_static=yes
-		LIBSMBCLIENT_TARGET=$LIBSMBCLIENT_STATIC_TARGET
-		LIBSMBCLIENT_LIBS=$LIBSMBCLIENT_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBSMBCLIENT_STATIC=$LIBSMBCLIENT_STATIC_TARGET
-fi
-
-
-
-
-
-
-
-
-
-
-
-LIBSMBSHAREMODES_SHARED_TARGET=bin/libsmbsharemodes.$SHLIBEXT
-LIBSMBSHAREMODES_STATIC_TARGET=bin/libsmbsharemodes.a
-LIBSMBSHAREMODES_SHARED=
-LIBSMBSHAREMODES_STATIC=
-LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
-LIBSMBSHAREMODES_TARGET=
-INSTALL_LIBSMBSHAREMODES=
-UNINSTALL_LIBSMBSHAREMODES=
-
-LIBSMBSHAREMODES_SOVER=0
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libsmbsharemodes shared library" >&5
-$as_echo_n "checking whether to build the libsmbsharemodes shared library... " >&6; }
-
-
-# Check whether --with-libsmbsharemodes was given.
-if test "${with_libsmbsharemodes+set}" = set; then
-  withval=$with_libsmbsharemodes;
-case "$withval" in
-	no)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-	*)
-		build_lib=yes
-		;;
-esac
-
-else
-
-# if unspecified, default is to build it if possible.
-build_lib=yes
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBSMBSHAREMODES=installlibsmbsharemodes
-	UNINSTALL_LIBSMBSHAREMODES=uninstalllibsmbsharemodes
-	if eval $BLDSHARED = true; then
-		LIBSMBSHAREMODES_SHARED=$LIBSMBSHAREMODES_SHARED_TARGET
-		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBSMBSHAREMODES" = "xSTATIC" ; then
-			enable_static=yes
-			LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
-			LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
-		else
-			LIBSMBSHAREMODES_LIBS=-lsmbsharemodes
-		fi
-	else
-		enable_static=yes
-		LIBSMBSHAREMODES_TARGET=$LIBSMBSHAREMODES_STATIC_TARGET
-		LIBSMBSHAREMODES_LIBS=$LIBSMBSHAREMODES_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBSMBSHAREMODES_STATIC=$LIBSMBSHAREMODES_STATIC_TARGET
-fi
-
-
-
-
-
-
-
-
-
-
-
-LIBADDNS_SHARED_TARGET=bin/libaddns.$SHLIBEXT
-LIBADDNS_STATIC_TARGET=bin/libaddns.a
-LIBADDNS_SHARED=
-LIBADDNS_STATIC=
-LIBADDNS_LIBS=-laddns
-LIBADDNS_TARGET=
-INSTALL_LIBADDNS=
-UNINSTALL_LIBADDNS=
-
-LIBADDNS_SOVER=0
-
-
-
-
-
-
-
-
-
-
-
-{ $as_echo "$as_me:$LINENO: checking whether to build the libaddns shared library" >&5
-$as_echo_n "checking whether to build the libaddns shared library... " >&6; }
-
-
-# Check whether --with-libaddns was given.
-if test "${with_libaddns+set}" = set; then
-  withval=$with_libaddns;
-case "$withval" in
-	yes)
-		build_lib=yes
-		;;
-	*)
-		{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-		build_lib=no
-		;;
-esac
-
-else
-
-# if unspecified, default is not to build
-{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-build_lib=no
-
-
-fi
-
-
-
-if eval test x"$build_lib" = "xyes" ; then
-	# only set the install targets if the user chose the library
-	INSTALL_LIBADDNS=installlibaddns
-	UNINSTALL_LIBADDNS=uninstalllibaddns
-	if eval $BLDSHARED = true; then
-		LIBADDNS_SHARED=$LIBADDNS_SHARED_TARGET
-		LIBADDNS_TARGET=$LIBADDNS_SHARED_TARGET
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-		if test x"$USESHARED" != x"true" -o x"$LINK_LIBADDNS" = "xSTATIC" ; then
-			enable_static=yes
-			LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
-			LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
-		else
-			LIBADDNS_LIBS=-laddns
-		fi
-	else
-		enable_static=yes
-		LIBADDNS_TARGET=$LIBADDNS_STATIC_TARGET
-		LIBADDNS_LIBS=$LIBADDNS_STATIC_TARGET
-		{ $as_echo "$as_me:$LINENO: result: no shared library support -- will supply static library" >&5
-$as_echo "no shared library support -- will supply static library" >&6; }
-	fi
-else
-	enable_static=yes
-	{ $as_echo "$as_me:$LINENO: result: shared library not selected" >&5
-$as_echo "shared library not selected" >&6; }
-fi
-if test $enable_static = yes; then
-	LIBADDNS_STATIC=$LIBADDNS_STATIC_TARGET
-fi
-
-
-
-
-
-
-
 
 #################################################
 # these tests are taken from the GNU fileutils package
@@ -77380,7 +77595,7 @@ fi
 
 
 SAVED_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$CPPFLAGS $CTDB_CPPFLAGS"
+CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS} $CTDB_CPPFLAGS"
 ctdb_broken="missing or broken headers"
 
 

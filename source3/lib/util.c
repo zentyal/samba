@@ -527,13 +527,14 @@ void set_cmdline_auth_info_getpass(struct user_auth_info *auth_info)
  Check if a file exists - call vfs_file_exist for samba files.
 ********************************************************************/
 
-bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
+bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf,
+		     bool fake_dir_create_times)
 {
 	SMB_STRUCT_STAT st;
 	if (!sbuf)
 		sbuf = &st;
-  
-	if (sys_stat(fname,sbuf) != 0) 
+
+	if (sys_stat(fname, sbuf, fake_dir_create_times) != 0)
 		return(False);
 
 	return((S_ISREG(sbuf->st_ex_mode)) || (S_ISFIFO(sbuf->st_ex_mode)));
@@ -546,31 +547,10 @@ bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
 bool socket_exist(const char *fname)
 {
 	SMB_STRUCT_STAT st;
-	if (sys_stat(fname,&st) != 0) 
+	if (sys_stat(fname, &st, false) != 0)
 		return(False);
 
 	return S_ISSOCK(st.st_ex_mode);
-}
-
-/*******************************************************************
- Check if a directory exists.
-********************************************************************/
-
-bool directory_exist_stat(char *dname,SMB_STRUCT_STAT *st)
-{
-	SMB_STRUCT_STAT st2;
-	bool ret;
-
-	if (!st)
-		st = &st2;
-
-	if (sys_stat(dname,st) != 0) 
-		return(False);
-
-	ret = S_ISDIR(st->st_ex_mode);
-	if(!ret)
-		errno = ENOTDIR;
-	return ret;
 }
 
 /*******************************************************************
@@ -590,7 +570,7 @@ SMB_OFF_T get_file_size(char *file_name)
 {
 	SMB_STRUCT_STAT buf;
 	buf.st_ex_size = 0;
-	if(sys_stat(file_name,&buf) != 0)
+	if (sys_stat(file_name, &buf, false) != 0)
 		return (SMB_OFF_T)-1;
 	return get_file_size_stat(&buf);
 }

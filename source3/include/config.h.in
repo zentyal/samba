@@ -255,6 +255,9 @@
 /* Whether getgroups is broken */
 #undef HAVE_BROKEN_GETGROUPS
 
+/* Whether we have a broken posix_fallocate */
+#undef HAVE_BROKEN_POSIX_FALLOCATE
+
 /* Whether readdir() returns the wrong name offset */
 #undef HAVE_BROKEN_READDIR_NAME
 
@@ -836,6 +839,9 @@
 /* Define to 1 if you have the `getutmpx' function. */
 #undef HAVE_GETUTMPX
 
+/* Define to 1 if you have the `getutxent' function. */
+#undef HAVE_GETUTXENT
+
 /* Define to 1 if you have the `getxattr' function. */
 #undef HAVE_GETXATTR
 
@@ -1052,6 +1058,9 @@
 /* Define to 1 if you have the `krb5_decode_ap_req' function. */
 #undef HAVE_KRB5_DECODE_AP_REQ
 
+/* Whether to use deprecated krb5 interfaces */
+#undef HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER
+
 /* Whether the type krb5_encrypt_block exists */
 #undef HAVE_KRB5_ENCRYPT_BLOCK
 
@@ -1144,9 +1153,6 @@
 
 /* Whether KRB5_KEYUSAGE_APP_DATA_CKSUM is available */
 #undef HAVE_KRB5_KEYUSAGE_APP_DATA_CKSUM
-
-/* Define to 1 if you have the <krb5/krb5.h> header file. */
-#undef HAVE_KRB5_KRB5_H
 
 /* Define to 1 if you have the `krb5_krbhst_get_addrinfo' function. */
 #undef HAVE_KRB5_KRBHST_GET_ADDRINFO
@@ -1649,6 +1655,9 @@
 /* Define to 1 if you have the <pam/pam_modules.h> header file. */
 #undef HAVE_PAM_PAM_MODULES_H
 
+/* Define to 1 if PAM_RADIO_TYPE is available */
+#undef HAVE_PAM_RADIO_TYPE
+
 /* Define to 1 if you have the `pam_start' function. */
 #undef HAVE_PAM_START
 
@@ -1687,6 +1696,12 @@
 
 /* Whether posix_fadvise is available */
 #undef HAVE_POSIX_FADVISE
+
+/* Define to 1 if you have the `posix_fallocate' function. */
+#undef HAVE_POSIX_FALLOCATE
+
+/* Define to 1 if you have the `posix_fallocate64' function. */
+#undef HAVE_POSIX_FALLOCATE64
 
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN

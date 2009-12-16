@@ -442,8 +442,7 @@ static void cgi_download(char *file)
 		}
 	}
 
-	if (sys_stat(file, &st) != 0) 
-	{
+	if (sys_stat(file, &st, false) != 0)	{
 		cgi_setup_error("404 File Not Found","",
 				"The requested file was not found");
 	}
@@ -451,7 +450,8 @@ static void cgi_download(char *file)
 	if (S_ISDIR(st.st_ex_mode))
 	{
 		snprintf(buf, sizeof(buf), "%s/index.html", file);
-		if (!file_exist_stat(buf, &st) || !S_ISREG(st.st_ex_mode))
+		if (!file_exist_stat(buf, &st, false)
+		    || !S_ISREG(st.st_ex_mode))
 		{
 			cgi_setup_error("404 File Not Found","",
 					"The requested file was not found");
@@ -657,7 +657,8 @@ const char *cgi_remote_addr(void)
 {
 	if (inetd_server) {
 		char addr[INET6_ADDRSTRLEN];
-		return get_peer_addr(1,addr,sizeof(addr));
+		get_peer_addr(1,addr,sizeof(addr));
+		return talloc_strdup(talloc_tos(), addr);
 	}
 	return getenv("REMOTE_ADDR");
 }

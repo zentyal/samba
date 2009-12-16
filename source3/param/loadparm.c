@@ -259,6 +259,7 @@ struct global {
 	char *szLdapGroupSuffix;
 	int ldap_ssl;
 	bool ldap_ssl_ads;
+	int ldap_deref;
 	int ldap_follow_referral;
 	char *szLdapSuffix;
 	char *szLdapAdminDn;
@@ -357,7 +358,6 @@ struct global {
 	int cups_connection_timeout;
 	char *szSMBPerfcountModule;
 	bool bMapUntrustedToDomain;
-	bool bFakeDirCreateTimes;
 };
 
 static struct global Globals;
@@ -475,6 +475,7 @@ struct service {
 	bool bDosFilemode;
 	bool bDosFiletimes;
 	bool bDosFiletimeResolution;
+	bool bFakeDirCreateTimes;
 	bool bBlockingLocks;
 	bool bInheritPerms;
 	bool bInheritACLS;
@@ -618,6 +619,7 @@ static struct service sDefault = {
 	False,			/* bDosFilemode */
 	True,			/* bDosFiletimes */
 	False,			/* bDosFiletimeResolution */
+	False,			/* bFakeDirCreateTimes */
 	True,			/* bBlockingLocks */
 	False,			/* bInheritPerms */
 	False,			/* bInheritACLS */
@@ -743,6 +745,20 @@ static const struct enum_list enum_ldap_ssl[] = {
 	{LDAP_SSL_START_TLS, "start tls"},
 	{LDAP_SSL_START_TLS, "start_tls"},
 	{-1, NULL}
+};
+
+/* LDAP Dereferencing Alias types */
+#define SAMBA_LDAP_DEREF_NEVER		0
+#define SAMBA_LDAP_DEREF_SEARCHING	1
+#define SAMBA_LDAP_DEREF_FINDING	2
+#define SAMBA_LDAP_DEREF_ALWAYS		3
+
+static const struct enum_list enum_ldap_deref[] = {
+	{SAMBA_LDAP_DEREF_NEVER, "never"},
+	{SAMBA_LDAP_DEREF_SEARCHING, "searching"},
+	{SAMBA_LDAP_DEREF_FINDING, "finding"},
+	{SAMBA_LDAP_DEREF_ALWAYS, "always"},
+	{-1, "auto"}
 };
 
 static const struct enum_list enum_ldap_passwd_sync[] = {
@@ -2502,7 +2518,7 @@ static struct parm_struct parm_table[] = {
 		.ptr		= &sDefault.iWriteCacheSize,
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_SHARE | FLAG_DEPRECATED,
+		.flags		= FLAG_ADVANCED | FLAG_SHARE,
 	},
 	{
 		.label		= "name cache timeout",
@@ -3670,6 +3686,15 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_ADVANCED,
 	},
 	{
+		.label		= "ldap deref",
+		.type		= P_ENUM,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.ldap_deref,
+		.special	= NULL,
+		.enum_list	= enum_ldap_deref,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
 		.label		= "ldap follow referral",
 		.type		= P_ENUM,
 		.p_class	= P_GLOBAL,
@@ -4301,8 +4326,8 @@ static struct parm_struct parm_table[] = {
 	{
 		.label		= "fake directory create times",
 		.type		= P_BOOL,
-		.p_class	= P_GLOBAL,
-		.ptr		= &Globals.bFakeDirCreateTimes,
+		.p_class	= P_LOCAL,
+		.ptr		= &sDefault.bFakeDirCreateTimes,
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
@@ -4738,6 +4763,22 @@ static int max_open_files(void)
 #endif
 #endif
 
+	if (sysctl_max < MIN_OPEN_FILES_WINDOWS) {
+		DEBUG(2,("max_open_files: sysctl_max (%d) below "
+			"minimum Windows limit (%d)\n",
+			sysctl_max,
+			MIN_OPEN_FILES_WINDOWS));
+		sysctl_max = MIN_OPEN_FILES_WINDOWS;
+	}
+
+	if (rlimit_max < MIN_OPEN_FILES_WINDOWS) {
+		DEBUG(2,("rlimit_max: rlimit_max (%d) below "
+			"minimum Windows limit (%d)\n",
+			rlimit_max,
+			MIN_OPEN_FILES_WINDOWS));
+		rlimit_max = MIN_OPEN_FILES_WINDOWS;
+	}
+
 	return MIN(sysctl_max, rlimit_max);
 }
 
@@ -5047,6 +5088,7 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szLdapAdminDn, "");
 	Globals.ldap_ssl = LDAP_SSL_START_TLS;
 	Globals.ldap_ssl_ads = False;
+	Globals.ldap_deref = -1;
 	Globals.ldap_passwd_sync = LDAP_PASSWD_SYNC_OFF;
 	Globals.ldap_delete_dn = False;
 	Globals.ldap_replication_sleep = 1000; /* wait 1 sec for replication */
@@ -5401,6 +5443,7 @@ FN_GLOBAL_STRING(lp_ldap_suffix, &Globals.szLdapSuffix)
 FN_GLOBAL_STRING(lp_ldap_admin_dn, &Globals.szLdapAdminDn)
 FN_GLOBAL_INTEGER(lp_ldap_ssl, &Globals.ldap_ssl)
 FN_GLOBAL_BOOL(lp_ldap_ssl_ads, &Globals.ldap_ssl_ads)
+FN_GLOBAL_INTEGER(lp_ldap_deref, &Globals.ldap_deref)
 FN_GLOBAL_INTEGER(lp_ldap_follow_referral, &Globals.ldap_follow_referral)
 FN_GLOBAL_INTEGER(lp_ldap_passwd_sync, &Globals.ldap_passwd_sync)
 FN_GLOBAL_BOOL(lp_ldap_delete_dn, &Globals.ldap_delete_dn)
@@ -5629,7 +5672,7 @@ FN_LOCAL_BOOL(lp_recursive_veto_delete, bDeleteVetoFiles)
 FN_LOCAL_BOOL(lp_dos_filemode, bDosFilemode)
 FN_LOCAL_BOOL(lp_dos_filetimes, bDosFiletimes)
 FN_LOCAL_BOOL(lp_dos_filetime_resolution, bDosFiletimeResolution)
-FN_GLOBAL_BOOL(lp_fake_dir_create_times, &Globals.bFakeDirCreateTimes)
+FN_LOCAL_BOOL(lp_fake_dir_create_times, bFakeDirCreateTimes)
 FN_LOCAL_BOOL(lp_blocking_locks, bBlockingLocks)
 FN_LOCAL_BOOL(lp_inherit_perms, bInheritPerms)
 FN_LOCAL_BOOL(lp_inherit_acls, bInheritACLS)
@@ -8550,7 +8593,7 @@ enum usershare_err parse_usershare_file(TALLOC_CTX *ctx,
 	/* Ensure the owner of the usershare file has permission to share
 	   this directory. */
 
-	if (sys_stat(sharepath, &sbuf) == -1) {
+	if (sys_stat(sharepath, &sbuf, false) == -1) {
 		DEBUG(2,("parse_usershare_file: share %s : stat failed on path %s. %s\n",
 			servicename, sharepath, strerror(errno) ));
 		sys_closedir(dp);
@@ -8622,7 +8665,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	/* Minimize the race condition by doing an lstat before we
 	   open and fstat. Ensure this isn't a symlink link. */
 
-	if (sys_lstat(fname, &lsbuf) != 0) {
+	if (sys_lstat(fname, &lsbuf, false) != 0) {
 		DEBUG(0,("process_usershare_file: stat of %s failed. %s\n",
 			fname, strerror(errno) ));
 		SAFE_FREE(fname);
@@ -8675,7 +8718,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	}
 
 	/* Now fstat to be *SURE* it's a regular file. */
-	if (sys_fstat(fd, &sbuf) != 0) {
+	if (sys_fstat(fd, &sbuf, false) != 0) {
 		close(fd);
 		DEBUG(0,("process_usershare_file: fstat of %s failed. %s\n",
 			fname, strerror(errno) ));
@@ -8793,7 +8836,7 @@ static bool usershare_exists(int iService, struct timespec *last_mod)
 		return false;
 	}
 
-	if (sys_lstat(fname, &lsbuf) != 0) {
+	if (sys_lstat(fname, &lsbuf, false) != 0) {
 		SAFE_FREE(fname);
 		return false;
 	}
@@ -8823,7 +8866,7 @@ int load_usershare_service(const char *servicename)
 		return -1;
 	}
 
-	if (sys_stat(usersharepath, &sbuf) != 0) {
+	if (sys_stat(usersharepath, &sbuf, false) != 0) {
 		DEBUG(0,("load_usershare_service: stat of %s failed. %s\n",
 			usersharepath, strerror(errno) ));
 		return -1;
@@ -8900,7 +8943,7 @@ int load_usershare_shares(void)
 		return lp_numservices();
 	}
 
-	if (sys_stat(usersharepath, &sbuf) != 0) {
+	if (sys_stat(usersharepath, &sbuf, false) != 0) {
 		DEBUG(0,("load_usershare_shares: stat of %s failed. %s\n",
 			usersharepath, strerror(errno) ));
 		return ret;

@@ -248,7 +248,7 @@ static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 			return -1;
 		}
 
-		if (sys_lstat(path, &sbuf) != 0) {
+		if (sys_lstat(path, &sbuf, false) != 0) {
 			d_fprintf(stderr,
 				_("get_share_list: can't lstat file %s. Error "
 				  "was %s\n"),
@@ -365,7 +365,7 @@ static int info_fn(struct file_list *fl, void *priv)
         }
 
 	/* Paranoia... */
-	if (sys_fstat(fd, &sbuf) != 0) {
+	if (sys_fstat(fd, &sbuf, false) != 0) {
 		d_fprintf(stderr,
 			_("info_fn: can't fstat file %s. Error was %s\n"),
 			basepath, strerror(errno) );
@@ -585,7 +585,7 @@ static int count_num_usershares(void)
 			return -1;
 		}
 
-		if (sys_lstat(path, &sbuf) != 0) {
+		if (sys_lstat(path, &sbuf, false) != 0) {
 			d_fprintf(stderr,
 				_("count_num_usershares: can't lstat file %s. "
 				  "Error was %s\n"),
@@ -749,7 +749,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* Check the directory to be shared exists. */
-	if (sys_stat(us_path, &sbuf) != 0) {
+	if (sys_stat(us_path, &sbuf, false) != 0) {
 		d_fprintf(stderr,
 			_("net usershare add: cannot stat path %s to ensure "
 			  "this is a directory. Error was %s\n"),
@@ -892,7 +892,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* Ensure we opened the file we thought we did. */
-	if (sys_lstat(full_path_tmp, &lsbuf) != 0) {
+	if (sys_lstat(full_path_tmp, &lsbuf, false) != 0) {
 		d_fprintf(stderr,
 			  _("net usershare add: cannot lstat tmp file %s\n"),
 			  full_path_tmp );
@@ -901,7 +901,7 @@ static int net_usershare_add(struct net_context *c, int argc, const char **argv)
 	}
 
 	/* Check this is the same as the file we opened. */
-	if (sys_fstat(tmpfd, &sbuf) != 0) {
+	if (sys_fstat(tmpfd, &sbuf, false) != 0) {
 		d_fprintf(stderr,
 			  _("net usershare add: cannot fstat tmp file %s\n"),
 			  full_path_tmp );

@@ -381,6 +381,8 @@ again:
 	pid = getpid();
 	data.dptr = (unsigned char *)&pid;
 	data.dsize = sizeof(pid_t);
+	crec->header.rsn++;
+	crec->header.dmaster = get_my_vnn();
 	status = db_ctdb_ltdb_store(ctx, key, &(crec->header), data);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, (__location__ " Failed to store pid in transaction "
@@ -848,7 +850,7 @@ again:
 			}
 		}
 
-		if (++retries == 5) {
+		if (++retries == 100) {
 			DEBUG(0,(__location__ " Giving up transaction on db 0x%08x after %d retries failure_control=%u\n", 
 				 h->ctx->db_id, retries, (unsigned)failure_control));
 			ctdbd_control_local(messaging_ctdbd_connection(), failure_control,

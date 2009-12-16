@@ -23,7 +23,8 @@
 
 #include "includes.h"
 #include "client/client_proto.h"
-#include "include/rpc_client.h"
+#include "../librpc/gen_ndr/cli_srvsvc.h"
+
 #ifndef REGISTER
 #define REGISTER 0
 #endif
@@ -1744,7 +1745,7 @@ static int cmd_put(void)
 		SMB_STRUCT_STAT st;
 		/* allow '-' to represent stdin
 		   jdblair, 24.jun.98 */
-		if (!file_exist_stat(lname,&st) &&
+		if (!file_exist_stat(lname, &st, false) &&
 		    (strcmp(lname,"-"))) {
 			d_printf("%s does not exist\n",lname);
 			return 1;
@@ -3435,7 +3436,7 @@ static int cmd_newer(void)
 	SMB_STRUCT_STAT sbuf;
 
 	ok = next_token_talloc(ctx, &cmd_ptr,&buf,NULL);
-	if (ok && (sys_stat(buf,&sbuf) == 0)) {
+	if (ok && (sys_stat(buf, &sbuf, false) == 0)) {
 		newer_than = convert_timespec_to_time_t(sbuf.st_ex_mtime);
 		DEBUG(1,("Getting files newer than %s",
 			 time_to_asc(newer_than)));
@@ -3614,7 +3615,7 @@ static int cmd_reput(void)
 		return 1;
 	}
 
-	if (!file_exist_stat(local_name, &st)) {
+	if (!file_exist_stat(local_name, &st, false)) {
 		d_printf("%s does not exist\n", local_name);
 		return 1;
 	}

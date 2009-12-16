@@ -6147,8 +6147,8 @@ static bool api_spoolss_GetPrinterDataEx(pipes_struct *p)
 		return false;
 	}
 
-	r->out.buffer = talloc_zero_array(r, uint8_t, r->in.offered);
-	if (r->out.buffer == NULL) {
+	r->out.data = talloc_zero(r, union spoolss_PrinterData);
+	if (r->out.data == NULL) {
 		talloc_free(r);
 		return false;
 	}
@@ -6325,7 +6325,13 @@ static bool api_spoolss_EnumPrinterKey(pipes_struct *p)
 	}
 
 	ZERO_STRUCT(r->out);
-	r->out.key_buffer = talloc_zero_array(r, uint16_t, r->in.offered / 2);
+	r->out._ndr_size = talloc_zero(r, uint32_t);
+	if (r->out._ndr_size == NULL) {
+		talloc_free(r);
+		return false;
+	}
+
+	r->out.key_buffer = talloc_zero(r, union spoolss_KeyNames);
 	if (r->out.key_buffer == NULL) {
 		talloc_free(r);
 		return false;
@@ -9465,8 +9471,8 @@ NTSTATUS rpc_spoolss_dispatch(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, 
 			return NT_STATUS_NO_MEMORY;
 			}
 
-			r->out.buffer = talloc_zero_array(mem_ctx, uint8_t, r->in.offered);
-			if (r->out.buffer == NULL) {
+			r->out.data = talloc_zero(mem_ctx, union spoolss_PrinterData);
+			if (r->out.data == NULL) {
 			return NT_STATUS_NO_MEMORY;
 			}
 
@@ -9504,7 +9510,12 @@ NTSTATUS rpc_spoolss_dispatch(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, 
 		case NDR_SPOOLSS_ENUMPRINTERKEY: {
 			struct spoolss_EnumPrinterKey *r = (struct spoolss_EnumPrinterKey *)_r;
 			ZERO_STRUCT(r->out);
-			r->out.key_buffer = talloc_zero_array(mem_ctx, uint16_t, r->in.offered / 2);
+			r->out._ndr_size = talloc_zero(mem_ctx, uint32_t);
+			if (r->out._ndr_size == NULL) {
+			return NT_STATUS_NO_MEMORY;
+			}
+
+			r->out.key_buffer = talloc_zero(mem_ctx, union spoolss_KeyNames);
 			if (r->out.key_buffer == NULL) {
 			return NT_STATUS_NO_MEMORY;
 			}

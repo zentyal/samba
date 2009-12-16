@@ -188,7 +188,7 @@ static NTSTATUS get_acl_blob(TALLOC_CTX *ctx,
 		(unsigned int)data.dsize, name ));
 
 	if (pblob->length == 0 || pblob->data == NULL) {
-		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+		return NT_STATUS_NOT_FOUND;
 	}
 	return NT_STATUS_OK;
 }
@@ -228,56 +228,6 @@ static NTSTATUS store_acl_blob_fsp(vfs_handle_struct *handle,
 					sizeof(id_buf)));
 	if (rec == NULL) {
 		DEBUG(0, ("store_acl_blob_fsp_tdb: fetch_lock failed\n"));
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
-	data.dptr = pblob->data;
-	data.dsize = pblob->length;
-	return rec->store(rec, data, 0);
-}
-
-/*******************************************************************
- Store a DATA_BLOB into a tdb record given a pathname.
-*******************************************************************/
-
-static NTSTATUS store_acl_blob_pathname(vfs_handle_struct *handle,
-					const char *fname,
-					DATA_BLOB *pblob)
-{
-	uint8 id_buf[16];
-	struct file_id id;
-	TDB_DATA data;
-	SMB_STRUCT_STAT sbuf;
-	struct db_context *db;
-	struct db_record *rec;
-	int ret = -1;
-
-	DEBUG(10,("store_acl_blob_pathname: storing blob "
-			"length %u on file %s\n",
-			(unsigned int)pblob->length, fname));
-
-	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context,
-		return NT_STATUS_INTERNAL_DB_CORRUPTION);
-
-	if (lp_posix_pathnames()) {
-		ret = vfs_lstat_smb_fname(handle->conn, fname, &sbuf);
-	} else {
-		ret = vfs_stat_smb_fname(handle->conn, fname, &sbuf);
-	}
-
-	if (ret == -1) {
-		return map_nt_error_from_unix(errno);
-	}
-
-	id = vfs_file_id_from_sbuf(handle->conn, &sbuf);
-
-	/* For backwards compatibility only store the dev/inode. */
-	push_file_id_16((char *)id_buf, &id);
-
-	rec = db->fetch_locked(db, talloc_tos(),
-				make_tdb_data(id_buf,
-					sizeof(id_buf)));
-	if (rec == NULL) {
-		DEBUG(0, ("store_acl_blob_pathname_tdb: fetch_lock failed\n"));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 	data.dptr = pblob->data;
@@ -367,12 +317,11 @@ static int connect_acl_tdb(struct vfs_handle_struct *handle,
 				const char *user)
 {
 	struct db_context *db;
-	int res;
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
 
-        res = SMB_VFS_NEXT_CONNECT(handle, service, user);
-        if (res < 0) {
-                return res;
-        }
+	if (ret < 0) {
+		return ret;
+	}
 
 	if (!acl_tdb_init(&db)) {
 		SMB_VFS_NEXT_DISCONNECT(handle);
@@ -462,8 +411,10 @@ static int sys_acl_set_fd_tdb(vfs_handle_struct *handle,
 
 static struct vfs_fn_pointers vfs_acl_tdb_fns = {
 	.connect_fn = connect_acl_tdb,
+	.opendir = opendir_acl_common,
 	.mkdir = mkdir_acl_common,
 	.open = open_acl_common,
+	.create_file = create_file_acl_common,
 	.unlink = unlink_acl_tdb,
 	.rmdir = rmdir_acl_tdb,
 	.fget_nt_acl = fget_nt_acl_common,

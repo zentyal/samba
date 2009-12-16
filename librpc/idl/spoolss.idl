@@ -368,8 +368,10 @@ import "misc.idl", "security.idl", "winreg.idl";
 		DMDITHER_GRAYSCALE	= 0x0000000A
 	} spoolss_DeviceModeDitherType;
 
+	const int MAXDEVICENAME	= 32;
+
 	typedef [public,gensize] struct {
-		[charset(UTF16)] uint16 devicename[32];
+		[charset(UTF16)] uint16 devicename[MAXDEVICENAME];
 		spoolss_DeviceModeSpecVersion specversion;
 		uint16 driverversion;
 		uint16 size;
@@ -388,7 +390,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		uint16 yresolution;
 		spoolss_DeviceModeTTOption ttoption;
 		spoolss_DeviceModeCollate collate;
-		[charset(UTF16)] uint16 formname[32];
+		[charset(UTF16)] uint16 formname[MAXDEVICENAME];
 		uint16 logpixels; /* reserved */
 		uint32 bitsperpel; /* reserved */
 		uint32 pelswidth; /* reserved */
@@ -1197,9 +1199,9 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *data_file;
 		[relative] nstring *config_file;
 		[relative] nstring *help_file;
+		[relative] nstring_array *dependent_files;
 		[relative] nstring *monitor_name;
 		[relative] nstring *default_datatype;
-		[relative] nstring_array *dependent_files;
 		[relative] nstring_array *previous_names;
 		NTTIME driver_date;
 		hyper driver_version;
@@ -1491,8 +1493,12 @@ import "misc.idl", "security.idl", "winreg.idl";
 	const string SPL_ARCH_IA64		= "IA64";
 	const string SPL_ARCH_X64		= "x64";
 
-	const string SPOOLSS_ARCHITECTURE_ALL			= "all";
+	const string SPOOLSS_ARCHITECTURE_ALL			= "All";
+	const string SPOOLSS_ARCHITECTURE_ALL_CLUSTER		= "AllCluster";
 	const string SPOOLSS_ARCHITECTURE_NT_X86		= "Windows NT x86";
+	const string SPOOLSS_ARCHITECTURE_IA_64			= "Windows IA64";
+	const string SPOOLSS_ARCHITECTURE_x64			= "Windows x64";
+	const string SPOOLSS_ARCHITECTURE_4_0			= "Windows 4.0";
 	const string SPOOLSS_DEFAULT_SERVER_PATH		= "C:\\WINDOWS\\system32\\spool";
 
 	typedef [public,gensize] struct {
@@ -1518,7 +1524,7 @@ import "misc.idl", "security.idl", "winreg.idl";
 		uint8 reserved;
 	} spoolss_OSVersionEx;
 
-	typedef [nodiscriminant,public,gensize] union {
+	typedef [nodiscriminant,public] union {
 		[case(REG_NONE)];
 		[case(REG_SZ)] nstring string;
 		[case(REG_BINARY),flag(NDR_REMAINING)] DATA_BLOB binary;
@@ -1691,7 +1697,8 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[relative] nstring *mui_dll;
 		uint32 ressource_id;
 		[relative] nstring *display_name;
-		uint32 lang_id;
+		uint16 lang_id;
+		uint16 unused;
 	} spoolss_FormInfo2;
 
 	typedef [nodiscriminant,relative_base,public,gensize] union {
@@ -2518,24 +2525,49 @@ import "misc.idl", "security.idl", "winreg.idl";
 
 	/******************/
 	/* Function: 0x4d */
-	WERROR spoolss_SetPrinterDataEx(
+	[noopnum,nopull,noprint,public] WERROR _spoolss_SetPrinterDataEx(
 		[in,ref] policy_handle *handle,
-		[in] 	 [string,charset(UTF16)] uint16 key_name[],
-		[in] 	 [string,charset(UTF16)] uint16 value_name[],
-		[in] 	 winreg_Type type,
-		[in,ref] [size_is(offered)] uint8 *buffer,
-		[in] 	 uint32 offered
+		[in] [string,charset(UTF16)] uint16 key_name[],
+		[in] [string,charset(UTF16)] uint16 value_name[],
+		[in] winreg_Type type,
+		[in] DATA_BLOB data,
+		[in] uint32 _offered
+	);
+	[noopnum,nopull,noprint,public] void __spoolss_SetPrinterDataEx(
+		[in] winreg_Type type,
+		[out,ref,switch_is(type)] spoolss_PrinterData *data
+	);
+	[nopush] WERROR spoolss_SetPrinterDataEx(
+		[in,ref] policy_handle *handle,
+		[in] [string,charset(UTF16)] uint16 key_name[],
+		[in] [string,charset(UTF16)] uint16 value_name[],
+		[in] winreg_Type type,
+		[in,subcontext(4),switch_is(type)] spoolss_PrinterData data,
+		[in,value(ndr_size_spoolss_PrinterData(&data,type,ndr->iconv_convenience,flags))] uint32 _offered
 	);
 
 	/******************/
 	/* Function: 0x4e */
-	WERROR spoolss_GetPrinterDataEx(
+	[noopnum,noprint,public] WERROR _spoolss_GetPrinterDataEx(
 		[in,ref] policy_handle *handle,
 		[in] 	 [string,charset(UTF16)] uint16 key_name[],
 		[in] 	 [string,charset(UTF16)] uint16 value_name[],
-		[out,ref] winreg_Type *type,
-		[out,ref] [size_is(offered)] uint8 *buffer,
 		[in] 	 uint32 offered,
+		[out,ref] winreg_Type *type,
+		[out,ref] DATA_BLOB *data,
+		[out,ref] uint32 *needed
+	);
+	[noopnum,noprint,public] void __spoolss_GetPrinterDataEx(
+		[in] winreg_Type type,
+		[out,ref,switch_is(type)] spoolss_PrinterData *data
+	);
+	[nopull,nopush,public] WERROR spoolss_GetPrinterDataEx(
+		[in,ref] policy_handle *handle,
+		[in] 	 [string,charset(UTF16)] uint16 key_name[],
+		[in] 	 [string,charset(UTF16)] uint16 value_name[],
+		[in] 	 uint32 offered,
+		[out,ref] winreg_Type *type,
+		[out,ref,subcontext(4),subcontext_size(offered),switch_is(*type)] spoolss_PrinterData *data,
 		[out,ref] uint32 *needed
 	);
 
@@ -2571,12 +2603,19 @@ import "misc.idl", "security.idl", "winreg.idl";
 		[out,ref] uint32 *needed
 	);
 
+	typedef [nodiscriminant] union {
+		[case(0)];
+		[case(1)];
+		[default] nstring_array string_array;
+	} spoolss_KeyNames;
+
 	/******************/
 	/* Function: 0x50 */
 	[public] WERROR spoolss_EnumPrinterKey(
 		[in, ref] policy_handle *handle,
 		[in] [string,charset(UTF16)] uint16 key_name[],
-		[out,ref] [size_is(offered/2)] uint16 *key_buffer,
+		[out,ref] uint32 *_ndr_size,
+		[out,ref,subcontext(0),subcontext_size(*_ndr_size*2),switch_is(*_ndr_size)] spoolss_KeyNames *key_buffer,
 		[in] uint32 offered,
 		[out,ref] uint32 *needed
 	);

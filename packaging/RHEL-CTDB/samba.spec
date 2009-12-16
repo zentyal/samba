@@ -5,7 +5,7 @@ Summary: Samba SMB client and server
 Vendor: Samba Team
 Packager: Samba Team <samba@samba.org>
 Name:         samba
-Version:      3.5.0pre1
+Version:      3.5.0pre2
 Release:      1GITHASH
 Epoch:        0
 License: GNU GPL version 3
@@ -268,7 +268,17 @@ fi
 
 
 make -j %{numcpu} %{?_smp_mflags} \
-	all modules pam_smbpass
+	everything modules pam_smbpass
+
+# check that desired suppor has been compiled into smbd:
+export LD_LIBRARY_PATH=./bin
+for test in HAVE_POSIX_ACLS HAVE_LDAP HAVE_KRB5 HAVE_GPFS CLUSTER_SUPPORT
+do
+	if ! $(./bin/smbd -b | grep -q $test ) ; then
+		echo "ERROR: '$test' is not in smbd. Build stopped."
+		exit 1;
+	fi
+done
 
 # Remove some permission bits to avoid to many dependencies
 cd ..
@@ -302,6 +312,9 @@ mkdir -p $RPM_BUILD_ROOT/%{_libarchdir}/krb5/plugins/libkrb5
 cd source3
 make DESTDIR=$RPM_BUILD_ROOT \
         install
+
+make DESTDIR=$RPM_BUILD_ROOT \
+        install-dbwrap_tool install-dbwrap_torture
 cd ..
 
 # NSS winbind support
@@ -457,8 +470,34 @@ exit 0
 %{_bindir}/tdbdump
 %{_bindir}/eventlogadm
 
-%{_libarchdir}/samba/vfs/*.so
-%{_libarchdir}/samba/auth/*.so
+%{_libarchdir}/samba/auth/script.so
+%{_libarchdir}/samba/vfs/acl_tdb.so
+%{_libarchdir}/samba/vfs/acl_xattr.so
+%{_libarchdir}/samba/vfs/aio_fork.so
+%{_libarchdir}/samba/vfs/audit.so
+%{_libarchdir}/samba/vfs/cap.so
+%{_libarchdir}/samba/vfs/default_quota.so
+%{_libarchdir}/samba/vfs/dirsort.so
+%{_libarchdir}/samba/vfs/expand_msdfs.so
+%{_libarchdir}/samba/vfs/extd_audit.so
+%{_libarchdir}/samba/vfs/fake_perms.so
+%{_libarchdir}/samba/vfs/fileid.so
+%{_libarchdir}/samba/vfs/full_audit.so
+%{_libarchdir}/samba/vfs/gpfs.so
+%{_libarchdir}/samba/vfs/netatalk.so
+%{_libarchdir}/samba/vfs/preopen.so
+%{_libarchdir}/samba/vfs/readahead.so
+%{_libarchdir}/samba/vfs/readonly.so
+%{_libarchdir}/samba/vfs/recycle.so
+%{_libarchdir}/samba/vfs/shadow_copy.so
+%{_libarchdir}/samba/vfs/shadow_copy2.so
+%{_libarchdir}/samba/vfs/smb_traffic_analyzer.so
+%{_libarchdir}/samba/vfs/streams_depot.so
+%{_libarchdir}/samba/vfs/streams_xattr.so
+%{_libarchdir}/samba/vfs/syncops.so
+%{_libarchdir}/samba/vfs/tsmsm.so
+%{_libarchdir}/samba/vfs/xattr_tdb.so
+
 
 %{_mandir}/man1/smbcontrol.1*
 %{_mandir}/man1/smbstatus.1*
@@ -543,33 +582,42 @@ exit 0
 %config(noreplace) %{_sysconfdir}/samba/lmhosts
 %attr(755,root,root) %config %{initdir}/winbind
 
-#%attr(755,root,root) /%{_libarch}/libnss_wins.so*
-%attr(755,root,root) /%{_libarch}/libnss_winbind.so*
+%attr(755,root,root) /%{_libarch}/libnss_winbind.so
+%attr(755,root,root) /%{_libarch}/libnss_winbind.so.2
 %attr(755,root,root) /%{_libarch}/security/pam_winbind.so
 %attr(755,root,root) /%{_libarch}/security/pam_smbpass.so
 /usr/share/locale/*/LC_MESSAGES/pam_winbind.mo
 
-%{_libarchdir}/samba/idmap/*.so
-%{_libarchdir}/samba/nss_info/*.so
+%{_libarchdir}/samba/charset/CP437.so
+%{_libarchdir}/samba/charset/CP850.so
+%{_libarchdir}/samba/idmap/ad.so
+%{_libarchdir}/samba/idmap/rid.so
+%{_libarchdir}/samba/idmap/tdb2.so
+%{_libarchdir}/samba/lowcase.dat
+%{_libarchdir}/samba/nss_info/rfc2307.so
+%{_libarchdir}/samba/nss_info/sfu.so
+%{_libarchdir}/samba/nss_info/sfu20.so
+%{_libarchdir}/samba/upcase.dat
+%{_libarchdir}/samba/valid.dat
 
 %{_includedir}/libsmbclient.h
 %{_libarchdir}/libsmbclient.*
-#%{_includedir}/libmsrpc.h
-#%{_libarchdir}/libmsrpc.*
 %{_includedir}/smb_share_modes.h
-%{_libarchdir}/libsmbsharemodes.*
-
-%{_libarchdir}/samba/*.dat
-%{_libarchdir}/samba/charset/*.so
+%{_libarchdir}/libsmbsharemodes.so
+%{_libarchdir}/libsmbsharemodes.so.0
 
 %{_includedir}/netapi.h
 %{_includedir}/wbclient.h
 %{_includedir}/talloc.h
 %{_includedir}/tdb.h
-%{_libarchdir}/libnetapi.so*
-%{_libarchdir}/libtalloc.so*
-%{_libarchdir}/libtdb.so*
-%{_libarchdir}/libwbclient.so*
+%{_libarchdir}/libnetapi.so
+%{_libarchdir}/libnetapi.so.0
+%{_libarchdir}/libtalloc.so
+%{_libarchdir}/libtalloc.so.1
+%{_libarchdir}/libtdb.so
+%{_libarchdir}/libtdb.so.1
+%{_libarchdir}/libwbclient.so
+%{_libarchdir}/libwbclient.so.0
 
 %{_libarchdir}/krb5/plugins/libkrb5/winbind_krb5_locator.so
 
@@ -590,6 +638,8 @@ exit 0
 %{_bindir}/ntlm_auth
 %{_bindir}/pdbedit
 %{_bindir}/smbcquotas
+%{_bindir}/dbwrap_tool
+%{_bindir}/dbwrap_torture
 
 %{_mandir}/man1/ntlm_auth.1*
 %{_mandir}/man1/profiles.1*
@@ -614,11 +664,14 @@ exit 0
 
 %ifarch x86_64 ppc64
 %files winbind-32bit
-%attr(755,root,root) /lib/libnss_winbind.so*
-#%attr(755,root,root) /lib/libnss_wins.so*
-%attr(755,root,root) /usr/lib/libtalloc.so*
-%attr(755,root,root) /usr/lib/libtdb.so*
-%attr(755,root,root) /usr/lib/libwbclient.so*
+%attr(755,root,root) /lib/libnss_winbind.so
+%attr(755,root,root) /lib/libnss_winbind.so.2
+%attr(755,root,root) /usr/lib/libtalloc.so
+%attr(755,root,root) /usr/lib/libtalloc.so.1
+%attr(755,root,root) /usr/lib/libtdb.so
+%attr(755,root,root) /usr/lib/libtdb.so.1
+%attr(755,root,root) /usr/lib/libwbclient.so
+%attr(755,root,root) /usr/lib/libwbclient.so.0
 %attr(755,root,root) /lib/security/pam_winbind.so
 %endif
 

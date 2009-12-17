@@ -1,4 +1,4 @@
-samba (2:3.4.3-2) UNRELEASED; urgency=low
+samba (2:3.4.3-2) unstable; urgency=low
 
   [ Christian Perrier ]
   * Switch to source format 3.0 (quilt)
@@ -23,7 +23,7 @@ samba (2:3.4.3-2) UNRELEASED; urgency=low
     - debian/samba-common.prerm: move to samba-common-bin, this is the package
       that owns these binaries.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 17 Dec 2009 16:53:13 +0100
 
 samba (2:3.4.3-1) unstable; urgency=low
 

@@ -61,6 +61,8 @@ conf_args = \
 		--enable-external-libtalloc \
 		--without-libtalloc \
 		--disable-avahi \
+		--with-cifsumount \
+		--with-cifsmount
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \

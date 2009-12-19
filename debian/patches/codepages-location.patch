@@ -4,11 +4,11 @@ Author: Christian Perrier <bubulle@debian.org>
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=6444
 Forwarded: yes
 
-Index: b/source3/Makefile.in
+Index: experimental/source3/Makefile.in
 ===================================================================
---- a/source3/Makefile.in	2009-11-08 15:55:34.000000000 +0100
-+++ b/source3/Makefile.in	2009-11-08 15:55:38.000000000 +0100
-@@ -156,7 +156,7 @@
+--- experimental.orig/source3/Makefile.in
++++ experimental/source3/Makefile.in
+@@ -167,7 +167,7 @@
  STATEDIR = @statedir@
  
  # Where to look for (and install) codepage databases.

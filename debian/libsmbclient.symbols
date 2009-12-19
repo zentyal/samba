@@ -154,6 +154,8 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setxattr@Base 3.0.24
  smbc_stat@Base 3.0.24
  smbc_telldir@Base 3.0.24
+ smbc_thread_impl@Base 2:3.5.0~pre2
+ smbc_thread_posix@Base 2:3.5.0~pre2
  smbc_unlink@Base 3.0.24
  smbc_unlink_print_job@Base 3.0.24
  smbc_utime@Base 3.0.24

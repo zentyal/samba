@@ -6,7 +6,7 @@ samba (2:3.5.0~pre2-1) UNRELEASED-experimental; urgency=low
   * Better adapt "add machine script" example to adduser
     Thanks to Heiko Schlittermann for the suggestion
     Closes: #555466
-  * Add --with-cifsmount and --with-cifs-umount to configure
+  * Add --with-cifs-umount to configure
 
   [ Mathieu Parent ]
   * Raise ctdb build-dep version to 1.0.103

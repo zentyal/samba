@@ -60,14 +60,13 @@ conf_args = \
 		--with-cachedir=/var/cache/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
-		--disable-avahi \
-		--with-cifsumount \
-		--with-cifsmount
+		--disable-avahi
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
 		--with-ctdb=/usr --with-cluster-support=yes \
 		--with-cifsmount \
+		--with-cifsumount \
 		--with-cifsupcall \
 		--with-acl-support \
 		--with-quotas

@@ -16,6 +16,10 @@ samba (2:3.5.0~pre2-1) UNRELEASED-experimental; urgency=low
     removed in commit e1b32594c70ee57f16c84adb7910aa5c84a560f8
   * Raise libtalloc-dev build-dep to 2.0.1 as required by configure
 
+  [ Steve Langasek ]
+  * debian/rules: drop --with-cifsmount, --with-cifsupcall arguments, these
+    are now always set by default on Linux
+
  -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
 
 samba (2:3.4.3-1) unstable; urgency=low

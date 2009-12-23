@@ -1,3 +1,13 @@
+samba (2:3.2.5-4lenny8) UNRELEASED; urgency=low
+
+  * Fix regression in name mangling.i Only short
+    filenames were hashed, not long ones when using
+    "mangling method = hash". Closes: #561545
+  * Fix mangling of file or directory names that contain
+    dots. This bug was revealed when fixing #561545
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 23 Dec 2009 20:29:03 +0100
+
 samba (2:3.2.5-4lenny7) stable-security; urgency=high
 
   * Security update. Fixes the following issues:

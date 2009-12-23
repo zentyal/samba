@@ -1,0 +1,25 @@
+Goal: Fix regression with "setting mangling method = hash"
+
+Fixes: #561545
+
+Status wrt upstream: Fixed in 3.3.10 and 3.4.4
+
+Author: Jeremy Allison <jra@samba.org>
+
+diff --git a/source/smbd/mangle_hash.c b/source/smbd/mangle_hash.c
+index 69ecf77..5de69e2 100644
+--- a/source/smbd/mangle_hash.c
++++ b/source/smbd/mangle_hash.c
+@@ -613,7 +613,10 @@ static bool must_mangle(const char *name,
+ 	}
+ 	status = is_valid_name(name_ucs2, False, False);
+ 	SAFE_FREE(name_ucs2);
+-	return NT_STATUS_IS_OK(status);
++	/* We return true if we *must* mangle, so if it's
++	 * a valid name (status == OK) then we must return
++	 * false. Bug #6939. */
++	return !NT_STATUS_IS_OK(status);
+ }
+ 
+ /*****************************************************************************
+

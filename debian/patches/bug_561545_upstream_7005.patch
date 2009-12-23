@@ -1,0 +1,38 @@
+Goal: Fix regression revealed when fixing upstream #6939.
+      Suffixes are stripped from filenames with a dot/period
+      character.
+
+Fixes: #561545
+
+Status wrt upstream: Fixed in 3.3.10 and 3.4.4
+
+Author: Jeremy Allison <jra@samba.org>
+
+diff --git a/source/smbd/mangle_hash.c b/source/smbd/mangle_hash.c
+index 5de69e2..7073c3c 100644
+--- a/source/smbd/mangle_hash.c
++++ b/source/smbd/mangle_hash.c
+@@ -432,6 +432,13 @@ static void cache_mangled_name( const char mangled_name[13],
+ 		if( !s1[i] && !s2[i] ) {
+ 			/* Truncate at the '.' */
+ 			*s1 = '\0';
++			/*
++			 * DANGER WILL ROBINSON - this
++			 * is changing a const string via
++			 * an aliased pointer ! Remember to
++			 * put it back once we've used it.
++			 * JRA
++			 */
+ 			*s2 = '\0';
+ 		}
+ 	}
+@@ -443,6 +450,8 @@ static void cache_mangled_name( const char mangled_name[13],
+ 	} else {
+ 		DEBUG(5,("cache_mangled_name: Stored entry %s -> %s\n", mangled_name_key, raw_name));
+ 	}
++	/* Restore the change we made to the const string. */
++	*s2 = '.';
+ }
+ 
+ /* ************************************************************************** **
+

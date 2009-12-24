@@ -1,4 +1,5 @@
-Goal: Fix regression with "setting mangling method = hash"
+Goal: Fix regression when setting "mangling method = hash". It was
+      just...not working anymore.
 
 Fixes: #561545
 

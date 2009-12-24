@@ -1,4 +1,4 @@
-samba (2:3.2.5-4lenny8) UNRELEASED; urgency=low
+samba (2:3.2.5-4lenny8) stable-proposed-updates; urgency=low
 
   * Fix regression in name mangling.i Only short
     filenames were hashed, not long ones when using
@@ -6,7 +6,7 @@ samba (2:3.2.5-4lenny8) UNRELEASED; urgency=low
   * Fix mangling of file or directory names that contain
     dots. This bug was revealed when fixing #561545
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 23 Dec 2009 20:29:03 +0100
+ -- Christian Perrier <bubulle@debian.org>  Wed, 23 Dec 2009 20:32:02 +0100
 
 samba (2:3.2.5-4lenny7) stable-security; urgency=high
 

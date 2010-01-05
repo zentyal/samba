@@ -15,7 +15,7 @@ Build-Depends: debhelper (>= 6.0.0), libpam0g-dev, libreadline-dev,
 Build-Conflicts: libfam-dev
 Standards-Version: 3.8.3
 Homepage: http://www.samba.org
-Vcs-Browser: http://svn.debian.org/wsvn/pkg-samba/trunk/samba
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-samba/trunk/samba/
 Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 
 Package: samba

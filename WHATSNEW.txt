@@ -1,4 +1,103 @@
                    =============================
+                   Release Notes for Samba 3.4.4
+			 January 7, 2009
+                   =============================
+
+
+This is the latest stable release of Samba 3.4.
+
+Major enhancements in Samba 3.4.4 include:
+
+   o Fix interdomain trust relationships with Win2008R2 (bug #6697).
+   o Fix Winbind crashes when queried from nss (bug #6889).
+   o Fix Winbind crash when retrieving empty group members (bug #7014).
+   o Fix "UID range full" error in Winbind (bug #6901).
+   o Fix multiple LDAP servers in "idmap backend" and "idmap alloc
+     backend" (bug #6910).
+
+
+######################################################################
+Changes
+#######
+
+Changes since 3.4.3
+-------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 6851: Add pdbedit --kickoff-time/-K to set the user's kickoff time.
+    * BUG 6901: Fix "UID range full" error in Winbind.
+    * BUG 6910: Fix multiple LDAP servers in "idmap backend" and "idmap alloc
+      backend".
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6828: Fix infinite timeout when byte lock held outside of samba.
+    * BUG 6837: Fix "Too many open files" message when trying to access a large
+      number of files with Windows 7.
+    * BUG 6841: Fix "map acl inherit = yes".
+    * BUG 6867: Fix listing of directories with a lot of files.
+    * BUG 6875: Fix DOS attributes on OS/2 clients.
+    * BUG 6880: Fix listing of workgroup servers in libsmbclient.
+    * BUG 6898: Samba duplicates file content on appending.
+    * BUG 6939: Fix long filenames with "mangling method = hash".
+    * BUG 7005: Fix "mangle method = hash" truncates files with dot "."
+      character.
+
+
+o   Kai Blin <kai@samba.org>
+    * BUG 4832: Fix iconv checks.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 6697: Fix interdomain trust relationships with Win2008R2.
+    * BUG 6868: Support building with Heimdal we well as with MIT.
+    * BUG 6889: Fix Winbind crashes when queried from nss.
+    * BUG 6929: Fix build with recent heimdal.
+    * Fix the build of the winbind krb5 locator plugin.
+    * Fix enumprinter key client and server.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 6338: Do not always display "none" in 'net rpc trustdom list'.
+    * BUG 6850: Fix shadow copy display on Windows 7.
+    * BUG 6981: Fix paged search with DirX LDAP server.
+    * BUG 6982: Remove erroneous out of memory error path in lookup_sid.
+    * BUG 6997: Fix _samr_GetAliasMembership for results with 0 rids.
+
+
+o   Jim McDonough <jmcd@samba.org>
+    * BUG 6967: Fix 'net ads join' with OU.
+    * BUG 7014: Fix Winbind crash when retrieving empty group members.
+
+
+o   Andrew Tridgell <tridge@samba.org>
+    * BUG 6918: Fix krb5 build problem on Ubuntu karmic.
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.4 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older versions follow:
+----------------------------------------
+
+                   =============================
                    Release Notes for Samba 3.4.3
 			 October 29, 2009
                    =============================
@@ -135,8 +234,8 @@ database (https://bugzilla.samba.org/).
 ======================================================================
 
 
-Release notes for older versions follow:
-----------------------------------------
+----------------------------------------------------------------------
+
 
                    =============================
                    Release Notes for Samba 3.4.2

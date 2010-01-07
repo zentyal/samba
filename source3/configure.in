@@ -31,7 +31,7 @@ if test "x$enable_external_libtalloc" != xno
 then
 	PKG_CHECK_MODULES(TALLOC, talloc >= 1.3.0, 
 		[ enable_external_libtalloc=yes ],
-		[ if x$enable_external_libtalloc = xyes; then 
+		[ if test "x$enable_external_libtalloc" = xyes; then
 		 	AC_MSG_ERROR([Unable to find libtalloc])
 	      else 
 			enable_external_libtalloc=no
@@ -1057,6 +1057,7 @@ AC_CHECK_HEADERS(sys/mman.h)
 # setbuffer, shmget, shm_open are needed for smbtorture
 AC_CHECK_FUNCS(shmget shm_open)
 AC_CHECK_FUNCS(gettext dgettext)
+AC_CHECK_FUNCS(strupr)
 
 # Find a method of generating a stack trace
 AC_CHECK_HEADERS(execinfo.h libexc.h libunwind.h)
@@ -1068,33 +1069,13 @@ AC_CHECK_LIB(exc, trace_back_stack)
 # check for sysctlbyname for BSD systems
 AC_CHECK_FUNCS(sysctlbyname)
 
-printf "%s" "checking for GPFS GPL libs... "
-save_LIBS="$LIBS"
-LIBS="$LIBS -lgpfs_gpl"
-AC_TRY_LINK([#include <gpfs_gpl.h>],
-          [gpfs_set_share(0,GPFS_SHARE_READ,GPFS_DENY_NONE)],
-          samba_cv_HAVE_GPFS=yes,
-          samba_cv_HAVE_GPFS=no)
-echo $samba_cv_HAVE_GPFS
-if test x"$samba_cv_HAVE_GPFS" = x"yes"; then
-    AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL libs are available])
+#############################
+# check if building with gpfs
+AC_CHECK_HEADERS(gpfs_gpl.h)
+if test x"$ac_cv_header_gpfs_gpl_h" = x"yes"; then
+    AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL headers are available])
     default_shared_modules="$default_shared_modules vfs_gpfs"
 fi
-LIBS="$save_LIBS"
-
-printf "%s" "checking for GPFS libs (with 3.2.1 PTF8 available as GPL)... "
-save_LIBS="$LIBS"
-LIBS="$LIBS -lgpfs"
-AC_TRY_LINK([#include <gpfs.h>],
-          [gpfs_set_share(0,GPFS_SHARE_READ,GPFS_DENY_NONE)],
-          samba_cv_HAVE_GPFS=yes,
-          samba_cv_HAVE_GPFS=no)
-echo $samba_cv_HAVE_GPFS
-if test x"$samba_cv_HAVE_GPFS" = x"yes"; then
-    AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL libs are available])
-    default_shared_modules="$default_shared_modules vfs_gpfs"
-fi
-LIBS="$save_LIBS"
 
 #############################################
 # check if building on Isilon OneFS
@@ -1543,9 +1524,10 @@ DSO_EXPORTS=""
 
   # and these are for particular systems
   case "$host_os" in
-		*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
-			case "$host_os" in *linux*)
-				AC_DEFINE(LINUX,1,[Whether the host os is linux]) ;;
+		*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu | *qnx*)
+			case "$host_os" in
+				*linux*) AC_DEFINE(LINUX,1,[Whether the host os is linux]) ;;
+				*qnx*) AC_DEFINE(QNX,1,[Whether the host os is qnx]) ;;
 			esac
 			BLDSHARED="true"
 			if test "${ac_cv_gnu_ld_no_default_allow_shlib_undefined}" = "yes"; then
@@ -1658,9 +1640,6 @@ DSO_EXPORTS=""
 			fi
 			AC_DEFINE(STAT_ST_BLOCKSIZE,8192,[The size of a block])
 			AC_DEFINE(POSIX_ACL_NEEDS_MASK,1,[Does a POSIX ACL need a mask element])
-			;;
-		*qnx*) AC_DEFINE(QNX,1,[Whether the host os is qnx])
-			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
 			;;
 		*osf*) AC_DEFINE(OSF1,1,[Whether the host os is osf1])
 			BLDSHARED="true"
@@ -3316,10 +3295,31 @@ if test x"$with_ads_support" != x"no"; then
     CPPFLAGS=$ac_save_CPPFLAGS
     LDFLAGS=$ac_save_LDFLAGS
   fi
-  AC_CHECK_HEADERS(krb5/locate_plugin.h)
+  AC_CHECK_HEADERS([krb5/locate_plugin.h], [], [],
+[[#ifdef HAVE_KRB5_H
+ #include <krb5.h>
+ #endif
+]])
+
   if test x"$ac_cv_header_krb5_locate_plugin_h" = x"yes"; then
 	WINBIND_KRB5_LOCATOR="bin/winbind_krb5_locator.$SHLIBEXT"
 	EXTRA_ALL_TARGETS="$EXTRA_ALL_TARGETS $WINBIND_KRB5_LOCATOR"
+  fi
+
+  # check for new heimdal KRB5_DEPRECATED handling
+
+  AC_CACHE_CHECK([for KRB5_DEPRECATED define taking an identifier],
+                samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER,[
+    AC_TRY_COMPILE(
+      [#define KRB5_DEPRECATED 1
+      #include <krb5.h>],
+      [],
+      samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER=yes,
+      samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER=no)])
+
+  if test x"$samba_cv_HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER" = x"yes"; then
+    AC_DEFINE(HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER, 1,
+	       [Whether to use deprecated krb5 interfaces])
   fi
 fi
 
@@ -3402,6 +3402,10 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_FUNC_EXT(krb5_enctype_to_string, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_fwd_tgt_creds, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_auth_con_set_req_cksumtype, $KRB5_LIBS)
+
+  # MIT krb5 1.7beta3 (in Ubuntu Karmic) does not have this declaration
+  # but does have the symbol
+  AC_CHECK_DECLS(krb5_auth_con_set_req_cksumtype, [], [], [#include <krb5.h>])
 
   LIBS="$KRB5_LIBS $LIBS"
 

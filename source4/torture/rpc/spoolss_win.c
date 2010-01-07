@@ -23,6 +23,7 @@
 #include "torture/rpc/rpc.h"
 #include "librpc/gen_ndr/ndr_spoolss_c.h"
 #include "rpc_server/dcerpc_server.h"
+#include "librpc/gen_ndr/ndr_misc.h"
 #include "ntvfs/ntvfs.h"
 #include "param/param.h"
 
@@ -177,7 +178,7 @@ static bool test_GetPrinterData(struct torture_context *tctx,
 	if (W_ERROR_IS_OK(expected_werr)) {
 		torture_assert_int_equal(tctx, data.value,
 			expected_value,
-			"GetPrinterData did not return expected value.");
+			talloc_asprintf(tctx, "GetPrinterData for %s did not return expected value.", value_name));
 	}
 	return true;
 }
@@ -385,7 +386,8 @@ static bool test_EnumPrinterKey(struct torture_context *tctx,
 	NTSTATUS status;
 	struct spoolss_EnumPrinterKey epk;
 	uint32_t needed = 0;
-	const char **key_buffer = NULL;
+	union spoolss_KeyNames key_buffer;
+	uint32_t _ndr_size;
 
 	torture_comment(tctx, "Testing EnumPrinterKey(%s)\n", key);
 
@@ -394,6 +396,7 @@ static bool test_EnumPrinterKey(struct torture_context *tctx,
 	epk.in.offered = 0;
 	epk.out.needed = &needed;
 	epk.out.key_buffer = &key_buffer;
+	epk.out._ndr_size = &_ndr_size;
 
 	status = dcerpc_spoolss_EnumPrinterKey(p, tctx, &epk);
 	torture_assert_ntstatus_ok(tctx, status, "EnumPrinterKey failed");
@@ -408,7 +411,7 @@ static bool test_EnumPrinterKey(struct torture_context *tctx,
 
 	torture_assert_werr_ok(tctx, epk.out.result, "EnumPrinterKey failed");
 
-	ctx->printer_keys = key_buffer;
+	ctx->printer_keys = key_buffer.string_array;
 
 	return true;
 }

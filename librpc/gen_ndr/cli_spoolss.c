@@ -1144,7 +1144,7 @@ NTSTATUS rpccli_spoolss_ReadPrinter(struct rpc_pipe_client *cli,
 	}
 
 	/* Return variables */
-	memcpy(data, r.out.data, r.in.data_size * sizeof(*data));
+	memcpy(data, r.out.data, (r.in.data_size) * sizeof(*data));
 	*_data_size = *r.out._data_size;
 
 	/* Return result */
@@ -1240,7 +1240,7 @@ NTSTATUS rpccli_spoolss_AddJob(struct rpc_pipe_client *cli,
 
 	/* Return variables */
 	if (buffer && r.out.buffer) {
-		memcpy(buffer, r.out.buffer, r.in.offered * sizeof(*buffer));
+		memcpy(buffer, r.out.buffer, (r.in.offered) * sizeof(*buffer));
 	}
 	*needed = *r.out.needed;
 
@@ -3464,10 +3464,10 @@ NTSTATUS rpccli_spoolss_EnumPrinterData(struct rpc_pipe_client *cli,
 	}
 
 	/* Return variables */
-	memcpy(CONST_DISCARD(char *, value_name), r.out.value_name, r.in.value_offered / 2 * sizeof(*value_name));
+	memcpy(discard_const_p(uint8_t *, value_name), r.out.value_name, (r.in.value_offered / 2) * sizeof(*value_name));
 	*value_needed = *r.out.value_needed;
 	*type = *r.out.type;
-	memcpy(data, r.out.data, r.in.data_offered * sizeof(*data));
+	memcpy(data, r.out.data, (r.in.data_offered) * sizeof(*data));
 	*data_needed = *r.out.data_needed;
 
 	/* Return result */
@@ -3743,7 +3743,7 @@ NTSTATUS rpccli_spoolss_GetPrinterDataEx(struct rpc_pipe_client *cli,
 
 	/* Return variables */
 	*type = *r.out.type;
-	memcpy(buffer, r.out.buffer, r.in.offered * sizeof(*buffer));
+	memcpy(buffer, r.out.buffer, (r.in.offered) * sizeof(*buffer));
 	*needed = *r.out.needed;
 
 	/* Return result */
@@ -3811,7 +3811,8 @@ NTSTATUS rpccli_spoolss_EnumPrinterKey(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       struct policy_handle *handle /* [in] [ref] */,
 				       const char *key_name /* [in] [charset(UTF16)] */,
-				       const char ** *key_buffer /* [out] [subcontext_size(offered),ref,subcontext(0),flag(LIBNDR_FLAG_STR_NULLTERM)] */,
+				       uint32_t *_ndr_size /* [out] [ref] */,
+				       union spoolss_KeyNames *key_buffer /* [out] [subcontext_size(*_ndr_size*2),ref,subcontext(0),switch_is(*_ndr_size)] */,
 				       uint32_t offered /* [in]  */,
 				       uint32_t *needed /* [out] [ref] */,
 				       WERROR *werror)
@@ -3847,6 +3848,7 @@ NTSTATUS rpccli_spoolss_EnumPrinterKey(struct rpc_pipe_client *cli,
 	}
 
 	/* Return variables */
+	*_ndr_size = *r.out._ndr_size;
 	*key_buffer = *r.out.key_buffer;
 	*needed = *r.out.needed;
 
@@ -4211,7 +4213,7 @@ NTSTATUS rpccli_spoolss_XcvData(struct rpc_pipe_client *cli,
 	}
 
 	/* Return variables */
-	memcpy(out_data, r.out.out_data, r.in.out_data_size * sizeof(*out_data));
+	memcpy(out_data, r.out.out_data, (r.in.out_data_size) * sizeof(*out_data));
 	*needed = *r.out.needed;
 	*status_code = *r.out.status_code;
 

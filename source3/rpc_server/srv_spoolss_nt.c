@@ -1670,6 +1670,10 @@ WERROR _spoolss_OpenPrinterEx(pipes_struct *p,
 			return WERR_BADFID;
 		}
 
+		if (r->in.access_mask == SEC_FLAG_MAXIMUM_ALLOWED) {
+			r->in.access_mask = PRINTER_ACCESS_ADMINISTER;
+		}
+
 		se_map_standard(&r->in.access_mask, &printer_std_mapping);
 
 		/* map an empty access mask to the minimum access mask */
@@ -9259,7 +9263,7 @@ WERROR _spoolss_EnumPrinterKey(pipes_struct *p,
 	WERROR		result = WERR_BADFILE;
 	int i;
 	const char **array = NULL;
-
+	DATA_BLOB blob;
 
 	DEBUG(4,("_spoolss_EnumPrinterKey\n"));
 
@@ -9288,37 +9292,53 @@ WERROR _spoolss_EnumPrinterKey(pipes_struct *p,
 		goto done;
 	}
 
-	*r->out.needed = 4;
-
-	array = talloc_zero_array(r->out.key_buffer, const char *, num_keys + 1);
+	array = talloc_zero_array(r->out.key_buffer, const char *, num_keys + 2);
 	if (!array) {
 		result = WERR_NOMEM;
 		goto done;
 	}
 
+	if (!num_keys) {
+		array[0] = talloc_strdup(array, "");
+		if (!array[0]) {
+			result = WERR_NOMEM;
+			goto done;
+		}
+	}
+
 	for (i=0; i < num_keys; i++) {
+
+		DEBUG(10,("_spoolss_EnumPrinterKey: adding keyname: %s\n",
+			keynames[i]));
+
 		array[i] = talloc_strdup(array, keynames[i]);
 		if (!array[i]) {
 			result = WERR_NOMEM;
 			goto done;
 		}
-
-		*r->out.needed += strlen_m_term(keynames[i]) * 2;
 	}
 
-	if (r->in.offered < *r->out.needed) {
-		result = WERR_MORE_DATA;
+	if (!push_reg_multi_sz(p->mem_ctx, &blob, array)) {
+		result = WERR_NOMEM;
 		goto done;
 	}
 
-	result = WERR_OK;
+	*r->out._ndr_size = r->in.offered / 2;
+	*r->out.needed = blob.length;
 
-	*r->out.key_buffer = array;
+	if (r->in.offered < *r->out.needed) {
+		result = WERR_MORE_DATA;
+	} else {
+		result = WERR_OK;
+		r->out.key_buffer->string_array = array;
+	}
 
  done:
 	if (!W_ERROR_IS_OK(result)) {
 		TALLOC_FREE(array);
-		ZERO_STRUCTP(r->out.key_buffer);
+		if (!W_ERROR_EQUAL(result, WERR_MORE_DATA)) {
+			*r->out.needed = 0;
+		}
 	}
 
 	free_a_printer(&printer, 2);

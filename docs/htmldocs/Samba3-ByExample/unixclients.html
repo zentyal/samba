@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 7. Adding Domain Member Servers and Clients</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.74.0"><link rel="home" href="index.html" title="Samba-3 by Example"><link rel="up" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"><link rel="prev" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"><link rel="next" href="upgrades.html" title="Chapter 8. Updating Samba-3"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 7. Adding Domain Member Servers and Clients</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="DMSMig.html">Prev</a> </td><th width="60%" align="center">Part II. Domain Members, Updating Samba and Migration</th><td width="20%" align="right"> <a accesskey="n" href="upgrades.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="unixclients"></a>Chapter 7. Adding Domain Member Servers and Clients</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="unixclients.html#id2589266">Introduction</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#id2589319">Assignment Tasks</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2589354">Dissection and Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#id2589383">Technical Issues</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2590032">Political Issues</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2590132">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#sdcsdmldap">Samba Domain with Samba Domain Member Server  Using NSS LDAP</a></span></dt><dt><span class="sect2"><a href="unixclients.html#wdcsdm">NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind</a></span></dt><dt><span class="sect2"><a href="unixclients.html#dcwonss">NT4/Samba Domain with Samba Domain Member Server without NSS Support</a></span></dt><dt><span class="sect2"><a href="unixclients.html#adssdm">Active Directory Domain with Samba Domain Member Server</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2596338">UNIX/Linux Client Domain Member</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2596913">Key Points Learned</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2596967">Questions and Answers</a></span></dt></dl></div><p><a class="indexterm" name="id2589167"></a><a class="indexterm" name="id2589175"></a>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 7. Adding Domain Member Servers and Clients</title><link rel="stylesheet" href="../samba.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="Samba-3 by Example"><link rel="up" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"><link rel="prev" href="DMSMig.html" title="Part II. Domain Members, Updating Samba and Migration"><link rel="next" href="upgrades.html" title="Chapter 8. Updating Samba-3"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 7. Adding Domain Member Servers and Clients</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="DMSMig.html">Prev</a> </td><th width="60%" align="center">Part II. Domain Members, Updating Samba and Migration</th><td width="20%" align="right"> <a accesskey="n" href="upgrades.html">Next</a></td></tr></table><hr></div><div class="chapter" title="Chapter 7. Adding Domain Member Servers and Clients"><div class="titlepage"><div><div><h2 class="title"><a name="unixclients"></a>Chapter 7. Adding Domain Member Servers and Clients</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="unixclients.html#id2595324">Introduction</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#id2595378">Assignment Tasks</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2595413">Dissection and Discussion</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#id2595441">Technical Issues</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2596090">Political Issues</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2596190">Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="unixclients.html#sdcsdmldap">Samba Domain with Samba Domain Member Server  Using NSS LDAP</a></span></dt><dt><span class="sect2"><a href="unixclients.html#wdcsdm">NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind</a></span></dt><dt><span class="sect2"><a href="unixclients.html#dcwonss">NT4/Samba Domain with Samba Domain Member Server without NSS Support</a></span></dt><dt><span class="sect2"><a href="unixclients.html#adssdm">Active Directory Domain with Samba Domain Member Server</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2602396">UNIX/Linux Client Domain Member</a></span></dt><dt><span class="sect2"><a href="unixclients.html#id2602971">Key Points Learned</a></span></dt></dl></dd><dt><span class="sect1"><a href="unixclients.html#id2603025">Questions and Answers</a></span></dt></dl></div><p><a class="indexterm" name="id2595226"></a><a class="indexterm" name="id2595233"></a>
 	The most frequently discussed Samba subjects over the past 2 years have focused around domain control and printing. 
 	It is well known that Samba is a file and print server. A recent survey conducted by <span class="emphasis"><em>Open Magazine</em></span> found 
 	that of all respondents, 97 percent use Samba for file and print services, and 68 percent use Samba for Domain Control. See the 
@@ -11,16 +11,16 @@
 	exciting aspects of Samba deployment. This chapter directs your attention to provide important information on
 	the addition of Samba servers into your present Windows network  whatever the controlling technology
 	may be. So let's get back to our good friends at Abmas.
-	</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2589266"></a>Introduction</h2></div></div></div><p><a class="indexterm" name="id2589272"></a><a class="indexterm" name="id2589280"></a>
+	</p><div class="sect1" title="Introduction"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2595324"></a>Introduction</h2></div></div></div><p><a class="indexterm" name="id2595330"></a><a class="indexterm" name="id2595338"></a>
 	Looking back over the achievements of the past year or two, daily events at Abmas are rather straightforward
 	with not too many distractions or problems. Your team is doing well, but a number of employees
 	are asking for Linux desktop systems. Your network has grown and demands additional domain member servers. Let's
 	get on with this; Christine and Stan are ready to go.
-	</p><p><a class="indexterm" name="id2589301"></a>
+	</p><p><a class="indexterm" name="id2595359"></a>
 	Stan is firmly in control of the department of the future, while Christine is enjoying a stable and
 	predictable network environment. It is time to add more servers and to add Linux desktops. It is
 	time to meet the demands of future growth and endure trial by fire.
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2589319"></a>Assignment Tasks</h3></div></div></div><p><a class="indexterm" name="id2589326"></a>
+	</p><div class="sect2" title="Assignment Tasks"><div class="titlepage"><div><div><h3 class="title"><a name="id2595378"></a>Assignment Tasks</h3></div></div></div><p><a class="indexterm" name="id2595384"></a>
 	You must now add UNIX/Linux domain member servers to your network. You have a friend who has a Windows 2003
 	Active Directory domain network who wants to add a Samba/Linux server and has asked Christine to help him
 	out. Your real objective is to help Christine to see more of the way the Microsoft world lives and use
@@ -30,8 +30,8 @@
 	these systems to make sure that Abmas is not building islands of technology. You ask Christine to
 	do likewise at Swodniw Biz NL (your friend's company) to help them to evaluate a Linux desktop. You want to make
 	the right decision, don't you?
-	</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2589354"></a>Dissection and Discussion</h2></div></div></div><p>
-	<a class="indexterm" name="id2589362"></a>
+	</p></div></div><div class="sect1" title="Dissection and Discussion"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2595413"></a>Dissection and Discussion</h2></div></div></div><p>
+	<a class="indexterm" name="id2595421"></a>
 	Recent Samba mailing-list activity is witness to how many sites are using winbind. Some have no trouble
 	at all with it, yet to others the problems seem insurmountable. Periodically there are complaints concerning
 	an inability to achieve identical user and group IDs between Windows and UNIX environments.
@@ -39,57 +39,57 @@
 	You provide step-by-step implementations of the various tools that can be used for identity
 	resolution. You also provide working examples of solutions for integrated authentication for
 	both UNIX/Linux and Windows environments.
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2589383"></a>Technical Issues</h3></div></div></div><p>
-		One of the great challenges we face when people ask us, &#8220;<span class="quote">What is the best way to solve
-		this problem?</span>&#8221; is to get beyond the facts so we not only can clearly comprehend
+	</p><div class="sect2" title="Technical Issues"><div class="titlepage"><div><div><h3 class="title"><a name="id2595441"></a>Technical Issues</h3></div></div></div><p>
+		One of the great challenges we face when people ask us, <span class="quote">&#8220;<span class="quote">What is the best way to solve
+		this problem?</span>&#8221;</span> is to get beyond the facts so we not only can clearly comprehend
 		the immediate technical problem, but also can understand how needs may change.
 		</p><p>
-		<a class="indexterm" name="id2589402"></a>
+		<a class="indexterm" name="id2595460"></a>
 		There are a few facts we should note when dealing with the question of how best to
 		integrate UNIX/Linux clients and servers into a Windows networking environment:
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
-			<a class="indexterm" name="id2589418"></a>
-			<a class="indexterm" name="id2589425"></a>
-			<a class="indexterm" name="id2589432"></a>
-			<a class="indexterm" name="id2589441"></a>
-			<a class="indexterm" name="id2589448"></a>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
+			<a class="indexterm" name="id2595476"></a>
+			<a class="indexterm" name="id2595483"></a>
+			<a class="indexterm" name="id2595490"></a>
+			<a class="indexterm" name="id2595499"></a>
+			<a class="indexterm" name="id2595506"></a>
 			A domain controller (PDC or BDC) is always authoritative for all accounts in its domain.
 			This means that a BDC must (of necessity) be able to resolve all account UIDs and GIDs
 			to the same values that the PDC resolved them to.
-			</p></li><li><p>
-			<a class="indexterm" name="id2589462"></a>
-			<a class="indexterm" name="id2589469"></a>
-			<a class="indexterm" name="id2589481"></a>
-			<a class="indexterm" name="id2589488"></a>
+			</p></li><li class="listitem"><p>
+			<a class="indexterm" name="id2595521"></a>
+			<a class="indexterm" name="id2595528"></a>
+			<a class="indexterm" name="id2595540"></a>
+			<a class="indexterm" name="id2595547"></a>
 			A domain member can be authoritative for local accounts, but is never authoritative for
 			domain accounts. If a user is accessing a domain member server and that user's account
 			is not known locally, the domain member server must resolve the identity of that user
 			from the domain in which that user's account resides. It must then map that ID to a
 			UID/GID pair that it can use locally. This is handled by <code class="literal">winbindd</code>.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Samba, when running on a domain member server, can resolve user identities from a
 			number of sources:
-			</p><div class="itemizedlist"><ul type="circle"><li><p>
-				<a class="indexterm" name="id2589521"></a>
-				<a class="indexterm" name="id2589528"></a>
-				<a class="indexterm" name="id2589534"></a>
-				<a class="indexterm" name="id2589541"></a>
-				<a class="indexterm" name="id2589548"></a>
+			</p><div class="itemizedlist"><ul class="itemizedlist" type="circle"><li class="listitem"><p>
+				<a class="indexterm" name="id2595579"></a>
+				<a class="indexterm" name="id2595586"></a>
+				<a class="indexterm" name="id2595593"></a>
+				<a class="indexterm" name="id2595599"></a>
+				<a class="indexterm" name="id2595606"></a>
 				By executing a system <code class="literal">getpwnam()</code> or <code class="literal">getgrnam()</code> call. 
 				On systems that support it, this utilizes the name service switch (NSS) facility to 
 				resolve names according to the configuration of the <code class="filename">/etc/nsswitch.conf</code> 
 				file. NSS can be configured to use LDAP, winbind, NIS, or local files.
-				</p></li><li><p>
-				<a class="indexterm" name="id2589581"></a>
-				<a class="indexterm" name="id2589588"></a>
-				<a class="indexterm" name="id2589595"></a>
+				</p></li><li class="listitem"><p>
+				<a class="indexterm" name="id2595639"></a>
+				<a class="indexterm" name="id2595646"></a>
+				<a class="indexterm" name="id2595653"></a>
 				Performing, via NSS, a direct LDAP search (where an LDAP passdb backend has been configured).
 				This requires the use of the PADL nss_ldap tool (or equivalent).
-				</p></li><li><p>
-				<a class="indexterm" name="id2589609"></a>
-				<a class="indexterm" name="id2589616"></a>
-				<a class="indexterm" name="id2589622"></a>
-				<a class="indexterm" name="id2589629"></a>
+				</p></li><li class="listitem"><p>
+				<a class="indexterm" name="id2595667"></a>
+				<a class="indexterm" name="id2595674"></a>
+				<a class="indexterm" name="id2595680"></a>
+				<a class="indexterm" name="id2595687"></a>
 				Directly by querying <code class="literal">winbindd</code>. The <code class="literal">winbindd</code>
 				contacts a domain controller to attempt to resolve the identity of the user or group. It
 				receives the Windows networking security identifier (SID) for that appropriate
@@ -97,8 +97,8 @@
 				creates an entry in its <code class="filename">winbindd_idmap.tdb</code> and 
 				<code class="filename">winbindd_cache.tdb</code> files.
 				</p><p>
-				<a class="indexterm" name="id2589669"></a>
-				<a class="indexterm" name="id2589676"></a>
+				<a class="indexterm" name="id2595727"></a>
+				<a class="indexterm" name="id2595734"></a>
 				If the parameter <a class="link" href="smb.conf.5.html#IDMAPBACKEND" target="_top">idmap backend = ldap:ldap://myserver.domain</a>
 				was specified and the LDAP server has been configured with a container in which it may
 				store the IDMAP entries, all domain members may share a common mapping.
@@ -110,38 +110,38 @@
 			Which of the resolver methods is chosen is determined by the way that Samba is configured 
 			in the <code class="filename">smb.conf</code> file. Some of the configuration options are rather less than obvious to the 
 			casual user.
-			</p></li><li><p>
-			<a class="indexterm" name="id2589741"></a>
-			<a class="indexterm" name="id2589748"></a>
-			<a class="indexterm" name="id2589757"></a>
+			</p></li><li class="listitem"><p>
+			<a class="indexterm" name="id2595799"></a>
+			<a class="indexterm" name="id2595806"></a>
+			<a class="indexterm" name="id2595816"></a>
 			If you wish to make use of accounts (users and/or groups) that are local to (i.e., capable
 			of being resolved using) the NSS facility, it is possible to use the 
 			<a class="link" href="smb.conf.5.html#WINBINDTRUSTEDDOMAINSONLY" target="_top">winbind trusted domains only = Yes</a>
 			in the <code class="filename">smb.conf</code> file. This parameter specifically applies to domain controllers, 
 			and to domain member servers.
 			</p></li></ul></div><p>
-		<a class="indexterm" name="id2589793"></a>
-		<a class="indexterm" name="id2589800"></a>
-		<a class="indexterm" name="id2589807"></a>
+		<a class="indexterm" name="id2595851"></a>
+		<a class="indexterm" name="id2595858"></a>
+		<a class="indexterm" name="id2595865"></a>
 		For many administrators, it should be plain that the use of an LDAP-based repository for all network
 		accounts (both for POSIX accounts and for Samba accounts) provides the most elegant and
 		controllable facility. You eventually appreciate the decision to use LDAP.
 		</p><p>
-		<a class="indexterm" name="id2589821"></a>
-		<a class="indexterm" name="id2589828"></a>
-		<a class="indexterm" name="id2589835"></a>
+		<a class="indexterm" name="id2595880"></a>
+		<a class="indexterm" name="id2595886"></a>
+		<a class="indexterm" name="id2595893"></a>
 		If your network account information resides in an LDAP repository, you should use it ahead of any
 		alternative method. This means that if it is humanly possible to use the <code class="literal">nss_ldap</code>
 		tools to resolve UNIX account UIDs/GIDs via LDAP, this is the preferred solution, because it provides
 		a more readily controllable method for asserting the exact same user and group identifiers 
 		throughout the network.
 		</p><p>
-		<a class="indexterm" name="id2589858"></a>
-		<a class="indexterm" name="id2589867"></a>
-		<a class="indexterm" name="id2589874"></a>
-		<a class="indexterm" name="id2589881"></a>
-		<a class="indexterm" name="id2589888"></a>
-		<a class="indexterm" name="id2589895"></a>
+		<a class="indexterm" name="id2595916"></a>
+		<a class="indexterm" name="id2595925"></a>
+		<a class="indexterm" name="id2595932"></a>
+		<a class="indexterm" name="id2595939"></a>
+		<a class="indexterm" name="id2595946"></a>
+		<a class="indexterm" name="id2595953"></a>
 		In the situation where UNIX accounts are held on the domain member server itself, the only effective
 		way to use them involves the <code class="filename">smb.conf</code> entry 
 		<a class="link" href="smb.conf.5.html#WINBINDTRUSTEDDOMAINSONLY" target="_top">winbind trusted domains only = Yes</a>. This forces 
@@ -149,10 +149,10 @@
 		then be controlled via <code class="filename">/etc/nsswitch.conf</code> file settings. The use of this parameter
 		disables the use of Samba with trusted domains (i.e., external domains).
 		</p><p>
-		<a class="indexterm" name="id2589946"></a>
-		<a class="indexterm" name="id2589953"></a>
-		<a class="indexterm" name="id2589962"></a>
-		<a class="indexterm" name="id2589969"></a>
+		<a class="indexterm" name="id2596004"></a>
+		<a class="indexterm" name="id2596011"></a>
+		<a class="indexterm" name="id2596020"></a>
+		<a class="indexterm" name="id2596027"></a>
 		Winbind can be used to create an appliance mode domain member server. In this capacity, <code class="literal">winbindd</code>
 		is configured to automatically allocate UIDs/GIDs from numeric ranges set in the <code class="filename">smb.conf</code> file. The allocation
 		is made for all accounts that connect to that domain member server, whether within its own domain or from
@@ -161,16 +161,16 @@
 		same UID/GID on both servers  however, this is transparent to the Windows network user. This data
 		is stored in the <code class="filename">winbindd_idmap.tdb</code> and <code class="filename">winbindd_cache.tdb</code> files.
 		</p><p>
-		<a class="indexterm" name="id2590017"></a>
+		<a class="indexterm" name="id2596075"></a>
 		The use of an LDAP backend for the Winbind IDMAP facility permits Windows domain SIDs
 		mappings to UIDs/GIDs to be stored centrally. The result is a consistent mapping across all domain member
 		servers so configured. This solves one of the major headaches for network administrators who need to copy
 		files between or across network file servers.
-		</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2590032"></a>Political Issues</h3></div></div></div><p>
-		<a class="indexterm" name="id2590040"></a>
-		<a class="indexterm" name="id2590046"></a>
-		<a class="indexterm" name="id2590053"></a>
-		<a class="indexterm" name="id2590062"></a>
+		</p></div><div class="sect2" title="Political Issues"><div class="titlepage"><div><div><h3 class="title"><a name="id2596090"></a>Political Issues</h3></div></div></div><p>
+		<a class="indexterm" name="id2596098"></a>
+		<a class="indexterm" name="id2596105"></a>
+		<a class="indexterm" name="id2596111"></a>
+		<a class="indexterm" name="id2596120"></a>
 		One of the most fierce conflicts recently being waged is resistance to the adoption of LDAP, in
 		particular OpenLDAP, as a replacement for UNIX NIS (previously called Yellow Pages). Let's face it, LDAP
 		is different and requires a new approach to the need for a better identity management solution. The more
@@ -182,23 +182,23 @@
 		you can't use Windows Active Directory in a heterogenous environment  it can be done, it just requires 
 		commercial integration products. But it's not what Active Directory was designed for.
 		</p><p>
-		<a class="indexterm" name="id2590101"></a>
-		<a class="indexterm" name="id2590107"></a>
+		<a class="indexterm" name="id2596159"></a>
+		<a class="indexterm" name="id2596165"></a>
 		A number of long-term UNIX devotees have recently commented in various communications that the Samba Team
 		is the first application group to almost force network administrators to use LDAP. It should be pointed
 		out that we resisted this for as long as we could. It is not out of laziness or malice that LDAP has
 		finally emerged as the preferred identity management backend for Samba. We recommend LDAP for your total
 		organizational directory needs.
-		</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2590132"></a>Implementation</h2></div></div></div><p>
-	<a class="indexterm" name="id2590140"></a>
-	<a class="indexterm" name="id2590149"></a>
-	<a class="indexterm" name="id2590159"></a>
+		</p></div></div><div class="sect1" title="Implementation"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2596190"></a>Implementation</h2></div></div></div><p>
+	<a class="indexterm" name="id2596198"></a>
+	<a class="indexterm" name="id2596208"></a>
+	<a class="indexterm" name="id2596217"></a>
 	The domain member server and the domain member client are at the center of focus in this chapter.
 	Configuration of Samba-3 domain controller is covered in earlier chapters, so if your 
 	interest is in domain controller configuration, you will not find that here. You will find good
 	oil that helps you to add domain member servers and clients.
 	</p><p>
-	<a class="indexterm" name="id2590175"></a>
+	<a class="indexterm" name="id2596233"></a>
 	In practice, domain member servers and domain member workstations are very different entities, but in
 	terms of technology they share similar core infrastructure. A technologist would argue that servers
 	and workstations are identical. Many users would argue otherwise, given that in a well-disciplined
@@ -206,15 +206,15 @@
 	are located on servers. A workstation is frequently viewed as a disposable (easy to replace) item,
 	but a server is viewed as a core component of the business.
 	</p><p>
-	<a class="indexterm" name="id2590197"></a>
+	<a class="indexterm" name="id2596255"></a>
 	We can look at this another way. If a workstation breaks down, one user is affected, but if a
 	server breaks down, hundreds of users may not be able to work. The services that a workstation
 	must provide are document- and file-production oriented; a server provides information storage
 	and is distribution oriented.
 	</p><p>
-	<a class="indexterm" name="id2590212"></a>
-	<a class="indexterm" name="id2590220"></a>
-	<a class="indexterm" name="id2590226"></a>
+	<a class="indexterm" name="id2596271"></a>
+	<a class="indexterm" name="id2596278"></a>
+	<a class="indexterm" name="id2596285"></a>
 	<span class="emphasis"><em>Why is this important?</em></span> For starters, we must identify what
 	components of the operating system and its environment must be configured. Also, it is necessary
 	to recognize where the interdependencies between the various services to be used are.
@@ -225,13 +225,13 @@
 	</p><p>
 	So, in this chapter we demonstrate how to implement the technology. It is done within a context of
 	what type of service need must be fulfilled.
-	</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="sdcsdmldap"></a>Samba Domain with Samba Domain Member Server  Using NSS LDAP</h3></div></div></div><p>
-	<a class="indexterm" name="id2590267"></a>
-	<a class="indexterm" name="id2590274"></a>
-	<a class="indexterm" name="id2590281"></a>
-	<a class="indexterm" name="id2590288"></a>
-	<a class="indexterm" name="id2590297"></a>
-	<a class="indexterm" name="id2590304"></a>
+	</p><div class="sect2" title="Samba Domain with Samba Domain Member Server Using NSS LDAP"><div class="titlepage"><div><div><h3 class="title"><a name="sdcsdmldap"></a>Samba Domain with Samba Domain Member Server  Using NSS LDAP</h3></div></div></div><p>
+	<a class="indexterm" name="id2596326"></a>
+	<a class="indexterm" name="id2596332"></a>
+	<a class="indexterm" name="id2596339"></a>
+	<a class="indexterm" name="id2596346"></a>
+	<a class="indexterm" name="id2596355"></a>
+	<a class="indexterm" name="id2596362"></a>
 	In this example, it is assumed that you have Samba PDC/BDC servers. This means you are using
 	an LDAP ldapsam backend. We are adding to the LDAP backend database (directory)
 	containers for use by the IDMAP facility. This makes it possible to have globally consistent
@@ -247,9 +247,9 @@
 	<em class="parameter"><code>idmap gid</code></em> ranges. Where LDAP is used, the mappings can be stored in LDAP
 	so that all domain member servers can use a consistent mapping.
 	</p><p>
-	<a class="indexterm" name="id2590368"></a>
-	<a class="indexterm" name="id2590374"></a>
-	<a class="indexterm" name="id2590381"></a>
+	<a class="indexterm" name="id2596426"></a>
+	<a class="indexterm" name="id2596433"></a>
+	<a class="indexterm" name="id2596440"></a>
 	If your installation is accessed only from clients that are members of your own domain, and all 
 	user accounts are present in a local passdb backend then it is not necessary to run
 	<code class="literal">winbindd</code>. The local passdb backend can be in smbpasswd, tdbsam, or in ldapsam.
@@ -258,38 +258,38 @@
 	user and group account information. The POSIX information is usually obtained using the
 	<code class="literal">getpwnam()</code> system call. On NSS-enabled systems, the actual POSIX account
 	source can be provided from
-	</p><div class="itemizedlist"><ul type="disc"><li><p>
-		<a class="indexterm" name="id2590418"></a>
-		<a class="indexterm" name="id2590425"></a>
+	</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
+		<a class="indexterm" name="id2596477"></a>
+		<a class="indexterm" name="id2596484"></a>
 		Accounts in <code class="filename">/etc/passwd</code> or in <code class="filename">/etc/group</code>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2590449"></a>
-		<a class="indexterm" name="id2590455"></a>
-		<a class="indexterm" name="id2590462"></a>
-		<a class="indexterm" name="id2590469"></a>
-		<a class="indexterm" name="id2590475"></a>
-		<a class="indexterm" name="id2590482"></a>
-		<a class="indexterm" name="id2590489"></a>
-		<a class="indexterm" name="id2590496"></a>
-		<a class="indexterm" name="id2590502"></a>
+		</p></li><li class="listitem"><p>
+		<a class="indexterm" name="id2596507"></a>
+		<a class="indexterm" name="id2596514"></a>
+		<a class="indexterm" name="id2596520"></a>
+		<a class="indexterm" name="id2596527"></a>
+		<a class="indexterm" name="id2596534"></a>
+		<a class="indexterm" name="id2596540"></a>
+		<a class="indexterm" name="id2596547"></a>
+		<a class="indexterm" name="id2596554"></a>
+		<a class="indexterm" name="id2596561"></a>
 		Resolution via NSS. On NSS-enabled systems, there is usually a facility to resolve IDs
 		via multiple methods. The methods typically include <code class="literal">files</code>,
 		<code class="literal">compat</code>, <code class="literal">db</code>, <code class="literal">ldap</code>, 
 		<code class="literal">nis</code>, <code class="literal">nisplus</code>, <code class="literal">hesiod.</code>  When
 		correctly installed, Samba adds to this list the <code class="literal">winbindd</code> facility.
 		The ldap facility is frequently the nss_ldap tool provided by PADL Software.
-		</p></li></ul></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+		</p></li></ul></div><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
 	To advoid confusion the use of the term <code class="literal">local passdb backend</code> means that
 	the user account backend is not shared by any other Samba server  instead, it is
 	used only locally on the Samba domain member server under discussion.
 	</p></div><p>
-	<a class="indexterm" name="id2590582"></a>
+	<a class="indexterm" name="id2596640"></a>
 	The diagram in <a class="link" href="unixclients.html#ch9-sambadc" title="Figure 7.2. Samba Domain: Samba Member Server">&#8220;Samba Domain: Samba Member Server&#8221;</a> demonstrates the relationship of Samba and system 
 	components that are involved in the identity resolution process where Samba is used as a domain
 	member server within a Samba domain control network.
 	</p><div class="figure"><a name="ch9-sambadc"></a><p class="title"><b>Figure 7.2. Samba Domain: Samba Member Server</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap9-SambaDC.png" width="324" alt="Samba Domain: Samba Member Server"></div></div></div><br class="figure-break"><p>
-	<a class="indexterm" name="id2590644"></a>
-	<a class="indexterm" name="id2590651"></a>
+	<a class="indexterm" name="id2596702"></a>
+	<a class="indexterm" name="id2596709"></a>
 	In this example configuration, Samba will directly search the LDAP-based passwd backend ldapsam
 	to obtain authentication and user identity information. The IDMAP information is stored in the LDAP
 	backend so that it can be shared by all domain member servers so that every user will have a
@@ -300,11 +300,11 @@
 	The instructions given here apply to the Samba environment shown in <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a> and <a class="link" href="2000users.html" title="Chapter 6. A Distributed 2000-User Network">&#8220;A Distributed 2000-User Network&#8221;</a>.
 	If the network does not have an LDAP slave server (i.e., <a class="link" href="happy.html" title="Chapter 5. Making Happy Users">&#8220;Making Happy Users&#8221;</a> configuration), 
 	change the target LDAP server from <code class="constant">lapdc</code> to <code class="constant">massive.</code>
-	</p><div class="procedure"><a name="id2590699"></a><p class="title"><b>Procedure 7.1. Configuration of NSS_LDAP-Based Identity Resolution</b></p><ol type="1"><li><p>
+	</p><div class="procedure" title="Procedure 7.1. Configuration of NSS_LDAP-Based Identity Resolution"><a name="id2596757"></a><p class="title"><b>Procedure 7.1. Configuration of NSS_LDAP-Based Identity Resolution</b></p><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 		Create the <code class="filename">smb.conf</code> file as shown in <a class="link" href="unixclients.html#ch9-sdmsdc" title="Example 7.1. Samba Domain Member in Samba Domain Using LDAP smb.conf File">&#8220;Samba Domain Member in Samba Domain Using LDAP  smb.conf File&#8221;</a>. Locate
 		this file in the directory <code class="filename">/etc/samba</code>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2590737"></a>
+		</p></li><li class="step" title="Step 2"><p>
+		<a class="indexterm" name="id2596795"></a>
 		Configure the file that will be used by <code class="constant">nss_ldap</code> to
 		locate and communicate with the LDAP server. This file is called <code class="filename">ldap.conf</code>.
 		If your implementation of <code class="constant">nss_ldap</code> is consistent with
@@ -322,12 +322,12 @@
 <code class="prompt">root# </code> strings /lib/libnss_ldap* | grep ldap.conf
 /etc/ldap.conf
 </pre><p>
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 3"><p>
 		Configure the NSS control file so it matches the one shown in
 		<a class="link" href="unixclients.html#ch9-sdmnss" title="Example 7.4. NSS using LDAP for Identity Resolution File: /etc/nsswitch.conf">&#8220;NSS using LDAP for Identity Resolution  File: /etc/nsswitch.conf&#8221;</a>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2590824"></a>
-		<a class="indexterm" name="id2590831"></a>
+		</p></li><li class="step" title="Step 4"><p>
+		<a class="indexterm" name="id2596883"></a>
+		<a class="indexterm" name="id2596890"></a>
 		Before proceeding to configure Samba, validate the operation of the NSS identity 
 		resolution via LDAP by executing:
 </p><pre class="screen">
@@ -362,9 +362,9 @@ Finances:x:1001:
 PIOps:x:1002:
 sammy:x:4321:
 </pre><p>
-		<a class="indexterm" name="id2590895"></a>
-		<a class="indexterm" name="id2590902"></a>
-		<a class="indexterm" name="id2590909"></a>
+		<a class="indexterm" name="id2596954"></a>
+		<a class="indexterm" name="id2596961"></a>
+		<a class="indexterm" name="id2596968"></a>
 		This shows that all is working as it should be. Notice that in the LDAP database
 		the users' primary and secondary group memberships are identical. It is not
 		necessary to add secondary group memberships (in the group database) if the
@@ -373,8 +373,8 @@ sammy:x:4321:
 		doubling up of group memberships and may cause problems with winbind under certain 
 		conditions. It is intended that these limitations with winbind will be resolved soon
 		after Samba-3.0.20 has been released.
-		</p></li><li><p>
-		<a class="indexterm" name="id2590933"></a>
+		</p></li><li class="step" title="Step 5"><p>
+		<a class="indexterm" name="id2596992"></a>
 		The LDAP directory must have a container object for IDMAP data. There are several ways you can
 		check that your LDAP database is able to receive IDMAP information. One of the simplest is to
 		execute:
@@ -383,7 +383,7 @@ sammy:x:4321:
 dn: ou=Idmap,dc=abmas,dc=biz
 ou: idmap
 </pre><p>
-		<a class="indexterm" name="id2590956"></a>
+		<a class="indexterm" name="id2597014"></a>
 		If the execution of this command does not return IDMAP entries, you need to create an LDIF
 		template file (see <a class="link" href="unixclients.html#ch9-ldifadd" title="Example 7.2. LDIF IDMAP Add-On Load File File: /etc/openldap/idmap.LDIF">&#8220;LDIF IDMAP Add-On Load File  File: /etc/openldap/idmap.LDIF&#8221;</a>). You can add the required entries using
 		the following command:
@@ -391,16 +391,16 @@ ou: idmap
 <code class="prompt">root# </code> ldapadd -x -D "cn=Manager,dc=abmas,dc=biz" \
 		-w not24get &lt; /etc/openldap/idmap.LDIF
 </pre><p>
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 6"><p>
 		Samba automatically populates the LDAP directory container when it needs to. To permit Samba
 		write access to the LDAP directory it is necessary to set the LDAP administrative password
 		in the <code class="filename">secrets.tdb</code> file as shown here:
 </p><pre class="screen">
 <code class="prompt">root# </code> smbpasswd -w not24get
 </pre><p>
-		</p></li><li><p>
-		<a class="indexterm" name="id2591020"></a>
-		<a class="indexterm" name="id2591031"></a>
+		</p></li><li class="step" title="Step 7"><p>
+		<a class="indexterm" name="id2597078"></a>
+		<a class="indexterm" name="id2597090"></a>
 		The system is ready to join the domain. Execute the following:
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc join -U root%not24get
@@ -411,17 +411,17 @@ Joined domain MEGANET2.
 		Failure to join the domain could be caused by any number of variables. The most common
 		causes of failure to join are:
 		</p><p>
-		</p><div class="itemizedlist"><ul type="disc"><li><p>Broken resolution of NetBIOS names to the respective IP address.</p></li><li><p>Incorrect username and password credentials.</p></li><li><p>The NT4 <em class="parameter"><code>restrict anonymous</code></em> is set to exclude anonymous
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>Broken resolution of NetBIOS names to the respective IP address.</p></li><li class="listitem"><p>Incorrect username and password credentials.</p></li><li class="listitem"><p>The NT4 <em class="parameter"><code>restrict anonymous</code></em> is set to exclude anonymous
 				connections.</p></li></ul></div><p> 
 		</p><p>
 		The connection setup can be diagnosed by executing:
 </p><pre class="screen">
 <code class="prompt">root# </code> net rpc join -S 'pdc-name' -U administrator%password -d 5
 </pre><p>
-		<a class="indexterm" name="id2591103"></a>
-		<a class="indexterm" name="id2591110"></a>
-		<a class="indexterm" name="id2591117"></a>
-		<a class="indexterm" name="id2591124"></a>
+		<a class="indexterm" name="id2597162"></a>
+		<a class="indexterm" name="id2597168"></a>
+		<a class="indexterm" name="id2597175"></a>
+		<a class="indexterm" name="id2597182"></a>
 		Note: Use "root" for UNIX/Linux and Samba, use "Administrator" for Windows NT4/200X. If the cause of
 		the failure appears to be related to a rejected or failed NT_SESSION_SETUP*  or an error message that
 		says NT_STATUS_ACCESS_DENIED immediately check the Windows registry setting that controls the
@@ -448,8 +448,8 @@ Join to 'MEGANET2' is OK
 NT_STATUS_ACCESS_DENIED
 Join to 'MEGANET2' failed.
 </pre><p>
-		</p></li><li><p>
-		<a class="indexterm" name="id2591185"></a>
+		</p></li><li class="step" title="Step 8"><p>
+		<a class="indexterm" name="id2597243"></a>
 		Just joining the domain is not quite enough; you must now provide a privileged set
 		of credentials through which <code class="literal">winbindd</code> can interact with the 
 		domain servers. Execute the following to implant the necessary credentials:
@@ -457,10 +457,10 @@ Join to 'MEGANET2' failed.
 <code class="prompt">root# </code> wbinfo --set-auth-user=Administrator%not24get
 </pre><p>
 		The configuration is now ready to obtain the Samba domain user and group information.
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 9"><p>
 		You may now start Samba in the usual manner, and your Samba domain member server
 		is ready for use. Just add shares as required.
-		</p></li></ol></div><div class="example"><a name="ch9-sdmsdc"></a><p class="title"><b>Example 7.1. Samba Domain Member in Samba Domain Using LDAP  <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2591263"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2591275"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2591286"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2591298"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2591310"></a><em class="parameter"><code>log level = 10</code></em></td></tr><tr><td><a class="indexterm" name="id2591322"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2591333"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2591345"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2591357"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2591368"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2591380"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2591392"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2591404"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2591416"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2591428"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2591440"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2591452"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2591464"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2591476"></a><em class="parameter"><code>idmap backend = ldap:ldap://lapdc.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2591488"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2591500"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2591512"></a><em class="parameter"><code>winbind trusted domains only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2591524"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2591536"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2591556"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2591568"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2591580"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2591591"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2591612"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2591623"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2591635"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2591647"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2591658"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2591679"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2591691"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2591702"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2591714"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch9-ldifadd"></a><p class="title"><b>Example 7.2. LDIF IDMAP Add-On Load File  File: /etc/openldap/idmap.LDIF</b></p><div class="example-contents"><pre class="screen">
+		</p></li></ol></div><div class="example"><a name="ch9-sdmsdc"></a><p class="title"><b>Example 7.1. Samba Domain Member in Samba Domain Using LDAP  <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2597321"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2597333"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2597345"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2597356"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2597368"></a><em class="parameter"><code>log level = 10</code></em></td></tr><tr><td><a class="indexterm" name="id2597380"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2597391"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2597403"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2597415"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2597427"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2597439"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2597451"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2597462"></a><em class="parameter"><code>ldap suffix = dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2597474"></a><em class="parameter"><code>ldap machine suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2597486"></a><em class="parameter"><code>ldap user suffix = ou=People</code></em></td></tr><tr><td><a class="indexterm" name="id2597498"></a><em class="parameter"><code>ldap group suffix = ou=Groups</code></em></td></tr><tr><td><a class="indexterm" name="id2597510"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2597522"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=abmas,dc=biz</code></em></td></tr><tr><td><a class="indexterm" name="id2597534"></a><em class="parameter"><code>idmap backend = ldap:ldap://lapdc.abmas.biz</code></em></td></tr><tr><td><a class="indexterm" name="id2597546"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2597558"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2597570"></a><em class="parameter"><code>winbind trusted domains only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2597582"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2597594"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2597615"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2597626"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2597638"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2597650"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2597670"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2597682"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2597694"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2597705"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2597717"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2597737"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2597749"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2597761"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2597773"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"><div class="example"><a name="ch9-ldifadd"></a><p class="title"><b>Example 7.2. LDIF IDMAP Add-On Load File  File: /etc/openldap/idmap.LDIF</b></p><div class="example-contents"><pre class="screen">
 dn: ou=Idmap,dc=abmas,dc=biz
 objectClass: organizationalUnit
 ou: idmap
@@ -497,28 +497,28 @@ publickey:      files
 bootparams:     files
 automount:      files
 aliases:        files
-</pre></div></div><br class="example-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="wdcsdm"></a>NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind</h3></div></div></div><p>
+</pre></div></div><br class="example-break"></div><div class="sect2" title="NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind"><div class="titlepage"><div><div><h3 class="title"><a name="wdcsdm"></a>NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind</h3></div></div></div><p>
 	You need to use this method for creating a Samba domain member server if any of the following conditions
 	prevail:
-	</p><div class="itemizedlist"><ul type="disc"><li><p>
+	</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 		LDAP support (client) is not installed on the system.
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		There are mitigating circumstances forcing a decision not to use LDAP.
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		The Samba domain member server must be part of a Windows NT4 Domain, or a Samba Domain.
 		</p></li></ul></div><p>
-	<a class="indexterm" name="id2591845"></a>
-	<a class="indexterm" name="id2591852"></a>
-	<a class="indexterm" name="id2591859"></a>
+	<a class="indexterm" name="id2597904"></a>
+	<a class="indexterm" name="id2597910"></a>
+	<a class="indexterm" name="id2597917"></a>
 	Later in the chapter, you can see how to configure a Samba domain member server for a Windows ADS domain.
 	Right now your objective is to configure a Samba server that can be a member of a Windows NT4-style
 	domain and/or does not use LDAP.
-	</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
-	<a class="indexterm" name="id2591874"></a>
+	</p><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+	<a class="indexterm" name="id2597933"></a>
 	If you use <code class="literal">winbind</code> for identity resolution, make sure that there are no
 	duplicate accounts.
 	</p><p>
-	<a class="indexterm" name="id2591892"></a>
+	<a class="indexterm" name="id2597950"></a>
 	For example, do not have more than one account that has UID=0 in the password database. If there 
 	is an account called <code class="constant">root</code> in the <code class="filename">/etc/passwd</code> database, 
 	it is okay to have an account called <code class="constant">root</code> in the LDAP ldapsam or in the 
@@ -526,32 +526,32 @@ aliases:        files
 	break. This means that the <code class="constant">Administrator</code> account must be called 
 	<code class="constant">root</code>.
 	</p><p>
-	<a class="indexterm" name="id2591928"></a>
-	<a class="indexterm" name="id2591935"></a>
-	<a class="indexterm" name="id2591942"></a>
+	<a class="indexterm" name="id2597987"></a>
+	<a class="indexterm" name="id2597994"></a>
+	<a class="indexterm" name="id2598000"></a>
 	Winbind will break if there is an account in <code class="filename">/etc/passwd</code> that has 
 	the same UID as an account that is in LDAP ldapsam (or in tdbsam) but that differs in name only.
 	</p></div><p>
-	<a class="indexterm" name="id2591961"></a>
-	<a class="indexterm" name="id2591968"></a>
-	<a class="indexterm" name="id2591974"></a>
-	<a class="indexterm" name="id2591981"></a>
-	<a class="indexterm" name="id2591990"></a>
+	<a class="indexterm" name="id2598019"></a>
+	<a class="indexterm" name="id2598026"></a>
+	<a class="indexterm" name="id2598033"></a>
+	<a class="indexterm" name="id2598040"></a>
+	<a class="indexterm" name="id2598049"></a>
 	The following configuration uses CIFS/SMB protocols alone to obtain user and group credentials.
 	The winbind information is locally cached in the <code class="filename">winbindd_cache.tdb winbindd_idmap.tdb</code>
 	files. This provides considerable performance benefits compared with the LDAP solution, particularly
 	where the LDAP lookups must traverse WAN links. You may examine the contents of these
 	files using the tool <code class="literal">tdbdump</code>, though you may have to build this from the Samba
 	source code if it has not been supplied as part of a binary package distribution that you may be using.
-	</p><div class="procedure"><a name="id2592019"></a><p class="title"><b>Procedure 7.2. Configuration of Winbind-Based Identity Resolution</b></p><ol type="1"><li><p>
+	</p><div class="procedure" title="Procedure 7.2. Configuration of Winbind-Based Identity Resolution"><a name="id2598078"></a><p class="title"><b>Procedure 7.2. Configuration of Winbind-Based Identity Resolution</b></p><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 		Using your favorite text editor, create the <code class="filename">smb.conf</code> file so it has the contents
 		shown in <a class="link" href="unixclients.html#ch0-NT4DSDM" title="Example 7.5. Samba Domain Member Server Using Winbind smb.conf File for NT4 Domain">&#8220;Samba Domain Member Server Using Winbind smb.conf File for NT4 Domain&#8221;</a>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2592052"></a>
+		</p></li><li class="step" title="Step 2"><p>
+		<a class="indexterm" name="id2598110"></a>
 		Edit the <code class="filename">/etc/nsswitch.conf</code> so it has the entries shown in
 		<a class="link" href="unixclients.html#ch9-sdmnss" title="Example 7.4. NSS using LDAP for Identity Resolution File: /etc/nsswitch.conf">&#8220;NSS using LDAP for Identity Resolution  File: /etc/nsswitch.conf&#8221;</a>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2592078"></a>
+		</p></li><li class="step" title="Step 3"><p>
+		<a class="indexterm" name="id2598136"></a>
 		The system is ready to join the domain. Execute the following:
 </p><pre class="screen">
 net rpc join -U root%not2g4et
@@ -559,9 +559,9 @@ Joined domain MEGANET2.
 </pre><p>
 		This indicates that the domain join succeed.
 
-		</p></li><li><p>
-		<a class="indexterm" name="id2592104"></a>
-		<a class="indexterm" name="id2592111"></a>
+		</p></li><li class="step" title="Step 4"><p>
+		<a class="indexterm" name="id2598163"></a>
+		<a class="indexterm" name="id2598169"></a>
 		Validate operation of <code class="literal">winbind</code> using the <code class="literal">wbinfo</code>
 		tool as follows:
 </p><pre class="screen">
@@ -587,10 +587,10 @@ MEGANET2+Finances
 MEGANET2+PIOps
 </pre><p>
 		This shows that domain groups have been correctly obtained also.
-		</p></li><li><p>
-		<a class="indexterm" name="id2592167"></a>
-		<a class="indexterm" name="id2592174"></a>
-		<a class="indexterm" name="id2592180"></a>
+		</p></li><li class="step" title="Step 5"><p>
+		<a class="indexterm" name="id2598226"></a>
+		<a class="indexterm" name="id2598232"></a>
+		<a class="indexterm" name="id2598239"></a>
 		The next step verifies that NSS is able to obtain this information
 		correctly from <code class="literal">winbind</code> also.
 </p><pre class="screen">
@@ -629,9 +629,9 @@ MEGANET2+Accounts:x:10003:
 MEGANET2+Finances:x:10004:
 MEGANET2+PIOps:x:10005:
 </pre><p>
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 6"><p>
 		The Samba member server of a Windows NT4 domain is ready for use.
-		</p></li></ol></div><div class="example"><a name="ch0-NT4DSDM"></a><p class="title"><b>Example 7.5. Samba Domain Member Server Using Winbind <code class="filename">smb.conf</code> File for NT4 Domain</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2592291"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2592303"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2592315"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2592327"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2592339"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2592350"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2592362"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2592374"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2592385"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2592397"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2592409"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2592421"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2592433"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2592444"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2592456"></a><em class="parameter"><code>template primary group = "Domain Users"</code></em></td></tr><tr><td><a class="indexterm" name="id2592468"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2592480"></a><em class="parameter"><code>winbind separator = +</code></em></td></tr><tr><td><a class="indexterm" name="id2592492"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2592504"></a><em class="parameter"><code>hosts allow = 192.168.2., 192.168.3., 127.</code></em></td></tr><tr><td><a class="indexterm" name="id2592516"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2592536"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2592548"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2592560"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2592571"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2592592"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2592604"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2592615"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2592627"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2592639"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2592659"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2592671"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2592683"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2592695"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="dcwonss"></a>NT4/Samba Domain with Samba Domain Member Server without NSS Support</h3></div></div></div><p>
+		</p></li></ol></div><div class="example"><a name="ch0-NT4DSDM"></a><p class="title"><b>Example 7.5. Samba Domain Member Server Using Winbind <code class="filename">smb.conf</code> File for NT4 Domain</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2598350"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2598362"></a><em class="parameter"><code>workgroup = MEGANET2</code></em></td></tr><tr><td><a class="indexterm" name="id2598373"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2598385"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2598397"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2598409"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2598420"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2598432"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2598444"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2598455"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2598467"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2598479"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2598491"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2598503"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2598514"></a><em class="parameter"><code>template primary group = "Domain Users"</code></em></td></tr><tr><td><a class="indexterm" name="id2598527"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2598539"></a><em class="parameter"><code>winbind separator = +</code></em></td></tr><tr><td><a class="indexterm" name="id2598550"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2598562"></a><em class="parameter"><code>hosts allow = 192.168.2., 192.168.3., 127.</code></em></td></tr><tr><td><a class="indexterm" name="id2598574"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2598595"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2598607"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2598618"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2598630"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2598650"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2598662"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2598674"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2598685"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2598697"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2598718"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2598729"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2598741"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2598753"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect2" title="NT4/Samba Domain with Samba Domain Member Server without NSS Support"><div class="titlepage"><div><div><h3 class="title"><a name="dcwonss"></a>NT4/Samba Domain with Samba Domain Member Server without NSS Support</h3></div></div></div><p>
 	No matter how many UNIX/Linux administrators there may be who believe that a UNIX operating
 	system that does not have NSS and PAM support to be outdated, the fact is there
 	are still many such systems in use today. Samba can be used without NSS support, but this
@@ -642,24 +642,24 @@ MEGANET2+PIOps:x:10005:
 	to the Samba server will cause the look-up of the incoming username. If the account
 	is found, it is used. If the account is not found, one will be automatically created
 	on the local machine so that it can then be used for all access controls.
-	</p><div class="procedure"><a name="id2592738"></a><p class="title"><b>Procedure 7.3. Configuration Using Local Accounts Only</b></p><ol type="1"><li><p>
+	</p><div class="procedure" title="Procedure 7.3. Configuration Using Local Accounts Only"><a name="id2598796"></a><p class="title"><b>Procedure 7.3. Configuration Using Local Accounts Only</b></p><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 		Using your favorite text editor, create the <code class="filename">smb.conf</code> file so it has the contents
 		shown in <a class="link" href="unixclients.html#ch0-NT4DSCM" title="Example 7.6. Samba Domain Member Server Using Local Accounts smb.conf File for NT4 Domain">&#8220;Samba Domain Member Server Using Local Accounts smb.conf File for NT4 Domain&#8221;</a>.
-		</p></li><li><p><a class="indexterm" name="id2592770"></a>
+		</p></li><li class="step" title="Step 2"><p><a class="indexterm" name="id2598829"></a>
 		The system is ready to join the domain. Execute the following:
 </p><pre class="screen">
 net rpc join -U root%not24get
 Joined domain MEGANET2.
 </pre><p>
 		This indicates that the domain join succeed.
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 3"><p>
 		Be sure to run all three Samba daemons: <code class="literal">smbd</code>, <code class="literal">nmbd</code>, <code class="literal">winbindd</code>.
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 4"><p>
 		The Samba member server of a Windows NT4 domain is ready for use.
-		</p></li></ol></div><div class="example"><a name="ch0-NT4DSCM"></a><p class="title"><b>Example 7.6. Samba Domain Member Server Using Local Accounts <code class="filename">smb.conf</code> File for NT4 Domain</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2592859"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2592871"></a><em class="parameter"><code>workgroup = MEGANET3</code></em></td></tr><tr><td><a class="indexterm" name="id2592883"></a><em class="parameter"><code>netbios name = BSDBOX</code></em></td></tr><tr><td><a class="indexterm" name="id2592895"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2592906"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2592918"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2592930"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2592941"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2592954"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -M '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2592966"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2592978"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2592990"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2593002"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2593013"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2593025"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2593037"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2593049"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2593061"></a><em class="parameter"><code>hosts allow = 192.168.2., 192.168.3., 127.</code></em></td></tr><tr><td><a class="indexterm" name="id2593073"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2593093"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2593105"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2593117"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2593128"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2593149"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2593160"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2593172"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2593184"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2593195"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2593216"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2593228"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2593240"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2593251"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="adssdm"></a>Active Directory Domain with Samba Domain Member Server</h3></div></div></div><p>
-	<a class="indexterm" name="id2593277"></a>
-	<a class="indexterm" name="id2593286"></a>
-	<a class="indexterm" name="id2593293"></a>
+		</p></li></ol></div><div class="example"><a name="ch0-NT4DSCM"></a><p class="title"><b>Example 7.6. Samba Domain Member Server Using Local Accounts <code class="filename">smb.conf</code> File for NT4 Domain</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2598918"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2598930"></a><em class="parameter"><code>workgroup = MEGANET3</code></em></td></tr><tr><td><a class="indexterm" name="id2598941"></a><em class="parameter"><code>netbios name = BSDBOX</code></em></td></tr><tr><td><a class="indexterm" name="id2598953"></a><em class="parameter"><code>security = DOMAIN</code></em></td></tr><tr><td><a class="indexterm" name="id2598965"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2598977"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2598988"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2599000"></a><em class="parameter"><code>add user script = /usr/sbin/useradd -m '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2599012"></a><em class="parameter"><code>add machine script = /usr/sbin/useradd -M '%u'</code></em></td></tr><tr><td><a class="indexterm" name="id2599024"></a><em class="parameter"><code>add group script = /usr/sbin/groupadd '%g'</code></em></td></tr><tr><td><a class="indexterm" name="id2599036"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2599048"></a><em class="parameter"><code>max log size = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2599060"></a><em class="parameter"><code>smb ports = 139</code></em></td></tr><tr><td><a class="indexterm" name="id2599072"></a><em class="parameter"><code>name resolve order = wins bcast hosts</code></em></td></tr><tr><td><a class="indexterm" name="id2599084"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2599096"></a><em class="parameter"><code>wins server = 192.168.2.1</code></em></td></tr><tr><td><a class="indexterm" name="id2599107"></a><em class="parameter"><code>printer admin = root</code></em></td></tr><tr><td><a class="indexterm" name="id2599119"></a><em class="parameter"><code>hosts allow = 192.168.2., 192.168.3., 127.</code></em></td></tr><tr><td><a class="indexterm" name="id2599131"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2599152"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2599163"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2599175"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2599187"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2599207"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2599219"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2599231"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2599242"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2599254"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2599274"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2599286"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2599298"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2599310"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"></div><div class="sect2" title="Active Directory Domain with Samba Domain Member Server"><div class="titlepage"><div><div><h3 class="title"><a name="adssdm"></a>Active Directory Domain with Samba Domain Member Server</h3></div></div></div><p>
+	<a class="indexterm" name="id2599335"></a>
+	<a class="indexterm" name="id2599344"></a>
+	<a class="indexterm" name="id2599351"></a>
 	One of the much-sought-after features new to Samba-3 is the ability to join an Active Directory
 	domain using Kerberos protocols. This makes it possible to operate an entire Windows network
 	without the need to run NetBIOS over TCP/IP and permits more secure networking in general. An
@@ -667,10 +667,10 @@ Joined domain MEGANET2.
 	later book may explore the intricacies of the NetBIOS-less operation that Samba-3 can participate
 	in. For now, we simply focus on how a Samba-3 server can be made a domain member server.
 	</p><p>
-	<a class="indexterm" name="id2593315"></a>
-	<a class="indexterm" name="id2593322"></a>
-	<a class="indexterm" name="id2593329"></a>
-	<a class="indexterm" name="id2593336"></a>
+	<a class="indexterm" name="id2599373"></a>
+	<a class="indexterm" name="id2599380"></a>
+	<a class="indexterm" name="id2599387"></a>
+	<a class="indexterm" name="id2599394"></a>
 	The diagram in <a class="link" href="unixclients.html#ch9-adsdc" title="Figure 7.3. Active Directory Domain: Samba Member Server">&#8220;Active Directory Domain: Samba Member Server&#8221;</a> demonstrates how Samba-3 interfaces with
 	Microsoft Active Directory components. It should be noted that if Microsoft Windows Services
 	for UNIX (SFU) has been installed and correctly configured, it is possible to use client LDAP
@@ -694,8 +694,8 @@ Joined domain MEGANET2.
 	name of the server is <code class="constant">W2K3S</code>. In ADS realm terms, the domain controller
 	is known as <code class="constant">w2k3s.london.abmas.biz</code>. In NetBIOS nomenclature, the
 	domain name is <code class="constant">LONDON</code> and the server name is <code class="constant">W2K3S</code>.
-	</p><div class="figure"><a name="ch9-adsdc"></a><p class="title"><b>Figure 7.3. Active Directory Domain: Samba Member Server</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap9-ADSDC.png" width="324" alt="Active Directory Domain: Samba Member Server"></div></div></div><br class="figure-break"><div class="procedure"><a name="id2593449"></a><p class="title"><b>Procedure 7.4. Joining a Samba Server as an ADS Domain Member</b></p><ol type="1"><li><p>
-		<a class="indexterm" name="id2593460"></a>
+	</p><div class="figure"><a name="ch9-adsdc"></a><p class="title"><b>Figure 7.3. Active Directory Domain: Samba Member Server</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/chap9-ADSDC.png" width="324" alt="Active Directory Domain: Samba Member Server"></div></div></div><br class="figure-break"><div class="procedure" title="Procedure 7.4. Joining a Samba Server as an ADS Domain Member"><a name="id2599507"></a><p class="title"><b>Procedure 7.4. Joining a Samba Server as an ADS Domain Member</b></p><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
+		<a class="indexterm" name="id2599519"></a>
 		Before you try to use Samba-3, you want to know for certain that your executables have
 		support for Kerberos and for LDAP. Execute the following to identify whether or
 		not this build is perhaps suitable for use:
@@ -761,16 +761,16 @@ massive:/usr/sbin # smbd -b | grep LDAP
 </pre><p>
 		This does look promising; <code class="literal">smbd</code> has been built with Kerberos and LDAP
 		support. You are relieved to know that it is safe to progress.
-		</p></li><li><p>
-		<a class="indexterm" name="id2593559"></a>
-		<a class="indexterm" name="id2593569"></a>
-		<a class="indexterm" name="id2593576"></a>
-		<a class="indexterm" name="id2593582"></a>
-		<a class="indexterm" name="id2593592"></a>
-		<a class="indexterm" name="id2593601"></a>
-		<a class="indexterm" name="id2593608"></a>
-		<a class="indexterm" name="id2593615"></a>
-		<a class="indexterm" name="id2593622"></a>
+		</p></li><li class="step" title="Step 2"><p>
+		<a class="indexterm" name="id2599618"></a>
+		<a class="indexterm" name="id2599627"></a>
+		<a class="indexterm" name="id2599634"></a>
+		<a class="indexterm" name="id2599641"></a>
+		<a class="indexterm" name="id2599650"></a>
+		<a class="indexterm" name="id2599659"></a>
+		<a class="indexterm" name="id2599666"></a>
+		<a class="indexterm" name="id2599673"></a>
+		<a class="indexterm" name="id2599680"></a>
 		The next step is to identify which version of the Kerberos libraries have been used.
 		In order to permit Samba-3 to interoperate with Windows 2003 Active Directory, it is
 		essential that it has been linked with either MIT Kerberos version 1.3.1 or later,
@@ -791,25 +791,25 @@ massive:/usr/sbin # smbd -b | grep LDAP
 		</p><p>
 		From this point on, you are certain that the Samba-3 build you are using has the
 		necessary capabilities. You can now configure Samba-3 and the NSS. 
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 3"><p>
 		Using you favorite editor, configure the <code class="filename">smb.conf</code> file that is located in the 
 		<code class="filename">/etc/samba</code> directory so that it has the contents shown 
 		in <a class="link" href="unixclients.html#ch9-adssdm" title="Example 7.7. Samba Domain Member smb.conf File for Active Directory Membership">&#8220;Samba Domain Member smb.conf File for Active Directory Membership&#8221;</a>.
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 4"><p>
 		Edit or create the NSS control file so it has the contents shown in <a class="link" href="unixclients.html#ch9-sdmnss" title="Example 7.4. NSS using LDAP for Identity Resolution File: /etc/nsswitch.conf">&#8220;NSS using LDAP for Identity Resolution  File: /etc/nsswitch.conf&#8221;</a>.
-		</p></li><li><p>
-		<a class="indexterm" name="id2593723"></a>
+		</p></li><li class="step" title="Step 5"><p>
+		<a class="indexterm" name="id2599782"></a>
 		Delete the file <code class="filename">/etc/samba/secrets.tdb</code> if it exists. Of course, you
 		do keep a backup, don't you?
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 6"><p>
 		Delete the tdb files that cache Samba information. You keep a backup of the old
 		files, of course. You also remove all files to ensure that nothing can pollute your
 		nice, new configuration. Execute the following (example is for SUSE Linux):
 </p><pre class="screen">
 <code class="prompt">root# </code> rm /var/lib/samba/*tdb
 </pre><p>
-		</p></li><li><p>
-		<a class="indexterm" name="id2593767"></a>
+		</p></li><li class="step" title="Step 7"><p>
+		<a class="indexterm" name="id2599826"></a>
 		Validate your <code class="filename">smb.conf</code> file using <code class="literal">testparm</code> (as you have
 		done previously). Correct all errors reported before proceeding. The command you
 		execute is:
@@ -818,9 +818,9 @@ massive:/usr/sbin # smbd -b | grep LDAP
 </pre><p>
 		Now that you are satisfied that your Samba server is ready to join the Windows
 		ADS domain, let's move on.
-		</p></li><li><p>
-		<a class="indexterm" name="id2593809"></a>
-		<a class="indexterm" name="id2593820"></a>
+		</p></li><li class="step" title="Step 8"><p>
+		<a class="indexterm" name="id2599867"></a>
+		<a class="indexterm" name="id2599878"></a>
 		This is a good time to double-check everything and then execute the following
 		command when everything you have done has checked out okay:
 </p><pre class="screen">
@@ -831,38 +831,38 @@ Joined 'FRAN' to realm 'LONDON.ABMAS.BIZ'
 		You have successfully made your Samba-3 server a member of the ADS domain
 		using Kerberos protocols.
 		</p><p>
-		<a class="indexterm" name="id2593848"></a>
-		<a class="indexterm" name="id2593855"></a>
+		<a class="indexterm" name="id2599906"></a>
+		<a class="indexterm" name="id2599913"></a>
 		In the event that you receive no output messages, a silent return means that the
 		domain join failed. You should use <code class="literal">ethereal</code> to identify what
 		may be failing. Common causes of a failed join include:
 
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
-			<a class="indexterm" name="id2593876"></a>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
+			<a class="indexterm" name="id2599935"></a>
 			Defective or misconfigured DNS name resolution.
-			</p></li><li><p>
-			<a class="indexterm" name="id2593891"></a>
+			</p></li><li class="listitem"><p>
+			<a class="indexterm" name="id2599949"></a>
 			Restrictive security settings on the Windows 200x ADS domain controller
 			preventing needed communications protocols. You can check this by searching
 			the Windows Server 200x Event Viewer.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Incorrectly configured <code class="filename">smb.conf</code> file settings.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Lack of support of necessary Kerberos protocols because the version of MIT
 			Kerberos (or Heimdal) in use is not up to date enough to support the necessary
 			functionality.
 			</p></li></ul></div><p>
 
-		<a class="indexterm" name="id2593922"></a>
-		<a class="indexterm" name="id2593933"></a>
-		<a class="indexterm" name="id2593940"></a>
+		<a class="indexterm" name="id2599980"></a>
+		<a class="indexterm" name="id2599991"></a>
+		<a class="indexterm" name="id2599998"></a>
 		In any case, never execute the <code class="literal">net rpc join</code> command in an attempt
 		to join the Samba server to the domain, unless you wish not to use the Kerberos
 		security protocols. Use of the older RPC-based domain join facility requires that
 		Windows Server 200x ADS has been configured appropriately for mixed mode operation.
-		</p></li><li><p>
-		<a class="indexterm" name="id2593965"></a>
-		<a class="indexterm" name="id2593971"></a>
+		</p></li><li class="step" title="Step 9"><p>
+		<a class="indexterm" name="id2600023"></a>
+		<a class="indexterm" name="id2600030"></a>
 		If the <code class="literal">tdbdump</code> is installed on your system (not essential),
 		you can look inside the <code class="filename">/etc/samba/secrets.tdb</code> file. If
 		you wish to do this, execute:
@@ -889,11 +889,11 @@ data = "E\89\F6?"
 }
 </pre><p>
 		This is given to demonstrate to the skeptics that this process truly does work.
-		</p></li><li><p>
+		</p></li><li class="step" title="Step 10"><p>
 		It is now time to start Samba in the usual way (as has been done many time before
 		in this book).	
-		</p></li><li><p>
-		<a class="indexterm" name="id2594029"></a>
+		</p></li><li class="step" title="Step 11"><p>
+		<a class="indexterm" name="id2600087"></a>
 		This is a good time to verify that everything is working. First, check that
 		winbind is able to obtain the list of users and groups from the ADS domain controller.
 		Execute the following:
@@ -919,7 +919,7 @@ LONDON+Group Policy Creator Owners
 LONDON+DnsUpdateProxy
 </pre><p>
 		Excellent. That worked also, as expected.
-		</p></li><li><p><a class="indexterm" name="id2594075"></a>
+		</p></li><li class="step" title="Step 12"><p><a class="indexterm" name="id2600133"></a>
 		Now repeat this via NSS to validate that full identity resolution is
 		functional as required. Execute:
 </p><pre class="screen">
@@ -951,10 +951,10 @@ LONDON+Group Policy Creator Owners:x:10007:LONDON+Administrator
 LONDON+DnsUpdateProxy:x:10008:
 </pre><p>
 		This is very pleasing. Everything works as expected.
-		</p></li><li><p>
-		<a class="indexterm" name="id2594132"></a>
-		<a class="indexterm" name="id2594143"></a>
-		<a class="indexterm" name="id2594153"></a>
+		</p></li><li class="step" title="Step 13"><p>
+		<a class="indexterm" name="id2600191"></a>
+		<a class="indexterm" name="id2600202"></a>
+		<a class="indexterm" name="id2600211"></a>
 		You may now perform final verification that communications between Samba-3 winbind and
 		the Active Directory server is using Kerberos protocols. Execute the following:
 </p><pre class="screen">
@@ -971,8 +971,8 @@ Server time offset: 2
 		It should be noted that Kerberos protocols are time-clock critical. You should
 		keep all server time clocks synchronized using the network time protocol (NTP).
 		In any case, the output we obtained confirms that all systems are operational.
-		</p></li><li><p>
-		<a class="indexterm" name="id2594189"></a>
+		</p></li><li class="step" title="Step 14"><p>
+		<a class="indexterm" name="id2600247"></a>
 		There is one more action you elect to take, just because you are paranoid and disbelieving,
 		so you execute the following command:
 </p><pre class="programlisting">
@@ -1142,40 +1142,40 @@ data = "\00\00\00\00bp\00\00\06krbtgt\06krbtgt-
 </pre><p>
 	Now all is revealed. Your curiosity, as well as that of your team, has been put at ease.
 	May this server serve well all who happen upon it.
-	</p><div class="example"><a name="ch9-adssdm"></a><p class="title"><b>Example 7.7. Samba Domain Member <code class="filename">smb.conf</code> File for Active Directory Membership</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2594410"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2594422"></a><em class="parameter"><code>workgroup = LONDON</code></em></td></tr><tr><td><a class="indexterm" name="id2594433"></a><em class="parameter"><code>realm = LONDON.ABMAS.BIZ</code></em></td></tr><tr><td><a class="indexterm" name="id2594445"></a><em class="parameter"><code>server string = Samba 3.0.20</code></em></td></tr><tr><td><a class="indexterm" name="id2594457"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2594469"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2594481"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2594492"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2594504"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2594516"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2594527"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2594539"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id2594551"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2594562"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2594574"></a><em class="parameter"><code>template primary group = "Domain Users"</code></em></td></tr><tr><td><a class="indexterm" name="id2594586"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2594598"></a><em class="parameter"><code>winbind separator = +</code></em></td></tr><tr><td><a class="indexterm" name="id2594610"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2594631"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2594642"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2594654"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2594666"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2594686"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2594698"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2594710"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2594721"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2594733"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2594753"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2594765"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2594777"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2594789"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2594802"></a>IDMAP_RID with Winbind</h4></div></div></div><p>
-        <a class="indexterm" name="id2594810"></a>
-        <a class="indexterm" name="id2594816"></a>
-        <a class="indexterm" name="id2594823"></a>
-        <a class="indexterm" name="id2594830"></a>
+	</p><div class="example"><a name="ch9-adssdm"></a><p class="title"><b>Example 7.7. Samba Domain Member <code class="filename">smb.conf</code> File for Active Directory Membership</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2600468"></a><em class="parameter"><code>unix charset = LOCALE</code></em></td></tr><tr><td><a class="indexterm" name="id2600480"></a><em class="parameter"><code>workgroup = LONDON</code></em></td></tr><tr><td><a class="indexterm" name="id2600492"></a><em class="parameter"><code>realm = LONDON.ABMAS.BIZ</code></em></td></tr><tr><td><a class="indexterm" name="id2600503"></a><em class="parameter"><code>server string = Samba 3.0.20</code></em></td></tr><tr><td><a class="indexterm" name="id2600515"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2600527"></a><em class="parameter"><code>username map = /etc/samba/smbusers</code></em></td></tr><tr><td><a class="indexterm" name="id2600539"></a><em class="parameter"><code>log level = 1</code></em></td></tr><tr><td><a class="indexterm" name="id2600551"></a><em class="parameter"><code>syslog = 0</code></em></td></tr><tr><td><a class="indexterm" name="id2600562"></a><em class="parameter"><code>log file = /var/log/samba/%m</code></em></td></tr><tr><td><a class="indexterm" name="id2600574"></a><em class="parameter"><code>max log size = 50</code></em></td></tr><tr><td><a class="indexterm" name="id2600586"></a><em class="parameter"><code>printcap name = CUPS</code></em></td></tr><tr><td><a class="indexterm" name="id2600598"></a><em class="parameter"><code>ldap ssl = no</code></em></td></tr><tr><td><a class="indexterm" name="id2600609"></a><em class="parameter"><code>idmap uid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2600621"></a><em class="parameter"><code>idmap gid = 10000-20000</code></em></td></tr><tr><td><a class="indexterm" name="id2600633"></a><em class="parameter"><code>template primary group = "Domain Users"</code></em></td></tr><tr><td><a class="indexterm" name="id2600645"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2600657"></a><em class="parameter"><code>winbind separator = +</code></em></td></tr><tr><td><a class="indexterm" name="id2600669"></a><em class="parameter"><code>printing = cups</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[homes]</code></em></td></tr><tr><td><a class="indexterm" name="id2600689"></a><em class="parameter"><code>comment = Home Directories</code></em></td></tr><tr><td><a class="indexterm" name="id2600701"></a><em class="parameter"><code>valid users = %S</code></em></td></tr><tr><td><a class="indexterm" name="id2600712"></a><em class="parameter"><code>read only = No</code></em></td></tr><tr><td><a class="indexterm" name="id2600724"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[printers]</code></em></td></tr><tr><td><a class="indexterm" name="id2600745"></a><em class="parameter"><code>comment = SMB Print Spool</code></em></td></tr><tr><td><a class="indexterm" name="id2600756"></a><em class="parameter"><code>path = /var/spool/samba</code></em></td></tr><tr><td><a class="indexterm" name="id2600768"></a><em class="parameter"><code>guest ok = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2600780"></a><em class="parameter"><code>printable = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2600791"></a><em class="parameter"><code>browseable = No</code></em></td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[print$]</code></em></td></tr><tr><td><a class="indexterm" name="id2600812"></a><em class="parameter"><code>comment = Printer Drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2600824"></a><em class="parameter"><code>path = /var/lib/samba/drivers</code></em></td></tr><tr><td><a class="indexterm" name="id2600835"></a><em class="parameter"><code>admin users = root, Administrator</code></em></td></tr><tr><td><a class="indexterm" name="id2600847"></a><em class="parameter"><code>write list = root</code></em></td></tr></table></div></div><br class="example-break"><div class="sect3" title="IDMAP_RID with Winbind"><div class="titlepage"><div><div><h4 class="title"><a name="id2600860"></a>IDMAP_RID with Winbind</h4></div></div></div><p>
+        <a class="indexterm" name="id2600868"></a>
+        <a class="indexterm" name="id2600875"></a>
+        <a class="indexterm" name="id2600881"></a>
+        <a class="indexterm" name="id2600888"></a>
         The <code class="literal">idmap_rid</code> facility is a new tool that, unlike native winbind, creates a
         predictable mapping of MS Windows SIDs to UNIX UIDs and GIDs. The key benefit of this method
         of implementing the Samba IDMAP facility is that it eliminates the need to store the IDMAP data
         in a central place. The downside is that it can be used only within a single ADS domain and
         is not compatible with trusted domain implementations.
         </p><p>
-        <a class="indexterm" name="id2594853"></a>
-        <a class="indexterm" name="id2594860"></a>
-        <a class="indexterm" name="id2594867"></a>
-        <a class="indexterm" name="id2594874"></a>
+        <a class="indexterm" name="id2600912"></a>
+        <a class="indexterm" name="id2600918"></a>
+        <a class="indexterm" name="id2600925"></a>
+        <a class="indexterm" name="id2600932"></a>
         This alternate method of SID to UID/GID  mapping can be achieved with the idmap_rid
         plug-in. This plug-in uses the RID of the user SID to derive the UID and GID by adding the
         RID to a base value specified. This utility requires that the parameter
-        &#8220;<span class="quote">allow trusted domains = No</span>&#8221; must be specified, as it is not compatible
+        <span class="quote">&#8220;<span class="quote">allow trusted domains = No</span>&#8221;</span> must be specified, as it is not compatible
         with multiple domain environments. The <em class="parameter"><code>idmap uid</code></em> and
         <em class="parameter"><code>idmap gid</code></em> ranges must be specified.
         </p><p>
-        <a class="indexterm" name="id2594906"></a>
-        <a class="indexterm" name="id2594913"></a>
+        <a class="indexterm" name="id2600965"></a>
+        <a class="indexterm" name="id2600972"></a>
         The idmap_rid facility can be used both for NT4/Samba-style domains as well as with Active Directory.
         To use this with an NT4 domain, the <em class="parameter"><code>realm</code></em> is not used. Additionally the
         method used to join the domain uses the <code class="constant">net rpc join</code> process.
         </p><p>
         An example <code class="filename">smb.conf</code> file for an ADS domain environment is shown in <a class="link" href="unixclients.html#sbe-idmapridex" title="Example 7.8. Example smb.conf File Using idmap_rid">&#8220;Example smb.conf File Using idmap_rid&#8221;</a>.
-        </p><div class="example"><a name="sbe-idmapridex"></a><p class="title"><b>Example 7.8. Example <code class="filename">smb.conf</code> File Using <code class="constant">idmap_rid</code></b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2594988"></a><em class="parameter"><code>workgroup = KPAK</code></em></td></tr><tr><td><a class="indexterm" name="id2594999"></a><em class="parameter"><code>netbios name = BIGJOE</code></em></td></tr><tr><td><a class="indexterm" name="id2595011"></a><em class="parameter"><code>realm = CORP.KPAK.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2595023"></a><em class="parameter"><code>server string = Office Server</code></em></td></tr><tr><td><a class="indexterm" name="id2595035"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2595046"></a><em class="parameter"><code>allow trusted domains = No</code></em></td></tr><tr><td><a class="indexterm" name="id2595058"></a><em class="parameter"><code>idmap backend = idmap_rid:KPAK=500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2595071"></a><em class="parameter"><code>idmap uid = 500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2595082"></a><em class="parameter"><code>idmap gid = 500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2595094"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2595106"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2595118"></a><em class="parameter"><code>winbind enum users = No</code></em></td></tr><tr><td><a class="indexterm" name="id2595130"></a><em class="parameter"><code>winbind enum groups = No</code></em></td></tr><tr><td><a class="indexterm" name="id2595142"></a><em class="parameter"><code>winbind nested groups = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2595154"></a><em class="parameter"><code>printer admin = "KPAK\Domain Admins"</code></em></td></tr></table></div></div><br class="example-break"><p>
-        <a class="indexterm" name="id2595169"></a>
-        <a class="indexterm" name="id2595176"></a>
-        <a class="indexterm" name="id2595183"></a>
-        <a class="indexterm" name="id2595190"></a>
+        </p><div class="example"><a name="sbe-idmapridex"></a><p class="title"><b>Example 7.8. Example <code class="filename">smb.conf</code> File Using <code class="constant">idmap_rid</code></b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2601046"></a><em class="parameter"><code>workgroup = KPAK</code></em></td></tr><tr><td><a class="indexterm" name="id2601058"></a><em class="parameter"><code>netbios name = BIGJOE</code></em></td></tr><tr><td><a class="indexterm" name="id2601070"></a><em class="parameter"><code>realm = CORP.KPAK.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2601081"></a><em class="parameter"><code>server string = Office Server</code></em></td></tr><tr><td><a class="indexterm" name="id2601093"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2601105"></a><em class="parameter"><code>allow trusted domains = No</code></em></td></tr><tr><td><a class="indexterm" name="id2601117"></a><em class="parameter"><code>idmap backend = idmap_rid:KPAK=500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2601129"></a><em class="parameter"><code>idmap uid = 500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2601141"></a><em class="parameter"><code>idmap gid = 500-100000000</code></em></td></tr><tr><td><a class="indexterm" name="id2601153"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2601164"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2601177"></a><em class="parameter"><code>winbind enum users = No</code></em></td></tr><tr><td><a class="indexterm" name="id2601188"></a><em class="parameter"><code>winbind enum groups = No</code></em></td></tr><tr><td><a class="indexterm" name="id2601200"></a><em class="parameter"><code>winbind nested groups = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2601212"></a><em class="parameter"><code>printer admin = "KPAK\Domain Admins"</code></em></td></tr></table></div></div><br class="example-break"><p>
+        <a class="indexterm" name="id2601228"></a>
+        <a class="indexterm" name="id2601235"></a>
+        <a class="indexterm" name="id2601242"></a>
+        <a class="indexterm" name="id2601248"></a>
         In a large domain with many users, it is imperative to disable enumeration of users and groups.
         For example, at a site that has 22,000 users in Active Directory the winbind-based user and
         group resolution is unavailable for nearly 12 minutes following first start-up of
@@ -1185,8 +1185,8 @@ data = "\00\00\00\00bp\00\00\06krbtgt\06krbtgt-
         commands. It will be possible to perform the lookup for individual users, as shown in the procedure
         below.
         </p><p>
-        <a class="indexterm" name="id2595229"></a>
-        <a class="indexterm" name="id2595235"></a>
+        <a class="indexterm" name="id2601287"></a>
+        <a class="indexterm" name="id2601294"></a>
         The use of this tool requires configuration of NSS as per the native use of winbind. Edit the
         <code class="filename">/etc/nsswitch.conf</code> so it has the following parameters:
 </p><pre class="screen">
@@ -1200,11 +1200,11 @@ hosts:  files wins
 </pre><p>
         </p><p>
         The following procedure can be used to utilize the idmap_rid facility:
-        </p><div class="procedure"><ol type="1"><li><p>
+        </p><div class="procedure"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
                 Create or install and <code class="filename">smb.conf</code> file with the above configuration.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 2"><p>
                 Edit the <code class="filename">/etc/nsswitch.conf</code> file as shown above.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 3"><p>
                 Execute:
 </p><pre class="screen">
 <code class="prompt">root# </code> net ads join -UAdministrator%password
@@ -1212,7 +1212,7 @@ Using short domain name -- KPAK
 Joined 'BIGJOE' to realm 'CORP.KPAK.COM'
 </pre><p>
                 </p><p>
-                <a class="indexterm" name="id2595317"></a>
+                <a class="indexterm" name="id2601375"></a>
                 An invalid or failed join can be detected by executing:
 </p><pre class="screen">
 <code class="prompt">root# </code> net ads testjoin
@@ -1224,34 +1224,34 @@ Join to domain is not valid
                 The specific error message may differ from the above because it depends on the type of failure that
                 may have occurred. Increase the <em class="parameter"><code>log level</code></em> to 10, repeat the above test,
                 and then examine the log files produced to identify the nature of the failure.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 4"><p>
                 Start the <code class="literal">nmbd</code>, <code class="literal">winbind,</code> and <code class="literal">smbd</code> daemons in the order shown.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 5"><p>
                 Validate the operation of this configuration by executing:
-                <a class="indexterm" name="id2595384"></a>
+                <a class="indexterm" name="id2601442"></a>
 </p><pre class="screen">
 <code class="prompt">root# </code> getent passwd administrator
 administrator:x:1000:1013:Administrator:/home/BE/administrator:/bin/bash
 </pre><p>
-                </p></li></ol></div></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2595406"></a>IDMAP Storage in LDAP using Winbind</h4></div></div></div><p>
-        <a class="indexterm" name="id2595414"></a>
-        <a class="indexterm" name="id2595421"></a>
+                </p></li></ol></div></div><div class="sect3" title="IDMAP Storage in LDAP using Winbind"><div class="titlepage"><div><div><h4 class="title"><a name="id2601464"></a>IDMAP Storage in LDAP using Winbind</h4></div></div></div><p>
+        <a class="indexterm" name="id2601472"></a>
+        <a class="indexterm" name="id2601479"></a>
         The storage of IDMAP information in LDAP can be used with both NT4/Samba-3-style domains as well as
         with ADS domains. OpenLDAP is a commonly used LDAP server for this purpose, although any standards-compliant
         LDAP server can be used. It is therefore possible to deploy this IDMAP configuration using
         the Sun iPlanet LDAP server, Novell eDirectory, Microsoft ADS plus ADAM, and so on.
         </p><p>
         The example in <a class="link" href="unixclients.html#sbeunxa" title="Example 7.9. Typical ADS Style Domain smb.conf File">&#8220;Typical ADS Style Domain smb.conf File&#8221;</a> is for an ADS-style domain.
-        </p><div class="example"><a name="sbeunxa"></a><p class="title"><b>Example 7.9. Typical ADS Style Domain <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2595481"></a><em class="parameter"><code>workgroup = SNOWSHOW</code></em></td></tr><tr><td><a class="indexterm" name="id2595492"></a><em class="parameter"><code>netbios name = GOODELF</code></em></td></tr><tr><td><a class="indexterm" name="id2595504"></a><em class="parameter"><code>realm = SNOWSHOW.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2595516"></a><em class="parameter"><code>server string = Samba Server</code></em></td></tr><tr><td><a class="indexterm" name="id2595528"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2595540"></a><em class="parameter"><code>log level = 1 ads:10 auth:10 sam:10 rpc:10</code></em></td></tr><tr><td><a class="indexterm" name="id2595552"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=SNOWSHOW,dc=COM</code></em></td></tr><tr><td><a class="indexterm" name="id2595564"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2595576"></a><em class="parameter"><code>ldap suffix = dc=SNOWSHOW,dc=COM</code></em></td></tr><tr><td><a class="indexterm" name="id2595588"></a><em class="parameter"><code>idmap backend = ldap:ldap://ldap.snowshow.com</code></em></td></tr><tr><td><a class="indexterm" name="id2595600"></a><em class="parameter"><code>idmap uid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2595612"></a><em class="parameter"><code>idmap gid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2595623"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2595635"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
-        <a class="indexterm" name="id2595651"></a>
+        </p><div class="example"><a name="sbeunxa"></a><p class="title"><b>Example 7.9. Typical ADS Style Domain <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2601539"></a><em class="parameter"><code>workgroup = SNOWSHOW</code></em></td></tr><tr><td><a class="indexterm" name="id2601551"></a><em class="parameter"><code>netbios name = GOODELF</code></em></td></tr><tr><td><a class="indexterm" name="id2601563"></a><em class="parameter"><code>realm = SNOWSHOW.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2601574"></a><em class="parameter"><code>server string = Samba Server</code></em></td></tr><tr><td><a class="indexterm" name="id2601586"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2601598"></a><em class="parameter"><code>log level = 1 ads:10 auth:10 sam:10 rpc:10</code></em></td></tr><tr><td><a class="indexterm" name="id2601610"></a><em class="parameter"><code>ldap admin dn = cn=Manager,dc=SNOWSHOW,dc=COM</code></em></td></tr><tr><td><a class="indexterm" name="id2601622"></a><em class="parameter"><code>ldap idmap suffix = ou=Idmap</code></em></td></tr><tr><td><a class="indexterm" name="id2601634"></a><em class="parameter"><code>ldap suffix = dc=SNOWSHOW,dc=COM</code></em></td></tr><tr><td><a class="indexterm" name="id2601646"></a><em class="parameter"><code>idmap backend = ldap:ldap://ldap.snowshow.com</code></em></td></tr><tr><td><a class="indexterm" name="id2601658"></a><em class="parameter"><code>idmap uid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2601670"></a><em class="parameter"><code>idmap gid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2601682"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2601694"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+        <a class="indexterm" name="id2601709"></a>
         In the case of an NT4 or Samba-3-style domain the <em class="parameter"><code>realm</code></em> is not used, and the
         command used to join the domain is <code class="literal">net rpc join</code>. The above example also demonstrates
         advanced error reporting techniques that are documented in the chapter called "Reporting Bugs" in
-	&#8220;<span class="quote">The Official Samba-3 HOWTO and Reference Guide, Second Edition</span>&#8221; (TOSHARG2).
+	<span class="quote">&#8220;<span class="quote">The Official Samba-3 HOWTO and Reference Guide, Second Edition</span>&#8221;</span> (TOSHARG2).
         </p><p>
-        <a class="indexterm" name="id2595682"></a>
-        <a class="indexterm" name="id2595689"></a>
-        <a class="indexterm" name="id2595696"></a>
+        <a class="indexterm" name="id2601740"></a>
+        <a class="indexterm" name="id2601747"></a>
+        <a class="indexterm" name="id2601754"></a>
         Where MIT kerberos is installed (version 1.3.4 or later), edit the <code class="filename">/etc/krb5.conf</code>
         file so it has the following contents:
 </p><pre class="screen">
@@ -1290,7 +1290,7 @@ administrator:x:1000:1013:Administrator:/home/BE/administrator:/bin/bash
 [domain_realm]
         .snowshow.com = SNOWSHOW.COM
 </pre><p>
-        </p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+        </p><div class="note" title="Note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
         Samba cannot use the Heimdal libraries if there is no <code class="filename">/etc/krb5.conf</code> file.
         So long as there is an empty file, the Heimdal kerberos libraries will be usable. There is no
         need to specify any settings because Samba, using the Heimdal libraries, can figure this out automatically.
@@ -1306,8 +1306,8 @@ hosts:  files wins
 ...
 </pre><p>
         </p><p>
-        <a class="indexterm" name="id2595780"></a>
-        <a class="indexterm" name="id2595787"></a>
+        <a class="indexterm" name="id2601838"></a>
+        <a class="indexterm" name="id2601845"></a>
         You will need the <a class="ulink" href="http://www.padl.com" target="_top">PADL</a> <code class="literal">nss_ldap</code>
         tool set for this solution. Configure the <code class="filename">/etc/ldap.conf</code> file so it has
         the information needed. The following is an example of a working file:
@@ -1326,16 +1326,16 @@ ssl     no
 </pre><p>
         </p><p>
         The following procedure may be followed to affect a working configuration:
-        </p><div class="procedure"><ol type="1"><li><p>
+        </p><div class="procedure"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
                 Configure the <code class="filename">smb.conf</code> file as shown above.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 2"><p>
                 Create the <code class="filename">/etc/krb5.conf</code> file following the indications above.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 3"><p>
                 Configure the <code class="filename">/etc/nsswitch.conf</code> file as shown above.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 4"><p>
                 Download, build, and install the PADL nss_ldap tool set. Configure the
                 <code class="filename">/etc/ldap.conf</code> file as shown above.
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 5"><p>
                 Configure an LDAP server and initialize the directory with the top-level entries needed by IDMAP
                 as shown in the following LDIF file:
 </p><pre class="screen">
@@ -1355,35 +1355,35 @@ dn: ou=Idmap,dc=snowshow,dc=com
 objectClass: organizationalUnit
 ou: idmap
 </pre><p>
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 6"><p>
                 Execute the command to join the Samba domain member server to the ADS domain as shown here:
 </p><pre class="screen">
 <code class="prompt">root# </code> net ads testjoin
 Using short domain name -- SNOWSHOW
 Joined 'GOODELF' to realm 'SNOWSHOW.COM'
 </pre><p>
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 7"><p>
                 Store the LDAP server access password in the Samba <code class="filename">secrets.tdb</code> file as follows:
 </p><pre class="screen">
 <code class="prompt">root# </code> smbpasswd -w not24get
 </pre><p>
-                </p></li><li><p>
+                </p></li><li class="step" title="Step 8"><p>
                 Start the <code class="literal">nmbd</code>, <code class="literal">winbind</code>, and <code class="literal">smbd</code> daemons in the order shown.
                 </p></li></ol></div><p>
-        <a class="indexterm" name="id2595987"></a>
+        <a class="indexterm" name="id2602046"></a>
         Follow the diagnostic procedures shown earlier in this chapter to identify success or failure of the join.
         In many cases a failure is indicated by a silent return to the command prompt with no indication of the
         reason for failure.
-        </p></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2596001"></a>IDMAP and NSS Using LDAP from ADS with RFC2307bis Schema Extension</h4></div></div></div><p>
-        <a class="indexterm" name="id2596010"></a>
-        <a class="indexterm" name="id2596016"></a>
+        </p></div><div class="sect3" title="IDMAP and NSS Using LDAP from ADS with RFC2307bis Schema Extension"><div class="titlepage"><div><div><h4 class="title"><a name="id2602059"></a>IDMAP and NSS Using LDAP from ADS with RFC2307bis Schema Extension</h4></div></div></div><p>
+        <a class="indexterm" name="id2602068"></a>
+        <a class="indexterm" name="id2602075"></a>
         The use of this method is messy. The information provided in this section is for guidance only
         and is very definitely not complete. This method does work; it is used in a number of large sites
         and has an acceptable level of performance.
         </p><p>
         An example <code class="filename">smb.conf</code> file is shown in <a class="link" href="unixclients.html#sbewinbindex" title="Example 7.10. ADS Membership Using RFC2307bis Identity Resolution smb.conf File">&#8220;ADS Membership Using RFC2307bis Identity Resolution smb.conf File&#8221;</a>.
-        </p><div class="example"><a name="sbewinbindex"></a><p class="title"><b>Example 7.10. ADS Membership Using RFC2307bis Identity Resolution <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table class="simplelist" border="0" summary="Simple list"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2596079"></a><em class="parameter"><code>workgroup = BUBBAH</code></em></td></tr><tr><td><a class="indexterm" name="id2596091"></a><em class="parameter"><code>netbios name = MADMAX</code></em></td></tr><tr><td><a class="indexterm" name="id2596103"></a><em class="parameter"><code>realm = BUBBAH.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2596114"></a><em class="parameter"><code>server string = Samba Server</code></em></td></tr><tr><td><a class="indexterm" name="id2596126"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2596138"></a><em class="parameter"><code>idmap uid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2596150"></a><em class="parameter"><code>idmap gid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2596161"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2596173"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2596185"></a><em class="parameter"><code>winbind trusted domains only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2596198"></a><em class="parameter"><code>winbind nested groups = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
-        <a class="indexterm" name="id2596213"></a>
+        </p><div class="example"><a name="sbewinbindex"></a><p class="title"><b>Example 7.10. ADS Membership Using RFC2307bis Identity Resolution <code class="filename">smb.conf</code> File</b></p><div class="example-contents"><table border="0" summary="Simple list" class="simplelist"><tr><td># Global parameters</td></tr><tr><td> </td></tr><tr><td><em class="parameter"><code>[global]</code></em></td></tr><tr><td><a class="indexterm" name="id2602138"></a><em class="parameter"><code>workgroup = BUBBAH</code></em></td></tr><tr><td><a class="indexterm" name="id2602149"></a><em class="parameter"><code>netbios name = MADMAX</code></em></td></tr><tr><td><a class="indexterm" name="id2602161"></a><em class="parameter"><code>realm = BUBBAH.COM</code></em></td></tr><tr><td><a class="indexterm" name="id2602173"></a><em class="parameter"><code>server string = Samba Server</code></em></td></tr><tr><td><a class="indexterm" name="id2602185"></a><em class="parameter"><code>security = ADS</code></em></td></tr><tr><td><a class="indexterm" name="id2602196"></a><em class="parameter"><code>idmap uid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2602208"></a><em class="parameter"><code>idmap gid = 150000-550000</code></em></td></tr><tr><td><a class="indexterm" name="id2602220"></a><em class="parameter"><code>template shell = /bin/bash</code></em></td></tr><tr><td><a class="indexterm" name="id2602232"></a><em class="parameter"><code>winbind use default domain = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2602244"></a><em class="parameter"><code>winbind trusted domains only = Yes</code></em></td></tr><tr><td><a class="indexterm" name="id2602256"></a><em class="parameter"><code>winbind nested groups = Yes</code></em></td></tr></table></div></div><br class="example-break"><p>
+        <a class="indexterm" name="id2602271"></a>
         The DMS must be joined to the domain using the usual procedure. Additionally, it is necessary
         to build and install the PADL nss_ldap tool set. Be sure to build this tool set with the
         following:
@@ -1392,7 +1392,7 @@ Joined 'GOODELF' to realm 'SNOWSHOW.COM'
 make install
 </pre><p>
         </p><p>
-        <a class="indexterm" name="id2596234"></a>
+        <a class="indexterm" name="id2602292"></a>
         The following <code class="filename">/etc/nsswitch.conf</code> file contents are required:
 </p><pre class="screen">
 ...
@@ -1404,52 +1404,52 @@ hosts:  files wins
 ...
 </pre><p>
         </p><p>
-        <a class="indexterm" name="id2596258"></a>
-        <a class="indexterm" name="id2596265"></a>
+        <a class="indexterm" name="id2602316"></a>
+        <a class="indexterm" name="id2602323"></a>
         The <code class="filename">/etc/ldap.conf</code> file must be configured also. Refer to the PADL documentation
         and source code for nss_ldap instructions.
         </p><p>
         The next step involves preparation on the ADS schema. This is briefly discussed in the remaining
         part of this chapter.
-        </p><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2596287"></a>IDMAP, Active Directory, and MS Services for UNIX 3.5</h5></div></div></div><p>
-                <a class="indexterm" name="id2596295"></a>
+        </p><div class="sect4" title="IDMAP, Active Directory, and MS Services for UNIX 3.5"><div class="titlepage"><div><div><h5 class="title"><a name="id2602345"></a>IDMAP, Active Directory, and MS Services for UNIX 3.5</h5></div></div></div><p>
+                <a class="indexterm" name="id2602354"></a>
                 The Microsoft Windows Service for UNIX version 3.5 is available for free
                 <a class="ulink" href="http://www.microsoft.com/windows/sfu/" target="_top">download</a>
                 from the Microsoft Web site. You will need to download this tool and install it following
                 Microsoft instructions.
-                </p></div><div class="sect4" lang="en"><div class="titlepage"><div><div><h5 class="title"><a name="id2596315"></a>IDMAP, Active Directory, and AD4UNIX</h5></div></div></div><p>
+                </p></div><div class="sect4" title="IDMAP, Active Directory, and AD4UNIX"><div class="titlepage"><div><div><h5 class="title"><a name="id2602374"></a>IDMAP, Active Directory, and AD4UNIX</h5></div></div></div><p>
                 Instructions for obtaining and installing the AD4UNIX tool set can be found from the
                 <a class="ulink" href="http://www.geekcomix.com/cgi-bin/classnotes/wiki.pl?LDAP01/An_Alternative_Approach" target="_top">
                 Geekcomix</a> Web site.
-                </p></div></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2596338"></a>UNIX/Linux Client Domain Member</h3></div></div></div><p><a class="indexterm" name="id2596345"></a>
+                </p></div></div></div><div class="sect2" title="UNIX/Linux Client Domain Member"><div class="titlepage"><div><div><h3 class="title"><a name="id2602396"></a>UNIX/Linux Client Domain Member</h3></div></div></div><p><a class="indexterm" name="id2602403"></a>
 	So far this chapter has been mainly concerned with the provision of file and print
 	services for domain member servers. However, an increasing number of UNIX/Linux
 	workstations are being installed that do not act as file or print servers to anyone
 	other than a single desktop user. The key demand for desktop systems is to be able
 	to log onto any UNIX/Linux or Windows desktop using the same network user credentials.
-	</p><p><a class="indexterm" name="id2596363"></a>
+	</p><p><a class="indexterm" name="id2602422"></a>
 	The ability to use a common set of user credential across a variety of network systems
 	is generally regarded as a single sign-on (SSO) solution. SSO systems are sold by a
 	large number of vendors and include a range of technologies such as:
-	</p><div class="itemizedlist"><ul type="disc"><li><p>
+	</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 		Proxy sign-on
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		Federated directory provisioning
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		Metadirectory server solutions
-		</p></li><li><p>
+		</p></li><li class="listitem"><p>
 		Replacement authentication systems
-		</p></li></ul></div><p><a class="indexterm" name="id2596405"></a>
+		</p></li></ul></div><p><a class="indexterm" name="id2602464"></a>
 	There are really four solutions that provide integrated authentication and
 	user identity management facilities:
-	</p><div class="itemizedlist"><ul type="disc"><li><p>
+	</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 		Samba winbind (free). Samba-3.0.20 introduced a complete replacement for Winbind that now
 		provides a greater level of scalability in large ADS environments.
-                </p></li><li><p>
+                </p></li><li class="listitem"><p>
 		<a class="ulink" href="http://www.padl.com" target="_top">PADL</a> PAM and LDAP tools (free).
-                </p></li><li><p>
+                </p></li><li class="listitem"><p>
 		<a class="ulink" href="http://www.vintela.com" target="_top">Vintela</a> Authentication Services (commercial).
-                </p></li><li><p>
+                </p></li><li class="listitem"><p>
 		<a class="ulink" href="http://www.centrify.com" target="_top">Centrify</a> DirectControl (commercial). 
 		Centrify's commercial product allows UNIX and Linux systems to use Active Directory
 		security, directory and policy services.  Enhancements include a centralized ID mapping that 
@@ -1464,75 +1464,75 @@ hosts:  files wins
 	provides logon services for UNIX/Linux users, while Windows users obtain their sign-on
 	support via Samba-3.
 	</p><p>
-	<a class="indexterm" name="id2596484"></a>
+	<a class="indexterm" name="id2602543"></a>
 	On the other hand, if the authentication and identity resolution backend must be provided by
 	a Windows NT4-style domain or from an Active Directory Domain that does not have the Microsoft
 	Windows Services for UNIX installed, winbind is your best friend. Specific guidance for these
 	situations now follows.
 	</p><p>
-	<a class="indexterm" name="id2596502"></a>
-	<a class="indexterm" name="id2596509"></a>
-	<a class="indexterm" name="id2596516"></a>
+	<a class="indexterm" name="id2602561"></a>
+	<a class="indexterm" name="id2602567"></a>
+	<a class="indexterm" name="id2602574"></a>
 	To permit users to log on to a Linux system using Windows network credentials, you need to
 	configure identity resolution (NSS) and PAM. This means that the basic steps include those
 	outlined above with the addition of PAM configuration. Given that most workstations (desktop/client)
 	usually do not need to provide file and print services to a group of users, the configuration
 	of shares and printers is generally less important. Often this allows the share specifications
 	to be entirely removed from the <code class="filename">smb.conf</code> file. That is obviously an administrator decision.
-	</p><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2596539"></a>NT4 Domain Member</h4></div></div></div><p>
+	</p><div class="sect3" title="NT4 Domain Member"><div class="titlepage"><div><div><h4 class="title"><a name="id2602597"></a>NT4 Domain Member</h4></div></div></div><p>
 		The following steps provide a Linux system that users can log onto using
 		Windows NT4 (or Samba-3) domain network credentials:
-		</p><div class="procedure"><ol type="1"><li><p>
+		</p><div class="procedure"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 			Follow the steps outlined in <a class="link" href="unixclients.html#wdcsdm" title="NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind">&#8220;NT4/Samba Domain with Samba Domain Member Server: Using NSS and Winbind&#8221;</a> and ensure that
 			all validation tests function as shown.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 2"><p>
 			Identify what services users must log on to. On Red Hat Linux, if it is
 			intended that the user shall be given access to all services, it may be
 			most expeditious to simply configure the file 
 			<code class="filename">/etc/pam.d/system-auth</code>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 3"><p>
 			Carefully make a backup copy of all PAM configuration files before you
 			begin making changes. If you break the PAM configuration, please note
 			that you may need to use an emergency boot process to recover your Linux
 			system. It is possible to break the ability to log into the system if
 			PAM files are incorrectly configured. The entire directory 
 			<code class="filename">/etc/pam.d</code> should be backed up to a safe location.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 4"><p>
 			If you require only console login support, edit the <code class="filename">/etc/pam.d/login</code>
 			so it matches <a class="link" href="unixclients.html#ch9-pamwnbdlogin" title="Example 7.11. SUSE: PAM login Module Using Winbind">&#8220;SUSE: PAM login Module Using Winbind&#8221;</a>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			To provide the ability to log onto the graphical desktop interface, you must edit
 			the files <code class="filename">gdm</code> and <code class="filename">xdm</code> in the 
 			<code class="filename">/etc/pam.d</code> directory.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 6"><p>
 			Edit only one file at a time. Carefully validate its operation before attempting
 			to reboot the machine.
-			</p></li></ol></div></div><div class="sect3" lang="en"><div class="titlepage"><div><div><h4 class="title"><a name="id2596661"></a>ADS Domain Member</h4></div></div></div><p>
+			</p></li></ol></div></div><div class="sect3" title="ADS Domain Member"><div class="titlepage"><div><div><h4 class="title"><a name="id2602719"></a>ADS Domain Member</h4></div></div></div><p>
 		This procedure should be followed to permit a Linux network client (workstation/desktop)
 		to permit users to log on using Microsoft Active Directory-based user credentials.
-		</p><div class="procedure"><ol type="1"><li><p>
+		</p><div class="procedure"><ol class="procedure" type="1"><li class="step" title="Step 1"><p>
 			Follow the steps outlined in <a class="link" href="unixclients.html#adssdm" title="Active Directory Domain with Samba Domain Member Server">&#8220;Active Directory Domain with Samba Domain Member Server&#8221;</a> and ensure that
 			all validation tests function as shown.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 2"><p>
 			Identify what services users must log on to. On Red Hat Linux, if it is
 			intended that the user shall be given access to all services, it may be
 			most expeditious to simply configure the file 
 			<code class="filename">/etc/pam.d/system-auth</code> as shown in <a class="link" href="unixclients.html#ch9-rhsysauth" title="Example 7.13. Red Hat 9: PAM System Authentication File: /etc/pam.d/system-auth Module Using Winbind">&#8220;Red Hat 9: PAM System Authentication File: /etc/pam.d/system-auth Module Using Winbind&#8221;</a>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 3"><p>
 			Carefully make a backup copy of all PAM configuration files before you
 			begin making changes. If you break the PAM configuration, please note
 			that you may need to use an emergency boot process to recover your Linux
 			system. It is possible to break the ability to log into the system if
 			PAM files are incorrectly configured. The entire directory 
 			<code class="filename">/etc/pam.d</code> should be backed up to a safe location.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 4"><p>
 			If you require only console login support, edit the <code class="filename">/etc/pam.d/login</code>
 			so it matches <a class="link" href="unixclients.html#ch9-pamwnbdlogin" title="Example 7.11. SUSE: PAM login Module Using Winbind">&#8220;SUSE: PAM login Module Using Winbind&#8221;</a>.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 5"><p>
 			To provide the ability to log onto the graphical desktop interface, you must edit
 			the files <code class="filename">gdm</code> and <code class="filename">xdm</code> in the 
 			<code class="filename">/etc/pam.d</code> directory.
-			</p></li><li><p>
+			</p></li><li class="step" title="Step 6"><p>
 			Edit only one file at a time. Carefully validate its operation before attempting
 			to reboot the machine.
 			</p></li></ol></div></div><div class="example"><a name="ch9-pamwnbdlogin"></a><p class="title"><b>Example 7.11. SUSE: PAM <code class="filename">login</code> Module Using Winbind</b></p><div class="example-contents"><pre class="screen">
@@ -1587,74 +1587,74 @@ password    required      /lib/security/$ISA/pam_deny.so
 session     required      /lib/security/$ISA/pam_limits.so
 session     sufficient    /lib/security/$ISA/pam_unix.so
 session     sufficient    /lib/security/$ISA/pam_winbind.so use_first_pass
-</pre></div></div><br class="example-break"></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2596913"></a>Key Points Learned</h3></div></div></div><p>
+</pre></div></div><br class="example-break"></div><div class="sect2" title="Key Points Learned"><div class="titlepage"><div><div><h3 class="title"><a name="id2602971"></a>Key Points Learned</h3></div></div></div><p>
 		The addition of UNIX/Linux Samba servers and clients is a common requirement. In this chapter, you
 		learned how to integrate such servers so that the UID/GID mappings they use can be consistent
 		across all domain member servers. You also discovered how to implement the ability to use Samba
 		or Windows domain account credentials to log on to a UNIX/Linux client.
 		</p><p>
 		The following are key points made in this chapter:
-		</p><div class="itemizedlist"><ul type="disc"><li><p>
+		</p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem"><p>
 			Domain controllers are always authoritative for the domain.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Domain members may have local accounts and must be able to resolve the identity of 
 			domain user accounts. Domain user account identity must map to a local UID/GID. That 
 			local UID/GID can be stored in LDAP. This way, it is possible to share the IDMAP data 
 			across all domain member machines.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			Resolution of user and group identities on domain member machines may be implemented 
 			using direct LDAP services or using winbind.
-			</p></li><li><p>
+			</p></li><li class="listitem"><p>
 			On NSS/PAM enabled UNIX/Linux systems, NSS is responsible for identity management 
 			and PAM is responsible for authentication of logon credentials (username and password).
-			</p></li></ul></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2596967"></a>Questions and Answers</h2></div></div></div><p>
+			</p></li></ul></div></div></div><div class="sect1" title="Questions and Answers"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2603025"></a>Questions and Answers</h2></div></div></div><p>
 	The following questions were obtained from the mailing list and also from private discussions
 	with Windows network administrators.
-	</p><div class="qandaset"><dl><dt> <a href="unixclients.html#id2596985">
+	</p><div class="qandaset" title="Frequently Asked Questions"><a name="id2603037"></a><dl><dt> <a href="unixclients.html#id2603043">
 		We use NIS for all UNIX accounts. Why do we need winbind?
-		</a></dt><dt> <a href="unixclients.html#id2597100">
+		</a></dt><dt> <a href="unixclients.html#id2603158">
 		Our IT management people do not like LDAP but are looking at Microsoft Active Directory. 
 	      Which is better?
-		</a></dt><dt> <a href="unixclients.html#id2597184">
+		</a></dt><dt> <a href="unixclients.html#id2603242">
 		We want to implement a Samba PDC, four Samba BDCs, and 10 Samba servers. Is it possible 
 		to use NIS in place of LDAP?
-		</a></dt><dt> <a href="unixclients.html#id2597295">
+		</a></dt><dt> <a href="unixclients.html#id2603353">
 		Are you suggesting that users should not log on to a domain member server? If so, why?
-		</a></dt><dt> <a href="unixclients.html#id2597423">
+		</a></dt><dt> <a href="unixclients.html#id2603481">
 		We want to ensure that only users from our own domain plus from trusted domains can use our
 		Samba servers. In the smb.conf file on all servers, we have enabled the winbind
 		trusted domains only parameter. We now find that users from trusted domains 
 		cannot access our servers, and users from Windows clients that are not domain members
 		can also access our servers. Is this a Samba bug?
-		</a></dt><dt> <a href="unixclients.html#id2597598">
+		</a></dt><dt> <a href="unixclients.html#id2603656">
 		What are the benefits of using LDAP for my domain member servers?
-		</a></dt><dt> <a href="unixclients.html#id2597781">
+		</a></dt><dt> <a href="unixclients.html#id2603840">
 		Is proper DNS operation necessary for Samba-3 plus LDAP? If so, what must I put into
 		my DNS configuration?
-		</a></dt><dt> <a href="unixclients.html#id2597939">
+		</a></dt><dt> <a href="unixclients.html#id2603998">
 		Our Windows 2003 Server Active Directory domain runs with NetBIOS disabled. Can we
 		use Samba-3 with that configuration?
-		</a></dt><dt> <a href="unixclients.html#id2597958">
+		</a></dt><dt> <a href="unixclients.html#id2604016">
 		When I tried to execute net ads join, I got no output. It did not work, so
 		I think that it failed. I then executed net rpc join and that worked fine.
 		That is okay, isn't it?
-		</a></dt></dl><table border="0" summary="Q and A Set"><col align="left" width="1%"><tbody><tr class="question"><td align="left" valign="top"><a name="id2596985"></a><a name="id2596987"></a></td><td align="left" valign="top"><p>
+		</a></dt></dl><table border="0" width="100%" summary="Q and A Set"><col align="left" width="1%"><col><tbody><tr class="question"><td align="left" valign="top"><a name="id2603043"></a><a name="id2603046"></a></td><td align="left" valign="top"><p>
 		We use NIS for all UNIX accounts. Why do we need winbind?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
-		<a class="indexterm" name="id2596999"></a>
-		<a class="indexterm" name="id2597006"></a>
-		<a class="indexterm" name="id2597012"></a>
-		<a class="indexterm" name="id2597019"></a>
-		<a class="indexterm" name="id2597026"></a>
-		<a class="indexterm" name="id2597033"></a>
+		<a class="indexterm" name="id2603057"></a>
+		<a class="indexterm" name="id2603064"></a>
+		<a class="indexterm" name="id2603071"></a>
+		<a class="indexterm" name="id2603078"></a>
+		<a class="indexterm" name="id2603084"></a>
+		<a class="indexterm" name="id2603091"></a>
 		You can use NIS for your UNIX accounts. NIS does not store the Windows encrypted
 		passwords that need to be stored in one of the acceptable passdb backends.
 		Your choice of backend is limited to <em class="parameter"><code>smbpasswd</code></em> or
 		<em class="parameter"><code>tdbsam</code></em>. Winbind is needed to handle the resolution of
 		SIDs from trusted domains to local UID/GID values.
 		</p><p>
-		<a class="indexterm" name="id2597060"></a>
-		<a class="indexterm" name="id2597067"></a>
+		<a class="indexterm" name="id2603118"></a>
+		<a class="indexterm" name="id2603126"></a>
 		On a domain member server, you effectively map Windows domain users to local users
 		that are in your NIS database by specifying the <em class="parameter"><code>winbind trusted domains
 		only</code></em>. This causes user and group account lookups to be routed via
@@ -1662,17 +1662,17 @@ session     sufficient    /lib/security/$ISA/pam_winbind.so use_first_pass
 		this pushes the resolution of users and groups out through NIS.
 		</p><p>
 		As a general rule, it is always a good idea to run winbind on all Samba servers.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597100"></a><a name="id2597102"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603158"></a><a name="id2603160"></a></td><td align="left" valign="top"><p>
 		Our IT management people do not like LDAP but are looking at Microsoft Active Directory. 
-	      Which is better?<a class="indexterm" name="id2597108"></a>
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597123"></a><a class="indexterm" name="id2597134"></a><a class="indexterm" name="id2597142"></a>
+	      Which is better?<a class="indexterm" name="id2603167"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603181"></a><a class="indexterm" name="id2603192"></a><a class="indexterm" name="id2603200"></a>
 		Microsoft Active Directory is an LDAP server that is intricately tied to a Kerberos
 		infrastructure. Most IT managers who object to LDAP do so because
 		an LDAP server is most often supplied as a raw tool that needs to be configured and
 		for which the administrator must create the schema, create the administration tools, and
 		devise the backup and recovery facilities in a site-dependent manner. LDAP servers
 		in general are seen as a high-energy, high-risk facility.
-		</p><p><a class="indexterm" name="id2597161"></a>
+		</p><p><a class="indexterm" name="id2603220"></a>
 		Microsoft Active Directory by comparison is easy to install and configure and
 		is supplied with all tools necessary to implement and manage the directory. For sites
 		that lack a lot of technical competence, Active Directory is a good choice. For sites
@@ -1681,28 +1681,28 @@ session     sufficient    /lib/security/$ISA/pam_winbind.so use_first_pass
 		the site want? If management wants a choice to use an alternative, they may want to
 		consider the options. On the other hand, if management just wants a solution that works,
 		Microsoft Active Directory is a good solution.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597184"></a><a name="id2597186"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603242"></a><a name="id2603244"></a></td><td align="left" valign="top"><p>
 		We want to implement a Samba PDC, four Samba BDCs, and 10 Samba servers. Is it possible 
 		to use NIS in place of LDAP?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597198"></a><a class="indexterm" name="id2597206"></a><a class="indexterm" name="id2597213"></a><a class="indexterm" name="id2597221"></a><a class="indexterm" name="id2597229"></a><a class="indexterm" name="id2597238"></a><a class="indexterm" name="id2597245"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603256"></a><a class="indexterm" name="id2603264"></a><a class="indexterm" name="id2603272"></a><a class="indexterm" name="id2603280"></a><a class="indexterm" name="id2603288"></a><a class="indexterm" name="id2603296"></a><a class="indexterm" name="id2603304"></a>
 		Yes, it is possible to use NIS in place of LDAP, but there may be problems with keeping
 		the Windows (SMB) encrypted passwords database correctly synchronized across the entire
 		network. Workstations (Windows client machines) periodically change their domain
 		membership secure account password. How can you keep changes that are on remote BDCs
 		synchronized on the PDC?
-		</p><p><a class="indexterm" name="id2597262"></a><a class="indexterm" name="id2597270"></a><a class="indexterm" name="id2597278"></a>
+		</p><p><a class="indexterm" name="id2603321"></a><a class="indexterm" name="id2603329"></a><a class="indexterm" name="id2603337"></a>
 		LDAP is a more elegant solution because it permits centralized storage and management
 		of all network identities (user, group, and machine accounts) together with all information
 		Samba needs to provide to network clients and their users.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597295"></a><a name="id2597297"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603353"></a><a name="id2603355"></a></td><td align="left" valign="top"><p>
 		Are you suggesting that users should not log on to a domain member server? If so, why?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597308"></a><a class="indexterm" name="id2597316"></a><a class="indexterm" name="id2597328"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603367"></a><a class="indexterm" name="id2603375"></a><a class="indexterm" name="id2603386"></a>
 		Many UNIX administrators mock the model that the personal computer industry has adopted
 		as normative since the early days of Novell NetWare. The old
 		perception of the necessity to keep users off file and print servers was a result of
 		fears concerning the security and integrity of data. It was a simple and generally
 		effective measure to keep users away from servers, except through mapped drives.
-		</p><p><a class="indexterm" name="id2597353"></a><a class="indexterm" name="id2597360"></a><a class="indexterm" name="id2597368"></a><a class="indexterm" name="id2597376"></a><a class="indexterm" name="id2597384"></a>
+		</p><p><a class="indexterm" name="id2603411"></a><a class="indexterm" name="id2603419"></a><a class="indexterm" name="id2603427"></a><a class="indexterm" name="id2603435"></a><a class="indexterm" name="id2603442"></a>
 		UNIX administrators are fully correct in asserting that UNIX servers and workstations
 		are identical in terms of the software that is installed. They correctly assert that
 		in a well-secured environment it is safe to store files on a system that has hundreds
@@ -1711,25 +1711,25 @@ session     sufficient    /lib/security/$ISA/pam_winbind.so use_first_pass
 		server the risk to operations through simple user errors.
 		Only then can one begin to appraise the best strategy and adopt a site-specific
 		policy that best protects the needs of users and of the organization alike.
-		</p><p><a class="indexterm" name="id2597406"></a>
+		</p><p><a class="indexterm" name="id2603465"></a>
 		From experience, it is my recommendation to keep general system-level logins to a
 		practical minimum and to eliminate them if possible. This should not be taken as a
 		hard rule, though. The better question is, what works best for the site?
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597423"></a><a name="id2597425"></a></td><td align="left" valign="top"><p><a class="indexterm" name="id2597428"></a><a class="indexterm" name="id2597436"></a><a class="indexterm" name="id2597447"></a><a class="indexterm" name="id2597456"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603481"></a><a name="id2603483"></a></td><td align="left" valign="top"><p><a class="indexterm" name="id2603486"></a><a class="indexterm" name="id2603494"></a><a class="indexterm" name="id2603506"></a><a class="indexterm" name="id2603514"></a>
 		We want to ensure that only users from our own domain plus from trusted domains can use our
 		Samba servers. In the <code class="filename">smb.conf</code> file on all servers, we have enabled the <em class="parameter"><code>winbind
 		trusted domains only</code></em> parameter. We now find that users from trusted domains 
 		cannot access our servers, and users from Windows clients that are not domain members
 		can also access our servers. Is this a Samba bug?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597488"></a><a class="indexterm" name="id2597496"></a><a class="indexterm" name="id2597504"></a><a class="indexterm" name="id2597512"></a><a class="indexterm" name="id2597520"></a><a class="indexterm" name="id2597527"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603547"></a><a class="indexterm" name="id2603555"></a><a class="indexterm" name="id2603562"></a><a class="indexterm" name="id2603570"></a><a class="indexterm" name="id2603578"></a><a class="indexterm" name="id2603586"></a>
 		The manual page for this <em class="parameter"><code>winbind trusted domains only</code></em> parameter says,
-		&#8220;<span class="quote">This parameter is designed to allow Samba servers that are members of a Samba-controlled 
+		<span class="quote">&#8220;<span class="quote">This parameter is designed to allow Samba servers that are members of a Samba-controlled 
 		domain to use UNIX accounts distributed vi NIS, rsync, or LDAP as the UIDs for winbindd users 
 		in the hosts primary domain. Therefore,  the user <code class="constant">SAMBA\user1</code> would be 
 		mapped to the account <code class="constant">user1</code> in <code class="filename">/etc/passwd</code> instead 
-		of allocating a new UID for him or her.</span>&#8221; This clearly suggests that you are trying
+		of allocating a new UID for him or her.</span>&#8221;</span> This clearly suggests that you are trying
 		to use this parameter inappropriately.
-		</p><p><a class="indexterm" name="id2597569"></a>
+		</p><p><a class="indexterm" name="id2603628"></a>
 		A far better solution is to use the <em class="parameter"><code>valid users</code></em> by specifying
 		precisely the domain users and groups that should be permitted access to the shares. You could, 
 		for example, set the following parameters:
@@ -1738,24 +1738,24 @@ session     sufficient    /lib/security/$ISA/pam_winbind.so use_first_pass
 	path = /export/demodata
 	valid users = @"Domain Users", @"OTHERDOMAIN\Domain Users"
 </pre><p>
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597598"></a><a name="id2597600"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603656"></a><a name="id2603658"></a></td><td align="left" valign="top"><p>
 		What are the benefits of using LDAP for my domain member servers?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597611"></a><a class="indexterm" name="id2597619"></a><a class="indexterm" name="id2597627"></a><a class="indexterm" name="id2597634"></a><a class="indexterm" name="id2597642"></a><a class="indexterm" name="id2597650"></a><a class="indexterm" name="id2597658"></a><a class="indexterm" name="id2597666"></a><a class="indexterm" name="id2597674"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603669"></a><a class="indexterm" name="id2603677"></a><a class="indexterm" name="id2603685"></a><a class="indexterm" name="id2603693"></a><a class="indexterm" name="id2603700"></a><a class="indexterm" name="id2603708"></a><a class="indexterm" name="id2603716"></a><a class="indexterm" name="id2603724"></a><a class="indexterm" name="id2603732"></a>
 		The key benefit of using LDAP is that the UID of all users and the GID of all groups
 		are globally consistent on domain controllers as well as on domain member servers.
 		This means that it is possible to copy/replicate files across servers without
 		loss of identity.
-		</p><p><a class="indexterm" name="id2597690"></a><a class="indexterm" name="id2597698"></a><a class="indexterm" name="id2597705"></a><a class="indexterm" name="id2597713"></a><a class="indexterm" name="id2597721"></a><a class="indexterm" name="id2597729"></a><a class="indexterm" name="id2597741"></a><a class="indexterm" name="id2597749"></a>
+		</p><p><a class="indexterm" name="id2603748"></a><a class="indexterm" name="id2603756"></a><a class="indexterm" name="id2603764"></a><a class="indexterm" name="id2603772"></a><a class="indexterm" name="id2603780"></a><a class="indexterm" name="id2603788"></a><a class="indexterm" name="id2603799"></a><a class="indexterm" name="id2603807"></a>
 		When use is made of account identity resolution via winbind, even when an IDMAP backend
 		is stored in LDAP, the UID/GID on domain member servers is consistent, but differs
 		from the ID that the user/group has on domain controllers. The winbind allocated UID/GID
 		that is stored in LDAP (or locally) will be in the numeric range specified in the <em class="parameter"><code>
 		idmap uid/gid</code></em> in the <code class="filename">smb.conf</code> file. On domain controllers, the UID/GID is
 		that of the POSIX value assigned in the LDAP directory as part of the POSIX account information.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597781"></a><a name="id2597783"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603840"></a><a name="id2603842"></a></td><td align="left" valign="top"><p>
 		Is proper DNS operation necessary for Samba-3 plus LDAP? If so, what must I put into
 		my DNS configuration?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2597795"></a><a class="indexterm" name="id2597806"></a><a class="indexterm" name="id2597817"></a><a class="indexterm" name="id2597825"></a><a class="indexterm" name="id2597833"></a><a class="indexterm" name="id2597841"></a><a class="indexterm" name="id2597849"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2603853"></a><a class="indexterm" name="id2603865"></a><a class="indexterm" name="id2603876"></a><a class="indexterm" name="id2603884"></a><a class="indexterm" name="id2603892"></a><a class="indexterm" name="id2603899"></a><a class="indexterm" name="id2603907"></a>
 		Samba depends on correctly functioning resolution of hostnames to their IP address. Samba
 		makes no direct DNS lookup calls, but rather redirects all name-to-address calls via the
 		<code class="literal">getXXXbyXXX()</code> function calls. The configuration of the <code class="constant">hosts</code>
@@ -1768,23 +1768,23 @@ hosts: files dns wins
 		this means that a hostname lookup first tries the <code class="filename">/etc/hosts</code>.
 		If this fails to resolve, it attempts a DNS lookup, and if that fails, it tries a
 		WINS lookup.
-		</p><p><a class="indexterm" name="id2597903"></a><a class="indexterm" name="id2597911"></a><a class="indexterm" name="id2597919"></a>
+		</p><p><a class="indexterm" name="id2603962"></a><a class="indexterm" name="id2603970"></a><a class="indexterm" name="id2603978"></a>
 		The addition of the WINS-based name lookup makes sense only if NetBIOS over TCP/IP has
 		been enabled on all Windows clients. Where NetBIOS over TCP/IP has been disabled, DNS
 		is the preferred name resolution technology. This usually makes most sense when Samba
 		is a client of an Active Directory domain, where NetBIOS use has been disabled. In this
 		case, the Windows 200x autoregisters all locator records it needs with its own DNS
 		server or servers.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597939"></a><a name="id2597941"></a></td><td align="left" valign="top"><p>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2603998"></a><a name="id2604000"></a></td><td align="left" valign="top"><p>
 		Our Windows 2003 Server Active Directory domain runs with NetBIOS disabled. Can we
 		use Samba-3 with that configuration?
 		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p>
 		Yes.
-		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2597958"></a><a name="id2597960"></a></td><td align="left" valign="top"><p><a class="indexterm" name="id2597963"></a><a class="indexterm" name="id2597977"></a>
+		</p></td></tr><tr class="question"><td align="left" valign="top"><a name="id2604016"></a><a name="id2604018"></a></td><td align="left" valign="top"><p><a class="indexterm" name="id2604022"></a><a class="indexterm" name="id2604036"></a>
 		When I tried to execute net ads join, I got no output. It did not work, so
 		I think that it failed. I then executed net rpc join and that worked fine.
 		That is okay, isn't it?
-		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2598001"></a><a class="indexterm" name="id2598009"></a>
+		</p></td></tr><tr class="answer"><td align="left" valign="top"></td><td align="left" valign="top"><p><a class="indexterm" name="id2604060"></a><a class="indexterm" name="id2604068"></a>
 		No. This is not okay. It means that your Samba-3 client has joined the ADS domain as
 		a Windows NT4 client, and Samba-3 will not be using Kerberos-based authentication.
 		</p></td></tr></tbody></table></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="DMSMig.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="DMSMig.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="upgrades.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Part II. Domain Members, Updating Samba and Migration </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 8. Updating Samba-3</td></tr></table></div></body></html>

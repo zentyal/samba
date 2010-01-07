@@ -3042,7 +3042,7 @@ NTSTATUS _samr_QueryUserInfo(pipes_struct *p,
 	uint32 rid;
 	bool ret = false;
 	struct samu *pwd = NULL;
-	uint32_t acc_required, acc_granted;
+	uint32_t acc_required, acc_granted = 0;
 
 	/* search for the handle */
 	if (!find_policy_by_hnd(p, r->in.user_handle, (void **)(void *)&info))
@@ -5389,6 +5389,14 @@ NTSTATUS _samr_GetAliasMembership(pipes_struct *p,
 
 	r->out.rids->count = num_alias_rids;
 	r->out.rids->ids = alias_rids;
+
+	if (r->out.rids->ids == NULL) {
+		/* Windows domain clients don't accept a NULL ptr here */
+		r->out.rids->ids = talloc_zero(p->mem_ctx, uint32_t);
+	}
+	if (r->out.rids->ids == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	return NT_STATUS_OK;
 }

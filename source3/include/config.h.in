@@ -378,6 +378,10 @@
    don't. */
 #undef HAVE_DECL_H_ERRNO
 
+/* Define to 1 if you have the declaration of
+   `krb5_auth_con_set_req_cksumtype', and to 0 if you don't. */
+#undef HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+
 /* Define to 1 if you have the declaration of `rl_event_hook', and to 0 if you
    don't. */
 #undef HAVE_DECL_RL_EVENT_HOOK
@@ -843,8 +847,11 @@
 /* gnutls set_version */
 #undef HAVE_GNUTLS_X509_CRT_SET_VERSION
 
-/* Whether GPFS GPL libs are available */
+/* Whether GPFS GPL headers are available */
 #undef HAVE_GPFS
+
+/* Define to 1 if you have the <gpfs_gpl.h> header file. */
+#undef HAVE_GPFS_GPL_H
 
 /* Define to 1 if you have the `grantpt' function. */
 #undef HAVE_GRANTPT
@@ -1013,6 +1020,9 @@
 
 /* Define to 1 if you have the `krb5_decode_ap_req' function. */
 #undef HAVE_KRB5_DECODE_AP_REQ
+
+/* Whether to use deprecated krb5 interfaces */
+#undef HAVE_KRB5_DEPRECATED_WITH_IDENTIFIER
 
 /* Whether the type krb5_encrypt_block exists */
 #undef HAVE_KRB5_ENCRYPT_BLOCK

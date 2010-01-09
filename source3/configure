@@ -45482,7 +45482,12 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 case "$host_os" in
     *linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
        # glibc <= 2.3.2 has a broken getgrouplist
-       if test "$cross_compiling" = yes; then
+       { $as_echo "$as_me:$LINENO: checking for good getgrouplist" >&5
+$as_echo_n "checking for good getgrouplist... " >&6; }
+if test "${samba_cv_linux_getgrouplist_ok+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  if test "$cross_compiling" = yes; then
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
@@ -45537,21 +45542,24 @@ $as_echo "$ac_try_echo") >&5
   ac_status=$?
   $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; }; then
-  linux_getgrouplist_ok=yes
+  samba_cv_linux_getgrouplist_ok=yes
 else
   $as_echo "$as_me: program exited with status $ac_status" >&5
 $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
 ( exit $ac_status )
-linux_getgrouplist_ok=no
+samba_cv_linux_getgrouplist_ok=no
 fi
 rm -rf conftest.dSYM
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
 
 
-       if test x"$linux_getgrouplist_ok" = x"yes"; then
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_linux_getgrouplist_ok" >&5
+$as_echo "$samba_cv_linux_getgrouplist_ok" >&6; }
+       if test x"$samba_cv_linux_getgrouplist_ok" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GETGROUPLIST 1

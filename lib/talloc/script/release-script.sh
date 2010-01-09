@@ -10,10 +10,20 @@ if [ ! -d "lib/talloc" ]; then
     exit 1
 fi
 
+# Check exports and signatures are up to date
+pushd lib/talloc
+./script/abi_checks.sh talloc talloc.h
+abicheck=$?
+popd
+if [ ! "$abicheck" = "0" ]; then
+    echo "ERROR: ABI Checks produced warnings!"
+    exit 1
+fi
+
 git clean -f -x -d lib/talloc
 git clean -f -x -d lib/replace
 
-curbranch=`git-branch |grep "^*" | tr -d "* "`
+curbranch=`git branch |grep "^*" | tr -d "* "`
 
 version=$1
 strver=`echo ${version} | tr "." "-"`

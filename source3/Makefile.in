@@ -1146,7 +1146,6 @@ IDMAP_ADEX_OBJ = \
 
 WINBINDD_OBJ1 = \
 		winbindd/winbindd.o       \
-		winbindd/winbindd_user.o  \
 		winbindd/winbindd_group.o \
 		winbindd/winbindd_util.o  \
 		winbindd/winbindd_cache.o \
@@ -1224,6 +1223,7 @@ WINBINDD_OBJ1 = \
 		winbindd/winbindd_list_groups.o \
 		winbindd/winbindd_check_machine_acct.o \
 		winbindd/winbindd_change_machine_acct.o \
+		winbindd/winbindd_ping_dc.o \
 		winbindd/winbindd_set_mapping.o \
 		winbindd/winbindd_remove_mapping.o \
 		winbindd/winbindd_set_hwm.o \

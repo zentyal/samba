@@ -1,6 +1,6 @@
 /*
    Unix SMB/CIFS implementation.
-   async implementation of WINBINDD_CHECK_MACHINE_ACCT
+   async implementation of WINBINDD_PING_DC
    Copyright (C) Volker Lendecke 2009
 
    This program is free software; you can redistribute it and/or modify
@@ -21,23 +21,23 @@
 #include "winbindd.h"
 #include "librpc/gen_ndr/cli_wbint.h"
 
-struct winbindd_check_machine_acct_state {
+struct winbindd_ping_dc_state {
 	uint8_t dummy;
 };
 
-static void winbindd_check_machine_acct_done(struct tevent_req *subreq);
+static void winbindd_ping_dc_done(struct tevent_req *subreq);
 
-struct tevent_req *winbindd_check_machine_acct_send(TALLOC_CTX *mem_ctx,
-						    struct tevent_context *ev,
-						    struct winbindd_cli_state *cli,
-						    struct winbindd_request *request)
+struct tevent_req *winbindd_ping_dc_send(TALLOC_CTX *mem_ctx,
+					 struct tevent_context *ev,
+					 struct winbindd_cli_state *cli,
+					 struct winbindd_request *request)
 {
 	struct tevent_req *req, *subreq;
-	struct winbindd_check_machine_acct_state *state;
+	struct winbindd_ping_dc_state *state;
 	struct winbindd_domain *domain;
 
 	req = tevent_req_create(mem_ctx, &state,
-				struct winbindd_check_machine_acct_state);
+				struct winbindd_ping_dc_state);
 	if (req == NULL) {
 		return NULL;
 	}
@@ -61,24 +61,23 @@ struct tevent_req *winbindd_check_machine_acct_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	subreq = rpccli_wbint_CheckMachineAccount_send(state, ev,
-						       domain->child.rpccli);
+	subreq = rpccli_wbint_PingDc_send(state, ev, domain->child.rpccli);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
-	tevent_req_set_callback(subreq, winbindd_check_machine_acct_done, req);
+	tevent_req_set_callback(subreq, winbindd_ping_dc_done, req);
 	return req;
 }
 
-static void winbindd_check_machine_acct_done(struct tevent_req *subreq)
+static void winbindd_ping_dc_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(
 		subreq, struct tevent_req);
-	struct winbindd_check_machine_acct_state *state = tevent_req_data(
-		req, struct winbindd_check_machine_acct_state);
+	struct winbindd_ping_dc_state *state = tevent_req_data(
+		req, struct winbindd_ping_dc_state);
 	NTSTATUS status, result;
 
-	status = rpccli_wbint_CheckMachineAccount_recv(subreq, state, &result);
+	status = rpccli_wbint_PingDc_recv(subreq, state, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return;
@@ -90,8 +89,8 @@ static void winbindd_check_machine_acct_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-NTSTATUS winbindd_check_machine_acct_recv(struct tevent_req *req,
-					  struct winbindd_response *presp)
+NTSTATUS winbindd_ping_dc_recv(struct tevent_req *req,
+			       struct winbindd_response *presp)
 {
 	return tevent_req_simple_recv_ntstatus(req);
 }

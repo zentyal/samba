@@ -20,10 +20,9 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define KRB5_PRIVATE    1       /* this file uses PRIVATE interfaces! */
-#define KRB5_DEPRECATED 1       /* this file uses DEPRECATED interfaces! */
-
 #include "includes.h"
+#include "smb_krb5.h"
+#include "authdata.h"
 
 #ifdef HAVE_KRB5
 
@@ -924,10 +923,15 @@ failed:
 
  krb5_error_code smb_krb5_kt_free_entry(krb5_context context, krb5_keytab_entry *kt_entry)
 {
-#if defined(HAVE_KRB5_KT_FREE_ENTRY)
-	return krb5_kt_free_entry(context, kt_entry);
-#elif defined(HAVE_KRB5_FREE_KEYTAB_ENTRY_CONTENTS)
+/* Try krb5_free_keytab_entry_contents first, since 
+ * MIT Kerberos >= 1.7 has both krb5_free_keytab_entry_contents and 
+ * krb5_kt_free_entry but only has a prototype for the first, while the 
+ * second is considered private. 
+ */
+#if defined(HAVE_KRB5_FREE_KEYTAB_ENTRY_CONTENTS)
 	return krb5_free_keytab_entry_contents(context, kt_entry);
+#elif defined(HAVE_KRB5_KT_FREE_ENTRY)
+	return krb5_kt_free_entry(context, kt_entry);
 #else
 #error UNKNOWN_KT_FREE_FUNCTION
 #endif
@@ -1853,6 +1857,15 @@ static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
 	char *pChksum = NULL;
 	char *p = NULL;
 
+/* MIT krb5 1.7beta3 (in Ubuntu Karmic) is missing the prototype,
+   but still has the symbol */
+#if !HAVE_DECL_KRB5_AUTH_CON_SET_REQ_CKSUMTYPE
+krb5_error_code krb5_auth_con_set_req_cksumtype(  
+	krb5_context     context,
+	krb5_auth_context      auth_context,  
+	krb5_cksumtype     cksumtype);
+#endif
+
 	ZERO_STRUCT(fwdData);
 	ZERO_STRUCTP(authenticator);
 
@@ -1931,6 +1944,31 @@ static krb5_error_code ads_krb5_get_fwd_ticket( krb5_context context,
 	return retval;
 }
 #endif
+
+/*
+ * smb_krb5_principal_get_realm
+ *
+ * @brief Get realm of a principal
+ *
+ * @param[in] context		The krb5_context
+ * @param[in] principal		The principal
+ * @return pointer to the realm
+ *
+ */
+
+char *smb_krb5_principal_get_realm(krb5_context context,
+				   krb5_principal principal)
+{
+#ifdef HAVE_KRB5_PRINCIPAL_GET_REALM /* Heimdal */
+	return krb5_principal_get_realm(context, principal);
+#elif defined(krb5_princ_realm) /* MIT */
+	krb5_data *realm;
+	realm = krb5_princ_realm(context, principal);
+	return (char *)realm->data;
+#else
+	return NULL;
+#endif
+}
 
 #else /* HAVE_KRB5 */
  /* this saves a few linking headaches */

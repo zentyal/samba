@@ -5,6 +5,7 @@
 
 #include "librpc/gen_ndr/ndr_lsa.h"
 #include "librpc/gen_ndr/ndr_security.h"
+#include "librpc/gen_ndr/ndr_misc.h"
 static enum ndr_err_code ndr_push_winreg_AccessMask(struct ndr_push *ndr, int ndr_flags, uint32_t r)
 {
 	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r));
@@ -32,41 +33,6 @@ _PUBLIC_ void ndr_print_winreg_AccessMask(struct ndr_print *ndr, const char *nam
 	ndr_print_bitmap_flag(ndr, sizeof(uint32_t), "KEY_WOW64_64KEY", KEY_WOW64_64KEY, r);
 	ndr_print_bitmap_flag(ndr, sizeof(uint32_t), "KEY_WOW64_32KEY", KEY_WOW64_32KEY, r);
 	ndr->depth--;
-}
-
-_PUBLIC_ enum ndr_err_code ndr_push_winreg_Type(struct ndr_push *ndr, int ndr_flags, enum winreg_Type r)
-{
-	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r));
-	return NDR_ERR_SUCCESS;
-}
-
-_PUBLIC_ enum ndr_err_code ndr_pull_winreg_Type(struct ndr_pull *ndr, int ndr_flags, enum winreg_Type *r)
-{
-	uint32_t v;
-	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &v));
-	*r = v;
-	return NDR_ERR_SUCCESS;
-}
-
-_PUBLIC_ void ndr_print_winreg_Type(struct ndr_print *ndr, const char *name, enum winreg_Type r)
-{
-	const char *val = NULL;
-
-	switch (r) {
-		case REG_NONE: val = "REG_NONE"; break;
-		case REG_SZ: val = "REG_SZ"; break;
-		case REG_EXPAND_SZ: val = "REG_EXPAND_SZ"; break;
-		case REG_BINARY: val = "REG_BINARY"; break;
-		case REG_DWORD: val = "REG_DWORD"; break;
-		case REG_DWORD_BIG_ENDIAN: val = "REG_DWORD_BIG_ENDIAN"; break;
-		case REG_LINK: val = "REG_LINK"; break;
-		case REG_MULTI_SZ: val = "REG_MULTI_SZ"; break;
-		case REG_RESOURCE_LIST: val = "REG_RESOURCE_LIST"; break;
-		case REG_FULL_RESOURCE_DESCRIPTOR: val = "REG_FULL_RESOURCE_DESCRIPTOR"; break;
-		case REG_RESOURCE_REQUIREMENTS_LIST: val = "REG_RESOURCE_REQUIREMENTS_LIST"; break;
-		case REG_QWORD: val = "REG_QWORD"; break;
-	}
-	ndr_print_enum(ndr, name, "ENUM", val, r);
 }
 
 _PUBLIC_ enum ndr_err_code ndr_push_winreg_String(struct ndr_push *ndr, int ndr_flags, const struct winreg_String *r)
@@ -3700,7 +3666,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_winreg_QueryMultipleValues(struct ndr_pull *
 		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
 			NDR_PULL_ALLOC_N(ndr, r->in.values, ndr_get_array_size(ndr, &r->in.values));
 		}
-		memcpy(r->out.values, r->in.values, ndr_get_array_size(ndr, &r->in.values) * sizeof(*r->in.values));
+		memcpy(r->out.values, r->in.values, (ndr_get_array_size(ndr, &r->in.values)) * sizeof(*r->in.values));
 		_mem_save_values_1 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->in.values, 0);
 		for (cntr_values_1 = 0; cntr_values_1 < r->in.num_values; cntr_values_1++) {
@@ -3762,7 +3728,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_winreg_QueryMultipleValues(struct ndr_pull *
 		if (ndr->flags & LIBNDR_FLAG_REF_ALLOC) {
 			NDR_PULL_ALLOC_N(ndr, r->out.values, ndr_get_array_size(ndr, &r->out.values));
 		}
-		memcpy(r->out.values, r->in.values, ndr_get_array_size(ndr, &r->out.values) * sizeof(*r->in.values));
+		memcpy(r->out.values, r->in.values, (ndr_get_array_size(ndr, &r->out.values)) * sizeof(*r->in.values));
 		_mem_save_values_1 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->out.values, 0);
 		for (cntr_values_1 = 0; cntr_values_1 < r->in.num_values; cntr_values_1++) {

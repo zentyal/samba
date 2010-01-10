@@ -16,11 +16,11 @@ EXTRA_OPTIONS="$1"
 SPECDIR=`rpm --eval %_specdir`
 SRCDIR=`rpm --eval %_sourcedir`
 
-# At this point the SPECDIR and SRCDIR vaiables must have a value!
+# At this point the SPECDIR and SRCDIR variables must have a value!
 
 USERID=`id -u`
 GRPID=`id -g`
-VERSION='3.4.3'
+VERSION='3.4.4'
 REVISION=''
 SPECFILE="samba.spec"
 RPMVER=`rpm --version | awk '{print $3}'`

@@ -1,3 +1,11 @@
+samba (2:3.4.4~dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream version.
+  * Drop all RFC files from upstream source, therefore using a "~dfsg"
+    suffix to upstream version number.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 10 Jan 2010 20:13:22 +0100
+
 samba (2:3.4.3-2) unstable; urgency=low
 
   [ Christian Perrier ]

@@ -3,6 +3,11 @@ samba (2:3.4.4~dfsg-1) UNRELEASED; urgency=low
   * New upstream version.
   * Drop all RFC files from upstream source, therefore using a "~dfsg"
     suffix to upstream version number.
+  * Bugs fixed upstream:
+    - fixed list of workgroup servers in libsmbclient. 
+      Closes: #555462, #561148
+    - fixed documentation of the credentials file format in
+      mount.cifs(8). Closes: #552250
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 10 Jan 2010 20:13:22 +0100
 

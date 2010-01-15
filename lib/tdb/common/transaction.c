@@ -85,6 +85,21 @@
     still available, but no transaction recovery area is used and no
     fsync/msync calls are made.
 
+  - if TDB_ALLOW_NESTING is passed to flags in tdb open, or added using
+    tdb_add_flags() transaction nesting is enabled.
+    It resets the TDB_DISALLOW_NESTING flag, as both cannot be used together.
+    The default is that transaction nesting is allowed.
+    Note: this default may change in future versions of tdb.
+
+    Beware. when transactions are nested a transaction successfully
+    completed with tdb_transaction_commit() can be silently unrolled later.
+
+  - if TDB_DISALLOW_NESTING is passed to flags in tdb open, or added using
+    tdb_add_flags() transaction nesting is disabled.
+    It resets the TDB_ALLOW_NESTING flag, as both cannot be used together.
+    An attempt create a nested transaction will fail with TDB_ERR_NESTING.
+    The default is that transaction nesting is allowed.
+    Note: this default may change in future versions of tdb.
 */
 
 
@@ -427,6 +442,10 @@ int tdb_transaction_start(struct tdb_context *tdb)
 
 	/* cope with nested tdb_transaction_start() calls */
 	if (tdb->transaction != NULL) {
+		if (!(tdb->flags & TDB_ALLOW_NESTING)) {
+			tdb->ecode = TDB_ERR_NESTING;
+			return -1;
+		}
 		tdb->transaction->nesting++;
 		TDB_LOG((tdb, TDB_DEBUG_TRACE, "tdb_transaction_start: nesting %d\n", 
 			 tdb->transaction->nesting));

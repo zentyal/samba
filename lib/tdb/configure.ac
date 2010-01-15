@@ -2,7 +2,7 @@ AC_PREREQ(2.50)
 AC_DEFUN([SMB_MODULE_DEFAULT], [echo -n ""])
 AC_DEFUN([SMB_LIBRARY_ENABLE], [echo -n ""])
 AC_DEFUN([SMB_ENABLE], [echo -n ""])
-AC_INIT(tdb, 1.1.7)
+AC_INIT(tdb, 1.2.0)
 AC_CONFIG_SRCDIR([common/tdb.c])
 AC_CONFIG_HEADER(include/config.h)
 AC_LIBREPLACE_ALL_CHECKS
@@ -37,6 +37,13 @@ AC_ARG_ENABLE(python,
 			PYTHON_CHECK_TARGET=""
 		  fi
 		])
+
+AC_PATH_PROG(XSLTPROC,xsltproc)
+DOC_TARGET=""
+if test -n "$XSLTPROC"; then
+	DOC_TARGET=doc
+fi
+AC_SUBST(DOC_TARGET)
 
 m4_include(build_macros.m4)
 BUILD_WITH_SHARED_BUILD_DIR

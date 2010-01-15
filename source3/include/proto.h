@@ -3044,8 +3044,6 @@ NTSTATUS cli_trans(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 NTSTATUS check_negative_conn_cache_timeout( const char *domain, const char *server, unsigned int failed_cache_timeout );
 NTSTATUS check_negative_conn_cache( const char *domain, const char *server);
 void add_failed_connection_entry(const char *domain, const char *server, NTSTATUS result) ;
-void delete_negative_conn_cache(const char *domain, const char *server);
-void flush_negative_conn_cache( void );
 void flush_negative_conn_cache_for_domain(const char *domain);
 
 /* The following definitions come from ../librpc/rpc/dcerpc_error.c  */
@@ -5379,6 +5377,7 @@ NTSTATUS rpc_transport_np_init(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 			       const struct ndr_syntax_id *abstract_syntax,
 			       struct rpc_cli_transport **presult);
 struct cli_state *rpc_pipe_np_smb_conn(struct rpc_pipe_client *p);
+void rpccli_close_np_fd(struct rpc_pipe_client *p);
 
 /* The following definitions come from rpc_client/rpc_transport_smbd.c  */
 
@@ -5409,11 +5408,15 @@ NTSTATUS rpc_transport_smbd_init(TALLOC_CTX *mem_ctx,
 				 struct rpc_cli_smbd_conn *conn,
 				 const struct ndr_syntax_id *abstract_syntax,
 				 struct rpc_cli_transport **presult);
+struct cli_state *rpc_pipe_smbd_smb_conn(struct rpc_pipe_client *p);
 
 /* The following definitions come from rpc_client/rpc_transport_sock.c  */
 
 NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 				 struct rpc_cli_transport **presult);
+int rpccli_set_sock_timeout(struct rpc_pipe_client *rpccli, int timeout);
+void rpccli_close_sock_fd(struct rpc_pipe_client *rpccli);
+bool rpc_pipe_tcp_connection_ok(struct rpc_pipe_client *rpccli);
 
 /* The following definitions come from rpc_client/cli_samr.c  */
 
@@ -6261,9 +6264,7 @@ void error_packet_set(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatu
 int error_packet(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatus, int line, const char *file);
 void reply_nt_error(struct smb_request *req, NTSTATUS ntstatus,
 		    int line, const char *file);
-void reply_force_nt_error(struct smb_request *req, NTSTATUS ntstatus,
-			  int line, const char *file);
-void reply_dos_error(struct smb_request *req, uint8 eclass, uint32 ecode,
+void reply_force_dos_error(struct smb_request *req, uint8 eclass, uint32 ecode,
 		    int line, const char *file);
 void reply_both_error(struct smb_request *req, uint8 eclass, uint32 ecode,
 		      NTSTATUS status, int line, const char *file);
@@ -6721,6 +6722,10 @@ void reply_pipe_close(connection_struct *conn, struct smb_request *req);
 
 void create_file_sids(const SMB_STRUCT_STAT *psbuf, DOM_SID *powner_sid, DOM_SID *pgroup_sid);
 bool nt4_compatible_acls(void);
+uint32_t map_canon_ace_perms(int snum,
+                                enum security_ace_type *pacl_type,
+                                mode_t perms,
+                                bool directory_ace);
 NTSTATUS unpack_nt_owners(int snum, uid_t *puser, gid_t *pgrp, uint32 security_info_sent, const SEC_DESC *psd);
 SMB_ACL_T free_empty_sys_acl(connection_struct *conn, SMB_ACL_T the_acl);
 NTSTATUS posix_fget_nt_acl(struct files_struct *fsp, uint32_t security_info,

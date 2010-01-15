@@ -340,6 +340,8 @@ void ndr_print_spoolss_SetPrinterInfo4(struct ndr_print *ndr, const char *name, 
 void ndr_print_spoolss_SetPrinterInfo5(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo5 *r);
 void ndr_print_spoolss_SetPrinterInfo6(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo6 *r);
 void ndr_print_spoolss_SetPrinterInfo7(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo7 *r);
+void ndr_print_spoolss_SetPrinterInfo8(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo8 *r);
+void ndr_print_spoolss_SetPrinterInfo9(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfo9 *r);
 void ndr_print_spoolss_SetPrinterInfo(struct ndr_print *ndr, const char *name, const union spoolss_SetPrinterInfo *r);
 void ndr_print_spoolss_SetPrinterInfoCtr(struct ndr_print *ndr, const char *name, const struct spoolss_SetPrinterInfoCtr *r);
 enum ndr_err_code ndr_push_spoolss_StringArray(struct ndr_push *ndr, int ndr_flags, const struct spoolss_StringArray *r);
@@ -381,6 +383,10 @@ enum ndr_err_code ndr_push_spoolss_DriverInfo6(struct ndr_push *ndr, int ndr_fla
 enum ndr_err_code ndr_pull_spoolss_DriverInfo6(struct ndr_pull *ndr, int ndr_flags, struct spoolss_DriverInfo6 *r);
 void ndr_print_spoolss_DriverInfo6(struct ndr_print *ndr, const char *name, const struct spoolss_DriverInfo6 *r);
 size_t ndr_size_spoolss_DriverInfo6(const struct spoolss_DriverInfo6 *r, struct smb_iconv_convenience *ic, int flags);
+enum ndr_err_code ndr_push_spoolss_DriverInfo7(struct ndr_push *ndr, int ndr_flags, const struct spoolss_DriverInfo7 *r);
+enum ndr_err_code ndr_pull_spoolss_DriverInfo7(struct ndr_pull *ndr, int ndr_flags, struct spoolss_DriverInfo7 *r);
+void ndr_print_spoolss_DriverInfo7(struct ndr_print *ndr, const char *name, const struct spoolss_DriverInfo7 *r);
+size_t ndr_size_spoolss_DriverInfo7(const struct spoolss_DriverInfo7 *r, struct smb_iconv_convenience *ic, int flags);
 enum ndr_err_code ndr_push_spoolss_DriverInfo8(struct ndr_push *ndr, int ndr_flags, const struct spoolss_DriverInfo8 *r);
 enum ndr_err_code ndr_pull_spoolss_DriverInfo8(struct ndr_pull *ndr, int ndr_flags, struct spoolss_DriverInfo8 *r);
 void ndr_print_spoolss_DriverInfo8(struct ndr_print *ndr, const char *name, const struct spoolss_DriverInfo8 *r);

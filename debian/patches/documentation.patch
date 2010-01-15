@@ -15,9 +15,9 @@ Index: experimental/docs/manpages/swat.8
 -Swat is included as binary package with most distributions\&. The package manager in this case takes care of the installation and configuration\&. This section is only for those who have compiled swat from scratch\&.
 -.PP
 -After you compile SWAT you need to run
--make install
+-\FCmake install \F[]
 -to install the
--swat
+-\FCswat\F[]
 -binary and the various help files and images\&. A default install would put these in:
 -.sp
 -.RS 4
@@ -259,28 +259,19 @@ Index: experimental/docs/manpages/winbindd.8
 ===================================================================
 --- experimental.orig/docs/manpages/winbindd.8
 +++ experimental/docs/manpages/winbindd.8
-@@ -771,16 +771,16 @@
- file are owned by root\&.
- .RE
- .PP
--$LOCKDIR/winbindd_privileged/pipe
-+/var/run/samba/winbindd_privileged/pipe
- .RS 4
- The UNIX pipe over which \'privileged\' clients communicate with the
- winbindd
+@@ -778,9 +778,9 @@
  program\&. For security reasons, access to some winbindd functions \- like those needed by the
- ntlm_auth
--utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
--$LOCKDIR/winbindd_privileged
-+utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
-+/var/run/samba/winbindd_privileged
+ \FCntlm_auth\F[]
+ utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
+-\FC$LOCKDIR/winbindd_privileged\F[]
++\FC/var/run/samba/winbindd_privileged\F[]
  directory and
--$LOCKDIR/winbindd_privileged/pipe
-+/var/run/samba/winbindd_privileged/pipe
+-\FC$LOCKDIR/winbindd_privileged/pipe\F[]
++\FC/var/run/samba/winbindd_privileged/pipe\F[]
  file are owned by root\&.
  .RE
  .PP
-@@ -567,15 +567,12 @@
+@@ -789,15 +789,12 @@
  Implementation of name service switch library\&.
  .RE
  .PP
@@ -290,7 +281,7 @@ Index: experimental/docs/manpages/winbindd.8
 -Storage for the Windows NT rid to UNIX user/group id mapping\&. The lock directory is specified when Samba is initially compiled using the
 -\fI\-\-with\-lockdir\fR
 -option\&. This directory is by default
--/usr/local/samba/var/locks\&.
+-\FC/usr/local/samba/var/locks \F[]\&.
 +Storage for the Windows NT rid to UNIX user/group id mapping\&.
  .RE
  .PP

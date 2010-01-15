@@ -10,6 +10,5 @@ VERSION.patch
 usershare.patch
 smbtar-bashism.patch
 no-unnecessary-cups.patch
-fix-manpages-warnings.patch
 codepages-location.patch
 autoconf.patch

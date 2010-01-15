@@ -15,9 +15,9 @@ Index: experimental/docs/manpages/swat.8
 -Swat is included as binary package with most distributions\&. The package manager in this case takes care of the installation and configuration\&. This section is only for those who have compiled swat from scratch\&.
 -.PP
 -After you compile SWAT you need to run
--\FCmake install \F[]
+-make install
 -to install the
--\FCswat\F[]
+-swat
 -binary and the various help files and images\&. A default install would put these in:
 -.sp
 -.RS 4
@@ -267,20 +267,20 @@ Index: experimental/docs/manpages/winbindd.8
 +/var/run/samba/winbindd_privileged/pipe
  .RS 4
  The UNIX pipe over which \'privileged\' clients communicate with the
- \FCwinbindd\F[]
+ winbindd
  program\&. For security reasons, access to some winbindd functions \- like those needed by the
- \FCntlm_auth\F[]
+ ntlm_auth
 -utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
--\FC$LOCKDIR/winbindd_privileged\F[]
+-$LOCKDIR/winbindd_privileged
 +utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
-+\FC/var/run/samba/winbindd_privileged\F[]
++/var/run/samba/winbindd_privileged
  directory and
--\FC$LOCKDIR/winbindd_privileged/pipe\F[]
-+\FC/var/run/samba/winbindd_privileged/pipe\F[]
+-$LOCKDIR/winbindd_privileged/pipe
++/var/run/samba/winbindd_privileged/pipe
  file are owned by root\&.
  .RE
  .PP
-@@ -789,15 +789,12 @@
+@@ -567,15 +567,12 @@
  Implementation of name service switch library\&.
  .RE
  .PP
@@ -290,7 +290,7 @@ Index: experimental/docs/manpages/winbindd.8
 -Storage for the Windows NT rid to UNIX user/group id mapping\&. The lock directory is specified when Samba is initially compiled using the
 -\fI\-\-with\-lockdir\fR
 -option\&. This directory is by default
--\FC/usr/local/samba/var/locks \F[]\&.
+-/usr/local/samba/var/locks\&.
 +Storage for the Windows NT rid to UNIX user/group id mapping\&.
  .RE
  .PP

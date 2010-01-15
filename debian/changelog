@@ -1,26 +1,49 @@
-samba (2:3.5.0~pre2-1) UNRELEASED-experimental; urgency=low
+samba (2:3.5.0~rc1~dfsg-1) UNRELEASED-experimental; urgency=low
 
   [ Christian Perrier ]
   * New upstream pre-release
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+
+samba (2:3.4.4~dfsg-1) unstable; urgency=low
+
+  * New upstream version.
+  * Drop all RFC files from upstream source, therefore using a "~dfsg"
+    suffix to upstream version number.
+  * Bugs fixed upstream:
+    - fixed list of workgroup servers in libsmbclient. 
+      Closes: #555462, #561148
+    - fixed documentation of the credentials file format in
+      mount.cifs(8). Closes: #552250
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 14 Jan 2010 20:16:34 +0100
+
+samba (2:3.4.3-2) unstable; urgency=low
+
+  [ Christian Perrier ]
   * Switch to source format 3.0 (quilt)
   * Better adapt "add machine script" example to adduser
     Thanks to Heiko Schlittermann for the suggestion
     Closes: #555466
-  * Add --with-cifs-umount to configure
-
-  [ Mathieu Parent ]
-  * Raise ctdb build-dep version to 1.0.103
-    (new CTDB control CTDB_CONTROL_TRANS2_ACTIVE)
-  * Explicit ctdb path (--with-ctdb=/usr) 
-  * Removed --without-smbmount configure option, as smbmount as been 
-    removed in commit e1b32594c70ee57f16c84adb7910aa5c84a560f8
-  * Raise libtalloc-dev build-dep to 2.0.1 as required by configure
 
   [ Steve Langasek ]
-  * debian/rules: drop --with-cifsmount, --with-cifsupcall arguments, these
-    are now always set by default on Linux
+  * The "I hate non-declarative alternatives" upload:
+    - debian/samba{,-common}.prerm: don't call update-alternatives --remove
+      on upgrade, /do/ call it on other invocations of the prerm script.  If
+      these tools ever go away, the removal needs to be handled on upgrade by
+      the maintainer scripts of the new package version.
+    - debian/samba{,-common-bin}.postinst: call update-alternatives
+      unconditionally, don't second-guess the maintainer script arguments.
+    - debian/samba.postinst: call update-alternatives after the debconf
+      handling, not before; debconf triggers a re-exec of the script so
+      anything done before invoking debconf is wasted because it will be
+      re-done, and if there's already a debconf frontend running when this
+      is called, the not-redirected update-alternatives output will confuse
+      it.  Closes: #558116.
+    - debian/samba-common.prerm: move to samba-common-bin, this is the package
+      that owns these binaries.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 17 Dec 2009 16:53:13 +0100
 
 samba (2:3.4.3-1) unstable; urgency=low
 

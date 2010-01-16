@@ -45,6 +45,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcLookupSid@Base 2:3.2.0
  wbcLookupUserSids@Base 2:3.2.0
  wbcPing@Base 2:3.2.0
+ wbcPingDc@Base 2:3.5.0~rc1~dfsg
  wbcResolveWinsByIP@Base 2:3.2.0
  wbcResolveWinsByName@Base 2:3.2.0
  wbcSetDebug@Base 2:3.5.0~pre2                                                                                                

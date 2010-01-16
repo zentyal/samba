@@ -1,9 +1,9 @@
-samba (2:3.5.0~rc1~dfsg-1) UNRELEASED-experimental; urgency=low
+samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
 
   [ Christian Perrier ]
   * New upstream pre-release
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 08 Nov 2009 15:04:24 +0100
+ -- Christian Perrier <bubulle@debian.org>  Fri, 15 Jan 2010 23:31:01 +0100
 
 samba (2:3.4.4~dfsg-1) unstable; urgency=low
 

@@ -1,4 +1,11 @@
-samba (2:3.4.4~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.4.4~dfsg-2) UNRELEASED; urgency=low
+
+  * Drop /var/run/samba from samba-common. The directory is created
+    by init scripts when needed.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 17 Jan 2010 13:27:55 +0100
+
+samba (2:3.4.4~dfsg-1) unstable; urgency=low
 
   * New upstream version.
   * Drop all RFC files from upstream source, therefore using a "~dfsg"
@@ -9,7 +16,7 @@ samba (2:3.4.4~dfsg-1) UNRELEASED; urgency=low
     - fixed documentation of the credentials file format in
       mount.cifs(8). Closes: #552250
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 10 Jan 2010 20:13:22 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 14 Jan 2010 20:16:34 +0100
 
 samba (2:3.4.3-2) unstable; urgency=low
 

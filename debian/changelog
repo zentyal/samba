@@ -1,7 +1,11 @@
 samba (2:3.4.4~dfsg-2) UNRELEASED; urgency=low
 
+  * A few lintian fixes:
   * Drop /var/run/samba from samba-common. The directory is created
     by init scripts when needed.
+  * No longer prepend a path to the mksmbpasswd call in samba.postinst.
+    This prevents the local administrator to use a replacement version
+    for some local reason.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 17 Jan 2010 13:27:55 +0100
 

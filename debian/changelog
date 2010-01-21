@@ -1,5 +1,6 @@
-samba (2:3.4.4~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.4.5~dfsg-1) UNRELEASED; urgency=low
 
+  * New upstream release
   * A few lintian fixes:
   * Drop /var/run/samba from samba-common. The directory is created
     by init scripts when needed.
@@ -7,7 +8,7 @@ samba (2:3.4.4~dfsg-2) UNRELEASED; urgency=low
     This prevents the local administrator to use a replacement version
     for some local reason.
 
- -- Christian Perrier <bubulle@debian.org>  Sun, 17 Jan 2010 13:27:55 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 21 Jan 2010 08:30:18 +0100
 
 samba (2:3.4.4~dfsg-1) unstable; urgency=low
 

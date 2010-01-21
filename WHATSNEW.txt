@@ -1,4 +1,74 @@
                    =============================
+                   Release Notes for Samba 3.4.5
+			 January 19, 2010
+                   =============================
+
+
+This is the latest stable release of Samba 3.4.
+
+Major enhancements in Samba 3.4.5 include:
+
+   o Fix memory in leak in smbd (bug #7020).
+   o Fix changing of ACLs on writable files with "dos filemode=yes" (bug #5202).
+
+
+######################################################################
+Changes
+#######
+
+Changes since 3.4.4
+-------------------
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5202: Fix changing of ACLs on writable files with "dos filemode=yes".
+    * BUG 7020: Fix memory leak in smbd.
+    * BUG 7036: Fix 'net rpc getsid' in hardened Windows environments.
+    * BUG 7045: Fix bad (non memory copying) interfaces in smbc_setXXXX calls.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 7043: Fix crash bug in "SMBC_parse_path".
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 7046: Fix a crash in libsmbclient used against the OpenSolaris CIFS
+      server.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 6642: Fix opening the quota magic file.
+    * BUG 6919: Fix remote quota management.
+
+
+o   SASAJIMA Toshihiro <sasajima_t@jp.fujitsu.com>
+    * BUG 7034: Fix internal error caused by vfs_cap.
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.4 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older versions follow:
+----------------------------------------
+
+                   =============================
                    Release Notes for Samba 3.4.4
 			 January 7, 2009
                    =============================
@@ -94,8 +164,8 @@ database (https://bugzilla.samba.org/).
 ======================================================================
 
 
-Release notes for older versions follow:
-----------------------------------------
+----------------------------------------------------------------------
+
 
                    =============================
                    Release Notes for Samba 3.4.3

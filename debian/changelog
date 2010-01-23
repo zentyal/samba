@@ -1,6 +1,8 @@
 samba (2:3.4.5~dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release
+  * Declare a versioned dependency of winbind on libwbclient0
+    Closes: #550481
   * A few lintian fixes:
   * Drop /var/run/samba from samba-common. The directory is created
     by init scripts when needed.

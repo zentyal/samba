@@ -1,6 +1,7 @@
 samba (2:3.4.5~dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. Bugs fixed by this release:
+    - Memory leak in smbd. Closes: #538819, #558453
   * Declare a versioned dependency of winbind and samba on libwbclient0
     Closes: #550481
   * A few lintian fixes:

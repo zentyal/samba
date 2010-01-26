@@ -36,7 +36,7 @@
 		Workgroups) insist on an uppercase password. Lowercase 
 		or mixed case passwords may be rejected by these servers. 		
 		</p><p>Be cautious about including passwords in scripts.
-		</p></dd><dt><span class="term">-R &lt;name resolve order&gt;</span></dt><dd><p>This option is used by the programs in the Samba 
+		</p></dd><dt><span class="term">-R|--name-resolve &lt;name resolve order&gt;</span></dt><dd><p>This option is used by the programs in the Samba 
 		suite to determine what naming services and in what order to resolve 
 		host names to IP addresses. The option takes a space-separated 
 		string of different name resolution options.</p><p>The options are :"lmhosts", "host", "wins" and "bcast". They 
@@ -64,7 +64,7 @@
 		(name resolve order) will be used. </p><p>The default order is lmhosts, host, wins, bcast and without 
 		this parameter or any entry in the <em class="parameter"><code>name resolve order
 		</code></em> parameter of the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> file the name resolution
-		methods will be attempted in this order. </p></dd><dt><span class="term">-M NetBIOS name</span></dt><dd><p>This options allows you to send messages, using 
+		methods will be attempted in this order. </p></dd><dt><span class="term">-M|--message NetBIOS name</span></dt><dd><p>This options allows you to send messages, using 
 		the "WinPopup" protocol, to another computer. Once a connection is 
 		established you then type your message, pressing ^D (control-D) to 
 		end. </p><p>If the receiving computer is running WinPopup the user will 
@@ -82,16 +82,17 @@
 		control the FROM and TO parts of the message. </p><p>See the <em class="parameter"><code>message command</code></em> parameter in the <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a> for a description of how to handle incoming 
 		WinPopup messages in Samba. </p><p><span class="emphasis"><em>Note</em></span>: Copy WinPopup into the startup group 
 		on your WfWg PCs if you want them to always be able to receive 
-		messages. </p></dd><dt><span class="term">-p port</span></dt><dd><p>This number is the TCP port number that will be used 
+		messages. </p></dd><dt><span class="term">-p|--port port</span></dt><dd><p>This number is the TCP port number that will be used 
 		when making connections to the server. The standard (well-known)
 		TCP port number for an SMB/CIFS server is 139, which is the 
-		default. </p></dd><dt><span class="term">-g</span></dt><dd><p>This parameter provides combined with
+		default. </p></dd><dt><span class="term">-g|--grepable</span></dt><dd><p>This parameter provides combined with
 		<em class="parameter"><code>-L</code></em> easy parseable output	that allows processing
 		with utilities such as grep and cut.
+		</p></dd><dt><span class="term">-m|--max-protocol protocol</span></dt><dd><p>This parameter sets the maximum protocol version announced by the client.
 		</p></dd><dt><span class="term">-P</span></dt><dd><p>
 		Make queries to the external server using the machine account of the local server.
 		</p></dd><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
-</p></dd><dt><span class="term">-I IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to.
+</p></dd><dt><span class="term">-I|--ip-address IP-address</span></dt><dd><p><em class="replaceable"><code>IP address</code></em> is the address of the server to connect to.
 		It should be specified in standard "a.b.c.d" notation. </p><p>Normally the client would attempt to locate a named 
 		SMB/CIFS server by looking it up via the NetBIOS name resolution 
 		mechanism described above in the <em class="parameter"><code>name resolve order</code></em> 
@@ -100,15 +101,15 @@
 		address and the NetBIOS name component of the resource being 
 		connected to will be ignored. </p><p>There is no default for this parameter. If not supplied, 
 		it will be determined automatically by the client as described 
-		above. </p></dd><dt><span class="term">-E</span></dt><dd><p>This parameter causes the client to write messages 
+		above. </p></dd><dt><span class="term">-E|--stderr</span></dt><dd><p>This parameter causes the client to write messages 
 		to the standard error stream (stderr) rather than to the standard 
 		output stream. </p><p>By default, the client writes messages to standard output 
-		- typically the user's tty. </p></dd><dt><span class="term">-L</span></dt><dd><p>This option allows you to look at what services 
+		- typically the user's tty. </p></dd><dt><span class="term">-L|--list</span></dt><dd><p>This option allows you to look at what services 
 		are available on a server. You use it as <code class="literal">smbclient -L 
 		host</code> and a list should appear.  The <em class="parameter"><code>-I
 		</code></em> option may be useful if your NetBIOS names don't 
 		match your TCP/IP DNS host names or if you are trying to reach a 
-		host on another network. </p></dd><dt><span class="term">-b buffersize</span></dt><dd><p>This option changes the transmit/send buffer 
+		host on another network. </p></dd><dt><span class="term">-b|--send-buffer buffersize</span></dt><dd><p>This option changes the transmit/send buffer 
 		size when getting or putting a file from/to the server. The default 
 		is 65520 bytes. Setting this value smaller (to 1200 bytes) has been 
 		observed to speed up file transfers to and from a Win9x server. 
@@ -131,9 +132,9 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
-</p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
+override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
+in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V|--version</span></dt><dd><p>Prints the program version number.
+</p></dd><dt><span class="term">-s|--configfile &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
 information such as what printcap file to use, as well 
@@ -143,13 +144,13 @@ The default configuration file name is determined at
 compile time.</p></dd><dt><span class="term">-l|--log-basename=logdirectory</span></dt><dd><p>Base directory name for log/debug files. The extension
 <code class="constant">".progname"</code> will be appended (e.g. log.smbclient, 
 log.smbd, etc...). The log file is never removed by the client.
-</p></dd><dt><span class="term">-N</span></dt><dd><p>If specified, this parameter suppresses the normal
+</p></dd><dt><span class="term">-N|--no-pass</span></dt><dd><p>If specified, this parameter suppresses the normal
 password prompt from the client to the user. This is useful when
 accessing a service that does not require a password. </p><p>Unless a password is specified on the command line or
 this parameter is specified, the client will request a
 password.</p><p>If a password is specified on the command line and this
 option is also defined the password on the command line will
-be silently ingnored and no password will be used.</p></dd><dt><span class="term">-k</span></dt><dd><p>
+be silently ingnored and no password will be used.</p></dd><dt><span class="term">-k|--kerberos</span></dt><dd><p>
 Try to authenticate with kerberos. Only useful in
 an Active Directory environment.
 </p></dd><dt><span class="term">-A|--authentication-file=filename</span></dt><dd><p>This option allows
@@ -174,12 +175,12 @@ on the file restrict access from unwanted users.  See the
 many systems the command line of a running process may be seen
 via the <code class="literal">ps</code> command.  To be safe always allow
 <code class="literal">rpcclient</code> to prompt for a password and type
-it in directly. </p></dd><dt><span class="term">-n &lt;primary NetBIOS name&gt;</span></dt><dd><p>This option allows you to override
+it in directly. </p></dd><dt><span class="term">-n|--netbiosname &lt;primary NetBIOS name&gt;</span></dt><dd><p>This option allows you to override
 the NetBIOS name that Samba uses for itself. This is identical
-to setting the <a class="link" href="smb.conf.5.html#NETBIOSNAME" target="_top">netbios name</a> parameter in the <code class="filename">smb.conf</code> file. 
+to setting the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter in the <code class="filename">smb.conf</code> file. 
 However, a command
 line setting will take precedence over settings in
-<code class="filename">smb.conf</code>.</p></dd><dt><span class="term">-i &lt;scope&gt;</span></dt><dd><p>This specifies a NetBIOS scope that
+<code class="filename">smb.conf</code>.</p></dd><dt><span class="term">-i|--scope &lt;scope&gt;</span></dt><dd><p>This specifies a NetBIOS scope that
 <code class="literal">nmblookup</code> will use to communicate with when
 generating NetBIOS names. For details on the use of NetBIOS
 scopes, see rfc1001.txt and rfc1002.txt. NetBIOS scopes are
@@ -189,10 +190,10 @@ NetBIOS systems you communicate with.</p></dd><dt><span class="term">-W|--workgr
 overrides the default domain which is the domain defined in
 smb.conf.  If the domain specified is the same as the servers 
 NetBIOS name, it causes the client to log on using the servers local 
-SAM (as opposed to the Domain SAM). </p></dd><dt><span class="term">-O socket options</span></dt><dd><p>TCP socket options to set on the client
+SAM (as opposed to the Domain SAM). </p></dd><dt><span class="term">-O|--socket-options socket options</span></dt><dd><p>TCP socket options to set on the client
 socket. See the socket options parameter in
 the <code class="filename">smb.conf</code> manual page for the list of valid
-options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbclient may be used to create <code class="literal">tar(1)
+options. </p></dd><dt><span class="term">-T|--tar tar options</span></dt><dd><p>smbclient may be used to create <code class="literal">tar(1)
 		</code> compatible backups of all the files on an SMB/CIFS
 		share. The secondary tar flags that can be given to this option 
 		are : </p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>c</code></em> - Create a tar file on UNIX. 
@@ -257,11 +258,11 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 		users\edocs </code></p><p>Create a tar file of the files listed in the file <code class="filename">tarlist</code>.</p><p><code class="literal">smbclient //mypc/myshare "" -N -TcF
 		backup.tar tarlist</code></p><p>Create a tar file of all the files and directories in 
 		the share. </p><p><code class="literal">smbclient //mypc/myshare "" -N -Tc backup.tar *
-		</code></p></dd><dt><span class="term">-D initial directory</span></dt><dd><p>Change to initial directory before starting. Probably 
-		only of any use with the tar -T option. </p></dd><dt><span class="term">-c command string</span></dt><dd><p>command string is a semicolon-separated list of 
+		</code></p></dd><dt><span class="term">-D|--directory initial directory</span></dt><dd><p>Change to initial directory before starting. Probably 
+		only of any use with the tar -T option. </p></dd><dt><span class="term">-c|--comand command string</span></dt><dd><p>command string is a semicolon-separated list of 
 		commands to be executed instead of prompting from stdin. <em class="parameter"><code>
 		-N</code></em> is implied by <em class="parameter"><code>-c</code></em>.</p><p>This is particularly useful in scripts and for printing stdin 
-		to the server, e.g. <code class="literal">-c 'print -'</code>. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2533261"></a><h2>OPERATIONS</h2><p>Once the client is running, the user is presented with 
+		to the server, e.g. <code class="literal">-c 'print -'</code>. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2533270"></a><h2>OPERATIONS</h2><p>Once the client is running, the user is presented with 
 	a prompt : </p><p><code class="prompt">smb:\&gt; </code></p><p>The backslash ("\\") indicates the current working directory 
 	on the server, and will change if the current working directory 
 	is changed. </p><p>The prompt indicates that the client is ready and waiting to 
@@ -462,14 +463,14 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 		</p></dd><dt><span class="term">vuid &lt;number&gt;</span></dt><dd><p>Changes the currently used vuid in the protocol to
 		the given arbitrary number. Without an argument prints out the current
 		vuid being used. Used for internal Samba testing purposes.
-		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2534504"></a><h2>NOTES</h2><p>Some servers are fussy about the case of supplied usernames,
+		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2534521"></a><h2>NOTES</h2><p>Some servers are fussy about the case of supplied usernames,
 	passwords, share names (AKA service names) and machine names.
 	If you fail to connect try giving all parameters in uppercase.
 	</p><p>It is often necessary to use the -n option when connecting
 	to some types of servers. For example OS/2 LanManager insists
 	on a valid NetBIOS name being used, so you need to supply a valid
 	name that would be known to the server.</p><p>smbclient supports long file names where the server 
-	supports the LANMAN2 protocol or above. </p></div><div class="refsect1" lang="en"><a name="id2534529"></a><h2>ENVIRONMENT VARIABLES</h2><p>The variable <code class="envar">USER</code> may contain the 
+	supports the LANMAN2 protocol or above. </p></div><div class="refsect1" lang="en"><a name="id2534546"></a><h2>ENVIRONMENT VARIABLES</h2><p>The variable <code class="envar">USER</code> may contain the 
 	username of the person  using the client. This information is 
 	used only if the protocol  level is high enough to support 
 	session-level passwords.</p><p>The variable <code class="envar">PASSWD</code> may contain 
@@ -479,7 +480,7 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 	the path, executed with system(), which the client should connect 
         to instead of connecting to a server.  This functionality is primarily
         intended as a development aid, and works best when using a LMHOSTS 
-        file</p></div><div class="refsect1" lang="en"><a name="id2534565"></a><h2>INSTALLATION</h2><p>The location of the client program is a matter for 
+        file</p></div><div class="refsect1" lang="en"><a name="id2534582"></a><h2>INSTALLATION</h2><p>The location of the client program is a matter for 
 	individual system administrators. The following are thus
 	suggestions only. </p><p>It is recommended that the smbclient software be installed
 	in the <code class="filename">/usr/local/samba/bin/</code> or <code class="filename">
@@ -490,11 +491,11 @@ options. </p></dd><dt><span class="term">-T tar options</span></dt><dd><p>smbcli
 	and writeable only by the user. </p><p>To test the client, you will need to know the name of a 
 	running SMB/CIFS server. It is possible to run <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> as an ordinary user - running that server as a daemon 
 	on a user-accessible port (typically any port number over 1024)
-	would provide a suitable test server. </p></div><div class="refsect1" lang="en"><a name="id2534618"></a><h2>DIAGNOSTICS</h2><p>Most diagnostics issued by the client are logged in a 
+	would provide a suitable test server. </p></div><div class="refsect1" lang="en"><a name="id2534634"></a><h2>DIAGNOSTICS</h2><p>Most diagnostics issued by the client are logged in a 
 	specified log file. The log file name is specified at compile time, 
 	but may be overridden on the command line. </p><p>The number and nature of diagnostics available depends 
 	on the debug level used by the client. If you have problems, 
-	set the debug level to 3 and peruse the log files. </p></div><div class="refsect1" lang="en"><a name="id2534636"></a><h2>VERSION</h2><p>This man page is correct for version 3.2 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2534647"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	set the debug level to 3 and peruse the log files. </p></div><div class="refsect1" lang="en"><a name="id2534653"></a><h2>VERSION</h2><p>This man page is correct for version 3.2 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2534664"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 

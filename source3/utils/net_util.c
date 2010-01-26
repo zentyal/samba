@@ -50,7 +50,7 @@ NTSTATUS net_rpc_lookup_name(struct net_context *c,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					&pol);
 	if (!NT_STATUS_IS_OK(result)) {
-		d_fprintf(stderr, _("open_policy failed: %s\n"),
+		d_fprintf(stderr, "open_policy %s: %s\n", _("failed"),
 			  nt_errstr(result));
 		return result;
 	}
@@ -107,6 +107,10 @@ NTSTATUS connect_to_service(struct net_context *c,
 
 	if (c->opt_kerberos && c->opt_password) {
 		flags |= CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS;
+	}
+
+	if (c->opt_ccache) {
+		flags |= CLI_FULL_CONNECTION_USE_CCACHE;
 	}
 
 	nt_status = cli_full_connection(cli_ctx, NULL, server_name,

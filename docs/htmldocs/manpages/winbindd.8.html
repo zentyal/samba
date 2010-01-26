@@ -11,7 +11,7 @@
 	parameters are not required. (This is known as `netlogon proxy only mode'.)</p><p> The Name Service Switch allows user
 	and system information to be obtained from different databases
 	services such as NIS or DNS.  The exact behaviour can be configured
-	throught the <code class="filename">/etc/nsswitch.conf</code> file.
+	through the <code class="filename">/etc/nsswitch.conf</code> file.
 	Users and groups are allocated as they are resolved to a range
 	of user and group ids specified by the administrator of the
 	Samba system.</p><p>The service provided by <code class="literal">winbindd</code> is called `winbind' and
@@ -84,9 +84,9 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
-</p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
+override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
+in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V|--version</span></dt><dd><p>Prints the program version number.
+</p></dd><dt><span class="term">-s|--configfile &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
 information such as what printcap file to use, as well 
@@ -211,7 +211,7 @@ auth  required    /lib/security/pam_unix.so \
 		by winbindd is also reloaded.  </p></dd><dt><span class="term">SIGUSR2</span></dt><dd><p>The SIGUSR2 signal will cause <code class="literal">
 		winbindd</code> to write status information to the winbind
 		log file.</p><p>Log files are stored in the filename specified by the
-		log file parameter.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532816"></a><h2>FILES</h2><div class="variablelist"><dl><dt><span class="term"><code class="filename">/etc/nsswitch.conf(5)</code></span></dt><dd><p>Name service switch configuration file.</p></dd><dt><span class="term">/tmp/.winbindd/pipe</span></dt><dd><p>The UNIX pipe over which clients communicate with
+		log file parameter.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532815"></a><h2>FILES</h2><div class="variablelist"><dl><dt><span class="term"><code class="filename">/etc/nsswitch.conf(5)</code></span></dt><dd><p>Name service switch configuration file.</p></dd><dt><span class="term">/tmp/.winbindd/pipe</span></dt><dd><p>The UNIX pipe over which clients communicate with
 		the <code class="literal">winbindd</code> program.  For security reasons, the
 		winbind client will only attempt to connect to the winbindd daemon
 		if both the <code class="filename">/tmp/.winbindd</code> directory
@@ -233,7 +233,7 @@ auth  required    /lib/security/pam_unix.so \
 		This directory is by default <code class="filename">/usr/local/samba/var/locks
 		</code>. </p></dd><dt><span class="term">$LOCKDIR/winbindd_cache.tdb</span></dt><dd><p>Storage for cached user and group information.
 		</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532961"></a><h2>VERSION</h2><p>This man page is correct for version 3 of
-        the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2532972"></a><h2>SEE ALSO</h2><p><code class="filename">nsswitch.conf(5)</code>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="ntlm_auth.8.html"><span class="citerefentry"><span class="refentrytitle">ntlm_auth</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>, <a class="citerefentry" href="pam_winbind.8.html"><span class="citerefentry"><span class="refentrytitle">pam_winbind</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2533027"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
+        the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2532971"></a><h2>SEE ALSO</h2><p><code class="filename">nsswitch.conf(5)</code>, <a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="ntlm_auth.8.html"><span class="citerefentry"><span class="refentrytitle">ntlm_auth</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>, <a class="citerefentry" href="pam_winbind.8.html"><span class="citerefentry"><span class="refentrytitle">pam_winbind</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2533027"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar
 	to the way the Linux kernel is developed.</p><p><code class="literal">wbinfo</code> and <code class="literal">winbindd</code> were

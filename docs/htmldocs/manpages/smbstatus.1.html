@@ -13,9 +13,9 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
-</p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
+override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
+in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V|--version</span></dt><dd><p>Prints the program version number.
+</p></dd><dt><span class="term">-s|--configfile &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
 information such as what printcap file to use, as well 
@@ -28,8 +28,8 @@ log.smbd, etc...). The log file is never removed by the client.
 </p></dd><dt><span class="term">-v|--verbose</span></dt><dd><p>gives verbose output.</p></dd><dt><span class="term">-L|--locks</span></dt><dd><p>causes smbstatus to only list locks.</p></dd><dt><span class="term">-B|--byterange</span></dt><dd><p>causes smbstatus to include byte range locks.
 		</p></dd><dt><span class="term">-p|--processes</span></dt><dd><p>print a list of <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> processes and exit. 
 		Useful for scripting.</p></dd><dt><span class="term">-S|--shares</span></dt><dd><p>causes smbstatus to only list shares.</p></dd><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
-</p></dd><dt><span class="term">-u|--user=&lt;username&gt;</span></dt><dd><p>selects information relevant to <em class="parameter"><code>username</code></em> only.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481517"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
-	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2481528"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> and <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2481553"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></dd><dt><span class="term">-u|--user=&lt;username&gt;</span></dt><dd><p>selects information relevant to <em class="parameter"><code>username</code></em> only.</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481516"></a><h2>VERSION</h2><p>This man page is correct for version 3 of 
+	the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2481527"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a> and <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2481552"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The original Samba man pages were written by Karl Auer. 

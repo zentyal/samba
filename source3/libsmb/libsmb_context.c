@@ -168,10 +168,14 @@ smbc_new_context(void)
         smbc_setOptionFullTimeNames(context, False);
         smbc_setOptionOpenShareMode(context, SMBC_SHAREMODE_DENY_NONE);
         smbc_setOptionSmbEncryptionLevel(context, SMBC_ENCRYPTLEVEL_NONE);
+        smbc_setOptionUseCCache(context, True);
         smbc_setOptionCaseSensitive(context, False);
         smbc_setOptionBrowseMaxLmbCount(context, 3);    /* # LMBs to query */
         smbc_setOptionUrlEncodeReaddirEntries(context, False);
         smbc_setOptionOneSharePerServer(context, False);
+	if (getenv("LIBSMBCLIENT_NO_CCACHE") == NULL) {
+		smbc_setOptionUseCCache(context, true);
+	}
         
         smbc_setFunctionAuthData(context, SMBC_get_auth_data);
         smbc_setFunctionCheckServer(context, SMBC_check_server);
@@ -291,13 +295,8 @@ smbc_free_context(SMBCCTX *context,
         }
         
         /* Things we have to clean up */
-        free(smbc_getWorkgroup(context));
         smbc_setWorkgroup(context, NULL);
-
-        free(smbc_getNetbiosName(context));
         smbc_setNetbiosName(context, NULL);
-
-        free(smbc_getUser(context));
         smbc_setUser(context, NULL);
         
         DEBUG(3, ("Context %p successfully freed\n", context));
@@ -404,6 +403,10 @@ smbc_option_set(SMBCCTX *context,
                 option_value.b = (bool) va_arg(ap, int);
                 smbc_setOptionFallbackAfterKerberos(context, option_value.b);
                 
+        } else if (strcmp(option_name, "use_ccache") == 0) {
+                option_value.b = (bool) va_arg(ap, int);
+                smbc_setOptionUseCCache(context, option_value.b);
+
         } else if (strcmp(option_name, "no_auto_anonymous_login") == 0) {
                 option_value.b = (bool) va_arg(ap, int);
                 smbc_setOptionNoAutoAnonymousLogin(context, option_value.b);
@@ -510,6 +513,13 @@ smbc_option_get(SMBCCTX *context,
                 return (void *) (bool) smbc_getOptionFallbackAfterKerberos(context);
 #endif
                 
+        } else if (strcmp(option_name, "use_ccache") == 0) {
+#if defined(__intptr_t_defined) || defined(HAVE_INTPTR_T)
+                return (void *) (intptr_t) smbc_getOptionUseCCache(context);
+#else
+                return (void *) (bool) smbc_getOptionUseCCache(context);
+#endif
+
         } else if (strcmp(option_name, "no_auto_anonymous_login") == 0) {
 #if defined(__intptr_t_defined) || defined(HAVE_INTPTR_T)
                 return (void *) (intptr_t) smbc_getOptionNoAutoAnonymousLogin(context);
@@ -533,7 +543,6 @@ SMBCCTX *
 smbc_init_context(SMBCCTX *context)
 {
         int pid;
-        char *user = NULL;
         
         if (!context) {
                 errno = EBADF;
@@ -569,7 +578,7 @@ smbc_init_context(SMBCCTX *context)
                 /*
                  * FIXME: Is this the best way to get the user info?
                  */
-                user = getenv("USER");
+		char *user = getenv("USER");
                 /* walk around as "guest" if no username can be found */
                 if (!user) {
                         user = SMB_STRDUP("guest");
@@ -583,6 +592,12 @@ smbc_init_context(SMBCCTX *context)
                 }
 
                 smbc_setUser(context, user);
+		SAFE_FREE(user);
+
+		if (!smbc_getUser(context)) {
+                        errno = ENOMEM;
+                        return NULL;
+                }
         }
         
         if (!smbc_getNetbiosName(context)) {
@@ -615,6 +630,12 @@ smbc_init_context(SMBCCTX *context)
                 }
                 
                 smbc_setNetbiosName(context, netbios_name);
+		SAFE_FREE(netbios_name);
+
+                if (!smbc_getNetbiosName(context)) {
+                        errno = ENOMEM;
+                        return NULL;
+                }
         }
         
         DEBUG(1, ("Using netbios name %s.\n", smbc_getNetbiosName(context)));
@@ -636,6 +657,12 @@ smbc_init_context(SMBCCTX *context)
                 }
 
                 smbc_setWorkgroup(context, workgroup);
+		SAFE_FREE(workgroup);
+
+		if (!smbc_getWorkgroup(context)) {
+			errno = ENOMEM;
+			return NULL;
+		}
         }
         
         DEBUG(1, ("Using workgroup %s.\n", smbc_getWorkgroup(context)));
@@ -736,6 +763,8 @@ void smbc_set_credentials_with_fallback(SMBCCTX *context,
         set_cmdline_auth_info_signing_state(auth_info, signing_state);
 	set_cmdline_auth_info_fallback_after_kerberos(auth_info,
 		smbc_getOptionFallbackAfterKerberos(context));
+	set_cmdline_auth_info_use_ccache(
+		auth_info, smbc_getOptionUseCCache(context));
         set_global_myworkgroup(workgroup);
 
 	TALLOC_FREE(context->internal->auth_info);

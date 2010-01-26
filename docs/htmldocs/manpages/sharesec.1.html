@@ -21,9 +21,9 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
-</p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
+override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
+in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V|--version</span></dt><dd><p>Prints the program version number.
+</p></dd><dt><span class="term">-s|--configfile &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
 information such as what printcap file to use, as well 
@@ -33,7 +33,7 @@ The default configuration file name is determined at
 compile time.</p></dd><dt><span class="term">-l|--log-basename=logdirectory</span></dt><dd><p>Base directory name for log/debug files. The extension
 <code class="constant">".progname"</code> will be appended (e.g. log.smbclient, 
 log.smbd, etc...). The log file is never removed by the client.
-</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483761"></a><h2>ACL FORMAT</h2><p>The format of an ACL is one or more ACL entries separated by
+</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2483760"></a><h2>ACL FORMAT</h2><p>The format of an ACL is one or more ACL entries separated by
 	either commas or newlines.  An ACL entry is one of the following: </p><pre class="programlisting">
 	REVISION:&lt;revision number&gt;
 	OWNER:&lt;sid or name&gt;

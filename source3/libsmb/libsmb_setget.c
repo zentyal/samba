@@ -39,7 +39,10 @@ smbc_getNetbiosName(SMBCCTX *c)
 void
 smbc_setNetbiosName(SMBCCTX *c, char * netbios_name)
 {
-        c->netbios_name = netbios_name;
+	SAFE_FREE(c->netbios_name);
+	if (netbios_name) {
+		c->netbios_name = SMB_STRDUP(netbios_name);
+	}
 }
 
 /** Get the workgroup used for making connections */
@@ -53,7 +56,10 @@ smbc_getWorkgroup(SMBCCTX *c)
 void
 smbc_setWorkgroup(SMBCCTX *c, char * workgroup)
 {
-        c->workgroup = workgroup;
+	SAFE_FREE(c->workgroup);
+	if (workgroup) {
+		c->workgroup = SMB_STRDUP(workgroup);
+	}
 }
 
 /** Get the username used for making connections */
@@ -67,7 +73,10 @@ smbc_getUser(SMBCCTX *c)
 void
 smbc_setUser(SMBCCTX *c, char * user)
 {
-        c->user = user;
+	SAFE_FREE(c->user);
+	if (user) {
+		c->user = SMB_STRDUP(user);
+	}
 }
 
 /** Get the debug level */
@@ -408,6 +417,24 @@ smbc_setOptionNoAutoAnonymousLogin(SMBCCTX *c, smbc_bool b)
                 c->flags |= SMBCCTX_FLAG_NO_AUTO_ANONYMOUS_LOGON;
         } else {
                 c->flags &= ~SMBCCTX_FLAG_NO_AUTO_ANONYMOUS_LOGON;
+        }
+}
+
+/** Get whether to enable use of kerberos */
+smbc_bool
+smbc_getOptionUseCCache(SMBCCTX *c)
+{
+        return c->flags & SMB_CTX_FLAG_USE_CCACHE ? True : False;
+}
+
+/** Set whether to enable use of kerberos */
+void
+smbc_setOptionUseCCache(SMBCCTX *c, smbc_bool b)
+{
+        if (b) {
+                c->flags |= SMB_CTX_FLAG_USE_CCACHE;
+        } else {
+                c->flags &= ~SMB_CTX_FLAG_USE_CCACHE;
         }
 }
 

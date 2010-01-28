@@ -26,7 +26,9 @@
 		file situated at
 		<code class="filename">/etc/security/pam_winbind.conf</code>. Options
 		from the PAM configuration file take precedence to those from
-		the configuration file.
+		the configuration file. See
+		<a class="citerefentry" href="pam_winbind.conf.5.html"><span class="citerefentry"><span class="refentrytitle">pam_winbind.conf</span>(5)</span></a>
+		for further details.
 
 		</p><div class="variablelist"><dl><dt><span class="term">debug</span></dt><dd><p>Gives debugging output to syslog.</p></dd><dt><span class="term">debug_state</span></dt><dd><p>Gives detailed PAM state debugging output to syslog.</p></dd><dt><span class="term">require_membership_of=[SID or NAME]</span></dt><dd><p>
 		If this option is set, pam_winbind will only succeed if the user is a member of the given SID or NAME. A SID
@@ -82,7 +84,7 @@
 		going to expire. Defaults to 14 days.
 		</p></dd></dl></div><p>
 
-	</p></div><div class="refsect1" lang="en"><a name="id2483677"></a><h2>PAM DATA EXPORTS</h2><p>This section describes the data exported in the PAM stack which could be used in other PAM modules.</p><dt><span class="term">PAM_WINBIND_HOMEDIR</span></dt><dd><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2483685"></a><h2>PAM DATA EXPORTS</h2><p>This section describes the data exported in the PAM stack which could be used in other PAM modules.</p><dt><span class="term">PAM_WINBIND_HOMEDIR</span></dt><dd><p>
 				This is the Windows Home Directory set in the profile tab in the user settings
 				on the Active Directory Server. This could be a local path or a directory on a
 				share mapped to a drive.
@@ -95,7 +97,7 @@
 			</p></dd><dt><span class="term">PAM_WINBIND_PROFILEPATH</span></dt><dd><p>
 				This is the profile path set in the profile tab in the user settings. Normally
 				the home directory is synced with this directory on a share.
-			</p></dd></div><div class="refsect1" lang="en"><a name="id2483752"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id2483787"></a><h2>VERSION</h2><p>This man page is correct for version 3 of Samba.</p></div><div class="refsect1" lang="en"><a name="id2481464"></a><h2>AUTHOR</h2><p>
+			</p></dd></div><div class="refsect1" lang="en"><a name="id2483760"></a><h2>SEE ALSO</h2><p><a class="citerefentry" href="pam_winbind.conf.5.html"><span class="citerefentry"><span class="refentrytitle">pam_winbind.conf</span>(5)</span></a>, <a class="citerefentry" href="wbinfo.1.html"><span class="citerefentry"><span class="refentrytitle">wbinfo</span>(1)</span></a>, <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a>, <a class="citerefentry" href="smb.conf.5.html"><span class="citerefentry"><span class="refentrytitle">smb.conf</span>(5)</span></a></p></div><div class="refsect1" lang="en"><a name="id2481469"></a><h2>VERSION</h2><p>This man page is correct for version 3 of Samba.</p></div><div class="refsect1" lang="en"><a name="id2481479"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities were created by Andrew Tridgell. Samba is now developed by
 	the Samba Team as an Open Source project similar to the way the Linux kernel is developed.
 	</p><p>This manpage was written by Jelmer Vernooij and Guenther Deschner.</p></div></div></body></html>

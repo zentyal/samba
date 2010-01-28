@@ -3740,6 +3740,9 @@
 /* Whether to build vfs_recycle as shared module */
 #undef vfs_recycle_init
 
+/* Whether to build vfs_scannedonly as shared module */
+#undef vfs_scannedonly_init
+
 /* Whether to build vfs_shadow_copy2 as shared module */
 #undef vfs_shadow_copy2_init
 

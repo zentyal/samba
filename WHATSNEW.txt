@@ -1,9 +1,9 @@
                    ================================
-                   Release Notes for Samba 3.5.0rc1
-			   January 7, 2010
+                   Release Notes for Samba 3.5.0rc2
+			   January 26, 2010
                    ================================
 
-This is the first release candidate of Samba 3.5.  This is *not*
+This is the second release candidate of Samba 3.5.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -12,6 +12,8 @@ Major enhancements in Samba 3.5.0 include:
 
 General changes:
 o Add support for full Windows timestamp resolution
+o The Using Samba HTML book has been removed.
+o 'net', 'smbclient' and libsmbclient can use credentials cached by Winbind.
 
 Protocol changes:
 o Experimental implementation of SMB2
@@ -23,6 +25,9 @@ Winbind changes:
 o Major refactoring
 o Asynchronous
 
+VFS modules:
+o New vfs_scannedonly module has been added.
+
 
 General changes:
 ================
@@ -30,6 +35,15 @@ General changes:
 Support for full Windows timestamp resolution has been added. This effectively
 makes us use Windows' full 100ns timestamp resolution if supported by the
 kernel (2.6.22 and higher) and the glibc (2.6 and higher).
+
+The Using Samba HTML book has been removed from the Samba tarball.
+It is still available at http://www.samba.org/samba/docs/using_samba/toc.html.
+
+Samba client tools like 'net', 'smbclient' and libsmbclient can use the user
+credentials cached by Winbind at logon time. This is very useful e.g. when
+connecting to a Samba server using Nautilus without re-entering username and
+password. This feature is enabled by default and can be disabled per application
+by setting the LIBSMBCLIENT_NO_CCACHE environment variable.
 
 Protocol changes
 ================
@@ -49,7 +63,14 @@ Winbind changes
 ===============
 
 The Winbind daemon has been refactored internally to be asynchronous. The new
-Winbind will not be blocked by running 'wbinfo -g' or 'wbinfo -u'.
+Winbind will not be blocked by running 'getent group' or 'getent passwd'.
+
+VFS modules
+===========
+
+A new VFS module "scannedonly" has been added. This is a filter that
+talks to an antivirus-engine and stores whether a file is clean or not.
+Users do only see clean files on their filesystem.
 
 
 ######################################################################
@@ -91,10 +112,78 @@ o   Björn Jacke <bj@sernet.de>
 o   Volker Lendecke <vl@samba.org>
     * Major internal refactoring of the Winbind daemon.
     * Make Winbind asynchronous.
+    * Make 'net', 'smbclient' and libsmbclient use the logon credentials cached
+      by Winbind.
 
 
 o   Stefan Metzmacher <metze@samba.org>
     * Implement the new SMB2 protocol (experimental).
+
+
+Changes since 3.5.0rc1
+----------------------
+
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 4347: Check password history before increasing "badPasswordCount".
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 5202: Fix changing of ACLs on writable file with "dos filemode=yes".
+    * BUG 6876: Fix deletion of an object whose parent folder does not have delete
+      rights fails even if the delete right is set on the object in
+      vfs_acl_xattr and vfs_acl_tdb.
+    * BUG 7033: Fix SMBrmdir error message when deleting a directory fails.
+    * BUG 7036: Fix 'net rpc getsid' in hardened Windows environments.
+    * BUG 7045: Fix bad (non memory copying) interfaces in smbc_setXXXX calls.
+
+
+o   Giovanni Bajo <rasky@develer.com>
+    * BUG 7029: Disable sanity check in NetShareEnum for better compatibility
+      with Windows.
+
+
+o   Kai Blin <kai@samba.org>
+    * BUG 7039: Fix compile error with WITH_DNS_UPDATE. Update .po files.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 7043: Fix crash bug in libsmbclient.
+
+
+o   André Hentschel <nerv@dawncrow.de>
+    * BUG 7039: Complete German translation of 'net'.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 7039: Improve some German translations in 'net'.
+
+
+o   William Jojo <w.jojo@hvcc.edu>
+    * BUG 7052: Fix DFS on AIX.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 6981: Fix large paged search with DirX LDAP servers.
+    * BUG 7027: Fix a segfault in winbindd_dual_ccache_ntlm_auth().
+    * BUG 7037: Fix a Winbind segfault in "trusted_domains".
+    * BUG 7046: Fix libsmbclient crash against OpenSolaris CIFS server.
+    * BUG 7062: Make 'net', 'smbclient' and libsmbclient use the logon
+      credentials cached by Winbind.
+    * Lock down some srvsvc calls according to what w2k3 seems to do.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 6157: Restore Samba 3.0.x behavior and use the first "uid" value in
+      pdb_ldap.
+
+
+o   SASAJIMA Toshihiro <sasajima_t@jp.fujitsu.com>
+    * BUG 7034: Fix segfault in vfs_cap.
+
+
+o   Olivier Sessink <oliviersessink@gmail.com>
+    * BUG 7028: Add new scannedonly VFS module.
 
 
 Changes since 3.5.0pre2

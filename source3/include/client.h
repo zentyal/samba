@@ -266,6 +266,7 @@ struct cli_state {
 	bool use_kerberos;
 	bool fallback_after_kerberos;
 	bool use_spnego;
+	bool use_ccache;
 	bool got_kerberos_mechanism; /* Server supports krb5 in SPNEGO. */
 
 	bool use_oplocks; /* should we use oplocks? */
@@ -304,5 +305,6 @@ typedef struct file_info {
 #define CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS 0x0008
 #define CLI_FULL_CONNECTION_OPLOCKS 0x0010
 #define CLI_FULL_CONNECTION_LEVEL_II_OPLOCKS 0x0020
+#define CLI_FULL_CONNECTION_USE_CCACHE 0x0040
 
 #endif /* _CLIENT_H */

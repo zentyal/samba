@@ -188,8 +188,22 @@ permissions in memory that can't be stored on the server. This information can d
 		later servers typically do support this (although not necessarily
 		on every local server filesystem). Parameter has no effect if
                 the server lacks support for returning inode numbers or equivalent.
-		</p></dd><dt><span class="term">noserverino</span></dt><dd><p>client generates inode numbers (rather than using the actual one
-                from the server) by default.
+		</p></dd><dt><span class="term">noserverino</span></dt><dd><p>
+			Client generates inode numbers (rather than
+		using the actual one from the server) by default.
+		</p><p>
+			See section <span class="emphasis"><em>INODE NUMBERS</em></span> for
+		more information.
+		</p></dd><dt><span class="term">nounix</span></dt><dd><p>
+			Disable the CIFS Unix Extensions for this mount. This
+		can be useful in order to turn off multiple settings at once.
+		This includes POSIX acls, POSIX locks, POSIX paths, symlink
+		support and retrieving uids/gids/mode from the server. This
+		can also be useful to work around a bug in a server that
+		supports Unix Extensions.
+		</p><p>
+		See section <span class="emphasis"><em>INODE NUMBERS</em></span> for
+		more information.
 		</p></dd><dt><span class="term">nouser_xattr</span></dt><dd><p>(default) Do not allow getfattr/setfattr to get/set xattrs, even if server would support it otherwise. </p></dd><dt><span class="term">rsize=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>default network read size (usually 16K). The client currently
                 can not use rsize larger than CIFSMaxBufSize. CIFSMaxBufSize
                 defaults to 16K and may be changed (from 8K to the maximum
@@ -205,11 +219,31 @@ permissions in memory that can't be stored on the server. This information can d
 
 		</p></dd><dt><span class="term">wsize=<em class="replaceable"><code>arg</code></em></span></dt><dd><p>default network write size (default 57344)
                 maximum wsize currently allowed by CIFS is 57344 (fourteen
-                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532637"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
+                4096 byte pages)</p></dd><dt><span class="term">--verbose</span></dt><dd><p>Print additional debugging information for the mount. Note that this parameter must be specified before the -o. For example:</p><p>mount -t cifs //server/share /mnt --verbose -o user=username</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532669"></a><h2>SERVICE FORMATTING AND DELIMITERS</h2><p>
 		It's generally preferred to use forward slashes (/) as a delimiter in service names. They are considered to be the "universal delimiter" since they are generally not allowed to be embedded within path components on Windows machines and the client can convert them to blackslashes (\) unconditionally. Conversely, backslash characters are allowed by POSIX to be part of a path component, and can't be automatically converted in the same way.
 	</p><p>
 		mount.cifs will attempt to convert backslashes to forward slashes where it's able to do so, but it cannot do so in any path component following the sharename.
-	</p></div><div class="refsect1" lang="en"><a name="id2532660"></a><h2>FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS</h2><p> The core CIFS protocol does not provide unix ownership
+	</p></div><div class="refsect1" lang="en"><a name="id2532692"></a><h2>INODE NUMBERS</h2><p>
+		When Unix Extensions are enabled, we use the actual inode
+	number provided by the server in response to the POSIX calls as an
+	inode number.
+	</p><p>
+		When Unix Extensions are disabled and "serverino" mount option
+	is enabled there is no way to get the server inode number. The
+	client typically maps the server-assigned "UniqueID" onto an inode
+	number.
+	</p><p>
+		Note that the UniqueID is a different value from the server
+	inode number. The UniqueID value is unique over the scope of the entire
+	server and is often greater than 2 power 32. This value often makes
+	programs that are not compiled with LFS (Large File Support), to
+	trigger a glibc EOVERFLOW error as this won't fit in the target
+	structure field. It is strongly recommended to compile your programs
+	with LFS support (i.e. with -D_FILE_OFFSET_BITS=64) to prevent this
+	problem. You can also use "noserverino" mount option to generate inode
+	numbers smaller than 2 power 32 on the client. But you may not be able
+	to detect hardlinks properly.
+	</p></div><div class="refsect1" lang="en"><a name="id2532725"></a><h2>FILE AND DIRECTORY OWNERSHIP AND PERMISSIONS</h2><p> The core CIFS protocol does not provide unix ownership
 information or mode for files and directories. Because of this, files
 and directories will generally appear to be owned by whatever values the
 uid= or gid= options are set, and will have permissions set to the
@@ -234,7 +268,7 @@ the inode cache). In general, this mount option is discouraged.
 	</p><p>It's also possible to override permission checking on the client
 altogether via the noperm option. Server-side permission checks cannot be
 overriden. The permission checks done by the server will always correspond to
-the credentials used to mount the share, and not necessarily to the user who is accessing the share.</p></div><div class="refsect1" lang="en"><a name="id2532716"></a><h2>ENVIRONMENT VARIABLES</h2><p>
+the credentials used to mount the share, and not necessarily to the user who is accessing the share.</p></div><div class="refsect1" lang="en"><a name="id2532781"></a><h2>ENVIRONMENT VARIABLES</h2><p>
 		The variable <span class="emphasis"><em>USER</em></span> may contain the username of the
 person to be used to authenticate to the server.
 The variable can be used to set both username and
@@ -246,12 +280,12 @@ person using the client.
 		The variable <span class="emphasis"><em>PASSWD_FILE</em></span> may contain the pathname
 of a file to read the password from. A single line of input is
 read and used as the password.
-	</p></div><div class="refsect1" lang="en"><a name="id2532748"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled. When installed as a setuid program, the program follows the conventions set forth by the mount program for user mounts.</p><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2532813"></a><h2>NOTES</h2><p>This command may be used only by root, unless installed setuid, in which case the noeexec and nosuid mount flags are enabled. When installed as a setuid program, the program follows the conventions set forth by the mount program for user mounts.</p><p>
 	Some samba client tools like smbclient(8) honour client-side
 	configuration parameters present in smb.conf. Unlike those
 	client tools, <span class="emphasis"><em>mount.cifs</em></span> ignores smb.conf
 	completely.
-	</p></div><div class="refsect1" lang="en"><a name="id2532770"></a><h2>CONFIGURATION</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2532836"></a><h2>CONFIGURATION</h2><p>
 The primary mechanism for making configuration changes and for reading 
 debug information for the cifs vfs is via the Linux /proc filesystem.
 In the directory <code class="filename">/proc/fs/cifs</code> are various 
@@ -262,7 +296,7 @@ loaded.  These can be seen by running the modinfo utility against the file
 cifs.ko which will list the options that may be passed to cifs during module
 installation (device driver load).
 For more information see the kernel file <code class="filename">fs/cifs/README</code>.
-</p></div><div class="refsect1" lang="en"><a name="id2532801"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
+</p></div><div class="refsect1" lang="en"><a name="id2532866"></a><h2>BUGS</h2><p>Mounting using the CIFS URL specification is currently not supported.
 	</p><p>The credentials file does not handle usernames or passwords with
 		leading space.</p><p>
 Note that the typical response to a bug report is a suggestion
@@ -270,11 +304,11 @@ to try the latest version first. So please try doing that first,
 and always include which versions you use of relevant software
 when reporting bugs (minimum: mount.cifs (try mount.cifs -V), kernel (see /proc/version) and
 server type you are trying to contact.
-</p></div><div class="refsect1" lang="en"><a name="id2532826"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
-	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" lang="en"><a name="id2532837"></a><h2>SEE ALSO</h2><p>
+</p></div><div class="refsect1" lang="en"><a name="id2532891"></a><h2>VERSION</h2><p>This man page is correct for version 1.52 of 
+	the cifs vfs filesystem (roughly Linux kernel 2.6.24).</p></div><div class="refsect1" lang="en"><a name="id2532902"></a><h2>SEE ALSO</h2><p>
 	Documentation/filesystems/cifs.txt and fs/cifs/README in the linux kernel
 	source tree may contain additional options and information.
-</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532858"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
+</p><p><a class="citerefentry" href="umount.cifs.8.html"><span class="citerefentry"><span class="refentrytitle">umount.cifs</span>(8)</span></a></p></div><div class="refsect1" lang="en"><a name="id2532923"></a><h2>AUTHOR</h2><p>Steve French</p><p>The syntax and manpage were loosely based on that of smbmount. It 
 		was converted to Docbook/XML by Jelmer Vernooij.</p><p>The maintainer of the Linux cifs vfs and the userspace
 		tool <span class="emphasis"><em>mount.cifs</em></span> is <a class="ulink" href="mailto:sfrench@samba.org" target="_top">Steve French</a>.
 		The <a class="ulink" href="mailto:linux-cifs-client@lists.samba.org" target="_top">Linux CIFS Mailing list</a> 

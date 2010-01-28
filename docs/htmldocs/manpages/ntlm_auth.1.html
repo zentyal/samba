@@ -2,7 +2,7 @@
 	users using NT/LM authentication. It returns 0 if the users is authenticated
 	successfully and 1 if access was denied. ntlm_auth uses winbind to access 
 	the user and authentication data for a domain.  This utility 
-	is only indended to be used by other programs (currently
+	is only intended to be used by other programs (currently
 	<a class="ulink" href="http://www.squid-cache.org/" target="_top">Squid</a>
 	and <a class="ulink" href="http://download.samba.org/ftp/unpacked/lorikeet/trunk/mod_ntlm_winbind/" target="_top">mod_ntlm_winbind</a>)
 	</p></div><div class="refsect1" lang="en"><a name="id2483346"></a><h2>OPERATIONAL REQUIREMENTS</h2><p>
@@ -115,9 +115,9 @@ amounts of log data, and should only be used when
 investigating a problem. Levels above 3 are designed for 
 use only by developers and generate HUGE amounts of log
 data, most of which is extremely cryptic.</p><p>Note that specifying this parameter here will 
-override the <a class="link" href="smb.conf.5.html#LOGLEVEL" target="_top">log level</a> parameter
-in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V</span></dt><dd><p>Prints the program version number.
-</p></dd><dt><span class="term">-s &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
+override the <a class="link" href="smb.conf.5.html#" target="_top"></a> parameter
+in the <code class="filename">smb.conf</code> file.</p></dd><dt><span class="term">-V|--version</span></dt><dd><p>Prints the program version number.
+</p></dd><dt><span class="term">-s|--configfile &lt;configuration file&gt;</span></dt><dd><p>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
 information such as what printcap file to use, as well 
@@ -128,7 +128,7 @@ compile time.</p></dd><dt><span class="term">-l|--log-basename=logdirectory</spa
 <code class="constant">".progname"</code> will be appended (e.g. log.smbclient, 
 log.smbd, etc...). The log file is never removed by the client.
 </p></dd><dt><span class="term">-h|--help</span></dt><dd><p>Print a summary of command line options.
-</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532517"></a><h2>EXAMPLE SETUP</h2><p>To setup ntlm_auth for use by squid 2.5, with both basic and
+</p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2532516"></a><h2>EXAMPLE SETUP</h2><p>To setup ntlm_auth for use by squid 2.5, with both basic and
 	NTLMSSP authentication, the following
 	should be placed in the <code class="filename">squid.conf</code> file.
 </p><pre class="programlisting">
@@ -144,13 +144,13 @@ auth_param basic credentialsttl 2 hours
 </p><pre class="programlisting">
 auth_param ntlm program ntlm_auth --helper-protocol=squid-2.5-ntlmssp --require-membership-of='WORKGROUP\Domain Users'
 auth_param basic program ntlm_auth --helper-protocol=squid-2.5-basic --require-membership-of='WORKGROUP\Domain Users'
-</pre></div><div class="refsect1" lang="en"><a name="id2532574"></a><h2>TROUBLESHOOTING</h2><p>If you're experiencing problems with authenticating Internet Explorer running
+</pre></div><div class="refsect1" lang="en"><a name="id2532573"></a><h2>TROUBLESHOOTING</h2><p>If you're experiencing problems with authenticating Internet Explorer running
 	under MS Windows 9X or Millenium Edition against ntlm_auth's NTLMSSP authentication
 	helper (--helper-protocol=squid-2.5-ntlmssp), then please read 
 	<a class="ulink" href="http://support.microsoft.com/support/kb/articles/Q239/8/69.ASP" target="_top">
 	the Microsoft Knowledge Base article #239869 and follow instructions described there</a>.
-	</p></div><div class="refsect1" lang="en"><a name="id2532595"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba 
-	suite.</p></div><div class="refsect1" lang="en"><a name="id2532606"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	</p></div><div class="refsect1" lang="en"><a name="id2532594"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba 
+	suite.</p></div><div class="refsect1" lang="en"><a name="id2532605"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The ntlm_auth manpage was written by Jelmer Vernooij and

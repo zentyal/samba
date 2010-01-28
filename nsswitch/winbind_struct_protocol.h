@@ -48,8 +48,10 @@ typedef char fstring[FSTRING_LEN];
  * 21: added WINBINDD_GETPWSID
  *     added WINBINDD_GETSIDALIASES
  * 22: added WINBINDD_PING_DC
+ * 23: added session_key to ccache_ntlm_auth response
+ *     added WINBINDD_CCACHE_SAVE
  */
-#define WINBIND_INTERFACE_VERSION 22
+#define WINBIND_INTERFACE_VERSION 23
 
 /* Have to deal with time_t being 4 or 8 bytes due to structure alignment.
    On a 64bit Linux box, we have to support a constant structure size
@@ -177,6 +179,7 @@ enum winbindd_cmd {
 	/* Complete the challenge phase of the NTLM authentication
 	   protocol using cached password. */
 	WINBINDD_CCACHE_NTLMAUTH,
+	WINBINDD_CCACHE_SAVE,
 
 	WINBINDD_NUM_CMDS
 };
@@ -335,6 +338,11 @@ struct winbindd_request {
 			uint32_t challenge_blob_len;
 		} ccache_ntlm_auth;
 		struct {
+			uid_t uid;
+			fstring user;
+			fstring pass;
+		} ccache_save;
+		struct {
 			fstring domain_name;
 			fstring domain_guid;
 			fstring site_name;
@@ -478,6 +486,7 @@ struct winbindd_response {
 			uint32_t group_rid;
 		} user_info;
 		struct {
+			uint8_t session_key[16];
 			uint32_t auth_blob_len; /* blob in extra_data */
 		} ccache_ntlm_auth;
 		struct {

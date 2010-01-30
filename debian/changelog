@@ -1,8 +1,10 @@
-samba (2:3.5.0~rc2~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.5.0~rc2~dfsg-1) UNRELEASED-experimental; urgency=low
 
   * New upstream pre-release
+  * Use new --with-codepagedir option. Consequently drop
+    codepages-location.patch
 
- -- Christian Perrier <bubulle@debian.org>  Thu, 28 Jan 2010 20:02:32 +0100
+ -- Christian Perrier <bubulle@debian.org>  Thu, 28 Jan 2010 20:04:50 +0100
 
 samba (2:3.5.0~rc1~dfsg-1) experimental; urgency=low
 

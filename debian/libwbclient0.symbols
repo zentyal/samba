@@ -66,6 +66,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcChangeUserPassword@Base 2:3.3.0
  wbcChangeUserPasswordEx@Base 2:3.3.0
  wbcCredentialCache@Base 2:3.3.0
+ wbcCredentialSave@Base 2:3.5.0~rc2~dfsg
  wbcGetDisplayName@Base 2:3.3.0
  wbcGetgrlist@Base 2:3.3.0
  wbcGuidToString@Base 2:3.3.0
@@ -83,4 +84,3 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcStringToGuid@Base 2:3.3.0
  wbcGetSidAliases@Base 2:3.4.0~pre2
  wbcGetpwsid@Base 2:3.4.0~pre2
- 

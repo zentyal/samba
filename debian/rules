@@ -229,9 +229,7 @@ binary-arch: build install
 	DH_OPTIONS= dh_installinit -psamba -- "defaults 20 19"
 	DH_OPTIONS= dh_installinit -pwinbind
 	dh_installcron 
-	for pkg in samba samba-common winbind; do \
-	  install -m 0644 -D debian/$$pkg.lintian debian/$$pkg/usr/share/lintian/overrides/$$pkg || exit; \
-	done
+	dh_lintian
 	dh_installchangelogs -Nlibpam-smbpass
 	DH_OPTIONS= dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
 	DH_OPTIONS= dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg

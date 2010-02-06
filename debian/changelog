@@ -9,6 +9,7 @@ samba (2:3.4.5~dfsg-2) UNRELEASED; urgency=low
   * No longer maker (u)mount.cifs setuid root. Add a notice
     about this in the package's NEWS.Debian file
     Closes: #567554 
+  * Use dh_lintian instead of manual install of lintian overrides
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 25 Jan 2010 20:28:24 -0800
 

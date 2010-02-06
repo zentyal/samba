@@ -1,0 +1,10 @@
+smbfs (2:3.4.5~dfsg-2) unstable; urgency=low
+
+  * As of this version, the mount.cifs binary is no longer setuid.
+    Upstream has always been increasingly unsupportive of this
+    configuration over time. For instance, in bugs like
+    https://bugzilla.samba.org/show_bug.cgi?id=6853, it is clearly
+    mentioned that having it setuid root is discouraged.
+    
+ -- Christian Perrier <bubulle@debian.org>  Sat, 06 Feb 2010 15:09:00 +0100
+    

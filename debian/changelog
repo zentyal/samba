@@ -1,8 +1,14 @@
 samba (2:3.4.5~dfsg-2) UNRELEASED; urgency=low
 
+  [ Steve langasek ]
   * Revert the "bashisms" fix from version 2:3.3.0~rc2-4; "local foo=bar"
     is explicitly allowed by Policy now, and this change introduced a
     syntax error.  Closes: #566946.
+
+  [ Christian Perrier ]
+  * No longer maker (u)mount.cifs setuid root. Add a notice
+    about this in the package's NEWS.Debian file
+    Closes: #567554 
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 25 Jan 2010 20:28:24 -0800
 

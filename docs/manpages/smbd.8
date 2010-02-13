@@ -161,11 +161,14 @@ If running the server via the meta\-daemon
 inetd, this file must contain a mapping of service name (e\.g\., netbios\-ssn) to service port (e\.g\., 139) and protocol type (e\.g\., tcp)\.
 .RE
 .PP
-\fI/etc/samba/smb.conf\fR
+\fI/usr/local/samba/lib/smb\.conf\fR
 .RS 4
 This is the default location of the
 \fBsmb.conf\fR(5)
-server configuration file.
+server configuration file\. Other common places that systems install this file are
+\fI/usr/samba/lib/smb\.conf\fR
+and
+\fI/etc/samba/smb\.conf\fR\.
 .sp
 This file describes all the services the server is to make available to clients\. See
 \fBsmb.conf\fR(5)

@@ -54,7 +54,7 @@ struct idmap_cache_ctx *idmap_cache_init(TALLOC_CTX *memctx)
 		return NULL;
 	}
 
-	cache_fname = cache_path("idmap_cache.tdb");
+	cache_fname = lock_path("idmap_cache.tdb");
 
 	DEBUG(10, ("Opening cache file at %s\n", cache_fname));
 

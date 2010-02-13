@@ -2368,22 +2368,24 @@ static bool current_user_in_group(gid_t gid)
 ****************************************************************************/
 
 static bool acl_group_override(connection_struct *conn,
-				SMB_STRUCT_STAT *psbuf,
+				gid_t prim_gid,
 				const char *fname)
 {
+	SMB_STRUCT_STAT sbuf;
+
 	if ((errno != EPERM) && (errno != EACCES)) {
 		return false;
 	}
 
 	/* file primary group == user primary or supplementary group */
 	if (lp_acl_group_control(SNUM(conn)) &&
-			current_user_in_group(psbuf->st_gid)) {
+			current_user_in_group(prim_gid)) {
 		return true;
 	}
 
 	/* user has writeable permission */
 	if (lp_dos_filemode(SNUM(conn)) &&
-			can_write_to_file(conn, fname, psbuf)) {
+			can_write_to_file(conn, fname, &sbuf)) {
 		return true;
 	}
 
@@ -2394,7 +2396,7 @@ static bool acl_group_override(connection_struct *conn,
  Attempt to apply an ACL to a file or directory.
 ****************************************************************************/
 
-static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool default_ace, SMB_STRUCT_STAT *psbuf, bool *pacl_set_support)
+static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool default_ace, gid_t prim_gid, bool *pacl_set_support)
 {
 	connection_struct *conn = fsp->conn;
 	bool ret = False;
@@ -2573,7 +2575,7 @@ static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool defau
 				*pacl_set_support = False;
 			}
 
-			if (acl_group_override(conn, psbuf, fsp->fsp_name)) {
+			if (acl_group_override(conn, prim_gid, fsp->fsp_name)) {
 				int sret;
 
 				DEBUG(5,("set_canon_ace_list: acl group control on and current user in file %s primary group.\n",
@@ -2604,7 +2606,7 @@ static bool set_canon_ace_list(files_struct *fsp, canon_ace *the_ace, bool defau
 				*pacl_set_support = False;
 			}
 
-			if (acl_group_override(conn, psbuf, fsp->fsp_name)) {
+			if (acl_group_override(conn, prim_gid, fsp->fsp_name)) {
 				int sret;
 
 				DEBUG(5,("set_canon_ace_list: acl group control on and current user in file %s primary group.\n",
@@ -3563,7 +3565,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 			 */
 
 			if (acl_perms && file_ace_list) {
-				ret = set_canon_ace_list(fsp, file_ace_list, False, &sbuf, &acl_set_support);
+				ret = set_canon_ace_list(fsp, file_ace_list, False, sbuf.st_gid, &acl_set_support);
 				if (acl_set_support && ret == False) {
 					DEBUG(3,("set_nt_acl: failed to set file acl on file %s (%s).\n", fsp->fsp_name, strerror(errno) ));
 					free_canon_ace_list(file_ace_list);
@@ -3574,7 +3576,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 
 			if (acl_perms && acl_set_support && fsp->is_directory) {
 				if (dir_ace_list) {
-					if (!set_canon_ace_list(fsp, dir_ace_list, True, &sbuf, &acl_set_support)) {
+					if (!set_canon_ace_list(fsp, dir_ace_list, True, sbuf.st_gid, &acl_set_support)) {
 						DEBUG(3,("set_nt_acl: failed to set default acl on directory %s (%s).\n", fsp->fsp_name, strerror(errno) ));
 						free_canon_ace_list(file_ace_list);
 						free_canon_ace_list(dir_ace_list); 
@@ -3589,7 +3591,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 					if (SMB_VFS_SYS_ACL_DELETE_DEF_FILE(conn, fsp->fsp_name) == -1) {
 						int sret = -1;
 
-						if (acl_group_override(conn, &sbuf, fsp->fsp_name)) {
+						if (acl_group_override(conn, sbuf.st_gid, fsp->fsp_name)) {
 							DEBUG(5,("set_nt_acl: acl group control on and "
 								"current user in file %s primary group. Override delete_def_acl\n",
 								fsp->fsp_name ));
@@ -3636,7 +3638,7 @@ NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, SEC_DESC *psd)
 
 					if(SMB_VFS_CHMOD(conn,fsp->fsp_name, posix_perms) == -1) {
 						int sret = -1;
-						if (acl_group_override(conn, &sbuf, fsp->fsp_name)) {
+						if (acl_group_override(conn, sbuf.st_gid, fsp->fsp_name)) {
 							DEBUG(5,("set_nt_acl: acl group control on and "
 								"current user in file %s primary group. Override chmod\n",
 								fsp->fsp_name ));

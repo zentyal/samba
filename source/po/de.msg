@@ -1,6 +1,5 @@
 # German messages for international release of SWAT.
 # Copyright (C) 2001 Andreas Moroder
-# Copyright (C) 2007 Helge Kreutzmann, <debian@helgefjell.de>
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -17,600 +16,577 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: swat\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2007-06-04 18:15+0200\n"
-"PO-Revision-Date: 2007-06-10 11:52+0200\n"
-"Last-Translator: Helge Kreutzmann <debian@helgefjell.de>\n"
-"Language-Team: German <debian-l10n-german@lists.debian.org>\n"
+"Project-Id-Version: i18n_swat\n"
+"POT-Creation-Date: 2003-10-06 05:30+0900\n"
+"PO-Revision-Date: 2000-02-08 14:45+0100\n"
+"Last-Translator: Andreas Moroder\n"
+"Language-Team: (Samba Team) <samba-technical@samba.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: ../web/swat.c:139
+#: ../web/swat.c:117
 #, c-format
 msgid "ERROR: Can't open %s"
-msgstr "FEHLER: Kann %s nicht öffnen"
+msgstr "ERROR: Kann %s nicht öffnen"
 
-#: ../web/swat.c:223
+#: ../web/swat.c:200
 msgid "Help"
 msgstr "Hilfe"
 
-#: ../web/swat.c:229 ../web/swat.c:254 ../web/swat.c:275 ../web/swat.c:285
-#: ../web/swat.c:294 ../web/swat.c:303 ../web/swat.c:309 ../web/swat.c:315
-#: ../web/swat.c:328
+#: ../web/swat.c:206 ../web/swat.c:220 ../web/swat.c:235 ../web/swat.c:243 ../web/swat.c:252 ../web/swat.c:261 ../web/swat.c:267 ../web/swat.c:273 ../web/swat.c:286
 msgid "Set Default"
-msgstr "Standardwert setzen"
+msgstr "Standardwert"
 
-#: ../web/swat.c:450
+#: ../web/swat.c:408
 #, c-format
 msgid "failed to open %s for writing"
-msgstr "konnte %s nicht zum Schreiben öffnen"
+msgstr "konnte %s nicht schreiben"
 
-#: ../web/swat.c:473
+#: ../web/swat.c:431
 #, c-format
 msgid "Can't reload %s"
-msgstr "Kann %s nicht erneut laden"
+msgstr ""
 
-#: ../web/swat.c:543
+#: ../web/swat.c:501
 #, c-format
 msgid "Logged in as <b>%s</b>"
 msgstr "Verbunden als <b>%s</b>"
 
-#: ../web/swat.c:547
+#: ../web/swat.c:505
 msgid "Home"
 msgstr "Home"
 
-#: ../web/swat.c:549
+#: ../web/swat.c:507
 msgid "Globals"
 msgstr "Globals"
 
-#: ../web/swat.c:550
+#: ../web/swat.c:508
 msgid "Shares"
 msgstr "Freigaben"
 
-#: ../web/swat.c:551
+#: ../web/swat.c:509
 msgid "Printers"
 msgstr "Drucker"
 
-#: ../web/swat.c:552
+#: ../web/swat.c:510
 msgid "Wizard"
 msgstr "Assistent"
 
-#: ../web/swat.c:556
+#: ../web/swat.c:513
 msgid "Status"
 msgstr "Status"
 
-#: ../web/swat.c:557
+#: ../web/swat.c:514
 msgid "View Config"
 msgstr "Zeige Konfiguration"
 
-#: ../web/swat.c:559
+#: ../web/swat.c:516
 msgid "Password Management"
 msgstr "Passwortverwaltung"
 
-#: ../web/swat.c:569
+#: ../web/swat.c:526
 msgid "Current View Is"
-msgstr "Aktuelle Ansicht lautet"
+msgstr "Aktuelle Konfiguration"
 
-#: ../web/swat.c:570 ../web/swat.c:573
+#: ../web/swat.c:527 ../web/swat.c:530
 msgid "Basic"
 msgstr "Einfache Ansicht"
 
-#: ../web/swat.c:571 ../web/swat.c:574
+#: ../web/swat.c:528 ../web/swat.c:531
 msgid "Advanced"
 msgstr "Erweiterte Ansicht"
 
-#: ../web/swat.c:572
+#: ../web/swat.c:529
 msgid "Change View To"
-msgstr "Ansicht ändern in"
+msgstr "Ansicht anpassen"
 
-#: ../web/swat.c:601
+#: ../web/swat.c:554
 msgid "Current Config"
 msgstr "Aktuelle Konfiguration"
 
-#: ../web/swat.c:605
+#: ../web/swat.c:558
 msgid "Normal View"
 msgstr "Normale Ansicht"
 
-#: ../web/swat.c:607
+#: ../web/swat.c:560
 msgid "Full View"
 msgstr "Komplette Ansicht"
 
 #. Here we first set and commit all the parameters that were selected
 #. in the previous screen.
-#: ../web/swat.c:626
+#: ../web/swat.c:579
 msgid "Wizard Parameter Edit Page"
-msgstr "Bearbeitungsseite der Assistenten-Parameter"
+msgstr ""
 
-#: ../web/swat.c:655
+#: ../web/swat.c:608
 msgid "Note: smb.conf file has been read and rewritten"
 msgstr "Hinweis: smb.conf wurde gelesen und überschrieben"
 
 #. Here we go ...
-#: ../web/swat.c:763
+#: ../web/swat.c:716
 msgid "Samba Configuration Wizard"
-msgstr "Samba-Konfigurationsassistent"
+msgstr "Samba Konfigurations-Assistent"
 
-#: ../web/swat.c:767
-msgid ""
-"The \"Rewrite smb.conf file\" button will clear the smb.conf file of all "
-"default values and of comments."
-msgstr ""
-"Der Knopf »Schreibe smb.conf neu« wird alle Kommentare und Standardwerte "
-"aus der smb.conf löschen."
+#: ../web/swat.c:720
+msgid "The \"Rewrite smb.conf file\" button will clear the smb.conf file of all default values and of comments."
+msgstr "Der Button \"Passe smb.conf an\" wird alle Kommentare und Standardwerte aus der smb.conf löschen."
 
-#: ../web/swat.c:768
+#: ../web/swat.c:721
 msgid "The same will happen if you press the commit button."
-msgstr "Das gleiche passiert beim Knopf »übernehmen«."
+msgstr "Das gleiche passiert bei \"übernehmen\"."
 
-#: ../web/swat.c:771
+#: ../web/swat.c:724
 msgid "Rewrite smb.conf file"
 msgstr "Schreibe smb.conf neu"
 
-#: ../web/swat.c:772
+#: ../web/swat.c:725
 msgid "Commit"
-msgstr "Übernehmen"
+msgstr "übernehmen"
 
-#: ../web/swat.c:773
+#: ../web/swat.c:726
 msgid "Edit Parameter Values"
-msgstr "Bearbeite Parameterwerte"
+msgstr "Bearbeite Parameter"
 
-#: ../web/swat.c:779
+#: ../web/swat.c:732
 msgid "Server Type"
 msgstr "Server-Typ"
 
-#: ../web/swat.c:780
+#: ../web/swat.c:733
 msgid "Stand Alone"
 msgstr "Einzelserver"
 
-#: ../web/swat.c:781
+#: ../web/swat.c:734
 msgid "Domain Member"
-msgstr "Domänenmitglied"
+msgstr "Domänen-Mitglied"
 
-#: ../web/swat.c:782
+#: ../web/swat.c:735
 msgid "Domain Controller"
-msgstr "Domänencontroller"
+msgstr "Domänen-Controller"
 
-#: ../web/swat.c:785
+#: ../web/swat.c:738
 msgid "Unusual Type in smb.conf - Please Select New Mode"
 msgstr ""
-"Ungewöhnlicher Typ in der smb.conf - Bitte wählen Sie einen neuen Modus"
 
-#: ../web/swat.c:787
+#: ../web/swat.c:740
 msgid "Configure WINS As"
-msgstr "Konfiguriere WINS als"
+msgstr "Konfiguriere WINS"
 
-#: ../web/swat.c:788
+#: ../web/swat.c:741
 msgid "Not Used"
-msgstr "Nicht benutzt"
+msgstr "nicht benutzt"
 
-#: ../web/swat.c:789
+#: ../web/swat.c:742
 msgid "Server for client use"
-msgstr "Server für Client-Verwendung"
+msgstr "WINS-Server"
 
-#: ../web/swat.c:790
+#: ../web/swat.c:743
 msgid "Client of another WINS server"
-msgstr "Client eines anderen WINS-Servers"
+msgstr "WINS-Client an anderem Server"
 
-#: ../web/swat.c:792
+#: ../web/swat.c:745
 msgid "Remote WINS Server"
-msgstr "Entfernter WINS-Server:"
+msgstr "Zuständiger WINS-Server:"
 
-#: ../web/swat.c:803
+#: ../web/swat.c:756
 msgid "Error: WINS Server Mode and WINS Support both set in smb.conf"
-msgstr ""
-"Fehler: Sowohl WINS-Server-Modus als auch WINS-Unterstützung in smb.conf "
-"aktiviert"
+msgstr "Fehler: WINS-Server und WINS-Client zugleich in smb.conf gesetzt"
 
-#: ../web/swat.c:804
+#: ../web/swat.c:757
 msgid "Please Select desired WINS mode above."
-msgstr "Bitte wählen Sie den gewünschten WINS-Modus oben aus."
+msgstr "Bitte wählen Sie den WINS-Modus."
 
-#: ../web/swat.c:806
+#: ../web/swat.c:759
 msgid "Expose Home Directories"
 msgstr "Home-Verzeichnisse freigeben"
 
-#: ../web/swat.c:821
-msgid ""
-"The above configuration options will set multiple parameters and will "
-"generally assist with rapid Samba deployment."
-msgstr ""
-"Die obigen Konfigurationsoptionen bearbeiten mehrere Parameter und dienen als "
-"Hilfe zur schnellen Samba-Einrichtung."
+#: ../web/swat.c:774
+msgid "The above configuration options will set multiple parameters and will generally assist with rapid Samba deployment."
+msgstr "Diese Konfigurationsoptionen bearbeiten mehrere Parameter und dienen als Hilfe zur schnellen Samba-Einrichtung."
 
-#: ../web/swat.c:834
+#: ../web/swat.c:787
 msgid "Global Parameters"
 msgstr "Globale Parameter"
 
-#: ../web/swat.c:862 ../web/swat.c:966 ../web/swat.c:1318
+#: ../web/swat.c:815 ../web/swat.c:916 ../web/swat.c:1265
 msgid "Commit Changes"
 msgstr "Änderungen speichern"
 
-#: ../web/swat.c:866 ../web/swat.c:969 ../web/swat.c:1320
+#: ../web/swat.c:819 ../web/swat.c:919 ../web/swat.c:1267
 msgid "Reset Values"
 msgstr "Werte zurücksetzen"
 
-#: ../web/swat.c:891
+#: ../web/swat.c:844
 msgid "Share Parameters"
 msgstr "Parameter der Freigabe"
 
-#: ../web/swat.c:934
+#: ../web/swat.c:887
 msgid "Choose Share"
 msgstr "Wähle Freigabe"
 
-#: ../web/swat.c:951
+#: ../web/swat.c:901
 msgid "Delete Share"
 msgstr "Lösche Freigabe"
 
-#: ../web/swat.c:958
+#: ../web/swat.c:908
 msgid "Create Share"
 msgstr "Erstelle Freigabe"
 
-#: ../web/swat.c:994
+#: ../web/swat.c:944
 msgid "password change in demo mode rejected"
-msgstr "Änderung des Passworts im Demo-Modus nicht möglich"
+msgstr "Änderung des Passworts im Demo modus nicht aktiv"
 
-#: ../web/swat.c:1007
+#: ../web/swat.c:957
 msgid "Can't setup password database vectors."
-msgstr "Kann Passwort-Datenbankvektoren nicht einrichten"
+msgstr ""
 
-#: ../web/swat.c:1033
+#: ../web/swat.c:983
 msgid " Must specify \"User Name\" "
-msgstr " »Benutzername« muss angegeben werden "
+msgstr " \"Benutzername\" muss angegeben werden "
 
-#: ../web/swat.c:1049
+#: ../web/swat.c:999
 msgid " Must specify \"Old Password\" "
-msgstr " »Altes Passwort« muss angegeben werden "
+msgstr " \"Altes Passwort\" muss angegeben werden "
 
-#: ../web/swat.c:1055
+#: ../web/swat.c:1005
 msgid " Must specify \"Remote Machine\" "
-msgstr " »Entfernter Server« muss angegeben werden "
+msgstr " \"Remote-Server\" muss angegeben werden "
 
-#: ../web/swat.c:1062
+#: ../web/swat.c:1012
 msgid " Must specify \"New, and Re-typed Passwords\" "
-msgstr " »Neues/wiederholtes Passwort« muss angegeben werden "
+msgstr " \"Neues/wiederholtes Passwort\" müssen angegeben werden "
 
-#: ../web/swat.c:1068
+#: ../web/swat.c:1018
 msgid " Re-typed password didn't match new password "
 msgstr " Das wiederholte Passwort stimmt nicht mit dem neuen Passwort überein"
 
-#: ../web/swat.c:1101
+#: ../web/swat.c:1048
 #, c-format
 msgid " The passwd for '%s' has been changed."
 msgstr " Das Passwort für '%s' wurde geändert."
 
-#: ../web/swat.c:1104
+#: ../web/swat.c:1051
 #, c-format
 msgid " The passwd for '%s' has NOT been changed."
 msgstr " Das Passwort für '%s' wurde NICHT geändert."
 
-#: ../web/swat.c:1129
+#: ../web/swat.c:1076
 msgid "Server Password Management"
-msgstr "Verwaltung des Server-Passwortes"
+msgstr "Verwaltung des Server Passwortes"
 
 #.
 #. * Create all the dialog boxes for data collection
 #.
-#: ../web/swat.c:1138 ../web/swat.c:1185
+#: ../web/swat.c:1085 ../web/swat.c:1132
 msgid "User Name"
 msgstr "Benutzername"
 
-#: ../web/swat.c:1141 ../web/swat.c:1187
+#: ../web/swat.c:1088 ../web/swat.c:1134
 msgid "Old Password"
 msgstr "Altes Passwort"
 
-#: ../web/swat.c:1144 ../web/swat.c:1189
+#: ../web/swat.c:1091 ../web/swat.c:1136
 msgid "New Password"
 msgstr "Neues Passwort"
 
-#: ../web/swat.c:1146 ../web/swat.c:1191
+#: ../web/swat.c:1093 ../web/swat.c:1138
 msgid "Re-type New Password"
 msgstr "Wiederhole neues Passwort"
 
-#: ../web/swat.c:1154 ../web/swat.c:1202
+#: ../web/swat.c:1101 ../web/swat.c:1149
 msgid "Change Password"
 msgstr "Ändere Passwort"
 
-#: ../web/swat.c:1157
+#: ../web/swat.c:1104
 msgid "Add New User"
-msgstr "Füge neuen Benutzer hinzu"
+msgstr "Füge Benutzer hinzu"
 
-#: ../web/swat.c:1159
+#: ../web/swat.c:1106
 msgid "Delete User"
 msgstr "Lösche Benutzer"
 
-#: ../web/swat.c:1161
+#: ../web/swat.c:1108
 msgid "Disable User"
 msgstr "Deaktiviere Benutzer"
 
-#: ../web/swat.c:1163
+#: ../web/swat.c:1110
 msgid "Enable User"
 msgstr "Aktiviere Benutzer"
 
-#: ../web/swat.c:1176
+#: ../web/swat.c:1123
 msgid "Client/Server Password Management"
-msgstr "Client/Server Passwort-Verwaltung"
+msgstr "Client/Server Passwort Verwaltung"
 
-#: ../web/swat.c:1193
+#: ../web/swat.c:1140
 msgid "Remote Machine"
-msgstr "Entfernte Maschine"
+msgstr "Remote-Server"
 
-#: ../web/swat.c:1232
+#: ../web/swat.c:1179
 msgid "Printer Parameters"
-msgstr "Drucker-Parameter"
+msgstr "Drucker Parameter"
 
-#: ../web/swat.c:1234
+#: ../web/swat.c:1181
 msgid "Important Note:"
 msgstr "Wichtiger Hinweis:"
 
-#: ../web/swat.c:1235
-#, c-format
+#: ../web/swat.c:1182
 msgid "Printer names marked with [*] in the Choose Printer drop-down box "
-msgstr "Mit [*] gekennzeichnete Drucker in der »Wähle Drucker«-Auswahlliste "
+msgstr "Mit [*] gekennzeichnete Drucker in der Druckerauswahlliste"
 
-#: ../web/swat.c:1236
-#, c-format
+#: ../web/swat.c:1183
 msgid "are autoloaded printers from "
-msgstr "sind automatisch geladene Drucker aus "
+msgstr "wurden automatisch geladen von :"
 
-#: ../web/swat.c:1237
+#: ../web/swat.c:1184
 msgid "Printcap Name"
-msgstr "Printcap-Name"
+msgstr "Printcap Name"
 
-#: ../web/swat.c:1238
+#: ../web/swat.c:1185
 msgid "Attempting to delete these printers from SWAT will have no effect."
-msgstr ""
-"Der Versuch, diese Drucker von SWAT aus zu löschen, wird keine Auswirkung "
-"haben."
+msgstr "Der Versuch diese Drucker von SWAT aus zu löschen wird keine Auswirkung haben."
 
-#: ../web/swat.c:1284
+#: ../web/swat.c:1231
 msgid "Choose Printer"
 msgstr "Wähle Drucker"
 
-#: ../web/swat.c:1303
+#: ../web/swat.c:1250
 msgid "Delete Printer"
 msgstr "Lösche Drucker"
 
-#: ../web/swat.c:1310
+#: ../web/swat.c:1257
 msgid "Create Printer"
-msgstr "Erstelle Drucker"
+msgstr "Ersteller Drucker"
 
-#: ../web/statuspage.c:139
-msgid "RDWR       "
-msgstr "LESE/SCHREIBE "
-
-#: ../web/statuspage.c:141
-msgid "WRONLY     "
-msgstr "NUR SCHREIBE  "
-
-#: ../web/statuspage.c:143
+#: ../web/statuspage.c:123
 msgid "RDONLY     "
-msgstr "NUR LESE      "
+msgstr ""
 
-#: ../web/statuspage.c:330
+#: ../web/statuspage.c:124
+msgid "WRONLY     "
+msgstr ""
+
+#: ../web/statuspage.c:125
+msgid "RDWR       "
+msgstr ""
+
+#: ../web/statuspage.c:309
 msgid "Server Status"
 msgstr "Server-Status"
 
-#: ../web/statuspage.c:335
+#: ../web/statuspage.c:314
 msgid "Auto Refresh"
 msgstr "Automatische Aktualisierung"
 
-#: ../web/statuspage.c:336 ../web/statuspage.c:341
+#: ../web/statuspage.c:315 ../web/statuspage.c:320
 msgid "Refresh Interval: "
 msgstr "Aktualisierungsintervall: "
 
-#: ../web/statuspage.c:340
+#: ../web/statuspage.c:319
 msgid "Stop Refreshing"
 msgstr "Stoppe Aktualisierung"
 
-#: ../web/statuspage.c:355
+#: ../web/statuspage.c:334
 msgid "version:"
 msgstr "Version:"
 
-#: ../web/statuspage.c:358
+#: ../web/statuspage.c:337
 msgid "smbd:"
-msgstr "smbd:"
+msgstr ""
 
-#: ../web/statuspage.c:358 ../web/statuspage.c:371 ../web/statuspage.c:385
+#: ../web/statuspage.c:337 ../web/statuspage.c:350 ../web/statuspage.c:364
 msgid "running"
 msgstr "aktiv"
 
-#: ../web/statuspage.c:358 ../web/statuspage.c:371 ../web/statuspage.c:385
+#: ../web/statuspage.c:337 ../web/statuspage.c:350 ../web/statuspage.c:364
 msgid "not running"
 msgstr "inaktiv"
 
-#: ../web/statuspage.c:362
+#: ../web/statuspage.c:341
 msgid "Stop smbd"
 msgstr "Stoppe smbd"
 
-#: ../web/statuspage.c:364
+#: ../web/statuspage.c:343
 msgid "Start smbd"
 msgstr "Starte smbd"
 
-#: ../web/statuspage.c:366
+#: ../web/statuspage.c:345
 msgid "Restart smbd"
-msgstr "Starte smbd neu"
+msgstr "Neustart smbd"
 
-#: ../web/statuspage.c:371
+#: ../web/statuspage.c:350
 msgid "nmbd:"
-msgstr "nmbd:"
+msgstr ""
 
-#: ../web/statuspage.c:375
+#: ../web/statuspage.c:354
 msgid "Stop nmbd"
 msgstr "Stoppe nmbd"
 
-#: ../web/statuspage.c:377
+#: ../web/statuspage.c:356
 msgid "Start nmbd"
 msgstr "Starte nmbd"
 
-#: ../web/statuspage.c:379
+#: ../web/statuspage.c:358
 msgid "Restart nmbd"
-msgstr "Starte nmbd neu"
+msgstr "Neustart nmbd"
 
-#: ../web/statuspage.c:385
+#: ../web/statuspage.c:364
 msgid "winbindd:"
-msgstr "winbindd:"
+msgstr ""
 
-#: ../web/statuspage.c:389
+#: ../web/statuspage.c:368
 msgid "Stop winbindd"
 msgstr "Stoppe winbindd"
 
-#: ../web/statuspage.c:391
+#: ../web/statuspage.c:370
 msgid "Start winbindd"
 msgstr "Starte winbindd"
 
-#: ../web/statuspage.c:393
+#: ../web/statuspage.c:372
 msgid "Restart winbindd"
-msgstr "Starte winbindd neu"
+msgstr "Neustart winbindd"
 
 #. stop, restart all
-#: ../web/statuspage.c:402
+#: ../web/statuspage.c:381
 msgid "Stop All"
 msgstr "Alle Stoppen"
 
-#: ../web/statuspage.c:403
+#: ../web/statuspage.c:382
 msgid "Restart All"
 msgstr "Alle neu starten"
 
 #. start all
-#: ../web/statuspage.c:407
+#: ../web/statuspage.c:386
 msgid "Start All"
-msgstr "Alle starten"
+msgstr "Alle Starten"
 
-#: ../web/statuspage.c:414
+#: ../web/statuspage.c:393
 msgid "Active Connections"
 msgstr "Aktive Verbindungen"
 
-#: ../web/statuspage.c:416 ../web/statuspage.c:429 ../web/statuspage.c:437
+#: ../web/statuspage.c:395 ../web/statuspage.c:408 ../web/statuspage.c:416
 msgid "PID"
-msgstr "PID"
+msgstr ""
 
-#: ../web/statuspage.c:416 ../web/statuspage.c:429
+#: ../web/statuspage.c:395 ../web/statuspage.c:408
 msgid "Client"
-msgstr "Client"
+msgstr ""
 
-#: ../web/statuspage.c:416
+#: ../web/statuspage.c:395
 msgid "IP address"
 msgstr "IP-Adresse"
 
-#: ../web/statuspage.c:416 ../web/statuspage.c:429 ../web/statuspage.c:437
+#: ../web/statuspage.c:395 ../web/statuspage.c:408 ../web/statuspage.c:416
 msgid "Date"
 msgstr "Datum"
 
-#: ../web/statuspage.c:418
+#: ../web/statuspage.c:397
 msgid "Kill"
-msgstr "Töten"
+msgstr "Killen"
 
-#: ../web/statuspage.c:426
+#: ../web/statuspage.c:405
 msgid "Active Shares"
 msgstr "Aktive Freigaben"
 
-#: ../web/statuspage.c:429
+#: ../web/statuspage.c:408
 msgid "Share"
 msgstr "Freigabe"
 
-#: ../web/statuspage.c:429
+#: ../web/statuspage.c:408
 msgid "User"
 msgstr "Benutzer"
 
-#: ../web/statuspage.c:429
+#: ../web/statuspage.c:408
 msgid "Group"
 msgstr "Gruppe"
 
-#: ../web/statuspage.c:435
+#: ../web/statuspage.c:414
 msgid "Open Files"
 msgstr "Offene Dateien"
 
-#: ../web/statuspage.c:437
+#: ../web/statuspage.c:416
 msgid "Sharing"
-msgstr "Freigeben"
+msgstr ""
 
-#: ../web/statuspage.c:437
+#: ../web/statuspage.c:416
 msgid "R/W"
-msgstr "Lese/Schreibe"
+msgstr ""
 
-#: ../web/statuspage.c:437
+#: ../web/statuspage.c:416
 msgid "Oplock"
-msgstr "Opportunistische Sperre (Lock)"
+msgstr ""
 
-#: ../web/statuspage.c:437
+#: ../web/statuspage.c:416
 msgid "File"
 msgstr "Datei"
 
-#: ../web/statuspage.c:446
+#: ../web/statuspage.c:425
 msgid "Show Client in col 1"
-msgstr "Zeige Client in Spalte 1"
+msgstr ""
 
-#: ../web/statuspage.c:447
+#: ../web/statuspage.c:426
 msgid "Show PID in col 1"
-msgstr "Zeige PID in Spalte 1"
+msgstr ""
 
-#: ../param/loadparm.c:836
+#: ../param/loadparm.c:755
 msgid "Base Options"
 msgstr "Basisoptionen"
 
-#: ../param/loadparm.c:855
+#: ../param/loadparm.c:775
 msgid "Security Options"
 msgstr "Sicherheitsoptionen"
 
-#: ../param/loadparm.c:945
+#: ../param/loadparm.c:859
 msgid "Logging Options"
-msgstr "Protokollier-Optionen"
+msgstr "Log Optionen"
 
-#: ../param/loadparm.c:962
+#: ../param/loadparm.c:874
 msgid "Protocol Options"
-msgstr "Protokoll-Optionen"
+msgstr "Protokoll Optionen"
 
-#: ../param/loadparm.c:1008
+#: ../param/loadparm.c:911
 msgid "Tuning Options"
 msgstr "Optimierungsoptionen"
 
-#: ../param/loadparm.c:1037
+#: ../param/loadparm.c:940
 msgid "Printing Options"
 msgstr "Druckoptionen"
 
-#: ../param/loadparm.c:1075
+#: ../param/loadparm.c:970
 msgid "Filename Handling"
-msgstr "Dateinamen-Verwaltung"
+msgstr "Verwaltung Dateinamen"
 
-#: ../param/loadparm.c:1105
+#: ../param/loadparm.c:996
 msgid "Domain Options"
-msgstr "Domänen-Optionen"
+msgstr "Domänen Optionen"
 
-#: ../param/loadparm.c:1109
+#: ../param/loadparm.c:1000
 msgid "Logon Options"
-msgstr "Anmelde-Optionen"
+msgstr "Login optionen"
 
-#: ../param/loadparm.c:1130
+#: ../param/loadparm.c:1019
 msgid "Browse Options"
-msgstr "Browsing-Optionen"
+msgstr "Browsing Optionen"
 
-#: ../param/loadparm.c:1144
+#: ../param/loadparm.c:1033
 msgid "WINS Options"
-msgstr "WINS-Optionen"
+msgstr "WINS Optionen"
 
-#: ../param/loadparm.c:1153
+#: ../param/loadparm.c:1043
 msgid "Locking Options"
-msgstr "Locking-(Sperr-)Optionen"
+msgstr "Locking Optionen"
 
-#: ../param/loadparm.c:1170
+#: ../param/loadparm.c:1061
 msgid "Ldap Options"
-msgstr "LDAP-Optionen"
+msgstr "LDAP Optionen"
 
-#: ../param/loadparm.c:1186
+#: ../param/loadparm.c:1078
 msgid "Miscellaneous Options"
-msgstr "Sonstige Optionen"
+msgstr "Verschiedene Optionen"
 
-#: ../param/loadparm.c:1191
-#| msgid "Logon Options"
-msgid "EventLog Options"
-msgstr "EventLog-Optionen"
-
-#: ../param/loadparm.c:1258
+#: ../param/loadparm.c:1138
 msgid "VFS module options"
-msgstr "VFS-Modul-Optionen"
+msgstr "VFS Optionen"
 
-#: ../param/loadparm.c:1268
+#: ../param/loadparm.c:1148
 msgid "Winbind options"
-msgstr "Winbind-Optionen"
+msgstr "Winbind Optionen"

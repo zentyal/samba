@@ -797,10 +797,6 @@ void reload_printers(void)
 	int pnum = lp_servicenumber(PRINTERS_NAME);
 	const char *pname;
 
-	if (!lp_load_printers()
-	    && (lp_auto_services() == NULL || !strcmp(lp_auto_services(),"")))
-		return;
-
 	pcap_cache_reload();
 
 	/* remove stale printers */

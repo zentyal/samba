@@ -2621,15 +2621,6 @@ char *state_path(const char *name)
 	return xx_path(name, get_dyn_STATEDIR());
 }
 
-
-/*****************************************************************
-a useful function for returning a path in the Samba cache directory
- *****************************************************************/
-char *cache_path(char *name)
-{
-	return xx_path(name, get_dyn_CACHEDIR());
-}
-
 /**
  * @brief Returns the platform specific shared library extension.
  *

@@ -79,17 +79,16 @@ static size_t interpret_long_filename(TALLOC_CTX *ctx,
 			p += 27;
 			p += clistr_align_in(cli, p, 0);
 
-			/* We can safely use len here (which is required by OS/2)
-			 * and the NAS-BASIC server instead of +2 or +1 as the
-			 * STR_TERMINATE flag below is
+			/* We can safely use +1 here (which is required by OS/2)
+			 * instead of +2 as the STR_TERMINATE flag below is
 			 * actually used as the length calculation.
-			 * The len is merely an upper bound.
+			 * The len+2 is merely an upper bound.
 			 * Due to the explicit 2 byte null termination
 			 * in cli_receive_trans/cli_receive_nt_trans
 			 * we know this is safe. JRA + kukks
 			 */
 
-			if (p + len > pdata_end) {
+			if (p + len + 1 > pdata_end) {
 				return pdata_end - base;
 			}
 

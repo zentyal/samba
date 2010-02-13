@@ -1150,9 +1150,7 @@ static NTSTATUS pdb_default_rename_sam_account (struct pdb_methods *methods, str
 
 static NTSTATUS pdb_default_update_login_attempts (struct pdb_methods *methods, struct samu *newpwd, bool success)
 {
-	/* Only the pdb_nds backend implements this, by
-	 * default just return ok. */
-	return NT_STATUS_OK;
+	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS pdb_default_get_account_policy(struct pdb_methods *methods, int policy_index, uint32 *value)

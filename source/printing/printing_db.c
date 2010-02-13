@@ -91,7 +91,7 @@ struct tdb_print_db *get_print_db_byname(const char *printername)
 	}
 
 	if (asprintf(&printdb_path, "%s%s.tdb",
-				cache_path("printing/"),
+				lock_path("printing/"),
 				printername) < 0) {
 		DLIST_REMOVE(print_db_head, p);
 		SAFE_FREE(p);

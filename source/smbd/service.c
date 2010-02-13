@@ -55,10 +55,6 @@ bool set_conn_connectpath(connection_struct *conn, const char *connectpath)
 	const char *s = connectpath;
         bool start_of_name_component = true;
 
-	if (connectpath == NULL || connectpath[0] == '\0') {
-		return false;
-	}
-
 	destname = SMB_STRDUP(connectpath);
 	if (!destname) {
 		return false;
@@ -239,10 +235,6 @@ static int load_registry_service(const char *servicename)
 		return -1;
 	}
 
-	if ((servicename == NULL) || (*servicename == '\0')) {
-		return -1;
-	}
-
 	if (strequal(servicename, GLOBAL_NAME)) {
 		return -2;
 	}
@@ -331,7 +323,7 @@ int add_home_service(const char *service, const char *username, const char *home
 {
 	int iHomeService;
 
-	if (!service || !homedir || homedir[0] == '\0')
+	if (!service || !homedir)
 		return -1;
 
 	if ((iHomeService = lp_servicenumber(HOMES_NAME)) < 0) {

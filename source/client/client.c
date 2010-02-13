@@ -364,7 +364,7 @@ static int do_cd(const char *new_dir)
 
 	/* Ensure cur_dir ends in a DIRSEP */
 	if ((new_cd[0] != '\0') && (*(new_cd+strlen(new_cd)-1) != CLI_DIRSEP_CHAR)) {
-		new_cd = talloc_asprintf_append(new_cd, "%s", CLI_DIRSEP_STR);
+		new_cd = talloc_asprintf_append(new_cd, CLI_DIRSEP_STR);
 		if (!new_cd) {
 			goto out;
 		}
@@ -728,11 +728,11 @@ static void do_list_helper(const char *mntpoint, file_info *f, const char *mask,
 				return;
 			}
 			p = strrchr_m(mask2,CLI_DIRSEP_CHAR);
-			if (p) {
-				p[1] = 0;
-			} else {
-				mask2[0] = '\0';
+			if (!p) {
+				TALLOC_FREE(dir);
+				return;
 			}
+			p[1] = 0;
 			mask2 = talloc_asprintf_append(mask2,
 					"%s%s*",
 					f->name,
@@ -871,7 +871,7 @@ static int cmd_dir(void)
 		if (*buf == CLI_DIRSEP_CHAR) {
 			mask = talloc_strdup(ctx, buf);
 		} else {
-			mask = talloc_asprintf_append(mask, "%s", buf);
+			mask = talloc_asprintf_append(mask, buf);
 		}
 	} else {
 		mask = talloc_asprintf_append(mask, "*");
@@ -912,7 +912,7 @@ static int cmd_du(void)
 		return 1;
 	}
 	if ((mask[0] != '\0') && (mask[strlen(mask)-1]!=CLI_DIRSEP_CHAR)) {
-		mask = talloc_asprintf_append(mask, "%s", CLI_DIRSEP_STR);
+		mask = talloc_asprintf_append(mask, CLI_DIRSEP_STR);
 		if (!mask) {
 			return 1;
 		}
@@ -923,7 +923,7 @@ static int cmd_du(void)
 		if (*buf == CLI_DIRSEP_CHAR) {
 			mask = talloc_strdup(ctx, buf);
 		} else {
-			mask = talloc_asprintf_append(mask, "%s", buf);
+			mask = talloc_asprintf_append(mask, buf);
 		}
 	} else {
 		mask = talloc_strdup(ctx, "*");
@@ -1107,7 +1107,7 @@ static int cmd_get(void)
 		d_printf("get <filename> [localname]\n");
 		return 1;
 	}
-	rname = talloc_asprintf_append(rname, "%s", fname);
+	rname = talloc_asprintf_append(rname, fname);
 	if (!rname) {
 		return 1;
 	}
@@ -1266,7 +1266,7 @@ static int cmd_more(void)
 		unlink(lname);
 		return 1;
 	}
-	rname = talloc_asprintf_append(rname, "%s", fname);
+	rname = talloc_asprintf_append(rname, fname);
 	if (!rname) {
 		return 1;
 	}
@@ -1318,7 +1318,7 @@ static int cmd_mget(void)
 			mget_mask = talloc_strdup(ctx, buf);
 		} else {
 			mget_mask = talloc_asprintf_append(mget_mask,
-							"%s", buf);
+							buf);
 		}
 		if (!mget_mask) {
 			return 1;
@@ -1414,7 +1414,7 @@ static int cmd_mkdir(void)
 		}
 		return 1;
 	}
-	mask = talloc_asprintf_append(mask, "%s", buf);
+	mask = talloc_asprintf_append(mask, buf);
 	if (!mask) {
 		return 1;
 	}
@@ -1443,14 +1443,14 @@ static int cmd_mkdir(void)
 		trim_char(ddir,'.','\0');
 		p = strtok_r(ddir, "/\\", &saveptr);
 		while (p) {
-			ddir2 = talloc_asprintf_append(ddir2, "%s", p);
+			ddir2 = talloc_asprintf_append(ddir2, p);
 			if (!ddir2) {
 				return 1;
 			}
 			if (!cli_chkpath(targetcli, ddir2)) {
 				do_mkdir(ddir2);
 			}
-			ddir2 = talloc_asprintf_append(ddir2, "%s", CLI_DIRSEP_STR);
+			ddir2 = talloc_asprintf_append(ddir2, CLI_DIRSEP_STR);
 			if (!ddir2) {
 				return 1;
 			}
@@ -1482,7 +1482,7 @@ static int cmd_altname(void)
 		d_printf("altname <file>\n");
 		return 1;
 	}
-	name = talloc_asprintf_append(name, "%s", buf);
+	name = talloc_asprintf_append(name, buf);
 	if (!name) {
 		return 1;
 	}
@@ -1566,7 +1566,7 @@ static int cmd_allinfo(void)
 		d_printf("allinfo <file>\n");
 		return 1;
 	}
-	name = talloc_asprintf_append(name, "%s", buf);
+	name = talloc_asprintf_append(name, buf);
 	if (!name) {
 		return 1;
 	}
@@ -1733,9 +1733,9 @@ static int cmd_put(void)
 	}
 
 	if (next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
-		rname = talloc_asprintf_append(rname, "%s", buf);
+		rname = talloc_asprintf_append(rname, buf);
 	} else {
-		rname = talloc_asprintf_append(rname, "%s", lname);
+		rname = talloc_asprintf_append(rname, lname);
 	}
 	if (!rname) {
 		return 1;
@@ -2132,7 +2132,7 @@ static int cmd_del(void)
 		d_printf("del <filename>\n");
 		return 1;
 	}
-	mask = talloc_asprintf_append(mask, "%s", buf);
+	mask = talloc_asprintf_append(mask, buf);
 	if (!mask) {
 		return 1;
 	}
@@ -3524,7 +3524,7 @@ static int cmd_reget(void)
 		d_printf("reget <filename>\n");
 		return 1;
 	}
-	remote_name = talloc_asprintf_append(remote_name, "%s", fname);
+	remote_name = talloc_asprintf_append(remote_name, fname);
 	if (!remote_name) {
 		return 1;
 	}
@@ -3571,10 +3571,10 @@ static int cmd_reput(void)
 
 	if (next_token_talloc(ctx, &cmd_ptr, &buf, NULL)) {
 		remote_name = talloc_asprintf_append(remote_name,
-						"%s", buf);
+						buf);
 	} else {
 		remote_name = talloc_asprintf_append(remote_name,
-						"%s", local_name);
+						local_name);
 	}
 	if (!remote_name) {
 		return 1;
@@ -4107,13 +4107,13 @@ static void completion_remote_filter(const char *mnt,
 				TALLOC_FREE(ctx);
 				return;
 			}
-			tmp = talloc_asprintf_append(tmp, "%s", f->name);
+			tmp = talloc_asprintf_append(tmp, f->name);
 			if (!tmp) {
 				TALLOC_FREE(ctx);
 				return;
 			}
 			if (f->mode & aDIR) {
-				tmp = talloc_asprintf_append(tmp, "%s", CLI_DIRSEP_STR);
+				tmp = talloc_asprintf_append(tmp, CLI_DIRSEP_STR);
 			}
 			if (!tmp) {
 				TALLOC_FREE(ctx);

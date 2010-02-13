@@ -701,7 +701,6 @@ static int audit_syslog_priority(vfs_handle_struct *handle)
 static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 {
 	char *prefix = NULL;
-	char *result;
 
 	prefix = talloc_strdup(ctx,
 			lp_parm_const_string(SNUM(conn), "full_audit",
@@ -709,14 +708,12 @@ static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 	if (!prefix) {
 		return NULL;
 	}
-	result = talloc_sub_advanced(ctx,
+	return talloc_sub_advanced(ctx,
 			lp_servicename(SNUM(conn)), conn->user,
 			conn->connectpath, conn->gid,
 			get_current_username(),
 			current_user_info.domain,
 			prefix);
-	TALLOC_FREE(prefix);
-	return result;
 }
 
 static bool log_success(vfs_handle_struct *handle, vfs_op_type op)

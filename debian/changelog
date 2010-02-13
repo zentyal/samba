@@ -1,4 +1,4 @@
-samba (2:3.2.5-4lenny9) UNRELEASED; urgency=low
+samba (2:3.2.5-4lenny9) stable-security; urgency=low
 
   * Security update, fixing the following issues in mount.cifs:
     - CVE-2009-3297: fix a race condition that allows an attacker with local
@@ -8,7 +8,7 @@ samba (2:3.2.5-4lenny9) UNRELEASED; urgency=low
       /etc/mtab, preventing further filesystem mounts and unmounts by other
       users.  Closes: #568942.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 13 Feb 2010 14:27:42 -0800
+ -- Steve Langasek <vorlon@debian.org>  Sat, 13 Feb 2010 15:14:03 -0800
 
 samba (2:3.2.5-4lenny8) stable-proposed-updates; urgency=low
 

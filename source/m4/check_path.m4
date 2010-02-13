@@ -33,7 +33,7 @@ AC_ARG_WITH(fhs,
 [AS_HELP_STRING([--with-fhs],[Use FHS-compliant paths (default=no)])],
 [ case "$withval" in
   yes)
-    lockdir="\${VARDIR}/lib/samba"
+    lockdir="\${VARDIR}/run/samba"
     piddir="\${VARDIR}/run"
     mandir="\${prefix}/share/man"
     logfilebase="\${VARDIR}/log/samba"
@@ -41,9 +41,9 @@ AC_ARG_WITH(fhs,
     test "${libdir}" || libdir="\${prefix}/lib/samba"
     configdir="\${sysconfdir}/samba"
     swatdir="\${DATADIR}/samba/swat"
-    codepagedir="\${LIBDIR}"
+    codepagedir="\${DATADIR}/samba"
     statedir="\${VARDIR}/lib/samba"
-    cachedir="\${VARDIR}/lib/samba"
+    cachedir="\${VARDIR}/cache/samba"
     AC_DEFINE(FHS_COMPATIBLE, 1, [Whether to use fully FHS-compatible paths])
     ;;
   esac])

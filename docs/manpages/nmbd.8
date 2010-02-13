@@ -107,11 +107,9 @@ nmbd
 to answer any name queries\. Adding a line to this file affects name NetBIOS resolution from this host
 \fIONLY\fR\.
 .sp
-The default path to this file is compiled into Samba as part of the build process\. Common defaults are
-\fI/usr/local/samba/lib/lmhosts\fR,
-\fI/usr/samba/lib/lmhosts\fR
-or
-\fI/etc/samba/lmhosts\fR\. See the
+The default path to this file is
+\fI/etc/samba/lmhosts\fR.
+See the
 \fBlmhosts\fR(5)
 man page for details on the contents of this file\.
 .RE
@@ -179,14 +177,11 @@ If running the server via the meta\-daemon
 inetd, this file must contain a mapping of service name (e\.g\., netbios\-ssn) to service port (e\.g\., 139) and protocol type (e\.g\., tcp)\.
 .RE
 .PP
-\fI/usr/local/samba/lib/smb\.conf\fR
+\fI/etc/samba/smb.conf\fR
 .RS 4
 This is the default location of the
 \fBsmb.conf\fR(5)
-server configuration file\. Other common places that systems install this file are
-\fI/usr/samba/lib/smb\.conf\fR
-and
-\fI/etc/samba/smb\.conf\fR\.
+server configuration file.
 .sp
 When run as a WINS server (see the
 \fIwins support\fR
@@ -230,10 +225,8 @@ nmbd
 will accept SIGHUP, which will cause it to dump out its namelists into the file
 \fInamelist\.debug \fR
 in the
-\fI/usr/local/samba/var/locks\fR
-directory (or the
-\fIvar/locks\fR
-directory configured under wherever Samba was configured to install itself)\. This will also cause
+\fI/var/run/samba\fR
+directory. This will also cause
 nmbd
 to dump out its server database in the
 \fIlog\.nmb\fR

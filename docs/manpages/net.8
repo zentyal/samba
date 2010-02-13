@@ -660,9 +660,9 @@ Restore the mappings from the specified file or stdin\.
 Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\. In this case the secret is used as the password for the user DN used to bind to the ldap server\.
 .SS "USERSHARE"
 .PP
-Starting with version 3\.0\.23, a Samba server now supports the ability for non\-root users to add user defined shares to be exported using the "net usershare" commands\.
+Starting with version 3\.0\.23, a Samba server now supports the ability for non\-root users to add user-defined shares to be exported using the "net usershare" commands\.
 .PP
-To set this up, first set up your smb\.conf by adding to the [global] section: usershare path = /usr/local/samba/lib/usershares Next create the directory /usr/local/samba/lib/usershares, change the owner to root and set the group owner to the UNIX group who should have the ability to create usershares, for example a group called "serverops"\. Set the permissions on /usr/local/samba/lib/usershares to 01770\. (Owner and group all access, no access for others, plus the sticky bit, which means that a file in that directory can be renamed or deleted only by the owner of the file)\. Finally, tell smbd how many usershares you will allow by adding to the [global] section of smb\.conf a line such as : usershare max shares = 100\. To allow 100 usershare definitions\. Now, members of the UNIX group "serverops" can create user defined shares on demand using the commands below\.
+Members of the UNIX group "sambashare" can create user-defined shares on demand using the commands below.
 .PP
 The usershare commands are:
 .IP "" 4

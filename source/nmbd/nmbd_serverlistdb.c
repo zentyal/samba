@@ -326,7 +326,7 @@ void write_browse_list(time_t t, bool force_write)
 
 	updatecount++;
 
-	fname = talloc_strdup(ctx, lp_lockdir());
+	fname = talloc_strdup(ctx, get_dyn_CACHEDIR());
 	if (!fname) {
 		return;
 	}

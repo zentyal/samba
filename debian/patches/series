@@ -22,6 +22,7 @@ documentation-links.patch
 documentation-links-debian.patch
 smbd-prevent-access-to-root-filesystem-when-connect.patch
 bug_500129_upstream_5953.patch
+security-CVE-2009-3297.patch
 bug_509101_upstream_5904.patch
 bug_514151_upstream_5825.patch
 bug_514703_upstream_6021.patch
@@ -39,3 +40,4 @@ security-CVE-2009-2948-2.patch
 
 bug_561545_upstream_6969.patch
 bug_561545_upstream_7005.patch
+security-CVE-2009-3297.patch

@@ -1,3 +1,12 @@
+samba (2:3.2.5-4lenny9) UNRELEASED; urgency=low
+
+  * Security update, fixing the following issues:
+    - CVE-2009-3297: fix a race condition that allows an attacker with local
+      access to mount remote filesystems over arbitrary mount points via
+      a symlink attack.  Closes: #567554.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 13 Feb 2010 14:27:42 -0800
+
 samba (2:3.2.5-4lenny8) stable-proposed-updates; urgency=low
 
   * Fix regression in name mangling. Only short

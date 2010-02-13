@@ -68,7 +68,7 @@ static NTSTATUS idmap_tdb2_open_cache_db(void)
 		return NT_STATUS_OK;
 	}
 
-	db_path = lock_path("idmap2_cache.tdb");
+	db_path = cache_path("idmap2_cache.tdb");
 
 	/* Open idmap repository */
 	if (!(idmap_tdb2_tmp = tdb_open_log(db_path, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644))) {

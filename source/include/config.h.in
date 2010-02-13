@@ -66,6 +66,9 @@
 /* Whether to use fully FHS-compatible paths */
 #undef FHS_COMPATIBLE
 
+/* Whether to use fully FHS-compatible paths */
+#undef FHS_COMPATIBLE
+
 /* Whether the host os is FreeBSD */
 #undef FREEBSD
 

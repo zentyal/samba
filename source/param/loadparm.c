@@ -120,6 +120,9 @@ struct global {
 	char *szAddPrinterCommand;
 	char *szDeletePrinterCommand;
 	char *szOs2DriverMap;
+#ifdef FHS_COMPATIBLE
+	char *szLockDirStub;
+#endif
 	char *szLockDir;
 	char *szPidDir;
 	char *szRootdir;
@@ -3676,6 +3679,26 @@ static struct parm_struct parm_table[] = {
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
 	},
+#ifdef FHS_COMPATIBLE
+	{
+		.label		= "lock directory",
+		.type		= P_STRING,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.szLockDirStub,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= 0,
+	},
+	{
+		.label		= "lock dir",
+		.type		= P_STRING,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.szLockDirStub,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= 0,
+	},
+#else
 	{
 		.label		= "lock directory",
 		.type		= P_STRING,
@@ -3694,6 +3717,7 @@ static struct parm_struct parm_table[] = {
 		.enum_list	= NULL,
 		.flags		= FLAG_HIDE,
 	},
+#endif
 	{
 		.label		= "pid directory",
 		.type		= P_STRING,
@@ -4854,7 +4878,7 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szUsersharePath, s);
 	SAFE_FREE(s);
 	string_set(&Globals.szUsershareTemplateShare, "");
-	Globals.iUsershareMaxShares = 0;
+	Globals.iUsershareMaxShares = 100;
 	/* By default disallow sharing of directories not owned by the sharer. */
 	Globals.bUsershareOwnerOnly = True;
 	/* By default disallow guest access to usershares. */
@@ -5827,6 +5851,11 @@ bool lp_add_home(const char *pszHomename, int iDefaultService,
 		 const char *user, const char *pszHomedir)
 {
 	int i;
+
+	if (pszHomename == NULL || user == NULL || pszHomedir == NULL ||
+			pszHomedir[0] == '\0') {
+		return false;
+	}
 
 	i = add_a_service(ServicePtrs[iDefaultService], pszHomename);
 
@@ -7778,7 +7807,7 @@ static void lp_add_auto_services(char *str)
 
 		home = get_user_home_dir(talloc_tos(), p);
 
-		if (home && homes >= 0)
+		if (home && home[0] && homes >= 0)
 			lp_add_home(p, homes, p, home);
 
 		TALLOC_FREE(home);

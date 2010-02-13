@@ -521,16 +521,16 @@ directory and
 file are owned by root\.
 .RE
 .PP
-$LOCKDIR/winbindd_privileged/pipe
+/var/run/samba/winbindd_privileged/pipe
 .RS 4
 The UNIX pipe over which \'privileged\' clients communicate with the
 winbindd
 program\. For security reasons, access to some winbindd functions \- like those needed by the
 ntlm_auth
-utility \- is restricted\. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
-\fI$LOCKDIR/winbindd_privileged\fR
+utility - is restricted. By default, only users in the 'root' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like 'squid' to use ntlm_auth. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
+\fI/var/run/samba/winbindd_privileged\fR
 directory and
-\fI$LOCKDIR/winbindd_privileged/pipe\fR
+\fI/var/run/samba/winbindd_privileged/pipe\fR
 file are owned by root\.
 .RE
 .PP
@@ -539,15 +539,12 @@ file are owned by root\.
 Implementation of name service switch library\.
 .RE
 .PP
-$LOCKDIR/winbindd_idmap\.tdb
+/var/run/samba/winbindd_idmap.tdb
 .RS 4
-Storage for the Windows NT rid to UNIX user/group id mapping\. The lock directory is specified when Samba is initially compiled using the
-\fI\-\-with\-lockdir\fR
-option\. This directory is by default
-\fI/usr/local/samba/var/locks \fR\.
+Storage for the Windows NT rid to UNIX user/group id mapping.
 .RE
 .PP
-$LOCKDIR/winbindd_cache\.tdb
+/var/run/samba/winbindd_cache.tdb
 .RS 4
 Storage for cached user and group information\.
 .RE

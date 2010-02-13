@@ -59,7 +59,7 @@ bool secrets_init(void)
 		return True;
 
 	fname = talloc_asprintf(talloc_tos(), "%s/secrets.tdb",
-				lp_private_dir());
+				get_dyn_STATEDIR());
 	if (fname == NULL) {
 		return false;
 	}
@@ -1112,7 +1112,7 @@ static TDB_CONTEXT *open_schannel_session_store(TALLOC_CTX *mem_ctx)
 	TDB_DATA vers;
 	uint32 ver;
 	TDB_CONTEXT *tdb_sc = NULL;
-	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", lp_private_dir());
+	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", get_dyn_STATEDIR());
 
 	if (!fname) {
 		return NULL;

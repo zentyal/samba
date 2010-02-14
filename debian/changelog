@@ -1,4 +1,4 @@
-samba (2:3.4.5~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.4.5~dfsg-2) unstable; urgency=low
 
   [ Steve langasek ]
   * Revert the "bashisms" fix from version 2:3.3.0~rc2-4; "local foo=bar"
@@ -12,7 +12,7 @@ samba (2:3.4.5~dfsg-2) UNRELEASED; urgency=low
   * Use dh_lintian instead of manual install of lintian overrides
   * Updated Standards to 3.8.4 (checked, no change)
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 13 Feb 2010 14:00:46 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sat, 13 Feb 2010 14:36:33 +0100
 
 samba (2:3.4.5~dfsg-1) unstable; urgency=low
 

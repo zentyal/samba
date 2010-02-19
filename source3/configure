@@ -695,6 +695,8 @@ SMBD_FAM_LIBS
 INIPARSERLIBS
 BUILD_INIPARSER
 PTHREADPOOL_OBJ
+PTHREAD_LDFLAGS
+PTHREAD_CFLAGS
 AVAHI_OBJ
 AVAHI_LIBS
 DNSSD_LIBS
@@ -707,7 +709,6 @@ WINBIND_NSS_EXTRA_OBJS
 WINBIND_NSS_LDSHFLAGS
 WINBIND_WINS_NSS
 WINBIND_NSS
-WINBIND_NSS_PTHREAD
 WBCLIENT_LIBS
 WBCLIENT_LDFLAGS
 WBCLIENT_INCLUDES
@@ -973,7 +974,7 @@ with_lockdir
 with_statedir
 with_cachedir
 with_piddir
-with_ncalprcdir
+with_ncalrpcdir
 with_swatdir
 with_configdir
 with_logfilebase
@@ -1726,7 +1727,7 @@ Optional Features:
   --enable-fam            Turn on FAM support (default=auto)
   --enable-dnssd          Enable DNS service discovery support (default=no)
   --enable-avahi          Enable Avahi support (default=auto)
-  --enable-pthreadpool    Enable pthreads pool helper support (default=auto)
+  --enable-pthreadpool    Enable pthreads pool helper support (default=no)
   --enable-merged-build   Build Samba 4 as well
   --enable-gnutls         Turn on gnutls support (default=yes)
   --enable-netapi         Turn on netapi support (default=auto)
@@ -1747,7 +1748,7 @@ Optional Packages:
                           ($ac_default_prefix/var/locks)
   --with-piddir=DIR       Where to put pid files
                           ($ac_default_prefix/var/locks)
-  --with-ncalprcdir=DIR   Where to put ncalrpc sockets
+  --with-ncalrpcdir=DIR   Where to put ncalrpc sockets
                           ($ac_default_prefix/var/ncalrpc)
   --with-swatdir=DIR      Where to put SWAT files ($ac_default_prefix/swat)
   --with-configdir=DIR    Where to put configuration files ($libdir)
@@ -2712,9 +2713,9 @@ fi
 #################################################
 # set ncalrpc directory location
 
-# Check whether --with-ncalprcdir was given.
-if test "${with_ncalprcdir+set}" = set; then
-  withval=$with_ncalprcdir;  case "$withval" in
+# Check whether --with-ncalrpcdir was given.
+if test "${with_ncalrpcdir+set}" = set; then
+  withval=$with_ncalrpcdir;  case "$withval" in
   yes|no)
   #
   # Just in case anybody calls it without argument
@@ -30264,8 +30265,7 @@ done
 
 
 
-
-for ac_header in limits.h float.h pthread.h libintl.h
+for ac_header in limits.h float.h libintl.h
 do
 as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
@@ -45488,13 +45488,7 @@ if test "${samba_cv_linux_getgrouplist_ok+set}" = set; then
   $as_echo_n "(cached) " >&6
 else
   if test "$cross_compiling" = yes; then
-  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&2;}
-   { (exit 1); exit 1; }; }; }
+  samba_cv_linux_getgrouplist_ok=cross
 else
   cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
@@ -53337,12 +53331,12 @@ if test -n "$PKG_CONFIG"; then
         pkg_cv_LIBTDB_CFLAGS="$LIBTDB_CFLAGS"
     else
         if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.7\"") >&5
-  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.7") 2>&5
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.2.1\"") >&5
+  ($PKG_CONFIG --exists --print-errors "tdb >= 1.2.1") 2>&5
   ac_status=$?
   $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_LIBTDB_CFLAGS=`$PKG_CONFIG --cflags "tdb >= 1.1.7" 2>/dev/null`
+  pkg_cv_LIBTDB_CFLAGS=`$PKG_CONFIG --cflags "tdb >= 1.2.1" 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -53355,12 +53349,12 @@ if test -n "$PKG_CONFIG"; then
         pkg_cv_LIBTDB_LIBS="$LIBTDB_LIBS"
     else
         if test -n "$PKG_CONFIG" && \
-    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.1.7\"") >&5
-  ($PKG_CONFIG --exists --print-errors "tdb >= 1.1.7") 2>&5
+    { ($as_echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"tdb >= 1.2.1\"") >&5
+  ($PKG_CONFIG --exists --print-errors "tdb >= 1.2.1") 2>&5
   ac_status=$?
   $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_LIBTDB_LIBS=`$PKG_CONFIG --libs "tdb >= 1.1.7" 2>/dev/null`
+  pkg_cv_LIBTDB_LIBS=`$PKG_CONFIG --libs "tdb >= 1.2.1" 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -53379,9 +53373,9 @@ else
         _pkg_short_errors_supported=no
 fi
         if test $_pkg_short_errors_supported = yes; then
-	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "tdb >= 1.1.7"`
+	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "tdb >= 1.2.1"`
         else
-	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "tdb >= 1.1.7"`
+	        LIBTDB_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "tdb >= 1.2.1"`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$LIBTDB_PKG_ERRORS" >&5
@@ -70295,6 +70289,203 @@ _ACEOF
 
 fi
 
+
+
+
+    ac_check_func_ext_save_LIBS=$LIBS
+    LIBS="$KRB5_LIBS $LIBS"
+        { $as_echo "$as_me:$LINENO: checking for krb5_get_host_realm" >&5
+$as_echo_n "checking for krb5_get_host_realm... " >&6; }
+if test "${ac_cv_func_ext_krb5_get_host_realm+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define krb5_get_host_realm to an innocuous variant, in case <limits.h> declares krb5_get_host_realm.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define krb5_get_host_realm innocuous_krb5_get_host_realm
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char krb5_get_host_realm (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef krb5_get_host_realm
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char krb5_get_host_realm ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_krb5_get_host_realm || defined __stub___krb5_get_host_realm
+choke me
+#endif
+
+int
+main ()
+{
+return krb5_get_host_realm ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_func_ext_krb5_get_host_realm=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_func_ext_krb5_get_host_realm=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_func_ext_krb5_get_host_realm" >&5
+$as_echo "$ac_cv_func_ext_krb5_get_host_realm" >&6; }
+    LIBS=$ac_check_func_ext_save_LIBS
+    if test $ac_cv_func_ext_krb5_get_host_realm = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_KRB5_GET_HOST_REALM 1
+_ACEOF
+
+fi
+
+
+
+
+    ac_check_func_ext_save_LIBS=$LIBS
+    LIBS="$KRB5_LIBS $LIBS"
+        { $as_echo "$as_me:$LINENO: checking for krb5_free_host_realm" >&5
+$as_echo_n "checking for krb5_free_host_realm... " >&6; }
+if test "${ac_cv_func_ext_krb5_free_host_realm+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define krb5_free_host_realm to an innocuous variant, in case <limits.h> declares krb5_free_host_realm.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define krb5_free_host_realm innocuous_krb5_free_host_realm
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char krb5_free_host_realm (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef krb5_free_host_realm
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char krb5_free_host_realm ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_krb5_free_host_realm || defined __stub___krb5_free_host_realm
+choke me
+#endif
+
+int
+main ()
+{
+return krb5_free_host_realm ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_func_ext_krb5_free_host_realm=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_func_ext_krb5_free_host_realm=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_func_ext_krb5_free_host_realm" >&5
+$as_echo "$ac_cv_func_ext_krb5_free_host_realm" >&6; }
+    LIBS=$ac_check_func_ext_save_LIBS
+    if test $ac_cv_func_ext_krb5_free_host_realm = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_KRB5_FREE_HOST_REALM 1
+_ACEOF
+
+fi
+
+
   # MIT krb5 1.8 does not expose this call (yet)
   { $as_echo "$as_me:$LINENO: checking whether krb5_get_credentials_for_user is declared" >&5
 $as_echo_n "checking whether krb5_get_credentials_for_user is declared... " >&6; }
@@ -72031,6 +72222,66 @@ $as_echo "$samba_cv_HAVE_WRFILE_KEYTAB" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_WRFILE_KEYTAB 1
+_ACEOF
+
+  fi
+
+  { $as_echo "$as_me:$LINENO: checking for krb5_realm type" >&5
+$as_echo_n "checking for krb5_realm type... " >&6; }
+if test "${samba_cv_HAVE_KRB5_REALM_TYPE+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <krb5.h>
+int
+main ()
+{
+krb5_realm realm;
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  samba_cv_HAVE_KRB5_REALM_TYPE=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	samba_cv_HAVE_KRB5_REALM_TYPE=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_KRB5_REALM_TYPE" >&5
+$as_echo "$samba_cv_HAVE_KRB5_REALM_TYPE" >&6; }
+
+  if test x"$samba_cv_HAVE_KRB5_REALM_TYPE" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_KRB5_REALM_TYPE 1
 _ACEOF
 
   fi
@@ -81018,7 +81269,6 @@ WINBIND_NSS="../nsswitch/libnss_winbind.$SHLIBEXT"
 WINBIND_WINS_NSS="../nsswitch/libnss_wins.$SHLIBEXT"
 WINBIND_NSS_LDSHFLAGS=$LDSHFLAGS
 NSSSONAMEVERSIONSUFFIX=""
-WINBIND_NSS_PTHREAD=""
 
 case "$host_os" in
 	*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
@@ -81243,85 +81493,6 @@ else
         { $as_echo "$as_me:$LINENO: result: no$winbind_no_reason" >&5
 $as_echo "no$winbind_no_reason" >&6; }
 fi
-
-{ $as_echo "$as_me:$LINENO: checking for pthread_mutex_lock in -lpthread" >&5
-$as_echo_n "checking for pthread_mutex_lock in -lpthread... " >&6; }
-if test "${ac_cv_lib_pthread_pthread_mutex_lock+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lpthread  $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char pthread_mutex_lock ();
-int
-main ()
-{
-return pthread_mutex_lock ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_link") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest$ac_exeext && {
-	 test "$cross_compiling" = yes ||
-	 $as_test_x conftest$ac_exeext
-       }; then
-  ac_cv_lib_pthread_pthread_mutex_lock=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_lib_pthread_pthread_mutex_lock=no
-fi
-
-rm -rf conftest.dSYM
-rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_pthread_pthread_mutex_lock" >&5
-$as_echo "$ac_cv_lib_pthread_pthread_mutex_lock" >&6; }
-if test "x$ac_cv_lib_pthread_pthread_mutex_lock" = x""yes; then
-  WINBIND_NSS_PTHREAD="-lpthread"
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PTHREAD 1
-_ACEOF
-
-			samba_cv_HAVE_PTHREAD=yes
-else
-  samba_cv_HAVE_PTHREAD=no
-fi
-
-
 
 
 
@@ -82919,27 +83090,41 @@ $as_echo "$as_me: error: avahi support not available" >&2;}
     fi
 fi
 
+
 #################################################
-# Check if user wants pthreadpool support
+# Set pthread stuff
 
-# Check whether --enable-pthreadpool was given.
-if test "${enable_pthreadpool+set}" = set; then
-  enableval=$enable_pthreadpool;
-fi
+PTHREAD_CFLAGS=error
+PTHREAD_LDFLAGS=error
 
-
-if test x"$enable_pthreadpool" != x"no" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; then
-    cat >conftest.$ac_ext <<_ACEOF
+# If it's error, then the user didn't
+# define it.
+if test "x$PTHREAD_LDFLAGS" = xerror; then
+  { $as_echo "$as_me:$LINENO: checking for pthread_attr_init in -lpthread" >&5
+$as_echo_n "checking for pthread_attr_init in -lpthread... " >&6; }
+if test "${ac_cv_lib_pthread_pthread_attr_init+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lpthread  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
-#include "pthread.h"
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pthread_attr_init ();
 int
 main ()
 {
-pthread_create(NULL, NULL, NULL, NULL)
+return pthread_attr_init ();
   ;
   return 0;
 }
@@ -82965,17 +83150,531 @@ $as_echo "$ac_try_echo") >&5
 	 test "$cross_compiling" = yes ||
 	 $as_test_x conftest$ac_exeext
        }; then
-  :
+  ac_cv_lib_pthread_pthread_attr_init=yes
 else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	LIBS="$LIBS -lpthread"
+	ac_cv_lib_pthread_pthread_attr_init=no
 fi
 
 rm -rf conftest.dSYM
 rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_pthread_pthread_attr_init" >&5
+$as_echo "$ac_cv_lib_pthread_pthread_attr_init" >&6; }
+if test "x$ac_cv_lib_pthread_pthread_attr_init" = x""yes; then
+
+	     PTHREAD_CFLAGS="-D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS"
+	     PTHREAD_LDFLAGS="-lpthread"
+fi
+
+fi
+
+if test "x$PTHREAD_LDFLAGS" = xerror; then
+  { $as_echo "$as_me:$LINENO: checking for pthread_attr_init in -lpthreads" >&5
+$as_echo_n "checking for pthread_attr_init in -lpthreads... " >&6; }
+if test "${ac_cv_lib_pthreads_pthread_attr_init+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lpthreads  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pthread_attr_init ();
+int
+main ()
+{
+return pthread_attr_init ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_pthreads_pthread_attr_init=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_pthreads_pthread_attr_init=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_pthreads_pthread_attr_init" >&5
+$as_echo "$ac_cv_lib_pthreads_pthread_attr_init" >&6; }
+if test "x$ac_cv_lib_pthreads_pthread_attr_init" = x""yes; then
+
+	     PTHREAD_CFLAGS="-D_THREAD_SAFE"
+	     PTHREAD_LDFLAGS="-lpthreads"
+fi
+
+fi
+
+if test "x$PTHREAD_LDFLAGS" = xerror; then
+   { $as_echo "$as_me:$LINENO: checking for pthread_attr_init in -lc_r" >&5
+$as_echo_n "checking for pthread_attr_init in -lc_r... " >&6; }
+if test "${ac_cv_lib_c_r_pthread_attr_init+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lc_r  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pthread_attr_init ();
+int
+main ()
+{
+return pthread_attr_init ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_c_r_pthread_attr_init=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_c_r_pthread_attr_init=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_c_r_pthread_attr_init" >&5
+$as_echo "$ac_cv_lib_c_r_pthread_attr_init" >&6; }
+if test "x$ac_cv_lib_c_r_pthread_attr_init" = x""yes; then
+
+		PTHREAD_CFLAGS="-D_THREAD_SAFE -pthread"
+		PTHREAD_LDFLAGS="-pthread"
+fi
+
+fi
+
+if test "x$PTHREAD_LDFLAGS" = xerror; then
+   { $as_echo "$as_me:$LINENO: checking for pthread_attr_init" >&5
+$as_echo_n "checking for pthread_attr_init... " >&6; }
+if test "${ac_cv_func_pthread_attr_init+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+/* Define pthread_attr_init to an innocuous variant, in case <limits.h> declares pthread_attr_init.
+   For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+#define pthread_attr_init innocuous_pthread_attr_init
+
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char pthread_attr_init (); below.
+    Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
+    <limits.h> exists even on freestanding compilers.  */
+
+#ifdef __STDC__
+# include <limits.h>
+#else
+# include <assert.h>
+#endif
+
+#undef pthread_attr_init
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pthread_attr_init ();
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined __stub_pthread_attr_init || defined __stub___pthread_attr_init
+choke me
+#endif
+
+int
+main ()
+{
+return pthread_attr_init ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_func_pthread_attr_init=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_func_pthread_attr_init=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_func_pthread_attr_init" >&5
+$as_echo "$ac_cv_func_pthread_attr_init" >&6; }
+if test "x$ac_cv_func_pthread_attr_init" = x""yes; then
+
+		 PTHREAD_CFLAGS="-D_REENTRANT"
+		 PTHREAD_LDFLAGS="-lpthread"
+fi
+
+fi
+
+# especially for HP-UX, where the AC_CHECK_FUNC macro fails to test for
+# pthread_attr_init. On pthread_mutex_lock it works there...
+if test "x$PTHREAD_LDFLAGS" = xerror; then
+   { $as_echo "$as_me:$LINENO: checking for pthread_mutex_lock in -lpthread" >&5
+$as_echo_n "checking for pthread_mutex_lock in -lpthread... " >&6; }
+if test "${ac_cv_lib_pthread_pthread_mutex_lock+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lpthread  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pthread_mutex_lock ();
+int
+main ()
+{
+return pthread_mutex_lock ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_pthread_pthread_mutex_lock=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_pthread_pthread_mutex_lock=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_pthread_pthread_mutex_lock" >&5
+$as_echo "$ac_cv_lib_pthread_pthread_mutex_lock" >&6; }
+if test "x$ac_cv_lib_pthread_pthread_mutex_lock" = x""yes; then
+
+		PTHREAD_CFLAGS="-D_REENTRANT"
+		PTHREAD_LDFLAGS="-lpthread"
+fi
+
+fi
+
+
+
+
+samba_cv_HAVE_PTHREAD=no
+if test x"$PTHREAD_CFLAGS" != xerror -a x"$PTHREAD_LDFLAGS" != xerror; then
+	samba_cv_HAVE_PTHREAD=yes
+	# now check for pthread.h with pthread-correct CFLAGS and LDFLAGS:
+	ac_save_CFLAGS=$CFLAGS
+	CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+	ac_save_LDFLAGS=$LDFLAGS
+	LDFLAGS="$LDFLAGS $PTHREAD_LDFLAGS"
+
+for ac_header in pthread.h
+do
+as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  { $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking $ac_header usability" >&5
+$as_echo_n "checking $ac_header usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking $ac_header presence" >&5
+$as_echo_n "checking $ac_header presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ---------------------------------------- ##
+## Report this to samba-technical@samba.org ##
+## ---------------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for $ac_header" >&5
+$as_echo_n "checking for $ac_header... " >&6; }
+if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+ac_res=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+
+fi
+as_val=`eval 'as_val=${'$as_ac_Header'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+	CFLAGS=$ac_save_CFLAGS
+	LDFLAGS=$ac_save_LDFLAGS
+fi
+
+#################################################
+# Check if user wants pthreadpool support
+
+# Check whether --enable-pthreadpool was given.
+if test "${enable_pthreadpool+set}" = set; then
+  enableval=$enable_pthreadpool;
+fi
+
+
+if test x"$enable_pthreadpool" = xyes -a x"$samba_cv_HAVE_PTHREAD" != x"yes"; then
+	{ { $as_echo "$as_me:$LINENO: error: pthreadpool support cannot be enabled when pthread support was found" >&5
+$as_echo "$as_me: error: pthreadpool support cannot be enabled when pthread support was found" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+if test x"$enable_pthreadpool" = x"yes" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; then
+    LIBS="$LIBS $PTHREAD_LDFLAGS"
+    CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 
 cat >>confdefs.h <<\_ACEOF
 #define WITH_PTHREADPOOL 1
@@ -98185,14 +98884,14 @@ fi
 	else
 		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
 		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
-			{ $as_echo "$as_me:$LINENO: checking for talloc >= 2.0.0" >&5
-$as_echo_n "checking for talloc >= 2.0.0... " >&6; }
+			{ $as_echo "$as_me:$LINENO: checking for talloc >= 2.0.1" >&5
+$as_echo_n "checking for talloc >= 2.0.1... " >&6; }
 
-			if $PKG_CONFIG --exists 'talloc >= 2.0.0' ; then
+			if $PKG_CONFIG --exists 'talloc >= 2.0.1' ; then
 				{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
-				LIBTALLOC_CFLAGS="`$PKG_CONFIG --cflags 'talloc >= 2.0.0'`"
+				LIBTALLOC_CFLAGS="`$PKG_CONFIG --cflags 'talloc >= 2.0.1'`"
 				OLD_CFLAGS="$CFLAGS"
 				CFLAGS="$CFLAGS $LIBTALLOC_CFLAGS"
 				{ $as_echo "$as_me:$LINENO: checking that the C compiler can use the LIBTALLOC_CFLAGS" >&5
@@ -98256,7 +98955,7 @@ fi
 
 				CFLAGS="$OLD_CFLAGS"
 
-				ac_cv_LIBTALLOC_libs_only_other="`$PKG_CONFIG --libs-only-other 'talloc >= 2.0.0'` `$PKG_CONFIG --libs-only-L 'talloc >= 2.0.0'`"
+				ac_cv_LIBTALLOC_libs_only_other="`$PKG_CONFIG --libs-only-other 'talloc >= 2.0.1'` `$PKG_CONFIG --libs-only-L 'talloc >= 2.0.1'`"
 
   ac_new_flags=""
   l=""
@@ -98291,7 +98990,7 @@ fi
   done
   ac_cv_LIBTALLOC_libs_only_other=$ac_new_flags
 
-				ac_cv_LIBTALLOC_includedir_only="`$PKG_CONFIG --cflags-only-I 'talloc >= 2.0.0'`"
+				ac_cv_LIBTALLOC_includedir_only="`$PKG_CONFIG --cflags-only-I 'talloc >= 2.0.1'`"
 
   ac_new_flags=""
   for i in $ac_cv_LIBTALLOC_includedir_only; do
@@ -98304,8 +99003,8 @@ fi
 
 
 MAKE_SETTINGS="$MAKE_SETTINGS
-LIBTALLOC_LIBS = `$PKG_CONFIG --libs-only-l 'talloc >= 2.0.0'`
-LIBTALLOC_CFLAGS = `$PKG_CONFIG --cflags-only-other 'talloc >= 2.0.0'`
+LIBTALLOC_LIBS = `$PKG_CONFIG --libs-only-l 'talloc >= 2.0.1'`
+LIBTALLOC_CFLAGS = `$PKG_CONFIG --cflags-only-other 'talloc >= 2.0.1'`
 LIBTALLOC_CPPFLAGS = $ac_cv_LIBTALLOC_includedir_only
 LIBTALLOC_LDFLAGS = $ac_cv_LIBTALLOC_libs_only_other
 "
@@ -98316,7 +99015,7 @@ LIBTALLOC_LDFLAGS = $ac_cv_LIBTALLOC_libs_only_other
 			else
 				{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
-				$PKG_CONFIG --errors-to-stdout --print-errors 'talloc >= 2.0.0'
+				$PKG_CONFIG --errors-to-stdout --print-errors 'talloc >= 2.0.1'
 				ac_cv_LIBTALLOC_found=no
 			fi
 		else
@@ -98398,14 +99097,14 @@ fi
 	else
 		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
 		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
-			{ $as_echo "$as_me:$LINENO: checking for tdb >= 1.1.7" >&5
-$as_echo_n "checking for tdb >= 1.1.7... " >&6; }
+			{ $as_echo "$as_me:$LINENO: checking for tdb >= 1.2.1" >&5
+$as_echo_n "checking for tdb >= 1.2.1... " >&6; }
 
-			if $PKG_CONFIG --exists 'tdb >= 1.1.7' ; then
+			if $PKG_CONFIG --exists 'tdb >= 1.2.1' ; then
 				{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
-				LIBTDB_CFLAGS="`$PKG_CONFIG --cflags 'tdb >= 1.1.7'`"
+				LIBTDB_CFLAGS="`$PKG_CONFIG --cflags 'tdb >= 1.2.1'`"
 				OLD_CFLAGS="$CFLAGS"
 				CFLAGS="$CFLAGS $LIBTDB_CFLAGS"
 				{ $as_echo "$as_me:$LINENO: checking that the C compiler can use the LIBTDB_CFLAGS" >&5
@@ -98469,7 +99168,7 @@ fi
 
 				CFLAGS="$OLD_CFLAGS"
 
-				ac_cv_LIBTDB_libs_only_other="`$PKG_CONFIG --libs-only-other 'tdb >= 1.1.7'` `$PKG_CONFIG --libs-only-L 'tdb >= 1.1.7'`"
+				ac_cv_LIBTDB_libs_only_other="`$PKG_CONFIG --libs-only-other 'tdb >= 1.2.1'` `$PKG_CONFIG --libs-only-L 'tdb >= 1.2.1'`"
 
   ac_new_flags=""
   l=""
@@ -98504,7 +99203,7 @@ fi
   done
   ac_cv_LIBTDB_libs_only_other=$ac_new_flags
 
-				ac_cv_LIBTDB_includedir_only="`$PKG_CONFIG --cflags-only-I 'tdb >= 1.1.7'`"
+				ac_cv_LIBTDB_includedir_only="`$PKG_CONFIG --cflags-only-I 'tdb >= 1.2.1'`"
 
   ac_new_flags=""
   for i in $ac_cv_LIBTDB_includedir_only; do
@@ -98517,8 +99216,8 @@ fi
 
 
 MAKE_SETTINGS="$MAKE_SETTINGS
-LIBTDB_LIBS = `$PKG_CONFIG --libs-only-l 'tdb >= 1.1.7'`
-LIBTDB_CFLAGS = `$PKG_CONFIG --cflags-only-other 'tdb >= 1.1.7'`
+LIBTDB_LIBS = `$PKG_CONFIG --libs-only-l 'tdb >= 1.2.1'`
+LIBTDB_CFLAGS = `$PKG_CONFIG --cflags-only-other 'tdb >= 1.2.1'`
 LIBTDB_CPPFLAGS = $ac_cv_LIBTDB_includedir_only
 LIBTDB_LDFLAGS = $ac_cv_LIBTDB_libs_only_other
 "
@@ -98529,7 +99228,7 @@ LIBTDB_LDFLAGS = $ac_cv_LIBTDB_libs_only_other
 			else
 				{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
-				$PKG_CONFIG --errors-to-stdout --print-errors 'tdb >= 1.1.7'
+				$PKG_CONFIG --errors-to-stdout --print-errors 'tdb >= 1.2.1'
 				ac_cv_LIBTDB_found=no
 			fi
 		else
@@ -99564,14 +100263,14 @@ fi
 	else
 		SAMBA_PKG_CONFIG_MIN_VERSION="0.9.0"
 		if $PKG_CONFIG --atleast-pkgconfig-version $SAMBA_PKG_CONFIG_MIN_VERSION; then
-			{ $as_echo "$as_me:$LINENO: checking for ldb = 0.9.7" >&5
-$as_echo_n "checking for ldb = 0.9.7... " >&6; }
+			{ $as_echo "$as_me:$LINENO: checking for ldb = 0.9.10" >&5
+$as_echo_n "checking for ldb = 0.9.10... " >&6; }
 
-			if $PKG_CONFIG --exists 'ldb = 0.9.7' ; then
+			if $PKG_CONFIG --exists 'ldb = 0.9.10' ; then
 				{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
-				LIBLDB_CFLAGS="`$PKG_CONFIG --cflags 'ldb = 0.9.7'`"
+				LIBLDB_CFLAGS="`$PKG_CONFIG --cflags 'ldb = 0.9.10'`"
 				OLD_CFLAGS="$CFLAGS"
 				CFLAGS="$CFLAGS $LIBLDB_CFLAGS"
 				{ $as_echo "$as_me:$LINENO: checking that the C compiler can use the LIBLDB_CFLAGS" >&5
@@ -99635,7 +100334,7 @@ fi
 
 				CFLAGS="$OLD_CFLAGS"
 
-				ac_cv_LIBLDB_libs_only_other="`$PKG_CONFIG --libs-only-other 'ldb = 0.9.7'` `$PKG_CONFIG --libs-only-L 'ldb = 0.9.7'`"
+				ac_cv_LIBLDB_libs_only_other="`$PKG_CONFIG --libs-only-other 'ldb = 0.9.10'` `$PKG_CONFIG --libs-only-L 'ldb = 0.9.10'`"
 
   ac_new_flags=""
   l=""
@@ -99670,7 +100369,7 @@ fi
   done
   ac_cv_LIBLDB_libs_only_other=$ac_new_flags
 
-				ac_cv_LIBLDB_includedir_only="`$PKG_CONFIG --cflags-only-I 'ldb = 0.9.7'`"
+				ac_cv_LIBLDB_includedir_only="`$PKG_CONFIG --cflags-only-I 'ldb = 0.9.10'`"
 
   ac_new_flags=""
   for i in $ac_cv_LIBLDB_includedir_only; do
@@ -99683,8 +100382,8 @@ fi
 
 
 MAKE_SETTINGS="$MAKE_SETTINGS
-LIBLDB_LIBS = `$PKG_CONFIG --libs-only-l 'ldb = 0.9.7'`
-LIBLDB_CFLAGS = `$PKG_CONFIG --cflags-only-other 'ldb = 0.9.7'`
+LIBLDB_LIBS = `$PKG_CONFIG --libs-only-l 'ldb = 0.9.10'`
+LIBLDB_CFLAGS = `$PKG_CONFIG --cflags-only-other 'ldb = 0.9.10'`
 LIBLDB_CPPFLAGS = $ac_cv_LIBLDB_includedir_only
 LIBLDB_LDFLAGS = $ac_cv_LIBLDB_libs_only_other
 "
@@ -99695,7 +100394,7 @@ LIBLDB_LDFLAGS = $ac_cv_LIBLDB_libs_only_other
 			else
 				{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
-				$PKG_CONFIG --errors-to-stdout --print-errors 'ldb = 0.9.7'
+				$PKG_CONFIG --errors-to-stdout --print-errors 'ldb = 0.9.10'
 				ac_cv_LIBLDB_found=no
 			fi
 		else

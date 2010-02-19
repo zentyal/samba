@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 01/26/2010
+.\"      Date: 02/19/2010
 .\"    Manual: User Commands
 .\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "01/26/2010" "Samba 3\&.5" "User Commands"
+.TH "SMBCLIENT" "1" "02/19/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,9 +22,9 @@
 smbclient \- ftp\-like client to access SMB/CIFS resources on servers
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-smbclient [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
+smbclient [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
 .HP \w'\ 'u
-smbclient {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
+smbclient {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -285,6 +285,11 @@ If a password is specified on the command line and this option is also defined t
 \-k|\-\-kerberos
 .RS 4
 Try to authenticate with kerberos\&. Only useful in an Active Directory environment\&.
+.RE
+.PP
+\-C|\-\-use\-ccache
+.RS 4
+Try to use the credentials cached by winbind\&.
 .RE
 .PP
 \-A|\-\-authentication\-file=filename

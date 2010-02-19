@@ -160,6 +160,7 @@ struct global {
 	char *szRemoteAnnounce;
 	char *szRemoteBrowseSync;
 	char *szSocketAddress;
+	bool bNmbdBindExplicitBroadcast;
 	char *szNISHomeMapName;
 	char *szAnnounceVersion;	/* This is initialised in init_globals */
 	char *szWorkgroup;
@@ -606,7 +607,7 @@ static struct service sDefault = {
 	True,			/* bLevel2OpLocks */
 	False,			/* bOnlyUser */
 	True,			/* bMangledNames */
-	True,			/* bWidelinks */
+	false,			/* bWidelinks */
 	True,			/* bSymlinks */
 	False,			/* bSyncAlways */
 	False,			/* bStrictAllocate */
@@ -3991,6 +3992,15 @@ static struct parm_struct parm_table[] = {
 		.flags		= FLAG_ADVANCED,
 	},
 	{
+		.label		= "nmbd bind explicit broadcast",
+		.type		= P_BOOL,
+		.p_class	= P_GLOBAL,
+		.ptr		= &Globals.bNmbdBindExplicitBroadcast,
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
 		.label		= "homedir map",
 		.type		= P_STRING,
 		.p_class	= P_GLOBAL,
@@ -4958,6 +4968,11 @@ static void init_globals(bool first_time_only)
 	string_set(&Globals.szCacheDir, get_dyn_CACHEDIR());
 	string_set(&Globals.szPidDir, get_dyn_PIDDIR());
 	string_set(&Globals.szSocketAddress, "0.0.0.0");
+	/*
+	 * By default support explicit binding to broadcast
+	 * addresses.
+	 */
+	Globals.bNmbdBindExplicitBroadcast = true;
 
 	if (asprintf(&s, "Samba %s", samba_version_string()) < 0) {
 		smb_panic("init_globals: ENOMEM");
@@ -5347,6 +5362,7 @@ FN_GLOBAL_CONST_STRING(lp_logon_drive, &Globals.szLogonDrive)
 FN_GLOBAL_CONST_STRING(lp_logon_home, &Globals.szLogonHome)
 FN_GLOBAL_STRING(lp_remote_announce, &Globals.szRemoteAnnounce)
 FN_GLOBAL_STRING(lp_remote_browse_sync, &Globals.szRemoteBrowseSync)
+FN_GLOBAL_BOOL(lp_nmbd_bind_explicit_broadcast, &Globals.bNmbdBindExplicitBroadcast)
 FN_GLOBAL_LIST(lp_wins_server_list, &Globals.szWINSservers)
 FN_GLOBAL_LIST(lp_interfaces, &Globals.szInterfaces)
 FN_GLOBAL_STRING(lp_nis_home_map_name, &Globals.szNISHomeMapName)
@@ -5660,7 +5676,6 @@ FN_LOCAL_BOOL(lp_oplocks, bOpLocks)
 FN_LOCAL_BOOL(lp_level2_oplocks, bLevel2OpLocks)
 FN_LOCAL_BOOL(lp_onlyuser, bOnlyUser)
 FN_LOCAL_PARM_BOOL(lp_manglednames, bMangledNames)
-FN_LOCAL_BOOL(lp_widelinks, bWidelinks)
 FN_LOCAL_BOOL(lp_symlinks, bSymlinks)
 FN_LOCAL_BOOL(lp_syncalways, bSyncAlways)
 FN_LOCAL_BOOL(lp_strict_allocate, bStrictAllocate)
@@ -9873,4 +9888,36 @@ const char *lp_socket_address(void)
 void lp_set_passdb_backend(const char *backend)
 {
 	string_set(&Globals.szPassdbBackend, backend);
+}
+
+/*******************************************************************
+ Safe wide links checks.
+ This helper function always verify the validity of wide links,
+ even after a configuration file reload.
+********************************************************************/
+
+static bool lp_widelinks_internal(int snum)
+{
+	return (bool)(LP_SNUM_OK(snum)? ServicePtrs[(snum)]->bWidelinks :
+			sDefault.bWidelinks);
+}
+
+void widelinks_warning(int snum)
+{
+	if (lp_unix_extensions() && lp_widelinks_internal(snum)) {
+		DEBUG(0,("Share '%s' has wide links and unix extensions enabled. "
+			"These parameters are incompatible. "
+			"Wide links will be disabled for this share.\n",
+			lp_servicename(snum) ));
+	}
+}
+
+bool lp_widelinks(int snum)
+{
+	/* wide links is always incompatible with unix extensions */
+	if (lp_unix_extensions()) {
+		return false;
+	}
+
+	return lp_widelinks_internal(snum);
 }

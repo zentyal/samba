@@ -1,9 +1,10 @@
-                   ================================
-                   Release Notes for Samba 3.5.0rc2
-			   January 26, 2010
-                   ================================
+                   ===============================
+                   Release Notes for Samba 3.5.0rc3
+			  February 19, 2010
+                   ===============================
 
-This is the second release candidate of Samba 3.5.  This is *not*
+
+This is the third release candidate of Samba 3.5.  This is *not*
 intended for production environments and is designed for testing
 purposes only.  Please report any defects via the Samba bug reporting
 system at https://bugzilla.samba.org/.
@@ -14,6 +15,7 @@ General changes:
 o Add support for full Windows timestamp resolution
 o The Using Samba HTML book has been removed.
 o 'net', 'smbclient' and libsmbclient can use credentials cached by Winbind.
+o The default value of "wide links" has been changed to "no".
 
 Protocol changes:
 o Experimental implementation of SMB2
@@ -44,6 +46,11 @@ credentials cached by Winbind at logon time. This is very useful e.g. when
 connecting to a Samba server using Nautilus without re-entering username and
 password. This feature is enabled by default and can be disabled per application
 by setting the LIBSMBCLIENT_NO_CCACHE environment variable.
+
+The default value of "wide links" has been changed to "no" to avoid an insecure
+default configuration ("wide links = yes" and "unix extensions = yes"). For
+more details, please see http://www.samba.org/samba/news/symlink_attack.html.
+
 
 Protocol changes
 ================
@@ -89,6 +96,8 @@ smb.conf changes
    debug hires timestamp	       Changed Default yes
    ldap deref			       New	       auto
    ldap follow referral		       New	       auto
+   nmbd bind explicit broadcast	       New	       no
+   wide links			       Changed Default no
 
 
 New configure options
@@ -118,6 +127,80 @@ o   Volker Lendecke <vl@samba.org>
 
 o   Stefan Metzmacher <metze@samba.org>
     * Implement the new SMB2 protocol (experimental).
+
+
+Changes since 3.5.0rc2
+----------------------
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 6557: Fix vfs_full_audit.
+    * BUG 6876: Fix duplicate initializer in the rmdir module.
+    * BUG 7063: Fix core dump on Ubuntu 8.04 64 bit.
+    * BUG 7067: Fix failing of smbd to respond to a read or a write caused by
+      Linux asynchronous IO (aio).
+    * BUG 7069: Fix 'smbget' error status.
+    * BUG 7072: Fix unlocking of accounts from ldap.
+    * BUG 7079  Cliconnect gets realm wrong with trusted domains.
+    * BUG 7081: Fix vfs_expand_msdfs.
+    * BUG 7084: Fix storing of create time on directories in an EA in new
+      create time code.
+    * BUG 7104: "wide links" and "unix extensions" are incompatible.
+    * BUG 7118: Fix nmbd problems with socket address.
+    * BUG 7122: Fix reading of large browselist.
+    * BUG 7154: "mangling method = hash" can crash storing a name containing a '.'.
+    * BUG 7155: Valgrind Conditional jump or move depends on uninitialised
+      value(s) error when "mangling method = hash"..
+
+
+o   Steven Danneman <steven.danneman@isilon.com>
+    * BUG 7096: Fix string buffer overflow causing heap corruption in smbd.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 6888: Fix printing with 64 bit clients.
+    * BUG 7130: Fix listing of printjobs in  Windows 7.
+    * BUG 7148: Fix get_acl_blob in the acl_tdb VFS module.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 7103: Fix build issue on Tru64.
+    * BUG 7116: Change ldap filter to what really was intended.
+    * Fix some wrong newlines in de translation strings.
+
+
+o   Jeff Layton <jlayton@redhat.com>
+    * BUG 6868: Fix crash bug in 'cifs.upcall'.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 7085: Fix an early release of the global lock that can cause data
+      corruption in libtdb.
+    * BUG 7139: Owner of file not available with Kerberos.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 6888: Fix printing with 64 bit clients.
+    * BUG 7098: Fix results of 'smbclient -L' with a large browse list.
+    * BUG 7116: Add pdb_ldap performance fixes.
+    * BUG 7118: Add new "nmbd bind explicit broadcast" parameter.
+    * BUG 7119: Support large browselist.
+    * BUG 7140: Fix IPv4/IPv6 problems.
+
+
+o   Lars Müller <lars@samba.org>
+    * BUG 7071: Fix build of 'smbfilter'.
+    * BUG 7047: Add cross option to samba_cv_linux_getgrouplist_ok.
+    * BUG 7102: Normalize "Changing password for" msg IDs and STRs.
+
+
+o   Olivier Sessink <olivier@virtscano.fakenet>
+    * BUG 7076: Fix build of vfs_scannedonly on AIX.
+
+
+o   Bo Yang <boyang@samba.org>
+    * BUG 7106: Fix malformed require_membership_of_sid.
+
 
 
 Changes since 3.5.0rc1

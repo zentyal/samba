@@ -877,10 +877,17 @@ static void tdgram_bsd_recvfrom_handler(void *private_data)
 		return;
 	}
 
-	if (ret != state->len) {
-		tevent_req_error(req, EIO);
+	/*
+	 * Some systems (FreeBSD, see bug #7115) return too much
+	 * bytes in tsocket_bsd_pending()/ioctl(fd, FIONREAD, ...),
+	 * the return value includes some IP/UDP header bytes,
+	 * while recvfrom() just returns the payload.
+	 */
+	state->buf = talloc_realloc(state, state->buf, uint8_t, ret);
+	if (tevent_req_nomem(state->buf, req)) {
 		return;
 	}
+	state->len = ret;
 
 	tevent_req_done(req);
 }
@@ -1136,6 +1143,9 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 	int ret;
 	bool do_bind = false;
 	bool do_reuseaddr = false;
+	bool do_ipv6only = false;
+	bool is_inet = false;
+	int sa_fam = lbsda->u.sa.sa_family;
 	socklen_t sa_socklen = sizeof(lbsda->u.ss);
 
 	if (remote) {
@@ -1164,9 +1174,11 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			do_reuseaddr = true;
 			do_bind = true;
 		}
-		if (lbsda->u.in.sin_addr.s_addr == INADDR_ANY) {
+		if (lbsda->u.in.sin_addr.s_addr != INADDR_ANY) {
 			do_bind = true;
 		}
+		is_inet = true;
+		sa_socklen = sizeof(rbsda->u.in);
 		break;
 #ifdef HAVE_IPV6
 	case AF_INET6:
@@ -1179,6 +1191,9 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 			   sizeof(in6addr_any)) != 0) {
 			do_bind = true;
 		}
+		is_inet = true;
+		sa_socklen = sizeof(rbsda->u.in6);
+		do_ipv6only = true;
 		break;
 #endif
 	default:
@@ -1186,7 +1201,23 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 		return -1;
 	}
 
-	fd = socket(lbsda->u.sa.sa_family, SOCK_DGRAM, 0);
+	if (!do_bind && is_inet && rbsda) {
+		sa_fam = rbsda->u.sa.sa_family;
+		switch (sa_fam) {
+		case AF_INET:
+			sa_socklen = sizeof(rbsda->u.in);
+			do_ipv6only = false;
+			break;
+#ifdef HAVE_IPV6
+		case AF_INET6:
+			sa_socklen = sizeof(rbsda->u.in6);
+			do_ipv6only = true;
+			break;
+#endif
+		}
+	}
+
+	fd = socket(sa_fam, SOCK_DGRAM, 0);
 	if (fd < 0) {
 		return fd;
 	}
@@ -1210,6 +1241,21 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 	ZERO_STRUCTP(bsds);
 	bsds->fd = fd;
 	talloc_set_destructor(bsds, tdgram_bsd_destructor);
+
+#ifdef HAVE_IPV6
+	if (do_ipv6only) {
+		int val = 1;
+
+		ret = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY,
+				 (const void *)&val, sizeof(val));
+		if (ret == -1) {
+			int saved_errno = errno;
+			talloc_free(dgram);
+			errno = saved_errno;
+			return ret;
+		}
+	}
+#endif
 
 	if (broadcast) {
 		int val = 1;
@@ -1248,6 +1294,12 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 	}
 
 	if (rbsda) {
+		if (rbsda->u.sa.sa_family != sa_fam) {
+			talloc_free(dgram);
+			errno = EINVAL;
+			return -1;
+		}
+
 		ret = connect(fd, &rbsda->u.sa, sa_socklen);
 		if (ret == -1) {
 			int saved_errno = errno;
@@ -1938,6 +1990,9 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 	bool retry;
 	bool do_bind = false;
 	bool do_reuseaddr = false;
+	bool do_ipv6only = false;
+	bool is_inet = false;
+	int sa_fam = lbsda->u.sa.sa_family;
 	socklen_t sa_socklen = sizeof(rbsda->u.ss);
 
 	req = tevent_req_create(mem_ctx, &state,
@@ -1973,9 +2028,11 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 			do_reuseaddr = true;
 			do_bind = true;
 		}
-		if (lbsda->u.in.sin_addr.s_addr == INADDR_ANY) {
+		if (lbsda->u.in.sin_addr.s_addr != INADDR_ANY) {
 			do_bind = true;
 		}
+		is_inet = true;
+		sa_socklen = sizeof(rbsda->u.in);
 		break;
 #ifdef HAVE_IPV6
 	case AF_INET6:
@@ -1988,6 +2045,9 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 			   sizeof(in6addr_any)) != 0) {
 			do_bind = true;
 		}
+		is_inet = true;
+		sa_socklen = sizeof(rbsda->u.in6);
+		do_ipv6only = true;
 		break;
 #endif
 	default:
@@ -1995,7 +2055,23 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 		goto post;
 	}
 
-	state->fd = socket(lbsda->u.sa.sa_family, SOCK_STREAM, 0);
+	if (!do_bind && is_inet) {
+		sa_fam = rbsda->u.sa.sa_family;
+		switch (sa_fam) {
+		case AF_INET:
+			sa_socklen = sizeof(rbsda->u.in);
+			do_ipv6only = false;
+			break;
+#ifdef HAVE_IPV6
+		case AF_INET6:
+			sa_socklen = sizeof(rbsda->u.in6);
+			do_ipv6only = true;
+			break;
+#endif
+		}
+	}
+
+	state->fd = socket(sa_fam, SOCK_STREAM, 0);
 	if (state->fd == -1) {
 		tevent_req_error(req, errno);
 		goto post;
@@ -2006,6 +2082,19 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 		tevent_req_error(req, errno);
 		goto post;
 	}
+
+#ifdef HAVE_IPV6
+	if (do_ipv6only) {
+		int val = 1;
+
+		ret = setsockopt(state->fd, IPPROTO_IPV6, IPV6_V6ONLY,
+				 (const void *)&val, sizeof(val));
+		if (ret == -1) {
+			tevent_req_error(req, errno);
+			goto post;
+		}
+	}
+#endif
 
 	if (do_reuseaddr) {
 		int val = 1;
@@ -2019,11 +2108,16 @@ static struct tevent_req * tstream_bsd_connect_send(TALLOC_CTX *mem_ctx,
 	}
 
 	if (do_bind) {
-		ret = bind(state->fd, &lbsda->u.sa, sizeof(lbsda->u.ss));
+		ret = bind(state->fd, &lbsda->u.sa, sa_socklen);
 		if (ret == -1) {
 			tevent_req_error(req, errno);
 			goto post;
 		}
+	}
+
+	if (rbsda->u.sa.sa_family != sa_fam) {
+		tevent_req_error(req, EINVAL);
+		goto post;
 	}
 
 	ret = connect(state->fd, &rbsda->u.sa, sa_socklen);

@@ -1085,6 +1085,9 @@
 /* Define to 1 if you have the `krb5_free_error_contents' function. */
 #undef HAVE_KRB5_FREE_ERROR_CONTENTS
 
+/* Define to 1 if you have the `krb5_free_host_realm' function. */
+#undef HAVE_KRB5_FREE_HOST_REALM
+
 /* Define to 1 if you have the `krb5_free_keytab_entry_contents' function. */
 #undef HAVE_KRB5_FREE_KEYTAB_ENTRY_CONTENTS
 
@@ -1109,6 +1112,9 @@
 
 /* Define to 1 if you have the `krb5_get_default_in_tkt_etypes' function. */
 #undef HAVE_KRB5_GET_DEFAULT_IN_TKT_ETYPES
+
+/* Define to 1 if you have the `krb5_get_host_realm' function. */
+#undef HAVE_KRB5_GET_HOST_REALM
 
 /* Define to 1 if you have the `krb5_get_init_creds_opt_alloc' function. */
 #undef HAVE_KRB5_GET_INIT_CREDS_OPT_ALLOC
@@ -1201,6 +1207,9 @@
 
 /* Define to 1 if you have the `krb5_princ_size' function. */
 #undef HAVE_KRB5_PRINC_SIZE
+
+/* Whether the type krb5_realm exists */
+#undef HAVE_KRB5_REALM_TYPE
 
 /* Whether the krb5_creds struct has a session property */
 #undef HAVE_KRB5_SESSION_IN_CREDS
@@ -1720,9 +1729,6 @@
 
 /* Define to 1 if you have the `printf' function. */
 #undef HAVE_PRINTF
-
-/* whether pthread exists */
-#undef HAVE_PTHREAD
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H

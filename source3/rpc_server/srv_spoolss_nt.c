@@ -4836,6 +4836,8 @@ static WERROR fill_printer_driver_info8(TALLOC_CTX *mem_ctx,
 
 	return WERR_OK;
 }
+
+#if 0 /* disabled until marshalling issues are resolved - gd */
 /********************************************************************
  ********************************************************************/
 
@@ -4954,7 +4956,7 @@ static WERROR spoolss_DriverFileInfo_from_driver(TALLOC_CTX *mem_ctx,
 }
 
 /********************************************************************
- * fill a spoolss_DriverInfo101 sttruct
+ * fill a spoolss_DriverInfo101 struct
  ********************************************************************/
 
 static WERROR fill_printer_driver_info101(TALLOC_CTX *mem_ctx,
@@ -5009,7 +5011,7 @@ static WERROR fill_printer_driver_info101(TALLOC_CTX *mem_ctx,
 
 	return WERR_OK;
 }
-
+#endif
 /********************************************************************
  ********************************************************************/
 
@@ -5084,9 +5086,11 @@ static WERROR construct_printer_driver_info_level(TALLOC_CTX *mem_ctx,
 	case 8:
 		result = fill_printer_driver_info8(mem_ctx, &r->info8, driver, servername);
 		break;
+#if 0 /* disabled until marshalling issues are resolved - gd */
 	case 101:
 		result = fill_printer_driver_info101(mem_ctx, &r->info101, driver, servername);
 		break;
+#endif
 	default:
 		result = WERR_UNKNOWN_LEVEL;
 		break;
@@ -6105,6 +6109,27 @@ static WERROR fill_job_info2(TALLOC_CTX *mem_ctx,
 }
 
 /****************************************************************************
+fill_job_info3
+****************************************************************************/
+
+static WERROR fill_job_info3(TALLOC_CTX *mem_ctx,
+			     struct spoolss_JobInfo3 *r,
+			     const print_queue_struct *queue,
+			     const print_queue_struct *next_queue,
+			     int position, int snum,
+			     const NT_PRINTER_INFO_LEVEL *ntprinter)
+{
+	r->job_id		= queue->job;
+	r->next_job_id		= 0;
+	if (next_queue) {
+		r->next_job_id	= next_queue->job;
+	}
+	r->reserved		= 0;
+
+	return WERR_OK;
+}
+
+/****************************************************************************
  Enumjobs at level 1.
 ****************************************************************************/
 
@@ -6202,6 +6227,57 @@ static WERROR enumjobs_level2(TALLOC_CTX *mem_ctx,
 	return WERR_OK;
 }
 
+/****************************************************************************
+ Enumjobs at level 3.
+****************************************************************************/
+
+static WERROR enumjobs_level3(TALLOC_CTX *mem_ctx,
+			      const print_queue_struct *queue,
+			      uint32_t num_queues, int snum,
+                              const NT_PRINTER_INFO_LEVEL *ntprinter,
+			      union spoolss_JobInfo **info_p,
+			      uint32_t *count)
+{
+	union spoolss_JobInfo *info;
+	int i;
+	WERROR result = WERR_OK;
+
+	info = TALLOC_ARRAY(mem_ctx, union spoolss_JobInfo, num_queues);
+	W_ERROR_HAVE_NO_MEMORY(info);
+
+	*count = num_queues;
+
+	for (i=0; i<*count; i++) {
+		const print_queue_struct *next_queue = NULL;
+
+		if (i+1 < *count) {
+			next_queue = &queue[i+1];
+		}
+
+		result = fill_job_info3(info,
+					&info[i].info3,
+					&queue[i],
+					next_queue,
+					i,
+					snum,
+					ntprinter);
+		if (!W_ERROR_IS_OK(result)) {
+			goto out;
+		}
+	}
+
+ out:
+	if (!W_ERROR_IS_OK(result)) {
+		TALLOC_FREE(info);
+		*count = 0;
+		return result;
+	}
+
+	*info_p = info;
+
+	return WERR_OK;
+}
+
 /****************************************************************
  _spoolss_EnumJobs
 ****************************************************************/
@@ -6256,6 +6332,10 @@ WERROR _spoolss_EnumJobs(pipes_struct *p,
 		break;
 	case 2:
 		result = enumjobs_level2(p->mem_ctx, queue, count, snum,
+					 ntprinter, r->out.info, r->out.count);
+		break;
+	case 3:
+		result = enumjobs_level3(p->mem_ctx, queue, count, snum,
 					 ntprinter, r->out.info, r->out.count);
 		break;
 	default:
@@ -7628,8 +7708,15 @@ WERROR _spoolss_EnumPrinterData(pipes_struct *p,
 
 		/* data - counted in bytes */
 
-		if (r->out.data && regval_size(val)) {
-			memcpy(r->out.data, regval_data_p(val), regval_size(val));
+		/*
+		 * See the section "Dynamically Typed Query Parameters"
+		 * in MS-RPRN.
+		 */
+
+		if (r->out.data && regval_data_p(val) &&
+				regval_size(val) && r->in.data_offered) {
+			memcpy(r->out.data, regval_data_p(val),
+				MIN(regval_size(val),r->in.data_offered));
 		}
 
 		*r->out.data_needed = regval_size(val);
@@ -9442,7 +9529,10 @@ WERROR _spoolss_XcvData(pipes_struct *p,
 
 	*r->out.status_code = 0;
 
-	memcpy(r->out.out_data, out_data.data, out_data.length);
+	if (r->out.out_data && out_data.data && r->in.out_data_size && out_data.length) {
+		memcpy(r->out.out_data, out_data.data,
+			MIN(r->in.out_data_size, out_data.length));
+	}
 
 	return WERR_OK;
 }

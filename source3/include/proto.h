@@ -1797,6 +1797,8 @@ char* kerberos_standard_des_salt( void );
 bool kerberos_secrets_store_des_salt( const char* salt );
 char* kerberos_secrets_fetch_des_salt( void );
 char *kerberos_get_default_realm_from_ccache( void );
+char *kerberos_get_realm_from_hostname(const char *hostname);
+
 bool kerberos_secrets_store_salting_principal(const char *service,
 					      int enctype,
 					      const char *principal);
@@ -3945,6 +3947,7 @@ const char *lp_logon_drive(void);
 const char *lp_logon_home(void);
 char *lp_remote_announce(void);
 char *lp_remote_browse_sync(void);
+bool lp_nmbd_bind_explicit_broadcast(void);
 const char **lp_wins_server_list(void);
 const char **lp_interfaces(void);
 const char *lp_socket_address(void);
@@ -4374,6 +4377,7 @@ void lp_set_posix_default_cifsx_readwrite_locktype(enum brl_flavour val);
 int lp_min_receive_file_size(void);
 char* lp_perfcount_module(void);
 void lp_set_passdb_backend(const char *backend);
+void widelinks_warning(int snum);
 
 /* The following definitions come from param/util.c  */
 

@@ -60,7 +60,8 @@ bool set_conn_connectpath(connection_struct *conn, const char *connectpath)
 		return false;
 	}
 
-	destname = SMB_STRDUP(connectpath);
+	/* Allocate for strlen + '\0' + possible leading '/' */
+	destname = SMB_MALLOC(strlen(connectpath) + 2);
 	if (!destname) {
 		return false;
 	}
@@ -648,7 +649,6 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	fstring dev;
 	int ret;
 	char addr[INET6_ADDRSTRLEN];
-	bool on_err_call_dis_hook = false;
 	NTSTATUS status;
 
 	fstrcpy(dev, pdev);
@@ -849,25 +849,6 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		return NULL;
 	}
 
-	/*
-	 * If widelinks are disallowed we need to canonicalise the connect
-	 * path here to ensure we don't have any symlinks in the
-	 * connectpath. We will be checking all paths on this connection are
-	 * below this directory. We must do this after the VFS init as we
-	 * depend on the realpath() pointer in the vfs table. JRA.
-	 */
-	if (!lp_widelinks(snum)) {
-		if (!canonicalize_connect_path(conn)) {
-			DEBUG(0, ("canonicalize_connect_path failed "
-			"for service %s, path %s\n",
-				lp_servicename(snum),
-				conn->connectpath));
-			conn_free(conn);
-			*pstatus = NT_STATUS_BAD_NETWORK_NAME;
-			return NULL;
-		}
-	}
-
 	if ((!conn->printer) && (!conn->ipc)) {
 		conn->notify_ctx = notify_init(conn, server_id_self(),
 					       smbd_messaging_context(),
@@ -875,7 +856,11 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 					       conn);
 	}
 
-/* ROOT Activities: */	
+/* ROOT Activities: */
+	/* explicitly check widelinks here so that we can correctly warn
+	 * in the logs. */
+	widelinks_warning(snum);
+
 	/*
 	 * Enforce the max connections parameter.
 	 */
@@ -901,6 +886,30 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		return NULL;
 	}  
 
+	/* Invoke VFS make connection hook - must be the first
+	   VFS operation we do. */
+
+	if (SMB_VFS_CONNECT(conn, lp_servicename(snum),
+			    conn->server_info->unix_name) < 0) {
+		DEBUG(0,("make_connection: VFS make connection failed!\n"));
+		yield_connection(conn, lp_servicename(snum));
+		conn_free(conn);
+		*pstatus = NT_STATUS_UNSUCCESSFUL;
+		return NULL;
+	}
+
+	/*
+	 * Fix compatibility issue pointed out by Volker.
+	 * We pass the conn->connectpath to the preexec
+	 * scripts as a parameter, so attempt to canonicalize
+	 * it here before calling the preexec scripts.
+	 * We ignore errors here, as it is possible that
+	 * the conn->connectpath doesn't exist yet and
+	 * the preexec scripts will create them.
+	 */
+
+	(void)canonicalize_connect_path(conn);
+
 	/* Preexecs are done here as they might make the dir we are to ChDir
 	 * to below */
 	/* execute any "root preexec = " line */
@@ -919,6 +928,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		if (ret != 0 && lp_rootpreexec_close(snum)) {
 			DEBUG(1,("root preexec gave %d - failing "
 				 "connection\n", ret));
+			SMB_VFS_DISCONNECT(conn);
 			yield_connection(conn, lp_servicename(snum));
 			conn_free(conn);
 			*pstatus = NT_STATUS_ACCESS_DENIED;
@@ -930,6 +940,7 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 	if (!change_to_user(conn, conn->vuid)) {
 		/* No point continuing if they fail the basic checks */
 		DEBUG(0,("Can't become connected user!\n"));
+		SMB_VFS_DISCONNECT(conn);
 		yield_connection(conn, lp_servicename(snum));
 		conn_free(conn);
 		*pstatus = NT_STATUS_LOGON_FAILURE;
@@ -962,6 +973,24 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 		}
 	}
 
+	/*
+	 * If widelinks are disallowed we need to canonicalise the connect
+	 * path here to ensure we don't have any symlinks in the
+	 * connectpath. We will be checking all paths on this connection are
+	 * below this directory. We must do this after the VFS init as we
+	 * depend on the realpath() pointer in the vfs table. JRA.
+	 */
+	if (!lp_widelinks(snum)) {
+		if (!canonicalize_connect_path(conn)) {
+			DEBUG(0, ("canonicalize_connect_path failed "
+			"for service %s, path %s\n",
+				lp_servicename(snum),
+				conn->connectpath));
+			*pstatus = NT_STATUS_BAD_NETWORK_NAME;
+			goto err_root_exit;
+		}
+	}
+
 #ifdef WITH_FAKE_KASERVER
 	if (lp_afs_share(snum)) {
 		afs_login(conn);
@@ -977,19 +1006,6 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
 				lp_aio_write_behind(snum));
 	}
 	
-	/* Invoke VFS make connection hook - do this before the VFS_STAT call
-	   to allow any filesystems needing user credentials to initialize
-	   themselves. */
-
-	if (SMB_VFS_CONNECT(conn, lp_servicename(snum),
-			    conn->server_info->unix_name) < 0) {
-		DEBUG(0,("make_connection: VFS make connection failed!\n"));
-		*pstatus = NT_STATUS_UNSUCCESSFUL;
-		goto err_root_exit;
-	}
-
-	/* Any error exit after here needs to call the disconnect hook. */
-	on_err_call_dis_hook = true;
 
 	/* win2000 does not check the permissions on the directory
 	   during the tree connect, instead relying on permission
@@ -1062,10 +1078,8 @@ static connection_struct *make_connection_snum(int snum, user_struct *vuser,
   err_root_exit:
 
 	change_to_root_user();
-	if (on_err_call_dis_hook) {
-		/* Call VFS disconnect hook */
-		SMB_VFS_DISCONNECT(conn);
-	}
+	/* Call VFS disconnect hook */
+	SMB_VFS_DISCONNECT(conn);
 	yield_connection(conn, lp_servicename(snum));
 	conn_free(conn);
 	return NULL;

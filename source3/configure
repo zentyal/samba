@@ -962,7 +962,7 @@ with_lockdir
 with_statedir
 with_cachedir
 with_piddir
-with_ncalprcdir
+with_ncalrpcdir
 with_swatdir
 with_configdir
 with_logfilebase
@@ -1725,7 +1725,7 @@ Optional Packages:
                           ($ac_default_prefix/var/locks)
   --with-piddir=DIR       Where to put pid files
                           ($ac_default_prefix/var/locks)
-  --with-ncalprcdir=DIR   Where to put ncalrpc sockets
+  --with-ncalrpcdir=DIR   Where to put ncalrpc sockets
                           ($ac_default_prefix/var/ncalrpc)
   --with-swatdir=DIR      Where to put SWAT files ($ac_default_prefix/swat)
   --with-configdir=DIR    Where to put configuration files ($libdir)
@@ -2682,9 +2682,9 @@ fi
 #################################################
 # set ncalrpc directory location
 
-# Check whether --with-ncalprcdir was given.
-if test "${with_ncalprcdir+set}" = set; then
-  withval=$with_ncalprcdir;  case "$withval" in
+# Check whether --with-ncalrpcdir was given.
+if test "${with_ncalrpcdir+set}" = set; then
+  withval=$with_ncalrpcdir;  case "$withval" in
   yes|no)
   #
   # Just in case anybody calls it without argument
@@ -45773,13 +45773,7 @@ case "$host_os" in
     *linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
        # glibc <= 2.3.2 has a broken getgrouplist
        if test "$cross_compiling" = yes; then
-  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-{ { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&5
-$as_echo "$as_me: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&2;}
-   { (exit 1); exit 1; }; }; }
+  linux_getgrouplist_ok=cross
 else
   cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */

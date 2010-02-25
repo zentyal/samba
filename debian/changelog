@@ -1,3 +1,9 @@
+samba (2:3.4.6~dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 25 Feb 2010 23:00:56 +0100
+
 samba (2:3.4.5~dfsg-2) unstable; urgency=low
 
   [ Steve langasek ]

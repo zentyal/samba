@@ -247,11 +247,9 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 	        p = param;
 		SIVAL(p,0,func); /* api number */
 	        p += 2;
-	        /* Next time through we need to use the continue api */
-	        func = RAP_NetServerEnum3;
 
-		if (last_entry) {
-			strlcpy(p,"WrLehDOz", sizeof(param)-PTR_DIFF(p,param));
+		if (func == RAP_NetServerEnum3) {
+			strlcpy(p,"WrLehDzz", sizeof(param)-PTR_DIFF(p,param));
 		} else {
 			strlcpy(p,"WrLehDz", sizeof(param)-PTR_DIFF(p,param));
 		}
@@ -270,7 +268,7 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 		 * to continue from.
 		 */
 		len = push_ascii(p,
-				last_entry ? last_entry : workgroup,
+				workgroup,
 				sizeof(param) - PTR_DIFF(p,param) - 1,
 				STR_TERMINATE|STR_UPPER);
 
@@ -279,6 +277,22 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 			return false;
 		}
 		p += len;
+
+		if (func == RAP_NetServerEnum3) {
+			len = push_ascii(p,
+					last_entry ? last_entry : "",
+					sizeof(param) - PTR_DIFF(p,param) - 1,
+					STR_TERMINATE);
+
+			if (len == (size_t)-1) {
+				SAFE_FREE(last_entry);
+				return false;
+			}
+			p += len;
+		}
+
+		/* Next time through we need to use the continue api */
+		func = RAP_NetServerEnum3;
 
 		if (!cli_api(cli,
 			param, PTR_DIFF(p,param), 8, /* params, length, max */
@@ -341,6 +355,7 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 				const char *p1;
 				char *s1, *s2;
 				TALLOC_CTX *frame = talloc_stackframe();
+				uint32_t entry_stype;
 
 				if (p + 26 > rdata_end) {
 					TALLOC_FREE(frame);
@@ -351,7 +366,7 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 				comment_offset = (IVAL(p,22) & 0xFFFF)-converter;
 				cmnt = comment_offset?(rdata+comment_offset):"";
 
-				if (comment_offset < 0 || comment_offset > (int)rdrcnt) {
+				if (comment_offset < 0 || comment_offset >= (int)rdrcnt) {
 					TALLOC_FREE(frame);
 					continue;
 				}
@@ -364,7 +379,7 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 					len++;
 				}
 
-				stype = IVAL(p,18) & ~SV_TYPE_LOCAL_LIST_ONLY;
+				entry_stype = IVAL(p,18) & ~SV_TYPE_LOCAL_LIST_ONLY;
 
 				pull_string_talloc(frame,rdata,0,
 					&s1,sname,16,STR_ASCII);
@@ -376,7 +391,7 @@ bool cli_NetServerEnum(struct cli_state *cli, char *workgroup, uint32 stype,
 					continue;
 				}
 
-				fn(s1, stype, s2, state);
+				fn(s1, entry_stype, s2, state);
 				TALLOC_FREE(frame);
 			}
 

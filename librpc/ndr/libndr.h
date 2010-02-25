@@ -85,10 +85,12 @@ struct ndr_push {
 	uint32_t offset;
 
 	uint32_t relative_base_offset;
+	uint32_t relative_end_offset;
 	struct ndr_token_list *relative_base_list;
 
 	struct ndr_token_list *switch_list;
 	struct ndr_token_list *relative_list;
+	struct ndr_token_list *relative_begin_list;
 	struct ndr_token_list *nbt_string_list;
 	struct ndr_token_list *full_ptr_list;
 
@@ -123,6 +125,11 @@ struct ndr_print {
 #define LIBNDR_FLAG_STR_UTF8		(1<<12)
 #define LIBNDR_STRING_FLAGS		(0x7FFC)
 
+/* set if relative pointers should *not* be marshalled in reverse order */
+#define LIBNDR_FLAG_NO_RELATIVE_REVERSE	(1<<18)
+
+/* set if relative pointers are marshalled in reverse order */
+#define LIBNDR_FLAG_RELATIVE_REVERSE	(1<<19)
 
 #define LIBNDR_FLAG_REF_ALLOC    (1<<20)
 #define LIBNDR_FLAG_REMAINING    (1<<21)
@@ -369,7 +376,8 @@ void ndr_push_restore_relative_base_offset(struct ndr_push *ndr, uint32_t offset
 enum ndr_err_code ndr_push_setup_relative_base_offset1(struct ndr_push *ndr, const void *p, uint32_t offset);
 enum ndr_err_code ndr_push_setup_relative_base_offset2(struct ndr_push *ndr, const void *p);
 enum ndr_err_code ndr_push_relative_ptr1(struct ndr_push *ndr, const void *p);
-enum ndr_err_code ndr_push_relative_ptr2(struct ndr_push *ndr, const void *p);
+enum ndr_err_code ndr_push_relative_ptr2_start(struct ndr_push *ndr, const void *p);
+enum ndr_err_code ndr_push_relative_ptr2_end(struct ndr_push *ndr, const void *p);
 uint32_t ndr_pull_get_relative_base_offset(struct ndr_pull *ndr);
 void ndr_pull_restore_relative_base_offset(struct ndr_pull *ndr, uint32_t offset);
 enum ndr_err_code ndr_pull_setup_relative_base_offset1(struct ndr_pull *ndr, const void *p, uint32_t offset);

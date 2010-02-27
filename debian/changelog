@@ -1,3 +1,9 @@
+samba (2:3.4.6~dfsg-2) UNRELEASED; urgency=low
+
+  * Add a PAM profile for pam_winbind.  Closes: #566890, LP: #282751.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 27 Feb 2010 14:35:48 -0800
+
 samba (2:3.4.6~dfsg-1) unstable; urgency=low
 
   * New upstream release

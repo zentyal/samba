@@ -1,11 +1,13 @@
-                   =============================
-                   Release Notes for Samba 3.5.0
-			    March 1, 2010
+                   ===============================
+                   Release Notes for Samba 3.5.0rc3
+			  February 19, 2010
                    ===============================
 
 
-This is the first stable release of Samba 3.5.
-
+This is the third release candidate of Samba 3.5.  This is *not*
+intended for production environments and is designed for testing
+purposes only.  Please report any defects via the Samba bug reporting
+system at https://bugzilla.samba.org/.
 
 Major enhancements in Samba 3.5.0 include:
 
@@ -125,24 +127,6 @@ o   Volker Lendecke <vl@samba.org>
 
 o   Stefan Metzmacher <metze@samba.org>
     * Implement the new SMB2 protocol (experimental).
-
-
-Changes since 3.5.0rc3
-----------------------
-
-
-o   Günther Deschner <gd@samba.org>
-    * BUG 7181: Fix 'net ads dns' usage calls.
-    * BUG 7182: Fix uninitialized variable in wkssvc_enumerateusers.
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 7145: Fix duplicate sam and unix accounts.
-    * BUG 7166: Avoid calling cli_alloc_mid twice in cli_smb_req_iov_send.
-
-
-o   Stefan Metzmacher <metze@samba.org>
-    * BUG 7160: Keep the the correct negotiate_flags on the cli->dc structure.
 
 
 Changes since 3.5.0rc2

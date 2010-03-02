@@ -59,11 +59,6 @@ struct tevent_req *wb_next_grent_send(TALLOC_CTX *mem_ctx,
 			state->gstate->domain = state->gstate->domain->next;
 		}
 
-		if ((state->gstate->domain != NULL)
-		    && sid_check_is_domain(&state->gstate->domain->sid)) {
-			state->gstate->domain = state->gstate->domain->next;
-		}
-
 		if (state->gstate->domain == NULL) {
 			tevent_req_nterror(req, NT_STATUS_NO_MORE_ENTRIES);
 			return tevent_req_post(req, ev);
@@ -114,12 +109,6 @@ static void wb_next_grent_fetch_done(struct tevent_req *subreq)
 
 	if (state->gstate->num_groups == 0) {
 		state->gstate->domain = state->gstate->domain->next;
-
-		if ((state->gstate->domain != NULL)
-		    && sid_check_is_domain(&state->gstate->domain->sid)) {
-			state->gstate->domain = state->gstate->domain->next;
-		}
-
 		if (state->gstate->domain == NULL) {
 			tevent_req_nterror(req, NT_STATUS_NO_MORE_ENTRIES);
 			return;

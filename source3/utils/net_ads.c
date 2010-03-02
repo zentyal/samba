@@ -1432,11 +1432,9 @@ static int net_ads_dns_register(struct net_context *c, int argc, const char **ar
 #endif
 
 	if (argc > 0 || c->display_usage) {
-		d_printf(  "%s\n"
+		d_printf(_("Usage:\n"),
 			   "net ads dns register\n"
-			   "    %s\n",
-			 _("Usage:"),
-			 _("Register hostname with DNS\n"));
+			   "    ", _("Register hostname with DNS\n"));
 		return -1;
 	}
 
@@ -1486,10 +1484,7 @@ static int net_ads_dns_gethostbyname(struct net_context *c, int argc, const char
 #endif
 
 	if (argc != 2 || c->display_usage) {
-		d_printf(  "%s\n"
-			   "    %s\n"
-			   "    %s\n",
-			 _("Usage:"),
+		d_printf(_("Usage:\n"),
 			 _("net ads dns gethostbyname <server> <name>\n"),
 			 _("  Look up hostname from the AD\n"
 			   "    server\tName server to use\n"

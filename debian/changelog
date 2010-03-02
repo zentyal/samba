@@ -1,3 +1,9 @@
+samba (2:3.5.0~dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 02 Mar 2010 21:58:08 +0100
+
 samba (2:3.5.0~rc3~dfsg-1) experimental; urgency=low
 
   * New upstream release candidate

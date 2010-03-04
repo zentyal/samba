@@ -1,6 +1,7 @@
-samba (2:3.5.0~dfsg-1) experimental; urgency=low
+samba (2:3.5.0dfsg-1) experimental; urgency=low
 
-  * New upstream release
+  * New upstream release. Not using "3.5.0~dfsg" as version number
+    because we used a "higher" version number in previous versions.
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 02 Mar 2010 22:03:15 +0100
 

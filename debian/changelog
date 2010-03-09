@@ -1,4 +1,4 @@
-samba (2:3.4.7~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.4.7~dfsg-1) unstable; urgency=low
 
   [ Steve Langasek ]
   * Add a PAM profile for pam_winbind.  Closes: #566890, LP: #282751.
@@ -11,7 +11,7 @@ samba (2:3.4.7~dfsg-1) UNRELEASED; urgency=low
     CAP_DAC_OVERRIDE capabilities, allowing all file system access to be
     allowed even when permissions should have denied access.
 
- -- Steve Langasek <vorlon@debian.org>  Sat, 27 Feb 2010 14:35:48 -0800
+ -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:52:24 +0100
 
 samba (2:3.4.6~dfsg-1) unstable; urgency=low
 

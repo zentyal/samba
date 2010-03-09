@@ -1,3 +1,11 @@
+samba (2:3.5.1~dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release. Security fix: all smbd processes inherited
+    CAP_DAC_OVERRIDE capabilities, allowing all file system access to be
+    allowed even when permissions should have denied access.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:53:02 +0100
+
 samba (2:3.5.0dfsg-1) experimental; urgency=low
 
   * New upstream release. Not using "3.5.0~dfsg" as version number

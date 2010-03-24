@@ -37,7 +37,7 @@ Description: SMB/CIFS file, print, and login server for Unix
  Directory realm, you will also need the winbind package.
  .
  This package is not required for connecting to existing SMB/CIFS servers
- (see smbclient) or for mounting remote filesystems (see smbfs).
+ (see smbclient) or for mounting remote filesystems (see cifs-utils).
 
 Package: samba-common-bin
 Architecture: any
@@ -81,7 +81,7 @@ Architecture: any
 Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
-Suggests: smbfs
+Suggests: cifs-utils
 Conflicts: samba4-clients
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -90,7 +90,8 @@ Description: command-line SMB/CIFS clients for Unix
  .
  This package contains command-line utilities for accessing Microsoft
  Windows and Samba servers, including smbclient, smbtar, and smbspool.
- Utilities for mounting shares locally are found in the package smbfs.
+ Utilities for mounting shares locally are found in the package
+ cifs-utils.
 
 Package: swat
 Architecture: any
@@ -133,22 +134,6 @@ Description: Samba documentation in PDF format
  Microsoft Windows, OS X, and other Unix systems.
  .
  This package contains all the PDF documentation for the Samba suite.
-
-Package: smbfs
-Section: otherosfs
-Priority: optional
-Architecture: any
-Depends: netbase (>= 2.02), samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
-Suggests: smbclient
-Replaces: smbfsx
-Description: Samba file system utilities
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.
- .
- This package provides utilities for mounting and unmounting cifs network
- file systems. Other command-line utilities such as smbclient, smbtar
- and smbspool are in the package smbclient.
 
 Package: libpam-smbpass
 Section: admin

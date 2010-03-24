@@ -66,16 +66,12 @@ conf_args = \
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
 		--with-ctdb --with-cluster-support=yes \
-		--with-cifsmount \
-		--with-cifsupcall \
 		--with-acl-support \
-		--with-quotas
-  mount_cifs	= yes
-  smbfs		= yes
-else
+		--with-quotas \
+		--without-cifsmount \
+		--without-cifsupcall          
+	  else
   conf_args +=	--without-quotas --without-cifsmount
-  mount_cifs	= no
-  smbfs		= no
 endif
 
 ifeq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
@@ -113,17 +109,13 @@ clean:
 	[ ! -f source3/Makefile ] || $(MAKE) -C source3 distclean
 
 	# Delete stuff left after a build that is not deleted by 'make clean'
-	rm -f source3/bin/cifs.upcall source3/pkgconfig/*.pc \
+	rm -f source3/pkgconfig/*.pc \
 	      source3/exports/libsmbclient.syms \
 	      source3/exports/libsmbsharemodes.syms
 
 	debconf-updatepo
 
 	dh_clean
-
-ifeq ($(smbfs),no)
-  DH_EXTRAS=-Nsmbfs
-endif
 
 install: DH_OPTIONS=$(DH_EXTRAS)
 install: build
@@ -175,10 +167,6 @@ install: build
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
-
-ifeq ($(mount_cifs),yes)
-	install -m 0755 debian/mount.smbfs $(DESTDIR)/sbin/mount.smbfs
-endif
 
 	# For CUPS to support printing to samba printers, it's necessary
 	#	to make the following symlink (according to

@@ -28,7 +28,6 @@ smbclient:	A LanManager like simple client for Unix.
 swat:		Samba Web Administration Tool
 samba-doc:	Samba documentation.
 samba-doc-pdf:	Samba documentation (PDF format).
-smbfs:		Mount and umount commands for cifs (smbfs is removed)
 samba-tools:	Tools provided by the Samba suite
 libpam-smbpass:	pluggable authentication module for SMB password database.
 libsmbclient:	Shared library that allows applications to talk to SMB servers.

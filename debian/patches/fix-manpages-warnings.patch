@@ -2,34 +2,6 @@ Description: Fix warnings in manpages
  Lintian report non-existing macros in manpages.
 Author: Christian Perrier <bubulle@debian.org>
 
-Index: b/docs/manpages/cifs.upcall.8
-===================================================================
---- a/docs/manpages/cifs.upcall.8	2009-11-08 15:54:26.000000000 +0100
-+++ b/docs/manpages/cifs.upcall.8	2009-11-08 15:55:36.000000000 +0100
-@@ -33,7 +33,6 @@
- .\" SH - level-one heading that works better for non-TTY output
- .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- .de1 SH
--.\" put an extra blank line of space above the head in non-TTY output
- .if t \{\
- .sp 1
- .\}
-@@ -48,7 +47,6 @@
- .it 1 an-trap
- .nr an-no-space-flag 1
- .nr an-break-flag 1
--\." make the size of the head bigger
- .ps +3
- .ft B
- .ne (2v + 1u)
-@@ -82,7 +80,6 @@
- .nr an-no-space-flag 1
- .nr an-break-flag 1
- .ps \\n[PS-SS]u
--\." make the size of the head bigger
- .ps +2
- .ft B
- .ne (2v + 1u)
 Index: b/docs/manpages/eventlogadm.8
 ===================================================================
 --- a/docs/manpages/eventlogadm.8	2009-11-08 15:54:26.000000000 +0100
@@ -538,34 +510,6 @@ Index: b/docs/manpages/log2pcap.1
 ===================================================================
 --- a/docs/manpages/log2pcap.1	2009-11-08 15:54:26.000000000 +0100
 +++ b/docs/manpages/log2pcap.1	2009-11-08 15:55:36.000000000 +0100
-@@ -33,7 +33,6 @@
- .\" SH - level-one heading that works better for non-TTY output
- .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- .de1 SH
--.\" put an extra blank line of space above the head in non-TTY output
- .if t \{\
- .sp 1
- .\}
-@@ -48,7 +47,6 @@
- .it 1 an-trap
- .nr an-no-space-flag 1
- .nr an-break-flag 1
--\." make the size of the head bigger
- .ps +3
- .ft B
- .ne (2v + 1u)
-@@ -82,7 +80,6 @@
- .nr an-no-space-flag 1
- .nr an-break-flag 1
- .ps \\n[PS-SS]u
--\." make the size of the head bigger
- .ps +2
- .ft B
- .ne (2v + 1u)
-Index: b/docs/manpages/mount.cifs.8
-===================================================================
---- a/docs/manpages/mount.cifs.8	2009-11-08 15:54:27.000000000 +0100
-+++ b/docs/manpages/mount.cifs.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1350,34 +1294,6 @@ Index: b/docs/manpages/testparm.1
 ===================================================================
 --- a/docs/manpages/testparm.1	2009-11-08 15:54:26.000000000 +0100
 +++ b/docs/manpages/testparm.1	2009-11-08 15:55:36.000000000 +0100
-@@ -33,7 +33,6 @@
- .\" SH - level-one heading that works better for non-TTY output
- .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- .de1 SH
--.\" put an extra blank line of space above the head in non-TTY output
- .if t \{\
- .sp 1
- .\}
-@@ -48,7 +47,6 @@
- .it 1 an-trap
- .nr an-no-space-flag 1
- .nr an-break-flag 1
--\." make the size of the head bigger
- .ps +3
- .ft B
- .ne (2v + 1u)
-@@ -82,7 +80,6 @@
- .nr an-no-space-flag 1
- .nr an-break-flag 1
- .ps \\n[PS-SS]u
--\." make the size of the head bigger
- .ps +2
- .ft B
- .ne (2v + 1u)
-Index: b/docs/manpages/umount.cifs.8
-===================================================================
---- a/docs/manpages/umount.cifs.8	2009-11-08 15:54:26.000000000 +0100
-+++ b/docs/manpages/umount.cifs.8	2009-11-08 15:55:36.000000000 +0100
 @@ -33,7 +33,6 @@
  .\" SH - level-one heading that works better for non-TTY output
  .\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

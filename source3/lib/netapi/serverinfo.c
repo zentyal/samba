@@ -24,6 +24,7 @@
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
 #include "libnet/libnet.h"
+#include "../librpc/gen_ndr/cli_srvsvc.h"
 
 /****************************************************************
 ****************************************************************/
@@ -77,7 +78,7 @@ WERROR NetServerGetInfo_l(struct libnetapi_ctx *ctx,
 		case 1005:
 			return NetServerGetInfo_l_1005(ctx, r->out.buffer);
 		default:
-			return WERR_UNKNOWN_LEVEL;
+			break;
 	}
 
 	return WERR_UNKNOWN_LEVEL;
@@ -580,7 +581,7 @@ WERROR NetServerSetInfo_l(struct libnetapi_ctx *ctx,
 		case 1005:
 			return NetServerSetInfo_l_1005(ctx, r);
 		default:
-			return WERR_UNKNOWN_LEVEL;
+			break;
 	}
 
 	return WERR_UNKNOWN_LEVEL;

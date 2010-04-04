@@ -76,9 +76,6 @@ bool saf_store( const char *domain, const char *servername )
 		return False;
 	}
 
-	if ( !gencache_init() )
-		return False;
-
 	key = saf_key( domain );
 	expire = time( NULL ) + lp_parm_int(-1, "saf","ttl", SAF_TTL);
 
@@ -108,9 +105,6 @@ bool saf_join_store( const char *domain, const char *servername )
 		return False;
 	}
 
-	if ( !gencache_init() )
-		return False;
-
 	key = saf_join_key( domain );
 	expire = time( NULL ) + lp_parm_int(-1, "saf","join ttl", SAFJOIN_TTL);
 
@@ -133,9 +127,6 @@ bool saf_delete( const char *domain )
 		DEBUG(2,("saf_delete: Refusing to delete empty domain\n"));
 		return False;
 	}
-
-	if ( !gencache_init() )
-		return False;
 
 	key = saf_join_key(domain);
 	ret = gencache_del(key);
@@ -170,9 +161,6 @@ char *saf_fetch( const char *domain )
 		DEBUG(2,("saf_fetch: Empty domain name!\n"));
 		return NULL;
 	}
-
-	if ( !gencache_init() )
-		return False;
 
 	key = saf_join_key( domain );
 
@@ -301,7 +289,8 @@ NODE_STATUS_STRUCT *node_status_query(int fd,
 
 	p.ip = ((const struct sockaddr_in *)to_ss)->sin_addr;
 	p.port = NMB_PORT;
-	p.fd = fd;
+	p.recv_fd = -1;
+	p.send_fd = fd;
 	p.timestamp = time(NULL);
 	p.packet_type = NMB_PACKET;
 
@@ -451,12 +440,12 @@ static int addr_compare(const struct sockaddr *ss1,
 	int num_interfaces = iface_count();
 	int i;
 
-	/* Sort IPv6 addresses first. */
+	/* Sort IPv4 addresses first. */
 	if (ss1->sa_family != ss2->sa_family) {
 		if (ss2->sa_family == AF_INET) {
-			return -1;
-		} else {
 			return 1;
+		} else {
+			return -1;
 		}
 	}
 
@@ -613,6 +602,38 @@ static int remove_duplicate_addrs2(struct ip_service *iplist, int count )
 	return count;
 }
 
+static bool prioritize_ipv4_list(struct ip_service *iplist, int count)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct ip_service *iplist_new = TALLOC_ARRAY(frame, struct ip_service, count);
+	int i, j;
+
+	if (iplist_new == NULL) {
+		TALLOC_FREE(frame);
+		return false;
+	}
+
+	j = 0;
+
+	/* Copy IPv4 first. */
+	for (i = 0; i < count; i++) {
+		if (iplist[i].ss.ss_family == AF_INET) {
+			iplist_new[j++] = iplist[i];
+		}
+	}
+
+	/* Copy IPv6. */
+	for (i = 0; i < count; i++) {
+		if (iplist[i].ss.ss_family != AF_INET) {
+			iplist_new[j++] = iplist[i];
+		}
+	}
+
+	memcpy(iplist, iplist_new, sizeof(struct ip_service)*count);
+	TALLOC_FREE(frame);
+	return true;
+}
+
 /****************************************************************************
  Do a netbios name query to find someones IP.
  Returns an array of IP addresses or NULL if none.
@@ -678,7 +699,8 @@ struct sockaddr_storage *name_query(int fd,
 
 	p.ip = ((struct sockaddr_in *)to_ss)->sin_addr;
 	p.port = NMB_PORT;
-	p.fd = fd;
+	p.recv_fd = -1;
+	p.send_fd = fd;
 	p.timestamp = time(NULL);
 	p.packet_type = NMB_PACKET;
 
@@ -824,134 +846,6 @@ struct sockaddr_storage *name_query(int fd,
 	sort_addr_list(ss_list, *count);
 
 	return ss_list;
-}
-
-/********************************************************
- Start parsing the lmhosts file.
-*********************************************************/
-
-XFILE *startlmhosts(const char *fname)
-{
-	XFILE *fp = x_fopen(fname,O_RDONLY, 0);
-	if (!fp) {
-		DEBUG(4,("startlmhosts: Can't open lmhosts file %s. "
-			"Error was %s\n",
-			fname, strerror(errno)));
-		return NULL;
-	}
-	return fp;
-}
-
-/********************************************************
- Parse the next line in the lmhosts file.
-*********************************************************/
-
-bool getlmhostsent(TALLOC_CTX *ctx, XFILE *fp, char **pp_name, int *name_type,
-		struct sockaddr_storage *pss)
-{
-	char line[1024];
-
-	*pp_name = NULL;
-
-	while(!x_feof(fp) && !x_ferror(fp)) {
-		char *ip = NULL;
-		char *flags = NULL;
-		char *extra = NULL;
-		char *name = NULL;
-		const char *ptr;
-		char *ptr1 = NULL;
-		int count = 0;
-
-		*name_type = -1;
-
-		if (!fgets_slash(line,sizeof(line),fp)) {
-			continue;
-		}
-
-		if (*line == '#') {
-			continue;
-		}
-
-		ptr = line;
-
-		if (next_token_talloc(ctx, &ptr, &ip, NULL))
-			++count;
-		if (next_token_talloc(ctx, &ptr, &name, NULL))
-			++count;
-		if (next_token_talloc(ctx, &ptr, &flags, NULL))
-			++count;
-		if (next_token_talloc(ctx, &ptr, &extra, NULL))
-			++count;
-
-		if (count <= 0)
-			continue;
-
-		if (count > 0 && count < 2) {
-			DEBUG(0,("getlmhostsent: Ill formed hosts line [%s]\n",
-						line));
-			continue;
-		}
-
-		if (count >= 4) {
-			DEBUG(0,("getlmhostsent: too many columns "
-				"in lmhosts file (obsolete syntax)\n"));
-			continue;
-		}
-
-		if (!flags) {
-			flags = talloc_strdup(ctx, "");
-			if (!flags) {
-				continue;
-			}
-		}
-
-		DEBUG(4, ("getlmhostsent: lmhost entry: %s %s %s\n",
-					ip, name, flags));
-
-		if (strchr_m(flags,'G') || strchr_m(flags,'S')) {
-			DEBUG(0,("getlmhostsent: group flag "
-				"in lmhosts ignored (obsolete)\n"));
-			continue;
-		}
-
-		if (!interpret_string_addr(pss, ip, AI_NUMERICHOST)) {
-			DEBUG(0,("getlmhostsent: invalid address "
-				"%s.\n", ip));
-		}
-
-		/* Extra feature. If the name ends in '#XX',
-		 * where XX is a hex number, then only add that name type. */
-		if((ptr1 = strchr_m(name, '#')) != NULL) {
-			char *endptr;
-      			ptr1++;
-
-			*name_type = (int)strtol(ptr1, &endptr, 16);
-			if(!*ptr1 || (endptr == ptr1)) {
-				DEBUG(0,("getlmhostsent: invalid name "
-					"%s containing '#'.\n", name));
-				continue;
-			}
-
-			*(--ptr1) = '\0'; /* Truncate at the '#' */
-		}
-
-		*pp_name = talloc_strdup(ctx, name);
-		if (!*pp_name) {
-			return false;
-		}
-		return true;
-	}
-
-	return false;
-}
-
-/********************************************************
- Finish parsing the lmhosts file.
-*********************************************************/
-
-void endlmhosts(XFILE *fp)
-{
-	x_fclose(fp);
 }
 
 /********************************************************
@@ -1676,7 +1570,8 @@ NTSTATUS internal_resolve_name(const char *name,
 
 bool resolve_name(const char *name,
 		struct sockaddr_storage *return_ss,
-		int name_type)
+		int name_type,
+		bool prefer_ipv4)
 {
 	struct ip_service *ss_list = NULL;
 	char *sitename = NULL;
@@ -1692,6 +1587,19 @@ bool resolve_name(const char *name,
 						  &ss_list, &count,
 						  lp_name_resolve_order()))) {
 		int i;
+
+		if (prefer_ipv4) {
+			for (i=0; i<count; i++) {
+				if (!is_zero_addr((struct sockaddr *)&ss_list[i].ss) &&
+						!is_broadcast_addr((struct sockaddr *)&ss_list[i].ss) &&
+						(ss_list[i].ss.ss_family == AF_INET)) {
+					*return_ss = ss_list[i].ss;
+					SAFE_FREE(ss_list);
+					SAFE_FREE(sitename);
+					return True;
+				}
+			}
+		}
 
 		/* only return valid addresses for TCP connections */
 		for (i=0; i<count; i++) {
@@ -2068,7 +1976,7 @@ static NTSTATUS get_dc_list(const char *domain,
 
 		/* explicit lookup; resolve_name() will
 		 * handle names & IP addresses */
-		if (resolve_name( name, &name_ss, 0x20 )) {
+		if (resolve_name( name, &name_ss, 0x20, true )) {
 			char addr[INET6_ADDRSTRLEN];
 			print_sockaddr(addr,
 					sizeof(addr),
@@ -2096,6 +2004,13 @@ static NTSTATUS get_dc_list(const char *domain,
 	if (local_count) {
 		local_count = remove_duplicate_addrs2(return_iplist,
 				local_count );
+	}
+
+	/* For DC's we always prioritize IPv4 due to W2K3 not
+	 * supporting LDAP, KRB5 or CLDAP over IPv6. */
+
+	if (local_count && return_iplist) {
+		prioritize_ipv4_list(return_iplist, local_count);
 	}
 
 	if ( DEBUGLEVEL >= 4 ) {

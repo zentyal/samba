@@ -21,73 +21,6 @@
 
 #include "includes.h"
 
-/*******************************************************************
- Map a text hostname or IP address (IPv4 or IPv6) into a
- struct sockaddr_storage.
-******************************************************************/
-
-bool interpret_string_addr(struct sockaddr_storage *pss,
-		const char *str,
-		int flags)
-{
-	struct addrinfo *res = NULL;
-#if defined(HAVE_IPV6)
-	char addr[INET6_ADDRSTRLEN];
-	unsigned int scope_id = 0;
-
-	if (strchr_m(str, ':')) {
-		char *p = strchr_m(str, '%');
-
-		/*
-		 * Cope with link-local.
-		 * This is IP:v6:addr%ifname.
-		 */
-
-		if (p && (p > str) && ((scope_id = if_nametoindex(p+1)) != 0)) {
-			strlcpy(addr, str,
-				MIN(PTR_DIFF(p,str)+1,
-					sizeof(addr)));
-			str = addr;
-		}
-	}
-#endif
-
-	zero_sockaddr(pss);
-
-	if (!interpret_string_addr_internal(&res, str, flags|AI_ADDRCONFIG)) {
-		return false;
-	}
-	if (!res) {
-		return false;
-	}
-	/* Copy the first sockaddr. */
-	memcpy(pss, res->ai_addr, res->ai_addrlen);
-
-#if defined(HAVE_IPV6)
-	if (pss->ss_family == AF_INET6 && scope_id) {
-		struct sockaddr_in6 *ps6 = (struct sockaddr_in6 *)pss;
-		if (IN6_IS_ADDR_LINKLOCAL(&ps6->sin6_addr) &&
-				ps6->sin6_scope_id == 0) {
-			ps6->sin6_scope_id = scope_id;
-		}
-	}
-#endif
-
-	freeaddrinfo(res);
-	return true;
-}
-
-/*******************************************************************
- Set an address to INADDR_ANY.
-******************************************************************/
-
-void zero_sockaddr(struct sockaddr_storage *pss)
-{
-	memset(pss, '\0', sizeof(*pss));
-	/* Ensure we're at least a valid sockaddr-storage. */
-	pss->ss_family = AF_INET;
-}
-
 /****************************************************************************
  Get a port number in host byte order from a sockaddr_storage.
 ****************************************************************************/
@@ -208,13 +141,11 @@ static const char *get_socket_addr(int fd, char *addr_buf, size_t addr_len)
 	return print_sockaddr_len(addr_buf, addr_len, (struct sockaddr *)&sa, length);
 }
 
-#if 0
-/* Not currently used. JRA. */
 /****************************************************************************
  Return the port number we've bound to on a socket.
 ****************************************************************************/
 
-static int get_socket_port(int fd)
+int get_socket_port(int fd)
 {
 	struct sockaddr_storage sa;
 	socklen_t length = sizeof(sa);
@@ -239,7 +170,6 @@ static int get_socket_port(int fd)
 	}
 	return -1;
 }
-#endif
 
 const char *client_name(int fd)
 {
@@ -351,6 +281,9 @@ static const smb_socket_option socket_options[] = {
 #endif
 #ifdef TCP_FASTACK
   {"TCP_FASTACK", IPPROTO_TCP, TCP_FASTACK, 0, OPT_INT},
+#endif
+#ifdef TCP_QUICKACK
+  {"TCP_QUICKACK", IPPROTO_TCP, TCP_QUICKACK, 0, OPT_BOOL},
 #endif
   {NULL,0,0,0,0}};
 
@@ -509,6 +442,7 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 	size_t nread = 0;
 	struct timeval timeout;
 	char addr[INET6_ADDRSTRLEN];
+	int save_errno;
 
 	/* just checking .... */
 	if (maxcnt <= 0)
@@ -530,19 +464,20 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 			}
 
 			if (readret == -1) {
+				save_errno = errno;
 				if (fd == get_client_fd()) {
 					/* Try and give an error message
 					 * saying what client failed. */
 					DEBUG(0,("read_fd_with_timeout: "
 						"client %s read error = %s.\n",
 						get_peer_addr(fd,addr,sizeof(addr)),
-						strerror(errno) ));
+						strerror(save_errno) ));
 				} else {
 					DEBUG(0,("read_fd_with_timeout: "
 						"read error = %s.\n",
-						strerror(errno) ));
+						strerror(save_errno) ));
 				}
-				return map_nt_error_from_unix(errno);
+				return map_nt_error_from_unix(save_errno);
 			}
 			nread += readret;
 		}
@@ -567,6 +502,7 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 
 		/* Check if error */
 		if (selrtn == -1) {
+			save_errno = errno;
 			/* something is wrong. Maybe the socket is dead? */
 			if (fd == get_client_fd()) {
 				/* Try and give an error message saying
@@ -574,13 +510,13 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				DEBUG(0,("read_fd_with_timeout: timeout "
 				"read for client %s. select error = %s.\n",
 				get_peer_addr(fd,addr,sizeof(addr)),
-				strerror(errno) ));
+				strerror(save_errno) ));
 			} else {
 				DEBUG(0,("read_fd_with_timeout: timeout "
 				"read. select error = %s.\n",
-				strerror(errno) ));
+				strerror(save_errno) ));
 			}
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix(save_errno);
 		}
 
 		/* Did we timeout ? */
@@ -600,6 +536,7 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 		}
 
 		if (readret == -1) {
+			save_errno = errno;
 			/* the descriptor is probably dead */
 			if (fd == get_client_fd()) {
 				/* Try and give an error message
@@ -607,11 +544,11 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
 				DEBUG(0,("read_fd_with_timeout: timeout "
 					"read to client %s. read error = %s.\n",
 					get_peer_addr(fd,addr,sizeof(addr)),
-					strerror(errno) ));
+					strerror(save_errno) ));
 			} else {
 				DEBUG(0,("read_fd_with_timeout: timeout "
 					"read. read error = %s.\n",
-					strerror(errno) ));
+					strerror(save_errno) ));
 			}
 			return map_nt_error_from_unix(errno);
 		}
@@ -689,7 +626,7 @@ ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
 			if (thistime < iov[0].iov_len) {
 				char *new_base =
 					(char *)iov[0].iov_base + thistime;
-				iov[0].iov_base = new_base;
+				iov[0].iov_base = (void *)new_base;
 				iov[0].iov_len -= thistime;
 				break;
 			}
@@ -720,7 +657,7 @@ ssize_t write_data(int fd, const char *buffer, size_t N)
 	ssize_t ret;
 	struct iovec iov;
 
-	iov.iov_base = CONST_DISCARD(char *, buffer);
+	iov.iov_base = CONST_DISCARD(void *, buffer);
 	iov.iov_len = N;
 
 	ret = write_data_iov(fd, &iov, 1);
@@ -1027,6 +964,10 @@ struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
 		psa = (struct sockaddr_in *)&state->ss;
 		psa->sin_port = htons(port);
 		state->salen = sizeof(struct sockaddr_in);
+	}
+
+	if (pss->ss_family == AF_UNIX) {
+		state->salen = sizeof(struct sockaddr_un);
 	}
 
 	print_sockaddr(addr, sizeof(addr), &state->ss);
@@ -1986,4 +1927,86 @@ bool is_myname_or_ipaddr(const char *s)
 
 	/* No match */
 	return false;
+}
+
+struct getaddrinfo_state {
+	const char *node;
+	const char *service;
+	const struct addrinfo *hints;
+	struct addrinfo *res;
+	int ret;
+};
+
+static void getaddrinfo_do(void *private_data);
+static void getaddrinfo_done(struct tevent_req *subreq);
+
+struct tevent_req *getaddrinfo_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct fncall_context *ctx,
+				    const char *node,
+				    const char *service,
+				    const struct addrinfo *hints)
+{
+	struct tevent_req *req, *subreq;
+	struct getaddrinfo_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct getaddrinfo_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	state->node = node;
+	state->service = service;
+	state->hints = hints;
+
+	subreq = fncall_send(state, ev, ctx, getaddrinfo_do, state);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, getaddrinfo_done, req);
+	return req;
+}
+
+static void getaddrinfo_do(void *private_data)
+{
+	struct getaddrinfo_state *state =
+		(struct getaddrinfo_state *)private_data;
+
+	state->ret = getaddrinfo(state->node, state->service, state->hints,
+				 &state->res);
+}
+
+static void getaddrinfo_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	int ret, err;
+
+	ret = fncall_recv(subreq, &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+int getaddrinfo_recv(struct tevent_req *req, struct addrinfo **res)
+{
+	struct getaddrinfo_state *state = tevent_req_data(
+		req, struct getaddrinfo_state);
+	int err;
+
+	if (tevent_req_is_unix_error(req, &err)) {
+		switch(err) {
+		case ENOMEM:
+			return EAI_MEMORY;
+		default:
+			return EAI_FAIL;
+		}
+	}
+	if (state->ret == 0) {
+		*res = state->res;
+	}
+	return state->ret;
 }

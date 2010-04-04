@@ -3,21 +3,18 @@
 
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
    Copyright (C) Simo Sorce  2004-2008
-
-   * NOTICE: this module is NOT released under the GNU LGPL license as
-   * other ldb code. This module is release under the GNU GPL v3 or
-   * later license.
+   Copyright (C) Matthias Dieter Wallnöfer 2009
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -54,11 +51,11 @@ struct samldb_ctx {
 	struct ldb_module *module;
 	struct ldb_request *req;
 
+	/* used for add operations */
+	const char *type;
+
 	/* the resulting message */
 	struct ldb_message *msg;
-
-	/* used to apply templates */
-	const char *type;
 
 	/* used to find parent domain */
 	struct ldb_dn *check_dn;
@@ -66,11 +63,35 @@ struct samldb_ctx {
 	struct dom_sid *domain_sid;
 	uint32_t next_rid;
 
-	/* generic storage, remember to zero it before use */
-	struct ldb_reply *ares;
-
 	/* holds the entry SID */
 	struct dom_sid *sid;
+
+	/* holds a generic dn */
+	struct ldb_dn *dn;
+
+	/* used in conjunction with "sid" in "samldb_dn_from_sid" */
+	struct ldb_dn *res_dn;
+
+	/* used in conjunction with "dn" in "samldb_sid_from_dn" */
+	struct dom_sid *res_sid;
+
+	/* used in "samldb_user_dn_to_prim_group_rid" */
+	uint32_t prim_group_rid;
+
+	/* used in conjunction with "prim_group_rid" in
+	 * "samldb_prim_group_rid_to_users_cnt" */
+	unsigned int users_cnt;
+
+	/* used in "samldb_group_add_member" and "samldb_group_del_member" */
+	struct ldb_dn *group_dn;
+	struct ldb_dn *member_dn;
+
+	/* used in "samldb_primary_group_change" */
+	struct ldb_dn *user_dn;
+	struct ldb_dn *old_prim_group_dn, *new_prim_group_dn;
+
+	/* generic counter - used in "samldb_member_check" */
+	unsigned int cnt;
 
 	/* all the async steps necessary to complete the operation */
 	struct samldb_step *steps;
@@ -99,22 +120,25 @@ static struct samldb_ctx *samldb_ctx_init(struct ldb_module *module,
 
 static int samldb_add_step(struct samldb_ctx *ac, samldb_step_fn_t fn)
 {
-	struct samldb_step *step;
+	struct samldb_step *step, *stepper;
 
 	step = talloc_zero(ac, struct samldb_step);
 	if (step == NULL) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
+	step->fn = fn;
+
 	if (ac->steps == NULL) {
 		ac->steps = step;
 		ac->curstep = step;
 	} else {
-		ac->curstep->next = step;
-		ac->curstep = step;
+		if (ac->curstep == NULL)
+			return LDB_ERR_OPERATIONS_ERROR;
+		for (stepper = ac->curstep; stepper->next != NULL;
+			stepper = stepper->next);
+		stepper->next = step;
 	}
-
-	step->fn = fn;
 
 	return LDB_SUCCESS;
 }
@@ -141,184 +165,9 @@ static int samldb_next_step(struct samldb_ctx *ac)
 	return LDB_ERR_OPERATIONS_ERROR;
 }
 
-static int samldb_search_template_callback(struct ldb_request *req,
-					   struct ldb_reply *ares)
-{
-	struct ldb_context *ldb;
-	struct samldb_ctx *ac;
-	int ret;
-
-	ac = talloc_get_type(req->context, struct samldb_ctx);
-	ldb = ldb_module_get_ctx(ac->module);
-
-	if (!ares) {
-		ret = LDB_ERR_OPERATIONS_ERROR;
-		goto done;
-	}
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-		/* save entry */
-		if (ac->ares != NULL) {
-			/* one too many! */
-			ldb_set_errstring(ldb,
-				"Invalid number of results while searching "
-				"for template objects");
-			ret = LDB_ERR_OPERATIONS_ERROR;
-			goto done;
-		}
-
-		ac->ares = talloc_steal(ac, ares);
-		ret = LDB_SUCCESS;
-		break;
-
-	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		ret = LDB_SUCCESS;
-		break;
-
-	case LDB_REPLY_DONE:
-
-		talloc_free(ares);
-		ret = samldb_next_step(ac);
-		break;
-	}
-
-done:
-	if (ret != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, NULL, NULL, ret);
-	}
-
-	return LDB_SUCCESS;
-}
-
-static int samldb_search_template(struct samldb_ctx *ac)
-{
-	struct ldb_context *ldb;
-	struct tevent_context *ev;
-	struct loadparm_context *lparm_ctx;
-	struct ldb_context *templates_ldb;
-	char *templates_ldb_path;
-	struct ldb_request *req;
-	struct ldb_dn *basedn;
-	void *opaque;
-	int ret;
-
-	ldb = ldb_module_get_ctx(ac->module);
-
-	opaque = ldb_get_opaque(ldb, "loadparm");
-	lparm_ctx = talloc_get_type(opaque, struct loadparm_context);
-	if (lparm_ctx == NULL) {
-		ldb_set_errstring(ldb,
-			"Unable to find loadparm context\n");
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	opaque = ldb_get_opaque(ldb, "templates_ldb");
-	templates_ldb = talloc_get_type(opaque,	struct ldb_context);
-
-	/* make sure we have the templates ldb */
-	if (!templates_ldb) {
-		templates_ldb_path = samdb_relative_path(ldb, ac,
-							 "templates.ldb");
-		if (!templates_ldb_path) {
-			ldb_set_errstring(ldb,
-					"samldb_init_template: ERROR: Failed "
-					"to contruct path for template db");
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-
-		ev = ldb_get_event_context(ldb);
-
-		templates_ldb = ldb_wrap_connect(ldb, ev,
-						lparm_ctx, templates_ldb_path,
-						NULL, NULL, 0, NULL);
-		talloc_free(templates_ldb_path);
-
-		if (!templates_ldb) {
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-
-		if (!talloc_reference(templates_ldb, ev)) {
-			return LDB_ERR_OPERATIONS_ERROR;
-		}
-
-		ret = ldb_set_opaque(ldb,
-					"templates_ldb", templates_ldb);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-	}
-
-	/* search template */
-	basedn = ldb_dn_new_fmt(ac, templates_ldb,
-			    "cn=Template%s,cn=Templates", ac->type);
-	if (basedn == NULL) {
-		ldb_set_errstring(ldb,
-			"samldb_init_template: ERROR: Failed "
-			"to contruct DN for template");
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	/* pull the template record */
-	ret = ldb_build_search_req(&req, templates_ldb, ac,
-				   basedn, LDB_SCOPE_BASE,
-				  "(distinguishedName=*)", NULL,
-				  NULL,
-				  ac, samldb_search_template_callback,
-				  ac->req);
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-
-	talloc_steal(req, basedn);
-	ac->ares = NULL;
-
-	return ldb_request(templates_ldb, req);
-}
-
-static int samldb_apply_template(struct samldb_ctx *ac)
-{
-	struct ldb_context *ldb;
-	struct ldb_message_element *el;
-	struct ldb_message *msg;
-	int i, j;
-	int ret;
-
-	ldb = ldb_module_get_ctx(ac->module);
-	msg = ac->ares->message;
-
-	for (i = 0; i < msg->num_elements; i++) {
-		el = &msg->elements[i];
-		/* some elements should not be copied */
-		if (ldb_attr_cmp(el->name, "cn") == 0 ||
-		    ldb_attr_cmp(el->name, "name") == 0 ||
-		    ldb_attr_cmp(el->name, "objectClass") == 0 ||
-		    ldb_attr_cmp(el->name, "sAMAccountName") == 0 ||
-		    ldb_attr_cmp(el->name, "sAMAccountName") == 0 ||
-		    ldb_attr_cmp(el->name, "distinguishedName") == 0 ||
-		    ldb_attr_cmp(el->name, "objectGUID") == 0) {
-			continue;
-		}
-		for (j = 0; j < el->num_values; j++) {
-			ret = samdb_find_or_add_attribute(
-					ldb, ac->msg, el->name,
-					(char *)el->values[j].data);
-			if (ret != LDB_SUCCESS) {
-				ldb_set_errstring(ldb,
-					  "Failed adding template attribute\n");
-				return LDB_ERR_OPERATIONS_ERROR;
-			}
-		}
-	}
-
-	return samldb_next_step(ac);
-}
+/*
+ * samldb_get_parent_domain (async)
+ */
 
 static int samldb_get_parent_domain(struct samldb_ctx *ac);
 
@@ -345,11 +194,11 @@ static int samldb_get_parent_domain_callback(struct ldb_request *req,
 	switch (ares->type) {
 	case LDB_REPLY_ENTRY:
 		/* save entry */
-		if (ac->domain_dn != NULL) {
+		if ((ac->domain_dn != NULL) || (ac->domain_sid != NULL)) {
 			/* one too many! */
 			ldb_set_errstring(ldb,
 				"Invalid number of results while searching "
-				"for domain object");
+				"for domain object!");
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
@@ -358,9 +207,10 @@ static int samldb_get_parent_domain_callback(struct ldb_request *req,
 						      "nextRid", NULL);
 		if (nextRid == NULL) {
 			ldb_asprintf_errstring(ldb,
-				"while looking for domain above %s attribute nextRid not found in %s\n",
-					       ldb_dn_get_linearized(ac->req->op.add.message->dn), 
-					       ldb_dn_get_linearized(ares->message->dn));
+				"While looking for domain above %s attribute nextRid not found in %s!\n",
+				ldb_dn_get_linearized(
+					ac->req->op.add.message->dn),
+				ldb_dn_get_linearized(ares->message->dn));
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
@@ -371,15 +221,14 @@ static int samldb_get_parent_domain_callback(struct ldb_request *req,
 								"objectSid");
 		if (ac->domain_sid == NULL) {
 			ldb_set_errstring(ldb,
-				"error retrieving parent domain domain sid!\n");
+				"Unable to get the parent domain SID!\n");
 			ret = LDB_ERR_CONSTRAINT_VIOLATION;
 			break;
 		}
-		ac->domain_dn = talloc_steal(ac, ares->message->dn);
+		ac->domain_dn = ldb_dn_copy(ac, ares->message->dn);
 
 		talloc_free(ares);
 		ret = LDB_SUCCESS;
-		ldb_reset_err_string(ldb);
 		break;
 
 	case LDB_REPLY_REFERRAL:
@@ -389,10 +238,9 @@ static int samldb_get_parent_domain_callback(struct ldb_request *req,
 		break;
 
 	case LDB_REPLY_DONE:
-
 		talloc_free(ares);
-		if (ac->domain_dn == NULL) {
-			/* search again */
+		if ((ac->domain_dn == NULL) || (ac->domain_sid == NULL)) {
+			/* not found -> retry */
 			ret = samldb_get_parent_domain(ac);
 		} else {
 			/* found, go on */
@@ -413,7 +261,7 @@ done:
 static int samldb_get_parent_domain(struct samldb_ctx *ac)
 {
 	struct ldb_context *ldb;
-	static const char * const attrs[3] = { "objectSid", "nextRid", NULL };
+	static const char * const attrs[] = { "objectSid", "nextRid", NULL };
 	struct ldb_request *req;
 	struct ldb_dn *dn;
 	int ret;
@@ -427,7 +275,7 @@ static int samldb_get_parent_domain(struct samldb_ctx *ac)
 	dn = ldb_dn_get_parent(ac, ac->check_dn);
 	if (dn == NULL) {
 		ldb_set_errstring(ldb,
-			"Unable to find parent domain object");
+			"Unable to find parent domain object!");
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 
@@ -450,6 +298,7 @@ static int samldb_get_parent_domain(struct samldb_ctx *ac)
 	return ldb_next_request(ac->module, req);
 }
 
+
 static int samldb_generate_samAccountName(struct ldb_message *msg)
 {
 	char *name;
@@ -466,50 +315,46 @@ static int samldb_generate_samAccountName(struct ldb_message *msg)
 	return ldb_msg_add_steal_string(msg, "samAccountName", name);
 }
 
+/*
+ * samldb_check_samAccountName (async)
+ */
+
 static int samldb_check_samAccountName_callback(struct ldb_request *req,
 						struct ldb_reply *ares)
 {
 	struct samldb_ctx *ac;
 	int ret;
-
+	
 	ac = talloc_get_type(req->context, struct samldb_ctx);
-
-	if (!ares) {
-		ret = LDB_ERR_OPERATIONS_ERROR;
-		goto done;
-	}
+	
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
+                                       ares->response, ares->error);
 	}
-
+	
 	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-
+	case LDB_REPLY_ENTRY:		
 		/* if we get an entry it means this samAccountName
 		 * already exists */
 		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_ENTRY_ALREADY_EXISTS);
-
+                                       LDB_ERR_ENTRY_ALREADY_EXISTS);
+		
 	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		ret = LDB_SUCCESS;
-		break;
-
+		/* this should not happen */
+		return ldb_module_done(ac->req, NULL, NULL,
+                                       LDB_ERR_OPERATIONS_ERROR);
+		
 	case LDB_REPLY_DONE:
-
 		/* not found, go on */
 		talloc_free(ares);
 		ret = samldb_next_step(ac);
 		break;
 	}
-
-done:
+	
 	if (ret != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, NULL, NULL, ret);
 	}
-
+	
 	return LDB_SUCCESS;
 }
 
@@ -519,39 +364,39 @@ static int samldb_check_samAccountName(struct samldb_ctx *ac)
 	struct ldb_request *req;
 	const char *name;
 	char *filter;
-	int ret;
-
+        int ret;
+	
 	ldb = ldb_module_get_ctx(ac->module);
-
-	if (ldb_msg_find_element(ac->msg, "samAccountName") == NULL) {
-		ret = samldb_generate_samAccountName(ac->msg);
-		if (ret != LDB_SUCCESS) {
-			return ret;
-		}
-	}
-
+	
+        if (ldb_msg_find_element(ac->msg, "samAccountName") == NULL) {
+                ret = samldb_generate_samAccountName(ac->msg);
+                if (ret != LDB_SUCCESS) {
+                        return ret;
+                }
+        }
+	
 	name = ldb_msg_find_attr_as_string(ac->msg, "samAccountName", NULL);
 	if (name == NULL) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
-	filter = talloc_asprintf(ac, "samAccountName=%s", name);
+	filter = talloc_asprintf(ac, "samAccountName=%s", ldb_binary_encode_string(ac, name));
 	if (filter == NULL) {
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
-
+	
 	ret = ldb_build_search_req(&req, ldb, ac,
-				ac->domain_dn, LDB_SCOPE_SUBTREE,
-				filter, NULL,
-				NULL,
-				ac, samldb_check_samAccountName_callback,
-				ac->req);
+				   ac->domain_dn, LDB_SCOPE_SUBTREE,
+				   filter, NULL,
+				   NULL,
+				   ac, samldb_check_samAccountName_callback,
+				   ac->req);
 	talloc_free(filter);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
-	ac->ares = NULL;
 	return ldb_next_request(ac->module, req);
 }
+
 
 static int samldb_check_samAccountType(struct samldb_ctx *ac)
 {
@@ -566,7 +411,7 @@ static int samldb_check_samAccountType(struct samldb_ctx *ac)
 	/* make sure sAMAccountType is not specified */
 	if (ldb_msg_find_element(ac->msg, "sAMAccountType") != NULL) {
 		ldb_asprintf_errstring(ldb,
-					"sAMAccountType must not be specified");
+			"sAMAccountType must not be specified!");
 		return LDB_ERR_UNWILLING_TO_PERFORM;
 	}
 
@@ -574,10 +419,10 @@ static int samldb_check_samAccountType(struct samldb_ctx *ac)
 		uac = samdb_result_uint(ac->msg, "userAccountControl", 0);
 		if (uac == 0) {
 			ldb_asprintf_errstring(ldb,
-						"userAccountControl invalid");
+				"userAccountControl invalid!");
 			return LDB_ERR_UNWILLING_TO_PERFORM;
 		} else {
-			account_type = samdb_uf2atype(uac);
+			account_type = ds_uf2atype(uac);
 			ret = samdb_msg_add_uint(ldb,
 						 ac->msg, ac->msg,
 						 "sAMAccountType",
@@ -592,10 +437,10 @@ static int samldb_check_samAccountType(struct samldb_ctx *ac)
 		group_type = samdb_result_uint(ac->msg, "groupType", 0);
 		if (group_type == 0) {
 			ldb_asprintf_errstring(ldb,
-						"groupType invalid");
+				"groupType invalid!");
 			return LDB_ERR_UNWILLING_TO_PERFORM;
 		} else {
-			account_type = samdb_gtype2atype(group_type);
+			account_type = ds_gtype2atype(group_type);
 			ret = samdb_msg_add_uint(ldb,
 						 ac->msg, ac->msg,
 						 "sAMAccountType",
@@ -608,6 +453,11 @@ static int samldb_check_samAccountType(struct samldb_ctx *ac)
 
 	return samldb_next_step(ac);
 }
+
+
+/*
+ * samldb_get_sid_domain (async)
+ */
 
 static int samldb_get_sid_domain_callback(struct ldb_request *req,
 					  struct ldb_reply *ares)
@@ -636,7 +486,7 @@ static int samldb_get_sid_domain_callback(struct ldb_request *req,
 			/* one too many! */
 			ldb_set_errstring(ldb,
 				"Invalid number of results while searching "
-				"for domain object");
+				"for domain object!");
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
@@ -645,7 +495,7 @@ static int samldb_get_sid_domain_callback(struct ldb_request *req,
 							"nextRid", NULL);
 		if (nextRid == NULL) {
 			ldb_asprintf_errstring(ldb,
-				"attribute nextRid not found in %s\n",
+				"Attribute nextRid not found in %s!\n",
 				ldb_dn_get_linearized(ares->message->dn));
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
@@ -653,7 +503,7 @@ static int samldb_get_sid_domain_callback(struct ldb_request *req,
 
 		ac->next_rid = strtol(nextRid, NULL, 0);
 
-		ac->domain_dn = talloc_steal(ac, ares->message->dn);
+		ac->domain_dn = ldb_dn_copy(ac, ares->message->dn);
 
 		talloc_free(ares);
 		ret = LDB_SUCCESS;
@@ -666,10 +516,10 @@ static int samldb_get_sid_domain_callback(struct ldb_request *req,
 		break;
 
 	case LDB_REPLY_DONE:
-
+		talloc_free(ares);
 		if (ac->next_rid == 0) {
 			ldb_asprintf_errstring(ldb,
-				"Unable to get nextRid from domain entry\n");
+				"Unable to get nextRid from domain entry!\n");
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
@@ -734,6 +584,128 @@ static int samldb_get_sid_domain(struct samldb_ctx *ac)
 	return ldb_next_request(ac->module, req);
 }
 
+/*
+ * samldb_dn_from_sid (async)
+ */
+
+static int samldb_dn_from_sid(struct samldb_ctx *ac);
+
+static int samldb_dn_from_sid_callback(struct ldb_request *req,
+	struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct samldb_ctx *ac;
+	int ret;
+
+	ac = talloc_get_type(req->context, struct samldb_ctx);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+	switch (ares->type) {
+	case LDB_REPLY_ENTRY:
+		/* save entry */
+		if (ac->res_dn != NULL) {
+			/* one too many! */
+			ldb_set_errstring(ldb,
+				"Invalid number of results while searching "
+				"for domain objects!");
+			ret = LDB_ERR_OPERATIONS_ERROR;
+			break;
+		}
+		ac->res_dn = ldb_dn_copy(ac, ares->message->dn);
+
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_REFERRAL:
+		/* ignore */
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_DONE:
+		talloc_free(ares);
+
+		/* found or not found, go on */
+		ret = samldb_next_step(ac);
+		break;
+	}
+
+done:
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, NULL, NULL, ret);
+	}
+
+	return LDB_SUCCESS;
+}
+
+/* Finds the DN "res_dn" of an object with a given SID "sid" */
+static int samldb_dn_from_sid(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	static const char * const attrs[] = { NULL };
+	struct ldb_request *req;
+	char *filter;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (ac->sid == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	filter = talloc_asprintf(ac, "(objectSid=%s)",
+		ldap_encode_ndr_dom_sid(ac, ac->sid));
+	if (filter == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	ret = ldb_build_search_req(&req, ldb, ac,
+				ldb_get_default_basedn(ldb),
+				LDB_SCOPE_SUBTREE,
+				filter, attrs,
+				NULL,
+				ac, samldb_dn_from_sid_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+
+static int samldb_check_primaryGroupID_1(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	uint32_t rid;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	rid = samdb_result_uint(ac->msg, "primaryGroupID", ~0);
+	ac->sid = dom_sid_add_rid(ac, samdb_domain_sid(ldb), rid);
+	if (ac->sid == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+	ac->res_dn = NULL;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_check_primaryGroupID_2(struct samldb_ctx *ac)
+{
+	if (ac->res_dn == NULL)
+		return LDB_ERR_UNWILLING_TO_PERFORM;
+
+	return samldb_next_step(ac);
+}
+
+
 static bool samldb_msg_add_sid(struct ldb_message *msg,
 				const char *name,
 				const struct dom_sid *sid)
@@ -768,86 +740,9 @@ static int samldb_new_sid(struct samldb_ctx *ac)
 	return samldb_next_step(ac);
 }
 
-static int samldb_check_sid_callback(struct ldb_request *req,
-				     struct ldb_reply *ares)
-{
-	struct samldb_ctx *ac;
-	int ret;
-
-	ac = talloc_get_type(req->context, struct samldb_ctx);
-
-	if (!ares) {
-		ret = LDB_ERR_OPERATIONS_ERROR;
-		goto done;
-	}
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-
-		/* if we get an entry it means an object with the
-		 * requested sid exists */
-		return ldb_module_done(ac->req, NULL, NULL,
-					LDB_ERR_CONSTRAINT_VIOLATION);
-
-	case LDB_REPLY_REFERRAL:
-		/* ignore */
-		talloc_free(ares);
-		break;
-
-	case LDB_REPLY_DONE:
-
-		/* not found, go on */
-		talloc_free(ares);
-		ret = samldb_next_step(ac);
-		break;
-	}
-
-done:
-	if (ret != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, NULL, NULL, ret);
-	}
-
-	return LDB_SUCCESS;
-}
-
-static int samldb_check_sid(struct samldb_ctx *ac)
-{
-	struct ldb_context *ldb;
-	const char *const attrs[2] = { "objectSid", NULL };
-	struct ldb_request *req;
-	char *filter;
-	int ret;
-
-	if (ac->sid == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	ldb = ldb_module_get_ctx(ac->module);
-
-	filter = talloc_asprintf(ac, "(objectSid=%s)",
-				 ldap_encode_ndr_dom_sid(ac, ac->sid));
-	if (filter == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-
-	ret = ldb_build_search_req(&req, ldb, ac,
-				   ldb_get_default_basedn(ldb),
-				   LDB_SCOPE_SUBTREE,
-				   filter, attrs,
-				   NULL,
-				   ac, samldb_check_sid_callback,
-				   ac->req);
-
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
-
-	return ldb_next_request(ac->module, req);
-}
+/*
+ * samldb_notice_sid_callback (async)
+ */
 
 static int samldb_notice_sid_callback(struct ldb_request *req,
 					struct ldb_reply *ares)
@@ -886,7 +781,7 @@ done:
 
 /* If we are adding new users/groups, we need to update the nextRid
  * attribute to be 'above' the new/incoming RID. Attempt to do it
- *atomically. */
+ * atomically. */
 static int samldb_notice_sid(struct samldb_ctx *ac)
 {
 	struct ldb_context *ldb;
@@ -908,7 +803,7 @@ static int samldb_notice_sid(struct samldb_ctx *ac)
 
 	/* we do a delete and add as a single operation. That prevents
 	   a race, in case we are not actually on a transaction db */
-	msg = talloc_zero(ac, struct ldb_message);
+	msg = ldb_msg_new(ac);
 	if (msg == NULL) {
 		ldb_oom(ldb);
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -966,6 +861,10 @@ static int samldb_notice_sid(struct samldb_ctx *ac)
 	return ldb_next_request(ac->module, req);
 }
 
+/*
+ * samldb_add_entry (async)
+ */
+
 static int samldb_add_entry_callback(struct ldb_request *req,
 					struct ldb_reply *ares)
 {
@@ -1015,23 +914,65 @@ static int samldb_add_entry(struct samldb_ctx *ac)
 	return ldb_next_request(ac->module, req);
 }
 
+
 static int samldb_fill_object(struct samldb_ctx *ac, const char *type)
 {
+	struct ldb_context *ldb;
 	int ret;
 
-	/* first look for the template */
-	ac->type = type;
-	ret = samldb_add_step(ac, samldb_search_template);
-	if (ret != LDB_SUCCESS) return ret;
-
-	/* then apply it */
-	ret = samldb_add_step(ac, samldb_apply_template);
-	if (ret != LDB_SUCCESS) return ret;
+	ldb = ldb_module_get_ctx(ac->module);
 
 	/* search for a parent domain objet */
 	ac->check_dn = ac->req->op.add.message->dn;
 	ret = samldb_add_step(ac, samldb_get_parent_domain);
 	if (ret != LDB_SUCCESS) return ret;
+
+	/* Add informations for the different account types */
+	ac->type = type;
+	if (strcmp(ac->type, "user") == 0) {
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"userAccountControl", "546");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"badPwdCount", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"codePage", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"countryCode", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"badPasswordTime", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"lastLogoff", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"lastLogon", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"pwdLastSet", "0");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"primaryGroupID", "513");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"accountExpires", "9223372036854775807");
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"logonCount", "0");
+		if (ret != LDB_SUCCESS) return ret;
+	} else if (strcmp(ac->type, "group") == 0) {
+		ret = samdb_find_or_add_attribute(ldb, ac->msg,
+			"groupType", "-2147483646");
+		if (ret != LDB_SUCCESS) return ret;
+	} else {
+		/* we should only have "user" and "group" */
+		ldb_asprintf_errstring(ldb,
+			"Invalid entry type!\n");
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
 
 	/* check if we have a valid samAccountName */
 	ret = samldb_add_step(ac, samldb_check_samAccountName);
@@ -1040,6 +981,16 @@ static int samldb_fill_object(struct samldb_ctx *ac, const char *type)
 	/* check account_type/group_type */
 	ret = samldb_add_step(ac, samldb_check_samAccountType);
 	if (ret != LDB_SUCCESS) return ret;
+
+	/* check if we have a valid primary group ID */
+	if (strcmp(ac->type, "user") == 0) {
+		ret = samldb_add_step(ac, samldb_check_primaryGroupID_1);
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samldb_add_step(ac, samldb_dn_from_sid);
+		if (ret != LDB_SUCCESS) return ret;
+		ret = samldb_add_step(ac, samldb_check_primaryGroupID_2);
+		if (ret != LDB_SUCCESS) return ret;
+	}
 
 	/* check if we have a valid SID */
 	ac->sid = samdb_result_dom_sid(ac, ac->msg, "objectSid");
@@ -1051,9 +1002,6 @@ static int samldb_fill_object(struct samldb_ctx *ac, const char *type)
 		if (ret != LDB_SUCCESS) return ret;
 	}
 
-	ret = samldb_add_step(ac, samldb_check_sid);
-	if (ret != LDB_SUCCESS) return ret;
-
 	ret = samldb_add_step(ac, samldb_notice_sid);
 	if (ret != LDB_SUCCESS) return ret;
 
@@ -1062,12 +1010,11 @@ static int samldb_fill_object(struct samldb_ctx *ac, const char *type)
 	if (ret != LDB_SUCCESS) return ret;
 
 	return samldb_first_step(ac);
-
-	/* TODO: userAccountControl, badPwdCount, codePage,
-	 *	 countryCode, badPasswordTime, lastLogoff, lastLogon,
-	 *	 pwdLastSet, primaryGroupID, accountExpires, logonCount */
-
 }
+
+/*
+ * samldb_foreign_notice_sid (async)
+ */
 
 static int samldb_foreign_notice_sid_callback(struct ldb_request *req,
 						struct ldb_reply *ares)
@@ -1097,7 +1044,7 @@ static int samldb_foreign_notice_sid_callback(struct ldb_request *req,
 			/* one too many! */
 			ldb_set_errstring(ldb,
 				"Invalid number of results while searching "
-				"for domain object");
+				"for domain object!");
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
@@ -1107,14 +1054,15 @@ static int samldb_foreign_notice_sid_callback(struct ldb_request *req,
 		if (nextRid == NULL) {
 			ldb_asprintf_errstring(ldb,
 				"while looking for forign sid %s attribute nextRid not found in %s\n",
-					       dom_sid_string(ares, ac->sid), ldb_dn_get_linearized(ares->message->dn));
+				dom_sid_string(ares, ac->sid),
+					ldb_dn_get_linearized(ares->message->dn));
 			ret = LDB_ERR_OPERATIONS_ERROR;
 			break;
 		}
 
 		ac->next_rid = strtol(nextRid, NULL, 0);
 
-		ac->domain_dn = talloc_steal(ac, ares->message->dn);
+		ac->domain_dn = ldb_dn_copy(ac, ares->message->dn);
 
 		name = samdb_result_string(ares->message, "name", NULL);
 		ldb_debug(ldb, LDB_DEBUG_TRACE,
@@ -1124,14 +1072,17 @@ static int samldb_foreign_notice_sid_callback(struct ldb_request *req,
 			 dom_sid_string(ares, ac->sid), name);
 
 		talloc_free(ares);
+		ret = LDB_SUCCESS;
 		break;
 
 	case LDB_REPLY_REFERRAL:
 		/* ignore */
 		talloc_free(ares);
+		ret = LDB_SUCCESS;
 		break;
 
 	case LDB_REPLY_DONE:
+		talloc_free(ares);
 
 		/* if this is a fake foreign SID, notice the SID */
 		if (ac->domain_dn) {
@@ -1191,9 +1142,9 @@ static int samldb_foreign_notice_sid(struct samldb_ctx *ac)
 		return ret;
 	}
 
-	ac->next_rid = 0;
 	return ldb_next_request(ac->module, req);
 }
+
 
 static int samldb_fill_foreignSecurityPrincipal_object(struct samldb_ctx *ac)
 {
@@ -1202,13 +1153,15 @@ static int samldb_fill_foreignSecurityPrincipal_object(struct samldb_ctx *ac)
 
 	ldb = ldb_module_get_ctx(ac->module);
 
+	ac->next_rid = 0;
+
 	ac->sid = samdb_result_dom_sid(ac->msg, ac->msg, "objectSid");
 	if (ac->sid == NULL) {
 		ac->sid = dom_sid_parse_talloc(ac->msg,
 			   (const char *)ldb_dn_get_rdn_val(ac->msg->dn)->data);
 		if (!ac->sid) {
 			ldb_set_errstring(ldb,
-					"No valid found SID in "
+					"No valid SID found in "
 					"ForeignSecurityPrincipal CN!");
 			talloc_free(ac);
 			return LDB_ERR_CONSTRAINT_VIOLATION;
@@ -1218,19 +1171,6 @@ static int samldb_fill_foreignSecurityPrincipal_object(struct samldb_ctx *ac)
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	}
-
-	/* first look for the template */
-	ac->type = "foreignSecurityPrincipal";
-	ret = samldb_add_step(ac, samldb_search_template);
-	if (ret != LDB_SUCCESS) return ret;
-
-	/* then apply it */
-	ret = samldb_add_step(ac, samldb_apply_template);
-	if (ret != LDB_SUCCESS) return ret;
-
-	/* check we do not already have this SID */
-	ret = samldb_add_step(ac, samldb_check_sid);
-	if (ret != LDB_SUCCESS) return ret;
 
 	/* check if we need to notice this SID */
 	ret = samldb_add_step(ac, samldb_foreign_notice_sid);
@@ -1261,7 +1201,664 @@ static int samldb_check_rdn(struct ldb_module *module, struct ldb_dn *dn)
 	return LDB_SUCCESS;
 }
 
-/* add_record */
+/*
+ * samldb_sid_from_dn (async)
+ */
+
+static int samldb_sid_from_dn(struct samldb_ctx *ac);
+
+static int samldb_sid_from_dn_callback(struct ldb_request *req,
+	struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct samldb_ctx *ac;
+	int ret;
+
+	ac = talloc_get_type(req->context, struct samldb_ctx);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+	switch (ares->type) {
+	case LDB_REPLY_ENTRY:
+		/* save entry */
+		if (ac->res_sid != NULL) {
+			/* one too many! */
+			ldb_set_errstring(ldb,
+				"Invalid number of results while searching "
+				"for domain objects!");
+			ret = LDB_ERR_OPERATIONS_ERROR;
+			break;
+		}
+		ac->res_sid = samdb_result_dom_sid(ac, ares->message,
+			"objectSid");
+
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_REFERRAL:
+		/* ignore */
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_DONE:
+		talloc_free(ares);
+
+		/* found or not found, go on */
+		ret = samldb_next_step(ac);
+		break;
+	}
+
+done:
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, NULL, NULL, ret);
+	}
+
+	return LDB_SUCCESS;
+}
+
+/* Finds the SID "res_sid" of an object with a given DN "dn" */
+static int samldb_sid_from_dn(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	static const char * const attrs[] = { "objectSid" };
+	struct ldb_request *req;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (ac->dn == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	ret = ldb_build_search_req(&req, ldb, ac,
+				ac->dn,
+				LDB_SCOPE_BASE,
+				NULL, attrs,
+				NULL,
+				ac, samldb_sid_from_dn_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+/*
+ * samldb_user_dn_to_prim_group_rid (async)
+ */
+
+static int samldb_user_dn_to_prim_group_rid(struct samldb_ctx *ac);
+
+static int samldb_user_dn_to_prim_group_rid_callback(struct ldb_request *req,
+	struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct samldb_ctx *ac;
+	int ret;
+
+	ac = talloc_get_type(req->context, struct samldb_ctx);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+	switch (ares->type) {
+	case LDB_REPLY_ENTRY:
+		/* save entry */
+		if (ac->prim_group_rid != 0) {
+			/* one too many! */
+			ldb_set_errstring(ldb,
+				"Invalid number of results while searching "
+				"for domain objects!");
+			ret = LDB_ERR_OPERATIONS_ERROR;
+			break;
+		}
+		ac->prim_group_rid = samdb_result_uint(ares->message,
+			"primaryGroupID", ~0);
+
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_REFERRAL:
+		/* ignore */
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_DONE:
+		talloc_free(ares);
+		if (ac->prim_group_rid == 0) {
+			ldb_asprintf_errstring(ldb,
+				"Unable to get the primary group RID!\n");
+			ret = LDB_ERR_OPERATIONS_ERROR;
+			break;
+		}
+
+		/* found, go on */
+		ret = samldb_next_step(ac);
+		break;
+	}
+
+done:
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, NULL, NULL, ret);
+	}
+
+	return LDB_SUCCESS;
+}
+
+/* Locates the "primaryGroupID" attribute from a certain user specified as
+ * "user_dn". Saves the result in "prim_group_rid". */
+static int samldb_user_dn_to_prim_group_rid(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	static const char * const attrs[] = { "primaryGroupID", NULL };
+	struct ldb_request *req;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (ac->user_dn == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	ret = ldb_build_search_req(&req, ldb, ac,
+				ac->user_dn,
+				LDB_SCOPE_BASE,
+				NULL, attrs,
+				NULL,
+				ac, samldb_user_dn_to_prim_group_rid_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+/*
+ * samldb_prim_group_rid_to_users_cnt (async)
+ */
+
+static int samldb_prim_group_rid_to_users_cnt(struct samldb_ctx *ac);
+
+static int samldb_prim_group_rid_to_users_cnt_callback(struct ldb_request *req,
+	struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct samldb_ctx *ac;
+	int ret;
+
+	ac = talloc_get_type(req->context, struct samldb_ctx);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+	if (ares->error != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+
+	switch (ares->type) {
+	case LDB_REPLY_ENTRY:
+		/* save entry */
+		++(ac->users_cnt);
+
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_REFERRAL:
+		/* ignore */
+		talloc_free(ares);
+		ret = LDB_SUCCESS;
+		break;
+
+	case LDB_REPLY_DONE:
+		talloc_free(ares);
+
+		/* found or not found, go on */
+		ret = samldb_next_step(ac);
+		break;
+	}
+
+done:
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, NULL, NULL, ret);
+	}
+
+	return LDB_SUCCESS;
+}
+
+/* Finds the amount of users which have the primary group "prim_group_rid" and
+ * save the result in "users_cnt" */
+static int samldb_prim_group_rid_to_users_cnt(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	static const char * const attrs[] = { NULL };
+	struct ldb_request *req;
+	char *filter;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if ((ac->prim_group_rid == 0) || (ac->users_cnt != 0))
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	filter = talloc_asprintf(ac, "(&(primaryGroupID=%u)(objectclass=user))",
+		ac->prim_group_rid);
+	if (filter == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	ret = ldb_build_search_req(&req, ldb, ac,
+				ldb_get_default_basedn(ldb),
+				LDB_SCOPE_SUBTREE,
+				filter, attrs,
+				NULL,
+				ac,
+				samldb_prim_group_rid_to_users_cnt_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+/*
+ * samldb_group_add_member (async)
+ * samldb_group_del_member (async)
+ */
+
+static int samldb_group_add_del_member_callback(struct ldb_request *req,
+	struct ldb_reply *ares)
+{
+	struct ldb_context *ldb;
+	struct samldb_ctx *ac;
+	int ret;
+
+	ac = talloc_get_type(req->context, struct samldb_ctx);
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (!ares) {
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+	if (ares->error != LDB_SUCCESS) {
+		if (ares->error == LDB_ERR_NO_SUCH_ATTRIBUTE) {
+			/* On error "NO_SUCH_ATTRIBUTE" (delete of an invalid
+			 * "member" attribute) return "UNWILLING_TO_PERFORM" */
+			ares->error = LDB_ERR_UNWILLING_TO_PERFORM;
+		}
+		return ldb_module_done(ac->req, ares->controls,
+					ares->response, ares->error);
+	}
+	if (ares->type != LDB_REPLY_DONE) {
+		ldb_set_errstring(ldb,
+			"Invalid reply type!\n");
+		ret = LDB_ERR_OPERATIONS_ERROR;
+		goto done;
+	}
+
+	ret = samldb_next_step(ac);
+
+done:
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_done(ac->req, NULL, NULL, ret);
+	}
+
+	return LDB_SUCCESS;
+}
+
+/* Adds a member with DN "member_dn" to a group with DN "group_dn" */
+static int samldb_group_add_member(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	struct ldb_request *req;
+	struct ldb_message *msg;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if ((ac->group_dn == NULL) || (ac->member_dn == NULL))
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	msg = ldb_msg_new(ac);
+	msg->dn = ac->group_dn;
+	samdb_msg_add_addval(ldb, ac, msg, "member",
+		ldb_dn_get_linearized(ac->member_dn));
+
+	ret = ldb_build_mod_req(&req, ldb, ac,
+				msg, NULL,
+				ac, samldb_group_add_del_member_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+/* Removes a member with DN "member_dn" from a group with DN "group_dn" */
+static int samldb_group_del_member(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	struct ldb_request *req;
+	struct ldb_message *msg;
+	int ret;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if ((ac->group_dn == NULL) || (ac->member_dn == NULL))
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	msg = ldb_msg_new(ac);
+	msg->dn = ac->group_dn;
+	samdb_msg_add_delval(ldb, ac, msg, "member",
+		ldb_dn_get_linearized(ac->member_dn));
+
+	ret = ldb_build_mod_req(&req, ldb, ac,
+				msg, NULL,
+				ac, samldb_group_add_del_member_callback,
+				ac->req);
+	if (ret != LDB_SUCCESS)
+		return ret;
+
+	return ldb_next_request(ac->module, req);
+}
+
+
+static int samldb_prim_group_change_1(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	uint32_t rid;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	ac->user_dn = ac->msg->dn;
+
+	rid = samdb_result_uint(ac->msg, "primaryGroupID", ~0);
+	ac->sid = dom_sid_add_rid(ac, samdb_domain_sid(ldb), rid);
+	if (ac->sid == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+	ac->res_dn = NULL;
+
+	ac->prim_group_rid = 0;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_change_2(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	if (ac->res_dn != NULL)
+		ac->new_prim_group_dn = ac->res_dn;
+	else
+		return LDB_ERR_UNWILLING_TO_PERFORM;
+
+	ac->sid = dom_sid_add_rid(ac, samdb_domain_sid(ldb),
+		ac->prim_group_rid);
+	if (ac->sid == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+	ac->res_dn = NULL;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_change_4(struct samldb_ctx *ac);
+static int samldb_prim_group_change_5(struct samldb_ctx *ac);
+static int samldb_prim_group_change_6(struct samldb_ctx *ac);
+
+static int samldb_prim_group_change_3(struct samldb_ctx *ac)
+{
+	int ret;
+
+	if (ac->res_dn != NULL)
+		ac->old_prim_group_dn = ac->res_dn;
+	else
+		return LDB_ERR_UNWILLING_TO_PERFORM;
+
+	/* Only update when the primary group changed */
+	if (ldb_dn_compare(ac->old_prim_group_dn, ac->new_prim_group_dn) != 0) {
+		ac->member_dn = ac->user_dn;
+		/* Remove the "member" attribute of the actual (new) primary
+		 * group */
+
+		ret = samldb_add_step(ac, samldb_prim_group_change_4);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_group_del_member);
+		if (ret != LDB_SUCCESS) return ret;
+
+		/* Add a "member" attribute for the previous primary group */
+
+		ret = samldb_add_step(ac, samldb_prim_group_change_5);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_group_add_member);
+		if (ret != LDB_SUCCESS) return ret;
+	}
+
+	ret = samldb_add_step(ac, samldb_prim_group_change_6);
+	if (ret != LDB_SUCCESS) return ret;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_change_4(struct samldb_ctx *ac)
+{
+	ac->group_dn = ac->new_prim_group_dn;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_change_5(struct samldb_ctx *ac)
+{
+	ac->group_dn = ac->old_prim_group_dn;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_change_6(struct samldb_ctx *ac)
+{
+	return ldb_next_request(ac->module, ac->req);
+}
+
+static int samldb_prim_group_change(struct samldb_ctx *ac)
+{
+	int ret;
+
+	/* Finds out the DN of the new primary group */
+
+	ret = samldb_add_step(ac, samldb_prim_group_change_1);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_dn_from_sid);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_user_dn_to_prim_group_rid);
+	if (ret != LDB_SUCCESS) return ret;
+
+	/* Finds out the DN of the old primary group */
+
+	ret = samldb_add_step(ac, samldb_prim_group_change_2);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_dn_from_sid);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_prim_group_change_3);
+	if (ret != LDB_SUCCESS) return ret;
+
+	return samldb_first_step(ac);
+}
+
+
+static int samldb_member_check_1(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+	struct ldb_message_element *el;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	el = ldb_msg_find_element(ac->msg, "member");
+
+	ac->user_dn = ldb_dn_from_ldb_val(ac, ldb, &el->values[ac->cnt]);
+	if (!ldb_dn_validate(ac->user_dn))
+		return LDB_ERR_OPERATIONS_ERROR;
+	ac->prim_group_rid = 0;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_member_check_2(struct samldb_ctx *ac)
+{
+	struct ldb_context *ldb;
+
+	ldb = ldb_module_get_ctx(ac->module);
+
+	ac->sid = dom_sid_add_rid(ac, samdb_domain_sid(ldb),
+		ac->prim_group_rid);
+	if (ac->sid == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+	ac->res_dn = NULL;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_member_check_3(struct samldb_ctx *ac)
+{
+	if (ldb_dn_compare(ac->res_dn, ac->msg->dn) == 0)
+		return LDB_ERR_ENTRY_ALREADY_EXISTS;
+
+	++(ac->cnt);
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_member_check_4(struct samldb_ctx *ac)
+{
+	return ldb_next_request(ac->module, ac->req);
+}
+
+static int samldb_member_check(struct samldb_ctx *ac)
+{
+	struct ldb_message_element *el;
+	int i, ret;
+
+	el = ldb_msg_find_element(ac->msg, "member");
+	ac->cnt = 0;
+	for (i = 0; i < el->num_values; i++) {
+		/* Denies to add "member"s to groups which are primary ones
+		 * for them */
+		ret = samldb_add_step(ac, samldb_member_check_1);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_user_dn_to_prim_group_rid);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_member_check_2);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_dn_from_sid);
+		if (ret != LDB_SUCCESS) return ret;
+
+		ret = samldb_add_step(ac, samldb_member_check_3);
+		if (ret != LDB_SUCCESS) return ret;
+	}
+
+	ret = samldb_add_step(ac, samldb_member_check_4);
+	if (ret != LDB_SUCCESS) return ret;
+
+	return samldb_first_step(ac);
+}
+
+
+static int samldb_prim_group_users_check_1(struct samldb_ctx *ac)
+{
+	ac->dn = ac->req->op.del.dn;
+	ac->res_sid = NULL;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_users_check_2(struct samldb_ctx *ac)
+{
+	NTSTATUS status;
+	uint32_t rid;
+
+	if (ac->res_sid == NULL) {
+		/* No SID - therefore ok here */
+		return ldb_next_request(ac->module, ac->req);
+	}
+	status = dom_sid_split_rid(ac, ac->res_sid, NULL, &rid);
+	if (!NT_STATUS_IS_OK(status))
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	if (rid == 0) {
+		/* Special object (security principal?) */
+		return ldb_next_request(ac->module, ac->req);
+	}
+
+	ac->prim_group_rid = rid;
+	ac->users_cnt = 0;
+
+	return samldb_next_step(ac);
+}
+
+static int samldb_prim_group_users_check_3(struct samldb_ctx *ac)
+{
+	if (ac->users_cnt > 0)
+		return LDB_ERR_ENTRY_ALREADY_EXISTS;
+
+	return ldb_next_request(ac->module, ac->req);
+}
+
+static int samldb_prim_group_users_check(struct samldb_ctx *ac)
+{
+	int ret;
+
+	/* Finds out the SID/RID of the domain object */
+
+	ret = samldb_add_step(ac, samldb_prim_group_users_check_1);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_sid_from_dn);
+	if (ret != LDB_SUCCESS) return ret;
+
+	/* Deny delete requests from groups which are primary ones */
+
+	ret = samldb_add_step(ac, samldb_prim_group_users_check_2);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_prim_group_rid_to_users_cnt);
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = samldb_add_step(ac, samldb_prim_group_users_check_3);
+	if (ret != LDB_SUCCESS) return ret;
+
+	return samldb_first_step(ac);
+}
+
+
+/* add */
 static int samldb_add(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
@@ -1354,15 +1951,18 @@ static int samldb_modify(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_message *msg;
 	struct ldb_message_element *el, *el2;
 	int ret;
-	unsigned int group_type, user_account_control, account_type;
-	if (ldb_dn_is_special(req->op.mod.message->dn)) { /* do not manipulate our control entries */
+	uint32_t account_type;
+
+	if (ldb_dn_is_special(req->op.mod.message->dn)) {
+		/* do not manipulate our control entries */
 		return ldb_next_request(module, req);
 	}
 
 	ldb = ldb_module_get_ctx(module);
 
 	if (ldb_msg_find_element(req->op.mod.message, "sAMAccountType") != NULL) {
-		ldb_asprintf_errstring(ldb, "sAMAccountType must not be specified");
+		ldb_asprintf_errstring(ldb,
+			"sAMAccountType must not be specified!");
 		return LDB_ERR_UNWILLING_TO_PERFORM;
 	}
 
@@ -1370,10 +1970,13 @@ static int samldb_modify(struct ldb_module *module, struct ldb_request *req)
 
 	el = ldb_msg_find_element(req->op.mod.message, "groupType");
 	if (el && el->flags & (LDB_FLAG_MOD_ADD|LDB_FLAG_MOD_REPLACE) && el->num_values == 1) {
-		req->op.mod.message = msg = ldb_msg_copy_shallow(req, req->op.mod.message);
+		uint32_t group_type;
+
+		req->op.mod.message = msg = ldb_msg_copy_shallow(req,
+			req->op.mod.message);
 
 		group_type = strtoul((const char *)el->values[0].data, NULL, 0);
-		account_type =  samdb_gtype2atype(group_type);
+		account_type =  ds_gtype2atype(group_type);
 		ret = samdb_msg_add_uint(ldb, msg, msg,
 					 "sAMAccountType",
 					 account_type);
@@ -1386,10 +1989,14 @@ static int samldb_modify(struct ldb_module *module, struct ldb_request *req)
 
 	el = ldb_msg_find_element(req->op.mod.message, "userAccountControl");
 	if (el && el->flags & (LDB_FLAG_MOD_ADD|LDB_FLAG_MOD_REPLACE) && el->num_values == 1) {
-		req->op.mod.message = msg = ldb_msg_copy_shallow(req, req->op.mod.message);
+		uint32_t user_account_control;
 
-		user_account_control = strtoul((const char *)el->values[0].data, NULL, 0);
-		account_type = samdb_uf2atype(user_account_control);
+		req->op.mod.message = msg = ldb_msg_copy_shallow(req,
+			req->op.mod.message);
+
+		user_account_control = strtoul((const char *)el->values[0].data,
+			NULL, 0);
+		account_type = ds_uf2atype(user_account_control);
 		ret = samdb_msg_add_uint(ldb, msg, msg,
 					 "sAMAccountType",
 					 account_type);
@@ -1398,8 +2005,65 @@ static int samldb_modify(struct ldb_module *module, struct ldb_request *req)
 		}
 		el2 = ldb_msg_find_element(msg, "sAMAccountType");
 		el2->flags = LDB_FLAG_MOD_REPLACE;
+
+		if (user_account_control & UF_SERVER_TRUST_ACCOUNT) {
+			ret = samdb_msg_add_string(ldb, msg, msg,
+						   "isCriticalSystemObject", "TRUE");
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
+			el2 = ldb_msg_find_element(msg, "isCriticalSystemObject");
+			el2->flags = LDB_FLAG_MOD_REPLACE;
+		}
 	}
+
+	el = ldb_msg_find_element(req->op.mod.message, "primaryGroupID");
+	if (el && el->flags & (LDB_FLAG_MOD_ADD|LDB_FLAG_MOD_REPLACE) && el->num_values == 1) {
+		struct samldb_ctx *ac;
+
+		ac = samldb_ctx_init(module, req);
+		if (ac == NULL)
+			return LDB_ERR_OPERATIONS_ERROR;
+
+		req->op.mod.message = ac->msg = ldb_msg_copy_shallow(req,
+			req->op.mod.message);
+
+		return samldb_prim_group_change(ac);
+	}
+
+	el = ldb_msg_find_element(req->op.mod.message, "member");
+	if (el && el->flags & (LDB_FLAG_MOD_ADD|LDB_FLAG_MOD_REPLACE) && el->num_values == 1) {
+		struct samldb_ctx *ac;
+
+		ac = samldb_ctx_init(module, req);
+		if (ac == NULL)
+			return LDB_ERR_OPERATIONS_ERROR;
+
+		req->op.mod.message = ac->msg = ldb_msg_copy_shallow(req,
+			req->op.mod.message);
+
+		return samldb_member_check(ac);
+	}
+
+	/* nothing matched, go on */
 	return ldb_next_request(module, req);
+}
+
+/* delete */
+static int samldb_delete(struct ldb_module *module, struct ldb_request *req)
+{
+	struct samldb_ctx *ac;
+
+	if (ldb_dn_is_special(req->op.del.dn)) {
+		/* do not manipulate our control entries */
+		return ldb_next_request(module, req);
+	}
+
+	ac = samldb_ctx_init(module, req);
+	if (ac == NULL)
+		return LDB_ERR_OPERATIONS_ERROR;
+
+	return samldb_prim_group_users_check(ac);
 }
 
 
@@ -1412,5 +2076,6 @@ _PUBLIC_ const struct ldb_module_ops ldb_samldb_module_ops = {
 	.name          = "samldb",
 	.init_context  = samldb_init,
 	.add           = samldb_add,
-	.modify        = samldb_modify
+	.modify        = samldb_modify,
+	.del           = samldb_delete
 };

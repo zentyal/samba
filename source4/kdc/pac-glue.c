@@ -3,7 +3,7 @@
 
    PAC Glue between Samba and the KDC
    
-   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005-2009
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 */
 
 #include "includes.h"
-#include "dsdb/common/flags.h"
+#include "../libds/common/flags.h"
 #include "lib/ldb/include/ldb.h"
 #include "librpc/gen_ndr/ndr_krb5pac.h"
 #include "librpc/gen_ndr/krb5pac.h"
@@ -29,17 +29,18 @@
 #include "auth/auth_sam.h"
 #include "auth/auth_sam_reply.h"
 #include "kdc/kdc.h"
+#include "param/param.h"
 
 struct krb5_dh_moduli;
 struct _krb5_krb_auth_data;
 
-krb5_error_code	samba_kdc_plugin_init(krb5_context context, void **ptr) 
+static krb5_error_code	samba_kdc_plugin_init(krb5_context context, void **ptr) 
 {
 	*ptr = NULL;
 	return 0;
 }
 
-void	samba_kdc_plugin_fini(void *ptr) 
+static void	samba_kdc_plugin_fini(void *ptr) 
 {
 	return;
 }
@@ -102,16 +103,16 @@ static krb5_error_code make_pac(krb5_context context,
 	return ret;
 }
 
-/* Given the right private pointer from hdb_ldb, get a PAC from the attached ldb messages */
-krb5_error_code samba_kdc_get_pac(void *priv,
-				  krb5_context context, 
-				  struct hdb_entry_ex *client,
-				  krb5_pac *pac)
+/* Given the right private pointer from hdb_samba4, get a PAC from the attached ldb messages */
+static krb5_error_code samba_kdc_get_pac(void *priv,
+					 krb5_context context, 
+					 struct hdb_entry_ex *client,
+					 krb5_pac *pac)
 {
 	krb5_error_code ret;
 	NTSTATUS nt_status;
 	struct auth_serversupplied_info *server_info;
-	struct hdb_ldb_private *p = talloc_get_type(client->ctx, struct hdb_ldb_private);
+	struct hdb_samba4_private *p = talloc_get_type(client->ctx, struct hdb_samba4_private);
 	TALLOC_CTX *mem_ctx = talloc_named(p, 0, "samba_get_pac context");
 	unsigned int userAccountControl;
 
@@ -127,9 +128,10 @@ krb5_error_code samba_kdc_get_pac(void *priv,
 	}
 
 	nt_status = authsam_make_server_info(mem_ctx, p->samdb,
-					     p->netbios_name,
+					     lp_netbios_name(p->lp_ctx),
+					     lp_sam_name(p->lp_ctx),
+					     p->realm_dn,
 					     p->msg,
-					     p->realm_ref_msg,
 					     data_blob(NULL, 0),
 					     data_blob(NULL, 0),
 					     &server_info);
@@ -147,16 +149,16 @@ krb5_error_code samba_kdc_get_pac(void *priv,
 
 /* Resign (and reform, including possibly new groups) a PAC */
 
-krb5_error_code samba_kdc_reget_pac(void *priv, krb5_context context,
-				const krb5_principal client_principal,
-				struct hdb_entry_ex *client,  
-				struct hdb_entry_ex *server, krb5_pac *pac)
+static krb5_error_code samba_kdc_reget_pac(void *priv, krb5_context context,
+					   const krb5_principal client_principal,
+					   struct hdb_entry_ex *client,  
+					   struct hdb_entry_ex *server, krb5_pac *pac)
 {
 	krb5_error_code ret;
 
 	unsigned int userAccountControl;
 
-	struct hdb_ldb_private *p = talloc_get_type(server->ctx, struct hdb_ldb_private);
+	struct hdb_samba4_private *p = talloc_get_type(server->ctx, struct hdb_samba4_private);
 
 	struct auth_serversupplied_info *server_info_out;
 
@@ -228,29 +230,30 @@ static void samba_kdc_build_edata_reply(TALLOC_CTX *tmp_ctx, krb5_data *e_data,
  * the account_ok routine in auth/auth_sam.c for consistancy */
 
 
-krb5_error_code samba_kdc_check_client_access(void *priv, 
-					      krb5_context context, hdb_entry_ex *entry_ex, 
-					      KDC_REQ *req,
-					      krb5_data *e_data)
+static krb5_error_code samba_kdc_check_client_access(void *priv, 
+						     krb5_context context, 
+						     krb5_kdc_configuration *config,
+						     hdb_entry_ex *client_ex, const char *client_name,
+						     hdb_entry_ex *server_ex, const char *server_name,
+						     KDC_REQ *req,
+						     krb5_data *e_data)
 {
 	krb5_error_code ret;
 	NTSTATUS nt_status;
-	TALLOC_CTX *tmp_ctx = talloc_new(entry_ex->ctx);
-	struct hdb_ldb_private *p = talloc_get_type(entry_ex->ctx, struct hdb_ldb_private);
-	char *name, *workstation = NULL;
+	TALLOC_CTX *tmp_ctx;
+	struct hdb_samba4_private *p;
+	char *workstation = NULL;
 	HostAddresses *addresses = req->req_body.addresses;
 	int i;
+	bool password_change;
+
+	tmp_ctx = talloc_new(client_ex->ctx);
+	p = talloc_get_type(client_ex->ctx, struct hdb_samba4_private);
 
 	if (!tmp_ctx) {
 		return ENOMEM;
 	}
 	
-	ret = krb5_unparse_name(context, entry_ex->entry.principal, &name);
-	if (ret != 0) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
 	if (addresses) {
 		for (i=0; i < addresses->len; i++) {
 			if (addresses->val->addr_type == KRB5_ADDRESS_NETBIOS) {
@@ -270,38 +273,53 @@ krb5_error_code samba_kdc_check_client_access(void *priv,
 		}
 	}
 
+	password_change = (server_ex && server_ex->entry.flags.change_pw);
+
 	/* we allow all kinds of trusts here */
 	nt_status = authsam_account_ok(tmp_ctx, 
 				       p->samdb,
 				       MSV1_0_ALLOW_SERVER_TRUST_ACCOUNT | MSV1_0_ALLOW_WORKSTATION_TRUST_ACCOUNT,
+				       p->realm_dn,
 				       p->msg,
-				       p->realm_ref_msg,
 				       workstation,
-				       name, true);
-	free(name);
+				       client_name, true, password_change);
 
-	if (NT_STATUS_IS_OK(nt_status))
-		return 0;
+	if (NT_STATUS_IS_OK(nt_status)) {
+		/* Now do the standard Heimdal check */
+		ret = kdc_check_flags(context, config,
+				      client_ex, client_name,
+				      server_ex, server_name,
+				      req->msg_type == krb_as_req);
+	} else {
+		if (NT_STATUS_EQUAL(nt_status, NT_STATUS_PASSWORD_MUST_CHANGE))
+			ret = KRB5KDC_ERR_KEY_EXPIRED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_PASSWORD_EXPIRED))
+			ret = KRB5KDC_ERR_KEY_EXPIRED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_EXPIRED))
+			ret = KRB5KDC_ERR_CLIENT_REVOKED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_DISABLED))
+			ret = KRB5KDC_ERR_CLIENT_REVOKED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_INVALID_LOGON_HOURS))
+			ret = KRB5KDC_ERR_CLIENT_REVOKED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_LOCKED_OUT))
+			ret = KRB5KDC_ERR_CLIENT_REVOKED;
+		else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_INVALID_WORKSTATION))
+			ret = KRB5KDC_ERR_POLICY;
+		else
+			ret = KRB5KDC_ERR_POLICY;
 
-	if (NT_STATUS_EQUAL(nt_status, NT_STATUS_PASSWORD_MUST_CHANGE))
-		ret = KRB5KDC_ERR_KEY_EXPIRED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_PASSWORD_EXPIRED))
-		ret = KRB5KDC_ERR_KEY_EXPIRED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_EXPIRED))
-		ret = KRB5KDC_ERR_CLIENT_REVOKED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_DISABLED))
-		ret = KRB5KDC_ERR_CLIENT_REVOKED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_INVALID_LOGON_HOURS))
-		ret = KRB5KDC_ERR_CLIENT_REVOKED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ACCOUNT_LOCKED_OUT))
-		ret = KRB5KDC_ERR_CLIENT_REVOKED;
-	else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_INVALID_WORKSTATION))
-		ret = KRB5KDC_ERR_POLICY;
-	else
-		ret = KRB5KDC_ERR_POLICY;
-
-	samba_kdc_build_edata_reply(tmp_ctx, e_data, nt_status);
+		samba_kdc_build_edata_reply(tmp_ctx, e_data, nt_status);
+	}
 
 	return ret;
 }
+
+struct krb5plugin_windc_ftable windc_plugin_table = {
+	.minor_version = KRB5_WINDC_PLUGING_MINOR,
+	.init = samba_kdc_plugin_init,
+	.fini = samba_kdc_plugin_fini,
+	.pac_generate = samba_kdc_get_pac,
+	.pac_verify = samba_kdc_reget_pac,
+	.client_access = samba_kdc_check_client_access,
+};
 

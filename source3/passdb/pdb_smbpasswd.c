@@ -276,7 +276,7 @@ Error was %s\n", pfile, strerror(errno) ));
 			 * prevent infinate loops. JRA.
 			 */
 
-			if (sys_stat(pfile,&sbuf1) != 0) {
+			if (sys_stat(pfile, &sbuf1, false) != 0) {
 				DEBUG(0, ("startsmbfilepwent_internal: unable to stat file %s. \
 Error was %s\n", pfile, strerror(errno)));
 				pw_file_unlock(fileno(fp), lock_depth);
@@ -284,7 +284,7 @@ Error was %s\n", pfile, strerror(errno)));
 				return NULL;
 			}
 
-			if (sys_fstat(fileno(fp),&sbuf2) != 0) {
+			if (sys_fstat(fileno(fp), &sbuf2, false) != 0) {
 				DEBUG(0, ("startsmbfilepwent_internal: unable to fstat file %s. \
 Error was %s\n", pfile, strerror(errno)));
 				pw_file_unlock(fileno(fp), lock_depth);
@@ -292,7 +292,7 @@ Error was %s\n", pfile, strerror(errno)));
 				return NULL;
 			}
 
-			if( sbuf1.st_ino == sbuf2.st_ino) {
+			if( sbuf1.st_ex_ino == sbuf2.st_ex_ino) {
 				/* No race. */
 				break;
 			}
@@ -1520,9 +1520,9 @@ done:
 	return (ret);	
 }
 
-static bool smbpasswd_rid_algorithm(struct pdb_methods *methods)
+static uint32_t smbpasswd_capabilities(struct pdb_methods *methods)
 {
-	return True;
+	return 0;
 }
 
 static void free_private_data(void **vp) 
@@ -1682,7 +1682,7 @@ static NTSTATUS pdb_init_smbpasswd( struct pdb_methods **pdb_method, const char 
 	(*pdb_method)->rename_sam_account = smbpasswd_rename_sam_account;
 	(*pdb_method)->search_users = smbpasswd_search_users;
 
-	(*pdb_method)->rid_algorithm = smbpasswd_rid_algorithm;
+	(*pdb_method)->capabilities = smbpasswd_capabilities;
 
 	/* Setup private data and free function */
 

@@ -181,9 +181,15 @@ static int fileid_connect(struct vfs_handle_struct *handle,
 {
 	struct fileid_handle_data *data;
 	const char *algorithm;
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+	if (ret < 0) {
+		return ret;
+	}
 
 	data = talloc_zero(handle->conn, struct fileid_handle_data);
 	if (!data) {
+		SMB_VFS_NEXT_DISCONNECT(handle);
 		DEBUG(0, ("talloc_zero() failed\n"));
 		return -1;
 	}
@@ -203,6 +209,7 @@ static int fileid_connect(struct vfs_handle_struct *handle,
 	} else if (strcmp("fsid", algorithm) == 0) {
 		data->device_mapping_fn	= fileid_device_mapping_fsid;
 	} else {
+		SMB_VFS_NEXT_DISCONNECT(handle);
 		DEBUG(0,("fileid_connect(): unknown algorithm[%s]\n", algorithm));
 		return -1;
 	}
@@ -214,7 +221,7 @@ static int fileid_connect(struct vfs_handle_struct *handle,
 	DEBUG(10, ("fileid_connect(): connect to service[%s] with algorithm[%s]\n",
 		service, algorithm));
 
-	return SMB_VFS_NEXT_CONNECT(handle, service, user);
+	return 0;
 }
 
 static void fileid_disconnect(struct vfs_handle_struct *handle)
@@ -237,39 +244,16 @@ static struct file_id fileid_file_id_create(struct vfs_handle_struct *handle,
 				struct fileid_handle_data,
 				return id);
 
-	id.devid	= data->device_mapping_fn(data, sbuf->st_dev);
-	id.inode	= sbuf->st_ino;
+	id.devid	= data->device_mapping_fn(data, sbuf->st_ex_dev);
+	id.inode	= sbuf->st_ex_ino;
 
 	return id;
 }
 
-static vfs_op_tuple fileid_ops[] = {
-
-	/* Disk operations */
-	{
-		SMB_VFS_OP(fileid_connect),
-		SMB_VFS_OP_CONNECT,
-		SMB_VFS_LAYER_TRANSPARENT
-	},
-	{
-		SMB_VFS_OP(fileid_disconnect),
-		SMB_VFS_OP_DISCONNECT,
-		SMB_VFS_LAYER_TRANSPARENT
-	},
-
-	/* File operations */
-	{
-		SMB_VFS_OP(fileid_file_id_create),
-		SMB_VFS_OP_FILE_ID_CREATE,
-		SMB_VFS_LAYER_OPAQUE
-	},
-
-	/* End marker */
-	{
-		SMB_VFS_OP(NULL),
-		SMB_VFS_OP_NOOP,
-		SMB_VFS_LAYER_NOOP
-	}
+static struct vfs_fn_pointers vfs_fileid_fns = {
+	.connect_fn = fileid_connect,
+	.disconnect = fileid_disconnect,
+	.file_id_create = fileid_file_id_create
 };
 
 NTSTATUS vfs_fileid_init(void);
@@ -277,7 +261,8 @@ NTSTATUS vfs_fileid_init(void)
 {
 	NTSTATUS ret;
 
-	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "fileid", fileid_ops);
+	ret = smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "fileid",
+			       &vfs_fileid_fns);
 	if (!NT_STATUS_IS_OK(ret)) {
 		return ret;
 	}

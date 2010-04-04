@@ -21,12 +21,9 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "smb_server/smb_server.h"
-#include "smb_server/service_smb_proto.h"
 #include "smb_server/smb2/smb2_server.h"
-#include "librpc/gen_ndr/security.h"
 #include "smbd/service_stream.h"
 #include "ntvfs/ntvfs.h"
-#include "param/param.h"
 
 /*
   send an oplock break request to a client
@@ -335,13 +332,6 @@ static NTSTATUS smb2srv_tcon_backend(struct smb2srv_request *req, union smb_tcon
 		goto failed;
 	}
 
-	/* Invoke NTVFS connection hook */
-	status = ntvfs_connect(req->ntvfs, scfg->name);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("smb2srv_tcon_backend: NTVFS ntvfs_connect() failed!\n"));
-		goto failed;
-	}
-
 	io->smb2.out.share_type	  = (unsigned)type; /* 1 - DISK, 2 - Print, 3 - IPC */
 	io->smb2.out.reserved	  = 0;
 	io->smb2.out.flags	  = 0x00000000;
@@ -349,6 +339,13 @@ static NTSTATUS smb2srv_tcon_backend(struct smb2srv_request *req, union smb_tcon
 	io->smb2.out.access_mask  = SEC_RIGHTS_FILE_ALL;
 
 	io->smb2.out.tid	= tcon->tid;
+
+	/* Invoke NTVFS connection hook */
+	status = ntvfs_connect(req->ntvfs, io);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("smb2srv_tcon_backend: NTVFS ntvfs_connect() failed!\n"));
+		goto failed;
+	}
 
 	return NT_STATUS_OK;
 

@@ -35,6 +35,27 @@
 
 extern bool AllowDebugChange;
 
+/*******************************************************************
+ Check if a directory exists.
+********************************************************************/
+
+static bool directory_exist_stat(char *dname,SMB_STRUCT_STAT *st)
+{
+	SMB_STRUCT_STAT st2;
+	bool ret;
+
+	if (!st)
+		st = &st2;
+
+	if (sys_stat(dname, st, false) != 0)
+		return(False);
+
+	ret = S_ISDIR(st->st_ex_mode);
+	if(!ret)
+		errno = ENOTDIR;
+	return ret;
+}
+
 /***********************************************
  Here we do a set of 'hard coded' checks for bad
  configuration settings.
@@ -60,7 +81,7 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 		fprintf(stderr, "ERROR: lock directory %s does not exist\n",
 		       lp_lockdir());
 		ret = 1;
-	} else if ((st.st_mode & 0777) != 0755) {
+	} else if ((st.st_ex_mode & 0777) != 0755) {
 		fprintf(stderr, "WARNING: lock directory %s should have permissions 0755 for browsing to work\n",
 		       lp_lockdir());
 		ret = 1;
@@ -70,7 +91,7 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 		fprintf(stderr, "ERROR: state directory %s does not exist\n",
 		       lp_statedir());
 		ret = 1;
-	} else if ((st.st_mode & 0777) != 0755) {
+	} else if ((st.st_ex_mode & 0777) != 0755) {
 		fprintf(stderr, "WARNING: state directory %s should have permissions 0755 for browsing to work\n",
 		       lp_statedir());
 		ret = 1;
@@ -80,7 +101,7 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 		fprintf(stderr, "ERROR: cache directory %s does not exist\n",
 		       lp_cachedir());
 		ret = 1;
-	} else if ((st.st_mode & 0777) != 0755) {
+	} else if ((st.st_ex_mode & 0777) != 0755) {
 		fprintf(stderr, "WARNING: cache directory %s should have permissions 0755 for browsing to work\n",
 		       lp_cachedir());
 		ret = 1;
@@ -296,7 +317,6 @@ rameter is ignored when using CUPS libraries.\n",
 	static int show_all_parameters = False;
 	int ret = 0;
 	poptContext pc;
-	static const char *term_code = "";
 	static char *parameter_name = NULL;
 	static const char *section_name = NULL;
 	static char *new_local_machine = NULL;
@@ -310,7 +330,6 @@ rameter is ignored when using CUPS libraries.\n",
 		{"suppress-prompt", 's', POPT_ARG_VAL, &silent_mode, 1, "Suppress prompt for enter"},
 		{"verbose", 'v', POPT_ARG_NONE, &show_defaults, 1, "Show default options too"},
 		{"server", 'L',POPT_ARG_STRING, &new_local_machine, 0, "Set %%L macro to servername\n"},
-		{"encoding", 't', POPT_ARG_STRING, &term_code, 0, "Print parameters with encoding"},
 		{"skip-logic-checks", 'l', POPT_ARG_NONE, &skip_logic_checks, 1, "Skip the global checks"},
 		{"show-all-parameters", '\0', POPT_ARG_VAL, &show_all_parameters, True, "Show the parameters, type, possible values" },
 		{"parameter-name", '\0', POPT_ARG_STRING, &parameter_name, 0, "Limit testparm to a named parameter" },

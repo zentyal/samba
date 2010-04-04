@@ -3,6 +3,15 @@
 This directory contains test scripts that are useful for running a
 bunch of tests all at once. 
 
+There are two parts to this: 
+
+ * The test runner (selftest/selftest.pl)
+ * The test formatter
+
+selftest.pl simply outputs subunit, which can then be formatted or analyzed 
+by tools that understand the subunit protocol. One of these tools is 
+format-subunit.pl, which is used by default as part of "make test".
+
 Available testsuites
 ====================
 The available testsuites are obtained from a script, usually 
@@ -11,7 +20,7 @@ the name of the test, the command to run and the environment that should be
 provided. Use the included "plantest" function to generate the required output.
 
 Testsuite behaviour
-================================
+===================
 
 Exit code
 ------------
@@ -31,41 +40,83 @@ for the last announced test.
 Accepted commands are:
 
 test
-~~~~~~~~~~~~
+~~~~
 test: <NAME>
 
 Announce that a new test with the specified name is starting
 
 success
-~~~~~~~~~~~~~~~
+~~~~~~~
 success: <NAME> 
 
 Announce that the test with the specified name is done and ran successfully.
 
 failure
-~~~~~~~~~~~~~~~
+~~~~~~~
 failure: <NAME> 
 failure: <NAME> [ REASON ]
 
 Announce that the test with the specified name failed. Optionally, it is 
 possible to specify a reason it failed.
 
+The alias "fail" will also work.
+
+xfail
+~~~~~
+xfail: <NAME>
+xfail: <NAME> [ REASON ]
+
+Announce that the test with the specified name failed but that the failure
+was expected, e.g. it's a test for a known bug that hasn't been fixed yet.
+Alternatively it is also possible to simply return "failure:" here but 
+specify in the samba4-knownfailures file that it is failing.
+
 skip
-~~~~~~~~~~~~
+~~~~
 skip: <NAME>
 skip: <NAME> [ REASON ]
 
 Announce that the test with the specified name was skipped. Optionally a 
 reason can be specified.
 
-knownfail
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-knownfail: <NAME>
-knownfail: <NAME> [ REASON ]
+time
+~~~~
+time: YYYY-MM-DD HH:mm:ssZ
 
-Announce that the test with the specified name was run and failed as expected.
-Alternatively it is also possible to simply return "failure:" here but 
-specify in the samba4-knownfailures file that it is failing.
+Announce the current time. This may be used to calculate the duration of 
+various tests.
+
+The following are Samba extensions to Subunit:
+
+testsuite-count
+~~~~~~~~~~~~~~~
+testsuite-count: number
+
+Announce the number of tests that is going to be run.
+
+start-testsuite
+~~~~~~~~~
+start-testsuite: name
+
+The testsuite name is used as prefix for all containing tests.
+
+skip-testsuite
+~~~~~~~~~~~~~~
+skip-testsuite: name
+
+Mark the testsuite with the specified name as skipped.
+
+testsuite-success
+~~~~~~~~~~~~~~~~~
+testsuite-success: name
+
+Indicate that the testsuite has succeeded successfully.
+
+testsuite-fail
+~~~~~~~~~~~~~~
+testsuite-fail: name
+
+Indicate that a testsuite has failed.
 
 Environments
 ============

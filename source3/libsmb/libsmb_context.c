@@ -30,8 +30,104 @@
 /*
  * Is the logging working / configfile read ? 
  */
-static bool SMBC_initialized;
-static unsigned int initialized_ctx_count;
+static bool SMBC_initialized = false;
+static unsigned int initialized_ctx_count = 0;
+static void *initialized_ctx_count_mutex = NULL;
+
+/*
+ * Do some module- and library-wide intializations
+ */
+static void
+SMBC_module_init(void * punused)
+{
+    bool conf_loaded = False;
+    char *home = NULL;
+    TALLOC_CTX *frame = talloc_stackframe();
+                
+    load_case_tables();
+                
+    setup_logging("libsmbclient", True);
+
+    /* Here we would open the smb.conf file if needed ... */
+                
+    lp_set_in_client(True);
+                
+    home = getenv("HOME");
+    if (home) {
+        char *conf = NULL;
+        if (asprintf(&conf, "%s/.smb/smb.conf", home) > 0) {
+            if (lp_load(conf, True, False, False, True)) {
+                conf_loaded = True;
+            } else {
+                DEBUG(5, ("Could not load config file: %s\n",
+                          conf));
+            }
+            SAFE_FREE(conf);
+        }
+    }
+                
+    if (!conf_loaded) {
+        /*
+         * Well, if that failed, try the get_dyn_CONFIGFILE
+         * Which points to the standard locn, and if that
+         * fails, silently ignore it and use the internal
+         * defaults ...
+         */
+                        
+        if (!lp_load(get_dyn_CONFIGFILE(), True, False, False, False)) {
+            DEBUG(5, ("Could not load config file: %s\n",
+                      get_dyn_CONFIGFILE()));
+        } else if (home) {
+            char *conf;
+            /*
+             * We loaded the global config file.  Now lets
+             * load user-specific modifications to the
+             * global config.
+             */
+            if (asprintf(&conf,
+                         "%s/.smb/smb.conf.append",
+                         home) > 0) {
+                if (!lp_load(conf, True, False, False, False)) {
+                    DEBUG(10,
+                          ("Could not append config file: "
+                           "%s\n",
+                           conf));
+                }
+                SAFE_FREE(conf);
+            }
+        }
+    }
+                
+    load_interfaces();  /* Load the list of interfaces ... */
+                
+    reopen_logs();  /* Get logging working ... */
+                
+    /*
+     * Block SIGPIPE (from lib/util_sock.c: write())
+     * It is not needed and should not stop execution
+     */
+    BlockSignals(True, SIGPIPE);
+                
+    /* Create the mutex we'll use to protect initialized_ctx_count */
+    if (SMB_THREAD_CREATE_MUTEX("initialized_ctx_count_mutex",
+                                initialized_ctx_count_mutex) != 0) {
+        smb_panic("SMBC_module_init: "
+                  "failed to create 'initialized_ctx_count' mutex");
+    }
+
+
+    TALLOC_FREE(frame);
+}
+
+
+static void
+SMBC_module_terminate(void)
+{
+    secrets_shutdown();
+    gfree_all();
+    SMBC_initialized = false;
+}
+
 
 /*
  * Get a new empty handle to fill in with your own info
@@ -41,6 +137,9 @@ smbc_new_context(void)
 {
         SMBCCTX *context;
         
+        /* The first call to this function should initialize the module */
+        SMB_THREAD_ONCE(&SMBC_initialized, SMBC_module_init, NULL);
+
         /*
          * All newly added context fields should be placed in
          * SMBC_internal_data, not directly in SMBCCTX.
@@ -69,10 +168,14 @@ smbc_new_context(void)
         smbc_setOptionFullTimeNames(context, False);
         smbc_setOptionOpenShareMode(context, SMBC_SHAREMODE_DENY_NONE);
         smbc_setOptionSmbEncryptionLevel(context, SMBC_ENCRYPTLEVEL_NONE);
+        smbc_setOptionUseCCache(context, True);
         smbc_setOptionCaseSensitive(context, False);
         smbc_setOptionBrowseMaxLmbCount(context, 3);    /* # LMBs to query */
         smbc_setOptionUrlEncodeReaddirEntries(context, False);
         smbc_setOptionOneSharePerServer(context, False);
+	if (getenv("LIBSMBCLIENT_NO_CCACHE") == NULL) {
+		smbc_setOptionUseCCache(context, true);
+	}
         
         smbc_setFunctionAuthData(context, SMBC_get_auth_data);
         smbc_setFunctionCheckServer(context, SMBC_check_server);
@@ -204,16 +307,24 @@ smbc_free_context(SMBCCTX *context,
 	SAFE_FREE(context->internal);
         SAFE_FREE(context);
 
+        /* Protect access to the count of contexts in use */
+	if (SMB_THREAD_LOCK(initialized_ctx_count_mutex) != 0) {
+                smb_panic("error locking 'initialized_ctx_count'");
+	}
+
 	if (initialized_ctx_count) {
 		initialized_ctx_count--;
 	}
 
-	if (initialized_ctx_count == 0 && SMBC_initialized) {
-		gencache_shutdown();
-		secrets_shutdown();
-		gfree_all();
-		SMBC_initialized = false;
+	if (initialized_ctx_count == 0) {
+            SMBC_module_terminate();
 	}
+
+        /* Unlock the mutex */
+	if (SMB_THREAD_UNLOCK(initialized_ctx_count_mutex) != 0) {
+                smb_panic("error unlocking 'initialized_ctx_count'");
+	}
+        
         return 0;
 }
 
@@ -292,6 +403,10 @@ smbc_option_set(SMBCCTX *context,
                 option_value.b = (bool) va_arg(ap, int);
                 smbc_setOptionFallbackAfterKerberos(context, option_value.b);
                 
+        } else if (strcmp(option_name, "use_ccache") == 0) {
+                option_value.b = (bool) va_arg(ap, int);
+                smbc_setOptionUseCCache(context, option_value.b);
+
         } else if (strcmp(option_name, "no_auto_anonymous_login") == 0) {
                 option_value.b = (bool) va_arg(ap, int);
                 smbc_setOptionNoAutoAnonymousLogin(context, option_value.b);
@@ -398,6 +513,13 @@ smbc_option_get(SMBCCTX *context,
                 return (void *) (bool) smbc_getOptionFallbackAfterKerberos(context);
 #endif
                 
+        } else if (strcmp(option_name, "use_ccache") == 0) {
+#if defined(__intptr_t_defined) || defined(HAVE_INTPTR_T)
+                return (void *) (intptr_t) smbc_getOptionUseCCache(context);
+#else
+                return (void *) (bool) smbc_getOptionUseCCache(context);
+#endif
+
         } else if (strcmp(option_name, "no_auto_anonymous_login") == 0) {
 #if defined(__intptr_t_defined) || defined(HAVE_INTPTR_T)
                 return (void *) (intptr_t) smbc_getOptionNoAutoAnonymousLogin(context);
@@ -421,7 +543,6 @@ SMBCCTX *
 smbc_init_context(SMBCCTX *context)
 {
         int pid;
-        char *home = NULL;
         
         if (!context) {
                 errno = EBADF;
@@ -433,6 +554,16 @@ smbc_init_context(SMBCCTX *context)
                 return NULL;
         }
         
+        if (context->internal->debug_stderr) {
+            /*
+             * Hmmm... Do we want a unique dbf per-thread? For now, we'll just
+             * leave it up to the user. If any one context spefies debug to
+             * stderr then all will be.
+             */
+            dbf = x_stderr;
+            x_setbuf(x_stderr, NULL);
+        }
+                
         if ((!smbc_getFunctionAuthData(context) &&
              !smbc_getFunctionAuthDataWithContext(context)) ||
             smbc_getDebug(context) < 0 ||
@@ -441,88 +572,6 @@ smbc_init_context(SMBCCTX *context)
                 errno = EINVAL;
                 return NULL;
                 
-        }
-        
-        if (!SMBC_initialized) {
-                /*
-                 * Do some library-wide intializations the first time we get
-                 * called
-                 */
-                bool conf_loaded = False;
-                TALLOC_CTX *frame = talloc_stackframe();
-                
-                load_case_tables();
-                
-                setup_logging("libsmbclient", True);
-                if (context->internal->debug_stderr) {
-                        dbf = x_stderr;
-                        x_setbuf(x_stderr, NULL);
-                }
-                
-                /* Here we would open the smb.conf file if needed ... */
-                
-                lp_set_in_client(True);
-                
-                home = getenv("HOME");
-                if (home) {
-                        char *conf = NULL;
-                        if (asprintf(&conf, "%s/.smb/smb.conf", home) > 0) {
-                                if (lp_load(conf, True, False, False, True)) {
-                                        conf_loaded = True;
-                                } else {
-                                        DEBUG(5, ("Could not load config file: %s\n",
-                                                  conf));
-                                }
-                                SAFE_FREE(conf);
-                        }
-                }
-                
-                if (!conf_loaded) {
-                        /*
-                         * Well, if that failed, try the get_dyn_CONFIGFILE
-                         * Which points to the standard locn, and if that
-                         * fails, silently ignore it and use the internal
-                         * defaults ...
-                         */
-                        
-                        if (!lp_load(get_dyn_CONFIGFILE(), True, False, False, False)) {
-                                DEBUG(5, ("Could not load config file: %s\n",
-                                          get_dyn_CONFIGFILE()));
-                        } else if (home) {
-                                char *conf;
-                                /*
-                                 * We loaded the global config file.  Now lets
-                                 * load user-specific modifications to the
-                                 * global config.
-                                 */
-                                if (asprintf(&conf,
-                                             "%s/.smb/smb.conf.append",
-                                             home) > 0) {
-                                        if (!lp_load(conf, True, False, False, False)) {
-                                                DEBUG(10,
-                                                      ("Could not append config file: "
-                                                       "%s\n",
-                                                       conf));
-                                        }
-                                        SAFE_FREE(conf);
-                                }
-                        }
-                }
-                
-                load_interfaces();  /* Load the list of interfaces ... */
-                
-                reopen_logs();  /* Get logging working ... */
-                
-                /*
-                 * Block SIGPIPE (from lib/util_sock.c: write())
-                 * It is not needed and should not stop execution
-                 */
-                BlockSignals(True, SIGPIPE);
-                
-                /* Done with one-time initialisation */
-                SMBC_initialized = true;
-                
-                TALLOC_FREE(frame);
         }
         
         if (!smbc_getUser(context)) {
@@ -622,13 +671,20 @@ smbc_init_context(SMBCCTX *context)
         if (smbc_getTimeout(context) > 0 && smbc_getTimeout(context) < 1000)
                 smbc_setTimeout(context, 1000);
         
-        /*
-         * FIXME: Should we check the function pointers here?
-         */
-        
         context->internal->initialized = True;
+
+        /* Protect access to the count of contexts in use */
+	if (SMB_THREAD_LOCK(initialized_ctx_count_mutex) != 0) {
+                smb_panic("error locking 'initialized_ctx_count'");
+	}
+
 	initialized_ctx_count++;
 
+        /* Unlock the mutex */
+	if (SMB_THREAD_UNLOCK(initialized_ctx_count_mutex) != 0) {
+                smb_panic("error unlocking 'initialized_ctx_count'");
+	}
+        
         return context;
 }
 
@@ -707,6 +763,8 @@ void smbc_set_credentials_with_fallback(SMBCCTX *context,
         set_cmdline_auth_info_signing_state(auth_info, signing_state);
 	set_cmdline_auth_info_fallback_after_kerberos(auth_info,
 		smbc_getOptionFallbackAfterKerberos(context));
+	set_cmdline_auth_info_use_ccache(
+		auth_info, smbc_getOptionUseCCache(context));
         set_global_myworkgroup(workgroup);
 
 	TALLOC_FREE(context->internal->auth_info);

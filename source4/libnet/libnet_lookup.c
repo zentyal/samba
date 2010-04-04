@@ -88,7 +88,7 @@ struct composite_context *libnet_Lookup_send(struct libnet_context *ctx,
 	}
 
 	/* send resolve request */
-	cresolve_req = resolve_name_send(resolve_ctx, &s->hostname, c->event_ctx);
+	cresolve_req = resolve_name_send(resolve_ctx, s, &s->hostname, c->event_ctx);
 	if (composite_nomem(cresolve_req, c)) return c;
 
 	composite_continue(c, cresolve_req, continue_name_resolved, c);
@@ -129,7 +129,7 @@ NTSTATUS libnet_Lookup_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
 	if (NT_STATUS_IS_OK(status)) {
 		s = talloc_get_type(c->private_data, struct lookup_state);
 
-		io->out.address = (const char **)str_list_make(mem_ctx, s->address, NULL);
+		io->out.address = (const char **)str_list_make_single(mem_ctx, s->address);
 		NT_STATUS_HAVE_NO_MEMORY(io->out.address);
 	}
 

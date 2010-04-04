@@ -31,7 +31,7 @@ const struct unix_error_map unix_dos_nt_errmap[] = {
 	{ ENOTDIR, ERRDOS, ERRbadpath,  NT_STATUS_NOT_A_DIRECTORY },
 	{ EIO, ERRHRD, ERRgeneral, NT_STATUS_IO_DEVICE_ERROR },
 	{ EBADF, ERRSRV, ERRsrverror, NT_STATUS_INVALID_HANDLE },
-	{ EINVAL, ERRSRV, ERRsrverror, NT_STATUS_INVALID_HANDLE },
+	{ EINVAL, ERRSRV, ERRsrverror, NT_STATUS_INVALID_PARAMETER },
 	{ EEXIST, ERRDOS, ERRfilexists, NT_STATUS_OBJECT_NAME_COLLISION},
 	{ ENFILE, ERRDOS, ERRnofids, NT_STATUS_TOO_MANY_OPENED_FILES },
 	{ EMFILE, ERRDOS, ERRnofids, NT_STATUS_TOO_MANY_OPENED_FILES },
@@ -40,8 +40,12 @@ const struct unix_error_map unix_dos_nt_errmap[] = {
 	{ EISDIR, ERRDOS, ERRnoaccess, NT_STATUS_FILE_IS_A_DIRECTORY},
 	{ EMLINK, ERRDOS, ERRgeneral, NT_STATUS_TOO_MANY_LINKS },
 	{ EINTR,  ERRHRD, ERRgeneral, NT_STATUS_RETRY },
+	{ ENOSYS, ERRDOS, ERRunsup, NT_STATUS_NOT_SUPPORTED },
 #ifdef ELOOP
 	{ ELOOP, ERRDOS, ERRbadpath, NT_STATUS_OBJECT_PATH_NOT_FOUND },
+#endif
+#ifdef EFTYPE
+	{ EFTYPE, ERRDOS, ERRbadpath, NT_STATUS_OBJECT_PATH_NOT_FOUND },
 #endif
 #ifdef EDQUOT
 	{ EDQUOT, ERRHRD, ERRdiskfull, NT_STATUS_DISK_FULL }, /* Windows apps need this, not NT_STATUS_QUOTA_EXCEEDED */
@@ -82,6 +86,9 @@ const struct unix_error_map unix_dos_nt_errmap[] = {
 #endif
 #ifdef ECONNABORTED
 	{ ECONNABORTED, ERRHRD, ERRgeneral, NT_STATUS_CONNECTION_ABORTED},
+#endif
+#ifdef ECONNRESET
+	{ ECONNRESET, ERRHRD, ERRgeneral, NT_STATUS_CONNECTION_RESET},
 #endif
 #ifdef ENODEV
 	{ ENODEV, ERRDOS, 55, NT_STATUS_DEVICE_DOES_NOT_EXIST},

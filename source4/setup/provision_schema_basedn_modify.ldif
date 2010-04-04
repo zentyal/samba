@@ -3,12 +3,8 @@
 ###############################
 dn: ${SCHEMADN}
 changetype: modify
-replace: fSMORoleOwner
-fSMORoleOwner: CN=NTDS Settings,${SERVERDN}
 -
+# "masteredBy", "msDs-masteredBy" filled in later
 replace: objectVersion
 objectVersion: 30
--
-replace: prefixMap
-prefixMap:: ${PREFIXMAP_B64}
 

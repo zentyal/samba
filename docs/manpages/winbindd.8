@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: winbindd
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 02/22/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 02/19/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "WINBINDD" "8" "02/22/2010" "Samba 3\&.4" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "WINBINDD" "8" "02/19/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,29 +18,27 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 winbindd \- Name Service Switch daemon for resolving names from NT servers
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCwinbindd\F[] [\-D] [\-F] [\-S] [\-i] [\-Y] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-n]
-.fam
+winbindd [\-D] [\-F] [\-S] [\-i] [\-Y] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-n]
 .SH "DESCRIPTION"
 .PP
 This program is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-\FCwinbindd\F[]
+winbindd
 is a daemon that provides a number of services to the Name Service Switch capability found in most modern C libraries, to arbitrary applications via PAM and
-\FCntlm_auth\F[]
+ntlm_auth
 and to Samba itself\&.
 .PP
 Even if winbind is not used for nsswitch, it still provides a service to
-\FCsmbd\F[],
-\FCntlm_auth\F[]
+smbd,
+ntlm_auth
 and the
-\FCpam_winbind\&.so\F[]
+pam_winbind\&.so
 PAM module, by managing connections to domain controllers\&. In this configuraiton the
 \m[blue]\fBidmap uid\fR\m[]
 and
@@ -196,15 +46,15 @@ and
 parameters are not required\&. (This is known as `netlogon proxy only mode\'\&.)
 .PP
 The Name Service Switch allows user and system information to be obtained from different databases services such as NIS or DNS\&. The exact behaviour can be configured through the
-\FC/etc/nsswitch\&.conf\F[]
+/etc/nsswitch\&.conf
 file\&. Users and groups are allocated as they are resolved to a range of user and group ids specified by the administrator of the Samba system\&.
 .PP
 The service provided by
-\FCwinbindd\F[]
+winbindd
 is called `winbind\' and can be used to resolve user and group information from a Windows NT server\&. The service can also provide authentication services via an associated PAM module\&.
 .PP
 The
-\FCpam_winbind\F[]
+pam_winbind
 module supports the
 \fIauth\fR,
 \fIaccount\fR
@@ -213,7 +63,7 @@ and
 module\-types\&. It should be noted that the
 \fIaccount\fR
 module simply performs a getpwnam() to verify that the system can obtain a uid for the user, as the domain controller has already performed access control\&. If the
-\FClibnss_winbind\F[]
+libnss_winbind
 library has been correctly installed, or an alternate source of names configured, this should always succeed\&.
 .PP
 The following nsswitch databases are implemented by the winbindd service:
@@ -221,57 +71,49 @@ The following nsswitch databases are implemented by the winbindd service:
 \-D
 .RS 4
 If specified, this parameter causes the server to operate as a daemon\&. That is, it detaches itself and runs in the background on the appropriate port\&. This switch is assumed if
-\FCwinbindd\F[]
+winbindd
 is executed on the command line of a shell\&.
 .RE
 .PP
 hosts
 .RS 4
 This feature is only available on IRIX\&. User information traditionally stored in the
-\FChosts(5)\F[]
+hosts(5)
 file and used by
-\FCgethostbyname(3)\F[]
+gethostbyname(3)
 functions\&. Names are resolved through the WINS server or by broadcast\&.
 .RE
 .PP
 passwd
 .RS 4
 User information traditionally stored in the
-\FCpasswd(5)\F[]
+passwd(5)
 file and used by
-\FCgetpwent(3)\F[]
+getpwent(3)
 functions\&.
 .RE
 .PP
 group
 .RS 4
 Group information traditionally stored in the
-\FCgroup(5)\F[]
+group(5)
 file and used by
-\FCgetgrent(3)\F[]
+getgrent(3)
 functions\&.
 .RE
 .PP
 For example, the following simple configuration in the
-\FC/etc/nsswitch\&.conf\F[]
+/etc/nsswitch\&.conf
 file can be used to initially resolve user and group information from
-\FC/etc/passwd \F[]
+/etc/passwd
 and
-\FC/etc/group\F[]
+/etc/group
 and then from the Windows NT server\&.
 .sp
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 passwd:         files winbind
 group:          files winbind
 ## only available on IRIX: use winbind to resolve hosts:
@@ -279,43 +121,23 @@ group:          files winbind
 ## All other NSS enabled systems should use libnss_wins\&.so like this:
 hosts:          files dns wins
 
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
 .PP
 The following simple configuration in the
-\FC/etc/nsswitch\&.conf\F[]
+/etc/nsswitch\&.conf
 file can be used to initially resolve hostnames from
-\FC/etc/hosts\F[]
+/etc/hosts
 and then from the WINS server\&.
 .sp
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 hosts:		files wins
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -324,22 +146,22 @@ hosts:		files wins
 \-F
 .RS 4
 If specified, this parameter causes the main
-\FCwinbindd\F[]
+winbindd
 process to not daemonize, i\&.e\&. double\-fork and disassociate with the terminal\&. Child processes are still created as normal to service each connection request, but the main process does not exit\&. This operation mode is suitable for running
-\FCwinbindd\F[]
+winbindd
 under process supervisors such as
-\FCsupervise\F[]
+supervise
 and
-\FCsvscan\F[]
+svscan
 from Daniel J\&. Bernstein\'s
-\FCdaemontools\F[]
+daemontools
 package, or the AIX process monitor\&.
 .RE
 .PP
 \-S
 .RS 4
 If specified, this parameter causes
-\FCwinbindd\F[]
+winbindd
 to log to standard output rather than a file\&.
 .RE
 .PP
@@ -355,7 +177,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-\FCsmb\&.conf\F[]
+smb\&.conf
 file\&.
 .RE
 .PP
@@ -367,7 +189,7 @@ Prints the program version number\&.
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-\FCsmb\&.conf\F[]
+smb\&.conf
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -386,13 +208,13 @@ Print a summary of command line options\&.
 \-i
 .RS 4
 Tells
-\FCwinbindd\F[]
+winbindd
 to not become a daemon and detach from the current terminal\&. This option is used by developers when interactive debugging of
-\FCwinbindd\F[]
+winbindd
 is required\&.
-\FCwinbindd\F[]
+winbindd
 also logs to standard output, as if the
-\FC\-S\F[]
+\-S
 parameter had been given\&.
 .RE
 .PP
@@ -408,7 +230,7 @@ Single daemon mode\&. This means winbindd will run as a single process (the mode
 .SH "NAME AND ID RESOLUTION"
 .PP
 Users and groups on a Windows NT server are assigned a security id (SID) which is globally unique when the user or group is created\&. To convert the Windows NT user or group into a unix user or group, a mapping between SIDs and unix user and group ids is required\&. This is one of the jobs that
-\FC winbindd\F[]
+winbindd
 performs\&.
 .PP
 As winbindd users and groups are resolved from a server, user and group ids are allocated from a specified range\&. This is done on a first come, first served basis, although all existing users and groups will be mapped as soon as a client performs a user or group enumeration command\&. The allocated unix ids are stored in a database and will be remembered\&.
@@ -417,7 +239,7 @@ WARNING: The SID to unix id database is the only location where the user and gro
 .SH "CONFIGURATION"
 .PP
 Configuration of the
-\FCwinbindd\F[]
+winbindd
 daemon is done through configuration parameters in the
 \fBsmb.conf\fR(5)
 file\&. All parameters should be specified in the [global] section of smb\&.conf\&.
@@ -558,36 +380,22 @@ Setting this parameter forces winbindd to use RPC instead of LDAP to retrieve in
 To setup winbindd for user and group lookups plus authentication from a domain controller use something like the following setup\&. This was tested on an early Red Hat Linux box\&.
 .PP
 In
-\FC/etc/nsswitch\&.conf\F[]
+/etc/nsswitch\&.conf
 put the following:
 .sp
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 passwd: files winbind
 group:  files winbind
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
 .PP
 In
-\FC/etc/pam\&.d/*\F[]
+/etc/pam\&.d/*
 replace the
 \fI auth\fR
 lines with something like this:
@@ -595,27 +403,13 @@ lines with something like this:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 auth  required    /lib/security/pam_securetty\&.so
 auth  required	  /lib/security/pam_nologin\&.so
 auth  sufficient  /lib/security/pam_winbind\&.so
 auth  required    /lib/security/pam_unix\&.so \e
                   use_first_pass shadow nullok
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -624,7 +418,6 @@ auth  required    /lib/security/pam_unix\&.so \e
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -636,7 +429,6 @@ auth  required    /lib/security/pam_unix\&.so \e
 .PP
 The PAM module pam_unix has recently replaced the module pam_pwdb\&. Some Linux systems use the module pam_unix2 in place of pam_unix\&.
 .sp .5v
-.EM yellow
 .RE
 .PP
 Note in particular the use of the
@@ -647,30 +439,30 @@ keyword\&.
 .PP
 Now replace the account lines with this:
 .PP
-\FCaccount required /lib/security/pam_winbind\&.so \F[]
+account required /lib/security/pam_winbind\&.so
 .PP
 The next step is to join the domain\&. To do that use the
-\FCnet\F[]
+net
 program like this:
 .PP
-\FCnet join \-S PDC \-U Administrator\F[]
+net join \-S PDC \-U Administrator
 .PP
 The username after the
 \fI\-U\fR
 can be any Domain user that has administrator privileges on the machine\&. Substitute the name or IP of your PDC for "PDC"\&.
 .PP
 Next copy
-\FClibnss_winbind\&.so\F[]
+libnss_winbind\&.so
 to
-\FC/lib\F[]
+/lib
 and
-\FCpam_winbind\&.so \F[]
+pam_winbind\&.so
 to
-\FC/lib/security\F[]\&. A symbolic link needs to be made from
-\FC/lib/libnss_winbind\&.so\F[]
+/lib/security\&. A symbolic link needs to be made from
+/lib/libnss_winbind\&.so
 to
-\FC/lib/libnss_winbind\&.so\&.2\F[]\&. If you are using an older version of glibc then the target of the link should be
-\FC/lib/libnss_winbind\&.so\&.1\F[]\&.
+/lib/libnss_winbind\&.so\&.2\&. If you are using an older version of glibc then the target of the link should be
+/lib/libnss_winbind\&.so\&.1\&.
 .PP
 Finally, setup a
 \fBsmb.conf\fR(5)
@@ -679,15 +471,7 @@ containing directives like the following:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 [global]
 	winbind separator = +
         winbind cache time = 10
@@ -698,36 +482,30 @@ containing directives like the following:
         workgroup = DOMAIN
         security = domain
         password server = *
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
 .PP
 Now start winbindd and you should find that your user and group database is expanded to include your NT users and groups, and that you can login to your unix box as a domain user, using the DOMAIN+user syntax for the username\&. You may wish to use the commands
-\FCgetent passwd\F[]
+getent passwd
 and
-\FCgetent group \F[]
+getent group
 to confirm the correct operation of winbindd\&.
 .SH "NOTES"
 .PP
 The following notes are useful when configuring and running
-\FCwinbindd\F[]:
+winbindd:
 .PP
 \fBnmbd\fR(8)
 must be running on the local machine for
-\FCwinbindd\F[]
+winbindd
 to work\&.
 .PP
 PAM is really easy to misconfigure\&. Make sure you know what you are doing when modifying PAM configuration files\&. It is possible to set up PAM such that you can no longer log into your system\&.
 .PP
 If more than one UNIX machine is running
-\FCwinbindd\F[], then in general the user and groups ids allocated by winbindd will not be the same\&. The user and group ids will only be valid for the local machine, unless a shared
+winbindd, then in general the user and groups ids allocated by winbindd will not be the same\&. The user and group ids will only be valid for the local machine, unless a shared
 \m[blue]\fBidmap backend\fR\m[]
 is configured\&.
 .PP
@@ -735,7 +513,7 @@ If the the Windows NT SID to UNIX user and group id mapping file is damaged or d
 .SH "SIGNALS"
 .PP
 The following signals can be used to manipulate the
-\FCwinbindd\F[]
+winbindd
 daemon\&.
 .PP
 SIGHUP
@@ -748,14 +526,14 @@ file and apply any parameter changes to the running version of winbindd\&. This 
 SIGUSR2
 .RS 4
 The SIGUSR2 signal will cause
-\FC winbindd\F[]
+winbindd
 to write status information to the winbind log file\&.
 .sp
 Log files are stored in the filename specified by the log file parameter\&.
 .RE
 .SH "FILES"
 .PP
-\FC/etc/nsswitch\&.conf(5)\F[]
+/etc/nsswitch\&.conf(5)
 .RS 4
 Name service switch configuration file\&.
 .RE
@@ -763,24 +541,24 @@ Name service switch configuration file\&.
 /tmp/\&.winbindd/pipe
 .RS 4
 The UNIX pipe over which clients communicate with the
-\FCwinbindd\F[]
+winbindd
 program\&. For security reasons, the winbind client will only attempt to connect to the winbindd daemon if both the
-\FC/tmp/\&.winbindd\F[]
+/tmp/\&.winbindd
 directory and
-\FC/tmp/\&.winbindd/pipe\F[]
+/tmp/\&.winbindd/pipe
 file are owned by root\&.
 .RE
 .PP
-$LOCKDIR/winbindd_privileged/pipe
+/var/run/samba/winbindd_privileged/pipe
 .RS 4
 The UNIX pipe over which \'privileged\' clients communicate with the
-\FCwinbindd\F[]
+winbindd
 program\&. For security reasons, access to some winbindd functions \- like those needed by the
-\FCntlm_auth\F[]
-utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on $LOCKDIR/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
-\FC$LOCKDIR/winbindd_privileged\F[]
+ntlm_auth
+utility \- is restricted\&. By default, only users in the \'root\' group will get this access, however the administrator may change the group permissions on /var/run/samba/winbindd_privileged to allow programs like \'squid\' to use ntlm_auth\&. Note that the winbind client will only attempt to connect to the winbindd daemon if both the
+/var/run/samba/winbindd_privileged
 directory and
-\FC$LOCKDIR/winbindd_privileged/pipe\F[]
+/var/run/samba/winbindd_privileged/pipe
 file are owned by root\&.
 .RE
 .PP
@@ -789,15 +567,12 @@ file are owned by root\&.
 Implementation of name service switch library\&.
 .RE
 .PP
-$LOCKDIR/winbindd_idmap\&.tdb
+/var/run/samba/winbindd_idmap\&.tdb
 .RS 4
-Storage for the Windows NT rid to UNIX user/group id mapping\&. The lock directory is specified when Samba is initially compiled using the
-\fI\-\-with\-lockdir\fR
-option\&. This directory is by default
-\FC/usr/local/samba/var/locks \F[]\&.
+Storage for the Windows NT rid to UNIX user/group id mapping\&.
 .RE
 .PP
-$LOCKDIR/winbindd_cache\&.tdb
+/var/run/samba/winbindd_cache\&.tdb
 .RS 4
 Storage for cached user and group information\&.
 .RE
@@ -806,7 +581,7 @@ Storage for cached user and group information\&.
 This man page is correct for version 3 of the Samba suite\&.
 .SH "SEE ALSO"
 .PP
-\FCnsswitch\&.conf(5)\F[],
+nsswitch\&.conf(5),
 \fBsamba\fR(7),
 \fBwbinfo\fR(1),
 \fBntlm_auth\fR(8),
@@ -816,9 +591,9 @@ This man page is correct for version 3 of the Samba suite\&.
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.
 .PP
-\FCwbinfo\F[]
+wbinfo
 and
-\FCwinbindd\F[]
+winbindd
 were written by Tim Potter\&.
 .PP
 The conversion to DocBook for Samba 2\&.2 was done by Gerald Carter\&. The conversion to DocBook XML 4\&.2 for Samba 3\&.0 was done by Alexander Bokovoy\&.

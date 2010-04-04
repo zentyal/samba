@@ -258,7 +258,7 @@ static NTSTATUS smb2_send_trans_request(struct dcerpc_connection *c, DATA_BLOB *
 	ZERO_STRUCT(io);
 	io.in.file.handle	= smb->handle;
 	io.in.function		= FSCTL_NAMED_PIPE_READ_WRITE;
-	io.in.max_response_size	= 0x1000;
+	io.in.max_response_size	= 0x2000;
 	io.in.flags		= 1;
 	io.in.out		= *blob;
 
@@ -324,6 +324,11 @@ static NTSTATUS smb2_send_request(struct dcerpc_connection *c, DATA_BLOB *blob,
 	return NT_STATUS_OK;
 }
 
+static void free_request(struct smb2_request *req)
+{
+	talloc_free(req);
+}
+
 /* 
    shutdown SMB pipe connection
 */
@@ -341,7 +346,7 @@ static NTSTATUS smb2_shutdown_pipe(struct dcerpc_connection *c, NTSTATUS status)
 	req = smb2_close_send(smb->tree, &io);
 	if (req != NULL) {
 		/* we don't care if this fails, so just free it if it succeeds */
-		req->async.fn = (void (*)(struct smb2_request *))talloc_free;
+		req->async.fn = free_request;
 	}
 
 	talloc_free(smb);

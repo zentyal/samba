@@ -350,6 +350,7 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 			     bool request_pac,
 			     bool add_netbios_addr,
 			     time_t renewable_time,
+			     const char *impersonate_princ_s,
 			     struct PAC_DATA **pac_ret)
 {
 	krb5_error_code ret;
@@ -423,21 +424,24 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_LOGON_TYPE;
 	}
 
-
 	ret = cli_krb5_get_ticket(local_service,
 				  time_offset,
 				  &tkt,
 				  &sesskey1,
 				  0,
 				  cc,
-				  NULL);
+				  NULL,
+				  impersonate_princ_s);
 	if (ret) {
 		DEBUG(1,("failed to get ticket for %s: %s\n",
 			local_service, error_message(ret)));
+		if (impersonate_princ_s) {
+			DEBUGADD(1,("tried S4U2SELF impersonation as: %s\n",
+				impersonate_princ_s));
+		}
 		status = krb5_to_nt_status(ret);
 		goto out;
 	}
-
 	status = ads_verify_ticket(mem_ctx,
 				   lp_realm(),
 				   time_offset,
@@ -489,6 +493,7 @@ static NTSTATUS kerberos_return_pac_logon_info(TALLOC_CTX *mem_ctx,
 					       bool request_pac,
 					       bool add_netbios_addr,
 					       time_t renewable_time,
+					       const char *impersonate_princ_s,
 					       struct PAC_LOGON_INFO **logon_info)
 {
 	NTSTATUS status;
@@ -505,6 +510,7 @@ static NTSTATUS kerberos_return_pac_logon_info(TALLOC_CTX *mem_ctx,
 				     request_pac,
 				     add_netbios_addr,
 				     renewable_time,
+				     impersonate_princ_s,
 				     &pac_data);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -539,6 +545,7 @@ NTSTATUS kerberos_return_info3_from_pac(TALLOC_CTX *mem_ctx,
 					bool request_pac,
 					bool add_netbios_addr,
 					time_t renewable_time,
+					const char *impersonate_princ_s,
 					struct netr_SamInfo3 **info3)
 {
 	NTSTATUS status;
@@ -554,6 +561,7 @@ NTSTATUS kerberos_return_info3_from_pac(TALLOC_CTX *mem_ctx,
 						request_pac,
 						add_netbios_addr,
 						renewable_time,
+						impersonate_princ_s,
 						&logon_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;

@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 OM_uint32
 __gsskrb5_ccache_lifetime(OM_uint32 *minor_status,
@@ -187,7 +185,8 @@ static OM_uint32 acquire_initiator_cred
 	krb5_get_init_creds_opt_free(context, opt);
 	if (kret)
 	    goto end;
-	kret = krb5_cc_gen_new(context, &krb5_mcc_ops, &ccache);
+	kret = krb5_cc_new_unique(context, krb5_cc_type_memory,
+				  NULL, &ccache);
 	if (kret)
 	    goto end;
 	kret = krb5_cc_initialize(context, ccache, cred.client);
@@ -340,8 +339,8 @@ OM_uint32 _gsskrb5_acquire_cred
 
     if (desired_name != GSS_C_NO_NAME) {
 
-	ret = _gsskrb5_canon_name(minor_status, context, 0, desired_name,
-				  &handle->principal);
+	ret = _gsskrb5_canon_name(minor_status, context, 0, NULL,
+				  desired_name, &handle->principal);
 	if (ret) {
 	    HEIMDAL_MUTEX_destroy(&handle->cred_id_mutex);
 	    free(handle);

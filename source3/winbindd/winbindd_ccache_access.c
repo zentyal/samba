@@ -6,17 +6,17 @@
    Copyright (C) Robert O'Callahan 2006
    Copyright (C) Jeremy Allison 2006 (minor fixes to fit into Samba and
 				      protect against integer wrap).
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -46,7 +46,8 @@ static NTSTATUS do_ntlm_auth_with_hashes(const char *username,
 					const unsigned char nt_hash[NT_HASH_LEN],
 					const DATA_BLOB initial_msg,
 					const DATA_BLOB challenge_msg,
-					DATA_BLOB *auth_msg)
+					DATA_BLOB *auth_msg,
+					uint8_t session_key[16])
 {
 	NTSTATUS status;
 	NTLMSSP_STATE *ntlmssp_state = NULL;
@@ -77,12 +78,14 @@ static NTSTATUS do_ntlm_auth_with_hashes(const char *username,
 	}
 
 	status = ntlmssp_set_hashes(ntlmssp_state, lm_hash, nt_hash);
-        
+
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Could not set hashes: %s\n",
 			nt_errstr(status)));
 		goto done;
 	}
+
+	ntlmssp_want_feature(ntlmssp_state, NTLMSSP_FEATURE_SESSION_KEY);
 
 	/* We need to get our protocol handler into the right state. So first
 	   we ask it to generate the initial message. Actually the client has already
@@ -115,7 +118,16 @@ static NTSTATUS do_ntlm_auth_with_hashes(const char *username,
 		data_blob_free(&reply);
 		goto done;
 	}
-	*auth_msg = reply;
+
+	if (ntlmssp_state->session_key.length != 16) {
+		DEBUG(1, ("invalid session key length %d\n",
+			  (int)ntlmssp_state->session_key.length));
+		data_blob_free(&reply);
+		goto done;
+	}
+
+	*auth_msg = data_blob(reply.data, reply.length);
+	memcpy(session_key, ntlmssp_state->session_key.data, 16);
 	status = NT_STATUS_OK;
 
 done:
@@ -153,23 +165,23 @@ void winbindd_ccache_ntlm_auth(struct winbindd_cli_state *state)
 	fstring name_domain, name_user;
 
 	/* Ensure null termination */
-	state->request.data.ccache_ntlm_auth.user[
-			sizeof(state->request.data.ccache_ntlm_auth.user)-1]='\0';
+	state->request->data.ccache_ntlm_auth.user[
+			sizeof(state->request->data.ccache_ntlm_auth.user)-1]='\0';
 
 	DEBUG(3, ("[%5lu]: perform NTLM auth on behalf of user %s\n", (unsigned long)state->pid,
-		state->request.data.ccache_ntlm_auth.user));
+		state->request->data.ccache_ntlm_auth.user));
 
 	/* Parse domain and username */
 
-	if (!canonicalize_username(state->request.data.ccache_ntlm_auth.user,
+	if (!canonicalize_username(state->request->data.ccache_ntlm_auth.user,
 				name_domain, name_user)) {
 		DEBUG(5,("winbindd_ccache_ntlm_auth: cannot parse domain and user from name [%s]\n",
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		request_error(state);
 		return;
 	}
 
-	domain = find_auth_domain(state, name_domain);
+	domain = find_auth_domain(state->request->flags, name_domain);
 
 	if (domain == NULL) {
 		DEBUG(5,("winbindd_ccache_ntlm_auth: can't get domain [%s]\n",
@@ -178,7 +190,7 @@ void winbindd_ccache_ntlm_auth(struct winbindd_cli_state *state)
 		return;
 	}
 
-	if (!check_client_uid(state, state->request.data.ccache_ntlm_auth.uid)) {
+	if (!check_client_uid(state, state->request->data.ccache_ntlm_auth.uid)) {
 		request_error(state);
 		return;
 	}
@@ -196,17 +208,17 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 	uint32 initial_blob_len, challenge_blob_len, extra_len;
 
 	/* Ensure null termination */
-	state->request.data.ccache_ntlm_auth.user[
-		sizeof(state->request.data.ccache_ntlm_auth.user)-1]='\0';
+	state->request->data.ccache_ntlm_auth.user[
+		sizeof(state->request->data.ccache_ntlm_auth.user)-1]='\0';
 
 	DEBUG(3, ("winbindd_dual_ccache_ntlm_auth: [%5lu]: perform NTLM auth on "
 		"behalf of user %s (dual)\n", (unsigned long)state->pid,
-		state->request.data.ccache_ntlm_auth.user));
+		state->request->data.ccache_ntlm_auth.user));
 
 	/* validate blob lengths */
-	initial_blob_len = state->request.data.ccache_ntlm_auth.initial_blob_len;
-	challenge_blob_len = state->request.data.ccache_ntlm_auth.challenge_blob_len;
-	extra_len = state->request.extra_len;
+	initial_blob_len = state->request->data.ccache_ntlm_auth.initial_blob_len;
+	challenge_blob_len = state->request->data.ccache_ntlm_auth.challenge_blob_len;
+	extra_len = state->request->extra_len;
 
 	if (initial_blob_len > extra_len || challenge_blob_len > extra_len ||
 		initial_blob_len + challenge_blob_len > extra_len ||
@@ -222,44 +234,45 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 	}
 
 	/* Parse domain and username */
-	if (!parse_domain_user(state->request.data.ccache_ntlm_auth.user, name_domain, name_user)) {
+	if (!parse_domain_user(state->request->data.ccache_ntlm_auth.user, name_domain, name_user)) {
 		DEBUG(10,("winbindd_dual_ccache_ntlm_auth: cannot parse "
 			"domain and user from name [%s]\n",
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		goto process_result;
 	}
 
-	entry = find_memory_creds_by_name(state->request.data.ccache_ntlm_auth.user);
+	entry = find_memory_creds_by_name(state->request->data.ccache_ntlm_auth.user);
 	if (entry == NULL || entry->nt_hash == NULL || entry->lm_hash == NULL) {
 		DEBUG(10,("winbindd_dual_ccache_ntlm_auth: could not find "
 			"credentials for user %s\n", 
-			state->request.data.ccache_ntlm_auth.user));
+			state->request->data.ccache_ntlm_auth.user));
 		goto process_result;
 	}
 
 	DEBUG(10,("winbindd_dual_ccache_ntlm_auth: found ccache [%s]\n", entry->username));
 
-	if (!client_can_access_ccache_entry(state->request.data.ccache_ntlm_auth.uid, entry)) {
+	if (!client_can_access_ccache_entry(state->request->data.ccache_ntlm_auth.uid, entry)) {
 		goto process_result;
 	}
 
 	if (initial_blob_len == 0 && challenge_blob_len == 0) {
 		/* this is just a probe to see if credentials are available. */
 		result = NT_STATUS_OK;
-		state->response.data.ccache_ntlm_auth.auth_blob_len = 0;
+		state->response->data.ccache_ntlm_auth.auth_blob_len = 0;
 		goto process_result;
 	}
 
-	initial = data_blob(state->request.extra_data.data, initial_blob_len);
-	challenge = data_blob(state->request.extra_data.data + initial_blob_len, 
-				state->request.data.ccache_ntlm_auth.challenge_blob_len);
+	initial = data_blob(state->request->extra_data.data, initial_blob_len);
+	challenge = data_blob(state->request->extra_data.data + initial_blob_len,
+				state->request->data.ccache_ntlm_auth.challenge_blob_len);
 
 	if (!initial.data || !challenge.data) {
 		result = NT_STATUS_NO_MEMORY;
 	} else {
-		result = do_ntlm_auth_with_hashes(name_user, name_domain,
-						entry->lm_hash, entry->nt_hash,
-						initial, challenge, &auth);
+		result = do_ntlm_auth_with_hashes(
+			name_user, name_domain, entry->lm_hash, entry->nt_hash,
+			initial, challenge, &auth,
+			state->response->data.ccache_ntlm_auth.session_key);
 	}
 
 	data_blob_free(&initial);
@@ -269,16 +282,89 @@ enum winbindd_result winbindd_dual_ccache_ntlm_auth(struct winbindd_domain *doma
 		goto process_result;
 	}
 
-	state->response.extra_data.data = smb_xmemdup(auth.data, auth.length);
-	if (!state->response.extra_data.data) {
+	state->response->extra_data.data = talloc_memdup(
+		state->mem_ctx, auth.data, auth.length);
+	if (!state->response->extra_data.data) {
 		result = NT_STATUS_NO_MEMORY;
 		goto process_result;
 	}
-	state->response.length += auth.length;
-	state->response.data.ccache_ntlm_auth.auth_blob_len = auth.length;
+	state->response->length += auth.length;
+	state->response->data.ccache_ntlm_auth.auth_blob_len = auth.length;
 
 	data_blob_free(&auth);
 
   process_result:
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
+}
+
+void winbindd_ccache_save(struct winbindd_cli_state *state)
+{
+	struct winbindd_domain *domain;
+	fstring name_domain, name_user;
+
+	/* Ensure null termination */
+	state->request->data.ccache_save.user[
+		sizeof(state->request->data.ccache_save.user)-1]='\0';
+	state->request->data.ccache_save.pass[
+		sizeof(state->request->data.ccache_save.pass)-1]='\0';
+
+	DEBUG(3, ("[%5lu]: save password of user %s\n",
+		  (unsigned long)state->pid,
+		  state->request->data.ccache_save.user));
+
+	/* Parse domain and username */
+
+	if (!canonicalize_username(state->request->data.ccache_ntlm_auth.user,
+				   name_domain, name_user)) {
+		DEBUG(5,("winbindd_ccache_save: cannot parse domain and user "
+			 "from name [%s]\n",
+			 state->request->data.ccache_save.user));
+		request_error(state);
+		return;
+	}
+
+	domain = find_auth_domain(state->request->flags, name_domain);
+
+	if (domain == NULL) {
+		DEBUG(5, ("winbindd_ccache_save: can't get domain [%s]\n",
+			  name_domain));
+		request_error(state);
+		return;
+	}
+
+	if (!check_client_uid(state, state->request->data.ccache_save.uid)) {
+		request_error(state);
+		return;
+	}
+
+	sendto_domain(state, domain);
+}
+
+enum winbindd_result winbindd_dual_ccache_save(
+	struct winbindd_domain *domain, struct winbindd_cli_state *state)
+{
+	NTSTATUS status = NT_STATUS_NOT_SUPPORTED;
+
+	/* Ensure null termination */
+	state->request->data.ccache_save.user[
+		sizeof(state->request->data.ccache_save.user)-1]='\0';
+	state->request->data.ccache_save.pass[
+		sizeof(state->request->data.ccache_save.pass)-1]='\0';
+
+	DEBUG(3, ("winbindd_dual_ccache_save: [%5lu]: save password of user "
+		  "%s\n", (unsigned long)state->pid,
+		  state->request->data.ccache_save.user));
+
+	status = winbindd_add_memory_creds(
+		state->request->data.ccache_save.user,
+		state->request->data.ccache_save.uid,
+		state->request->data.ccache_save.pass);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("winbindd_add_memory_creds failed %s\n",
+			  nt_errstr(status)));
+		return WINBINDD_ERROR;
+	}
+
+	return WINBINDD_OK;
 }

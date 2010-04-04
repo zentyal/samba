@@ -78,7 +78,7 @@ static NTSTATUS torture_smb2_write(struct torture_context *tctx, struct smb2_tre
 	} else if (torture_setting_bool(tctx, "samba4", false)) {
 		data = data_blob_talloc(tree, NULL, UINT16_MAX);
 	} else {
-		data = data_blob_talloc(tree, NULL, 120000);
+		data = data_blob_talloc(tree, NULL, torture_setting_int(tctx, "smb2maxwrite", 120000));
 	}
 	for (i=0;i<data.length;i++) {
 		data.data[i] = i;
@@ -199,6 +199,8 @@ bool torture_smb2_connect(struct torture_context *torture)
 	if (!torture_smb2_connection(torture, &tree)) {
 		return false;
 	}
+
+	smb2_util_unlink(tree, "test9.dat");
 
 	h1 = torture_smb2_createfile(tree, "test9.dat");
 	h2 = torture_smb2_createfile(tree, "test9.dat");

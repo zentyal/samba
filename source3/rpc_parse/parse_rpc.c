@@ -29,7 +29,7 @@
  Inits an RPC_HDR structure.
 ********************************************************************/
 
-void init_rpc_hdr(RPC_HDR *hdr, enum RPC_PKT_TYPE pkt_type, uint8 flags,
+void init_rpc_hdr(RPC_HDR *hdr, enum dcerpc_pkt_type pkt_type, uint8 flags,
 				uint32 call_id, int data_len, int auth_len)
 {
 	hdr->major        = 5;               /* RPC version 5 */
@@ -100,10 +100,11 @@ bool smb_io_rpc_hdr(const char *desc,  RPC_HDR *rpc, prs_struct *ps, int depth)
 }
 
 /*******************************************************************
- Reads or writes an RPC_IFACE structure.
+ Reads or writes an struct ndr_syntax_id structure.
 ********************************************************************/
 
-static bool smb_io_rpc_iface(const char *desc, RPC_IFACE *ifc, prs_struct *ps, int depth)
+static bool smb_io_rpc_iface(const char *desc, struct ndr_syntax_id *ifc,
+			     prs_struct *ps, int depth)
 {
 	if (ifc == NULL)
 		return False;
@@ -192,7 +193,8 @@ static bool smb_io_rpc_hdr_bba(const char *desc,  RPC_HDR_BBA *rpc, prs_struct *
 ********************************************************************/
 
 void init_rpc_context(RPC_CONTEXT *rpc_ctx, uint16 context_id,
-		      const RPC_IFACE *abstract, const RPC_IFACE *transfer)
+		      const struct ndr_syntax_id *abstract,
+		      const struct ndr_syntax_id *transfer)
 {
 	rpc_ctx->context_id   = context_id   ; /* presentation context identifier (0x0) */
 	rpc_ctx->num_transfer_syntaxes = 1 ; /* the number of syntaxes (has always been 1?)(0x1) */
@@ -201,7 +203,7 @@ void init_rpc_context(RPC_CONTEXT *rpc_ctx, uint16 context_id,
 	rpc_ctx->abstract = *abstract;
 
 	/* vers. of interface to use for replies */
-	rpc_ctx->transfer = CONST_DISCARD(RPC_IFACE *, transfer);
+	rpc_ctx->transfer = CONST_DISCARD(struct ndr_syntax_id *, transfer);
 }
 
 /*******************************************************************
@@ -245,7 +247,7 @@ bool smb_io_rpc_context(const char *desc, RPC_CONTEXT *rpc_ctx, prs_struct *ps, 
 		return False;
 
 	if (UNMARSHALLING(ps)) {
-		if (!(rpc_ctx->transfer = PRS_ALLOC_MEM(ps, RPC_IFACE, rpc_ctx->num_transfer_syntaxes))) {
+		if (!(rpc_ctx->transfer = PRS_ALLOC_MEM(ps, struct ndr_syntax_id, rpc_ctx->num_transfer_syntaxes))) {
 			return False;
 		}
 	}
@@ -352,7 +354,7 @@ void init_rpc_hdr_ba(RPC_HDR_BA *rpc,
 				uint16 max_tsize, uint16 max_rsize, uint32 assoc_gid,
 				const char *pipe_addr,
 				uint8 num_results, uint16 result, uint16 reason,
-				RPC_IFACE *transfer)
+				const struct ndr_syntax_id *transfer)
 {
 	init_rpc_hdr_bba (&rpc->bba, max_tsize, max_rsize, assoc_gid);
 	init_rpc_addr_str(&rpc->addr, pipe_addr);
@@ -501,141 +503,6 @@ bool smb_io_rpc_hdr_auth(const char *desc, RPC_HDR_AUTH *rai, prs_struct *ps, in
 		return False;
 	if(!prs_uint32("auth_context_id", ps, depth, &rai->auth_context_id))
 		return False;
-
-	return True;
-}
-
-/*******************************************************************
- Checks an RPC_AUTH_VERIFIER structure.
-********************************************************************/
-
-bool rpc_auth_verifier_chk(RPC_AUTH_VERIFIER *rav,
-				const char *signature, uint32 msg_type)
-{
-	return (strequal(rav->signature, signature) && rav->msg_type == msg_type);
-}
-
-/*******************************************************************
- Inits an RPC_AUTH_VERIFIER structure.
-********************************************************************/
-
-void init_rpc_auth_verifier(RPC_AUTH_VERIFIER *rav,
-				const char *signature, uint32 msg_type)
-{
-	fstrcpy(rav->signature, signature); /* "NTLMSSP" */
-	rav->msg_type = msg_type; /* NTLMSSP_MESSAGE_TYPE */
-}
-
-/*******************************************************************
- Reads or writes an RPC_AUTH_VERIFIER structure.
-********************************************************************/
-
-bool smb_io_rpc_auth_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
-{
-	if (rav == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "smb_io_rpc_auth_verifier");
-	depth++;
-
-	/* "NTLMSSP" */
-	if(!prs_string("signature", ps, depth, rav->signature,
-			sizeof(rav->signature)))
-		return False;
-	if(!prs_uint32("msg_type ", ps, depth, &rav->msg_type)) /* NTLMSSP_MESSAGE_TYPE */
-		return False;
-
-	return True;
-}
-
-/*******************************************************************
- This parses an RPC_AUTH_VERIFIER for schannel. I think
-********************************************************************/
-
-bool smb_io_rpc_schannel_verifier(const char *desc, RPC_AUTH_VERIFIER *rav, prs_struct *ps, int depth)
-{
-	if (rav == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "smb_io_rpc_schannel_verifier");
-	depth++;
-
-	if(!prs_string("signature", ps, depth, rav->signature, sizeof(rav->signature)))
-		return False;
-	if(!prs_uint32("msg_type ", ps, depth, &rav->msg_type))
-		return False;
-
-	return True;
-}
-
-/*******************************************************************
-creates an RPC_AUTH_SCHANNEL_NEG structure.
-********************************************************************/
-
-void init_rpc_auth_schannel_neg(RPC_AUTH_SCHANNEL_NEG *neg,
-			      const char *domain, const char *myname)
-{
-	neg->type1 = 0;
-	neg->type2 = 0x3;
-	fstrcpy(neg->domain, domain);
-	fstrcpy(neg->myname, myname);
-}
-
-/*******************************************************************
- Reads or writes an RPC_AUTH_SCHANNEL_NEG structure.
-********************************************************************/
-
-bool smb_io_rpc_auth_schannel_neg(const char *desc, RPC_AUTH_SCHANNEL_NEG *neg,
-				prs_struct *ps, int depth)
-{
-	if (neg == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "smb_io_rpc_auth_schannel_neg");
-	depth++;
-
-	if(!prs_align(ps))
-		return False;
-
-	if(!prs_uint32("type1", ps, depth, &neg->type1))
-		return False;
-	if(!prs_uint32("type2", ps, depth, &neg->type2))
-		return False;
-	if(!prs_string("domain  ", ps, depth, neg->domain, sizeof(neg->domain)))
-		return False;
-	if(!prs_string("myname  ", ps, depth, neg->myname, sizeof(neg->myname)))
-		return False;
-
-	return True;
-}
-
-/*******************************************************************
-reads or writes an RPC_AUTH_SCHANNEL_CHK structure.
-********************************************************************/
-
-bool smb_io_rpc_auth_schannel_chk(const char *desc, int auth_len, 
-                                RPC_AUTH_SCHANNEL_CHK * chk,
-				prs_struct *ps, int depth)
-{
-	if (chk == NULL)
-		return False;
-
-	prs_debug(ps, depth, desc, "smb_io_rpc_auth_schannel_chk");
-	depth++;
-
-	if ( !prs_uint8s(False, "sig  ", ps, depth, chk->sig, sizeof(chk->sig)) )
-		return False;
-		
-	if ( !prs_uint8s(False, "seq_num", ps, depth, chk->seq_num, sizeof(chk->seq_num)) )
-		return False;
-		
-	if ( !prs_uint8s(False, "packet_digest", ps, depth, chk->packet_digest, sizeof(chk->packet_digest)) )
-		return False;
-	
-	if ( auth_len == RPC_AUTH_SCHANNEL_SIGN_OR_SEAL_CHK_LEN ) {
-		if ( !prs_uint8s(False, "confounder", ps, depth, chk->confounder, sizeof(chk->confounder)) )
-			return False;
-	}
 
 	return True;
 }

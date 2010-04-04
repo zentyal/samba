@@ -106,8 +106,14 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 		return c;
 	}
 
+	switch (r->level) {
+	case LIBNET_RPC_CONNECT_SERVER:
+	case LIBNET_RPC_CONNECT_SERVER_ADDRESS:
+		b->flags = r->in.dcerpc_flags;
+	}
+
 	if (r->level == LIBNET_RPC_CONNECT_SERVER_ADDRESS) {
-		b->target_hostname = talloc_reference(b, r->in.name);
+		b->target_hostname = talloc_strdup(b, r->in.name);
 		if (composite_nomem(b->target_hostname, c)) {
 			return c;
 		}
@@ -323,6 +329,7 @@ static void continue_lookup_dc(struct composite_context *ctx)
 	s->r2.in.name          = talloc_strdup(s, s->connect_name);
 	s->r2.in.address       = talloc_steal(s, s->f.out.dcs[0].address);
 	s->r2.in.dcerpc_iface  = s->r.in.dcerpc_iface;	
+	s->r2.in.dcerpc_flags  = s->r.in.dcerpc_flags;
 
 	/* send rpc connect request to the server */
 	rpc_connect_req = libnet_RpcConnectSrv_send(s->ctx, c, &s->r2, s->monitor_fn);
@@ -393,8 +400,17 @@ static NTSTATUS libnet_RpcConnectDC_recv(struct composite_context *c,
 
 	status = composite_wait(c);
 	if (NT_STATUS_IS_OK(status)) {
-		/* move connected rpc pipe between memory contexts */
-		r->out.dcerpc_pipe = talloc_steal(mem_ctx, s->r.out.dcerpc_pipe);
+		/* move connected rpc pipe between memory contexts 
+		   
+		   The use of talloc_reparent(talloc_parent(), ...) is
+		   bizarre, but it is needed because of the absolutely
+		   atrocious use of talloc in this code. We need to
+		   force the original parent to change, but finding
+		   the original parent is well nigh impossible at this
+		   point in the code (yes, I tried).
+		 */
+		r->out.dcerpc_pipe = talloc_reparent(talloc_parent(s->r.out.dcerpc_pipe), 
+						     mem_ctx, s->r.out.dcerpc_pipe);
 
 		/* reference created pipe structure to long-term libnet_context
 		   so that it can be used by other api functions even after short-term
@@ -478,14 +494,18 @@ static struct composite_context* libnet_RpcConnectDCInfo_send(struct libnet_cont
 	s->r   = *r;
 	ZERO_STRUCT(s->r.out);
 
+
 	/* proceed to pure rpc connection if the binding string is provided,
 	   otherwise try to connect domain controller */
 	if (r->in.binding == NULL) {
-		s->rpc_conn.in.name    = r->in.name;
-		s->rpc_conn.level      = LIBNET_RPC_CONNECT_DC;
+		/* Pass on any binding flags (such as anonymous fallback) that have been set */
+		s->rpc_conn.in.dcerpc_flags = r->in.dcerpc_flags;
+
+		s->rpc_conn.in.name         = r->in.name;
+		s->rpc_conn.level           = LIBNET_RPC_CONNECT_DC;
 	} else {
-		s->rpc_conn.in.binding = r->in.binding;
-		s->rpc_conn.level      = LIBNET_RPC_CONNECT_BINDING;
+		s->rpc_conn.in.binding      = r->in.binding;
+		s->rpc_conn.level           = LIBNET_RPC_CONNECT_BINDING;
 	}
 
 	/* we need to query information on lsarpc interface first */

@@ -1,7 +1,7 @@
 /* 
    Unix SMB/CIFS implementation.
 
-   Swig interface to tdb.
+   Python interface to tdb.
 
    Copyright (C) 2004-2006 Tim Potter <tpot@samba.org>
    Copyright (C) 2007-2008 Jelmer Vernooij <jelmer@samba.org>
@@ -337,7 +337,7 @@ static PyMethodDef tdb_object_methods[] = {
 	{ "read_lock_all", (PyCFunction)obj_lockall_read, METH_NOARGS, NULL },
 	{ "read_unlock_all", (PyCFunction)obj_unlockall_read, METH_NOARGS, NULL },
 	{ "close", (PyCFunction)obj_close, METH_NOARGS, NULL },
-	{ "get", (PyCFunction)obj_get, METH_VARARGS, "S.fetch(key) -> value\n"
+	{ "get", (PyCFunction)obj_get, METH_VARARGS, "S.get(key) -> value\n"
 		"Fetch a value." },
 	{ "append", (PyCFunction)obj_append, METH_VARARGS, "S.append(key, value) -> None\n"
 		"Append data to an existing key." },

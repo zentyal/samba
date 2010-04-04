@@ -55,7 +55,17 @@ extern unsigned int global_clobber_region_line;
 #endif /* WITH_NISPLUS_HOME */
 #endif /* HAVE_NETGROUP && WITH_AUTOMOUNT */
 
-enum protocol_types Protocol = PROTOCOL_COREPLUS;
+static enum protocol_types Protocol = PROTOCOL_COREPLUS;
+
+enum protocol_types get_Protocol(void)
+{
+	return Protocol;
+}
+
+void set_Protocol(enum protocol_types  p)
+{
+	Protocol = p;
+}
 
 static enum remote_arch_types ra_type = RA_UNKNOWN;
 
@@ -308,6 +318,24 @@ void set_cmdline_auth_info_username(struct user_auth_info *auth_info,
 	}
 }
 
+const char *get_cmdline_auth_info_domain(const struct user_auth_info *auth_info)
+{
+	if (!auth_info->domain) {
+		return "";
+	}
+	return auth_info->domain;
+}
+
+void set_cmdline_auth_info_domain(struct user_auth_info *auth_info,
+				  const char *domain)
+{
+	TALLOC_FREE(auth_info->domain);
+	auth_info->domain = talloc_strdup(auth_info, domain);
+	if (!auth_info->domain) {
+		exit(ENOMEM);
+	}
+}
+
 const char *get_cmdline_auth_info_password(const struct user_auth_info *auth_info)
 {
 	if (!auth_info->password) {
@@ -352,6 +380,16 @@ bool set_cmdline_auth_info_signing_state(struct user_auth_info *auth_info,
 int get_cmdline_auth_info_signing_state(const struct user_auth_info *auth_info)
 {
 	return auth_info->signing_state;
+}
+
+void set_cmdline_auth_info_use_ccache(struct user_auth_info *auth_info, bool b)
+{
+        auth_info->use_ccache = b;
+}
+
+bool get_cmdline_auth_info_use_ccache(const struct user_auth_info *auth_info)
+{
+	return auth_info->use_ccache;
 }
 
 void set_cmdline_auth_info_use_kerberos(struct user_auth_info *auth_info,
@@ -495,53 +533,21 @@ void set_cmdline_auth_info_getpass(struct user_auth_info *auth_info)
 	TALLOC_FREE(frame);
 }
 
-/****************************************************************************
- Add a gid to an array of gids if it's not already there.
-****************************************************************************/
-
-bool add_gid_to_array_unique(TALLOC_CTX *mem_ctx, gid_t gid,
-			     gid_t **gids, size_t *num_gids)
-{
-	int i;
-
-	if ((*num_gids != 0) && (*gids == NULL)) {
-		/*
-		 * A former call to this routine has failed to allocate memory
-		 */
-		return False;
-	}
-
-	for (i=0; i<*num_gids; i++) {
-		if ((*gids)[i] == gid) {
-			return True;
-		}
-	}
-
-	*gids = TALLOC_REALLOC_ARRAY(mem_ctx, *gids, gid_t, *num_gids+1);
-	if (*gids == NULL) {
-		*num_gids = 0;
-		return False;
-	}
-
-	(*gids)[*num_gids] = gid;
-	*num_gids += 1;
-	return True;
-}
-
 /*******************************************************************
  Check if a file exists - call vfs_file_exist for samba files.
 ********************************************************************/
 
-bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
+bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf,
+		     bool fake_dir_create_times)
 {
 	SMB_STRUCT_STAT st;
 	if (!sbuf)
 		sbuf = &st;
-  
-	if (sys_stat(fname,sbuf) != 0) 
+
+	if (sys_stat(fname, sbuf, fake_dir_create_times) != 0)
 		return(False);
 
-	return((S_ISREG(sbuf->st_mode)) || (S_ISFIFO(sbuf->st_mode)));
+	return((S_ISREG(sbuf->st_ex_mode)) || (S_ISFIFO(sbuf->st_ex_mode)));
 }
 
 /*******************************************************************
@@ -551,31 +557,10 @@ bool file_exist_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
 bool socket_exist(const char *fname)
 {
 	SMB_STRUCT_STAT st;
-	if (sys_stat(fname,&st) != 0) 
+	if (sys_stat(fname, &st, false) != 0)
 		return(False);
 
-	return S_ISSOCK(st.st_mode);
-}
-
-/*******************************************************************
- Check if a directory exists.
-********************************************************************/
-
-bool directory_exist_stat(char *dname,SMB_STRUCT_STAT *st)
-{
-	SMB_STRUCT_STAT st2;
-	bool ret;
-
-	if (!st)
-		st = &st2;
-
-	if (sys_stat(dname,st) != 0) 
-		return(False);
-
-	ret = S_ISDIR(st->st_mode);
-	if(!ret)
-		errno = ENOTDIR;
-	return ret;
+	return S_ISSOCK(st.st_ex_mode);
 }
 
 /*******************************************************************
@@ -584,7 +569,7 @@ bool directory_exist_stat(char *dname,SMB_STRUCT_STAT *st)
 
 uint64_t get_file_size_stat(const SMB_STRUCT_STAT *sbuf)
 {
-	return sbuf->st_size;
+	return sbuf->st_ex_size;
 }
 
 /*******************************************************************
@@ -594,8 +579,8 @@ uint64_t get_file_size_stat(const SMB_STRUCT_STAT *sbuf)
 SMB_OFF_T get_file_size(char *file_name)
 {
 	SMB_STRUCT_STAT buf;
-	buf.st_size = 0;
-	if(sys_stat(file_name,&buf) != 0)
+	buf.st_ex_size = 0;
+	if (sys_stat(file_name, &buf, false) != 0)
 		return (SMB_OFF_T)-1;
 	return get_file_size_stat(&buf);
 }
@@ -1724,7 +1709,7 @@ bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensit
 void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 {
 	char *name_end;
-	const char *nameptr = namelist;
+	char *nameptr = (char *)namelist;
 	int num_entries = 0;
 	int i;
 
@@ -1744,12 +1729,14 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 			nameptr++;
 			continue;
 		}
-		/* find the next / */
-		name_end = strchr_m(nameptr, '/');
-
-		/* oops - the last check for a / didn't find one. */
-		if (name_end == NULL)
+		/* anything left? */
+		if ( *nameptr == '\0' )
 			break;
+
+		/* find the next '/' or consume remaining */
+		name_end = strchr_m(nameptr, '/');
+		if (name_end == NULL)
+			name_end = (char *)nameptr + strlen(nameptr);
 
 		/* next segment please */
 		nameptr = name_end + 1;
@@ -1765,7 +1752,7 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 	}
 
 	/* Now copy out the names */
-	nameptr = namelist;
+	nameptr = (char *)namelist;
 	i = 0;
 	while(*nameptr) {
 		if ( *nameptr == '/' ) {
@@ -1773,13 +1760,16 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 			nameptr++;
 			continue;
 		}
-		/* find the next / */
-		if ((name_end = strchr_m(nameptr, '/')) != NULL)
-			*name_end = 0;
-
-		/* oops - the last check for a / didn't find one. */
-		if(name_end == NULL) 
+		/* anything left? */
+		if ( *nameptr == '\0' )
 			break;
+
+		/* find the next '/' or consume remaining */
+		name_end = strchr_m(nameptr, '/');
+		if (name_end)
+			*name_end = '\0';
+		else
+			name_end = nameptr + strlen(nameptr);
 
 		(*ppname_array)[i].is_wild = ms_has_wild(nameptr);
 		if(((*ppname_array)[i].name = SMB_STRDUP(nameptr)) == NULL) {
@@ -2114,24 +2104,6 @@ int set_maxfiles(int requested_max)
 }
 
 /*****************************************************************
- Possibly replace mkstemp if it is broken.
-*****************************************************************/  
-
-int smb_mkstemp(char *name_template)
-{
-#if HAVE_SECURE_MKSTEMP
-	return mkstemp(name_template);
-#else
-	/* have a reasonable go at emulating it. Hope that
-	   the system mktemp() isn't completly hopeless */
-	char *p = mktemp(name_template);
-	if (!p)
-		return -1;
-	return open(p, O_CREAT|O_EXCL|O_RDWR, 0600);
-#endif
-}
-
-/*****************************************************************
  malloc that aborts with smb_panic on fail or zero size.
  *****************************************************************/  
 
@@ -2164,10 +2136,10 @@ void *smb_xmalloc_array(size_t size, unsigned int count)
 	va_copy(ap2, ap);
 
 	n = vasprintf(ptr, format, ap2);
+	va_end(ap2);
 	if (n == -1 || ! *ptr) {
 		smb_panic("smb_xvasprintf: out of memory");
 	}
-	va_end(ap2);
 	return n;
 }
 
@@ -3061,96 +3033,6 @@ void *talloc_zeronull(const void *context, size_t size, const char *name)
 	return talloc_named_const(context, size, name);
 }
 #endif
-
-/* Split a path name into filename and stream name components. Canonicalise
- * such that an implicit $DATA token is always explicit.
- *
- * The "specification" of this function can be found in the
- * run_local_stream_name() function in torture.c, I've tried those
- * combinations against a W2k3 server.
- */
-
-NTSTATUS split_ntfs_stream_name(TALLOC_CTX *mem_ctx, const char *fname,
-				char **pbase, char **pstream)
-{
-	char *base = NULL;
-	char *stream = NULL;
-	char *sname; /* stream name */
-	const char *stype; /* stream type */
-
-	DEBUG(10, ("split_ntfs_stream_name called for [%s]\n", fname));
-
-	sname = strchr_m(fname, ':');
-
-	if (lp_posix_pathnames() || (sname == NULL)) {
-		if (pbase != NULL) {
-			base = talloc_strdup(mem_ctx, fname);
-			NT_STATUS_HAVE_NO_MEMORY(base);
-		}
-		goto done;
-	}
-
-	if (pbase != NULL) {
-		base = talloc_strndup(mem_ctx, fname, PTR_DIFF(sname, fname));
-		NT_STATUS_HAVE_NO_MEMORY(base);
-	}
-
-	sname += 1;
-
-	stype = strchr_m(sname, ':');
-
-	if (stype == NULL) {
-		sname = talloc_strdup(mem_ctx, sname);
-		stype = "$DATA";
-	}
-	else {
-		if (StrCaseCmp(stype, ":$DATA") != 0) {
-			/*
-			 * If there is an explicit stream type, so far we only
-			 * allow $DATA. Is there anything else allowed? -- vl
-			 */
-			DEBUG(10, ("[%s] is an invalid stream type\n", stype));
-			TALLOC_FREE(base);
-			return NT_STATUS_OBJECT_NAME_INVALID;
-		}
-		sname = talloc_strndup(mem_ctx, sname, PTR_DIFF(stype, sname));
-		stype += 1;
-	}
-
-	if (sname == NULL) {
-		TALLOC_FREE(base);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	if (sname[0] == '\0') {
-		/*
-		 * no stream name, so no stream
-		 */
-		goto done;
-	}
-
-	if (pstream != NULL) {
-		stream = talloc_asprintf(mem_ctx, "%s:%s", sname, stype);
-		if (stream == NULL) {
-			TALLOC_FREE(sname);
-			TALLOC_FREE(base);
-			return NT_STATUS_NO_MEMORY;
-		}
-		/*
-		 * upper-case the type field
-		 */
-		strupper_m(strchr_m(stream, ':')+1);
-	}
-
- done:
-	if (pbase != NULL) {
-		*pbase = base;
-	}
-	if (pstream != NULL) {
-		*pstream = stream;
-	}
-	return NT_STATUS_OK;
-}
 
 bool is_valid_policy_hnd(const struct policy_handle *hnd)
 {

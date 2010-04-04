@@ -22,17 +22,15 @@
 
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
-#include <kdc.h>
 #include <hdb.h>
+#include <kdc.h>
 #include <krb5/windc_plugin.h>
-#include "kdc/pac_glue.h"
+#include "kdc/pac-glue.h"
+#include "kdc/hdb-samba4.h"
 
 struct kdc_server;
 struct socket_address;
 
-extern TALLOC_CTX *kdc_mem_ctx;
-extern struct tevent_context *kdc_ev_ctx;
-extern struct loadparm_context *kdc_lp_ctx;
 
 bool kpasswdd_process(struct kdc_server *kdc,
 		      TALLOC_CTX *mem_ctx, 
@@ -49,14 +47,7 @@ struct kdc_server {
 	struct task_server *task;
 	krb5_kdc_configuration *config;
 	struct smb_krb5_context *smb_krb5_context;
+	struct hdb_samba4_context *hdb_samba4_context;
 };
 
 
-struct hdb_ldb_private {
-	struct ldb_context *samdb;
-	struct smb_iconv_convenience *iconv_convenience;
-	struct ldb_message *msg;
-	struct ldb_message *realm_ref_msg;
-	hdb_entry_ex *entry_ex;
-	const char *netbios_name;
-};

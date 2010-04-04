@@ -48,13 +48,14 @@ extern "C" {
 #define TDB_NOSYNC   64 /* don't use synchronous transactions */
 #define TDB_SEQNUM   128 /* maintain a sequence number */
 #define TDB_VOLATILE   256 /* Activate the per-hashchain freelist, default 5 */
-
-#define TDB_ERRCODE(code, ret) ((tdb->ecode = (code)), ret)
+#define TDB_ALLOW_NESTING 512 /* Allow transactions to nest */
+#define TDB_DISALLOW_NESTING 1024 /* Disallow transactions to nest */
 
 /* error codes */
 enum TDB_ERROR {TDB_SUCCESS=0, TDB_ERR_CORRUPT, TDB_ERR_IO, TDB_ERR_LOCK, 
 		TDB_ERR_OOM, TDB_ERR_EXISTS, TDB_ERR_NOLOCK, TDB_ERR_LOCK_TIMEOUT,
-		TDB_ERR_NOEXIST, TDB_ERR_EINVAL, TDB_ERR_RDONLY};
+		TDB_ERR_NOEXIST, TDB_ERR_EINVAL, TDB_ERR_RDONLY,
+		TDB_ERR_NESTING};
 
 /* debugging uses one of the following levels */
 enum tdb_debug_level {TDB_DEBUG_FATAL = 0, TDB_DEBUG_ERROR, 
@@ -129,6 +130,7 @@ int tdb_fd(struct tdb_context *tdb);
 tdb_log_func tdb_log_fn(struct tdb_context *tdb);
 void *tdb_get_logging_private(struct tdb_context *tdb);
 int tdb_transaction_start(struct tdb_context *tdb);
+int tdb_transaction_prepare_commit(struct tdb_context *tdb);
 int tdb_transaction_commit(struct tdb_context *tdb);
 int tdb_transaction_cancel(struct tdb_context *tdb);
 int tdb_transaction_recover(struct tdb_context *tdb);
@@ -140,6 +142,9 @@ void tdb_add_flags(struct tdb_context *tdb, unsigned flag);
 void tdb_remove_flags(struct tdb_context *tdb, unsigned flag);
 void tdb_enable_seqnum(struct tdb_context *tdb);
 void tdb_increment_seqnum_nonblock(struct tdb_context *tdb);
+int tdb_check(struct tdb_context *tdb,
+	      int (*check) (TDB_DATA key, TDB_DATA data, void *private_data),
+	      void *private_data);
 
 /* Low level locking functions: use with care */
 int tdb_chainlock(struct tdb_context *tdb, TDB_DATA key);

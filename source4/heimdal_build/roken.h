@@ -10,6 +10,7 @@
 /* HDB module dir - set to Samba LIBDIR/hdb ? */
 #define HDBDIR "/usr/heimdal/lib"
 #define LIBDIR "/usr/heimdal/lib"
+#define HEIMDAL_LOCALEDIR "/usr/heimdal/locale"
 
 /* Maximum values on all known systems */
 #define MaxHostNameLen (64+4)
@@ -37,8 +38,36 @@
 #define HAVE_SETEUID 1
 #endif
 
+#ifndef HAVE_STRNLEN
+#define HAVE_STRNLEN
+#endif
+
 #ifndef HAVE_STRNDUP
 #define HAVE_STRNDUP
+#endif
+
+#ifndef HAVE_STRLCPY
+#define HAVE_STRLCPY
+#endif
+
+#ifndef HAVE_STRLCAT
+#define HAVE_STRLCAT
+#endif
+
+#ifndef HAVE_STRCASECMP
+#define HAVE_STRCASECMP
+#endif
+
+#ifndef HAVE_ASPRINTF
+#define HAVE_ASPRINTF
+#endif
+
+#ifndef HAVE_VASPRINTF
+#define HAVE_VASPRINTF
+#endif
+
+#ifndef HAVE_MKSTEMP
+#define HAVE_MKSTEMP
 #endif
 
 #ifndef HAVE_SETENV
@@ -69,6 +98,17 @@
 #define HAVE_INNETGR
 #endif
 
+#ifndef HAVE_INET_ATON
+#define HAVE_INET_ATON
+#endif
+
+/* we lie about having pidfile() so that NetBSD5 can compile. Nothing
+   in the parts of heimdal we use actually uses pidfile(), and we
+   don't use it in Samba, so this works, although its ugly */
+#ifndef HAVE_PIDFILE
+#define HAVE_PIDFILE
+#endif
+
 #if (__GNUC__ >= 3) && (__GNUC_MINOR__ >= 1 )
 #ifndef HAVE___ATTRIBUTE__
 #define HAVE___ATTRIBUTE__
@@ -83,5 +123,8 @@
  */
 #undef SOCKET_WRAPPER_REPLACE
 #include "heimdal/lib/roken/roken.h.in"
+
+extern const char *heimdal_version;
+extern const char *heimdal_long_version;
 
 #endif

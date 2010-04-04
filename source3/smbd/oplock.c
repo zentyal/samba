@@ -81,7 +81,7 @@ bool set_file_oplock(files_struct *fsp, int oplock_type)
 
 	DEBUG(5,("set_file_oplock: granted oplock on file %s, %s/%lu, "
 		    "tv_sec = %x, tv_usec = %x\n",
-		 fsp->fsp_name, file_id_string_tos(&fsp->file_id),
+		 fsp_str_dbg(fsp), file_id_string_tos(&fsp->file_id),
 		 fsp->fh->gen_id, (int)fsp->open_time.tv_sec,
 		 (int)fsp->open_time.tv_usec ));
 
@@ -158,14 +158,15 @@ bool remove_oplock(files_struct *fsp)
 				  NULL);
 	if (lck == NULL) {
 		DEBUG(0,("remove_oplock: failed to lock share entry for "
-			 "file %s\n", fsp->fsp_name ));
+			 "file %s\n", fsp_str_dbg(fsp)));
 		return False;
 	}
 	ret = remove_share_oplock(lck, fsp);
 	if (!ret) {
 		DEBUG(0,("remove_oplock: failed to remove share oplock for "
 			 "file %s fnum %d, %s\n",
-			 fsp->fsp_name, fsp->fnum, file_id_string_tos(&fsp->file_id)));
+			 fsp_str_dbg(fsp), fsp->fnum,
+			 file_id_string_tos(&fsp->file_id)));
 	}
 	release_file_oplock(fsp);
 	TALLOC_FREE(lck);
@@ -184,14 +185,15 @@ bool downgrade_oplock(files_struct *fsp)
 				  NULL);
 	if (lck == NULL) {
 		DEBUG(0,("downgrade_oplock: failed to lock share entry for "
-			 "file %s\n", fsp->fsp_name ));
+			 "file %s\n", fsp_str_dbg(fsp)));
 		return False;
 	}
 	ret = downgrade_share_oplock(lck, fsp);
 	if (!ret) {
 		DEBUG(0,("downgrade_oplock: failed to downgrade share oplock "
 			 "for file %s fnum %d, file_id %s\n",
-			 fsp->fsp_name, fsp->fnum, file_id_string_tos(&fsp->file_id)));
+			 fsp_str_dbg(fsp), fsp->fnum,
+			 file_id_string_tos(&fsp->file_id)));
 	}
 
 	downgrade_file_oplock(fsp);
@@ -294,7 +296,8 @@ static files_struct *initial_break_processing(struct file_id id, unsigned long f
 
 	if(fsp->oplock_type == NO_OPLOCK) {
 		if( DEBUGLVL( 3 ) ) {
-			dbgtext( "initial_break_processing: file %s ", fsp->fsp_name );
+			dbgtext( "initial_break_processing: file %s ",
+				 fsp_str_dbg(fsp));
 			dbgtext( "(file_id = %s gen_id = %lu) has no oplock.\n",
 				 file_id_string_tos(&id), fsp->fh->gen_id );
 			dbgtext( "Allowing break to succeed regardless.\n" );
@@ -314,7 +317,8 @@ static void oplock_timeout_handler(struct event_context *ctx,
 
 	/* Remove the timed event handler. */
 	TALLOC_FREE(fsp->oplock_timeout);
-	DEBUG(0, ("Oplock break failed for file %s -- replying anyway\n", fsp->fsp_name));
+	DEBUG(0, ("Oplock break failed for file %s -- replying anyway\n",
+		  fsp_str_dbg(fsp)));
 	global_client_failed_oplock_break = True;
 	remove_oplock(fsp);
 	reply_to_oplock_break_requests(fsp);
@@ -353,7 +357,6 @@ static void add_oplock_timeout_handler(files_struct *fsp)
 void break_level2_to_none_async(files_struct *fsp)
 {
 	char *break_msg;
-	bool sign_state;
 
 	if (fsp->oplock_type == NO_OPLOCK) {
 		/* We already got a "break to none" message and we've handled
@@ -376,7 +379,7 @@ void break_level2_to_none_async(files_struct *fsp)
 
 	DEBUG(10,("process_oplock_async_level2_break_message: sending break "
 		  "to none message for fid %d, file %s\n", fsp->fnum,
-		  fsp->fsp_name));
+		  fsp_str_dbg(fsp)));
 
 	/* Now send a break to none message to our client. */
 	break_msg = new_break_smb_message(NULL, fsp, OPLOCKLEVEL_NONE);
@@ -384,19 +387,13 @@ void break_level2_to_none_async(files_struct *fsp)
 		exit_server("Could not talloc break_msg\n");
 	}
 
-	/* Save the server smb signing state. */
-	sign_state = srv_oplock_set_signing(False);
-
 	show_msg(break_msg);
 	if (!srv_send_smb(smbd_server_fd(),
-			break_msg,
+			break_msg, false, 0,
 			IS_CONN_ENCRYPTED(fsp->conn),
 			NULL)) {
 		exit_server_cleanly("oplock_break: srv_send_smb failed.");
 	}
-
-	/* Restore the sign state to what it was. */
-	srv_oplock_set_signing(sign_state);
 
 	TALLOC_FREE(break_msg);
 
@@ -436,7 +433,7 @@ void process_oplock_async_level2_break_message(struct messaging_context *msg_ctx
 	message_to_share_mode_entry(&msg, (char *)data->data);
 
 	DEBUG(10, ("Got oplock async level 2 break message from pid %s: "
-		   "%s/%lu\n", procid_str(debug_ctx(), &src),
+		   "%s/%lu\n", procid_str(talloc_tos(), &src),
 		   file_id_string_tos(&msg.id), msg.share_file_id));
 
 	fsp = initial_break_processing(msg.id, msg.share_file_id);
@@ -466,7 +463,6 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 	files_struct *fsp;
 	char *break_msg;
 	bool break_to_level2 = False;
-	bool sign_state;
 
 	if (data->data == NULL) {
 		DEBUG(0, ("Got NULL buffer\n"));
@@ -482,7 +478,7 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 	message_to_share_mode_entry(&msg, (char *)data->data);
 
 	DEBUG(10, ("Got oplock break message from pid %s: %s/%lu\n",
-		   procid_str(debug_ctx(), &src), file_id_string_tos(&msg.id),
+		   procid_str(talloc_tos(), &src), file_id_string_tos(&msg.id),
 		   msg.share_file_id));
 
 	fsp = initial_break_processing(msg.id, msg.share_file_id);
@@ -514,7 +510,7 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 	    !EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type)) {
 		DEBUG(3, ("Already downgraded oplock on %s: %s\n",
 			  file_id_string_tos(&fsp->file_id),
-			  fsp->fsp_name));
+			  fsp_str_dbg(fsp)));
 		/* We just send the same message back. */
 		messaging_send_buf(msg_ctx, src, MSG_SMB_BREAK_RESPONSE,
 				   (uint8 *)data->data,
@@ -540,19 +536,13 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 		wait_before_sending_break();
 	}
 
-	/* Save the server smb signing state. */
-	sign_state = srv_oplock_set_signing(False);
-
 	show_msg(break_msg);
 	if (!srv_send_smb(smbd_server_fd(),
-			break_msg,
+			break_msg, false, 0,
 			IS_CONN_ENCRYPTED(fsp->conn),
 			NULL)) {
 		exit_server_cleanly("oplock_break: srv_send_smb failed.");
 	}
-
-	/* Restore the sign state to what it was. */
-	srv_oplock_set_signing(sign_state);
 
 	TALLOC_FREE(break_msg);
 
@@ -580,7 +570,6 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 	unsigned long file_id;
 	files_struct *fsp;
 	char *break_msg;
-	bool sign_state;
 
 	if (data->data == NULL) {
 		DEBUG(0, ("Got NULL buffer\n"));
@@ -597,7 +586,7 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 	file_id = (unsigned long)IVAL(data->data, 24);
 
 	DEBUG(10, ("Got kernel oplock break message from pid %s: %s/%u\n",
-		   procid_str(debug_ctx(), &src), file_id_string_tos(&id),
+		   procid_str(talloc_tos(), &src), file_id_string_tos(&id),
 		   (unsigned int)file_id));
 
 	fsp = initial_break_processing(id, file_id);
@@ -620,19 +609,13 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 		exit_server("Could not talloc break_msg\n");
 	}
 
-	/* Save the server smb signing state. */
-	sign_state = srv_oplock_set_signing(False);
-
 	show_msg(break_msg);
 	if (!srv_send_smb(smbd_server_fd(),
-			break_msg,
+			break_msg, false, 0,
 			IS_CONN_ENCRYPTED(fsp->conn),
 			NULL)) {
 		exit_server_cleanly("oplock_break: srv_send_smb failed.");
 	}
-
-	/* Restore the sign state to what it was. */
-	srv_oplock_set_signing(sign_state);
 
 	TALLOC_FREE(break_msg);
 
@@ -699,7 +682,7 @@ static void process_oplock_break_response(struct messaging_context *msg_ctx,
 	message_to_share_mode_entry(&msg, (char *)data->data);
 
 	DEBUG(10, ("Got oplock break response from pid %s: %s/%lu mid %u\n",
-		   procid_str(debug_ctx(), &src), file_id_string_tos(&msg.id),
+		   procid_str(talloc_tos(), &src), file_id_string_tos(&msg.id),
 		   msg.share_file_id, (unsigned int)msg.op_mid));
 
 	/* Here's the hack from open.c, store the mid in the 'port' field */
@@ -728,7 +711,7 @@ static void process_open_retry_message(struct messaging_context *msg_ctx,
 	message_to_share_mode_entry(&msg, (char *)data->data);
 
 	DEBUG(10, ("Got open retry msg from pid %s: %s mid %u\n",
-		   procid_str(debug_ctx(), &src), file_id_string_tos(&msg.id),
+		   procid_str(talloc_tos(), &src), file_id_string_tos(&msg.id),
 		   (unsigned int)msg.op_mid));
 
 	schedule_deferred_open_smb_message(msg.op_mid);
@@ -761,7 +744,7 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
 				  NULL);
 	if (lck == NULL) {
 		DEBUG(0,("release_level_2_oplocks_on_change: failed to lock "
-			 "share mode entry for file %s.\n", fsp->fsp_name ));
+			 "share mode entry for file %s.\n", fsp_str_dbg(fsp)));
 		return;
 	}
 

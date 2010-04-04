@@ -59,6 +59,7 @@ conf_args = \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
+		--with-codepagedir=/usr/share/samba \
 		--enable-external-libtalloc \
 		--without-libtalloc \
 		--disable-avahi \

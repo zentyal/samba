@@ -29,16 +29,14 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS regdb_ops;
+extern struct registry_ops regdb_ops;
 
 #define KEY_CURRENT_VERSION_NORM "HKLM/SOFTWARE/MICROSOFT/WINDOWS NT/CURRENTVERSION"
 
-static int current_version_fetch_values(const char *key, REGVAL_CTR *values)
+static int current_version_fetch_values(const char *key, struct regval_ctr *values)
 {
 	const char *sysroot_string = "c:\\Windows";
 	fstring sysversion;
-	fstring value;
-	uint32 value_length;
 	char *path = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
 
@@ -55,16 +53,12 @@ static int current_version_fetch_values(const char *key, REGVAL_CTR *values)
 		return regdb_ops.fetch_values(key, values);
 	}
 
-	value_length = push_ucs2(value, value, sysroot_string, sizeof(value),
-				 STR_TERMINATE|STR_NOALIGN );
-	regval_ctr_addvalue(values, "SystemRoot", REG_SZ, value, value_length);
+	regval_ctr_addvalue_sz(values, "SystemRoot", sysroot_string);
 
 	fstr_sprintf(sysversion, "%d.%d", lp_major_announce_version(),
 		     lp_minor_announce_version());
-	value_length = push_ucs2(value, value, sysversion, sizeof(value),
-				 STR_TERMINATE|STR_NOALIGN);
-	regval_ctr_addvalue(values, "CurrentVersion", REG_SZ, value,
-			    value_length);
+
+	regval_ctr_addvalue_sz(values, "CurrentVersion", sysversion);
 
 	return regval_ctr_numvals(values);
 }
@@ -75,7 +69,7 @@ static int current_version_fetch_subkeys(const char *key,
 	return regdb_ops.fetch_subkeys(key, subkey_ctr);
 }
 
-REGISTRY_OPS current_version_reg_ops = {
+struct registry_ops current_version_reg_ops = {
 	.fetch_values = current_version_fetch_values,
 	.fetch_subkeys = current_version_fetch_subkeys,
 };

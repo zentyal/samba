@@ -404,7 +404,7 @@ static void dotareof(int f)
 	(void) dozerobuf(f, TBLOCK);
 	(void) dozerobuf(f, TBLOCK);
 
-	if (sys_fstat(f, &stbuf) == -1) {
+	if (sys_fstat(f, &stbuf, false) == -1) {
 		DEBUG(0, ("Couldn't stat file handle\n"));
 		return;
 	}
@@ -412,7 +412,7 @@ static void dotareof(int f)
 	/* Could be a pipe, in which case S_ISREG should fail,
 		* and we should write out at full size */
 	if (tp > 0) {
-		size_t towrite = S_ISREG(stbuf.st_mode) ? tp : tbufsiz;
+		size_t towrite = S_ISREG(stbuf.st_ex_mode) ? tp : tbufsiz;
 		if (sys_write(f, tarbuf, towrite) != towrite) {
 			DEBUG(0,("dotareof: sys_write fail\n"));
 		}
@@ -554,8 +554,8 @@ static bool ensurepath(const char *fname)
 	while (p) {
 		safe_strcat(partpath, p, strlen(fname) + 1);
 
-		if (!cli_chkpath(cli, partpath)) {
-			if (!cli_mkdir(cli, partpath)) {
+		if (!NT_STATUS_IS_OK(cli_chkpath(cli, partpath))) {
+			if (!NT_STATUS_IS_OK(cli_mkdir(cli, partpath))) {
 				SAFE_FREE(partpath);
 				SAFE_FREE(ffname);
 				DEBUG(0, ("Error mkdir %s\n", cli_errstr(cli)));
@@ -594,7 +594,9 @@ static void do_setrattr(char *name, uint16 attr, int set)
 {
 	uint16 oldattr;
 
-	if (!cli_getatr(cli, name, &oldattr, NULL, NULL)) return;
+	if (!NT_STATUS_IS_OK(cli_getatr(cli, name, &oldattr, NULL, NULL))) {
+		return;
+	}
 
 	if (set == ATTRSET) {
 		attr |= oldattr;
@@ -602,7 +604,7 @@ static void do_setrattr(char *name, uint16 attr, int set)
 		attr = oldattr & ~attr;
 	}
 
-	if (!cli_setatr(cli, name, attr, 0)) {
+	if (!NT_STATUS_IS_OK(cli_setatr(cli, name, attr, 0))) {
 		DEBUG(1,("setatr failed: %s\n", cli_errstr(cli)));
 	}
 }
@@ -613,7 +615,7 @@ append one remote file to the tar file
 
 static void do_atar(const char *rname_in,char *lname,file_info *finfo1)
 {
-	int fnum = -1;
+	uint16_t fnum = (uint16_t)-1;
 	uint64_t nread=0;
 	char ftype;
 	file_info2 finfo;
@@ -660,9 +662,7 @@ static void do_atar(const char *rname_in,char *lname,file_info *finfo1)
 		goto cleanup;
 	}
 
-	fnum = cli_open(cli, rname, O_RDONLY, DENY_NONE);
-
-	if (fnum == -1) {
+	if (!NT_STATUS_IS_OK(cli_open(cli, rname, O_RDONLY, DENY_NONE, &fnum))) {
 		DEBUG(0,("%s opening remote file %s (%s)\n",
 				cli_errstr(cli),rname, client_get_cur_dir()));
 		goto cleanup;
@@ -791,7 +791,7 @@ static void do_atar(const char *rname_in,char *lname,file_info *finfo1)
 
   cleanup:
 
-	if (fnum != -1) {
+	if (fnum != (uint16_t)-1) {
 		cli_close(cli, fnum);
 		fnum = -1;
 	}
@@ -998,13 +998,14 @@ static int skip_file(int skipsize)
 
 static int get_file(file_info2 finfo)
 {
-	int fnum = -1, pos = 0, dsize = 0, bpos = 0;
+	uint16_t fnum;
+	int pos = 0, dsize = 0, bpos = 0;
 	uint64_t rsize = 0;
 
 	DEBUG(5, ("get_file: file: %s, size %.0f\n", finfo.name, (double)finfo.size));
 
 	if (ensurepath(finfo.name) &&
-			(fnum=cli_open(cli, finfo.name, O_RDWR|O_CREAT|O_TRUNC, DENY_NONE)) == -1) {
+			(!NT_STATUS_IS_OK(cli_open(cli, finfo.name, O_RDWR|O_CREAT|O_TRUNC, DENY_NONE,&fnum)))) {
 		DEBUG(0, ("abandoning restore\n"));
 		return(False);
 	}
@@ -1068,15 +1069,16 @@ static int get_file(file_info2 finfo)
 
 	/* Now close the file ... */
 
-	if (!cli_close(cli, fnum)) {
-		DEBUG(0, ("Error closing remote file\n"));
+	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
+		DEBUG(0, ("Error %s closing remote file\n",
+			cli_errstr(cli)));
 		return(False);
 	}
 
 	/* Now we update the creation date ... */
 	DEBUG(5, ("Updating creation date on %s\n", finfo.name));
 
-	if (!cli_setatr(cli, finfo.name, finfo.mode, finfo.mtime_ts.tv_sec)) {
+	if (!NT_STATUS_IS_OK(cli_setatr(cli, finfo.name, finfo.mode, finfo.mtime_ts.tv_sec))) {
 		if (tar_real_noisy) {
 			DEBUG(0, ("Could not set time on file: %s\n", finfo.name));
 			/*return(False); */ /* Ignore, as Win95 does not allow changes */
@@ -1790,8 +1792,10 @@ int tar_parseargs(int argc, char *argv[], const char *Optarg, int Optind)
 				} else {
 					SMB_STRUCT_STAT stbuf;
 
-					if (sys_stat(argv[Optind], &stbuf) == 0) {
-						newer_than = stbuf.st_mtime;
+					if (sys_stat(argv[Optind], &stbuf,
+						     false) == 0) {
+						newer_than = convert_timespec_to_time_t(
+							stbuf.st_ex_mtime);
 						DEBUG(1,("Getting files newer than %s",
 							time_to_asc(newer_than)));
 						newOptind++;

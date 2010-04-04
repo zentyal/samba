@@ -47,6 +47,7 @@ extern const struct poptOption popt_common_dynconfig[];
 
 struct user_auth_info {
 	char *username;
+	char *domain;
 	char *password;
 	bool got_pass;
 	bool use_kerberos;
@@ -54,6 +55,7 @@ struct user_auth_info {
 	bool smb_encrypt;
 	bool use_machine_account;
 	bool fallback_after_kerberos;
+	bool use_ccache;
 };
 
 #endif /* _POPT_COMMON_H */

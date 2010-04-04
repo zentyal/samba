@@ -32,8 +32,7 @@
  */
 
 #include "krb5_locl.h"
-
-RCSID("$Id$");
+#include <vis.h>
 
 struct facility {
     int min;
@@ -220,11 +219,20 @@ log_file(const char *timestr,
 	 void *data)
 {
     struct file_data *f = data;
+    char *msgclean;
+    size_t len = strlen(msg);
     if(f->keep_open == 0)
 	f->fd = fopen(f->filename, f->mode);
     if(f->fd == NULL)
 	return;
-    fprintf(f->fd, "%s %s\n", timestr, msg);
+    /* make sure the log doesn't contain special chars */
+    msgclean = malloc((len + 1) * 4);
+    if (msgclean == NULL)
+	goto out;
+    strvisx(msgclean, rk_UNCONST(msg), len, VIS_OCTAL);
+    fprintf(f->fd, "%s %s\n", timestr, msgclean);
+    free(msgclean);
+ out:
     if(f->keep_open == 0) {
 	fclose(f->fd);
 	f->fd = NULL;

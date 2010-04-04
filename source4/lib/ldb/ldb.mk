@@ -20,8 +20,8 @@ COMMON_OBJ=$(COMDIR)/ldb.o $(COMDIR)/ldb_ldif.o \
 	   $(COMDIR)/attrib_handlers.o $(COMDIR)/ldb_controls.o $(COMDIR)/qsort.o
 
 MODDIR=modules
-MODULES_OBJ=$(MODDIR)/operational.o $(MODDIR)/rdn_name.o \
-	   $(MODDIR)/paged_results.o $(MODDIR)/sort.o $(MODDIR)/asq.o
+MODULES_OBJ=$(MODDIR)/rdn_name.o ${MODDIR}/asq.o \
+	   $(MODDIR)/paged_results.o $(MODDIR)/sort.o
 
 NSSDIR=nssldb
 NSS_OBJ= $(NSSDIR)/ldb-nss.o $(NSSDIR)/ldb-pwd.o $(NSSDIR)/ldb-grp.o
@@ -66,16 +66,16 @@ build-python:: ldb.$(SHLIBEXT)
 
 pyldb.o: $(ldbdir)/pyldb.c
 	$(CC) $(PICFLAG) -c $(ldbdir)/pyldb.c $(CFLAGS) `$(PYTHON_CONFIG) --cflags`
-	
-ldb.$(SHLIBEXT): pyldb.o
+
+ldb.$(SHLIBEXT): pyldb.o 
 	$(SHLD) $(SHLD_FLAGS) -o ldb.$(SHLIBEXT) pyldb.o $(LIB_FLAGS) `$(PYTHON_CONFIG) --ldflags`
 
 install-python:: build-python
 	mkdir -p $(DESTDIR)`$(PYTHON) -c "import distutils.sysconfig; print distutils.sysconfig.get_python_lib(1, prefix='$(prefix)')"`
 	cp ldb.$(SHLIBEXT) $(DESTDIR)`$(PYTHON) -c "import distutils.sysconfig; print distutils.sysconfig.get_python_lib(1, prefix='$(prefix)')"`
 
-check-python:: build-python
-	LD_LIBRARY_PATH=lib PYTHONPATH=.:$(ldbdir) $(PYTHON) $(ldbdir)/tests/python/api.py
+check-python:: build-python lib/$(SONAME)
+	$(LIB_PATH_VAR)=lib PYTHONPATH=.:$(ldbdir) $(PYTHON) $(ldbdir)/tests/python/api.py
 
 clean::
 	rm -f ldb.$(SHLIBEXT)

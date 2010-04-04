@@ -5,17 +5,17 @@
    Copyright (C) Jeremy Allison  1998-2005
    Copyright (C) Timur Bakeyev        2005
    Copyright (C) Bjoern Jacke    2006-2007
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -54,7 +54,7 @@ void *sys_memalign( size_t align, size_t size )
 	int ret = posix_memalign( &p, align, size );
 	if ( ret == 0 )
 		return p;
-		
+
 	return NULL;
 #elif defined(HAVE_MEMALIGN)
 	return memalign( align, size );
@@ -290,20 +290,282 @@ int sys_fcntl_long(int fd, int cmd, long arg)
 	return ret;
 }
 
+/****************************************************************************
+ Get/Set all the possible time fields from a stat struct as a timespec.
+****************************************************************************/
+
+static struct timespec get_atimespec(const struct stat *pst)
+{
+#if !defined(HAVE_STAT_HIRES_TIMESTAMPS)
+	struct timespec ret;
+
+	/* Old system - no ns timestamp. */
+	ret.tv_sec = pst->st_atime;
+	ret.tv_nsec = 0;
+	return ret;
+#else
+#if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
+	return pst->st_atim;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
+	struct timespec ret;
+	ret.tv_sec = pst->st_atime;
+	ret.tv_nsec = pst->st_atimensec;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIME_N)
+	struct timespec ret;
+	ret.tv_sec = pst->st_atime;
+	ret.tv_nsec = pst->st_atime_n;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_UMTIME)
+	struct timespec ret;
+	ret.tv_sec = pst->st_atime;
+	ret.tv_nsec = pst->st_uatime * 1000;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
+	return pst->st_atimespec;
+#else
+#error	CONFIGURE_ERROR_IN_DETECTING_TIMESPEC_IN_STAT
+#endif
+#endif
+}
+
+static struct timespec get_mtimespec(const struct stat *pst)
+{
+#if !defined(HAVE_STAT_HIRES_TIMESTAMPS)
+	struct timespec ret;
+
+	/* Old system - no ns timestamp. */
+	ret.tv_sec = pst->st_mtime;
+	ret.tv_nsec = 0;
+	return ret;
+#else
+#if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
+	return pst->st_mtim;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
+	struct timespec ret;
+	ret.tv_sec = pst->st_mtime;
+	ret.tv_nsec = pst->st_mtimensec;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIME_N)
+	struct timespec ret;
+	ret.tv_sec = pst->st_mtime;
+	ret.tv_nsec = pst->st_mtime_n;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_UMTIME)
+	struct timespec ret;
+	ret.tv_sec = pst->st_mtime;
+	ret.tv_nsec = pst->st_umtime * 1000;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
+	return pst->st_mtimespec;
+#else
+#error	CONFIGURE_ERROR_IN_DETECTING_TIMESPEC_IN_STAT
+#endif
+#endif
+}
+
+static struct timespec get_ctimespec(const struct stat *pst)
+{
+#if !defined(HAVE_STAT_HIRES_TIMESTAMPS)
+	struct timespec ret;
+
+	/* Old system - no ns timestamp. */
+	ret.tv_sec = pst->st_ctime;
+	ret.tv_nsec = 0;
+	return ret;
+#else
+#if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
+	return pst->st_ctim;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
+	struct timespec ret;
+	ret.tv_sec = pst->st_ctime;
+	ret.tv_nsec = pst->st_ctimensec;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIME_N)
+	struct timespec ret;
+	ret.tv_sec = pst->st_ctime;
+	ret.tv_nsec = pst->st_ctime_n;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_UMTIME)
+	struct timespec ret;
+	ret.tv_sec = pst->st_ctime;
+	ret.tv_nsec = pst->st_uctime * 1000;
+	return ret;
+#elif defined(HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
+	return pst->st_ctimespec;
+#else
+#error	CONFIGURE_ERROR_IN_DETECTING_TIMESPEC_IN_STAT
+#endif
+#endif
+}
+
+/****************************************************************************
+ Return the best approximation to a 'create time' under UNIX from a stat
+ structure.
+****************************************************************************/
+
+static struct timespec calc_create_time_stat(const struct stat *st)
+{
+	struct timespec ret, ret1;
+	struct timespec c_time = get_ctimespec(st);
+	struct timespec m_time = get_mtimespec(st);
+	struct timespec a_time = get_atimespec(st);
+
+	ret = timespec_compare(&c_time, &m_time) < 0 ? c_time : m_time;
+	ret1 = timespec_compare(&ret, &a_time) < 0 ? ret : a_time;
+
+	if(!null_timespec(ret1)) {
+		return ret1;
+	}
+
+	/*
+	 * One of ctime, mtime or atime was zero (probably atime).
+	 * Just return MIN(ctime, mtime).
+	 */
+	return ret;
+}
+
+/****************************************************************************
+ Return the best approximation to a 'create time' under UNIX from a stat_ex
+ structure.
+****************************************************************************/
+
+static struct timespec calc_create_time_stat_ex(const struct stat_ex *st)
+{
+	struct timespec ret, ret1;
+	struct timespec c_time = st->st_ex_ctime;
+	struct timespec m_time = st->st_ex_mtime;
+	struct timespec a_time = st->st_ex_atime;
+
+	ret = timespec_compare(&c_time, &m_time) < 0 ? c_time : m_time;
+	ret1 = timespec_compare(&ret, &a_time) < 0 ? ret : a_time;
+
+	if(!null_timespec(ret1)) {
+		return ret1;
+	}
+
+	/*
+	 * One of ctime, mtime or atime was zero (probably atime).
+	 * Just return MIN(ctime, mtime).
+	 */
+	return ret;
+}
+
+/****************************************************************************
+ Return the 'create time' from a stat struct if it exists (birthtime) or else
+ use the best approximation.
+****************************************************************************/
+
+static void make_create_timespec(const struct stat *pst, struct stat_ex *dst,
+				 bool fake_dir_create_times)
+{
+	if (S_ISDIR(pst->st_mode) && fake_dir_create_times) {
+		dst->st_ex_btime.tv_sec = 315493200L;          /* 1/1/1980 */
+		dst->st_ex_btime.tv_nsec = 0;
+	}
+
+	dst->st_ex_calculated_birthtime = false;
+
+#if defined(HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC_TV_NSEC)
+	dst->st_ex_btime = pst->st_birthtimespec;
+#elif defined(HAVE_STRUCT_STAT_ST_BIRTHTIMENSEC)
+	dst->st_ex_btime.tv_sec = pst->st_birthtime;
+	dst->st_ex_btime.tv_nsec = pst->st_birthtimenspec;
+#elif defined(HAVE_STRUCT_STAT_ST_BIRTHTIME)
+	dst->st_ex_btime.tv_sec = pst->st_birthtime;
+	dst->st_ex_btime.tv_nsec = 0;
+#else
+	dst->st_ex_btime = calc_create_time_stat(pst);
+	dst->st_ex_calculated_birthtime = true;
+#endif
+
+	/* Deal with systems that don't initialize birthtime correctly.
+	 * Pointed out by SATOH Fumiyasu <fumiyas@osstech.jp>.
+	 */
+	if (null_timespec(dst->st_ex_btime)) {
+		dst->st_ex_btime = calc_create_time_stat(pst);
+		dst->st_ex_calculated_birthtime = true;
+	}
+}
+
+/****************************************************************************
+ If we update a timestamp in a stat_ex struct we may have to recalculate
+ the birthtime. For now only implement this for write time, but we may
+ also need to do it for atime and ctime. JRA.
+****************************************************************************/
+
+void update_stat_ex_mtime(struct stat_ex *dst,
+				struct timespec write_ts)
+{
+	dst->st_ex_mtime = write_ts;
+
+	/* We may have to recalculate btime. */
+	if (dst->st_ex_calculated_birthtime) {
+		dst->st_ex_btime = calc_create_time_stat_ex(dst);
+	}
+}
+
+void update_stat_ex_create_time(struct stat_ex *dst,
+                                struct timespec create_time)
+{
+	dst->st_ex_btime = create_time;
+	dst->st_ex_calculated_birthtime = false;
+}
+
+#if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_STAT64)
+static void init_stat_ex_from_stat (struct stat_ex *dst,
+				    const struct stat64 *src,
+				    bool fake_dir_create_times)
+#else
+static void init_stat_ex_from_stat (struct stat_ex *dst,
+				    const struct stat *src,
+				    bool fake_dir_create_times)
+#endif
+{
+	dst->st_ex_dev = src->st_dev;
+	dst->st_ex_ino = src->st_ino;
+	dst->st_ex_mode = src->st_mode;
+	dst->st_ex_nlink = src->st_nlink;
+	dst->st_ex_uid = src->st_uid;
+	dst->st_ex_gid = src->st_gid;
+	dst->st_ex_rdev = src->st_rdev;
+	dst->st_ex_size = src->st_size;
+	dst->st_ex_atime = get_atimespec(src);
+	dst->st_ex_mtime = get_mtimespec(src);
+	dst->st_ex_ctime = get_ctimespec(src);
+	make_create_timespec(src, dst, fake_dir_create_times);
+	dst->st_ex_blksize = src->st_blksize;
+	dst->st_ex_blocks = src->st_blocks;
+
+#ifdef HAVE_STAT_ST_FLAGS
+	dst->st_ex_flags = src->st_flags;
+#else
+	dst->st_ex_flags = 0;
+#endif
+}
+
 /*******************************************************************
 A stat() wrapper that will deal with 64 bit filesizes.
 ********************************************************************/
 
-int sys_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
+int sys_stat(const char *fname, SMB_STRUCT_STAT *sbuf,
+	     bool fake_dir_create_times)
 {
 	int ret;
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_STAT64)
-	ret = stat64(fname, sbuf);
+	struct stat64 statbuf;
+	ret = stat64(fname, &statbuf);
 #else
-	ret = stat(fname, sbuf);
+	struct stat statbuf;
+	ret = stat(fname, &statbuf);
 #endif
-	/* we always want directories to appear zero size */
-	if (ret == 0 && S_ISDIR(sbuf->st_mode)) sbuf->st_size = 0;
+	if (ret == 0) {
+		/* we always want directories to appear zero size */
+		if (S_ISDIR(statbuf.st_mode)) {
+			statbuf.st_size = 0;
+		}
+		init_stat_ex_from_stat(sbuf, &statbuf, fake_dir_create_times);
+	}
 	return ret;
 }
 
@@ -311,16 +573,23 @@ int sys_stat(const char *fname,SMB_STRUCT_STAT *sbuf)
  An fstat() wrapper that will deal with 64 bit filesizes.
 ********************************************************************/
 
-int sys_fstat(int fd,SMB_STRUCT_STAT *sbuf)
+int sys_fstat(int fd, SMB_STRUCT_STAT *sbuf, bool fake_dir_create_times)
 {
 	int ret;
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_FSTAT64)
-	ret = fstat64(fd, sbuf);
+	struct stat64 statbuf;
+	ret = fstat64(fd, &statbuf);
 #else
-	ret = fstat(fd, sbuf);
+	struct stat statbuf;
+	ret = fstat(fd, &statbuf);
 #endif
-	/* we always want directories to appear zero size */
-	if (ret == 0 && S_ISDIR(sbuf->st_mode)) sbuf->st_size = 0;
+	if (ret == 0) {
+		/* we always want directories to appear zero size */
+		if (S_ISDIR(statbuf.st_mode)) {
+			statbuf.st_size = 0;
+		}
+		init_stat_ex_from_stat(sbuf, &statbuf, fake_dir_create_times);
+	}
 	return ret;
 }
 
@@ -328,17 +597,39 @@ int sys_fstat(int fd,SMB_STRUCT_STAT *sbuf)
  An lstat() wrapper that will deal with 64 bit filesizes.
 ********************************************************************/
 
-int sys_lstat(const char *fname,SMB_STRUCT_STAT *sbuf)
+int sys_lstat(const char *fname,SMB_STRUCT_STAT *sbuf,
+	      bool fake_dir_create_times)
 {
 	int ret;
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_LSTAT64)
-	ret = lstat64(fname, sbuf);
+	struct stat64 statbuf;
+	ret = lstat64(fname, &statbuf);
 #else
-	ret = lstat(fname, sbuf);
+	struct stat statbuf;
+	ret = lstat(fname, &statbuf);
 #endif
-	/* we always want directories to appear zero size */
-	if (ret == 0 && S_ISDIR(sbuf->st_mode)) sbuf->st_size = 0;
+	if (ret == 0) {
+		/* we always want directories to appear zero size */
+		if (S_ISDIR(statbuf.st_mode)) {
+			statbuf.st_size = 0;
+		}
+		init_stat_ex_from_stat(sbuf, &statbuf, fake_dir_create_times);
+	}
 	return ret;
+}
+
+/*******************************************************************
+ An posix_fallocate() wrapper that will deal with 64 bit filesizes.
+********************************************************************/
+int sys_posix_fallocate(int fd, SMB_OFF_T offset, SMB_OFF_T len)
+{
+#if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T) && defined(HAVE_POSIX_FALLOCATE64) && !defined(HAVE_BROKEN_POSIX_FALLOCATE)
+	return posix_fallocate64(fd, offset, len);
+#elif defined(HAVE_POSIX_FALLOCATE) && !defined(HAVE_BROKEN_POSIX_FALLOCATE)
+	return posix_fallocate(fd, offset, len);
+#else
+	return ENOSYS;
+#endif
 }
 
 /*******************************************************************
@@ -445,7 +736,7 @@ FILE *sys_fopen(const char *path, const char *type)
  A flock() wrapper that will perform the kernel flock.
 ********************************************************************/
 
-void kernel_flock(int fd, uint32 share_mode)
+void kernel_flock(int fd, uint32 share_mode, uint32 access_mask)
 {
 #if HAVE_KERNEL_SHARE_MODES
 	int kernel_mode = 0;
@@ -814,7 +1105,7 @@ static int sys_broken_setgroups(int setlen, gid_t *gidset)
 		DEBUG(0,("sys_setgroups: Malloc fail.\n"));
 		return -1;    
 	}
- 
+
 	for(i = 0; i < setlen; i++) 
 		group_list[i] = (GID_T) gidset[i]; 
 
@@ -824,7 +1115,7 @@ static int sys_broken_setgroups(int setlen, gid_t *gidset)
 		errno = saved_errno;
 		return -1;
 	}
- 
+
 	SAFE_FREE(group_list);
 	return 0 ;
 }
@@ -1032,6 +1323,7 @@ static char **extract_args(TALLOC_CTX *mem_ctx, const char *command)
 	}
 
 	argl[i++] = NULL;
+	TALLOC_FREE(trunc_cmd);
 	return argl;
 
  nomem:
@@ -1264,7 +1556,7 @@ ssize_t sys_getxattr (const char *path, const char *name, void *value, size_t si
 	int retval, flags = 0;
 	int valuelength = (int)size;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	retval = attr_get(path, attrname, (char *)value, &valuelength, flags);
@@ -1308,14 +1600,14 @@ ssize_t sys_lgetxattr (const char *path, const char *name, void *value, size_t s
 		if((retval=extattr_get_link(path, attrnamespace, attrname, value, size)) >= 0)
 			return retval;
 	}
-	
+
 	DEBUG(10,("sys_lgetxattr: extattr_get_link() failed with: %s\n", strerror(errno)));
 	return -1;
 #elif defined(HAVE_ATTR_GET)
 	int retval, flags = ATTR_DONTFOLLOW;
 	int valuelength = (int)size;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	retval = attr_get(path, attrname, (char *)value, &valuelength, flags);
@@ -1361,14 +1653,14 @@ ssize_t sys_fgetxattr (int filedes, const char *name, void *value, size_t size)
 		if((retval=extattr_get_fd(filedes, attrnamespace, attrname, value, size)) >= 0)
 			return retval;
 	}
-	
+
 	DEBUG(10,("sys_fgetxattr: extattr_get_fd() failed with: %s\n", strerror(errno)));
 	return -1;
 #elif defined(HAVE_ATTR_GETF)
 	int retval, flags = 0;
 	int valuelength = (int)size;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	retval = attr_getf(filedes, attrname, (char *)value, &valuelength, flags);
@@ -1661,7 +1953,7 @@ int sys_removexattr (const char *path, const char *name)
 #elif defined(HAVE_ATTR_REMOVE)
 	int flags = 0;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	return attr_remove(path, attrname, flags);
@@ -1698,7 +1990,7 @@ int sys_lremovexattr (const char *path, const char *name)
 #elif defined(HAVE_ATTR_REMOVE)
 	int flags = ATTR_DONTFOLLOW;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	return attr_remove(path, attrname, flags);
@@ -1737,7 +2029,7 @@ int sys_fremovexattr (int filedes, const char *name)
 #elif defined(HAVE_ATTR_REMOVEF)
 	int flags = 0;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) flags |= ATTR_ROOT;
 
 	return attr_removef(filedes, attrname, flags);
@@ -1796,7 +2088,7 @@ int sys_setxattr (const char *path, const char *name, const void *value, size_t 
 #elif defined(HAVE_ATTR_SET)
 	int myflags = 0;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) myflags |= ATTR_ROOT;
 	if (flags & XATTR_CREATE) myflags |= ATTR_CREATE;
 	if (flags & XATTR_REPLACE) myflags |= ATTR_REPLACE;
@@ -1860,7 +2152,7 @@ int sys_lsetxattr (const char *path, const char *name, const void *value, size_t
 #elif defined(HAVE_ATTR_SET)
 	int myflags = ATTR_DONTFOLLOW;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) myflags |= ATTR_ROOT;
 	if (flags & XATTR_CREATE) myflags |= ATTR_CREATE;
 	if (flags & XATTR_REPLACE) myflags |= ATTR_REPLACE;
@@ -1925,7 +2217,7 @@ int sys_fsetxattr (int filedes, const char *name, const void *value, size_t size
 #elif defined(HAVE_ATTR_SETF)
 	int myflags = 0;
 	char *attrname = strchr(name,'.') + 1;
-	
+
 	if (strncmp(name, "system", 6) == 0) myflags |= ATTR_ROOT;
 	if (flags & XATTR_CREATE) myflags |= ATTR_CREATE;
 	if (flags & XATTR_REPLACE) myflags |= ATTR_REPLACE;
@@ -2075,7 +2367,7 @@ static int solaris_write_xattr(int attrfd, const char *value, size_t size)
 /****************************************************************************
  Return the major devicenumber for UNIX extensions.
 ****************************************************************************/
-                                                                                                                
+
 uint32 unix_dev_major(SMB_DEV_T dev)
 {
 #if defined(HAVE_DEVICE_MAJOR_FN)
@@ -2084,11 +2376,11 @@ uint32 unix_dev_major(SMB_DEV_T dev)
         return (uint32)(dev >> 8);
 #endif
 }
-                                                                                                                
+
 /****************************************************************************
  Return the minor devicenumber for UNIX extensions.
 ****************************************************************************/
-                                                                                                                
+
 uint32 unix_dev_minor(SMB_DEV_T dev)
 {
 #if defined(HAVE_DEVICE_MINOR_FN)
@@ -2103,7 +2395,7 @@ uint32 unix_dev_minor(SMB_DEV_T dev)
 /*******************************************************************
  An aio_read wrapper that will deal with 64-bit sizes.
 ********************************************************************/
-                                                                                                                                           
+
 int sys_aio_read(SMB_STRUCT_AIOCB *aiocb)
 {
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_AIOCB64) && defined(HAVE_AIO_READ64)
@@ -2119,7 +2411,7 @@ int sys_aio_read(SMB_STRUCT_AIOCB *aiocb)
 /*******************************************************************
  An aio_write wrapper that will deal with 64-bit sizes.
 ********************************************************************/
-                                                                                                                                           
+
 int sys_aio_write(SMB_STRUCT_AIOCB *aiocb)
 {
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_AIOCB64) && defined(HAVE_AIO_WRITE64)
@@ -2135,7 +2427,7 @@ int sys_aio_write(SMB_STRUCT_AIOCB *aiocb)
 /*******************************************************************
  An aio_return wrapper that will deal with 64-bit sizes.
 ********************************************************************/
-                                                                                                                                           
+
 ssize_t sys_aio_return(SMB_STRUCT_AIOCB *aiocb)
 {
 #if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_AIOCB64) && defined(HAVE_AIO_RETURN64)

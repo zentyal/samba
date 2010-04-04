@@ -117,10 +117,13 @@ static int sort_compare(struct ldb_message **msg1, struct ldb_message **msg2, vo
 	el1 = ldb_msg_find_element(*msg1, ac->attributeName);
 	el2 = ldb_msg_find_element(*msg2, ac->attributeName);
 
-	if (!el1 || !el2) {
-		/* the attribute was not found return and
-		 * set an error */
-		ac->sort_result = LDB_ERR_UNWILLING_TO_PERFORM;
+	if (!el1 && el2) {
+		return 1;
+	}
+	if (el1 && !el2) {
+		return -1;
+	}
+	if (!el1 && !el2) {
 		return 0;
 	}
 
@@ -255,7 +258,7 @@ static int server_sort_search(struct ldb_module *module, struct ldb_request *req
 
 	ldb = ldb_module_get_ctx(module);
 
-	/* check if there's a paged request control */
+	/* check if there's a server sort control */
 	control = ldb_request_get_control(req, LDB_CONTROL_SERVER_SORT_OID);
 	if (control == NULL) {
 		/* not found go on */
@@ -336,7 +339,7 @@ static int server_sort_init(struct ldb_module *module)
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING,
 			"server_sort:"
-			"Unable to register control with rootdse!\n");
+			"Unable to register control with rootdse!");
 	}
 
 	return ldb_next_init(module);

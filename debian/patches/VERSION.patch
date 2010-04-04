@@ -2,10 +2,10 @@ Description: Add "Debian" as vendor suffix
 Author: Eloy A. Paris <peloy@debian.org>
 Forwarded: not-needed
 
-Index: b/source3/VERSION
+Index: experimental/source3/VERSION
 ===================================================================
---- a/source3/VERSION	2009-11-08 15:54:27.000000000 +0100
-+++ b/source3/VERSION	2009-11-08 15:55:35.000000000 +0100
+--- experimental.orig/source3/VERSION
++++ experimental/source3/VERSION
 @@ -84,7 +84,7 @@
  #       SAMBA_VERSION_VENDOR_FUNCTION                  #
  #                                                      #

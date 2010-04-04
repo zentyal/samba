@@ -5,23 +5,38 @@
    Copyright (C) Luke Kenneth Casson Leighton 1998 - 2000
    Copyright (C) Andrew Bartlett 2002
    Copyright (C) Simo Sorce 2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef _PASSDB_H
 #define _PASSDB_H
+
+/**********************************************************************
+ * Masks for mappings between unix uid and gid types and
+ * NT RIDS.
+ **********************************************************************/
+
+#define BASE_RID (0x000003E8L)
+
+/* Take the bottom bit. */
+#define RID_TYPE_MASK 		1
+#define RID_MULTIPLIER 		2
+
+/* The two common types. */
+#define USER_RID_TYPE 		0
+#define GROUP_RID_TYPE 		1
 
 /*
  * bit flags representing initialized fields in struct samu
@@ -118,7 +133,7 @@ struct samu {
 	time_t pass_last_set_time;    /* password last set time */
 	time_t pass_can_change_time;  /* password can change time */
 	time_t pass_must_change_time; /* password must change time */
-		
+
 	const char *username;     /* UNIX username string */
 	const char *domain;       /* Windows Domain name */
 	const char *nt_username;  /* Windows username string */
@@ -131,22 +146,22 @@ struct samu {
 	const char *workstations; /* login from workstations string */
 	const char *comment;
 	const char *munged_dial;  /* munged path name and dial-back tel number */
-		
+
 	DOM_SID user_sid;  
 	DOM_SID *group_sid;
-		
+
 	DATA_BLOB lm_pw; /* .data is Null if no password */
 	DATA_BLOB nt_pw; /* .data is Null if no password */
 	DATA_BLOB nt_pw_his; /* nt hashed password history .data is Null if not available */
 	char* plaintext_pw; /* is Null if not available */
-		
+
 	uint32 acct_ctrl; /* account info (ACB_xxxx bit-mask) */
 	uint32 fields_present; /* 0x00ff ffff */
-		
+
 	uint16 logon_divs; /* 168 - number of hours in a week */
 	uint32 hours_len; /* normally 21 bytes */
 	uint8 hours[MAX_HOURS_LEN];
-	
+
 	/* Was unknown_5. */
 	uint16 bad_password_count;
 	uint16 logon_count;
@@ -158,7 +173,7 @@ struct samu {
 	const struct pdb_methods *backend_private_methods;
 	void *backend_private_data; 
 	void (*backend_private_data_free_fn)(void **);
-	
+
 	/* maintain a copy of the user's struct passwd */
 
 	struct passwd *unix_pw;
@@ -197,6 +212,33 @@ struct pdb_search {
 	void (*search_end)(struct pdb_search *search);
 };
 
+struct pdb_domain_info {
+	char *name;
+	char *dns_domain;
+	char *dns_forest;
+	struct dom_sid sid;
+	struct GUID guid;
+};
+
+/*
+ * Types of account policy.
+ */
+enum pdb_policy_type {
+	PDB_POLICY_MIN_PASSWORD_LEN = 1,
+	PDB_POLICY_PASSWORD_HISTORY = 2,
+	PDB_POLICY_USER_MUST_LOGON_TO_CHG_PASS	= 3,
+	PDB_POLICY_MAX_PASSWORD_AGE = 4,
+	PDB_POLICY_MIN_PASSWORD_AGE = 5,
+	PDB_POLICY_LOCK_ACCOUNT_DURATION = 6,
+	PDB_POLICY_RESET_COUNT_TIME = 7,
+	PDB_POLICY_BAD_ATTEMPT_LOCKOUT = 8,
+	PDB_POLICY_TIME_TO_LOGOUT = 9,
+	PDB_POLICY_REFUSE_MACHINE_PW_CHANGE = 10
+};
+
+#define PDB_CAP_STORE_RIDS	0x0001
+#define PDB_CAP_ADS		0x0002
+
 /*****************************************************************
  Functions to be implemented by the new (v2) passdb API 
 ****************************************************************/
@@ -212,16 +254,21 @@ struct pdb_search {
  * enum lsa_SidType rather than uint32.
  * Changed to 16 for access to the trusted domain passwords (obnox).
  * Changed to 17, the sampwent interface is gone.
+ * Changed to 18, pdb_rid_algorithm -> pdb_capabilities
+ * Changed to 19, removed uid_to_rid
  */
 
-#define PASSDB_INTERFACE_VERSION 17
+#define PASSDB_INTERFACE_VERSION 19
 
 struct pdb_methods 
 {
 	const char *name; /* What name got this module */
 
+	struct pdb_domain_info *(*get_domain_info)(struct pdb_methods *,
+						   TALLOC_CTX *mem_ctx);
+
 	NTSTATUS (*getsampwnam)(struct pdb_methods *, struct samu *sam_acct, const char *username);
-	
+
 	NTSTATUS (*getsampwsid)(struct pdb_methods *, struct samu *sam_acct, const DOM_SID *sid);
 
 	NTSTATUS (*create_user)(struct pdb_methods *, TALLOC_CTX *tmp_ctx,
@@ -230,15 +277,15 @@ struct pdb_methods
 
 	NTSTATUS (*delete_user)(struct pdb_methods *, TALLOC_CTX *tmp_ctx,
 				struct samu *sam_acct);
-	
+
 	NTSTATUS (*add_sam_account)(struct pdb_methods *, struct samu *sampass);
-	
+
 	NTSTATUS (*update_sam_account)(struct pdb_methods *, struct samu *sampass);
-	
+
 	NTSTATUS (*delete_sam_account)(struct pdb_methods *, struct samu *username);
-	
+
 	NTSTATUS (*rename_sam_account)(struct pdb_methods *, struct samu *oldname, const char *newname);
-	
+
 	NTSTATUS (*update_login_attempts)(struct pdb_methods *methods, struct samu *sam_acct, bool success);
 
 	NTSTATUS (*getgrsid)(struct pdb_methods *methods, GROUP_MAP *map, DOM_SID sid);
@@ -311,8 +358,8 @@ struct pdb_methods
 	NTSTATUS (*del_aliasmem)(struct pdb_methods *methods,
 				 const DOM_SID *alias, const DOM_SID *member);
 	NTSTATUS (*enum_aliasmem)(struct pdb_methods *methods,
-				  const DOM_SID *alias, DOM_SID **members,
-				  size_t *p_num_members);
+				  const DOM_SID *alias, TALLOC_CTX *mem_ctx,
+				  DOM_SID **members, size_t *p_num_members);
 	NTSTATUS (*enum_alias_memberships)(struct pdb_methods *methods,
 					   TALLOC_CTX *mem_ctx,
 					   const DOM_SID *domain_sid,
@@ -336,10 +383,12 @@ struct pdb_methods
 				 enum lsa_SidType *attrs);
 
 	NTSTATUS (*get_account_policy)(struct pdb_methods *methods,
-				       int policy_index, uint32 *value);
+				       enum pdb_policy_type type,
+				       uint32_t *value);
 
 	NTSTATUS (*set_account_policy)(struct pdb_methods *methods,
-				       int policy_index, uint32 value);
+				       enum pdb_policy_type type,
+				       uint32_t value);
 
 	NTSTATUS (*get_seq_num)(struct pdb_methods *methods, time_t *seq_num);
 
@@ -352,8 +401,6 @@ struct pdb_methods
 			       struct pdb_search *search,
 			       const DOM_SID *sid);
 
-	bool (*uid_to_rid)(struct pdb_methods *methods, uid_t uid,
-			   uint32 *rid);
 	bool (*uid_to_sid)(struct pdb_methods *methods, uid_t uid,
 			   DOM_SID *sid);
 	bool (*gid_to_sid)(struct pdb_methods *methods, gid_t gid,
@@ -361,7 +408,7 @@ struct pdb_methods
 	bool (*sid_to_id)(struct pdb_methods *methods, const DOM_SID *sid,
 			  union unid_t *id, enum lsa_SidType *type);
 
-	bool (*rid_algorithm)(struct pdb_methods *methods);
+	uint32_t (*capabilities)(struct pdb_methods *methods);
 	bool (*new_rid)(struct pdb_methods *methods, uint32 *rid);
 
 
@@ -378,7 +425,7 @@ struct pdb_methods
 				     struct trustdom_info ***domains);
 
 	void *private_data;  /* Private data of some kind */
-	
+
 	void (*free_private_data)(void **);
 };
 

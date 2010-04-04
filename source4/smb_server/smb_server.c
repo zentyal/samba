@@ -145,6 +145,7 @@ static void smbsrv_accept(struct stream_connection *conn)
 	packet_set_event_context(smb_conn->packet, conn->event.ctx);
 	packet_set_fde(smb_conn->packet, conn->event.fde);
 	packet_set_serialise(smb_conn->packet);
+	packet_set_initial_read(smb_conn->packet, 4);
 
 	smb_conn->lp_ctx = conn->lp_ctx;
 	smb_conn->connection = conn;
@@ -248,7 +249,7 @@ static void smbsrv_task_init(struct task_server *task)
 
 	return;
 failed:
-	task_server_terminate(task, "Failed to startup smb server task");	
+	task_server_terminate(task, "Failed to startup smb server task", true);	
 }
 
 /* called at smbd startup - register ourselves as a server service */

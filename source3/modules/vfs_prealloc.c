@@ -101,14 +101,20 @@ static int prealloc_connect(
                 const char *                service,
                 const char *                user)
 {
-	    module_debug = lp_parm_int(SNUM(handle->conn),
+	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	module_debug = lp_parm_int(SNUM(handle->conn),
 					MODULE, "debug", 100);
 
-	    return SMB_VFS_NEXT_CONNECT(handle, service, user);
+	return 0;
 }
 
 static int prealloc_open(vfs_handle_struct* handle,
-			const char *	    fname,
+			struct smb_filename *smb_fname,
 			files_struct *	    fsp,
 			int		    flags,
 			mode_t		    mode)
@@ -127,7 +133,7 @@ static int prealloc_open(vfs_handle_struct* handle,
 	}
 
 	*fext = '\0';
-	dot = strrchr(fname, '.');
+	dot = strrchr(smb_fname->base_name, '.');
 	if (dot && *++dot) {
 		if (strlen(dot) < sizeof(fext)) {
 			strncpy(fext, dot, sizeof(fext));
@@ -152,7 +158,7 @@ static int prealloc_open(vfs_handle_struct* handle,
 		goto normal_open;
 	}
 
-	fd = SMB_VFS_NEXT_OPEN(handle, fname, fsp, flags, mode);
+	fd = SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
 	if (fd < 0) {
 		return fd;
 	}
@@ -171,7 +177,8 @@ static int prealloc_open(vfs_handle_struct* handle,
 
 		DEBUG(module_debug,
 			("%s: preallocating %s (fd=%d) to %lld bytes\n",
-			MODULE, fname, fd, (long long)size));
+			    MODULE, smb_fname_str_dbg(smb_fname), fd,
+			    (long long)size));
 
 		*psize = size;
 		if (preallocate_space(fd, *psize) < 0) {
@@ -186,8 +193,8 @@ normal_open:
 	 * preallocation.
 	 */
 	DEBUG(module_debug, ("%s: skipping preallocation for %s\n",
-		    MODULE, fname));
-	return SMB_VFS_NEXT_OPEN(handle, fname, fsp, flags, mode);
+		MODULE, smb_fname_str_dbg(smb_fname)));
+	return SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
 }
 
 static int prealloc_ftruncate(vfs_handle_struct * handle,
@@ -205,16 +212,15 @@ static int prealloc_ftruncate(vfs_handle_struct * handle,
 	return ret;
 }
 
-static vfs_op_tuple prealloc_op_tuples[] = {
-	{SMB_VFS_OP(prealloc_open), SMB_VFS_OP_OPEN, SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(prealloc_ftruncate), SMB_VFS_OP_FTRUNCATE, SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(prealloc_connect), SMB_VFS_OP_CONNECT, SMB_VFS_LAYER_TRANSPARENT},
-	{NULL,	SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers prealloc_fns = {
+	.open = prealloc_open,
+	.ftruncate = prealloc_ftruncate,
+	.connect_fn = prealloc_connect,
 };
 
 NTSTATUS vfs_prealloc_init(void);
 NTSTATUS vfs_prealloc_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION,
-		MODULE, prealloc_op_tuples);
+				MODULE, &prealloc_fns);
 }

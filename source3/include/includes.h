@@ -200,7 +200,11 @@ typedef int ber_int_t;
 #endif
 
 #ifndef ENOATTR
+#if defined(ENODATA)
 #define ENOATTR ENODATA
+#else
+#define ENOATTR ENOENT
+#endif
 #endif
 
 /* mutually exclusive (SuSE 8.2) */
@@ -306,8 +310,10 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
 
 #if !defined(int32) && !defined(HAVE_INT32_FROM_RPC_RPC_H)
 #  define int32 int32_t
-   /* needed to work around compile issue on HP-UX 11.x */
-#  define _INT32	1
+#  ifndef _INT32
+     /* needed to work around compile issue on HP-UX 11.x */
+#    define _INT32	1
+#  endif
 #endif
 
 /*
@@ -424,17 +430,51 @@ typedef uint64_t br_off;
 #define IVAL_TO_SMB_OFF_T(buf,off) ((SMB_OFF_T)(( ((uint32)(IVAL((buf),(off)))) & 0xFFFFFFFF )))
 #endif
 
+#ifndef HAVE_BLKSIZE_T
+/* This is mainly for HP/UX which defines st_blksize as long */
+typedef long blksize_t;
+#endif
+
+#ifndef HAVE_BLKCNT_T
+/* This is mainly for HP/UX which doesn't have blkcnt_t */
+typedef long blkcnt_t;
+#endif
+
 /*
  * Type for stat structure.
  */
 
-#ifndef SMB_STRUCT_STAT
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STAT64) && defined(HAVE_OFF64_T)
-#    define SMB_STRUCT_STAT struct stat64
-#  else
-#    define SMB_STRUCT_STAT struct stat
-#  endif
-#endif
+struct stat_ex {
+	dev_t		st_ex_dev;
+	ino_t		st_ex_ino;
+	mode_t		st_ex_mode;
+	nlink_t		st_ex_nlink;
+	uid_t		st_ex_uid;
+	gid_t		st_ex_gid;
+	dev_t		st_ex_rdev;
+	off_t		st_ex_size;
+	struct timespec st_ex_atime;
+	struct timespec st_ex_mtime;
+	struct timespec st_ex_ctime;
+	struct timespec st_ex_btime; /* birthtime */
+	/* Is birthtime real, or was it calculated ? */
+	bool		st_ex_calculated_birthtime;
+	blksize_t	st_ex_blksize;
+	blkcnt_t	st_ex_blocks;
+
+	uint32_t	st_ex_flags;
+	uint32_t	st_ex_mask;
+
+	/*
+	 * Add space for VFS internal extensions. The initial user of this
+	 * would be the onefs modules, passing the snapid from the stat calls
+	 * to the file_id_create call. Maybe we'll have to expand this later,
+	 * but the core of Samba should never look at this field.
+	 */
+	uint64_t vfs_private;
+};
+
+typedef struct stat_ex SMB_STRUCT_STAT;
 
 /*
  * Type for dirent structure.
@@ -565,6 +605,7 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 
 /* Lists, trees, caching, database... */
 #include "../lib/util/util.h"
+#include "../lib/util/util_net.h"
 #include "../lib/util/xfile.h"
 #include "../lib/util/memory.h"
 #include "../lib/util/attr.h"
@@ -573,11 +614,12 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 #include "tdb.h"
 #include "util_tdb.h"
 
-#include "../talloc/talloc.h"
+#include "talloc.h"
 
 #include "event.h"
 #include "../lib/util/tevent_unix.h"
 #include "../lib/util/tevent_ntstatus.h"
+#include "../lib/tsocket/tsocket.h"
 
 #include "../lib/util/data_blob.h"
 #include "../lib/util/time.h"
@@ -597,6 +639,7 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 #include "messages.h"
 #include "locking.h"
 #include "smb_perfcount.h"
+#include "smb_signing.h"
 #include "smb.h"
 #include "nameserv.h"
 #include "secrets.h"
@@ -604,10 +647,11 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 #include "privileges.h"
 #include "rpc_misc.h"
 #include "rpc_dce.h"
+#include "../librpc/gen_ndr/schannel.h"
 #include "mapping.h"
 #include "passdb.h"
 #include "rpc_secdes.h"
-#include "gpo.h"
+#include "../libgpo/gpo.h"
 #include "msdfs.h"
 #include "rap.h"
 #include "../lib/crypto/md5.h"
@@ -620,8 +664,7 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 #include "ntdomain.h"
 #include "reg_objects.h"
 #include "reg_db.h"
-#include "rpc_perfcount.h"
-#include "rpc_perfcount_defs.h"
+#include "librpc/gen_ndr/perfcount.h"
 #include "librpc/gen_ndr/notify.h"
 #include "librpc/gen_ndr/xattr.h"
 #include "librpc/gen_ndr/messaging.h"
@@ -636,18 +679,20 @@ struct smb_iconv_convenience *lp_iconv_convenience(void *lp_ctx);
 #include "mangle.h"
 #include "module.h"
 #include "nsswitch/winbind_client.h"
-#include "spnego.h"
-#include "rpc_client.h"
 #include "dbwrap.h"
 #include "packet.h"
 #include "ctdbd_conn.h"
 #include "../lib/util/talloc_stack.h"
 #include "memcache.h"
-#include "../lib/async_req/async_req_ntstatus.h"
 #include "async_smb.h"
 #include "../lib/async_req/async_sock.h"
+#include "talloc_dict.h"
 #include "services.h"
 #include "eventlog.h"
+#include "../lib/util/smb_threads.h"
+#include "../lib/util/smb_threads_internal.h"
+#include "tldap.h"
+#include "tldap_util.h"
 
 #include "lib/smbconf/smbconf.h"
 #include "lib/smbconf/smbconf_init.h"
@@ -698,6 +743,7 @@ enum flush_reason_enum {
 #endif
 #include "libcli/security/secace.h"
 #include "libcli/security/secacl.h"
+#include "libcli/security/security_descriptor.h"
 
 #if defined(HAVE_POSIX_ACLS)
 #include "modules/vfs_posixacl.h"
@@ -756,7 +802,7 @@ enum flush_reason_enum {
 #endif
 
 #ifndef SIGRTMIN
-#define SIGRTMIN 32
+#define SIGRTMIN NSIG
 #endif
 
 #ifndef MAP_FILE
@@ -921,5 +967,8 @@ void exit_server_fault(void) _NORETURN_;
 void in6_addr_to_sockaddr_storage(struct sockaddr_storage *ss,
 				  struct in6_addr ip);
 #endif
+
+/* samba3 doesn't use uwrap yet */
+#define uwrap_enabled() 0
 
 #endif /* _INCLUDES_H */

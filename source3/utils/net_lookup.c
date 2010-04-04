@@ -21,7 +21,7 @@
 
 int net_lookup_usage(struct net_context *c, int argc, const char **argv)
 {
-	d_printf(
+	d_printf(_(
 "  net lookup [host] HOSTNAME[#<type>]\n\tgives IP for a hostname\n\n"
 "  net lookup ldap [domain]\n\tgives IP of domain's ldap server\n\n"
 "  net lookup kdc [realm]\n\tgives IP of realm's kerberos KDC\n\n"
@@ -31,7 +31,7 @@ int net_lookup_usage(struct net_context *c, int argc, const char **argv)
 "  net lookup name [name]\n\tLookup name's sid and type\n\n"
 "  net lookup sid [sid]\n\tGive sid's name and type\n\n"
 "  net lookup dsgetdcname [name] [flags] [sitename]\n\n"
-);
+));
 	return -1;
 }
 
@@ -53,7 +53,7 @@ static int net_lookup_host(struct net_context *c, int argc, const char **argv)
 		sscanf(++p,"%x",&name_type);
 	}
 
-	if (!resolve_name(name, &ss, name_type)) {
+	if (!resolve_name(name, &ss, name_type, false)) {
 		/* we deliberately use DEBUG() here to send it to stderr
 		   so scripts aren't mucked up */
 		DEBUG(0,("Didn't find %s#%02x\n", name, name_type));
@@ -72,7 +72,7 @@ static void print_ldap_srvlist(struct dns_rr_srv *dclist, int numdcs )
 	int i;
 
 	for ( i=0; i<numdcs; i++ ) {
-		if (resolve_name(dclist[i].hostname, &ss, 0x20) ) {
+		if (resolve_name(dclist[i].hostname, &ss, 0x20, true) ) {
 			char addr[INET6_ADDRSTRLEN];
 			print_sockaddr(addr, sizeof(addr), &ss);
 #ifdef HAVE_IPV6
@@ -109,7 +109,8 @@ static int net_lookup_ldap(struct net_context *c, int argc, const char **argv)
 	sitename = sitename_fetch(domain);
 
 	if ( (ctx = talloc_init("net_lookup_ldap")) == NULL ) {
-		d_fprintf(stderr, "net_lookup_ldap: talloc_init() failed!\n");
+		d_fprintf(stderr,"net_lookup_ldap: talloc_init() %s!\n",
+			  _("failed"));
 		SAFE_FREE(sitename);
 		return -1;
 	}
@@ -305,12 +306,12 @@ static int net_lookup_kdc(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 	for (i=0;i<num_kdcs;i++)
-		if (addrs[i].sin_family == AF_INET) 
+		if (addrs[i].sin_family == AF_INET)
 			d_printf("%s:%hd\n", inet_ntoa(addrs[i].sin_addr),
 				 ntohs(addrs[i].sin_port));
 	return 0;
 
-#endif	
+#endif
 	DEBUG(1, ("No kerberos support\n"));
 	return -1;
 }
@@ -322,13 +323,15 @@ static int net_lookup_name(struct net_context *c, int argc, const char **argv)
 	enum lsa_SidType type;
 
 	if (argc != 1) {
-		d_printf("usage: net lookup name <name>\n");
+		d_printf("%s\n%s",
+			 _("Usage:"),
+			 _(" net lookup name <name>\n"));
 		return -1;
 	}
 
 	if (!lookup_name(talloc_tos(), argv[0], LOOKUP_NAME_ALL,
 			 &dom, &name, &sid, &type)) {
-		d_printf("Could not lookup name %s\n", argv[0]);
+		d_printf(_("Could not lookup name %s\n"), argv[0]);
 		return -1;
 	}
 
@@ -344,18 +347,20 @@ static int net_lookup_sid(struct net_context *c, int argc, const char **argv)
 	enum lsa_SidType type;
 
 	if (argc != 1) {
-		d_printf("usage: net lookup sid <sid>\n");
+		d_printf("%s\n%s",
+			 _("Usage:"),
+			 _(" net lookup sid <sid>\n"));
 		return -1;
 	}
 
 	if (!string_to_sid(&sid, argv[0])) {
-		d_printf("Could not convert %s to SID\n", argv[0]);
+		d_printf(_("Could not convert %s to SID\n"), argv[0]);
 		return -1;
 	}
 
 	if (!lookup_sid(talloc_tos(), &sid,
 			&dom, &name, &type)) {
-		d_printf("Could not lookup name %s\n", argv[0]);
+		d_printf(_("Could not lookup name %s\n"), argv[0]);
 		return -1;
 	}
 
@@ -375,8 +380,10 @@ static int net_lookup_dsgetdcname(struct net_context *c, int argc, const char **
 	char *s = NULL;
 
 	if (argc < 1 || argc > 3) {
-		d_printf("usage: net lookup dsgetdcname "
-			 "<name> <flags> <sitename>\n");
+		d_printf("%s\n%s",
+			 _("Usage:"),
+			 _(" net lookup dsgetdcname "
+			   "<name> <flags> <sitename>\n"));
 		return -1;
 	}
 
@@ -401,7 +408,7 @@ static int net_lookup_dsgetdcname(struct net_context *c, int argc, const char **
 	status = dsgetdcname(mem_ctx, NULL, domain_name, NULL, site_name,
 			     flags, &info);
 	if (!NT_STATUS_IS_OK(status)) {
-		d_printf("failed with: %s\n", nt_errstr(status));
+		d_printf(_("failed with: %s\n"), nt_errstr(status));
 		TALLOC_FREE(mem_ctx);
 		return -1;
 	}
@@ -434,7 +441,7 @@ int net_lookup(struct net_context *c, int argc, const char **argv)
 	};
 
 	if (argc < 1) {
-		d_printf("\nUsage: \n");
+		d_printf(_("\nUsage: \n"));
 		return net_lookup_usage(c, argc, argv);
 	}
 	for (i=0; table[i].funcname; i++) {

@@ -506,9 +506,10 @@ static NTSTATUS ads_dns_lookup_srv( TALLOC_CTX *ctx,
 
 		if (rr.type != T_A || rr.rdatalen != 4) {
 #if defined(HAVE_IPV6)
-			/* FIXME. RFC2874 defines A6 records. This
+			/* RFC2874 defines A6 records. This
 			 * requires recusive and horribly complex lookups.
 			 * Bastards. Ignore this for now.... JRA.
+			 * Luckily RFC3363 reprecates A6 records.
 			 */
 			if (rr.type != T_AAAA || rr.rdatalen != 16)
 #endif
@@ -754,10 +755,6 @@ bool sitename_store(const char *realm, const char *sitename)
 	bool ret = False;
 	char *key;
 
-	if (!gencache_init()) {
-		return False;
-	}
-
 	if (!realm || (strlen(realm) == 0)) {
 		DEBUG(0,("sitename_store: no realm\n"));
 		return False;
@@ -794,10 +791,6 @@ char *sitename_fetch(const char *realm)
 	bool ret = False;
 	const char *query_realm;
 	char *key;
-
-	if (!gencache_init()) {
-		return NULL;
-	}
 
 	if (!realm || (strlen(realm) == 0)) {
 		query_realm = lp_realm();
@@ -993,7 +986,7 @@ NTSTATUS ads_dns_query_dcs_guid(TALLOC_CTX *ctx,
 	/*_ldap._tcp.DomainGuid.domains._msdcs.DnsForestName */
 
 	const char *domains;
-	const char *guid_string;
+	char *guid_string;
 
 	guid_string = GUID_string(ctx, domain_guid);
 	if (!guid_string) {
@@ -1005,6 +998,7 @@ NTSTATUS ads_dns_query_dcs_guid(TALLOC_CTX *ctx,
 	if (!domains) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	TALLOC_FREE(guid_string);
 
 	return ads_dns_query_internal(ctx, "_ldap", domains, dns_forest_name,
 				      NULL, dclist, numdcs);

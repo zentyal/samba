@@ -16,7 +16,7 @@ done
 if test x"$libreplacedir" = "x"; then
 	AC_MSG_ERROR([cannot find libreplace in $libreplacepaths])
 fi
-LIBREPLACEOBJ="replace.o"
+LIBREPLACEOBJ="$libreplacedir/replace.o"
 AC_SUBST(LIBREPLACEOBJ)
 
 AC_CANONICAL_BUILD
@@ -46,10 +46,10 @@ if test x"$libreplacedir" = "x"; then
 	AC_MSG_ERROR([cannot find libreplace in $libreplacepaths])
 fi
 
-LIBREPLACEOBJ="replace.o"
+LIBREPLACEOBJ="$libreplacedir/replace.o"
 AC_SUBST(LIBREPLACEOBJ)
 
-LIBREPLACEOBJ="${LIBREPLACEOBJ} snprintf.o"
+LIBREPLACEOBJ="${LIBREPLACEOBJ} $libreplacedir/snprintf.o"
 
 AC_TYPE_SIGNAL
 AC_TYPE_UID_T
@@ -103,10 +103,11 @@ AC_CHECK_HEADERS(sys/time.h time.h)
 AC_CHECK_HEADERS(stdarg.h vararg.h)
 AC_CHECK_HEADERS(sys/mount.h mntent.h)
 AC_CHECK_HEADERS(stropts.h)
+AC_CHECK_HEADERS(unix.h)
 
 AC_CHECK_FUNCS(seteuid setresuid setegid setresgid chroot bzero strerror)
 AC_CHECK_FUNCS(vsyslog setlinebuf mktime ftruncate chsize rename)
-AC_CHECK_FUNCS(waitpid strlcpy strlcat initgroups memmove strdup)
+AC_CHECK_FUNCS(waitpid wait4 strlcpy strlcat initgroups memmove strdup)
 AC_CHECK_FUNCS(pread pwrite strndup strcasestr strtok_r mkdtemp dup2)
 AC_CHECK_FUNCS(isatty chown lchown link readlink symlink realpath)
 AC_HAVE_DECL(setresuid, [#include <unistd.h>])
@@ -279,7 +280,7 @@ m4_include(timegm.m4)
 m4_include(repdir.m4)
 m4_include(crypt.m4)
 
-AC_CHECK_FUNCS([syslog printf memset memcpy],,[AC_MSG_ERROR([Required function not found])])
+AC_CHECK_FUNCS([printf memset memcpy],,[AC_MSG_ERROR([Required function not found])])
 
 echo "LIBREPLACE_BROKEN_CHECKS: END"
 ]) dnl end AC_LIBREPLACE_BROKEN_CHECKS

@@ -55,6 +55,10 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 		set_cmdline_auth_info_fallback_after_kerberos(auth_info, true);
 	}
 
+	if (ctx->use_ccache) {
+		set_cmdline_auth_info_use_ccache(auth_info, true);
+	}
+
 	cli_ipc = cli_cm_open(ctx, NULL,
 				server_name, "IPC$",
 				auth_info,
@@ -199,7 +203,7 @@ WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 	status = pipe_cm_open(ctx, cli, interface, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnetapi_set_error_string(ctx, "failed to open PIPE %s: %s",
-			get_pipe_name_from_iface(interface),
+			get_pipe_name_from_syntax(talloc_tos(), interface),
 			get_friendly_nt_error_msg(status));
 		return WERR_DEST_NOT_FOUND;
 	}

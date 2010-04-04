@@ -182,7 +182,7 @@ struct loadparm_global
 	int bDisableNetbios;
 	int bRpcBigEndian;
 	char *szNTPSignDSocketDirectory;
-	struct param_opt *param_opt;
+	struct parmlist_entry *param_opt;
 };
 
 
@@ -222,7 +222,7 @@ struct loadparm_service
 	int bMSDfsRoot;
 	int bStrictSync;
 	int bCIFileSystem;
-	struct param_opt *param_opt;
+	struct parmlist_entry *param_opt;
 
 	char dummy[3];		/* for alignment */
 };
@@ -749,7 +749,7 @@ const char *lp_get_parametric(struct loadparm_context *lp_ctx,
 			      const char *type, const char *option)
 {
 	char *vfskey;
-        struct param_opt *data;
+        struct parmlist_entry *data;
 
 	if (lp_ctx == NULL)
 		return NULL;
@@ -1020,7 +1020,7 @@ struct loadparm_service *lp_add_service(struct loadparm_context *lp_ctx,
 	int i;
 	struct loadparm_service tservice;
 	int num_to_alloc = lp_ctx->iNumServices + 1;
-	struct param_opt *data, *pdata;
+	struct parmlist_entry *data, *pdata;
 
 	tservice = *pservice;
 
@@ -1260,7 +1260,7 @@ static void copy_service(struct loadparm_service *pserviceDest,
 {
 	int i;
 	bool bcopyall = (pcopymapDest == NULL);
-	struct param_opt *data, *pdata, *paramo;
+	struct parmlist_entry *data, *pdata, *paramo;
 	bool not_added;
 
 	for (i = 0; parm_table[i].label; i++)
@@ -1328,7 +1328,7 @@ static void copy_service(struct loadparm_service *pserviceDest,
 			pdata = pdata->next;
 		}
 		if (not_added) {
-			paramo = talloc(pserviceDest, struct param_opt);
+			paramo = talloc(pserviceDest, struct parmlist_entry);
 			if (paramo == NULL)
 				smb_panic("OOM");
 			paramo->key = talloc_reference(paramo, data->key);
@@ -1544,7 +1544,7 @@ static bool lp_do_parameter_parametric(struct loadparm_context *lp_ctx,
 				       const char *pszParmName,
 				       const char *pszParmValue, int flags)
 {
-	struct param_opt *paramo, *data;
+	struct parmlist_entry *paramo, *data;
 	char *name;
 	TALLOC_CTX *mem_ctx;
 
@@ -1583,7 +1583,7 @@ static bool lp_do_parameter_parametric(struct loadparm_context *lp_ctx,
 		}
 	}
 
-	paramo = talloc(mem_ctx, struct param_opt);
+	paramo = talloc(mem_ctx, struct parmlist_entry);
 	if (!paramo)
 		smb_panic("OOM");
 	paramo->key = talloc_strdup(paramo, name);
@@ -2048,7 +2048,7 @@ static void dump_globals(struct loadparm_context *lp_ctx, FILE *f,
 			 bool show_defaults)
 {
 	int i;
-	struct param_opt *data;
+	struct parmlist_entry *data;
 
 	fprintf(f, "# Global parameters\n[global]\n");
 
@@ -2078,16 +2078,17 @@ static void dump_globals(struct loadparm_context *lp_ctx, FILE *f,
 static void dump_a_service(struct loadparm_service * pService, struct loadparm_service *sDefault, FILE * f)
 {
 	int i;
-	struct param_opt *data;
+	struct parmlist_entry *data;
 
 	if (pService != sDefault)
 		fprintf(f, "\n[%s]\n", pService->szService);
 
-	for (i = 0; parm_table[i].label; i++)
+	for (i = 0; parm_table[i].label; i++) {
 		if (parm_table[i].pclass == P_LOCAL &&
 		    parm_table[i].offset != -1 &&
 		    (*parm_table[i].label != '-') &&
-		    (i == 0 || (parm_table[i].offset != parm_table[i - 1].offset))) {
+		    (i == 0 || (parm_table[i].offset != parm_table[i - 1].offset)))
+		{
 			if (pService == sDefault) {
 				if (defaults_saved && is_default(sDefault, i))
 					continue;
@@ -2104,6 +2105,7 @@ static void dump_a_service(struct loadparm_service * pService, struct loadparm_s
 			print_parameter(&parm_table[i],
 					((char *)pService) + parm_table[i].offset, f);
 			fprintf(f, "\n");
+		}
 	}
 	if (pService->param_opt != NULL) {
 		for (data = pService->param_opt; data; data = data->next) {
@@ -2132,7 +2134,8 @@ bool lp_dump_a_parameter(struct loadparm_context *lp_ctx,
 }
 
 /**
- * Return info about the next service  in a service. snum==-1 gives the globals.
+ * Return info about the next parameter in a service.
+ * snum==-1 gives the globals.
  * Return NULL when out of parameters.
  */
 
@@ -2214,10 +2217,10 @@ void lp_killunused(struct loadparm_context *lp_ctx,
 
 static int lp_destructor(struct loadparm_context *lp_ctx)
 {
-	struct param_opt *data;
+	struct parmlist_entry *data;
 
 	if (lp_ctx->globals->param_opt != NULL) {
-		struct param_opt *next;
+		struct parmlist_entry *next;
 		for (data = lp_ctx->globals->param_opt; data; data=next) {
 			next = data->next;
 			if (data->priority & FLAG_CMDLINE) continue;
@@ -2297,7 +2300,7 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lp_do_global_parameter(lp_ctx, "max connections", "-1");
 
 	lp_do_global_parameter(lp_ctx, "dcerpc endpoint servers", "epmapper srvsvc wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi winreg dssetup unixinfo browser");
-	lp_do_global_parameter(lp_ctx, "server services", "smb rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd");
+	lp_do_global_parameter(lp_ctx, "server services", "smb rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd kcc");
 	lp_do_global_parameter(lp_ctx, "ntptr providor", "simple_ldb");
 	lp_do_global_parameter(lp_ctx, "auth methods:domain controller", "anonymous sam_ignoredomain");
 	lp_do_global_parameter(lp_ctx, "auth methods:member server", "anonymous sam winbind");
@@ -2647,7 +2650,7 @@ struct smb_iconv_convenience *lp_iconv_convenience(struct loadparm_context *lp_c
 
 _PUBLIC_ void reload_charcnv(struct loadparm_context *lp_ctx)
 {
-	talloc_free(lp_ctx->iconv_convenience);
+	talloc_unlink(lp_ctx, lp_ctx->iconv_convenience);
 	global_iconv_convenience = lp_ctx->iconv_convenience = smb_iconv_convenience_init_lp(lp_ctx, lp_ctx);
 }
 
@@ -2722,3 +2725,4 @@ struct gensec_settings *lp_gensec_settings(TALLOC_CTX *mem_ctx, struct loadparm_
 	settings->target_hostname = lp_parm_string(lp_ctx, NULL, "gensec", "target_hostname");
 	return settings;
 }
+

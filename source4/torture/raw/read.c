@@ -499,8 +499,9 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 	CHECK_STATUS(status, NT_STATUS_OK);
 	CHECK_VALUE(io.readx.out.remaining, 0xFFFF);
 	CHECK_VALUE(io.readx.out.compaction_mode, 0);
-	if (torture_setting_bool(tctx, "samba3", false)) {
-		printf("SAMBA3: large read extension\n");
+	if (torture_setting_bool(tctx, "samba3", false) ||
+	    torture_setting_bool(tctx, "samba4", false)) {
+		printf("SAMBA: large read extension\n");
 		CHECK_VALUE(io.readx.out.nread, 80000);
 	} else {
 		CHECK_VALUE(io.readx.out.nread, 0);
@@ -543,8 +544,9 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 		io.readx.in.maxcnt = 0x10000;
 		status = smb_raw_read(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
-		if (torture_setting_bool(tctx, "samba3", false)) {
-			printf("SAMBA3: large read extension\n");
+		if (torture_setting_bool(tctx, "samba3", false) || 
+		    torture_setting_bool(tctx, "samba4", false)) {
+			printf("SAMBA: large read extension\n");
 			CHECK_VALUE(io.readx.out.nread, 0x10000);
 		} else {
 			CHECK_VALUE(io.readx.out.nread, 0);
@@ -553,12 +555,15 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 		io.readx.in.maxcnt = 0x10001;
 		status = smb_raw_read(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
-		if (torture_setting_bool(tctx, "samba3", false)) {
-			printf("SAMBA3: large read extension\n");
+		if (torture_setting_bool(tctx, "samba3", false) ||
+		    torture_setting_bool(tctx, "samba4", false)) {
+			printf("SAMBA: large read extension\n");
 			CHECK_VALUE(io.readx.out.nread, 0x10001);
 		} else {
 			CHECK_VALUE(io.readx.out.nread, 0);
 		}
+	} else {
+		printf("Server does not support the CAP_LARGE_READX extension\n");
 	}
 
 	printf("Trying locked region\n");
@@ -621,6 +626,11 @@ static bool test_readbraw(struct torture_context *tctx,
 	const char *fname = BASEDIR "\\test.txt";
 	const char *test_data = "TEST DATA";
 	uint_t seed = time(NULL);
+
+	if (!cli->transport->negotiate.readbraw_supported) {
+		printf("Server does not support readbraw - skipping\n");
+		return true;
+	}
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 

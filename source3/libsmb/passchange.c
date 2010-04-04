@@ -28,8 +28,8 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 				char **err_str)
 {
 	struct nmb_name calling, called;
-	struct cli_state *cli;
-	struct rpc_pipe_client *pipe_hnd;
+	struct cli_state *cli = NULL;
+	struct rpc_pipe_client *pipe_hnd = NULL;
 	struct sockaddr_storage ss;
 	char *user, *domain, *p;
 
@@ -51,7 +51,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 
 	*err_str = NULL;
 
-	if(!resolve_name( remote_machine, &ss, 0x20)) {
+	if(!resolve_name( remote_machine, &ss, 0x20, false)) {
 		if (asprintf(err_str, "Unable to find an IP address for machine "
 			 "%s.\n", remote_machine) == -1) {
 			*err_str = NULL;
@@ -177,7 +177,7 @@ NTSTATUS remote_password_change(const char *remote_machine, const char *user_nam
 		result = cli_rpc_pipe_open_ntlmssp(cli,
 						   &ndr_table_samr.syntax_id,
 						   NCACN_NP,
-						   PIPE_AUTH_LEVEL_PRIVACY,
+						   DCERPC_AUTH_LEVEL_PRIVACY,
 						   domain, user,
 						   old_passwd,
 						   &pipe_hnd);

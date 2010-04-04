@@ -205,14 +205,14 @@ void cgi_load_variables(void)
 		char *dest = NULL;
 		size_t dest_len;
 
-		convert_string_allocate(frame, CH_UTF8, CH_UNIX,
+		convert_string_talloc(frame, CH_UTF8, CH_UNIX,
 			       variables[i].name, strlen(variables[i].name),
 			       &dest, &dest_len, True);
 		SAFE_FREE(variables[i].name);
 		variables[i].name = SMB_STRDUP(dest ? dest : "");
 
 		dest = NULL;
-		convert_string_allocate(frame, CH_UTF8, CH_UNIX,
+		convert_string_talloc(frame, CH_UTF8, CH_UNIX,
 			       variables[i].value, strlen(variables[i].value),
 			       &dest, &dest_len, True);
 		SAFE_FREE(variables[i].value);
@@ -442,22 +442,22 @@ static void cgi_download(char *file)
 		}
 	}
 
-	if (sys_stat(file, &st) != 0) 
-	{
+	if (sys_stat(file, &st, false) != 0)	{
 		cgi_setup_error("404 File Not Found","",
 				"The requested file was not found");
 	}
 
-	if (S_ISDIR(st.st_mode))
+	if (S_ISDIR(st.st_ex_mode))
 	{
 		snprintf(buf, sizeof(buf), "%s/index.html", file);
-		if (!file_exist_stat(buf, &st) || !S_ISREG(st.st_mode))
+		if (!file_exist_stat(buf, &st, false)
+		    || !S_ISREG(st.st_ex_mode))
 		{
 			cgi_setup_error("404 File Not Found","",
 					"The requested file was not found");
 		}
 	}
-	else if (S_ISREG(st.st_mode))
+	else if (S_ISREG(st.st_ex_mode))
 	{
 		snprintf(buf, sizeof(buf), "%s", file);
 	}
@@ -496,7 +496,7 @@ static void cgi_download(char *file)
 		printf("Content-Language: %s\r\n", lang);
 	}
 
-	printf("Content-Length: %d\r\n\r\n", (int)st.st_size);
+	printf("Content-Length: %d\r\n\r\n", (int)st.st_ex_size);
 	while ((l=read(fd,buf,sizeof(buf)))>0) {
 		if (fwrite(buf, 1, l, stdout) != l) {
 			break;

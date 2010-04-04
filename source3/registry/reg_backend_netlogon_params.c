@@ -29,13 +29,13 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern REGISTRY_OPS regdb_ops;
+extern struct registry_ops regdb_ops;
 
-static int netlogon_params_fetch_values(const char *key, REGVAL_CTR *regvals)
+static int netlogon_params_fetch_values(const char *key, struct regval_ctr *regvals)
 {
 	uint32 dwValue;
 
-	if (!pdb_get_account_policy(AP_REFUSE_MACHINE_PW_CHANGE, &dwValue)) {
+	if (!pdb_get_account_policy(PDB_POLICY_REFUSE_MACHINE_PW_CHANGE, &dwValue)) {
 		dwValue = 0;
 	}
 
@@ -51,7 +51,7 @@ static int netlogon_params_fetch_subkeys(const char *key,
 	return regdb_ops.fetch_subkeys(key, subkey_ctr);
 }
 
-REGISTRY_OPS netlogon_params_reg_ops = {
+struct registry_ops netlogon_params_reg_ops = {
 	.fetch_values = netlogon_params_fetch_values,
 	.fetch_subkeys = netlogon_params_fetch_subkeys,
 };

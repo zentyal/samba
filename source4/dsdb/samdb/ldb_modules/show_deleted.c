@@ -2,24 +2,21 @@
    ldb database library
 
    Copyright (C) Simo Sorce  2005
-   Copyright (C) Stefa Metzmacher <metze@samba.org> 2007
+   Copyright (C) Stefan Metzmacher <metze@samba.org> 2007
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2009
 
-     ** NOTE! The following LGPL license applies to the ldb
-     ** library. This does NOT imply that all of Samba is released
-     ** under the LGPL
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
    
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
+   This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Lesser General Public License for more details.
-
-   You should have received a copy of the GNU Lesser General Public
-   License along with this library; if not, see <http://www.gnu.org/licenses/>.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+   
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -36,92 +33,46 @@
 #include "ldb/include/ldb_module.h"
 #include "dsdb/samdb/samdb.h"
 
-/* search */
-struct show_deleted_search_request {
-
-	struct ldb_module *module;
-	struct ldb_request *req;
-};
-
-static int show_deleted_search_callback(struct ldb_request *req,
-					struct ldb_reply *ares)
-{
-	struct show_deleted_search_request *ar;
-
-	ar = talloc_get_type(req->context, struct show_deleted_search_request);
-
-	if (!ares) {
-		return ldb_module_done(ar->req, NULL, NULL,
-					LDB_ERR_OPERATIONS_ERROR);
-	}
-	if (ares->error != LDB_SUCCESS) {
-		return ldb_module_done(ar->req, ares->controls,
-					ares->response, ares->error);
-	}
-
-	switch (ares->type) {
-	case LDB_REPLY_ENTRY:
-
-		return ldb_module_send_entry(ar->req, ares->message, ares->controls);
-
-	case LDB_REPLY_REFERRAL:
-		return ldb_module_send_referral(ar->req, ares->referral);
-
-	case LDB_REPLY_DONE:
-		return ldb_module_done(ar->req, ares->controls,
-					ares->response, LDB_SUCCESS);
-
-	}
-	return LDB_SUCCESS;
-}
 
 static int show_deleted_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
 	struct ldb_control *control;
 	struct ldb_control **saved_controls;
-	struct show_deleted_search_request *ar;
 	struct ldb_request *down_req;
-	char *old_filter;
-	char *new_filter;
+	struct ldb_parse_tree *nodeleted_tree;
+	struct ldb_parse_tree *new_tree = req->op.search.tree;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
 
-	ar = talloc_zero(req, struct show_deleted_search_request);
-	if (ar == NULL) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	ar->module = module;
-	ar->req = req;
-
 	/* check if there's a show deleted control */
 	control = ldb_request_get_control(req, LDB_CONTROL_SHOW_DELETED_OID);
 
-	if ( ! control) {
-		old_filter = ldb_filter_from_tree(ar, req->op.search.tree);
-		new_filter = talloc_asprintf(ar, "(&(!(isDeleted=TRUE))%s)",
-						 old_filter);
-
-		ret = ldb_build_search_req(&down_req, ldb, ar,
-					   req->op.search.base,
-					   req->op.search.scope,
-					   new_filter,
-					   req->op.search.attrs,
-					   req->controls,
-					   ar, show_deleted_search_callback,
-					   req);
-
-	} else {
-		ret = ldb_build_search_req_ex(&down_req, ldb, ar,
-					      req->op.search.base,
-					      req->op.search.scope,
-					      req->op.search.tree,
-					      req->op.search.attrs,
-					      req->controls,
-					      ar, show_deleted_search_callback,
-					      req);
+	if (! control) {
+		nodeleted_tree = talloc_get_type(ldb_module_get_private(module), 
+						 struct ldb_parse_tree);
+		if (nodeleted_tree) {
+			new_tree = talloc(req, struct ldb_parse_tree);
+			if (!new_tree) {
+				ldb_oom(ldb);
+				return LDB_ERR_OPERATIONS_ERROR;
+			}
+			*new_tree = *nodeleted_tree;
+			/* Replace dummy part of 'and' with the old, tree,
+			   without a parse step */
+			new_tree->u.list.elements[0] = req->op.search.tree;
+		}
 	}
+	
+	ret = ldb_build_search_req_ex(&down_req, ldb, req,
+				      req->op.search.base,
+				      req->op.search.scope,
+				      new_tree,
+				      req->op.search.attrs,
+				      req->controls,
+				      req->context, req->callback,
+				      req);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
@@ -138,14 +89,24 @@ static int show_deleted_search(struct ldb_module *module, struct ldb_request *re
 static int show_deleted_init(struct ldb_module *module)
 {
 	struct ldb_context *ldb;
+	struct ldb_parse_tree *nodeleted_tree;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
 
+	nodeleted_tree = ldb_parse_tree(module, "(&(replace=me)(!(isDeleted=TRUE)))");
+	if (!nodeleted_tree) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			"show_deleted: Unable to parse isDeleted master expression!\n");
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	ldb_module_set_private(module, nodeleted_tree);
+
 	ret = ldb_mod_register_control(module, LDB_CONTROL_SHOW_DELETED_OID);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"extended_dn: Unable to register control with rootdse!\n");
+			"show_deleted: Unable to register control with rootdse!\n");
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 

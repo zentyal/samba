@@ -643,12 +643,12 @@ const char **ldb_attr_list_copy(TALLOC_CTX *mem_ctx, const char * const *attrs)
 {
 	const char **ret;
 	int i;
-	for (i=0;attrs[i];i++) /* noop */ ;
+	for (i=0;attrs && attrs[i];i++) /* noop */ ;
 	ret = talloc_array(mem_ctx, const char *, i+1);
 	if (ret == NULL) {
 		return NULL;
 	}
-	for (i=0;attrs[i];i++) {
+	for (i=0;attrs && attrs[i];i++) {
 		ret[i] = attrs[i];
 	}
 	ret[i] = attrs[i];
@@ -665,7 +665,7 @@ const char **ldb_attr_list_copy_add(TALLOC_CTX *mem_ctx, const char * const *att
 	const char **ret;
 	int i;
 	bool found = false;
-	for (i=0;attrs[i];i++) {
+	for (i=0;attrs && attrs[i];i++) {
 		if (ldb_attr_cmp(attrs[i], new_attr) == 0) {
 			found = true;
 		}
@@ -677,7 +677,7 @@ const char **ldb_attr_list_copy_add(TALLOC_CTX *mem_ctx, const char * const *att
 	if (ret == NULL) {
 		return NULL;
 	}
-	for (i=0;attrs[i];i++) {
+	for (i=0;attrs && attrs[i];i++) {
 		ret[i] = attrs[i];
 	}
 	ret[i] = new_attr;
@@ -739,6 +739,10 @@ int ldb_msg_copy_attr(struct ldb_message *msg, const char *attr, const char *rep
 void ldb_msg_remove_element(struct ldb_message *msg, struct ldb_message_element *el)
 {
 	int n = (el - msg->elements);
+	if (n >= msg->num_elements) {
+		/* should we abort() here? */
+		return;
+	}
 	if (n != msg->num_elements-1) {
 		memmove(el, el+1, ((msg->num_elements-1) - n)*sizeof(*el));
 	}

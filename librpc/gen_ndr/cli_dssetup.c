@@ -6,6 +6,121 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_dssetup.h"
 
+struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state {
+	struct dssetup_DsRoleGetPrimaryDomainInformation orig;
+	struct dssetup_DsRoleGetPrimaryDomainInformation tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleGetPrimaryDomainInformation_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleGetPrimaryDomainInformation_send(TALLOC_CTX *mem_ctx,
+									 struct tevent_context *ev,
+									 struct rpc_pipe_client *cli,
+									 enum dssetup_DsRoleInfoLevel _level /* [in]  */,
+									 union dssetup_DsRoleInfo *_info /* [out] [unique,switch_is(level)] */)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+	state->orig.in.level = _level;
+
+	/* Out parameters */
+	state->orig.out.info = _info;
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	state->out_mem_ctx = talloc_named_const(state, 0,
+			     "rpccli_dssetup_DsRoleGetPrimaryDomainInformation_out_memory");
+	if (tevent_req_nomem(state->out_mem_ctx, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEGETPRIMARYDOMAININFORMATION,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleGetPrimaryDomainInformation_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleGetPrimaryDomainInformation_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+	if (state->orig.out.info && state->tmp.out.info) {
+		*state->orig.out.info = *state->tmp.out.info;
+	}
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleGetPrimaryDomainInformation_recv(struct tevent_req *req,
+							       TALLOC_CTX *mem_ctx,
+							       WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetPrimaryDomainInformation_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_dssetup_DsRoleGetPrimaryDomainInformation(struct rpc_pipe_client *cli,
 							  TALLOC_CTX *mem_ctx,
 							  enum dssetup_DsRoleInfoLevel level /* [in]  */,
@@ -18,10 +133,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetPrimaryDomainInformation(struct rpc_pipe_client
 	/* In parameters */
 	r.in.level = level;
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleGetPrimaryDomainInformation, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -30,10 +141,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetPrimaryDomainInformation(struct rpc_pipe_client
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleGetPrimaryDomainInformation, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -53,6 +160,108 @@ NTSTATUS rpccli_dssetup_DsRoleGetPrimaryDomainInformation(struct rpc_pipe_client
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_dssetup_DsRoleDnsNameToFlatName_state {
+	struct dssetup_DsRoleDnsNameToFlatName orig;
+	struct dssetup_DsRoleDnsNameToFlatName tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleDnsNameToFlatName_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleDnsNameToFlatName_send(TALLOC_CTX *mem_ctx,
+							       struct tevent_context *ev,
+							       struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleDnsNameToFlatName_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleDnsNameToFlatName_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEDNSNAMETOFLATNAME,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleDnsNameToFlatName_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleDnsNameToFlatName_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleDnsNameToFlatName_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDnsNameToFlatName_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleDnsNameToFlatName_recv(struct tevent_req *req,
+						     TALLOC_CTX *mem_ctx,
+						     WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleDnsNameToFlatName_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDnsNameToFlatName_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_dssetup_DsRoleDnsNameToFlatName(struct rpc_pipe_client *cli,
 						TALLOC_CTX *mem_ctx,
 						WERROR *werror)
@@ -61,10 +270,6 @@ NTSTATUS rpccli_dssetup_DsRoleDnsNameToFlatName(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleDnsNameToFlatName, &r);
-	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -76,10 +281,6 @@ NTSTATUS rpccli_dssetup_DsRoleDnsNameToFlatName(struct rpc_pipe_client *cli,
 		return status;
 	}
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleDnsNameToFlatName, &r);
-	}
-
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -92,6 +293,108 @@ NTSTATUS rpccli_dssetup_DsRoleDnsNameToFlatName(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleDcAsDc_state {
+	struct dssetup_DsRoleDcAsDc orig;
+	struct dssetup_DsRoleDcAsDc tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleDcAsDc_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleDcAsDc_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleDcAsDc_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleDcAsDc_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEDCASDC,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleDcAsDc_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleDcAsDc_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleDcAsDc_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDcAsDc_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleDcAsDc_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleDcAsDc_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDcAsDc_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleDcAsDc(struct rpc_pipe_client *cli,
@@ -103,10 +406,6 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsDc(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleDcAsDc, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -115,10 +414,6 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsDc(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleDcAsDc, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -133,6 +428,108 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsDc(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleDcAsReplica_state {
+	struct dssetup_DsRoleDcAsReplica orig;
+	struct dssetup_DsRoleDcAsReplica tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleDcAsReplica_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleDcAsReplica_send(TALLOC_CTX *mem_ctx,
+							 struct tevent_context *ev,
+							 struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleDcAsReplica_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleDcAsReplica_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEDCASREPLICA,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleDcAsReplica_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleDcAsReplica_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleDcAsReplica_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDcAsReplica_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleDcAsReplica_recv(struct tevent_req *req,
+					       TALLOC_CTX *mem_ctx,
+					       WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleDcAsReplica_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDcAsReplica_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleDcAsReplica(struct rpc_pipe_client *cli,
@@ -144,10 +541,6 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsReplica(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleDcAsReplica, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -156,10 +549,6 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsReplica(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleDcAsReplica, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -174,6 +563,108 @@ NTSTATUS rpccli_dssetup_DsRoleDcAsReplica(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleDemoteDc_state {
+	struct dssetup_DsRoleDemoteDc orig;
+	struct dssetup_DsRoleDemoteDc tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleDemoteDc_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleDemoteDc_send(TALLOC_CTX *mem_ctx,
+						      struct tevent_context *ev,
+						      struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleDemoteDc_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleDemoteDc_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEDEMOTEDC,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleDemoteDc_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleDemoteDc_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleDemoteDc_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDemoteDc_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleDemoteDc_recv(struct tevent_req *req,
+					    TALLOC_CTX *mem_ctx,
+					    WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleDemoteDc_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleDemoteDc_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleDemoteDc(struct rpc_pipe_client *cli,
@@ -185,10 +676,6 @@ NTSTATUS rpccli_dssetup_DsRoleDemoteDc(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleDemoteDc, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -197,10 +684,6 @@ NTSTATUS rpccli_dssetup_DsRoleDemoteDc(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleDemoteDc, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -215,6 +698,108 @@ NTSTATUS rpccli_dssetup_DsRoleDemoteDc(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleGetDcOperationProgress_state {
+	struct dssetup_DsRoleGetDcOperationProgress orig;
+	struct dssetup_DsRoleGetDcOperationProgress tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleGetDcOperationProgress_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleGetDcOperationProgress_send(TALLOC_CTX *mem_ctx,
+								    struct tevent_context *ev,
+								    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleGetDcOperationProgress_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleGetDcOperationProgress_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEGETDCOPERATIONPROGRESS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleGetDcOperationProgress_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleGetDcOperationProgress_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleGetDcOperationProgress_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetDcOperationProgress_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleGetDcOperationProgress_recv(struct tevent_req *req,
+							  TALLOC_CTX *mem_ctx,
+							  WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleGetDcOperationProgress_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetDcOperationProgress_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleGetDcOperationProgress(struct rpc_pipe_client *cli,
@@ -226,10 +811,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationProgress(struct rpc_pipe_client *cli
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleGetDcOperationProgress, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -238,10 +819,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationProgress(struct rpc_pipe_client *cli
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleGetDcOperationProgress, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -256,6 +833,108 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationProgress(struct rpc_pipe_client *cli
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleGetDcOperationResults_state {
+	struct dssetup_DsRoleGetDcOperationResults orig;
+	struct dssetup_DsRoleGetDcOperationResults tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleGetDcOperationResults_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleGetDcOperationResults_send(TALLOC_CTX *mem_ctx,
+								   struct tevent_context *ev,
+								   struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleGetDcOperationResults_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleGetDcOperationResults_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEGETDCOPERATIONRESULTS,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleGetDcOperationResults_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleGetDcOperationResults_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleGetDcOperationResults_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetDcOperationResults_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleGetDcOperationResults_recv(struct tevent_req *req,
+							 TALLOC_CTX *mem_ctx,
+							 WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleGetDcOperationResults_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleGetDcOperationResults_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleGetDcOperationResults(struct rpc_pipe_client *cli,
@@ -267,10 +946,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationResults(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleGetDcOperationResults, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -279,10 +954,6 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationResults(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleGetDcOperationResults, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -297,6 +968,108 @@ NTSTATUS rpccli_dssetup_DsRoleGetDcOperationResults(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleCancel_state {
+	struct dssetup_DsRoleCancel orig;
+	struct dssetup_DsRoleCancel tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleCancel_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleCancel_send(TALLOC_CTX *mem_ctx,
+						    struct tevent_context *ev,
+						    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleCancel_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleCancel_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLECANCEL,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleCancel_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleCancel_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleCancel_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleCancel_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleCancel_recv(struct tevent_req *req,
+					  TALLOC_CTX *mem_ctx,
+					  WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleCancel_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleCancel_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleCancel(struct rpc_pipe_client *cli,
@@ -308,10 +1081,6 @@ NTSTATUS rpccli_dssetup_DsRoleCancel(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleCancel, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -320,10 +1089,6 @@ NTSTATUS rpccli_dssetup_DsRoleCancel(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleCancel, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -338,6 +1103,108 @@ NTSTATUS rpccli_dssetup_DsRoleCancel(struct rpc_pipe_client *cli,
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state {
+	struct dssetup_DsRoleServerSaveStateForUpgrade orig;
+	struct dssetup_DsRoleServerSaveStateForUpgrade tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleServerSaveStateForUpgrade_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleServerSaveStateForUpgrade_send(TALLOC_CTX *mem_ctx,
+								       struct tevent_context *ev,
+								       struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLESERVERSAVESTATEFORUPGRADE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleServerSaveStateForUpgrade_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleServerSaveStateForUpgrade_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleServerSaveStateForUpgrade_recv(struct tevent_req *req,
+							     TALLOC_CTX *mem_ctx,
+							     WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleServerSaveStateForUpgrade_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleServerSaveStateForUpgrade(struct rpc_pipe_client *cli,
@@ -349,10 +1216,6 @@ NTSTATUS rpccli_dssetup_DsRoleServerSaveStateForUpgrade(struct rpc_pipe_client *
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleServerSaveStateForUpgrade, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -361,10 +1224,6 @@ NTSTATUS rpccli_dssetup_DsRoleServerSaveStateForUpgrade(struct rpc_pipe_client *
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleServerSaveStateForUpgrade, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -379,6 +1238,108 @@ NTSTATUS rpccli_dssetup_DsRoleServerSaveStateForUpgrade(struct rpc_pipe_client *
 	}
 
 	return werror_to_ntstatus(r.out.result);
+}
+
+struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state {
+	struct dssetup_DsRoleUpgradeDownlevelServer orig;
+	struct dssetup_DsRoleUpgradeDownlevelServer tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleUpgradeDownlevelServer_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleUpgradeDownlevelServer_send(TALLOC_CTX *mem_ctx,
+								    struct tevent_context *ev,
+								    struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEUPGRADEDOWNLEVELSERVER,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleUpgradeDownlevelServer_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleUpgradeDownlevelServer_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleUpgradeDownlevelServer_recv(struct tevent_req *req,
+							  TALLOC_CTX *mem_ctx,
+							  WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleUpgradeDownlevelServer_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_dssetup_DsRoleUpgradeDownlevelServer(struct rpc_pipe_client *cli,
@@ -390,10 +1351,6 @@ NTSTATUS rpccli_dssetup_DsRoleUpgradeDownlevelServer(struct rpc_pipe_client *cli
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleUpgradeDownlevelServer, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -402,10 +1359,6 @@ NTSTATUS rpccli_dssetup_DsRoleUpgradeDownlevelServer(struct rpc_pipe_client *cli
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleUpgradeDownlevelServer, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -422,6 +1375,108 @@ NTSTATUS rpccli_dssetup_DsRoleUpgradeDownlevelServer(struct rpc_pipe_client *cli
 	return werror_to_ntstatus(r.out.result);
 }
 
+struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state {
+	struct dssetup_DsRoleAbortDownlevelServerUpgrade orig;
+	struct dssetup_DsRoleAbortDownlevelServerUpgrade tmp;
+	TALLOC_CTX *out_mem_ctx;
+	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
+};
+
+static void rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_done(struct tevent_req *subreq);
+
+struct tevent_req *rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_send(TALLOC_CTX *mem_ctx,
+									 struct tevent_context *ev,
+									 struct rpc_pipe_client *cli)
+{
+	struct tevent_req *req;
+	struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->out_mem_ctx = NULL;
+	state->dispatch_recv = cli->dispatch_recv;
+
+	/* In parameters */
+
+	/* Out parameters */
+
+	/* Result */
+	ZERO_STRUCT(state->orig.out.result);
+
+	/* make a temporary copy, that we pass to the dispatch function */
+	state->tmp = state->orig;
+
+	subreq = cli->dispatch_send(state, ev, cli,
+				    &ndr_table_dssetup,
+				    NDR_DSSETUP_DSROLEABORTDOWNLEVELSERVERUPGRADE,
+				    &state->tmp);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_done, req);
+	return req;
+}
+
+static void rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state);
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx;
+
+	if (state->out_mem_ctx) {
+		mem_ctx = state->out_mem_ctx;
+	} else {
+		mem_ctx = state;
+	}
+
+	status = state->dispatch_recv(subreq, mem_ctx);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* Copy out parameters */
+
+	/* Copy result */
+	state->orig.out.result = state->tmp.out.result;
+
+	/* Reset temporary structure */
+	ZERO_STRUCT(state->tmp);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_recv(struct tevent_req *req,
+							       TALLOC_CTX *mem_ctx,
+							       WERROR *result)
+{
+	struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state *state = tevent_req_data(
+		req, struct rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	/* Steal possbile out parameters to the callers context */
+	talloc_steal(mem_ctx, state->out_mem_ctx);
+
+	/* Return result */
+	*result = state->orig.out.result;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
 NTSTATUS rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade(struct rpc_pipe_client *cli,
 							  TALLOC_CTX *mem_ctx,
 							  WERROR *werror)
@@ -431,10 +1486,6 @@ NTSTATUS rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade(struct rpc_pipe_client
 
 	/* In parameters */
 
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_IN_DEBUG(dssetup_DsRoleAbortDownlevelServerUpgrade, &r);
-	}
-
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_dssetup,
@@ -443,10 +1494,6 @@ NTSTATUS rpccli_dssetup_DsRoleAbortDownlevelServerUpgrade(struct rpc_pipe_client
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_OUT_DEBUG(dssetup_DsRoleAbortDownlevelServerUpgrade, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {

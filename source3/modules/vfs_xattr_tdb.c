@@ -212,17 +212,10 @@ static ssize_t xattr_tdb_getxattr(struct vfs_handle_struct *handle,
 	SMB_STRUCT_STAT sbuf;
 	struct file_id id;
 	struct db_context *db;
-	int ret;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
-	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
-	}
-
-	if (ret == -1) {
+	if (vfs_stat_smb_fname(handle->conn, path, &sbuf) == -1) {
 		return -1;
 	}
 
@@ -341,17 +334,10 @@ static int xattr_tdb_setxattr(struct vfs_handle_struct *handle,
 	SMB_STRUCT_STAT sbuf;
 	struct file_id id;
 	struct db_context *db;
-	int ret;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
-	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
-	}
-
-	if (ret == -1) {
+	if (vfs_stat_smb_fname(handle->conn, path, &sbuf) == -1) {
 		return -1;
 	}
 
@@ -453,17 +439,10 @@ static ssize_t xattr_tdb_listxattr(struct vfs_handle_struct *handle,
 	SMB_STRUCT_STAT sbuf;
 	struct file_id id;
 	struct db_context *db;
-	int ret;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
-	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
-	}
-
-	if (ret == -1) {
+	if (vfs_stat_smb_fname(handle->conn, path, &sbuf) == -1) {
 		return -1;
 	}
 
@@ -560,17 +539,10 @@ static int xattr_tdb_removexattr(struct vfs_handle_struct *handle,
 	SMB_STRUCT_STAT sbuf;
 	struct file_id id;
 	struct db_context *db;
-	int ret;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
-	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
-	}
-
-	if (ret == -1) {
+	if (vfs_stat_smb_fname(handle->conn, path, &sbuf) == -1) {
 		return -1;
 	}
 
@@ -639,33 +611,50 @@ static bool xattr_tdb_init(int snum, struct db_context **p_db)
 /*
  * On unlink we need to delete the tdb record
  */
-static int xattr_tdb_unlink(vfs_handle_struct *handle, const char *path)
+static int xattr_tdb_unlink(vfs_handle_struct *handle,
+			    const struct smb_filename *smb_fname)
 {
-	SMB_STRUCT_STAT sbuf;
+	struct smb_filename *smb_fname_tmp = NULL;
 	struct file_id id;
 	struct db_context *db;
 	struct db_record *rec;
-	int ret;
+	NTSTATUS status;
+	int ret = -1;
+	bool remove_record = false;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
+	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
+	if (!NT_STATUS_IS_OK(status)) {
+		errno = map_errno_from_nt_status(status);
+		return -1;
+	}
+
 	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
+		ret = SMB_VFS_LSTAT(handle->conn, smb_fname_tmp);
 	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
+		ret = SMB_VFS_STAT(handle->conn, smb_fname_tmp);
 	}
+	if (ret == -1) {
+		goto out;
+	}
+
+	if (smb_fname_tmp->st.st_ex_nlink == 1) {
+		/* Only remove record on last link to file. */
+		remove_record = true;
+	}
+
+	ret = SMB_VFS_NEXT_UNLINK(handle, smb_fname_tmp);
 
 	if (ret == -1) {
-		return -1;
+		goto out;
 	}
 
-	ret = SMB_VFS_NEXT_UNLINK(handle, path);
-
-	if (ret == -1) {
-		return -1;
+	if (!remove_record) {
+		goto out;
 	}
 
-	id = SMB_VFS_FILE_ID_CREATE(handle->conn, &sbuf);
+	id = SMB_VFS_FILE_ID_CREATE(handle->conn, &smb_fname_tmp->st);
 
 	rec = xattr_tdb_lock_attrs(talloc_tos(), db, &id);
 
@@ -678,7 +667,9 @@ static int xattr_tdb_unlink(vfs_handle_struct *handle, const char *path)
 		TALLOC_FREE(rec);
 	}
 
-	return 0;
+ out:
+	TALLOC_FREE(smb_fname_tmp);
+	return ret;
 }
 
 /*
@@ -694,13 +685,7 @@ static int xattr_tdb_rmdir(vfs_handle_struct *handle, const char *path)
 
 	SMB_VFS_HANDLE_GET_DATA(handle, db, struct db_context, return -1);
 
-	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(handle->conn, path, &sbuf);
-	} else {
-		ret = SMB_VFS_STAT(handle->conn, path, &sbuf);
-	}
-
-	if (ret == -1) {
+	if (vfs_stat_smb_fname(handle->conn, path, &sbuf) == -1) {
 		return -1;
 	}
 
@@ -771,37 +756,23 @@ static int xattr_tdb_connect(vfs_handle_struct *handle, const char *service,
 	return 0;
 }
 
-/* VFS operations structure */
-
-static const vfs_op_tuple xattr_tdb_ops[] = {
-	{SMB_VFS_OP(xattr_tdb_getxattr), SMB_VFS_OP_GETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_fgetxattr), SMB_VFS_OP_FGETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_setxattr), SMB_VFS_OP_SETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_fsetxattr), SMB_VFS_OP_FSETXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_listxattr), SMB_VFS_OP_LISTXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_flistxattr), SMB_VFS_OP_FLISTXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_removexattr), SMB_VFS_OP_REMOVEXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_fremovexattr), SMB_VFS_OP_FREMOVEXATTR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_unlink), SMB_VFS_OP_UNLINK,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_rmdir), SMB_VFS_OP_RMDIR,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(xattr_tdb_connect), SMB_VFS_OP_CONNECT,
-	 SMB_VFS_LAYER_TRANSPARENT},
-	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
+static struct vfs_fn_pointers vfs_xattr_tdb_fns = {
+	.getxattr = xattr_tdb_getxattr,
+	.fgetxattr = xattr_tdb_fgetxattr,
+	.setxattr = xattr_tdb_setxattr,
+	.fsetxattr = xattr_tdb_fsetxattr,
+	.listxattr = xattr_tdb_listxattr,
+	.flistxattr = xattr_tdb_flistxattr,
+	.removexattr = xattr_tdb_removexattr,
+	.fremovexattr = xattr_tdb_fremovexattr,
+	.unlink = xattr_tdb_unlink,
+	.rmdir = xattr_tdb_rmdir,
+	.connect_fn = xattr_tdb_connect,
 };
 
 NTSTATUS vfs_xattr_tdb_init(void);
 NTSTATUS vfs_xattr_tdb_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "xattr_tdb",
-				xattr_tdb_ops);
+				&vfs_xattr_tdb_fns);
 }

@@ -46,8 +46,7 @@ void onefs_init_search_op(struct vfs_handle_struct *handle,
 NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 			   struct smb_request *req,
 			   uint16_t root_dir_fid,
-			   const char *fname,
-			   uint32_t create_file_flags,
+			   struct smb_filename *smb_fname,
 			   uint32_t access_mask,
 			   uint32_t share_access,
 			   uint32_t create_disposition,
@@ -58,27 +57,23 @@ NTSTATUS onefs_create_file(vfs_handle_struct *handle,
 			   struct security_descriptor *sd,
 			   struct ea_list *ea_list,
 			   files_struct **result,
-			   int *pinfo,
-			   SMB_STRUCT_STAT *psbuf);
+			   int *pinfo);
 
 int onefs_close(vfs_handle_struct *handle, struct files_struct *fsp);
 
-int onefs_rename(vfs_handle_struct *handle, const char *oldname,
-		 const char *newname);
+int onefs_rename(vfs_handle_struct *handle,
+		 const struct smb_filename *smb_fname_src,
+		 const struct smb_filename *smb_fname_dst);
 
-int onefs_stat(vfs_handle_struct *handle, const char *fname,
-	       SMB_STRUCT_STAT *sbuf);
+int onefs_stat(vfs_handle_struct *handle, struct smb_filename *smb_fname);
 
 int onefs_fstat(vfs_handle_struct *handle, struct files_struct *fsp,
 		SMB_STRUCT_STAT *sbuf);
 
-int onefs_lstat(vfs_handle_struct *handle, const char *path,
-		SMB_STRUCT_STAT *sbuf);
+int onefs_lstat(vfs_handle_struct *handle, struct smb_filename *smb_fname);
 
-int onefs_unlink(vfs_handle_struct *handle, const char *path);
-
-int onefs_chflags(vfs_handle_struct *handle, const char *path,
-		  unsigned int flags);
+int onefs_unlink(vfs_handle_struct *handle,
+		 const struct smb_filename *smb_fname);
 
 NTSTATUS onefs_streaminfo(vfs_handle_struct *handle,
 			  struct files_struct *fsp,
@@ -87,7 +82,8 @@ NTSTATUS onefs_streaminfo(vfs_handle_struct *handle,
 			  unsigned int *num_streams,
 			  struct stream_struct **streams);
 
-int onefs_vtimes_streams(vfs_handle_struct *handle, const char *fname,
+int onefs_vtimes_streams(vfs_handle_struct *handle,
+			 const struct smb_filename *smb_fname,
 			 int flags, struct timespec times[3]);
 
 NTSTATUS onefs_brl_lock_windows(vfs_handle_struct *handle,
@@ -130,18 +126,22 @@ NTSTATUS onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
 			  uint32 security_info, SEC_DESC **ppdesc);
 
 NTSTATUS onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-			   uint32 security_info_sent, SEC_DESC *psd);
+			   uint32 security_info_sent, const SEC_DESC *psd);
 
 /*
  * Utility functions
  */
 struct ifs_security_descriptor;
-NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, SEC_DESC *psd,
+NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, const SEC_DESC *psd,
 			      struct ifs_security_descriptor *sd, int snum,
 			      uint32_t *security_info_effective);
 
 NTSTATUS onefs_split_ntfs_stream_name(TALLOC_CTX *mem_ctx, const char *fname,
 				      char **pbase, char **pstream);
+
+NTSTATUS onefs_stream_prep_smb_fname(TALLOC_CTX *ctx,
+				     const struct smb_filename *smb_fname_in,
+				     struct smb_filename **smb_fname_out);
 
 int onefs_rdp_add_dir_state(connection_struct *conn, SMB_STRUCT_DIR *dirp);
 
@@ -169,5 +169,18 @@ ssize_t onefs_sys_sendfile(connection_struct *conn, int tofd, int fromfd,
 
 ssize_t onefs_sys_recvfile(int fromfd, int tofd, SMB_OFF_T offset,
 			   size_t count);
+
+void init_stat_ex_from_onefs_stat(struct stat_ex *dst, const struct stat *src);
+
+int onefs_sys_stat(const char *fname, SMB_STRUCT_STAT *sbuf);
+
+int onefs_sys_fstat(int fd, SMB_STRUCT_STAT *sbuf);
+
+int onefs_sys_fstat_at(int base_fd, const char *fname, SMB_STRUCT_STAT *sbuf,
+		       int flags);
+
+int onefs_sys_lstat(const char *fname, SMB_STRUCT_STAT *sbuf);
+
+
 
 #endif /* _ONEFS_H */

@@ -28,7 +28,7 @@ import os
 
 def _in_source_tree():
     """Check whether the script is being run from the source dir. """
-    return os.path.exists("%s/../../../samba4-skip" % os.path.dirname(__file__))
+    return os.path.exists("%s/../../../selftest/skip" % os.path.dirname(__file__))
 
 
 # When running, in-tree, make sure bin/python is in the PYTHONPATH
@@ -42,7 +42,6 @@ else:
 
 
 import ldb
-import credentials
 import glue
 
 class Ldb(ldb.Ldb):
@@ -53,44 +52,59 @@ class Ldb(ldb.Ldb):
     not necessarily the Sam database. For Sam-specific helper 
     functions see samdb.py.
     """
-    def __init__(self, url=None, session_info=None, credentials=None, 
-                 modules_dir=None, lp=None):
-        """Open a Samba Ldb file. 
+    def __init__(self, url=None, lp=None, modules_dir=None, session_info=None,
+                 credentials=None, flags=0, options=None):
+        """Opens a Samba Ldb file.
 
         :param url: Optional LDB URL to open
+        :param lp: Optional loadparm object
+        :param modules_dir: Optional modules directory
         :param session_info: Optional session information
         :param credentials: Optional credentials, defaults to anonymous.
-        :param modules_dir: Modules directory, if not the default.
-        :param lp: Loadparm object, optional.
+        :param flags: Optional LDB flags
+        :param options: Additional options (optional)
 
         This is different from a regular Ldb file in that the Samba-specific
         modules-dir is used by default and that credentials and session_info 
         can be passed through (required by some modules).
         """
-        super(Ldb, self).__init__()
 
         if modules_dir is not None:
             self.set_modules_dir(modules_dir)
         elif default_ldb_modules_dir is not None:
             self.set_modules_dir(default_ldb_modules_dir)
-
-        if credentials is not None:
-            self.set_credentials(credentials)
+        elif lp is not None:
+            self.set_modules_dir(os.path.join(lp.get("modules dir"), "ldb"))
 
         if session_info is not None:
             self.set_session_info(session_info)
 
-        glue.ldb_register_samba_handlers(self)
+        if credentials is not None:
+            self.set_credentials(credentials)
 
         if lp is not None:
             self.set_loadparm(lp)
 
+        # This must be done before we load the schema, as these handlers for
+        # objectSid and objectGUID etc must take precedence over the 'binary
+        # attribute' declaration in the schema
+        glue.ldb_register_samba_handlers(self)
+
+        # TODO set debug
         def msg(l,text):
             print text
         #self.set_debug(msg)
 
+        glue.ldb_set_utf8_casefold(self)
+
+        # Allow admins to force non-sync ldb for all databases
+        if lp is not None:
+            nosync_p = lp.get("nosync", "ldb")
+            if nosync_p is not None and nosync_p == true:
+                flags |= FLG_NOSYNC
+
         if url is not None:
-            self.connect(url)
+            self.connect(url, flags, options)
 
     def set_credentials(self, credentials):
         glue.ldb_set_credentials(self, credentials)
@@ -118,62 +132,100 @@ class Ldb(ldb.Ldb):
         assert len(values) == 1
         return self.schema_format_value(attribute, values.pop())
 
-    def erase(self):
-        """Erase this ldb, removing all records."""
+    def erase_users_computers(self, dn):
+        """Erases user and computer objects from our AD. This is needed since the 'samldb' module denies the deletion of primary groups. Therefore all groups shouldn't be primary somewhere anymore."""
+
+        try:
+            res = self.search(base=dn, scope=ldb.SCOPE_SUBTREE, attrs=[],
+                      expression="(|(objectclass=user)(objectclass=computer))")
+        except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+            # Ignore no such object errors
+            return
+            pass
+
+        try:
+            for msg in res:
+                self.delete(msg.dn)
+        except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+            # Ignore no such object errors
+            return
+
+    def erase_except_schema_controlled(self):
+        """Erase this ldb, removing all records, except those that are controlled by Samba4's schema."""
+
+        basedn = ""
+
+        # Try to delete user/computer accounts to allow deletion of groups
+        self.erase_users_computers(basedn)
+
+        # Delete the 'visible' records, and the invisble 'deleted' records (if this DB supports it)
+        for msg in self.search(basedn, ldb.SCOPE_SUBTREE, 
+                               "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))",
+                               [], controls=["show_deleted:0"]):
+            try:
+                self.delete(msg.dn)
+            except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+                # Ignore no such object errors
+                pass
+            
+        res = self.search(basedn, ldb.SCOPE_SUBTREE, 
+                          "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))",
+                          [], controls=["show_deleted:0"])
+        assert len(res) == 0
+
         # delete the specials
-        for attr in ["@INDEXLIST", "@ATTRIBUTES", "@SUBCLASSES", "@MODULES", 
+        for attr in ["@SUBCLASSES", "@MODULES", 
                      "@OPTIONS", "@PARTITION", "@KLUDGEACL"]:
             try:
                 self.delete(attr)
-            except ldb.LdbError, (LDB_ERR_NO_SUCH_OBJECT, _):
+            except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
                 # Ignore missing dn errors
                 pass
 
-        basedn = ""
-        # and the rest
-        for msg in self.search(basedn, ldb.SCOPE_SUBTREE, 
-                "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))", 
-                ["distinguishedName"]):
-            try:
-                self.delete(msg.dn)
-            except ldb.LdbError, (LDB_ERR_NO_SUCH_OBJECT, _):
-                # Ignore no such object errors
-                pass
+    def erase(self):
+        """Erase this ldb, removing all records."""
+        
+        self.erase_except_schema_controlled()
 
-        res = self.search(basedn, ldb.SCOPE_SUBTREE, "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))", ["distinguishedName"])
-        assert len(res) == 0
+        # delete the specials
+        for attr in ["@INDEXLIST", "@ATTRIBUTES"]:
+            try:
+                self.delete(attr)
+            except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+                # Ignore missing dn errors
+                pass
 
     def erase_partitions(self):
         """Erase an ldb, removing all records."""
+
+        def erase_recursive(self, dn):
+            try:
+                res = self.search(base=dn, scope=ldb.SCOPE_ONELEVEL, attrs=[], 
+                                  controls=["show_deleted:0"])
+            except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+                # Ignore no such object errors
+                return
+                pass
+            
+            for msg in res:
+                erase_recursive(self, msg.dn)
+
+            try:
+                self.delete(dn)
+            except ldb.LdbError, (ldb.ERR_NO_SUCH_OBJECT, _):
+                # Ignore no such object errors
+                pass
+
         res = self.search("", ldb.SCOPE_BASE, "(objectClass=*)", 
                          ["namingContexts"])
         assert len(res) == 1
         if not "namingContexts" in res[0]:
             return
         for basedn in res[0]["namingContexts"]:
-            previous_remaining = 1
-            current_remaining = 0
-
-            k = 0
-            while ++k < 10 and (previous_remaining != current_remaining):
-                # and the rest
-                try:
-                    res2 = self.search(basedn, ldb.SCOPE_SUBTREE, "(|(objectclass=*)(distinguishedName=*))", ["distinguishedName"])
-                except ldb.LdbError, (LDB_ERR_NO_SUCH_OBJECT, _):
-                    # Ignore missing dn errors
-                    return
-
-                previous_remaining = current_remaining
-                current_remaining = len(res2)
-                for msg in res2:
-                    try:
-                        self.delete(msg.dn)
-                    # Ignore no such object errors
-                    except ldb.LdbError, (LDB_ERR_NO_SUCH_OBJECT, _):
-                        pass
-                    # Ignore not allowed on non leaf errors
-                    except ldb.LdbError, (LDB_ERR_NOT_ALLOWED_ON_NON_LEAF, _):
-                        pass
+            # Try to delete user/computer accounts to allow deletion of groups
+            self.erase_users_computers(basedn)
+            # Try and erase from the bottom-up in the tree
+            erase_recursive(self, basedn)
 
     def load_ldif_file_add(self, ldif_path):
         """Load a LDIF file.
@@ -198,6 +250,46 @@ class Ldb(ldb.Ldb):
         """
         for changetype, msg in self.parse_ldif(ldif):
             self.modify(msg)
+
+    def set_domain_sid(self, sid):
+        """Change the domain SID used by this LDB.
+
+        :param sid: The new domain sid to use.
+        """
+        glue.samdb_set_domain_sid(self, sid)
+
+    def domain_sid(self):
+        """Read the domain SID used by this LDB.
+
+        """
+        glue.samdb_get_domain_sid(self)
+
+    def set_schema_from_ldif(self, pf, df):
+        glue.dsdb_set_schema_from_ldif(self, pf, df)
+
+    def set_schema_from_ldb(self, ldb):
+        glue.dsdb_set_schema_from_ldb(self, ldb)
+
+    def write_prefixes_from_schema(self):
+        glue.dsdb_write_prefixes_from_schema_to_ldb(self)
+
+    def convert_schema_to_openldap(self, target, mapping):
+        return glue.dsdb_convert_schema_to_openldap(self, target, mapping)
+
+    def set_invocation_id(self, invocation_id):
+        """Set the invocation id for this SamDB handle.
+        
+        :param invocation_id: GUID of the invocation id.
+        """
+        glue.dsdb_set_ntds_invocation_id(self, invocation_id)
+
+    def set_opaque_integer(self, name, value):
+        """Set an integer as an opaque (a flag or other value) value on the database
+        
+        :param name: The name for the opaque value
+        :param value: The integer value
+        """
+        glue.dsdb_set_opaque_integer(self, name, value)
 
 
 def substitute_var(text, values):
@@ -233,10 +325,65 @@ def check_all_substituted(text):
 
 def valid_netbios_name(name):
     """Check whether a name is valid as a NetBIOS name. """
-    # FIXME: There are probably more constraints here. 
-    # crh has a paragraph on this in his book (1.4.1.1)
+    # See crh's book (1.4.1.1)
     if len(name) > 15:
         return False
+    for x in name:
+        if not x.isalnum() and not x in " !#$%&'()-.@^_{}~":
+            return False
     return True
 
+
+def dom_sid_to_rid(sid_str):
+    """Converts a domain SID to the relative RID.
+
+    :param sid_str: The domain SID formatted as string
+    """
+
+    return glue.dom_sid_to_rid(sid_str)
+
+
 version = glue.version
+
+# "userAccountControl" flags
+UF_NORMAL_ACCOUNT = glue.UF_NORMAL_ACCOUNT
+UF_TEMP_DUPLICATE_ACCOUNT = glue.UF_TEMP_DUPLICATE_ACCOUNT
+UF_SERVER_TRUST_ACCOUNT = glue.UF_SERVER_TRUST_ACCOUNT
+UF_WORKSTATION_TRUST_ACCOUNT = glue.UF_WORKSTATION_TRUST_ACCOUNT
+UF_INTERDOMAIN_TRUST_ACCOUNT = glue.UF_INTERDOMAIN_TRUST_ACCOUNT
+UF_PASSWD_NOTREQD = glue.UF_PASSWD_NOTREQD
+UF_ACCOUNTDISABLE = glue.UF_ACCOUNTDISABLE
+
+# "groupType" flags
+GTYPE_SECURITY_BUILTIN_LOCAL_GROUP = glue.GTYPE_SECURITY_BUILTIN_LOCAL_GROUP
+GTYPE_SECURITY_GLOBAL_GROUP = glue.GTYPE_SECURITY_GLOBAL_GROUP
+GTYPE_SECURITY_DOMAIN_LOCAL_GROUP = glue.GTYPE_SECURITY_DOMAIN_LOCAL_GROUP
+GTYPE_SECURITY_UNIVERSAL_GROUP = glue.GTYPE_SECURITY_UNIVERSAL_GROUP
+GTYPE_DISTRIBUTION_GLOBAL_GROUP = glue.GTYPE_DISTRIBUTION_GLOBAL_GROUP
+GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP = glue.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP
+GTYPE_DISTRIBUTION_UNIVERSAL_GROUP = glue.GTYPE_DISTRIBUTION_UNIVERSAL_GROUP
+
+# "sAMAccountType" flags
+ATYPE_NORMAL_ACCOUNT = glue.ATYPE_NORMAL_ACCOUNT
+ATYPE_WORKSTATION_TRUST = glue.ATYPE_WORKSTATION_TRUST
+ATYPE_INTERDOMAIN_TRUST = glue.ATYPE_INTERDOMAIN_TRUST
+ATYPE_SECURITY_GLOBAL_GROUP = glue.ATYPE_SECURITY_GLOBAL_GROUP
+ATYPE_SECURITY_LOCAL_GROUP = glue.ATYPE_SECURITY_LOCAL_GROUP
+ATYPE_SECURITY_UNIVERSAL_GROUP = glue.ATYPE_SECURITY_UNIVERSAL_GROUP
+ATYPE_DISTRIBUTION_GLOBAL_GROUP = glue.ATYPE_DISTRIBUTION_GLOBAL_GROUP
+ATYPE_DISTRIBUTION_LOCAL_GROUP = glue.ATYPE_DISTRIBUTION_LOCAL_GROUP
+ATYPE_DISTRIBUTION_UNIVERSAL_GROUP = glue.ATYPE_DISTRIBUTION_UNIVERSAL_GROUP
+
+# "domainFunctionality", "forestFunctionality" flags in the rootDSE */
+DS_DOMAIN_FUNCTION_2000 = glue.DS_DOMAIN_FUNCTION_2000
+DS_DOMAIN_FUNCTION_2003_MIXED = glue.DS_DOMAIN_FUNCTION_2003_MIXED
+DS_DOMAIN_FUNCTION_2003 = glue.DS_DOMAIN_FUNCTION_2003
+DS_DOMAIN_FUNCTION_2008 = glue.DS_DOMAIN_FUNCTION_2008
+DS_DOMAIN_FUNCTION_2008_R2 = glue.DS_DOMAIN_FUNCTION_2008_R2
+
+# "domainControllerFunctionality" flags in the rootDSE */
+DS_DC_FUNCTION_2000 = glue.DS_DC_FUNCTION_2000
+DS_DC_FUNCTION_2003 = glue.DS_DC_FUNCTION_2003
+DS_DC_FUNCTION_2008 = glue.DS_DC_FUNCTION_2008
+DS_DC_FUNCTION_2008_R2 = glue.DS_DC_FUNCTION_2008_R2
+

@@ -8,8 +8,6 @@ struct ltdb_private {
 	TDB_CONTEXT *tdb;
 	unsigned int connect_flags;
 	
-	/* a double is used for portability and ease of string
-	   handling. It has plenty of digits of precision */
 	unsigned long long sequence_number;
 
 	/* the low level tdb seqnum - used to avoid loading BASEINFO when
@@ -30,6 +28,7 @@ struct ltdb_private {
 
 	bool check_base;
 	struct ltdb_idxptr *idxptr;
+	bool prepared_commit;
 };
 
 /*
@@ -83,7 +82,7 @@ int ltdb_check_at_attributes_values(const struct ldb_val *value);
 
 struct ldb_parse_tree;
 
-int ltdb_search_indexed(struct ltdb_context *ctx);
+int ltdb_search_indexed(struct ltdb_context *ctx, uint32_t *);
 int ltdb_index_add(struct ldb_module *module, const struct ldb_message *msg);
 int ltdb_index_del(struct ldb_module *module, const struct ldb_message *msg);
 int ltdb_index_one(struct ldb_module *module, const struct ldb_message *msg, int add);

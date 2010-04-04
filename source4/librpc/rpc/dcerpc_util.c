@@ -513,6 +513,10 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 
 	conn = s->pipe->conn;
 	conn->flags = binding->flags;
+
+	if (DEBUGLVL(100)) {
+		conn->flags |= DCERPC_DEBUG_PRINT_BOTH;
+	}
 	
 	/* remember the binding string for possible secondary connections */
 	conn->binding_string = dcerpc_binding_string(p, binding);
@@ -732,7 +736,7 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p,
 
 	p2->syntax = table->syntax_id;
 
-	p2->transfer_syntax = ndr_transfer_syntax;
+	p2->transfer_syntax = p->transfer_syntax;
 
 	p2->binding = talloc_reference(p2, p->binding);
 

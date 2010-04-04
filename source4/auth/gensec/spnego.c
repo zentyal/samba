@@ -23,7 +23,7 @@
 */
 
 #include "includes.h"
-#include "auth/gensec/spnego.h"
+#include "../libcli/auth/spnego.h"
 #include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
@@ -338,7 +338,7 @@ static NTSTATUS gensec_spnego_server_try_fallback(struct gensec_security *gensec
 		NTSTATUS nt_status;
 
 	    	if (gensec_security != NULL && 
-				!gensec_security_ops_enabled(all_ops[i], gensec_security->settings->lp_ctx))
+				!gensec_security_ops_enabled(all_ops[i], gensec_security))
 		    continue;
 
 		if (!all_ops[i]->oid) {
@@ -628,7 +628,8 @@ static NTSTATUS gensec_spnego_create_negTokenInit(struct gensec_security *gensec
 
 		/* List the remaining mechs as options */
 		spnego_out.negTokenInit.mechTypes = send_mech_types;
-		spnego_out.negTokenInit.reqFlags = 0;
+		spnego_out.negTokenInit.reqFlags = null_data_blob;
+		spnego_out.negTokenInit.reqFlagsPadding = 0;
 		
 		if (spnego_state->state_position == SPNEGO_SERVER_START) {
 			/* server credentials */
@@ -844,7 +845,8 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 		/* compose reply */
 		spnego_out.type = SPNEGO_NEG_TOKEN_INIT;
 		spnego_out.negTokenInit.mechTypes = my_mechs;
-		spnego_out.negTokenInit.reqFlags = 0;
+		spnego_out.negTokenInit.reqFlags = null_data_blob;
+		spnego_out.negTokenInit.reqFlagsPadding = 0;
 		spnego_out.negTokenInit.mechListMIC = null_data_blob;
 		spnego_out.negTokenInit.mechToken = unwrapped_out;
 		
@@ -1029,7 +1031,8 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 						  spnego.negTokenTarg.responseToken, 
 						  &unwrapped_out);
 
-			if (NT_STATUS_IS_OK(nt_status)) {
+			if (NT_STATUS_IS_OK(nt_status)
+			    && spnego.negTokenTarg.negResult != SPNEGO_ACCEPT_COMPLETED) {
 				new_spnego = gensec_have_feature(spnego_state->sub_sec_security,
 								 GENSEC_FEATURE_NEW_SPNEGO);
 			}
@@ -1061,7 +1064,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 			return nt_status;
 		}
 
-		if (unwrapped_out.length) {
+		if (unwrapped_out.length || mech_list_mic.length) {
 			/* compose reply */
 			spnego_out.type = SPNEGO_NEG_TOKEN_TARG;
 			spnego_out.negTokenTarg.negResult = SPNEGO_NONE_RESULT;

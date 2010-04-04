@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 02/22/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 02/19/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "02/22/2010" "Samba 3\&.4" "User Commands"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "WBINFO" "1" "02/19/2010" "Samba 3\&.5" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,13 +18,11 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 wbinfo \- Query information from winbind daemon
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCwbinfo\F[] [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
-.fam
+wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-D\ domain] [\-\-domain\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-h] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-own\-domain] [\-p] [\-r\ user] [\-\-remove\-uid\-mapping\ uid,sid] [\-\-remove\-gid\-mapping\ gid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-uid\-mapping\ uid,sid] [\-\-set\-gid\-mapping\ gid,sid] [\-S\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-user\-domgroups\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-Y\ sid] [\-\-verbose]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -180,7 +30,7 @@ This tool is part of the
 suite\&.
 .PP
 The
-\FCwbinfo\F[]
+wbinfo
 program queries and returns information created and used by the
 \fBwinbindd\fR(8)
 daemon\&.
@@ -188,7 +38,7 @@ daemon\&.
 The
 \fBwinbindd\fR(8)
 daemon must be configured and running for the
-\FCwbinfo\F[]
+wbinfo
 program to be able to return information\&.
 .SH "OPTIONS"
 .PP
@@ -200,7 +50,6 @@ Attempt to authenticate a user via
 .sp
 .\}
 .RS 4
-.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -212,7 +61,6 @@ Attempt to authenticate a user via
 Do not be tempted to use this functionality for authentication in third\-party applications\&. Instead use
 \fBntlm_auth\fR(1)\&.
 .sp .5v
-.EM yellow
 .RE
 .RE
 .PP
@@ -229,6 +77,13 @@ Get a new UID out of idmap
 \-\-all\-domains
 .RS 4
 List all domains (trusted and own domain)\&.
+.RE
+.PP
+\-c|\-\-change\-secret
+.RS 4
+Change the trust account password\&. May be used in conjunction with
+\fBdomain\fR
+in order to change interdomain trust account passwords\&.
 .RE
 .PP
 \-\-domain \fIname\fR
@@ -376,7 +231,9 @@ then the operation will fail\&.
 .PP
 \-t|\-\-check\-secret
 .RS 4
-Verify that the workstation trust account created when the Samba server is added to the Windows NT domain is working\&.
+Verify that the workstation trust account created when the Samba server is added to the Windows NT domain is working\&. May be used in conjunction with
+\fBdomain\fR
+in order to verify interdomain trust accounts\&.
 .RE
 .PP
 \-u|\-\-domain\-users
@@ -454,7 +311,7 @@ Print a summary of command line options\&.
 The wbinfo program returns 0 if the operation succeeded, or 1 if the operation failed\&. If the
 \fBwinbindd\fR(8)
 daemon is not working
-\FCwbinfo\F[]
+wbinfo
 will always return failure\&.
 .SH "VERSION"
 .PP
@@ -468,9 +325,9 @@ and
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.
 .PP
-\FCwbinfo\F[]
+wbinfo
 and
-\FCwinbindd\F[]
+winbindd
 were written by Tim Potter\&.
 .PP
 The conversion to DocBook for Samba 2\&.2 was done by Gerald Carter\&. The conversion to DocBook XML 4\&.2 for Samba 3\&.0 was done by Alexander Bokovoy\&.

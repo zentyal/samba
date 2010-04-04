@@ -33,8 +33,6 @@
 
 #include <krb5_locl.h>
 
-RCSID("$Id$");
-
 /*
  * Take the `body' and encode it into `padata' using the credentials
  * in `creds'.
@@ -375,17 +373,18 @@ decrypt_tkt_with_subkey (krb5_context context,
     if (ret)
 	return ret;
 
-    ret = krb5_decode_EncASRepPart(context,
-				   data.data,
+    ret = decode_EncASRepPart(data.data,
+			      data.length,
+			      &dec_rep->enc_part,
+			      &size);
+    if (ret)
+	ret = decode_EncTGSRepPart(data.data,
 				   data.length,
 				   &dec_rep->enc_part,
 				   &size);
     if (ret)
-	ret = krb5_decode_EncTGSRepPart(context,
-					data.data,
-					data.length,
-					&dec_rep->enc_part,
-					&size);
+      krb5_set_error_message(context, ret, 
+			     N_("Failed to decode encpart in ticket", ""));
     krb5_data_free (&data);
     return ret;
 }
@@ -477,7 +476,7 @@ get_cred_kdc(krb5_context context,
 	if (len != size)
 	    krb5_abortx(context, "internal asn1 error");
 	
-	ret = krb5_padata_add(context, &padata, KRB5_PADATA_S4U2SELF, buf, len);
+	ret = krb5_padata_add(context, &padata, KRB5_PADATA_FOR_USER, buf, len);
 	if (ret)
 	    goto out;
     }
@@ -561,7 +560,7 @@ get_cred_kdc(krb5_context context,
     } else if(krb5_rd_error(context, &resp, &error) == 0) {
 	ret = krb5_error_from_rd_error(context, &error, in_creds);
 	krb5_free_error_contents(context, &error);
-    } else if(resp.data && ((char*)resp.data)[0] == 4) {
+    } else if(resp.length > 0 && ((char*)resp.data)[0] == 4) {
 	ret = KRB5KRB_AP_ERR_V4_REPLY;
 	krb5_clear_error_message(context);
     } else {
@@ -653,13 +652,16 @@ krb5_get_kdc_cred(krb5_context context,
 			    &krbtgt);
     if(ret) {
 	free(*out_creds);
+	*out_creds = NULL;
 	return ret;
     }
     ret = get_cred_kdc(context, id, flags, addresses,
 		       in_creds, krbtgt, NULL, NULL, *out_creds);
     krb5_free_creds (context, krbtgt);
-    if(ret)
+    if(ret) {
 	free(*out_creds);
+	*out_creds = NULL;
+    }
     return ret;
 }
 
@@ -1039,15 +1041,15 @@ out:
  * codebase.
  */
 
-static krb5_error_code
-get_cred_kdc_any(krb5_context context,
-		 krb5_kdc_flags flags,
-		 krb5_ccache ccache,
-		 krb5_creds *in_creds,
-		 krb5_principal impersonate_principal,
-		 Ticket *second_ticket,			
-		 krb5_creds **out_creds,
-		 krb5_creds ***ret_tgts)
+krb5_error_code
+_krb5_get_cred_kdc_any(krb5_context context,
+		       krb5_kdc_flags flags,
+		       krb5_ccache ccache,
+		       krb5_creds *in_creds,
+		       krb5_principal impersonate_principal,
+		       Ticket *second_ticket,			
+		       krb5_creds **out_creds,
+		       krb5_creds ***ret_tgts)
 {
     krb5_error_code ret;
 
@@ -1069,33 +1071,6 @@ get_cred_kdc_any(krb5_context context,
 				second_ticket,
 				out_creds,
 				ret_tgts);
-}
-
-
-krb5_error_code KRB5_LIB_FUNCTION
-krb5_get_cred_from_kdc_opt(krb5_context context,
-			   krb5_ccache ccache,
-			   krb5_creds *in_creds,
-			   krb5_creds **out_creds,
-			   krb5_creds ***ret_tgts,
-			   krb5_flags flags)
-{
-    krb5_kdc_flags f;
-    f.i = flags;
-    return get_cred_kdc_any(context, f, ccache,
-			    in_creds, NULL, NULL,
-			    out_creds, ret_tgts);
-}
-
-krb5_error_code KRB5_LIB_FUNCTION
-krb5_get_cred_from_kdc(krb5_context context,
-		       krb5_ccache ccache,
-		       krb5_creds *in_creds,
-		       krb5_creds **out_creds,
-		       krb5_creds ***ret_tgts)
-{
-    return krb5_get_cred_from_kdc_opt(context, ccache,
-				      in_creds, out_creds, ret_tgts, 0);
 }
 
 
@@ -1167,8 +1142,8 @@ krb5_get_credentials_with_flags(krb5_context context,
 	options |= KRB5_GC_NO_STORE;
 
     tgts = NULL;
-    ret = get_cred_kdc_any(context, flags, ccache,
-			   in_creds, NULL, NULL, out_creds, &tgts);
+    ret = _krb5_get_cred_kdc_any(context, flags, ccache,
+				 in_creds, NULL, NULL, out_creds, &tgts);
     for(i = 0; tgts && tgts[i]; i++) {
 	krb5_cc_store_cred(context, ccache, tgts[i]);
 	krb5_free_creds(context, tgts[i]);
@@ -1217,6 +1192,10 @@ krb5_get_creds_opt_free(krb5_context context, krb5_get_creds_opt opt)
 {
     if (opt->self)
 	krb5_free_principal(context, opt->self);
+    if (opt->ticket) {
+	free_Ticket(opt->ticket);
+	free(opt->ticket);
+    }
     memset(opt, 0, sizeof(*opt));
     free(opt);
 }
@@ -1384,9 +1363,9 @@ krb5_get_creds(krb5_context context,
 	flags.b.canonicalize = 1;
 
     tgts = NULL;
-    ret = get_cred_kdc_any(context, flags, ccache,
-			   &in_creds, opt->self, opt->ticket,
-			   out_creds, &tgts);
+    ret = _krb5_get_cred_kdc_any(context, flags, ccache,
+				 &in_creds, opt->self, opt->ticket,
+				 out_creds, &tgts);
     krb5_free_principal(context, in_creds.client);
     for(i = 0; tgts && tgts[i]; i++) {
 	krb5_cc_store_cred(context, ccache, tgts[i]);

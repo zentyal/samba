@@ -29,7 +29,7 @@ static unsigned total, collisions, failures;
 
 static bool test_one(struct cli_state *cli, const char *name)
 {
-	int fnum;
+	uint16_t fnum;
 	fstring shortname;
 	fstring name2;
 	NTSTATUS status;
@@ -37,13 +37,12 @@ static bool test_one(struct cli_state *cli, const char *name)
 
 	total++;
 
-	fnum = cli_open(cli, name, O_RDWR|O_CREAT|O_EXCL, DENY_NONE);
-	if (fnum == -1) {
+	if (!NT_STATUS_IS_OK(cli_open(cli, name, O_RDWR|O_CREAT|O_EXCL, DENY_NONE, &fnum))) {
 		printf("open of %s failed (%s)\n", name, cli_errstr(cli));
 		return False;
 	}
 
-	if (!cli_close(cli, fnum)) {
+	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
 		printf("close of %s failed (%s)\n", name, cli_errstr(cli));
 		return False;
 	}
@@ -56,29 +55,28 @@ static bool test_one(struct cli_state *cli, const char *name)
 	}
 
 	fstr_sprintf(name2, "\\mangle_test\\%s", shortname);
-	if (!cli_unlink(cli, name2)) {
+	if (!NT_STATUS_IS_OK(cli_unlink(cli, name2, aSYSTEM | aHIDDEN))) {
 		printf("unlink of %s  (%s) failed (%s)\n", 
 		       name2, name, cli_errstr(cli));
 		return False;
 	}
 
 	/* recreate by short name */
-	fnum = cli_open(cli, name2, O_RDWR|O_CREAT|O_EXCL, DENY_NONE);
-	if (fnum == -1) {
+	if (!NT_STATUS_IS_OK(cli_open(cli, name2, O_RDWR|O_CREAT|O_EXCL, DENY_NONE, &fnum))) {
 		printf("open2 of %s failed (%s)\n", name2, cli_errstr(cli));
 		return False;
 	}
-	if (!cli_close(cli, fnum)) {
+	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
 		printf("close of %s failed (%s)\n", name, cli_errstr(cli));
 		return False;
 	}
 
 	/* and unlink by long name */
-	if (!cli_unlink(cli, name)) {
+	if (!NT_STATUS_IS_OK(cli_unlink(cli, name, aSYSTEM | aHIDDEN))) {
 		printf("unlink2 of %s  (%s) failed (%s)\n", 
 		       name, name2, cli_errstr(cli));
 		failures++;
-		cli_unlink(cli, name2);
+		cli_unlink(cli, name2, aSYSTEM | aHIDDEN);
 		return True;
 	}
 
@@ -177,10 +175,10 @@ bool torture_mangle(int dummy)
 		return False;
 	}
 
-	cli_unlink(cli, "\\mangle_test\\*");
+	cli_unlink(cli, "\\mangle_test\\*", aSYSTEM | aHIDDEN);
 	cli_rmdir(cli, "\\mangle_test");
 
-	if (!cli_mkdir(cli, "\\mangle_test")) {
+	if (!NT_STATUS_IS_OK(cli_mkdir(cli, "\\mangle_test"))) {
 		printf("ERROR: Failed to make directory\n");
 		return False;
 	}
@@ -201,8 +199,8 @@ bool torture_mangle(int dummy)
 		}
 	}
 
-	cli_unlink(cli, "\\mangle_test\\*");
-	if (!cli_rmdir(cli, "\\mangle_test")) {
+	cli_unlink(cli, "\\mangle_test\\*", aSYSTEM | aHIDDEN);
+	if (!NT_STATUS_IS_OK(cli_rmdir(cli, "\\mangle_test"))) {
 		printf("ERROR: Failed to remove directory\n");
 		return False;
 	}

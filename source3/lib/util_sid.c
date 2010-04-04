@@ -201,7 +201,7 @@ char *sid_string_talloc(TALLOC_CTX *mem_ctx, const DOM_SID *sid)
 
 char *sid_string_dbg(const DOM_SID *sid)
 {
-	return sid_string_talloc(debug_ctx(), sid);
+	return sid_string_talloc(talloc_tos(), sid);
 }
 
 /*****************************************************************
@@ -520,16 +520,18 @@ bool non_mappable_sid(DOM_SID *sid)
  Caller must free.
 *****************************************************************/
 
-char *sid_binstring(const DOM_SID *sid)
+char *sid_binstring(TALLOC_CTX *mem_ctx, const DOM_SID *sid)
 {
-	char *buf, *s;
+	uint8_t *buf;
+	char *s;
 	int len = ndr_size_dom_sid(sid, NULL, 0);
-	buf = (char *)SMB_MALLOC(len);
-	if (!buf)
+	buf = talloc_array(mem_ctx, uint8_t, len);
+	if (!buf) {
 		return NULL;
-	sid_linearize(buf, len, sid);
-	s = binary_string_rfc2254(buf, len);
-	free(buf);
+	}
+	sid_linearize((char *)buf, len, sid);
+	s = binary_string_rfc2254(mem_ctx, buf, len);
+	TALLOC_FREE(buf);
 	return s;
 }
 

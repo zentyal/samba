@@ -393,10 +393,10 @@ onefs_canon_acl(files_struct *fsp, struct ifs_security_descriptor *sd)
 		if (error)
 			return false;
 
-		if ((sbuf.st_flags & SF_HASNTFSACL) != 0) {
+		if ((sbuf.st_ex_flags & SF_HASNTFSACL) != 0) {
 			DEBUG(10, ("Did not canonicalize ACLs because a "
-			    "Windows ACL set was found for file %s\n",
-			    fsp->fsp_name));
+				   "Windows ACL set was found for file %s\n",
+				   fsp_str_dbg(fsp)));
 			return true;
 		}
 		break;
@@ -417,26 +417,30 @@ onefs_canon_acl(files_struct *fsp, struct ifs_security_descriptor *sd)
 	 * By walking down the list 3 separate times, we can avoid the need
 	 * to create multiple temp buffers and extra copies.
 	 */
-	for (cur = 0; cur < sd->dacl->num_aces; cur++)  {
-		if (sd->dacl->aces[cur].flags & IFS_ACE_FLAG_INHERITED_ACE)
-			new_aces[new_aces_count++] = sd->dacl->aces[cur];
-	}
 
+	/* Explict deny aces first */
 	for (cur = 0; cur < sd->dacl->num_aces; cur++)  {
 		if (!(sd->dacl->aces[cur].flags & IFS_ACE_FLAG_INHERITED_ACE) &&
 		    (sd->dacl->aces[cur].type == IFS_ACE_TYPE_ACCESS_DENIED))
 			new_aces[new_aces_count++] = sd->dacl->aces[cur];
 	}
 
+	/* Explict allow aces second */
 	for (cur = 0; cur < sd->dacl->num_aces; cur++)  {
 		if (!(sd->dacl->aces[cur].flags & IFS_ACE_FLAG_INHERITED_ACE) &&
 		    !(sd->dacl->aces[cur].type == IFS_ACE_TYPE_ACCESS_DENIED))
 			new_aces[new_aces_count++] = sd->dacl->aces[cur];
 	}
 
+	/* Inherited deny/allow aces third */
+	for (cur = 0; cur < sd->dacl->num_aces; cur++)  {
+		if ((sd->dacl->aces[cur].flags & IFS_ACE_FLAG_INHERITED_ACE))
+			new_aces[new_aces_count++] = sd->dacl->aces[cur];
+	}
+
 	SMB_ASSERT(new_aces_count == sd->dacl->num_aces);
 	DEBUG(10, ("Performed canonicalization of ACLs for file %s\n",
-	    fsp->fsp_name));
+		   fsp_str_dbg(fsp)));
 
 	/*
 	 * At this point you would think we could just do this:
@@ -535,20 +539,21 @@ static bool add_sfs_aces(files_struct *fsp, struct ifs_security_descriptor *sd)
 	if (error) {
 		DEBUG(0, ("Failed to stat %s in simple files sharing "
 			  "compatibility mode. errno=%d\n",
-			  fsp->fsp_name, errno));
+			  fsp_str_dbg(fsp), errno));
 		return false;
 	}
 
 	/* Only continue if this is a synthetic ACL and a directory. */
-	if (S_ISDIR(sbuf.st_mode) && (sbuf.st_flags & SF_HASNTFSACL) == 0) {
+	if (S_ISDIR(sbuf.st_ex_mode) &&
+	    (sbuf.st_ex_flags & SF_HASNTFSACL) == 0) {
 		struct ifs_ace new_aces[6];
 		struct ifs_ace *old_aces;
 		int i, num_aces_to_add = 0;
 		mode_t file_mode = 0, dir_mode = 0;
 
 		/* Use existing samba logic to derive the mode bits. */
-		file_mode = unix_mode(fsp->conn, 0, fsp->fsp_name, false);
-		dir_mode = unix_mode(fsp->conn, aDIR, fsp->fsp_name, false);
+		file_mode = unix_mode(fsp->conn, 0, fsp->fsp_name, NULL);
+		dir_mode = unix_mode(fsp->conn, aDIR, fsp->fsp_name, NULL);
 
 		/* Initialize ACEs. */
 		new_aces[0] = onefs_init_ace(fsp->conn, file_mode, false, USR);
@@ -619,18 +624,18 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	*ppdesc = NULL;
 
 	DEBUG(5, ("Getting sd for file %s. security_info=%u\n",
-	    fsp->fsp_name, security_info));
+		  fsp_str_dbg(fsp), security_info));
 
 	if (lp_parm_bool(SNUM(fsp->conn), PARM_ONEFS_TYPE,
 		PARM_IGNORE_SACLS, PARM_IGNORE_SACLS_DEFAULT)) {
-		DEBUG(5, ("Ignoring SACL on %s.\n", fsp->fsp_name));
+		DEBUG(5, ("Ignoring SACL on %s.\n", fsp_str_dbg(fsp)));
 		security_info &= ~SACL_SECURITY_INFORMATION;
 	}
 
 	if (fsp->fh->fd == -1) {
 		if ((fsp->fh->fd = onefs_sys_create_file(handle->conn,
 							 -1,
-							 fsp->fsp_name,
+							 fsp->fsp_name->base_name,
 							 0,
 							 0,
 							 0,
@@ -643,7 +648,7 @@ onefs_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 							 0,
 							 NULL)) == -1) {
 			DEBUG(0, ("Error opening file %s. errno=%d (%s)\n",
-				  fsp->fsp_name, errno, strerror(errno)));
+				  fsp_str_dbg(fsp), errno, strerror(errno)));
 			status = map_nt_error_from_unix(errno);
 			goto out;
 		}
@@ -789,6 +794,7 @@ onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
 {
 	files_struct finfo;
 	struct fd_handle fh;
+	NTSTATUS status;
 
 	ZERO_STRUCT(finfo);
 	ZERO_STRUCT(fh);
@@ -797,9 +803,16 @@ onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
 	finfo.conn = handle->conn;
 	finfo.fh = &fh;
 	finfo.fh->fd = -1;
-	finfo.fsp_name = CONST_DISCARD(char *, name);
+	status = create_synthetic_smb_fname(talloc_tos(), name, NULL, NULL,
+					    &finfo.fsp_name);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
-	return onefs_fget_nt_acl(handle, &finfo, security_info, ppdesc);
+	status = onefs_fget_nt_acl(handle, &finfo, security_info, ppdesc);
+
+	TALLOC_FREE(finfo.fsp_name);
+	return status;
 }
 
 /**
@@ -810,7 +823,7 @@ onefs_get_nt_acl(vfs_handle_struct *handle, const char* name,
  *
  * @return NTSTATUS_OK if successful
  */
-NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, SEC_DESC *psd,
+NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, const SEC_DESC *psd,
 			      struct ifs_security_descriptor *sd, int snum,
 			      uint32_t *security_info_effective)
 {
@@ -896,7 +909,7 @@ NTSTATUS onefs_samba_sd_to_sd(uint32_t security_info_sent, SEC_DESC *psd,
  */
 NTSTATUS
 onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-		  uint32_t sec_info_sent, SEC_DESC *psd)
+		  uint32_t sec_info_sent, const SEC_DESC *psd)
 {
 	struct ifs_security_descriptor sd = {};
 	int fd = -1;
@@ -906,7 +919,7 @@ onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 
 	START_PROFILE(syscall_set_sd);
 
-	DEBUG(5,("Setting SD on file %s.\n", fsp->fsp_name ));
+	DEBUG(5,("Setting SD on file %s.\n", fsp_str_dbg(fsp)));
 
 	status = onefs_samba_sd_to_sd(sec_info_sent, psd, &sd,
 				      SNUM(handle->conn), &sec_info_effective);
@@ -918,10 +931,10 @@ onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 
 	fd = fsp->fh->fd;
 	if (fd == -1) {
-		DEBUG(10,("Reopening file %s.\n", fsp->fsp_name));
+		DEBUG(10,("Reopening file %s.\n", fsp_str_dbg(fsp)));
 		if ((fd = onefs_sys_create_file(handle->conn,
 						-1,
-						fsp->fsp_name,
+						fsp->fsp_name->base_name,
 						0,
 						0,
 						0,
@@ -934,7 +947,7 @@ onefs_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 						0,
 						NULL)) == -1) {
 			DEBUG(0, ("Error opening file %s. errno=%d (%s)\n",
-				  fsp->fsp_name, errno, strerror(errno)));
+				  fsp_str_dbg(fsp), errno, strerror(errno)));
 			status = map_nt_error_from_unix(errno);
 			goto out;
 		}

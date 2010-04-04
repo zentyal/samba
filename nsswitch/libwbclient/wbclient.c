@@ -22,6 +22,9 @@
 
 /* Required Headers */
 
+#include "replace.h"
+#include "talloc.h"
+#include "tevent.h"
 #include "libwbclient.h"
 
 /* From wb_common.c */

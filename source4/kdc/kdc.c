@@ -43,9 +43,9 @@
 
 /* Disgusting hack to get a mem_ctx and lp_ctx into the hdb plugin, when 
  * used as a keytab */
-TALLOC_CTX *kdc_mem_ctx;
-struct tevent_context *kdc_ev_ctx;
-struct loadparm_context *kdc_lp_ctx;
+TALLOC_CTX *hdb_samba4_mem_ctx;
+struct tevent_context *hdb_samba4_ev_ctx;
+struct loadparm_context *hdb_samba4_lp_ctx;
 
 /* hold all the info needed to send a reply */
 struct kdc_reply {
@@ -345,7 +345,7 @@ static bool kdc_process(struct kdc_server *kdc,
 	}
 	if (k5_reply.length) {
 		*reply = data_blob_talloc(mem_ctx, k5_reply.data, k5_reply.length);
-		krb5_free_data_contents(kdc->smb_krb5_context->krb5_context, &k5_reply);
+		krb5_data_free(&k5_reply);
 	} else {
 		*reply = data_blob(NULL, 0);	
 	}
@@ -550,15 +550,6 @@ static NTSTATUS kdc_startup_interfaces(struct kdc_server *kdc, struct loadparm_c
 	return NT_STATUS_OK;
 }
 
-static struct krb5plugin_windc_ftable windc_plugin_table = {
-	.minor_version = KRB5_WINDC_PLUGING_MINOR,
-	.init = samba_kdc_plugin_init,
-	.fini = samba_kdc_plugin_fini,
-	.pac_generate = samba_kdc_get_pac,
-	.pac_verify = samba_kdc_reget_pac,
-	.client_access = samba_kdc_check_client_access,
-};
-
 
 static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg, 
 				 struct kdc_check_generic_kerberos *r)
@@ -659,12 +650,6 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 }
 
 
-static struct hdb_method hdb_samba4 = {
-	.interface_version = HDB_INTERFACE_VERSION,
-	.prefix = "samba4:",
-	.create = hdb_samba4_create
-};
-
 /*
   startup the kdc task
 */
@@ -677,10 +662,10 @@ static void kdc_task_init(struct task_server *task)
 
 	switch (lp_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
-		task_server_terminate(task, "kdc: no KDC required in standalone configuration");
+		task_server_terminate(task, "kdc: no KDC required in standalone configuration", false);
 		return;
 	case ROLE_DOMAIN_MEMBER:
-		task_server_terminate(task, "kdc: no KDC required in member server configuration");
+		task_server_terminate(task, "kdc: no KDC required in member server configuration", false);
 		return;
 	case ROLE_DOMAIN_CONTROLLER:
 		/* Yes, we want a KDC */
@@ -690,7 +675,7 @@ static void kdc_task_init(struct task_server *task)
 	load_interfaces(task, lp_interfaces(task->lp_ctx), &ifaces);
 
 	if (iface_count(ifaces) == 0) {
-		task_server_terminate(task, "kdc: no network interfaces configured");
+		task_server_terminate(task, "kdc: no network interfaces configured", false);
 		return;
 	}
 
@@ -698,7 +683,7 @@ static void kdc_task_init(struct task_server *task)
 
 	kdc = talloc(task, struct kdc_server);
 	if (kdc == NULL) {
-		task_server_terminate(task, "kdc: out of memory");
+		task_server_terminate(task, "kdc: out of memory", true);
 		return;
 	}
 
@@ -710,7 +695,7 @@ static void kdc_task_init(struct task_server *task)
 	if (ret) {
 		DEBUG(1,("kdc_task_init: krb5_init_context failed (%s)\n", 
 			 error_message(ret)));
-		task_server_terminate(task, "kdc: krb5_init_context failed");
+		task_server_terminate(task, "kdc: krb5_init_context failed", true);
 		return; 
 	}
 
@@ -719,39 +704,48 @@ static void kdc_task_init(struct task_server *task)
 	ret = krb5_kdc_get_config(kdc->smb_krb5_context->krb5_context, 
 				  &kdc->config);
 	if(ret) {
-		task_server_terminate(task, "kdc: failed to get KDC configuration");
+		task_server_terminate(task, "kdc: failed to get KDC configuration", true);
 		return;
 	}
-
+ 
 	kdc->config->logf = kdc->smb_krb5_context->logf;
 	kdc->config->db = talloc(kdc, struct HDB *);
 	if (!kdc->config->db) {
-		task_server_terminate(task, "kdc: out of memory");
+		task_server_terminate(task, "kdc: out of memory", true);
 		return;
 	}
 	kdc->config->num_db = 1;
 		
-	status = kdc_hdb_samba4_create(kdc, task->event_ctx, task->lp_ctx, 
-				    kdc->smb_krb5_context->krb5_context, 
-				    &kdc->config->db[0], NULL);
+	status = hdb_samba4_create_kdc(kdc, task->event_ctx, task->lp_ctx, 
+				       kdc->smb_krb5_context->krb5_context, 
+				       &kdc->config->db[0]);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "kdc: hdb_ldb_create (setup KDC database) failed");
+		task_server_terminate(task, "kdc: hdb_samba4_create_kdc (setup KDC database) failed", true);
 		return; 
 	}
 
+	/* Register hdb-samba4 hooks for use as a keytab */
 
-	/* Register hdb-samba4 hooks */
+	kdc->hdb_samba4_context = talloc(kdc, struct hdb_samba4_context);
+	if (!kdc->hdb_samba4_context) {
+		task_server_terminate(task, "kdc: out of memory", true);
+		return; 
+	}
+
+	kdc->hdb_samba4_context->ev_ctx = task->event_ctx;
+	kdc->hdb_samba4_context->lp_ctx = task->lp_ctx;
+
 	ret = krb5_plugin_register(kdc->smb_krb5_context->krb5_context, 
 				   PLUGIN_TYPE_DATA, "hdb",
 				   &hdb_samba4);
 	if(ret) {
-		task_server_terminate(task, "kdc: failed to register hdb keytab");
+		task_server_terminate(task, "kdc: failed to register hdb keytab", true);
 		return;
 	}
 
 	ret = krb5_kt_register(kdc->smb_krb5_context->krb5_context, &hdb_kt_ops);
 	if(ret) {
-		task_server_terminate(task, "kdc: failed to register hdb keytab");
+		task_server_terminate(task, "kdc: failed to register hdb keytab", true);
 		return;
 	}
 
@@ -760,27 +754,23 @@ static void kdc_task_init(struct task_server *task)
 				   PLUGIN_TYPE_DATA, "windc",
 				   &windc_plugin_table);
 	if(ret) {
-		task_server_terminate(task, "kdc: failed to register hdb keytab");
+		task_server_terminate(task, "kdc: failed to register hdb keytab", true);
 		return;
 	}
 
 	krb5_kdc_windc_init(kdc->smb_krb5_context->krb5_context);
 
-	kdc_mem_ctx = kdc->smb_krb5_context;
-	kdc_ev_ctx = task->event_ctx;
-	kdc_lp_ctx = task->lp_ctx;
-
 	/* start listening on the configured network interfaces */
 	status = kdc_startup_interfaces(kdc, task->lp_ctx, ifaces);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "kdc failed to setup interfaces");
+		task_server_terminate(task, "kdc failed to setup interfaces", true);
 		return;
 	}
 
 	status = IRPC_REGISTER(task->msg_ctx, irpc, KDC_CHECK_GENERIC_KERBEROS, 
 			       kdc_check_generic_kerberos, kdc);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "nbtd failed to setup monitoring");
+		task_server_terminate(task, "nbtd failed to setup monitoring", true);
 		return;
 	}
 

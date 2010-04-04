@@ -29,6 +29,45 @@
  */
 
 /**
+  build an empty (only NULL terminated) list of strings (for expansion with str_list_add() etc)
+*/
+_PUBLIC_ char **str_list_make_empty(TALLOC_CTX *mem_ctx)
+{
+	char **ret = NULL;
+
+	ret = talloc_array(mem_ctx, char *, 1);
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	ret[0] = NULL;
+
+	return ret;
+}
+
+/**
+  place the only element 'entry' into a new, NULL terminated string list
+*/
+_PUBLIC_ char **str_list_make_single(TALLOC_CTX *mem_ctx, const char *entry)
+{
+	char **ret = NULL;
+
+	ret = talloc_array(mem_ctx, char *, 2);
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	ret[0] = talloc_strdup(ret, entry);
+	if (!ret[0]) {
+		talloc_free(ret);
+		return NULL;
+	}
+	ret[1] = NULL;
+
+	return ret;
+}
+
+/**
   build a null terminated list of strings from a input string and a
   separator list. The separator list must contain characters less than
   or equal to 0x2f for this to work correctly on multi-byte strings
@@ -56,7 +95,8 @@ _PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string, const cha
 			continue;
 		}
 
-		ret2 = talloc_realloc(mem_ctx, ret, char *, num_elements+2);
+		ret2 = talloc_realloc(mem_ctx, ret, char *,
+			num_elements+2);
 		if (ret2 == NULL) {
 			talloc_free(ret);
 			return NULL;
@@ -83,12 +123,12 @@ _PUBLIC_ char **str_list_make(TALLOC_CTX *mem_ctx, const char *string, const cha
  * Entries are seperated by spaces and can be enclosed by quotes. 
  * Does NOT support escaping
  */
-_PUBLIC_ const char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep)
+_PUBLIC_ char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *string, const char *sep)
 {
 	int num_elements = 0;
-	const char **ret = NULL;
+	char **ret = NULL;
 
-	ret = talloc_array(mem_ctx, const char *, 1);
+	ret = talloc_array(mem_ctx, char *, 1);
 	if (ret == NULL) {
 		return NULL;
 	}
@@ -99,7 +139,7 @@ _PUBLIC_ const char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *strin
 	while (string && *string) {
 		size_t len = strcspn(string, sep);
 		char *element;
-		const char **ret2;
+		char **ret2;
 		
 		if (len == 0) {
 			string += strspn(string, sep);
@@ -121,7 +161,7 @@ _PUBLIC_ const char **str_list_make_shell(TALLOC_CTX *mem_ctx, const char *strin
 			return NULL;
 		}
 
-		ret2 = talloc_realloc(mem_ctx, ret, const char *, num_elements+2);
+		ret2 = talloc_realloc(mem_ctx, ret, char *, num_elements+2);
 		if (ret2 == NULL) {
 			talloc_free(ret);
 			return NULL;
@@ -187,7 +227,7 @@ _PUBLIC_ char *str_list_join_shell(TALLOC_CTX *mem_ctx, const char **list, char 
 /**
   return the number of elements in a string list
 */
-_PUBLIC_ size_t str_list_length(const char * const*list)
+_PUBLIC_ size_t str_list_length(const char * const *list)
 {
 	size_t ret;
 	for (ret=0;list && list[ret];ret++) /* noop */ ;
@@ -308,3 +348,140 @@ _PUBLIC_ bool str_list_check_ci(const char **list, const char *s)
 }
 
 
+/**
+  append one list to another - expanding list1
+*/
+_PUBLIC_ const char **str_list_append(const char **list1,
+	const char * const *list2)
+{
+	size_t len1 = str_list_length(list1);
+	size_t len2 = str_list_length(list2);
+	const char **ret;
+	int i;
+
+	ret = talloc_realloc(NULL, list1, const char *, len1+len2+1);
+	if (ret == NULL) return NULL;
+
+	for (i=len1;i<len1+len2;i++) {
+		ret[i] = talloc_strdup(ret, list2[i-len1]);
+		if (ret[i] == NULL) {
+			return NULL;
+		}
+	}
+	ret[i] = NULL;
+
+	return ret;
+}
+
+static int list_cmp(const char **el1, const char **el2)
+{
+	return strcmp(*el1, *el2);
+}
+
+/*
+  return a list that only contains the unique elements of a list,
+  removing any duplicates
+ */
+_PUBLIC_ const char **str_list_unique(const char **list)
+{
+	size_t len = str_list_length(list);
+	const char **list2;
+	int i, j;
+	if (len < 2) {
+		return list;
+	}
+	list2 = (const char **)talloc_memdup(list, list,
+					     sizeof(list[0])*(len+1));
+	qsort(list2, len, sizeof(list2[0]), QSORT_CAST list_cmp);
+	list[0] = list2[0];
+	for (i=j=1;i<len;i++) {
+		if (strcmp(list2[i], list[j-1]) != 0) {
+			list[j] = list2[i];
+			j++;
+		}
+	}
+	list[j] = NULL;
+	list = talloc_realloc(NULL, list, const char *, j + 1);
+	talloc_free(list2);
+	return list;
+}
+
+/*
+  very useful when debugging complex list related code
+ */
+_PUBLIC_ void str_list_show(const char **list)
+{
+	int i;
+	DEBUG(0,("{ "));
+	for (i=0;list && list[i];i++) {
+		DEBUG(0,("\"%s\", ", list[i]));
+	}
+	DEBUG(0,("}\n"));
+}
+
+
+
+/**
+  append one list to another - expanding list1
+  this assumes the elements of list2 are const pointers, so we can re-use them
+*/
+_PUBLIC_ const char **str_list_append_const(const char **list1,
+					    const char **list2)
+{
+	size_t len1 = str_list_length(list1);
+	size_t len2 = str_list_length(list2);
+	const char **ret;
+	int i;
+
+	ret = talloc_realloc(NULL, list1, const char *, len1+len2+1);
+	if (ret == NULL) return NULL;
+
+	for (i=len1;i<len1+len2;i++) {
+		ret[i] = list2[i-len1];
+	}
+	ret[i] = NULL;
+
+	return ret;
+}
+
+/**
+  add an entry to a string list
+  this assumes s will not change
+*/
+_PUBLIC_ const char **str_list_add_const(const char **list, const char *s)
+{
+	size_t len = str_list_length(list);
+	const char **ret;
+
+	ret = talloc_realloc(NULL, list, const char *, len+2);
+	if (ret == NULL) return NULL;
+
+	ret[len] = s;
+	ret[len+1] = NULL;
+
+	return ret;
+}
+
+/**
+  copy a string list
+  this assumes list will not change
+*/
+_PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
+					  const char **list)
+{
+	int i;
+	const char **ret;
+
+	if (list == NULL)
+		return NULL;
+	
+	ret = talloc_array(mem_ctx, const char *, str_list_length(list)+1);
+	if (ret == NULL) 
+		return NULL;
+
+	for (i=0;list && list[i];i++) {
+		ret[i] = list[i];
+	}
+	ret[i] = NULL;
+	return ret;
+}

@@ -30,9 +30,7 @@
  * SUCH DAMAGE.
  */
 
-#include "krb5/gsskrb5_locl.h"
-
-RCSID("$Id$");
+#include "gsskrb5_locl.h"
 
 /* 1.2.752.43.13.17 */
 static gss_OID_desc gss_krb5_cred_no_ci_flags_x_oid_desc =
@@ -121,8 +119,8 @@ import_cred(OM_uint32 *minor_status,
     free(str);
     str = NULL;
 
-    major_stat = _gsskrb5_import_cred(minor_status, id, keytab_principal,
-				      keytab, cred_handle);
+    major_stat = _gsskrb5_krb5_import_cred(minor_status, id, keytab_principal,
+					   keytab, cred_handle);
 out:
     if (id)
 	krb5_cc_close(context, id);

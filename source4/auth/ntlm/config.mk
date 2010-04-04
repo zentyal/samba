@@ -1,10 +1,5 @@
 # NTLM auth server subsystem
 
-[SUBSYSTEM::ntlm_check]
-PRIVATE_DEPENDENCIES = LIBSAMBA-UTIL
-
-ntlm_check_OBJ_FILES = $(addprefix $(authsrcdir)/ntlm/, ntlm_check.o)
-
 #######################
 # Start MODULE auth_sam
 [MODULE::auth_sam_module]
@@ -43,7 +38,7 @@ auth_server_OBJ_FILES = $(addprefix $(authsrcdir)/ntlm/, auth_server.o)
 [MODULE::auth_winbind]
 INIT_FUNCTION = auth_winbind_init
 SUBSYSTEM = auth
-PRIVATE_DEPENDENCIES = NDR_WINBIND MESSAGING LIBWINBIND-CLIENT
+PRIVATE_DEPENDENCIES = NDR_WINBIND MESSAGING LIBWINBIND-CLIENT LIBWBCLIENT
 # End MODULE auth_winbind
 #######################
 
@@ -62,7 +57,7 @@ auth_developer_OBJ_FILES = $(addprefix $(authsrcdir)/ntlm/, auth_developer.o)
 [MODULE::auth_unix]
 INIT_FUNCTION = auth_unix_init
 SUBSYSTEM = auth
-PRIVATE_DEPENDENCIES = CRYPT PAM PAM_ERRORS NSS_WRAPPER
+PRIVATE_DEPENDENCIES = CRYPT PAM PAM_ERRORS NSS_WRAPPER UID_WRAPPER
 
 auth_unix_OBJ_FILES = $(addprefix $(authsrcdir)/ntlm/, auth_unix.o)
 

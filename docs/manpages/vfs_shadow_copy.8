@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: vfs_shadow_copy
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 02/22/2010
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 02/19/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.4
+.\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "VFS_SHADOW_COPY" "8" "02/22/2010" "Samba 3\&.4" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "VFS_SHADOW_COPY" "8" "02/19/2010" "Samba 3\&.5" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,13 +18,11 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 vfs_shadow_copy \- Make a Samba share read only for a specified time period
-.SH "Synopsis"
-.fam C
+.SH "SYNOPSIS"
 .HP \w'\ 'u
-\FCvfs objects = shadow_copy\F[]
-.fam
+vfs objects = shadow_copy
 .SH "DESCRIPTION"
 .PP
 This VFS module is part of the
@@ -180,17 +30,17 @@ This VFS module is part of the
 suite\&.
 .PP
 The
-\FCvfs_shadow_copy\F[]
+vfs_shadow_copy
 VFS module functionality that is similar to Microsoft Shadow Copy services\&. When setup properly, this module allows Microsoft Shadow Copy clients to browse "shadow copies" on Samba shares\&.
 .PP
 This module is stackable\&.
 .SH "CONFIGURATION"
 .PP
-\FCvfs_shadow_copy\F[]
+vfs_shadow_copy
 relies on a filesystem snapshot implementation\&. Many common filesystems have native support for this\&.
 .PP
 Filesystem snapshots must be mounted on specially named directories in order to be recognized by
-\FCvfs_shadow_copy\F[]\&. The snapshot mount points must be immediate children of a the directory being shared\&.
+vfs_shadow_copy\&. The snapshot mount points must be immediate children of a the directory being shared\&.
 .PP
 The snapshot naming convention is @GMT\-YYYY\&.MM\&.DD\-hh\&.mm\&.ss, where:
 .sp
@@ -202,7 +52,7 @@ The snapshot naming convention is @GMT\-YYYY\&.MM\&.DD\-hh\&.mm\&.ss, where:
 .sp -1
 .IP \(bu 2.3
 .\}
-\FCYYYY\F[]
+YYYY
 is the 4 digit year
 .RE
 .sp
@@ -214,7 +64,7 @@ is the 4 digit year
 .sp -1
 .IP \(bu 2.3
 .\}
-\FCMM\F[]
+MM
 is the 2 digit month
 .RE
 .sp
@@ -226,7 +76,7 @@ is the 2 digit month
 .sp -1
 .IP \(bu 2.3
 .\}
-\FCDD\F[]
+DD
 is the 2 digit day
 .RE
 .sp
@@ -238,7 +88,7 @@ is the 2 digit day
 .sp -1
 .IP \(bu 2.3
 .\}
-\FChh\F[]
+hh
 is the 2 digit hour
 .RE
 .sp
@@ -250,7 +100,7 @@ is the 2 digit hour
 .sp -1
 .IP \(bu 2.3
 .\}
-\FCmm\F[]
+mm
 is the 2 digit minute
 .RE
 .sp
@@ -262,13 +112,13 @@ is the 2 digit minute
 .sp -1
 .IP \(bu 2.3
 .\}
-\FCss\F[]
+ss
 is the 2 digit second\&.
 .sp
 .RE
 .PP
 The
-\FCvfs_shadow_copy\F[]
+vfs_shadow_copy
 snapshot naming convention can be produced with the following
 \fBdate\fR(1)
 command:
@@ -276,24 +126,10 @@ command:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
 	TZ=GMT date +@GMT\-%Y\&.%m\&.%d\-%H\&.%M\&.%S
 	
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -304,24 +140,10 @@ Add shadow copy support to user home directories:
 .if n \{\
 .RS 4
 .\}
-.fam C
-.ps -1
 .nf
-.if t \{\
-.sp -1
-.\}
-.BB lightgray adjust-for-leading-newline
-.sp -1
-
         \fI[homes]\fR
 	\m[blue]\fBvfs objects = shadow_copy\fR\m[]
-.EB lightgray adjust-for-leading-newline
-.if t \{\
-.sp 1
-.\}
 .fi
-.fam
-.ps +1
 .if n \{\
 .RE
 .\}
@@ -330,7 +152,7 @@ Add shadow copy support to user home directories:
 This is not a backup, archival, or version control solution\&.
 .PP
 With Samba or Windows servers,
-\FCvfs_shadow_copy\F[]
+vfs_shadow_copy
 is designed to be an end\-user tool only\&. It does not replace or enhance your backup and archival solutions and should in no way be considered as such\&. Additionally, if you need version control, implement a version control system\&.
 .SH "VERSION"
 .PP

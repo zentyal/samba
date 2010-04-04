@@ -25,7 +25,9 @@ enum server_allocated_state { SERVER_ALLOCATED_REQUIRED_YES,
 				SERVER_ALLOCATED_REQUIRED_NO,
 				SERVER_ALLOCATED_REQUIRED_ANY};
 
-static user_struct *get_valid_user_struct_internal(uint16 vuid,
+static user_struct *get_valid_user_struct_internal(
+			struct smbd_server_connection *sconn,
+			uint16 vuid,
 			enum server_allocated_state server_allocated)
 {
 	user_struct *usp;
@@ -34,7 +36,8 @@ static user_struct *get_valid_user_struct_internal(uint16 vuid,
 	if (vuid == UID_FIELD_INVALID)
 		return NULL;
 
-	for (usp=validated_users;usp;usp=usp->next,count++) {
+	usp=sconn->smb1.sessions.validated_users;
+	for (;usp;usp=usp->next,count++) {
 		if (vuid == usp->vuid) {
 			switch (server_allocated) {
 				case SERVER_ALLOCATED_REQUIRED_YES:
@@ -50,7 +53,8 @@ static user_struct *get_valid_user_struct_internal(uint16 vuid,
 					break;
 			}
 			if (count > 10) {
-				DLIST_PROMOTE(validated_users, usp);
+				DLIST_PROMOTE(sconn->smb1.sessions.validated_users,
+					      usp);
 			}
 			return usp;
 		}
@@ -65,24 +69,26 @@ static user_struct *get_valid_user_struct_internal(uint16 vuid,
  tell random client vuid's (normally zero) from valid vuids.
 ****************************************************************************/
 
-user_struct *get_valid_user_struct(uint16 vuid)
+user_struct *get_valid_user_struct(struct smbd_server_connection *sconn,
+				   uint16 vuid)
 {
-	return get_valid_user_struct_internal(vuid,
+	return get_valid_user_struct_internal(sconn, vuid,
 			SERVER_ALLOCATED_REQUIRED_YES);
 }
 
-bool is_partial_auth_vuid(uint16 vuid)
+bool is_partial_auth_vuid(struct smbd_server_connection *sconn, uint16 vuid)
 {
-	return (get_partial_auth_user_struct(vuid) != NULL);
+	return (get_partial_auth_user_struct(sconn, vuid) != NULL);
 }
 
 /****************************************************************************
  Get the user struct of a partial NTLMSSP login
 ****************************************************************************/
 
-user_struct *get_partial_auth_user_struct(uint16 vuid)
+user_struct *get_partial_auth_user_struct(struct smbd_server_connection *sconn,
+					  uint16 vuid)
 {
-	return get_valid_user_struct_internal(vuid,
+	return get_valid_user_struct_internal(sconn, vuid,
 			SERVER_ALLOCATED_REQUIRED_NO);
 }
 
@@ -90,11 +96,11 @@ user_struct *get_partial_auth_user_struct(uint16 vuid)
  Invalidate a uid.
 ****************************************************************************/
 
-void invalidate_vuid(uint16 vuid)
+void invalidate_vuid(struct smbd_server_connection *sconn, uint16 vuid)
 {
 	user_struct *vuser = NULL;
 
-	vuser = get_valid_user_struct_internal(vuid,
+	vuser = get_valid_user_struct_internal(sconn, vuid,
 			SERVER_ALLOCATED_REQUIRED_ANY);
 	if (vuser == NULL) {
 		return;
@@ -106,24 +112,29 @@ void invalidate_vuid(uint16 vuid)
 		auth_ntlmssp_end(&vuser->auth_ntlmssp_state);
 	}
 
-	DLIST_REMOVE(validated_users, vuser);
+	DLIST_REMOVE(sconn->smb1.sessions.validated_users, vuser);
 
 	/* clear the vuid from the 'cache' on each connection, and
 	   from the vuid 'owner' of connections */
-	conn_clear_vuid_caches(vuid);
+	conn_clear_vuid_caches(sconn, vuid);
 
 	TALLOC_FREE(vuser);
-	num_validated_vuids--;
+	sconn->smb1.sessions.num_validated_vuids--;
 }
 
 /****************************************************************************
  Invalidate all vuid entries for this process.
 ****************************************************************************/
 
-void invalidate_all_vuids(void)
+void invalidate_all_vuids(struct smbd_server_connection *sconn)
 {
-	while (validated_users != NULL) {
-		invalidate_vuid(validated_users->vuid);
+	if (sconn->allow_smb2) {
+		return;
+	}
+
+	while (sconn->smb1.sessions.validated_users != NULL) {
+		invalidate_vuid(sconn,
+				sconn->smb1.sessions.validated_users->vuid);
 	}
 }
 
@@ -141,7 +152,7 @@ static void increment_next_vuid(uint16_t *vuid)
  Create a new partial auth user struct.
 *****************************************************/
 
-int register_initial_vuid(void)
+int register_initial_vuid(struct smbd_server_connection *sconn)
 {
 	user_struct *vuser;
 
@@ -152,7 +163,7 @@ int register_initial_vuid(void)
 	}
 
 	/* Limit allowed vuids to 16bits - VUID_OFFSET. */
-	if (num_validated_vuids >= 0xFFFF-VUID_OFFSET) {
+	if (sconn->smb1.sessions.num_validated_vuids >= 0xFFFF-VUID_OFFSET) {
 		return UID_FIELD_INVALID;
 	}
 
@@ -163,25 +174,26 @@ int register_initial_vuid(void)
 	}
 
 	/* Allocate a free vuid. Yes this is a linear search... */
-	while( get_valid_user_struct_internal(next_vuid,
+	while( get_valid_user_struct_internal(sconn,
+			sconn->smb1.sessions.next_vuid,
 			SERVER_ALLOCATED_REQUIRED_ANY) != NULL ) {
-		increment_next_vuid(&next_vuid);
+		increment_next_vuid(&sconn->smb1.sessions.next_vuid);
 	}
 
 	DEBUG(10,("register_initial_vuid: allocated vuid = %u\n",
-		(unsigned int)next_vuid ));
+		(unsigned int)sconn->smb1.sessions.next_vuid ));
 
-	vuser->vuid = next_vuid;
+	vuser->vuid = sconn->smb1.sessions.next_vuid;
 
 	/*
 	 * This happens in an unfinished NTLMSSP session setup. We
 	 * need to allocate a vuid between the first and second calls
 	 * to NTLMSSP.
 	 */
-	increment_next_vuid(&next_vuid);
-	num_validated_vuids++;
+	increment_next_vuid(&sconn->smb1.sessions.next_vuid);
+	sconn->smb1.sessions.num_validated_vuids++;
 
-	DLIST_ADD(validated_users, vuser);
+	DLIST_ADD(sconn->smb1.sessions.validated_users, vuser);
 	return vuser->vuid;
 }
 
@@ -234,7 +246,8 @@ static int register_homes_share(const char *username)
  *
  */
 
-int register_existing_vuid(uint16 vuid,
+int register_existing_vuid(struct smbd_server_connection *sconn,
+			uint16 vuid,
 			auth_serversupplied_info *server_info,
 			DATA_BLOB response_blob,
 			const char *smb_name)
@@ -242,7 +255,7 @@ int register_existing_vuid(uint16 vuid,
 	fstring tmp;
 	user_struct *vuser;
 
-	vuser = get_partial_auth_user_struct(vuid);
+	vuser = get_partial_auth_user_struct(sconn, vuid);
 	if (!vuser) {
 		goto fail;
 	}
@@ -298,11 +311,13 @@ int register_existing_vuid(uint16 vuid,
 			vuser->server_info->unix_name);
 	}
 
-	if (srv_is_signing_negotiated() && !vuser->server_info->guest &&
-			!srv_signing_started()) {
+	if (srv_is_signing_negotiated(smbd_server_conn) &&
+	    !vuser->server_info->guest) {
 		/* Try and turn on server signing on the first non-guest
 		 * sessionsetup. */
-		srv_set_signing(vuser->server_info->user_session_key, response_blob);
+		srv_set_signing(smbd_server_conn,
+				vuser->server_info->user_session_key,
+				response_blob);
 	}
 
 	/* fill in the current_user_info struct */
@@ -316,7 +331,7 @@ int register_existing_vuid(uint16 vuid,
   fail:
 
 	if (vuser) {
-		invalidate_vuid(vuid);
+		invalidate_vuid(sconn, vuid);
 	}
 	return UID_FIELD_INVALID;
 }
@@ -325,7 +340,8 @@ int register_existing_vuid(uint16 vuid,
  Add a name to the session users list.
 ****************************************************************************/
 
-void add_session_user(const char *user)
+void add_session_user(struct smbd_server_connection *sconn,
+		      const char *user)
 {
 	struct passwd *pw;
 	char *tmp;
@@ -336,28 +352,29 @@ void add_session_user(const char *user)
 		return;
 	}
 
-	if (session_userlist == NULL) {
-		session_userlist = SMB_STRDUP(pw->pw_name);
+	if (sconn->smb1.sessions.session_userlist == NULL) {
+		sconn->smb1.sessions.session_userlist = SMB_STRDUP(pw->pw_name);
 		goto done;
 	}
 
-	if (in_list(pw->pw_name,session_userlist,False) ) {
+	if (in_list(pw->pw_name,sconn->smb1.sessions.session_userlist,false)) {
 		goto done;
 	}
 
-	if (strlen(session_userlist) > 128 * 1024) {
+	if (strlen(sconn->smb1.sessions.session_userlist) > 128 * 1024) {
 		DEBUG(3,("add_session_user: session userlist already "
 			 "too large.\n"));
 		goto done;
 	}
 
-	if (asprintf(&tmp, "%s %s", session_userlist, pw->pw_name) == -1) {
+	if (asprintf(&tmp, "%s %s",
+		     sconn->smb1.sessions.session_userlist, pw->pw_name) == -1) {
 		DEBUG(3, ("asprintf failed\n"));
 		goto done;
 	}
 
-	SAFE_FREE(session_userlist);
-	session_userlist = tmp;
+	SAFE_FREE(sconn->smb1.sessions.session_userlist);
+	sconn->smb1.sessions.session_userlist = tmp;
  done:
 	TALLOC_FREE(pw);
 }
@@ -367,12 +384,13 @@ void add_session_user(const char *user)
   what Vista uses for the NTLMv2 calculation.
 ****************************************************************************/
 
-void add_session_workgroup(const char *workgroup)
+void add_session_workgroup(struct smbd_server_connection *sconn,
+			   const char *workgroup)
 {
-	if (session_workgroup) {
-		SAFE_FREE(session_workgroup);
+	if (sconn->smb1.sessions.session_workgroup) {
+		SAFE_FREE(sconn->smb1.sessions.session_workgroup);
 	}
-	session_workgroup = smb_xstrdup(workgroup);
+	sconn->smb1.sessions.session_workgroup = smb_xstrdup(workgroup);
 }
 
 /****************************************************************************
@@ -380,9 +398,9 @@ void add_session_workgroup(const char *workgroup)
   what Vista uses for the NTLMv2 calculation.
 ****************************************************************************/
 
-const char *get_session_workgroup(void)
+const char *get_session_workgroup(struct smbd_server_connection *sconn)
 {
-	return session_workgroup;
+	return sconn->smb1.sessions.session_workgroup;
 }
 
 /****************************************************************************
@@ -390,45 +408,57 @@ const char *get_session_workgroup(void)
  try lower case.
 ****************************************************************************/
 
-bool user_in_netgroup(const char *user, const char *ngname)
+bool user_in_netgroup(struct smbd_server_connection *sconn,
+		      const char *user, const char *ngname)
 {
 #ifdef HAVE_NETGROUP
 	fstring lowercase_user;
 
-	if (my_yp_domain == NULL)
-		yp_get_default_domain(&my_yp_domain);
+	if (sconn->smb1.sessions.my_yp_domain == NULL) {
+		yp_get_default_domain(&sconn->smb1.sessions.my_yp_domain);
+	}
 
-	if(my_yp_domain == NULL) {
+	if (sconn->smb1.sessions.my_yp_domain == NULL) {
 		DEBUG(5,("Unable to get default yp domain, "
 			"let's try without specifying it\n"));
 	}
 
 	DEBUG(5,("looking for user %s of domain %s in netgroup %s\n",
-		user, my_yp_domain?my_yp_domain:"(ANY)", ngname));
+		user,
+		sconn->smb1.sessions.my_yp_domain?
+		sconn->smb1.sessions.my_yp_domain:"(ANY)",
+		ngname));
 
-	if (innetgr(ngname, NULL, user, my_yp_domain)) {
+	if (innetgr(ngname, NULL, user, sconn->smb1.sessions.my_yp_domain)) {
 		DEBUG(5,("user_in_netgroup: Found\n"));
-		return (True);
-	} else {
+		return true;
+	}
 
-		/*
-		 * Ok, innetgr is case sensitive. Try once more with lowercase
-		 * just in case. Attempt to fix #703. JRA.
-		 */
+	/*
+	 * Ok, innetgr is case sensitive. Try once more with lowercase
+	 * just in case. Attempt to fix #703. JRA.
+	 */
+	fstrcpy(lowercase_user, user);
+	strlower_m(lowercase_user);
 
-		fstrcpy(lowercase_user, user);
-		strlower_m(lowercase_user);
+	if (strcmp(user,lowercase_user) == 0) {
+		/* user name was already lower case! */
+		return false;
+	}
 
-		DEBUG(5,("looking for user %s of domain %s in netgroup %s\n",
-			lowercase_user, my_yp_domain?my_yp_domain:"(ANY)", ngname));
+	DEBUG(5,("looking for user %s of domain %s in netgroup %s\n",
+		lowercase_user,
+		sconn->smb1.sessions.my_yp_domain?
+		sconn->smb1.sessions.my_yp_domain:"(ANY)",
+		ngname));
 
-		if (innetgr(ngname, NULL, lowercase_user, my_yp_domain)) {
-			DEBUG(5,("user_in_netgroup: Found\n"));
-			return (True);
-		}
+	if (innetgr(ngname, NULL, lowercase_user,
+		    sconn->smb1.sessions.my_yp_domain)) {
+		DEBUG(5,("user_in_netgroup: Found\n"));
+		return true;
 	}
 #endif /* HAVE_NETGROUP */
-	return False;
+	return false;
 }
 
 /****************************************************************************
@@ -436,7 +466,8 @@ bool user_in_netgroup(const char *user, const char *ngname)
  and netgroup lists.
 ****************************************************************************/
 
-bool user_in_list(const char *user,const char **list)
+bool user_in_list(struct smbd_server_connection *sconn,
+		  const char *user,const char **list)
 {
 	if (!list || !*list)
 		return False;
@@ -464,7 +495,7 @@ bool user_in_list(const char *user,const char **list)
 			 * Old behaviour. Check netgroup list
 			 * followed by UNIX list.
 			 */
-			if(user_in_netgroup(user, *list +1))
+			if(user_in_netgroup(sconn, user, *list +1))
 				return True;
 			if(user_in_group(user, *list +1))
 				return True;
@@ -476,7 +507,7 @@ bool user_in_list(const char *user,const char **list)
 				 */
 				if(user_in_group(user, *list +2))
 					return True;
-				if(user_in_netgroup(user, *list +2))
+				if(user_in_netgroup(sconn, user, *list +2))
 					return True;
 
 			} else {
@@ -495,7 +526,7 @@ bool user_in_list(const char *user,const char **list)
 				/*
 				 * Search netgroup list followed by UNIX list.
 				 */
-				if(user_in_netgroup(user, *list +2))
+				if(user_in_netgroup(sconn, user, *list +2))
 					return True;
 				if(user_in_group(user, *list +2))
 					return True;
@@ -503,7 +534,7 @@ bool user_in_list(const char *user,const char **list)
 				/*
 				 * Just search netgroup list.
 				 */
-				if(user_in_netgroup(user, *list +1))
+				if(user_in_netgroup(sconn, user, *list +1))
 					return True;
 			}
 		}
@@ -517,16 +548,16 @@ bool user_in_list(const char *user,const char **list)
  Check if a username is valid.
 ****************************************************************************/
 
-static bool user_ok(const char *user, int snum)
+static bool user_ok(struct smbd_server_connection *sconn,
+		    const char *user, int snum)
 {
-	char **valid, **invalid;
 	bool ret;
 
-	valid = invalid = NULL;
 	ret = True;
 
 	if (lp_invalid_users(snum)) {
-		invalid = str_list_copy(talloc_tos(), lp_invalid_users(snum));
+		char **invalid = str_list_copy(talloc_tos(),
+			lp_invalid_users(snum));
 		if (invalid &&
 		    str_list_substitute(invalid, "%S", lp_servicename(snum))) {
 
@@ -534,15 +565,16 @@ static bool user_ok(const char *user, int snum)
 			 * around to pass to str_list_sub_basic() */
 
 			if ( invalid && str_list_sub_basic(invalid, "", "") ) {
-				ret = !user_in_list(user,
+				ret = !user_in_list(sconn, user,
 						    (const char **)invalid);
 			}
 		}
+		TALLOC_FREE(invalid);
 	}
-	TALLOC_FREE(invalid);
 
 	if (ret && lp_valid_users(snum)) {
-		valid = str_list_copy(talloc_tos(), lp_valid_users(snum));
+		char **valid = str_list_copy(talloc_tos(),
+			lp_valid_users(snum));
 		if ( valid &&
 		     str_list_substitute(valid, "%S", lp_servicename(snum)) ) {
 
@@ -550,11 +582,12 @@ static bool user_ok(const char *user, int snum)
 			 * around to pass to str_list_sub_basic() */
 
 			if ( valid && str_list_sub_basic(valid, "", "") ) {
-				ret = user_in_list(user, (const char **)valid);
+				ret = user_in_list(sconn, user,
+						   (const char **)valid);
 			}
 		}
+		TALLOC_FREE(valid);
 	}
-	TALLOC_FREE(valid);
 
 	if (ret && lp_onlyuser(snum)) {
 		char **user_list = str_list_make_v3(
@@ -562,7 +595,8 @@ static bool user_ok(const char *user, int snum)
 		if (user_list &&
 		    str_list_substitute(user_list, "%S",
 					lp_servicename(snum))) {
-			ret = user_in_list(user, (const char **)user_list);
+			ret = user_in_list(sconn, user,
+					   (const char **)user_list);
 		}
 		TALLOC_FREE(user_list);
 	}
@@ -574,16 +608,21 @@ static bool user_ok(const char *user, int snum)
  Validate a group username entry. Return the username or NULL.
 ****************************************************************************/
 
-static char *validate_group(char *group, DATA_BLOB password,int snum)
+static char *validate_group(struct smbd_server_connection *sconn,
+			    char *group, DATA_BLOB password,int snum)
 {
 #ifdef HAVE_NETGROUP
 	{
 		char *host, *user, *domain;
+		struct auth_context *actx = sconn->smb1.negprot.auth_context;
+		bool enc = sconn->smb1.negprot.encrypted_passwords;
 		setnetgrent(group);
 		while (getnetgrent(&host, &user, &domain)) {
 			if (user) {
-				if (user_ok(user, snum) && 
-				    password_ok(user,password)) {
+				if (user_ok(sconn, user, snum) &&
+				    password_ok(actx, enc,
+						get_session_workgroup(sconn),
+						user,password)) {
 					endnetgrent();
 					return(user);
 				}
@@ -596,6 +635,9 @@ static char *validate_group(char *group, DATA_BLOB password,int snum)
 #ifdef HAVE_GETGRENT
 	{
 		struct group *gptr;
+		struct auth_context *actx = sconn->smb1.negprot.auth_context;
+		bool enc = sconn->smb1.negprot.encrypted_passwords;
+
 		setgrent();
 		while ((gptr = (struct group *)getgrent())) {
 			if (strequal(gptr->gr_name,group))
@@ -643,8 +685,10 @@ static char *validate_group(char *group, DATA_BLOB password,int snum)
 
 			member = member_list;
 			while (*member) {
-				if (user_ok(member,snum) &&
-				    password_ok(member,password)) {
+				if (user_ok(sconn, member,snum) &&
+				    password_ok(actx, enc,
+						get_session_workgroup(sconn),
+						member,password)) {
 					char *name = talloc_strdup(talloc_tos(),
 								member);
 					SAFE_FREE(member_list);
@@ -672,10 +716,13 @@ static char *validate_group(char *group, DATA_BLOB password,int snum)
  Note this is *NOT* used when logging on using sessionsetup_and_X.
 ****************************************************************************/
 
-bool authorise_login(int snum, fstring user, DATA_BLOB password,
+bool authorise_login(struct smbd_server_connection *sconn,
+		     int snum, fstring user, DATA_BLOB password,
 		     bool *guest)
 {
 	bool ok = False;
+	struct auth_context *actx = sconn->smb1.negprot.auth_context;
+	bool enc = sconn->smb1.negprot.encrypted_passwords;
 
 #ifdef DEBUG_PASSWORD
 	DEBUG(100,("authorise_login: checking authorisation on "
@@ -704,8 +751,8 @@ bool authorise_login(int snum, fstring user, DATA_BLOB password,
 		char *user_list = NULL;
 		char *saveptr;
 
-		if ( session_userlist )
-			user_list = SMB_STRDUP(session_userlist);
+		if (sconn->smb1.sessions.session_userlist)
+			user_list = SMB_STRDUP(sconn->smb1.sessions.session_userlist);
 		else
 			user_list = SMB_STRDUP("");
 
@@ -717,10 +764,12 @@ bool authorise_login(int snum, fstring user, DATA_BLOB password,
 		     auser = strtok_r(NULL, LIST_SEP, &saveptr)) {
 			fstring user2;
 			fstrcpy(user2,auser);
-			if (!user_ok(user2,snum))
+			if (!user_ok(sconn,user2,snum))
 				continue;
 
-			if (password_ok(user2,password)) {
+			if (password_ok(actx, enc,
+					get_session_workgroup(sconn),
+					user2,password)) {
 				ok = True;
 				fstrcpy(user,user2);
 				DEBUG(3,("authorise_login: ACCEPTED: session "
@@ -756,7 +805,8 @@ bool authorise_login(int snum, fstring user, DATA_BLOB password,
 		     auser && !ok;
 		     auser = strtok_r(NULL, LIST_SEP, &saveptr)) {
 			if (*auser == '@') {
-				auser = validate_group(auser+1,password,snum);
+				auser = validate_group(sconn,auser+1,
+						       password,snum);
 				if (auser) {
 					ok = True;
 					fstrcpy(user,auser);
@@ -767,8 +817,10 @@ bool authorise_login(int snum, fstring user, DATA_BLOB password,
 			} else {
 				fstring user2;
 				fstrcpy(user2,auser);
-				if (user_ok(user2,snum) &&
-				    password_ok(user2,password)) {
+				if (user_ok(sconn,user2,snum) &&
+				    password_ok(actx, enc,
+						get_session_workgroup(sconn),
+						user2,password)) {
 					ok = True;
 					fstrcpy(user,user2);
 					DEBUG(3,("authorise_login: ACCEPTED: "
@@ -801,7 +853,7 @@ bool authorise_login(int snum, fstring user, DATA_BLOB password,
 		*guest = True;
 	}
 
-	if (ok && !user_ok(user, snum)) {
+	if (ok && !user_ok(sconn, user, snum)) {
 		DEBUG(0,("authorise_login: rejected invalid user %s\n",user));
 		ok = False;
 	}

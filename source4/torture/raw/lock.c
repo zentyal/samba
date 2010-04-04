@@ -32,25 +32,28 @@
 
 #define CHECK_STATUS(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
-		printf("(%s) Incorrect status %s - should be %s\n", \
-		       __location__, nt_errstr(status), nt_errstr(correct)); \
+		torture_result(tctx, TORTURE_FAIL, \
+			"(%s) Incorrect status %s - should be %s\n", \
+			__location__, nt_errstr(status), nt_errstr(correct)); \
 		ret = false; \
 		goto done; \
 	}} while (0)
 
 #define CHECK_STATUS_CONT(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
-		printf("(%s) Incorrect status %s - should be %s\n", \
-		       __location__, nt_errstr(status), nt_errstr(correct)); \
+		torture_result(tctx, TORTURE_FAIL, \
+			"(%s) Incorrect status %s - should be %s\n", \
+			__location__, nt_errstr(status), nt_errstr(correct)); \
 		ret = false; \
 	}} while (0)
 
 #define CHECK_STATUS_OR(status, correct1, correct2) do { \
 	if ((!NT_STATUS_EQUAL(status, correct1)) && \
 	    (!NT_STATUS_EQUAL(status, correct2))) { \
-		printf("(%s) Incorrect status %s - should be %s or %s\n", \
-		       __location__, nt_errstr(status), nt_errstr(correct1), \
-		       nt_errstr(correct2)); \
+		torture_result(tctx, TORTURE_FAIL, \
+			"(%s) Incorrect status %s - should be %s or %s\n", \
+			__location__, nt_errstr(status), nt_errstr(correct1), \
+			nt_errstr(correct2)); \
 		ret = false; \
 		goto done; \
 	}} while (0)
@@ -58,14 +61,17 @@
 #define CHECK_STATUS_OR_CONT(status, correct1, correct2) do { \
 	if ((!NT_STATUS_EQUAL(status, correct1)) && \
 	    (!NT_STATUS_EQUAL(status, correct2))) { \
-		printf("(%s) Incorrect status %s - should be %s or %s\n", \
-		       __location__, nt_errstr(status), nt_errstr(correct1), \
-		       nt_errstr(correct2)); \
+		torture_result(tctx, TORTURE_FAIL, \
+			"(%s) Incorrect status %s - should be %s or %s\n", \
+			__location__, nt_errstr(status), nt_errstr(correct1), \
+			nt_errstr(correct2)); \
 		ret = false; \
 	}} while (0)
 #define BASEDIR "\\testlock"
 
+#define TARGET_IS_W2K8(_tctx) (torture_setting_bool(_tctx, "w2k8", false))
 #define TARGET_IS_WIN7(_tctx) (torture_setting_bool(_tctx, "win7", false))
+#define TARGET_IS_SAMBA3(_tctx) (torture_setting_bool(_tctx, "samba3", false))
 
 /*
   test SMBlock and SMBunlock ops
@@ -82,17 +88,15 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 		return false;
 	}
 
-	printf("Testing RAW_LOCK_LOCK\n");
+	torture_comment(tctx, "Testing RAW_LOCK_LOCK\n");
 	io.generic.level = RAW_LOCK_LOCK;
 	
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
-	printf("Trying 0/0 lock\n");
+	torture_comment(tctx, "Trying 0/0 lock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 0;
@@ -107,7 +111,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	printf("Trying 0/1 lock\n");
+	torture_comment(tctx, "Trying 0/1 lock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 1;
@@ -125,7 +129,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying 0xEEFFFFFF lock\n");
+	torture_comment(tctx, "Trying 0xEEFFFFFF lock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 4000;
@@ -143,7 +147,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying 0xEF000000 lock\n");
+	torture_comment(tctx, "Trying 0xEF000000 lock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 4000;
@@ -161,7 +165,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying max lock\n");
+	torture_comment(tctx, "Trying max lock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 4000;
@@ -179,7 +183,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying wrong pid unlock\n");
+	torture_comment(tctx, "Trying wrong pid unlock\n");
 	io.lock.level = RAW_LOCK_LOCK;
 	io.lock.in.file.fnum = fnum;
 	io.lock.in.count = 4002;
@@ -218,15 +222,13 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 		return false;
 	}
 
-	printf("Testing RAW_LOCK_LOCKX\n");
+	torture_comment(tctx, "Testing RAW_LOCK_LOCKX\n");
 	io.generic.level = RAW_LOCK_LOCKX;
 	
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
@@ -242,7 +244,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 
-	printf("Trying 0xEEFFFFFF lock\n");
+	torture_comment(tctx, "Trying 0xEEFFFFFF lock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 4000;
@@ -260,7 +262,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying 0xEF000000 lock\n");
+	torture_comment(tctx, "Trying 0xEF000000 lock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 4000;
@@ -278,7 +280,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying zero lock\n");
+	torture_comment(tctx, "Trying zero lock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 0;
@@ -296,7 +298,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying max lock\n");
+	torture_comment(tctx, "Trying max lock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 0;
@@ -314,7 +316,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying 2^63\n");
+	torture_comment(tctx, "Trying 2^63\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 1;
@@ -333,7 +335,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying 2^63 - 1\n");
+	torture_comment(tctx, "Trying 2^63 - 1\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 1;
@@ -353,7 +355,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	printf("Trying max lock 2\n");
+	torture_comment(tctx, "Trying max lock 2\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	lock[0].count = 1;
@@ -364,7 +366,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	lock[0].count = 2;
 	status = smb_raw_lock(cli->tree, &io);
 	if (TARGET_IS_WIN7(tctx))
-		CHECK_STATUS(status, NT_STATUS_WIN7_INVALID_RANGE);
+		CHECK_STATUS(status, NT_STATUS_INVALID_LOCK_RANGE);
 	else
 		CHECK_STATUS(status, NT_STATUS_OK);
 	lock[0].pid--;
@@ -373,15 +375,9 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	lock[0].count = 1;
 	status = smb_raw_lock(cli->tree, &io);
 
-	/* XXX This is very strange - Win7 gives us an invalid range when we
-	 * unlock the range even though the range is locked! Win7 bug? */
-	if (TARGET_IS_WIN7(tctx))
-		CHECK_STATUS(status, NT_STATUS_WIN7_INVALID_RANGE);
-	else {
-		CHECK_STATUS(status, NT_STATUS_OK);
-		status = smb_raw_lock(cli->tree, &io);
-		CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
-	}
+	CHECK_STATUS(status, NT_STATUS_OK);
+	status = smb_raw_lock(cli->tree, &io);
+	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
 done:
 	smbcli_close(cli->tree, fnum);
@@ -408,20 +404,20 @@ static bool test_pidhigh(struct torture_context *tctx,
 		return false;
 	}
 
-	printf("Testing high pid\n");
+	torture_comment(tctx, "Testing high pid\n");
 	io.generic.level = RAW_LOCK_LOCKX;
 
 	cli->session->pid = 1;
 	
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	if (smbcli_write(cli->tree, fnum, 0, &c, 0, 1) != 1) {
-		printf("Failed to write 1 byte - %s\n", smbcli_errstr(cli->tree));
+		torture_result(tctx, TORTURE_FAIL,
+			"Failed to write 1 byte - %s\n",
+			smbcli_errstr(cli->tree));
 		ret = false;
 		goto done;
 	}
@@ -440,7 +436,9 @@ static bool test_pidhigh(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	if (smbcli_read(cli->tree, fnum, &c, 0, 1) != 1) {
-		printf("Failed to read 1 byte - %s\n", smbcli_errstr(cli->tree));
+		torture_result(tctx, TORTURE_FAIL,
+			"Failed to read 1 byte - %s\n",
+			smbcli_errstr(cli->tree));
 		ret = false;
 		goto done;
 	}
@@ -448,7 +446,8 @@ static bool test_pidhigh(struct torture_context *tctx,
 	cli->session->pid = 2;
 
 	if (smbcli_read(cli->tree, fnum, &c, 0, 1) == 1) {
-		printf("pid is incorrect handled for read with lock!\n");
+		torture_result(tctx, TORTURE_FAIL,
+			"pid is incorrect handled for read with lock!\n");
 		ret = false;
 		goto done;
 	}
@@ -456,10 +455,11 @@ static bool test_pidhigh(struct torture_context *tctx,
 	cli->session->pid = 0x10001;
 
 	if (smbcli_read(cli->tree, fnum, &c, 0, 1) != 1) {
-		printf("High pid is used on this server!\n");
+		torture_result(tctx, TORTURE_FAIL,
+			"High pid is used on this server!\n");
 		ret = false;
 	} else {
-		printf("High pid is not used on this server (correct)\n");
+		torture_warning(tctx, "High pid is not used on this server (correct)\n");
 	}
 
 done:
@@ -497,15 +497,13 @@ static bool test_async(struct torture_context *tctx,
 
 	lp_smbcli_session_options(tctx->lp_ctx, &options);
 
-	printf("Testing LOCKING_ANDX_CANCEL_LOCK\n");
+	torture_comment(tctx, "Testing LOCKING_ANDX_CANCEL_LOCK\n");
 	io.generic.level = RAW_LOCK_LOCKX;
 
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
@@ -522,16 +520,13 @@ static bool test_async(struct torture_context *tctx,
 
 	t = time(NULL);
 
-	printf("testing cancel by CANCEL_LOCK\n");
+	torture_comment(tctx, "testing cancel by CANCEL_LOCK\n");
 
 	/* setup a timed lock */
 	io.lockx.in.timeout = 10000;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	/* cancel the wrong range */
 	lock[0].offset = 0;
@@ -558,13 +553,10 @@ static bool test_async(struct torture_context *tctx,
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel was not immediate (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel was not immediate (%s)\n", __location__));
 
-	printf("testing cancel by unlock\n");
+	torture_comment(tctx, "testing cancel by unlock\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -574,11 +566,8 @@ static bool test_async(struct torture_context *tctx,
 
 	io.lockx.in.timeout = 5000;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	io.lockx.in.ulock_cnt = 1;
 	io.lockx.in.lock_cnt = 0;
@@ -589,14 +578,11 @@ static bool test_async(struct torture_context *tctx,
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel by unlock was not immediate (%s) - took %d secs\n", 
-		       __location__, (int)(time(NULL)-t));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel by unlock was not immediate (%s) - took %d secs\n",
+		       __location__, (int)(time(NULL)-t)));
 
-	printf("testing cancel by close\n");
+	torture_comment(tctx, "testing cancel by close\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -607,11 +593,8 @@ static bool test_async(struct torture_context *tctx,
 	t = time(NULL);
 	io.lockx.in.timeout = 10000;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	status = smbcli_close(cli->tree, fnum);
 	CHECK_STATUS(status, NT_STATUS_OK);
@@ -619,13 +602,10 @@ static bool test_async(struct torture_context *tctx,
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel by close was not immediate (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel by close was not immediate (%s)\n", __location__));
 
-	printf("create a new sessions\n");
+	torture_comment(tctx, "create a new sessions\n");
 	session = smbcli_session_init(cli->transport, tctx, false, options);
 	setup.in.sesskey = cli->transport->negotiate.sesskey;
 	setup.in.capabilities = cli->transport->negotiate.capabilities;
@@ -636,7 +616,7 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 	session->vuid = setup.out.vuid;
 
-	printf("create new tree context\n");
+	torture_comment(tctx, "create new tree context\n");
 	share = torture_setting_string(tctx, "share", NULL);
 	host  = torture_setting_string(tctx, "host", NULL);
 	tree = smbcli_tree_init(session, tctx, false);
@@ -649,14 +629,13 @@ static bool test_async(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 	tree->tid = tcon.tconx.out.tid;
 
-	printf("testing cancel by exit\n");
+	torture_comment(tctx, "testing cancel by exit\n");
 	fname = BASEDIR "\\test_exit.txt";
 	fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -680,11 +659,8 @@ static bool test_async(struct torture_context *tctx,
 	io.lockx.in.timeout = 10000;
 	t = time(NULL);
 	req = smb_raw_lock_send(tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	status = smb_raw_exit(session);
 	CHECK_STATUS(status, NT_STATUS_OK);
@@ -692,20 +668,16 @@ static bool test_async(struct torture_context *tctx,
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel by exit was not immediate (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel by exit was not immediate (%s)\n", __location__));
 
-	printf("testing cancel by ulogoff\n");
+	torture_comment(tctx, "testing cancel by ulogoff\n");
 	fname = BASEDIR "\\test_ulogoff.txt";
 	fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -729,18 +701,16 @@ static bool test_async(struct torture_context *tctx,
 	io.lockx.in.timeout = 10000;
 	t = time(NULL);
 	req = smb_raw_lock_send(tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	status = smb_raw_ulogoff(session);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	status = smbcli_request_simple_recv(req);
 	if (NT_STATUS_EQUAL(NT_STATUS_FILE_LOCK_CONFLICT, status)) {
-		printf("lock not canceled by ulogoff - %s (ignored because of vfs_vifs fails it)\n",
+		torture_result(tctx, TORTURE_FAIL,
+			"lock not canceled by ulogoff - %s (ignored because of vfs_vifs fails it)\n",
 			nt_errstr(status));
 		smb_tree_disconnect(tree);
 		smb_raw_exit(session);
@@ -748,22 +718,18 @@ static bool test_async(struct torture_context *tctx,
 	}
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel by ulogoff was not immediate (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel by ulogoff was not immediate (%s)\n", __location__));
 
-	printf("testing cancel by tdis\n");
+	torture_comment(tctx, "testing cancel by tdis\n");
 	tree->session = cli->session;
 
 	fname = BASEDIR "\\test_tdis.txt";
 	fnum = smbcli_open(tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -783,11 +749,8 @@ static bool test_async(struct torture_context *tctx,
 	io.lockx.in.timeout = 10000;
 	t = time(NULL);
 	req = smb_raw_lock_send(tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	status = smb_tree_disconnect(tree);
 	CHECK_STATUS(status, NT_STATUS_OK);
@@ -795,11 +758,8 @@ static bool test_async(struct torture_context *tctx,
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
 
-	if (time(NULL) > t+2) {
-		printf("lock cancel by tdis was not immediate (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,!(time(NULL) > t+2), talloc_asprintf(tctx,
+		       "lock cancel by tdis was not immediate (%s)\n", __location__));
 
 done:
 	smb_raw_exit(cli->session);
@@ -823,14 +783,15 @@ static bool test_errorcode(struct torture_context *tctx,
 	struct smbcli_request *req;
 	time_t start;
 	int t;
+	int delay;
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
 	}
 
-	printf("Testing LOCK_NOT_GRANTED vs. FILE_LOCK_CONFLICT\n");
+	torture_comment(tctx, "Testing LOCK_NOT_GRANTED vs. FILE_LOCK_CONFLICT\n");
 
-	printf("testing with timeout = 0\n");
+	torture_comment(tctx, "testing with timeout = 0\n");
 	fname = BASEDIR "\\test0.txt";
 	t = 0;
 
@@ -1126,11 +1087,16 @@ next_run:
 	/* end of the loop */
 	if (t == 0) {
 		smb_raw_exit(cli->session);
-		printf("testing with timeout > 0 (=1)\n");
-		fname = BASEDIR "\\test1.txt";
 		t = 1;
+		torture_comment(tctx, "testing with timeout > 0 (=%d)\n",
+				t);
+		fname = BASEDIR "\\test1.txt";
 		goto next_run;
 	}
+
+	t = 4000;
+	torture_comment(tctx, "testing special cases with timeout > 0 (=%d)\n",
+			t);
 
 	/*
 	 * the following 3 test sections demonstrate that
@@ -1138,14 +1104,13 @@ next_run:
 	 * to the client (after the timeout went by)
 	 */
 	smb_raw_exit(cli->session);
-	printf("testing a conflict while a lock is pending\n");
+	torture_comment(tctx, "testing a conflict while a lock is pending\n");
 	fname = BASEDIR "\\test2.txt";
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -1160,13 +1125,10 @@ next_run:
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	start = time(NULL);
-	io.lockx.in.timeout = 1000;
+	io.lockx.in.timeout = t;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	io.lockx.in.timeout = 0;
 	lock[0].offset = 105;
@@ -1177,23 +1139,25 @@ next_run:
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
+	delay = t / 1000;
+	if (TARGET_IS_W2K8(tctx) || TARGET_IS_WIN7(tctx)) {
+		delay /= 2;
+	}
+
+	torture_assert(tctx,!(time(NULL) < start+delay), talloc_asprintf(tctx,
+		       "lock comes back to early timeout[%d] delay[%d]"
+		       "(%s)\n", t, delay, __location__));
+
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
-
-	if (time(NULL) < start+1) {
-		printf("lock comes back to early (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
 
 	smbcli_close(cli->tree, fnum);
 	fname = BASEDIR "\\test3.txt";
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -1208,13 +1172,10 @@ next_run:
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	start = time(NULL);
-	io.lockx.in.timeout = 1000;
+	io.lockx.in.timeout = t;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	io.lockx.in.timeout = 0;
 	lock[0].offset = 105;
@@ -1225,25 +1186,27 @@ next_run:
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
+	delay = t / 1000;
+	if (TARGET_IS_W2K8(tctx) || TARGET_IS_WIN7(tctx)) {
+		delay /= 2;
+	}
+
+	torture_assert(tctx,!(time(NULL) < start+delay), talloc_asprintf(tctx,
+		       "lock comes back to early timeout[%d] delay[%d]"
+		       "(%s)\n", t, delay, __location__));
+
 	lock[0].offset = 100;
 	lock[0].count = 10;
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
-	if (time(NULL) < start+1) {
-		printf("lock comes back to early (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
-
 	smbcli_close(cli->tree, fnum);
 	fname = BASEDIR "\\test4.txt";
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to reopen %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to reopen %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = LOCKING_ANDX_LARGE_FILES;
@@ -1258,13 +1221,10 @@ next_run:
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	start = time(NULL);
-	io.lockx.in.timeout = 1000;
+	io.lockx.in.timeout = t;
 	req = smb_raw_lock_send(cli->tree, &io);
-	if (req == NULL) {
-		printf("Failed to setup timed lock (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
+		       "Failed to setup timed lock (%s)\n", __location__));
 
 	io.lockx.in.timeout = 0;
 	status = smb_raw_lock(cli->tree, &io);
@@ -1273,14 +1233,17 @@ next_run:
 	status = smbcli_request_simple_recv(req);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
 
+	delay = t / 1000;
+	if (TARGET_IS_W2K8(tctx) || TARGET_IS_WIN7(tctx)) {
+		delay /= 2;
+	}
+
+	torture_assert(tctx,!(time(NULL) < start+delay), talloc_asprintf(tctx,
+		       "lock comes back to early timeout[%d] delay[%d]"
+		       "(%s)\n", t, delay, __location__));
+
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
-
-	if (time(NULL) < start+1) {
-		printf("lock comes back to early (%s)\n", __location__);
-		ret = false;
-		goto done;
-	}
 
 done:
 	smb_raw_exit(cli->session);
@@ -1307,15 +1270,13 @@ static bool test_changetype(struct torture_context *tctx,
 		return false;
 	}
 
-	printf("Testing LOCKING_ANDX_CHANGE_LOCKTYPE\n");
+	torture_comment(tctx, "Testing LOCKING_ANDX_CHANGE_LOCKTYPE\n");
 	io.generic.level = RAW_LOCK_LOCKX;
 	
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
@@ -1331,7 +1292,8 @@ static bool test_changetype(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	if (smbcli_write(cli->tree, fnum, 0, &c, 100, 1) == 1) {
-		printf("allowed write on read locked region (%s)\n", __location__);
+		torture_result(tctx, TORTURE_FAIL,
+			"allowed write on read locked region (%s)\n", __location__);
 		ret = false;
 		goto done;
 	}
@@ -1342,7 +1304,8 @@ static bool test_changetype(struct torture_context *tctx,
 	CHECK_STATUS(status, NT_STATUS_DOS(ERRDOS, ERRnoatomiclocks));
 
 	if (smbcli_write(cli->tree, fnum, 0, &c, 100, 1) == 1) {
-		printf("allowed write after lock change (%s)\n", __location__);
+		torture_result(tctx, TORTURE_FAIL,
+			"allowed write after lock change (%s)\n", __location__);
 		ret = false;
 		goto done;
 	}
@@ -1363,7 +1326,7 @@ struct double_lock_test {
 /**
  * Tests zero byte locks.
  */
-struct double_lock_test zero_byte_tests[] = {
+static const struct double_lock_test zero_byte_tests[] = {
 	/* {pid, offset, count}, {pid, offset, count}, status */
 
 	/** First, takes a zero byte lock at offset 10. Then:
@@ -1397,13 +1360,12 @@ struct double_lock_test zero_byte_tests[] = {
 static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state *cli)
 {
 	union smb_lock io;
-	struct smb_lock_entry zerozero;
 	NTSTATUS status;
 	bool ret = true;
 	int fnum, i;
 	const char *fname = BASEDIR "\\zero.txt";
 
-	printf("Testing zero length byte range locks:\n");
+	torture_comment(tctx, "Testing zero length byte range locks:\n");
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -1412,11 +1374,9 @@ static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state
 	io.generic.level = RAW_LOCK_LOCKX;
 
 	fnum = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	/* Setup initial parameters */
 	io.lockx.level = RAW_LOCK_LOCKX;
@@ -1428,9 +1388,9 @@ static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state
 	 * assumed to succeed. The second lock may contend, depending on the
 	 * expected status. */
 	for (i = 0;
-	     i < sizeof(zero_byte_tests) / sizeof(struct double_lock_test);
+	     i < ARRAY_SIZE(zero_byte_tests);
 	     i++) {
-		printf("  ... {%d, %llu, %llu} + {%d, %llu, %llu} = %s\n",
+		torture_comment(tctx, "  ... {%d, %llu, %llu} + {%d, %llu, %llu} = %s\n",
 		    zero_byte_tests[i].lock1.pid,
 		    zero_byte_tests[i].lock1.offset,
 		    zero_byte_tests[i].lock1.count,
@@ -1494,24 +1454,21 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	struct smb_lock_entry lock1;
 	struct smb_lock_entry lock2;
 
-	printf("Testing LOCKX unlock:\n");
+	torture_comment(tctx, "Testing LOCKX unlock:\n");
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
 	}
 
 	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum1 == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
+
 	fnum2 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum2 == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum2 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	/* Setup initial parameters */
 	io.lockx.level = RAW_LOCK_LOCKX;
@@ -1527,7 +1484,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	/**
 	 * Take exclusive lock, then unlock it with a shared-unlock call.
 	 */
-	printf("  taking exclusive lock.\n");
+	torture_comment(tctx, "  taking exclusive lock.\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = 0;
@@ -1536,7 +1493,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	printf("  unlock the exclusive with a shared unlock call.\n");
+	torture_comment(tctx, "  unlock the exclusive with a shared unlock call.\n");
 	io.lockx.in.ulock_cnt = 1;
 	io.lockx.in.lock_cnt = 0;
 	io.lockx.in.mode = LOCKING_ANDX_SHARED_LOCK;
@@ -1545,7 +1502,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	printf("  try shared lock on pid2/fnum2, testing the unlock.\n");
+	torture_comment(tctx, "  try shared lock on pid2/fnum2, testing the unlock.\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = LOCKING_ANDX_SHARED_LOCK;
@@ -1557,7 +1514,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	/**
 	 * Unlock a shared lock with an exclusive-unlock call.
 	 */
-	printf("  unlock new shared lock with exclusive unlock call.\n");
+	torture_comment(tctx, "  unlock new shared lock with exclusive unlock call.\n");
 	io.lockx.in.ulock_cnt = 1;
 	io.lockx.in.lock_cnt = 0;
 	io.lockx.in.mode = 0;
@@ -1566,7 +1523,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	printf("  try exclusive lock on pid1, testing the unlock.\n");
+	torture_comment(tctx, "  try exclusive lock on pid1, testing the unlock.\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = 0;
@@ -1585,7 +1542,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	 * Test unlocking of 0-byte locks.
 	 */
 
-	printf("  lock shared and exclusive 0-byte locks, testing that Windows "
+	torture_comment(tctx, "  lock shared and exclusive 0-byte locks, testing that Windows "
 	    "always unlocks the exclusive first.\n");
 	lock1.pid = cli->session->pid;
 	lock1.offset = 10;
@@ -1633,16 +1590,16 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	io.lockx.in.locks = &lock2;
 	status = smb_raw_lock(cli->tree, &io);
 
-	/* XXX Samba will fail this test. This is temporary(because this isn't
+	/* XXX Samba 3 will fail this test. This is temporary(because this isn't
 	 * new to Win7, it succeeds in WinXP too), until I can come to a
 	 * resolution as to whether Samba should support this or not. There is
 	 * code to preference unlocking exclusive locks before shared locks,
 	 * but its wrapped with "#ifdef ZERO_ZERO". -zkirsch */
-	if (TARGET_IS_WIN7(tctx))
-		CHECK_STATUS(status, NT_STATUS_OK);
-	else {
+	if (TARGET_IS_SAMBA3(tctx)) {
 		CHECK_STATUS_OR(status, NT_STATUS_LOCK_NOT_GRANTED,
 		    NT_STATUS_FILE_LOCK_CONFLICT);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_OK);
 	}
 
 	/* cleanup */
@@ -1650,11 +1607,12 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 	io.lockx.in.lock_cnt = 0;
 	status = smb_raw_lock(cli->tree, &io);
 
-        /* XXX Same as above. */
-        if (TARGET_IS_WIN7(tctx))
-                CHECK_STATUS(status, NT_STATUS_OK);
-        else
-                CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	/* XXX Same as above. */
+	if (TARGET_IS_SAMBA3(tctx)) {
+		CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
+	} else {
+		CHECK_STATUS(status, NT_STATUS_OK);
+	}
 
 	io.lockx.in.file.fnum = fnum1;
 	io.lockx.in.locks = &lock1;
@@ -1680,18 +1638,16 @@ static bool test_multiple_unlock(struct torture_context *tctx, struct smbcli_sta
 	struct smb_lock_entry lock2;
 	struct smb_lock_entry locks[2];
 
-	printf("Testing LOCKX multiple unlock:\n");
+	torture_comment(tctx, "Testing LOCKX multiple unlock:\n");
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
 	}
 
 	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum1 == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	/* Setup initial parameters */
 	io.lockx.level = RAW_LOCK_LOCKX;
@@ -1711,7 +1667,7 @@ static bool test_multiple_unlock(struct torture_context *tctx, struct smbcli_sta
 	io.lockx.in.mode = 0; /* exclusive */
 
 	/** Test1: Take second lock, but not first. */
-	printf("  unlock 2 locks, first one not locked. Expect no locks "
+	torture_comment(tctx, "  unlock 2 locks, first one not locked. Expect no locks "
 	    "unlocked. \n");
 
 	io.lockx.in.ulock_cnt = 0;
@@ -1743,7 +1699,7 @@ static bool test_multiple_unlock(struct torture_context *tctx, struct smbcli_sta
 	CHECK_STATUS(status, NT_STATUS_OK);
 
 	/** Test2: Take first lock, but not second. */
-	printf("  unlock 2 locks, second one not locked. Expect first lock "
+	torture_comment(tctx, "  unlock 2 locks, second one not locked. Expect first lock "
 	    "unlocked.\n");
 
 	io.lockx.in.ulock_cnt = 0;
@@ -1796,7 +1752,7 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	struct smb_lock_entry lock1;
 	struct smb_lock_entry lock2;
 
-	printf("Testing stacking:\n");
+	torture_comment(tctx, "Testing stacking:\n");
 
 	if (!torture_setup_dir(cli, BASEDIR)) {
 		return false;
@@ -1805,11 +1761,9 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	io.generic.level = RAW_LOCK_LOCKX;
 
 	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
-	if (fnum1 == -1) {
-		printf("Failed to create %s - %s\n", fname, smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
-	}
+	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
+		       "Failed to create %s - %s\n",
+		       fname, smbcli_errstr(cli->tree)));
 
 	/* Setup initial parameters */
 	io.lockx.level = RAW_LOCK_LOCKX;
@@ -1825,7 +1779,7 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	/**
 	 * Try to take a shared lock, then stack an exclusive.
 	 */
-	printf("  stacking an exclusive on top of a shared lock fails.\n");
+	torture_comment(tctx, "  stacking an exclusive on top of a shared lock fails.\n");
 	io.lockx.in.file.fnum = fnum1;
 	io.lockx.in.locks = &lock1;
 
@@ -1851,7 +1805,7 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	/**
 	 * Prove that two exclusive locks do not stack.
 	 */
-	printf("  two exclusive locks do not stack.\n");
+	torture_comment(tctx, "  two exclusive locks do not stack.\n");
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.mode = 0;

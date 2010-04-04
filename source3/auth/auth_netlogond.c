@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -30,8 +31,8 @@ static NTSTATUS netlogond_validate(TALLOC_CTX *mem_ctx,
 				   struct netr_SamInfo3 **pinfo3,
 				   NTSTATUS *schannel_bind_result)
 {
-	struct rpc_pipe_client *p;
-	struct cli_pipe_auth_data *auth;
+	struct rpc_pipe_client *p = NULL;
+	struct cli_pipe_auth_data *auth = NULL;
 	struct netr_SamInfo3 *info3 = NULL;
 	NTSTATUS status;
 
@@ -45,9 +46,21 @@ static NTSTATUS netlogond_validate(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
+	/*
+	 * We have to fake a struct dcinfo, so that
+	 * rpccli_netlogon_sam_network_logon_ex can decrypt the session keys.
+	 */
+
+	p->dc = netlogon_creds_client_init_session_key(p, schannel_key);
+	if (p->dc == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		TALLOC_FREE(p);
+		return NT_STATUS_NO_MEMORY;
+	}
+
 	status = rpccli_schannel_bind_data(p, lp_workgroup(),
-					   PIPE_AUTH_LEVEL_PRIVACY,
-					   schannel_key, &auth);
+					   DCERPC_AUTH_LEVEL_PRIVACY,
+					   p->dc, &auth);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("rpccli_schannel_bind_data failed: %s\n",
 			   nt_errstr(status)));
@@ -62,20 +75,6 @@ static NTSTATUS netlogond_validate(TALLOC_CTX *mem_ctx,
 		*schannel_bind_result = status;
 		return status;
 	}
-
-	/*
-	 * We have to fake a struct dcinfo, so that
-	 * rpccli_netlogon_sam_network_logon_ex can decrypt the session keys.
-	 */
-
-	p->dc = talloc(p, struct dcinfo);
-	if (p->dc == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		TALLOC_FREE(p);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	memcpy(p->dc->sess_key, schannel_key, 16);
 
 	status = rpccli_netlogon_sam_network_logon_ex(
 		p, p,
@@ -159,14 +158,14 @@ static NTSTATUS check_netlogond_security(const struct auth_context *auth_context
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct netr_SamInfo3 *info3 = NULL;
-	struct rpc_pipe_client *p;
-	struct cli_pipe_auth_data *auth;
+	struct rpc_pipe_client *p = NULL;
+	struct cli_pipe_auth_data *auth = NULL;
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-	char *plaintext_machinepw;
+	char *plaintext_machinepw = NULL;
 	uint8_t machine_password[16];
 	uint8_t schannel_key[16];
 	NTSTATUS schannel_bind_result, status;
-	struct named_mutex *mutex;
+	struct named_mutex *mutex = NULL;
 	const char *ncalrpcsock;
 
 	ncalrpcsock = lp_parm_const_string(
@@ -256,7 +255,7 @@ static NTSTATUS check_netlogond_security(const struct auth_context *auth_context
 		goto done;
 	}
 
-	memcpy(schannel_key, p->dc->sess_key, 16);
+	memcpy(schannel_key, p->dc->session_key, 16);
 	secrets_store_local_schannel_key(schannel_key);
 
 	TALLOC_FREE(p);

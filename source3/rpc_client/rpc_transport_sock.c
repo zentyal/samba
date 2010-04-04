@@ -24,6 +24,7 @@
 
 struct rpc_transport_sock_state {
 	int fd;
+	int timeout;
 };
 
 static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *s)
@@ -36,61 +37,76 @@ static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *
 }
 
 struct rpc_sock_read_state {
+	struct rpc_transport_sock_state *transp;
 	ssize_t received;
 };
 
 static void rpc_sock_read_done(struct tevent_req *subreq);
 
-static struct async_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
-					    struct event_context *ev,
-					    uint8_t *data, size_t size,
-					    void *priv)
+static struct tevent_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
+					     struct event_context *ev,
+					     uint8_t *data, size_t size,
+					     void *priv)
 {
 	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
 		priv, struct rpc_transport_sock_state);
-	struct async_req *result;
-	struct tevent_req *subreq;
+	struct tevent_req *req, *subreq;
 	struct rpc_sock_read_state *state;
+	struct timeval endtime;
 
-	if (!async_req_setup(mem_ctx, &result, &state,
-			     struct rpc_sock_read_state)) {
+	req = tevent_req_create(mem_ctx, &state, struct rpc_sock_read_state);
+	if (req == NULL) {
 		return NULL;
 	}
-
+	if (sock_transp->fd == -1) {
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
+	}
+	state->transp = sock_transp;
+	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
 	subreq = async_recv_send(state, ev, sock_transp->fd, data, size, 0);
 	if (subreq == NULL) {
 		goto fail;
 	}
-	tevent_req_set_callback(subreq, rpc_sock_read_done, result);
-	return result;
+
+	if (!tevent_req_set_endtime(subreq, ev, endtime)) {
+		goto fail;
+	}
+
+	tevent_req_set_callback(subreq, rpc_sock_read_done, req);
+	return req;
  fail:
-	TALLOC_FREE(result);
+	TALLOC_FREE(req);
 	return NULL;
 }
 
 static void rpc_sock_read_done(struct tevent_req *subreq)
 {
-	struct async_req *req =
-		tevent_req_callback_data(subreq, struct async_req);
-	struct rpc_sock_read_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_read_state);
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpc_sock_read_state *state = tevent_req_data(
+		req, struct rpc_sock_read_state);
 	int err;
 
 	state->received = async_recv_recv(subreq, &err);
 	if (state->received == -1) {
-		async_req_nterror(req, map_nt_error_from_unix(err));
+		if (state->transp->fd != -1) {
+			close(state->transp->fd);
+			state->transp->fd = -1;
+		}
+		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
-	async_req_done(req);
+	tevent_req_done(req);
 }
 
-static NTSTATUS rpc_sock_read_recv(struct async_req *req, ssize_t *preceived)
+static NTSTATUS rpc_sock_read_recv(struct tevent_req *req, ssize_t *preceived)
 {
-	struct rpc_sock_read_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_read_state);
+	struct rpc_sock_read_state *state = tevent_req_data(
+		req, struct rpc_sock_read_state);
 	NTSTATUS status;
 
-	if (async_req_is_nterror(req, &status)) {
+	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
 	*preceived = state->received;
@@ -98,60 +114,76 @@ static NTSTATUS rpc_sock_read_recv(struct async_req *req, ssize_t *preceived)
 }
 
 struct rpc_sock_write_state {
+	struct rpc_transport_sock_state *transp;
 	ssize_t sent;
 };
 
 static void rpc_sock_write_done(struct tevent_req *subreq);
 
-static struct async_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
-					     struct event_context *ev,
-					     const uint8_t *data, size_t size,
-					     void *priv)
+static struct tevent_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
+					      struct event_context *ev,
+					      const uint8_t *data, size_t size,
+					      void *priv)
 {
 	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
 		priv, struct rpc_transport_sock_state);
-	struct async_req *result;
-	struct tevent_req *subreq;
+	struct tevent_req *req, *subreq;
 	struct rpc_sock_write_state *state;
+	struct timeval endtime;
 
-	if (!async_req_setup(mem_ctx, &result, &state,
-			     struct rpc_sock_write_state)) {
+	req = tevent_req_create(mem_ctx, &state, struct rpc_sock_write_state);
+	if (req == NULL) {
 		return NULL;
 	}
+	if (sock_transp->fd == -1) {
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
+	}
+	state->transp = sock_transp;
+	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
 	subreq = async_send_send(state, ev, sock_transp->fd, data, size, 0);
 	if (subreq == NULL) {
 		goto fail;
 	}
-	tevent_req_set_callback(subreq, rpc_sock_write_done, result);
-	return result;
+
+	if (!tevent_req_set_endtime(subreq, ev, endtime)) {
+		goto fail;
+	}
+
+	tevent_req_set_callback(subreq, rpc_sock_write_done, req);
+	return req;
  fail:
-	TALLOC_FREE(result);
+	TALLOC_FREE(req);
 	return NULL;
 }
 
 static void rpc_sock_write_done(struct tevent_req *subreq)
 {
-	struct async_req *req =
-		tevent_req_callback_data(subreq, struct async_req);
-	struct rpc_sock_write_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_write_state);
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct rpc_sock_write_state *state = tevent_req_data(
+		req, struct rpc_sock_write_state);
 	int err;
 
 	state->sent = async_send_recv(subreq, &err);
 	if (state->sent == -1) {
-		async_req_nterror(req, map_nt_error_from_unix(err));
+		if (state->transp->fd != -1) {
+			close(state->transp->fd);
+			state->transp->fd = -1;
+		}
+		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
-	async_req_done(req);
+	tevent_req_done(req);
 }
 
-static NTSTATUS rpc_sock_write_recv(struct async_req *req, ssize_t *psent)
+static NTSTATUS rpc_sock_write_recv(struct tevent_req *req, ssize_t *psent)
 {
-	struct rpc_sock_write_state *state = talloc_get_type_abort(
-		req->private_data, struct rpc_sock_write_state);
+	struct rpc_sock_write_state *state = tevent_req_data(
+		req, struct rpc_sock_write_state);
 	NTSTATUS status;
 
-	if (async_req_is_nterror(req, &status)) {
+	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
 	*psent = state->sent;
@@ -176,6 +208,7 @@ NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 	result->priv = state;
 
 	state->fd = fd;
+	state->timeout = 10000; /* 10 seconds. */
 	talloc_set_destructor(state, rpc_transport_sock_state_destructor);
 
 	result->trans_send = NULL;
@@ -187,4 +220,41 @@ NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 
 	*presult = result;
 	return NT_STATUS_OK;
+}
+
+int rpccli_set_sock_timeout(struct rpc_pipe_client *cli, int timeout)
+{
+	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
+							struct rpc_transport_sock_state);
+	int orig_timeout;
+	if (!state) {
+		return 0;
+	}
+	orig_timeout = state->timeout;
+	state->timeout = timeout;
+	return orig_timeout;
+}
+
+void rpccli_close_sock_fd(struct rpc_pipe_client *cli)
+{
+	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
+							struct rpc_transport_sock_state);
+	if (state) {
+		if (state->fd != -1) {
+			close(state->fd);
+			state->fd = -1;
+		}
+	}
+	return;
+}
+
+bool rpc_pipe_tcp_connection_ok(struct rpc_pipe_client *cli)
+{
+	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
+							struct rpc_transport_sock_state);
+	if (state && state->fd != -1) {
+		return true;
+	}
+
+	return false;
 }

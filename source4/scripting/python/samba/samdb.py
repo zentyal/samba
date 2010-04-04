@@ -2,6 +2,7 @@
 
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
+# Copyright (C) Matthias Dieter Wallnoefer 2009
 #
 # Based on the original in EJS:
 # Copyright (C) Andrew Tridgell <tridge@samba.org> 2005
@@ -35,54 +36,46 @@ __docformat__ = "restructuredText"
 class SamDB(samba.Ldb):
     """The SAM database."""
 
-    def __init__(self, url=None, session_info=None, credentials=None, 
-                 modules_dir=None, lp=None):
-        """Open the Sam Database.
-
-        :param url: URL of the database.
+    def __init__(self, url=None, lp=None, modules_dir=None, session_info=None,
+                 credentials=None, flags=0, options=None):
+        """Opens the SAM Database
+        For parameter meanings see the super class (samba.Ldb)
         """
+
         self.lp = lp
-        super(SamDB, self).__init__(session_info=session_info, credentials=credentials,
-                                    modules_dir=modules_dir, lp=lp)
+        if url is None:
+                url = lp.get("sam database")
+
+        super(SamDB, self).__init__(url=url, lp=lp, modules_dir=modules_dir,
+                session_info=session_info, credentials=credentials, flags=flags,
+                options=options)
+
         glue.dsdb_set_global_schema(self)
-        if url:
-            self.connect(url)
-        else:
-            self.connect(lp.get("sam database"))
 
-    def connect(self, url):
-        super(SamDB, self).connect(self.lp.private_path(url))
+    def connect(self, url=None, flags=0, options=None):
+        super(SamDB, self).connect(url=self.lp.private_path(url), flags=flags,
+                options=options)
 
-    def add_foreign(self, domaindn, sid, desc):
-        """Add a foreign security principle."""
-        add = """
-dn: CN=%s,CN=ForeignSecurityPrincipals,%s
-objectClass: top
-objectClass: foreignSecurityPrincipal
-description: %s
-""" % (sid, domaindn, desc)
-        # deliberately ignore errors from this, as the records may
-        # already exist
-        for msg in self.parse_ldif(add):
-            self.add(msg[1])
+    def domain_dn(self):
+        # find the DNs for the domain
+        res = self.search(base="",
+                          scope=ldb.SCOPE_BASE,
+                          expression="(defaultNamingContext=*)",
+                          attrs=["defaultNamingContext"])
+        assert(len(res) == 1 and res[0]["defaultNamingContext"] is not None)
+        return res[0]["defaultNamingContext"][0]
 
-    def add_stock_foreign_sids(self):
-        domaindn = self.domain_dn()
-        self.add_foreign(domaindn, "S-1-5-7", "Anonymous")
-        self.add_foreign(domaindn, "S-1-1-0", "World")
-        self.add_foreign(domaindn, "S-1-5-2", "Network")
-        self.add_foreign(domaindn, "S-1-5-18", "System")
-        self.add_foreign(domaindn, "S-1-5-11", "Authenticated Users")
-
-    def enable_account(self, user_dn):
-        """Enable an account.
+    def enable_account(self, filter):
+        """Enables an account
         
-        :param user_dn: Dn of the account to enable.
+        :param filter: LDAP filter to find the user (eg samccountname=name)
         """
-        res = self.search(user_dn, ldb.SCOPE_BASE, None, ["userAccountControl"])
-        assert len(res) == 1
-        userAccountControl = res[0]["userAccountControl"][0]
-        userAccountControl = int(userAccountControl)
+        res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
+                          expression=filter, attrs=["userAccountControl"])
+        assert(len(res) == 1)
+        user_dn = res[0].dn
+
+        userAccountControl = int(res[0]["userAccountControl"][0])
         if (userAccountControl & 0x2):
             userAccountControl = userAccountControl & ~0x2 # remove disabled bit
         if (userAccountControl & 0x20):
@@ -95,39 +88,51 @@ replace: userAccountControl
 userAccountControl: %u
 """ % (user_dn, userAccountControl)
         self.modify_ldif(mod)
-
-    def domain_dn(self):
-        # find the DNs for the domain and the domain users group
-        res = self.search("", scope=ldb.SCOPE_BASE, 
-                          expression="(defaultNamingContext=*)", 
-                          attrs=["defaultNamingContext"])
-        assert(len(res) == 1 and res[0]["defaultNamingContext"] is not None)
-        return res[0]["defaultNamingContext"][0]
-
-    def newuser(self, username, unixname, password):
-        """add a new user record.
         
-        :param username: Name of the new user.
-        :param unixname: Name of the unix user to map to.
-        :param password: Password for the new user
+    def force_password_change_at_next_login(self, filter):
+        """Forces a password change at next login
+        
+        :param filter: LDAP filter to find the user (eg samccountname=name)
         """
-        # connect to the sam 
+        res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
+                          expression=filter, attrs=[])
+        assert(len(res) == 1)
+        user_dn = res[0].dn
+
+        mod = """
+dn: %s
+changetype: modify
+replace: pwdLastSet
+pwdLastSet: 0
+""" % (user_dn)
+        self.modify_ldif(mod)
+
+    def newuser(self, username, unixname, password, force_password_change_at_next_login_req=False):
+        """Adds a new user
+
+        Note: This call adds also the ID mapping for winbind; therefore it works
+        *only* on SAMBA 4.
+        
+        :param username: Name of the new user
+        :param unixname: Name of the unix user to map to
+        :param password: Password for the new user
+        :param force_password_change_at_next_login_req: Force password change
+        """
         self.transaction_start()
         try:
-            domain_dn = self.domain_dn()
-            assert(domain_dn is not None)
-            user_dn = "CN=%s,CN=Users,%s" % (username, domain_dn)
+            user_dn = "CN=%s,CN=Users,%s" % (username, self.domain_dn())
 
-            #
-            #  the new user record. note the reliance on the samdb module to 
-            #  fill in a sid, guid etc
-            #
-            #  now the real work
+            # The new user record. Note the reliance on the SAMLDB module which
+            # fills in the default informations
             self.add({"dn": user_dn, 
                 "sAMAccountName": username,
-                "userPassword": password,
                 "objectClass": "user"})
 
+            # Sets the password for it
+            self.setpassword("(dn=" + user_dn + ")", password,
+              force_password_change_at_next_login_req)
+
+            # Gets the user SID (for the account mapping setup)
             res = self.search(user_dn, scope=ldb.SCOPE_BASE,
                               expression="objectclass=*",
                               attrs=["objectSid"])
@@ -138,40 +143,32 @@ userAccountControl: %u
                 idmap = IDmapDB(lp=self.lp)
 
                 user = pwd.getpwnam(unixname)
+
                 # setup ID mapping for this UID
-                
                 idmap.setup_name_mapping(user_sid, idmap.TYPE_UID, user[2])
 
             except KeyError:
                 pass
-
-            #  modify the userAccountControl to remove the disabled bit
-            self.enable_account(user_dn)
         except:
             self.transaction_cancel()
             raise
         self.transaction_commit()
 
-    def setpassword(self, filter, password):
-        """Set a password on a user record
+    def setpassword(self, filter, password, force_password_change_at_next_login_req=False):
+        """Sets the password for a user
         
+        Note: This call uses the "userPassword" attribute to set the password.
+        This works correctly on SAMBA 4 and on Windows DCs with
+        "2003 Native" or higer domain function level.
+
         :param filter: LDAP filter to find the user (eg samccountname=name)
         :param password: Password for the user
+        :param force_password_change_at_next_login_req: Force password change
         """
-        # connect to the sam 
         self.transaction_start()
         try:
-            # find the DNs for the domain
-            res = self.search("", scope=ldb.SCOPE_BASE, 
-                              expression="(defaultNamingContext=*)", 
-                              attrs=["defaultNamingContext"])
-            assert(len(res) == 1 and res[0]["defaultNamingContext"] is not None)
-            domain_dn = res[0]["defaultNamingContext"][0]
-            assert(domain_dn is not None)
-
-            res = self.search(domain_dn, scope=ldb.SCOPE_SUBTREE, 
-                              expression=filter,
-                              attrs=[])
+            res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
+                              expression=filter, attrs=[])
             assert(len(res) == 1)
             user_dn = res[0].dn
 
@@ -184,62 +181,53 @@ userPassword:: %s
 
             self.modify_ldif(setpw)
 
+            if force_password_change_at_next_login_req:
+                self.force_password_change_at_next_login(
+                  "(dn=" + str(user_dn) + ")")
+
             #  modify the userAccountControl to remove the disabled bit
-            self.enable_account(user_dn)
+            self.enable_account(filter)
         except:
             self.transaction_cancel()
             raise
         self.transaction_commit()
 
-    def set_domain_sid(self, sid):
-        """Change the domain SID used by this SamDB.
-
-        :param sid: The new domain sid to use.
-        """
-        glue.samdb_set_domain_sid(self, sid)
-
-    def attach_schema_from_ldif(self, pf, df):
-        glue.dsdb_attach_schema_from_ldif_file(self, pf, df)
-
-    def set_invocation_id(self, invocation_id):
-        """Set the invocation id for this SamDB handle.
+    def setexpiry(self, filter, expiry_seconds, no_expiry_req=False):
+        """Sets the account expiry for a user
         
-        :param invocation_id: GUID of the invocation id.
-        """
-        glue.dsdb_set_ntds_invocation_id(self, invocation_id)
-
-    def setexpiry(self, user, expiry_seconds, noexpiry):
-        """Set the password expiry for a user
-        
+        :param filter: LDAP filter to find the user (eg samccountname=name)
         :param expiry_seconds: expiry time from now in seconds
-        :param noexpiry: if set, then don't expire password
+        :param no_expiry_req: if set, then don't expire password
         """
         self.transaction_start()
         try:
             res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
-                              expression=("(samAccountName=%s)" % user),
-                              attrs=["userAccountControl", "accountExpires"])
-            assert len(res) == 1
+                          expression=filter,
+                          attrs=["userAccountControl", "accountExpires"])
+            assert(len(res) == 1)
+            user_dn = res[0].dn
+
             userAccountControl = int(res[0]["userAccountControl"][0])
             accountExpires     = int(res[0]["accountExpires"][0])
-            if noexpiry:
+            if no_expiry_req:
                 userAccountControl = userAccountControl | 0x10000
                 accountExpires = 0
             else:
                 userAccountControl = userAccountControl & ~0x10000
                 accountExpires = glue.unix2nttime(expiry_seconds + int(time.time()))
 
-            mod = """
+            setexp = """
 dn: %s
 changetype: modify
 replace: userAccountControl
 userAccountControl: %u
 replace: accountExpires
 accountExpires: %u
-""" % (res[0].dn, userAccountControl, accountExpires)
-            # now change the database
-            self.modify_ldif(mod)
+""" % (user_dn, userAccountControl, accountExpires)
+
+            self.modify_ldif(setexp)
         except:
             self.transaction_cancel()
             raise
         self.transaction_commit();
+

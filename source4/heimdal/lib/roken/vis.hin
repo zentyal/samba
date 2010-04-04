@@ -44,6 +44,8 @@
 
 #include <sys/types.h>
 
+#include <roken.h>
+
 /*
  * to select alternate encoding format
  */
@@ -80,11 +82,8 @@
  */
 #define	UNVIS_END	1	/* no more characters */
 
-#ifdef HAVE_SYS_CDEFS_H
-#include <sys/cdefs.h>
-#endif
+ROKEN_CPP_START
 
-__BEGIN_DECLS
 char * ROKEN_LIB_FUNCTION
 	rk_vis(char *, int, int, int);
 char * ROKEN_LIB_FUNCTION
@@ -103,23 +102,47 @@ int ROKEN_LIB_FUNCTION
 	rk_strunvisx(char *, const char *, int);
 int ROKEN_LIB_FUNCTION
 	rk_unvis(char *, int, int *, int);
-__END_DECLS
+ROKEN_CPP_END
 
+#ifndef HAVE_VIS
 #undef vis
 #define vis(a,b,c,d) rk_vis(a,b,c,d)
+#endif
+
+#ifndef HAVE_SVIS
 #undef svis
 #define svis(a,b,c,d,e) rk_svis(a,b,c,d,e)
+#endif
+
+#ifndef HAVE_STRVIS
 #undef strvis
 #define strvis(a,b,c) rk_strvis(a,b,c)
+#endif
+
+#ifndef HAVE_STRSVIS
 #undef strsvis
 #define strsvis(a,b,c,d) rk_strsvis(a,b,c,d)
+#endif
+
+#ifndef HAVE_STRVISX
 #undef strvisx
 #define strvisx(a,b,c,d) rk_strvisx(a,b,c,d)
+#endif
+
+#ifndef HAVE_STRSVISX
 #undef strsvisx
 #define strsvisx(a,b,c,d,e) rk_strsvisx(a,b,c,d,e)
+#endif
+
+#ifndef HAVE_STRUNVIS
 #undef strunvis
 #define strunvis(a,b) rk_strunvis(a,b)
+#endif
+
+
+#ifndef HAVE_UNVIS
 #undef unvis
 #define unvis(a,b,c,d) rk_unvis(a,b,c,d)
+#endif
 
 #endif /* !_VIS_H_ */

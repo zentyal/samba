@@ -21,12 +21,12 @@
 #include "smb_server/smb_server.h"
 #include "smbd/service_stream.h"
 #include "ntvfs/ntvfs.h"
-#include "param/share.h"
 #include "param/param.h"
 
 /****************************************************************************
   Make a connection, given the snum to connect to, and the vuser of the
   connecting user if appropriate.
+  Does note invoke the NTVFS connection hook
 ****************************************************************************/
 static NTSTATUS make_connection_scfg(struct smbsrv_request *req,
 				     struct share_config *scfg,
@@ -85,23 +85,6 @@ static NTSTATUS make_connection_scfg(struct smbsrv_request *req,
 					    tcon);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("make_connection: NTVFS failed to set the handle callbacks!\n"));
-		goto failed;
-	}
-
-	req->ntvfs = ntvfs_request_create(req->tcon->ntvfs, req,
-					  req->session->session_info,
-					  SVAL(req->in.hdr,HDR_PID),
-					  req->request_time,
-					  req, NULL, 0);
-	if (!req->ntvfs) {
-		status = NT_STATUS_NO_MEMORY;
-		goto failed;
-	}
-
-	/* Invoke NTVFS connection hook */
-	status = ntvfs_connect(req->ntvfs, scfg->name);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("make_connection: NTVFS make connection failed!\n"));
 		goto failed;
 	}
 
@@ -174,7 +157,7 @@ static NTSTATUS make_connection(struct smbsrv_request *req,
 }
 
 /*
-  backend for tree connect call
+  backend for tree connect call, in preparation for calling ntvfs_connect()
 */
 NTSTATUS smbsrv_tcon_backend(struct smbsrv_request *req, union smb_tcon *con)
 {
@@ -205,8 +188,6 @@ NTSTATUS smbsrv_tcon_backend(struct smbsrv_request *req, union smb_tcon *con)
 	}
 
 	con->tconx.out.tid = req->tcon->tid;
-	con->tconx.out.dev_type = talloc_strdup(req, req->tcon->ntvfs->dev_type);
-	con->tconx.out.fs_type = talloc_strdup(req, req->tcon->ntvfs->fs_type);
 	con->tconx.out.options = SMB_SUPPORT_SEARCH_BITS | (share_int_option(req->tcon->ntvfs->config, SHARE_CSC_POLICY, SHARE_CSC_POLICY_DEFAULT) << 2);
 	if (share_bool_option(req->tcon->ntvfs->config, SHARE_MSDFS_ROOT, SHARE_MSDFS_ROOT_DEFAULT) && lp_host_msdfs(req->smb_conn->lp_ctx)) {
 		con->tconx.out.options |= SMB_SHARE_IN_DFS;

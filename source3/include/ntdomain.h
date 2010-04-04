@@ -28,6 +28,8 @@
  * in the NTDOM branch - it didn't belong there.
  */
 
+#define prs_init_empty( _ps_, _ctx_, _io_ ) (void) prs_init((_ps_), 0, (_ctx_), (_io_))
+
 typedef struct _prs_struct {
 	bool io; /* parsing in or out of data stream */
 	/* 
@@ -110,42 +112,7 @@ typedef struct _input_data {
 	prs_struct data;
 } input_data;
 
-/*
- * Handle database - stored per pipe.
- */
-
-struct policy {
-	struct policy *next, *prev;
-
-	struct policy_handle pol_hnd;
-
-	void *data_ptr;
-};
-
-struct handle_list {
-	struct policy *Policy; 	/* List of policies. */
-	size_t count;			/* Current number of handles. */
-	size_t pipe_ref_count;	/* Number of pipe handles referring to this list. */
-};
-
-/* Domain controller authentication protocol info */
-struct dcinfo {
-	uint32 sequence; /* "timestamp" from client. */
-	struct netr_Credential seed_chal;
-	struct netr_Credential clnt_chal; /* Client credential */
-	struct netr_Credential srv_chal;  /* Server credential */
-
-	unsigned char  sess_key[16]; /* Session key */
-	unsigned char  mach_pw[16];   /* md4(machine password) */
-
-	fstring mach_acct;  /* Machine name we've authenticated. */
-
-	fstring remote_machine;  /* Machine name we've authenticated. */
-	fstring domain;
-
-	bool challenge_sent;
-	bool authenticated;
-};
+struct handle_list;
 
 typedef struct pipe_rpc_fns {
 
@@ -167,13 +134,6 @@ typedef struct pipe_rpc_fns {
 enum pipe_auth_type { PIPE_AUTH_TYPE_NONE = 0, PIPE_AUTH_TYPE_NTLMSSP, PIPE_AUTH_TYPE_SCHANNEL,
 			PIPE_AUTH_TYPE_SPNEGO_NTLMSSP, PIPE_AUTH_TYPE_KRB5, PIPE_AUTH_TYPE_SPNEGO_KRB5 };
 
-/* Possible auth levels - keep these in sync with the wire values. */
-enum pipe_auth_level { PIPE_AUTH_LEVEL_NONE = 0,
-			PIPE_AUTH_LEVEL_CONNECT = 1,	/* We treat as NONE. */
-			PIPE_AUTH_LEVEL_INTEGRITY = 5,	/* Sign. */
-			PIPE_AUTH_LEVEL_PRIVACY = 6	/* Seal. */
-};
-
 /* auth state for krb5. */
 struct kerberos_auth_struct {
 	const char *service_principal;
@@ -190,9 +150,9 @@ struct schannel_auth_struct {
 
 struct pipe_auth_data {
 	enum pipe_auth_type auth_type; /* switch for union below. */
-	enum pipe_auth_level auth_level;
+	enum dcerpc_AuthLevel auth_level;
 	union {
-		struct schannel_auth_struct *schannel_auth;
+		struct schannel_state *schannel_auth;
 		AUTH_NTLMSSP_STATE *auth_ntlmssp_state;
 /*		struct kerberos_auth_struct *kerberos_auth; TO BE ADDED... */
 	} a_u;
@@ -222,8 +182,6 @@ typedef struct pipes_struct {
 	RPC_HDR_REQ hdr_req; /* Incoming request header. */
 
 	struct pipe_auth_data auth;
-
-	struct dcinfo *dc; /* Keeps the creds data from netlogon. */
 
 	/*
 	 * Set to true when an RPC bind has been done on this pipe.
@@ -274,6 +232,9 @@ typedef struct pipes_struct {
 	/* handle database to use on this pipe. */
 	struct handle_list *pipe_handles;
 
+	/* private data for the interface implementation */
+	void *private_data;
+
 } pipes_struct;
 
 struct api_struct {  
@@ -281,16 +242,5 @@ struct api_struct {
 	uint8 opnum;
 	bool (*fn) (pipes_struct *);
 };
-
-/*
- * higher order functions for use with msrpc client code
- */
-
-#define PRINT_INFO_FN(fn)\
-        void (*fn)(const char*, uint32, uint32, void  *const *const)
-#define JOB_INFO_FN(fn)\
-        void (*fn)(const char*, const char*, uint32, uint32, void *const *const)
-
-/* end higher order functions */
 
 #endif /* _NT_DOMAIN_H */

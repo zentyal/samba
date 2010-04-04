@@ -90,8 +90,6 @@ bool    AllowDebugChange = True;
 */
 bool    override_logfile;
 
-static TALLOC_CTX *tmp_debug_ctx;
-
 /*
  * This is to allow assignment to DEBUGLEVEL before the debug
  * system has been initialized.
@@ -605,6 +603,15 @@ void setup_logging(const char *pname, bool interactive)
 #endif
 }
 
+/**
+   Just run logging to stdout for this program 
+*/
+_PUBLIC_ void setup_logging_stdout(void)
+{
+	setup_logging(NULL, True);
+}
+
+
 /***************************************************************************
  Set the logfile name.
 **************************************************************************/
@@ -739,7 +746,8 @@ void check_log_size( void )
 
 	maxlog = lp_max_log_size() * 1024;
 
-	if( sys_fstat( x_fileno( dbf ), &st ) == 0 && st.st_size > maxlog ) {
+	if(sys_fstat(x_fileno(dbf), &st, false) == 0
+	   && st.st_ex_size > maxlog ) {
 		(void)reopen_logs();
 		if( dbf && get_file_size( debugf ) > maxlog ) {
 			char *name = NULL;
@@ -847,6 +855,12 @@ void check_log_size( void )
 		else
 			priority = priority_map[syslog_level];
 
+		/*
+		 * Specify the facility to interoperate with other syslog
+		 * callers (vfs_full_audit for example).
+		 */
+		priority |= SYSLOG_FACILITY;
+
 		va_start(ap, format_str);
 		ret = vasprintf(&msgbuf, format_str, ap);
 		va_end(ap);
@@ -873,8 +887,6 @@ void check_log_size( void )
 	}
 
  done:
-	TALLOC_FREE(tmp_debug_ctx);
-
 	errno = old_errno;
 
 	return( 0 );
@@ -1042,12 +1054,12 @@ bool dbghdrclass(int level, int cls, const char *location, const char *func)
 		/* Print it all out at once to prevent split syslog output. */
 		if( lp_debug_prefix_timestamp() ) {
 		    (void)Debug1( "[%s, %2d%s] ",
-			current_timestring(debug_ctx(),
+			current_timestring(talloc_tos(),
 					   lp_debug_hires_timestamp()),
 			level, header_str);
 		} else {
 		    (void)Debug1( "[%s, %2d%s] %s(%s)\n",
-			current_timestring(debug_ctx(),
+			current_timestring(talloc_tos(),
 					   lp_debug_hires_timestamp()),
 			level, header_str, location, func );
 		}
@@ -1094,15 +1106,4 @@ bool dbghdr(int level, const char *location, const char *func)
 	}
 	SAFE_FREE(msgbuf);
 	return ret;
-}
-
-/*
- * Get us a temporary talloc context usable just for DEBUG arguments
- */
-TALLOC_CTX *debug_ctx(void)
-{
-        if (tmp_debug_ctx == NULL) {
-                tmp_debug_ctx = talloc_named_const(NULL, 0, "debug_ctx");
-        }
-        return tmp_debug_ctx;
 }

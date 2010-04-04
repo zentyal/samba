@@ -1,3 +1,10 @@
+samba (2:3.2.5-4lenny10) stable-proposed-updates-UNRELEASED; urgency=low
+
+  * Fix interdomain trust with w2k8r2 servers. This makes lenny's
+    samba unusable in some situations. Closes: #575951
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 04 Apr 2010 16:58:49 +0200
+
 samba (2:3.2.5-4lenny9) stable-security; urgency=low
 
   * Security update, fixing the following issues in mount.cifs:

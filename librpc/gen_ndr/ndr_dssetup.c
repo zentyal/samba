@@ -6,14 +6,14 @@
 #include "librpc/gen_ndr/ndr_misc.h"
 static enum ndr_err_code ndr_push_dssetup_DsRole(struct ndr_push *ndr, int ndr_flags, enum dssetup_DsRole r)
 {
-	NDR_CHECK(ndr_push_enum_uint1632(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_dssetup_DsRole(struct ndr_pull *ndr, int ndr_flags, enum dssetup_DsRole *r)
 {
 	uint16_t v;
-	NDR_CHECK(ndr_pull_enum_uint1632(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -61,32 +61,31 @@ _PUBLIC_ void ndr_print_dssetup_DsRoleFlags(struct ndr_print *ndr, const char *n
 static enum ndr_err_code ndr_push_dssetup_DsRolePrimaryDomInfoBasic(struct ndr_push *ndr, int ndr_flags, const struct dssetup_DsRolePrimaryDomInfoBasic *r)
 {
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_push_align(ndr, 5));
+		NDR_CHECK(ndr_push_align(ndr, 4));
 		NDR_CHECK(ndr_push_dssetup_DsRole(ndr, NDR_SCALARS, r->role));
 		NDR_CHECK(ndr_push_dssetup_DsRoleFlags(ndr, NDR_SCALARS, r->flags));
 		NDR_CHECK(ndr_push_unique_ptr(ndr, r->domain));
 		NDR_CHECK(ndr_push_unique_ptr(ndr, r->dns_domain));
 		NDR_CHECK(ndr_push_unique_ptr(ndr, r->forest));
 		NDR_CHECK(ndr_push_GUID(ndr, NDR_SCALARS, &r->domain_guid));
-		NDR_CHECK(ndr_push_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		if (r->domain) {
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->domain, CH_UTF16)));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->domain, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->domain, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->domain, CH_UTF16)));
 			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->domain, ndr_charset_length(r->domain, CH_UTF16), sizeof(uint16_t), CH_UTF16));
 		}
 		if (r->dns_domain) {
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->dns_domain, CH_UTF16)));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->dns_domain, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->dns_domain, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->dns_domain, CH_UTF16)));
 			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->dns_domain, ndr_charset_length(r->dns_domain, CH_UTF16), sizeof(uint16_t), CH_UTF16));
 		}
 		if (r->forest) {
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->forest, CH_UTF16)));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
-			NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, ndr_charset_length(r->forest, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->forest, CH_UTF16)));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, 0));
+			NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, ndr_charset_length(r->forest, CH_UTF16)));
 			NDR_CHECK(ndr_push_charset(ndr, NDR_SCALARS, r->forest, ndr_charset_length(r->forest, CH_UTF16), sizeof(uint16_t), CH_UTF16));
 		}
 	}
@@ -102,7 +101,7 @@ static enum ndr_err_code ndr_pull_dssetup_DsRolePrimaryDomInfoBasic(struct ndr_p
 	uint32_t _ptr_forest;
 	TALLOC_CTX *_mem_save_forest_0;
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_pull_align(ndr, 5));
+		NDR_CHECK(ndr_pull_align(ndr, 4));
 		NDR_CHECK(ndr_pull_dssetup_DsRole(ndr, NDR_SCALARS, &r->role));
 		NDR_CHECK(ndr_pull_dssetup_DsRoleFlags(ndr, NDR_SCALARS, &r->flags));
 		NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_domain));
@@ -124,7 +123,6 @@ static enum ndr_err_code ndr_pull_dssetup_DsRolePrimaryDomInfoBasic(struct ndr_p
 			r->forest = NULL;
 		}
 		NDR_CHECK(ndr_pull_GUID(ndr, NDR_SCALARS, &r->domain_guid));
-		NDR_CHECK(ndr_pull_trailer_align(ndr, 5));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 		if (r->domain) {
@@ -197,14 +195,14 @@ _PUBLIC_ void ndr_print_dssetup_DsRolePrimaryDomInfoBasic(struct ndr_print *ndr,
 
 static enum ndr_err_code ndr_push_dssetup_DsUpgrade(struct ndr_push *ndr, int ndr_flags, enum dssetup_DsUpgrade r)
 {
-	NDR_CHECK(ndr_push_enum_uint32(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_dssetup_DsUpgrade(struct ndr_pull *ndr, int ndr_flags, enum dssetup_DsUpgrade *r)
 {
 	uint32_t v;
-	NDR_CHECK(ndr_pull_enum_uint32(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -222,14 +220,14 @@ _PUBLIC_ void ndr_print_dssetup_DsUpgrade(struct ndr_print *ndr, const char *nam
 
 static enum ndr_err_code ndr_push_dssetup_DsPrevious(struct ndr_push *ndr, int ndr_flags, enum dssetup_DsPrevious r)
 {
-	NDR_CHECK(ndr_push_enum_uint1632(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_dssetup_DsPrevious(struct ndr_pull *ndr, int ndr_flags, enum dssetup_DsPrevious *r)
 {
 	uint16_t v;
-	NDR_CHECK(ndr_pull_enum_uint1632(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -252,7 +250,6 @@ static enum ndr_err_code ndr_push_dssetup_DsRoleUpgradeStatus(struct ndr_push *n
 		NDR_CHECK(ndr_push_align(ndr, 4));
 		NDR_CHECK(ndr_push_dssetup_DsUpgrade(ndr, NDR_SCALARS, r->upgrading));
 		NDR_CHECK(ndr_push_dssetup_DsPrevious(ndr, NDR_SCALARS, r->previous_role));
-		NDR_CHECK(ndr_push_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -265,7 +262,6 @@ static enum ndr_err_code ndr_pull_dssetup_DsRoleUpgradeStatus(struct ndr_pull *n
 		NDR_CHECK(ndr_pull_align(ndr, 4));
 		NDR_CHECK(ndr_pull_dssetup_DsUpgrade(ndr, NDR_SCALARS, &r->upgrading));
 		NDR_CHECK(ndr_pull_dssetup_DsPrevious(ndr, NDR_SCALARS, &r->previous_role));
-		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -283,14 +279,14 @@ _PUBLIC_ void ndr_print_dssetup_DsRoleUpgradeStatus(struct ndr_print *ndr, const
 
 static enum ndr_err_code ndr_push_dssetup_DsRoleOp(struct ndr_push *ndr, int ndr_flags, enum dssetup_DsRoleOp r)
 {
-	NDR_CHECK(ndr_push_enum_uint1632(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_dssetup_DsRoleOp(struct ndr_pull *ndr, int ndr_flags, enum dssetup_DsRoleOp *r)
 {
 	uint16_t v;
-	NDR_CHECK(ndr_pull_enum_uint1632(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -310,9 +306,8 @@ _PUBLIC_ void ndr_print_dssetup_DsRoleOp(struct ndr_print *ndr, const char *name
 static enum ndr_err_code ndr_push_dssetup_DsRoleOpStatus(struct ndr_push *ndr, int ndr_flags, const struct dssetup_DsRoleOpStatus *r)
 {
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_push_align(ndr, 3));
+		NDR_CHECK(ndr_push_align(ndr, 2));
 		NDR_CHECK(ndr_push_dssetup_DsRoleOp(ndr, NDR_SCALARS, r->status));
-		NDR_CHECK(ndr_push_trailer_align(ndr, 3));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -322,9 +317,8 @@ static enum ndr_err_code ndr_push_dssetup_DsRoleOpStatus(struct ndr_push *ndr, i
 static enum ndr_err_code ndr_pull_dssetup_DsRoleOpStatus(struct ndr_pull *ndr, int ndr_flags, struct dssetup_DsRoleOpStatus *r)
 {
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_pull_align(ndr, 3));
+		NDR_CHECK(ndr_pull_align(ndr, 2));
 		NDR_CHECK(ndr_pull_dssetup_DsRoleOp(ndr, NDR_SCALARS, &r->status));
-		NDR_CHECK(ndr_pull_trailer_align(ndr, 3));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
 	}
@@ -341,14 +335,14 @@ _PUBLIC_ void ndr_print_dssetup_DsRoleOpStatus(struct ndr_print *ndr, const char
 
 static enum ndr_err_code ndr_push_dssetup_DsRoleInfoLevel(struct ndr_push *ndr, int ndr_flags, enum dssetup_DsRoleInfoLevel r)
 {
-	NDR_CHECK(ndr_push_enum_uint1632(ndr, NDR_SCALARS, r));
+	NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r));
 	return NDR_ERR_SUCCESS;
 }
 
 static enum ndr_err_code ndr_pull_dssetup_DsRoleInfoLevel(struct ndr_pull *ndr, int ndr_flags, enum dssetup_DsRoleInfoLevel *r)
 {
 	uint16_t v;
-	NDR_CHECK(ndr_pull_enum_uint1632(ndr, NDR_SCALARS, &v));
+	NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &v));
 	*r = v;
 	return NDR_ERR_SUCCESS;
 }
@@ -370,7 +364,6 @@ static enum ndr_err_code ndr_push_dssetup_DsRoleInfo(struct ndr_push *ndr, int n
 	if (ndr_flags & NDR_SCALARS) {
 		int level = ndr_push_get_switch_value(ndr, r);
 		NDR_CHECK(ndr_push_dssetup_DsRoleInfoLevel(ndr, NDR_SCALARS, level));
-		NDR_CHECK(ndr_push_union_align(ndr, 5));
 		switch (level) {
 			case DS_ROLE_BASIC_INFORMATION: {
 				NDR_CHECK(ndr_push_dssetup_DsRolePrimaryDomInfoBasic(ndr, NDR_SCALARS, &r->basic));
@@ -385,7 +378,7 @@ static enum ndr_err_code ndr_push_dssetup_DsRoleInfo(struct ndr_push *ndr, int n
 			break; }
 
 			default:
-				return ndr_push_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u at %s", level, __location__);
+				return ndr_push_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u", level);
 		}
 	}
 	if (ndr_flags & NDR_BUFFERS) {
@@ -402,7 +395,7 @@ static enum ndr_err_code ndr_push_dssetup_DsRoleInfo(struct ndr_push *ndr, int n
 			break;
 
 			default:
-				return ndr_push_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u at %s", level, __location__);
+				return ndr_push_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u", level);
 		}
 	}
 	return NDR_ERR_SUCCESS;
@@ -414,11 +407,10 @@ static enum ndr_err_code ndr_pull_dssetup_DsRoleInfo(struct ndr_pull *ndr, int n
 	uint16_t _level;
 	level = ndr_pull_get_switch_value(ndr, r);
 	if (ndr_flags & NDR_SCALARS) {
-		NDR_CHECK(ndr_pull_uint1632(ndr, NDR_SCALARS, &_level));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &_level));
 		if (_level != level) {
-			return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u for r at %s", _level, __location__);
+			return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u for r", _level);
 		}
-		NDR_CHECK(ndr_pull_union_align(ndr, 5));
 		switch (level) {
 			case DS_ROLE_BASIC_INFORMATION: {
 				NDR_CHECK(ndr_pull_dssetup_DsRolePrimaryDomInfoBasic(ndr, NDR_SCALARS, &r->basic));
@@ -433,7 +425,7 @@ static enum ndr_err_code ndr_pull_dssetup_DsRoleInfo(struct ndr_pull *ndr, int n
 			break; }
 
 			default:
-				return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u at %s", level, __location__);
+				return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u", level);
 		}
 	}
 	if (ndr_flags & NDR_BUFFERS) {
@@ -449,7 +441,7 @@ static enum ndr_err_code ndr_pull_dssetup_DsRoleInfo(struct ndr_pull *ndr, int n
 			break;
 
 			default:
-				return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u at %s", level, __location__);
+				return ndr_pull_error(ndr, NDR_ERR_BAD_SWITCH, "Bad switch value %u", level);
 		}
 	}
 	return NDR_ERR_SUCCESS;

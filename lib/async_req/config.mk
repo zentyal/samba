@@ -1,4 +1,3 @@
 [SUBSYSTEM::LIBASYNC_REQ]
-PUBLIC_DEPENDENCIES = LIBREPLACE_NETWORK LIBTALLOC LIBTEVENT
 
-LIBASYNC_REQ_OBJ_FILES = $(addprefix ../lib/async_req/, async_sock.o)
+LIBASYNC_REQ_OBJ_FILES = $(addprefix ../lib/async_req/, async_req.o async_sock.o async_req_ntstatus.o)

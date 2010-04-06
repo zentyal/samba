@@ -20,31 +20,24 @@
 */
 
 #include "includes.h"
-#include <tevent.h>
+#include "lib/events/events.h"
 #include "libcli/cldap/cldap.h"
 #include "libcli/resolve/resolve.h"
 #include "torture/torture.h"
 #include "param/param.h"
-#include "../lib/tsocket/tsocket.h"
-
-#define CHECK_VAL(v, correct) torture_assert_int_equal(tctx, (v), (correct), "incorrect value");
 
 struct bench_state {
-	struct torture_context *tctx;
 	int pass_count, fail_count;
 };
 
-static void request_netlogon_handler(struct tevent_req *req)
+static void request_netlogon_handler(struct cldap_request *req)
 {
 	struct cldap_netlogon io;
-	struct bench_state *state = tevent_req_callback_data(req, struct bench_state);
+	struct bench_state *state = talloc_get_type(req->async.private_data, struct bench_state);
 	NTSTATUS status;
 	TALLOC_CTX *tmp_ctx = talloc_new(NULL);
 	io.in.version = 6;
-	status = cldap_netlogon_recv(req,
-				     lp_iconv_convenience(state->tctx->lp_ctx),
-				     tmp_ctx, &io);
-	talloc_free(req);
+	status = cldap_netlogon_recv(req, tmp_ctx, &io);
 	if (NT_STATUS_IS_OK(status)) {
 		state->pass_count++;
 	} else {
@@ -61,24 +54,14 @@ static bool bench_cldap_netlogon(struct torture_context *tctx, const char *addre
 	struct cldap_socket *cldap;
 	int num_sent=0;
 	struct timeval tv = timeval_current();
+	bool ret = true;
 	int timelimit = torture_setting_int(tctx, "timelimit", 10);
 	struct cldap_netlogon search;
 	struct bench_state *state;
-	NTSTATUS status;
-	struct tsocket_address *dest_addr;
-	int ret;
 
-	ret = tsocket_address_inet_from_strings(tctx, "ip",
-						address,
-						lp_cldap_port(tctx->lp_ctx),
-						&dest_addr);
-	CHECK_VAL(ret, 0);
-
-	status = cldap_socket_init(tctx, tctx->ev, NULL, dest_addr, &cldap);
-	torture_assert_ntstatus_ok(tctx, status, "cldap_socket_init");
+	cldap = cldap_socket_init(tctx, tctx->ev, lp_iconv_convenience(tctx->lp_ctx));
 
 	state = talloc_zero(tctx, struct bench_state);
-	state->tctx = tctx;
 
 	ZERO_STRUCT(search);
 	search.in.dest_address = address;
@@ -89,11 +72,11 @@ static bool bench_cldap_netlogon(struct torture_context *tctx, const char *addre
 	printf("Running CLDAP/netlogon for %d seconds\n", timelimit);
 	while (timeval_elapsed(&tv) < timelimit) {
 		while (num_sent - (state->pass_count+state->fail_count) < 10) {
-			struct tevent_req *req;
-			req = cldap_netlogon_send(state, cldap, &search);
+			struct cldap_request *req;
+			req = cldap_netlogon_send(cldap, &search);
 
-			tevent_req_set_callback(req, request_netlogon_handler, state);
-
+			req->async.private_data = state;
+			req->async.fn = request_netlogon_handler;
 			num_sent++;
 			if (num_sent % 50 == 0) {
 				if (torture_setting_bool(tctx, "progress", true)) {
@@ -105,11 +88,11 @@ static bool bench_cldap_netlogon(struct torture_context *tctx, const char *addre
 			}
 		}
 
-		tevent_loop_once(tctx->ev);
+		event_loop_once(cldap->event_ctx);
 	}
 
 	while (num_sent != (state->pass_count + state->fail_count)) {
-		tevent_loop_once(tctx->ev);
+		event_loop_once(cldap->event_ctx);
 	}
 
 	printf("%.1f queries per second (%d failures)  \n", 
@@ -117,17 +100,16 @@ static bool bench_cldap_netlogon(struct torture_context *tctx, const char *addre
 	       state->fail_count);
 
 	talloc_free(cldap);
-	return true;
+	return ret;
 }
 
-static void request_rootdse_handler(struct tevent_req *req)
+static void request_rootdse_handler(struct cldap_request *req)
 {
 	struct cldap_search io;
-	struct bench_state *state = tevent_req_callback_data(req, struct bench_state);
+	struct bench_state *state = talloc_get_type(req->async.private_data, struct bench_state);
 	NTSTATUS status;
 	TALLOC_CTX *tmp_ctx = talloc_new(NULL);
 	status = cldap_search_recv(req, tmp_ctx, &io);
-	talloc_free(req);
 	if (NT_STATUS_IS_OK(status)) {
 		state->pass_count++;
 	} else {
@@ -144,14 +126,12 @@ static bool bench_cldap_rootdse(struct torture_context *tctx, const char *addres
 	struct cldap_socket *cldap;
 	int num_sent=0;
 	struct timeval tv = timeval_current();
+	bool ret = true;
 	int timelimit = torture_setting_int(tctx, "timelimit", 10);
 	struct cldap_search search;
 	struct bench_state *state;
-	NTSTATUS status;
 
-	/* cldap_socket_init should now know about the dest. address */
-	status = cldap_socket_init(tctx, tctx->ev, NULL, NULL, &cldap);
-	torture_assert_ntstatus_ok(tctx, status, "cldap_socket_init");
+	cldap = cldap_socket_init(tctx, tctx->ev, lp_iconv_convenience(tctx->lp_ctx));
 
 	state = talloc_zero(tctx, struct bench_state);
 
@@ -165,11 +145,11 @@ static bool bench_cldap_rootdse(struct torture_context *tctx, const char *addres
 	printf("Running CLDAP/rootdse for %d seconds\n", timelimit);
 	while (timeval_elapsed(&tv) < timelimit) {
 		while (num_sent - (state->pass_count+state->fail_count) < 10) {
-			struct tevent_req *req;
-			req = cldap_search_send(state, cldap, &search);
+			struct cldap_request *req;
+			req = cldap_search_send(cldap, &search);
 
-			tevent_req_set_callback(req, request_rootdse_handler, state);
-
+			req->async.private_data = state;
+			req->async.fn = request_rootdse_handler;
 			num_sent++;
 			if (num_sent % 50 == 0) {
 				if (torture_setting_bool(tctx, "progress", true)) {
@@ -193,7 +173,7 @@ static bool bench_cldap_rootdse(struct torture_context *tctx, const char *addres
 	       state->fail_count);
 
 	talloc_free(cldap);
-	return true;
+	return ret;
 }
 
 /*

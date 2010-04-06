@@ -1,13 +1,161 @@
-'\" t
 .\"     Title: rpcclient
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 02/19/2010
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 02/22/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "RPCCLIENT" "1" "02/19/2010" "Samba 3\&.5" "User Commands"
+.TH "RPCCLIENT" "1" "02/22/2010" "Samba 3\&.4" "User Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -18,18 +166,20 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "NAME"
+.SH "Name"
 rpcclient \- tool for executing client side MS\-RPC functions
-.SH "SYNOPSIS"
+.SH "Synopsis"
+.fam C
 .HP \w'\ 'u
-rpcclient [\-A\ authfile] [\-c\ <command\ string>] [\-d\ debuglevel] [\-h] [\-l\ logdir] [\-N] [\-s\ <smb\ config\ file>] [\-U\ username[%password]] [\-W\ workgroup] [\-I\ destinationIP] {server}
+\FCrpcclient\F[] [\-A\ authfile] [\-c\ <command\ string>] [\-d\ debuglevel] [\-h] [\-l\ logdir] [\-N] [\-s\ <smb\ config\ file>] [\-U\ username[%password]] [\-W\ workgroup] [\-N] [\-I\ destinationIP] {server}
+.fam
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-rpcclient
+\FCrpcclient\F[]
 is a utility initially developed to test MS\-RPC functionality in Samba itself\&. It has undergone several stages of development and stability\&. Many system administrators have now written scripts around it to manage Windows NT clients from their UNIX workstation\&.
 .SH "OPTIONS"
 .PP
@@ -46,7 +196,7 @@ line from
 execute semicolon separated commands (listed below))
 .RE
 .PP
-\-I|\-\-dest\-ip IP\-address
+\-I IP\-address
 .RS 4
 \fIIP address\fR
 is the address of the server to connect to\&. It should be specified in standard "a\&.b\&.c\&.d" notation\&.
@@ -56,11 +206,6 @@ Normally the client would attempt to locate a named SMB/CIFS server by looking i
 parameter above\&. Using this parameter will force the client to assume that the server is on the machine with the specified IP address and the NetBIOS name component of the resource being connected to will be ignored\&.
 .sp
 There is no default for this parameter\&. If not supplied, it will be determined automatically by the client as described above\&.
-.RE
-.PP
-\-p|\-\-port port
-.RS 4
-This number is the TCP port number that will be used when making connections to the server\&. The standard (well\-known) TCP port number for an SMB/CIFS server is 139, which is the default\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level
@@ -75,7 +220,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file\&.
 .RE
 .PP
@@ -87,7 +232,7 @@ Prints the program version number\&.
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-smb\&.conf
+\FCsmb\&.conf\F[]
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -124,11 +269,25 @@ This option allows you to specify a file from which to read the username and pas
 .if n \{\
 .RS 4
 .\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 username = <value>
 password = <value>
 domain   = <value>
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
 .if n \{\
 .RE
 .\}
@@ -153,9 +312,9 @@ A third option is to use a credentials file which contains the plaintext of the 
 for more details\&.
 .sp
 Be cautious about including passwords in scripts\&. Also, on many systems the command line of a running process may be seen via the
-ps
+\FCps\F[]
 command\&. To be safe always allow
-rpcclient
+\FCrpcclient\F[]
 to prompt for a password and type it in directly\&.
 .RE
 .PP
@@ -164,15 +323,15 @@ to prompt for a password and type it in directly\&.
 This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file\&. However, a command line setting will take precedence over settings in
-smb\&.conf\&.
+\FCsmb\&.conf\F[]\&.
 .RE
 .PP
 \-i|\-\-scope <scope>
 .RS 4
 This specifies a NetBIOS scope that
-nmblookup
+\FCnmblookup\F[]
 will use to communicate with when generating NetBIOS names\&. For details on the use of NetBIOS scopes, see rfc1001\&.txt and rfc1002\&.txt\&. NetBIOS scopes are
 \fIvery\fR
 rarely used, only set this parameter if you are the system administrator in charge of all the NetBIOS systems you communicate with\&.
@@ -186,7 +345,7 @@ Set the SMB domain of the username\&. This overrides the default domain which is
 \-O|\-\-socket\-options socket options
 .RS 4
 TCP socket options to set on the client socket\&. See the socket options parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 manual page for the list of valid options\&.
 .RE
 .PP
@@ -423,10 +582,10 @@ Look up domain
 adddriver <arch> <config> [<version>]
 .RS 4
 Execute an AddPrinterDriver() RPC to install the printer driver information on the server\&. Note that the driver files should already exist in the directory returned by
-getdriverdir\&. Possible values for
+\FCgetdriverdir\F[]\&. Possible values for
 \fIarch\fR
 are the same as those for the
-getdriverdir
+\FCgetdriverdir\F[]
 command\&. The
 \fIconfig\fR
 parameter is defined as follows:
@@ -434,7 +593,15 @@ parameter is defined as follows:
 .if n \{\
 .RS 4
 .\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 Long Printer Name:\e
 Driver File Name:\e
 Data File Name:\e
@@ -443,7 +610,13 @@ Help File Name:\e
 Language Monitor Name:\e
 Default Data Type:\e
 Comma Separated list of Files
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
 .if n \{\
 .RE
 .\}
@@ -460,9 +633,9 @@ parameter lets you specify the printer driver version number\&. If omitted, the 
 addprinter <printername> <sharename> <drivername> <port>
 .RS 4
 Add a printer on the remote server\&. This printer will be automatically shared\&. Be aware that the printer driver must already be installed on the server (see
-adddriver) and the
+\FCadddriver\F[]) and the
 \fIport\fRmust be a valid port name (see
-enumports\&.
+\FCenumports\F[]\&.
 .RE
 .PP
 deldriver
@@ -513,7 +686,7 @@ Execute an EnumPrinters() call\&. This lists the various installed and share pri
 getdata <printername> <valuename;>
 .RS 4
 Retrieve the data for a given printer setting\&. See the
-enumdata
+\FCenumdata\F[]
 command for more information\&. This command corresponds to the GetPrinterData() MS Platform SDK function\&.
 .RE
 .PP
@@ -554,9 +727,9 @@ setdriver <printername> <drivername>
 Execute a SetPrinter() command to update the printer driver associated with an installed printer\&. The printer driver must already be correctly installed on the print server\&.
 .sp
 See also the
-enumprinters
+\FCenumprinters\F[]
 and
-enumdrivers
+\FCenumdrivers\F[]
 commands for obtaining a list of of installed printers and drivers\&.
 .RE
 .PP
@@ -645,11 +818,11 @@ Print a listing of all known commands or extended help on a particular command\&
 quit (exit)
 .RS 4
 Exit
-rpcclient\&.
+\FCrpcclient \F[]\&.
 .RE
 .SH "BUGS"
 .PP
-rpcclient
+\FCrpcclient\F[]
 is designed as a developer testing tool and may not be robust in certain areas (such as command line parsing)\&. It has been known to generate a core dump upon failures when invalid parameters where passed to the interpreter\&.
 .PP
 From Luke Leighton\'s original rpcclient man page:

@@ -81,7 +81,7 @@ static WERROR fill_value_cache(struct registry_key *key)
 		}
 	}
 
-	if (!(key->values = TALLOC_ZERO_P(key, struct regval_ctr))) {
+	if (!(key->values = TALLOC_ZERO_P(key, REGVAL_CTR))) {
 		return WERR_NOMEM;
 	}
 	if (fetch_reg_values(key->key, key->values) == -1) {
@@ -113,7 +113,7 @@ static WERROR fill_subkey_cache(struct registry_key *key)
 	return WERR_OK;
 }
 
-static int regkey_destructor(struct registry_key_handle *key)
+static int regkey_destructor(REGISTRY_KEY *key)
 {
 	return regdb_close();
 }
@@ -127,7 +127,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 {
 	WERROR     	result = WERR_OK;
 	struct registry_key *regkey;
-	struct registry_key_handle *key;
+	REGISTRY_KEY *key;
 	struct regsubkey_ctr	*subkeys = NULL;
 
 	DEBUG(7,("regkey_open_onelevel: name = [%s]\n", name));
@@ -136,8 +136,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	if (!(regkey = TALLOC_ZERO_P(mem_ctx, struct registry_key)) ||
 	    !(regkey->token = dup_nt_token(regkey, token)) ||
-	    !(regkey->key = TALLOC_ZERO_P(regkey, struct registry_key_handle)))
-	{
+	    !(regkey->key = TALLOC_ZERO_P(regkey, REGISTRY_KEY))) {
 		result = WERR_NOMEM;
 		goto done;
 	}
@@ -187,7 +186,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	if ( !(key->ops = reghook_cache_find( key->name )) ) {
 		DEBUG(0,("reg_open_onelevel: Failed to assign "
-			 "registry_ops to [%s]\n", key->name ));
+			 "REGISTRY_OPS to [%s]\n", key->name ));
 		result = WERR_BADFILE;
 		goto done;
 	}
@@ -710,18 +709,18 @@ static WERROR reg_load_tree(REGF_FILE *regfile, const char *topkeypath,
 			    REGF_NK_REC *key)
 {
 	REGF_NK_REC *subkey;
-	struct registry_key_handle registry_key;
-	struct regval_ctr *values;
+	REGISTRY_KEY registry_key;
+	REGVAL_CTR *values;
 	struct regsubkey_ctr *subkeys;
 	int i;
 	char *path = NULL;
 	WERROR result = WERR_OK;
 
-	/* initialize the struct registry_key_handle structure */
+	/* initialize the REGISTRY_KEY structure */
 
 	registry_key.ops = reghook_cache_find(topkeypath);
 	if (!registry_key.ops) {
-		DEBUG(0, ("reg_load_tree: Failed to assign registry_ops "
+		DEBUG(0, ("reg_load_tree: Failed to assign  REGISTRY_OPS "
 			  "to [%s]\n", topkeypath));
 		return WERR_BADFILE;
 	}
@@ -737,12 +736,12 @@ static WERROR reg_load_tree(REGF_FILE *regfile, const char *topkeypath,
 	result = regsubkey_ctr_init(regfile->mem_ctx, &subkeys);
 	W_ERROR_NOT_OK_RETURN(result);
 
-	values = TALLOC_ZERO_P(subkeys, struct regval_ctr);
+	values = TALLOC_ZERO_P(subkeys, REGVAL_CTR);
 	if (values == NULL) {
 		return WERR_NOMEM;
 	}
 
-	/* copy values into the struct regval_ctr */
+	/* copy values into the REGVAL_CTR */
 
 	for (i=0; i<key->num_values; i++) {
 		regval_ctr_addvalue(values, key->values[i].valuename,
@@ -800,8 +799,7 @@ static WERROR reg_load_tree(REGF_FILE *regfile, const char *topkeypath,
 /*******************************************************************
  ********************************************************************/
 
-static WERROR restore_registry_key(struct registry_key_handle *krecord,
-				   const char *fname)
+static WERROR restore_registry_key(REGISTRY_KEY *krecord, const char *fname)
 {
 	REGF_FILE *regfile;
 	REGF_NK_REC *rootkey;
@@ -845,14 +843,14 @@ static WERROR reg_write_tree(REGF_FILE *regfile, const char *keypath,
 			     REGF_NK_REC *parent)
 {
 	REGF_NK_REC *key;
-	struct regval_ctr *values;
+	REGVAL_CTR *values;
 	struct regsubkey_ctr *subkeys;
 	int i, num_subkeys;
 	char *key_tmp = NULL;
 	char *keyname, *parentpath;
 	char *subkeypath = NULL;
 	char *subkeyname;
-	struct registry_key_handle registry_key;
+	REGISTRY_KEY registry_key;
 	WERROR result = WERR_OK;
 	SEC_DESC *sec_desc = NULL;
 
@@ -878,7 +876,7 @@ static WERROR reg_write_tree(REGF_FILE *regfile, const char *keypath,
 		keyname = parentpath;
 	}
 
-	/* we need a registry_key_handle object here to enumerate subkeys and values */
+	/* we need a REGISTRY_KEY object here to enumerate subkeys and values */
 
 	ZERO_STRUCT(registry_key);
 
@@ -897,7 +895,7 @@ static WERROR reg_write_tree(REGF_FILE *regfile, const char *keypath,
 	result = regsubkey_ctr_init(regfile->mem_ctx, &subkeys);
 	W_ERROR_NOT_OK_RETURN(result);
 
-	values = TALLOC_ZERO_P(subkeys, struct regval_ctr);
+	values = TALLOC_ZERO_P(subkeys, REGVAL_CTR);
 	if (values == NULL) {
 		return WERR_NOMEM;
 	}
@@ -944,8 +942,7 @@ done:
 	return result;
 }
 
-static WERROR backup_registry_key(struct registry_key_handle *krecord,
-				  const char *fname)
+static WERROR backup_registry_key(REGISTRY_KEY *krecord, const char *fname)
 {
 	REGF_FILE *regfile;
 	WERROR result;

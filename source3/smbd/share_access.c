@@ -18,7 +18,6 @@
 */
 
 #include "includes.h"
-#include "smbd/globals.h"
 
 /*
  * No prefix means direct username
@@ -73,7 +72,6 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
 	const char *prefix;
 	DOM_SID sid;
 	enum lsa_SidType type;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	if (username != NULL) {
 		name = talloc_sub_basic(mem_ctx, username, domain, name);
@@ -130,10 +128,8 @@ static bool token_contains_name(TALLOC_CTX *mem_ctx,
 			continue;
 		}
 		if (*prefix == '&') {
-			if (username) {
-				if (user_in_netgroup(sconn, username, name)) {
-					return True;
-				}
+			if (user_in_netgroup(username, name)) {
+				return True;
 			}
 			continue;
 		}

@@ -464,8 +464,8 @@ static bool smb_pam_start(pam_handle_t **pamh, const char *user, const char *rho
 	int pam_error;
 #ifdef PAM_RHOST
 	const char *our_rhost;
-	char addr[INET6_ADDRSTRLEN];
 #endif
+	char addr[INET6_ADDRSTRLEN];
 
 	*pamh = (pam_handle_t *)NULL;
 

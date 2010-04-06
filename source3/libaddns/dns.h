@@ -180,10 +180,8 @@ void *talloc_zeronull(const void *context, size_t size, const char *name);
      /* uggh - no 32 bit type?? probably a CRAY. just hope this works ... */
 #    define int32 int
 #  endif
-#  ifndef _INT32
-     /* needed to work around compile issue on HP-UX 11.x */
-#    define _INT32        1
-#  endif
+   /* needed to work around compile issue on HP-UX 11.x */
+#  define _INT32        1
 #endif
 
 /*

@@ -17,7 +17,10 @@ LIBREPLACE_DIR=`echo ${libreplacedir} |sed -e 's/^\.\///g'`
 # build directory.
 LIBREPLACE_DIR=`echo ${LIBREPLACE_DIR} | sed -e "s|^$srcdir/||g"`
 
-LIBREPLACE_OBJS="${LIBREPLACEOBJ}"
+LIBREPLACE_OBJS=""
+for obj in ${LIBREPLACEOBJ}; do
+	LIBREPLACE_OBJS="${LIBREPLACE_OBJS} ${LIBREPLACE_DIR}/${obj}"
+done
 
 SMB_SUBSYSTEM(LIBREPLACE,
 	[${LIBREPLACE_OBJS}],
@@ -30,5 +33,3 @@ SMB_SUBSYSTEM(LIBREPLACE_HOSTCC,
 	[${LIBREPLACE_HOSTCC_OBJS}],
 	[],
 	[-Ilib/replace])
-
-AC_CHECK_FUNCS([syslog],,[AC_MSG_ERROR([Required function not found])])

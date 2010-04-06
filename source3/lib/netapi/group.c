@@ -23,7 +23,6 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/
@@ -785,12 +784,12 @@ WERROR NetGroupAddUser_r(struct libnetapi_ctx *ctx,
 					 &rids,
 					 &types);
 	if (!NT_STATUS_IS_OK(status)) {
-		werr = WERR_GROUPNOTFOUND;
+		werr = WERR_GROUP_NOT_FOUND;
 		goto done;
 	}
 
 	if (types.ids[0] != SID_NAME_DOM_GRP) {
-		werr = WERR_GROUPNOTFOUND;
+		werr = WERR_GROUP_NOT_FOUND;
 		goto done;
 	}
 
@@ -906,12 +905,12 @@ WERROR NetGroupDelUser_r(struct libnetapi_ctx *ctx,
 					 &rids,
 					 &types);
 	if (!NT_STATUS_IS_OK(status)) {
-		werr = WERR_GROUPNOTFOUND;
+		werr = WERR_GROUP_NOT_FOUND;
 		goto done;
 	}
 
 	if (types.ids[0] != SID_NAME_DOM_GRP) {
-		werr = WERR_GROUPNOTFOUND;
+		werr = WERR_GROUP_NOT_FOUND;
 		goto done;
 	}
 

@@ -205,7 +205,6 @@ static bool test_GetInfoLevel(struct dcerpc_pipe *p,
 {
 	NTSTATUS status;
 	struct dfs_GetInfo r;
-	union dfs_Info info;
 
 	printf("Testing GetInfo level %u on '%s'\n", level, root);
 
@@ -213,7 +212,6 @@ static bool test_GetInfoLevel(struct dcerpc_pipe *p,
 	r.in.servername = NULL;
 	r.in.sharename = NULL;
 	r.in.level = level;
-	r.out.info = &info;
 
 	status = dcerpc_dfs_GetInfo(p, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {

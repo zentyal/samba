@@ -35,6 +35,8 @@
 #include <getarg.h>
 #include <err.h>
 
+RCSID("$Id$");
+
 void KRB5_LIB_FUNCTION
 krb5_std_usage(int code, struct getargs *args, int num_args)
 {

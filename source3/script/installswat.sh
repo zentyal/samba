@@ -198,11 +198,7 @@ fi
 
 # Install/ remove Using Samba book (but only if it is there)
 
-# Under Debian we don't actually install the book. The book is part of
-# the samba-doc package, so we just provide a symlink that points to
-# where the book is actually installed. The symlink is created in
-# debian/rules.
-if /bin/false; then
+if [ "x$BOOKDIR" != "x" -a -f $SRCDIR../docs/htmldocs/using_samba/toc.html ]; then
 
     # Create directories
 

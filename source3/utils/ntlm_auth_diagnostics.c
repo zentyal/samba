@@ -23,7 +23,6 @@
 
 #include "includes.h"
 #include "utils/ntlm_auth.h"
-#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -73,7 +72,7 @@ static bool test_lm_ntlm_broken(enum ntlm_break break_which)
 	SMBNTencrypt(opt_password,chall.data,nt_response.data);
 
 	E_md4hash(opt_password, nt_hash);
-	SMBsesskeygen_ntv1(nt_hash, session_key.data);
+	SMBsesskeygen_ntv1(nt_hash, NULL, session_key.data);
 
 	switch (break_which) {
 	case BREAK_NONE:
@@ -258,7 +257,7 @@ static bool test_ntlm_in_both(void)
 
 	SMBNTencrypt(opt_password,chall.data,nt_response.data);
 	E_md4hash(opt_password, nt_hash);
-	SMBsesskeygen_ntv1(nt_hash, session_key.data);
+	SMBsesskeygen_ntv1(nt_hash, NULL, session_key.data);
 
 	E_deshash(opt_password, lm_hash); 
 
@@ -317,7 +316,7 @@ static bool test_lmv2_ntlmv2_broken(enum ntlm_break break_which)
 	DATA_BLOB ntlmv2_response = data_blob_null;
 	DATA_BLOB lmv2_response = data_blob_null;
 	DATA_BLOB ntlmv2_session_key = data_blob_null;
-	DATA_BLOB names_blob = NTLMv2_generate_names_blob(NULL, get_winbind_netbios_name(), get_winbind_domain());
+	DATA_BLOB names_blob = NTLMv2_generate_names_blob(get_winbind_netbios_name(), get_winbind_domain());
 
 	uchar user_session_key[16];
 	DATA_BLOB chall = get_challenge();
@@ -327,9 +326,9 @@ static bool test_lmv2_ntlmv2_broken(enum ntlm_break break_which)
 	
 	flags |= WBFLAG_PAM_USER_SESSION_KEY;
 
-	if (!SMBNTLMv2encrypt(NULL, opt_username, opt_domain, opt_password, &chall,
+	if (!SMBNTLMv2encrypt(opt_username, opt_domain, opt_password, &chall,
 			      &names_blob,
-			      &lmv2_response, &ntlmv2_response, NULL,
+			      &lmv2_response, &ntlmv2_response, 
 			      &ntlmv2_session_key)) {
 		data_blob_free(&names_blob);
 		return False;
@@ -459,31 +458,31 @@ static bool test_plaintext(enum ntlm_break break_which)
 	flags |= WBFLAG_PAM_LMKEY;
 	flags |= WBFLAG_PAM_USER_SESSION_KEY;
 
-	if (!push_ucs2_talloc(talloc_tos(), &nt_response_ucs2, opt_password,
+	if (!push_ucs2_allocate(&nt_response_ucs2, opt_password,
 				&converted_size))
 	{
-		DEBUG(0, ("push_ucs2_talloc failed!\n"));
+		DEBUG(0, ("push_ucs2_allocate failed!\n"));
 		exit(1);
 	}
 
 	nt_response.data = (unsigned char *)nt_response_ucs2;
 	nt_response.length = strlen_w(nt_response_ucs2)*sizeof(smb_ucs2_t);
 
-	if ((password = strupper_talloc(talloc_tos(), opt_password)) == NULL) {
-		DEBUG(0, ("strupper_talloc() failed!\n"));
+	if ((password = strdup_upper(opt_password)) == NULL) {
+		DEBUG(0, ("strdup_upper failed!\n"));
 		exit(1);
 	}
 
-	if (!convert_string_talloc(talloc_tos(), CH_UNIX,
-				   CH_DOS, password,
-				   strlen(password)+1, 
-				   &lm_response.data,
-				   &lm_response.length, True)) {
-		DEBUG(0, ("convert_string_talloc failed!\n"));
+	if (!convert_string_allocate(NULL, CH_UNIX,
+				     CH_DOS, password,
+				     strlen(password)+1, 
+				     &lm_response.data,
+				     &lm_response.length, True)) {
+		DEBUG(0, ("convert_string_allocate failed!\n"));
 		exit(1);
 	}
 
-	TALLOC_FREE(password);
+	SAFE_FREE(password);
 
 	switch (break_which) {
 	case BREAK_NONE:
@@ -495,11 +494,11 @@ static bool test_plaintext(enum ntlm_break break_which)
 		nt_response.data[0]++;
 		break;
 	case NO_LM:
-		TALLOC_FREE(lm_response.data);
+		SAFE_FREE(lm_response.data);
 		lm_response.length = 0;
 		break;
 	case NO_NT:
-		TALLOC_FREE(nt_response.data);
+		SAFE_FREE(nt_response.data);
 		nt_response.length = 0;
 		break;
 	}
@@ -514,8 +513,8 @@ static bool test_plaintext(enum ntlm_break break_which)
 					      user_session_key,
 					      &error_string, NULL);
 	
-	TALLOC_FREE(nt_response.data);
-	TALLOC_FREE(lm_response.data);
+	SAFE_FREE(nt_response.data);
+	SAFE_FREE(lm_response.data);
 	data_blob_free(&chall);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {

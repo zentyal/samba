@@ -53,13 +53,10 @@ static NTSTATUS libnet_ChangePassword_samr(struct libnet_context *ctx, TALLOC_CT
 	struct samr_DomInfo1 *dominfo = NULL;
 	struct samr_ChangeReject *reject = NULL;
 
-	ZERO_STRUCT(c);
-
 	/* prepare connect to the SAMR pipe of the users domain PDC */
 	c.level                    = LIBNET_RPC_CONNECT_PDC;
 	c.in.name                  = r->samr.in.domain_name;
 	c.in.dcerpc_iface     	   = &ndr_table_samr;
-	c.in.dcerpc_flags          = DCERPC_ANON_FALLBACK;
 
 	/* 1. connect to the SAMR pipe of users domain PDC (maybe a standalone server or workstation) */
 	status = libnet_RpcConnect(ctx, mem_ctx, &c);
@@ -102,19 +99,30 @@ static NTSTATUS libnet_ChangePassword_samr(struct libnet_context *ctx, TALLOC_CT
 
 	/* 2. try samr_ChangePasswordUser3 */
 	status = dcerpc_samr_ChangePasswordUser3(c.out.dcerpc_pipe, mem_ctx, &pw3);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-		if (!NT_STATUS_IS_OK(status)) {
-			r->samr.out.error_string = talloc_asprintf(mem_ctx,
-								   "samr_ChangePasswordUser3 failed: %s",
-								   nt_errstr(status));
-			r->samr.out.error_string = talloc_asprintf(mem_ctx,
-								   "samr_ChangePasswordUser3 for '%s\\%s' failed: %s",
-								   r->samr.in.domain_name, r->samr.in.account_name, 
-								   nt_errstr(status));
-		}
-		goto disconnect;
-	} 
+	if (!NT_STATUS_IS_OK(status)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_ChangePasswordUser3 failed: %s",
+						nt_errstr(status));
+		goto ChangePasswordUser2;
+	}
 
+	/* check result of samr_ChangePasswordUser3 */
+	if (!NT_STATUS_IS_OK(pw3.out.result)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_ChangePasswordUser3 for '%s\\%s' failed: %s",
+						r->samr.in.domain_name, r->samr.in.account_name, 
+						nt_errstr(pw3.out.result));
+						/* TODO: give the reason of the reject */
+		if (NT_STATUS_EQUAL(pw3.out.result, NT_STATUS_PASSWORD_RESTRICTION)) {
+			status = pw3.out.result;
+			goto disconnect;
+		}
+		goto ChangePasswordUser2;
+	}
+
+	goto disconnect;
+
+ChangePasswordUser2:
 	/* prepare samr_ChangePasswordUser2 */
 	encode_pw_buffer(lm_pass.data, r->samr.in.newpassword, STR_ASCII|STR_TERMINATE);
 	arcfour_crypt(lm_pass.data, old_lm_hash, 516);
@@ -134,17 +142,29 @@ static NTSTATUS libnet_ChangePassword_samr(struct libnet_context *ctx, TALLOC_CT
 
 	/* 3. try samr_ChangePasswordUser2 */
 	status = dcerpc_samr_ChangePasswordUser2(c.out.dcerpc_pipe, mem_ctx, &pw2);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-		if (!NT_STATUS_IS_OK(status)) {
-			r->samr.out.error_string = talloc_asprintf(mem_ctx,
-								   "samr_ChangePasswordUser2 for '%s\\%s' failed: %s",
-								   r->samr.in.domain_name, r->samr.in.account_name, 
-								   nt_errstr(status));
-		}
-		goto disconnect;
+	if (!NT_STATUS_IS_OK(status)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_ChangePasswordUser2 failed: %s",
+						nt_errstr(status));
+		goto OemChangePasswordUser2;
 	}
 
+	/* check result of samr_ChangePasswordUser2 */
+	if (!NT_STATUS_IS_OK(pw2.out.result)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_ChangePasswordUser2 for '%s\\%s' failed: %s",
+						r->samr.in.domain_name, r->samr.in.account_name, 
+						nt_errstr(pw2.out.result));
+		if (NT_STATUS_EQUAL(pw2.out.result, NT_STATUS_PASSWORD_RESTRICTION)) {
+			status = pw2.out.result;
+			goto disconnect;
+		}
+		goto OemChangePasswordUser2;
+	}
 
+	goto disconnect;
+
+OemChangePasswordUser2:
 	/* prepare samr_OemChangePasswordUser2 */
 	a_server.string = talloc_asprintf(mem_ctx, "\\\\%s", dcerpc_server_name(c.out.dcerpc_pipe));
 	a_account.string = r->samr.in.account_name;
@@ -160,16 +180,29 @@ static NTSTATUS libnet_ChangePassword_samr(struct libnet_context *ctx, TALLOC_CT
 
 	/* 4. try samr_OemChangePasswordUser2 */
 	status = dcerpc_samr_OemChangePasswordUser2(c.out.dcerpc_pipe, mem_ctx, &oe2);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_NET_WRITE_FAULT)) {
-		if (!NT_STATUS_IS_OK(oe2.out.result)) {
-			r->samr.out.error_string = talloc_asprintf(mem_ctx,
-								   "samr_OemChangePasswordUser2 for '%s\\%s' failed: %s",
-								   r->samr.in.domain_name, r->samr.in.account_name, 
-								   nt_errstr(status));
-		}
-		goto disconnect;
+	if (!NT_STATUS_IS_OK(status)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_OemChangePasswordUser2 failed: %s",
+						nt_errstr(status));
+		goto ChangePasswordUser;
 	}
 
+	/* check result of samr_OemChangePasswordUser2 */
+	if (!NT_STATUS_IS_OK(oe2.out.result)) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_OemChangePasswordUser2 for '%s\\%s' failed: %s",
+						r->samr.in.domain_name, r->samr.in.account_name, 
+						nt_errstr(oe2.out.result));
+		if (NT_STATUS_EQUAL(oe2.out.result, NT_STATUS_PASSWORD_RESTRICTION)) {
+			status = oe2.out.result;
+			goto disconnect;
+		}
+		goto ChangePasswordUser;
+	}
+
+	goto disconnect;
+
+ChangePasswordUser:
 #if 0
 	/* prepare samr_ChangePasswordUser */
 	E_old_pw_hash(new_lm_hash, old_lm_hash, hash1.hash);
@@ -507,12 +540,11 @@ static NTSTATUS libnet_SetPassword_samr(struct libnet_context *ctx, TALLOC_CTX *
 	struct policy_handle u_handle;
 	union libnet_SetPassword r2;
 
-	ZERO_STRUCT(c);
 	/* prepare connect to the SAMR pipe of users domain PDC */
 	c.level               = LIBNET_RPC_CONNECT_PDC;
 	c.in.name             = r->samr.in.domain_name;
 	c.in.dcerpc_iface     = &ndr_table_samr;
-	
+
 	/* 1. connect to the SAMR pipe of users domain PDC (maybe a standalone server or workstation) */
 	status = libnet_RpcConnect(ctx, mem_ctx, &c);
 	if (!NT_STATUS_IS_OK(status)) {

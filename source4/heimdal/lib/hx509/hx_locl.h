@@ -33,7 +33,9 @@
 
 /* $Id$ */
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,7 +145,7 @@ struct hx509_query_data {
     Name *subject_name;
     hx509_path *path;
     char *friendlyname;
-    int (*cmp_func)(hx509_context, hx509_cert, void *);
+    int (*cmp_func)(void *, hx509_cert);
     void *cmp_func_ctx;
     heim_octet_string *keyhash_sha1;
     time_t timenow;

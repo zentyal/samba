@@ -20,13 +20,6 @@
 
 #include "includes.h"
 
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef realloc
-#undef realloc
-#endif
-
 static const char *so_path = "/lib/libnss_winbind.so";
 static const char *nss_name = "winbind";
 static int nss_errno;
@@ -187,13 +180,13 @@ static struct group *nss_getgrent(void)
 		return NULL;
 
 	if (!buf) 
-		buf = (char *)malloc(buflen);
+		buf = SMB_MALLOC_ARRAY(char, buflen);
 
 again:	
 	status = _nss_getgrent_r(&grp, buf, buflen, &nss_errno);
 	if (status == NSS_STATUS_TRYAGAIN) {
 		buflen *= 2;
-		buf = (char *)realloc(buf, buflen);
+		buf = SMB_REALLOC_ARRAY(buf, char, buflen);
 		if (!buf) {
 			return NULL;
 		}
@@ -226,12 +219,12 @@ static struct group *nss_getgrnam(const char *name)
 		return NULL;
 
 	if (!buf) 
-		buf = (char *)malloc(buflen);
+		buf = SMB_MALLOC_ARRAY(char, buflen);
 again:	
 	status = _nss_getgrnam_r(name, &grp, buf, buflen, &nss_errno);
 	if (status == NSS_STATUS_TRYAGAIN) {
 		buflen *= 2;
-		buf = (char *)realloc(buf, buflen);
+		buf = SMB_REALLOC_ARRAY(buf, char, buflen);
 		if (!buf) {
 			return NULL;
 		}
@@ -264,13 +257,13 @@ static struct group *nss_getgrgid(gid_t gid)
 		return NULL;
 
 	if (!buf) 
-		buf = (char *)malloc(buflen);
+		buf = SMB_MALLOC_ARRAY(char, buflen);
 
 again:	
 	status = _nss_getgrgid_r(gid, &grp, buf, buflen, &nss_errno);
 	if (status == NSS_STATUS_TRYAGAIN) {
 		buflen *= 2;
-		buf = (char *)realloc(buf, buflen);
+		buf = SMB_REALLOC_ARRAY(buf, char, buflen);
 		if (!buf) {
 			return NULL;
 		}
@@ -352,7 +345,7 @@ static void print_passwd(struct passwd *pwd)
 static void print_group(struct group *grp)
 {
 	int i;
-	printf("%s:%s:%lu:",
+	printf("%s:%s:%lu: ", 
 	       grp->gr_name,
 	       grp->gr_passwd,
 	       (unsigned long)grp->gr_gid);
@@ -363,7 +356,7 @@ static void print_group(struct group *grp)
 	}
 	
 	for (i=0; grp->gr_mem[i+1]; i++) {
-		printf("%s,", grp->gr_mem[i]);
+		printf("%s, ", grp->gr_mem[i]);
 	}
 	printf("%s\n", grp->gr_mem[i]);
 }
@@ -376,7 +369,7 @@ static void nss_test_initgroups(char *name, gid_t gid)
 	int i;
 	NSS_STATUS status;
 
-	groups = (gid_t *)malloc(size);
+	groups = SMB_MALLOC_ARRAY(gid_t, size);
 	groups[0] = gid;
 
 	status = nss_initgroups(name, gid, &groups, &start, &size);

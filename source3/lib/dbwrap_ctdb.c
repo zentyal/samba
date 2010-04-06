@@ -26,11 +26,9 @@
 struct db_ctdb_transaction_handle {
 	struct db_ctdb_ctx *ctx;
 	bool in_replay;
-	/*
-	 * we store the reads and writes done under a transaction:
-	 * - one list stores both reads and writes (m_all),
-	 * - the other just writes (m_write)
-	 */
+	/* we store the reads and writes done under a transaction one
+	   list stores both reads and writes, the other just writes
+	*/
 	struct ctdb_marshall_buffer *m_all;
 	struct ctdb_marshall_buffer *m_write;
 	uint32_t nesting;
@@ -75,91 +73,6 @@ static NTSTATUS tdb_error_to_ntstatus(struct tdb_context *tdb)
 }
 
 
-/**
- * fetch a record from the tdb, separating out the header
- * information and returning the body of the record.
- */
-static NTSTATUS db_ctdb_ltdb_fetch(struct db_ctdb_ctx *db,
-				   TDB_DATA key,
-				   struct ctdb_ltdb_header *header,
-				   TALLOC_CTX *mem_ctx,
-				   TDB_DATA *data)
-{
-	TDB_DATA rec;
-	NTSTATUS status;
-
-	rec = tdb_fetch(db->wtdb->tdb, key);
-	if (rec.dsize < sizeof(struct ctdb_ltdb_header)) {
-		status = NT_STATUS_NOT_FOUND;
-		if (data) {
-			ZERO_STRUCTP(data);
-		}
-		if (header) {
-			header->dmaster = (uint32_t)-1;
-			header->rsn = 0;
-		}
-		goto done;
-	}
-
-	if (header) {
-		*header = *(struct ctdb_ltdb_header *)rec.dptr;
-	}
-
-	if (data) {
-		data->dsize = rec.dsize - sizeof(struct ctdb_ltdb_header);
-		if (data->dsize == 0) {
-			data->dptr = NULL;
-		} else {
-			data->dptr = (unsigned char *)talloc_memdup(mem_ctx,
-					rec.dptr
-					 + sizeof(struct ctdb_ltdb_header),
-					data->dsize);
-			if (data->dptr == NULL) {
-				status = NT_STATUS_NO_MEMORY;
-				goto done;
-			}
-		}
-	}
-
-	status = NT_STATUS_OK;
-
-done:
-	SAFE_FREE(rec.dptr);
-	return status;
-}
-
-/*
- * Store a record together with the ctdb record header
- * in the local copy of the database.
- */
-static NTSTATUS db_ctdb_ltdb_store(struct db_ctdb_ctx *db,
-				   TDB_DATA key,
-				   struct ctdb_ltdb_header *header,
-				   TDB_DATA data)
-{
-	TALLOC_CTX *tmp_ctx = talloc_stackframe();
-	TDB_DATA rec;
-	int ret;
-
-	rec.dsize = data.dsize + sizeof(struct ctdb_ltdb_header);
-	rec.dptr = (uint8_t *)talloc_size(tmp_ctx, rec.dsize);
-
-	if (rec.dptr == NULL) {
-		talloc_free(tmp_ctx);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	memcpy(rec.dptr, header, sizeof(struct ctdb_ltdb_header));
-	memcpy(sizeof(struct ctdb_ltdb_header) + (uint8_t *)rec.dptr, data.dptr, data.dsize);
-
-	ret = tdb_store(db->wtdb->tdb, key, rec, TDB_REPLACE);
-
-	talloc_free(tmp_ctx);
-
-	return (ret == 0) ? NT_STATUS_OK
-			  : tdb_error_to_ntstatus(db->wtdb->tdb);
-
-}
 
 /*
   form a ctdb_rec_data record from a key/data pair
@@ -298,56 +211,24 @@ static struct ctdb_rec_data *db_ctdb_marshall_loop_next(struct ctdb_marshall_buf
 }
 
 
-static int32_t db_ctdb_transaction_active(uint32_t db_id)
-{
-	int32_t status;
-	NTSTATUS ret;
-	TDB_DATA indata;
 
-	indata.dptr = (uint8_t *)&db_id;
-	indata.dsize = sizeof(db_id);
-
-	ret = ctdbd_control_local(messaging_ctdbd_connection(),
-				  CTDB_CONTROL_TRANS2_ACTIVE, 0, 0,
-				  indata, NULL, NULL, &status);
-
-	if (!NT_STATUS_IS_OK(ret)) {
-		DEBUG(2, ("ctdb control TRANS2_ACTIVE failed\n"));
-		return -1;
-	}
-
-	return status;
-}
-
-
-/**
- * CTDB transaction destructor
- */
+/* start a transaction on a database */
 static int db_ctdb_transaction_destructor(struct db_ctdb_transaction_handle *h)
 {
 	tdb_transaction_cancel(h->ctx->wtdb->tdb);
 	return 0;
 }
 
-/**
- * start a transaction on a ctdb database:
- * - lock the transaction lock key
- * - start the tdb transaction
- */
+/* start a transaction on a database */
 static int db_ctdb_transaction_fetch_start(struct db_ctdb_transaction_handle *h)
 {
 	struct db_record *rh;
-	struct db_ctdb_rec *crec;
 	TDB_DATA key;
 	TALLOC_CTX *tmp_ctx;
 	const char *keyname = CTDB_TRANSACTION_LOCK_KEY;
 	int ret;
 	struct db_ctdb_ctx *ctx = h->ctx;
 	TDB_DATA data;
-	pid_t pid;
-	NTSTATUS status;
-	struct ctdb_ltdb_header header;
-	int32_t transaction_status;
 
 	key.dptr = (uint8_t *)discard_const(keyname);
 	key.dsize = strlen(keyname);
@@ -361,36 +242,6 @@ again:
 		talloc_free(tmp_ctx);
 		return -1;
 	}
-	crec = talloc_get_type_abort(rh->private_data, struct db_ctdb_rec);
-
-	transaction_status = db_ctdb_transaction_active(ctx->db_id);
-	if (transaction_status == 1) {
-		unsigned long int usec = (1000 + random()) % 100000;
-		DEBUG(3, ("Transaction already active on db_id[0x%08x]."
-			  "Re-trying after %lu microseconds...",
-			  ctx->db_id, usec));
-		talloc_free(tmp_ctx);
-		usleep(usec);
-		goto again;
-	}
-
-	/*
-	 * store the pid in the database:
-	 * it is not enought that the node is dmaster...
-	 */
-	pid = getpid();
-	data.dptr = (unsigned char *)&pid;
-	data.dsize = sizeof(pid_t);
-	crec->header.rsn++;
-	crec->header.dmaster = get_my_vnn();
-	status = db_ctdb_ltdb_store(ctx, key, &(crec->header), data);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, (__location__ " Failed to store pid in transaction "
-			  "record: %s\n", nt_errstr(status)));
-		talloc_free(tmp_ctx);
-		return -1;
-	}
-
 	talloc_free(rh);
 
 	ret = tdb_transaction_start(ctx->wtdb->tdb);
@@ -400,46 +251,24 @@ again:
 		return -1;
 	}
 
-	status = db_ctdb_ltdb_fetch(ctx, key, &header, tmp_ctx, &data);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, (__location__ " failed to refetch transaction lock "
-			  "record inside transaction: %s - retrying\n",
-			  nt_errstr(status)));
+	data = tdb_fetch(ctx->wtdb->tdb, key);
+	if ((data.dptr == NULL) ||
+	    (data.dsize < sizeof(struct ctdb_ltdb_header)) ||
+	    ((struct ctdb_ltdb_header *)data.dptr)->dmaster != get_my_vnn()) {
+		SAFE_FREE(data.dptr);
 		tdb_transaction_cancel(ctx->wtdb->tdb);
 		talloc_free(tmp_ctx);
 		goto again;
 	}
 
-	if (header.dmaster != get_my_vnn()) {
-		DEBUG(3, (__location__ " refetch transaction lock record : "
-			  "we are not dmaster any more "
-			  "(dmaster[%u] != my_vnn[%u]) - retrying\n",
-			  header.dmaster, get_my_vnn()));
-		tdb_transaction_cancel(ctx->wtdb->tdb);
-		talloc_free(tmp_ctx);
-		goto again;
-	}
-
-	if ((data.dsize != sizeof(pid_t)) || (*(pid_t *)(data.dptr) != pid)) {
-		DEBUG(3, (__location__ " refetch transaction lock record: "
-			  "another local process has started a transaction "
-			  "(stored pid [%u] != my pid [%u]) - retrying\n",
-			  *(pid_t *)(data.dptr), pid));
-		tdb_transaction_cancel(ctx->wtdb->tdb);
-		talloc_free(tmp_ctx);
-		goto again;
-	}
-
+	SAFE_FREE(data.dptr);
 	talloc_free(tmp_ctx);
 
 	return 0;
 }
 
 
-/**
- * CTDB dbwrap API: transaction_start function
- * starts a transaction on a persistent database
- */
+/* start a transaction on a database */
 static int db_ctdb_transaction_start(struct db_context *db)
 {
 	struct db_ctdb_transaction_handle *h;
@@ -491,14 +320,24 @@ static int db_ctdb_transaction_fetch(struct db_ctdb_ctx *db,
 				     TDB_DATA key, TDB_DATA *data)
 {
 	struct db_ctdb_transaction_handle *h = db->transaction;
-	NTSTATUS status;
 
-	status = db_ctdb_ltdb_fetch(h->ctx, key, NULL, mem_ctx, data);
+	*data = tdb_fetch(h->ctx->wtdb->tdb, key);
 
-	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
-		*data = tdb_null;
-	} else if (!NT_STATUS_IS_OK(status)) {
-		return -1;
+	if (data->dptr != NULL) {
+		uint8_t *oldptr = (uint8_t *)data->dptr;
+		data->dsize -= sizeof(struct ctdb_ltdb_header);
+		if (data->dsize == 0) {
+			data->dptr = NULL;
+		} else {
+			data->dptr = (uint8 *)
+				talloc_memdup(
+					mem_ctx, data->dptr+sizeof(struct ctdb_ltdb_header),
+					data->dsize);
+		}
+		SAFE_FREE(oldptr);
+		if (data->dptr == NULL && data->dsize != 0) {
+			return -1;
+		}
 	}
 
 	if (!h->in_replay) {
@@ -622,7 +461,6 @@ static int db_ctdb_transaction_store(struct db_ctdb_transaction_handle *h,
 	int ret;
 	TDB_DATA rec;
 	struct ctdb_ltdb_header header;
-	NTSTATUS status;
 
 	/* we need the header so we can update the RSN */
 	rec = tdb_fetch(h->ctx->wtdb->tdb, key);
@@ -631,6 +469,7 @@ static int db_ctdb_transaction_store(struct db_ctdb_transaction_handle *h,
 		   This is only safe because we are in a transaction and this
 		   is a persistent database */
 		ZERO_STRUCT(header);
+		header.dmaster = get_my_vnn();
 	} else {
 		memcpy(&header, rec.dptr, sizeof(struct ctdb_ltdb_header));
 		rec.dsize -= sizeof(struct ctdb_ltdb_header);
@@ -644,7 +483,6 @@ static int db_ctdb_transaction_store(struct db_ctdb_transaction_handle *h,
 		SAFE_FREE(rec.dptr);
 	}
 
-	header.dmaster = get_my_vnn();
 	header.rsn++;
 
 	if (!h->in_replay) {
@@ -663,12 +501,17 @@ static int db_ctdb_transaction_store(struct db_ctdb_transaction_handle *h,
 		return -1;
 	}
 
-	status = db_ctdb_ltdb_store(h->ctx, key, &header, data);
-	if (NT_STATUS_IS_OK(status)) {
-		ret = 0;
-	} else {
-		ret = -1;
+	rec.dsize = data.dsize + sizeof(struct ctdb_ltdb_header);
+	rec.dptr = (uint8_t *)talloc_size(tmp_ctx, rec.dsize);
+	if (rec.dptr == NULL) {
+		DEBUG(0,(__location__ " Failed to alloc record\n"));
+		talloc_free(tmp_ctx);
+		return -1;
 	}
+	memcpy(rec.dptr, &header, sizeof(struct ctdb_ltdb_header));
+	memcpy(sizeof(struct ctdb_ltdb_header) + (uint8_t *)rec.dptr, data.dptr, data.dsize);
+
+	ret = tdb_store(h->ctx->wtdb->tdb, key, rec, TDB_REPLACE);
 
 	talloc_free(tmp_ctx);
 
@@ -850,7 +693,7 @@ again:
 			}
 		}
 
-		if (++retries == 100) {
+		if (++retries == 5) {
 			DEBUG(0,(__location__ " Giving up transaction on db 0x%08x after %d retries failure_control=%u\n", 
 				 h->ctx->db_id, retries, (unsigned)failure_control));
 			ctdbd_control_local(messaging_ctdbd_connection(), failure_control,
@@ -932,8 +775,24 @@ static NTSTATUS db_ctdb_store(struct db_record *rec, TDB_DATA data, int flag)
 {
 	struct db_ctdb_rec *crec = talloc_get_type_abort(
 		rec->private_data, struct db_ctdb_rec);
+	TDB_DATA cdata;
+	int ret;
 
-	return db_ctdb_ltdb_store(crec->ctdb_ctx, rec->key, &(crec->header), data);
+	cdata.dsize = sizeof(crec->header) + data.dsize;
+
+	if (!(cdata.dptr = SMB_MALLOC_ARRAY(uint8, cdata.dsize))) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	memcpy(cdata.dptr, &crec->header, sizeof(crec->header));
+	memcpy(cdata.dptr + sizeof(crec->header), data.dptr, data.dsize);
+
+	ret = tdb_store(crec->ctdb_ctx->wtdb->tdb, rec->key, cdata, TDB_REPLACE);
+
+	SAFE_FREE(cdata.dptr);
+
+	return (ret == 0) ? NT_STATUS_OK
+			  : tdb_error_to_ntstatus(crec->ctdb_ctx->wtdb->tdb);
 }
 
 

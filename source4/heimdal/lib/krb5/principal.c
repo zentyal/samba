@@ -32,7 +32,7 @@
  */
 
 /**
- * @page krb5_principal_intro The principal handing functions.
+ * @page page_principal The principal handing functions.
  *
  * A Kerberos principal is a email address looking string that
  * contains to parts separeted by a @.  The later part is the kerbero
@@ -57,6 +57,8 @@ host/admin@H5L.ORG
 #include <fnmatch.h>
 #include "resolve.h"
 
+RCSID("$Id$");
+
 #define princ_num_comp(P) ((P)->name.name_string.len)
 #define princ_type(P) ((P)->name.name_type)
 #define princ_comp(P) ((P)->name.name_string.val)
@@ -76,6 +78,8 @@ host/admin@H5L.ORG
  * @ingroup krb5_principal
  */
 
+
+
 void KRB5_LIB_FUNCTION
 krb5_free_principal(krb5_context context,
 		    krb5_principal p)
@@ -85,18 +89,6 @@ krb5_free_principal(krb5_context context,
 	free(p);
     }
 }
-
-/**
- * Set the type of the principal
- *
- * @param context A Kerberos context.
- * @param principal principal to set the type for
- * @param type the new type
- *
- * @return An krb5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_principal
- */
 
 void KRB5_LIB_FUNCTION
 krb5_principal_set_type(krb5_context context,
@@ -135,10 +127,8 @@ krb5_principal_get_comp_string(krb5_context context,
  *
  * @param context Kerberos 5 context
  * @param principal principal to query
- *
  * @return number of components in string
- *
- * @ingroup krb5_principal
+ * @ingroup krb5
  */
 
 unsigned int KRB5_LIB_FUNCTION
@@ -172,7 +162,7 @@ krb5_parse_name_flags(krb5_context context,
 
     *principal = NULL;
 
-#define RFLAGS (KRB5_PRINCIPAL_PARSE_NO_REALM|KRB5_PRINCIPAL_PARSE_REQUIRE_REALM)
+#define RFLAGS (KRB5_PRINCIPAL_PARSE_NO_REALM|KRB5_PRINCIPAL_PARSE_MUST_REALM)
 
     if ((flags & RFLAGS) == RFLAGS) {
 	krb5_set_error_message(context, KRB5_ERR_NO_SERVICE,
@@ -286,7 +276,7 @@ krb5_parse_name_flags(krb5_context context,
 	memcpy(realm, start, q - start);
 	realm[q - start] = 0;
     }else{
-	if (flags & KRB5_PRINCIPAL_PARSE_REQUIRE_REALM) {
+	if (flags & KRB5_PRINCIPAL_PARSE_MUST_REALM) {
 	    ret = KRB5_PARSE_MALFORMED;
 	    krb5_set_error_message(context, ret,
 				   N_("realm NOT found in principal "
@@ -496,18 +486,6 @@ unparse_name(krb5_context context,
     return ret;
 }
 
-/**
- * Unparse the Kerberos name into a string
- *
- * @param context Kerberos 5 context
- * @param principal principal to query
- * @param name resulting string, free with krb5_xfree()
- *
- * @return An krb5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_principal
- */
-
 krb5_error_code KRB5_LIB_FUNCTION
 krb5_unparse_name(krb5_context context,
 		  krb5_const_principal principal,
@@ -515,19 +493,6 @@ krb5_unparse_name(krb5_context context,
 {
     return unparse_name(context, principal, name, 0);
 }
-
-/**
- * Unparse the Kerberos name into a string
- *
- * @param context Kerberos 5 context
- * @param principal principal to query
- * @param flags flag to determine the behavior
- * @param name resulting string, free with krb5_xfree()
- *
- * @return An krb5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_principal
- */
 
 krb5_error_code KRB5_LIB_FUNCTION
 krb5_unparse_name_flags(krb5_context context,
@@ -558,6 +523,22 @@ krb5_unparse_name_ext(krb5_context context,
 }
 
 #endif
+
+krb5_realm * KRB5_LIB_FUNCTION
+krb5_princ_realm(krb5_context context,
+		 krb5_principal principal)
+{
+    return &princ_realm(principal);
+}
+
+
+void KRB5_LIB_FUNCTION
+krb5_princ_set_realm(krb5_context context,
+		     krb5_principal principal,
+		     krb5_realm *realm)
+{
+    princ_realm(principal) = *realm;
+}
 
 krb5_error_code KRB5_LIB_FUNCTION
 krb5_principal_set_realm(krb5_context context,
@@ -644,6 +625,7 @@ va_princ(krb5_context context, krb5_principal p, va_list ap)
 	append_component(context, p, s, strlen(s));
     }
 }
+
 
 static krb5_error_code
 build_principal(krb5_context context,
@@ -757,16 +739,8 @@ krb5_copy_principal(krb5_context context,
     return 0;
 }
 
-/**
- * Return TRUE iff princ1 == princ2 (without considering the realm)
- *
- * @param context Kerberos 5 context
- * @param princ1 first principal to compare
- * @param princ2 second principal to compare
- *
- * @return non zero if equal, 0 if not
- *
- * @ingroup krb5_principal
+/*
+ * return TRUE iff princ1 == princ2 (without considering the realm)
  */
 
 krb5_boolean KRB5_LIB_FUNCTION
@@ -847,7 +821,6 @@ krb5_principal_match(krb5_context context,
     return TRUE;
 }
 
-#if defined(KRB4) || !defined(HEIMDAL_SMALLER)
 
 static struct v4_name_convert {
     const char *from;
@@ -861,10 +834,6 @@ static struct v4_name_convert {
     { "smtp",	"smtp" },
     { NULL, NULL }
 };
-
-#endif
-
-#ifdef KRB4
 
 /*
  * return the converted instance name of `name' in `realm'.
@@ -956,8 +925,6 @@ krb5_425_conv_principal_ext2(krb5_context context,
     if(p){
 	instance = p;
 	ret = krb5_make_principal(context, &pr, realm, name, instance, NULL);
-	if (ret)
-	    return ret;
 	if(func == NULL || (*func)(context, funcctx, pr)){
 	    *princ = pr;
 	    return 0;
@@ -971,23 +938,23 @@ krb5_425_conv_principal_ext2(krb5_context context,
 	krb5_boolean passed = FALSE;
 	char *inst = NULL;
 #ifdef USE_RESOLVER
-	struct rk_dns_reply *r;
+	struct dns_reply *r;
 
-	r = rk_dns_lookup(instance, "aaaa");
+	r = dns_lookup(instance, "aaaa");
 	if (r) {
-	    if (r->head && r->head->type == rk_ns_t_aaaa) {
+	    if (r->head && r->head->type == T_AAAA) {
 		inst = strdup(r->head->domain);
 		passed = TRUE;
 	    }
-	    rk_dns_free_data(r);
+	    dns_free_data(r);
 	} else {
-	    r = rk_dns_lookup(instance, "a");
+	    r = dns_lookup(instance, "a");
 	    if (r) {
-		if(r->head && r->head->type == rk_ns_t_a) {
+		if(r->head && r->head->type == T_A) {
 		    inst = strdup(r->head->domain);
 		    passed = TRUE;
 		}
-		rk_dns_free_data(r);
+		dns_free_data(r);
 	    }
 	}
 #else
@@ -1031,8 +998,6 @@ krb5_425_conv_principal_ext2(krb5_context context,
 	snprintf(host, sizeof(host), "%s.%s", instance, realm);
 	strlwr(host);
 	ret = krb5_make_principal(context, &pr, realm, name, host, NULL);
-	if (ret)
-	    return ret;
 	if((*func)(context, funcctx, pr)){
 	    *princ = pr;
 	    return 0;
@@ -1060,10 +1025,6 @@ krb5_425_conv_principal_ext2(krb5_context context,
 	for(d = domains; d && *d; d++){
 	    snprintf(host, sizeof(host), "%s.%s", instance, *d);
 	    ret = krb5_make_principal(context, &pr, realm, name, host, NULL);
-	    if (ret) {
-		krb5_config_free_strings(domains);
-		return ret;
-	    }
 	    if(func == NULL || (*func)(context, funcctx, pr)){
 		*princ = pr;
 		krb5_config_free_strings(domains);
@@ -1088,8 +1049,6 @@ krb5_425_conv_principal_ext2(krb5_context context,
     snprintf(host, sizeof(host), "%s.%s", instance, p);
 local_host:
     ret = krb5_make_principal(context, &pr, realm, name, host, NULL);
-    if (ret)
-	return ret;
     if(func == NULL || (*func)(context, funcctx, pr)){
 	*princ = pr;
 	return 0;
@@ -1116,8 +1075,6 @@ no_host:
 	name = p;
 
     ret = krb5_make_principal(context, &pr, realm, name, instance, NULL);
-    if (ret)
-	return ret;
     if(func == NULL || (*func)(context, funcctx, pr)){
 	*princ = pr;
 	return 0;
@@ -1127,9 +1084,51 @@ no_host:
     return HEIM_ERR_V4_PRINC_NO_CONV;
 }
 
-#endif /* KRB4 */
+static krb5_boolean
+convert_func(krb5_context conxtext, void *funcctx, krb5_principal principal)
+{
+    krb5_boolean (*func)(krb5_context, krb5_principal) = funcctx;
+    return (*func)(conxtext, principal);
+}
 
-#ifndef HEIMDAL_SMALLER
+krb5_error_code KRB5_LIB_FUNCTION
+krb5_425_conv_principal_ext(krb5_context context,
+			    const char *name,
+			    const char *instance,
+			    const char *realm,
+			    krb5_boolean (*func)(krb5_context, krb5_principal),
+			    krb5_boolean resolve,
+			    krb5_principal *principal)
+{
+    return krb5_425_conv_principal_ext2(context,
+					name,
+					instance,
+					realm,
+					func ? convert_func : NULL,
+					func,
+					resolve,
+					principal);
+}
+
+
+
+krb5_error_code KRB5_LIB_FUNCTION
+krb5_425_conv_principal(krb5_context context,
+			const char *name,
+			const char *instance,
+			const char *realm,
+			krb5_principal *princ)
+{
+    krb5_boolean resolve = krb5_config_get_bool(context,
+						NULL,
+						"libdefaults",
+						"v4_instance_resolve",
+						NULL);
+
+    return krb5_425_conv_principal_ext(context, name, instance, realm,
+				       NULL, resolve, princ);
+}
+
 
 static int
 check_list(const krb5_config_binding *l, const char *name, const char **out)
@@ -1187,7 +1186,6 @@ name_convert(krb5_context context, const char *name, const char *realm,
 	return KRB5_NT_UNKNOWN;
 
     /* didn't find it in config file, try built-in list */
-#ifdef KRB4
     {
 	struct v4_name_convert *q;
 	for(q = default_v4_name_convert; q->from; q++) {
@@ -1197,7 +1195,6 @@ name_convert(krb5_context context, const char *name, const char *realm,
 	    }
 	}
     }
-#endif
     return -1;
 }
 
@@ -1275,8 +1272,6 @@ krb5_524_conv_principal(krb5_context context,
     }
     return 0;
 }
-
-#endif /* !HEIMDAL_SMALLER */
 
 /**
  * Create a principal for the service running on hostname. If

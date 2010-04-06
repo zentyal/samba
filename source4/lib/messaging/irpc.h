@@ -22,7 +22,6 @@
 #ifndef IRPC_H
 #define IRPC_H
 
-#include "lib/messaging/messaging.h"
 #include "librpc/gen_ndr/irpc.h"
 #include "librpc/gen_ndr/server_id.h"
 

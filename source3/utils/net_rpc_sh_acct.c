@@ -18,7 +18,6 @@
 */
 #include "includes.h"
 #include "utils/net.h"
-#include "../librpc/gen_ndr/cli_samr.h"
 
 /*
  * Do something with the account policies. Read them all, run a function on
@@ -76,7 +75,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 					     &info1);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		d_fprintf(stderr, _("query_domain_info level 1 failed: %s\n"),
+		d_fprintf(stderr, "query_domain_info level 1 failed: %s\n",
 			  nt_errstr(result));
 		goto done;
 	}
@@ -87,7 +86,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 					     &info3);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		d_fprintf(stderr, _("query_domain_info level 3 failed: %s\n"),
+		d_fprintf(stderr, "query_domain_info level 3 failed: %s\n",
 			  nt_errstr(result));
 		goto done;
 	}
@@ -98,7 +97,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 					     &info12);
 
 	if (!NT_STATUS_IS_OK(result)) {
-		d_fprintf(stderr, _("query_domain_info level 12 failed: %s\n"),
+		d_fprintf(stderr, "query_domain_info level 12 failed: %s\n",
 			  nt_errstr(result));
 		goto done;
 	}
@@ -131,7 +130,7 @@ static NTSTATUS rpc_sh_acct_do(struct net_context *c,
 						   info12);
 		break;
 	default:
-		d_fprintf(stderr, _("Got unexpected info level %d\n"), store);
+		d_fprintf(stderr, "Got unexpected info level %d\n", store);
 		result = NT_STATUS_INTERNAL_ERROR;
 		goto done;
 	}
@@ -155,56 +154,55 @@ static int account_show(struct net_context *c,
 			int argc, const char **argv)
 {
 	if (argc != 0) {
-		d_fprintf(stderr, "%s %s\n", _("Usage:"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s\n", ctx->whoami);
 		return -1;
 	}
 
-	d_printf(_("Minimum password length: %d\n"), i1->min_password_length);
-	d_printf(_("Password history length: %d\n"),
-		 i1->password_history_length);
+	d_printf("Minimum password length: %d\n", i1->min_password_length);
+	d_printf("Password history length: %d\n", i1->password_history_length);
 
-	d_printf(_("Minimum password age: "));
+	d_printf("Minimum password age: ");
 	if (!nt_time_is_zero((NTTIME *)&i1->min_password_age)) {
 		time_t t = nt_time_to_unix_abs((NTTIME *)&i1->min_password_age);
-		d_printf(_("%d seconds\n"), (int)t);
+		d_printf("%d seconds\n", (int)t);
 	} else {
-		d_printf(_("not set\n"));
+		d_printf("not set\n");
 	}
 
-	d_printf(_("Maximum password age: "));
+	d_printf("Maximum password age: ");
 	if (nt_time_is_set((NTTIME *)&i1->max_password_age)) {
 		time_t t = nt_time_to_unix_abs((NTTIME *)&i1->max_password_age);
-		d_printf(_("%d seconds\n"), (int)t);
+		d_printf("%d seconds\n", (int)t);
 	} else {
-		d_printf(_("not set\n"));
+		d_printf("not set\n");
 	}
 
-	d_printf(_("Bad logon attempts: %d\n"), i12->lockout_threshold);
+	d_printf("Bad logon attempts: %d\n", i12->lockout_threshold);
 
 	if (i12->lockout_threshold != 0) {
 
-		d_printf(_("Account lockout duration: "));
+		d_printf("Account lockout duration: ");
 		if (nt_time_is_set(&i12->lockout_duration)) {
 			time_t t = nt_time_to_unix_abs(&i12->lockout_duration);
-			d_printf(_("%d seconds\n"), (int)t);
+			d_printf("%d seconds\n", (int)t);
 		} else {
-			d_printf(_("not set\n"));
+			d_printf("not set\n");
 		}
 
-		d_printf(_("Bad password count reset after: "));
+		d_printf("Bad password count reset after: ");
 		if (nt_time_is_set(&i12->lockout_window)) {
 			time_t t = nt_time_to_unix_abs(&i12->lockout_window);
-			d_printf(_("%d seconds\n"), (int)t);
+			d_printf("%d seconds\n", (int)t);
 		} else {
-			d_printf(_("not set\n"));
+			d_printf("not set\n");
 		}
 	}
 
-	d_printf(_("Disconnect users when logon hours expire: %s\n"),
-		 nt_time_is_zero(&i3->force_logoff_time) ? _("yes") : _("no"));
+	d_printf("Disconnect users when logon hours expire: %s\n",
+		 nt_time_is_zero(&i3->force_logoff_time) ? "yes" : "no");
 
-	d_printf(_("User must logon to change password: %s\n"),
-		 (i1->password_properties & 0x2) ? _("yes") : _("no"));
+	d_printf("User must logon to change password: %s\n",
+		 (i1->password_properties & 0x2) ? "yes" : "no");
 
 	return 0;		/* Don't save */
 }
@@ -226,12 +224,12 @@ static int account_set_badpw(struct net_context *c,
 			     int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, "%s %s <count>\n", _("Usage:"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	i12->lockout_threshold = atoi(argv[0]);
-	d_printf(_("Setting bad password count to %d\n"),
+	d_printf("Setting bad password count to %d\n",
 		 i12->lockout_threshold);
 
 	return 12;
@@ -256,12 +254,12 @@ static int account_set_lockduration(struct net_context *c,
 				    int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	unix_to_nt_time_abs(&i12->lockout_duration, atoi(argv[0]));
-	d_printf(_("Setting lockout duration to %d seconds\n"),
+	d_printf("Setting lockout duration to %d seconds\n",
 		 (int)nt_time_to_unix_abs(&i12->lockout_duration));
 
 	return 12;
@@ -286,12 +284,12 @@ static int account_set_resetduration(struct net_context *c,
 				     int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	unix_to_nt_time_abs(&i12->lockout_window, atoi(argv[0]));
-	d_printf(_("Setting bad password reset duration to %d seconds\n"),
+	d_printf("Setting bad password reset duration to %d seconds\n",
 		 (int)nt_time_to_unix_abs(&i12->lockout_window));
 
 	return 12;
@@ -316,12 +314,12 @@ static int account_set_minpwage(struct net_context *c,
 				int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	unix_to_nt_time_abs((NTTIME *)&i1->min_password_age, atoi(argv[0]));
-	d_printf(_("Setting minimum password age to %d seconds\n"),
+	d_printf("Setting minimum password age to %d seconds\n",
 		 (int)nt_time_to_unix_abs((NTTIME *)&i1->min_password_age));
 
 	return 1;
@@ -346,12 +344,12 @@ static int account_set_maxpwage(struct net_context *c,
 				int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	unix_to_nt_time_abs((NTTIME *)&i1->max_password_age, atoi(argv[0]));
-	d_printf(_("Setting maximum password age to %d seconds\n"),
+	d_printf("Setting maximum password age to %d seconds\n",
 		 (int)nt_time_to_unix_abs((NTTIME *)&i1->max_password_age));
 
 	return 1;
@@ -376,12 +374,12 @@ static int account_set_minpwlen(struct net_context *c,
 				int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	i1->min_password_length = atoi(argv[0]);
-	d_printf(_("Setting minimum password length to %d\n"),
+	d_printf("Setting minimum password length to %d\n",
 		 i1->min_password_length);
 
 	return 1;
@@ -406,12 +404,12 @@ static int account_set_pwhistlen(struct net_context *c,
 				 int argc, const char **argv)
 {
 	if (argc != 1) {
-		d_fprintf(stderr, _("Usage: %s <count>\n"), ctx->whoami);
+		d_fprintf(stderr, "usage: %s <count>\n", ctx->whoami);
 		return -1;
 	}
 
 	i1->password_history_length = atoi(argv[0]);
-	d_printf(_("Setting password history length to %d\n"),
+	d_printf("Setting password history length to %d\n",
 		 i1->password_history_length);
 
 	return 1;
@@ -432,22 +430,22 @@ struct rpc_sh_cmd *net_rpc_acct_cmds(struct net_context *c, TALLOC_CTX *mem_ctx,
 {
 	static struct rpc_sh_cmd cmds[9] = {
 		{ "show", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_pol_show,
-		  N_("Show current account policy settings") },
+		  "Show current account policy settings" },
 		{ "badpw", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_badpw,
-		  N_("Set bad password count before lockout") },
+		  "Set bad password count before lockout" },
 		{ "lockduration", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_lockduration,
-		  N_("Set account lockout duration") },
+		  "Set account lockout duration" },
 		{ "resetduration", NULL, &ndr_table_samr.syntax_id,
 		  rpc_sh_acct_set_resetduration,
-		  N_("Set bad password count reset duration") },
+		  "Set bad password count reset duration" },
 		{ "minpwage", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_minpwage,
-		  N_("Set minimum password age") },
+		  "Set minimum password age" },
 		{ "maxpwage", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_maxpwage,
-		  N_("Set maximum password age") },
+		  "Set maximum password age" },
 		{ "minpwlen", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_minpwlen,
-		  N_("Set minimum password length") },
+		  "Set minimum password length" },
 		{ "pwhistlen", NULL, &ndr_table_samr.syntax_id, rpc_sh_acct_set_pwhistlen,
-		  N_("Set the password history length") },
+		  "Set the password history length" },
 		{ NULL, NULL, 0, NULL, NULL }
 	};
 

@@ -31,7 +31,10 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
+
 
 static krb5_error_code
 check_compat(OM_uint32 *minor_status,

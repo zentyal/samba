@@ -123,11 +123,7 @@ static const struct {
 
 	{SEC_PRIV_REMOTE_INTERACTIVE_LOGON,   
 	 "SeRemoteInteractiveLogonRight",
-	"Remote Interactive logon"},
-
-	{SEC_PRIV_MACHINE_ACCOUNT,
-	 "SeMachineAccountPrivilege",
-	"Add workstations to domain"}
+	"Remote Interactive logon"}
 };
 
 

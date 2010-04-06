@@ -35,6 +35,8 @@
 #include "compile_et.h"
 #include "lex.h"
 
+RCSID("$Id$");
+
 void yyerror (char *s);
 static long name2number(const char *str);
 

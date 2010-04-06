@@ -32,6 +32,7 @@
  */
 
 #include "hx_locl.h"
+RCSID("$Id$");
 #include <dirent.h>
 
 /*
@@ -70,7 +71,7 @@ dir_init(hx509_context context,
 	    return ENOENT;
 	}
 
-	if (!S_ISDIR(sb.st_mode)) {
+	if ((sb.st_mode & S_IFDIR) == 0) {
 	    hx509_set_error_string(context, 0, ENOTDIR,
 				   "%s is not a directory", residue);
 	    return ENOTDIR;

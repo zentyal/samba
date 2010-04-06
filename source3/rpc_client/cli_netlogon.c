@@ -21,8 +21,6 @@
 */
 
 #include "includes.h"
-#include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 /****************************************************************************
  Wrapper function that uses the auth and auth2 calls to set up a NETLOGON
@@ -42,22 +40,28 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	struct netr_Credential clnt_chal_send;
 	struct netr_Credential srv_chal_recv;
-	struct samr_Password password;
+	struct dcinfo *dc;
 	bool retried = false;
-	fstring mach_acct;
-	uint32_t neg_flags = *neg_flags_inout;
 
-	if (!ndr_syntax_id_equal(&cli->abstract_syntax,
-				 &ndr_table_netlogon.syntax_id)) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
+	SMB_ASSERT(ndr_syntax_id_equal(&cli->abstract_syntax,
+				       &ndr_table_netlogon.syntax_id));
 
 	TALLOC_FREE(cli->dc);
+	cli->dc = talloc_zero(cli, struct dcinfo);
+	if (cli->dc == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	dc = cli->dc;
 
 	/* Store the machine account password we're going to use. */
-	memcpy(password.hash, machine_pwd, 16);
+	memcpy(dc->mach_pw, machine_pwd, 16);
 
-	fstr_sprintf( mach_acct, "%s$", machine_account);
+	fstrcpy(dc->remote_machine, "\\\\");
+	fstrcat(dc->remote_machine, server_name);
+
+	fstrcpy(dc->domain, domain);
+
+	fstr_sprintf( dc->mach_acct, "%s$", machine_account);
 
  again:
 	/* Create the client challenge. */
@@ -65,7 +69,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 
 	/* Get the server challenge. */
 	result = rpccli_netr_ServerReqChallenge(cli, talloc_tos(),
-						cli->srv_name_slash,
+						dc->remote_machine,
 						clnt_name,
 						&clnt_chal_send,
 						&srv_chal_recv);
@@ -74,39 +78,31 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	}
 
 	/* Calculate the session key and client credentials */
-	
-	cli->dc = netlogon_creds_client_init(cli,
-				    mach_acct,
-				    clnt_name,
-				    &clnt_chal_send,
-				    &srv_chal_recv,
-				    &password,
-				    &clnt_chal_send,
-				    neg_flags);
-
-	if (!cli->dc) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	creds_client_init(*neg_flags_inout,
+			dc,
+			&clnt_chal_send,
+			&srv_chal_recv,
+			machine_pwd,
+			&clnt_chal_send);
 
 	/*
 	 * Send client auth-2 challenge and receive server repy.
 	 */
 
 	result = rpccli_netr_ServerAuthenticate2(cli, talloc_tos(),
-						 cli->srv_name_slash,
-						 cli->dc->account_name,
+						 dc->remote_machine,
+						 dc->mach_acct,
 						 sec_chan_type,
-						 cli->dc->computer_name,
+						 clnt_name,
 						 &clnt_chal_send, /* input. */
 						 &srv_chal_recv, /* output. */
-						 &neg_flags);
+						 neg_flags_inout);
 
 	/* we might be talking to NT4, so let's downgrade in that case and retry
 	 * with the returned neg_flags - gd */
 
 	if (NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) && !retried) {
 		retried = true;
-		TALLOC_FREE(cli->dc);
 		goto again;
 	}
 
@@ -119,7 +115,7 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	 * server received challenge.
 	 */
 
-	if (!netlogon_creds_client_check(cli->dc, &srv_chal_recv)) {
+	if (!netlogon_creds_client_check(dc, &srv_chal_recv)) {
 		/*
 		 * Server replied with bad credential. Fail.
 		 */
@@ -132,9 +128,6 @@ NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
 	DEBUG(5,("rpccli_netlogon_setup_creds: server %s credential "
 		"chain established.\n",
 		cli->desthost ));
-
-	cli->dc->negotiate_flags = neg_flags;
-	*neg_flags_inout = neg_flags;
 
 	return NT_STATUS_OK;
 }
@@ -176,7 +169,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 
 	/* Initialise input parameters */
 
-	netlogon_creds_client_authenticator(cli->dc, &clnt_creds);
+	netlogon_creds_client_step(cli->dc, &clnt_creds);
 
 	switch (logon_type) {
 	case NetlogonInteractiveInformation: {
@@ -186,30 +179,53 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 		struct samr_Password lmpassword;
 		struct samr_Password ntpassword;
 
+		unsigned char lm_owf_user_pwd[16], nt_owf_user_pwd[16];
+
+		unsigned char lm_owf[16];
+		unsigned char nt_owf[16];
+		unsigned char key[16];
+
 		password_info = TALLOC_ZERO_P(mem_ctx, struct netr_PasswordInfo);
 		if (!password_info) {
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		nt_lm_owf_gen(password, ntpassword.hash, lmpassword.hash);
+		nt_lm_owf_gen(password, nt_owf_user_pwd, lm_owf_user_pwd);
 
-		if (cli->dc->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-			netlogon_creds_arcfour_crypt(cli->dc, lmpassword.hash, 16);
-			netlogon_creds_arcfour_crypt(cli->dc, ntpassword.hash, 16);
-		} else {
-			netlogon_creds_des_encrypt(cli->dc, &lmpassword);
-			netlogon_creds_des_encrypt(cli->dc, &ntpassword);
-		}
+#ifdef DEBUG_PASSWORD
+		DEBUG(100,("lm cypher:"));
+		dump_data(100, lm_owf_user_pwd, 16);
 
-		password_info->identity_info.domain_name.string		= domain;
-		password_info->identity_info.parameter_control		= logon_parameters;
-		password_info->identity_info.logon_id_low		= 0xdead;
-		password_info->identity_info.logon_id_high		= 0xbeef;
-		password_info->identity_info.account_name.string	= username;
-		password_info->identity_info.workstation.string		= clnt_name_slash;
+		DEBUG(100,("nt cypher:"));
+		dump_data(100, nt_owf_user_pwd, 16);
+#endif
+		memset(key, 0, 16);
+		memcpy(key, cli->dc->sess_key, 8);
 
-		password_info->lmpassword = lmpassword;
-		password_info->ntpassword = ntpassword;
+		memcpy(lm_owf, lm_owf_user_pwd, 16);
+		SamOEMhash(lm_owf, key, 16);
+		memcpy(nt_owf, nt_owf_user_pwd, 16);
+		SamOEMhash(nt_owf, key, 16);
+
+#ifdef DEBUG_PASSWORD
+		DEBUG(100,("encrypt of lm owf password:"));
+		dump_data(100, lm_owf, 16);
+
+		DEBUG(100,("encrypt of nt owf password:"));
+		dump_data(100, nt_owf, 16);
+#endif
+		memcpy(lmpassword.hash, lm_owf, 16);
+		memcpy(ntpassword.hash, nt_owf, 16);
+
+		init_netr_PasswordInfo(password_info,
+				       domain,
+				       logon_parameters,
+				       0xdead,
+				       0xbeef,
+				       username,
+				       clnt_name_slash,
+				       lmpassword,
+				       ntpassword);
 
 		logon->password = password_info;
 
@@ -242,16 +258,16 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 		nt.length = 24;
 		nt.data = local_nt_response;
 
-		network_info->identity_info.domain_name.string		= domain;
-		network_info->identity_info.parameter_control		= logon_parameters;
-		network_info->identity_info.logon_id_low		= 0xdead;
-		network_info->identity_info.logon_id_high		= 0xbeef;
-		network_info->identity_info.account_name.string		= username;
-		network_info->identity_info.workstation.string		= clnt_name_slash;
-
-		memcpy(network_info->challenge, chal, 8);
-		network_info->nt = nt;
-		network_info->lm = lm;
+		init_netr_NetworkInfo(network_info,
+				      domain,
+				      logon_parameters,
+				      0xdead,
+				      0xbeef,
+				      username,
+				      clnt_name_slash,
+				      chal,
+				      nt,
+				      lm);
 
 		logon->network = network_info;
 
@@ -264,7 +280,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	}
 
 	result = rpccli_netr_LogonSamLogon(cli, mem_ctx,
-					   cli->srv_name_slash,
+					   cli->dc->remote_machine,
 					   global_myname(),
 					   &clnt_creds,
 					   &ret_creds,
@@ -274,10 +290,12 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 					   &validation,
 					   &authoritative);
 
-	/* Always check returned credentials */
-	if (!netlogon_creds_client_check(cli->dc, &ret_creds.cred)) {
-		DEBUG(0,("rpccli_netlogon_sam_logon: credentials chain check failed\n"));
-		return NT_STATUS_ACCESS_DENIED;
+	if (memcmp(zeros, &ret_creds.cred.data, sizeof(ret_creds.cred.data)) != 0) {
+		/* Check returned credentials if present. */
+		if (!netlogon_creds_client_check(cli->dc, &ret_creds.cred)) {
+			DEBUG(0,("rpccli_netlogon_sam_logon: credentials chain check failed\n"));
+			return NT_STATUS_ACCESS_DENIED;
+		}
 	}
 
 	return result;
@@ -334,7 +352,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	netlogon_creds_client_authenticator(cli->dc, &clnt_creds);
+	netlogon_creds_client_step(cli->dc, &clnt_creds);
 
 	if (server[0] != '\\' && server[1] != '\\') {
 		server_name_slash = talloc_asprintf(mem_ctx, "\\\\%s", server);
@@ -360,16 +378,16 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 	nt.data = nt_response.data;
 	nt.length = nt_response.length;
 
-	network_info->identity_info.domain_name.string		= domain;
-	network_info->identity_info.parameter_control		= logon_parameters;
-	network_info->identity_info.logon_id_low		= 0xdead;
-	network_info->identity_info.logon_id_high		= 0xbeef;
-	network_info->identity_info.account_name.string		= username;
-	network_info->identity_info.workstation.string		= workstation_name_slash;
-
-	memcpy(network_info->challenge, chal, 8);
-	network_info->nt = nt;
-	network_info->lm = lm;
+	init_netr_NetworkInfo(network_info,
+			      domain,
+			      logon_parameters,
+			      0xdead,
+			      0xbeef,
+			      username,
+			      workstation_name_slash,
+			      (uint8_t *) chal,
+			      nt,
+			      lm);
 
 	logon->network = network_info;
 
@@ -389,13 +407,23 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 		return result;
 	}
 
-	/* Always check returned credentials. */
-	if (!netlogon_creds_client_check(cli->dc, &ret_creds.cred)) {
-		DEBUG(0,("rpccli_netlogon_sam_network_logon: credentials chain check failed\n"));
-		return NT_STATUS_ACCESS_DENIED;
+	if (memcmp(zeros, validation.sam3->base.key.key, 16) != 0) {
+		SamOEMhash(validation.sam3->base.key.key,
+			   cli->dc->sess_key, 16);
 	}
 
-	netlogon_creds_decrypt_samlogon(cli->dc, validation_level, &validation);
+	if (memcmp(zeros, validation.sam3->base.LMSessKey.key, 8) != 0) {
+		SamOEMhash(validation.sam3->base.LMSessKey.key,
+			   cli->dc->sess_key, 8);
+	}
+
+	if (memcmp(zeros, ret_creds.cred.data, sizeof(ret_creds.cred.data)) != 0) {
+		/* Check returned credentials if present. */
+		if (!netlogon_creds_client_check(cli->dc, &ret_creds.cred)) {
+			DEBUG(0,("rpccli_netlogon_sam_network_logon: credentials chain check failed\n"));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+	}
 
 	*info3 = validation.sam3;
 
@@ -468,16 +496,16 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	nt.data = nt_response.data;
 	nt.length = nt_response.length;
 
-	network_info->identity_info.domain_name.string		= domain;
-	network_info->identity_info.parameter_control		= logon_parameters;
-	network_info->identity_info.logon_id_low		= 0xdead;
-	network_info->identity_info.logon_id_high		= 0xbeef;
-	network_info->identity_info.account_name.string		= username;
-	network_info->identity_info.workstation.string		= workstation_name_slash;
-
-	memcpy(network_info->challenge, chal, 8);
-	network_info->nt = nt;
-	network_info->lm = lm;
+	init_netr_NetworkInfo(network_info,
+			      domain,
+			      logon_parameters,
+			      0xdead,
+			      0xbeef,
+			      username,
+			      workstation_name_slash,
+			      (uint8_t *) chal,
+			      nt,
+			      lm);
 
 	logon->network = network_info;
 
@@ -496,7 +524,15 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 		return result;
 	}
 
-	netlogon_creds_decrypt_samlogon(cli->dc, validation_level, &validation);
+	if (memcmp(zeros, validation.sam3->base.key.key, 16) != 0) {
+		SamOEMhash(validation.sam3->base.key.key,
+			   cli->dc->sess_key, 16);
+	}
+
+	if (memcmp(zeros, validation.sam3->base.LMSessKey.key, 8) != 0) {
+		SamOEMhash(validation.sam3->base.LMSessKey.key,
+			   cli->dc->sess_key, 8);
+	}
 
 	*info3 = validation.sam3;
 
@@ -514,47 +550,45 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 
 NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 					    TALLOC_CTX *mem_ctx,
-					    const char *account_name,
 					    const unsigned char orig_trust_passwd_hash[16],
 					    const char *new_trust_pwd_cleartext,
 					    const unsigned char new_trust_passwd_hash[16],
-					    enum netr_SchannelType sec_channel_type)
+					    uint32_t sec_channel_type)
 {
 	NTSTATUS result;
+	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	struct netr_Authenticator clnt_creds, srv_cred;
 
-	if (!cli->dc) {
-		uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-		result = rpccli_netlogon_setup_creds(cli,
-						     cli->desthost, /* server name */
-						     lp_workgroup(), /* domain */
-						     global_myname(), /* client name */
-						     account_name, /* machine account name */
-						     orig_trust_passwd_hash,
-						     sec_channel_type,
-						     &neg_flags);
-		if (!NT_STATUS_IS_OK(result)) {
-			DEBUG(3,("rpccli_netlogon_set_trust_password: unable to setup creds (%s)!\n",
-				 nt_errstr(result)));
-			return result;
-		}
+	result = rpccli_netlogon_setup_creds(cli,
+					     cli->desthost, /* server name */
+					     lp_workgroup(), /* domain */
+					     global_myname(), /* client name */
+					     global_myname(), /* machine account name */
+					     orig_trust_passwd_hash,
+					     sec_channel_type,
+					     &neg_flags);
+
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(3,("rpccli_netlogon_set_trust_password: unable to setup creds (%s)!\n",
+			 nt_errstr(result)));
+		return result;
 	}
 
-	netlogon_creds_client_authenticator(cli->dc, &clnt_creds);
+	netlogon_creds_client_step(cli->dc, &clnt_creds);
 
-	if (cli->dc->negotiate_flags & NETLOGON_NEG_PASSWORD_SET2) {
+	if (neg_flags & NETLOGON_NEG_PASSWORD_SET2) {
 
 		struct netr_CryptPassword new_password;
 
 		init_netr_CryptPassword(new_trust_pwd_cleartext,
-					cli->dc->session_key,
+					cli->dc->sess_key,
 					&new_password);
 
 		result = rpccli_netr_ServerPasswordSet2(cli, mem_ctx,
-							cli->srv_name_slash,
-							cli->dc->account_name,
+							cli->dc->remote_machine,
+							cli->dc->mach_acct,
 							sec_channel_type,
-							cli->dc->computer_name,
+							global_myname(),
 							&clnt_creds,
 							&srv_cred,
 							&new_password);
@@ -566,14 +600,16 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 	} else {
 
 		struct samr_Password new_password;
-		memcpy(new_password.hash, new_trust_passwd_hash, sizeof(new_password.hash));
-		netlogon_creds_des_encrypt(cli->dc, &new_password);
+
+		des_crypt112_16(new_password.hash,
+				(unsigned char *)new_trust_passwd_hash,
+				cli->dc->sess_key, 1);
 
 		result = rpccli_netr_ServerPasswordSet(cli, mem_ctx,
-						       cli->srv_name_slash,
-						       cli->dc->account_name,
+						       cli->dc->remote_machine,
+						       cli->dc->mach_acct,
 						       sec_channel_type,
-						       cli->dc->computer_name,
+						       global_myname(),
 						       &clnt_creds,
 						       &srv_cred,
 						       &new_password);

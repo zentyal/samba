@@ -4,9 +4,7 @@
   miscellaneous IDL structures
 */
 
-
 [
-	pyhelper("librpc/ndr/py_misc.c"),
 	pointer_default(unique)
 ]
 interface misc

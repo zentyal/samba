@@ -33,6 +33,8 @@
 
 #include <krb5_locl.h>
 
+RCSID("$Id$");
+
 static krb5_error_code
 decrypt_tkt_enc_part (krb5_context context,
 		      krb5_keyblock *key,
@@ -56,11 +58,8 @@ decrypt_tkt_enc_part (krb5_context context,
     if (ret)
 	return ret;
 
-    ret = decode_EncTicketPart(plain.data, plain.length, decr_part, &len);
-    if (ret)
-        krb5_set_error_message(context, ret, 
-			       N_("Failed to decode encrypted "
-				  "ticket part", ""));
+    ret = krb5_decode_EncTicketPart(context, plain.data, plain.length,
+				    decr_part, &len);
     krb5_data_free (&plain);
     return ret;
 }
@@ -96,8 +95,8 @@ decrypt_authenticator (krb5_context context,
     if (ret)
 	return ret;
 
-    ret = decode_Authenticator(plain.data, plain.length,
-			       authenticator, &len);
+    ret = krb5_decode_Authenticator(context, plain.data, plain.length,
+				    authenticator, &len);
     krb5_data_free (&plain);
     return ret;
 }
@@ -522,20 +521,10 @@ struct krb5_rd_req_out_ctx_data {
     krb5_keyblock *keyblock;
     krb5_flags ap_req_options;
     krb5_ticket *ticket;
-    krb5_principal server;
 };
 
-/**
- * Allocate a krb5_rd_req_in_ctx as an input parameter to
- * krb5_rd_req_ctx(). The caller should free the context with
- * krb5_rd_req_in_ctx_free() when done with the context.
+/*
  *
- * @param context Keberos 5 context.
- * @param ctx in ctx to krb5_rd_req_ctx().
- *
- * @return Kerberos 5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_auth
  */
 
 krb5_error_code KRB5_LIB_FUNCTION
@@ -551,26 +540,12 @@ krb5_rd_req_in_ctx_alloc(krb5_context context, krb5_rd_req_in_ctx *ctx)
     return 0;
 }
 
-/**
- * Set the keytab that krb5_rd_req_ctx() will use.
- *
- * @param context Keberos 5 context.
- * @param in in ctx to krb5_rd_req_ctx().
- * @param keytab keytab that krb5_rd_req_ctx() will use, only copy the
- *        pointer, so the caller must free they keytab after
- *        krb5_rd_req_in_ctx_free() is called.
- *
- * @return Kerberos 5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_auth
- */
-
 krb5_error_code KRB5_LIB_FUNCTION
 krb5_rd_req_in_set_keytab(krb5_context context,
 			  krb5_rd_req_in_ctx in,
 			  krb5_keytab keytab)
 {
-    in->keytab = keytab;
+    in->keytab = keytab; /* XXX should make copy */
     return 0;
 }
 
@@ -583,7 +558,7 @@ krb5_rd_req_in_set_keytab(krb5_context context,
  *
  * @return Kerberos 5 error code, see krb5_get_error_message().
  *
- * @ingroup krb5_auth
+ * @ingroup krb5
  */
 
 krb5_error_code KRB5_LIB_FUNCTION
@@ -630,50 +605,28 @@ krb5_rd_req_out_get_keyblock(krb5_context context,
     return krb5_copy_keyblock(context, out->keyblock, keyblock);
 }
 
-/**
- * Get the principal that was used in the request from the
- * client. Might not match whats in the ticket if krb5_rd_req_ctx()
- * searched in the keytab for a matching key.
- *
- * @param context a Kerberos 5 context.
- * @param out a krb5_rd_req_out_ctx from krb5_rd_req_ctx().
- * @param principal return principal, free with krb5_free_principal().
- *
- * @ingroup krb5_auth
- */
-
-krb5_error_code KRB5_LIB_FUNCTION
-krb5_rd_req_out_get_server(krb5_context context,
-			    krb5_rd_req_out_ctx out,
-			    krb5_principal *principal)
-{
-    return krb5_copy_principal(context, out->server, principal);
-}
-
 void  KRB5_LIB_FUNCTION
 krb5_rd_req_in_ctx_free(krb5_context context, krb5_rd_req_in_ctx ctx)
 {
     free(ctx);
 }
 
-/**
- * Free the krb5_rd_req_out_ctx.
- *
- * @param context Keberos 5 context.
- * @param ctx krb5_rd_req_out_ctx context to free.
- *
- * @ingroup krb5_auth
- */
+krb5_error_code KRB5_LIB_FUNCTION
+_krb5_rd_req_out_ctx_alloc(krb5_context context, krb5_rd_req_out_ctx *ctx)
+{
+    *ctx = calloc(1, sizeof(**ctx));
+    if (*ctx == NULL) {
+	krb5_set_error_message(context, ENOMEM,
+			       N_("malloc: out of memory", ""));
+	return ENOMEM;
+    }
+    return 0;
+}
 
 void  KRB5_LIB_FUNCTION
 krb5_rd_req_out_ctx_free(krb5_context context, krb5_rd_req_out_ctx ctx)
 {
-    if (ctx->ticket)
-	krb5_free_ticket(context, ctx->ticket);
-    if (ctx->keyblock)
-	krb5_free_keyblock(context, ctx->keyblock);
-    if (ctx->server)
-	krb5_free_principal(context, ctx->server);
+    krb5_free_keyblock(context, ctx->keyblock);
     free(ctx);
 }
 
@@ -773,6 +726,7 @@ out:
 
 static krb5_error_code
 get_key_from_keytab(krb5_context context,
+		    krb5_auth_context *auth_context,
 		    krb5_ap_req *ap_req,
 		    krb5_const_principal server,
 		    krb5_keytab keytab,
@@ -810,28 +764,8 @@ out:
     return ret;
 }
 
-/**
- * The core server function that verify application authentication
- * requests from clients.
+/*
  *
- * @param context Keberos 5 context.
- * @param auth_context the authentication context, can be NULL, then
- *        default values for the authentication context will used.
- * @param inbuf the (AP-REQ) authentication buffer
- *
- * @param server the server with authenticate as, if NULL the function
- *        will try to find any avaiable credentintial in the keytab
- *        that will verify the reply. The function will prefer the
- *        server the server client specified in the AP-REQ, but if
- *        there is no mach, it will try all keytab entries for a
- *        match. This have serious performance issues for larger keytabs.
- *
- * @param inctx control the behavior of the function, if NULL, the
- *        default behavior is used.
- * @param outctx the return outctx, free with krb5_rd_req_out_ctx_free().
- * @return Kerberos 5 error code, see krb5_get_error_message().
- *
- * @ingroup krb5_auth
  */
 
 krb5_error_code KRB5_LIB_FUNCTION
@@ -844,18 +778,12 @@ krb5_rd_req_ctx(krb5_context context,
 {
     krb5_error_code ret;
     krb5_ap_req ap_req;
-    krb5_rd_req_out_ctx o = NULL;
-    krb5_keytab id = NULL, keytab = NULL;
     krb5_principal service = NULL;
+    krb5_rd_req_out_ctx o = NULL;
 
-    *outctx = NULL;
-
-    o = calloc(1, sizeof(*o));
-    if (o == NULL) {
-	krb5_set_error_message(context, ENOMEM,
-			       N_("malloc: out of memory", ""));
-	return ENOMEM;
-    }
+    ret = _krb5_rd_req_out_ctx_alloc(context, &o);
+    if (ret)
+	goto out;
 
     if (*auth_context == NULL) {
 	ret = krb5_auth_con_init(context, auth_context);
@@ -867,14 +795,15 @@ krb5_rd_req_ctx(krb5_context context,
     if(ret)
 	goto out;
 
-    /* Save that principal that was in the request */
-    ret = _krb5_principalname2krb5_principal(context,
-					     &o->server,
-					     ap_req.ticket.sname,
-					     ap_req.ticket.realm);
-    if (ret)
-	goto out;
-
+    if(server == NULL){
+	ret = _krb5_principalname2krb5_principal(context,
+						 &service,
+						 ap_req.ticket.sname,
+						 ap_req.ticket.realm);
+	if (ret)
+	    goto out;
+	server = service;
+    }
     if (ap_req.ap_options.use_session_key &&
 	(*auth_context)->keyblock == NULL) {
 	ret = KRB5KRB_AP_ERR_NOKEY;
@@ -884,155 +813,49 @@ krb5_rd_req_ctx(krb5_context context,
 	goto out;
     }
 
-    if (inctx && inctx->keytab)
-	id = inctx->keytab;
-
     if((*auth_context)->keyblock){
 	ret = krb5_copy_keyblock(context,
 				 (*auth_context)->keyblock,
 				 &o->keyblock);
 	if (ret)
 	    goto out;
-    } else if(inctx && inctx->keyblock){
+    } else if(inctx->keyblock){
 	ret = krb5_copy_keyblock(context,
 				 inctx->keyblock,
 				 &o->keyblock);
 	if (ret)
 	    goto out;
     } else {
+	krb5_keytab keytab = NULL;
 
-	if(id == NULL) {
-	    krb5_kt_default(context, &keytab);
-	    id = keytab;
-	}
-	if (id == NULL)
-	    goto out;
-
-	if (server == NULL) {
-	    ret = _krb5_principalname2krb5_principal(context,
-						     &service,
-						     ap_req.ticket.sname,
-						     ap_req.ticket.realm);
-	    if (ret)
-		goto out;
-	    server = service;
-	}
+	if (inctx && inctx->keytab)
+	    keytab = inctx->keytab;
 
 	ret = get_key_from_keytab(context,
-				  &ap_req,
-				  server,
-				  id,
-				  &o->keyblock);
-	if (ret) {
-	    /* If caller specified a server, fail. */
-	    if (service == NULL)
-		goto out;
-	    /* Otherwise, fall back to iterating over the keytab. This
-	     * have serious performace issues for larger keytab.
-	     */
-	    o->keyblock = NULL;
-	}
-    }
-
-    if (o->keyblock) {
-	/*
-	 * We got an exact keymatch, use that.
-	 */
-
-	ret = krb5_verify_ap_req2(context,
 				  auth_context,
 				  &ap_req,
 				  server,
-				  o->keyblock,
-				  0,
-				  &o->ap_req_options,
-				  &o->ticket,
-				  KRB5_KU_AP_REQ_AUTH);
-	
-	if (ret)
+				  keytab,
+				  &o->keyblock);
+	if(ret)
 	    goto out;
-
-    } else {
-	/*
-	 * Interate over keytab to find a key that can decrypt the request.
-	 */
-
-	krb5_keytab_entry entry;
-	krb5_kt_cursor cursor;
-	int done = 0, kvno = 0;
-
-	memset(&cursor, 0, sizeof(cursor));
-
-	if (ap_req.ticket.enc_part.kvno)
-	    kvno = *ap_req.ticket.enc_part.kvno;
-
-	ret = krb5_kt_start_seq_get(context, id, &cursor);
-	if (ret)
-	    goto out;
-
-	done = 0;
-	while (!done) { 
-	    krb5_principal p;
-
-	    ret = krb5_kt_next_entry(context, id, &entry, &cursor);
-	    if (ret) {
-		_krb5_kt_principal_not_found(context, ret, id, o->server,
-					     ap_req.ticket.enc_part.etype,
-					     kvno);
-		goto out;
-	    }
-
-	    if (entry.keyblock.keytype != ap_req.ticket.enc_part.etype ||
-		(kvno && kvno != entry.vno)) {
-		krb5_kt_free_entry (context, &entry);
-		continue;
-	    }
-
-	    ret = krb5_verify_ap_req2(context,
-				      auth_context,
-				      &ap_req,
-				      server,
-				      &entry.keyblock,
-				      0,
-				      &o->ap_req_options,
-				      &o->ticket,
-				      KRB5_KU_AP_REQ_AUTH);
-	    if (ret) {
-		krb5_kt_free_entry (context, &entry);
-		continue;
-	    }
-
-	    /*
-	     * Found a match, save the keyblock for PAC processing,
-	     * and update the service principal in the ticket to match
-	     * whatever is in the keytab.
-	     */
-	    
-	    ret = krb5_copy_keyblock(context, 
-				     &entry.keyblock,
-				     &o->keyblock);
-	    if (ret) {
-		krb5_kt_free_entry (context, &entry);
-		goto out;
-	    }	    
-
-	    ret = krb5_copy_principal(context, entry.principal, &p);
-	    if (ret) {
-		krb5_kt_free_entry (context, &entry);
-		goto out;
-	    }
-	    krb5_free_principal(context, o->ticket->server);
-	    o->ticket->server = p;
-	    
-	    krb5_kt_free_entry (context, &entry);
-
-	    done = 1;
-	}
-	krb5_kt_end_seq_get (context, id, &cursor);
     }
 
+    ret = krb5_verify_ap_req2(context,
+			      auth_context,
+			      &ap_req,
+			      server,
+			      o->keyblock,
+			      0,
+			      &o->ap_req_options,
+			      &o->ticket,
+			      KRB5_KU_AP_REQ_AUTH);
+
+    if (ret)
+	goto out;
+
     /* If there is a PAC, verify its server signature */
-    if (inctx == NULL || inctx->check_pac) {
+    if (inctx->check_pac) {
 	krb5_pac pac;
 	krb5_data data;
 
@@ -1055,23 +878,17 @@ krb5_rd_req_ctx(krb5_context context,
 	    krb5_pac_free(context, pac);
 	    if (ret)
 		goto out;
-	} else
-	  ret = 0;
+	}
+	ret = 0;
     }
 out:
-
     if (ret || outctx == NULL) {
 	krb5_rd_req_out_ctx_free(context, o);
     } else
 	*outctx = o;
 
     free_AP_REQ(&ap_req);
-
-    if (service)
+    if(service)
 	krb5_free_principal(context, service);
-
-    if (keytab)
-	krb5_kt_close(context, keytab);
-
     return ret;
 }

@@ -47,8 +47,7 @@ struct lwcell_filter
 /********************************************************************
  *******************************************************************/
 
-static char* build_id_filter(TALLOC_CTX *mem_ctx,
-			     uint32_t id,
+static char* build_id_filter(uint32_t id,
 			     enum id_type type,
 			     uint32_t search_flags)
 {
@@ -100,19 +99,19 @@ static char* build_id_filter(TALLOC_CTX *mem_ctx,
 	/* Use "keywords=%s" for non-schema cells */
 
 	if (use2307) {
-		filter = talloc_asprintf(mem_ctx,
-					 "(&(%s)(%s))",
-					 oc_filter,
-					 attr_filter);
+		filter = talloc_asprintf(frame, "(&(%s)(%s))",
+					 oc_filter, attr_filter);
 	} else {
-		filter = talloc_asprintf(mem_ctx,
-					 "(&(keywords=%s)(keywords=%s))",
-					 oc_filter,
-					 attr_filter);
+		filter = talloc_asprintf(frame, "(&(keywords=%s)(keywords=%s))",
+					 oc_filter, attr_filter);
 	}
 
+	talloc_destroy(oc_filter);
+	talloc_destroy(attr_filter);
+
 done:
-	talloc_destroy(frame);
+	/* Don't destroy the stackframe CTX since we are returning
+	   memory from it */
 
 	return filter;
 }
@@ -120,9 +119,7 @@ done:
 /********************************************************************
  *******************************************************************/
 
-static char* build_alias_filter(TALLOC_CTX *mem_ctx,
-				const char *alias,
-				uint32_t search_flags)
+static char* build_alias_filter(const char *alias, uint32_t search_flags)
 {
 	char *filter = NULL;
 	char *user_attr_filter, *group_attr_filter;
@@ -145,21 +142,25 @@ static char* build_alias_filter(TALLOC_CTX *mem_ctx,
 	/* Use "keywords=%s" for non-schema cells */
 
 	if (use2307) {
-		filter = talloc_asprintf(mem_ctx,
+		filter = talloc_asprintf(frame,
 					 "(|(&(%s)(objectclass=%s))(&(%s)(objectclass=%s)))",
 					 user_attr_filter,
 					 search_forest ? AD_USER : ADEX_OC_POSIX_USER,
 					 group_attr_filter,
 					 search_forest ? AD_GROUP : ADEX_OC_POSIX_GROUP);
 	} else {
-		filter = talloc_asprintf(mem_ctx,
+		filter = talloc_asprintf(frame,
 					 "(|(keywords=%s)(keywords=%s))",
 					 user_attr_filter,
 					 group_attr_filter);
 	}
 
+	talloc_destroy(user_attr_filter);
+	talloc_destroy(group_attr_filter);
+
 done:
-	talloc_destroy(frame);
+	/* Don't destroy the stackframe CTX since we are returning
+	   memory from it */
 
 	return filter;
 }
@@ -192,14 +193,12 @@ static NTSTATUS search_cell(struct likewise_cell *c,
 					 sid_str);
 		break;
 	case IdFilter:
-		filter = build_id_filter(frame,
-					 fdata->filter.id.id,
+		filter = build_id_filter(fdata->filter.id.id,
 					 fdata->filter.id.type,
 					 cell_flags(c));
 		break;
 	case AliasFilter:
-		filter = build_alias_filter(frame,
-					    fdata->filter.alias,
+		filter = build_alias_filter(fdata->filter.alias,
 					    cell_flags(c));
 		break;
 	default:
@@ -483,21 +482,18 @@ static NTSTATUS search_forest(struct likewise_cell *forest_cell,
 
 		switch (fdata->ftype) {
 		case SidFilter:
-			sid_binstr = sid_binstring(frame, &fdata->filter.sid);
+			sid_binstr = sid_binstring(&fdata->filter.sid);
 			BAIL_ON_PTR_ERROR(sid_binstr, nt_status);
 
 			filter = talloc_asprintf(frame, "(objectSid=%s)", sid_binstr);
-			TALLOC_FREE(sid_binstr);
+			SAFE_FREE(sid_binstr);
 			break;
 		case IdFilter:
-			filter = build_id_filter(frame,
-						 fdata->filter.id.id,
+			filter = build_id_filter(fdata->filter.id.id,
 						 fdata->filter.id.type, flags);
 			break;
 		case AliasFilter:
-			filter = build_alias_filter(frame,
-						    fdata->filter.alias,
-						    flags);
+			filter = build_alias_filter(fdata->filter.alias, flags);
 			break;
 		}
 
@@ -898,25 +894,21 @@ done:
 static NTSTATUS pull_nss_info(struct likewise_cell *c,
 			      LDAPMessage *msg,
 			      TALLOC_CTX *ctx,
-			      const char **homedir,
-			      const char **shell,
-			      const char **gecos,
+			      char **homedir,
+			      char **shell,
+			      char **gecos,
 			      gid_t *p_gid)
 {
 	NTSTATUS nt_status;
-	char *tmp;
 
-	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_HOMEDIR, &tmp);
+	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_HOMEDIR, homedir);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
-	*homedir = tmp;
 
-	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_SHELL, &tmp);
+	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_SHELL, shell);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
-	*shell = tmp;
 
-	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_GECOS, &tmp);
+	nt_status = get_object_string(c, msg, ctx, ADEX_ATTR_GECOS, gecos);
 	/* Gecos is often not set so ignore failures */
-	*gecos = tmp;
 
 	nt_status = get_object_uint32(c, msg, ADEX_ATTR_GIDNUM, p_gid);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
@@ -1028,9 +1020,9 @@ done:
 
 static NTSTATUS _ccp_nss_get_info(const DOM_SID * sid,
 				  TALLOC_CTX * ctx,
-				  const char **homedir,
-				  const char **shell,
-				  const char **gecos, gid_t * p_gid)
+				  char **homedir,
+				  char **shell,
+				  char **gecos, gid_t * p_gid)
 {
 	struct likewise_cell *cell = NULL;
 	LDAPMessage *msg = NULL;

@@ -3,38 +3,80 @@
    async socket syscalls
    Copyright (C) Volker Lendecke 2008
 
-     ** NOTE! The following LGPL license applies to the async_sock
-     ** library. This does NOT imply that all of Samba is released
-     ** under the LGPL
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   This library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU Lesser General Public
-   License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
-
-   This library is distributed in the hope that it will be useful,
+   This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU Lesser General Public License
+   You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "replace.h"
-#include "system/network.h"
-#include "system/filesys.h"
-#include <talloc.h>
-#include <tevent.h>
+#include "includes.h"
+#include "lib/talloc/talloc.h"
+#include "lib/tevent/tevent.h"
+#include "lib/async_req/async_req.h"
 #include "lib/async_req/async_sock.h"
-
-/* Note: lib/util/ is currently GPL */
 #include "lib/util/tevent_unix.h"
-#include "lib/util/util.h"
+#include <fcntl.h>
 
 #ifndef TALLOC_FREE
 #define TALLOC_FREE(ctx) do { talloc_free(ctx); ctx=NULL; } while(0)
 #endif
+
+/**
+ * @brief Map async_req states to unix-style errnos
+ * @param[in]  req	The async req to get the state from
+ * @param[out] err	Pointer to take the unix-style errno
+ *
+ * @return true if the async_req is in an error state, false otherwise
+ */
+
+bool async_req_is_errno(struct async_req *req, int *err)
+{
+	enum async_req_state state;
+	uint64_t error;
+
+	if (!async_req_is_error(req, &state, &error)) {
+		return false;
+	}
+
+	switch (state) {
+	case ASYNC_REQ_USER_ERROR:
+		*err = (int)error;
+		break;
+	case ASYNC_REQ_TIMED_OUT:
+#ifdef ETIMEDOUT
+		*err = ETIMEDOUT;
+#else
+		*err = EAGAIN;
+#endif
+		break;
+	case ASYNC_REQ_NO_MEMORY:
+		*err = ENOMEM;
+		break;
+	default:
+		*err = EIO;
+		break;
+	}
+	return true;
+}
+
+int async_req_simple_recv_errno(struct async_req *req)
+{
+	int err;
+
+	if (async_req_is_errno(req, &err)) {
+		return err;
+	}
+
+	return 0;
+}
 
 struct async_send_state {
 	int fd;
@@ -85,10 +127,6 @@ static void async_send_handler(struct tevent_context *ev,
 		tevent_req_data(req, struct async_send_state);
 
 	state->sent = send(state->fd, state->buf, state->len, state->flags);
-	if ((state->sent == -1) && (errno == EINTR)) {
-		/* retry */
-		return;
-	}
 	if (state->sent == -1) {
 		tevent_req_error(req, errno);
 		return;
@@ -156,14 +194,6 @@ static void async_recv_handler(struct tevent_context *ev,
 
 	state->received = recv(state->fd, state->buf, state->len,
 			       state->flags);
-	if ((state->received == -1) && (errno == EINTR)) {
-		/* retry */
-		return;
-	}
-	if (state->received == 0) {
-		tevent_req_error(req, EPIPE);
-		return;
-	}
 	if (state->received == -1) {
 		tevent_req_error(req, errno);
 		return;
@@ -187,8 +217,6 @@ struct async_connect_state {
 	int result;
 	int sys_errno;
 	long old_sockflags;
-	socklen_t address_len;
-	struct sockaddr_storage address;
 };
 
 static void async_connect_connected(struct tevent_context *ev,
@@ -235,13 +263,6 @@ struct tevent_req *async_connect_send(TALLOC_CTX *mem_ctx,
 	if (state->old_sockflags == -1) {
 		goto post_errno;
 	}
-
-	state->address_len = address_len;
-	if (address_len > sizeof(state->address)) {
-		errno = EINVAL;
-		goto post_errno;
-	}
-	memcpy(&state->address, address, address_len);
 
 	set_blocking(fd, false);
 
@@ -299,6 +320,8 @@ static void async_connect_connected(struct tevent_context *ev,
 	struct async_connect_state *state =
 		tevent_req_data(req, struct async_connect_state);
 
+	TALLOC_FREE(fde);
+
 	/*
 	 * Stevens, Network Programming says that if there's a
 	 * successful connect, the socket is only writable. Upon an
@@ -306,23 +329,20 @@ static void async_connect_connected(struct tevent_context *ev,
 	 */
 	if ((flags & (TEVENT_FD_READ|TEVENT_FD_WRITE))
 	    == (TEVENT_FD_READ|TEVENT_FD_WRITE)) {
-		int ret;
+		int sockerr;
+		socklen_t err_len = sizeof(sockerr);
 
-		ret = connect(state->fd,
-			      (struct sockaddr *)(void *)&state->address,
-			      state->address_len);
-		if (ret == 0) {
-			TALLOC_FREE(fde);
-			tevent_req_done(req);
-			return;
+		if (getsockopt(state->fd, SOL_SOCKET, SO_ERROR,
+			       (void *)&sockerr, &err_len) == 0) {
+			errno = sockerr;
 		}
 
-		if (errno == EINPROGRESS) {
-			/* Try again later, leave the fde around */
-			return;
-		}
-		TALLOC_FREE(fde);
-		tevent_req_error(req, errno);
+		state->sys_errno = errno;
+
+		DEBUG(10, ("connect returned %s\n", strerror(errno)));
+
+		fcntl(state->fd, F_SETFL, state->old_sockflags);
+		tevent_req_error(req, state->sys_errno);
 		return;
 	}
 
@@ -357,7 +377,6 @@ struct writev_state {
 	struct iovec *iov;
 	int count;
 	size_t total_size;
-	uint16_t flags;
 };
 
 static void writev_trigger(struct tevent_req *req, void *private_data);
@@ -366,14 +385,13 @@ static void writev_handler(struct tevent_context *ev, struct tevent_fd *fde,
 
 struct tevent_req *writev_send(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 			       struct tevent_queue *queue, int fd,
-			       bool err_on_readability,
 			       struct iovec *iov, int count)
 {
-	struct tevent_req *req;
+	struct tevent_req *result;
 	struct writev_state *state;
 
-	req = tevent_req_create(mem_ctx, &state, struct writev_state);
-	if (req == NULL) {
+	result = tevent_req_create(mem_ctx, &state, struct writev_state);
+	if (result == NULL) {
 		return NULL;
 	}
 	state->ev = ev;
@@ -385,27 +403,13 @@ struct tevent_req *writev_send(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 	if (state->iov == NULL) {
 		goto fail;
 	}
-	state->flags = TEVENT_FD_WRITE;
-	if (err_on_readability) {
-		state->flags |= TEVENT_FD_READ;
-	}
 
-	if (queue == NULL) {
-		struct tevent_fd *fde;
-		fde = tevent_add_fd(state->ev, state, state->fd,
-				    state->flags, writev_handler, req);
-		if (tevent_req_nomem(fde, req)) {
-			return tevent_req_post(req, ev);
-		}
-		return req;
-	}
-
-	if (!tevent_queue_add(queue, ev, req, writev_trigger, NULL)) {
+	if (!tevent_queue_add(queue, ev, result, writev_trigger, NULL)) {
 		goto fail;
 	}
-	return req;
+	return result;
  fail:
-	TALLOC_FREE(req);
+	TALLOC_FREE(result);
 	return NULL;
 }
 
@@ -414,7 +418,7 @@ static void writev_trigger(struct tevent_req *req, void *private_data)
 	struct writev_state *state = tevent_req_data(req, struct writev_state);
 	struct tevent_fd *fde;
 
-	fde = tevent_add_fd(state->ev, state, state->fd, state->flags,
+	fde = tevent_add_fd(state->ev, state, state->fd, TEVENT_FD_WRITE,
 			    writev_handler, req);
 	if (fde == NULL) {
 		tevent_req_error(req, ENOMEM);
@@ -433,20 +437,11 @@ static void writev_handler(struct tevent_context *ev, struct tevent_fd *fde,
 
 	to_write = 0;
 
-	if ((state->flags & TEVENT_FD_READ) && (flags & TEVENT_FD_READ)) {
-		tevent_req_error(req, EPIPE);
-		return;
-	}
-
 	for (i=0; i<state->count; i++) {
 		to_write += state->iov[i].iov_len;
 	}
 
-	written = writev(state->fd, state->iov, state->count);
-	if ((written == -1) && (errno == EINTR)) {
-		/* retry */
-		return;
-	}
+	written = sys_writev(state->fd, state->iov, state->count);
 	if (written == -1) {
 		tevent_req_error(req, errno);
 		return;
@@ -554,10 +549,6 @@ static void read_packet_handler(struct tevent_context *ev,
 
 	nread = recv(state->fd, state->buf+state->nread, total-state->nread,
 		     0);
-	if ((nread == -1) && (errno == EINTR)) {
-		/* retry */
-		return;
-	}
 	if (nread == -1) {
 		tevent_req_error(req, errno);
 		return;
@@ -594,7 +585,7 @@ static void read_packet_handler(struct tevent_context *ev,
 		return;
 	}
 
-	tmp = talloc_realloc(state, state->buf, uint8_t, total+more);
+	tmp = TALLOC_REALLOC_ARRAY(state, state->buf, uint8_t, total+more);
 	if (tevent_req_nomem(tmp, req)) {
 		return;
 	}

@@ -66,10 +66,6 @@ again:
 	}
 
 	clen = convert_string(CH_UNIX, CH_DISPLAY, p, ret, p2, maxlen, True);
-	if (clen == -1) {
-		ret = -1;
-		goto out;
-	}
 
 	if (clen >= maxlen) {
 		/* it didn't fit - try a larger buffer */

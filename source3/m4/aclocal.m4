@@ -99,14 +99,14 @@ case "$withval" in
 		build_lib=yes
 		;;
 	*)
-		AC_MSG_RESULT(no)
+		AC_MSG_RESULT(yes)
 		build_lib=no
 		;;
 esac
 ],
 [
 # if unspecified, default is not to build
-AC_MSG_RESULT(no)
+AC_MSG_RESULT(yes)
 build_lib=no
 ]
 )
@@ -335,7 +335,7 @@ AC_DEFUN([AC_CHECK_FUNC_EXT],
 	    [AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_$1])) $3], 
 	    [$4])dnl
 AS_VAR_POPDEF([ac_var])dnl
-])# AC_CHECK_FUNC_EXT
+])# AC_CHECK_FUNC
 
 # AH_CHECK_FUNC_EXT(FUNCNAME)
 # ---------------------
@@ -697,13 +697,13 @@ AC_DEFUN([SMB_CHECK_DMAPI],
     fi
 
     if test x"$samba_dmapi_libs" = x"" ; then
-        AC_CHECK_LIB(dmapi, dm_get_eventlist,
-                [samba_dmapi_libs="-ldmapi"], [])
+	AC_CHECK_LIB(xdsm, dm_get_eventlist,
+		[samba_dmapi_libs="-lxdsm"], [])
     fi
 
     if test x"$samba_dmapi_libs" = x"" ; then
-	AC_CHECK_LIB(xdsm, dm_get_eventlist,
-		[samba_dmapi_libs="-lxdsm"], [])
+        AC_CHECK_LIB(dmapi, dm_get_eventlist,
+                [samba_dmapi_libs="-ldmapi"], [])
     fi
 
 
@@ -831,9 +831,6 @@ AC_DEFUN([SMB_IF_RTSIGNAL_BUG],
 #include <fcntl.h>
 #include <signal.h>
 
-#ifndef SIGRTMIN
-#define SIGRTMIN NSIG
-#endif
 /* from smbd/notify_kernel.c */
 #ifndef RT_SIGNAL_NOTIFY
 #define RT_SIGNAL_NOTIFY (SIGRTMIN+2)

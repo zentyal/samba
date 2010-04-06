@@ -20,35 +20,29 @@
 
 #include "includes.h"
 #include "smbd/globals.h"
-#include "../libcli/auth/spnego.h"
 
 extern fstring remote_proto;
+extern enum protocol_types Protocol;
 
 static void get_challenge(uint8 buff[8])
 {
 	NTSTATUS nt_status;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	/* We might be called more than once, multiple negprots are
 	 * permitted */
-	if (sconn->smb1.negprot.auth_context) {
-		DEBUG(3, ("get challenge: is this a secondary negprot? "
-			  "sconn->negprot.auth_context is non-NULL!\n"));
-			sconn->smb1.negprot.auth_context->free(
-				&sconn->smb1.negprot.auth_context);
+	if (negprot_global_auth_context) {
+		DEBUG(3, ("get challenge: is this a secondary negprot?  negprot_global_auth_context is non-NULL!\n"));
+		(negprot_global_auth_context->free)(&negprot_global_auth_context);
 	}
 
 	DEBUG(10, ("get challenge: creating negprot_global_auth_context\n"));
-	nt_status = make_auth_context_subsystem(
-		&sconn->smb1.negprot.auth_context);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(0, ("make_auth_context_subsystem returned %s",
-			  nt_errstr(nt_status)));
+	if (!NT_STATUS_IS_OK(nt_status = make_auth_context_subsystem(&negprot_global_auth_context))) {
+		DEBUG(0, ("make_auth_context_subsystem returned %s", nt_errstr(nt_status)));
 		smb_panic("cannot make_negprot_global_auth_context!");
 	}
 	DEBUG(10, ("get challenge: getting challenge\n"));
-	sconn->smb1.negprot.auth_context->get_ntlm_challenge(
-		sconn->smb1.negprot.auth_context, buff);
+	negprot_global_auth_context->get_ntlm_challenge(
+		negprot_global_auth_context, buff);
 }
 
 /****************************************************************************
@@ -60,7 +54,7 @@ static void reply_corep(struct smb_request *req, uint16 choice)
 	reply_outbuf(req, 1, 0);
 	SSVAL(req->outbuf, smb_vwv0, choice);
 
-	set_Protocol(PROTOCOL_CORE);
+	Protocol = PROTOCOL_CORE;
 }
 
 /****************************************************************************
@@ -80,7 +74,7 @@ static void reply_coreplus(struct smb_request *req, uint16 choice)
 	SCVAL(req->outbuf,smb_flg,FLAG_REPLY|FLAG_SUPPORT_LOCKREAD);
 	SSVAL(req->outbuf,smb_vwv1,0x1); /* user level security, don't
 					  * encrypt */
-	set_Protocol(PROTOCOL_COREPLUS);
+	Protocol = PROTOCOL_COREPLUS;
 }
 
 /****************************************************************************
@@ -92,32 +86,29 @@ static void reply_lanman1(struct smb_request *req, uint16 choice)
 	int raw = (lp_readraw()?1:0) | (lp_writeraw()?2:0);
 	int secword=0;
 	time_t t = time(NULL);
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
-	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
+	global_encrypted_passwords_negotiated = lp_encrypted_passwords();
 
-	if (lp_security()>=SEC_USER) {
+	if (lp_security()>=SEC_USER)
 		secword |= NEGOTIATE_SECURITY_USER_LEVEL;
-	}
-	if (sconn->smb1.negprot.encrypted_passwords) {
+	if (global_encrypted_passwords_negotiated)
 		secword |= NEGOTIATE_SECURITY_CHALLENGE_RESPONSE;
-	}
 
-	reply_outbuf(req, 13, sconn->smb1.negprot.encrypted_passwords?8:0);
+	reply_outbuf(req, 13, global_encrypted_passwords_negotiated?8:0);
 
 	SSVAL(req->outbuf,smb_vwv0,choice);
 	SSVAL(req->outbuf,smb_vwv1,secword);
 	/* Create a token value and add it to the outgoing packet. */
-	if (sconn->smb1.negprot.encrypted_passwords) {
+	if (global_encrypted_passwords_negotiated) {
 		get_challenge((uint8 *)smb_buf(req->outbuf));
 		SSVAL(req->outbuf,smb_vwv11, 8);
 	}
 
-	set_Protocol(PROTOCOL_LANMAN1);
+	Protocol = PROTOCOL_LANMAN1;
 
 	/* Reply, SMBlockread, SMBwritelock supported. */
 	SCVAL(req->outbuf,smb_flg,FLAG_REPLY|FLAG_SUPPORT_LOCKREAD);
-	SSVAL(req->outbuf,smb_vwv2,sconn->smb1.negprot.max_recv);
+	SSVAL(req->outbuf,smb_vwv2,max_recv);
 	SSVAL(req->outbuf,smb_vwv3,lp_maxmux()); /* maxmux */
 	SSVAL(req->outbuf,smb_vwv4,1);
 	SSVAL(req->outbuf,smb_vwv5,raw); /* tell redirector we support
@@ -139,34 +130,31 @@ static void reply_lanman2(struct smb_request *req, uint16 choice)
 	int raw = (lp_readraw()?1:0) | (lp_writeraw()?2:0);
 	int secword=0;
 	time_t t = time(NULL);
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
-	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
+	global_encrypted_passwords_negotiated = lp_encrypted_passwords();
   
-	if (lp_security()>=SEC_USER) {
+	if (lp_security()>=SEC_USER)
 		secword |= NEGOTIATE_SECURITY_USER_LEVEL;
-	}
-	if (sconn->smb1.negprot.encrypted_passwords) {
+	if (global_encrypted_passwords_negotiated)
 		secword |= NEGOTIATE_SECURITY_CHALLENGE_RESPONSE;
-	}
 
-	reply_outbuf(req, 13, sconn->smb1.negprot.encrypted_passwords?8:0);
+	reply_outbuf(req, 13, global_encrypted_passwords_negotiated?8:0);
 
 	SSVAL(req->outbuf,smb_vwv0,choice);
 	SSVAL(req->outbuf,smb_vwv1,secword);
 	SIVAL(req->outbuf,smb_vwv6,sys_getpid());
 
 	/* Create a token value and add it to the outgoing packet. */
-	if (sconn->smb1.negprot.encrypted_passwords) {
+	if (global_encrypted_passwords_negotiated) {
 		get_challenge((uint8 *)smb_buf(req->outbuf));
 		SSVAL(req->outbuf,smb_vwv11, 8);
 	}
 
-	set_Protocol(PROTOCOL_LANMAN2);
+	Protocol = PROTOCOL_LANMAN2;
 
 	/* Reply, SMBlockread, SMBwritelock supported. */
 	SCVAL(req->outbuf,smb_flg,FLAG_REPLY|FLAG_SUPPORT_LOCKREAD);
-	SSVAL(req->outbuf,smb_vwv2,sconn->smb1.negprot.max_recv);
+	SSVAL(req->outbuf,smb_vwv2,max_recv);
 	SSVAL(req->outbuf,smb_vwv3,lp_maxmux());
 	SSVAL(req->outbuf,smb_vwv4,1);
 	SSVAL(req->outbuf,smb_vwv5,raw); /* readbraw and/or writebraw */
@@ -178,7 +166,7 @@ static void reply_lanman2(struct smb_request *req, uint16 choice)
  Generate the spnego negprot reply blob. Return the number of bytes used.
 ****************************************************************************/
 
-DATA_BLOB negprot_spnego(void)
+static DATA_BLOB negprot_spnego(void)
 {
 	DATA_BLOB blob;
 	nstring dos_name;
@@ -192,9 +180,8 @@ DATA_BLOB negprot_spnego(void)
 				   OID_NTLMSSP,
 				   NULL};
 	const char *OIDs_plain[] = {OID_NTLMSSP, NULL};
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
-	sconn->smb1.negprot.spnego = true;
+	global_spnego_negotiated = True;
 
 	memset(guid, '\0', sizeof(guid));
 
@@ -263,9 +250,8 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	bool negotiate_spnego = False;
 	time_t t = time(NULL);
 	ssize_t ret;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
-	sconn->smb1.negprot.encrypted_passwords = lp_encrypted_passwords();
+	global_encrypted_passwords_negotiated = lp_encrypted_passwords();
 
 	/* Check the flags field to see if this is Vista.
 	   WinXP sets it and Vista does not. But we have to 
@@ -284,7 +270,7 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	/* do spnego in user level security if the client
 	   supports it and we can do encrypted passwords */
 	
-	if (sconn->smb1.negprot.encrypted_passwords &&
+	if (global_encrypted_passwords_negotiated && 
 	    (lp_security() != SEC_SHARE) &&
 	    lp_use_spnego() &&
 	    (req->flags2 & FLAGS2_EXTENDED_SECURITY)) {
@@ -318,13 +304,11 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	if (lp_host_msdfs())
 		capabilities |= CAP_DFS;
 	
-	if (lp_security() >= SEC_USER) {
+	if (lp_security() >= SEC_USER)
 		secword |= NEGOTIATE_SECURITY_USER_LEVEL;
-	}
-	if (sconn->smb1.negprot.encrypted_passwords) {
+	if (global_encrypted_passwords_negotiated)
 		secword |= NEGOTIATE_SECURITY_CHALLENGE_RESPONSE;
-	}
-
+	
 	if (lp_server_signing()) {
 	       	if (lp_security() >= SEC_USER) {
 			secword |= NEGOTIATE_SECURITY_SIGNATURES_ENABLED;
@@ -332,7 +316,7 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 			capabilities &= ~CAP_RAW_MODE;
 			if (lp_server_signing() == Required)
 				secword |=NEGOTIATE_SECURITY_SIGNATURES_REQUIRED;
-			srv_set_signing_negotiated(smbd_server_conn);
+			srv_set_signing_negotiated();
 		} else {
 			DEBUG(0,("reply_nt1: smb signing is incompatible with share level security !\n"));
 			if (lp_server_signing() == Required) {
@@ -344,12 +328,11 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	SSVAL(req->outbuf,smb_vwv0,choice);
 	SCVAL(req->outbuf,smb_vwv1,secword);
 	
-	set_Protocol(PROTOCOL_NT1);
+	Protocol = PROTOCOL_NT1;
 	
 	SSVAL(req->outbuf,smb_vwv1+1,lp_maxmux()); /* maxmpx */
 	SSVAL(req->outbuf,smb_vwv2+1,1); /* num vcs */
-	SIVAL(req->outbuf,smb_vwv3+1,
-	      sconn->smb1.negprot.max_recv); /* max buffer. LOTS! */
+	SIVAL(req->outbuf,smb_vwv3+1,max_recv); /* max buffer. LOTS! */
 	SIVAL(req->outbuf,smb_vwv5+1,0x10000); /* raw size. full 64k */
 	SIVAL(req->outbuf,smb_vwv7+1,sys_getpid()); /* session key */
 	SIVAL(req->outbuf,smb_vwv9+1,capabilities); /* capabilities */
@@ -359,7 +342,7 @@ static void reply_nt1(struct smb_request *req, uint16 choice)
 	p = q = smb_buf(req->outbuf);
 	if (!negotiate_spnego) {
 		/* Create a token value and add it to the outgoing packet. */
-		if (sconn->smb1.negprot.encrypted_passwords) {
+		if (global_encrypted_passwords_negotiated) {
 			uint8 chal[8];
 			/* note that we do not send a challenge at all if
 			   we are using plaintext */
@@ -498,7 +481,6 @@ static const struct {
 	void (*proto_reply_fn)(struct smb_request *req, uint16 choice);
 	int protocol_level;
 } supported_protocols[] = {
-	{"SMB 2.002",               "SMB2",     reply_smb2002,  PROTOCOL_SMB2},
 	{"NT LANMAN 1.0",           "NT1",      reply_nt1,      PROTOCOL_NT1},
 	{"NT LM 0.12",              "NT1",      reply_nt1,      PROTOCOL_NT1},
 	{"POSIX 2",                 "NT1",      reply_nt1,      PROTOCOL_NT1},
@@ -528,15 +510,14 @@ void reply_negprot(struct smb_request *req)
 	char **cliprotos;
 	int i;
 	size_t converted_size;
-	struct smbd_server_connection *sconn = smbd_server_conn;
 
 	START_PROFILE(SMBnegprot);
 
-	if (sconn->smb1.negprot.done) {
+	if (done_negprot) {
 		END_PROFILE(SMBnegprot);
 		exit_server_cleanly("multiple negprot's are not permitted");
 	}
-	sconn->smb1.negprot.done = true;
+	done_negprot = True;
 
 	if (req->buflen == 0) {
 		DEBUG(0, ("negprot got no protocols\n"));
@@ -697,7 +678,7 @@ void reply_negprot(struct smb_request *req)
   
 	DEBUG( 5, ( "negprot index=%d\n", choice ) );
 
-	if ((lp_server_signing() == Required) && (get_Protocol() < PROTOCOL_NT1)) {
+	if ((lp_server_signing() == Required) && (Protocol < PROTOCOL_NT1)) {
 		exit_server_cleanly("SMB signing is required and "
 			"client negotiated a downlevel protocol");
 	}

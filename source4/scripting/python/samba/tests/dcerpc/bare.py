@@ -24,7 +24,6 @@ from samba.tests import cmdline_loadparm
 
 
 class BareTestCase(TestCase):
-
     def test_bare(self):
         # Connect to the echo pipe
         x = ClientConnection("ncalrpc:localhost[DEFAULT]", 

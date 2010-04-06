@@ -44,11 +44,7 @@
 #endif
 #endif
 
-enum {
-    rk_ns_c_in = 1
-};
-
-enum {
+typedef enum {
 	rk_ns_t_invalid = 0,	/* Cookie. */
 	rk_ns_t_a = 1,		/* Host address. */
 	rk_ns_t_ns = 2,		/* Authoritative server. */
@@ -103,38 +99,99 @@ enum {
 	rk_ns_t_any = 255,	/* Wildcard match. */
 	rk_ns_t_zxfr = 256,	/* BIND-specific, nonstandard. */
 	rk_ns_t_max = 65536
-};
+} rk_ns_type;
+
+/* We use these, but they are not always present in <arpa/nameser.h> */
+
+#ifndef C_IN
+#define C_IN		1
+#endif
+
+#ifndef T_A
+#define T_A		1
+#endif
+#ifndef T_NS
+#define T_NS		2
+#endif
+#ifndef T_CNAME
+#define T_CNAME		5
+#endif
+#ifndef T_SOA
+#define T_SOA		5
+#endif
+#ifndef T_PTR
+#define T_PTR		12
+#endif
+#ifndef T_MX
+#define T_MX		15
+#endif
+#ifndef T_TXT
+#define T_TXT		16
+#endif
+#ifndef T_AFSDB
+#define T_AFSDB		18
+#endif
+#ifndef T_SIG
+#define T_SIG		24
+#endif
+#ifndef T_KEY
+#define T_KEY		25
+#endif
+#ifndef T_AAAA
+#define T_AAAA		28
+#endif
+#ifndef T_SRV
+#define T_SRV		33
+#endif
+#ifndef T_NAPTR
+#define T_NAPTR		35
+#endif
+#ifndef T_CERT
+#define T_CERT		37
+#endif
+#ifndef T_SSHFP
+#define T_SSHFP		44
+#endif
 
 #ifndef MAXDNAME
 #define MAXDNAME	1025
 #endif
 
+#define dns_query		rk_dns_query
 #define mx_record		rk_mx_record
 #define srv_record		rk_srv_record
 #define key_record		rk_key_record
 #define sig_record		rk_sig_record
 #define cert_record		rk_cert_record
 #define sshfp_record		rk_sshfp_record
+#define resource_record		rk_resource_record
+#define dns_reply		rk_dns_reply
 
-struct rk_dns_query{
+#define dns_lookup		rk_dns_lookup
+#define dns_free_data		rk_dns_free_data
+#define dns_string_to_type	rk_dns_string_to_type
+#define dns_type_to_string	rk_dns_type_to_string
+#define dns_srv_order		rk_dns_srv_order
+
+struct dns_query{
     char *domain;
     unsigned type;
     unsigned class;
 };
 
-struct rk_mx_record{
+struct mx_record{
     unsigned  preference;
     char domain[1];
 };
 
-struct rk_srv_record{
+struct srv_record{
     unsigned priority;
     unsigned weight;
     unsigned port;
     char target[1];
 };
 
-struct rk_key_record {
+struct key_record {
     unsigned flags;
     unsigned protocol;
     unsigned algorithm;
@@ -142,7 +199,7 @@ struct rk_key_record {
     u_char   key_data[1];
 };
 
-struct rk_sig_record {
+struct sig_record {
     unsigned type;
     unsigned algorithm;
     unsigned labels;
@@ -155,7 +212,7 @@ struct rk_sig_record {
     char     sig_data[1];	/* also includes signer */
 };
 
-struct rk_cert_record {
+struct cert_record {
     unsigned type;
     unsigned tag;
     unsigned algorithm;
@@ -163,14 +220,14 @@ struct rk_cert_record {
     u_char   cert_data[1];
 };
 
-struct rk_sshfp_record {
+struct sshfp_record {
     unsigned algorithm;
     unsigned type;
     size_t   sshfp_len;
     u_char   sshfp_data[1];
 };
 
-struct rk_ds_record {
+struct ds_record {
     unsigned key_tag;
     unsigned algorithm;
     unsigned digest_type;
@@ -178,7 +235,7 @@ struct rk_ds_record {
     u_char digest_data[1];
 };
 
-struct rk_resource_record{
+struct resource_record{
     char *domain;
     unsigned type;
     unsigned class;
@@ -186,23 +243,23 @@ struct rk_resource_record{
     unsigned size;
     union {
 	void *data;
-	struct rk_mx_record *mx;
-	struct rk_mx_record *afsdb; /* mx and afsdb are identical */
-	struct rk_srv_record *srv;
+	struct mx_record *mx;
+	struct mx_record *afsdb; /* mx and afsdb are identical */
+	struct srv_record *srv;
 	struct in_addr *a;
 	char *txt;
-	struct rk_key_record *key;
-	struct rk_cert_record *cert;
-	struct rk_sig_record *sig;
-	struct rk_sshfp_record *sshfp;
-	struct rk_ds_record *ds;
+	struct key_record *key;
+	struct cert_record *cert;
+	struct sig_record *sig;
+	struct sshfp_record *sshfp;
+	struct ds_record *ds;
     }u;
-    struct rk_resource_record *next;
+    struct resource_record *next;
 };
 
 #define rk_DNS_MAX_PACKET_SIZE		0xffff
 
-struct rk_dns_header {
+struct dns_header {
     unsigned id;
     unsigned flags;
 #define rk_DNS_HEADER_RESPONSE_FLAG		1
@@ -220,30 +277,22 @@ struct rk_dns_header {
     unsigned arcount;
 };
 
-struct rk_dns_reply{
-    struct rk_dns_header h;
-    struct rk_dns_query q;
-    struct rk_resource_record *head;
+struct dns_reply{
+    struct dns_header h;
+    struct dns_query q;
+    struct resource_record *head;
 };
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct rk_dns_reply* ROKEN_LIB_FUNCTION
-	rk_dns_lookup(const char *, const char *);
+struct dns_reply* ROKEN_LIB_FUNCTION
+	dns_lookup(const char *, const char *);
 void ROKEN_LIB_FUNCTION
-	rk_dns_free_data(struct rk_dns_reply *);
+	dns_free_data(struct dns_reply *);
 int ROKEN_LIB_FUNCTION
-	rk_dns_string_to_type(const char *name);
+	dns_string_to_type(const char *name);
 const char *ROKEN_LIB_FUNCTION
-	rk_dns_type_to_string(int type);
+	dns_type_to_string(int type);
 void ROKEN_LIB_FUNCTION
-	rk_dns_srv_order(struct rk_dns_reply*);
-
-#ifdef __cplusplus
-}
-#endif
+	dns_srv_order(struct dns_reply*);
 
 #endif /* __RESOLVE_H__ */

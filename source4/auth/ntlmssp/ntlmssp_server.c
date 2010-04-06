@@ -24,9 +24,10 @@
 #include "includes.h"
 #include "system/network.h"
 #include "auth/ntlmssp/ntlmssp.h"
-#include "../librpc/gen_ndr/ntlmssp.h"
-#include "../libcli/auth/libcli_auth.h"
+#include "auth/ntlmssp/msrpc_parse.h"
 #include "../lib/crypto/crypto.h"
+#include "libcli/auth/libcli_auth.h"
+#include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/auth.h"
 #include "auth/ntlm/auth_proto.h"
@@ -92,7 +93,7 @@ static const char *ntlmssp_target_name(struct gensec_ntlmssp_state *gensec_ntlms
 				       uint32_t neg_flags, uint32_t *chal_flags) 
 {
 	if (neg_flags & NTLMSSP_REQUEST_TARGET) {
-		*chal_flags |= NTLMSSP_NEGOTIATE_TARGET_INFO;
+		*chal_flags |= NTLMSSP_CHAL_TARGET_INFO;
 		*chal_flags |= NTLMSSP_REQUEST_TARGET;
 		if (gensec_ntlmssp_state->server_role == ROLE_STANDALONE) {
 			*chal_flags |= NTLMSSP_TARGET_TYPE_SERVER;
@@ -180,7 +181,7 @@ NTSTATUS ntlmssp_server_negotiate(struct gensec_security *gensec_security,
 	gensec_ntlmssp_state->internal_chal = data_blob_talloc(gensec_ntlmssp_state, cryptkey, 8);
 
 	/* This creates the 'blob' of names that appears at the end of the packet */
-	if (chal_flags & NTLMSSP_NEGOTIATE_TARGET_INFO) {
+	if (chal_flags & NTLMSSP_CHAL_TARGET_INFO) {
 		char dnsdomname[MAXHOSTNAMELEN], dnsname[MAXHOSTNAMELEN];
 		const char *target_name_dns = "";
 
@@ -205,11 +206,11 @@ NTSTATUS ntlmssp_server_negotiate(struct gensec_security *gensec_security,
 
 		msrpc_gen(out_mem_ctx, 
 			  &struct_blob, "aaaaa",
-			  MsvAvNbDomainName, target_name,
-			  MsvAvNbComputerName, gensec_ntlmssp_state->server_name,
-			  MsvAvDnsDomainName, dnsdomname,
-			  MsvAvDnsComputerName, dnsname,
-			  MsvAvEOL, "");
+			  NTLMSSP_NAME_TYPE_DOMAIN, target_name,
+			  NTLMSSP_NAME_TYPE_SERVER, gensec_ntlmssp_state->server_name,
+			  NTLMSSP_NAME_TYPE_DOMAIN_DNS, dnsdomname,
+			  NTLMSSP_NAME_TYPE_SERVER_DNS, dnsname,
+			  0, "");
 	} else {
 		struct_blob = data_blob(NULL, 0);
 	}
@@ -458,7 +459,7 @@ static NTSTATUS ntlmssp_server_postauth(struct gensec_security *gensec_security,
 		}
 
 	} else if (user_session_key && user_session_key->data) {
-		session_key = data_blob_talloc(gensec_ntlmssp_state, user_session_key->data, user_session_key->length);
+		session_key = *user_session_key;
 		DEBUG(10,("ntlmssp_server_auth: Using unmodified nt session key.\n"));
 		dump_data_pw("unmodified session key:\n", session_key.data, session_key.length);
 
@@ -467,7 +468,7 @@ static NTSTATUS ntlmssp_server_postauth(struct gensec_security *gensec_security,
 
 	} else if (lm_session_key && lm_session_key->data) {
 		/* Very weird to have LM key, but no user session key, but anyway.. */
-		session_key = data_blob_talloc(gensec_ntlmssp_state, lm_session_key->data, lm_session_key->length);
+		session_key = *lm_session_key;
 		DEBUG(10,("ntlmssp_server_auth: Using unmodified lm session key.\n"));
 		dump_data_pw("unmodified session key:\n", session_key.data, session_key.length);
 
@@ -507,11 +508,13 @@ static NTSTATUS ntlmssp_server_postauth(struct gensec_security *gensec_security,
 								      gensec_ntlmssp_state->encrypted_session_key.length);
 			dump_data_pw("KEY_EXCH session key:\n", gensec_ntlmssp_state->encrypted_session_key.data, 
 				     gensec_ntlmssp_state->encrypted_session_key.length);
-			talloc_free(session_key.data);
 		}
 	} else {
 		gensec_ntlmssp_state->session_key = session_key;
 	}
+
+	/* keep the session key around on the new context */
+	talloc_steal(gensec_ntlmssp_state, session_key.data);
 
 	if ((gensec_security->want_features & GENSEC_FEATURE_SIGN)
 	    || (gensec_security->want_features & GENSEC_FEATURE_SEAL)) {
@@ -763,7 +766,7 @@ NTSTATUS gensec_ntlmssp_server_start(struct gensec_security *gensec_security)
 	gensec_ntlmssp_state->server_multiple_authentications = false;
 	
 	gensec_ntlmssp_state->neg_flags = 
-		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_VERSION;
+		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_UNKNOWN_02000000;
 
 	gensec_ntlmssp_state->lm_resp = data_blob(NULL, 0);
 	gensec_ntlmssp_state->nt_resp = data_blob(NULL, 0);

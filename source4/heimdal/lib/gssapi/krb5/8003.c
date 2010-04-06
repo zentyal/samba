@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 krb5_error_code
 _gsskrb5_encode_om_uint32(OM_uint32 n, u_char *p)

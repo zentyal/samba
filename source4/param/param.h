@@ -20,7 +20,12 @@
 #ifndef _PARAM_H /* _PARAM_H */
 #define _PARAM_H 
 
-#include "../lib/util/parmlist.h"
+struct param_opt {
+	struct param_opt *prev, *next;
+	char *key;
+	char *value;
+	int priority;
+};
 
 struct param_context {
 	struct param_section *sections;
@@ -29,7 +34,7 @@ struct param_context {
 struct param_section {
 	const char *name;
 	struct param_section *prev, *next;
-	struct parmlist *parameters;
+	struct param_opt *parameters;
 };
 
 struct param_context;
@@ -329,11 +334,11 @@ struct gensec_settings *lp_gensec_settings(TALLOC_CTX *, struct loadparm_context
 /* The following definitions come from param/generic.c  */
 
 struct param_section *param_get_section(struct param_context *ctx, const char *name);
-struct parmlist_entry *param_section_get(struct param_section *section, 
+struct param_opt *param_section_get(struct param_section *section, 
 				    const char *name);
-struct parmlist_entry *param_get (struct param_context *ctx, const char *name, const char *section_name);
+struct param_opt *param_get (struct param_context *ctx, const char *name, const char *section_name);
 struct param_section *param_add_section(struct param_context *ctx, const char *section_name);
-struct parmlist_entry *param_get_add(struct param_context *ctx, const char *name, const char *section_name);
+struct param_opt *param_get_add(struct param_context *ctx, const char *name, const char *section_name);
 const char *param_get_string(struct param_context *ctx, const char *param, const char *section);
 int param_set_string(struct param_context *ctx, const char *param, const char *value, const char *section);
 const char **param_get_string_list(struct param_context *ctx, const char *param, const char *separator, const char *section);
@@ -356,9 +361,6 @@ int param_write(struct param_context *ctx, const char *fn);
  */
 bool lp_is_mydomain(struct loadparm_context *lp_ctx, 
 			     const char *domain);
-
-bool lp_is_my_domain_or_realm(struct loadparm_context *lp_ctx, 
-			      const char *domain);
 
 /**
   see if a string matches either our primary or one of our secondary 
@@ -431,8 +433,6 @@ const char *lp_messaging_path(TALLOC_CTX *mem_ctx,
 				       struct loadparm_context *lp_ctx);
 struct smb_iconv_convenience *smb_iconv_convenience_init_lp(TALLOC_CTX *mem_ctx,
 							 struct loadparm_context *lp_ctx);
-
-const char *lp_sam_name(struct loadparm_context *lp_ctx);
 
 /* The following definitions come from lib/version.c  */
 

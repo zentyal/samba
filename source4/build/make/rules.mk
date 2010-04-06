@@ -182,9 +182,10 @@ showflags::
 	@echo '  MDLD_FLAGS = $(MDLD_FLAGS)'
 	@echo '  SHLIBEXT   = $(SHLIBEXT)'
 
+base_srcdirs = $(srcdir) ../librpc/ ../lib/ ../libcli
+
 etags:
-	etags $(ETAGS_OPTIONS) `find $(base_srcdirs) -name "*.[ch]"`
+	etags `find $(base_srcdirs) -name "*.[ch]"`
 
 ctags:
-	ctags $(CTAGS_OPTIONS) `find $(base_srcdirs) -name "*.[ch]" | grep -v "_proto\.h"`
-
+	ctags `find $(base_srcdirs) -name "*.[ch]"`

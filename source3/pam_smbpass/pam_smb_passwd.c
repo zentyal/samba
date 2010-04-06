@@ -45,7 +45,7 @@
 
 #include "support.h"
 
-static int smb_update_db( pam_handle_t *pamh, int ctrl, const char *user,  const char *pass_new )
+int smb_update_db( pam_handle_t *pamh, int ctrl, const char *user,  const char *pass_new )
 {
 	int retval;
 	char *err_str = NULL;

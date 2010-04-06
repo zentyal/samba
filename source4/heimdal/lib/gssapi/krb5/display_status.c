@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 static const char *
 calling_error(OM_uint32 v)

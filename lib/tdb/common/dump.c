@@ -30,7 +30,7 @@
 static tdb_off_t tdb_dump_record(struct tdb_context *tdb, int hash,
 				 tdb_off_t offset)
 {
-	struct tdb_record rec;
+	struct list_struct rec;
 	tdb_off_t tailer_ofs, tailer;
 
 	if (tdb->methods->tdb_read(tdb, offset, (char *)&rec, 
@@ -95,7 +95,7 @@ int tdb_printfreelist(struct tdb_context *tdb)
 	int ret;
 	long total_free = 0;
 	tdb_off_t offset, rec_ptr;
-	struct tdb_record rec;
+	struct list_struct rec;
 
 	if ((ret = tdb_lock(tdb, -1, F_WRLCK)) != 0)
 		return ret;

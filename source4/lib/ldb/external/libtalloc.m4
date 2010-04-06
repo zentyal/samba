@@ -2,7 +2,6 @@ AC_SUBST(TALLOC_OBJ)
 AC_SUBST(TALLOC_CFLAGS)
 AC_SUBST(TALLOC_LIBS)
 
-PKG_CHECK_MODULES(TALLOC, talloc >= 2.0.0,
-	[ ],
-	[ AC_CHECK_HEADER(talloc.h, 
-		[ AC_CHECK_LIB(talloc, talloc_init, [TALLOC_LIBS="-ltalloc"])])])
+AC_CHECK_HEADER(talloc.h,
+   [AC_CHECK_LIB(talloc, talloc_init, [TALLOC_LIBS="-ltalloc"]) ],
+   [PKG_CHECK_MODULES(TALLOC, talloc)])

@@ -33,6 +33,8 @@
 
 #include "hdb_locl.h"
 
+RCSID("$Id$");
+
 #if HAVE_NDBM
 
 #if defined(HAVE_GDBM_NDBM_H)
@@ -51,7 +53,9 @@ struct ndbm_db {
 static krb5_error_code
 NDBM_destroy(krb5_context context, HDB *db)
 {
-    hdb_clear_master_key (context, db);
+    krb5_error_code ret;
+
+    ret = hdb_clear_master_key (context, db);
     free(db->hdb_name);
     free(db);
     return 0;
@@ -346,7 +350,6 @@ hdb_ndbm_create(krb5_context context, HDB **db,
     }
     (*db)->hdb_master_key_set = 0;
     (*db)->hdb_openp = 0;
-    (*db)->hdb_capability_flags = HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL;
     (*db)->hdb_open = NDBM_open;
     (*db)->hdb_close = NDBM_close;
     (*db)->hdb_fetch = _hdb_fetch;

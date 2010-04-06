@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <hx_locl.h>
 
+RCSID("$Id$");
 
 %}
 

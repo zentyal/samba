@@ -15,11 +15,6 @@
 #define SAFE_FREE(x) do { if(x) {free(x); x=NULL;} } while(0)
 #endif
 
-#ifndef FSTRING_LEN
-#define FSTRING_LEN 256
-typedef char fstring[FSTRING_LEN];
-#endif
-
 #ifndef _WINBINDD_NTDOM_H
 #define _WINBINDD_NTDOM_H
 
@@ -47,11 +42,8 @@ typedef char fstring[FSTRING_LEN];
 /* Update this when you change the interface.
  * 21: added WINBINDD_GETPWSID
  *     added WINBINDD_GETSIDALIASES
- * 22: added WINBINDD_PING_DC
- * 23: added session_key to ccache_ntlm_auth response
- *     added WINBINDD_CCACHE_SAVE
  */
-#define WINBIND_INTERFACE_VERSION 23
+#define WINBIND_INTERFACE_VERSION 21
 
 /* Have to deal with time_t being 4 or 8 bytes due to structure alignment.
    On a 64bit Linux box, we have to support a constant structure size
@@ -121,8 +113,6 @@ enum winbindd_cmd {
 	/* Miscellaneous other stuff */
 
 	WINBINDD_CHECK_MACHACC,     /* Check machine account pw works */
-	WINBINDD_CHANGE_MACHACC,    /* Change machine account pw */
-	WINBINDD_PING_DC,     	    /* Ping the DC through NETLOGON */
 	WINBINDD_PING,              /* Just tell me winbind is running */
 	WINBINDD_INFO,              /* Various bit of info.  Currently just tidbits */
 	WINBINDD_DOMAIN_NAME,       /* The domain this winbind server is a member of (lp_workgroup()) */
@@ -174,12 +164,9 @@ enum winbindd_cmd {
 	WINBINDD_DUAL_USERINFO,
 	WINBINDD_DUAL_GETSIDALIASES,
 
-	WINBINDD_DUAL_NDRCMD,
-
 	/* Complete the challenge phase of the NTLM authentication
 	   protocol using cached password. */
 	WINBINDD_CCACHE_NTLMAUTH,
-	WINBINDD_CCACHE_SAVE,
 
 	WINBINDD_NUM_CMDS
 };
@@ -255,7 +242,6 @@ struct winbindd_request {
 		fstring groupname;   /* getgrnam */
 		uid_t uid;           /* getpwuid, uid_to_sid */
 		gid_t gid;           /* getgrgid, gid_to_sid */
-		uint32_t ndrcmd;
 		struct {
 			/* We deliberatedly don't split into domain/user to
                            avoid having the client know what the separator
@@ -337,11 +323,6 @@ struct winbindd_request {
 			uint32_t initial_blob_len; /* blobs in extra_data */
 			uint32_t challenge_blob_len;
 		} ccache_ntlm_auth;
-		struct {
-			uid_t uid;
-			fstring user;
-			fstring pass;
-		} ccache_save;
 		struct {
 			fstring domain_name;
 			fstring domain_guid;
@@ -486,7 +467,6 @@ struct winbindd_response {
 			uint32_t group_rid;
 		} user_info;
 		struct {
-			uint8_t session_key[16];
 			uint32_t auth_blob_len; /* blob in extra_data */
 		} ccache_ntlm_auth;
 		struct {

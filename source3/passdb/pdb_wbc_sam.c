@@ -167,12 +167,12 @@ done:
 	return result;
 }
 
-static NTSTATUS pdb_wbc_sam_get_account_policy(struct pdb_methods *methods, enum pdb_policy_type type, uint32_t *value)
+static NTSTATUS pdb_wbc_sam_get_account_policy(struct pdb_methods *methods, int policy_index, uint32 *value)
 {
 	return NT_STATUS_UNSUCCESSFUL;
 }
 
-static NTSTATUS pdb_wbc_sam_set_account_policy(struct pdb_methods *methods, enum pdb_policy_type type, uint32_t value)
+static NTSTATUS pdb_wbc_sam_set_account_policy(struct pdb_methods *methods, int policy_index, uint32 value)
 {
 	return NT_STATUS_UNSUCCESSFUL;
 }
@@ -316,12 +316,13 @@ static NTSTATUS pdb_wbc_sam_getgrnam(struct pdb_methods *methods, GROUP_MAP *map
 				 const char *name)
 {
 	NTSTATUS result = NT_STATUS_OK;
-	const char *domain = "";
+	char *user_name = NULL;
+	char *domain = NULL;
 	DOM_SID sid;
 	gid_t gid;
 	enum lsa_SidType name_type;
 
-	if (!winbind_lookup_name(domain, name, &sid, &name_type)) {
+	if (!winbind_lookup_name(domain, user_name, &sid, &name_type)) {
 		result = NT_STATUS_NO_SUCH_GROUP;
 		goto done;
 	}
@@ -339,7 +340,7 @@ static NTSTATUS pdb_wbc_sam_getgrnam(struct pdb_methods *methods, GROUP_MAP *map
 		goto done;
 	}
 
-	if (!_make_group_map(methods, domain, name, name_type, gid, &sid, map)) {
+	if (!_make_group_map(methods, domain, user_name, name_type, gid, &sid, map)) {
 		result = NT_STATUS_NO_SUCH_GROUP;
 		goto done;
 	}
@@ -365,10 +366,8 @@ static NTSTATUS pdb_wbc_sam_get_aliasinfo(struct pdb_methods *methods,
 }
 
 static NTSTATUS pdb_wbc_sam_enum_aliasmem(struct pdb_methods *methods,
-					  const DOM_SID *alias,
-					  TALLOC_CTX *mem_ctx,
-					  DOM_SID **pp_members,
-					  size_t *p_num_members)
+				   const DOM_SID *alias, DOM_SID **pp_members,
+				   size_t *p_num_members)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
 }

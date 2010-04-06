@@ -32,9 +32,9 @@
  */
 
 #include "krb5_locl.h"
-#include "krb5-v4compat.h"
+RCSID("$Id$");
 
-#ifndef HEIMDAL_SMALLER
+#include "krb5-v4compat.h"
 
 static krb5_error_code
 check_ticket_flags(TicketFlags f)
@@ -204,5 +204,3 @@ krb524_convert_creds_kdc_ccache(krb5_context context,
 	krb5_free_creds (context, v5_creds);
     return ret;
 }
-
-#endif

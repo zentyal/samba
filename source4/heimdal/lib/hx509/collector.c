@@ -32,6 +32,7 @@
  */
 
 #include "hx_locl.h"
+RCSID("$Id$");
 
 struct private_key {
     AlgorithmIdentifier alg;
@@ -143,7 +144,7 @@ _hx509_collector_private_key_add(hx509_context context,
     if (private_key) {
 	key->private_key = private_key;
     } else {
-	ret = _hx509_parse_private_key(context, alg,
+	ret = _hx509_parse_private_key(context, &alg->algorithm,
 				       key_data->data, key_data->length,
 				       &key->private_key);
 	if (ret)
@@ -305,7 +306,7 @@ _hx509_collector_collect_private_keys(hx509_context context,
 	    c->val.data[i]->private_key = NULL;
 	}
     }
-    (*keys)[nkeys] = NULL;
+    (*keys)[nkeys++] = NULL;
 
     return 0;
 }

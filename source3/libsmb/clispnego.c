@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "../libcli/auth/spnego.h"
 #include "smb_krb5.h"
 
 /*
@@ -153,7 +152,7 @@ bool spnego_parse_negTokenInit(DATA_BLOB blob,
 	asn1_start_tag(data,ASN1_SEQUENCE(0));
 	for (i=0; asn1_tag_remaining(data) > 0 && i < ASN1_MAX_OIDS-1; i++) {
 		const char *oid_str = NULL;
-		asn1_read_OID(data,talloc_autofree_context(),&oid_str);
+		asn1_read_OID(data,NULL,&oid_str);
 		OIDs[i] = CONST_DISCARD(char *, oid_str);
 	}
 	OIDs[i] = NULL;
@@ -165,7 +164,7 @@ bool spnego_parse_negTokenInit(DATA_BLOB blob,
 		asn1_start_tag(data, ASN1_CONTEXT(3));
 		asn1_start_tag(data, ASN1_SEQUENCE(0));
 		asn1_start_tag(data, ASN1_CONTEXT(0));
-		asn1_read_GeneralString(data,talloc_autofree_context(),principal);
+		asn1_read_GeneralString(data,NULL,principal);
 		asn1_end_tag(data);
 		asn1_end_tag(data);
 		asn1_end_tag(data);
@@ -258,7 +257,7 @@ bool parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *se
 	asn1_start_tag(data, ASN1_SEQUENCE(0));
 	for (i=0; asn1_tag_remaining(data) > 0 && i < ASN1_MAX_OIDS-1; i++) {
 		const char *oid_str = NULL;
-		asn1_read_OID(data,talloc_autofree_context(),&oid_str);
+		asn1_read_OID(data,NULL,&oid_str);
 		OIDs[i] = CONST_DISCARD(char *, oid_str);
 	}
 	OIDs[i] = NULL;
@@ -270,7 +269,7 @@ bool parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *se
 		uint8 flags;
 
 		asn1_start_tag(data, ASN1_CONTEXT(1));
-		asn1_start_tag(data, ASN1_BIT_STRING);
+		asn1_start_tag(data, ASN1_BITFIELD);
 		while (asn1_tag_remaining(data) > 0)
 			asn1_read_uint8(data, &flags);
 		asn1_end_tag(data);
@@ -278,7 +277,7 @@ bool parse_negTokenTarg(DATA_BLOB blob, char *OIDs[ASN1_MAX_OIDS], DATA_BLOB *se
 	}
 
 	asn1_start_tag(data, ASN1_CONTEXT(2));
-	asn1_read_OctetString(data,talloc_autofree_context(),secblob);
+	asn1_read_OctetString(data,NULL,secblob);
 	asn1_end_tag(data);
 
 	asn1_end_tag(data);
@@ -390,7 +389,7 @@ int spnego_gen_negTokenTarg(const char *principal, int time_offset,
 	/* get a kerberos ticket for the service and extract the session key */
 	retval = cli_krb5_get_ticket(principal, time_offset,
 					&tkt, session_key_krb5, extra_ap_opts, NULL, 
-					expire_time, NULL);
+					expire_time);
 
 	if (retval)
 		return retval;
@@ -438,13 +437,13 @@ bool spnego_parse_challenge(const DATA_BLOB blob,
 	asn1_end_tag(data);
 
 	asn1_start_tag(data,ASN1_CONTEXT(2));
-	asn1_read_OctetString(data, talloc_autofree_context(), chal1);
+	asn1_read_OctetString(data, NULL, chal1);
 	asn1_end_tag(data);
 
 	/* the second challenge is optional (XP doesn't send it) */
 	if (asn1_tag_remaining(data)) {
 		asn1_start_tag(data,ASN1_CONTEXT(3));
-		asn1_read_OctetString(data, talloc_autofree_context(), chal2);
+		asn1_read_OctetString(data, NULL, chal2);
 		asn1_end_tag(data);
 	}
 
@@ -496,26 +495,26 @@ DATA_BLOB spnego_gen_auth(DATA_BLOB blob)
 */
 bool spnego_parse_auth(DATA_BLOB blob, DATA_BLOB *auth)
 {
+	SPNEGO_DATA token;
 	ssize_t len;
-	struct spnego_data token;
 
-	len = spnego_read_data(talloc_tos(), blob, &token);
+	len = read_spnego_data(talloc_tos(), blob, &token);
 	if (len == -1) {
-		DEBUG(3,("spnego_parse_auth: spnego_read_data failed\n"));
+		DEBUG(3,("spnego_parse_auth: read_spnego_data failed\n"));
 		return false;
 	}
 
 	if (token.type != SPNEGO_NEG_TOKEN_TARG) {
 		DEBUG(3,("spnego_parse_auth: wrong token type: %d\n",
 			token.type));
-		spnego_free_data(&token);
+		free_spnego_data(&token);
 		return false;
 	}
 
 	*auth = data_blob_talloc(talloc_tos(),
 				 token.negTokenTarg.responseToken.data,
 				 token.negTokenTarg.responseToken.length);
-	spnego_free_data(&token);
+	free_spnego_data(&token);
 
 	return true;
 }
@@ -531,11 +530,11 @@ DATA_BLOB spnego_gen_auth_response(DATA_BLOB *reply, NTSTATUS nt_status,
 	uint8 negResult;
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		negResult = SPNEGO_ACCEPT_COMPLETED;
+		negResult = SPNEGO_NEG_RESULT_ACCEPT;
 	} else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		negResult = SPNEGO_ACCEPT_INCOMPLETE;
+		negResult = SPNEGO_NEG_RESULT_INCOMPLETE; 
 	} else {
-		negResult = SPNEGO_REJECT;
+		negResult = SPNEGO_NEG_RESULT_REJECT; 
 	}
 
 	data = asn1_init(talloc_tos());
@@ -580,11 +579,11 @@ bool spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status,
 	uint8 negResult;
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		negResult = SPNEGO_ACCEPT_COMPLETED;
+		negResult = SPNEGO_NEG_RESULT_ACCEPT;
 	} else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		negResult = SPNEGO_ACCEPT_INCOMPLETE;
+		negResult = SPNEGO_NEG_RESULT_INCOMPLETE;
 	} else {
-		negResult = SPNEGO_REJECT;
+		negResult = SPNEGO_NEG_RESULT_REJECT;
 	}
 
 	data = asn1_init(talloc_tos());
@@ -608,10 +607,10 @@ bool spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status,
 
 		if (asn1_tag_remaining(data)) {
 			asn1_start_tag(data,ASN1_CONTEXT(2));
-			asn1_read_OctetString(data, talloc_autofree_context(), auth);
+			asn1_read_OctetString(data, NULL, auth);
 			asn1_end_tag(data);
 		}
-	} else if (negResult == SPNEGO_ACCEPT_INCOMPLETE) {
+	} else if (negResult == SPNEGO_NEG_RESULT_INCOMPLETE) {
 		data->has_error = 1;
 	}
 
@@ -622,7 +621,7 @@ bool spnego_parse_auth_response(DATA_BLOB blob, NTSTATUS nt_status,
 	if (asn1_tag_remaining(data)) {
 		DATA_BLOB mechList = data_blob_null;
 		asn1_start_tag(data, ASN1_CONTEXT(3));
-		asn1_read_OctetString(data, talloc_autofree_context(), &mechList);
+		asn1_read_OctetString(data, NULL, &mechList);
 		asn1_end_tag(data);
 		data_blob_free(&mechList);
 		DEBUG(5,("spnego_parse_auth_response received mechListMIC, "

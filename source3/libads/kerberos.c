@@ -47,9 +47,9 @@ kerb_prompter(krb5_context ctx, void *data,
 	memset(prompts[0].reply->data, '\0', prompts[0].reply->length);
 	if (prompts[0].reply->length > 0) {
 		if (data) {
-			strncpy((char *)prompts[0].reply->data, (const char *)data,
+			strncpy(prompts[0].reply->data, (const char *)data,
 				prompts[0].reply->length-1);
-			prompts[0].reply->length = strlen((const char *)prompts[0].reply->data);
+			prompts[0].reply->length = strlen(prompts[0].reply->data);
 		} else {
 			prompts[0].reply->length = 0;
 		}
@@ -525,58 +525,6 @@ char *kerberos_get_default_realm_from_ccache( void )
 	return realm;
 }
 
-/************************************************************************
- Routine to get the realm from a given DNS name. Returns malloc'ed memory.
- Caller must free() if the return value is not NULL.
-************************************************************************/
-
-char *kerberos_get_realm_from_hostname(const char *hostname)
-{
-#if defined(HAVE_KRB5_GET_HOST_REALM) && defined(HAVE_KRB5_FREE_HOST_REALM)
-#if defined(HAVE_KRB5_REALM_TYPE)
-	/* Heimdal. */
-	krb5_realm *realm_list = NULL;
-#else
-	/* MIT */
-	char **realm_list = NULL;
-#endif
-	char *realm = NULL;
-	krb5_error_code kerr;
-	krb5_context ctx = NULL;
-
-	initialize_krb5_error_table();
-	if (krb5_init_context(&ctx)) {
-		return NULL;
-	}
-
-	kerr = krb5_get_host_realm(ctx, hostname, &realm_list);
-	if (kerr != 0) {
-		DEBUG(3,("kerberos_get_realm_from_hostname %s: "
-			"failed %s\n",
-			hostname ? hostname : "(NULL)",
-			error_message(kerr) ));
-		goto out;
-	}
-
-	if (realm_list && realm_list[0]) {
-		realm = SMB_STRDUP(realm_list[0]);
-	}
-
-  out:
-
-	if (ctx) {
-		if (realm_list) {
-			krb5_free_host_realm(ctx, realm_list);
-			realm_list = NULL;
-		}
-		krb5_free_context(ctx);
-		ctx = NULL;
-	}
-	return realm;
-#else
-	return NULL;
-#endif
-}
 
 /************************************************************************
  Routine to get the salting principal for this service.  This is 
@@ -870,7 +818,7 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 						const char *sitename,
 						struct sockaddr_storage *pss)
 {
-	char *dname;
+	char *dname = lock_path("smb_krb5");
 	char *tmpname = NULL;
 	char *fname = NULL;
 	char *file_contents = NULL;
@@ -881,11 +829,6 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 	char *realm_upper = NULL;
 	bool result = false;
 
-	if (!lp_create_krb5_conf()) {
-		return false;
-	}
-
-	dname = lock_path("smb_krb5");
 	if (!dname) {
 		return false;
 	}
@@ -932,7 +875,7 @@ bool create_local_private_krb5_conf_for_domain(const char *realm,
 
 	flen = strlen(file_contents);
 
-	fd = mkstemp(tmpname);
+	fd = smb_mkstemp(tmpname);
 	if (fd == -1) {
 		DEBUG(0,("create_local_private_krb5_conf_for_domain: smb_mkstemp failed,"
 			" for file %s. Errno %s\n",

@@ -599,8 +599,8 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 
 	struct afs_ace *afs_ace;
 
-	uid_to_sid(&owner_sid, psbuf->st_ex_uid);
-	gid_to_sid(&group_sid, psbuf->st_ex_gid);
+	uid_to_sid(&owner_sid, psbuf->st_uid);
+	gid_to_sid(&group_sid, psbuf->st_gid);
 
 	if (afs_acl->num_aces) {
 		nt_ace_list = TALLOC_ARRAY(mem_ctx, SEC_ACE, afs_acl->num_aces);
@@ -626,7 +626,7 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 			continue;
 		}
 
-		if (S_ISDIR(psbuf->st_ex_mode))
+		if (S_ISDIR(psbuf->st_mode))
 			afs_to_nt_dir_rights(afs_ace->rights, &nt_rights,
 					     &flag);
 		else
@@ -655,24 +655,24 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 
 static size_t afs_to_nt_acl(struct afs_acl *afs_acl,
 			    struct connection_struct *conn,
-			    struct smb_filename *smb_fname,
+			    const char *name,
 			    uint32 security_info,
 			    struct security_descriptor **ppdesc)
 {
+	SMB_STRUCT_STAT sbuf;
 	int ret;
 
 	/* Get the stat struct for the owner info. */
 	if (lp_posix_pathnames()) {
-		ret = SMB_VFS_LSTAT(conn, smb_fname);
+		ret = SMB_VFS_LSTAT(conn, name, &sbuf);
 	} else {
-		ret = SMB_VFS_STAT(conn, smb_fname);
+		ret = SMB_VFS_STAT(conn, name, &sbuf);
 	}
 	if (ret == -1) {
 		return 0;
 	}
 
-	return afs_to_nt_acl_common(afs_acl, &smb_fname->st, security_info,
-				    ppdesc);
+	return afs_to_nt_acl_common(afs_acl, &sbuf, security_info, ppdesc);
 }
 
 static size_t afs_fto_nt_acl(struct afs_acl *afs_acl,
@@ -911,7 +911,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	ZERO_STRUCT(dir_acl);
 	ZERO_STRUCT(file_acl);
 
-	name = talloc_strdup(talloc_tos(), fsp->fsp_name->base_name);
+	name = talloc_strdup(talloc_tos(), fsp->fsp_name);
 	if (!name) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -931,7 +931,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	}
 
 	if (!afs_get_afs_acl(name, &old_afs_acl)) {
-		DEBUG(3, ("Could not get old ACL of %s\n", fsp_str_dbg(fsp)));
+		DEBUG(3, ("Could not get old ACL of %s\n", fsp->fsp_name));
 		goto done;
 	}
 
@@ -947,8 +947,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 		}
 
 		free_afs_acl(&dir_acl);
-		if (!nt_to_afs_acl(fsp->fsp_name->base_name,
-				   security_info_sent, psd,
+		if (!nt_to_afs_acl(fsp->fsp_name, security_info_sent, psd,
 				   nt_to_afs_dir_rights, &dir_acl))
 			goto done;
 	} else {
@@ -963,8 +962,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 		}
 
 		free_afs_acl(&file_acl);
-		if (!nt_to_afs_acl(fsp->fsp_name->base_name,
-				   security_info_sent, psd,
+		if (!nt_to_afs_acl(fsp->fsp_name, security_info_sent, psd,
 				   nt_to_afs_file_rights, &file_acl))
 			goto done;
 	}
@@ -1005,11 +1003,11 @@ static NTSTATUS afsacl_fget_nt_acl(struct vfs_handle_struct *handle,
 	struct afs_acl acl;
 	size_t sd_size;
 
-	DEBUG(5, ("afsacl_fget_nt_acl: %s\n", fsp_str_dbg(fsp)));
+	DEBUG(5, ("afsacl_fget_nt_acl: %s\n", fsp->fsp_name));
 
 	sidpts = lp_parm_bool(SNUM(fsp->conn), "afsacl", "sidpts", False);
 
-	if (!afs_get_afs_acl(fsp->fsp_name->base_name, &acl)) {
+	if (!afs_get_afs_acl(fsp->fsp_name, &acl)) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
@@ -1026,8 +1024,6 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 {
 	struct afs_acl acl;
 	size_t sd_size;
-	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
 
 	DEBUG(5, ("afsacl_get_nt_acl: %s\n", name));
 
@@ -1037,16 +1033,8 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	status = create_synthetic_smb_fname(talloc_tos(), name, NULL, NULL,
-					    &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		free_afs_acl(&acl);
-		return status;
-	}
-
-	sd_size = afs_to_nt_acl(&acl, handle->conn, smb_fname, security_info,
+	sd_size = afs_to_nt_acl(&acl, handle->conn, name, security_info,
 				ppdesc);
-	TALLOC_FREE(smb_fname);
 
 	free_afs_acl(&acl);
 
@@ -1065,31 +1053,33 @@ static int afsacl_connect(vfs_handle_struct *handle,
 			  const char *service, 
 			  const char *user)
 {
-	const char *spc;
-	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
-
-	if (ret < 0) {
-		return ret;
-	}
+			const char *spc;
 
 	spc = lp_parm_const_string(SNUM(handle->conn), "afsacl", "space", "%");
 
 	if (spc != NULL)
 		space_replacement = spc[0];
-
-	return 0;
+	
+	return SMB_VFS_NEXT_CONNECT(handle, service, user);
 }
 
-static struct vfs_fn_pointers vfs_afsacl_fns = {
-	.connect_fn = afsacl_connect,
-	.fget_nt_acl = afsacl_fget_nt_acl,
-	.get_nt_acl = afsacl_get_nt_acl,
-	.fset_nt_acl = afsacl_fset_nt_acl
+/* VFS operations structure */
+
+static vfs_op_tuple afsacl_ops[] = {	
+	{SMB_VFS_OP(afsacl_connect), SMB_VFS_OP_CONNECT,
+	 SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(afsacl_fget_nt_acl), SMB_VFS_OP_FGET_NT_ACL,
+	 SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(afsacl_get_nt_acl), SMB_VFS_OP_GET_NT_ACL,
+	 SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(afsacl_fset_nt_acl), SMB_VFS_OP_FSET_NT_ACL,
+	 SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
 };
 
 NTSTATUS vfs_afsacl_init(void);
 NTSTATUS vfs_afsacl_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "afsacl",
-				&vfs_afsacl_fns);
+				afsacl_ops);
 }

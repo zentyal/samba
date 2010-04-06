@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 HEIMDAL_MUTEX gssapi_keytab_mutex = HEIMDAL_MUTEX_INITIALIZER;
 krb5_keytab _gsskrb5_keytab;
@@ -72,10 +74,12 @@ _gsskrb5_register_acceptor_identity (const char *identity)
 }
 
 void
-_gsskrb5i_is_cfx(krb5_context context, gsskrb5_ctx ctx, int acceptor)
+_gsskrb5i_is_cfx(gsskrb5_ctx ctx, int *is_cfx)
 {
-    krb5_error_code ret;
     krb5_keyblock *key;
+    int acceptor = (ctx->more_flags & LOCAL) == 0;
+
+    *is_cfx = 0;
 
     if (acceptor) {
 	if (ctx->auth_context->local_subkey)
@@ -104,16 +108,12 @@ _gsskrb5i_is_cfx(krb5_context context, gsskrb5_ctx ctx, int acceptor)
     case ETYPE_ARCFOUR_HMAC_MD5_56:
 	break;
     default :
-        ctx->more_flags |= IS_CFX;
-
+	*is_cfx = 1;
 	if ((acceptor && ctx->auth_context->local_subkey) ||
 	    (!acceptor && ctx->auth_context->remote_subkey))
 	    ctx->more_flags |= ACCEPTOR_SUBKEY;
 	break;
     }
-    if (ctx->crypto)
-        krb5_crypto_destroy(context, ctx->crypto);
-    ret = krb5_crypto_init(context, key, 0, &ctx->crypto);
 }
 
 
@@ -136,8 +136,7 @@ gsskrb5_accept_delegated_token
 	kret = krb5_cc_default (context, &ccache);
     } else {
 	*delegated_cred_handle = NULL;
-	kret = krb5_cc_new_unique (context, krb5_cc_type_memory,
-				   NULL, &ccache);
+	kret = krb5_cc_gen_new (context, &krb5_mcc_ops, &ccache);
     }
     if (kret) {
 	ctx->flags &= ~GSS_C_DELEG_FLAG;
@@ -170,12 +169,12 @@ gsskrb5_accept_delegated_token
 
     if (delegated_cred_handle) {
 	gsskrb5_cred handle;
-	
-	ret = _gsskrb5_krb5_import_cred(minor_status,
-					ccache,
-					NULL,
-					NULL,
-					delegated_cred_handle);
+
+	ret = _gsskrb5_import_cred(minor_status,
+				   ccache,
+				   NULL,
+				   NULL,
+				   delegated_cred_handle);
 	if (ret != GSS_S_COMPLETE)
 	    goto out;
 
@@ -211,8 +210,7 @@ gsskrb5_acceptor_ready(OM_uint32 * minor_status,
 				  ctx->auth_context,
 				  &seq_number);
 
-    _gsskrb5i_is_cfx(context, ctx, 1);
-    is_cfx = (ctx->more_flags & IS_CFX);
+    _gsskrb5i_is_cfx(ctx, &is_cfx);
 
     ret = _gssapi_msg_order_create(minor_status,
 				   &ctx->order,
@@ -383,7 +381,7 @@ gsskrb5_acceptor_start(OM_uint32 * minor_status,
 			       server,
 			       in, &out);
 	krb5_rd_req_in_ctx_free(context, in);
-	if (kret == KRB5KRB_AP_ERR_SKEW || kret == KRB5KRB_AP_ERR_TKT_NYV) {
+	if (kret == KRB5KRB_AP_ERR_SKEW) {
 	    /*
 	     * No reply in non-MUTUAL mode, but we don't know that its
 	     * non-MUTUAL mode yet, thats inside the 8003 checksum, so
@@ -517,12 +515,10 @@ gsskrb5_acceptor_start(OM_uint32 * minor_status,
 	    }
 
 	    /*
-	     * Samba style get some flags (but not DCE-STYLE), use
-	     * ap_options to guess the mutual flag.
+	     * Samba style get some flags (but not DCE-STYLE)
 	     */
- 	    ctx->flags = GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG;
-	    if (ap_options & AP_OPTS_MUTUAL_REQUIRED)
-		ctx->flags |= GSS_C_MUTUAL_FLAG;
+	    ctx->flags =
+		GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG;
         }
     }
 
@@ -530,8 +526,7 @@ gsskrb5_acceptor_start(OM_uint32 * minor_status,
 	krb5_data outbuf;
 	int use_subkey = 0;
 	
-	_gsskrb5i_is_cfx(context, ctx, 1);
-	is_cfx = (ctx->more_flags & IS_CFX);
+	_gsskrb5i_is_cfx(ctx, &is_cfx);
 	
 	if (is_cfx || (ap_options & AP_OPTS_USE_SUBKEY)) {
 	    use_subkey = 1;

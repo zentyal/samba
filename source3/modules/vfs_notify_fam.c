@@ -283,8 +283,16 @@ static NTSTATUS fam_watch(vfs_handle_struct *vfs_handle,
 
 /* VFS operations structure */
 
-static struct vfs_fn_pointers notify_fam_fns = {
-	.notify_watch = fam_watch,
+static vfs_op_tuple notify_fam_op_tuples[] = {
+
+	{SMB_VFS_OP(fam_watch),
+	 SMB_VFS_OP_NOTIFY_WATCH,
+	 SMB_VFS_LAYER_OPAQUE},
+
+	{SMB_VFS_OP(NULL),
+	 SMB_VFS_OP_NOOP,
+	 SMB_VFS_LAYER_NOOP}
+
 };
 
 
@@ -292,5 +300,5 @@ NTSTATUS vfs_notify_fam_init(void);
 NTSTATUS vfs_notify_fam_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "notify_fam",
-				&notify_fam_fns);
+				notify_fam_op_tuples);
 }

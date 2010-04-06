@@ -30,7 +30,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 OM_uint32 _gsskrb5_inquire_cred_by_oid
 	   (OM_uint32 * minor_status,

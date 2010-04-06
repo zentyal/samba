@@ -150,10 +150,8 @@ testfail "wbinfo -Y against $TARGET using invalid SID" $wbinfo -Y "S-1-22-1-3000
 
 testit "wbinfo -t against $TARGET" $wbinfo -t || failed=`expr $failed + 1`
 
-#didn't really work anyway
-knownfail "wbinfo  --trusted-domains against $TARGET" $wbinfo --trusted-domains || failed=`expr $failed + 1`
-knownfail "wbinfo --all-domains against $TARGET" $wbinfo --all-domains || failed=`expr $failed + 1`
-
+testit "wbinfo  --trusted-domains against $TARGET" $wbinfo --trusted-domains || failed=`expr $failed + 1`
+testit "wbinfo --all-domains against $TARGET" $wbinfo --all-domains || failed=`expr $failed + 1`
 testit "wbinfo --own-domain against $TARGET" $wbinfo --own-domain || failed=`expr $failed + 1`
 
 echo "test: wbinfo --own-domain against $TARGET check output"
@@ -167,9 +165,7 @@ fi
 
 # this does not work
 knownfail "wbinfo --sequence against $TARGET" $wbinfo --sequence
-
-# this is stubbed out now
-testit "wbinfo -D against $TARGET" $wbinfo -D $DOMAIN || failed=`expr $failed + 1`
+knownfail "wbinfo -D against $TARGET" $wbinfo -D $DOMAIN || failed=`expr $failed + 1`
 
 testit "wbinfo -i against $TARGET" $wbinfo -i "$DOMAIN/$USERNAME" || failed=`expr $failed + 1`
 

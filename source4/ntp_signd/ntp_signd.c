@@ -74,6 +74,7 @@ static NTSTATUS signing_failure(struct ntp_signd_connection *ntp_signdconn,
 
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
+	signed_reply.version = 1;
 	signed_reply.op = SIGNING_FAILURE;
 	signed_reply.packet_id = packet_id;
 	signed_reply.signed_packet = data_blob(NULL, 0);
@@ -152,13 +153,6 @@ static NTSTATUS ntp_signd_recv(void *private_data, DATA_BLOB wrapped_input)
 		return signing_failure(ntp_signdconn, sign_request.packet_id);
 	}
 
-	/* We need to implement 'check signature' and 'request server
-	 * to sign' operations at some point */
-	if (sign_request.version != NTP_SIGND_PROTOCOL_VERSION_0) {
-		talloc_free(tmp_ctx);
-		return signing_failure(ntp_signdconn, sign_request.packet_id);
-	}
-
 	domain_sid = samdb_domain_sid(ntp_signdconn->ntp_signd->samdb);
 	if (!domain_sid) {
 		talloc_free(tmp_ctx);
@@ -213,6 +207,7 @@ static NTSTATUS ntp_signd_recv(void *private_data, DATA_BLOB wrapped_input)
 	}
 
 	/* Generate the reply packet */
+	signed_reply.version = 1;
 	signed_reply.packet_id = sign_request.packet_id;
 	signed_reply.op = SIGNING_SUCCESS;
 	signed_reply.signed_packet = data_blob_talloc(tmp_ctx, 
@@ -347,7 +342,7 @@ static void ntp_signd_task_init(struct task_server *task)
 		char *error = talloc_asprintf(task, "Cannot create NTP signd pipe directory: %s", 
 					      lp_ntp_signd_socket_directory(task->lp_ctx));
 		task_server_terminate(task,
-				      error, true);
+				      error);
 		return;
 	}
 
@@ -364,7 +359,7 @@ static void ntp_signd_task_init(struct task_server *task)
 
 	ntp_signd = talloc(task, struct ntp_signd_server);
 	if (ntp_signd == NULL) {
-		task_server_terminate(task, "ntp_signd: out of memory", true);
+		task_server_terminate(task, "ntp_signd: out of memory");
 		return;
 	}
 
@@ -373,7 +368,7 @@ static void ntp_signd_task_init(struct task_server *task)
 	/* Must be system to get at the password hashes */
 	ntp_signd->samdb = samdb_connect(ntp_signd, task->event_ctx, task->lp_ctx, system_session(ntp_signd, task->lp_ctx));
 	if (ntp_signd->samdb == NULL) {
-		task_server_terminate(task, "ntp_signd failed to open samdb", true);
+		task_server_terminate(task, "ntp_signd failed to open samdb");
 		return;
 	}
 

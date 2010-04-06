@@ -127,15 +127,8 @@ static int readahead_connect(struct vfs_handle_struct *handle,
 				const char *service,
 				const char *user)
 {
-	struct readahead_data *rhd;
-	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
-
-	if (ret < 0) {
-		return ret;
-	}
-	rhd = SMB_MALLOC_P(struct readahead_data);
+	struct readahead_data *rhd = SMB_MALLOC_P(struct readahead_data);
 	if (!rhd) {
-		SMB_VFS_NEXT_DISCONNECT(handle);
 		DEBUG(0,("readahead_connect: out of memory\n"));
 		return -1;
 	}
@@ -159,13 +152,21 @@ static int readahead_connect(struct vfs_handle_struct *handle,
 
 	handle->data = (void *)rhd;
 	handle->free_data = free_readahead_data;
-	return 0;
+	return SMB_VFS_NEXT_CONNECT(handle, service, user);
 }
 
-static struct vfs_fn_pointers vfs_readahead_fns = {
-	.sendfile = readahead_sendfile,
-	.pread = readahead_pread,
-	.connect_fn = readahead_connect
+/*******************************************************************
+ Functions we're replacing.
+ We don't replace read as it isn't used from smbd to read file
+ data.
+*******************************************************************/
+
+static vfs_op_tuple readahead_ops [] =
+{
+	{SMB_VFS_OP(readahead_sendfile), SMB_VFS_OP_SENDFILE, SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(readahead_pread), SMB_VFS_OP_PREAD, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(readahead_connect), SMB_VFS_OP_CONNECT,  SMB_VFS_LAYER_TRANSPARENT},
+	{SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
 };
 
 /*******************************************************************
@@ -175,6 +176,5 @@ static struct vfs_fn_pointers vfs_readahead_fns = {
 NTSTATUS vfs_readahead_init(void);
 NTSTATUS vfs_readahead_init(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "readahead",
-				&vfs_readahead_fns);
+	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "readahead", readahead_ops);
 }

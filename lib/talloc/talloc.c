@@ -30,20 +30,26 @@
   inspired by http://swapped.cc/halloc/
 */
 
+#ifdef _SAMBA_BUILD_
+#include "version.h"
+#if (SAMBA_VERSION_MAJOR<4)
+#include "includes.h"
+/* This is to circumvent SAMBA3's paranoid malloc checker. Here in this file
+ * we trust ourselves... */
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef realloc
+#undef realloc
+#endif
+#define _TALLOC_SAMBA3
+#endif /* (SAMBA_VERSION_MAJOR<4) */
+#endif /* _SAMBA_BUILD_ */
+
+#ifndef _TALLOC_SAMBA3
 #include "replace.h"
 #include "talloc.h"
-
-#ifdef TALLOC_BUILD_VERSION_MAJOR
-#if (TALLOC_VERSION_MAJOR != TALLOC_BUILD_VERSION_MAJOR)
-#error "TALLOC_VERSION_MAJOR != TALLOC_BUILD_VERSION_MAJOR"
-#endif
-#endif
-
-#ifdef TALLOC_BUILD_VERSION_MINOR
-#if (TALLOC_VERSION_MINOR != TALLOC_BUILD_VERSION_MINOR)
-#error "TALLOC_VERSION_MINOR != TALLOC_BUILD_VERSION_MINOR"
-#endif
-#endif
+#endif /* not _TALLOC_SAMBA3 */
 
 /* use this to force every realloc to change the pointer, to stress test
    code that might not cope */
@@ -51,13 +57,7 @@
 
 
 #define MAX_TALLOC_SIZE 0x10000000
-#define TALLOC_MAGIC_BASE 0xe814ec70
-#define TALLOC_MAGIC ( \
-	TALLOC_MAGIC_BASE + \
-	(TALLOC_VERSION_MAJOR << 12) + \
-	(TALLOC_VERSION_MINOR << 4) \
-)
-
+#define TALLOC_MAGIC 0xe814ec70
 #define TALLOC_FLAG_FREE 0x01
 #define TALLOC_FLAG_LOOP 0x02
 #define TALLOC_FLAG_POOL 0x04		/* This is a talloc pool */
@@ -107,7 +107,6 @@ static void *autofree_context;
 struct talloc_reference_handle {
 	struct talloc_reference_handle *next, *prev;
 	void *ptr;
-	const char *location;
 };
 
 typedef int (*talloc_destructor_t)(void *);
@@ -139,51 +138,6 @@ struct talloc_chunk {
 #define TC_HDR_SIZE ((sizeof(struct talloc_chunk)+15)&~15)
 #define TC_PTR_FROM_CHUNK(tc) ((void *)(TC_HDR_SIZE + (char*)tc))
 
-int talloc_version_major(void)
-{
-	return TALLOC_VERSION_MAJOR;
-}
-
-int talloc_version_minor(void)
-{
-	return TALLOC_VERSION_MINOR;
-}
-
-static void (*talloc_log_fn)(const char *message);
-
-void talloc_set_log_fn(void (*log_fn)(const char *message))
-{
-	talloc_log_fn = log_fn;
-}
-
-static void talloc_log(const char *fmt, ...) PRINTF_ATTRIBUTE(1,2);
-static void talloc_log(const char *fmt, ...)
-{
-	va_list ap;
-	char *message;
-
-	if (!talloc_log_fn) {
-		return;
-	}
-
-	va_start(ap, fmt);
-	message = talloc_vasprintf(NULL, fmt, ap);
-	va_end(ap);
-
-	talloc_log_fn(message);
-	talloc_free(message);
-}
-
-static void talloc_log_stderr(const char *message)
-{
-	fprintf(stderr, "%s", message);
-}
-
-void talloc_set_log_stderr(void)
-{
-	talloc_set_log_fn(talloc_log_stderr);
-}
-
 static void (*talloc_abort_fn)(const char *reason);
 
 void talloc_set_abort_fn(void (*abort_fn)(const char *reason))
@@ -193,24 +147,11 @@ void talloc_set_abort_fn(void (*abort_fn)(const char *reason))
 
 static void talloc_abort(const char *reason)
 {
-	talloc_log("%s\n", reason);
-
 	if (!talloc_abort_fn) {
 		TALLOC_ABORT(reason);
 	}
 
 	talloc_abort_fn(reason);
-}
-
-static void talloc_abort_magic(unsigned magic)
-{
-	unsigned striped = magic - TALLOC_MAGIC_BASE;
-	unsigned major = (striped & 0xFFFFF000) >> 12;
-	unsigned minor = (striped & 0x00000FF0) >> 4;
-	talloc_log("Bad talloc magic[0x%08X/%u/%u] expected[0x%08X/%u/%u]\n",
-		   magic, major, minor,
-		   TALLOC_MAGIC, TALLOC_VERSION_MAJOR, TALLOC_VERSION_MINOR);
-	talloc_abort("Bad talloc magic value - wrong talloc version used/mixed");
 }
 
 static void talloc_abort_double_free(void)
@@ -229,18 +170,10 @@ static inline struct talloc_chunk *talloc_chunk_from_ptr(const void *ptr)
 	const char *pp = (const char *)ptr;
 	struct talloc_chunk *tc = discard_const_p(struct talloc_chunk, pp - TC_HDR_SIZE);
 	if (unlikely((tc->flags & (TALLOC_FLAG_FREE | ~0xF)) != TALLOC_MAGIC)) { 
-		if ((tc->flags & (~0xFFF)) == TALLOC_MAGIC_BASE) {
-			talloc_abort_magic(tc->flags & (~0xF));
-			return NULL;
-		}
-
 		if (tc->flags & TALLOC_FLAG_FREE) {
-			talloc_log("talloc: double free error - first free may be at %s\n", tc->name);
 			talloc_abort_double_free();
-			return NULL;
 		} else {
 			talloc_abort_unknown_value();
-			return NULL;
 		}
 	}
 	return tc;
@@ -532,7 +465,7 @@ static inline void *_talloc_named_const(const void *context, size_t size, const 
   same underlying data, and you want to be able to free the two instances separately,
   and in either order
 */
-void *_talloc_reference_loc(const void *context, const void *ptr, const char *location)
+void *_talloc_reference(const void *context, const void *ptr)
 {
 	struct talloc_chunk *tc;
 	struct talloc_reference_handle *handle;
@@ -549,17 +482,15 @@ void *_talloc_reference_loc(const void *context, const void *ptr, const char *lo
 	   own destructor on the context if they want to */
 	talloc_set_destructor(handle, talloc_reference_destructor);
 	handle->ptr = discard_const_p(void, ptr);
-	handle->location = location;
 	_TLIST_ADD(tc->refs, handle);
 	return handle->ptr;
 }
 
-static void *_talloc_steal_internal(const void *new_ctx, const void *ptr);
 
 /* 
    internal talloc_free call
 */
-static inline int _talloc_free_internal(void *ptr, const char *location)
+static inline int _talloc_free(void *ptr)
 {
 	struct talloc_chunk *tc;
 
@@ -579,9 +510,9 @@ static inline int _talloc_free_internal(void *ptr, const char *location)
 		 * pointer.
 		 */
 		is_child = talloc_is_parent(tc->refs, ptr);
-		_talloc_free_internal(tc->refs, location);
+		_talloc_free(tc->refs);
 		if (is_child) {
-			return _talloc_free_internal(ptr, location);
+			return _talloc_free(ptr);
 		}
 		return -1;
 	}
@@ -628,22 +559,16 @@ static inline int _talloc_free_internal(void *ptr, const char *location)
 			struct talloc_chunk *p = talloc_parent_chunk(tc->child->refs);
 			if (p) new_parent = TC_PTR_FROM_CHUNK(p);
 		}
-		if (unlikely(_talloc_free_internal(child, location) == -1)) {
+		if (unlikely(_talloc_free(child) == -1)) {
 			if (new_parent == null_context) {
 				struct talloc_chunk *p = talloc_parent_chunk(ptr);
 				if (p) new_parent = TC_PTR_FROM_CHUNK(p);
 			}
-			_talloc_steal_internal(new_parent, child);
+			talloc_steal(new_parent, child);
 		}
 	}
 
 	tc->flags |= TALLOC_FLAG_FREE;
-
-	/* we mark the freed memory with where we called the free
-	 * from. This means on a double free error we can report where
-	 * the first free came from 
-	 */	 
-	tc->name = location;
 
 	if (tc->flags & (TALLOC_FLAG_POOL|TALLOC_FLAG_POOLMEM)) {
 		struct talloc_chunk *pool;
@@ -656,7 +581,6 @@ static inline int _talloc_free_internal(void *ptr, const char *location)
 
 		if (*pool_object_count == 0) {
 			talloc_abort("Pool object count zero!");
-			return 0;
 		}
 
 		*pool_object_count -= 1;
@@ -676,7 +600,7 @@ static inline int _talloc_free_internal(void *ptr, const char *location)
    ptr on success, or NULL if it could not be transferred.
    passing NULL as ptr will always return NULL with no side effects.
 */
-static void *_talloc_steal_internal(const void *new_ctx, const void *ptr)
+void *_talloc_steal(const void *new_ctx, const void *ptr)
 {
 	struct talloc_chunk *tc, *new_tc;
 
@@ -728,69 +652,7 @@ static void *_talloc_steal_internal(const void *new_ctx, const void *ptr)
 	return discard_const_p(void, ptr);
 }
 
-/* 
-   move a lump of memory from one talloc context to another return the
-   ptr on success, or NULL if it could not be transferred.
-   passing NULL as ptr will always return NULL with no side effects.
-*/
-void *_talloc_steal_loc(const void *new_ctx, const void *ptr, const char *location)
-{
-	struct talloc_chunk *tc;
 
-	if (unlikely(ptr == NULL)) {
-		return NULL;
-	}
-	
-	tc = talloc_chunk_from_ptr(ptr);
-	
-	if (unlikely(tc->refs != NULL) && talloc_parent(ptr) != new_ctx) {
-		struct talloc_reference_handle *h;
-
-		talloc_log("WARNING: talloc_steal with references at %s\n",
-			   location);
-
-		for (h=tc->refs; h; h=h->next) {
-			talloc_log("\treference at %s\n",
-				   h->location);
-		}
-	}
-	
-	return _talloc_steal_internal(new_ctx, ptr);
-}
-
-/* 
-   this is like a talloc_steal(), but you must supply the old
-   parent. This resolves the ambiguity in a talloc_steal() which is
-   called on a context that has more than one parent (via references)
-
-   The old parent can be either a reference or a parent
-*/
-void *talloc_reparent(const void *old_parent, const void *new_parent, const void *ptr)
-{
-	struct talloc_chunk *tc;
-	struct talloc_reference_handle *h;
-
-	if (unlikely(ptr == NULL)) {
-		return NULL;
-	}
-
-	if (old_parent == talloc_parent(ptr)) {
-		return _talloc_steal_internal(new_parent, ptr);
-	}
-
-	tc = talloc_chunk_from_ptr(ptr);
-	for (h=tc->refs;h;h=h->next) {
-		if (talloc_parent(h) == old_parent) {
-			if (_talloc_steal_internal(new_parent, h) != h) {
-				return NULL;
-			}
-			return discard_const_p(void, ptr);
-		}
-	}	
-
-	/* it wasn't a parent */
-	return NULL;
-}
 
 /*
   remove a secondary reference to a pointer. This undo's what
@@ -818,7 +680,7 @@ static inline int talloc_unreference(const void *context, const void *ptr)
 		return -1;
 	}
 
-	return _talloc_free_internal(h, __location__);
+	return _talloc_free(h);
 }
 
 /*
@@ -855,7 +717,7 @@ int talloc_unlink(const void *context, void *ptr)
 	tc_p = talloc_chunk_from_ptr(ptr);
 
 	if (tc_p->refs == NULL) {
-		return _talloc_free_internal(ptr, __location__);
+		return _talloc_free(ptr);
 	}
 
 	new_p = talloc_parent_chunk(tc_p->refs);
@@ -869,7 +731,7 @@ int talloc_unlink(const void *context, void *ptr)
 		return -1;
 	}
 
-	_talloc_steal_internal(new_parent, ptr);
+	talloc_steal(new_parent, ptr);
 
 	return 0;
 }
@@ -922,7 +784,7 @@ void *talloc_named(const void *context, size_t size, const char *fmt, ...)
 	va_end(ap);
 
 	if (unlikely(name == NULL)) {
-		_talloc_free_internal(ptr, __location__);
+		_talloc_free(ptr);
 		return NULL;
 	}
 
@@ -1020,7 +882,7 @@ void *talloc_init(const char *fmt, ...)
 	va_end(ap);
 
 	if (unlikely(name == NULL)) {
-		_talloc_free_internal(ptr, __location__);
+		_talloc_free(ptr);
 		return NULL;
 	}
 
@@ -1054,12 +916,12 @@ void talloc_free_children(void *ptr)
 			struct talloc_chunk *p = talloc_parent_chunk(tc->child->refs);
 			if (p) new_parent = TC_PTR_FROM_CHUNK(p);
 		}
-		if (unlikely(talloc_free(child) == -1)) {
+		if (unlikely(_talloc_free(child) == -1)) {
 			if (new_parent == null_context) {
 				struct talloc_chunk *p = talloc_parent_chunk(ptr);
 				if (p) new_parent = TC_PTR_FROM_CHUNK(p);
 			}
-			_talloc_steal_internal(new_parent, child);
+			talloc_steal(new_parent, child);
 		}
 	}
 
@@ -1107,30 +969,9 @@ void *talloc_named_const(const void *context, size_t size, const char *name)
    will not be freed if the ref_count is > 1 or the destructor (if
    any) returns non-zero
 */
-int _talloc_free(void *ptr, const char *location)
+int talloc_free(void *ptr)
 {
-	struct talloc_chunk *tc;
-
-	if (unlikely(ptr == NULL)) {
-		return -1;
-	}
-	
-	tc = talloc_chunk_from_ptr(ptr);
-	
-	if (unlikely(tc->refs != NULL)) {
-		struct talloc_reference_handle *h;
-
-		talloc_log("ERROR: talloc_free with references at %s\n",
-			   location);
-
-		for (h=tc->refs; h; h=h->next) {
-			talloc_log("\treference at %s\n",
-				   h->location);
-		}
-		return -1;
-	}
-	
-	return _talloc_free_internal(ptr, location);
+	return _talloc_free(ptr);
 }
 
 
@@ -1147,7 +988,7 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 
 	/* size zero is equivalent to free() */
 	if (unlikely(size == 0)) {
-		talloc_unlink(context, ptr);
+		_talloc_free(ptr);
 		return NULL;
 	}
 
@@ -1167,11 +1008,6 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 		return NULL;
 	}
 
-	/* don't let anybody try to realloc a talloc_pool */
-	if (unlikely(tc->flags & TALLOC_FLAG_POOL)) {
-		return NULL;
-	}
-
 	/* don't shrink if we have less than 1k to gain */
 	if ((size < tc->size) && ((tc->size - size) < 1024)) {
 		tc->size = size;
@@ -1184,7 +1020,7 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 #if ALWAYS_REALLOC
 	new_ptr = malloc(size + TC_HDR_SIZE);
 	if (new_ptr) {
-		memcpy(new_ptr, tc, MIN(tc->size, size) + TC_HDR_SIZE);
+		memcpy(new_ptr, tc, tc->size + TC_HDR_SIZE);
 		free(tc);
 	}
 #else
@@ -1244,7 +1080,7 @@ void *_talloc_realloc(const void *context, void *ptr, size_t size, const char *n
 void *_talloc_move(const void *new_ctx, const void *_pptr)
 {
 	const void **pptr = discard_const_p(const void *,_pptr);
-	void *ret = talloc_steal(new_ctx, discard_const_p(void, *pptr));
+	void *ret = _talloc_steal(new_ctx, *pptr);
 	(*pptr) = NULL;
 	return ret;
 }
@@ -1272,9 +1108,7 @@ size_t talloc_total_size(const void *ptr)
 
 	tc->flags |= TALLOC_FLAG_LOOP;
 
-	if (likely(tc->name != TALLOC_MAGIC_REFERENCE)) {
-		total = tc->size;
-	}
+	total = tc->size;
 	for (c=tc->child;c;c=c->next) {
 		total += talloc_total_size(TC_PTR_FROM_CHUNK(c));
 	}
@@ -1290,16 +1124,7 @@ size_t talloc_total_size(const void *ptr)
 size_t talloc_total_blocks(const void *ptr)
 {
 	size_t total = 0;
-	struct talloc_chunk *c, *tc;
-
-	if (ptr == NULL) {
-		ptr = null_context;
-	}
-	if (ptr == NULL) {
-		return 0;
-	}
-
-	tc = talloc_chunk_from_ptr(ptr);
+	struct talloc_chunk *c, *tc = talloc_chunk_from_ptr(ptr);
 
 	if (tc->flags & TALLOC_FLAG_LOOP) {
 		return 0;
@@ -1421,10 +1246,8 @@ static void talloc_report_depth_FILE_helper(const void *ptr, int depth, int max_
 */
 void talloc_report_depth_file(const void *ptr, int depth, int max_depth, FILE *f)
 {
-	if (f) {
-		talloc_report_depth_cb(ptr, depth, max_depth, talloc_report_depth_FILE_helper, f);
-		fflush(f);
-	}
+	talloc_report_depth_cb(ptr, depth, max_depth, talloc_report_depth_FILE_helper, f);
+	fflush(f);
 }
 
 /*
@@ -1470,20 +1293,6 @@ void talloc_enable_null_tracking(void)
 {
 	if (null_context == NULL) {
 		null_context = _talloc_named_const(NULL, 0, "null_context");
-		if (autofree_context != NULL) {
-			talloc_reparent(NULL, null_context, autofree_context);
-		}
-	}
-}
-
-/*
-  enable tracking of the NULL context, not moving the autofree context
-  into the NULL context. This is needed for the talloc testsuite
-*/
-void talloc_enable_null_tracking_no_autofree(void)
-{
-	if (null_context == NULL) {
-		null_context = _talloc_named_const(NULL, 0, "null_context");
 	}
 }
 
@@ -1492,23 +1301,7 @@ void talloc_enable_null_tracking_no_autofree(void)
 */
 void talloc_disable_null_tracking(void)
 {
-	if (null_context != NULL) {
-		/* we have to move any children onto the real NULL
-		   context */
-		struct talloc_chunk *tc, *tc2;
-		tc = talloc_chunk_from_ptr(null_context);
-		for (tc2 = tc->child; tc2; tc2=tc2->next) {
-			if (tc2->parent == tc) tc2->parent = NULL;
-			if (tc2->prev == tc) tc2->prev = NULL;
-		}
-		for (tc2 = tc->next; tc2; tc2=tc2->next) {
-			if (tc2->parent == tc) tc2->parent = NULL;
-			if (tc2->prev == tc) tc2->prev = NULL;
-		}
-		tc->child = NULL;
-		tc->next = NULL;
-	}
-	talloc_free(null_context);
+	_talloc_free(null_context);
 	null_context = NULL;
 }
 
@@ -1890,7 +1683,7 @@ static int talloc_autofree_destructor(void *ptr)
 
 static void talloc_autofree(void)
 {
-	talloc_free(autofree_context);
+	_talloc_free(autofree_context);
 }
 
 /*
@@ -1911,12 +1704,8 @@ size_t talloc_get_size(const void *context)
 {
 	struct talloc_chunk *tc;
 
-	if (context == NULL) {
-		context = null_context;
-	}
-	if (context == NULL) {
+	if (context == NULL)
 		return 0;
-	}
 
 	tc = talloc_chunk_from_ptr(context);
 

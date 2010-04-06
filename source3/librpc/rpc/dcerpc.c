@@ -69,10 +69,6 @@ struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p, const struct 
 	return ret;
 }
 
-#if 0
-
-Completely unfinished and unused -- vl :-)
-
 /**
  * Wait for a DCE/RPC request. 
  *
@@ -121,6 +117,10 @@ NTSTATUS dcerpc_ndr_request_recv(struct rpc_request *req)
 
 	return NT_STATUS_OK;
 }
+
+#if 0
+
+Completely unfinished and unused -- vl :-)
 
 /**
  * Connect to a DCE/RPC interface.

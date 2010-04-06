@@ -20,8 +20,8 @@
 */
 
 #include "includes.h"
-#include <talloc.h>
 #include "libcli/ldap/ldap.h"
+#include "lib/socket/socket.h"
 #include "lib/messaging/irpc.h"
 #include "smbd/service_task.h"
 #include "smbd/service.h"
@@ -34,67 +34,50 @@
 #include "ldb_wrap.h"
 #include "auth/auth.h"
 #include "param/param.h"
-#include "../lib/tsocket/tsocket.h"
 
 /*
   handle incoming cldap requests
 */
-static void cldapd_request_handler(struct cldap_socket *cldap,
-				   void *private_data,
-				   struct cldap_incoming *in)
+static void cldapd_request_handler(struct cldap_socket *cldap, 
+				   struct ldap_message *ldap_msg, 
+				   struct socket_address *src)
 {
-	struct cldapd_server *cldapd = talloc_get_type(private_data,
-				       struct cldapd_server);
 	struct ldap_SearchRequest *search;
-
-	if (in->ldap_msg->type != LDAP_TAG_SearchRequest) {
-		DEBUG(0,("Invalid CLDAP request type %d from %s\n",
-			 in->ldap_msg->type,
-			 tsocket_address_string(in->src, in)));
-		cldap_error_reply(cldap, in->ldap_msg->messageid, in->src,
+	if (ldap_msg->type != LDAP_TAG_SearchRequest) {
+		DEBUG(0,("Invalid CLDAP request type %d from %s:%d\n", 
+			 ldap_msg->type, src->addr, src->port));
+		cldap_error_reply(cldap, ldap_msg->messageid, src,
 				  LDAP_OPERATIONS_ERROR, "Invalid CLDAP request");
-		talloc_free(in);
 		return;
 	}
 
-	search = &in->ldap_msg->r.SearchRequest;
+	search = &ldap_msg->r.SearchRequest;
 
 	if (strcmp("", search->basedn) != 0) {
-		DEBUG(0,("Invalid CLDAP basedn '%s' from %s\n",
-			 search->basedn,
-			 tsocket_address_string(in->src, in)));
-		cldap_error_reply(cldap, in->ldap_msg->messageid, in->src,
+		DEBUG(0,("Invalid CLDAP basedn '%s' from %s:%d\n", 
+			 search->basedn, src->addr, src->port));
+		cldap_error_reply(cldap, ldap_msg->messageid, src,
 				  LDAP_OPERATIONS_ERROR, "Invalid CLDAP basedn");
-		talloc_free(in);
 		return;
 	}
 
 	if (search->scope != LDAP_SEARCH_SCOPE_BASE) {
-		DEBUG(0,("Invalid CLDAP scope %d from %s\n",
-			 search->scope,
-			 tsocket_address_string(in->src, in)));
-		cldap_error_reply(cldap, in->ldap_msg->messageid, in->src,
+		DEBUG(0,("Invalid CLDAP scope %d from %s:%d\n", 
+			 search->scope, src->addr, src->port));
+		cldap_error_reply(cldap, ldap_msg->messageid, src,
 				  LDAP_OPERATIONS_ERROR, "Invalid CLDAP scope");
-		talloc_free(in);
 		return;
 	}
 
 	if (search->num_attributes == 1 &&
 	    strcasecmp(search->attributes[0], "netlogon") == 0) {
-		cldapd_netlogon_request(cldap,
-					cldapd,
-					in,
-					in->ldap_msg->messageid,
-					search->tree,
-					in->src);
-		talloc_free(in);
+		cldapd_netlogon_request(cldap, ldap_msg->messageid,
+					search->tree, src);
 		return;
 	}
 
-	cldapd_rootdse_request(cldap, cldapd, in,
-			       in->ldap_msg->messageid,
-			       search, in->src);
-	talloc_free(in);
+	cldapd_rootdse_request(cldap, ldap_msg->messageid,
+			       search, src);
 }
 
 
@@ -105,42 +88,35 @@ static NTSTATUS cldapd_add_socket(struct cldapd_server *cldapd, struct loadparm_
 				  const char *address)
 {
 	struct cldap_socket *cldapsock;
-	struct tsocket_address *socket_address;
+	struct socket_address *socket_address;
 	NTSTATUS status;
-	int ret;
-
-	ret = tsocket_address_inet_from_strings(cldapd,
-						"ip",
-						address,
-						lp_cldap_port(lp_ctx),
-						&socket_address);
-	if (ret != 0) {
-		status = map_nt_error_from_unix(errno);
-		DEBUG(0,("invalid address %s:%d - %s:%s\n",
-			 address, lp_cldap_port(lp_ctx),
-			 gai_strerror(ret), nt_errstr(status)));
-		return status;
-	}
 
 	/* listen for unicasts on the CLDAP port (389) */
-	status = cldap_socket_init(cldapd,
-				   cldapd->task->event_ctx,
-				   socket_address,
-				   NULL,
-				   &cldapsock);
+	cldapsock = cldap_socket_init(cldapd, cldapd->task->event_ctx, lp_iconv_convenience(cldapd->task->lp_ctx));
+	NT_STATUS_HAVE_NO_MEMORY(cldapsock);
+
+	socket_address = socket_address_from_strings(cldapsock, cldapsock->sock->backend_name, 
+						     address, lp_cldap_port(lp_ctx));
+	if (!socket_address) {
+		talloc_free(cldapsock);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = socket_listen(cldapsock->sock, socket_address, 0, 0);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("Failed to bind to %s - %s\n", 
-			 tsocket_address_string(socket_address, socket_address),
-			 nt_errstr(status)));
-		talloc_free(socket_address);
+		DEBUG(0,("Failed to bind to %s:%d - %s\n", 
+			 address, lp_cldap_port(lp_ctx), nt_errstr(status)));
+		talloc_free(cldapsock);
 		return status;
 	}
+
 	talloc_free(socket_address);
 
 	cldap_set_incoming_handler(cldapsock, cldapd_request_handler, cldapd);
 
 	return NT_STATUS_OK;
 }
+
 
 /*
   setup our listening sockets on the configured network interfaces
@@ -187,18 +163,16 @@ static void cldapd_task_init(struct task_server *task)
 	load_interfaces(task, lp_interfaces(task->lp_ctx), &ifaces);
 
 	if (iface_count(ifaces) == 0) {
-		task_server_terminate(task, "cldapd: no network interfaces configured", false);
+		task_server_terminate(task, "cldapd: no network interfaces configured");
 		return;
 	}
 
 	switch (lp_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
-		task_server_terminate(task, "cldap_server: no CLDAP server required in standalone configuration", 
-				      false);
+		task_server_terminate(task, "cldap_server: no CLDAP server required in standalone configuration");
 		return;
 	case ROLE_DOMAIN_MEMBER:
-		task_server_terminate(task, "cldap_server: no CLDAP server required in member server configuration",
-				      false);
+		task_server_terminate(task, "cldap_server: no CLDAP server required in member server configuration");
 		return;
 	case ROLE_DOMAIN_CONTROLLER:
 		/* Yes, we want an CLDAP server */
@@ -209,21 +183,21 @@ static void cldapd_task_init(struct task_server *task)
 
 	cldapd = talloc(task, struct cldapd_server);
 	if (cldapd == NULL) {
-		task_server_terminate(task, "cldapd: out of memory", true);
+		task_server_terminate(task, "cldapd: out of memory");
 		return;
 	}
 
 	cldapd->task = task;
 	cldapd->samctx = samdb_connect(cldapd, task->event_ctx, task->lp_ctx, system_session(cldapd, task->lp_ctx));
 	if (cldapd->samctx == NULL) {
-		task_server_terminate(task, "cldapd failed to open samdb", true);
+		task_server_terminate(task, "cldapd failed to open samdb");
 		return;
 	}
 
 	/* start listening on the configured network interfaces */
 	status = cldapd_startup_interfaces(cldapd, task->lp_ctx, ifaces);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "cldapd failed to setup interfaces", true);
+		task_server_terminate(task, "cldapd failed to setup interfaces");
 		return;
 	}
 

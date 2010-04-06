@@ -31,7 +31,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
+
+RCSID("$Id$");
 
 #include <sys/types.h>
 #ifdef HAVE_SYS_UN_H

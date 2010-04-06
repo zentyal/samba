@@ -34,7 +34,9 @@
  *  glue routine for _gsskrb5_inquire_sec_context_by_oid
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 static OM_uint32
 get_bool(OM_uint32 *minor_status,

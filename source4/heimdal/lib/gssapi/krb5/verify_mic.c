@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 static OM_uint32
 verify_mic_des
@@ -264,7 +266,7 @@ retry:
 OM_uint32
 _gsskrb5_verify_mic_internal
            (OM_uint32 * minor_status,
-            const gsskrb5_ctx ctx,
+            const gsskrb5_ctx context_handle,
 	    krb5_context context,
             const gss_buffer_t message_buffer,
             const gss_buffer_t token_buffer,
@@ -276,14 +278,9 @@ _gsskrb5_verify_mic_internal
     OM_uint32 ret;
     krb5_keytype keytype;
 
-    if (ctx->more_flags & IS_CFX)
-        return _gssapi_verify_mic_cfx (minor_status, ctx,
-				       context, message_buffer, token_buffer,
-				       qop_state);
-
-    HEIMDAL_MUTEX_lock(&ctx->ctx_id_mutex);
-    ret = _gsskrb5i_get_token_key(ctx, context, &key);
-    HEIMDAL_MUTEX_unlock(&ctx->ctx_id_mutex);
+    HEIMDAL_MUTEX_lock(&context_handle->ctx_id_mutex);
+    ret = _gsskrb5i_get_token_key(context_handle, context, &key);
+    HEIMDAL_MUTEX_unlock(&context_handle->ctx_id_mutex);
     if (ret) {
 	*minor_status = ret;
 	return GSS_S_FAILURE;
@@ -292,24 +289,28 @@ _gsskrb5_verify_mic_internal
     krb5_enctype_to_keytype (context, key->keytype, &keytype);
     switch (keytype) {
     case KEYTYPE_DES :
-	ret = verify_mic_des (minor_status, ctx, context,
+	ret = verify_mic_des (minor_status, context_handle, context,
 			      message_buffer, token_buffer, qop_state, key,
 			      type);
 	break;
     case KEYTYPE_DES3 :
-	ret = verify_mic_des3 (minor_status, ctx, context,
+	ret = verify_mic_des3 (minor_status, context_handle, context,
 			       message_buffer, token_buffer, qop_state, key,
 			       type);
 	break;
     case KEYTYPE_ARCFOUR :
     case KEYTYPE_ARCFOUR_56 :
-	ret = _gssapi_verify_mic_arcfour (minor_status, ctx,
+	ret = _gssapi_verify_mic_arcfour (minor_status, context_handle,
 					  context,
 					  message_buffer, token_buffer,
 					  qop_state, key, type);
 	break;
     default :
-        abort();
+	ret = _gssapi_verify_mic_cfx (minor_status, context_handle,
+				      context,
+				      message_buffer, token_buffer, qop_state,
+				      key);
+	break;
     }
     krb5_free_keyblock (context, key);
 

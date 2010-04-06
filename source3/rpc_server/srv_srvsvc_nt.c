@@ -24,7 +24,6 @@
 /* This is the implementation of the srvsvc pipe. */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/srv_srvsvc.h"
 
 extern const struct generic_mapping file_generic_mapping;
 
@@ -541,13 +540,11 @@ static WERROR init_srv_share_info_ctr(pipes_struct *p,
                 if (lp_browseable(snum) && lp_snum_ok(snum) &&
                     is_enumeration_allowed(p, snum) &&
                     (all_shares || !is_hidden_share(snum)) ) {
-                        DEBUG(10, ("counting service %s\n",
-				lp_servicename(snum) ? lp_servicename(snum) : "(null)"));
+                        DEBUG(10, ("counting service %s\n", lp_servicename(snum)));
                         allowed[snum] = true;
                         num_entries++;
                 } else {
-                        DEBUG(10, ("NOT counting service %s\n",
-				lp_servicename(snum) ? lp_servicename(snum) : "(null)"));
+                        DEBUG(10, ("NOT counting service %s\n", lp_servicename(snum)));
                 }
         }
 
@@ -1033,13 +1030,6 @@ WERROR _srvsvc_NetFileEnum(pipes_struct *p,
 		return WERR_UNKNOWN_LEVEL;
 	}
 
-	if (!nt_token_check_sid(&global_sid_Builtin_Administrators,
-				p->server_info->ptok)) {
-		DEBUG(1, ("Enumerating files only allowed for "
-			  "administrators\n"));
-		return WERR_ACCESS_DENIED;
-	}
-
 	ctx = talloc_tos();
 	ctr3 = r->in.info_ctr->ctr.ctr3;
 	if (!ctr3) {
@@ -1192,13 +1182,6 @@ WERROR _srvsvc_NetConnEnum(pipes_struct *p,
 
 	DEBUG(5,("_srvsvc_NetConnEnum: %d\n", __LINE__));
 
-	if (!nt_token_check_sid(&global_sid_Builtin_Administrators,
-				p->server_info->ptok)) {
-		DEBUG(1, ("Enumerating connections only allowed for "
-			  "administrators\n"));
-		return WERR_ACCESS_DENIED;
-	}
-
 	switch (r->in.info_ctr->level) {
 		case 0:
 			werr = init_srv_conn_info_0(r->in.info_ctr->ctr.ctr0,
@@ -1229,13 +1212,6 @@ WERROR _srvsvc_NetSessEnum(pipes_struct *p,
 	WERROR werr;
 
 	DEBUG(5,("_srvsvc_NetSessEnum: %d\n", __LINE__));
-
-	if (!nt_token_check_sid(&global_sid_Builtin_Administrators,
-				p->server_info->ptok)) {
-		DEBUG(1, ("Enumerating sessions only allowed for "
-			  "administrators\n"));
-		return WERR_ACCESS_DENIED;
-	}
 
 	switch (r->in.info_ctr->level) {
 		case 0:
@@ -1715,7 +1691,7 @@ WERROR _srvsvc_NetShareSetInfo(pipes_struct *p,
 
 		old_sd = get_share_security(p->mem_ctx, lp_servicename(snum), &sd_size);
 
-		if (old_sd && !security_descriptor_equal(old_sd, psd)) {
+		if (old_sd && !sec_desc_equal(old_sd, psd)) {
 			if (!set_share_security(share_name, psd))
 				DEBUG(0,("_srvsvc_NetShareSetInfo: Failed to change security info in share %s.\n",
 					share_name ));
@@ -2072,7 +2048,6 @@ WERROR _srvsvc_NetRemoteTOD(pipes_struct *p,
 WERROR _srvsvc_NetGetFileSecurity(pipes_struct *p,
 				  struct srvsvc_NetGetFileSecurity *r)
 {
-	struct smb_filename *smb_fname = NULL;
 	SEC_DESC *psd = NULL;
 	size_t sd_size;
 	fstring servicename;
@@ -2106,23 +2081,12 @@ WERROR _srvsvc_NetGetFileSecurity(pipes_struct *p,
 		goto error_exit;
 	}
 
-	nt_status = filename_convert(talloc_tos(),
-					conn,
-					false,
-					r->in.file,
-					0,
-					NULL,
-					&smb_fname);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		werr = ntstatus_to_werror(nt_status);
-		goto error_exit;
-	}
-
 	nt_status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		NULL,					/* req */
 		0,					/* root_dir_fid */
-		smb_fname,				/* fname */
+		r->in.file,				/* fname */
+		CFF_DOS_PATH,				/* create_file_flags */
 		FILE_READ_ATTRIBUTES,			/* access_mask */
 		FILE_SHARE_READ|FILE_SHARE_WRITE,	/* share_access */
 		FILE_OPEN,				/* create_disposition*/
@@ -2133,11 +2097,12 @@ WERROR _srvsvc_NetGetFileSecurity(pipes_struct *p,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp,					/* result */
-		NULL);					/* pinfo */
+		NULL,					/* pinfo */
+		NULL);					/* psbuf */
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("_srvsvc_NetGetFileSecurity: can't open %s\n",
-			 smb_fname_str_dbg(smb_fname)));
+			 r->in.file));
 		werr = ntstatus_to_werror(nt_status);
 		goto error_exit;
 	}
@@ -2149,7 +2114,7 @@ WERROR _srvsvc_NetGetFileSecurity(pipes_struct *p,
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("_srvsvc_NetGetFileSecurity: Unable to get NT ACL "
-			"for file %s\n", smb_fname_str_dbg(smb_fname)));
+			 "for file %s\n", r->in.file));
 		werr = ntstatus_to_werror(nt_status);
 		goto error_exit;
 	}
@@ -2171,9 +2136,8 @@ WERROR _srvsvc_NetGetFileSecurity(pipes_struct *p,
 
 	close_file(NULL, fsp, NORMAL_CLOSE);
 	vfs_ChDir(conn, oldcwd);
-	conn_free(conn);
-	werr = WERR_OK;
-	goto done;
+	conn_free_internal(conn);
+	return WERR_OK;
 
 error_exit:
 
@@ -2186,11 +2150,8 @@ error_exit:
 	}
 
 	if (conn) {
-		conn_free(conn);
+		conn_free_internal(conn);
 	}
-
- done:
-	TALLOC_FREE(smb_fname);
 
 	return werr;
 }
@@ -2203,7 +2164,6 @@ error_exit:
 WERROR _srvsvc_NetSetFileSecurity(pipes_struct *p,
 				  struct srvsvc_NetSetFileSecurity *r)
 {
-	struct smb_filename *smb_fname = NULL;
 	fstring servicename;
 	files_struct *fsp = NULL;
 	SMB_STRUCT_STAT st;
@@ -2236,23 +2196,12 @@ WERROR _srvsvc_NetSetFileSecurity(pipes_struct *p,
 		goto error_exit;
 	}
 
-	nt_status = filename_convert(talloc_tos(),
-					conn,
-					false,
-					r->in.file,
-					0,
-					NULL,
-					&smb_fname);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		werr = ntstatus_to_werror(nt_status);
-		goto error_exit;
-	}
-
 	nt_status = SMB_VFS_CREATE_FILE(
 		conn,					/* conn */
 		NULL,					/* req */
 		0,					/* root_dir_fid */
-		smb_fname,				/* fname */
+		r->in.file,				/* fname */
+		CFF_DOS_PATH,				/* create_file_flags */
 		FILE_WRITE_ATTRIBUTES,			/* access_mask */
 		FILE_SHARE_READ|FILE_SHARE_WRITE,	/* share_access */
 		FILE_OPEN,				/* create_disposition*/
@@ -2263,11 +2212,12 @@ WERROR _srvsvc_NetSetFileSecurity(pipes_struct *p,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp,					/* result */
-		NULL);					/* pinfo */
+		NULL,					/* pinfo */
+		NULL);					/* psbuf */
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("_srvsvc_NetSetFileSecurity: can't open %s\n",
-			 smb_fname_str_dbg(smb_fname)));
+			 r->in.file));
 		werr = ntstatus_to_werror(nt_status);
 		goto error_exit;
 	}
@@ -2305,9 +2255,8 @@ WERROR _srvsvc_NetSetFileSecurity(pipes_struct *p,
 
 	close_file(NULL, fsp, NORMAL_CLOSE);
 	vfs_ChDir(conn, oldcwd);
-	conn_free(conn);
-	werr = WERR_OK;
-	goto done;
+	conn_free_internal(conn);
+	return WERR_OK;
 
 error_exit:
 
@@ -2320,11 +2269,8 @@ error_exit:
 	}
 
 	if (conn) {
-		conn_free(conn);
+		conn_free_internal(conn);
 	}
-
- done:
-	TALLOC_FREE(smb_fname);
 
 	return werr;
 }

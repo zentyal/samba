@@ -21,9 +21,11 @@
 */
 
 #include "config.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "err.h"
 #include "roken.h"
-#include "system/filesys.h"
 
 #ifndef HAVE_ERR
  void err(int eval, const char *format, ...)
@@ -61,7 +63,6 @@
 #ifndef HAVE_FLOCK
  int flock(int fd, int op)
 {
-#undef flock
 	struct flock lock;
 	lock.l_whence = 0;
 	lock.l_start = 0;
@@ -83,7 +84,3 @@
 	return -1;
 }
 #endif
-
-const char *heimdal_version = "samba-internal-heimdal";
-const char *heimdal_long_version = "samba-interal-heimdal";
-

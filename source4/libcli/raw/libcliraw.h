@@ -196,9 +196,6 @@ struct smbcli_session {
 		uint_t ntlmv2_auth:1;
 		uint_t plaintext_auth:1;
 	} options;
-
-	const char *os;
-	const char *lanman;
 };
 
 /* 

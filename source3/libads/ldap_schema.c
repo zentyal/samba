@@ -122,7 +122,7 @@ const char *ads_get_attrname_by_guid(ADS_STRUCT *ads,
 		goto done;
 	}
 
-	guid_bin = guid_binstring(mem_ctx, schema_guid);
+	guid_bin = guid_binstring(schema_guid);
 	if (!guid_bin) {
 		goto done;
 	}
@@ -145,7 +145,7 @@ const char *ads_get_attrname_by_guid(ADS_STRUCT *ads,
 	result = ads_pull_string(ads, mem_ctx, res, "lDAPDisplayName");
 
  done:
-	TALLOC_FREE(guid_bin);
+	SAFE_FREE(guid_bin);
 	ads_msgfree(ads, res);
 	return result;
 	

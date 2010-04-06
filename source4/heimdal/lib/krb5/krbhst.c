@@ -35,6 +35,8 @@
 #include <resolve.h>
 #include "locate_plugin.h"
 
+RCSID("$Id$");
+
 static int
 string_to_proto(const char *string)
 {
@@ -59,8 +61,8 @@ srv_find_realm(krb5_context context, krb5_krbhst_info ***res, int *count,
 	       const char *proto, const char *service, int port)
 {
     char domain[1024];
-    struct rk_dns_reply *r;
-    struct rk_resource_record *rr;
+    struct dns_reply *r;
+    struct resource_record *rr;
     int num_srv;
     int proto_num;
     int def_port;
@@ -85,32 +87,32 @@ srv_find_realm(krb5_context context, krb5_krbhst_info ***res, int *count,
 
     snprintf(domain, sizeof(domain), "_%s._%s.%s.", service, proto, realm);
 
-    r = rk_dns_lookup(domain, dns_type);
+    r = dns_lookup(domain, dns_type);
     if(r == NULL)
 	return KRB5_KDC_UNREACH;
 
     for(num_srv = 0, rr = r->head; rr; rr = rr->next)
-	if(rr->type == rk_ns_t_srv)
+	if(rr->type == T_SRV)
 	    num_srv++;
 
     *res = malloc(num_srv * sizeof(**res));
     if(*res == NULL) {
-	rk_dns_free_data(r);
+	dns_free_data(r);
 	krb5_set_error_message(context, ENOMEM,
 			       N_("malloc: out of memory", ""));
 	return ENOMEM;
     }
 
-    rk_dns_srv_order(r);
+    dns_srv_order(r);
 
     for(num_srv = 0, rr = r->head; rr; rr = rr->next)
-	if(rr->type == rk_ns_t_srv) {
+	if(rr->type == T_SRV) {
 	    krb5_krbhst_info *hi;
 	    size_t len = strlen(rr->u.srv->target);
 
 	    hi = calloc(1, sizeof(*hi) + len);
 	    if(hi == NULL) {
-		rk_dns_free_data(r);
+		dns_free_data(r);
 		while(--num_srv >= 0)
 		    free((*res)[num_srv]);
 		free(*res);
@@ -132,7 +134,7 @@ srv_find_realm(krb5_context context, krb5_krbhst_info ***res, int *count,
 
     *count = num_srv;
 	
-    rk_dns_free_data(r);
+    dns_free_data(r);
     return 0;
 }
 
@@ -946,7 +948,7 @@ gethostlist(krb5_context context, const char *realm,
 	    return ENOMEM;
 	}
     }
-    (*hostlist)[nhost] = NULL;
+    (*hostlist)[nhost++] = NULL;
     krb5_krbhst_free(context, handle);
     return 0;
 }

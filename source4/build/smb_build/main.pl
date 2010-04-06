@@ -43,8 +43,7 @@ if ($useshared eq "true") {
 
 my $module_output_type;
 if ($useshared eq "true") {
-	#$module_output_type = ["SHARED_LIBRARY"];
-	$module_output_type = ["MERGED_OBJ"];
+	$module_output_type = ["SHARED_LIBRARY"];
 } else {
 	$module_output_type = ["MERGED_OBJ"];
 }

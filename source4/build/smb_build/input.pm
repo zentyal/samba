@@ -93,10 +93,9 @@ sub check_module($$$)
 	unless (defined($mod->{INIT_FUNCTION_SENTINEL})) { $mod->{INIT_FUNCTION_SENTINEL} = "NULL"; }
 
 	if (not defined($mod->{OUTPUT_TYPE})) {
-		if ((not defined($INPUT->{$mod->{SUBSYSTEM}})) or
-			(not defined($INPUT->{$mod->{SUBSYSTEM}}->{TYPE})) or 
+		if ((not defined($INPUT->{$mod->{SUBSYSTEM}}->{TYPE})) or 
 			$INPUT->{$mod->{SUBSYSTEM}}->{TYPE} eq "EXT_LIB") {
-			$mod->{OUTPUT_TYPE} = ["SHARED_LIBRARY"];
+			$mod->{OUTPUT_TYPE} = undef;
 		} else {
 			$mod->{OUTPUT_TYPE} = $default_ot;
 		}

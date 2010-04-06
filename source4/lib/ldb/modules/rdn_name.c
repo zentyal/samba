@@ -1,8 +1,8 @@
 /* 
    ldb database library
 
-   Copyright (C) Andrew Bartlett 2005
-   Copyright (C) Simo Sorce 2006-2008
+   Copyright (C) Andrew Bartlet 2005
+   Copyright (C) Simo Sorce     2006-2008
 
      ** NOTE! The following LGPL license applies to the ldb
      ** library. This does NOT imply that all of Samba is released
@@ -23,13 +23,13 @@
 */
 
 /*
- *  Name: rdn_name
+ *  Name: rdb_name
  *
  *  Component: ldb rdn name module
  *
  *  Description: keep a consistent name attribute on objects manpulations
  *
- *  Author: Andrew Bartlett
+ *  Author: Andrew Bartlet
  *
  *  Modifications:
  *    - made the module async
@@ -98,7 +98,7 @@ static int rdn_name_add(struct ldb_module *module, struct ldb_request *req)
 	int i, ret;
 
 	ldb = ldb_module_get_ctx(module);
-	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_add_record");
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_add_record\n");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.add.message->dn)) {
@@ -156,15 +156,9 @@ static int rdn_name_add(struct ldb_module *module, struct ldb_request *req)
 			}
 		}
 		if (i == attribute->num_values) {
-			char *rdn_errstring = talloc_asprintf(ac, "RDN mismatch on %s: %s (%.*s) should match one of:", 
-							  ldb_dn_get_linearized(msg->dn), rdn_name, 
-							  (int)rdn_val.length, (const char *)rdn_val.data);
-			for (i = 0; i < attribute->num_values; i++) {
-				rdn_errstring = talloc_asprintf_append(rdn_errstring, " (%.*s)",
-								       (int)attribute->values[i].length, 
-								       (const char *)attribute->values[i].data);
-			}
-			ldb_debug_set(ldb, LDB_DEBUG_FATAL, "%s", rdn_errstring);
+			ldb_debug_set(ldb, LDB_DEBUG_FATAL, 
+				      "RDN mismatch on %s: %s (%s)", 
+				      ldb_dn_get_linearized(msg->dn), rdn_name, rdn_val.data);
 			talloc_free(ac);
 			/* Match AD's error here */
 			return LDB_ERR_INVALID_DN_SYNTAX;
@@ -294,7 +288,7 @@ static int rdn_name_rename(struct ldb_module *module, struct ldb_request *req)
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
-	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_rename");
+	ldb_debug(ldb, LDB_DEBUG_TRACE, "rdn_name_rename\n");
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.rename.newdn)) {

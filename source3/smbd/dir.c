@@ -115,19 +115,15 @@ bool make_dir_struct(TALLOC_CTX *ctx,
  Initialise the dir bitmap.
 ****************************************************************************/
 
-bool init_dptrs(struct smbd_server_connection *sconn)
+void init_dptrs(void)
 {
-	if (sconn->smb1.searches.dptr_bmap) {
-		return true;
-	}
+	if (dptr_bmap)
+		return;
 
-	sconn->smb1.searches.dptr_bmap = bitmap_allocate(MAX_DIRECTORY_HANDLES);
+	dptr_bmap = bitmap_allocate(MAX_DIRECTORY_HANDLES);
 
-	if (sconn->smb1.searches.dptr_bmap == NULL) {
-		return false;
-	}
-
-	return true;
+	if (!dptr_bmap)
+		exit_server("out of memory in init_dptrs");
 }
 
 /****************************************************************************
@@ -146,14 +142,14 @@ static void dptr_idle(struct dptr_struct *dptr)
  Idle the oldest dptr.
 ****************************************************************************/
 
-static void dptr_idleoldest(struct smbd_server_connection *sconn)
+static void dptr_idleoldest(void)
 {
 	struct dptr_struct *dptr;
 
 	/*
 	 * Go to the end of the list.
 	 */
-	for(dptr = sconn->smb1.searches.dirptrs; dptr && dptr->next; dptr = dptr->next)
+	for(dptr = dirptrs; dptr && dptr->next; dptr = dptr->next)
 		;
 
 	if(!dptr) {
@@ -177,16 +173,15 @@ static void dptr_idleoldest(struct smbd_server_connection *sconn)
  Get the struct dptr_struct for a dir index.
 ****************************************************************************/
 
-static struct dptr_struct *dptr_get(struct smbd_server_connection *sconn,
-				    int key, bool forclose)
+static struct dptr_struct *dptr_get(int key, bool forclose)
 {
 	struct dptr_struct *dptr;
 
-	for(dptr = sconn->smb1.searches.dirptrs; dptr; dptr = dptr->next) {
+	for(dptr = dirptrs; dptr; dptr = dptr->next) {
 		if(dptr->dnum == key) {
 			if (!forclose && !dptr->dir_hnd) {
-				if (sconn->smb1.searches.dirhandles_open >= MAX_OPEN_DIRECTORIES)
-					dptr_idleoldest(sconn);
+				if (dirhandles_open >= MAX_OPEN_DIRECTORIES)
+					dptr_idleoldest();
 				DEBUG(4,("dptr_get: Reopening dptr key %d\n",key));
 				if (!(dptr->dir_hnd = OpenDir(
 					      NULL, dptr->conn, dptr->path,
@@ -196,7 +191,7 @@ static struct dptr_struct *dptr_get(struct smbd_server_connection *sconn,
 					return False;
 				}
 			}
-			DLIST_PROMOTE(sconn->smb1.searches.dirptrs,dptr);
+			DLIST_PROMOTE(dirptrs,dptr);
 			return dptr;
 		}
 	}
@@ -207,9 +202,9 @@ static struct dptr_struct *dptr_get(struct smbd_server_connection *sconn,
  Get the dir path for a dir index.
 ****************************************************************************/
 
-char *dptr_path(struct smbd_server_connection *sconn, int key)
+char *dptr_path(int key)
 {
-	struct dptr_struct *dptr = dptr_get(sconn, key, false);
+	struct dptr_struct *dptr = dptr_get(key, False);
 	if (dptr)
 		return(dptr->path);
 	return(NULL);
@@ -219,9 +214,9 @@ char *dptr_path(struct smbd_server_connection *sconn, int key)
  Get the dir wcard for a dir index.
 ****************************************************************************/
 
-char *dptr_wcard(struct smbd_server_connection *sconn, int key)
+char *dptr_wcard(int key)
 {
-	struct dptr_struct *dptr = dptr_get(sconn, key, false);
+	struct dptr_struct *dptr = dptr_get(key, False);
 	if (dptr)
 		return(dptr->wcard);
 	return(NULL);
@@ -231,9 +226,9 @@ char *dptr_wcard(struct smbd_server_connection *sconn, int key)
  Get the dir attrib for a dir index.
 ****************************************************************************/
 
-uint16 dptr_attr(struct smbd_server_connection *sconn, int key)
+uint16 dptr_attr(int key)
 {
-	struct dptr_struct *dptr = dptr_get(sconn, key, false);
+	struct dptr_struct *dptr = dptr_get(key, False);
 	if (dptr)
 		return(dptr->attr);
 	return(0);
@@ -245,29 +240,22 @@ uint16 dptr_attr(struct smbd_server_connection *sconn, int key)
 
 static void dptr_close_internal(struct dptr_struct *dptr)
 {
-	struct smbd_server_connection *sconn = dptr->conn->sconn;
-
 	DEBUG(4,("closing dptr key %d\n",dptr->dnum));
 
-	if (sconn == NULL) {
-		goto done;
-	}
-
-	DLIST_REMOVE(sconn->smb1.searches.dirptrs, dptr);
+	DLIST_REMOVE(dirptrs, dptr);
 
 	/*
 	 * Free the dnum in the bitmap. Remember the dnum value is always 
 	 * biased by one with respect to the bitmap.
 	 */
 
-	if(bitmap_query(sconn->smb1.searches.dptr_bmap, dptr->dnum - 1) != true) {
+	if(bitmap_query( dptr_bmap, dptr->dnum - 1) != True) {
 		DEBUG(0,("dptr_close_internal : Error - closing dnum = %d and bitmap not set !\n",
 			dptr->dnum ));
 	}
 
-	bitmap_clear(sconn->smb1.searches.dptr_bmap, dptr->dnum - 1);
+	bitmap_clear(dptr_bmap, dptr->dnum - 1);
 
-done:
 	TALLOC_FREE(dptr->dir_hnd);
 
 	/* Lanman 2 specific code */
@@ -280,7 +268,7 @@ done:
  Close a dptr given a key.
 ****************************************************************************/
 
-void dptr_close(struct smbd_server_connection *sconn, int *key)
+void dptr_close(int *key)
 {
 	struct dptr_struct *dptr;
 
@@ -290,7 +278,7 @@ void dptr_close(struct smbd_server_connection *sconn, int *key)
 	/* OS/2 seems to use -1 to indicate "close all directories" */
 	if (*key == -1) {
 		struct dptr_struct *next;
-		for(dptr = sconn->smb1.searches.dirptrs; dptr; dptr = next) {
+		for(dptr = dirptrs; dptr; dptr = next) {
 			next = dptr->next;
 			dptr_close_internal(dptr);
 		}
@@ -298,7 +286,7 @@ void dptr_close(struct smbd_server_connection *sconn, int *key)
 		return;
 	}
 
-	dptr = dptr_get(sconn, *key, true);
+	dptr = dptr_get(*key, True);
 
 	if (!dptr) {
 		DEBUG(0,("Invalid key %d given to dptr_close\n", *key));
@@ -317,17 +305,10 @@ void dptr_close(struct smbd_server_connection *sconn, int *key)
 void dptr_closecnum(connection_struct *conn)
 {
 	struct dptr_struct *dptr, *next;
-	struct smbd_server_connection *sconn = conn->sconn;
-
-	if (sconn == NULL) {
-		return;
-	}
-
-	for(dptr = sconn->smb1.searches.dirptrs; dptr; dptr = next) {
+	for(dptr = dirptrs; dptr; dptr = next) {
 		next = dptr->next;
-		if (dptr->conn == conn) {
+		if (dptr->conn == conn)
 			dptr_close_internal(dptr);
-		}
 	}
 }
 
@@ -338,16 +319,9 @@ void dptr_closecnum(connection_struct *conn)
 void dptr_idlecnum(connection_struct *conn)
 {
 	struct dptr_struct *dptr;
-	struct smbd_server_connection *sconn = conn->sconn;
-
-	if (sconn == NULL) {
-		return;
-	}
-
-	for(dptr = sconn->smb1.searches.dirptrs; dptr; dptr = dptr->next) {
-		if (dptr->conn == conn && dptr->dir_hnd) {
+	for(dptr = dirptrs; dptr; dptr = dptr->next) {
+		if (dptr->conn == conn && dptr->dir_hnd)
 			dptr_idle(dptr);
-		}
 	}
 }
 
@@ -355,11 +329,10 @@ void dptr_idlecnum(connection_struct *conn)
  Close a dptr that matches a given path, only if it matches the spid also.
 ****************************************************************************/
 
-void dptr_closepath(struct smbd_server_connection *sconn,
-		    char *path,uint16 spid)
+void dptr_closepath(char *path,uint16 spid)
 {
 	struct dptr_struct *dptr, *next;
-	for(dptr = sconn->smb1.searches.dirptrs; dptr; dptr = next) {
+	for(dptr = dirptrs; dptr; dptr = next) {
 		next = dptr->next;
 		if (spid == dptr->spid && strequal(dptr->path,path))
 			dptr_close_internal(dptr);
@@ -372,15 +345,14 @@ void dptr_closepath(struct smbd_server_connection *sconn,
  finished with that one.
 ****************************************************************************/
 
-static void dptr_close_oldest(struct smbd_server_connection *sconn,
-			      bool old)
+static void dptr_close_oldest(bool old)
 {
 	struct dptr_struct *dptr;
 
 	/*
 	 * Go to the end of the list.
 	 */
-	for(dptr = sconn->smb1.searches.dirptrs; dptr && dptr->next; dptr = dptr->next)
+	for(dptr = dirptrs; dptr && dptr->next; dptr = dptr->next)
 		;
 
 	if(!dptr) {
@@ -415,17 +387,11 @@ static void dptr_close_oldest(struct smbd_server_connection *sconn,
 NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle, bool expect_close,uint16 spid,
 		const char *wcard, bool wcard_has_wild, uint32 attr, struct dptr_struct **dptr_ret)
 {
-	struct smbd_server_connection *sconn = conn->sconn;
 	struct dptr_struct *dptr = NULL;
 	struct smb_Dir *dir_hnd;
 	NTSTATUS status;
 
 	DEBUG(5,("dptr_create dir=%s\n", path));
-
-	if (sconn == NULL) {
-		DEBUG(0,("dptr_create: called with fake connection_struct\n"));
-		return NT_STATUS_INTERNAL_ERROR;
-	}
 
 	if (!wcard) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -441,8 +407,10 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 		return map_nt_error_from_unix(errno);
 	}
 
-	if (sconn->smb1.searches.dirhandles_open >= MAX_OPEN_DIRECTORIES) {
-		dptr_idleoldest(sconn);
+	string_set(&conn->dirpath,path);
+
+	if (dirhandles_open >= MAX_OPEN_DIRECTORIES) {
+		dptr_idleoldest();
 	}
 
 	dptr = SMB_MALLOC_P(struct dptr_struct);
@@ -461,7 +429,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 		 * value we return will fit in the range 1-255.
 		 */
 
-		dptr->dnum = bitmap_find(sconn->smb1.searches.dptr_bmap, 0);
+		dptr->dnum = bitmap_find(dptr_bmap, 0);
 
 		if(dptr->dnum == -1 || dptr->dnum > 254) {
 
@@ -471,10 +439,10 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 			 * finished with that one.
 			 */
 
-			dptr_close_oldest(sconn, true);
+			dptr_close_oldest(True);
 
 			/* Now try again... */
-			dptr->dnum = bitmap_find(sconn->smb1.searches.dptr_bmap, 0);
+			dptr->dnum = bitmap_find(dptr_bmap, 0);
 			if(dptr->dnum == -1 || dptr->dnum > 254) {
 				DEBUG(0,("dptr_create: returned %d: Error - all old dirptrs in use ?\n", dptr->dnum));
 				SAFE_FREE(dptr);
@@ -489,7 +457,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 		 * a range that will return 256 - MAX_DIRECTORY_HANDLES.
 		 */
 
-		dptr->dnum = bitmap_find(sconn->smb1.searches.dptr_bmap, 255);
+		dptr->dnum = bitmap_find(dptr_bmap, 255);
 
 		if(dptr->dnum == -1 || dptr->dnum < 255) {
 
@@ -500,10 +468,10 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 			 * directory handles.
 			 */
 
-			dptr_close_oldest(sconn, false);
+			dptr_close_oldest(False);
 
 			/* Now try again... */
-			dptr->dnum = bitmap_find(sconn->smb1.searches.dptr_bmap, 255);
+			dptr->dnum = bitmap_find(dptr_bmap, 255);
 
 			if(dptr->dnum == -1 || dptr->dnum < 255) {
 				DEBUG(0,("dptr_create: returned %d: Error - all new dirptrs in use ?\n", dptr->dnum));
@@ -514,7 +482,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 		}
 	}
 
-	bitmap_set(sconn->smb1.searches.dptr_bmap, dptr->dnum);
+	bitmap_set(dptr_bmap, dptr->dnum);
 
 	dptr->dnum += 1; /* Always bias the dnum by one - no zero dnums allowed. */
 
@@ -525,7 +493,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 	dptr->expect_close = expect_close;
 	dptr->wcard = SMB_STRDUP(wcard);
 	if (!dptr->wcard) {
-		bitmap_clear(sconn->smb1.searches.dptr_bmap, dptr->dnum - 1);
+		bitmap_clear(dptr_bmap, dptr->dnum - 1);
 		SAFE_FREE(dptr);
 		TALLOC_FREE(dir_hnd);
 		return NT_STATUS_NO_MEMORY;
@@ -538,7 +506,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 
 	dptr->attr = attr;
 
-	DLIST_ADD(sconn->smb1.searches.dirptrs, dptr);
+	DLIST_ADD(dirptrs, dptr);
 
 	DEBUG(3,("creating new dirptr %d for path %s, expect_close = %d\n",
 		dptr->dnum,path,expect_close));  
@@ -555,8 +523,7 @@ NTSTATUS dptr_create(connection_struct *conn, const char *path, bool old_handle,
 
 int dptr_CloseDir(struct dptr_struct *dptr)
 {
-	struct smbd_server_connection *sconn = dptr->conn->sconn;
-	DLIST_REMOVE(sconn->smb1.searches.dirptrs, dptr);
+	DLIST_REMOVE(dirptrs, dptr);
 	TALLOC_FREE(dptr->dir_hnd);
 	return 0;
 }
@@ -586,20 +553,14 @@ int dptr_dnum(struct dptr_struct *dptr)
 ****************************************************************************/
 
 static const char *dptr_normal_ReadDirName(struct dptr_struct *dptr,
-					   long *poffset, SMB_STRUCT_STAT *pst,
-					   char **ptalloced)
+					   long *poffset, SMB_STRUCT_STAT *pst)
 {
 	/* Normal search for the next file. */
 	const char *name;
-	char *talloced = NULL;
-
-	while ((name = ReadDirName(dptr->dir_hnd, poffset, pst, &talloced))
-	       != NULL) {
+	while ((name = ReadDirName(dptr->dir_hnd, poffset, pst)) != NULL) {
 		if (is_visible_file(dptr->conn, dptr->path, name, pst, True)) {
-			*ptalloced = talloced;
 			return name;
 		}
-		TALLOC_FREE(talloced);
 	}
 	return NULL;
 }
@@ -613,26 +574,18 @@ char *dptr_ReadDirName(TALLOC_CTX *ctx,
 			long *poffset,
 			SMB_STRUCT_STAT *pst)
 {
-	struct smb_filename smb_fname_base;
 	char *name = NULL;
-	const char *name_temp = NULL;
-	char *talloced = NULL;
 	char *pathreal = NULL;
 	char *found_name = NULL;
 	int ret;
+	const char *name_temp = NULL;
 
 	SET_STAT_INVALID(*pst);
 
 	if (dptr->has_wild || dptr->did_stat) {
-		name_temp = dptr_normal_ReadDirName(dptr, poffset, pst,
-						    &talloced);
-		if (name_temp == NULL) {
-			return NULL;
-		}
-		if (talloced != NULL) {
-			return talloc_move(ctx, &talloced);
-		}
-		return talloc_strdup(ctx, name_temp);
+		name_temp = dptr_normal_ReadDirName(dptr, poffset, pst);
+		name = talloc_strdup(ctx, name_temp);
+		return name;
 	}
 
 	/* If poffset is -1 then we know we returned this name before and we
@@ -671,12 +624,7 @@ char *dptr_ReadDirName(TALLOC_CTX *ctx,
 	if (!pathreal)
 		return NULL;
 
-	/* Create an smb_filename with stream_name == NULL. */
-	ZERO_STRUCT(smb_fname_base);
-	smb_fname_base.base_name = pathreal;
-
-	if (SMB_VFS_STAT(dptr->conn, &smb_fname_base) == 0) {
-		*pst = smb_fname_base.st;
+	if (SMB_VFS_STAT(dptr->conn, pathreal, pst) == 0) {
 		name = talloc_strdup(ctx, dptr->wcard);
 		goto clean;
 	} else {
@@ -714,14 +662,9 @@ char *dptr_ReadDirName(TALLOC_CTX *ctx,
 
 	TALLOC_FREE(pathreal);
 
-	name_temp = dptr_normal_ReadDirName(dptr, poffset, pst, &talloced);
-	if (name_temp == NULL) {
-		return NULL;
-	}
-	if (talloced != NULL) {
-		return talloc_move(ctx, &talloced);
-	}
-	return talloc_strdup(ctx, name_temp);
+	name_temp = dptr_normal_ReadDirName(dptr, poffset, pst);
+	name = talloc_strdup(ctx, name_temp);
+	return name;
 
 clean:
 	TALLOC_FREE(pathreal);
@@ -771,11 +714,10 @@ void dptr_init_search_op(struct dptr_struct *dptr)
  Fill the 5 byte server reserved dptr field.
 ****************************************************************************/
 
-bool dptr_fill(struct smbd_server_connection *sconn,
-	       char *buf1,unsigned int key)
+bool dptr_fill(char *buf1,unsigned int key)
 {
 	unsigned char *buf = (unsigned char *)buf1;
-	struct dptr_struct *dptr = dptr_get(sconn, key, false);
+	struct dptr_struct *dptr = dptr_get(key, False);
 	uint32 offset;
 	if (!dptr) {
 		DEBUG(1,("filling null dirptr %d\n",key));
@@ -793,11 +735,10 @@ bool dptr_fill(struct smbd_server_connection *sconn,
  Fetch the dir ptr and seek it given the 5 byte server field.
 ****************************************************************************/
 
-struct dptr_struct *dptr_fetch(struct smbd_server_connection *sconn,
-			       char *buf, int *num)
+struct dptr_struct *dptr_fetch(char *buf,int *num)
 {
 	unsigned int key = *(unsigned char *)buf;
-	struct dptr_struct *dptr = dptr_get(sconn, key, false);
+	struct dptr_struct *dptr = dptr_get(key, False);
 	uint32 offset;
 	long seekoff;
 
@@ -814,7 +755,7 @@ struct dptr_struct *dptr_fetch(struct smbd_server_connection *sconn,
 	}
 	SeekDir(dptr->dir_hnd,seekoff);
 	DEBUG(3,("fetching dirptr %d for path %s at offset %d\n",
-		key, dptr->path, (int)seekoff));
+		key,dptr_path(key),(int)seekoff));
 	return(dptr);
 }
 
@@ -822,16 +763,15 @@ struct dptr_struct *dptr_fetch(struct smbd_server_connection *sconn,
  Fetch the dir ptr.
 ****************************************************************************/
 
-struct dptr_struct *dptr_fetch_lanman2(struct smbd_server_connection *sconn,
-				       int dptr_num)
+struct dptr_struct *dptr_fetch_lanman2(int dptr_num)
 {
-	struct dptr_struct *dptr  = dptr_get(sconn, dptr_num, false);
+	struct dptr_struct *dptr  = dptr_get(dptr_num, False);
 
 	if (!dptr) {
 		DEBUG(3,("fetched null dirptr %d\n",dptr_num));
 		return(NULL);
 	}
-	DEBUG(3,("fetching dirptr %d for path %s\n",dptr_num,dptr->path));
+	DEBUG(3,("fetching dirptr %d for path %s\n",dptr_num,dptr_path(dptr_num)));
 	return(dptr);
 }
 
@@ -873,249 +813,138 @@ static bool mangle_mask_match(connection_struct *conn,
 	return mask_match_search(mname,mask,False);
 }
 
-bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
-			   struct dptr_struct *dirptr,
-			   const char *mask,
-			   uint32_t dirtype,
-			   bool dont_descend,
-			   bool ask_sharemode,
-			   bool (*match_fn)(TALLOC_CTX *ctx,
-					    void *private_data,
-					    const char *dname,
-					    const char *mask,
-					    char **_fname),
-			   bool (*mode_fn)(TALLOC_CTX *ctx,
-					   void *private_data,
-					   struct smb_filename *smb_fname,
-					   uint32_t *_mode),
-			   void *private_data,
-			   char **_fname,
-			   struct smb_filename **_smb_fname,
-			   uint32_t *_mode,
-			   long *_prev_offset)
-{
-	connection_struct *conn = dirptr->conn;
-	bool needslash;
-
-	*_smb_fname = NULL;
-	*_mode = 0;
-
-	needslash = ( dirptr->path[strlen(dirptr->path) -1] != '/');
-
-	while (true) {
-		long cur_offset;
-		long prev_offset;
-		SMB_STRUCT_STAT sbuf;
-		char *dname = NULL;
-		bool isdots;
-		char *fname = NULL;
-		char *pathreal = NULL;
-		struct smb_filename smb_fname;
-		uint32_t mode = 0;
-		bool ok;
-		NTSTATUS status;
-
-		cur_offset = dptr_TellDir(dirptr);
-		prev_offset = cur_offset;
-		dname = dptr_ReadDirName(ctx, dirptr, &cur_offset, &sbuf);
-
-		DEBUG(6,("smbd_dirptr_get_entry: dirptr 0x%lx now at offset %ld\n",
-			(long)dirptr, cur_offset));
-
-		if (dname == NULL) {
-			return false;
-		}
-
-		isdots = (ISDOT(dname) || ISDOTDOT(dname));
-		if (dont_descend && !isdots) {
-			TALLOC_FREE(dname);
-			continue;
-		}
-
-		/*
-		 * fname may get mangled, dname is never mangled.
-		 * Whenever we're accessing the filesystem we use
-		 * pathreal which is composed from dname.
-		 */
-
-		ok = match_fn(ctx, private_data, dname, mask, &fname);
-		if (!ok) {
-			TALLOC_FREE(dname);
-			continue;
-		}
-
-		pathreal = talloc_asprintf(ctx, "%s%s%s",
-					   dirptr->path,
-					   needslash?"/":"",
-					   dname);
-		if (!pathreal) {
-			TALLOC_FREE(dname);
-			TALLOC_FREE(fname);
-			return false;
-		}
-
-		/* Create smb_fname with NULL stream_name. */
-		ZERO_STRUCT(smb_fname);
-		smb_fname.base_name = pathreal;
-		smb_fname.st = sbuf;
-
-		ok = mode_fn(ctx, private_data, &smb_fname, &mode);
-		if (!ok) {
-			TALLOC_FREE(dname);
-			TALLOC_FREE(fname);
-			TALLOC_FREE(pathreal);
-			continue;
-		}
-
-		if (!dir_check_ftype(conn, mode, dirtype)) {
-			DEBUG(5,("[%s] attribs 0x%x didn't match 0x%x\n",
-				fname, (unsigned int)mode, (unsigned int)dirtype));
-			TALLOC_FREE(dname);
-			TALLOC_FREE(fname);
-			TALLOC_FREE(pathreal);
-			continue;
-		}
-
-		if (ask_sharemode) {
-			struct timespec write_time_ts;
-			struct file_id fileid;
-
-			fileid = vfs_file_id_from_sbuf(conn,
-						       &smb_fname.st);
-			get_file_infos(fileid, NULL, &write_time_ts);
-			if (!null_timespec(write_time_ts)) {
-				update_stat_ex_mtime(&smb_fname.st,
-						     write_time_ts);
-			}
-		}
-
-		DEBUG(3,("smbd_dirptr_get_entry mask=[%s] found %s "
-			"fname=%s (%s)\n",
-			mask, smb_fname_str_dbg(&smb_fname),
-			dname, fname));
-
-		DirCacheAdd(dirptr->dir_hnd, dname, cur_offset);
-
-		TALLOC_FREE(dname);
-
-		status = copy_smb_filename(ctx, &smb_fname, _smb_fname);
-		TALLOC_FREE(pathreal);
-		if (!NT_STATUS_IS_OK(status)) {
-			return false;
-		}
-		*_fname = fname;
-		*_mode = mode;
-		*_prev_offset = prev_offset;
-
-		return true;
-	}
-
-	return false;
-}
-
 /****************************************************************************
  Get an 8.3 directory entry.
 ****************************************************************************/
 
-static bool smbd_dirptr_8_3_match_fn(TALLOC_CTX *ctx,
-				     void *private_data,
-				     const char *dname,
-				     const char *mask,
-				     char **_fname)
-{
-	connection_struct *conn = (connection_struct *)private_data;
-
-	if ((strcmp(mask,"*.*") == 0) ||
-	    mask_match_search(dname, mask, false) ||
-	    mangle_mask_match(conn, dname, mask)) {
-		char mname[13];
-		const char *fname;
-
-		if (!mangle_is_8_3(dname, false, conn->params)) {
-			bool ok = name_to_8_3(dname, mname, false,
-					      conn->params);
-			if (!ok) {
-				return false;
-			}
-			fname = mname;
-		} else {
-			fname = dname;
-		}
-
-		*_fname = talloc_strdup(ctx, fname);
-		if (*_fname == NULL) {
-			return false;
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
-static bool smbd_dirptr_8_3_mode_fn(TALLOC_CTX *ctx,
-				    void *private_data,
-				    struct smb_filename *smb_fname,
-				    uint32_t *_mode)
-{
-	connection_struct *conn = (connection_struct *)private_data;
-
-	if (!VALID_STAT(smb_fname->st)) {
-		if ((SMB_VFS_STAT(conn, smb_fname)) != 0) {
-			DEBUG(5,("smbd_dirptr_8_3_mode_fn: "
-				 "Couldn't stat [%s]. Error "
-			         "= %s\n",
-			         smb_fname_str_dbg(smb_fname),
-			         strerror(errno)));
-			return false;
-		}
-	}
-
-	*_mode = dos_mode(conn, smb_fname);
-	return true;
-}
-
 bool get_dir_entry(TALLOC_CTX *ctx,
-		struct dptr_struct *dirptr,
+		connection_struct *conn,
 		const char *mask,
-		uint32_t dirtype,
-		char **_fname,
-		SMB_OFF_T *_size,
-		uint32_t *_mode,
-		struct timespec *_date,
+		uint32 dirtype,
+		char **pp_fname_out,
+		SMB_OFF_T *size,
+		uint32 *mode,
+		time_t *date,
 		bool check_descend,
 		bool ask_sharemode)
 {
-	connection_struct *conn = dirptr->conn;
-	char *fname = NULL;
-	struct smb_filename *smb_fname = NULL;
-	uint32_t mode = 0;
-	long prev_offset;
-	bool ok;
+	char *dname = NULL;
+	bool found = False;
+	SMB_STRUCT_STAT sbuf;
+	char *pathreal = NULL;
+	char *filename = NULL;
+	bool needslash;
 
-	ok = smbd_dirptr_get_entry(ctx,
-				   dirptr,
-				   mask,
-				   dirtype,
-				   check_descend,
-				   ask_sharemode,
-				   smbd_dirptr_8_3_match_fn,
-				   smbd_dirptr_8_3_mode_fn,
-				   conn,
-				   &fname,
-				   &smb_fname,
-				   &mode,
-				   &prev_offset);
-	if (!ok) {
-		return false;
+	*pp_fname_out = NULL;
+
+	needslash = ( conn->dirpath[strlen(conn->dirpath) -1] != '/');
+
+	if (!conn->dirptr) {
+		return(False);
 	}
 
-	*_fname = talloc_move(ctx, &fname);
-	*_size = smb_fname->st.st_ex_size;
-	*_mode = mode;
-	*_date = smb_fname->st.st_ex_mtime;
-	TALLOC_FREE(smb_fname);
-	return true;
+	while (!found) {
+		long curoff = dptr_TellDir(conn->dirptr);
+		dname = dptr_ReadDirName(ctx, conn->dirptr, &curoff, &sbuf);
+
+		DEBUG(6,("readdir on dirptr 0x%lx now at offset %ld\n",
+			(long)conn->dirptr,TellDir(conn->dirptr->dir_hnd)));
+
+		if (dname == NULL) {
+			return(False);
+		}
+
+		filename = dname;
+
+		/* notice the special *.* handling. This appears to be the only difference
+			between the wildcard handling in this routine and in the trans2 routines.
+			see masktest for a demo
+		*/
+		if ((strcmp(mask,"*.*") == 0) ||
+		    mask_match_search(filename,mask,False) ||
+		    mangle_mask_match(conn,filename,mask)) {
+			char mname[13];
+
+			if (!mangle_is_8_3(filename, False, conn->params)) {
+				if (!name_to_8_3(filename,mname,False,
+					   conn->params)) {
+					TALLOC_FREE(filename);
+					continue;
+				}
+				filename = talloc_strdup(ctx, mname);
+				if (!filename) {
+					return False;
+				}
+			}
+
+			if (needslash) {
+				pathreal = talloc_asprintf(ctx,
+						"%s/%s",
+						conn->dirpath,
+						dname);
+			} else {
+				pathreal = talloc_asprintf(ctx,
+						"%s%s",
+						conn->dirpath,
+						dname);
+			}
+			if (!pathreal) {
+				TALLOC_FREE(filename);
+				return False;
+			}
+
+			if (!VALID_STAT(sbuf) && (SMB_VFS_STAT(conn, pathreal, &sbuf)) != 0) {
+				DEBUG(5,("Couldn't stat 1 [%s]. Error = %s\n",
+					pathreal, strerror(errno) ));
+				TALLOC_FREE(pathreal);
+				TALLOC_FREE(filename);
+				continue;
+			}
+
+			*mode = dos_mode(conn,pathreal,&sbuf);
+
+			if (!dir_check_ftype(conn,*mode,dirtype)) {
+				DEBUG(5,("[%s] attribs 0x%x didn't match 0x%x\n",filename,(unsigned int)*mode,(unsigned int)dirtype));
+				TALLOC_FREE(pathreal);
+				TALLOC_FREE(filename);
+				continue;
+			}
+
+			*size = sbuf.st_size;
+			*date = sbuf.st_mtime;
+
+			if (ask_sharemode) {
+				struct timespec write_time_ts;
+				struct file_id fileid;
+
+				fileid = vfs_file_id_from_sbuf(conn, &sbuf);
+				get_file_infos(fileid, NULL, &write_time_ts);
+				if (!null_timespec(write_time_ts)) {
+					*date = convert_timespec_to_time_t(write_time_ts);
+				}
+			}
+
+			DEBUG(3,("get_dir_entry mask=[%s] found %s "
+				"fname=%s (%s)\n",
+				mask,
+				pathreal,
+				dname,
+				filename));
+
+			found = True;
+
+			SMB_ASSERT(filename != NULL);
+			*pp_fname_out = filename;
+
+			DirCacheAdd(conn->dirptr->dir_hnd, dname, curoff);
+			TALLOC_FREE(pathreal);
+		}
+
+		if (!found)
+			TALLOC_FREE(filename);
+	}
+
+	return(found);
 }
 
 /*******************************************************************
@@ -1124,8 +953,7 @@ bool get_dir_entry(TALLOC_CTX *ctx,
  use it for anything security sensitive.
 ********************************************************************/
 
-static bool user_can_read_file(connection_struct *conn,
-			       struct smb_filename *smb_fname)
+static bool user_can_read_file(connection_struct *conn, char *name)
 {
 	/*
 	 * If user is a member of the Admin group
@@ -1136,7 +964,7 @@ static bool user_can_read_file(connection_struct *conn,
 		return True;
 	}
 
-	return can_access_file_acl(conn, smb_fname, FILE_READ_DATA);
+	return can_access_file_acl(conn, name, FILE_READ_DATA);
 }
 
 /*******************************************************************
@@ -1146,8 +974,7 @@ static bool user_can_read_file(connection_struct *conn,
  use it for anything security sensitive.
 ********************************************************************/
 
-static bool user_can_write_file(connection_struct *conn,
-				const struct smb_filename *smb_fname)
+static bool user_can_write_file(connection_struct *conn, char *name, SMB_STRUCT_STAT *pst)
 {
 	/*
 	 * If user is a member of the Admin group
@@ -1158,23 +985,22 @@ static bool user_can_write_file(connection_struct *conn,
 		return True;
 	}
 
-	SMB_ASSERT(VALID_STAT(smb_fname->st));
+	SMB_ASSERT(VALID_STAT(*pst));
 
 	/* Pseudo-open the file */
 
-	if(S_ISDIR(smb_fname->st.st_ex_mode)) {
+	if(S_ISDIR(pst->st_mode)) {
 		return True;
 	}
 
-	return can_write_to_file(conn, smb_fname);
+	return can_write_to_file(conn, name, pst);
 }
 
 /*******************************************************************
   Is a file a "special" type ?
 ********************************************************************/
 
-static bool file_is_special(connection_struct *conn,
-			    const struct smb_filename *smb_fname)
+static bool file_is_special(connection_struct *conn, char *name, SMB_STRUCT_STAT *pst)
 {
 	/*
 	 * If user is a member of the Admin group
@@ -1184,11 +1010,9 @@ static bool file_is_special(connection_struct *conn,
 	if (conn->admin_user)
 		return False;
 
-	SMB_ASSERT(VALID_STAT(smb_fname->st));
+	SMB_ASSERT(VALID_STAT(*pst));
 
-	if (S_ISREG(smb_fname->st.st_ex_mode) ||
-	    S_ISDIR(smb_fname->st.st_ex_mode) ||
-	    S_ISLNK(smb_fname->st.st_ex_mode))
+	if (S_ISREG(pst->st_mode) || S_ISDIR(pst->st_mode) || S_ISLNK(pst->st_mode))
 		return False;
 
 	return True;
@@ -1205,10 +1029,6 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 	bool hide_unreadable = lp_hideunreadable(SNUM(conn));
 	bool hide_unwriteable = lp_hideunwriteable_files(SNUM(conn));
 	bool hide_special = lp_hide_special_files(SNUM(conn));
-	char *entry = NULL;
-	struct smb_filename *smb_fname_base = NULL;
-	NTSTATUS status;
-	bool ret = false;
 
 	if ((strcmp(".",name) == 0) || (strcmp("..",name) == 0)) {
 		return True; /* . and .. are always visible. */
@@ -1221,71 +1041,54 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 	}
 
 	if (hide_unreadable || hide_unwriteable || hide_special) {
-		entry = talloc_asprintf(talloc_tos(), "%s/%s", dir_path, name);
-		if (!entry) {
-			ret = false;
-			goto out;
+		char *entry = NULL;
+
+		if (asprintf(&entry, "%s/%s", dir_path, name) == -1) {
+			return False;
 		}
 
 		/* If it's a dfs symlink, ignore _hide xxxx_ options */
 		if (lp_host_msdfs() &&
 				lp_msdfs_root(SNUM(conn)) &&
 				is_msdfs_link(conn, entry, NULL)) {
-			ret = true;
-			goto out;
-		}
-
-		/* Create an smb_filename with stream_name == NULL. */
-		status = create_synthetic_smb_fname(talloc_tos(), entry, NULL,
-						    pst, &smb_fname_base);
-		if (!NT_STATUS_IS_OK(status)) {
-			ret = false;
-			goto out;
+			SAFE_FREE(entry);
+			return True;
 		}
 
 		/* If the file name does not exist, there's no point checking
 		 * the configuration options. We succeed, on the basis that the
 		 * checks *might* have passed if the file was present.
 		 */
-		if (!VALID_STAT(*pst)) {
-			if (SMB_VFS_STAT(conn, smb_fname_base) != 0) {
-				ret = true;
-				goto out;
-			} else {
-				*pst = smb_fname_base->st;
-			}
+		if (!VALID_STAT(*pst) && (SMB_VFS_STAT(conn, entry, pst) != 0))
+		{
+		        SAFE_FREE(entry);
+		        return True;
 		}
 
 		/* Honour _hide unreadable_ option */
-		if (hide_unreadable &&
-		    !user_can_read_file(conn, smb_fname_base)) {
+		if (hide_unreadable && !user_can_read_file(conn, entry)) {
 			DEBUG(10,("is_visible_file: file %s is unreadable.\n",
 				 entry ));
-			ret = false;
-			goto out;
+			SAFE_FREE(entry);
+			return False;
 		}
 		/* Honour _hide unwriteable_ option */
-		if (hide_unwriteable && !user_can_write_file(conn,
-							     smb_fname_base)) {
+		if (hide_unwriteable && !user_can_write_file(conn, entry, pst)) {
 			DEBUG(10,("is_visible_file: file %s is unwritable.\n",
 				 entry ));
-			ret = false;
-			goto out;
+			SAFE_FREE(entry);
+			return False;
 		}
 		/* Honour _hide_special_ option */
-		if (hide_special && file_is_special(conn, smb_fname_base)) {
+		if (hide_special && file_is_special(conn, entry, pst)) {
 			DEBUG(10,("is_visible_file: file %s is special.\n",
 				 entry ));
-			ret = false;
-			goto out;
+			SAFE_FREE(entry);
+			return False;
 		}
+		SAFE_FREE(entry);
 	}
-
-	ret = true;
- out:
-	TALLOC_FREE(smb_fname_base);
-	TALLOC_FREE(entry);
-	return ret;
+	return True;
 }
 
 static int smb_Dir_destructor(struct smb_Dir *dirp)
@@ -1293,9 +1096,7 @@ static int smb_Dir_destructor(struct smb_Dir *dirp)
 	if (dirp->dir) {
 		SMB_VFS_CLOSEDIR(dirp->conn,dirp->dir);
 	}
-	if (dirp->conn->sconn) {
-		dirp->conn->sconn->smb1.searches.dirhandles_open--;
-	}
+	dirhandles_open--;
 	return 0;
 }
 
@@ -1307,7 +1108,6 @@ struct smb_Dir *OpenDir(TALLOC_CTX *mem_ctx, connection_struct *conn,
 			const char *name, const char *mask, uint32 attr)
 {
 	struct smb_Dir *dirp = TALLOC_ZERO_P(mem_ctx, struct smb_Dir);
-	struct smbd_server_connection *sconn = conn->sconn;
 
 	if (!dirp) {
 		return NULL;
@@ -1322,9 +1122,7 @@ struct smb_Dir *OpenDir(TALLOC_CTX *mem_ctx, connection_struct *conn,
 		goto fail;
 	}
 
-	if (sconn) {
-		sconn->smb1.searches.dirhandles_open++;
-	}
+	dirhandles_open++;
 	talloc_set_destructor(dirp, smb_Dir_destructor);
 
 	dirp->dir = SMB_VFS_OPENDIR(conn, dirp->dir_path, mask, attr);
@@ -1348,10 +1146,9 @@ struct smb_Dir *OpenDir(TALLOC_CTX *mem_ctx, connection_struct *conn,
 ********************************************************************/
 
 const char *ReadDirName(struct smb_Dir *dirp, long *poffset,
-			SMB_STRUCT_STAT *sbuf, char **ptalloced)
+			SMB_STRUCT_STAT *sbuf)
 {
 	const char *n;
-	char *talloced = NULL;
 	connection_struct *conn = dirp->conn;
 
 	/* Cheat to allow . and .. to be the first entries returned. */
@@ -1362,11 +1159,10 @@ const char *ReadDirName(struct smb_Dir *dirp, long *poffset,
 			n = ".";
 			*poffset = dirp->offset = START_OF_DIRECTORY_OFFSET;
 		} else {
-			n = "..";
 			*poffset = dirp->offset = DOT_DOT_DIRECTORY_OFFSET;
+			n = "..";
 		}
 		dirp->file_number++;
-		*ptalloced = NULL;
 		return n;
 	} else if (*poffset == END_OF_DIRECTORY_OFFSET) {
 		*poffset = dirp->offset = END_OF_DIRECTORY_OFFSET;
@@ -1376,21 +1172,18 @@ const char *ReadDirName(struct smb_Dir *dirp, long *poffset,
 		SeekDir(dirp, *poffset);
 	}
 
-	while ((n = vfs_readdirname(conn, dirp->dir, sbuf, &talloced))) {
+	while ((n = vfs_readdirname(conn, dirp->dir, sbuf))) {
 		/* Ignore . and .. - we've already returned them. */
 		if (*n == '.') {
 			if ((n[1] == '\0') || (n[1] == '.' && n[2] == '\0')) {
-				TALLOC_FREE(talloced);
 				continue;
 			}
 		}
 		*poffset = dirp->offset = SMB_VFS_TELLDIR(conn, dirp->dir);
-		*ptalloced = talloced;
 		dirp->file_number++;
 		return n;
 	}
 	*poffset = dirp->offset = END_OF_DIRECTORY_OFFSET;
-	*ptalloced = NULL;
 	return NULL;
 }
 
@@ -1485,8 +1278,7 @@ void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset)
 bool SearchDir(struct smb_Dir *dirp, const char *name, long *poffset)
 {
 	int i;
-	const char *entry = NULL;
-	char *talloced = NULL;
+	const char *entry;
 	connection_struct *conn = dirp->conn;
 
 	/* Search back in the name cache. */
@@ -1513,12 +1305,10 @@ bool SearchDir(struct smb_Dir *dirp, const char *name, long *poffset)
 	SMB_VFS_REWINDDIR(conn, dirp->dir);
 	dirp->file_number = 0;
 	*poffset = START_OF_DIRECTORY_OFFSET;
-	while ((entry = ReadDirName(dirp, poffset, NULL, &talloced))) {
+	while ((entry = ReadDirName(dirp, poffset, NULL))) {
 		if (conn->case_sensitive ? (strcmp(entry, name) == 0) : strequal(entry, name)) {
-			TALLOC_FREE(talloced);
 			return True;
 		}
-		TALLOC_FREE(talloced);
 	}
 	return False;
 }
@@ -1532,8 +1322,7 @@ NTSTATUS can_delete_directory(struct connection_struct *conn,
 {
 	NTSTATUS status = NT_STATUS_OK;
 	long dirpos = 0;
-	const char *dname = NULL;
-	char *talloced = NULL;
+	const char *dname;
 	SMB_STRUCT_STAT st;
 	struct smb_Dir *dir_hnd = OpenDir(talloc_tos(), conn, dirname,
 					  NULL, 0);
@@ -1542,17 +1331,15 @@ NTSTATUS can_delete_directory(struct connection_struct *conn,
 		return map_nt_error_from_unix(errno);
 	}
 
-	while ((dname = ReadDirName(dir_hnd, &dirpos, &st, &talloced))) {
+	while ((dname = ReadDirName(dir_hnd, &dirpos, &st))) {
 		/* Quick check for "." and ".." */
 		if (dname[0] == '.') {
 			if (!dname[1] || (dname[1] == '.' && !dname[2])) {
-				TALLOC_FREE(talloced);
 				continue;
 			}
 		}
 
 		if (!is_visible_file(conn, dirname, dname, &st, True)) {
-			TALLOC_FREE(talloced);
 			continue;
 		}
 
@@ -1561,7 +1348,6 @@ NTSTATUS can_delete_directory(struct connection_struct *conn,
 		status = NT_STATUS_DIRECTORY_NOT_EMPTY;
 		break;
 	}
-	TALLOC_FREE(talloced);
 	TALLOC_FREE(dir_hnd);
 
 	return status;

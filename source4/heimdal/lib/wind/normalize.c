@@ -235,9 +235,10 @@ combine(const uint32_t *in, size_t in_len,
     int ostarter;
     unsigned o = 0;
     int old_cc;
+    int cc;
 
     for (i = 0; i < in_len;) {
-	while (i < in_len && _wind_combining_class(in[i]) != 0) {
+	while (i < in_len && (cc = _wind_combining_class(in[i])) != 0) {
 	    out[o++] = in[i++];
 	}
 	if (i < in_len) {
@@ -250,7 +251,6 @@ combine(const uint32_t *in, size_t in_len,
 	    while (i < in_len) {
 		uint32_t comb;
 		uint32_t v[2];
-		int cc;
 
 		v[0] = out[ostarter];
 		v[1] = in[i];

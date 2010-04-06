@@ -33,6 +33,8 @@
 
 #include "krb5_locl.h"
 
+RCSID("$Id$");
+
 #ifndef HEIMDAL_SMALLER
 
 /* afs keyfile operations --------------------------------------- */
@@ -273,8 +275,6 @@ akf_next_entry(krb5_context context,
 	ret = 0;
 
     entry->timestamp = time(NULL);
-    entry->flags = 0;
-    entry->aliases = NULL;
 
  out:
     krb5_storage_seek(cursor->sp, pos + 4 + 8, SEEK_SET);
@@ -440,7 +440,6 @@ const krb5_kt_ops krb5_akf_ops = {
     akf_resolve,
     akf_get_name,
     akf_close,
-    NULL, /* destroy */
     NULL, /* get */
     akf_start_seq_get,
     akf_next_entry,

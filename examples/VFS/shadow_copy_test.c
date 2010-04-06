@@ -2,7 +2,6 @@
  * TEST implementation of an Shadow Copy module
  *
  * Copyright (C) Stefan Metzmacher	2003
- * Copyright (C) Jeremy Allison 2009.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,11 +74,13 @@ static int test_get_shadow_copy_data(vfs_handle_struct *handle, files_struct *fs
 
 /* VFS operations structure */
 
-static struct vfs_fn_pointers vfs_test_shadow_copy_fns = {
-	.get_shadow_copy_data = test_get_shadow_copy_data
+static vfs_op_tuple shadow_copy_test_ops[] = {	
+	{SMB_VFS_OP(test_get_shadow_copy_data),	SMB_VFS_OP_GET_SHADOW_COPY_DATA,SMB_VFS_LAYER_OPAQUE},
+
+	{SMB_VFS_OP(NULL),			SMB_VFS_OP_NOOP,		SMB_VFS_LAYER_NOOP}
 };
 
-NTSTATUS vfs_shadow_copy_test_init(void)
+NTSTATUS init_module(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "shadow_copy_test", &vfs_test_shadow_copy_fns);
+	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "shadow_copy_test", shadow_copy_test_ops);
 }

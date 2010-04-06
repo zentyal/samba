@@ -431,7 +431,7 @@ sub PythonFunctionUnpackOut($$$)
 	} elsif (defined($fn->{RETURN_TYPE}) and $fn->{RETURN_TYPE} eq "WERROR") {
 		$self->handle_werror("r->out.result", "NULL", undef);
 	} elsif (defined($fn->{RETURN_TYPE})) {
-		my $conv = $self->ConvertObjectToPythonData("r", $fn->{RETURN_TYPE}, "r->out.result", $fn);
+		my $conv = $self->ConvertObjectToPythonData("r", $fn->{RETURN_TYPE}, "r->out.result");
 		if ($result_size > 1) {
 			$self->pidl("PyTuple_SetItem(result, $i, $conv);");
 		} else {
@@ -766,11 +766,6 @@ sub register_module_import($$)
 sub use_type_variable($$)
 {
 	my ($self, $orig_ctype) = @_;
-	# FIXME: Have a global lookup table for types that look different on the 
-	# wire than they are named in C?
-	if ($orig_ctype->{NAME} eq "dom_sid2") {
-		$orig_ctype->{NAME} = "dom_sid";
-	}
 	my $ctype = resolveType($orig_ctype);
 	unless (defined($ctype->{BASEFILE})) {
 		return undef;
@@ -820,11 +815,11 @@ sub assign($$$)
 	}
 }
 
-sub ConvertObjectFromPythonData($$$$$$;$)
+sub ConvertObjectFromPythonData($$$$$$)
 {
-	my ($self, $mem_ctx, $cvar, $ctype, $target, $fail, $location) = @_;
+	my ($self, $mem_ctx, $cvar, $ctype, $target, $fail) = @_;
 
-	fatal($location, "undef type for $cvar") unless(defined($ctype));
+	die("undef type for $cvar") unless(defined($ctype));
 
 	$ctype = resolveType($ctype);
 
@@ -844,12 +839,13 @@ sub ConvertObjectFromPythonData($$$$$$;$)
 	if ($actual_ctype->{TYPE} eq "STRUCT" or $actual_ctype->{TYPE} eq "INTERFACE") {
 		my $ctype_name = $self->use_type_variable($ctype);
 		unless (defined ($ctype_name)) {
-			error($location, "Unable to determine origin of type `" . mapTypeName($ctype) . "'");
-			$self->pidl("PyErr_SetString(PyExc_TypeError, \"Can not convert C Type " . mapTypeName($ctype) . " to Python\");");
+			error(undef, "Unable to determine origin of type " . mapTypeName($ctype));
+			$self->assign($target, "NULL");
+			# FIXME:
 			return;
 		}
 		$self->pidl("PY_CHECK_TYPE($ctype_name, $cvar, $fail);");
-		$self->assign($target, "py_talloc_get_ptr($cvar)");
+		$self->assign($target, "talloc_ptrtype(py_talloc_get_ptr($cvar), $target)");
 		return;
 	}
 
@@ -890,7 +886,7 @@ sub ConvertObjectFromPythonData($$$$$$;$)
 		return;
 	}
 
-	fatal($location, "unknown type `$actual_ctype->{TYPE}' for ".mapTypeName($ctype) . ": $cvar");
+	fatal($ctype, "unknown type $actual_ctype->{TYPE} for ".mapTypeName($ctype) . ": $cvar");
 
 }
 
@@ -950,7 +946,7 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 		if (not Parse::Pidl::Typelist::is_scalar($l->{DATA_TYPE})) {
 			$var_name = get_pointer_to($var_name);
 		}
-		$self->ConvertObjectFromPythonData($mem_ctx, $py_var, $l->{DATA_TYPE}, $var_name, $fail, $e->{ORIGINAL});
+		$self->ConvertObjectFromPythonData($mem_ctx, $py_var, $l->{DATA_TYPE}, $var_name, $fail);
 	} elsif ($l->{TYPE} eq "SWITCH") {
 		$var_name = get_pointer_to($var_name);
 		my $switch = ParseExpr($l->{SWITCH_IS}, $env, $e);
@@ -958,7 +954,7 @@ sub ConvertObjectFromPythonLevel($$$$$$$$)
 	} elsif ($l->{TYPE} eq "SUBCONTEXT") {
 		$self->ConvertObjectFromPythonLevel($env, $mem_ctx, $py_var, $e, GetNextLevel($e, $l), $var_name, $fail);
 	} else {
-		fatal($e->{ORIGINAL}, "unknown level type $l->{TYPE}");
+		die("unknown level type $l->{TYPE}");
 	}
 }
 
@@ -998,18 +994,18 @@ sub ConvertScalarToPython($$$)
 	}
 
 	# Not yet supported
-	if ($ctypename eq "string_array") { return "PyCObject_FromTallocPtr($cvar)"; }
+	if ($ctypename eq "string_array") { return "PyCObject_FromVoidPtr($cvar)"; }
 	if ($ctypename eq "ipv4address") { return "PyString_FromString($cvar)"; }
 	if ($ctypename eq "pointer") {
-		return "PyCObject_FromTallocPtr($cvar)";
+		return "PyCObject_FromVoidPtr($cvar, talloc_free)";
 	}
 
 	die("Unknown scalar type $ctypename");
 }
 
-sub ConvertObjectToPythonData($$$$$;$)
+sub ConvertObjectToPythonData($$$$$)
 {
-	my ($self, $mem_ctx, $ctype, $cvar, $location) = @_;
+	my ($self, $mem_ctx, $ctype, $cvar) = @_;
 
 	die("undef type for $cvar") unless(defined($ctype));
 
@@ -1031,13 +1027,13 @@ sub ConvertObjectToPythonData($$$$$;$)
 	} elsif ($actual_ctype->{TYPE} eq "STRUCT" or $actual_ctype->{TYPE} eq "INTERFACE") {
 		my $ctype_name = $self->use_type_variable($ctype);
 		unless (defined($ctype_name)) {
-			error($location, "Unable to determine origin of type `" . mapTypeName($ctype) . "'");
+			error(undef, "Unable to determine origin of type " . mapTypeName($ctype));
 			return "NULL"; # FIXME!
 		}
-		return "py_talloc_reference_ex($ctype_name, $mem_ctx, $cvar)";
+		return "py_talloc_import_ex($ctype_name, $mem_ctx, $cvar)";
 	}
 
-	fatal($location, "unknown type $actual_ctype->{TYPE} for ".mapTypeName($ctype) . ": $cvar");
+	fatal($ctype, "unknown type $actual_ctype->{TYPE} for ".mapTypeName($ctype) . ": $cvar");
 }
 
 sub fail_on_null($$$)
@@ -1117,12 +1113,12 @@ sub ConvertObjectToPythonLevel($$$$$$)
 		if (not Parse::Pidl::Typelist::is_scalar($l->{DATA_TYPE})) {
 			$var_name = get_pointer_to($var_name);
 		}
-		my $conv = $self->ConvertObjectToPythonData($mem_ctx, $l->{DATA_TYPE}, $var_name, $e->{ORIGINAL});
+		my $conv = $self->ConvertObjectToPythonData($mem_ctx, $l->{DATA_TYPE}, $var_name);
 		$self->pidl("$py_var = $conv;");
 	} elsif ($l->{TYPE} eq "SUBCONTEXT") {
 		$self->ConvertObjectToPythonLevel($mem_ctx, $env, $e, GetNextLevel($e, $l), $var_name, $py_var, $fail);
 	} else {
-		fatal($e->{ORIGINAL}, "Unknown level type $l->{TYPE} $var_name");
+		die("Unknown level type $l->{TYPE} $var_name");
 	}
 }
 
@@ -1227,7 +1223,7 @@ sub Parse($$$$$)
 		} elsif ($cvar =~ /^".*"$/) {
 			$py_obj = "PyString_FromString($cvar)";
 		} else {
-			$py_obj = $self->ConvertObjectToPythonData("NULL", expandAlias($ctype), $cvar, undef);
+			$py_obj = $self->ConvertObjectToPythonData("NULL", expandAlias($ctype), $cvar);
 		}
 
 		$self->pidl("PyModule_AddObject(m, \"$name\", $py_obj);");

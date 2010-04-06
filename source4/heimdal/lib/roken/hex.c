@@ -31,8 +31,10 @@
  * SUCH DAMAGE.
  */
 
-
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+RCSID("$Id$");
+#endif
 #include "roken.h"
 #include <ctype.h>
 #include "hex.h"
@@ -58,16 +60,12 @@ hex_encode(const void *data, size_t size, char **str)
     char *p;
 
     /* check for overflow */
-    if (size * 2 < size) {
-        *str = NULL;
+    if (size * 2 < size)
 	return -1;
-    }
 
     p = malloc(size * 2 + 1);
-    if (p == NULL) {
-        *str = NULL;
+    if (p == NULL)
 	return -1;
-    }
 
     for (i = 0; i < size; i++) {
 	p[i * 2] = hexchar[(*q >> 4) & 0xf];

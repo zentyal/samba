@@ -32,18 +32,13 @@
   return the rpc syntax and transfer syntax given the pipe uuid and version
 */
 static NTSTATUS dcerpc_init_syntaxes(const struct ndr_interface_table *table,
-				     uint32_t pipe_flags,
-				     struct ndr_syntax_id *syntax,
-				     struct ndr_syntax_id *transfer_syntax)
+			      struct ndr_syntax_id *syntax,
+			      struct ndr_syntax_id *transfer_syntax)
 {
 	syntax->uuid = table->syntax_id.uuid;
 	syntax->if_version = table->syntax_id.if_version;
 
-	if (pipe_flags & DCERPC_NDR64) {
-		*transfer_syntax = ndr64_transfer_syntax;
-	} else {
-		*transfer_syntax = ndr_transfer_syntax;
-	}
+	*transfer_syntax = ndr_transfer_syntax;
 
 	return NT_STATUS_OK;
 }
@@ -64,7 +59,7 @@ struct composite_context *dcerpc_bind_auth_none_send(TALLOC_CTX *mem_ctx,
 	c = composite_create(mem_ctx, p->conn->event_ctx);
 	if (c == NULL) return NULL;
 
-	c->status = dcerpc_init_syntaxes(table, p->conn->flags,
+	c->status = dcerpc_init_syntaxes(table,
 					 &syntax, &transfer_syntax);
 	if (!NT_STATUS_IS_OK(c->status)) {
 		DEBUG(2,("Invalid uuid string in "
@@ -247,7 +242,7 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 
 	state->pipe = p;
 
-	c->status = dcerpc_init_syntaxes(table, p->conn->flags,
+	c->status = dcerpc_init_syntaxes(table,
 					 &syntax,
 					 &transfer_syntax);
 	if (!composite_is_ok(c)) return c;

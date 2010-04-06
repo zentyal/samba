@@ -20,7 +20,6 @@
 */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/cli_srvsvc.h"
 
 static int use_bcast;
 
@@ -149,7 +148,7 @@ static bool get_rpc_shares(struct cli_state *cli,
 			   void *state)
 {
 	NTSTATUS status;
-	struct rpc_pipe_client *pipe_hnd = NULL;
+	struct rpc_pipe_client *pipe_hnd;
 	TALLOC_CTX *mem_ctx;
 	WERROR werr;
 	struct srvsvc_NetShareInfoCtr info_ctr;

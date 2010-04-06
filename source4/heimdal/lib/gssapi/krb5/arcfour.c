@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 /*
  * Implements draft-brezak-win2k-krb-rc4-hmac-04.txt

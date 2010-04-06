@@ -173,6 +173,7 @@ static int do_share_checks(struct loadparm_context *lp_ctx, const char *cname, c
 
  int main(int argc, const char *argv[])
 {
+	static bool silent_mode = false;
 	int ret = 0;
 	poptContext pc;
 /*
@@ -183,11 +184,7 @@ static int do_share_checks(struct loadparm_context *lp_ctx, const char *cname, c
 	static char *parameter_name = NULL;
 	static const char *cname;
 	static const char *caddr;
-	static int silent_mode = false;
-	static int show_defaults = false;  /* This must be an 'int',
-					    * as we take it as we pass
-					    * it's address as an int
-					    * pointer  */
+	static bool show_defaults = false;
 	struct loadparm_context *lp_ctx;
 
 	struct poptOption long_options[] = {

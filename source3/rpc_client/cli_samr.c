@@ -22,8 +22,6 @@
 */
 
 #include "includes.h"
-#include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_samr.h"
 
 /* User change password */
 
@@ -117,7 +115,7 @@ NTSTATUS rpccli_samr_chgpasswd_user2(struct rpc_pipe_client *cli,
 
 		encode_pw_buffer(new_lm_password.data, newpassword, STR_UNICODE);
 
-		arcfour_crypt(new_lm_password.data, old_nt_hash, 516);
+		SamOEMhash(new_lm_password.data, old_nt_hash, 516);
 		E_old_pw_hash(new_nt_hash, old_lanman_hash, old_lanman_hash_enc.hash);
 	} else {
 		ZERO_STRUCT(new_lm_password);
@@ -126,7 +124,7 @@ NTSTATUS rpccli_samr_chgpasswd_user2(struct rpc_pipe_client *cli,
 
 	encode_pw_buffer(new_nt_password.data, newpassword, STR_UNICODE);
 
-	arcfour_crypt(new_nt_password.data, old_nt_hash, 516);
+	SamOEMhash(new_nt_password.data, old_nt_hash, 516);
 	E_old_pw_hash(new_nt_hash, old_nt_hash, old_nt_hash_enc.hash);
 
 	result = rpccli_samr_ChangePasswordUser2(cli, mem_ctx,
@@ -223,7 +221,7 @@ NTSTATUS rpccli_samr_chgpasswd_user3(struct rpc_pipe_client *cli,
 
 		encode_pw_buffer(new_lm_password.data, newpassword, STR_UNICODE);
 
-		arcfour_crypt(new_lm_password.data, old_nt_hash, 516);
+		SamOEMhash(new_lm_password.data, old_nt_hash, 516);
 		E_old_pw_hash(new_nt_hash, old_lanman_hash, old_lanman_hash_enc.hash);
 	} else {
 		ZERO_STRUCT(new_lm_password);
@@ -232,7 +230,7 @@ NTSTATUS rpccli_samr_chgpasswd_user3(struct rpc_pipe_client *cli,
 
 	encode_pw_buffer(new_nt_password.data, newpassword, STR_UNICODE);
 
-	arcfour_crypt(new_nt_password.data, old_nt_hash, 516);
+	SamOEMhash(new_nt_password.data, old_nt_hash, 516);
 	E_old_pw_hash(new_nt_hash, old_nt_hash, old_nt_hash_enc.hash);
 
 	status = rpccli_samr_ChangePasswordUser3(cli, mem_ctx,

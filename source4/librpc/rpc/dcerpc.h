@@ -142,8 +142,6 @@ struct dcerpc_pipe {
 
 #define DCERPC_SCHANNEL                (1<<9)
 
-#define DCERPC_ANON_FALLBACK           (1<<10)
-
 /* use a 128 bit session key */
 #define DCERPC_SCHANNEL_128            (1<<12)
 
@@ -171,9 +169,6 @@ struct dcerpc_pipe {
 
 /* this triggers the DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN flag in the bind request */
 #define DCERPC_HEADER_SIGNING          (1<<20)
-
-/* use NDR64 transport */
-#define DCERPC_NDR64                   (1<<21)
 
 /* this describes a binding to a particular transport/pipe */
 struct dcerpc_binding {
@@ -261,7 +256,6 @@ struct rpc_request *dcerpc_ndr_request_send(struct dcerpc_pipe *p,
 						const struct GUID *object,
 						const struct ndr_interface_table *table,
 						uint32_t opnum, 
-						bool async,
 						TALLOC_CTX *mem_ctx, 
 						void *r);
 const char *dcerpc_server_name(struct dcerpc_pipe *p);
@@ -382,6 +376,7 @@ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 NTSTATUS dcerpc_request(struct dcerpc_pipe *p, 
 			struct GUID *object,
 			uint16_t opnum,
+			bool async,
 			TALLOC_CTX *mem_ctx,
 			DATA_BLOB *stub_data_in,
 			DATA_BLOB *stub_data_out);

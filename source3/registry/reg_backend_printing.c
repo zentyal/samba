@@ -44,8 +44,8 @@ struct reg_dyn_tree {
 	/* callbscks for fetch/store operations */
 	int ( *fetch_subkeys) ( const char *path, struct regsubkey_ctr *subkeys );
 	bool (*store_subkeys) ( const char *path, struct regsubkey_ctr *subkeys );
-	int  (*fetch_values)  ( const char *path, struct regval_ctr *values );
-	bool (*store_values)  ( const char *path, struct regval_ctr *values );
+	int  (*fetch_values)  ( const char *path, REGVAL_CTR *values );
+	bool (*store_values)  ( const char *path, REGVAL_CTR *values );
 };
 
 /*********************************************************************
@@ -93,7 +93,7 @@ static int key_forms_fetch_keys(const char *key, struct regsubkey_ctr *subkeys)
 /**********************************************************************
  *********************************************************************/
 
-static int key_forms_fetch_values(const char *key, struct regval_ctr *values)
+static int key_forms_fetch_values( const char *key, REGVAL_CTR *values )
 {
 	uint32 		data[8];
 	int		i, num_values, form_index = 1;
@@ -383,9 +383,10 @@ static bool key_printers_store_keys( const char *key, struct regsubkey_ctr *subk
 /**********************************************************************
  *********************************************************************/
 
-static void fill_in_printer_values(NT_PRINTER_INFO_LEVEL_2 *info2, struct regval_ctr *values)
+static void fill_in_printer_values( NT_PRINTER_INFO_LEVEL_2 *info2, REGVAL_CTR *values )
 {
 	struct spoolss_DeviceMode *devmode;
+	UNISTR2		data;
 	char 		*p;
 	uint32 printer_status = PRINTER_STATUS_OK;
 	
@@ -405,17 +406,35 @@ static void fill_in_printer_values(NT_PRINTER_INFO_LEVEL_2 *info2, struct regval
 		p = info2->printername;
 	else
 		p++;
+	init_unistr2( &data, p, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Name", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
 
-	regval_ctr_addvalue_sz(values, "Name", p);
-	regval_ctr_addvalue_sz(values, "Location", info2->location);
-	regval_ctr_addvalue_sz(values, "Description", info2->comment);
-	regval_ctr_addvalue_sz(values, "Parameters", info2->parameters);
-	regval_ctr_addvalue_sz(values, "Port", info2->portname);
-	regval_ctr_addvalue_sz(values, "Share Name", info2->sharename);
-	regval_ctr_addvalue_sz(values, "Printer Driver", info2->drivername);
-	regval_ctr_addvalue_sz(values, "Separator File", info2->sepfile);
-	regval_ctr_addvalue_sz(values, "Print Processor", "WinPrint");
-	regval_ctr_addvalue_sz(values, "Datatype", "RAW");
+	init_unistr2( &data, info2->location, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Location", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->comment, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Description", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->parameters, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Parameters", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->portname, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Port", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->sharename, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Share Name", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->drivername, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Printer Driver", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, info2->sepfile, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Separator File", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, "WinPrint", UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Print Processor",  REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
+
+	init_unistr2( &data, "RAW", UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Datatype", REG_SZ, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
 
 	/* stream the device mode */
 
@@ -456,7 +475,7 @@ static void fill_in_printer_values(NT_PRINTER_INFO_LEVEL_2 *info2, struct regval
 /**********************************************************************
  *********************************************************************/
 
-static int key_printers_fetch_values(const char *key, struct regval_ctr *values)
+static int key_printers_fetch_values( const char *key, REGVAL_CTR *values )
 {
 	int 		num_values;
 	char		*printers_key;
@@ -575,28 +594,16 @@ static int find_valuename_index( const char *valuename )
 /**********************************************************************
  *********************************************************************/
 
-static void pull_reg_sz_fstring(TALLOC_CTX *mem_ctx, const DATA_BLOB *blob, fstring s)
-{
-	const char *str;
-	pull_reg_sz(mem_ctx, blob, &str);
-	fstrcpy(s, str);
-}
-
-static void convert_values_to_printer_info_2(TALLOC_CTX *mem_ctx,
-					     NT_PRINTER_INFO_LEVEL_2 *printer2,
-					     struct regval_ctr *values)
+static void convert_values_to_printer_info_2( NT_PRINTER_INFO_LEVEL_2 *printer2, REGVAL_CTR *values )
 {
 	int num_values = regval_ctr_numvals( values );
 	uint32 value_index;
-	struct regval_blob *val;
+	REGISTRY_VALUE *val;
 	int i;
 	
 	for ( i=0; i<num_values; i++ ) {
-		DATA_BLOB blob;
 		val = regval_ctr_specific_value( values, i );
 		value_index = find_valuename_index( regval_name( val ) );
-
-		blob = data_blob_const(regval_data_p(val), regval_size(val));
 		
 		switch( value_index ) {
 			case REG_IDX_ATTRIBUTES:
@@ -618,34 +625,34 @@ static void convert_values_to_printer_info_2(TALLOC_CTX *mem_ctx,
 				printer2->untiltime = (uint32)(*regval_data_p(val));
 				break;
 			case REG_IDX_NAME:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->printername);
+				rpcstr_pull( printer2->printername, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_LOCATION:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->location);
+				rpcstr_pull( printer2->location, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_DESCRIPTION:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->comment);
+				rpcstr_pull( printer2->comment, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_PARAMETERS:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->parameters);
+				rpcstr_pull( printer2->parameters, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_PORT:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->portname);
+				rpcstr_pull( printer2->portname, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_SHARENAME:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->sharename);
+				rpcstr_pull( printer2->sharename, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_DRIVER:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->drivername);
+				rpcstr_pull( printer2->drivername, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_SEP_FILE:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->sepfile);
+				rpcstr_pull( printer2->sepfile, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_PRINTPROC:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->printprocessor);
+				rpcstr_pull( printer2->printprocessor, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_DATATYPE:
-				pull_reg_sz_fstring(mem_ctx, &blob, printer2->datatype);
+				rpcstr_pull( printer2->datatype, regval_data_p(val), sizeof(fstring), regval_size(val), 0 );
 				break;
 			case REG_IDX_DEVMODE:
 				break;
@@ -664,13 +671,12 @@ static void convert_values_to_printer_info_2(TALLOC_CTX *mem_ctx,
 /**********************************************************************
  *********************************************************************/
 
-static bool key_printers_store_values(const char *key, struct regval_ctr *values)
+static bool key_printers_store_values( const char *key, REGVAL_CTR *values )
 {
 	char *printers_key;
 	char *printername, *keyname;
 	NT_PRINTER_INFO_LEVEL   *printer = NULL;
 	WERROR result;
-	TALLOC_CTX *mem_ctx = talloc_init("key_printers_store_values");
 	
 	printers_key = strip_printers_prefix( key );
 	
@@ -691,12 +697,12 @@ static bool key_printers_store_values(const char *key, struct regval_ctr *values
 	/* deal with setting values directly under the printername */
 
 	if ( !keyname ) {
-		convert_values_to_printer_info_2(mem_ctx, printer->info_2, values );
+		convert_values_to_printer_info_2( printer->info_2, values );
 	}
 	else {
 		int num_values = regval_ctr_numvals( values );
 		int i;
-		struct regval_blob *val;
+		REGISTRY_VALUE *val;
 		
 		delete_printer_key( printer->info_2->data, keyname );
 		
@@ -712,7 +718,6 @@ static bool key_printers_store_values(const char *key, struct regval_ctr *values
 				DEBUG(0,("key_printers_store_values: failed to set printer data [%s]!\n",
 					keyname));
 				free_a_printer( &printer, 2 );
-				talloc_destroy(mem_ctx);
 				return False;
 			}
 		}
@@ -721,7 +726,6 @@ static bool key_printers_store_values(const char *key, struct regval_ctr *values
 	result = mod_a_printer( printer, 2 );
 
 	free_a_printer( &printer, 2 );
-	talloc_destroy(mem_ctx);
 
 	return W_ERROR_IS_OK(result);
 }
@@ -884,41 +888,50 @@ static int key_driver_fetch_keys( const char *key, struct regsubkey_ctr *subkeys
 /**********************************************************************
  *********************************************************************/
 
-static void fill_in_driver_values(const struct spoolss_DriverInfo8 *r,
-				  struct regval_ctr *values)
+static void fill_in_driver_values( NT_PRINTER_DRIVER_INFO_LEVEL_3 *info3, REGVAL_CTR *values )
 {
 	char *buffer = NULL;
 	int buffer_size = 0;
 	int i, length;
 	const char *filename;
-	DATA_BLOB data;
+	UNISTR2	data;
 
-	filename = dos_basename(r->driver_path);
-	regval_ctr_addvalue_sz(values, "Driver", filename);
+	filename = dos_basename( info3->driverpath );
+	init_unistr2( &data, filename, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Driver", REG_SZ, (char*)data.buffer,
+		data.uni_str_len*sizeof(uint16) );
 
-	filename = dos_basename(r->config_file);
-	regval_ctr_addvalue_sz(values, "Configuration File", filename);
+	filename = dos_basename( info3->configfile );
+	init_unistr2( &data, filename, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Configuration File", REG_SZ, (char*)data.buffer, 
+		data.uni_str_len*sizeof(uint16) );
 
-	filename = dos_basename(r->data_file);
-	regval_ctr_addvalue_sz(values, "Data File", filename);
+	filename = dos_basename( info3->datafile );
+	init_unistr2( &data, filename, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Data File", REG_SZ, (char*)data.buffer,
+		data.uni_str_len*sizeof(uint16) );
 
-	filename = dos_basename(r->help_file);
-	regval_ctr_addvalue_sz(values, "Help File", filename);
+	filename = dos_basename( info3->helpfile );
+	init_unistr2( &data, filename, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Help File", REG_SZ, (char*)data.buffer,
+		data.uni_str_len*sizeof(uint16) );
 
-	regval_ctr_addvalue_sz(values, "Data Type", r->default_datatype);
+	init_unistr2( &data, info3->defaultdatatype, UNI_STR_TERMINATE);
+	regval_ctr_addvalue( values, "Data Type", REG_SZ, (char*)data.buffer,
+		data.uni_str_len*sizeof(uint16) );
 
-	regval_ctr_addvalue( values, "Version", REG_DWORD, (char*)&r->version,
-		sizeof(r->version) );
+	regval_ctr_addvalue( values, "Version", REG_DWORD, (char*)&info3->cversion, 
+		sizeof(info3->cversion) );
 
-	if (r->dependent_files) {
+	if ( info3->dependentfiles ) {
 		/* place the list of dependent files in a single
 		   character buffer, separating each file name by
 		   a NULL */
 
-		for (i=0; r->dependent_files[i] && strcmp(r->dependent_files[i], ""); i++) {
+		for ( i=0; strcmp(info3->dependentfiles[i], ""); i++ ) {
 			/* strip the path to only the file's base name */
 
-			filename = dos_basename(r->dependent_files[i]);
+			filename = dos_basename( info3->dependentfiles[i] );
 
 			length = strlen(filename);
 
@@ -927,8 +940,8 @@ static void fill_in_driver_values(const struct spoolss_DriverInfo8 *r,
 				break;
 			}
 
-			push_reg_sz(talloc_tos(), &data, filename);
-			memcpy( buffer+buffer_size, (char*)data.data, data.length);
+			init_unistr2( &data, filename, UNI_STR_TERMINATE);
+			memcpy( buffer+buffer_size, (char*)data.buffer, data.uni_str_len*sizeof(uint16) );
 
 			buffer_size += (length + 1)*sizeof(uint16);
 		}
@@ -954,13 +967,13 @@ static void fill_in_driver_values(const struct spoolss_DriverInfo8 *r,
 /**********************************************************************
  *********************************************************************/
 
-static int driver_arch_fetch_values(char *key, struct regval_ctr *values)
+static int driver_arch_fetch_values( char *key, REGVAL_CTR *values )
 {
 	char 		*keystr, *base, *subkeypath;
 	fstring		arch_environment;
 	fstring		driver;
 	int		version;
-	struct spoolss_DriverInfo8 *driver_ctr;
+	NT_PRINTER_DRIVER_INFO_LEVEL	driver_ctr;
 	WERROR		w_result;
 
 	if (!reg_split_path( key, &base, &subkeypath )) {
@@ -1021,14 +1034,14 @@ static int driver_arch_fetch_values(char *key, struct regval_ctr *values)
 
 	fstrcpy( driver, base );
 
-	w_result = get_a_printer_driver(talloc_tos(), &driver_ctr, driver, arch_environment, version);
+	w_result = get_a_printer_driver( &driver_ctr, 3, driver, arch_environment, version );
 
 	if ( !W_ERROR_IS_OK(w_result) )
 		return -1;
 
-	fill_in_driver_values(driver_ctr, values);
+	fill_in_driver_values( driver_ctr.info_3, values );
 
-	free_a_printer_driver(driver_ctr);
+	free_a_printer_driver( driver_ctr, 3 );
 
 	/* END PRINTER DRIVER NAME BLOCK */
 
@@ -1041,7 +1054,7 @@ static int driver_arch_fetch_values(char *key, struct regval_ctr *values)
 /**********************************************************************
  *********************************************************************/
 
-static int key_driver_fetch_values(const char *key, struct regval_ctr *values)
+static int key_driver_fetch_values( const char *key, REGVAL_CTR *values )
 {
 	char *keystr = NULL;
 	char *subkey = NULL;
@@ -1209,7 +1222,7 @@ static bool regprint_store_reg_keys( const char *key, struct regsubkey_ctr *subk
 /**********************************************************************
  *********************************************************************/
 
-static int regprint_fetch_reg_values(const char *key, struct regval_ctr *values)
+static int regprint_fetch_reg_values( const char *key, REGVAL_CTR *values )
 {
 	int i = match_registry_path( key );
 
@@ -1228,7 +1241,7 @@ static int regprint_fetch_reg_values(const char *key, struct regval_ctr *values)
 /**********************************************************************
  *********************************************************************/
 
-static bool regprint_store_reg_values(const char *key, struct regval_ctr *values)
+static bool regprint_store_reg_values( const char *key, REGVAL_CTR *values )
 {
 	int i = match_registry_path( key );
 
@@ -1245,7 +1258,7 @@ static bool regprint_store_reg_values(const char *key, struct regval_ctr *values
  * Table of function pointers for accessing printing data
  */
 
-struct registry_ops printing_ops = {
+REGISTRY_OPS printing_ops = {
 	.fetch_subkeys = regprint_fetch_reg_keys,
 	.fetch_values = regprint_fetch_reg_values,
 	.store_subkeys = regprint_store_reg_keys,

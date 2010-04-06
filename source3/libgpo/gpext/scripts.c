@@ -124,15 +124,14 @@ static NTSTATUS scripts_parse_ini_section(struct gp_inifile_context *ini_ctx,
 					  size_t *num_entries)
 {
 	NTSTATUS status = NT_STATUS_OBJECT_NAME_NOT_FOUND;
-	NTSTATUS result;
 	int i = 0;
 
 	while (1) {
 
 		const char *key = NULL;
-		char *script = NULL;
+		const char *script = NULL;
 		const char *count = NULL;
-		char *parameters = NULL;
+		const char *parameters = NULL;
 
 		count = talloc_asprintf(ini_ctx->mem_ctx, "%d", i);
 		NT_STATUS_HAVE_NO_MEMORY(count);
@@ -142,8 +141,8 @@ static NTSTATUS scripts_parse_ini_section(struct gp_inifile_context *ini_ctx,
 				      GP_SCRIPTS_SECTION_CMDLINE);
 		NT_STATUS_HAVE_NO_MEMORY(key);
 
-		result = gp_inifile_getstring(ini_ctx, key, &script);
-		if (!NT_STATUS_IS_OK(result)) {
+		script = iniparser_getstring(ini_ctx->dict, key, NULL);
+		if (!script) {
 			break;
 		}
 
@@ -152,10 +151,7 @@ static NTSTATUS scripts_parse_ini_section(struct gp_inifile_context *ini_ctx,
 				      GP_SCRIPTS_SECTION_PARAMETERS);
 		NT_STATUS_HAVE_NO_MEMORY(key);
 
-		result = gp_inifile_getstring(ini_ctx, key, &parameters);
-		if (!NT_STATUS_IS_OK(result)) {
-			break;
-		}
+		parameters = iniparser_getstring(ini_ctx->dict, key, NULL);
 
 		{
 			struct gp_registry_entry *entry = NULL;
@@ -354,7 +350,7 @@ static NTSTATUS scripts_process_group_policy(ADS_STRUCT *ads,
 	debug_gpext_header(0, "scripts_process_group_policy", flags, gpo,
 			   extension_guid, snapin_guid);
 
-	status = gpo_get_unix_path(mem_ctx, cache_path(GPO_CACHE_DIR), gpo, &unix_path);
+	status = gpo_get_unix_path(mem_ctx, gpo, &unix_path);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	status = gp_inifile_init_context(mem_ctx, flags, unix_path,

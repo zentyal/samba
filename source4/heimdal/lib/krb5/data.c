@@ -33,6 +33,8 @@
 
 #include "krb5_locl.h"
 
+RCSID("$Id$");
+
 /**
  * Reset the (potentially uninitalized) krb5_data structure.
  *
@@ -50,9 +52,7 @@ krb5_data_zero(krb5_data *p)
 
 /**
  * Free the content of krb5_data structure, its ok to free a zeroed
- * structure (with memset() or krb5_data_zero()). When done, the
- * structure will be zeroed. The same function is called
- * krb5_free_data_contents() in MIT Kerberos.
+ * structure. When done, the structure will be zeroed.
  *
  * @param p krb5_data to free.
  *
@@ -65,6 +65,21 @@ krb5_data_free(krb5_data *p)
     if(p->data != NULL)
 	free(p->data);
     krb5_data_zero(p);
+}
+
+/**
+ * Same as krb5_data_free().
+ *
+ * @param context Kerberos 5 context.
+ * @param data krb5_data to free.
+ *
+ * @ingroup krb5
+ */
+
+void KRB5_LIB_FUNCTION
+krb5_free_data_contents(krb5_context context, krb5_data *data)
+{
+    krb5_data_free(data);
 }
 
 /**

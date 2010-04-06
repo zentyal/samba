@@ -109,16 +109,14 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 
 	if (strict_locking == Auto) {
 		if  (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type) && (plock->lock_type == READ_LOCK || plock->lock_type == WRITE_LOCK)) {
-			DEBUG(10,("is_locked: optimisation - exclusive oplock on file %s\n", fsp_str_dbg(fsp)));
+			DEBUG(10,("is_locked: optimisation - exclusive oplock on file %s\n", fsp->fsp_name ));
 			ret = True;
 		} else if ((fsp->oplock_type == LEVEL_II_OPLOCK) &&
 			   (plock->lock_type == READ_LOCK)) {
-			DEBUG(10,("is_locked: optimisation - level II oplock on file %s\n", fsp_str_dbg(fsp)));
+			DEBUG(10,("is_locked: optimisation - level II oplock on file %s\n", fsp->fsp_name ));
 			ret = True;
 		} else {
-			struct byte_range_lock *br_lck;
-
-			br_lck = brl_get_locks_readonly(fsp);
+			struct byte_range_lock *br_lck = brl_get_locks_readonly(talloc_tos(), fsp);
 			if (!br_lck) {
 				return True;
 			}
@@ -129,11 +127,10 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 					plock->size,
 					plock->lock_type,
 					plock->lock_flav);
+			TALLOC_FREE(br_lck);
 		}
 	} else {
-		struct byte_range_lock *br_lck;
-
-		br_lck = brl_get_locks_readonly(fsp);
+		struct byte_range_lock *br_lck = brl_get_locks_readonly(talloc_tos(), fsp);
 		if (!br_lck) {
 			return True;
 		}
@@ -144,6 +141,7 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 				plock->size,
 				plock->lock_type,
 				plock->lock_flav);
+		TALLOC_FREE(br_lck);
 	}
 
 	DEBUG(10,("strict_lock_default: flavour = %s brl start=%.0f "
@@ -151,7 +149,7 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 			lock_flav_name(plock->lock_flav),
 			(double)plock->start, (double)plock->size,
 			ret ? "unlocked" : "locked",
-			plock->fnum, fsp_str_dbg(fsp)));
+			plock->fnum, fsp->fsp_name ));
 
 	return ret;
 }
@@ -172,6 +170,7 @@ NTSTATUS query_lock(files_struct *fsp,
 			enum brl_flavour lock_flav)
 {
 	struct byte_range_lock *br_lck = NULL;
+	NTSTATUS status = NT_STATUS_LOCK_NOT_GRANTED;
 
 	if (!fsp->can_lock) {
 		return fsp->is_directory ? NT_STATUS_INVALID_DEVICE_REQUEST : NT_STATUS_INVALID_HANDLE;
@@ -181,18 +180,21 @@ NTSTATUS query_lock(files_struct *fsp,
 		return NT_STATUS_OK;
 	}
 
-	br_lck = brl_get_locks_readonly(fsp);
+	br_lck = brl_get_locks_readonly(talloc_tos(), fsp);
 	if (!br_lck) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	return brl_lockquery(br_lck,
+	status = brl_lockquery(br_lck,
 			psmbpid,
 			procid_self(),
 			poffset,
 			pcount,
 			plock_type,
 			lock_flav);
+
+	TALLOC_FREE(br_lck);
+	return status;
 }
 
 static void increment_current_lock_count(files_struct *fsp,
@@ -257,7 +259,7 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 		"blocking_lock=%s requested for fnum %d file %s\n",
 		lock_flav_name(lock_flav), lock_type_name(lock_type),
 		(double)offset, (double)count, blocking_lock ? "true" :
-		"false", fsp->fnum, fsp_str_dbg(fsp)));
+		"false", fsp->fnum, fsp->fsp_name));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
 	if (!br_lck) {
@@ -306,8 +308,7 @@ NTSTATUS do_unlock(struct messaging_context *msg_ctx,
 	}
 	
 	DEBUG(10,("do_unlock: unlock start=%.0f len=%.0f requested for fnum %d file %s\n",
-		  (double)offset, (double)count, fsp->fnum,
-		  fsp_str_dbg(fsp)));
+		  (double)offset, (double)count, fsp->fnum, fsp->fsp_name ));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
 	if (!br_lck) {
@@ -357,8 +358,7 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 	}
 
 	DEBUG(10,("do_lock_cancel: cancel start=%.0f len=%.0f requested for fnum %d file %s\n",
-		  (double)offset, (double)count, fsp->fnum,
-		  fsp_str_dbg(fsp)));
+		  (double)offset, (double)count, fsp->fnum, fsp->fsp_name ));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
 	if (!br_lck) {
@@ -524,7 +524,7 @@ static void print_share_mode_table(struct locking_data *data)
  Get all share mode entries for a dev/inode pair.
 ********************************************************************/
 
-static bool parse_share_modes(const TDB_DATA dbuf, struct share_mode_lock *lck)
+static bool parse_share_modes(TDB_DATA dbuf, struct share_mode_lock *lck)
 {
 	struct locking_data data;
 	int i;
@@ -543,9 +543,9 @@ static bool parse_share_modes(const TDB_DATA dbuf, struct share_mode_lock *lck)
 	DEBUG(10, ("parse_share_modes: delete_on_close: %d, owrt: %s, "
 		   "cwrt: %s, tok: %u, num_share_modes: %d\n",
 		   lck->delete_on_close,
-		   timestring(talloc_tos(),
+		   timestring(debug_ctx(),
 			      convert_timespec_to_time_t(lck->old_write_time)),
-		   timestring(talloc_tos(),
+		   timestring(debug_ctx(),
 			      convert_timespec_to_time_t(
 				      lck->changed_write_time)),
 		   (unsigned int)data.u.s.delete_token_size,
@@ -630,16 +630,10 @@ static bool parse_share_modes(const TDB_DATA dbuf, struct share_mode_lock *lck)
 		(lck->num_share_modes *	sizeof(struct share_mode_entry)) +
 		data.u.s.delete_token_size;
 
-	lck->base_name = (const char *)dbuf.dptr + sizeof(struct locking_data) +
+	lck->filename = (const char *)dbuf.dptr + sizeof(struct locking_data) +
 		(lck->num_share_modes *	sizeof(struct share_mode_entry)) +
 		data.u.s.delete_token_size +
 		strlen(lck->servicepath) + 1;
-
-	lck->stream_name = (const char *)dbuf.dptr + sizeof(struct locking_data) +
-		(lck->num_share_modes *	sizeof(struct share_mode_entry)) +
-		data.u.s.delete_token_size +
-		strlen(lck->servicepath) + 1 +
-		strlen(lck->base_name) + 1;
 
 	/*
 	 * Ensure that each entry has a real process attached.
@@ -665,14 +659,14 @@ static bool parse_share_modes(const TDB_DATA dbuf, struct share_mode_lock *lck)
 	return True;
 }
 
-static TDB_DATA unparse_share_modes(const struct share_mode_lock *lck)
+static TDB_DATA unparse_share_modes(struct share_mode_lock *lck)
 {
 	TDB_DATA result;
 	int num_valid = 0;
 	int i;
 	struct locking_data *data;
 	ssize_t offset;
-	ssize_t sp_len, bn_len, sn_len;
+	ssize_t sp_len;
 	uint32 delete_token_size;
 
 	result.dptr = NULL;
@@ -689,9 +683,6 @@ static TDB_DATA unparse_share_modes(const struct share_mode_lock *lck)
 	}
 
 	sp_len = strlen(lck->servicepath);
-	bn_len = strlen(lck->base_name);
-	sn_len = lck->stream_name != NULL ? strlen(lck->stream_name) : 0;
-
 	delete_token_size = (lck->delete_token ?
 			(sizeof(uid_t) + sizeof(gid_t) + (lck->delete_token->ngroups*sizeof(gid_t))) : 0);
 
@@ -699,8 +690,7 @@ static TDB_DATA unparse_share_modes(const struct share_mode_lock *lck)
 		lck->num_share_modes * sizeof(struct share_mode_entry) +
 		delete_token_size +
 		sp_len + 1 +
-		bn_len + 1 +
-		sn_len + 1;
+		strlen(lck->filename) + 1;
 	result.dptr = TALLOC_ARRAY(lck, uint8, result.dsize);
 
 	if (result.dptr == NULL) {
@@ -717,9 +707,9 @@ static TDB_DATA unparse_share_modes(const struct share_mode_lock *lck)
 
 	DEBUG(10,("unparse_share_modes: del: %d, owrt: %s cwrt: %s, tok: %u, "
 		  "num: %d\n", data->u.s.delete_on_close,
-		  timestring(talloc_tos(),
+		  timestring(debug_ctx(),
 			     convert_timespec_to_time_t(lck->old_write_time)),
-		  timestring(talloc_tos(),
+		  timestring(debug_ctx(),
 			     convert_timespec_to_time_t(
 				     lck->changed_write_time)),
 		  (unsigned int)data->u.s.delete_token_size,
@@ -750,10 +740,7 @@ static TDB_DATA unparse_share_modes(const struct share_mode_lock *lck)
 	safe_strcpy((char *)result.dptr + offset, lck->servicepath,
 		    result.dsize - offset - 1);
 	offset += sp_len + 1;
-	safe_strcpy((char *)result.dptr + offset, lck->base_name,
-		    result.dsize - offset - 1);
-	offset += bn_len + 1;
-	safe_strcpy((char *)result.dptr + offset, lck->stream_name,
+	safe_strcpy((char *)result.dptr + offset, lck->filename,
 		    result.dsize - offset - 1);
 
 	if (DEBUGLEVEL >= 10) {
@@ -780,18 +767,9 @@ static int share_mode_lock_destructor(struct share_mode_lock *lck)
 
 			status = lck->record->delete_rec(lck->record);
 			if (!NT_STATUS_IS_OK(status)) {
-				char *errmsg;
-
 				DEBUG(0, ("delete_rec returned %s\n",
 					  nt_errstr(status)));
-
-				if (asprintf(&errmsg, "could not delete share "
-					     "entry: %s\n",
-					     nt_errstr(status)) == -1) {
-					smb_panic("could not delete share"
-						  "entry");
-				}
-				smb_panic(errmsg);
+				smb_panic("could not delete share entry");
 			}
 		}
 		goto done;
@@ -799,15 +777,8 @@ static int share_mode_lock_destructor(struct share_mode_lock *lck)
 
 	status = lck->record->store(lck->record, data, TDB_REPLACE);
 	if (!NT_STATUS_IS_OK(status)) {
-		char *errmsg;
-
 		DEBUG(0, ("store returned %s\n", nt_errstr(status)));
-
-		if (asprintf(&errmsg, "could not store share mode entry: %s",
-			     nt_errstr(status)) == -1) {
-			smb_panic("could not store share mode entry");
-		}
-		smb_panic(errmsg);
+		smb_panic("could not store share mode entry");
 	}
 
  done:
@@ -818,7 +789,7 @@ static int share_mode_lock_destructor(struct share_mode_lock *lck)
 static bool fill_share_mode_lock(struct share_mode_lock *lck,
 				 struct file_id id,
 				 const char *servicepath,
-				 const struct smb_filename *smb_fname,
+				 const char *fname,
 				 TDB_DATA share_mode_data,
 				 const struct timespec *old_write_time)
 {
@@ -826,8 +797,7 @@ static bool fill_share_mode_lock(struct share_mode_lock *lck,
 	   valid even if parse_share_modes fails. */
 
 	lck->servicepath = NULL;
-	lck->base_name = NULL;
-	lck->stream_name = NULL;
+	lck->filename = NULL;
 	lck->id = id;
 	lck->num_share_modes = 0;
 	lck->share_modes = NULL;
@@ -841,20 +811,13 @@ static bool fill_share_mode_lock(struct share_mode_lock *lck,
 	lck->fresh = (share_mode_data.dptr == NULL);
 
 	if (lck->fresh) {
-		bool has_stream;
-		if (smb_fname == NULL || servicepath == NULL
+		if (fname == NULL || servicepath == NULL
 		    || old_write_time == NULL) {
 			return False;
 		}
-
-		has_stream = smb_fname->stream_name != NULL;
-
-		lck->base_name = talloc_strdup(lck, smb_fname->base_name);
-		lck->stream_name = talloc_strdup(lck, smb_fname->stream_name);
+		lck->filename = talloc_strdup(lck, fname);
 		lck->servicepath = talloc_strdup(lck, servicepath);
-		if (lck->base_name == NULL ||
-		    (has_stream && lck->stream_name == NULL) ||
-		    lck->servicepath == NULL) {
+		if (lck->filename == NULL || lck->servicepath == NULL) {
 			DEBUG(0, ("talloc failed\n"));
 			return False;
 		}
@@ -872,7 +835,7 @@ static bool fill_share_mode_lock(struct share_mode_lock *lck,
 struct share_mode_lock *get_share_mode_lock(TALLOC_CTX *mem_ctx,
 					    const struct file_id id,
 					    const char *servicepath,
-					    const struct smb_filename *smb_fname,
+					    const char *fname,
 					    const struct timespec *old_write_time)
 {
 	struct share_mode_lock *lck;
@@ -890,7 +853,7 @@ struct share_mode_lock *get_share_mode_lock(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	if (!fill_share_mode_lock(lck, id, servicepath, smb_fname,
+	if (!fill_share_mode_lock(lck, id, servicepath, fname,
 				  lck->record->value, old_write_time)) {
 		DEBUG(3, ("fill_share_mode_lock failed\n"));
 		TALLOC_FREE(lck);
@@ -903,7 +866,9 @@ struct share_mode_lock *get_share_mode_lock(TALLOC_CTX *mem_ctx,
 }
 
 struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
-						  const struct file_id id)
+						  const struct file_id id,
+						  const char *servicepath,
+						  const char *fname)
 {
 	struct share_mode_lock *lck;
 	struct file_id tmp;
@@ -921,7 +886,7 @@ struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	if (!fill_share_mode_lock(lck, id, NULL, NULL, data, NULL)) {
+	if (!fill_share_mode_lock(lck, id, servicepath, fname, data, NULL)) {
 		DEBUG(10, ("fetch_share_mode_unlocked: no share_mode record "
 			   "around (file not open)\n"));
 		TALLOC_FREE(lck);
@@ -941,49 +906,37 @@ struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
 bool rename_share_filename(struct messaging_context *msg_ctx,
 			struct share_mode_lock *lck,
 			const char *servicepath,
-			const struct smb_filename *smb_fname_dst)
+			const char *newname)
 {
 	size_t sp_len;
-	size_t bn_len;
-	size_t sn_len;
+	size_t fn_len;
 	size_t msg_len;
 	char *frm = NULL;
 	int i;
-	bool strip_two_chars = false;
-	bool has_stream = smb_fname_dst->stream_name != NULL;
 
 	DEBUG(10, ("rename_share_filename: servicepath %s newname %s\n",
-		   servicepath, smb_fname_dst->base_name));
+		servicepath, newname));
 
 	/*
 	 * rename_internal_fsp() and rename_internals() add './' to
 	 * head of newname if newname does not contain a '/'.
 	 */
-	if (smb_fname_dst->base_name[0] &&
-	    smb_fname_dst->base_name[1] &&
-	    smb_fname_dst->base_name[0] == '.' &&
-	    smb_fname_dst->base_name[1] == '/') {
-		strip_two_chars = true;
+	while (newname[0] && newname[1] && newname[0] == '.' && newname[1] == '/') {
+		newname += 2;
 	}
 
 	lck->servicepath = talloc_strdup(lck, servicepath);
-	lck->base_name = talloc_strdup(lck, smb_fname_dst->base_name +
-				       (strip_two_chars ? 2 : 0));
-	lck->stream_name = talloc_strdup(lck, smb_fname_dst->stream_name);
-	if (lck->base_name == NULL ||
-	    (has_stream && lck->stream_name == NULL) ||
-	    lck->servicepath == NULL) {
+	lck->filename = talloc_strdup(lck, newname);
+	if (lck->filename == NULL || lck->servicepath == NULL) {
 		DEBUG(0, ("rename_share_filename: talloc failed\n"));
 		return False;
 	}
 	lck->modified = True;
 
 	sp_len = strlen(lck->servicepath);
-	bn_len = strlen(lck->base_name);
-	sn_len = has_stream ? strlen(lck->stream_name) : 0;
+	fn_len = strlen(lck->filename);
 
-	msg_len = MSG_FILE_RENAMED_MIN_SIZE + sp_len + 1 + bn_len + 1 +
-	    sn_len + 1;
+	msg_len = MSG_FILE_RENAMED_MIN_SIZE + sp_len + 1 + fn_len + 1;
 
 	/* Set up the name changed message. */
 	frm = TALLOC_ARRAY(lck, char, msg_len);
@@ -996,9 +949,7 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 	DEBUG(10,("rename_share_filename: msg_len = %u\n", (unsigned int)msg_len ));
 
 	safe_strcpy(&frm[24], lck->servicepath, sp_len);
-	safe_strcpy(&frm[24 + sp_len + 1], lck->base_name, bn_len);
-	safe_strcpy(&frm[24 + sp_len + 1 + bn_len + 1], lck->stream_name,
-		    sn_len);
+	safe_strcpy(&frm[24 + sp_len + 1], lck->filename, fn_len);
 
 	/* Send the messages. */
 	for (i=0; i<lck->num_share_modes; i++) {
@@ -1011,13 +962,11 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 			continue;
 		}
 
-		DEBUG(10,("rename_share_filename: sending rename message to "
-			  "pid %s file_id %s sharepath %s base_name %s "
-			  "stream_name %s\n",
+		DEBUG(10,("rename_share_filename: sending rename message to pid %s "
+			  "file_id %s sharepath %s newname %s\n",
 			  procid_str_static(&se->pid),
 			  file_id_string_tos(&lck->id),
-			  lck->servicepath, lck->base_name,
-			has_stream ? lck->stream_name : ""));
+			  lck->servicepath, lck->filename ));
 
 		messaging_send_buf(msg_ctx, se->pid, MSG_SMB_FILE_RENAME,
 				   (uint8 *)frm, msg_len);
@@ -1040,7 +989,7 @@ void get_file_infos(struct file_id id,
 		ZERO_STRUCTP(write_time);
 	}
 
-	if (!(lck = fetch_share_mode_unlocked(talloc_tos(), id))) {
+	if (!(lck = fetch_share_mode_unlocked(talloc_tos(), id, NULL, NULL))) {
 		return;
 	}
 
@@ -1307,11 +1256,18 @@ bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 }
 
 /****************************************************************************
- Check if setting delete on close is allowed on this fsp.
+ Deal with the internal needs of setting the delete on close flag. Note that
+ as the tdb locking is recursive, it is safe to call this from within 
+ open_file_ntcreate. JRA.
 ****************************************************************************/
 
-NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode)
+NTSTATUS can_set_delete_on_close(files_struct *fsp, bool delete_on_close,
+				 uint32 dosmode)
 {
+	if (!delete_on_close) {
+		return NT_STATUS_OK;
+	}
+
 	/*
 	 * Only allow delete on close for writable files.
 	 */
@@ -1320,7 +1276,7 @@ NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode)
 	    !lp_delete_readonly(SNUM(fsp->conn))) {
 		DEBUG(10,("can_set_delete_on_close: file %s delete on close "
 			  "flag set but file attribute is readonly.\n",
-			  fsp_str_dbg(fsp)));
+			  fsp->fsp_name ));
 		return NT_STATUS_CANNOT_DELETE;
 	}
 
@@ -1331,7 +1287,7 @@ NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode)
 	if (!CAN_WRITE(fsp->conn)) {
 		DEBUG(10,("can_set_delete_on_close: file %s delete on "
 			  "close flag set but write access denied on share.\n",
-			  fsp_str_dbg(fsp)));
+			  fsp->fsp_name ));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
@@ -1343,15 +1299,13 @@ NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode)
 	if (!(fsp->access_mask & DELETE_ACCESS)) {
 		DEBUG(10,("can_set_delete_on_close: file %s delete on "
 			  "close flag set but delete access denied.\n",
-			  fsp_str_dbg(fsp)));
+			  fsp->fsp_name ));
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	/* Don't allow delete on close for non-empty directories. */
 	if (fsp->is_directory) {
-		SMB_ASSERT(!is_ntfs_stream_smb_fname(fsp->fsp_name));
-		return can_delete_directory(fsp->conn,
-					    fsp->fsp_name->base_name);
+		return can_delete_directory(fsp->conn, fsp->fsp_name);
 	}
 
 	return NT_STATUS_OK;
@@ -1433,7 +1387,7 @@ bool set_delete_on_close(files_struct *fsp, bool delete_on_close, const UNIX_USE
 	DEBUG(10,("set_delete_on_close: %s delete on close flag for "
 		  "fnum = %d, file %s\n",
 		  delete_on_close ? "Adding" : "Removing", fsp->fnum,
-		  fsp_str_dbg(fsp)));
+		  fsp->fsp_name ));
 
 	lck = get_share_mode_lock(talloc_tos(), fsp->file_id, NULL, NULL,
 				  NULL);
@@ -1454,14 +1408,10 @@ bool set_delete_on_close(files_struct *fsp, bool delete_on_close, const UNIX_USE
 	set_delete_on_close_lck(lck, delete_on_close, tok);
 
 	if (fsp->is_directory) {
-		SMB_ASSERT(!is_ntfs_stream_smb_fname(fsp->fsp_name));
-		send_stat_cache_delete_message(fsp->fsp_name->base_name);
+		send_stat_cache_delete_message(fsp->fsp_name);
 	}
 
 	TALLOC_FREE(lck);
-
-	fsp->delete_on_close = delete_on_close;
-
 	return True;
 }
 
@@ -1470,7 +1420,7 @@ bool set_sticky_write_time(struct file_id fileid, struct timespec write_time)
 	struct share_mode_lock *lck;
 
 	DEBUG(5,("set_sticky_write_time: %s id=%s\n",
-		 timestring(talloc_tos(),
+		 timestring(debug_ctx(),
 			    convert_timespec_to_time_t(write_time)),
 		 file_id_string_tos(&fileid)));
 
@@ -1493,7 +1443,7 @@ bool set_write_time(struct file_id fileid, struct timespec write_time)
 	struct share_mode_lock *lck;
 
 	DEBUG(5,("set_write_time: %s id=%s\n",
-		 timestring(talloc_tos(),
+		 timestring(debug_ctx(),
 			    convert_timespec_to_time_t(write_time)),
 		 file_id_string_tos(&fileid)));
 

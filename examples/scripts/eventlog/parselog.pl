@@ -20,7 +20,7 @@
 ##
 ######################################################################
 
-## usage: tail -f /var/log/syslog | parselog.pl | eventlogadm -o write "Application"
+## usage: tail -f /var/log/syslog | parselog.pl | eventlogadm "Application"
 
 while(<>) {
     chomp();

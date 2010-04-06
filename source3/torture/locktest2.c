@@ -68,13 +68,7 @@ static int try_open(struct cli_state *c, char *nfs, int fstype, const char *fnam
 
 	switch (fstype) {
 	case FSTYPE_SMB:
-		{
-			uint16_t fd;
-			if (!NT_STATUS_IS_OK(cli_open(c, fname, flags, DENY_NONE, &fd))) {
-				return -1;
-			}
-			return fd;
-		}
+		return cli_open(c, fname, flags, DENY_NONE);
 
 	case FSTYPE_NFS:
 		if (asprintf(&path, "%s%s", nfs, fname) > 0) {
@@ -94,7 +88,7 @@ static bool try_close(struct cli_state *c, int fstype, int fd)
 {
 	switch (fstype) {
 	case FSTYPE_SMB:
-		return NT_STATUS_IS_OK(cli_close(c, fd));
+		return cli_close(c, fd);
 
 	case FSTYPE_NFS:
 		return close(fd) == 0;
@@ -132,7 +126,7 @@ static bool try_unlock(struct cli_state *c, int fstype,
 
 	switch (fstype) {
 	case FSTYPE_SMB:
-		return NT_STATUS_IS_OK(cli_unlock(c, fd, start, len));
+		return cli_unlock(c, fd, start, len);
 
 	case FSTYPE_NFS:
 		lock.l_type = F_UNLCK;
@@ -323,7 +317,7 @@ static void close_files(struct cli_state *cli[NSERVERS][NCONNECTIONS],
 		}
 	}
 	for (server=0;server<NSERVERS;server++) {
-		cli_unlink(cli[server][0], FILENAME, aSYSTEM | aHIDDEN);
+		cli_unlink(cli[server][0], FILENAME);
 	}
 }
 

@@ -32,6 +32,7 @@
  */
 
 #include "hx_locl.h"
+RCSID("$Id$");
 
 static int
 test_name(hx509_context context, const char *name)

@@ -22,7 +22,6 @@
 
 /* Required Headers */
 
-#include "replace.h"
 #include "libwbclient.h"
 
 
@@ -409,7 +408,7 @@ wbcErr wbcListTrusts(struct wbcDomainInfo **domains, size_t *num_domains)
 
 	p = (char *)response.extra_data.data;
 
-	if ((p == NULL) || (strlen(p) == 0)) {
+	if (strlen(p) == 0) {
 		/* We should always at least get back our
 		   own SAM domain */
 
@@ -486,8 +485,7 @@ wbcErr wbcLookupDomainController(const char *domain,
 	ZERO_STRUCT(request);
 	ZERO_STRUCT(response);
 
-	strncpy(request.data.dsgetdcname.domain_name, domain,
-		sizeof(request.data.dsgetdcname.domain_name)-1);
+	strncpy(request.domain_name, domain, sizeof(request.domain_name)-1);
 
 	request.flags = flags;
 
@@ -501,7 +499,7 @@ wbcErr wbcLookupDomainController(const char *domain,
 					&response);
 	BAIL_ON_WBC_ERROR(wbc_status);
 
-	dc->dc_name = talloc_strdup(dc, response.data.dsgetdcname.dc_unc);
+	dc->dc_name = talloc_strdup(dc, response.data.dc_name);
 	BAIL_ON_PTR_ERROR(dc->dc_name, wbc_status);
 
 	*dc_info = dc;

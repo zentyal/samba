@@ -31,7 +31,9 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
+
+RCSID("$Id$");
 
 OM_uint32
 _gsskrb5_delete_sec_context(OM_uint32 * minor_status,
@@ -72,8 +74,6 @@ _gsskrb5_delete_sec_context(OM_uint32 * minor_status,
     if (ctx->service_keyblock)
 	krb5_free_keyblock (context, ctx->service_keyblock);
     krb5_data_free(&ctx->fwd_data);
-    if (ctx->crypto)
-    	krb5_crypto_destroy(context, ctx->crypto);
 
     HEIMDAL_MUTEX_unlock(&ctx->ctx_id_mutex);
     HEIMDAL_MUTEX_destroy(&ctx->ctx_id_mutex);

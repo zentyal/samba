@@ -33,6 +33,8 @@
 
 #include <krb5_locl.h>
 
+RCSID("$Id$");
+
 krb5_error_code KRB5_LIB_FUNCTION
 krb5_build_ap_req (krb5_context context,
 		   krb5_enctype enctype,

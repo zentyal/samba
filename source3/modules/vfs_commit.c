@@ -102,7 +102,7 @@ static int commit_all(
 {
         struct commit_info *c;
 
-        if ((c = (struct commit_info *)VFS_FETCH_FSP_EXTENSION(handle, fsp))) {
+        if ((c = VFS_FETCH_FSP_EXTENSION(handle, fsp))) {
                 if (c->dbytes) {
                         DEBUG(module_debug,
                                 ("%s: flushing %lu dirty bytes\n",
@@ -122,8 +122,7 @@ static int commit(
 {
         struct commit_info *c;
 
-        if ((c = (struct commit_info *)VFS_FETCH_FSP_EXTENSION(handle, fsp))
-	    == NULL) {
+        if ((c = VFS_FETCH_FSP_EXTENSION(handle, fsp)) == NULL) {
 		return 0;
 	}
 
@@ -162,19 +161,13 @@ static int commit_connect(
         const char *                service,
         const char *                user)
 {
-	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
-
-	if (ret < 0) {
-		return ret;
-	}
-
         module_debug = lp_parm_int(SNUM(handle->conn), MODULE, "debug", 100);
-        return 0;
+        return SMB_VFS_NEXT_CONNECT(handle, service, user);
 }
 
 static int commit_open(
 	vfs_handle_struct * handle,
-	struct smb_filename *smb_fname,
+	const char *	    fname,
 	files_struct *	    fsp,
 	int		    flags,
 	mode_t		    mode)
@@ -186,7 +179,7 @@ static int commit_open(
 
         /* Don't bother with read-only files. */
         if ((flags & O_ACCMODE) == O_RDONLY) {
-                return SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
+                return SMB_VFS_NEXT_OPEN(handle, fname, fsp, flags, mode);
         }
 
         /* Read and check module configuration */
@@ -197,8 +190,7 @@ static int commit_open(
                                         MODULE, "eof mode", "none");
 
         if (dthresh > 0 || !strequal(eof_mode, "none")) {
-                c = (struct commit_info *)VFS_ADD_FSP_EXTENSION(
-			handle, fsp, struct commit_info, NULL);
+                c = VFS_ADD_FSP_EXTENSION(handle, fsp, struct commit_info, NULL);
                 /* Process main tunables */
                 if (c) {
                         c->dthresh = dthresh;
@@ -216,7 +208,7 @@ static int commit_open(
                 }
         }
 
-        fd = SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
+        fd = SMB_VFS_NEXT_OPEN(handle, fname, fsp, flags, mode);
 	if (fd == -1) {
 		VFS_REMOVE_FSP_EXTENSION(handle, fsp);
 		return fd;
@@ -228,7 +220,7 @@ static int commit_open(
                 if (SMB_VFS_FSTAT(fsp, &st) == -1) {
                         return -1;
                 }
-		c->eof = st.st_ex_size;
+		c->eof = st.st_size;
         }
 
         return 0;
@@ -237,7 +229,7 @@ static int commit_open(
 static ssize_t commit_write(
         vfs_handle_struct * handle,
         files_struct *      fsp,
-        const void *        data,
+        void *              data,
         size_t              count)
 {
         ssize_t ret;
@@ -255,7 +247,7 @@ static ssize_t commit_write(
 static ssize_t commit_pwrite(
         vfs_handle_struct * handle,
         files_struct *      fsp,
-        const void *        data,
+        void *              data,
         size_t              count,
 	SMB_OFF_T	    offset)
 {
@@ -290,8 +282,7 @@ static int commit_ftruncate(
         result = SMB_VFS_NEXT_FTRUNCATE(handle, fsp, len);
         if (result == 0) {
 		struct commit_info *c;
-		if ((c = (struct commit_info *)VFS_FETCH_FSP_EXTENSION(
-			     handle, fsp))) {
+		if ((c = VFS_FETCH_FSP_EXTENSION(handle, fsp))) {
 			commit(handle, fsp, len, 0);
 			c->eof = len;
 		}
@@ -300,20 +291,28 @@ static int commit_ftruncate(
         return result;
 }
 
-static struct vfs_fn_pointers vfs_commit_fns = {
-        .open = commit_open,
-        .close_fn = commit_close,
-        .write = commit_write,
-        .pwrite = commit_pwrite,
-        .connect_fn = commit_connect,
-        .ftruncate = commit_ftruncate
+static vfs_op_tuple commit_ops [] =
+{
+        {SMB_VFS_OP(commit_open),
+                SMB_VFS_OP_OPEN, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(commit_close),
+                SMB_VFS_OP_CLOSE, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(commit_write),
+                SMB_VFS_OP_WRITE, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(commit_pwrite),
+                SMB_VFS_OP_PWRITE, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(commit_connect),
+                SMB_VFS_OP_CONNECT,  SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(commit_ftruncate),
+                SMB_VFS_OP_FTRUNCATE,  SMB_VFS_LAYER_TRANSPARENT},
+
+        {SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
 };
 
 NTSTATUS vfs_commit_init(void);
 NTSTATUS vfs_commit_init(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE,
-				&vfs_commit_fns);
+	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE, commit_ops);
 }
 
 

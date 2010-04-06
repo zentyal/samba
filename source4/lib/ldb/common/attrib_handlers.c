@@ -62,7 +62,7 @@ int ldb_handler_fold(struct ldb_context *ldb, void *mem_ctx,
 
 	out->data = (uint8_t *)ldb_casefold(ldb, mem_ctx, (const char *)(in->data), in->length);
 	if (out->data == NULL) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb_handler_fold: unable to casefold string [%.*s]", (int)in->length, (const char *)in->data);
+		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb_handler_fold: unable to casefold string [%s]", in->data);
 		return -1;
 	}
 
@@ -105,7 +105,7 @@ int ldb_handler_fold(struct ldb_context *ldb, void *mem_ctx,
   canonicalise a ldap Integer
   rfc2252 specifies it should be in decimal form
 */
-static int ldb_canonicalise_Integer(struct ldb_context *ldb, void *mem_ctx,
+int ldb_canonicalise_Integer(struct ldb_context *ldb, void *mem_ctx,
 				    const struct ldb_val *in, struct ldb_val *out)
 {
 	char *end;
@@ -124,43 +124,11 @@ static int ldb_canonicalise_Integer(struct ldb_context *ldb, void *mem_ctx,
 /*
   compare two Integers
 */
-static int ldb_comparison_Integer(struct ldb_context *ldb, void *mem_ctx,
+int ldb_comparison_Integer(struct ldb_context *ldb, void *mem_ctx,
 				  const struct ldb_val *v1, const struct ldb_val *v2)
 {
 	return strtoll((char *)v1->data, NULL, 0) - strtoll((char *)v2->data, NULL, 0);
 }
-
-/*
-  canonicalise a ldap Boolean
-  rfc2252 specifies it should be either "TRUE" or "FALSE"
-*/
-static int ldb_canonicalise_Boolean(struct ldb_context *ldb, void *mem_ctx,
-			     const struct ldb_val *in, struct ldb_val *out)
-{
-	if (strncasecmp((char *)in->data, "TRUE", in->length) == 0) {
-		out->data = (uint8_t *)talloc_strdup(mem_ctx, "TRUE");
-		out->length = 4;
-	} else if (strncasecmp((char *)in->data, "FALSE", in->length) == 0) {
-		out->data = (uint8_t *)talloc_strdup(mem_ctx, "FALSE");
-		out->length = 4;
-	} else {
-		return -1;
-	}
-	return 0;
-}
-
-/*
-  compare two Booleans
-*/
-static int ldb_comparison_Boolean(struct ldb_context *ldb, void *mem_ctx,
-			   const struct ldb_val *v1, const struct ldb_val *v2)
-{
-	if (v1->length != v2->length) {
-		return v1->length - v2->length;
-	}
-	return strncasecmp((char *)v1->data, (char *)v2->data, v1->length);
-}
-
 
 /*
   compare two binary blobs
@@ -187,13 +155,13 @@ int ldb_comparison_fold(struct ldb_context *ldb, void *mem_ctx,
 {
 	const char *s1=(const char *)v1->data, *s2=(const char *)v2->data;
 	size_t n1 = v1->length, n2 = v2->length;
-	char *b1, *b2;
 	const char *u1, *u2;
+	char *b1, *b2;
 	int ret;
-	while (n1 && *s1 == ' ') { s1++; n1--; };
-	while (n2 && *s2 == ' ') { s2++; n2--; };
-
-	while (n1 && n2 && *s1 && *s2) {
+	while (*s1 == ' ' && n1) { s1++; n1--; };
+	while (*s2 == ' ' && n2) { s2++; n2--; };
+	/* TODO: make utf8 safe, possibly with helper function from application */
+	while (*s1 && *s2 && n1 && n2) {
 		/* the first 127 (0x7F) chars are ascii and utf8 guarantes they
 		 * never appear in multibyte sequences */
 		if (((unsigned char)s1[0]) & 0x80) goto utf8str;
@@ -201,57 +169,42 @@ int ldb_comparison_fold(struct ldb_context *ldb, void *mem_ctx,
 		if (toupper((unsigned char)*s1) != toupper((unsigned char)*s2))
 			break;
 		if (*s1 == ' ') {
-			while (n1 && s1[0] == s1[1]) { s1++; n1--; }
-			while (n2 && s2[0] == s2[1]) { s2++; n2--; }
+			while (s1[0] == s1[1] && n1) { s1++; n1--; }
+			while (s2[0] == s2[1] && n2) { s2++; n2--; }
 		}
 		s1++; s2++;
 		n1--; n2--;
 	}
-
-	/* check for trailing spaces only if the other pointers has
-	 * reached the end of the strings otherwise we can
-	 * mistakenly match.  ex. "domain users" <->
-	 * "domainUpdates"
-	 */
-	if (n1 && *s1 == ' ' && (!n2 || !*s2)) {
-		while (n1 && *s1 == ' ') { s1++; n1--; }		
+	if (! (*s1 && *s2)) {
+		/* check for trailing spaces only if one of the pointers
+		 * has reached the end of the strings otherwise we
+		 * can mistakenly match.
+		 * ex. "domain users" <-> "domainUpdates"
+		 */
+		while (*s1 == ' ') { s1++; n1--; }
+		while (*s2 == ' ') { s2++; n2--; }
 	}
-	if (n2 && *s2 == ' ' && (!n1 || !*s1)) {
-		while (n2 && *s2 == ' ') { s2++; n2--; }		
+	if (n1 != n2) {
+		return n1 - n2;
 	}
-	if (n1 == 0 && n2 != 0) {
-		return -(int)toupper(*s2);
-	}
-	if (n2 == 0 && n1 != 0) {
-		return (int)toupper(*s1);
-	}
-	if (n2 == 0 && n2 == 0) {
-		return 0;
-	}
-	return (int)toupper(*s1) - (int)toupper(*s2);
+	return (int)(toupper(*s1)) - (int)(toupper(*s2));
 
 utf8str:
 	/* no need to recheck from the start, just from the first utf8 char found */
 	b1 = ldb_casefold(ldb, mem_ctx, s1, n1);
 	b2 = ldb_casefold(ldb, mem_ctx, s2, n2);
 
-	if (!b1 || !b2) {
-		/* One of the strings was not UTF8, so we have no
-		 * options but to do a binary compare */
-		talloc_free(b1);
-		talloc_free(b2);
-		if (memcmp(s1, s2, MIN(n1, n2)) == 0) {
-			if (n1 == n2) return 0;
-			if (n1 > n2) {
-				return (int)toupper(s1[n2]);
-			} else {
-				return -(int)toupper(s2[n1]);
-			}
-		}
-	}
+	if (b1 && b2) {
+		/* Both strings converted correctly */
 
-	u1 = b1;
-	u2 = b2;
+		u1 = b1;
+		u2 = b2;
+	} else {
+		/* One of the strings was not UTF8, so we have no options but to do a binary compare */
+
+		u1 = s1;
+		u2 = s2;
+	}
 
 	while (*u1 & *u2) {
 		if (*u1 != *u2)
@@ -278,7 +231,7 @@ utf8str:
 /*
   canonicalise a attribute in DN format
 */
-static int ldb_canonicalise_dn(struct ldb_context *ldb, void *mem_ctx,
+int ldb_canonicalise_dn(struct ldb_context *ldb, void *mem_ctx,
 			       const struct ldb_val *in, struct ldb_val *out)
 {
 	struct ldb_dn *dn;
@@ -287,7 +240,7 @@ static int ldb_canonicalise_dn(struct ldb_context *ldb, void *mem_ctx,
 	out->length = 0;
 	out->data = NULL;
 
-	dn = ldb_dn_from_ldb_val(mem_ctx, ldb, in);
+	dn = ldb_dn_from_ldb_val(ldb, mem_ctx, in);
 	if ( ! ldb_dn_validate(dn)) {
 		return LDB_ERR_INVALID_DN_SYNTAX;
 	}
@@ -309,16 +262,16 @@ done:
 /*
   compare two dns
 */
-static int ldb_comparison_dn(struct ldb_context *ldb, void *mem_ctx,
+int ldb_comparison_dn(struct ldb_context *ldb, void *mem_ctx,
 			     const struct ldb_val *v1, const struct ldb_val *v2)
 {
 	struct ldb_dn *dn1 = NULL, *dn2 = NULL;
 	int ret;
 
-	dn1 = ldb_dn_from_ldb_val(mem_ctx, ldb, v1);
+	dn1 = ldb_dn_from_ldb_val(ldb, mem_ctx, v1);
 	if ( ! ldb_dn_validate(dn1)) return -1;
 
-	dn2 = ldb_dn_from_ldb_val(mem_ctx, ldb, v2);
+	dn2 = ldb_dn_from_ldb_val(ldb, mem_ctx, v2);
 	if ( ! ldb_dn_validate(dn2)) {
 		talloc_free(dn1);
 		return -1;
@@ -334,7 +287,7 @@ static int ldb_comparison_dn(struct ldb_context *ldb, void *mem_ctx,
 /*
   compare two utc time values. 1 second resolution
 */
-static int ldb_comparison_utctime(struct ldb_context *ldb, void *mem_ctx,
+int ldb_comparison_utctime(struct ldb_context *ldb, void *mem_ctx,
 				  const struct ldb_val *v1, const struct ldb_val *v2)
 {
 	time_t t1, t2;
@@ -346,7 +299,7 @@ static int ldb_comparison_utctime(struct ldb_context *ldb, void *mem_ctx,
 /*
   canonicalise a utc time
 */
-static int ldb_canonicalise_utctime(struct ldb_context *ldb, void *mem_ctx,
+int ldb_canonicalise_utctime(struct ldb_context *ldb, void *mem_ctx,
 				    const struct ldb_val *in, struct ldb_val *out)
 {
 	time_t t = ldb_string_to_time((char *)in->data);
@@ -403,14 +356,7 @@ static const struct ldb_schema_syntax ldb_standard_syntaxes[] = {
 		.ldif_write_fn   = ldb_handler_copy,
 		.canonicalise_fn = ldb_canonicalise_utctime,
 		.comparison_fn   = ldb_comparison_utctime
-	},
-	{ 
-		.name            = LDB_SYNTAX_BOOLEAN,
-		.ldif_read_fn    = ldb_handler_copy,
-		.ldif_write_fn   = ldb_handler_copy,
-		.canonicalise_fn = ldb_canonicalise_Boolean,
-		.comparison_fn   = ldb_comparison_Boolean
-	},
+	}
 };
 
 

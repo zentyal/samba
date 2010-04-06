@@ -19,7 +19,6 @@
 
 #include "includes.h"
 #include "smbd/globals.h"
-#include "../libcli/auth/spnego.h"
 
 /******************************************************************************
  Server side encryption.

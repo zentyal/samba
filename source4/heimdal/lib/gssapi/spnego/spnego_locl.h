@@ -35,7 +35,9 @@
 #ifndef SPNEGO_LOCL_H
 #define SPNEGO_LOCL_H
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -48,9 +50,8 @@
 #include <pthread.h>
 #endif
 
+#include <gssapi/gssapi_spnego.h>
 #include <gssapi.h>
-#include <gssapi_krb5.h>
-#include <gssapi_spnego.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,7 +67,7 @@
 #include <gssapi_mech.h>
 
 #include "spnego_asn1.h"
-#include "utils.h"
+#include "mech/utils.h"
 #include <der.h>
 
 #include <roken.h>
@@ -108,6 +109,6 @@ typedef struct {
 extern gss_OID_desc _gss_spnego_mskrb_mechanism_oid_desc;
 extern gss_OID_desc _gss_spnego_krb5_mechanism_oid_desc;
 
-#include <spnego-private.h>
+#include <spnego/spnego-private.h>
 
 #endif /* SPNEGO_LOCL_H */

@@ -367,6 +367,40 @@ const static struct torture_ui_ops std_ui_ops = {
 };
 
 
+static void quiet_suite_start(struct torture_context *ctx,
+			      struct torture_suite *suite)
+{
+	int i;
+	ctx->results->quiet = true;
+	for (i = 1; i < ctx->level; i++) putchar('\t');
+	printf("%s: ", suite->name);
+	fflush(stdout);
+}
+
+static void quiet_suite_finish(struct torture_context *ctx,
+			       struct torture_suite *suite)
+{
+	putchar('\n');
+}
+
+static void quiet_test_result(struct torture_context *context, 
+			      enum torture_result res, const char *reason)
+{
+	fflush(stdout);
+	switch (res) {
+	case TORTURE_OK: putchar('.'); break;
+	case TORTURE_FAIL: putchar('F'); break;
+	case TORTURE_ERROR: putchar('E'); break;
+	case TORTURE_SKIP: putchar('I'); break;
+	}
+}
+
+const static struct torture_ui_ops quiet_ui_ops = {
+	.suite_start = quiet_suite_start,
+	.suite_finish = quiet_suite_finish,
+	.test_result = quiet_test_result
+};
+
 static void run_shell(struct torture_context *tctx)
 {
 	char *cline;
@@ -430,15 +464,14 @@ int main(int argc,char *argv[])
 	static const char *target = "other";
 	NTSTATUS status;
 	int shell = false;
-	static const char *ui_ops_name = "subunit";
+	static const char *ui_ops_name = "simple";
 	const char *basedir = NULL;
 	const char *extra_module = NULL;
 	static int list_tests = 0;
 	int num_extra_users = 0;
 	enum {OPT_LOADFILE=1000,OPT_UNCLIST,OPT_TIMELIMIT,OPT_DNS, OPT_LIST,
-	      OPT_DANGEROUS,OPT_SMB_PORTS,OPT_ASYNC,OPT_NUMPROGS,
-	      OPT_EXTRA_USER,};
-
+	      OPT_DANGEROUS,OPT_SMB_PORTS,OPT_ASYNC,OPT_NUMPROGS,OPT_EXTRA_USER};
+	
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 		{"format", 0, POPT_ARG_STRING, &ui_ops_name, 0, "Output format (one of: simple, subunit)", NULL },
@@ -519,9 +552,6 @@ int main(int argc,char *argv[])
 				talloc_free(option);
 			}
 			break;
-		default:
-			printf("bad command line option\n");
-			exit(1);
 		}
 	}
 
@@ -529,12 +559,8 @@ int main(int argc,char *argv[])
 		lp_set_cmdline(cmdline_lp_ctx, "torture:samba3", "true");
 	} else if (strcmp(target, "samba4") == 0) {
 		lp_set_cmdline(cmdline_lp_ctx, "torture:samba4", "true");
-	} else if (strcmp(target, "w2k8") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:w2k8", "true");
 	} else if (strcmp(target, "win7") == 0) {
 		lp_set_cmdline(cmdline_lp_ctx, "torture:win7", "true");
-	} else if (strcmp(target, "onefs") == 0) {
-		lp_set_cmdline(cmdline_lp_ctx, "torture:sacl_support", "false");
 	}
 
 	if (max_runtime) {
@@ -598,6 +624,8 @@ int main(int argc,char *argv[])
 		ui_ops = &std_ui_ops;
 	} else if (!strcmp(ui_ops_name, "subunit")) {
 		ui_ops = &torture_subunit_ui_ops;
+	} else if (!strcmp(ui_ops_name, "quiet")) {
+		ui_ops = &quiet_ui_ops;
 	} else {
 		printf("Unknown output format '%s'\n", ui_ops_name);
 		exit(1);

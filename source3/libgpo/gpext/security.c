@@ -56,30 +56,27 @@ struct gpttmpl_table {
 #define GPTTMPL_VALUE_CHICAGO "$CHICAGO$" /* whatever this is good for... */
 #define GPTTMPL_PARAMETER_UNICODE "Unicode"
 
-static NTSTATUS gpttmpl_parse_header(struct gp_inifile_context *ini_ctx,
+static NTSTATUS gpttmpl_parse_header(dictionary *dict,
 				     uint32_t *version_out)
 {
-	char *signature = NULL;
-	NTSTATUS result;
-	int version;
-	int is_unicode;
+	const char *signature = NULL;
+	uint32_t version;
 
-	if (!ini_ctx) {
+	if (!dict) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	result = gp_inifile_getstring(ini_ctx, GPTTMPL_SECTION_VERSION
-			":"GPTTMPL_PARAMETER_SIGNATURE, &signature);
-	if (!NT_STATUS_IS_OK(result)) {
+	if ((signature = iniparser_getstring(dict, GPTTMPL_SECTION_VERSION
+			":"GPTTMPL_PARAMETER_SIGNATURE, NULL)) == NULL) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
 	if (!strequal(signature, GPTTMPL_VALUE_CHICAGO)) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
-	result = gp_inifile_getint(ini_ctx, GPTTMPL_SECTION_VERSION
-			":"GPTTMPL_PARAMETER_REVISION, &version);
-	if (!NT_STATUS_IS_OK(result)) {
+
+	if ((version = iniparser_getint(dict, GPTTMPL_SECTION_VERSION
+			":"GPTTMPL_PARAMETER_REVISION, Undefined)) == Undefined) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -87,9 +84,9 @@ static NTSTATUS gpttmpl_parse_header(struct gp_inifile_context *ini_ctx,
 		*version_out = version;
 	}
 
-	result = gp_inifile_getint(ini_ctx, GPTTMPL_SECTION_UNICODE
-			":"GPTTMPL_PARAMETER_UNICODE, &is_unicode);
-	if (!NT_STATUS_IS_OK(result) || !is_unicode) {
+	/* treat that as boolean */
+	if ((!iniparser_getboolean(dict, GPTTMPL_SECTION_UNICODE
+			":"GPTTMPL_PARAMETER_UNICODE, Undefined)) == Undefined) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -112,7 +109,7 @@ static NTSTATUS gpttmpl_init_context(TALLOC_CTX *mem_ctx,
 					 GPTTMPL_UNIX_PATH, &tmp_ctx);
 	NT_STATUS_NOT_OK_RETURN(status);
 
-	status = gpttmpl_parse_header(tmp_ctx, &version);
+	status = gpttmpl_parse_header(tmp_ctx->dict, &version);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1,("gpttmpl_init_context: failed: %s\n",
 			nt_errstr(status)));
@@ -157,7 +154,7 @@ static NTSTATUS security_process_group_policy(ADS_STRUCT *ads,
 	/* this handler processes the gpttmpl files and merge output to the
 	 * registry */
 
-	status = gpo_get_unix_path(mem_ctx, cache_path(GPO_CACHE_DIR), gpo, &unix_path);
+	status = gpo_get_unix_path(mem_ctx, gpo, &unix_path);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto out;
 	}

@@ -401,6 +401,7 @@ static bool test_EnumPrinterKey(struct torture_context *tctx,
 	status = dcerpc_spoolss_EnumPrinterKey(p, tctx, &epk);
 	torture_assert_ntstatus_ok(tctx, status, "EnumPrinterKey failed");
 
+
 	if (W_ERROR_EQUAL(epk.out.result, WERR_MORE_DATA)) {
 		epk.in.offered = needed;
 		status = dcerpc_spoolss_EnumPrinterKey(p, tctx, &epk);
@@ -553,7 +554,7 @@ static bool test_WinXP(struct torture_context *tctx, struct dcerpc_pipe *p)
 
 	ret &= test_EnumPrinterKey(tctx, p, &handle03, "", ctx);
 
-	for (i=0; ctx->printer_keys && ctx->printer_keys[i] != NULL; i++) {
+	for (i=0; ctx->printer_keys[i] != NULL; i++) {
 
 		ret &= test_EnumPrinterKey(tctx, p, &handle03,
 					   ctx->printer_keys[i],

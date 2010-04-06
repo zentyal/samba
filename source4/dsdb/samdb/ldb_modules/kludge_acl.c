@@ -35,7 +35,6 @@
 #include "auth/auth.h"
 #include "libcli/security/security.h"
 #include "dsdb/samdb/samdb.h"
-#include "param/param.h"
 
 /* Kludge ACL rules:
  *
@@ -47,7 +46,6 @@
 
 struct kludge_private_data {
 	const char **password_attrs;
-	bool acl_perform;
 };
 
 static enum security_user_level what_is_user(struct ldb_module *module) 
@@ -95,7 +93,7 @@ static int kludge_acl_allowedAttributes(struct ldb_context *ldb, struct ldb_mess
 	struct ldb_message_element *allowedAttributes;
 	const struct dsdb_schema *schema = dsdb_get_schema(ldb);
 	TALLOC_CTX *mem_ctx;
-	const char **attr_list;
+	const char **objectclass_list, **attr_list;
 	int i, ret;
 
  	/* If we don't have a schema yet, we can't do anything... */
@@ -120,7 +118,19 @@ static int kludge_acl_allowedAttributes(struct ldb_context *ldb, struct ldb_mess
 	   we alter the element array in ldb_msg_add_empty() */
 	oc_el = ldb_msg_find_element(msg, "objectClass");
 	
-	attr_list = dsdb_full_attribute_list(mem_ctx, schema, oc_el, DSDB_SCHEMA_ALL);
+	objectclass_list = talloc_array(mem_ctx, const char *, oc_el->num_values + 1);
+	if (!objectclass_list) {
+		ldb_oom(ldb);
+		talloc_free(mem_ctx);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	for (i=0; oc_el && i < oc_el->num_values; i++) {
+		objectclass_list[i] = (const char *)oc_el->values[i].data;
+	}
+	objectclass_list[i] = NULL;
+
+	attr_list = dsdb_full_attribute_list(mem_ctx, schema, objectclass_list, DSDB_SCHEMA_ALL);
 	if (!attr_list) {
 		ldb_asprintf_errstring(ldb, "kludge_acl: Failed to get list of attributes create %s attribute", attrName);
 		talloc_free(mem_ctx);
@@ -162,7 +172,7 @@ static int kludge_acl_childClasses(struct ldb_context *ldb, struct ldb_message *
 	oc_el = ldb_msg_find_element(msg, "objectClass");
 
 	for (i=0; oc_el && i < oc_el->num_values; i++) {
-		sclass = dsdb_class_by_lDAPDisplayName_ldb_val(schema, &oc_el->values[i]);
+		sclass = dsdb_class_by_lDAPDisplayName(schema, (const char *)oc_el->values[i].data);
 		if (!sclass) {
 			/* We don't know this class?  what is going on? */
 			continue;
@@ -327,9 +337,6 @@ static int kludge_acl_search(struct ldb_module *module, struct ldb_request *req)
 
 	data = talloc_get_type(ldb_module_get_private(module), struct kludge_private_data);
 
-	if (data && data->acl_perform)
-		return ldb_next_request(module, req);
-
 	ac->module = module;
 	ac->req = req;
 	ac->user_type = what_is_user(module);
@@ -402,12 +409,6 @@ static int kludge_acl_change(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	enum security_user_level user_type = what_is_user(module);
-	struct kludge_private_data *data = talloc_get_type(ldb_module_get_private(module),
-							   struct kludge_private_data);
-
-	if (data->acl_perform)
-		return ldb_next_request(module, req);
-
 	switch (user_type) {
 	case SECURITY_SYSTEM:
 	case SECURITY_ADMINISTRATOR:
@@ -470,8 +471,6 @@ static int kludge_acl_init(struct ldb_module *module)
 	}
 
 	data->password_attrs = NULL;
-	data->acl_perform = lp_parm_bool(ldb_get_opaque(ldb, "loadparm"),
-					 NULL, "acl", "perform", false);
 	ldb_module_set_private(module, data);
 
 	if (!mem_ctx) {
@@ -515,7 +514,7 @@ static int kludge_acl_init(struct ldb_module *module)
 	ret = ldb_mod_register_control(module, LDB_CONTROL_SD_FLAGS_OID);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,
-			"kludge_acl: Unable to register control with rootdse!\n");
+			"partition: Unable to register control with rootdse!\n");
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 

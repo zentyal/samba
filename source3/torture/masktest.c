@@ -311,7 +311,7 @@ static void get_real_name(struct cli_state *cli,
 
 static void testpair(struct cli_state *cli, const char *mask, const char *file)
 {
-	uint16_t fnum;
+	int fnum;
 	fstring res1;
 	char *res2;
 	static int count;
@@ -322,7 +322,8 @@ static void testpair(struct cli_state *cli, const char *mask, const char *file)
 
 	fstrcpy(res1, "---");
 
-	if (!NT_STATUS_IS_OK(cli_open(cli, file, O_CREAT|O_TRUNC|O_RDWR, 0, &fnum))) {
+	fnum = cli_open(cli, file, O_CREAT|O_TRUNC|O_RDWR, 0);
+	if (fnum == -1) {
 		DEBUG(0,("Can't create %s\n", file));
 		return;
 	}
@@ -349,7 +350,7 @@ static void testpair(struct cli_state *cli, const char *mask, const char *file)
 		if (die_on_error) exit(1);
 	}
 
-	cli_unlink(cli, file, aSYSTEM | aHIDDEN);
+	cli_unlink(cli, file);
 
 	if (count % 100 == 0) DEBUG(0,("%d\n", count));
 	SAFE_FREE(long_name);
@@ -366,7 +367,7 @@ static void test_mask(int argc, char *argv[],
 
 	cli_mkdir(cli, "\\masktest");
 
-	cli_unlink(cli, "\\masktest\\*", aSYSTEM | aHIDDEN);
+	cli_unlink(cli, "\\masktest\\*");
 
 	if (argc >= 2) {
 		while (argc >= 2) {

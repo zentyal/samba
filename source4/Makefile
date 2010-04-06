@@ -47,8 +47,6 @@ ALL_PREDEP = basics
 .NOTPARALLEL:
 endif
 
-base_srcdirs = $(srcdir) ../librpc/ ../lib/ ../libcli ../libgpo ../nsswitch ../libds
-
 include $(srcdir)/build/make/rules.mk
 include $(srcdir)/build/make/python.mk
 zlibsrcdir := ../lib/zlib
@@ -60,7 +58,6 @@ clustersrcdir := cluster
 libnetsrcdir := libnet
 authsrcdir := auth
 nsswitchsrcdir := ../nsswitch
-libwbclientsrcdir := ../nsswitch/libwbclient
 libsrcdir := lib
 libsocketsrcdir := lib/socket
 libcharsetsrcdir := ../lib/util/charset
@@ -77,11 +74,10 @@ libcmdlinesrcdir := lib/cmdline
 poptsrcdir := ../lib/popt
 socketwrappersrcdir := ../lib/socket_wrapper
 nsswrappersrcdir := ../lib/nss_wrapper
-uidwrappersrcdir := ../lib/uid_wrapper
 appwebsrcdir := lib/appweb
 libstreamsrcdir := lib/stream
 libutilsrcdir := ../lib/util
-libtdrsrcdir := ../lib/tdr
+libtdrsrcdir := lib/tdr
 libcryptosrcdir := ../lib/crypto
 libtorturesrcdir := ../lib/torture
 smb_serversrcdir := smb_server
@@ -110,17 +106,10 @@ ntp_signdsrcdir := ntp_signd
 wmisrcdir := lib/wmi
 tallocsrcdir := ../lib/talloc
 comsrcdir := $(srcdir)/lib/com
-libgpodir := libgpo
 
 include data.mk
 
-INSTALL_SCRIPTS = $(addprefix scripting/bin/, \
-	autoidl \
-	samba3dump \
-	rpcclient \
-	smbstatus)
-
-$(foreach SCRIPT,$(INSTALL_SCRIPTS),$(eval $(call binary_install_template,$(SCRIPT))))
+$(foreach SCRIPT,$(wildcard scripting/bin/*),$(eval $(call binary_install_template,$(SCRIPT))))
 
 $(DESTDIR)$(bindir)/%: scripting/bin/% installdirs
 	@mkdir -p $(@D)
@@ -155,7 +144,7 @@ include $(srcdir)/static_deps.mk
 endif
 
 clean::
-	@find $(base_srcdirs) -name '*.o' -o -name '*.ho' | xargs rm -f
+	@find ../lib ../libcli ../librpc ../nsswitch -name '*.o' -o -name '*.ho' | xargs rm -f
 
 PUBLIC_HEADERS += ./version.h
 
@@ -166,7 +155,7 @@ manpages:: $(MANPAGES)
 all:: showflags $(ALL_PREDEP) binaries modules pythonmods libraries headers
 everything:: all
 
-LD_LIBPATH_OVERRIDE = $(LIB_PATH_VAR)=$(shliboutputdir):$$$(LIB_PATH_VAR)
+LD_LIBPATH_OVERRIDE = $(LIB_PATH_VAR)=$(shliboutputdir)
 
 # 'make testsuite' creates all binaries which are
 # needed by samba3's 'make test' and the build-farm

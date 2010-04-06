@@ -45,9 +45,9 @@ struct winreg_SecBuf {
 enum winreg_CreateAction
 #ifndef USE_UINT_ENUMS
  {
-	REG_ACTION_NONE=(int)(0),
-	REG_CREATED_NEW_KEY=(int)(1),
-	REG_OPENED_EXISTING_KEY=(int)(2)
+	REG_ACTION_NONE=0,
+	REG_CREATED_NEW_KEY=1,
+	REG_OPENED_EXISTING_KEY=2
 }
 #else
  { __donnot_use_enum_winreg_CreateAction=0x7FFFFFFF}

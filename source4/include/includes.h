@@ -64,17 +64,9 @@
 /* String routines */
 #include "../lib/util/safe_string.h"
 
-/* Thread functions. */
-#include "../lib/util/smb_threads.h"
-#include "../lib/util/smb_threads_internal.h"
-
-#if defined(UID_WRAPPER)
-#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
-#define UID_WRAPPER_REPLACE
-#include "../uid_wrapper/uid_wrapper.h"
-#endif
-#else
-#define uwrap_enabled() 0
+#if 0
+/* darn, we can't do this now that we don't link the ldb tools to all the smb libs */
+#define TALLOC_ABORT(reason) smb_panic(reason)
 #endif
 
 #endif /* _INCLUDES_H */

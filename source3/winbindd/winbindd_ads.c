@@ -6,24 +6,23 @@
    Copyright (C) Andrew Tridgell 2001
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2003
    Copyright (C) Gerald (Jerry) Carter 2004
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 #include "winbindd.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 #ifdef HAVE_ADS
 
@@ -85,8 +84,10 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 	SAFE_FREE(ads->auth.realm);
 
 	if ( IS_DC ) {
+		DOM_SID sid;
+		time_t last_set_time;
 
-		if ( !pdb_get_trusteddom_pw( domain->name, &ads->auth.password, NULL, NULL ) ) {
+		if ( !pdb_get_trusteddom_pw( domain->name, &ads->auth.password, &sid, &last_set_time ) ) {
 			ads_destroy( &ads );
 			return NULL;
 		}
@@ -152,7 +153,7 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 static NTSTATUS query_user_list(struct winbindd_domain *domain,
 			       TALLOC_CTX *mem_ctx,
 			       uint32 *num_entries, 
-			       struct wbint_userinfo **info)
+			       WINBIND_USERINFO **info)
 {
 	ADS_STRUCT *ads = NULL;
 	const char *attrs[] = { "*", NULL };
@@ -173,7 +174,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 	}
 
 	ads = ads_cached_connection(domain);
-
+	
 	if (!ads) {
 		domain->last_status = NT_STATUS_SERVER_DISABLED;
 		goto done;
@@ -191,7 +192,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	(*info) = TALLOC_ZERO_ARRAY(mem_ctx, struct wbint_userinfo, count);
+	(*info) = TALLOC_ZERO_ARRAY(mem_ctx, WINBIND_USERINFO, count);
 	if (!*info) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -200,17 +201,16 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 	i = 0;
 
 	for (msg = ads_first_entry(ads, res); msg; msg = ads_next_entry(ads, msg)) {
-		const char *name;
-		const char *gecos = NULL;
-		const char *homedir = NULL;
-		const char *shell = NULL;
+		char *name, *gecos = NULL;
+		char *homedir = NULL;
+		char *shell = NULL;
 		uint32 group;
 		uint32 atype;
 		DOM_SID user_sid;
 		gid_t primary_gid = (gid_t)-1;
 
 		if (!ads_pull_uint32(ads, msg, "sAMAccountType", &atype) ||
-		    ds_atype_map(atype) != SID_NAME_USER) {
+		    ads_atype_map(atype) != SID_NAME_USER) {
 			DEBUG(1,("Not a user account? atype=0x%x\n", atype));
 			continue;
 		}
@@ -226,7 +226,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 		if (gecos == NULL) {
 			gecos = ads_pull_string(ads, mem_ctx, msg, "name");
 		}
-
+	
 		if (!ads_pull_sid(ads, msg, "objectSid",
 				  &(*info)[i].user_sid)) {
 			DEBUG(1,("No sid for %s !?\n", name));
@@ -343,7 +343,7 @@ static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
 	}
 
 	i = 0;
-
+	
 	for (msg = ads_first_entry(ads, res); msg; msg = ads_next_entry(ads, msg)) {
 		char *name, *gecos;
 		DOM_SID sid;
@@ -397,21 +397,21 @@ static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
 	 * to be split out
 	 */
 	*num_entries = 0;
-
+	
 	return NT_STATUS_OK;
 }
 
 /* convert a single name to a sid in a domain - use rpc methods */
 static NTSTATUS name_to_sid(struct winbindd_domain *domain,
 			    TALLOC_CTX *mem_ctx,
+			    enum winbindd_cmd orig_cmd,
 			    const char *domain_name,
 			    const char *name,
-			    uint32_t flags,
 			    DOM_SID *sid,
 			    enum lsa_SidType *type)
 {
-	return reconnect_methods.name_to_sid(domain, mem_ctx,
-					     domain_name, name, flags,
+	return reconnect_methods.name_to_sid(domain, mem_ctx, orig_cmd,
+					     domain_name, name,
 					     sid, type);
 }
 
@@ -451,7 +451,7 @@ static NTSTATUS rids_to_names(struct winbindd_domain *domain,
 static NTSTATUS query_user(struct winbindd_domain *domain, 
 			   TALLOC_CTX *mem_ctx, 
 			   const DOM_SID *sid, 
-			   struct wbint_userinfo *info)
+			   WINBIND_USERINFO *info)
 {
 	ADS_STRUCT *ads = NULL;
 	const char *attrs[] = { "*", NULL };
@@ -463,7 +463,6 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 	uint32 group_rid;
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	struct netr_SamInfo3 *user = NULL;
-	gid_t gid;
 
 	DEBUG(3,("ads: query_user\n"));
 
@@ -472,25 +471,25 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 	info->primary_gid = (gid_t)-1;
 
 	/* try netsamlogon cache first */
-
+			
 	if ( (user = netsamlogon_cache_get( mem_ctx, sid )) != NULL ) 
 	{
+				
 		DEBUG(5,("query_user: Cache lookup succeeded for %s\n", 
 			 sid_string_dbg(sid)));
 
 		sid_compose(&info->user_sid, &domain->sid, user->base.rid);
 		sid_compose(&info->group_sid, &domain->sid, user->base.primary_gid);
-
+				
 		info->acct_name = talloc_strdup(mem_ctx, user->base.account_name.string);
 		info->full_name = talloc_strdup(mem_ctx, user->base.full_name.string);
-
+		
 		nss_get_info_cached( domain, sid, mem_ctx, NULL, NULL, 
 			      &info->homedir, &info->shell, &info->full_name, 
-			      &gid );
-		info->primary_gid = gid;
+			      &info->primary_gid );	
 
 		TALLOC_FREE(user);
-
+				
 		return NT_STATUS_OK;
 	}
 
@@ -512,8 +511,7 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 
 		nss_get_info_cached( domain, sid, mem_ctx, NULL, NULL, 
 			      &info->homedir, &info->shell, &info->full_name, 
-			      &gid);
-		info->primary_gid = gid;
+			      &info->primary_gid );
 
 		status = NT_STATUS_OK;
 		goto done;
@@ -526,14 +524,14 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	sidstr = sid_binstring(talloc_tos(), sid);
+	sidstr = sid_binstring(sid);
 	if (asprintf(&ldap_exp, "(objectSid=%s)", sidstr) == -1) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 	rc = ads_search_retry(ads, &msg, ldap_exp, attrs);
 	free(ldap_exp);
-	TALLOC_FREE(sidstr);
+	free(sidstr);
 	if (!ADS_ERR_OK(rc) || !msg) {
 		DEBUG(1,("query_user(sid=%s) ads_search: %s\n",
 			 sid_string_dbg(sid), ads_errstr(rc)));
@@ -551,8 +549,7 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 
 	nss_get_info_cached( domain, sid, mem_ctx, ads, msg, 
 		      &info->homedir, &info->shell, &info->full_name, 
-		      &gid);
-	info->primary_gid = gid;
+		      &info->primary_gid );	
 
 	if (info->full_name == NULL) {
 		info->full_name = ads_pull_string(ads, mem_ctx, msg, "name");
@@ -611,7 +608,7 @@ static NTSTATUS lookup_usergroups_member(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	if (!(escaped_dn = escape_ldap_string(talloc_tos(), user_dn))) {
+	if (!(escaped_dn = escape_ldap_string_alloc(user_dn))) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -623,22 +620,22 @@ static NTSTATUS lookup_usergroups_member(struct winbindd_domain *domain,
 		GROUP_TYPE_SECURITY_ENABLED);
 	if (!ldap_exp) {
 		DEBUG(1,("lookup_usergroups(dn=%s) asprintf failed!\n", user_dn));
-		TALLOC_FREE(escaped_dn);
+		SAFE_FREE(escaped_dn);
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 
-	TALLOC_FREE(escaped_dn);
+	SAFE_FREE(escaped_dn);
 
 	rc = ads_search_retry(ads, &res, ldap_exp, group_attrs);
-
+	
 	if (!ADS_ERR_OK(rc) || !res) {
 		DEBUG(1,("lookup_usergroups ads_search member=%s: %s\n", user_dn, ads_errstr(rc)));
 		return ads_ntstatus(rc);
 	}
-
+	
 	count = ads_count_replies(ads, res);
-
+	
 	*user_sids = NULL;
 	num_groups = 0;
 
@@ -653,12 +650,12 @@ static NTSTATUS lookup_usergroups_member(struct winbindd_domain *domain,
 		for (msg = ads_first_entry(ads, res); msg;
 		     msg = ads_next_entry(ads, msg)) {
 			DOM_SID group_sid;
-
+		
 			if (!ads_pull_sid(ads, msg, "objectSid", &group_sid)) {
 				DEBUG(1,("No sid for this group ?!?\n"));
 				continue;
 			}
-
+	
 			/* ignore Builtin groups from ADS - Guenther */
 			if (sid_check_is_in_builtin(&group_sid)) {
 				continue;
@@ -836,7 +833,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 	}
 
 	ads = ads_cached_connection(domain);
-
+	
 	if (!ads) {
 		domain->last_status = NT_STATUS_SERVER_DISABLED;
 		status = NT_STATUS_SERVER_DISABLED;
@@ -851,7 +848,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 			  "%s\n", sid_string_dbg(sid), ads_errstr(rc)));
 		goto done;
 	}
-
+	
 	count = ads_count_replies(ads, msg);
 	if (count != 1) {
 		status = NT_STATUS_UNSUCCESSFUL;
@@ -894,7 +891,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 	if (count == 0) {
 
 		/* no tokenGroups */
-
+		
 		/* lookup what groups this user is a member of by DN search on
 		 * "memberOf" */
 
@@ -924,7 +921,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
-
+	
 	for (i=0;i<count;i++) {
 
 		/* ignore Builtin groups from ADS - Guenther */
@@ -967,9 +964,7 @@ static NTSTATUS lookup_useraliases(struct winbindd_domain *domain,
  */
 static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				const DOM_SID *group_sid,
-				enum lsa_SidType type,
-				uint32 *num_names,
+				const DOM_SID *group_sid, uint32 *num_names,
 				DOM_SID **sid_mem, char ***names,
 				uint32 **name_types)
 {
@@ -1014,19 +1009,21 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	if ((sidbinstr = sid_binstring(talloc_tos(), group_sid)) == NULL) {
+	if ((sidbinstr = sid_binstring(group_sid)) == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 
 	/* search for all members of the group */
-	ldap_exp = talloc_asprintf(tmp_ctx, "(objectSid=%s)", sidbinstr);
-	TALLOC_FREE(sidbinstr);
-	if (ldap_exp == NULL) {
+	if (!(ldap_exp = talloc_asprintf(tmp_ctx, "(objectSid=%s)",
+					 sidbinstr)))
+	{
+		SAFE_FREE(sidbinstr);
 		DEBUG(1, ("ads: lookup_groupmem: talloc_asprintf for ldap_exp failed!\n"));
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
+	SAFE_FREE(sidbinstr);
 
 	args.control = ADS_EXTENDED_DN_OID;
 	args.val = ADS_EXTENDED_DN_HEX_STRING;
@@ -1215,16 +1212,16 @@ static NTSTATUS sequence_number(struct winbindd_domain *domain, uint32 *seq)
 	*seq = DOM_SEQUENCE_NONE;
 
 	ads = ads_cached_connection(domain);
-
+	
 	if (!ads) {
 		domain->last_status = NT_STATUS_SERVER_DISABLED;
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	rc = ads_USN(ads, seq);
-
+	
 	if (!ADS_ERR_OK(rc)) {
-
+	
 		/* its a dead connection, destroy it */
 
 		if (domain->private_data) {
@@ -1257,18 +1254,25 @@ static NTSTATUS password_policy(struct winbindd_domain *domain,
 /* get a list of trusted domains */
 static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				struct netr_DomainTrustList *trusts)
+				uint32 *num_domains,
+				char ***names,
+				char ***alt_names,
+				DOM_SID **dom_sids)
 {
 	NTSTATUS 		result = NT_STATUS_UNSUCCESSFUL;
+	struct netr_DomainTrustList trusts;
 	int			i;
 	uint32			flags;	
 	struct rpc_pipe_client *cli;
 	uint32                 fr_flags = (NETR_TRUST_FLAG_IN_FOREST | NETR_TRUST_FLAG_TREEROOT);
 	int ret_count;
-
+	
 	DEBUG(3,("ads: trusted_domains\n"));
 
-	ZERO_STRUCTP(trusts);
+	*num_domains = 0;
+	*alt_names   = NULL;
+	*names       = NULL;
+	*dom_sids    = NULL;
 
 	/* If this is our primary domain or a root in our forest,
 	   query for all trusts.  If not, then just look for domain
@@ -1296,121 +1300,138 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 	result = rpccli_netr_DsrEnumerateDomainTrusts(cli, mem_ctx,
 						      cli->desthost,
 						      flags,
-						      trusts,
+						      &trusts,
 						      NULL);
-	if (!NT_STATUS_IS_OK(result)) {
-		return result;
-	}
-	if (trusts->count == 0) {
-		return NT_STATUS_OK;
-	}
+	if ( NT_STATUS_IS_OK(result) && trusts.count) {
 
-	/* Copy across names and sids */
+		/* Allocate memory for trusted domain names and sids */
 
-	ret_count = 0;
-	for (i = 0; i < trusts->count; i++) {
-		struct netr_DomainTrust *trust = &trusts->array[i];
-		struct winbindd_domain d;
-
-		ZERO_STRUCT(d);
-
-		/*
-		 * drop external trusts if this is not our primary
-		 * domain.  This means that the returned number of
-		 * domains may be less that the ones actually trusted
-		 * by the DC.
-		 */
-
-		if ((trust->trust_attributes
-		     == NETR_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) &&
-		    !domain->primary )
-		{
-			DEBUG(10,("trusted_domains: Skipping external trusted "
-				  "domain %s because it is outside of our "
-				  "primary domain\n",
-				  trust->netbios_name));
-			continue;
+		if ( !(*names = TALLOC_ARRAY(mem_ctx, char *, trusts.count)) ) {
+			DEBUG(0, ("trusted_domains: out of memory\n"));
+			return NT_STATUS_NO_MEMORY;
 		}
 
-		/* add to the trusted domain cache */
-
-		fstrcpy(d.name, trust->netbios_name);
-		fstrcpy(d.alt_name, trust->dns_name);
-		if (trust->sid) {
-			sid_copy(&d.sid, trust->sid);
-		} else {
-			sid_copy(&d.sid, &global_sid_NULL);
+		if ( !(*alt_names = TALLOC_ARRAY(mem_ctx, char *, trusts.count)) ) {
+			DEBUG(0, ("trusted_domains: out of memory\n"));
+			return NT_STATUS_NO_MEMORY;
 		}
 
-		if ( domain->primary ) {
-			DEBUG(10,("trusted_domains(ads):  Searching "
-				  "trusted domain list of %s and storing "
-				  "trust flags for domain %s\n",
-				  domain->name, d.alt_name));
+		if ( !(*dom_sids = TALLOC_ARRAY(mem_ctx, DOM_SID, trusts.count)) ) {
+			DEBUG(0, ("trusted_domains: out of memory\n"));
+			return NT_STATUS_NO_MEMORY;
+		}
 
-			d.domain_flags = trust->trust_flags;
-			d.domain_type = trust->trust_type;
-			d.domain_trust_attribs = trust->trust_attributes;
+		/* Copy across names and sids */
 
-			wcache_tdc_add_domain( &d );
-			ret_count++;
-		} else if ( (domain->domain_flags&fr_flags) == fr_flags ) {
-			/* Check if we already have this record. If
-			 * we are following our forest root that is not
-			 * our primary domain, we want to keep trust
-			 * flags from the perspective of our primary
-			 * domain not our forest root. */
-			struct winbindd_tdc_domain *exist = NULL;
 
-			exist = wcache_tdc_fetch_domain(
-				talloc_tos(), trust->netbios_name);
-			if (!exist) {
+		ret_count = 0;		
+		for (i = 0; i < trusts.count; i++) {
+			struct winbindd_domain d;
+			
+			ZERO_STRUCT(d);
+
+			/* drop external trusts if this is not our primary 
+			   domain.  This means that the returned number of 
+			   domains may be less that the ones actually trusted
+			   by the DC. */
+
+			if ( (trusts.array[i].trust_attributes == NETR_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) &&
+			     !domain->primary ) 
+			{
+				DEBUG(10,("trusted_domains: Skipping external trusted domain "
+					  "%s because it is outside of our primary domain\n",
+					  trusts.array[i].netbios_name));
+				continue;				
+			}
+			
+			(*names)[ret_count] = CONST_DISCARD(char *, trusts.array[i].netbios_name);
+			(*alt_names)[ret_count] = CONST_DISCARD(char *, trusts.array[i].dns_name);
+			if (trusts.array[i].sid) {
+				sid_copy(&(*dom_sids)[ret_count], trusts.array[i].sid);
+			} else {
+				sid_copy(&(*dom_sids)[ret_count], &global_sid_NULL);
+			}
+
+			/* add to the trusted domain cache */
+
+			fstrcpy( d.name,  trusts.array[i].netbios_name);
+			fstrcpy( d.alt_name, trusts.array[i].dns_name);
+			if (trusts.array[i].sid) {
+				sid_copy( &d.sid, trusts.array[i].sid);
+			} else {
+				sid_copy(&d.sid, &global_sid_NULL);
+			}
+
+			if ( domain->primary ) {
 				DEBUG(10,("trusted_domains(ads):  Searching "
-					  "trusted domain list of %s and "
-					  "storing trust flags for domain "
-					  "%s\n", domain->name, d.alt_name));
-				d.domain_flags = trust->trust_flags;
-				d.domain_type = trust->trust_type;
-				d.domain_trust_attribs =
-					trust->trust_attributes;
+					  "trusted domain list of %s and storing "
+					  "trust flags for domain %s\n", 
+					  domain->name, d.alt_name));
+
+				d.domain_flags = trusts.array[i].trust_flags;
+				d.domain_type = trusts.array[i].trust_type;
+				d.domain_trust_attribs = trusts.array[i].trust_attributes;
 
 				wcache_tdc_add_domain( &d );
 				ret_count++;
-			}
-			TALLOC_FREE(exist);
-		} else {
-			/* This gets a little tricky.  If we are
-			   following a transitive forest trust, then
-			   innerit the flags, type, and attribs from
-			   the domain we queried to make sure we don't
-			   record the view of the trust from the wrong
-			   side.  Always view it from the side of our
-			   primary domain.   --jerry */
-			struct winbindd_tdc_domain *parent = NULL;
+			} else if ( (domain->domain_flags&fr_flags) == fr_flags ) {
+				/* Check if we already have this record. If
+				 * we are following our forest root that is not
+				 * our primary domain, we want to keep trust
+				 * flags from the perspective of our primary
+				 * domain not our forest root. */
+				struct winbindd_tdc_domain *exist = NULL;
 
-			DEBUG(10,("trusted_domains(ads):  Searching "
-				  "trusted domain list of %s and inheriting "
-				  "trust flags for domain %s\n",
-				  domain->name, d.alt_name));
+				exist = 
+				    wcache_tdc_fetch_domain(NULL, trusts.array[i].netbios_name);
+				if (!exist) {
+					DEBUG(10,("trusted_domains(ads):  Searching "
+						  "trusted domain list of %s and storing "
+						  "trust flags for domain %s\n", 
+						  domain->name, d.alt_name));
+					d.domain_flags = trusts.array[i].trust_flags;
+					d.domain_type = trusts.array[i].trust_type;
+					d.domain_trust_attribs = trusts.array[i].trust_attributes;
 
-			parent = wcache_tdc_fetch_domain(talloc_tos(),
-							 domain->name);
-			if (parent) {
-				d.domain_flags = parent->trust_flags;
-				d.domain_type  = parent->trust_type;
-				d.domain_trust_attribs = parent->trust_attribs;
+					wcache_tdc_add_domain( &d );
+					ret_count++;
+				}
+				TALLOC_FREE(exist);
 			} else {
-				d.domain_flags = domain->domain_flags;
-				d.domain_type  = domain->domain_type;
-				d.domain_trust_attribs =
-					domain->domain_trust_attribs;
-			}
-			TALLOC_FREE(parent);
+				/* This gets a little tricky.  If we are
+				   following a transitive forest trust, then
+				   innerit the flags, type, and attribs from
+				   the domain we queried to make sure we don't
+				   record the view of the trust from the wrong
+				   side.  Always view it from the side of our
+				   primary domain.   --jerry */
+				struct winbindd_tdc_domain *parent = NULL;
 
-			wcache_tdc_add_domain( &d );
-			ret_count++;
+				DEBUG(10,("trusted_domains(ads):  Searching "
+					  "trusted domain list of %s and inheriting "
+					  "trust flags for domain %s\n", 
+					  domain->name, d.alt_name));
+
+				parent = wcache_tdc_fetch_domain(NULL, domain->name);
+				if (parent) {
+					d.domain_flags = parent->trust_flags;
+					d.domain_type  = parent->trust_type;
+					d.domain_trust_attribs = parent->trust_attribs;
+				} else {
+					d.domain_flags = domain->domain_flags;
+					d.domain_type  = domain->domain_type;
+					d.domain_trust_attribs = domain->domain_trust_attribs;
+				}
+				TALLOC_FREE(parent);
+				
+				wcache_tdc_add_domain( &d );
+				ret_count++;
+			}
 		}
+
+		*num_domains = ret_count;	
 	}
+
 	return result;
 }
 

@@ -21,7 +21,6 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "../libcli/auth/libcli_auth.h"
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
@@ -65,23 +64,23 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 	DOM_SID cred_sid;
 
 	if (info3 != NULL) {
-
+	
 		DOM_SID sid;
 		sid_copy(&sid, info3->base.domain_sid);
 		sid_append_rid(&sid, info3->base.rid);
 		sid_copy(&cred_sid, &sid);
 		info3->base.user_flags |= NETLOGON_CACHED_ACCOUNT;
-
+		
 	} else if (user_sid != NULL) {
-
+	
 		sid_copy(&cred_sid, user_sid);
-
+		
 	} else if (user != NULL) {
-
+	
 		/* do lookup ourself */
 
 		enum lsa_SidType type;
-
+		
 		if (!lookup_cached_name(mem_ctx,
 	        	                domain->name,
 					user,
@@ -92,7 +91,7 @@ NTSTATUS winbindd_store_creds(struct winbindd_domain *domain,
 	} else {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-
+		
 	if (pass) {
 
 		int count = 0;

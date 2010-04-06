@@ -170,7 +170,7 @@ static bool scan_trans2(struct cli_state *cli, int op, int level,
 
 	status = try_trans2_len(cli, "newfile", op, level, param, data, param_len, &data_len, 
 				&rparam_len, &rdata_len);
-	cli_unlink(cli, "\\newfile.dat", aSYSTEM | aHIDDEN);
+	cli_unlink(cli, "\\newfile.dat");
 	cli_rmdir(cli, "\\newfile.dat");
 	if (NT_STATUS_IS_OK(status)) return True;
 
@@ -194,7 +194,7 @@ bool torture_trans2_scan(int dummy)
 	static struct cli_state *cli;
 	int op, level;
 	const char *fname = "\\scanner.dat";
-	uint16_t fnum, dnum;
+	int fnum, dnum;
 
 	printf("starting trans2 scan test\n");
 
@@ -202,15 +202,9 @@ bool torture_trans2_scan(int dummy)
 		return False;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_open(cli, fname, O_RDWR | O_CREAT | O_TRUNC, 
-			 DENY_NONE, &fnum))) {
-		printf("open of %s failed\n", fname);
-		return false;
-	}
-	if (!NT_STATUS_IS_OK(cli_open(cli, "\\", O_RDONLY, DENY_NONE, &dnum))) {
-		printf("open of \\ failed\n");
-		return false;
-	}
+	fnum = cli_open(cli, fname, O_RDWR | O_CREAT | O_TRUNC, 
+			 DENY_NONE);
+	dnum = cli_open(cli, "\\", O_RDONLY, DENY_NONE);
 
 	for (op=OP_MIN; op<=OP_MAX; op++) {
 		printf("Scanning op=%d\n", op);
@@ -378,7 +372,7 @@ static bool scan_nttrans(struct cli_state *cli, int op, int level,
 
 	status = try_nttrans_len(cli, "newfile", op, level, param, data, param_len, &data_len, 
 				&rparam_len, &rdata_len);
-	cli_unlink(cli, "\\newfile.dat", aSYSTEM | aHIDDEN);
+	cli_unlink(cli, "\\newfile.dat");
 	cli_rmdir(cli, "\\newfile.dat");
 	if (NT_STATUS_IS_OK(status)) return True;
 
@@ -402,7 +396,7 @@ bool torture_nttrans_scan(int dummy)
 	static struct cli_state *cli;
 	int op, level;
 	const char *fname = "\\scanner.dat";
-	uint16_t fnum, dnum;
+	int fnum, dnum;
 
 	printf("starting nttrans scan test\n");
 
@@ -410,9 +404,9 @@ bool torture_nttrans_scan(int dummy)
 		return False;
 	}
 
-	cli_open(cli, fname, O_RDWR | O_CREAT | O_TRUNC, 
-			 DENY_NONE, &fnum);
-	cli_open(cli, "\\", O_RDONLY, DENY_NONE, &dnum);
+	fnum = cli_open(cli, fname, O_RDWR | O_CREAT | O_TRUNC, 
+			 DENY_NONE);
+	dnum = cli_open(cli, "\\", O_RDONLY, DENY_NONE);
 
 	for (op=OP_MIN; op<=OP_MAX; op++) {
 		printf("Scanning op=%d\n", op);

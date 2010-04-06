@@ -11,8 +11,6 @@
 */
 
 #include "pam_winbind.h"
-#define CONST_DISCARD(type,ptr) ((type)(void *)ptr)
-
 
 static int wbc_error_to_pam_error(wbcErr status)
 {
@@ -412,51 +410,49 @@ static int _pam_parse(const pam_handle_t *pamh,
 		config_file = PAM_WINBIND_CONFIG_FILE;
 	}
 
-	d = iniparser_load(CONST_DISCARD(char *, config_file));
+	d = iniparser_load(config_file);
 	if (d == NULL) {
 		goto config_from_pam;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:debug"), false)) {
+	if (iniparser_getboolean(d, "global:debug", false)) {
 		ctrl |= WINBIND_DEBUG_ARG;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:debug_state"), false)) {
+	if (iniparser_getboolean(d, "global:debug_state", false)) {
 		ctrl |= WINBIND_DEBUG_STATE;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:cached_login"), false)) {
+	if (iniparser_getboolean(d, "global:cached_login", false)) {
 		ctrl |= WINBIND_CACHED_LOGIN;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:krb5_auth"), false)) {
+	if (iniparser_getboolean(d, "global:krb5_auth", false)) {
 		ctrl |= WINBIND_KRB5_AUTH;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:silent"), false)) {
+	if (iniparser_getboolean(d, "global:silent", false)) {
 		ctrl |= WINBIND_SILENT;
 	}
 
-	if (iniparser_getstr(d, CONST_DISCARD(char *, "global:krb5_ccache_type")) != NULL) {
+	if (iniparser_getstr(d, "global:krb5_ccache_type") != NULL) {
 		ctrl |= WINBIND_KRB5_CCACHE_TYPE;
 	}
 
-	if ((iniparser_getstr(d, CONST_DISCARD(char *, "global:require-membership-of"))
-	     != NULL) ||
-	    (iniparser_getstr(d, CONST_DISCARD(char *, "global:require_membership_of"))
-	     != NULL)) {
+	if ((iniparser_getstr(d, "global:require-membership-of") != NULL) ||
+	    (iniparser_getstr(d, "global:require_membership_of") != NULL)) {
 		ctrl |= WINBIND_REQUIRED_MEMBERSHIP;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:try_first_pass"), false)) {
+	if (iniparser_getboolean(d, "global:try_first_pass", false)) {
 		ctrl |= WINBIND_TRY_FIRST_PASS_ARG;
 	}
 
-	if (iniparser_getint(d, CONST_DISCARD(char *, "global:warn_pwd_expire"), 0)) {
+	if (iniparser_getint(d, "global:warn_pwd_expire", 0)) {
 		ctrl |= WINBIND_WARN_PWD_EXPIRE;
 	}
 
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:mkhomedir"), false)) {
+	if (iniparser_getboolean(d, "global:mkhomedir", false)) {
 		ctrl |= WINBIND_MKHOMEDIR;
 	}
 
@@ -807,43 +803,6 @@ static int wbc_auth_error_to_pam_error(struct pwb_context *ctx,
 	return pam_winbind_request_log(ctx, ret, username, fn);
 }
 
-#if defined(HAVE_PAM_RADIO_TYPE)
-static bool _pam_winbind_change_pwd(struct pwb_context *ctx)
-{
-	struct pam_message msg, *pmsg;
-	struct pam_response *resp = NULL;
-	const char *prompt;
-	int ret;
-	bool retval = false;
-	prompt = _("Do you want to change your password now?");
-	pmsg = &msg;
-	msg.msg_style = PAM_RADIO_TYPE;
-	msg.msg = prompt;
-	ret = converse(ctx->pamh, 1, &pmsg, &resp);
-	if (resp == NULL) {
-		if (ret == PAM_SUCCESS) {
-			_pam_log(ctx, LOG_CRIT, "pam_winbind: system error!\n");
-			return false;
-		}
-	}
-	if (ret != PAM_SUCCESS) {
-		return false;
-	}
-	_pam_log(ctx, LOG_CRIT, "Received [%s] reply from application.\n", resp->resp);
-
-	if (strcasecmp(resp->resp, "yes") == 0) {
-		retval = true;
-	}
-
-	_pam_drop_reply(resp, 1);
-	return retval;
-}
-#else
-static bool _pam_winbind_change_pwd(struct pwb_context *ctx)
-{
-	return false;
-}
-#endif
 
 /**
  * send a password expiry message if required
@@ -860,20 +819,13 @@ static bool _pam_send_password_expiry_message(struct pwb_context *ctx,
 					      time_t next_change,
 					      time_t now,
 					      int warn_pwd_expire,
-					      bool *already_expired,
-					      bool *change_pwd)
+					      bool *already_expired)
 {
 	int days = 0;
 	struct tm tm_now, tm_next_change;
-	bool retval = false;
-	int ret;
 
 	if (already_expired) {
 		*already_expired = false;
-	}
-
-	if (change_pwd) {
-		*change_pwd = false;
 	}
 
 	if (next_change <= now) {
@@ -898,61 +850,15 @@ static bool _pam_send_password_expiry_message(struct pwb_context *ctx,
 	       (tm_now.tm_yday+tm_now.tm_year*365);
 
 	if (days == 0) {
-		ret = _make_remark(ctx, PAM_TEXT_INFO,
-				_("Your password expires today.\n"));
-
-		/*
-		 * If change_pwd and already_expired is null.
-		 * We are just sending a notification message.
-		 * We don't expect any response in this case.
-		 */
-
-		if (!change_pwd && !already_expired) {
-			return true;
-		}
-
-		/*
-		 * successfully sent the warning message.
-		 * Give the user a chance to change pwd.
-		 */
-		if (ret == PAM_SUCCESS) {
-			if (change_pwd) {
-				retval = _pam_winbind_change_pwd(ctx);
-				if (retval) {
-					*change_pwd = true;
-				}
-			}
-		}
+		_make_remark(ctx, PAM_TEXT_INFO,
+			     _("Your password expires today"));
 		return true;
 	}
 
 	if (days > 0 && days < warn_pwd_expire) {
-
-		ret = _make_remark_format(ctx, PAM_TEXT_INFO,
-					_("Your password will expire in %d %s.\n"),
-					days, (days > 1) ? _("days"):_("day"));
-		/*
-		 * If change_pwd and already_expired is null.
-		 * We are just sending a notification message.
-		 * We don't expect any response in this case.
-		 */
-
-		if (!change_pwd && !already_expired) {
-			return true;
-		}
-
-		/*
-		 * successfully sent the warning message.
-		 * Give the user a chance to change pwd.
-		 */
-		if (ret == PAM_SUCCESS) {
-			if (change_pwd) {
-				retval = _pam_winbind_change_pwd(ctx);
-				if (retval) {
-					*change_pwd = true;
-				}
-			}
-		}
+		_make_remark_format(ctx, PAM_TEXT_INFO,
+				    _("Your password will expire in %d %s"),
+				    days, (days > 1) ? _("days"):_("day"));
 		return true;
 	}
 
@@ -973,8 +879,7 @@ static void _pam_warn_password_expiry(struct pwb_context *ctx,
 				      const struct wbcAuthUserInfo *info,
 				      const struct wbcUserPasswordPolicyInfo *policy,
 				      int warn_pwd_expire,
-				      bool *already_expired,
-				      bool *change_pwd)
+				      bool *already_expired)
 {
 	time_t now = time(NULL);
 	time_t next_change = 0;
@@ -985,10 +890,6 @@ static void _pam_warn_password_expiry(struct pwb_context *ctx,
 
 	if (already_expired) {
 		*already_expired = false;
-	}
-
-	if (change_pwd) {
-		*change_pwd = false;
 	}
 
 	/* accounts with WBC_ACB_PWNOEXP set never receive a warning */
@@ -1006,8 +907,7 @@ static void _pam_warn_password_expiry(struct pwb_context *ctx,
 
 	if (_pam_send_password_expiry_message(ctx, next_change, now,
 					      warn_pwd_expire,
-					      already_expired,
-					      change_pwd)) {
+					      already_expired)) {
 		return;
 	}
 
@@ -1023,8 +923,7 @@ static void _pam_warn_password_expiry(struct pwb_context *ctx,
 
 	if (_pam_send_password_expiry_message(ctx, next_change, now,
 					      warn_pwd_expire,
-					      already_expired,
-					      change_pwd)) {
+					      already_expired)) {
 		return;
 	}
 
@@ -1853,13 +1752,11 @@ static int winbind_auth_request(struct pwb_context *ctx,
 	if ((ret == PAM_SUCCESS) && user_info && policy && info) {
 
 		bool already_expired = false;
-		bool change_pwd = false;
 
 		/* warn a user if the password is about to expire soon */
 		_pam_warn_password_expiry(ctx, user_info, policy,
 					  warn_pwd_expire,
-					  &already_expired,
-					  &change_pwd);
+					  &already_expired);
 
 		if (already_expired == true) {
 
@@ -1869,18 +1766,13 @@ static int winbind_auth_request(struct pwb_context *ctx,
 				       "Password has expired "
 				       "(Password was last set: %lld, "
 				       "the policy says it should expire here "
-				       "%lld (now it's: %ld))\n",
+				       "%lld (now it's: %lu))\n",
 				       (long long int)last_set,
 				       (long long int)last_set +
 				       policy->expire,
-				       (long)time(NULL));
+				       time(NULL));
 
 			return PAM_AUTHTOK_EXPIRED;
-		}
-
-		if (change_pwd) {
-			ret = PAM_NEW_AUTHTOK_REQD;
-			goto done;
 		}
 
 		/* inform about logon type */
@@ -2439,6 +2331,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	if (!name) {
 		return NULL;
 	}
+
 	if ((p = strchr(name, '@')) != NULL) {
 		*p = 0;
 		domain = p + 1;
@@ -3239,7 +3132,7 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 				 * expire soon */
 				_pam_warn_password_expiry(ctx, user_info, policy,
 							  warn_pwd_expire,
-							  NULL, NULL);
+							  NULL);
 
 				/* set some info3 info for other modules in the
 				 * stack */

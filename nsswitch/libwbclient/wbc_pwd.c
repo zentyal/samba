@@ -22,7 +22,6 @@
 
 /* Required Headers */
 
-#include "replace.h"
 #include "libwbclient.h"
 
 /** @brief The maximum number of pwent structs to get from winbindd

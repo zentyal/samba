@@ -1,20 +1,20 @@
-/*
+/* 
  *  Unix SMB/CIFS implementation.
  *  account policy storage
  *  Copyright (C) Jean François Micouleau      1998-2001.
  *  Copyright (C) Andrew Bartlett              2002
  *  Copyright (C) Guenther Deschner            2004-2005
- *
+ *  
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
- *
+ *  
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
+ *  
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
@@ -31,7 +31,7 @@ static struct db_context *db;
 
 
 struct ap_table {
-	enum pdb_policy_type type;
+	int field;
 	const char *string;
 	uint32 default_val;
 	const char *description;
@@ -39,51 +39,51 @@ struct ap_table {
 };
 
 static const struct ap_table account_policy_names[] = {
-	{PDB_POLICY_MIN_PASSWORD_LEN, "min password length", MINPASSWDLENGTH,
-		"Minimal password length (default: 5)",
+	{AP_MIN_PASSWORD_LEN, "min password length", MINPASSWDLENGTH, 
+		"Minimal password length (default: 5)", 
 		"sambaMinPwdLength" },
 
-	{PDB_POLICY_PASSWORD_HISTORY, "password history", 0,
-		"Length of Password History Entries (default: 0 => off)",
+	{AP_PASSWORD_HISTORY, "password history", 0,
+		"Length of Password History Entries (default: 0 => off)", 
 		"sambaPwdHistoryLength" },
-
-	{PDB_POLICY_USER_MUST_LOGON_TO_CHG_PASS, "user must logon to change password", 0,
+		
+	{AP_USER_MUST_LOGON_TO_CHG_PASS, "user must logon to change password", 0,
 		"Force Users to logon for password change (default: 0 => off, 2 => on)",
 		"sambaLogonToChgPwd" },
-
-	{PDB_POLICY_MAX_PASSWORD_AGE, "maximum password age", (uint32) -1,
-		"Maximum password age, in seconds (default: -1 => never expire passwords)",
+	
+	{AP_MAX_PASSWORD_AGE, "maximum password age", (uint32) -1,
+		"Maximum password age, in seconds (default: -1 => never expire passwords)", 
 		"sambaMaxPwdAge" },
-
-	{PDB_POLICY_MIN_PASSWORD_AGE,"minimum password age", 0,
-		"Minimal password age, in seconds (default: 0 => allow immediate password change)",
+		
+	{AP_MIN_PASSWORD_AGE,"minimum password age", 0,
+		"Minimal password age, in seconds (default: 0 => allow immediate password change)", 
 		"sambaMinPwdAge" },
-
-	{PDB_POLICY_LOCK_ACCOUNT_DURATION, "lockout duration", 30,
+		
+	{AP_LOCK_ACCOUNT_DURATION, "lockout duration", 30,
 		"Lockout duration in minutes (default: 30, -1 => forever)",
 		"sambaLockoutDuration" },
-
-	{PDB_POLICY_RESET_COUNT_TIME, "reset count minutes", 30,
-		"Reset time after lockout in minutes (default: 30)",
+		
+	{AP_RESET_COUNT_TIME, "reset count minutes", 30,
+		"Reset time after lockout in minutes (default: 30)", 
 		"sambaLockoutObservationWindow" },
-
-	{PDB_POLICY_BAD_ATTEMPT_LOCKOUT, "bad lockout attempt", 0,
-		"Lockout users after bad logon attempts (default: 0 => off)",
+		
+	{AP_BAD_ATTEMPT_LOCKOUT, "bad lockout attempt", 0,
+		"Lockout users after bad logon attempts (default: 0 => off)", 
 		"sambaLockoutThreshold" },
-
-	{PDB_POLICY_TIME_TO_LOGOUT, "disconnect time", (uint32) -1,
-		"Disconnect Users outside logon hours (default: -1 => off, 0 => on)",
-		"sambaForceLogoff" },
-
-	{PDB_POLICY_REFUSE_MACHINE_PW_CHANGE, "refuse machine password change", 0,
+		
+	{AP_TIME_TO_LOGOUT, "disconnect time", (uint32) -1,
+		"Disconnect Users outside logon hours (default: -1 => off, 0 => on)", 
+		"sambaForceLogoff" }, 
+		
+	{AP_REFUSE_MACHINE_PW_CHANGE, "refuse machine password change", 0,
 		"Allow Machine Password changes (default: 0 => off)",
 		"sambaRefuseMachinePwdChange" },
-
+		
 	{0, NULL, 0, "", NULL}
 };
 
 void account_policy_names_list(const char ***names, int *num_names)
-{
+{	
 	const char **nl;
 	int i, count;
 
@@ -106,11 +106,11 @@ void account_policy_names_list(const char ***names, int *num_names)
 Get the account policy name as a string from its #define'ed number
 ****************************************************************************/
 
-const char *decode_account_policy_name(enum pdb_policy_type type)
+const char *decode_account_policy_name(int field)
 {
 	int i;
 	for (i=0; account_policy_names[i].string; i++) {
-		if (type == account_policy_names[i].type) {
+		if (field == account_policy_names[i].field) {
 			return account_policy_names[i].string;
 		}
 	}
@@ -121,11 +121,11 @@ const char *decode_account_policy_name(enum pdb_policy_type type)
 Get the account policy LDAP attribute as a string from its #define'ed number
 ****************************************************************************/
 
-const char *get_account_policy_attr(enum pdb_policy_type type)
+const char *get_account_policy_attr(int field)
 {
 	int i;
-	for (i=0; account_policy_names[i].type; i++) {
-		if (type == account_policy_names[i].type) {
+	for (i=0; account_policy_names[i].field; i++) {
+		if (field == account_policy_names[i].field) {
 			return account_policy_names[i].ldap_attr;
 		}
 	}
@@ -136,11 +136,11 @@ const char *get_account_policy_attr(enum pdb_policy_type type)
 Get the account policy description as a string from its #define'ed number
 ****************************************************************************/
 
-const char *account_policy_get_desc(enum pdb_policy_type type)
+const char *account_policy_get_desc(int field)
 {
 	int i;
 	for (i=0; account_policy_names[i].string; i++) {
-		if (type == account_policy_names[i].type) {
+		if (field == account_policy_names[i].field) {
 			return account_policy_names[i].description;
 		}
 	}
@@ -151,12 +151,12 @@ const char *account_policy_get_desc(enum pdb_policy_type type)
 Get the account policy name as a string from its #define'ed number
 ****************************************************************************/
 
-enum pdb_policy_type account_policy_name_to_typenum(const char *name)
+int account_policy_name_to_fieldnum(const char *name)
 {
 	int i;
 	for (i=0; account_policy_names[i].string; i++) {
 		if (strcmp(name, account_policy_names[i].string) == 0) {
-			return account_policy_names[i].type;
+			return account_policy_names[i].field;
 		}
 	}
 	return 0;
@@ -166,35 +166,35 @@ enum pdb_policy_type account_policy_name_to_typenum(const char *name)
 Get default value for account policy
 *****************************************************************************/
 
-bool account_policy_get_default(enum pdb_policy_type type, uint32_t *val)
+bool account_policy_get_default(int account_policy, uint32 *val)
 {
 	int i;
-	for (i=0; account_policy_names[i].type; i++) {
-		if (account_policy_names[i].type == type) {
+	for (i=0; account_policy_names[i].field; i++) {
+		if (account_policy_names[i].field == account_policy) {
 			*val = account_policy_names[i].default_val;
 			return True;
 		}
 	}
-	DEBUG(0,("no default for account_policy index %d found. This should never happen\n",
-		type));
+	DEBUG(0,("no default for account_policy index %d found. This should never happen\n", 
+		account_policy));
 	return False;
 }
 
 /*****************************************************************************
- Set default for a type if it is empty
+ Set default for a field if it is empty
 *****************************************************************************/
 
-static bool account_policy_set_default_on_empty(enum pdb_policy_type type)
+static bool account_policy_set_default_on_empty(int account_policy)
 {
 
 	uint32 value;
 
-	if (!account_policy_get(type, &value) &&
-	    !account_policy_get_default(type, &value)) {
+	if (!account_policy_get(account_policy, &value) && 
+	    !account_policy_get_default(account_policy, &value)) {
 		return False;
 	}
 
-	return account_policy_set(type, value);
+	return account_policy_set(account_policy, value);
 }
 
 /*****************************************************************************
@@ -255,9 +255,9 @@ bool init_account_policy(void)
 			goto cancel;
 		}
 
-		for (i=0; account_policy_names[i].type; i++) {
+		for (i=0; account_policy_names[i].field; i++) {
 
-			if (!account_policy_set_default_on_empty(account_policy_names[i].type)) {
+			if (!account_policy_set_default_on_empty(account_policy_names[i].field)) {
 				DEBUG(0,("failed to set default value in account policy tdb\n"));
 				goto cancel;
 			}
@@ -299,10 +299,10 @@ bool init_account_policy(void)
 }
 
 /*****************************************************************************
-Get an account policy (from tdb)
+Get an account policy (from tdb) 
 *****************************************************************************/
 
-bool account_policy_get(enum pdb_policy_type type, uint32_t *value)
+bool account_policy_get(int field, uint32 *value)
 {
 	const char *name;
 	uint32 regval;
@@ -315,17 +315,17 @@ bool account_policy_get(enum pdb_policy_type type, uint32_t *value)
 		*value = 0;
 	}
 
-	name = decode_account_policy_name(type);
+	name = decode_account_policy_name(field);
 	if (name == NULL) {
-		DEBUG(1, ("account_policy_get: Field %d is not a valid account policy type!  Cannot get, returning 0.\n", type));
+		DEBUG(1, ("account_policy_get: Field %d is not a valid account policy type!  Cannot get, returning 0.\n", field));
 		return False;
 	}
-
+	
 	if (!dbwrap_fetch_uint32(db, name, &regval)) {
-		DEBUG(1, ("account_policy_get: tdb_fetch_uint32 failed for type %d (%s), returning 0\n", type, name));
+		DEBUG(1, ("account_policy_get: tdb_fetch_uint32 failed for field %d (%s), returning 0\n", field, name));
 		return False;
 	}
-
+	
 	if (value) {
 		*value = regval;
 	}
@@ -336,10 +336,10 @@ bool account_policy_get(enum pdb_policy_type type, uint32_t *value)
 
 
 /****************************************************************************
-Set an account policy (in tdb)
+Set an account policy (in tdb) 
 ****************************************************************************/
 
-bool account_policy_set(enum pdb_policy_type type, uint32_t value)
+bool account_policy_set(int field, uint32 value)
 {
 	const char *name;
 	NTSTATUS status;
@@ -348,36 +348,36 @@ bool account_policy_set(enum pdb_policy_type type, uint32_t value)
 		return False;
 	}
 
-	name = decode_account_policy_name(type);
+	name = decode_account_policy_name(field);
 	if (name == NULL) {
-		DEBUG(1, ("Field %d is not a valid account policy type!  Cannot set.\n", type));
+		DEBUG(1, ("Field %d is not a valid account policy type!  Cannot set.\n", field));
 		return False;
 	}
 
 	status = dbwrap_trans_store_uint32(db, name, value);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("store_uint32 failed for type %d (%s) on value "
-			  "%u: %s\n", type, name, value, nt_errstr(status)));
+		DEBUG(1, ("store_uint32 failed for field %d (%s) on value "
+			  "%u: %s\n", field, name, value, nt_errstr(status)));
 		return False;
 	}
 
 	DEBUG(10,("account_policy_set: name: %s, value: %d\n", name, value));
-
+	
 	return True;
 }
 
 /****************************************************************************
-Set an account policy in the cache
+Set an account policy in the cache 
 ****************************************************************************/
 
-bool cache_account_policy_set(enum pdb_policy_type type, uint32_t value)
+bool cache_account_policy_set(int field, uint32 value)
 {
 	const char *policy_name = NULL;
 	char *cache_key = NULL;
 	char *cache_value = NULL;
 	bool ret = False;
 
-	policy_name = decode_account_policy_name(type);
+	policy_name = decode_account_policy_name(field);
 	if (policy_name == NULL) {
 		DEBUG(0,("cache_account_policy_set: no policy found\n"));
 		return False;
@@ -404,17 +404,17 @@ bool cache_account_policy_set(enum pdb_policy_type type, uint32_t value)
 }
 
 /*****************************************************************************
-Get an account policy from the cache
+Get an account policy from the cache 
 *****************************************************************************/
 
-bool cache_account_policy_get(enum pdb_policy_type type, uint32_t *value)
+bool cache_account_policy_get(int field, uint32 *value)
 {
 	const char *policy_name = NULL;
 	char *cache_key = NULL;
 	char *cache_value = NULL;
 	bool ret = False;
 
-	policy_name = decode_account_policy_name(type);
+	policy_name = decode_account_policy_name(field);
 	if (policy_name == NULL) {
 		DEBUG(0,("cache_account_policy_set: no policy found\n"));
 		return False;

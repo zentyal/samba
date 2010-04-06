@@ -232,7 +232,7 @@ static void start_filter(char *desthost)
 		d_printf("listen failed\n");
 	}
 
-	if (!resolve_name(desthost, &dest_ss, 0x20, false)) {
+	if (!resolve_name(desthost, &dest_ss, 0x20)) {
 		d_printf("Unable to resolve host %s\n", desthost);
 		exit(1);
 	}

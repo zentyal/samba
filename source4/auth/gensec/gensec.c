@@ -40,9 +40,10 @@ _PUBLIC_ struct gensec_security_ops **gensec_security_all(void)
 	return generic_security_ops;
 }
 
-bool gensec_security_ops_enabled(struct gensec_security_ops *ops, struct gensec_security *security)
+bool gensec_security_ops_enabled(struct gensec_security_ops *ops, 
+				 struct loadparm_context *lp_ctx)
 {
-	return lp_parm_bool(security->settings->lp_ctx, NULL, "gensec", ops->name, ops->enabled);
+	return lp_parm_bool(lp_ctx, NULL, "gensec", ops->name, ops->enabled);
 }
 
 /* Sometimes we want to force only kerberos, sometimes we want to
@@ -146,8 +147,9 @@ static const struct gensec_security_ops *gensec_security_by_authtype(struct gens
 	}
 	backends = gensec_security_mechs(gensec_security, mem_ctx);
 	for (i=0; backends && backends[i]; i++) {
-	    	if (!gensec_security_ops_enabled(backends[i], gensec_security))
-				continue;
+	    	if (!gensec_security_ops_enabled(backends[i], 
+											 gensec_security->settings->lp_ctx))
+		    continue;
 		if (backends[i]->auth_type == auth_type) {
 			backend = backends[i];
 			talloc_free(mem_ctx);
@@ -173,7 +175,7 @@ const struct gensec_security_ops *gensec_security_by_oid(struct gensec_security 
 	for (i=0; backends && backends[i]; i++) {
 	    	if (gensec_security != NULL && 
 				!gensec_security_ops_enabled(backends[i], 
-											 gensec_security))
+											 gensec_security->settings->lp_ctx))
 		    continue;
 		if (backends[i]->oid) {
 			for (j=0; backends[i]->oid[j]; j++) { 
@@ -203,7 +205,7 @@ const struct gensec_security_ops *gensec_security_by_sasl_name(struct gensec_sec
 	}
 	backends = gensec_security_mechs(gensec_security, mem_ctx);
 	for (i=0; backends && backends[i]; i++) {
-	    	if (!gensec_security_ops_enabled(backends[i], gensec_security))
+	    	if (!gensec_security_ops_enabled(backends[i], gensec_security->settings->lp_ctx))
 		    continue;
 		if (backends[i]->sasl_name 
 		    && (strcmp(backends[i]->sasl_name, sasl_name) == 0)) {
@@ -230,7 +232,7 @@ static const struct gensec_security_ops *gensec_security_by_name(struct gensec_s
 	backends = gensec_security_mechs(gensec_security, mem_ctx);
 	for (i=0; backends && backends[i]; i++) {
 	    	if (gensec_security != NULL && 
-				!gensec_security_ops_enabled(backends[i], gensec_security))
+				!gensec_security_ops_enabled(backends[i], gensec_security->settings->lp_ctx))
 		    continue;
 		if (backends[i]->name 
 		    && (strcmp(backends[i]->name, name) == 0)) {
@@ -276,7 +278,7 @@ const struct gensec_security_ops **gensec_security_by_sasl_list(struct gensec_se
 	 * then looking in the supplied list */
 	for (i=0; backends && backends[i]; i++) {
 	    	if (gensec_security != NULL &&
-				!gensec_security_ops_enabled(backends[i], gensec_security))
+				!gensec_security_ops_enabled(backends[i], gensec_security->settings->lp_ctx))
 		    continue;
 		for (sasl_idx = 0; sasl_names[sasl_idx]; sasl_idx++) {
 			if (!backends[i]->sasl_name ||
@@ -347,7 +349,7 @@ const struct gensec_security_ops_wrapper *gensec_security_by_oid_list(struct gen
 	 * then looking in the supplied list */
 	for (i=0; backends && backends[i]; i++) {
 	    	if (gensec_security != NULL && 
-				!gensec_security_ops_enabled(backends[i], gensec_security))
+				!gensec_security_ops_enabled(backends[i], gensec_security->settings->lp_ctx))
 		    continue;
 		if (!backends[i]->oid) {
 			continue;
@@ -416,7 +418,7 @@ const char **gensec_security_oids_from_ops(struct gensec_security *gensec_securi
 	
 	for (i=0; ops && ops[i]; i++) {
 		if (gensec_security != NULL && 
-			!gensec_security_ops_enabled(ops[i], gensec_security)) {
+			!gensec_security_ops_enabled(ops[i], gensec_security->settings->lp_ctx)) {
 			continue;
 		}
 		if (!ops[i]->oid) {
@@ -502,8 +504,6 @@ const char **gensec_security_oids(struct gensec_security *gensec_security,
   @param mem_ctx The parent TALLOC memory context.
   @param gensec_security Returned GENSEC context pointer.
   @note  The mem_ctx is only a parent and may be NULL.
-  @note, the auth context is moved to be a child of the
-  @ gensec_security return 
 */
 static NTSTATUS gensec_start(TALLOC_CTX *mem_ctx, 
 			     struct tevent_context *ev,
@@ -532,7 +532,7 @@ static NTSTATUS gensec_start(TALLOC_CTX *mem_ctx,
 	(*gensec_security)->event_ctx = ev;
 	SMB_ASSERT(settings->lp_ctx != NULL);
 	(*gensec_security)->settings = talloc_reference(*gensec_security, settings);
-	(*gensec_security)->auth_context = talloc_steal(*gensec_security, auth_context);
+	(*gensec_security)->auth_context = talloc_reference(*gensec_security, auth_context);
 
 	return NT_STATUS_OK;
 }

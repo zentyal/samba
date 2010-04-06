@@ -31,8 +31,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
 
+RCSID("$Id$");
+#endif
 
 #define HC_DEPRECATED
 

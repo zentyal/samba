@@ -53,11 +53,6 @@ static void popt_version_callback(poptContext con,
 	}
 }
 
-static void popt_s4_talloc_log_fn(const char *message)
-{
-	DEBUG(0,("%s", message));
-}
-
 static void popt_samba_callback(poptContext con, 
 			   enum poptCallbackReason reason,
 			   const struct poptOption *opt,
@@ -91,8 +86,6 @@ static void popt_samba_callback(poptContext con,
 
 		/* and logging */
 		setup_logging(pname, DEBUG_STDOUT);
-		talloc_set_log_fn(popt_s4_talloc_log_fn);
-		talloc_set_abort_fn(smb_panic);
 
 		return;
 	}

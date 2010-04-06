@@ -560,14 +560,31 @@ done:
 
 
 /* 
-   NTVFS any to fsinfo mapper
+   NTVFS fsinfo generic to any mapper
 */
-static NTSTATUS ntvfs_map_fsinfo_finish(struct ntvfs_module_context *ntvfs,
-				      struct ntvfs_request *req,
-				      union smb_fsinfo *fs,
-				      union smb_fsinfo *fs2,
-				      NTSTATUS status)
+NTSTATUS ntvfs_map_fsinfo(struct ntvfs_module_context *ntvfs,
+				   struct ntvfs_request *req,
+				   union smb_fsinfo *fs)
 {
+	NTSTATUS status;
+	union smb_fsinfo *fs2;
+
+	fs2 = talloc(req, union smb_fsinfo);
+	if (fs2 == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (fs->generic.level == RAW_QFS_GENERIC) {
+		return NT_STATUS_INVALID_LEVEL;
+	}
+	
+	/* only used by the simple backend, which doesn't do async */
+	req->async_states->state &= ~NTVFS_ASYNC_STATE_MAY_ASYNC;
+
+	/* ask the backend for the generic info */
+	fs2->generic.level = RAW_QFS_GENERIC;
+
+	status = ntvfs->ops->fsinfo(ntvfs, req, fs2);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -668,38 +685,6 @@ static NTSTATUS ntvfs_map_fsinfo_finish(struct ntvfs_module_context *ntvfs,
 
 
 	return NT_STATUS_INVALID_LEVEL;
-}
-
-/*
-   NTVFS fsinfo any to generic mapper
-*/
-NTSTATUS ntvfs_map_fsinfo(struct ntvfs_module_context *ntvfs,
-			  struct ntvfs_request *req,
-			  union smb_fsinfo *fs)
-{
-	NTSTATUS status;
-	union smb_fsinfo *fs2;
-
-	fs2 = talloc(req, union smb_fsinfo);
-	if (fs2 == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	if (fs->generic.level == RAW_QFS_GENERIC) {
-		return NT_STATUS_INVALID_LEVEL;
-	}
-
-	status = ntvfs_map_async_setup(ntvfs, req, fs, fs2,
-				       (second_stage_t)ntvfs_map_fsinfo_finish);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	/* ask the backend for the generic info */
-	fs2->generic.level = RAW_QFS_GENERIC;
-
-	status = ntvfs->ops->fsinfo(ntvfs, req, fs2);
-	return ntvfs_map_async_finish(req, status);
 }
 
 
@@ -935,22 +920,6 @@ NTSTATUS ntvfs_map_fileinfo(TALLOC_CTX *mem_ctx,
 }
 
 /* 
-   NTVFS any to fileinfo mapper
-*/
-static NTSTATUS ntvfs_map_qfileinfo_finish(struct ntvfs_module_context *ntvfs,
-				      struct ntvfs_request *req,
-				      union smb_fileinfo *info,
-				      union smb_fileinfo *info2,
-				      NTSTATUS status)
-{
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return ntvfs_map_fileinfo(req, info, info2);
-}
-
-/*
    NTVFS fileinfo generic to any mapper
 */
 NTSTATUS ntvfs_map_qfileinfo(struct ntvfs_module_context *ntvfs,
@@ -969,33 +938,17 @@ NTSTATUS ntvfs_map_qfileinfo(struct ntvfs_module_context *ntvfs,
 		return NT_STATUS_INVALID_LEVEL;
 	}
 
-	status = ntvfs_map_async_setup(ntvfs, req, info, info2,
-				       (second_stage_t)ntvfs_map_qfileinfo_finish);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
 	/* ask the backend for the generic info */
 	info2->generic.level = RAW_FILEINFO_GENERIC;
 	info2->generic.in.file.ntvfs= info->generic.in.file.ntvfs;
 
-	status = ntvfs->ops->qfileinfo(ntvfs, req, info2);
-	return ntvfs_map_async_finish(req, status);
-}
+	/* only used by the simple backend, which doesn't do async */
+	req->async_states->state &= ~NTVFS_ASYNC_STATE_MAY_ASYNC;
 
-/*
-   NTVFS any to fileinfo mapper
-*/
-static NTSTATUS ntvfs_map_qpathinfo_finish(struct ntvfs_module_context *ntvfs,
-				      struct ntvfs_request *req,
-				      union smb_fileinfo *info,
-				      union smb_fileinfo *info2,
-				      NTSTATUS status)
-{
+	status = ntvfs->ops->qfileinfo(ntvfs, req, info2);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
-
 	return ntvfs_map_fileinfo(req, info, info2);
 }
 
@@ -1018,18 +971,18 @@ NTSTATUS ntvfs_map_qpathinfo(struct ntvfs_module_context *ntvfs,
 		return NT_STATUS_INVALID_LEVEL;
 	}
 
-	status = ntvfs_map_async_setup(ntvfs, req, info, info2,
-				       (second_stage_t)ntvfs_map_qpathinfo_finish);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
 	/* ask the backend for the generic info */
 	info2->generic.level		= RAW_FILEINFO_GENERIC;
 	info2->generic.in.file.path	= info->generic.in.file.path;
 
+	/* only used by the simple backend, which doesn't do async */
+	req->async_states->state &= ~NTVFS_ASYNC_STATE_MAY_ASYNC;
+
 	status = ntvfs->ops->qpathinfo(ntvfs, req, info2);
-	return ntvfs_map_async_finish(req, status);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+	return ntvfs_map_fileinfo(req, info, info2);
 }
 
 

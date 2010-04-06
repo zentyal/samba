@@ -1,13 +1,161 @@
-'\" t
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 02/19/2010
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 02/22/2010
 .\"    Manual: User Commands
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "02/19/2010" "Samba 3\&.5" "User Commands"
+.TH "SMBCLIENT" "1" "02/22/2010" "Samba 3\&.4" "User Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -18,20 +166,24 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "NAME"
+.SH "Name"
 smbclient \- ftp\-like client to access SMB/CIFS resources on servers
-.SH "SYNOPSIS"
+.SH "Synopsis"
+.fam C
 .HP \w'\ 'u
-smbclient [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
+\FCsmbclient\F[] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
+.fam
+.fam C
 .HP \w'\ 'u
-smbclient {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
+\FCsmbclient\F[] {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
+.fam
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-smbclient
+\FCsmbclient\F[]
 is a client that can \'talk\' to an SMB/CIFS server\&. It offers an interface similar to that of the ftp program (see
 \fBftp\fR(1))\&. Operations include things like getting files from the server to the local machine, putting files from the local machine to the server, retrieving directory information from the server and so on\&.
 .SH "OPTIONS"
@@ -39,20 +191,20 @@ is a client that can \'talk\' to an SMB/CIFS server\&. It offers an interface si
 servicename
 .RS 4
 servicename is the name of the service you want to use on the server\&. A service name takes the form
-//server/service
+\FC//server/service\F[]
 where
 \fIserver \fR
 is the NetBIOS name of the SMB/CIFS server offering the desired service and
 \fIservice\fR
 is the name of the service offered\&. Thus to connect to the service "printer" on the SMB/CIFS server "smbserver", you would use the servicename
-//smbserver/printer
+\FC//smbserver/printer \F[]
 .sp
 Note that the server name required is NOT necessarily the IP (DNS) host name of the server ! The name required is a NetBIOS server name, which may or may not be the same as the IP hostname of the machine running the server\&.
 .sp
 The server name is looked up according to either the
 \fI\-R\fR
 parameter to
-smbclient
+\FCsmbclient\F[]
 or using the name resolve order parameter in the
 \fBsmb.conf\fR(5)
 file, allowing an administrator to change the order and methods by which server names are looked up\&.
@@ -75,7 +227,7 @@ Note: Some servers (including OS/2 and Windows for Workgroups) insist on an uppe
 Be cautious about including passwords in scripts\&.
 .RE
 .PP
-\-R|\-\-name\-resolve <name resolve order>
+\-R <name resolve order>
 .RS 4
 This option is used by the programs in the Samba suite to determine what naming services and in what order to resolve host names to IP addresses\&. The option takes a space\-separated string of different name resolution options\&.
 .sp
@@ -103,8 +255,8 @@ for details) then any name type matches for lookup\&.
 .IP \(bu 2.3
 .\}
 \fBhost\fR: Do a standard host name to IP address resolution, using the system
-/etc/hosts, NIS, or DNS lookups\&. This method of name resolution is operating system dependent, for instance on IRIX or Solaris this may be controlled by the
-/etc/nsswitch\&.conf
+\FC/etc/hosts \F[], NIS, or DNS lookups\&. This method of name resolution is operating system dependent, for instance on IRIX or Solaris this may be controlled by the
+\FC/etc/nsswitch\&.conf\F[]
 file)\&. Note that this method is only used if the NetBIOS name type being queried is the 0x20 (server) name type, otherwise it is ignored\&.
 .RE
 .sp
@@ -145,7 +297,7 @@ parameter of the
 file the name resolution methods will be attempted in this order\&.
 .RE
 .PP
-\-M|\-\-message NetBIOS name
+\-M NetBIOS name
 .RS 4
 This options allows you to send messages, using the "WinPopup" protocol, to another computer\&. Once a connection is established you then type your message, pressing ^D (control\-D) to end\&.
 .sp
@@ -154,8 +306,8 @@ If the receiving computer is running WinPopup the user will receive the message 
 The message is also automatically truncated if the message is over 1600 bytes, as this is the limit of the protocol\&.
 .sp
 One useful trick is to pipe the message through
-smbclient\&. For example: smbclient \-M FRED < mymessage\&.txt will send the message in the file
-mymessage\&.txt
+\FCsmbclient\F[]\&. For example: smbclient \-M FRED < mymessage\&.txt will send the message in the file
+\FCmymessage\&.txt\F[]
 to the machine FRED\&.
 .sp
 You may also find the
@@ -173,21 +325,16 @@ for a description of how to handle incoming WinPopup messages in Samba\&.
 \fINote\fR: Copy WinPopup into the startup group on your WfWg PCs if you want them to always be able to receive messages\&.
 .RE
 .PP
-\-p|\-\-port port
+\-p port
 .RS 4
 This number is the TCP port number that will be used when making connections to the server\&. The standard (well\-known) TCP port number for an SMB/CIFS server is 139, which is the default\&.
 .RE
 .PP
-\-g|\-\-grepable
+\-g
 .RS 4
 This parameter provides combined with
 \fI\-L\fR
 easy parseable output that allows processing with utilities such as grep and cut\&.
-.RE
-.PP
-\-m|\-\-max\-protocol protocol
-.RS 4
-This parameter sets the maximum protocol version announced by the client\&.
 .RE
 .PP
 \-P
@@ -200,7 +347,7 @@ Make queries to the external server using the machine account of the local serve
 Print a summary of command line options\&.
 .RE
 .PP
-\-I|\-\-ip\-address IP\-address
+\-I IP\-address
 .RS 4
 \fIIP address\fR
 is the address of the server to connect to\&. It should be specified in standard "a\&.b\&.c\&.d" notation\&.
@@ -212,23 +359,37 @@ parameter above\&. Using this parameter will force the client to assume that the
 There is no default for this parameter\&. If not supplied, it will be determined automatically by the client as described above\&.
 .RE
 .PP
-\-E|\-\-stderr
+\-E
 .RS 4
 This parameter causes the client to write messages to the standard error stream (stderr) rather than to the standard output stream\&.
 .sp
 By default, the client writes messages to standard output \- typically the user\'s tty\&.
 .RE
 .PP
-\-L|\-\-list
+\-L
 .RS 4
 This option allows you to look at what services are available on a server\&. You use it as
-smbclient \-L host
+\FCsmbclient \-L host\F[]
 and a list should appear\&. The
 \fI\-I \fR
 option may be useful if your NetBIOS names don\'t match your TCP/IP DNS host names or if you are trying to reach a host on another network\&.
 .RE
 .PP
-\-b|\-\-send\-buffer buffersize
+\-t terminal code
+.RS 4
+This option tells
+\FCsmbclient\F[]
+how to interpret filenames coming from the remote server\&. Usually Asian language multibyte UNIX implementations use different character sets than SMB/CIFS servers (\fIEUC\fR
+instead of
+\fI SJIS\fR
+for example)\&. Setting this parameter will let
+\FCsmbclient\F[]
+convert between the UNIX filenames and the SMB filenames correctly\&. This option has not been seriously tested and may have some problems\&.
+.sp
+The terminal codes include CWsjis, CWeuc, CWjis7, CWjis8, CWjunet, CWhex, CWcap\&. This is not a complete list, check the Samba source code for the complete list\&.
+.RE
+.PP
+\-b buffersize
 .RS 4
 This option changes the transmit/send buffer size when getting or putting a file from/to the server\&. The default is 65520 bytes\&. Setting this value smaller (to 1200 bytes) has been observed to speed up file transfers to and from a Win9x server\&.
 .RE
@@ -250,7 +411,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file\&.
 .RE
 .PP
@@ -262,7 +423,7 @@ Prints the program version number\&.
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-smb\&.conf
+\FCsmb\&.conf\F[]
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -299,11 +460,25 @@ This option allows you to specify a file from which to read the username and pas
 .if n \{\
 .RS 4
 .\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 username = <value>
 password = <value>
 domain   = <value>
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
 .if n \{\
 .RE
 .\}
@@ -328,9 +503,9 @@ A third option is to use a credentials file which contains the plaintext of the 
 for more details\&.
 .sp
 Be cautious about including passwords in scripts\&. Also, on many systems the command line of a running process may be seen via the
-ps
+\FCps\F[]
 command\&. To be safe always allow
-rpcclient
+\FCrpcclient\F[]
 to prompt for a password and type it in directly\&.
 .RE
 .PP
@@ -339,15 +514,15 @@ to prompt for a password and type it in directly\&.
 This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file\&. However, a command line setting will take precedence over settings in
-smb\&.conf\&.
+\FCsmb\&.conf\F[]\&.
 .RE
 .PP
 \-i|\-\-scope <scope>
 .RS 4
 This specifies a NetBIOS scope that
-nmblookup
+\FCnmblookup\F[]
 will use to communicate with when generating NetBIOS names\&. For details on the use of NetBIOS scopes, see rfc1001\&.txt and rfc1002\&.txt\&. NetBIOS scopes are
 \fIvery\fR
 rarely used, only set this parameter if you are the system administrator in charge of all the NetBIOS systems you communicate with\&.
@@ -361,14 +536,14 @@ Set the SMB domain of the username\&. This overrides the default domain which is
 \-O|\-\-socket\-options socket options
 .RS 4
 TCP socket options to set on the client socket\&. See the socket options parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 manual page for the list of valid options\&.
 .RE
 .PP
-\-T|\-\-tar tar options
+\-T tar options
 .RS 4
 smbclient may be used to create
-tar(1)
+\FCtar(1) \F[]
 compatible backups of all the files on an SMB/CIFS share\&. The secondary tar flags that can be given to this option are :
 .sp
 .RS 4
@@ -525,8 +700,8 @@ flags\&.
 .RE
 \fITar Long File Names\fR
 .sp
-smbclient\'s tar option now supports long file names both on backup and restore\&. However, the full path name of the file must be less than 1024 bytes\&. Also, when a tar archive is created,
-smbclient\'s tar option places all files in the archive with relative names, not absolute names\&.
+\FCsmbclient\F[]\'s tar option now supports long file names both on backup and restore\&. However, the full path name of the file must be less than 1024 bytes\&. Also, when a tar archive is created,
+\FCsmbclient\F[]\'s tar option places all files in the archive with relative names, not absolute names\&.
 .sp
 \fITar Filenames\fR
 .sp
@@ -535,41 +710,41 @@ All file names can be given as DOS path names (with \'\e\e\' as the component se
 \fIExamples\fR
 .sp
 Restore from tar file
-backup\&.tar
+\FCbackup\&.tar\F[]
 into myshare on mypc (no password on share)\&.
 .sp
-smbclient //mypc/yshare "" \-N \-Tx backup\&.tar
+\FCsmbclient //mypc/yshare "" \-N \-Tx backup\&.tar \F[]
 .sp
 Restore everything except
-users/docs
+\FCusers/docs\F[]
 .sp
-smbclient //mypc/myshare "" \-N \-TXx backup\&.tar users/docs
+\FCsmbclient //mypc/myshare "" \-N \-TXx backup\&.tar users/docs\F[]
 .sp
 Create a tar file of the files beneath
-users/docs\&.
+\FC users/docs\F[]\&.
 .sp
-smbclient //mypc/myshare "" \-N \-Tc backup\&.tar users/docs
+\FCsmbclient //mypc/myshare "" \-N \-Tc backup\&.tar users/docs \F[]
 .sp
 Create the same tar file as above, but now use a DOS path name\&.
 .sp
-smbclient //mypc/myshare "" \-N \-tc backup\&.tar users\eedocs
+\FCsmbclient //mypc/myshare "" \-N \-tc backup\&.tar users\eedocs \F[]
 .sp
 Create a tar file of the files listed in the file
-tarlist\&.
+\FCtarlist\F[]\&.
 .sp
-smbclient //mypc/myshare "" \-N \-TcF backup\&.tar tarlist
+\FCsmbclient //mypc/myshare "" \-N \-TcF backup\&.tar tarlist\F[]
 .sp
 Create a tar file of all the files and directories in the share\&.
 .sp
-smbclient //mypc/myshare "" \-N \-Tc backup\&.tar *
+\FCsmbclient //mypc/myshare "" \-N \-Tc backup\&.tar * \F[]
 .RE
 .PP
-\-D|\-\-directory initial directory
+\-D initial directory
 .RS 4
 Change to initial directory before starting\&. Probably only of any use with the tar \-T option\&.
 .RE
 .PP
-\-c|\-\-comand command string
+\-c command string
 .RS 4
 command string is a semicolon\-separated list of commands to be executed instead of prompting from stdin\&.
 \fI \-N\fR
@@ -577,13 +752,13 @@ is implied by
 \fI\-c\fR\&.
 .sp
 This is particularly useful in scripts and for printing stdin to the server, e\&.g\&.
-\-c \'print \-\'\&.
+\FC\-c \'print \-\'\F[]\&.
 .RE
 .SH "OPERATIONS"
 .PP
 Once the client is running, the user is presented with a prompt :
 .PP
-smb:\e>
+\FCsmb:\e> \F[]
 .PP
 The backslash ("\e\e") indicates the current working directory on the server, and will change if the current working directory is changed\&.
 .PP
@@ -695,10 +870,10 @@ Terminate the connection with the server and exit from the program\&.
 get <remote file name> [local file name]
 .RS 4
 Copy the file called
-remote file name
+\FCremote file name\F[]
 from the server to the machine running the client\&. If specified, name the local copy
-local file name\&. Note that all transfers in
-smbclient
+\FClocal file name\F[]\&. Note that all transfers in
+\FCsmbclient\F[]
 are binary\&. See also the lowercase command\&.
 .RE
 .PP
@@ -793,7 +968,7 @@ from the server to the machine running the client\&.
 Note that
 \fImask\fR
 is interpreted differently during recursive operation and non\-recursive operation \- refer to the recurse and mask commands for more information\&. Note that all transfers in
-smbclient
+\FCsmbclient\F[]
 are binary\&. See also the lowercase command\&.
 .RE
 .PP
@@ -816,7 +991,7 @@ in the current working directory on the local machine to the current working dir
 Note that
 \fImask\fR
 is interpreted differently during recursive operation and non\-recursive operation \- refer to the recurse and mask commands for more information\&. Note that all transfers in
-smbclient
+\FCsmbclient\F[]
 are binary\&.
 .RE
 .PP
@@ -865,10 +1040,10 @@ When toggled ON, the user will be prompted to confirm the transfer of each file 
 put <local file name> [remote file name]
 .RS 4
 Copy the file called
-local file name
+\FClocal file name\F[]
 from the machine running the client to the server\&. If specified, name the remote copy
-remote file name\&. Note that all transfers in
-smbclient
+\FCremote file name\F[]\&. Note that all transfers in
+\FCsmbclient\F[]
 are binary\&. See also the lowercase command\&.
 .RE
 .PP
@@ -880,11 +1055,6 @@ Displays the print queue, showing the job id, name, size and current status\&.
 quit
 .RS 4
 See the exit command\&.
-.RE
-.PP
-readlink symlinkname
-.RS 4
-This command depends on the server supporting the CIFS UNIX extensions and will fail if the server does not\&. Print the value of the symlink "symlinkname"\&.
 .RE
 .PP
 rd <directory name>
@@ -925,7 +1095,7 @@ setmode <filename> <perm=[+|\e\-]rsha>
 .RS 4
 A version of the DOS attrib command to set file permissions\&. For example:
 .sp
-setmode myfile +r
+\FCsetmode myfile +r \F[]
 .sp
 would make myfile read only\&.
 .RE
@@ -1002,9 +1172,9 @@ may contain the path, executed with system(), which the client should connect to
 The location of the client program is a matter for individual system administrators\&. The following are thus suggestions only\&.
 .PP
 It is recommended that the smbclient software be installed in the
-/usr/local/samba/bin/
+\FC/usr/local/samba/bin/\F[]
 or
-/usr/samba/bin/
+\FC /usr/samba/bin/\F[]
 directory, this directory readable by all, writeable only by root\&. The client program itself should be executable by all\&. The client should
 \fINOT\fR
 be setuid or setgid!

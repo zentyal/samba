@@ -23,7 +23,6 @@
 */
 
 #include "includes.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
 
 /** @defgroup lsa LSA - Local Security Architecture
  *  @ingroup rpc_client

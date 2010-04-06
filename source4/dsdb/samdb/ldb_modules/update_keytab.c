@@ -29,7 +29,7 @@
 
 #include "includes.h"
 #include "ldb_module.h"
-#include "lib/util/dlinklist.h"
+#include "dlinklist.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
 #include "system/kerberos.h"
@@ -378,8 +378,8 @@ static int update_kt_rename(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, down_req);
 }
 
-/* prepare for a commit */
-static int update_kt_prepare_commit(struct ldb_module *module)
+/* end a transaction */
+static int update_kt_end_trans(struct ldb_module *module)
 {
 	struct ldb_context *ldb;
 	struct update_kt_private *data = talloc_get_type(ldb_module_get_private(module), struct update_kt_private);
@@ -401,7 +401,7 @@ static int update_kt_prepare_commit(struct ldb_module *module)
 	talloc_free(data->changed_dns);
 	data->changed_dns = NULL;
 
-	return ldb_next_prepare_commit(module);
+	return ldb_next_end_trans(module);
 }
 
 /* end a transaction */
@@ -442,6 +442,6 @@ _PUBLIC_ const struct ldb_module_ops ldb_update_keytab_module_ops = {
 	.modify            = update_kt_modify,
 	.rename            = update_kt_rename,
 	.del               = update_kt_delete,
-	.prepare_commit    = update_kt_prepare_commit,
+	.end_transaction   = update_kt_end_trans,
 	.del_transaction   = update_kt_del_trans,
 };

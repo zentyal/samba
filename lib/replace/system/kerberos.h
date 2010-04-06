@@ -59,9 +59,7 @@
 /* Define to 1 if you have the `krb5_free_data_contents' function. */
 #define HAVE_KRB5_FREE_DATA_CONTENTS 1
 /* Define to 1 if you have the `krb5_free_error_string' function. */
-/* #undef HAVE_KRB5_FREE_ERROR_STRING */
-/* Define to 1 if you have the `krb5_free_error_message' function. */
-#define HAVE_KRB5_FREE_ERROR_MESSAGE 1
+#define HAVE_KRB5_FREE_ERROR_STRING 1
 /* Define to 1 if you have the `krb5_free_keytab_entry_contents' function. */
 /* #undef HAVE_KRB5_FREE_KEYTAB_ENTRY_CONTENTS */
 /* Define to 1 if you have the `krb5_free_ktypes' function. */
@@ -72,8 +70,6 @@
 #define HAVE_KRB5_GET_DEFAULT_IN_TKT_ETYPES 1
 /* Define to 1 if you have the `krb5_get_error_string' function. */
 #define HAVE_KRB5_GET_ERROR_STRING 1
-/* Define to 1 if you have the `krb5_get_error_message' function. */
-#define HAVE_KRB5_GET_ERROR_MESSAGE 1
 /* Define to 1 if you have the `krb5_get_permitted_enctypes' function. */
 /* #undef HAVE_KRB5_GET_PERMITTED_ENCTYPES */
 /* Define to 1 if you have the `krb5_get_pw_salt' function. */

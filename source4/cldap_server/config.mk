@@ -1,23 +1,17 @@
 # CLDAP server subsystem
-#
-[MODULE::service_cldap]
-INIT_FUNCTION = server_service_cldapd_init
-SUBSYSTEM = service
-PRIVATE_DEPENDENCIES = \
-		CLDAPD process_model LIBNETIF
-
-service_cldap_OBJ_FILES = $(addprefix $(cldap_serversrcdir)/, \
-		cldap_server.o)
-
 
 #######################
 # Start SUBSYSTEM CLDAPD
-[SUBSYSTEM::CLDAPD]
-PRIVATE_DEPENDENCIES = LIBCLI_CLDAP
+[MODULE::CLDAPD]
+INIT_FUNCTION = server_service_cldapd_init
+SUBSYSTEM = service
+PRIVATE_DEPENDENCIES = \
+		LIBCLI_CLDAP LIBNETIF process_model
 # End SUBSYSTEM CLDAPD
 #######################
 
 CLDAPD_OBJ_FILES = $(addprefix $(cldap_serversrcdir)/, \
+		cldap_server.o \
 		netlogon.o \
 		rootdse.o)
 

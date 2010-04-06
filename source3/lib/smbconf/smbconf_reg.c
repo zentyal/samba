@@ -335,7 +335,7 @@ static WERROR smbconf_reg_get_includes_internal(TALLOC_CTX *mem_ctx,
 	}
 
 	if (value->type != REG_MULTI_SZ) {
-		/* wrong type -- ignore */
+		/* wront type -- ignore */
 		goto done;
 	}
 

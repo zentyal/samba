@@ -32,6 +32,7 @@
  */
 
 #include "hx_locl.h"
+RCSID("$Id$");
 #ifdef HAVE_DLFCN_H
 #include <dlfcn.h>
 #endif
@@ -331,7 +332,7 @@ p11_init_slot(hx509_context context,
     }
 
     asprintf(&slot->name, "%.*s",
-	     (int)i, slot_info.slotDescription);
+	     i, slot_info.slotDescription);
 
     if ((slot_info.flags & CKF_TOKEN_PRESENT) == 0)
 	return 0;
@@ -710,7 +711,7 @@ collect_cert(hx509_context context,
 	
 	_hx509_set_cert_attribute(context,
 				  cert,
-				  &asn1_oid_id_pkcs_9_at_localKeyId,
+				  oid_id_pkcs_9_at_localKeyId(),
 				  &data);
     }
 
@@ -944,7 +945,11 @@ p11_release_module(struct p11_module *p)
 	if (p->slot[i].flags & P11_SESSION_IN_USE)
 	    _hx509_abort("pkcs11 module release while session in use");
 	if (p->slot[i].flags & P11_SESSION) {
-	    P11FUNC(p, CloseSession, (p->slot[i].session));
+	    int ret;
+
+	    ret = P11FUNC(p, CloseSession, (p->slot[i].session));
+	    if (ret != CKR_OK)
+		;
 	}
 
 	if (p->slot[i].name)

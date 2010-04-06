@@ -30,19 +30,17 @@
 /****************************************************************************
 init the conn structures
 ****************************************************************************/
-void conn_init(struct smbd_server_connection *sconn)
+void conn_init(void)
 {
-	sconn->smb1.tcons.Connections = NULL;
-	sconn->smb1.tcons.num_open = 0;
-	sconn->smb1.tcons.bmap = bitmap_allocate(BITMAP_BLOCK_SZ);
+	bmap = bitmap_allocate(BITMAP_BLOCK_SZ);
 }
 
 /****************************************************************************
 return the number of open connections
 ****************************************************************************/
-int conn_num_open(struct smbd_server_connection *sconn)
+int conn_num_open(void)
 {
-	return sconn->smb1.tcons.num_open;
+	return num_open;
 }
 
 
@@ -51,9 +49,8 @@ check if a snum is in use
 ****************************************************************************/
 bool conn_snum_used(int snum)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
 	connection_struct *conn;
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
+	for (conn=Connections;conn;conn=conn->next) {
 		if (conn->params->service == snum) {
 			return(True);
 		}
@@ -65,16 +62,15 @@ bool conn_snum_used(int snum)
  Find a conn given a cnum.
 ****************************************************************************/
 
-connection_struct *conn_find(struct smbd_server_connection *sconn,unsigned cnum)
+connection_struct *conn_find(unsigned cnum)
 {
 	int count=0;
 	connection_struct *conn;
 
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next,count++) {
+	for (conn=Connections;conn;conn=conn->next,count++) {
 		if (conn->cnum == cnum) {
 			if (count > 10) {
-				DLIST_PROMOTE(sconn->smb1.tcons.Connections,
-					      conn);
+				DLIST_PROMOTE(Connections, conn);
 			}
 			return conn;
 		}
@@ -88,31 +84,19 @@ connection_struct *conn_find(struct smbd_server_connection *sconn,unsigned cnum)
 The randomisation stops problems with the server dieing and clients
 thinking the server is still available.
 ****************************************************************************/
-connection_struct *conn_new(struct smbd_server_connection *sconn)
+connection_struct *conn_new(void)
 {
 	connection_struct *conn;
 	int i;
         int find_offset = 1;
 
-	if (sconn->allow_smb2) {
-		if (!(conn=TALLOC_ZERO_P(NULL, connection_struct)) ||
-		    !(conn->params = TALLOC_P(conn, struct share_params))) {
-			DEBUG(0,("TALLOC_ZERO() failed!\n"));
-			TALLOC_FREE(conn);
-			return NULL;
-		}
-		conn->sconn = sconn;
-		return conn;
-	}
-
 find_again:
-	i = bitmap_find(sconn->smb1.tcons.bmap, find_offset);
+	i = bitmap_find(bmap, find_offset);
 	
 	if (i == -1) {
                 /* Expand the connections bitmap. */
-                int             oldsz = sconn->smb1.tcons.bmap->n;
-                int             newsz = sconn->smb1.tcons.bmap->n +
-					BITMAP_BLOCK_SZ;
+                int             oldsz = bmap->n;
+                int             newsz = bmap->n + BITMAP_BLOCK_SZ;
                 struct bitmap * nbmap;
 
                 if (newsz <= oldsz) {
@@ -130,10 +114,10 @@ find_again:
 			return NULL;
 		}
 
-                bitmap_copy(nbmap, sconn->smb1.tcons.bmap);
-                bitmap_free(sconn->smb1.tcons.bmap);
+                bitmap_copy(nbmap, bmap);
+                bitmap_free(bmap);
 
-                sconn->smb1.tcons.bmap = nbmap;
+                bmap = nbmap;
                 find_offset = oldsz; /* Start next search in the new portion. */
 
                 goto find_again;
@@ -155,18 +139,18 @@ find_again:
 		TALLOC_FREE(conn);
 		return NULL;
 	}
-	conn->sconn = sconn;
 	conn->cnum = i;
 	conn->force_group_gid = (gid_t)-1;
 
-	bitmap_set(sconn->smb1.tcons.bmap, i);
+	bitmap_set(bmap, i);
 
-	sconn->smb1.tcons.num_open++;
+	num_open++;
 
+	string_set(&conn->dirpath,"");
 	string_set(&conn->connectpath,"");
 	string_set(&conn->origpath,"");
 	
-	DLIST_ADD(sconn->smb1.tcons.Connections, conn);
+	DLIST_ADD(Connections, conn);
 
 	return conn;
 }
@@ -175,11 +159,11 @@ find_again:
  Close all conn structures.
 return true if any were closed
 ****************************************************************************/
-bool conn_close_all(struct smbd_server_connection *sconn)
+bool conn_close_all(void)
 {
 	connection_struct *conn, *next;
 	bool ret = false;
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=next) {
+	for (conn=Connections;conn;conn=next) {
 		next=conn->next;
 		set_current_service(conn, 0, True);
 		close_cnum(conn, conn->vuid);
@@ -192,7 +176,7 @@ bool conn_close_all(struct smbd_server_connection *sconn)
  Idle inactive connections.
 ****************************************************************************/
 
-bool conn_idle_all(struct smbd_server_connection *sconn,time_t t)
+bool conn_idle_all(time_t t)
 {
 	int deadtime = lp_deadtime()*60;
 	pipes_struct *plist = NULL;
@@ -201,7 +185,7 @@ bool conn_idle_all(struct smbd_server_connection *sconn,time_t t)
 	if (deadtime <= 0)
 		deadtime = DEFAULT_SMBD_TIMEOUT;
 
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
+	for (conn=Connections;conn;conn=conn->next) {
 
 		time_t age = t - conn->lastused;
 
@@ -228,7 +212,7 @@ bool conn_idle_all(struct smbd_server_connection *sconn,time_t t)
 
 	for (plist = get_first_internal_pipe(); plist;
 	     plist = get_next_internal_pipe(plist)) {
-		if (num_pipe_handles(plist->pipe_handles) != 0) {
+		if (plist->pipe_handles && plist->pipe_handles->count) {
 			return False;
 		}
 	}
@@ -240,11 +224,11 @@ bool conn_idle_all(struct smbd_server_connection *sconn,time_t t)
  Clear a vuid out of the validity cache, and as the 'owner' of a connection.
 ****************************************************************************/
 
-void conn_clear_vuid_caches(struct smbd_server_connection *sconn,uint16_t vuid)
+void conn_clear_vuid_caches(uint16_t vuid)
 {
 	connection_struct *conn;
 
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
+	for (conn=Connections;conn;conn=conn->next) {
 		if (conn->vuid == vuid) {
 			conn->vuid = UID_FIELD_INVALID;
 		}
@@ -256,9 +240,9 @@ void conn_clear_vuid_caches(struct smbd_server_connection *sconn,uint16_t vuid)
  Free a conn structure - internal part.
 ****************************************************************************/
 
-static void conn_free_internal(connection_struct *conn)
+void conn_free_internal(connection_struct *conn)
 {
-	vfs_handle_struct *handle = NULL, *thandle = NULL;
+ 	vfs_handle_struct *handle = NULL, *thandle = NULL;
 	struct trans_state *state = NULL;
 
 	/* Free vfs_connection_struct */
@@ -283,6 +267,7 @@ static void conn_free_internal(connection_struct *conn)
 	free_namearray(conn->veto_oplock_list);
 	free_namearray(conn->aio_write_behind_list);
 	
+	string_free(&conn->dirpath);
 	string_free(&conn->connectpath);
 	string_free(&conn->origpath);
 
@@ -296,22 +281,12 @@ static void conn_free_internal(connection_struct *conn)
 
 void conn_free(connection_struct *conn)
 {
-	if (conn->sconn == NULL) {
-		conn_free_internal(conn);
-		return;
-	}
+	DLIST_REMOVE(Connections, conn);
 
-	if (conn->sconn->allow_smb2) {
-		conn_free_internal(conn);
-		return;
-	}
+	bitmap_clear(bmap, conn->cnum);
 
-	DLIST_REMOVE(conn->sconn->smb1.tcons.Connections, conn);
-
-	bitmap_clear(conn->sconn->smb1.tcons.bmap, conn->cnum);
-
-	SMB_ASSERT(conn->sconn->smb1.tcons.num_open > 0);
-	conn->sconn->smb1.tcons.num_open--;
+	SMB_ASSERT(num_open > 0);
+	num_open--;
 
 	conn_free_internal(conn);
 }
@@ -328,7 +303,6 @@ void msg_force_tdis(struct messaging_context *msg,
 		    struct server_id server_id,
 		    DATA_BLOB *data)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
 	connection_struct *conn, *next;
 	fstring sharename;
 
@@ -336,11 +310,11 @@ void msg_force_tdis(struct messaging_context *msg,
 
 	if (strcmp(sharename, "*") == 0) {
 		DEBUG(1,("Forcing close of all shares\n"));
-		conn_close_all(sconn);
+		conn_close_all();
 		return;
 	}
 
-	for (conn=sconn->smb1.tcons.Connections;conn;conn=next) {
+	for (conn=Connections;conn;conn=next) {
 		next=conn->next;
 		if (strequal(lp_servicename(SNUM(conn)), sharename)) {
 			DEBUG(1,("Forcing close of share %s cnum=%d\n",

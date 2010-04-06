@@ -534,7 +534,6 @@ query_int(const struct lsqlite3_private * lsqlite3,
         
         /* Format the query */
         if ((p = sqlite3_vmprintf(pSql, args)) == NULL) {
-		va_end(args);
                 return SQLITE_NOMEM;
         }
         

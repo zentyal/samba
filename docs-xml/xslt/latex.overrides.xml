@@ -1,4 +1,5 @@
 <?xml version='1.0'?>
+<!DOCTYPE latexbindings SYSTEM "db2latex-xsl/xsl/latex.mapping.dtd">
 <latexbindings>
 	<latexmapping role="begin">
 	</latexmapping>

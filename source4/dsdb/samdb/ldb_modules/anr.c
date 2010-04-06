@@ -89,7 +89,6 @@ static struct ldb_parse_tree *make_match_tree(struct ldb_module *module,
 		match_tree->u.substring.chunks = talloc_array(match_tree, struct ldb_val *, 2);
 		
 		if (match_tree->u.substring.chunks == NULL){
-			talloc_free(match_tree);
 			ldb_oom(ldb);
 			return NULL;
 		}
@@ -100,9 +99,6 @@ static struct ldb_parse_tree *make_match_tree(struct ldb_module *module,
 		match_tree->u.equality.attr = attr;
 		match_tree->u.equality.value = *match;
 		break;
-	default:
-		talloc_free(match_tree);
-		return NULL;
 	}
 	return match_tree;
 }

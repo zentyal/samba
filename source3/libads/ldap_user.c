@@ -30,18 +30,18 @@
 	ADS_STATUS status;
 	char *ldap_exp;
 	const char *attrs[] = {"*", NULL};
-	char *escaped_user = escape_ldap_string(talloc_tos(), user);
+	char *escaped_user = escape_ldap_string_alloc(user);
 	if (!escaped_user) {
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
 
 	if (asprintf(&ldap_exp, "(samAccountName=%s)", escaped_user) == -1) {
-		TALLOC_FREE(escaped_user);
+		SAFE_FREE(escaped_user);
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
 	status = ads_search(ads, res, ldap_exp, attrs);
 	SAFE_FREE(ldap_exp);
-	TALLOC_FREE(escaped_user);
+	SAFE_FREE(escaped_user);
 	return status;
 }
 

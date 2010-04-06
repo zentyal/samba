@@ -29,13 +29,28 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern struct registry_ops regdb_ops;
+extern REGISTRY_OPS regdb_ops;
 
-static int tcpip_params_fetch_values(const char *key, struct regval_ctr *regvals)
+static int tcpip_params_fetch_values(const char *key, REGVAL_CTR *regvals)
 {
-	regval_ctr_addvalue_sz(regvals, "Hostname", myhostname());
+	fstring value;
+	int value_length;
+	char *hname;
+	char *mydomainname = NULL;
 
-	regval_ctr_addvalue_sz(regvals, "Domain", get_mydnsdomname(talloc_tos()));
+	hname = myhostname();
+	value_length = push_ucs2(value, value, hname, sizeof(value),
+				 STR_TERMINATE|STR_NOALIGN);
+	regval_ctr_addvalue(regvals, "Hostname",REG_SZ, value, value_length);
+
+	mydomainname = get_mydnsdomname(talloc_tos());
+	if (!mydomainname) {
+		return -1;
+	}
+
+	value_length = push_ucs2(value, value, mydomainname, sizeof(value),
+				 STR_TERMINATE|STR_NOALIGN);
+	regval_ctr_addvalue(regvals, "Domain", REG_SZ, value, value_length);
 
 	return regval_ctr_numvals(regvals);
 }
@@ -46,7 +61,7 @@ static int tcpip_params_fetch_subkeys(const char *key,
 	return regdb_ops.fetch_subkeys(key, subkey_ctr);
 }
 
-struct registry_ops tcpip_params_reg_ops = {
+REGISTRY_OPS tcpip_params_reg_ops = {
 	.fetch_values = tcpip_params_fetch_values,
 	.fetch_subkeys = tcpip_params_fetch_subkeys,
 };

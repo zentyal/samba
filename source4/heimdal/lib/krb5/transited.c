@@ -33,6 +33,8 @@
 
 #include "krb5_locl.h"
 
+RCSID("$Id$");
+
 /* this is an attempt at one of the most horrible `compression'
    schemes that has ever been invented; it's so amazingly brain-dead
    that words can not describe it, and all this just to save a few
@@ -62,8 +64,9 @@ static int
 make_path(krb5_context context, struct tr_realm *r,
 	  const char *from, const char *to)
 {
-    struct tr_realm *tmp;
     const char *p;
+    struct tr_realm *path = r->next;
+    struct tr_realm *tmp;
 
     if(strlen(from) < strlen(to)){
 	const char *str;
@@ -89,12 +92,11 @@ make_path(krb5_context context, struct tr_realm *r,
 				       N_("malloc: out of memory", ""));
 		return ENOMEM;
 	    }
-	    tmp->next = r->next;
-	    r->next = tmp;
-	    tmp->realm = strdup(p);
-	    if(tmp->realm == NULL){
-		r->next = tmp->next;
-		free(tmp);
+	    tmp->next = path;
+	    path = tmp;
+	    path->realm = strdup(p);
+	    if(path->realm == NULL){
+		r->next = path; /* XXX */
 		krb5_set_error_message(context, ENOMEM,
 				       N_("malloc: out of memory", ""));
 		return ENOMEM;;
@@ -104,9 +106,10 @@ make_path(krb5_context context, struct tr_realm *r,
 	p = from + strlen(from);
 	while(1){
 	    while(p >= from && *p != '/') p--;
-	    if(p == from)
+	    if(p == from) {
+		r->next = path; /* XXX */
 		return KRB5KDC_ERR_POLICY;
-
+	    }
 	    if(strncmp(to, from, p - from) == 0)
 		break;
 	    tmp = calloc(1, sizeof(*tmp));
@@ -115,24 +118,24 @@ make_path(krb5_context context, struct tr_realm *r,
 				       N_("malloc: out of memory", ""));
 		return ENOMEM;
 	    }
-	    tmp->next = r->next;
-	    r->next = tmp;
-	    tmp->realm = malloc(p - from + 1);
-	    if(tmp->realm == NULL){
-		r->next = tmp->next;
-		free(tmp);
+	    tmp->next = path;
+	    path = tmp;
+	    path->realm = malloc(p - from + 1);
+	    if(path->realm == NULL){
+		r->next = path; /* XXX */
 		krb5_set_error_message(context, ENOMEM,
 				       N_("malloc: out of memory", ""));
 		return ENOMEM;
 	    }
-	    memcpy(tmp->realm, from, p - from);
-	    tmp->realm[p - from] = '\0';
+	    memcpy(path->realm, from, p - from);
+	    path->realm[p - from] = '\0';
 	    p--;
 	}
     } else {
 	krb5_clear_error_message (context);
 	return KRB5KDC_ERR_POLICY;
     }
+    r->next = path;
 
     return 0;
 }
@@ -358,15 +361,17 @@ krb5_domain_x500_decode(krb5_context context,
 	return ret;
 
     /* remove empty components and count realms */
+    q = &r;
     *num_realms = 0;
-    for(q = &r; *q; ){
-	if((*q)->realm[0] == '\0'){
-	    p = *q;
-	    *q = (*q)->next;
+    for(p = r; p; ){
+	if(p->realm[0] == '\0'){
 	    free(p->realm);
+	    *q = p->next;
 	    free(p);
+	    p = *q;
 	}else{
-	    q = &(*q)->next;
+	    q = &p->next;
+	    p = p->next;
 	    (*num_realms)++;
 	}
     }

@@ -434,9 +434,7 @@ struct subnet_record {
 	struct in_addr mask_ip;
 	struct in_addr myip;
 	int nmb_sock;               /* socket to listen for unicast 137. */
-	int nmb_bcast;              /* socket to listen for broadcast 137. */
 	int dgram_sock;             /* socket to listen for unicast 138. */
-	int dgram_bcast;            /* socket to listen for broadcast 138. */
 };
 
 /* A resource record. */
@@ -532,8 +530,7 @@ struct packet_struct
 	bool locked;
 	struct in_addr ip;
 	int port;
-	int recv_fd;
-	int send_fd;
+	int fd;
 	time_t timestamp;
 	enum packet_type packet_type;
 	union {

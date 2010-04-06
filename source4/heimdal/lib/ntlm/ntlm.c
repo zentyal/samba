@@ -33,6 +33,8 @@
 
 #include <config.h>
 
+RCSID("$Id$");
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -438,8 +440,7 @@ heim_ntlm_decode_type1(const struct ntlm_buf *buf, struct ntlm_type1 *data)
 	CHECK(ret_string(in, 0, &hostname, &data->hostname), 0);
 
 out:
-    if (in)
-	krb5_storage_free(in);
+    krb5_storage_free(in);
     if (ret)
 	heim_ntlm_free_type1(data);
 
@@ -588,8 +589,7 @@ heim_ntlm_decode_type2(const struct ntlm_buf *buf, struct ntlm_type2 *type2)
     ret = 0;
 
 out:
-    if (in)
-	krb5_storage_free(in);
+    krb5_storage_free(in);
     if (ret)
 	heim_ntlm_free_type2(type2);
 
@@ -748,8 +748,7 @@ heim_ntlm_decode_type3(const struct ntlm_buf *buf,
 	CHECK(ret_buf(in, &sessionkey, &type3->sessionkey), 0);
 
 out:
-    if (in)
-	krb5_storage_free(in);
+    krb5_storage_free(in);
     if (ret)
 	heim_ntlm_free_type3(type3);
 
@@ -1042,18 +1041,15 @@ heim_ntlm_build_ntlm1_master(void *key, size_t len,
  * @param target the name of the target, assumed to be in UTF8.
  * @param ntlmv2 the ntlmv2 session key
  *
- * @return 0 on success, or an error code on failure.
- *
  * @ingroup ntlm_core
  */
 
-int
+void
 heim_ntlm_ntlmv2_key(const void *key, size_t len,
 		     const char *username,
 		     const char *target,
 		     unsigned char ntlmv2[16])
 {
-    int ret;
     unsigned int hmaclen;
     HMAC_CTX c;
 
@@ -1062,23 +1058,17 @@ heim_ntlm_ntlmv2_key(const void *key, size_t len,
     {
 	struct ntlm_buf buf;
 	/* uppercase username and turn it into ucs2-le */
-	ret = ascii2ucs2le(username, 1, &buf);
-	if (ret)
-	    goto out;
+	ascii2ucs2le(username, 1, &buf);
 	HMAC_Update(&c, buf.data, buf.length);
 	free(buf.data);
 	/* uppercase target and turn into ucs2-le */
-	ret = ascii2ucs2le(target, 1, &buf);
-	if (ret)
-	    goto out;
+	ascii2ucs2le(target, 1, &buf);
 	HMAC_Update(&c, buf.data, buf.length);
 	free(buf.data);
     }
     HMAC_Final(&c, ntlmv2, &hmaclen);
- out:
     HMAC_CTX_cleanup(&c);
 
-    return ret;
 }
 
 /*

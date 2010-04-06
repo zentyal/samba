@@ -15,10 +15,7 @@
 <chapter>
 	<title>Foo</title>
 
-	<para>I use <smbconfoption name="path">/tmp</smbconfoption></para>
-
-	<imagefile>slmed</imagefile>
-
+	<para>Bar</para>
 </chapter>
 
 </book>

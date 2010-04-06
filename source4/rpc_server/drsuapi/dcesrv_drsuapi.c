@@ -24,9 +24,10 @@
 #include "librpc/gen_ndr/ndr_drsuapi.h"
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/common/common.h"
-#include "dsdb/samdb/samdb.h"
 #include "rpc_server/drsuapi/dcesrv_drsuapi.h"
-#include "libcli/security/security.h"
+#include "dsdb/samdb/samdb.h"
+#include "lib/ldb/include/ldb_errors.h"
+#include "param/param.h"
 
 /* 
   drsuapi_DsBind 
@@ -226,48 +227,61 @@ static WERROR dcesrv_drsuapi_DsUnbind(struct dcesrv_call_state *dce_call, TALLOC
   drsuapi_DsReplicaSync 
 */
 static WERROR dcesrv_drsuapi_DsReplicaSync(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					   struct drsuapi_DsReplicaSync *r)
+		       struct drsuapi_DsReplicaSync *r)
 {
-	WERROR status;
-
-	status = drs_security_level_check(dce_call, "DsReplicaSync");
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx, r, NDR_DRSUAPI_DSREPLICASYNC,
-				     &ndr_table_drsuapi,
-				     "dreplsrv", "DsReplicaSync");
-
+	/* TODO: implement this call correct!
+	 *       for now we just say yes,
+	 *       because we have no output parameter
+	 */
 	return WERR_OK;
 }
 
 
 /* 
-  drsuapi_DsReplicaAdd 
+  drsuapi_DsGetNCChanges
 */
-static WERROR dcesrv_drsuapi_DsReplicaAdd(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					  struct drsuapi_DsReplicaAdd *r)
+static WERROR dcesrv_drsuapi_DsGetNCChanges(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct drsuapi_DsGetNCChanges *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
 /* 
-  drsuapi_DsReplicaDel 
+  drsuapi_DsReplicaUpdateRefs
 */
-static WERROR dcesrv_drsuapi_DsReplicaDel(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					  struct drsuapi_DsReplicaDel *r)
+static WERROR dcesrv_drsuapi_DsReplicaUpdateRefs(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct drsuapi_DsReplicaUpdateRefs *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
 /* 
-  drsuapi_DsReplicaModify 
+  DRSUAPI_REPLICA_ADD 
 */
-static WERROR dcesrv_drsuapi_DsReplicaMod(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-					  struct drsuapi_DsReplicaMod *r)
+static WERROR dcesrv_DRSUAPI_REPLICA_ADD(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct DRSUAPI_REPLICA_ADD *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+
+/* 
+  DRSUAPI_REPLICA_DEL 
+*/
+static WERROR dcesrv_DRSUAPI_REPLICA_DEL(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct DRSUAPI_REPLICA_DEL *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+
+/* 
+  DRSUAPI_REPLICA_MODIFY 
+*/
+static WERROR dcesrv_DRSUAPI_REPLICA_MODIFY(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct DRSUAPI_REPLICA_MODIFY *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
@@ -450,54 +464,7 @@ static WERROR dcesrv_drsuapi_DsWriteAccountSpn(struct dcesrv_call_state *dce_cal
 static WERROR dcesrv_drsuapi_DsRemoveDSServer(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				       struct drsuapi_DsRemoveDSServer *r)
 {
-	struct drsuapi_bind_state *b_state;
-	struct dcesrv_handle *h;
-	struct ldb_dn *ntds_dn;
-	int ret;
-	bool ok;
-	WERROR status;
-
-	ZERO_STRUCT(r->out.res);
-	*r->out.level_out = 1;
-
-	status = drs_security_level_check(dce_call, "DsRemoveDSServer");
-	if (!W_ERROR_IS_OK(status)) {
-		return status;
-	}
-
-	DCESRV_PULL_HANDLE_WERR(h, r->in.bind_handle, DRSUAPI_BIND_HANDLE);
-	b_state = h->data;
-
-	switch (r->in.level) {
-	case 1:
-		ntds_dn = ldb_dn_new(mem_ctx, b_state->sam_ctx, r->in.req->req1.server_dn);
-		W_ERROR_HAVE_NO_MEMORY(ntds_dn);
-
-		ok = ldb_dn_validate(ntds_dn);
-		if (!ok) {
-			return WERR_FOOBAR;
-		}
-
-		/* TODO: it's likely that we need more checks here */
-
-		ok = ldb_dn_add_child_fmt(ntds_dn, "CN=NTDS Settings");
-		if (!ok) {
-			return WERR_FOOBAR;
-		}
-
-		if (r->in.req->req1.commit) {
-			ret = ldb_delete(b_state->sam_ctx, ntds_dn);
-			if (ret != LDB_SUCCESS) {
-				return WERR_FOOBAR;
-			}
-		}
-
-		return WERR_OK;
-	default:
-		break;
-	}
-
-	return WERR_FOOBAR;
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
 
 
@@ -776,12 +743,21 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo(struct dcesrv_call_state 
 }
 
 
+/* 
+  drsuapi_DsAddEntry
+*/
+static WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct drsuapi_DsAddEntry *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
 
 /* 
-  drsuapi_DsExecuteKCC 
+  DRSUAPI_EXECUTE_KCC 
 */
-static WERROR dcesrv_drsuapi_DsExecuteKCC(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-				  struct drsuapi_DsExecuteKCC *r)
+static WERROR dcesrv_DRSUAPI_EXECUTE_KCC(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct DRSUAPI_EXECUTE_KCC *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }

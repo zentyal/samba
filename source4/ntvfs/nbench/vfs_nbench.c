@@ -111,8 +111,7 @@ static char *nbench_ntvfs_handle_string(struct ntvfs_request *req, struct ntvfs_
   connect to a share - used when a tree_connect operation comes in.
 */
 static NTSTATUS nbench_connect(struct ntvfs_module_context *ntvfs,
-			       struct ntvfs_request *req,
-			       union smb_tcon* con)
+			       struct ntvfs_request *req, const char *sharename)
 {
 	struct nbench_private *nprivates;
 	NTSTATUS status;
@@ -134,7 +133,7 @@ static NTSTATUS nbench_connect(struct ntvfs_module_context *ntvfs,
 
 	ntvfs->private_data = nprivates;
 
-	status = ntvfs_next_connect(ntvfs, req, con);
+	status = ntvfs_next_connect(ntvfs, req, sharename);
 
 	return status;
 }

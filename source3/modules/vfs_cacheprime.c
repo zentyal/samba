@@ -72,7 +72,7 @@ static bool prime_cache(
         DEBUG(module_debug,
             ("%s: doing readahead of %lld bytes at %lld for %s\n",
             MODULE, (long long)g_readsz, (long long)*last,
-	    fsp_str_dbg(fsp)));
+            fsp->fsp_name));
 
         nread = sys_pread(fsp->fh->fd, g_readbuf, g_readsz, *last);
         if (nread < 0) {
@@ -89,8 +89,6 @@ static int cprime_connect(
                 const char *                service,
                 const char *                user)
 {
-	int ret;
-
         module_debug = lp_parm_int(SNUM(handle->conn), MODULE, "debug", 100);
         if (g_readbuf) {
                 /* Only allocate g_readbuf once. If the config changes and
@@ -99,11 +97,6 @@ static int cprime_connect(
                  */
                 return SMB_VFS_NEXT_CONNECT(handle, service, user);
         }
-
-	ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
-	if (ret < 0) {
-		return ret;
-	}
 
         g_readsz = conv_str_size(lp_parm_const_string(SNUM(handle->conn),
                                         MODULE, "rsize", NULL));
@@ -125,7 +118,7 @@ static int cprime_connect(
                 g_readsz = 0;
         }
 
-        return 0;
+        return SMB_VFS_NEXT_CONNECT(handle, service, user);
 }
 
 static ssize_t cprime_sendfile(
@@ -175,11 +168,18 @@ static ssize_t cprime_pread(
         return SMB_VFS_NEXT_PREAD(handle, fsp, data, count, offset);
 }
 
-static struct vfs_fn_pointers vfs_cacheprime_fns = {
-        .sendfile = cprime_sendfile,
-        .pread = cprime_pread,
-        .vfs_read = cprime_read,
-        .connect_fn = cprime_connect,
+static vfs_op_tuple cprime_ops [] =
+{
+        {SMB_VFS_OP(cprime_sendfile),
+                SMB_VFS_OP_SENDFILE, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(cprime_pread),
+                SMB_VFS_OP_PREAD, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(cprime_read),
+                SMB_VFS_OP_READ, SMB_VFS_LAYER_TRANSPARENT},
+        {SMB_VFS_OP(cprime_connect),
+                SMB_VFS_OP_CONNECT,  SMB_VFS_LAYER_TRANSPARENT},
+
+        {SMB_VFS_OP(NULL), SMB_VFS_OP_NOOP, SMB_VFS_LAYER_NOOP}
 };
 
 /* -------------------------------------------------------------------------
@@ -190,8 +190,7 @@ static struct vfs_fn_pointers vfs_cacheprime_fns = {
 NTSTATUS vfs_cacheprime_init(void);
 NTSTATUS vfs_cacheprime_init(void)
 {
-	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE,
-				&vfs_cacheprime_fns);
+    return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, MODULE, cprime_ops);
 }
 
 /* vim: set sw=4 ts=4 tw=79 et: */

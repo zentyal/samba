@@ -25,16 +25,7 @@
 
 #include "includes.h"
 #include "utils/ntlm_auth.h"
-#include "../libcli/auth/libcli_auth.h"
-#include "../libcli/auth/spnego.h"
 #include "smb_krb5.h"
-#include <iniparser.h>
-
-#ifndef PAM_WINBIND_CONFIG_FILE
-#define PAM_WINBIND_CONFIG_FILE "/etc/security/pam_winbind.conf"
-#endif
-
-#define WINBIND_KRB5_AUTH	0x00000080
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -134,7 +125,6 @@ static int use_cached_creds;
 
 static const char *require_membership_of;
 static const char *require_membership_of_sid;
-static const char *opt_pam_winbind_conf;
 
 static char winbind_separator(void)
 {
@@ -289,36 +279,6 @@ static bool get_require_membership_sid(void) {
 
 	return False;
 }
-
-/* 
- * Get some configuration from pam_winbind.conf to see if we 
- * need to contact trusted domain
- */
-
-int get_pam_winbind_config()
-{
-	int ctrl = 0;
-	dictionary *d = NULL;
-	
-	if (!opt_pam_winbind_conf || !*opt_pam_winbind_conf) {
-		opt_pam_winbind_conf = PAM_WINBIND_CONFIG_FILE;
-	}
-
-	d = iniparser_load(CONST_DISCARD(char *, opt_pam_winbind_conf));
-	
-	if (!d) {
-		return 0;
-	}
-	
-	if (iniparser_getboolean(d, CONST_DISCARD(char *, "global:krb5_auth"), false)) {
-		ctrl |= WINBIND_KRB5_AUTH;
-	}
-
-	iniparser_freedict(d);
-	
-	return ctrl;
-}
-
 /* Authenticate a user with a plaintext password */
 
 static bool check_plaintext_auth(const char *user, const char *pass,
@@ -580,13 +540,13 @@ static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, DATA_BLOB 
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		if (memcmp(lm_key, zeros, 8) != 0) {
-			*lm_session_key = data_blob_talloc(ntlmssp_state, NULL, 16);
+			*lm_session_key = data_blob(NULL, 16);
 			memcpy(lm_session_key->data, lm_key, 8);
 			memset(lm_session_key->data+8, '\0', 8);
 		}
 		
 		if (memcmp(user_sess_key, zeros, 16) != 0) {
-			*user_session_key = data_blob_talloc(ntlmssp_state, user_sess_key, 16);
+			*user_session_key = data_blob(user_sess_key, 16);
 		}
 		ntlmssp_state->auth_context = talloc_strdup(ntlmssp_state,
 							    unix_name);
@@ -607,19 +567,19 @@ static NTSTATUS winbind_pw_check(struct ntlmssp_state *ntlmssp_state, DATA_BLOB 
 static NTSTATUS local_pw_check(struct ntlmssp_state *ntlmssp_state, DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key) 
 {
 	NTSTATUS nt_status;
-	struct samr_Password lm_pw, nt_pw;
+	uint8 lm_pw[16], nt_pw[16];
 
-	nt_lm_owf_gen (opt_password, nt_pw.hash, lm_pw.hash);
+	nt_lm_owf_gen (opt_password, nt_pw, lm_pw);
 	
 	nt_status = ntlm_password_check(ntlmssp_state,
-					true, true, 0,
 					&ntlmssp_state->chal,
 					&ntlmssp_state->lm_resp,
 					&ntlmssp_state->nt_resp, 
+					NULL, NULL,
 					ntlmssp_state->user, 
 					ntlmssp_state->user, 
 					ntlmssp_state->domain,
-					&lm_pw, &nt_pw, user_session_key, lm_session_key);
+					lm_pw, nt_pw, user_session_key, lm_session_key);
 	
 	if (NT_STATUS_IS_OK(nt_status)) {
 		ntlmssp_state->auth_context = talloc_asprintf(ntlmssp_state,
@@ -717,26 +677,11 @@ static NTSTATUS do_ccache_ntlm_auth(DATA_BLOB initial_msg, DATA_BLOB challenge_m
 {
 	struct winbindd_request wb_request;
 	struct winbindd_response wb_response;
-	int ctrl = 0;
 	NSS_STATUS result;
 
 	/* get winbindd to do the ntlmssp step on our behalf */
 	ZERO_STRUCT(wb_request);
 	ZERO_STRUCT(wb_response);
-
-	/*
-	 * This is tricky here. If we set krb5_auth in pam_winbind.conf
-	 * creds for users in trusted domain will be stored the winbindd
-	 * child of the trusted domain. If we ask the primary domain for
-	 * ntlm_ccache_auth, it will fail. So, we have to ask the trusted
-	 * domain's child for ccache_ntlm_auth. that is to say, we have to 
-	 * set WBFALG_PAM_CONTACT_TRUSTDOM in request.flags.
-	 */
-	ctrl = get_pam_winbind_config();
-
-	if (ctrl | WINBIND_KRB5_AUTH) {
-		wb_request.flags |= WBFLAG_PAM_CONTACT_TRUSTDOM;
-	}
 
 	fstr_sprintf(wb_request.data.ccache_ntlm_auth.user,
 		"%s%c%s", opt_domain, winbind_separator(), opt_username);
@@ -1115,7 +1060,7 @@ static void manage_squid_basic_request(struct ntlm_auth_state *state,
 static void offer_gss_spnego_mechs(void) {
 
 	DATA_BLOB token;
-	struct spnego_data spnego;
+	SPNEGO_DATA spnego;
 	ssize_t len;
 	char *reply_base64;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -1151,8 +1096,8 @@ static void offer_gss_spnego_mechs(void) {
 	spnego.negTokenInit.mechListMIC = data_blob(principal,
 						    strlen(principal));
 
-	len = spnego_write_data(ctx, &token, &spnego);
-	spnego_free_data(&spnego);
+	len = write_spnego_data(&token, &spnego);
+	free_spnego_data(&spnego);
 
 	if (len == -1) {
 		DEBUG(1, ("Could not write SPNEGO data blob\n"));
@@ -1173,7 +1118,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 					char *buf, int length)
 {
 	static NTLMSSP_STATE *ntlmssp_state = NULL;
-	struct spnego_data request, response;
+	SPNEGO_DATA request, response;
 	DATA_BLOB token;
 	NTSTATUS status;
 	ssize_t len;
@@ -1221,7 +1166,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 	}
 
 	token = base64_decode_data_blob(buf + 3);
-	len = spnego_read_data(ctx, token, &request);
+	len = read_spnego_data(talloc_tos(), token, &request);
 	data_blob_free(&token);
 
 	if (len == -1) {
@@ -1369,7 +1314,7 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 		}
 	}
 
-	spnego_free_data(&request);
+	free_spnego_data(&request);
 
 	if (NT_STATUS_IS_OK(status)) {
 		response.negTokenTarg.negResult = SPNEGO_ACCEPT_COMPLETED;
@@ -1395,8 +1340,8 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 	SAFE_FREE(user);
 	SAFE_FREE(domain);
 
-	len = spnego_write_data(ctx, &token, &response);
-	spnego_free_data(&response);
+	len = write_spnego_data(&token, &response);
+	free_spnego_data(&response);
 
 	if (len == -1) {
 		DEBUG(1, ("Could not write SPNEGO data blob\n"));
@@ -1417,14 +1362,13 @@ static void manage_gss_spnego_request(struct ntlm_auth_state *state,
 
 static NTLMSSP_STATE *client_ntlmssp_state = NULL;
 
-static bool manage_client_ntlmssp_init(struct spnego_data spnego)
+static bool manage_client_ntlmssp_init(SPNEGO_DATA spnego)
 {
 	NTSTATUS status;
 	DATA_BLOB null_blob = data_blob_null;
 	DATA_BLOB to_server;
 	char *to_server_base64;
 	const char *my_mechs[] = {OID_NTLMSSP, NULL};
-	TALLOC_CTX *ctx = talloc_tos();
 
 	DEBUG(10, ("Got spnego negTokenInit with NTLMSSP\n"));
 
@@ -1455,8 +1399,7 @@ static bool manage_client_ntlmssp_init(struct spnego_data spnego)
 
 	spnego.type = SPNEGO_NEG_TOKEN_INIT;
 	spnego.negTokenInit.mechTypes = my_mechs;
-	spnego.negTokenInit.reqFlags = data_blob_null;
-	spnego.negTokenInit.reqFlagsPadding = 0;
+	spnego.negTokenInit.reqFlags = 0;
 	spnego.negTokenInit.mechListMIC = null_blob;
 
 	status = ntlmssp_update(client_ntlmssp_state, null_blob,
@@ -1470,7 +1413,7 @@ static bool manage_client_ntlmssp_init(struct spnego_data spnego)
 		return False;
 	}
 
-	spnego_write_data(ctx, &to_server, &spnego);
+	write_spnego_data(&to_server, &spnego);
 	data_blob_free(&spnego.negTokenInit.mechToken);
 
 	to_server_base64 = base64_encode_data_blob(talloc_tos(), to_server);
@@ -1480,14 +1423,13 @@ static bool manage_client_ntlmssp_init(struct spnego_data spnego)
 	return True;
 }
 
-static void manage_client_ntlmssp_targ(struct spnego_data spnego)
+static void manage_client_ntlmssp_targ(SPNEGO_DATA spnego)
 {
 	NTSTATUS status;
 	DATA_BLOB null_blob = data_blob_null;
 	DATA_BLOB request;
 	DATA_BLOB to_server;
 	char *to_server_base64;
-	TALLOC_CTX *ctx = talloc_tos();
 
 	DEBUG(10, ("Got spnego negTokenTarg with NTLMSSP\n"));
 
@@ -1530,7 +1472,7 @@ static void manage_client_ntlmssp_targ(struct spnego_data spnego)
 	spnego.negTokenTarg.responseToken = request;
 	spnego.negTokenTarg.mechListMIC = null_blob;
 	
-	spnego_write_data(ctx, &to_server, &spnego);
+	write_spnego_data(&to_server, &spnego);
 	data_blob_free(&request);
 
 	to_server_base64 = base64_encode_data_blob(talloc_tos(), to_server);
@@ -1542,18 +1484,17 @@ static void manage_client_ntlmssp_targ(struct spnego_data spnego)
 
 #ifdef HAVE_KRB5
 
-static bool manage_client_krb5_init(struct spnego_data spnego)
+static bool manage_client_krb5_init(SPNEGO_DATA spnego)
 {
 	char *principal;
 	DATA_BLOB tkt, to_server;
 	DATA_BLOB session_key_krb5 = data_blob_null;
-	struct spnego_data reply;
+	SPNEGO_DATA reply;
 	char *reply_base64;
 	int retval;
 
 	const char *my_mechs[] = {OID_KERBEROS5_OLD, NULL};
 	ssize_t len;
-	TALLOC_CTX *ctx = talloc_tos();
 
 	if ( (spnego.negTokenInit.mechListMIC.data == NULL) ||
 	     (spnego.negTokenInit.mechListMIC.length == 0) ) {
@@ -1573,7 +1514,7 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 	       spnego.negTokenInit.mechListMIC.length);
 	principal[spnego.negTokenInit.mechListMIC.length] = '\0';
 
-	retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL, NULL);
+	retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL);
 
 	if (retval) {
 		char *user = NULL;
@@ -1597,7 +1538,7 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 			return False;
 		}
 
-		retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL, NULL);
+		retval = cli_krb5_get_ticket(principal, 0, &tkt, &session_key_krb5, 0, NULL, NULL);
 
 		if (retval) {
 			DEBUG(10, ("Kinit suceeded, but getting a ticket failed: %s\n", error_message(retval)));
@@ -1611,12 +1552,11 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 
 	reply.type = SPNEGO_NEG_TOKEN_INIT;
 	reply.negTokenInit.mechTypes = my_mechs;
-	reply.negTokenInit.reqFlags = data_blob_null;
-	reply.negTokenInit.reqFlagsPadding = 0;
+	reply.negTokenInit.reqFlags = 0;
 	reply.negTokenInit.mechToken = tkt;
 	reply.negTokenInit.mechListMIC = data_blob_null;
 
-	len = spnego_write_data(ctx, &to_server, &reply);
+	len = write_spnego_data(&to_server, &reply);
 	data_blob_free(&tkt);
 
 	if (len == -1) {
@@ -1633,7 +1573,7 @@ static bool manage_client_krb5_init(struct spnego_data spnego)
 	return True;
 }
 
-static void manage_client_krb5_targ(struct spnego_data spnego)
+static void manage_client_krb5_targ(SPNEGO_DATA spnego)
 {
 	switch (spnego.negTokenTarg.negResult) {
 	case SPNEGO_ACCEPT_INCOMPLETE:
@@ -1661,9 +1601,8 @@ static void manage_gss_spnego_client_request(struct ntlm_auth_state *state,
 						char *buf, int length)
 {
 	DATA_BLOB request;
-	struct spnego_data spnego;
+	SPNEGO_DATA spnego;
 	ssize_t len;
-	TALLOC_CTX *ctx = talloc_tos();
 
 	if (!opt_username || !*opt_username) {
 		x_fprintf(x_stderr, "username must be specified!\n\n");
@@ -1708,7 +1647,7 @@ static void manage_gss_spnego_client_request(struct ntlm_auth_state *state,
 	/* So we got a server challenge to generate a SPNEGO
            client-to-server request... */
 
-	len = spnego_read_data(ctx, request, &spnego);
+	len = read_spnego_data(talloc_tos(), request, &spnego);
 	data_blob_free(&request);
 
 	if (len == -1) {
@@ -1794,7 +1733,7 @@ static void manage_gss_spnego_client_request(struct ntlm_auth_state *state,
 	return;
 
  out:
-	spnego_free_data(&spnego);
+	free_spnego_data(&spnego);
 	return;
 }
 
@@ -2039,7 +1978,7 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 				encode_pw_buffer(new_lm_pswd.data, newpswd,
 						 STR_UNICODE);
 
-				arcfour_crypt(new_lm_pswd.data, old_nt_hash, 516);
+				SamOEMhash(new_lm_pswd.data, old_nt_hash, 516);
 				E_old_pw_hash(new_nt_hash, old_lm_hash,
 					      old_lm_hash_enc.data);
 			} else {
@@ -2052,7 +1991,7 @@ static void manage_ntlm_change_password_1_request(struct ntlm_auth_state *state,
 			encode_pw_buffer(new_nt_pswd.data, newpswd,
 					 STR_UNICODE);
 	
-			arcfour_crypt(new_nt_pswd.data, old_nt_hash, 516);
+			SamOEMhash(new_nt_pswd.data, old_nt_hash, 516);
 			E_old_pw_hash(new_nt_hash, old_nt_hash,
 				      old_nt_hash_enc.data);
 		}
@@ -2337,7 +2276,7 @@ static bool check_auth_crap(void)
 	if (request_lm_key 
 	    && (memcmp(zeros, lm_key, 
 		       sizeof(lm_key)) != 0)) {
-		hex_lm_key = hex_encode_talloc(talloc_tos(), (const unsigned char *)lm_key,
+		hex_lm_key = hex_encode_talloc(NULL, (const unsigned char *)lm_key,
 					sizeof(lm_key));
 		x_fprintf(x_stdout, "LM_KEY: %s\n", hex_lm_key);
 		TALLOC_FREE(hex_lm_key);
@@ -2345,7 +2284,7 @@ static bool check_auth_crap(void)
 	if (request_user_session_key 
 	    && (memcmp(zeros, user_session_key, 
 		       sizeof(user_session_key)) != 0)) {
-		hex_user_session_key = hex_encode_talloc(talloc_tos(), (const unsigned char *)user_session_key, 
+		hex_user_session_key = hex_encode_talloc(NULL, (const unsigned char *)user_session_key, 
 						  sizeof(user_session_key));
 		x_fprintf(x_stdout, "NT_KEY: %s\n", hex_user_session_key);
 		TALLOC_FREE(hex_user_session_key);
@@ -2369,8 +2308,7 @@ enum {
 	OPT_USER_SESSION_KEY,
 	OPT_DIAGNOSTICS,
 	OPT_REQUIRE_MEMBERSHIP,
-	OPT_USE_CACHED_CREDS,
-	OPT_PAM_WINBIND_CONF
+	OPT_USE_CACHED_CREDS
 };
 
  int main(int argc, const char **argv)
@@ -2409,7 +2347,6 @@ enum {
 		{ "use-cached-creds", 0, POPT_ARG_NONE, &use_cached_creds, OPT_USE_CACHED_CREDS, "Use cached credentials if no password is given"},
 		{ "diagnostics", 0, POPT_ARG_NONE, &diagnostics, OPT_DIAGNOSTICS, "Perform diagnostics on the authentictaion chain"},
 		{ "require-membership-of", 0, POPT_ARG_STRING, &require_membership_of, OPT_REQUIRE_MEMBERSHIP, "Require that a user be a member of this group (either name or SID) for authentication to succeed" },
-		{ "pam-winbind-conf", 0, POPT_ARG_STRING, &opt_pam_winbind_conf, OPT_PAM_WINBIND_CONF, "Require that request must set WBFLAG_PAM_CONTACT_TRUSTDOM when krb5 auth is required" },
 		POPT_COMMON_CONFIGFILE
 		POPT_COMMON_VERSION
 		POPT_TABLEEND

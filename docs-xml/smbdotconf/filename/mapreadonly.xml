@@ -1,4 +1,4 @@
-<samba:parameter name="map readonly"
+<samba:parameter name="map read only"
                  context="S"
 		 type="enum"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">

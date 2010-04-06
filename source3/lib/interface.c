@@ -496,7 +496,15 @@ void load_interfaces(void)
 	const char **ptr = lp_interfaces();
 	int i;
 
-	gfree_interfaces();
+	SAFE_FREE(probed_ifaces);
+
+	/* dump the current interfaces if any */
+	while (local_interfaces) {
+		struct interface *iface = local_interfaces;
+		DLIST_REMOVE(local_interfaces, local_interfaces);
+		SAFE_FREE(iface->name);
+		SAFE_FREE(iface);
+	}
 
 	/* Probe the kernel for interfaces */
 	total_probed = get_interfaces(talloc_tos(), &ifaces);

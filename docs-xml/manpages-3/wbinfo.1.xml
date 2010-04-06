@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">User Commands</refmiscinfo>
-	<refmiscinfo class="version">3.5</refmiscinfo>
+	<refmiscinfo class="version">3.4</refmiscinfo>
 </refmeta>
 
 
@@ -23,7 +23,6 @@
 		<arg choice="opt">--all-domains</arg>
 		<arg choice="opt">--allocate-gid</arg>
 		<arg choice="opt">--allocate-uid</arg>
-		<arg choice="opt">-c</arg>
 		<arg choice="opt">-D domain</arg>
 		<arg choice="opt">--domain domain</arg>
 		<arg choice="opt">-g</arg>
@@ -108,14 +107,6 @@
 		<term>--all-domains</term>
 		<listitem><para>List all domains (trusted and
 		own domain).
-		</para></listitem>
-		</varlistentry>
-
-		<varlistentry>
-		<term>-c|--change-secret</term>
-		<listitem><para>Change the trust account password. May be used
-		in conjunction with <option>domain</option> in order to change
-		interdomain trust account passwords.
 		</para></listitem>
 		</varlistentry>
 
@@ -292,9 +283,7 @@
 		<term>-t|--check-secret</term>
 		<listitem><para>Verify that the workstation trust account
 		created when the Samba server is added to the Windows NT
-		domain is working. May be used in conjunction with
-		<option>domain</option> in order to verify interdomain
-		trust accounts.</para></listitem>
+		domain is working. </para></listitem>
 		</varlistentry>
 
 		<varlistentry>

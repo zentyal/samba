@@ -20,7 +20,6 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/cli_epmapper.h"
 
 static NTSTATUS cmd_epmapper_map(struct rpc_pipe_client *p,
 				 TALLOC_CTX *mem_ctx,

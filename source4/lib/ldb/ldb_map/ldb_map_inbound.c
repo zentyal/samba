@@ -73,7 +73,7 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 	/* Unknown attribute: ignore */
 	if (map == NULL) {
 		ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
-			  "Not mapping attribute '%s': no mapping found",
+			  "Not mapping attribute '%s': no mapping found\n",
 			  old->name);
 		goto local;
 	}
@@ -86,7 +86,7 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 		if (map->u.convert.convert_local == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
-				  "'convert_local' not set",
+				  "'convert_local' not set\n",
 				  map->local_name);
 			goto local;
 		}
@@ -100,7 +100,7 @@ static int ldb_msg_el_partition(struct ldb_module *module, struct ldb_message *l
 		if (map->u.generate.generate_remote == NULL) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
 				  "Not mapping attribute '%s': "
-				  "'generate_remote' not set",
+				  "'generate_remote' not set\n",
 				  map->local_name);
 			goto local;
 		}
@@ -167,7 +167,7 @@ static int ldb_msg_partition(struct ldb_module *module, struct ldb_message *loca
 		/* Skip 'IS_MAPPED' */
 		if (ldb_attr_cmp(msg->elements[i].name, IS_MAPPED) == 0) {
 			ldb_debug(ldb, LDB_DEBUG_WARNING, "ldb_map: "
-				  "Skipping attribute '%s'",
+				  "Skipping attribute '%s'\n",
 				  msg->elements[i].name);
 			continue;
 		}

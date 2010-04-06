@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "rpc_server/dcerpc_server.h"
 #include "librpc/gen_ndr/ndr_browser.h"
+#include "rpc_server/common/common.h"
 
 
 /*

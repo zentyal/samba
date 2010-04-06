@@ -69,8 +69,8 @@ static int subtree_delete_search_callback(struct ldb_request *req,
 	ldb = ldb_module_get_ctx(ac->module);
 
 	if (!ares) {
-		ret = LDB_ERR_OPERATIONS_ERROR;
-		goto done;
+		return ldb_module_done(ac->req, NULL, NULL,
+					LDB_ERR_OPERATIONS_ERROR);
 	}
 	if (ares->error != LDB_SUCCESS) {
 		return ldb_module_done(ac->req, ares->controls,
@@ -79,23 +79,21 @@ static int subtree_delete_search_callback(struct ldb_request *req,
 
 	switch (ares->type) {
 	case LDB_REPLY_ENTRY:
-		/* count entry */
-		++(ac->num_children);
 
 		talloc_free(ares);
-		ret = LDB_SUCCESS;
+		ac->num_children++;
 		break;
 
 	case LDB_REPLY_REFERRAL:
+
 		/* ignore */
 		talloc_free(ares);
-		ret = LDB_SUCCESS;
 		break;
 
 	case LDB_REPLY_DONE:
-		talloc_free(ares);
 
 		if (ac->num_children > 0) {
+			talloc_free(ares);
 			ldb_asprintf_errstring(ldb,
 				"Cannot delete %s, not a leaf node "
 				"(has %d children)\n",
@@ -107,14 +105,13 @@ static int subtree_delete_search_callback(struct ldb_request *req,
 
 		/* ok no children, let the original request through */
 		ret = ldb_next_request(ac->module, ac->req);
-		break;
-	}
+		if (ret != LDB_SUCCESS) {
+			return ldb_module_done(ac->req, NULL, NULL, ret);
+		}
 
-done:
-	if (ret != LDB_SUCCESS) {
-		return ldb_module_done(ac->req, NULL, NULL, ret);
+		/* free our own context we are not going to be called back */
+		talloc_free(ac);
 	}
-
 	return LDB_SUCCESS;
 }
 
@@ -125,9 +122,7 @@ static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 	struct ldb_request *search_req;
 	struct subtree_delete_context *ac;
 	int ret;
-
-	if (ldb_dn_is_special(req->op.rename.olddn)) {
-		/* do not manipulate our control entries */
+	if (ldb_dn_is_special(req->op.rename.olddn)) { /* do not manipulate our control entries */
 		return ldb_next_request(module, req);
 	}
 

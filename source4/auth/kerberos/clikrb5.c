@@ -74,9 +74,13 @@
 
  void kerberos_free_data_contents(krb5_context context, krb5_data *pdata)
 {
+#if defined(HAVE_KRB5_FREE_DATA_CONTENTS)
 	if (pdata->data) {
-		krb5_data_free(pdata);
+		krb5_free_data_contents(context, pdata);
 	}
+#else
+	SAFE_FREE(pdata->data);
+#endif
 }
 
  krb5_error_code smb_krb5_kt_free_entry(krb5_context context, krb5_keytab_entry *kt_entry)
@@ -94,11 +98,11 @@
 {
 	char *ret;
 	
-#if defined(HAVE_KRB5_GET_ERROR_MESSAGE) && defined(HAVE_KRB5_FREE_ERROR_MESSAGE) 	
-	const char *context_error = krb5_get_error_message(context, code);
+#if defined(HAVE_KRB5_GET_ERROR_STRING) && defined(HAVE_KRB5_FREE_ERROR_STRING) 	
+	char *context_error = krb5_get_error_string(context);
 	if (context_error) {
 		ret = talloc_asprintf(mem_ctx, "%s: %s", error_message(code), context_error);
-		krb5_free_error_message(context, context_error);
+		krb5_free_error_string(context, context_error);
 		return ret;
 	}
 #endif

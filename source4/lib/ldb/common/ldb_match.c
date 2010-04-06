@@ -335,7 +335,7 @@ static int ldb_match_extended(struct ldb_context *ldb,
 		}
 	}
 	if (comp == NULL) {
-		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb: unknown extended rule_id %s",
+		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb: unknown extended rule_id %s\n",
 			  tree->u.extended.rule_id);
 		return -1;
 	}

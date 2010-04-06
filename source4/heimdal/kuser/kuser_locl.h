@@ -36,7 +36,9 @@
 #ifndef __KUSER_LOCL_H__
 #define __KUSER_LOCL_H__
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,16 +81,14 @@
 #ifdef HAVE_SYS_IOCCOM_H
 #include <sys/ioccom.h>
 #endif
-#ifndef NO_AFS
 #include <kafs.h>
-#endif
 #include "crypto-headers.h" /* for UI_UTIL_read_pw_string */
 
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
 
-#ifdef LIBINTL
+#ifdef HAVE_LIBINTL_H
 #include <libintl.h>
 #define N_(x,y) gettext(x)
 #define NP_(x,y) (x)

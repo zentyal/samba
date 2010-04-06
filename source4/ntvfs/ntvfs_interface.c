@@ -22,13 +22,13 @@
 #include "ntvfs/ntvfs.h"
 
 /* connect/disconnect */
-NTSTATUS ntvfs_connect(struct ntvfs_request *req, union smb_tcon *tcon)
+NTSTATUS ntvfs_connect(struct ntvfs_request *req, const char *sharename)
 {
 	struct ntvfs_module_context *ntvfs = req->ctx->modules;
 	if (!ntvfs->ops->connect) {
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
-	return ntvfs->ops->connect(ntvfs, req, tcon);
+	return ntvfs->ops->connect(ntvfs, req, sharename);
 }
 
 NTSTATUS ntvfs_disconnect(struct ntvfs_context *ntvfs_ctx)
@@ -335,13 +335,12 @@ NTSTATUS ntvfs_cancel(struct ntvfs_request *req)
 
 /* initial setup */
 NTSTATUS ntvfs_next_connect(struct ntvfs_module_context *ntvfs, 
-				     struct ntvfs_request *req,
-				     union smb_tcon *tcon)
+				     struct ntvfs_request *req, const char *sharename)
 {
 	if (!ntvfs->next || !ntvfs->next->ops->connect) {
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}
-	return ntvfs->next->ops->connect(ntvfs->next, req, tcon);
+	return ntvfs->next->ops->connect(ntvfs->next, req, sharename);
 }
 
 NTSTATUS ntvfs_next_disconnect(struct ntvfs_module_context *ntvfs)

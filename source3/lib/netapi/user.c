@@ -23,7 +23,6 @@
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "lib/netapi/libnetapi.h"
-#include "../librpc/gen_ndr/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/
@@ -467,7 +466,7 @@ WERROR NetUserAdd_r(struct libnetapi_ctx *ctx,
 			       &user_handle);
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+	if (is_valid_policy_hnd(&user_handle)) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 
@@ -771,7 +770,7 @@ static uint32_t samr_acb_flags_to_netapi_flags(uint32_t acb)
 {
 	uint32_t fl = UF_SCRIPT; /* god knows why */
 
-	fl |= ds_acb2uf(acb);
+	fl |= ads_acb2uf(acb);
 
 	return fl;
 }
@@ -1475,10 +1474,10 @@ static WERROR convert_samr_dispinfo_to_NET_DISPLAY(TALLOC_CTX *mem_ctx,
 									  entries_read,
 									  buffer);
 		default:
-			break;
+			return WERR_UNKNOWN_LEVEL;
 	}
 
-	return WERR_UNKNOWN_LEVEL;
+	return WERR_OK;
 }
 
 /****************************************************************
@@ -1697,7 +1696,7 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 	}
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+	if (is_valid_policy_hnd(&user_handle)) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 
@@ -1865,7 +1864,7 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 	werr = WERR_OK;
 
  done:
-	if (is_valid_policy_hnd(&user_handle) && pipe_cli) {
+	if (is_valid_policy_hnd(&user_handle)) {
 		rpccli_samr_Close(pipe_cli, ctx, &user_handle);
 	}
 

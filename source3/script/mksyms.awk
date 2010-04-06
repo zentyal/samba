@@ -4,7 +4,7 @@
 # Extract symbols to export from C-header files.
 # output in version-script format for linking shared libraries.
 #
-# Copyright (C) 2008 Michael Adam <obnox@samba.org>
+# Copyright (C) 2008 Micheal Adam <obnox@samba.org>
 #
 BEGIN {
 	inheader=0;
@@ -28,7 +28,7 @@ END {
 		current_file=FILENAME
 	}
 	if (inheader) {
-		if (match($0,"[)][^()]*[;][ \t]*$")) {
+		if (match($0,"[)][ \t]*[;][ \t]*$")) {
 			inheader = 0;
 		}
 		next;
@@ -57,10 +57,10 @@ END {
 	}
 }
 
-/[_A-Za-z0-9]+[ \t]*[(].*[)][^()]*;[ \t]*$/ {
+/[_A-Za-z0-9]+[ \t]*[(].*[)][ \t]*;[ \t]*$/ {
 	sub(/[(].*$/, "");
 	gsub(/[^ \t]+[ \t]+/, "");
-	gsub(/^[*]+/, "");
+	gsub(/^[*]/, "");
 	printf "\t\t%s;\n",$0;
 	next;
 }

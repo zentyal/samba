@@ -113,7 +113,6 @@ int smb2_deltree(struct smb2_tree *tree, const char *dname)
 	TALLOC_CTX *tmp_ctx = talloc_new(tree);
 	struct smb2_find f;
 	struct smb2_create create_parm;
-	bool did_delete;
 
 	/* it might be a file */
 	status = smb2_util_unlink(tree, dname);
@@ -155,50 +154,45 @@ int smb2_deltree(struct smb2_tree *tree, const char *dname)
 	}
 	
 
-	do {
-		did_delete = false;
+	ZERO_STRUCT(f);
+	f.in.file.handle       = create_parm.out.file.handle;
+	f.in.max_response_size = 0x10000;
+	f.in.level             = SMB2_FIND_NAME_INFO;
+	f.in.pattern           = "*";
 
-		ZERO_STRUCT(f);
-		f.in.file.handle       = create_parm.out.file.handle;
-		f.in.max_response_size = 0x10000;
-		f.in.level             = SMB2_FIND_NAME_INFO;
-		f.in.pattern           = "*";
-		
-		status = smb2_find_level(tree, tmp_ctx, &f, &count, &list);
-		if (NT_STATUS_IS_ERR(status)) {
-			DEBUG(2,("Failed to list %s - %s\n", 
-				 dname, nt_errstr(status)));
-			smb2_util_close(tree, create_parm.out.file.handle);
-			talloc_free(tmp_ctx);
-			return -1;
+	status = smb2_find_level(tree, tmp_ctx, &f, &count, &list);
+	if (NT_STATUS_IS_ERR(status)) {
+		DEBUG(2,("Failed to list %s - %s\n", 
+			 dname, nt_errstr(status)));
+		smb2_util_close(tree, create_parm.out.file.handle);
+		talloc_free(tmp_ctx);
+		return -1;
+	}
+
+	for (i=0;i<count;i++) {
+		char *name;
+		if (strcmp(".", list[i].name_info.name.s) == 0 ||
+		    strcmp("..", list[i].name_info.name.s) == 0) {
+			continue;
 		}
-		
-		for (i=0;i<count;i++) {
-			char *name;
-			if (strcmp(".", list[i].name_info.name.s) == 0 ||
-			    strcmp("..", list[i].name_info.name.s) == 0) {
-				continue;
-			}
-			name = talloc_asprintf(tmp_ctx, "%s\\%s", dname, list[i].name_info.name.s);
+		name = talloc_asprintf(tmp_ctx, "%s\\%s", dname, list[i].name_info.name.s);
+		status = smb2_util_unlink(tree, name);
+		if (NT_STATUS_EQUAL(status, NT_STATUS_CANNOT_DELETE)) {
+			/* it could be read-only */
+			status = smb2_util_setatr(tree, name, FILE_ATTRIBUTE_NORMAL);
 			status = smb2_util_unlink(tree, name);
-			if (NT_STATUS_EQUAL(status, NT_STATUS_CANNOT_DELETE)) {
-				/* it could be read-only */
-				status = smb2_util_setatr(tree, name, FILE_ATTRIBUTE_NORMAL);
-				status = smb2_util_unlink(tree, name);
-			}
-			
-			if (NT_STATUS_EQUAL(status, NT_STATUS_FILE_IS_A_DIRECTORY)) {
-				int ret;
-				ret = smb2_deltree(tree, name);
-				if (ret > 0) total_deleted += ret;
-			}
-			talloc_free(name);
-			if (NT_STATUS_IS_OK(status)) {
-				total_deleted++;
-				did_delete = true;
-			}
 		}
-	} while (did_delete);
+
+		if (NT_STATUS_EQUAL(status, NT_STATUS_FILE_IS_A_DIRECTORY)) {
+			int ret;
+			ret = smb2_deltree(tree, name);
+			if (ret > 0) total_deleted += ret;
+		}
+		talloc_free(name);
+		if (NT_STATUS_IS_OK(status)) {
+			total_deleted++;
+		}
+	}
 
 	smb2_util_close(tree, create_parm.out.file.handle);
 

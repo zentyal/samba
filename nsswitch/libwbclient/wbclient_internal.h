@@ -28,4 +28,5 @@ wbcErr wbcRequestResponse(int cmd,
 			  struct winbindd_request *request,
 			  struct winbindd_response *response);
 
+
 #endif      /* _WBCLIENT_INTERNAL_H */

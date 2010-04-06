@@ -30,7 +30,7 @@
  * SUCH DAMAGE.
  */
 
-#include "spnego_locl.h"
+#include "spnego/spnego_locl.h"
 #include <gssapi_mech.h>
 
 RCSID("$Id$");
@@ -71,7 +71,7 @@ static gssapi_mech_interface_desc spnego_mech = {
     _gss_spnego_inquire_cred_by_mech,
     _gss_spnego_export_sec_context,
     _gss_spnego_import_sec_context,
-    NULL /* _gss_spnego_inquire_names_for_mech */,
+    _gss_spnego_inquire_names_for_mech,
     _gss_spnego_inquire_mechs_for_name,
     _gss_spnego_canonicalize_name,
     _gss_spnego_duplicate_name,
@@ -79,13 +79,7 @@ static gssapi_mech_interface_desc spnego_mech = {
     _gss_spnego_inquire_cred_by_oid,
     _gss_spnego_set_sec_context_option,
     _gss_spnego_set_cred_option,
-    _gss_spnego_pseudo_random,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    _gss_spnego_export_cred,
-    _gss_spnego_import_cred
+    _gss_spnego_pseudo_random
 };
 
 gssapi_mech_interface

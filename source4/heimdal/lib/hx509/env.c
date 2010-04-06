@@ -32,6 +32,7 @@
  */
 
 #include "hx_locl.h"
+RCSID("$Id$");
 
 /**
  * @page page_env Hx509 enviroment functions

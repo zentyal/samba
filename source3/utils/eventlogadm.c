@@ -91,7 +91,7 @@ static int DoWriteCommand( int argc, char **argv, bool debugflag, char *exename 
 	char linein[1024];
 	bool is_eor;
 	struct eventlog_Record_tdb ee;
-	uint32_t record_number = 0;
+	uint32_t record_number;
 	TALLOC_CTX *mem_ctx = talloc_tos();
 
 	f1 = stdin;
@@ -118,10 +118,7 @@ static int DoWriteCommand( int argc, char **argv, bool debugflag, char *exename 
 		if (fgets( linein, sizeof( linein ) - 1, f1 ) == NULL) {
 			break;
 		}
-		if ((strlen(linein) > 0)
-		    && (linein[strlen(linein)-1] == '\n')) {
-			linein[strlen(linein)-1] = 0;
-		}
+		linein[strlen( linein ) - 1] = 0;	/* whack the line delimiter */
 
 		if ( debugflag )
 			printf( "Read line [%s]\n", linein );

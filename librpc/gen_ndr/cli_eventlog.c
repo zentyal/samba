@@ -6,112 +6,6 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/cli_eventlog.h"
 
-struct rpccli_eventlog_ClearEventLogW_state {
-	struct eventlog_ClearEventLogW orig;
-	struct eventlog_ClearEventLogW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ClearEventLogW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ClearEventLogW_send(TALLOC_CTX *mem_ctx,
-						       struct tevent_context *ev,
-						       struct rpc_pipe_client *cli,
-						       struct policy_handle *_handle /* [in] [ref] */,
-						       struct lsa_String *_backupfile /* [in] [unique] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ClearEventLogW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ClearEventLogW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.backupfile = _backupfile;
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_CLEAREVENTLOGW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ClearEventLogW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ClearEventLogW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ClearEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ClearEventLogW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ClearEventLogW_recv(struct tevent_req *req,
-					     TALLOC_CTX *mem_ctx,
-					     NTSTATUS *result)
-{
-	struct rpccli_eventlog_ClearEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ClearEventLogW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_ClearEventLogW(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx,
 					struct policy_handle *handle /* [in] [ref] */,
@@ -124,6 +18,10 @@ NTSTATUS rpccli_eventlog_ClearEventLogW(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.backupfile = backupfile;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ClearEventLogW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -134,6 +32,10 @@ NTSTATUS rpccli_eventlog_ClearEventLogW(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ClearEventLogW, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -142,112 +44,6 @@ NTSTATUS rpccli_eventlog_ClearEventLogW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_BackupEventLogW_state {
-	struct eventlog_BackupEventLogW orig;
-	struct eventlog_BackupEventLogW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_BackupEventLogW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_BackupEventLogW_send(TALLOC_CTX *mem_ctx,
-							struct tevent_context *ev,
-							struct rpc_pipe_client *cli,
-							struct policy_handle *_handle /* [in] [ref] */,
-							struct lsa_String *_backup_filename /* [in] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_BackupEventLogW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_BackupEventLogW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.backup_filename = _backup_filename;
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_BACKUPEVENTLOGW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_BackupEventLogW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_BackupEventLogW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_BackupEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_BackupEventLogW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_BackupEventLogW_recv(struct tevent_req *req,
-					      TALLOC_CTX *mem_ctx,
-					      NTSTATUS *result)
-{
-	struct rpccli_eventlog_BackupEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_BackupEventLogW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_BackupEventLogW(struct rpc_pipe_client *cli,
@@ -262,6 +58,10 @@ NTSTATUS rpccli_eventlog_BackupEventLogW(struct rpc_pipe_client *cli,
 	r.in.handle = handle;
 	r.in.backup_filename = backup_filename;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_BackupEventLogW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -272,6 +72,10 @@ NTSTATUS rpccli_eventlog_BackupEventLogW(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_BackupEventLogW, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -280,118 +84,6 @@ NTSTATUS rpccli_eventlog_BackupEventLogW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_CloseEventLog_state {
-	struct eventlog_CloseEventLog orig;
-	struct eventlog_CloseEventLog tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_CloseEventLog_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_CloseEventLog_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli,
-						      struct policy_handle *_handle /* [in,out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_CloseEventLog_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_CloseEventLog_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-
-	/* Out parameters */
-	state->orig.out.handle = _handle;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_CloseEventLog_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_CLOSEEVENTLOG,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_CloseEventLog_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_CloseEventLog_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_CloseEventLog_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_CloseEventLog_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.handle = *state->tmp.out.handle;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_CloseEventLog_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_CloseEventLog_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_CloseEventLog_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_CloseEventLog(struct rpc_pipe_client *cli,
@@ -404,6 +96,10 @@ NTSTATUS rpccli_eventlog_CloseEventLog(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_CloseEventLog, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -412,6 +108,10 @@ NTSTATUS rpccli_eventlog_CloseEventLog(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_CloseEventLog, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -423,118 +123,6 @@ NTSTATUS rpccli_eventlog_CloseEventLog(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_DeregisterEventSource_state {
-	struct eventlog_DeregisterEventSource orig;
-	struct eventlog_DeregisterEventSource tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_DeregisterEventSource_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_DeregisterEventSource_send(TALLOC_CTX *mem_ctx,
-							      struct tevent_context *ev,
-							      struct rpc_pipe_client *cli,
-							      struct policy_handle *_handle /* [in,out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_DeregisterEventSource_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_DeregisterEventSource_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-
-	/* Out parameters */
-	state->orig.out.handle = _handle;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_DeregisterEventSource_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_DEREGISTEREVENTSOURCE,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_DeregisterEventSource_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_DeregisterEventSource_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_DeregisterEventSource_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_DeregisterEventSource_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.handle = *state->tmp.out.handle;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_DeregisterEventSource_recv(struct tevent_req *req,
-						    TALLOC_CTX *mem_ctx,
-						    NTSTATUS *result)
-{
-	struct rpccli_eventlog_DeregisterEventSource_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_DeregisterEventSource_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_DeregisterEventSource(struct rpc_pipe_client *cli,
@@ -547,6 +135,10 @@ NTSTATUS rpccli_eventlog_DeregisterEventSource(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_DeregisterEventSource, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -555,6 +147,10 @@ NTSTATUS rpccli_eventlog_DeregisterEventSource(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_DeregisterEventSource, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -566,119 +162,6 @@ NTSTATUS rpccli_eventlog_DeregisterEventSource(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_GetNumRecords_state {
-	struct eventlog_GetNumRecords orig;
-	struct eventlog_GetNumRecords tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_GetNumRecords_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_GetNumRecords_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli,
-						      struct policy_handle *_handle /* [in] [ref] */,
-						      uint32_t *_number /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_GetNumRecords_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_GetNumRecords_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-
-	/* Out parameters */
-	state->orig.out.number = _number;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_GetNumRecords_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_GETNUMRECORDS,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_GetNumRecords_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_GetNumRecords_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_GetNumRecords_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetNumRecords_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.number = *state->tmp.out.number;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_GetNumRecords_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_GetNumRecords_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetNumRecords_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_GetNumRecords(struct rpc_pipe_client *cli,
@@ -692,6 +175,10 @@ NTSTATUS rpccli_eventlog_GetNumRecords(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_GetNumRecords, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -700,6 +187,10 @@ NTSTATUS rpccli_eventlog_GetNumRecords(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_GetNumRecords, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -713,119 +204,6 @@ NTSTATUS rpccli_eventlog_GetNumRecords(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_GetOldestRecord_state {
-	struct eventlog_GetOldestRecord orig;
-	struct eventlog_GetOldestRecord tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_GetOldestRecord_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_GetOldestRecord_send(TALLOC_CTX *mem_ctx,
-							struct tevent_context *ev,
-							struct rpc_pipe_client *cli,
-							struct policy_handle *_handle /* [in] [ref] */,
-							uint32_t *_oldest_entry /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_GetOldestRecord_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_GetOldestRecord_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-
-	/* Out parameters */
-	state->orig.out.oldest_entry = _oldest_entry;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_GetOldestRecord_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_GETOLDESTRECORD,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_GetOldestRecord_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_GetOldestRecord_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_GetOldestRecord_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetOldestRecord_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.oldest_entry = *state->tmp.out.oldest_entry;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_GetOldestRecord_recv(struct tevent_req *req,
-					      TALLOC_CTX *mem_ctx,
-					      NTSTATUS *result)
-{
-	struct rpccli_eventlog_GetOldestRecord_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetOldestRecord_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_GetOldestRecord(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx,
 					 struct policy_handle *handle /* [in] [ref] */,
@@ -837,6 +215,10 @@ NTSTATUS rpccli_eventlog_GetOldestRecord(struct rpc_pipe_client *cli,
 	/* In parameters */
 	r.in.handle = handle;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_GetOldestRecord, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -845,6 +227,10 @@ NTSTATUS rpccli_eventlog_GetOldestRecord(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_GetOldestRecord, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -858,108 +244,6 @@ NTSTATUS rpccli_eventlog_GetOldestRecord(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_ChangeNotify_state {
-	struct eventlog_ChangeNotify orig;
-	struct eventlog_ChangeNotify tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ChangeNotify_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ChangeNotify_send(TALLOC_CTX *mem_ctx,
-						     struct tevent_context *ev,
-						     struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ChangeNotify_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ChangeNotify_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_CHANGENOTIFY,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ChangeNotify_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ChangeNotify_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ChangeNotify_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ChangeNotify_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ChangeNotify_recv(struct tevent_req *req,
-					   TALLOC_CTX *mem_ctx,
-					   NTSTATUS *result)
-{
-	struct rpccli_eventlog_ChangeNotify_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ChangeNotify_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_ChangeNotify(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx)
 {
@@ -967,6 +251,10 @@ NTSTATUS rpccli_eventlog_ChangeNotify(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ChangeNotify, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -978,6 +266,10 @@ NTSTATUS rpccli_eventlog_ChangeNotify(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ChangeNotify, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -986,127 +278,6 @@ NTSTATUS rpccli_eventlog_ChangeNotify(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_OpenEventLogW_state {
-	struct eventlog_OpenEventLogW orig;
-	struct eventlog_OpenEventLogW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_OpenEventLogW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_OpenEventLogW_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli,
-						      struct eventlog_OpenUnknown0 *_unknown0 /* [in] [unique] */,
-						      struct lsa_String *_logname /* [in] [ref] */,
-						      struct lsa_String *_servername /* [in] [ref] */,
-						      uint32_t _major_version /* [in]  */,
-						      uint32_t _minor_version /* [in]  */,
-						      struct policy_handle *_handle /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_OpenEventLogW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_OpenEventLogW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.unknown0 = _unknown0;
-	state->orig.in.logname = _logname;
-	state->orig.in.servername = _servername;
-	state->orig.in.major_version = _major_version;
-	state->orig.in.minor_version = _minor_version;
-
-	/* Out parameters */
-	state->orig.out.handle = _handle;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_OpenEventLogW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_OPENEVENTLOGW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_OpenEventLogW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_OpenEventLogW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_OpenEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenEventLogW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.handle = *state->tmp.out.handle;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_OpenEventLogW_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_OpenEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenEventLogW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_OpenEventLogW(struct rpc_pipe_client *cli,
@@ -1128,6 +299,10 @@ NTSTATUS rpccli_eventlog_OpenEventLogW(struct rpc_pipe_client *cli,
 	r.in.major_version = major_version;
 	r.in.minor_version = minor_version;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_OpenEventLogW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -1136,6 +311,10 @@ NTSTATUS rpccli_eventlog_OpenEventLogW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_OpenEventLogW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1147,127 +326,6 @@ NTSTATUS rpccli_eventlog_OpenEventLogW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_RegisterEventSourceW_state {
-	struct eventlog_RegisterEventSourceW orig;
-	struct eventlog_RegisterEventSourceW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_RegisterEventSourceW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_RegisterEventSourceW_send(TALLOC_CTX *mem_ctx,
-							     struct tevent_context *ev,
-							     struct rpc_pipe_client *cli,
-							     struct eventlog_OpenUnknown0 *_unknown0 /* [in] [unique] */,
-							     struct lsa_String *_module_name /* [in] [ref] */,
-							     struct lsa_String *_reg_module_name /* [in] [ref] */,
-							     uint32_t _major_version /* [in]  */,
-							     uint32_t _minor_version /* [in]  */,
-							     struct policy_handle *_log_handle /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_RegisterEventSourceW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_RegisterEventSourceW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.unknown0 = _unknown0;
-	state->orig.in.module_name = _module_name;
-	state->orig.in.reg_module_name = _reg_module_name;
-	state->orig.in.major_version = _major_version;
-	state->orig.in.minor_version = _minor_version;
-
-	/* Out parameters */
-	state->orig.out.log_handle = _log_handle;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_RegisterEventSourceW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REGISTEREVENTSOURCEW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_RegisterEventSourceW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_RegisterEventSourceW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_RegisterEventSourceW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterEventSourceW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.log_handle = *state->tmp.out.log_handle;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_RegisterEventSourceW_recv(struct tevent_req *req,
-						   TALLOC_CTX *mem_ctx,
-						   NTSTATUS *result)
-{
-	struct rpccli_eventlog_RegisterEventSourceW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterEventSourceW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_RegisterEventSourceW(struct rpc_pipe_client *cli,
@@ -1289,6 +347,10 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceW(struct rpc_pipe_client *cli,
 	r.in.major_version = major_version;
 	r.in.minor_version = minor_version;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_RegisterEventSourceW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -1297,6 +359,10 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_RegisterEventSourceW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1308,125 +374,6 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_OpenBackupEventLogW_state {
-	struct eventlog_OpenBackupEventLogW orig;
-	struct eventlog_OpenBackupEventLogW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_OpenBackupEventLogW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_OpenBackupEventLogW_send(TALLOC_CTX *mem_ctx,
-							    struct tevent_context *ev,
-							    struct rpc_pipe_client *cli,
-							    struct eventlog_OpenUnknown0 *_unknown0 /* [in] [unique] */,
-							    struct lsa_String *_backup_logname /* [in] [ref] */,
-							    uint32_t _major_version /* [in]  */,
-							    uint32_t _minor_version /* [in]  */,
-							    struct policy_handle *_handle /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_OpenBackupEventLogW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_OpenBackupEventLogW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.unknown0 = _unknown0;
-	state->orig.in.backup_logname = _backup_logname;
-	state->orig.in.major_version = _major_version;
-	state->orig.in.minor_version = _minor_version;
-
-	/* Out parameters */
-	state->orig.out.handle = _handle;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_OpenBackupEventLogW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_OPENBACKUPEVENTLOGW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_OpenBackupEventLogW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_OpenBackupEventLogW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_OpenBackupEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenBackupEventLogW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	*state->orig.out.handle = *state->tmp.out.handle;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_OpenBackupEventLogW_recv(struct tevent_req *req,
-						  TALLOC_CTX *mem_ctx,
-						  NTSTATUS *result)
-{
-	struct rpccli_eventlog_OpenBackupEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenBackupEventLogW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_OpenBackupEventLogW(struct rpc_pipe_client *cli,
@@ -1446,6 +393,10 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogW(struct rpc_pipe_client *cli,
 	r.in.major_version = major_version;
 	r.in.minor_version = minor_version;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_OpenBackupEventLogW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -1454,6 +405,10 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_OpenBackupEventLogW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1465,131 +420,6 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_ReadEventLogW_state {
-	struct eventlog_ReadEventLogW orig;
-	struct eventlog_ReadEventLogW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ReadEventLogW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ReadEventLogW_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli,
-						      struct policy_handle *_handle /* [in] [ref] */,
-						      uint32_t _flags /* [in]  */,
-						      uint32_t _offset /* [in]  */,
-						      uint32_t _number_of_bytes /* [in] [range(0,0x7FFFF)] */,
-						      uint8_t *_data /* [out] [ref,size_is(number_of_bytes)] */,
-						      uint32_t *_sent_size /* [out] [ref] */,
-						      uint32_t *_real_size /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ReadEventLogW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ReadEventLogW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.flags = _flags;
-	state->orig.in.offset = _offset;
-	state->orig.in.number_of_bytes = _number_of_bytes;
-
-	/* Out parameters */
-	state->orig.out.data = _data;
-	state->orig.out.sent_size = _sent_size;
-	state->orig.out.real_size = _real_size;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_ReadEventLogW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_READEVENTLOGW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ReadEventLogW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ReadEventLogW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ReadEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReadEventLogW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	memcpy(state->orig.out.data, state->tmp.out.data, (state->tmp.in.number_of_bytes) * sizeof(*state->orig.out.data));
-	*state->orig.out.sent_size = *state->tmp.out.sent_size;
-	*state->orig.out.real_size = *state->tmp.out.real_size;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ReadEventLogW_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_ReadEventLogW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReadEventLogW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_ReadEventLogW(struct rpc_pipe_client *cli,
@@ -1611,6 +441,10 @@ NTSTATUS rpccli_eventlog_ReadEventLogW(struct rpc_pipe_client *cli,
 	r.in.offset = offset;
 	r.in.number_of_bytes = number_of_bytes;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ReadEventLogW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -1619,6 +453,10 @@ NTSTATUS rpccli_eventlog_ReadEventLogW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ReadEventLogW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1632,150 +470,6 @@ NTSTATUS rpccli_eventlog_ReadEventLogW(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_ReportEventW_state {
-	struct eventlog_ReportEventW orig;
-	struct eventlog_ReportEventW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ReportEventW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ReportEventW_send(TALLOC_CTX *mem_ctx,
-						     struct tevent_context *ev,
-						     struct rpc_pipe_client *cli,
-						     struct policy_handle *_handle /* [in] [ref] */,
-						     time_t _timestamp /* [in]  */,
-						     enum eventlogEventTypes _event_type /* [in]  */,
-						     uint16_t _event_category /* [in]  */,
-						     uint32_t _event_id /* [in]  */,
-						     uint16_t _num_of_strings /* [in] [range(0,256)] */,
-						     uint32_t _data_size /* [in] [range(0,0x3FFFF)] */,
-						     struct lsa_String *_servername /* [in] [ref] */,
-						     struct dom_sid *_user_sid /* [in] [unique] */,
-						     struct lsa_String **_strings /* [in] [unique,size_is(num_of_strings)] */,
-						     uint8_t *_data /* [in] [unique,size_is(data_size)] */,
-						     uint16_t _flags /* [in]  */,
-						     uint32_t *_record_number /* [in,out] [unique] */,
-						     time_t *_time_written /* [in,out] [unique] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ReportEventW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ReportEventW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.timestamp = _timestamp;
-	state->orig.in.event_type = _event_type;
-	state->orig.in.event_category = _event_category;
-	state->orig.in.event_id = _event_id;
-	state->orig.in.num_of_strings = _num_of_strings;
-	state->orig.in.data_size = _data_size;
-	state->orig.in.servername = _servername;
-	state->orig.in.user_sid = _user_sid;
-	state->orig.in.strings = _strings;
-	state->orig.in.data = _data;
-	state->orig.in.flags = _flags;
-	state->orig.in.record_number = _record_number;
-	state->orig.in.time_written = _time_written;
-
-	/* Out parameters */
-	state->orig.out.record_number = _record_number;
-	state->orig.out.time_written = _time_written;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_ReportEventW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REPORTEVENTW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ReportEventW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ReportEventW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ReportEventW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	if (state->orig.out.record_number && state->tmp.out.record_number) {
-		*state->orig.out.record_number = *state->tmp.out.record_number;
-	}
-	if (state->orig.out.time_written && state->tmp.out.time_written) {
-		*state->orig.out.time_written = *state->tmp.out.time_written;
-	}
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ReportEventW_recv(struct tevent_req *req,
-					   TALLOC_CTX *mem_ctx,
-					   NTSTATUS *result)
-{
-	struct rpccli_eventlog_ReportEventW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_ReportEventW(struct rpc_pipe_client *cli,
@@ -1814,6 +508,10 @@ NTSTATUS rpccli_eventlog_ReportEventW(struct rpc_pipe_client *cli,
 	r.in.record_number = record_number;
 	r.in.time_written = time_written;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ReportEventW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -1822,6 +520,10 @@ NTSTATUS rpccli_eventlog_ReportEventW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ReportEventW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -1840,108 +542,6 @@ NTSTATUS rpccli_eventlog_ReportEventW(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_ClearEventLogA_state {
-	struct eventlog_ClearEventLogA orig;
-	struct eventlog_ClearEventLogA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ClearEventLogA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ClearEventLogA_send(TALLOC_CTX *mem_ctx,
-						       struct tevent_context *ev,
-						       struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ClearEventLogA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ClearEventLogA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_CLEAREVENTLOGA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ClearEventLogA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ClearEventLogA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ClearEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ClearEventLogA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ClearEventLogA_recv(struct tevent_req *req,
-					     TALLOC_CTX *mem_ctx,
-					     NTSTATUS *result)
-{
-	struct rpccli_eventlog_ClearEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ClearEventLogA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_ClearEventLogA(struct rpc_pipe_client *cli,
 					TALLOC_CTX *mem_ctx)
 {
@@ -1949,6 +549,10 @@ NTSTATUS rpccli_eventlog_ClearEventLogA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ClearEventLogA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -1960,6 +564,10 @@ NTSTATUS rpccli_eventlog_ClearEventLogA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ClearEventLogA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -1970,108 +578,6 @@ NTSTATUS rpccli_eventlog_ClearEventLogA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_BackupEventLogA_state {
-	struct eventlog_BackupEventLogA orig;
-	struct eventlog_BackupEventLogA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_BackupEventLogA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_BackupEventLogA_send(TALLOC_CTX *mem_ctx,
-							struct tevent_context *ev,
-							struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_BackupEventLogA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_BackupEventLogA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_BACKUPEVENTLOGA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_BackupEventLogA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_BackupEventLogA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_BackupEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_BackupEventLogA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_BackupEventLogA_recv(struct tevent_req *req,
-					      TALLOC_CTX *mem_ctx,
-					      NTSTATUS *result)
-{
-	struct rpccli_eventlog_BackupEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_BackupEventLogA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_BackupEventLogA(struct rpc_pipe_client *cli,
 					 TALLOC_CTX *mem_ctx)
 {
@@ -2079,6 +585,10 @@ NTSTATUS rpccli_eventlog_BackupEventLogA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_BackupEventLogA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2090,6 +600,10 @@ NTSTATUS rpccli_eventlog_BackupEventLogA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_BackupEventLogA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2100,108 +614,6 @@ NTSTATUS rpccli_eventlog_BackupEventLogA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_OpenEventLogA_state {
-	struct eventlog_OpenEventLogA orig;
-	struct eventlog_OpenEventLogA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_OpenEventLogA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_OpenEventLogA_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_OpenEventLogA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_OpenEventLogA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_OPENEVENTLOGA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_OpenEventLogA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_OpenEventLogA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_OpenEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenEventLogA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_OpenEventLogA_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_OpenEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenEventLogA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_OpenEventLogA(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx)
 {
@@ -2209,6 +621,10 @@ NTSTATUS rpccli_eventlog_OpenEventLogA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_OpenEventLogA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2220,6 +636,10 @@ NTSTATUS rpccli_eventlog_OpenEventLogA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_OpenEventLogA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2230,108 +650,6 @@ NTSTATUS rpccli_eventlog_OpenEventLogA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_RegisterEventSourceA_state {
-	struct eventlog_RegisterEventSourceA orig;
-	struct eventlog_RegisterEventSourceA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_RegisterEventSourceA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_RegisterEventSourceA_send(TALLOC_CTX *mem_ctx,
-							     struct tevent_context *ev,
-							     struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_RegisterEventSourceA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_RegisterEventSourceA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REGISTEREVENTSOURCEA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_RegisterEventSourceA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_RegisterEventSourceA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_RegisterEventSourceA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterEventSourceA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_RegisterEventSourceA_recv(struct tevent_req *req,
-						   TALLOC_CTX *mem_ctx,
-						   NTSTATUS *result)
-{
-	struct rpccli_eventlog_RegisterEventSourceA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterEventSourceA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_RegisterEventSourceA(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx)
 {
@@ -2339,6 +657,10 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_RegisterEventSourceA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2350,6 +672,10 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_RegisterEventSourceA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2360,108 +686,6 @@ NTSTATUS rpccli_eventlog_RegisterEventSourceA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_OpenBackupEventLogA_state {
-	struct eventlog_OpenBackupEventLogA orig;
-	struct eventlog_OpenBackupEventLogA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_OpenBackupEventLogA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_OpenBackupEventLogA_send(TALLOC_CTX *mem_ctx,
-							    struct tevent_context *ev,
-							    struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_OpenBackupEventLogA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_OpenBackupEventLogA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_OPENBACKUPEVENTLOGA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_OpenBackupEventLogA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_OpenBackupEventLogA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_OpenBackupEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenBackupEventLogA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_OpenBackupEventLogA_recv(struct tevent_req *req,
-						  TALLOC_CTX *mem_ctx,
-						  NTSTATUS *result)
-{
-	struct rpccli_eventlog_OpenBackupEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_OpenBackupEventLogA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_OpenBackupEventLogA(struct rpc_pipe_client *cli,
 					     TALLOC_CTX *mem_ctx)
 {
@@ -2469,6 +693,10 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_OpenBackupEventLogA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2480,6 +708,10 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_OpenBackupEventLogA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2490,108 +722,6 @@ NTSTATUS rpccli_eventlog_OpenBackupEventLogA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_ReadEventLogA_state {
-	struct eventlog_ReadEventLogA orig;
-	struct eventlog_ReadEventLogA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ReadEventLogA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ReadEventLogA_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ReadEventLogA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ReadEventLogA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_READEVENTLOGA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ReadEventLogA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ReadEventLogA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ReadEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReadEventLogA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ReadEventLogA_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_ReadEventLogA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReadEventLogA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_ReadEventLogA(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx)
 {
@@ -2599,6 +729,10 @@ NTSTATUS rpccli_eventlog_ReadEventLogA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ReadEventLogA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2610,6 +744,10 @@ NTSTATUS rpccli_eventlog_ReadEventLogA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ReadEventLogA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2620,108 +758,6 @@ NTSTATUS rpccli_eventlog_ReadEventLogA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_ReportEventA_state {
-	struct eventlog_ReportEventA orig;
-	struct eventlog_ReportEventA tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ReportEventA_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ReportEventA_send(TALLOC_CTX *mem_ctx,
-						     struct tevent_context *ev,
-						     struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ReportEventA_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ReportEventA_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REPORTEVENTA,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ReportEventA_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ReportEventA_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ReportEventA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventA_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ReportEventA_recv(struct tevent_req *req,
-					   TALLOC_CTX *mem_ctx,
-					   NTSTATUS *result)
-{
-	struct rpccli_eventlog_ReportEventA_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventA_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_ReportEventA(struct rpc_pipe_client *cli,
 				      TALLOC_CTX *mem_ctx)
 {
@@ -2729,6 +765,10 @@ NTSTATUS rpccli_eventlog_ReportEventA(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ReportEventA, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2740,6 +780,10 @@ NTSTATUS rpccli_eventlog_ReportEventA(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ReportEventA, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2750,108 +794,6 @@ NTSTATUS rpccli_eventlog_ReportEventA(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_RegisterClusterSvc_state {
-	struct eventlog_RegisterClusterSvc orig;
-	struct eventlog_RegisterClusterSvc tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_RegisterClusterSvc_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_RegisterClusterSvc_send(TALLOC_CTX *mem_ctx,
-							   struct tevent_context *ev,
-							   struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_RegisterClusterSvc_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_RegisterClusterSvc_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REGISTERCLUSTERSVC,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_RegisterClusterSvc_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_RegisterClusterSvc_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_RegisterClusterSvc_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterClusterSvc_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_RegisterClusterSvc_recv(struct tevent_req *req,
-						 TALLOC_CTX *mem_ctx,
-						 NTSTATUS *result)
-{
-	struct rpccli_eventlog_RegisterClusterSvc_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_RegisterClusterSvc_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_RegisterClusterSvc(struct rpc_pipe_client *cli,
 					    TALLOC_CTX *mem_ctx)
 {
@@ -2859,6 +801,10 @@ NTSTATUS rpccli_eventlog_RegisterClusterSvc(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_RegisterClusterSvc, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -2870,6 +816,10 @@ NTSTATUS rpccli_eventlog_RegisterClusterSvc(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_RegisterClusterSvc, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -2880,108 +830,6 @@ NTSTATUS rpccli_eventlog_RegisterClusterSvc(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_DeregisterClusterSvc_state {
-	struct eventlog_DeregisterClusterSvc orig;
-	struct eventlog_DeregisterClusterSvc tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_DeregisterClusterSvc_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_DeregisterClusterSvc_send(TALLOC_CTX *mem_ctx,
-							     struct tevent_context *ev,
-							     struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_DeregisterClusterSvc_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_DeregisterClusterSvc_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_DEREGISTERCLUSTERSVC,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_DeregisterClusterSvc_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_DeregisterClusterSvc_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_DeregisterClusterSvc_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_DeregisterClusterSvc_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_DeregisterClusterSvc_recv(struct tevent_req *req,
-						   TALLOC_CTX *mem_ctx,
-						   NTSTATUS *result)
-{
-	struct rpccli_eventlog_DeregisterClusterSvc_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_DeregisterClusterSvc_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_DeregisterClusterSvc(struct rpc_pipe_client *cli,
 					      TALLOC_CTX *mem_ctx)
 {
@@ -2989,6 +837,10 @@ NTSTATUS rpccli_eventlog_DeregisterClusterSvc(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_DeregisterClusterSvc, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -3000,6 +852,10 @@ NTSTATUS rpccli_eventlog_DeregisterClusterSvc(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_DeregisterClusterSvc, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -3010,108 +866,6 @@ NTSTATUS rpccli_eventlog_DeregisterClusterSvc(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_WriteClusterEvents_state {
-	struct eventlog_WriteClusterEvents orig;
-	struct eventlog_WriteClusterEvents tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_WriteClusterEvents_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_WriteClusterEvents_send(TALLOC_CTX *mem_ctx,
-							   struct tevent_context *ev,
-							   struct rpc_pipe_client *cli)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_WriteClusterEvents_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_WriteClusterEvents_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_WRITECLUSTEREVENTS,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_WriteClusterEvents_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_WriteClusterEvents_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_WriteClusterEvents_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_WriteClusterEvents_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_WriteClusterEvents_recv(struct tevent_req *req,
-						 TALLOC_CTX *mem_ctx,
-						 NTSTATUS *result)
-{
-	struct rpccli_eventlog_WriteClusterEvents_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_WriteClusterEvents_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_WriteClusterEvents(struct rpc_pipe_client *cli,
 					    TALLOC_CTX *mem_ctx)
 {
@@ -3119,6 +873,10 @@ NTSTATUS rpccli_eventlog_WriteClusterEvents(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 
 	/* In parameters */
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_WriteClusterEvents, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -3130,6 +888,10 @@ NTSTATUS rpccli_eventlog_WriteClusterEvents(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_WriteClusterEvents, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -3138,126 +900,6 @@ NTSTATUS rpccli_eventlog_WriteClusterEvents(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_GetLogInformation_state {
-	struct eventlog_GetLogInformation orig;
-	struct eventlog_GetLogInformation tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_GetLogInformation_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_GetLogInformation_send(TALLOC_CTX *mem_ctx,
-							  struct tevent_context *ev,
-							  struct rpc_pipe_client *cli,
-							  struct policy_handle *_handle /* [in] [ref] */,
-							  uint32_t _level /* [in]  */,
-							  uint8_t *_buffer /* [out] [ref,size_is(buf_size)] */,
-							  uint32_t _buf_size /* [in] [range(0,1024)] */,
-							  uint32_t *_bytes_needed /* [out] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_GetLogInformation_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_GetLogInformation_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.level = _level;
-	state->orig.in.buf_size = _buf_size;
-
-	/* Out parameters */
-	state->orig.out.buffer = _buffer;
-	state->orig.out.bytes_needed = _bytes_needed;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_GetLogInformation_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_GETLOGINFORMATION,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_GetLogInformation_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_GetLogInformation_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_GetLogInformation_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetLogInformation_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	memcpy(state->orig.out.buffer, state->tmp.out.buffer, (state->tmp.in.buf_size) * sizeof(*state->orig.out.buffer));
-	*state->orig.out.bytes_needed = *state->tmp.out.bytes_needed;
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_GetLogInformation_recv(struct tevent_req *req,
-						TALLOC_CTX *mem_ctx,
-						NTSTATUS *result)
-{
-	struct rpccli_eventlog_GetLogInformation_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_GetLogInformation_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_GetLogInformation(struct rpc_pipe_client *cli,
@@ -3276,6 +918,10 @@ NTSTATUS rpccli_eventlog_GetLogInformation(struct rpc_pipe_client *cli,
 	r.in.level = level;
 	r.in.buf_size = buf_size;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_GetLogInformation, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -3284,6 +930,10 @@ NTSTATUS rpccli_eventlog_GetLogInformation(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_GetLogInformation, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {
@@ -3298,110 +948,6 @@ NTSTATUS rpccli_eventlog_GetLogInformation(struct rpc_pipe_client *cli,
 	return r.out.result;
 }
 
-struct rpccli_eventlog_FlushEventLog_state {
-	struct eventlog_FlushEventLog orig;
-	struct eventlog_FlushEventLog tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_FlushEventLog_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_FlushEventLog_send(TALLOC_CTX *mem_ctx,
-						      struct tevent_context *ev,
-						      struct rpc_pipe_client *cli,
-						      struct policy_handle *_handle /* [in] [ref] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_FlushEventLog_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_FlushEventLog_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-
-	/* Out parameters */
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_FLUSHEVENTLOG,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_FlushEventLog_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_FlushEventLog_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_FlushEventLog_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_FlushEventLog_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_FlushEventLog_recv(struct tevent_req *req,
-					    TALLOC_CTX *mem_ctx,
-					    NTSTATUS *result)
-{
-	struct rpccli_eventlog_FlushEventLog_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_FlushEventLog_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
-}
-
 NTSTATUS rpccli_eventlog_FlushEventLog(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx,
 				       struct policy_handle *handle /* [in] [ref] */)
@@ -3411,6 +957,10 @@ NTSTATUS rpccli_eventlog_FlushEventLog(struct rpc_pipe_client *cli,
 
 	/* In parameters */
 	r.in.handle = handle;
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_FlushEventLog, &r);
+	}
 
 	status = cli->dispatch(cli,
 				mem_ctx,
@@ -3422,6 +972,10 @@ NTSTATUS rpccli_eventlog_FlushEventLog(struct rpc_pipe_client *cli,
 		return status;
 	}
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_FlushEventLog, &r);
+	}
+
 	if (NT_STATUS_IS_ERR(status)) {
 		return status;
 	}
@@ -3430,152 +984,6 @@ NTSTATUS rpccli_eventlog_FlushEventLog(struct rpc_pipe_client *cli,
 
 	/* Return result */
 	return r.out.result;
-}
-
-struct rpccli_eventlog_ReportEventAndSourceW_state {
-	struct eventlog_ReportEventAndSourceW orig;
-	struct eventlog_ReportEventAndSourceW tmp;
-	TALLOC_CTX *out_mem_ctx;
-	NTSTATUS (*dispatch_recv)(struct tevent_req *req, TALLOC_CTX *mem_ctx);
-};
-
-static void rpccli_eventlog_ReportEventAndSourceW_done(struct tevent_req *subreq);
-
-struct tevent_req *rpccli_eventlog_ReportEventAndSourceW_send(TALLOC_CTX *mem_ctx,
-							      struct tevent_context *ev,
-							      struct rpc_pipe_client *cli,
-							      struct policy_handle *_handle /* [in] [ref] */,
-							      time_t _timestamp /* [in]  */,
-							      enum eventlogEventTypes _event_type /* [in]  */,
-							      uint16_t _event_category /* [in]  */,
-							      uint32_t _event_id /* [in]  */,
-							      struct lsa_String *_sourcename /* [in] [ref] */,
-							      uint16_t _num_of_strings /* [in] [range(0,256)] */,
-							      uint32_t _data_size /* [in] [range(0,0x3FFFF)] */,
-							      struct lsa_String *_servername /* [in] [ref] */,
-							      struct dom_sid *_user_sid /* [in] [unique] */,
-							      struct lsa_String **_strings /* [in] [unique,size_is(num_of_strings)] */,
-							      uint8_t *_data /* [in] [unique,size_is(data_size)] */,
-							      uint16_t _flags /* [in]  */,
-							      uint32_t *_record_number /* [in,out] [unique] */,
-							      time_t *_time_written /* [in,out] [unique] */)
-{
-	struct tevent_req *req;
-	struct rpccli_eventlog_ReportEventAndSourceW_state *state;
-	struct tevent_req *subreq;
-
-	req = tevent_req_create(mem_ctx, &state,
-				struct rpccli_eventlog_ReportEventAndSourceW_state);
-	if (req == NULL) {
-		return NULL;
-	}
-	state->out_mem_ctx = NULL;
-	state->dispatch_recv = cli->dispatch_recv;
-
-	/* In parameters */
-	state->orig.in.handle = _handle;
-	state->orig.in.timestamp = _timestamp;
-	state->orig.in.event_type = _event_type;
-	state->orig.in.event_category = _event_category;
-	state->orig.in.event_id = _event_id;
-	state->orig.in.sourcename = _sourcename;
-	state->orig.in.num_of_strings = _num_of_strings;
-	state->orig.in.data_size = _data_size;
-	state->orig.in.servername = _servername;
-	state->orig.in.user_sid = _user_sid;
-	state->orig.in.strings = _strings;
-	state->orig.in.data = _data;
-	state->orig.in.flags = _flags;
-	state->orig.in.record_number = _record_number;
-	state->orig.in.time_written = _time_written;
-
-	/* Out parameters */
-	state->orig.out.record_number = _record_number;
-	state->orig.out.time_written = _time_written;
-
-	/* Result */
-	ZERO_STRUCT(state->orig.out.result);
-
-	state->out_mem_ctx = talloc_named_const(state, 0,
-			     "rpccli_eventlog_ReportEventAndSourceW_out_memory");
-	if (tevent_req_nomem(state->out_mem_ctx, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/* make a temporary copy, that we pass to the dispatch function */
-	state->tmp = state->orig;
-
-	subreq = cli->dispatch_send(state, ev, cli,
-				    &ndr_table_eventlog,
-				    NDR_EVENTLOG_REPORTEVENTANDSOURCEW,
-				    &state->tmp);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, rpccli_eventlog_ReportEventAndSourceW_done, req);
-	return req;
-}
-
-static void rpccli_eventlog_ReportEventAndSourceW_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct rpccli_eventlog_ReportEventAndSourceW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventAndSourceW_state);
-	NTSTATUS status;
-	TALLOC_CTX *mem_ctx;
-
-	if (state->out_mem_ctx) {
-		mem_ctx = state->out_mem_ctx;
-	} else {
-		mem_ctx = state;
-	}
-
-	status = state->dispatch_recv(subreq, mem_ctx);
-	TALLOC_FREE(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-
-	/* Copy out parameters */
-	if (state->orig.out.record_number && state->tmp.out.record_number) {
-		*state->orig.out.record_number = *state->tmp.out.record_number;
-	}
-	if (state->orig.out.time_written && state->tmp.out.time_written) {
-		*state->orig.out.time_written = *state->tmp.out.time_written;
-	}
-
-	/* Copy result */
-	state->orig.out.result = state->tmp.out.result;
-
-	/* Reset temporary structure */
-	ZERO_STRUCT(state->tmp);
-
-	tevent_req_done(req);
-}
-
-NTSTATUS rpccli_eventlog_ReportEventAndSourceW_recv(struct tevent_req *req,
-						    TALLOC_CTX *mem_ctx,
-						    NTSTATUS *result)
-{
-	struct rpccli_eventlog_ReportEventAndSourceW_state *state = tevent_req_data(
-		req, struct rpccli_eventlog_ReportEventAndSourceW_state);
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
-
-	/* Steal possbile out parameters to the callers context */
-	talloc_steal(mem_ctx, state->out_mem_ctx);
-
-	/* Return result */
-	*result = state->orig.out.result;
-
-	tevent_req_received(req);
-	return NT_STATUS_OK;
 }
 
 NTSTATUS rpccli_eventlog_ReportEventAndSourceW(struct rpc_pipe_client *cli,
@@ -3616,6 +1024,10 @@ NTSTATUS rpccli_eventlog_ReportEventAndSourceW(struct rpc_pipe_client *cli,
 	r.in.record_number = record_number;
 	r.in.time_written = time_written;
 
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_IN_DEBUG(eventlog_ReportEventAndSourceW, &r);
+	}
+
 	status = cli->dispatch(cli,
 				mem_ctx,
 				&ndr_table_eventlog,
@@ -3624,6 +1036,10 @@ NTSTATUS rpccli_eventlog_ReportEventAndSourceW(struct rpc_pipe_client *cli,
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
+	}
+
+	if (DEBUGLEVEL >= 10) {
+		NDR_PRINT_OUT_DEBUG(eventlog_ReportEventAndSourceW, &r);
 	}
 
 	if (NT_STATUS_IS_ERR(status)) {

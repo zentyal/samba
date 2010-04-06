@@ -29,9 +29,9 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
 
-extern struct registry_ops regdb_ops;
+extern REGISTRY_OPS regdb_ops;
 
-static int hkpt_params_fetch_values(const char *key, struct regval_ctr *regvals)
+static int hkpt_params_fetch_values(const char *key, REGVAL_CTR *regvals)
 {
 	uint32 base_index;
 	uint32 buffer_size;
@@ -64,7 +64,7 @@ static int hkpt_params_fetch_subkeys(const char *key,
 	return regdb_ops.fetch_subkeys(key, subkey_ctr);
 }
 
-struct registry_ops hkpt_params_reg_ops = {
+REGISTRY_OPS hkpt_params_reg_ops = {
 	.fetch_values = hkpt_params_fetch_values,
 	.fetch_subkeys = hkpt_params_fetch_subkeys,
 };

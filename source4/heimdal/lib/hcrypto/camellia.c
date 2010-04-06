@@ -31,7 +31,13 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+
+RCSID("$Id: aes.c 20466 2007-04-20 08:29:05Z lha $");
+#endif
+
+#include <roken.h>
 
 #ifdef KRB5
 #include <krb5-types.h>
@@ -41,8 +47,6 @@
 
 #include "camellia-ntt.h"
 #include "camellia.h"
-
-#include <roken.h>
 
 int
 CAMELLIA_set_key(const unsigned char *userkey,

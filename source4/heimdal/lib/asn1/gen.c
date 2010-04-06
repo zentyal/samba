@@ -83,19 +83,12 @@ init_generate (const char *filename, const char *base)
 	if (headerbase == NULL)
 	    errx(1, "strdup");
     }
-
-    /* public header file */
     asprintf(&header, "%s.h", headerbase);
     if (header == NULL)
 	errx(1, "malloc");
-    asprintf(&fn, "%s.hx", headerbase);
-    if (fn == NULL)
-	errx(1, "malloc");
-    headerfile = fopen (fn, "w");
+    headerfile = fopen (header, "w");
     if (headerfile == NULL)
-	err (1, "open %s", fn);
-    free(fn);
-
+	err (1, "open %s", header);
     fprintf (headerfile,
 	     "/* Generated from %s */\n"
 	     "/* Do not edit */\n\n",
@@ -236,7 +229,7 @@ gen_compare_defval(const char *var, struct value *val)
     }
 }
 
-void
+static void
 generate_header_of_codefile(const char *name)
 {
     char *filename;
@@ -274,7 +267,7 @@ generate_header_of_codefile(const char *name)
 
 }
 
-void
+static void
 close_codefile(void)
 {
     if (codefile == NULL)
@@ -303,8 +296,7 @@ generate_constant (const Symbol *s)
 	struct objid *o, **list;
 	unsigned int i, len;
 
-	if (!one_code_file)
-	    generate_header_of_codefile(s->gen_name);
+	generate_header_of_codefile(s->gen_name);
 
 	len = 0;
 	for (o = s->value->u.objectidentifiervalue; o != NULL; o = o->next)
@@ -328,12 +320,8 @@ generate_constant (const Symbol *s)
 	}
 
 	fprintf (headerfile, "} */\n");
-	fprintf (headerfile, "const heim_oid *oid_%s(void);\n",
+	fprintf (headerfile, "const heim_oid *oid_%s(void);\n\n",
 		 s->gen_name);
-	fprintf (headerfile,
-		 "extern const heim_oid asn1_oid_%s;\n\n",
-		 s->gen_name);
-
 
 	fprintf (codefile, "static unsigned oid_%s_variable_num[%d] =  {",
 		 s->gen_name, len);
@@ -342,20 +330,17 @@ generate_constant (const Symbol *s)
 	}
 	fprintf(codefile, "};\n");
 
-	fprintf (codefile, "const heim_oid asn1_oid_%s = "
+	fprintf (codefile, "static const heim_oid oid_%s_variable = "
 		 "{ %d, oid_%s_variable_num };\n\n",
 		 s->gen_name, len, s->gen_name);
 
 	fprintf (codefile, "const heim_oid *oid_%s(void)\n"
 		 "{\n"
-		 "return &asn1_oid_%s;\n"
+		 "return &oid_%s_variable;\n"
 		 "}\n\n",
 		 s->gen_name, s->gen_name);
 
-	free(list);
-
-	if (!one_code_file)
-	    close_codefile();
+	close_codefile();
 
 	break;
     }
@@ -602,7 +587,7 @@ define_type (int level, const char *name, Type *t, int typedefp, int preservep)
 	    fprintf (headerfile, "struct %s {\n", typedefp ? name : "");
 	    ASN1_TAILQ_FOREACH(m, t->members, members) {
 		char *n;
-	
+		
 		asprintf (&n, "%s:1", m->gen_name);
 		if (n == NULL)
 		    errx(1, "malloc");
@@ -802,8 +787,7 @@ generate_type_header (const Symbol *s)
 void
 generate_type (const Symbol *s)
 {
-    if (!one_code_file)
-	generate_header_of_codefile(s->gen_name);
+    generate_header_of_codefile(s->gen_name);
 
     generate_type_header (s);
     generate_type_encode (s);
@@ -814,9 +798,5 @@ generate_type (const Symbol *s)
     generate_type_seq (s);
     generate_glue (s->type, s->gen_name);
     fprintf(headerfile, "\n\n");
-
-    if (!one_code_file) {
-	fprintf(codefile, "\n\n");
-	close_codefile();
-	}
+    close_codefile();
 }

@@ -3,17 +3,17 @@
    Samba internal messaging functions
    Copyright (C) 2007 by Volker Lendecke
    Copyright (C) 2007 by Andrew Tridgell
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -36,7 +36,7 @@ struct ctdbd_connection {
 	uint64 rand_srvid;
 	struct packet_context *pkt;
 	struct fd_event *fde;
-
+	
 	void (*release_ip_handler)(const char *ip_addr, void *private_data);
 	void *release_ip_priv;
 };
@@ -275,17 +275,6 @@ static struct messaging_rec *ctdb_pull_messaging_rec(TALLOC_CTX *mem_ctx,
 	return result;
 }
 
-static NTSTATUS ctdb_packet_fd_read_sync(struct packet_context *ctx)
-{
-	struct timeval timeout;
-	struct timeval *ptimeout;
-
-	timeout = timeval_set(lp_ctdb_timeout(), 0);
-	ptimeout = (timeout.tv_sec != 0) ? &timeout : NULL;
-
-	return packet_fd_read_sync(ctx, ptimeout);
-}
-
 /*
  * Read a full ctdbd request. If we have a messaging context, defer incoming
  * messages that might come in between.
@@ -300,7 +289,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 
  again:
 
-	status = ctdb_packet_fd_read_sync(conn->pkt);
+	status = packet_fd_read_sync(conn->pkt);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_BUSY)) {
 		/* EAGAIN */
@@ -350,7 +339,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 				  (long long unsigned)msg->srvid));
 			goto next_pkt;
 		}
-
+		
 		if ((conn->release_ip_handler != NULL)
 		    && (msg->srvid == CTDB_SRVID_RELEASE_IP)) {
 			/* must be dispatched immediately */
@@ -369,7 +358,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			goto next_pkt;
 		}
 
-		if (!(msg_state = TALLOC_P(talloc_autofree_context(), struct deferred_msg_state))) {
+		if (!(msg_state = TALLOC_P(NULL, struct deferred_msg_state))) {
 			DEBUG(0, ("talloc failed\n"));
 			TALLOC_FREE(hdr);
 			goto next_pkt;
@@ -386,7 +375,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 		TALLOC_FREE(hdr);
 
 		msg_state->msg_ctx = conn->msg_ctx;
-
+		
 		/*
 		 * We're waiting for a call reply, but an async message has
 		 * crossed. Defer dispatching to the toplevel event loop.
@@ -402,7 +391,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32 reqid,
 			TALLOC_FREE(hdr);
 			goto next_pkt;
 		}
-
+		
 		goto next_pkt;
 	}
 
@@ -552,6 +541,7 @@ static NTSTATUS ctdb_handle_message(uint8_t *buf, size_t length,
 		TALLOC_FREE(buf);
 
 		return NT_STATUS_OK;
+		
 	}
 
 	/* only messages to our pid or the broadcast are valid here */
@@ -905,7 +895,7 @@ NTSTATUS ctdbd_migrate(struct ctdbd_connection *conn, uint32 db_id,
 	NTSTATUS status;
 
 	ZERO_STRUCT(req);
-
+	
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
 	req.hdr.ctdb_version = CTDB_VERSION;
@@ -967,7 +957,7 @@ NTSTATUS ctdbd_fetch(struct ctdbd_connection *conn, uint32 db_id,
 	NTSTATUS status;
 
 	ZERO_STRUCT(req);
-
+	
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
 	req.hdr.ctdb_version = CTDB_VERSION;
@@ -1167,7 +1157,7 @@ NTSTATUS ctdbd_traverse(uint32 db_id,
 			break;
 		}
 
-		status = ctdb_packet_fd_read_sync(conn->pkt);
+		status = packet_fd_read_sync(conn->pkt);
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_RETRY)) {
 			/*
@@ -1178,7 +1168,6 @@ NTSTATUS ctdbd_traverse(uint32 db_id,
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
 			status = NT_STATUS_OK;
-			break;
 		}
 
 		if (!NT_STATUS_IS_OK(status)) {

@@ -37,7 +37,7 @@ enum samr_handle {
   state asscoiated with a samr_Connect*() operation
 */
 struct samr_connect_state {
-	struct ldb_context *sam_ctx;
+	void *sam_ctx;
 	uint32_t access_mask;
 };
 

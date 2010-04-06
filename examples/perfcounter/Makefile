@@ -15,10 +15,10 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>.
 # 
 
-SAMBA_SRC_DIR=../../source3
-TDB_SRC_DIR=$(SAMBA_SRC_DIR)/../lib/tdb
+SAMBA_SRC_DIR=../../source
+TDB_SRC_DIR=$(SAMBA_SRC_DIR)/tdb
 
-CFLAGS = -g -I$(SAMBA_SRC_DIR) -I$(SAMBA_SRC_DIR)/include -I$(TDB_SRC_DIR)/include -I../../
+CFLAGS = -g -I$(SAMBA_SRC_DIR)/include -I$(TDB_SRC_DIR)/include
 CC = gcc
 
 PROGS = perfcount

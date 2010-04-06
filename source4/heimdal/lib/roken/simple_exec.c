@@ -31,7 +31,10 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+RCSID("$Id$");
+#endif
 
 #include <stdarg.h>
 #include <stdlib.h>
@@ -47,6 +50,10 @@
 #include <errno.h>
 
 #include "roken.h"
+
+#if !HAVE_DECL_ENVIRON
+extern char **environ;
+#endif
 
 #define EX_NOEXEC	126
 #define EX_NOTFOUND	127
@@ -306,6 +313,23 @@ simple_execle(const char *file, ... /* ,char *const envp[] */)
     if(argv == NULL)
 	return -1;
     ret = simple_execve(file, argv, envp);
+    free(argv);
+    return ret;
+}
+
+int ROKEN_LIB_FUNCTION
+simple_execl(const char *file, ...)
+{
+    va_list ap;
+    char **argv;
+    int ret;
+
+    va_start(ap, file);
+    argv = vstrcollect(&ap);
+    va_end(ap);
+    if(argv == NULL)
+	return -1;
+    ret = simple_execve(file, argv, environ);
     free(argv);
     return ret;
 }

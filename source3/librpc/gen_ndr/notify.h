@@ -18,11 +18,6 @@ struct notify_entry {
 	void* private_data;
 }/* [public] */;
 
-struct notify_entry_array {
-	uint32_t num_entries;
-	struct notify_entry *entries;
-}/* [public] */;
-
 struct notify_depth {
 	uint32_t max_mask;
 	uint32_t max_mask_subdir;

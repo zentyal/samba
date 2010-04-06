@@ -459,7 +459,7 @@ static void wreplsrv_task_init(struct task_server *task)
 
 	service = talloc_zero(task, struct wreplsrv_service);
 	if (!service) {
-		task_server_terminate(task, "wreplsrv_task_init: out of memory", true);
+		task_server_terminate(task, "wreplsrv_task_init: out of memory");
 		return;
 	}
 	service->task		= task;
@@ -471,7 +471,7 @@ static void wreplsrv_task_init(struct task_server *task)
 	 */
 	status = wreplsrv_open_winsdb(service, task->lp_ctx);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_open_winsdb() failed", true);
+		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_open_winsdb() failed");
 		return;
 	}
 
@@ -480,7 +480,7 @@ static void wreplsrv_task_init(struct task_server *task)
 	 */
 	status = wreplsrv_setup_partners(service);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_partners() failed", true);
+		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_partners() failed");
 		return;
 	}
 
@@ -490,13 +490,13 @@ static void wreplsrv_task_init(struct task_server *task)
 	 */
 	status = wreplsrv_setup_sockets(service, task->lp_ctx);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_sockets() failed", true);
+		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_sockets() failed");
 		return;
 	}
 
 	status = wreplsrv_setup_periodic(service);
 	if (!NT_STATUS_IS_OK(status)) {
-		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_periodic() failed", true);
+		task_server_terminate(task, "wreplsrv_task_init: wreplsrv_setup_periodic() failed");
 		return;
 	}
 

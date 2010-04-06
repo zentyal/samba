@@ -20,7 +20,6 @@
 #include "includes.h"
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
-#include "../librpc/gen_ndr/cli_samr.h"
 
 /****************************************************************
 ****************************************************************/

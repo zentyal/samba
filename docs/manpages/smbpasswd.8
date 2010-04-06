@@ -1,13 +1,161 @@
-'\" t
 .\"     Title: smbpasswd
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 02/19/2010
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 02/22/2010
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.5
+.\"    Source: Samba 3.4
 .\"  Language: English
 .\"
-.TH "SMBPASSWD" "8" "02/19/2010" "Samba 3\&.5" "System Administration tools"
+.TH "SMBPASSWD" "8" "02/22/2010" "Samba 3\&.4" "System Administration tools"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -18,11 +166,13 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "NAME"
+.SH "Name"
 smbpasswd \- change a user\'s SMB password
-.SH "SYNOPSIS"
+.SH "Synopsis"
+.fam C
 .HP \w'\ 'u
-smbpasswd [\-a] [\-c\ <config\ file>] [\-x] [\-d] [\-e] [\-D\ debuglevel] [\-n] [\-r\ <remote\ machine>] [\-R\ <name\ resolve\ order>] [\-m] [\-U\ username[%password]] [\-h] [\-s] [\-w\ pass] [\-W] [\-i] [\-L] [username]
+\FCsmbpasswd\F[] [\-a] [\-c\ <config\ file>] [\-x] [\-d] [\-e] [\-D\ debuglevel] [\-n] [\-r\ <remote\ machine>] [\-R\ <name\ resolve\ order>] [\-m] [\-U\ username[%password]] [\-h] [\-s] [\-w\ pass] [\-W] [\-i] [\-L] [username]
+.fam
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -34,9 +184,9 @@ The smbpasswd program has several different functions, depending on whether it i
 user or not\&. When run as a normal user it allows the user to change the password used for their SMB sessions on any machines that store SMB passwords\&.
 .PP
 By default (when run with no arguments) it will attempt to change the current user\'s SMB password on the local machine\&. This is similar to the way the
-passwd(1)
+\FCpasswd(1)\F[]
 program works\&.
-smbpasswd
+\FC smbpasswd\F[]
 differs from how the passwd program works however in that it is not
 \fIsetuid root\fR
 but works in a client\-server mode and communicates with a locally running
@@ -51,14 +201,14 @@ smbpasswd can also be used by a normal user to change their SMB password on remo
 options below\&.
 .PP
 When run by root, smbpasswd allows new users to be added and deleted in the smbpasswd file, as well as allows changes to the attributes of the user in this file to be made\&. When run by root,
-smbpasswd
+\FC smbpasswd\F[]
 accesses the local smbpasswd file directly, thus enabling changes to be made even if smbd is not running\&.
 .SH "OPTIONS"
 .PP
 \-a
 .RS 4
 This option specifies that the username following should be added to the local smbpasswd file, with the new password typed (type <Enter> for the old password)\&. This option is ignored if the username following already exists in the smbpasswd file and it is treated like a regular change password command\&. Note that the default passdb backends require the user to already exist in the system password file (usually
-/etc/passwd), else the request to add the user will fail\&.
+\FC/etc/passwd\F[]), else the request to add the user will fail\&.
 .sp
 This option is only available when running smbpasswd as root\&.
 .RE
@@ -66,7 +216,7 @@ This option is only available when running smbpasswd as root\&.
 \-c
 .RS 4
 This option can be used to specify the path and file name of the
-smb\&.conf
+\FCsmb\&.conf\F[]
 configuration file when it is important to use other than the default file and / or location\&.
 .RE
 .PP
@@ -99,7 +249,7 @@ This option specifies that the username following should be
 in the local smbpasswd file, if the account was previously disabled\&. If the account was not disabled this option has no effect\&. Once the account is enabled then the user will be able to authenticate via SMB once again\&.
 .sp
 If the smbpasswd file is in the \'old\' format, then
-smbpasswd
+\FC smbpasswd\F[]
 will FAIL to enable the account\&. See
 \fBsmbpasswd\fR(5)
 for details on the \'old\' and new password file formats\&.
@@ -122,10 +272,10 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 This option specifies that the username following should have their password set to null (i\&.e\&. a blank password) in the local smbpasswd file\&. This is done by writing the string "NO PASSWORD" as the first part of the first password stored in the smbpasswd file\&.
 .sp
 Note that to allow users to logon to a Samba server once the password has been set to "NO PASSWORD" in the smbpasswd file the administrator must set the following parameter in the [global] section of the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file :
 .sp
-null passwords = yes
+\FCnull passwords = yes\F[]
 .sp
 This option is only available when running smbpasswd as root\&.
 .RE
@@ -176,8 +326,8 @@ for details) then any name type matches for lookup\&.
 .IP \(bu 2.3
 .\}
 \fBhost\fR: Do a standard host name to IP address resolution, using the system
-/etc/hosts, NIS, or DNS lookups\&. This method of name resolution is operating system depended for instance on IRIX or Solaris this may be controlled by the
-/etc/nsswitch\&.conf
+\FC/etc/hosts \F[], NIS, or DNS lookups\&. This method of name resolution is operating system depended for instance on IRIX or Solaris this may be controlled by the
+\FC/etc/nsswitch\&.conf\F[]
 file)\&. Note that this method is only used if the NetBIOS name type being queried is the 0x20 (server) name type, otherwise it is ignored\&.
 .RE
 .sp
@@ -208,7 +358,7 @@ parameter\&. This is the least reliable of the name resolution methods as it dep
 .sp
 .RE
 The default order is
-lmhosts, host, wins, bcast
+\FClmhosts, host, wins, bcast\F[]
 and without this parameter or any entry in the
 \fBsmb.conf\fR(5)
 file the name resolution methods will be attempted in this order\&.
@@ -231,15 +381,15 @@ option\&. When changing a password on a remote machine it allows the user to spe
 \-h
 .RS 4
 This option prints the help string for
-smbpasswd, selecting the correct one for running as root or as an ordinary user\&.
+\FC smbpasswd\F[], selecting the correct one for running as root or as an ordinary user\&.
 .RE
 .PP
 \-s
 .RS 4
 This option causes smbpasswd to be silent (i\&.e\&. not issue prompts) and to read its old and new passwords from standard input, rather than from
-/dev/tty
+\FC/dev/tty\F[]
 (like the
-passwd(1)
+\FCpasswd(1)\F[]
 program does)\&. This option is to aid people writing scripts to drive smbpasswd
 .RE
 .PP
@@ -249,7 +399,7 @@ This parameter is only available if Samba has been compiled with LDAP support\&.
 \fI\-w\fR
 switch is used to specify the password to be used with the
 \m[blue]\fBldap admin dn\fR\m[]\&. Note that the password is stored in the
-secrets\&.tdb
+\FCsecrets\&.tdb\F[]
 and is keyed off of the admin\'s DN\&. This means that if the value of
 \fIldap admin dn\fR
 ever changes, the password will need to be manually updated as well\&.
@@ -257,14 +407,14 @@ ever changes, the password will need to be manually updated as well\&.
 .PP
 \-W
 .RS 4
-NOTE:
+\FCNOTE: \F[]
 This option is same as "\-w" except that the password should be entered using stdin\&.
 .sp
 This parameter is only available if Samba has been compiled with LDAP support\&. The
 \fI\-W\fR
 switch is used to specify the password to be used with the
 \m[blue]\fBldap admin dn\fR\m[]\&. Note that the password is stored in the
-secrets\&.tdb
+\FCsecrets\&.tdb\F[]
 and is keyed off of the admin\'s DN\&. This means that if the value of
 \fIldap admin dn\fR
 ever changes, the password will need to be manually updated as well\&.
@@ -291,9 +441,9 @@ options to operate on\&. Only root can specify this parameter as only root has t
 .SH "NOTES"
 .PP
 Since
-smbpasswd
+\FCsmbpasswd\F[]
 works in client\-server mode communicating with a local smbd for a non\-root user then the smbd daemon must be running for this to work\&. A common problem is to add a restriction to the hosts that may access the
-smbd
+\FC smbd\F[]
 running on the local machine by specifying either
 \fIallow hosts\fR
 or

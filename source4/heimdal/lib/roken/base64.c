@@ -31,8 +31,10 @@
  * SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
-
+RCSID("$Id$");
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include "base64.h"
@@ -58,16 +60,9 @@ base64_encode(const void *data, int size, char **str)
     int c;
     const unsigned char *q;
 
-    if (size > INT_MAX/4 || size < 0) {
-	*str = NULL;
-	return -1;
-    }
-
     p = s = (char *) malloc(size * 4 / 3 + 4);
-    if (p == NULL) {
-        *str = NULL;
+    if (p == NULL)
 	return -1;
-    }
     q = (const unsigned char *) data;
 
     for (i = 0; i < size;) {

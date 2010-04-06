@@ -8,7 +8,6 @@ mkinclude credentials/config.mk
 
 [SUBSYSTEM::auth_session]
 PUBLIC_DEPENDENCIES = CREDENTIALS
-PRIVATE_DEPENDENCIES = SAMDB
 
 PUBLIC_HEADERS += $(authsrcdir)/session.h
 
@@ -45,7 +44,7 @@ $(eval $(call proto_header_template,$(authsrcdir)/auth_sam_reply.h,$(auth_sam_re
 [PYTHON::pyauth]
 LIBRARY_REALNAME = samba/auth.$(SHLIBEXT)
 PUBLIC_DEPENDENCIES = auth_system_session
-PRIVATE_DEPENDENCIES = SAMDB PYTALLOC pyparam_util
+PRIVATE_DEPENDENCIES = SAMDB PYTALLOC param
 
 pyauth_OBJ_FILES = $(authsrcdir)/pyauth.o
 

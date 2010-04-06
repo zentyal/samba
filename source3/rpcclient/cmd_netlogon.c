@@ -21,8 +21,6 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/cli_netlogon.h"
 
 static WERROR cmd_netlogon_logon_ctrl2(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx, int argc,
@@ -586,7 +584,7 @@ static NTSTATUS cmd_netlogon_sam_sync(struct rpc_pipe_client *cli,
 	do {
 		struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
 
-		netlogon_creds_client_authenticator(cli->dc, &credential);
+		netlogon_creds_client_step(cli->dc, &credential);
 
 		result = rpccli_netr_DatabaseSync2(cli, mem_ctx,
 						   logon_server,
@@ -649,7 +647,7 @@ static NTSTATUS cmd_netlogon_sam_deltas(struct rpc_pipe_client *cli,
 	do {
 		struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
 
-		netlogon_creds_client_authenticator(cli->dc, &credential);
+		netlogon_creds_client_step(cli->dc, &credential);
 
 		result = rpccli_netr_DatabaseDeltas(cli, mem_ctx,
 						    logon_server,
@@ -1052,7 +1050,7 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 	struct netr_Authenticator clnt_creds, srv_cred;
 	struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
 	unsigned char trust_passwd_hash[16];
-	enum netr_SchannelType sec_channel_type = 0;
+	uint32_t sec_channel_type = 0;
 	struct netr_ChangeLogEntry e;
 	uint32_t rid = 500;
 
@@ -1084,7 +1082,7 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 		return status;
 	}
 
-	netlogon_creds_client_authenticator(cli->dc, &clnt_creds);
+	netlogon_creds_client_step(cli->dc, &clnt_creds);
 
 	ZERO_STRUCT(e);
 
@@ -1128,9 +1126,11 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 		level = atoi(argv[1]);
 	}
 
-	ZERO_STRUCT(return_authenticator);
-
-	netlogon_creds_client_authenticator(cli->dc, &credential);
+#if 0
+	netlogon_creds_client_step(cli->dc, &credential);
+#else
+	ZERO_STRUCT(credential);
+#endif
 
 	status = rpccli_netr_LogonGetCapabilities(cli, mem_ctx,
 						  cli->desthost,
@@ -1139,14 +1139,13 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 						  &return_authenticator,
 						  level,
 						  &capabilities);
-
+#if 0
 	if (!netlogon_creds_client_check(cli->dc,
 					 &return_authenticator.cred)) {
 		DEBUG(0,("credentials chain check failed\n"));
 		return NT_STATUS_ACCESS_DENIED;
 	}
-
-	printf("capabilities: 0x%08x\n", capabilities.server_capabilities);
+#endif
 
 	return status;
 }

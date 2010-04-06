@@ -33,6 +33,8 @@
 
 #include "krb5_locl.h"
 
+RCSID("$Id$");
+
 /* this is just to get a version stamp in the library file */
 
 #define heimdal_version __heimdal_version

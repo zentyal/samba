@@ -81,13 +81,13 @@ static int dns_ex_destructor(struct dns_ex_state *state)
 */
 static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 {
-	struct rk_dns_reply *reply;
-	struct rk_resource_record *rr;
+	struct dns_reply *reply;
+	struct resource_record *rr;
 	uint32_t count = 0;
 	uint32_t srv_valid = 0;
-	struct rk_resource_record **srv_rr;
+	struct resource_record **srv_rr;
 	uint32_t addrs_valid = 0;
-	struct rk_resource_record **addrs_rr;
+	struct resource_record **addrs_rr;
 	char *addrs;
 	bool first;
 	uint32_t i;
@@ -95,25 +95,25 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 
 	/* this is the blocking call we are going to lots of trouble
 	   to avoid in the parent */
-	reply = rk_dns_lookup(state->name.name, do_srv?"SRV":"A");
+	reply = dns_lookup(state->name.name, do_srv?"SRV":"A");
 	if (!reply) {
 		goto done;
 	}
 
 	if (do_srv) {
-		rk_dns_srv_order(reply);
+		dns_srv_order(reply);
 	}
 
 	/* Loop over all returned records and pick the "srv" records */
 	for (rr=reply->head; rr; rr=rr->next) {
 		/* we are only interested in the IN class */
-		if (rr->class != rk_ns_c_in) {
+		if (rr->class != C_IN) {
 			continue;
 		}
 
 		if (do_srv) {
 			/* we are only interested in SRV records */
-			if (rr->type != rk_ns_t_srv) {
+			if (rr->type != T_SRV) {
 				continue;
 			}
 
@@ -129,7 +129,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 		} else {
 			/* we are only interested in A records */
 			/* TODO: add AAAA support */
-			if (rr->type != rk_ns_t_a) {
+			if (rr->type != T_A) {
 				continue;
 			}
 
@@ -146,14 +146,14 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 	}
 
 	srv_rr = talloc_zero_array(state,
-				   struct rk_resource_record *,
+				   struct resource_record *,
 				   count);
 	if (!srv_rr) {
 		goto done;
 	}
 
 	addrs_rr = talloc_zero_array(state,
-				     struct rk_resource_record *,
+				     struct resource_record *,
 				     count);
 	if (!addrs_rr) {
 		goto done;
@@ -162,13 +162,13 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 	/* Loop over all returned records and pick the records */
 	for (rr=reply->head;rr;rr=rr->next) {
 		/* we are only interested in the IN class */
-		if (rr->class != rk_ns_c_in) {
+		if (rr->class != C_IN) {
 			continue;
 		}
 
 		if (do_srv) {
 			/* we are only interested in SRV records */
-			if (rr->type != rk_ns_c_in) {
+			if (rr->type != T_SRV) {
 				continue;
 			}
 
@@ -187,7 +187,7 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 		} else {
 			/* we are only interested in A records */
 			/* TODO: add AAAA support */
-			if (rr->type != rk_ns_t_a) {
+			if (rr->type != T_A) {
 				continue;
 			}
 
@@ -204,12 +204,12 @@ static void run_child_dns_lookup(struct dns_ex_state *state, int fd)
 	for (i=0; i < srv_valid; i++) {
 		for (rr=reply->head;rr;rr=rr->next) {
 
-			if (rr->class != rk_ns_c_in) {
+			if (rr->class != C_IN) {
 				continue;
 			}
 
 			/* we are only interested in SRV records */
-			if (rr->type != rk_ns_t_a) {
+			if (rr->type != T_A) {
 				continue;
 			}
 
@@ -283,19 +283,14 @@ static void run_child_getaddrinfo(struct dns_ex_state *state, int fd)
 	hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV;
 
 	ret = getaddrinfo(state->name.name, "0", &hints, &res_list);
-	/* try to fallback in case of error */
-	if (state->do_fallback) {
-		switch (ret) {
 #ifdef EAI_NODATA
-		case EAI_NODATA:
+	if (ret == EAI_NODATA && state->do_fallback) {
+#else
+	if (ret == EAI_NONAME && state->do_fallback) {
 #endif
-		case EAI_NONAME:
-			/* getaddrinfo() doesn't handle CNAME records */
-			run_child_dns_lookup(state, fd);
-			return;
-		default:
-			break;
-		}
+		/* getaddrinfo() doesn't handle CNAME records */
+		run_child_dns_lookup(state, fd);
+		return;
 	}
 	if (ret != 0) {
 		goto done;
@@ -376,8 +371,6 @@ static void pipe_handler(struct tevent_context *ev, struct tevent_fd *fde,
 	}
 
 	if (ret <= 0) {
-		DEBUG(3,("dns child failed to find name '%s' of type %s\n",
-			 state->name.name, (state->flags & RESOLVE_NAME_FLAG_DNS_SRV)?"SRV":"A"));
 		composite_error(c, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 		return;
 	}

@@ -307,6 +307,29 @@ page \thepage \space undefined}}%
 \renewcommand\listfigurename{\uppercase{List Of Figures}}
 \renewcommand\listtablename{\uppercase{List Of Tables}}
 
+% smb.conf syntax highlighting
+\RequirePackage{listings}
+\RequirePackage{xcolor}
+
+\lstdefinelanguage{smbconf}{
+	morecomment=[l]{\#},
+}
+
+\newcommand{\linebreaksign}{\hbox{\ensuremath\hookleftarrow}}
+
+\lstdefinestyle{smbconfblock}
+{
+	breaklines=true,
+	backgroundcolor=\color[gray]{0.93},
+	frame=single,
+	frameround=tttt,
+	prebreak={\space\linebreaksign},
+	basicstyle=\small
+}
+
+\newcommand{\smbconfsection}[1]{\emph{#1}}
+\newcommand{\smbconfoption}[1]{\index{#1}\emph{#1}}
+
 \setlength{\emergencystretch}{0cm}
 
 
@@ -320,5 +343,3 @@ page \thepage \space undefined}}%
 \renewcommand{\textfraction}{0.1}
 \renewcommand{\topfraction}{1.0}
 \renewcommand{\bottomfraction}{1.0}
-
-\RequirePackage{samba}

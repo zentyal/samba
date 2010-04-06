@@ -44,6 +44,8 @@
 #include "parse.h"
 #include "lex.h"
 
+RCSID("$Id$");
+
 static unsigned lineno = 1;
 static int getstring(void);
 

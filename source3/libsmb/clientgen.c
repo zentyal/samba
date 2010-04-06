@@ -135,79 +135,6 @@ static ssize_t client_receive_smb(struct cli_state *cli, size_t maxlen)
 	return len;
 }
 
-static bool cli_state_set_seqnum(struct cli_state *cli, uint16_t mid, uint32_t seqnum)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			c->seqnum = seqnum;
-			return true;
-		}
-	}
-
-	c = talloc_zero(cli, struct cli_state_seqnum);
-	if (!c) {
-		return false;
-	}
-
-	c->mid = mid;
-	c->seqnum = seqnum;
-	c->persistent = false;
-	DLIST_ADD_END(cli->seqnum, c, struct cli_state_seqnum *);
-
-	return true;
-}
-
-bool cli_state_seqnum_persistent(struct cli_state *cli,
-				 uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			c->persistent = true;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool cli_state_seqnum_remove(struct cli_state *cli,
-			     uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			DLIST_REMOVE(cli->seqnum, c);
-			TALLOC_FREE(c);
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static uint32_t cli_state_get_seqnum(struct cli_state *cli, uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			uint32_t seqnum = c->seqnum;
-			if (!c->persistent) {
-				DLIST_REMOVE(cli->seqnum, c);
-				TALLOC_FREE(c);
-			}
-			return seqnum;
-		}
-	}
-
-	return 0;
-}
-
 /****************************************************************************
  Recv an smb.
 ****************************************************************************/
@@ -215,8 +142,6 @@ static uint32_t cli_state_get_seqnum(struct cli_state *cli, uint16_t mid)
 bool cli_receive_smb(struct cli_state *cli)
 {
 	ssize_t len;
-	uint16_t mid;
-	uint32_t seqnum;
 
 	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
 	if (cli->fd == -1)
@@ -234,7 +159,7 @@ bool cli_receive_smb(struct cli_state *cli)
 			if (cli->oplock_handler) {
 				int fnum = SVAL(cli->inbuf,smb_vwv2);
 				unsigned char level = CVAL(cli->inbuf,smb_vwv3+1);
-				if (!NT_STATUS_IS_OK(cli->oplock_handler(cli, fnum, level))) {
+				if (!cli->oplock_handler(cli, fnum, level)) {
 					return false;
 				}
 			}
@@ -252,10 +177,7 @@ bool cli_receive_smb(struct cli_state *cli)
 		return false;
 	}
 
-	mid = SVAL(cli->inbuf,smb_mid);
-	seqnum = cli_state_get_seqnum(cli, mid);
-
-	if (!cli_check_sign_mac(cli, cli->inbuf, seqnum+1)) {
+	if (!cli_check_sign_mac(cli, cli->inbuf)) {
 		/*
 		 * If we get a signature failure in sessionsetup, then
 		 * the server sometimes just reflects the sent signature
@@ -342,20 +264,12 @@ bool cli_send_smb(struct cli_state *cli)
 	ssize_t ret;
 	char *buf_out = cli->outbuf;
 	bool enc_on = cli_encryption_on(cli);
-	uint32_t seqnum;
 
 	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
 	if (cli->fd == -1)
 		return false;
 
-	cli_calculate_sign_mac(cli, cli->outbuf, &seqnum);
-
-	if (!cli_state_set_seqnum(cli, cli->mid, seqnum)) {
-		DEBUG(0,("Failed to store mid[%u]/seqnum[%u]\n",
-			(unsigned int)cli->mid,
-			(unsigned int)seqnum));
-		return false;
-	}
+	cli_calculate_sign_mac(cli, cli->outbuf);
 
 	if (enc_on) {
 		NTSTATUS status = cli_encrypt_message(cli, cli->outbuf,
@@ -422,9 +336,9 @@ bool cli_send_smb_direct_writeX(struct cli_state *cli,
 		return false;
 	}
 
-	iov[0].iov_base = (void *)cli->outbuf;
+	iov[0].iov_base = cli->outbuf;
 	iov[0].iov_len = len;
-	iov[1].iov_base = CONST_DISCARD(void *, p);
+	iov[1].iov_base = CONST_DISCARD(char *, p);
 	iov[1].iov_len = extradata;
 
 	nwritten = write_data_iov(cli->fd, iov, 2);
@@ -592,7 +506,6 @@ struct cli_state *cli_initialise_ex(int signing_state)
 	cli->bufsize = CLI_BUFFER_SIZE+4;
 	cli->max_xmit = cli->bufsize;
 	cli->outbuf = (char *)SMB_MALLOC(cli->bufsize+SAFETY_MARGIN);
-	cli->seqnum = 0;
 	cli->inbuf = (char *)SMB_MALLOC(cli->bufsize+SAFETY_MARGIN);
 	cli->oplock_handler = cli_oplock_ack;
 	cli->case_sensitive = false;
@@ -643,18 +556,9 @@ struct cli_state *cli_initialise_ex(int signing_state)
 #endif
 
 	/* initialise signing */
-	cli->signing_state = smb_signing_init(cli,
-					      allow_smb_signing,
-					      mandatory_signing);
-	if (!cli->signing_state) {
-		goto error;
-	}
-
-	cli->outgoing = tevent_queue_create(cli, "cli_outgoing");
-	if (cli->outgoing == NULL) {
-		goto error;
-	}
-	cli->pending = NULL;
+	cli->sign_info.allow_smb_signing = allow_smb_signing;
+	cli->sign_info.mandatory_signing = mandatory_signing;
+	cli_null_set_signing(cli);
 
 	cli->initialised = 1;
 
@@ -737,6 +641,7 @@ void cli_shutdown(struct cli_state *cli)
 	SAFE_FREE(cli->outbuf);
 	SAFE_FREE(cli->inbuf);
 
+	cli_free_signing_context(cli);
 	data_blob_free(&cli->secblob);
 	data_blob_free(&cli->user_session_key);
 
@@ -746,12 +651,6 @@ void cli_shutdown(struct cli_state *cli)
 	cli->fd = -1;
 	cli->smb_rw_error = SMB_READ_OK;
 
-	/*
-	 * Need to free pending first, they remove themselves
-	 */
-	while (cli->pending) {
-		talloc_free(cli->pending[0]);
-	}
 	TALLOC_FREE(cli);
 }
 
@@ -805,72 +704,93 @@ bool cli_send_keepalive(struct cli_state *cli)
         return true;
 }
 
-struct cli_echo_state {
-	uint16_t vwv[1];
-	DATA_BLOB data;
-	int num_echos;
-};
+/**
+ * @brief: Collect a echo reply
+ * @param[in] req	The corresponding async request
+ *
+ * There might be more than one echo reply. This helper pulls the reply out of
+ * the data stream. If all expected replies have arrived, declare the
+ * async_req done.
+ */
 
-static void cli_echo_done(struct tevent_req *subreq);
-
-struct tevent_req *cli_echo_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
-				 struct cli_state *cli, uint16_t num_echos,
-				 DATA_BLOB data)
+static void cli_echo_recv_helper(struct async_req *req)
 {
-	struct tevent_req *req, *subreq;
-	struct cli_echo_state *state;
+	struct cli_request *cli_req;
+	uint8_t wct;
+	uint16_t *vwv;
+	uint16_t num_bytes;
+	uint8_t *bytes;
+	NTSTATUS status;
 
-	req = tevent_req_create(mem_ctx, &state, struct cli_echo_state);
-	if (req == NULL) {
-		return NULL;
+	status = cli_pull_reply(req, &wct, &vwv, &num_bytes, &bytes);
+	if (!NT_STATUS_IS_OK(status)) {
+		async_req_nterror(req, status);
+		return;
 	}
-	SSVAL(state->vwv, 0, num_echos);
-	state->data = data;
-	state->num_echos = num_echos;
 
-	subreq = cli_smb_send(state, ev, cli, SMBecho, 0, 1, state->vwv,
-			      data.length, data.data);
-	if (subreq == NULL) {
-		goto fail;
+	cli_req = talloc_get_type_abort(req->private_data, struct cli_request);
+
+	if ((num_bytes != cli_req->data.echo.data.length)
+	    || (memcmp(cli_req->data.echo.data.data, bytes,
+		       num_bytes) != 0)) {
+		async_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
+		return;
 	}
-	tevent_req_set_callback(subreq, cli_echo_done, req);
-	return req;
- fail:
-	TALLOC_FREE(req);
-	return NULL;
+
+	cli_req->data.echo.num_echos -= 1;
+
+	if (cli_req->data.echo.num_echos == 0) {
+		client_set_trans_sign_state_off(cli_req->cli, cli_req->mid);
+		async_req_done(req);
+		return;
+	}
+
+	return;
 }
 
-static void cli_echo_done(struct tevent_req *subreq)
+/**
+ * @brief Send SMBEcho requests
+ * @param[in] mem_ctx	The memory context to put the async_req on
+ * @param[in] ev	The event context that will call us back
+ * @param[in] cli	The connection to send the echo to
+ * @param[in] num_echos	How many times do we want to get the reply?
+ * @param[in] data	The data we want to get back
+ * @retval The async request
+ */
+
+struct async_req *cli_echo_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
+				struct cli_state *cli, uint16_t num_echos,
+				DATA_BLOB data)
 {
-	struct tevent_req *req = tevent_req_callback_data(
-		subreq, struct tevent_req);
-	struct cli_echo_state *state = tevent_req_data(
-		req, struct cli_echo_state);
-	NTSTATUS status;
-	uint32_t num_bytes;
-	uint8_t *bytes;
+	uint16_t vwv[1];
+	uint8_t *data_copy;
+	struct async_req *result;
+	struct cli_request *req;
 
-	status = cli_smb_recv(subreq, 0, NULL, NULL, &num_bytes, &bytes);
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
-	if ((num_bytes != state->data.length)
-	    || (memcmp(bytes, state->data.data, num_bytes) != 0)) {
-		tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
-		return;
+	SSVAL(vwv, 0, num_echos);
+
+	data_copy = (uint8_t *)talloc_memdup(mem_ctx, data.data, data.length);
+	if (data_copy == NULL) {
+		return NULL;
 	}
 
-	state->num_echos -=1;
-	if (state->num_echos == 0) {
-		tevent_req_done(req);
-		return;
+	result = cli_request_send(mem_ctx, ev, cli, SMBecho, 0, 1, vwv, 0,
+				  data.length, data.data);
+	if (result == NULL) {
+		TALLOC_FREE(data_copy);
+		return NULL;
 	}
+	req = talloc_get_type_abort(result->private_data, struct cli_request);
 
-	if (!cli_smb_req_set_pending(subreq)) {
-		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
-		return;
-	}
+	client_set_trans_sign_state_on(cli, req->mid);
+
+	req->data.echo.num_echos = num_echos;
+	req->data.echo.data.data = talloc_move(req, &data_copy);
+	req->data.echo.data.length = data.length;
+
+	req->recv_helper.fn = cli_echo_recv_helper;
+
+	return result;
 }
 
 /**
@@ -879,9 +799,9 @@ static void cli_echo_done(struct tevent_req *subreq)
  * @retval Did the server reply correctly?
  */
 
-NTSTATUS cli_echo_recv(struct tevent_req *req)
+NTSTATUS cli_echo_recv(struct async_req *req)
 {
-	return tevent_req_simple_recv_ntstatus(req);
+	return async_req_simple_recv_ntstatus(req);
 }
 
 /**
@@ -898,40 +818,35 @@ NTSTATUS cli_echo(struct cli_state *cli, uint16_t num_echos, DATA_BLOB data)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_OK;
+	struct async_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	if (cli_has_async_calls(cli)) {
+	if (cli->fd_event != NULL) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */
-		status = NT_STATUS_INVALID_PARAMETER;
+		cli_set_error(cli, NT_STATUS_INVALID_PARAMETER);
 		goto fail;
 	}
 
 	ev = event_context_init(frame);
 	if (ev == NULL) {
-		status = NT_STATUS_NO_MEMORY;
 		goto fail;
 	}
 
 	req = cli_echo_send(frame, ev, cli, num_echos, data);
 	if (req == NULL) {
-		status = NT_STATUS_NO_MEMORY;
 		goto fail;
 	}
 
-	if (!tevent_req_poll(req, ev)) {
-		status = map_nt_error_from_unix(errno);
-		goto fail;
+	while (req->state < ASYNC_REQ_DONE) {
+		event_loop_once(ev);
 	}
 
 	status = cli_echo_recv(req);
+
  fail:
 	TALLOC_FREE(frame);
-	if (!NT_STATUS_IS_OK(status)) {
-		cli_set_error(cli, status);
-	}
 	return status;
 }
 

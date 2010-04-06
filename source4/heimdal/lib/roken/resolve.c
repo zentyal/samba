@@ -31,18 +31,15 @@
  * SUCH DAMAGE.
  */
 
-
+#ifdef HAVE_CONFIG_H
 #include <config.h>
-
+#endif
 #include "roken.h"
 #ifdef HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
 #endif
 #ifdef HAVE_RESOLV_H
 #include <resolv.h>
-#endif
-#ifdef HAVE_DNS_H
-#include <dns.h>
 #endif
 #include "resolve.h"
 
@@ -81,7 +78,7 @@ static struct stot{
 int _resolve_debug = 0;
 
 int ROKEN_LIB_FUNCTION
-rk_dns_string_to_type(const char *name)
+dns_string_to_type(const char *name)
 {
     struct stot *p = stot;
     for(p = stot; p->name; p++)
@@ -91,7 +88,7 @@ rk_dns_string_to_type(const char *name)
 }
 
 const char * ROKEN_LIB_FUNCTION
-rk_dns_type_to_string(int type)
+dns_type_to_string(int type)
 {
     struct stot *p = stot;
     for(p = stot; p->name; p++)
@@ -103,7 +100,7 @@ rk_dns_type_to_string(int type)
 #if (defined(HAVE_RES_SEARCH) || defined(HAVE_RES_NSEARCH)) && defined(HAVE_DN_EXPAND)
 
 static void
-dns_free_rr(struct rk_resource_record *rr)
+dns_free_rr(struct resource_record *rr)
 {
     if(rr->domain)
 	free(rr->domain);
@@ -113,13 +110,13 @@ dns_free_rr(struct rk_resource_record *rr)
 }
 
 void ROKEN_LIB_FUNCTION
-rk_dns_free_data(struct rk_dns_reply *r)
+dns_free_data(struct dns_reply *r)
 {
-    struct rk_resource_record *rr;
+    struct resource_record *rr;
     if(r->q.domain)
 	free(r->q.domain);
     for(rr = r->head; rr;){
-	struct rk_resource_record *tmp = rr;
+	struct resource_record *tmp = rr;
 	rr = rr->next;
 	dns_free_rr(tmp);
     }
@@ -128,9 +125,9 @@ rk_dns_free_data(struct rk_dns_reply *r)
 
 static int
 parse_record(const unsigned char *data, const unsigned char *end_data,
-	     const unsigned char **pp, struct rk_resource_record **ret_rr)
+	     const unsigned char **pp, struct resource_record **ret_rr)
 {
-    struct rk_resource_record *rr;
+    struct resource_record *rr;
     int type, class, ttl;
     unsigned size;
     int status;
@@ -404,7 +401,7 @@ parse_record(const unsigned char *data, const unsigned char *end_data,
 #ifndef TEST_RESOLVE
 static
 #endif
-struct rk_dns_reply*
+struct dns_reply*
 parse_reply(const unsigned char *data, size_t len)
 {
     const unsigned char *p;
@@ -412,8 +409,8 @@ parse_reply(const unsigned char *data, size_t len)
     int i;
     char host[MAXDNAME];
     const unsigned char *end_data = data + len;
-    struct rk_dns_reply *r;
-    struct rk_resource_record **rr;
+    struct dns_reply *r;
+    struct resource_record **rr;
 
     r = calloc(1, sizeof(*r));
     if (r == NULL)
@@ -452,16 +449,16 @@ parse_reply(const unsigned char *data, size_t len)
     }
     status = dn_expand(data, end_data, p, host, sizeof(host));
     if(status < 0){
-	rk_dns_free_data(r);
+	dns_free_data(r);
 	return NULL;
     }
     r->q.domain = strdup(host);
     if(r->q.domain == NULL) {
-	rk_dns_free_data(r);
+	dns_free_data(r);
 	return NULL;
     }
     if (p + status + 4 > end_data) {
-	rk_dns_free_data(r);
+	dns_free_data(r);
 	return NULL;
     }
     p += status;
@@ -473,21 +470,21 @@ parse_reply(const unsigned char *data, size_t len)
     rr = &r->head;
     for(i = 0; i < r->h.ancount; i++) {
 	if(parse_record(data, end_data, &p, rr) != 0) {
-	    rk_dns_free_data(r);
+	    dns_free_data(r);
 	    return NULL;
 	}
 	rr = &(*rr)->next;
     }
     for(i = 0; i < r->h.nscount; i++) {
 	if(parse_record(data, end_data, &p, rr) != 0) {
-	    rk_dns_free_data(r);
+	    dns_free_data(r);
 	    return NULL;
 	}
 	rr = &(*rr)->next;
     }
     for(i = 0; i < r->h.arcount; i++) {
 	if(parse_record(data, end_data, &p, rr) != 0) {
-	    rk_dns_free_data(r);
+	    dns_free_data(r);
 	    return NULL;
 	}
 	rr = &(*rr)->next;
@@ -504,42 +501,20 @@ parse_reply(const unsigned char *data, size_t len)
 #endif
 #endif
 
-#if defined(HAVE_DNS_SEARCH)
-#define resolve_search(h,n,c,t,r,l) \
-    	((int)dns_search(h,n,c,t,r,l,(struct sockaddr *)&from,&fromsize))
-#define resolve_free_handle(h) dns_free(h)
-#elif defined(HAVE_RES_NSEARCH)
-#define resolve_search(h,n,c,t,r,l) res_nsearch(h,n,c,t,r,l)
-#define resolve_free_handle(h) rk_res_free(h);
-#else
-#define resolve_search(h,n,c,t,r,l) res_search(n,c,t,r,l)
-#define handle 0
-#define resolve_free_handle(h)
-#endif
-
-
-static struct rk_dns_reply *
+static struct dns_reply *
 dns_lookup_int(const char *domain, int rr_class, int rr_type)
 {
-    struct rk_dns_reply *r;
-    void *reply = NULL;
+    struct dns_reply *r;
+    unsigned char *reply = NULL;
     int size;
     int len;
-#if defined(HAVE_DNS_SEARCH)
-    struct sockaddr_storage from;
-    uint32_t fromsize = sizeof(from);
-    dns_handle_t handle;
-    
-    handle = dns_open(NULL);
-    if (handle == NULL)
-	return NULL;
-#elif defined(HAVE_RES_NSEARCH)
+#ifdef HAVE_RES_NSEARCH
     struct __res_state state;
-    struct __res_state *handle = &state;
-
     memset(&state, 0, sizeof(state));
-    if(res_ninit(handle))
+    if(res_ninit(&state))
 	return NULL; /* is this the best we can do? */
+#elif defined(HAVE__RES)
+    u_long old_options = 0;
 #endif
 
     size = 0;
@@ -552,33 +527,45 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
 	if (size <= len)
 	    size = len;
 	if (_resolve_debug) {
-#if defined(HAVE_DNS_SEARCH)
-	    dns_set_debug(handle, 1);
-#elif defined(HAVE_RES_NSEARCH)
+#ifdef HAVE_RES_NSEARCH
 	    state.options |= RES_DEBUG;
+#elif defined(HAVE__RES)
+	    old_options = _res.options;
+	    _res.options |= RES_DEBUG;
 #endif
 	    fprintf(stderr, "dns_lookup(%s, %d, %s), buffer size %d\n", domain,
-		    rr_class, rk_dns_type_to_string(rr_type), size);
+		    rr_class, dns_type_to_string(rr_type), size);
 	}
 	reply = malloc(size);
 	if (reply == NULL) {
-	    resolve_free_handle(handle);
+#ifdef HAVE_RES_NSEARCH
+	    rk_res_free(&state);
+#endif
 	    return NULL;
 	}
-
-	len = resolve_search(handle, domain, rr_class, rr_type, reply, size);
-
+#ifdef HAVE_RES_NSEARCH
+	len = res_nsearch(&state, domain, rr_class, rr_type, reply, size);
+#else
+	len = res_search(domain, rr_class, rr_type, reply, size);
+#endif
 	if (_resolve_debug) {
+#if defined(HAVE__RES) && !defined(HAVE_RES_NSEARCH)
+	    _res.options = old_options;
+#endif
 	    fprintf(stderr, "dns_lookup(%s, %d, %s) --> %d\n",
-		    domain, rr_class, rk_dns_type_to_string(rr_type), len);
+		    domain, rr_class, dns_type_to_string(rr_type), len);
 	}
-	if (len <= 0) {
-	    resolve_free_handle(handle);
+	if (len < 0) {
+#ifdef HAVE_RES_NSEARCH
+	    rk_res_free(&state);
+#endif
 	    free(reply);
 	    return NULL;
 	}
     } while (size < len && len < rk_DNS_MAX_PACKET_SIZE);
-    resolve_free_handle(handle);
+#ifdef HAVE_RES_NSEARCH
+    rk_res_free(&state);
+#endif
 
     len = min(len, size);
     r = parse_reply(reply, len);
@@ -586,25 +573,25 @@ dns_lookup_int(const char *domain, int rr_class, int rr_type)
     return r;
 }
 
-struct rk_dns_reply * ROKEN_LIB_FUNCTION
-rk_dns_lookup(const char *domain, const char *type_name)
+struct dns_reply * ROKEN_LIB_FUNCTION
+dns_lookup(const char *domain, const char *type_name)
 {
     int type;
 
-    type = rk_dns_string_to_type(type_name);
+    type = dns_string_to_type(type_name);
     if(type == -1) {
 	if(_resolve_debug)
 	    fprintf(stderr, "dns_lookup: unknown resource type: `%s'\n",
 		    type_name);
 	return NULL;
     }
-    return dns_lookup_int(domain, rk_ns_c_in, type);
+    return dns_lookup_int(domain, C_IN, type);
 }
 
 static int
 compare_srv(const void *a, const void *b)
 {
-    const struct rk_resource_record *const* aa = a, *const* bb = b;
+    const struct resource_record *const* aa = a, *const* bb = b;
 
     if((*aa)->u.srv->priority == (*bb)->u.srv->priority)
 	return ((*aa)->u.srv->weight - (*bb)->u.srv->weight);
@@ -617,10 +604,10 @@ compare_srv(const void *a, const void *b)
 
 /* try to rearrange the srv-records by the algorithm in RFC2782 */
 void ROKEN_LIB_FUNCTION
-rk_dns_srv_order(struct rk_dns_reply *r)
+dns_srv_order(struct dns_reply *r)
 {
-    struct rk_resource_record **srvs, **ss, **headp;
-    struct rk_resource_record *rr;
+    struct resource_record **srvs, **ss, **headp;
+    struct resource_record *rr;
     int num_srv = 0;
 
 #if defined(HAVE_INITSTATE) && defined(HAVE_SETSTATE)
@@ -661,7 +648,7 @@ rk_dns_srv_order(struct rk_dns_reply *r)
 
     for(ss = srvs; ss < srvs + num_srv; ) {
 	int sum, rnd, count;
-	struct rk_resource_record **ee, **tt;
+	struct resource_record **ee, **tt;
 	/* find the last record with the same priority and count the
            sum of all weights */
 	for(sum = 0, tt = ss; tt < srvs + num_srv; tt++) {
@@ -706,19 +693,19 @@ rk_dns_srv_order(struct rk_dns_reply *r)
 
 #else /* NOT defined(HAVE_RES_SEARCH) && defined(HAVE_DN_EXPAND) */
 
-struct rk_dns_reply * ROKEN_LIB_FUNCTION
-rk_dns_lookup(const char *domain, const char *type_name)
+struct dns_reply * ROKEN_LIB_FUNCTION
+dns_lookup(const char *domain, const char *type_name)
 {
     return NULL;
 }
 
 void ROKEN_LIB_FUNCTION
-rk_dns_free_data(struct rk_dns_reply *r)
+dns_free_data(struct dns_reply *r)
 {
 }
 
 void ROKEN_LIB_FUNCTION
-rk_dns_srv_order(struct rk_dns_reply *r)
+dns_srv_order(struct dns_reply *r)
 {
 }
 

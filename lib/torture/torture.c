@@ -65,6 +65,7 @@ struct torture_context *torture_context_child(struct torture_context *parent)
 	if (subtorture == NULL)
 		return NULL;
 
+	subtorture->level = parent->level+1;
 	subtorture->ev = talloc_reference(subtorture, parent->ev);
 	subtorture->lp_ctx = talloc_reference(subtorture, parent->lp_ctx);
 	subtorture->outputdir = talloc_reference(subtorture, parent->outputdir);
@@ -106,7 +107,6 @@ void torture_comment(struct torture_context *context, const char *comment, ...)
 
 	va_start(ap, comment);
 	tmp = talloc_vasprintf(context, comment, ap);
-	va_end(ap);
 		
 	context->results->ui_ops->comment(context, tmp);
 	
@@ -126,7 +126,6 @@ void torture_warning(struct torture_context *context, const char *comment, ...)
 
 	va_start(ap, comment);
 	tmp = talloc_vasprintf(context, comment, ap);
-	va_end(ap);
 
 	context->results->ui_ops->warning(context, tmp);
 
@@ -256,6 +255,7 @@ bool torture_run_suite(struct torture_context *context,
 	struct torture_suite *tsuite;
 	char *old_testname;
 
+	context->level++;
 	if (context->results->ui_ops->suite_start)
 		context->results->ui_ops->suite_start(context, suite);
 
@@ -280,6 +280,8 @@ bool torture_run_suite(struct torture_context *context,
 	if (context->results->ui_ops->suite_finish)
 		context->results->ui_ops->suite_finish(context, suite);
 
+	context->level--;
+	
 	return ret;
 }
 
@@ -374,6 +376,8 @@ bool torture_run_tcase(struct torture_context *context,
 	char *old_testname;
 	struct torture_test *test;
 
+	context->level++;
+
 	context->active_tcase = tcase;
 	if (context->results->ui_ops->tcase_start) 
 		context->results->ui_ops->tcase_start(context, tcase);
@@ -408,6 +412,8 @@ done:
 
 	if (context->results->ui_ops->tcase_finish)
 		context->results->ui_ops->tcase_finish(context, tcase);
+
+	context->level--;
 
 	return ret;
 }

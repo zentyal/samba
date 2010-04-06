@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "../libcli/auth/libcli_auth.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -177,7 +176,7 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 		/* We also setup the creds chain in the open_schannel call. */
 		result = cli_rpc_pipe_open_schannel(
 			*cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
-			DCERPC_AUTH_LEVEL_PRIVACY, domain, &netlogon_pipe);
+			PIPE_AUTH_LEVEL_PRIVACY, domain, &netlogon_pipe);
 	} else {
 		result = cli_rpc_pipe_open_noauth(
 			*cli, &ndr_table_netlogon.syntax_id, &netlogon_pipe);
@@ -195,7 +194,7 @@ machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 	if (!lp_client_schannel()) {
 		/* We need to set up a creds chain on an unauthenticated netlogon pipe. */
 		uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-		enum netr_SchannelType sec_chan_type = 0;
+		uint32 sec_chan_type = 0;
 		unsigned char machine_pwd[16];
 		const char *account_name;
 
@@ -447,6 +446,8 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	NTSTATUS nt_status = NT_STATUS_LOGON_FAILURE;
 	unsigned char trust_md4_password[16];
 	char *trust_password;
+	time_t last_change_time;
+	DOM_SID sid;
 	fstring dc_name;
 	struct sockaddr_storage dc_ss;
 
@@ -479,7 +480,7 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	 */
 
 	if (!pdb_get_trusteddom_pw(user_info->domain, &trust_password,
-				   NULL, NULL)) {
+				   &sid, &last_change_time)) {
 		DEBUG(0, ("check_trustdomain_security: could not fetch trust "
 			  "account password for domain %s\n",
 			  user_info->domain));

@@ -163,7 +163,7 @@ static PyObject *py_descriptor_sacl_del(PyObject *self, PyObject *args)
 
 static PyObject *py_descriptor_new(PyTypeObject *self, PyObject *args, PyObject *kwargs)
 {
-	return py_talloc_steal(self, security_descriptor_initialise(NULL));
+	return py_talloc_import(self, security_descriptor_initialise(NULL));
 }
 
 static PyObject *py_descriptor_from_sddl(PyObject *self, PyObject *args)
@@ -173,7 +173,7 @@ static PyObject *py_descriptor_from_sddl(PyObject *self, PyObject *args)
 	PyObject *py_sid;
 	struct dom_sid *sid;
 
-	if (!PyArg_ParseTuple(args, "sO!", &sddl, &dom_sid_Type, &py_sid))
+	if (!PyArg_ParseTuple(args, "sO", &sddl, &py_sid))
 		return NULL;
 
 	sid = py_talloc_get_ptr(py_sid);
@@ -184,24 +184,15 @@ static PyObject *py_descriptor_from_sddl(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return py_talloc_steal((PyTypeObject *)self, secdesc);
+	return py_talloc_import((PyTypeObject *)self, secdesc);
 }
 
-static PyObject *py_descriptor_as_sddl(PyObject *self, PyObject *args)
+static PyObject *py_descriptor_as_sddl(PyObject *self, PyObject *py_sid)
 {
-	struct dom_sid *sid;
-	PyObject *py_sid = Py_None;
+	struct dom_sid *sid = py_talloc_get_ptr(py_sid);
 	struct security_descriptor *desc = py_talloc_get_ptr(self);
 	char *text;
 	PyObject *ret;
-
-	if (!PyArg_ParseTuple(args, "|O!", &dom_sid_Type, &py_sid))
-		return NULL;
-
-	if (py_sid != Py_None)
-		sid = py_talloc_get_ptr(py_sid);
-	else
-		sid = NULL;
 
 	text = sddl_encode(NULL, desc, sid);
 
@@ -224,7 +215,7 @@ static PyMethodDef py_descriptor_extra_methods[] = {
 		NULL },
 	{ "from_sddl", (PyCFunction)py_descriptor_from_sddl, METH_VARARGS|METH_CLASS, 
 		NULL },
-	{ "as_sddl", (PyCFunction)py_descriptor_as_sddl, METH_VARARGS,
+	{ "as_sddl", (PyCFunction)py_descriptor_as_sddl, METH_O,
 		NULL },
 	{ NULL }
 };
@@ -316,7 +307,7 @@ static PyObject *py_token_set_privilege(PyObject *self, PyObject *args)
 
 static PyObject *py_token_new(PyTypeObject *self, PyObject *args, PyObject *kwargs)
 {
-	return py_talloc_steal(self, security_token_initialise(NULL));
+	return py_talloc_import(self, security_token_initialise(NULL));
 }	
 
 static PyMethodDef py_token_extra_methods[] = {
@@ -378,7 +369,8 @@ static PyObject *py_random_sid(PyObject *self)
 
         sid = dom_sid_parse_talloc(NULL, str);
 	talloc_free(str);
-	ret = py_talloc_steal(&dom_sid_Type, sid);
+	ret = py_talloc_import(&dom_sid_Type, sid);
+	talloc_free(sid);
 	return ret;
 }
 

@@ -113,8 +113,7 @@ static SMB_STRUCT_DIR *dirsort_opendir(vfs_handle_struct *handle,
 }
 
 static SMB_STRUCT_DIRENT *dirsort_readdir(vfs_handle_struct *handle,
-					  SMB_STRUCT_DIR *dirp,
-					  SMB_STRUCT_STAT *sbuf)
+					  SMB_STRUCT_DIR *dirp)
 {
 	struct dirsort_privates *data = NULL;
 	time_t current_mtime;
@@ -167,16 +166,29 @@ static void dirsort_rewinddir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 	data->pos = 0;
 }
 
-static struct vfs_fn_pointers vfs_dirsort_fns = {
-	.opendir = dirsort_opendir,
-	.readdir = dirsort_readdir,
-	.seekdir = dirsort_seekdir,
-	.telldir = dirsort_telldir,
-	.rewind_dir = dirsort_rewinddir,
+/* VFS operations structure */
+
+static vfs_op_tuple dirsort_op_tuples[] = {
+
+    /* Directory operations */
+
+    {SMB_VFS_OP(dirsort_opendir),	     SMB_VFS_OP_OPENDIR,
+     SMB_VFS_LAYER_TRANSPARENT},
+    {SMB_VFS_OP(dirsort_readdir),	     SMB_VFS_OP_READDIR,
+     SMB_VFS_LAYER_TRANSPARENT},
+    {SMB_VFS_OP(dirsort_seekdir),	     SMB_VFS_OP_SEEKDIR,
+     SMB_VFS_LAYER_TRANSPARENT},
+    {SMB_VFS_OP(dirsort_telldir),	     SMB_VFS_OP_TELLDIR,
+     SMB_VFS_LAYER_TRANSPARENT},
+    {SMB_VFS_OP(dirsort_rewinddir),	     SMB_VFS_OP_REWINDDIR,
+     SMB_VFS_LAYER_TRANSPARENT},
+
+    {NULL,				     SMB_VFS_OP_NOOP,
+     SMB_VFS_LAYER_NOOP}
 };
 
 NTSTATUS vfs_dirsort_init(void)
 {
 	return smb_register_vfs(SMB_VFS_INTERFACE_VERSION, "dirsort",
-				&vfs_dirsort_fns);
+				dirsort_op_tuples);
 }

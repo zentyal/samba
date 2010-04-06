@@ -82,8 +82,6 @@ static void terminate(void)
 	/* If there was an async dns child - kill it. */
 	kill_async_dns_child();
 
-	gencache_stabilize();
-
 	pidfile_unlink();
 
 	exit(0);
@@ -443,14 +441,13 @@ static void msg_nmbd_send_packet(struct messaging_context *msg,
 	local_ip = &((const struct sockaddr_in *)pss)->sin_addr;
 	subrec = FIRST_SUBNET;
 
-	p->recv_fd = -1;
-	p->send_fd = (p->packet_type == NMB_PACKET) ?
+	p->fd = (p->packet_type == NMB_PACKET) ?
 		subrec->nmb_sock : subrec->dgram_sock;
 
 	for (subrec = FIRST_SUBNET; subrec != NULL;
 	     subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
 		if (ip_equal_v4(*local_ip, subrec->myip)) {
-			p->send_fd = (p->packet_type == NMB_PACKET) ?
+			p->fd = (p->packet_type == NMB_PACKET) ?
 				subrec->nmb_sock : subrec->dgram_sock;
 			break;
 		}
@@ -989,12 +986,6 @@ static bool open_sockets(bool isdaemon, int port)
 
 	if( False == register_my_workgroup_and_names() ) {
 		DEBUG(0,("ERROR: Failed when creating my my workgroup. Exiting.\n"));
-		kill_async_dns_child();
-		exit(1);
-	}
-
-	if (!initialize_nmbd_proxy_logon()) {
-		DEBUG(0,("ERROR: Failed setup nmbd_proxy_logon.\n"));
 		kill_async_dns_child();
 		exit(1);
 	}

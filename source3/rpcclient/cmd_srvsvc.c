@@ -22,7 +22,6 @@
 
 #include "includes.h"
 #include "rpcclient.h"
-#include "../librpc/gen_ndr/cli_srvsvc.h"
 
 /* Display server query info */
 

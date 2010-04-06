@@ -71,6 +71,7 @@ static int cli_credentials_set_from_ccache(struct cli_credentials *cred,
 	krb5_principal princ;
 	krb5_error_code ret;
 	char *name;
+	char **realm;
 
 	if (cred->ccache_obtained > obtained) {
 		return 0;
@@ -96,6 +97,8 @@ static int cli_credentials_set_from_ccache(struct cli_credentials *cred,
 		talloc_free(err_mess);
 		return ret;
 	}
+
+	realm = krb5_princ_realm(ccache->smb_krb5_context->krb5_context, princ);
 
 	cli_credentials_set_principal(cred, name, obtained);
 

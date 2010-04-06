@@ -7,25 +7,23 @@
    Copyright (C) Andrew Tridgell 2001
    Copyright (C) Volker Lendecke 2005
    Copyright (C) Guenther Deschner 2008 (pidl conversion)
-
+   
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "includes.h"
 #include "winbindd.h"
-#include "../librpc/gen_ndr/cli_samr.h"
-#include "../librpc/gen_ndr/cli_lsa.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -37,7 +35,7 @@
 static NTSTATUS query_user_list(struct winbindd_domain *domain,
 			       TALLOC_CTX *mem_ctx,
 			       uint32 *num_entries, 
-			       struct wbint_userinfo **info)
+			       WINBIND_USERINFO **info)
 {
 	NTSTATUS result;
 	struct policy_handle dom_pol;
@@ -90,8 +88,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 
 		*num_entries += num_dom_users;
 
-		*info = TALLOC_REALLOC_ARRAY(mem_ctx, *info,
-					     struct wbint_userinfo,
+		*info = TALLOC_REALLOC_ARRAY(mem_ctx, *info, WINBIND_USERINFO,
 					     *num_entries);
 
 		if (!(*info)) {
@@ -109,7 +106,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 			(*info)[i].homedir = NULL;
 			(*info)[i].shell = NULL;
 			sid_compose(&(*info)[i].user_sid, &domain->sid, rid);
-
+			
 			/* For the moment we set the primary group for
 			   every user to be the Domain Users group.
 			   There are serious problems with determining
@@ -117,7 +114,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 			   This should really be made into a 'winbind
 			   force group' smb.conf parameter or
 			   something like that. */
-
+			   
 			sid_compose(&(*info)[i].group_sid, &domain->sid, 
 				    DOMAIN_GROUP_RID_USERS);
 		}
@@ -194,7 +191,7 @@ static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
 		talloc_destroy(mem_ctx2);
 	} while (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES));
 
-	return status;
+	return NT_STATUS_OK;
 }
 
 /* List all domain groups */
@@ -264,15 +261,15 @@ static NTSTATUS enum_local_groups(struct winbindd_domain *domain,
 
 	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
 
-	return result;
+	return NT_STATUS_OK;
 }
 
 /* convert a single name to a sid in a domain */
 static NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 				  TALLOC_CTX *mem_ctx,
+				  enum winbindd_cmd original_cmd,
 				  const char *domain_name,
 				  const char *name,
-				  uint32_t flags,
 				  DOM_SID *sid,
 				  enum lsa_SidType *type)
 {
@@ -357,7 +354,7 @@ static NTSTATUS msrpc_sid_to_name(struct winbindd_domain *domain,
 			nt_errstr(result)));
 		return result;
 	}
-
+	
 
 	*type = (enum lsa_SidType)types[0];
 	*domain_name = domains[0];
@@ -449,7 +446,7 @@ static NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
 static NTSTATUS query_user(struct winbindd_domain *domain, 
 			   TALLOC_CTX *mem_ctx, 
 			   const DOM_SID *user_sid, 
-			   struct wbint_userinfo *user_info)
+			   WINBIND_USERINFO *user_info)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	struct policy_handle dom_pol, user_pol;
@@ -462,41 +459,53 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 
 	if (!sid_peek_check_rid(&domain->sid, user_sid, &user_rid))
 		return NT_STATUS_UNSUCCESSFUL;
-
+	
 	user_info->homedir = NULL;
 	user_info->shell = NULL;
 	user_info->primary_gid = (gid_t)-1;
-
+						
 	/* try netsamlogon cache first */
-
+			
 	if ( (user = netsamlogon_cache_get( mem_ctx, user_sid )) != NULL ) 
 	{
-
+				
 		DEBUG(5,("query_user: Cache lookup succeeded for %s\n", 
 			sid_string_dbg(user_sid)));
 
 		sid_compose(&user_info->user_sid, &domain->sid, user->base.rid);
 		sid_compose(&user_info->group_sid, &domain->sid,
 			    user->base.primary_gid);
-
+				
 		user_info->acct_name = talloc_strdup(mem_ctx,
 						     user->base.account_name.string);
 		user_info->full_name = talloc_strdup(mem_ctx,
 						     user->base.full_name.string);
-
+		
 		TALLOC_FREE(user);
-
+						
 		return NT_STATUS_OK;
 	}
-
+				
 	if ( !winbindd_can_contact_domain( domain ) ) {
 		DEBUG(10,("query_user: No incoming trust for domain %s\n",
 			  domain->name));
 		return NT_STATUS_OK;
 	}
-
+	
+	if ( !winbindd_can_contact_domain( domain ) ) {
+		DEBUG(10,("query_user: No incoming trust for domain %s\n",
+			  domain->name));
+		return NT_STATUS_OK;
+	}
+	
+	if ( !winbindd_can_contact_domain( domain ) ) {
+		DEBUG(10,("query_user: No incoming trust for domain %s\n",
+			  domain->name));
+		return NT_STATUS_OK;
+	}
+	
 	/* no cache; hit the wire */
-
+		
 	result = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
@@ -576,7 +585,7 @@ static NTSTATUS lookup_usergroups(struct winbindd_domain *domain,
 	}
 
 	/* no cache; hit the wire */
-
+	
 	result = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
@@ -718,9 +727,7 @@ static NTSTATUS msrpc_lookup_useraliases(struct winbindd_domain *domain,
 /* Lookup group membership given a rid.   */
 static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				const DOM_SID *group_sid,
-				enum lsa_SidType type,
-				uint32 *num_names,
+				const DOM_SID *group_sid, uint32 *num_names, 
 				DOM_SID **sid_mem, char ***names, 
 				uint32 **name_types)
 {
@@ -805,7 +812,7 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 
 	for (j=0;j<(*num_names);j++)
 		sid_compose(&(*sid_mem)[j], &domain->sid, rid_mem[j]);
-
+	
 	if (*num_names>0 && (!*names || !*name_types))
 		return NT_STATUS_NO_MEMORY;
 
@@ -1027,7 +1034,10 @@ static NTSTATUS sequence_number(struct winbindd_domain *domain, uint32 *seq)
 /* get a list of trusted domains */
 static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 				TALLOC_CTX *mem_ctx,
-				struct netr_DomainTrustList *trusts)
+				uint32 *num_domains,
+				char ***names,
+				char ***alt_names,
+				DOM_SID **dom_sids)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	uint32 enum_ctx = 0;
@@ -1036,7 +1046,10 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 
 	DEBUG(3,("rpc: trusted_domains\n"));
 
-	ZERO_STRUCTP(trusts);
+	*num_domains = 0;
+	*names = NULL;
+	*alt_names = NULL;
+	*dom_sids = NULL;
 
 	result = cm_connect_lsa(domain, mem_ctx, &cli, &lsa_policy);
 	if (!NT_STATUS_IS_OK(result))
@@ -1059,33 +1072,22 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 		    !NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES))
 			break;
 
-		start_idx = trusts->count;
-		trusts->count += dom_list.count;
-
-		trusts->array = talloc_realloc(
-			mem_ctx, trusts->array, struct netr_DomainTrust,
-			trusts->count);
-		if (trusts->array == NULL) {
+		start_idx = *num_domains;
+		*num_domains += dom_list.count;
+		*names = TALLOC_REALLOC_ARRAY(mem_ctx, *names,
+					      char *, *num_domains);
+		*dom_sids = TALLOC_REALLOC_ARRAY(mem_ctx, *dom_sids,
+						 DOM_SID, *num_domains);
+		*alt_names = TALLOC_REALLOC_ARRAY(mem_ctx, *alt_names,
+						 char *, *num_domains);
+		if ((*names == NULL) || (*dom_sids == NULL) ||
+		    (*alt_names == NULL))
 			return NT_STATUS_NO_MEMORY;
-		}
 
 		for (i=0; i<dom_list.count; i++) {
-			struct netr_DomainTrust *trust = &trusts->array[i];
-			struct dom_sid *sid;
-
-			ZERO_STRUCTP(trust);
-
-			trust->netbios_name = talloc_move(
-				trusts->array,
-				&dom_list.domains[i].name.string);
-			trust->dns_name = NULL;
-
-			sid = talloc(trusts->array, struct dom_sid);
-			if (sid == NULL) {
-				return NT_STATUS_NO_MEMORY;
-			}
-			sid_copy(sid, dom_list.domains[i].sid);
-			trust->sid = sid;
+			(*names)[start_idx+i] = CONST_DISCARD(char *, dom_list.domains[i].name.string);
+			(*dom_sids)[start_idx+i] = *dom_list.domains[i].sid;
+			(*alt_names)[start_idx+i] = talloc_strdup(mem_ctx, "");
 		}
 	}
 	return result;
@@ -1258,7 +1260,7 @@ NTSTATUS winbindd_lookup_names(TALLOC_CTX *mem_ctx,
 	NTSTATUS status;
 	struct rpc_pipe_client *cli = NULL;
 	struct policy_handle lsa_policy;
-	unsigned int orig_timeout = 0;
+	unsigned int orig_timeout;
 	lookup_names_fn_t lookup_names_fn = rpccli_lsa_lookup_names;
 
 	if (domain->can_do_ncacn_ip_tcp) {

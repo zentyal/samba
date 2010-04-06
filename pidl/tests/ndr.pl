@@ -4,7 +4,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 47;
+use Test::More tests => 46;
 use FindBin qw($RealBin);
 use lib "$RealBin";
 use Util;
@@ -480,7 +480,6 @@ $ne = ParseElement($e, undef);
 is($ne->{REPRESENTATION_TYPE}, "uint8");
 
 is(align_type("hyper"), 8);
-is(align_type("double"), 8);
 is(align_type("uint32"), 4);
 is(align_type("uint16"), 2);
 is(align_type("uint8"), 1);

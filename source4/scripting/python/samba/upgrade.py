@@ -9,16 +9,17 @@
 
 __docformat__ = "restructuredText"
 
-from provision import provision, FILL_DRS
+from provision import findnss, provision, FILL_DRS
 import grp
 import ldb
 import time
 import pwd
+import uuid
 import registry
 from samba import Ldb
-from samba.param import LoadParm
+from samba.samdb import SamDB
 
-def import_sam_policy(samldb, policy, dn):
+def import_sam_policy(samldb, samba3_policy, domaindn):
     """Import a Samba 3 policy database."""
     samldb.modify_ldif("""
 dn: %s
@@ -393,7 +394,7 @@ def upgrade_smbconf(oldconf,mark):
         kept in the new configuration as "samba3:<name>"
     """
     data = oldconf.data()
-    newconf = LoadParm()
+    newconf = param_init()
 
     for s in data:
         for p in data[s]:

@@ -43,24 +43,17 @@
 
 #include "kcm.h"
 
+RCSID("$Id$");
+
 typedef struct krb5_kcmcache {
     char *name;
     struct sockaddr_un path;
     char *door_path;
 } krb5_kcmcache;
 
-typedef struct krb5_kcm_cursor {
-    unsigned long offset;
-    unsigned long length;
-    kcmuuid_t *uuids;
-} *krb5_kcm_cursor;
-
-
 #define KCMCACHE(X)	((krb5_kcmcache *)(X)->data.data)
 #define CACHENAME(X)	(KCMCACHE(X)->name)
-#define KCMCURSOR(C)	((krb5_kcm_cursor)(C))
-
-#ifdef HAVE_DOOR_CREATE
+#define KCMCURSOR(C)	(*(uint32_t *)(C))
 
 static krb5_error_code
 try_door(krb5_context context,
@@ -68,6 +61,7 @@ try_door(krb5_context context,
 	 krb5_data *request_data,
 	 krb5_data *response_data)
 {
+#ifdef HAVE_DOOR_CREATE
     door_arg_t arg;
     int fd;
     int ret;
@@ -97,8 +91,10 @@ try_door(krb5_context context,
 	return ret;
 
     return 0;
+#else
+    return KRB5_CC_IO;
+#endif
 }
-#endif /* HAVE_DOOR_CREATE */
 
 static krb5_error_code
 try_unix_socket(krb5_context context,
@@ -147,11 +143,9 @@ kcm_send_request(krb5_context context,
     ret = KRB5_CC_NOSUPP;
 
     for (i = 0; i < context->max_retries; i++) {
-#ifdef HAVE_DOOR_CREATE
 	ret = try_door(context, k, &request_data, response_data);
 	if (ret == 0 && response_data->length != 0)
 	    break;
-#endif
 	ret = try_unix_socket(context, k, &request_data, response_data);
 	if (ret == 0 && response_data->length != 0)
 	    break;
@@ -213,8 +207,7 @@ kcm_alloc(krb5_context context, const char *name, krb5_ccache *id)
 
     k = malloc(sizeof(*k));
     if (k == NULL) {
-	krb5_set_error_message(context, KRB5_CC_NOMEM,
-			       N_("malloc: out of memory", ""));
+	krb5_set_error_message(context, KRB5_CC_NOMEM, N_("malloc: out of memory", ""));
 	return KRB5_CC_NOMEM;
     }
 
@@ -316,6 +309,8 @@ kcm_free(krb5_context context, krb5_ccache *id)
 	memset(k, 0, sizeof(*k));
 	krb5_data_free(&(*id)->data);
     }
+
+    *id = NULL;
 }
 
 static const char *
@@ -614,10 +609,10 @@ kcm_get_first (krb5_context context,
 	       krb5_cc_cursor *cursor)
 {
     krb5_error_code ret;
-    krb5_kcm_cursor c;
     krb5_kcmcache *k = KCMCACHE(id);
     krb5_storage *request, *response;
     krb5_data response_data;
+    int32_t tmp;
 
     ret = kcm_storage_request(context, KCM_OP_GET_FIRST, &request);
     if (ret)
@@ -630,56 +625,27 @@ kcm_get_first (krb5_context context,
     }
 
     ret = kcm_call(context, k, request, &response, &response_data);
+    if (ret) {
+	krb5_storage_free(request);
+	return ret;
+    }
+
+    ret = krb5_ret_int32(response, &tmp);
+    if (ret || tmp < 0)
+	ret = KRB5_CC_IO;
+
     krb5_storage_free(request);
-    if (ret)
-	return ret;
-
-    c = calloc(1, sizeof(*c));
-    if (c == NULL) {
-	ret = ENOMEM;
-	krb5_set_error_message(context, ret, 
-			       N_("malloc: out of memory", ""));
-	return ret;
-    }
-
-    while (1) {
-	ssize_t sret;
-	kcmuuid_t uuid;
-	void *ptr;
-
-	sret = krb5_storage_read(response, &uuid, sizeof(uuid));
-	if (sret == 0) {
-	    ret = 0;
-	    break;
-	} else if (sret != sizeof(uuid)) {
-	    ret = EINVAL;
-	    break;
-	}
-
-	ptr = realloc(c->uuids, sizeof(c->uuids[0]) * (c->length + 1));
-	if (ptr == NULL) {
-	    free(c->uuids);
-	    free(c);
-	    krb5_set_error_message(context, ENOMEM, 
-				   N_("malloc: out of memory", ""));
-	    return ENOMEM;
-	}
-	c->uuids = ptr;
-
-	memcpy(&c->uuids[c->length], &uuid, sizeof(uuid));
-	c->length += 1;
-    }
-
     krb5_storage_free(response);
     krb5_data_free(&response_data);
 
-    if (ret) {
-        free(c->uuids);
-        free(c);
+    if (ret)
 	return ret;
-    }
 
-    *cursor = c;
+    *cursor = malloc(sizeof(tmp));
+    if (*cursor == NULL)
+	return KRB5_CC_NOMEM;
+
+    KCMCURSOR(*cursor) = tmp;
 
     return 0;
 }
@@ -700,15 +666,8 @@ kcm_get_next (krb5_context context,
 {
     krb5_error_code ret;
     krb5_kcmcache *k = KCMCACHE(id);
-    krb5_kcm_cursor c = KCMCURSOR(*cursor);
     krb5_storage *request, *response;
     krb5_data response_data;
-    ssize_t sret;
-
- again:
-
-    if (c->offset >= c->length)
-	return KRB5_CC_END;
 
     ret = kcm_storage_request(context, KCM_OP_GET_NEXT, &request);
     if (ret)
@@ -720,26 +679,23 @@ kcm_get_next (krb5_context context,
 	return ret;
     }
 
-    sret = krb5_storage_write(request, 
-			      &c->uuids[c->offset],
-			      sizeof(c->uuids[c->offset]));
-    c->offset++;
-    if (sret != sizeof(c->uuids[c->offset])) {
+    ret = krb5_store_int32(request, KCMCURSOR(*cursor));
+    if (ret) {
 	krb5_storage_free(request);
-	krb5_clear_error_message(context);
-	return ENOMEM;
+	return ret;
     }
 
     ret = kcm_call(context, k, request, &response, &response_data);
-    krb5_storage_free(request);
-    if (ret == KRB5_CC_END) {
-	goto again;
+    if (ret) {
+	krb5_storage_free(request);
+	return ret;
     }
 
     ret = krb5_ret_creds(response, creds);
     if (ret)
 	ret = KRB5_CC_IO;
 
+    krb5_storage_free(request);
     krb5_storage_free(response);
     krb5_data_free(&response_data);
 
@@ -761,7 +717,6 @@ kcm_end_get (krb5_context context,
 {
     krb5_error_code ret;
     krb5_kcmcache *k = KCMCACHE(id);
-    krb5_kcm_cursor c = KCMCURSOR(*cursor);
     krb5_storage *request;
 
     ret = kcm_storage_request(context, KCM_OP_END_GET, &request);
@@ -774,14 +729,22 @@ kcm_end_get (krb5_context context,
 	return ret;
     }
 
-    ret = kcm_call(context, k, request, NULL, NULL);
-    krb5_storage_free(request);
-    if (ret)
+    ret = krb5_store_int32(request, KCMCURSOR(*cursor));
+    if (ret) {
+	krb5_storage_free(request);
 	return ret;
+    }
 
-    free(c->uuids);
-    free(c);
+    ret = kcm_call(context, k, request, NULL, NULL);
+    if (ret) {
+	krb5_storage_free(request);
+	return ret;
+    }
 
+    krb5_storage_free(request);
+
+    KCMCURSOR(*cursor) = 0;
+    free(*cursor);
     *cursor = NULL;
 
     return ret;
@@ -1097,8 +1060,8 @@ _krb5_kcm_get_initial_ticket(krb5_context context,
 			     krb5_principal server,
 			     krb5_keyblock *key)
 {
-    krb5_kcmcache *k = KCMCACHE(id);
     krb5_error_code ret;
+    krb5_kcmcache *k = KCMCACHE(id);
     krb5_storage *request;
 
     ret = kcm_storage_request(context, KCM_OP_GET_INITIAL_TICKET, &request);

@@ -86,14 +86,6 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	if ((flags & LOOKUP_NAME_BUILTIN) &&
 	    strequal(domain, builtin_domain_name()))
 	{
-		if (strlen(name) == 0) {
-			/* Swap domain and name */
-			tmp = name; name = domain; domain = tmp;
-			sid_copy(&sid, &global_sid_Builtin);
-			type = SID_NAME_DOMAIN;
-			goto ok;
-		}
-
 		/* Explicit request for a name in BUILTIN */
 		if (lookup_builtin_name(name, &rid)) {
 			sid_copy(&sid, &global_sid_Builtin);
@@ -114,8 +106,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 			goto ok;
 	}
 
-	if (((flags & LOOKUP_NAME_NO_NSS) == 0)
-	    && strequal(domain, unix_users_domain_name())) {
+	if (!(flags & LOOKUP_NAME_EXPLICIT) && strequal(domain, unix_users_domain_name())) {
 		if (lookup_unix_user_name(name, &sid)) {
 			type = SID_NAME_USER;
 			goto ok;
@@ -124,8 +115,7 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
-	if (((flags & LOOKUP_NAME_NO_NSS) == 0)
-	    && strequal(domain, unix_groups_domain_name())) {
+	if (!(flags & LOOKUP_NAME_EXPLICIT) && strequal(domain, unix_groups_domain_name())) {
 		if (lookup_unix_group_name(name, &sid)) {
 			type = SID_NAME_DOM_GRP;
 			goto ok;
@@ -290,15 +280,13 @@ bool lookup_name(TALLOC_CTX *mem_ctx,
 	/* 11. Ok, windows would end here. Samba has two more options:
                Unmapped users and unmapped groups */
 
-	if (((flags & LOOKUP_NAME_NO_NSS) == 0)
-	    && lookup_unix_user_name(name, &sid)) {
+	if (!(flags & LOOKUP_NAME_EXPLICIT) && lookup_unix_user_name(name, &sid)) {
 		domain = talloc_strdup(tmp_ctx, unix_users_domain_name());
 		type = SID_NAME_USER;
 		goto ok;
 	}
 
-	if (((flags & LOOKUP_NAME_NO_NSS) == 0)
-	    && lookup_unix_group_name(name, &sid)) {
+	if (!(flags & LOOKUP_NAME_EXPLICIT) && lookup_unix_group_name(name, &sid)) {
 		domain = talloc_strdup(tmp_ctx, unix_groups_domain_name());
 		type = SID_NAME_DOM_GRP;
 		goto ok;
@@ -1129,16 +1117,19 @@ void store_gid_sid_cache(const DOM_SID *psid, gid_t gid)
 
 static void legacy_uid_to_sid(DOM_SID *psid, uid_t uid)
 {
+	uint32 rid;
 	bool ret;
 
 	ZERO_STRUCTP(psid);
 
 	become_root();
-	ret = pdb_uid_to_sid(uid, psid);
+	ret = pdb_uid_to_rid(uid, &rid);
 	unbecome_root();
 
 	if (ret) {
 		/* This is a mapped user */
+		sid_copy(psid, get_global_sam_sid());
+		sid_append_rid(psid, rid);
 		goto done;
 	}
 

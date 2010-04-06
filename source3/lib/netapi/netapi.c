@@ -170,6 +170,7 @@ NET_API_STATUS libnetapi_free(struct libnetapi_ctx *ctx)
 	gfree_charcnv();
 	gfree_interfaces();
 
+	gencache_shutdown();
 	secrets_shutdown();
 
 	TALLOC_FREE(ctx);
@@ -247,12 +248,6 @@ NET_API_STATUS libnetapi_set_workgroup(struct libnetapi_ctx *ctx,
 NET_API_STATUS libnetapi_set_use_kerberos(struct libnetapi_ctx *ctx)
 {
 	ctx->use_kerberos = true;
-	return NET_API_STATUS_SUCCESS;
-}
-
-NET_API_STATUS libnetapi_set_use_ccache(struct libnetapi_ctx *ctx)
-{
-	ctx->use_ccache = true;
 	return NET_API_STATUS_SUCCESS;
 }
 

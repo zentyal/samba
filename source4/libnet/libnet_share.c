@@ -37,8 +37,6 @@ NTSTATUS libnet_ListShares(struct libnet_context *ctx,
 	struct srvsvc_NetShareCtr501 ctr501;
 	struct srvsvc_NetShareCtr502 ctr502;
 
-	ZERO_STRUCT(c);
-
 	c.level               = LIBNET_RPC_CONNECT_SERVER;
 	c.in.name             = r->in.server_name;
 	c.in.dcerpc_iface     = &ndr_table_srvsvc;
@@ -123,8 +121,6 @@ NTSTATUS libnet_AddShare(struct libnet_context *ctx,
 	struct srvsvc_NetShareAdd s;
 	union srvsvc_NetShareInfo info;
 
-	ZERO_STRUCT(c);
-
 	c.level              = LIBNET_RPC_CONNECT_SERVER;
 	c.in.name            = r->in.server_name;
 	c.in.dcerpc_iface    = &ndr_table_srvsvc;
@@ -173,8 +169,6 @@ NTSTATUS libnet_DelShare(struct libnet_context *ctx,
 	NTSTATUS status;
 	struct libnet_RpcConnect c;
 	struct srvsvc_NetShareDel s;
-
-	ZERO_STRUCT(c);
 
 	c.level               = LIBNET_RPC_CONNECT_SERVER;
 	c.in.name             = r->in.server_name;

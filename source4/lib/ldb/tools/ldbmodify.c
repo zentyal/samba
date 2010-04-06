@@ -39,8 +39,12 @@ static int failures;
 static void usage(void)
 {
 	printf("Usage: ldbmodify <options> <ldif...>\n");
+	printf("Options:\n");
+	printf("  -H ldb_url       choose the database (or $LDB_URL)\n");
+	printf("  -o options       pass options like modules to activate\n");
+	printf("              e.g: -o modules:timestamps\n");
+	printf("\n");
 	printf("Modifies a ldb based upon ldif change records\n\n");
-	ldb_cmdline_help("ldbmodify", stdout);
 	exit(1);
 }
 
@@ -101,7 +105,6 @@ int main(int argc, const char **argv)
 				exit(1);
 			}
 			ret = process_file(ldb, f, &count);
-			fclose(f);
 		}
 	}
 

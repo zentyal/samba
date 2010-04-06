@@ -31,8 +31,10 @@
  * SUCH DAMAGE.
  */
 
-#include "gsskrb5_locl.h"
+#include "krb5/gsskrb5_locl.h"
 #include <gssapi_mech.h>
+
+RCSID("$Id$");
 
 /*
  * The implementation must reserve static storage for a
@@ -467,13 +469,7 @@ static gssapi_mech_interface_desc krb5_mech = {
     _gsskrb5_inquire_cred_by_oid,
     _gsskrb5_set_sec_context_option,
     _gsskrb5_set_cred_option,
-    _gsskrb5_pseudo_random,
-    _gk_wrap_iov,
-    _gk_unwrap_iov,
-    _gk_wrap_iov_length,
-    _gsskrb5_store_cred,
-    _gsskrb5_export_cred,
-    _gsskrb5_import_cred
+    _gsskrb5_pseudo_random
 };
 
 gssapi_mech_interface

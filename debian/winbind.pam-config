@@ -9,11 +9,11 @@ Auth-Initial:
 Account-Type: Primary
 Account:
 	[success=end new_authtok_reqd=done default=ignore]	pam_winbind.so
-Password-Type: Additional
+Password-Type: Primary
 Password:
-	requisite			pam_winbind.so use_authtok try_first_pass
+	[success=end default=ignore]	pam_winbind.so use_authtok try_first_pass
 Password-Initial:
-	requisite			pam_winbind.so
+	[success=end default=ignore]	pam_winbind.so
 Session-Type: Additional
 Session:
 	optional			pam_winbind.so

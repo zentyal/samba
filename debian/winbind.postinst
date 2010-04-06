@@ -13,4 +13,6 @@ then
         mv /var/run/samba/idmap_cache.tdb /var/cache/samba/idmap_cache.tdb
 fi
 
+pam-auth-update --package
+
 #DEBHELPER#

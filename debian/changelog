@@ -10,6 +10,8 @@ samba (2:3.4.7~dfsg-2) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * winbind.prerm: don't forget to remove the PAM profile on package
     removal :/
+  * Fix winbind.pam-config to not interfere with password changes for
+    non-winbind accounts.  Closes: #573323, LP: #546874.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 24 Mar 2010 22:02:25 +0100
 

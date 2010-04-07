@@ -59591,7 +59591,7 @@ $as_echo "$as_me: Found DMAPI support in $samba_dmapi_libs" >&6;}
 
 # Add TSM SM VFS module only if there are both GPFS and DMAPI support
 # Theoretically it should work with AIX JFS2 too but this needs testing
-if test x"$samba_cv_HAVE_GPFS" = x"yes" && test x"$samba_dmapi_libs" != x"" ; then
+if test x"$ac_cv_header_gpfs_gpl_h" = x"yes" && test x"$samba_dmapi_libs" != x"" ; then
     default_shared_modules="$default_shared_modules vfs_tsmsm"
 fi
 
@@ -77932,9 +77932,9 @@ done
 
 
 
- { $as_echo "$as_me:$LINENO: checking for CTDB_CONTROL_TRANS2_COMMIT_RETRY declaration" >&5
-$as_echo_n "checking for CTDB_CONTROL_TRANS2_COMMIT_RETRY declaration... " >&6; }
-if test "${ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl+set}" = set; then
+ { $as_echo "$as_me:$LINENO: checking for CTDB_CONTROL_TRANS3_COMMIT declaration" >&5
+$as_echo_n "checking for CTDB_CONTROL_TRANS3_COMMIT declaration... " >&6; }
+if test "${ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl+set}" = set; then
   $as_echo_n "(cached) " >&6
 else
 
@@ -77958,7 +77958,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 int
 main ()
 {
-int i = (int)CTDB_CONTROL_TRANS2_COMMIT_RETRY
+int i = (int)CTDB_CONTROL_TRANS3_COMMIT
   ;
   return 0;
 }
@@ -77981,106 +77981,30 @@ $as_echo "$ac_try_echo") >&5
 	 test -z "$ac_c_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
-  ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl=yes
+  ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl=yes
 else
   $as_echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-	ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl=no
+	ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl=no
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" >&5
-$as_echo "$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" >&6; }
- if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" = x"yes"; then
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" >&5
+$as_echo "$ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" >&6; }
+ if test x"$ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" = x"yes"; then
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_CTDB_CONTROL_TRANS2_COMMIT_RETRY_DECL 1
+#define HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL 1
 _ACEOF
 
  fi
 
-if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_COMMIT_RETRY_decl" = x"yes"; then
+if test x"$ac_cv_have_CTDB_CONTROL_TRANS3_COMMIT_decl" = x"yes"; then
 	ctdb_broken=no
 else
-	ctdb_broken="missing transaction support"
-fi
-
-
- { $as_echo "$as_me:$LINENO: checking for CTDB_CONTROL_TRANS2_ACTIVE declaration" >&5
-$as_echo_n "checking for CTDB_CONTROL_TRANS2_ACTIVE declaration... " >&6; }
-if test "${ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-
-    cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-#include "confdefs.h"
-#define NO_CONFIG_H
-#include "replace.h"
-#include "system/wait.h"
-#include "system/network.h"
-#include <talloc.h>
-#include <tdb.h>
-#include <ctdb.h>
-#include <ctdb_private.h>
-
-int
-main ()
-{
-int i = (int)CTDB_CONTROL_TRANS2_ACTIVE
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
-$as_echo "$ac_try_echo") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl=yes
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl=no
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ $as_echo "$as_me:$LINENO: result: $ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl" >&5
-$as_echo "$ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl" >&6; }
- if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl" = x"yes"; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_CTDB_CONTROL_TRANS2_ACTIVE_DECL 1
-_ACEOF
-
- fi
-
-if test x"$ac_cv_have_CTDB_CONTROL_TRANS2_ACTIVE_decl" = x"yes"; then
-	ctdb_broken=no
-else
-	ctdb_broken="transaction support too old"
+	ctdb_broken="ctdb transaction support missing or too old"
 fi
 
 # in ctdb 1.0.57 ctdb_control_tcp was temparary renamed to ctdb_tcp_client
@@ -83655,6 +83579,11 @@ done
 
 	CFLAGS=$ac_save_CFLAGS
 	LDFLAGS=$ac_save_LDFLAGS
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PTHREAD 1
+_ACEOF
+
 fi
 
 #################################################

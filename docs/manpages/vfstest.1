@@ -1,13 +1,161 @@
-'\" t
 .\"     Title: vfstest
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 02/19/2010
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 03/30/2010
 .\"    Manual: User Commands
 .\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "VFSTEST" "1" "02/19/2010" "Samba 3\&.5" "User Commands"
+.TH "VFSTEST" "1" "03/30/2010" "Samba 3\&.5" "User Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -18,18 +166,20 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "NAME"
+.SH "Name"
 vfstest \- tool for testing samba VFS modules
-.SH "SYNOPSIS"
+.SH "Synopsis"
+.fam C
 .HP \w'\ 'u
-vfstest [\-d\ debuglevel] [\-c\ command] [\-l\ logdir] [\-h]
+\FCvfstest\F[] [\-d\ debuglevel] [\-c\ command] [\-l\ logdir] [\-h]
+.fam
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-vfstest
+\FCvfstest\F[]
 is a small command line utility that has the ability to test dso samba VFS modules\&. It gives the user the ability to call the various VFS functions manually and supports cascaded VFS modules\&.
 .SH "OPTIONS"
 .PP
@@ -62,7 +212,7 @@ Levels above 1 will generate considerable amounts of log data, and should only b
 Note that specifying this parameter here will override the
 \m[blue]\fB\%smb.conf.5.html#\fR\m[]
 parameter in the
-smb\&.conf
+\FCsmb\&.conf\F[]
 file\&.
 .RE
 .PP
@@ -74,7 +224,7 @@ Prints the program version number\&.
 \-s|\-\-configfile <configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-smb\&.conf
+\FCsmb\&.conf\F[]
 for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
@@ -96,7 +246,7 @@ will be appended (e\&.g\&. log\&.smbclient, log\&.smbd, etc\&.\&.\&.)\&. The log
 .sp -1
 .IP \(bu 2.3
 .\}
-load <module\&.so>
+\FCload <module\&.so>\F[]
 \- Load specified VFS module
 .RE
 .sp
@@ -108,7 +258,7 @@ load <module\&.so>
 .sp -1
 .IP \(bu 2.3
 .\}
-populate <char> <size>
+\FCpopulate <char> <size>\F[]
 \- Populate a data buffer with the specified data
 .RE
 .sp
@@ -120,7 +270,7 @@ populate <char> <size>
 .sp -1
 .IP \(bu 2.3
 .\}
-showdata [<offset> <len>]
+\FCshowdata [<offset> <len>]\F[]
 \- Show data currently in data buffer
 .RE
 .sp
@@ -132,7 +282,7 @@ showdata [<offset> <len>]
 .sp -1
 .IP \(bu 2.3
 .\}
-connect
+\FCconnect\F[]
 \- VFS connect()
 .RE
 .sp
@@ -144,7 +294,7 @@ connect
 .sp -1
 .IP \(bu 2.3
 .\}
-disconnect
+\FCdisconnect\F[]
 \- VFS disconnect()
 .RE
 .sp
@@ -156,7 +306,7 @@ disconnect
 .sp -1
 .IP \(bu 2.3
 .\}
-disk_free
+\FCdisk_free\F[]
 \- VFS disk_free()
 .RE
 .sp
@@ -168,7 +318,7 @@ disk_free
 .sp -1
 .IP \(bu 2.3
 .\}
-opendir
+\FCopendir\F[]
 \- VFS opendir()
 .RE
 .sp
@@ -180,7 +330,7 @@ opendir
 .sp -1
 .IP \(bu 2.3
 .\}
-readdir
+\FCreaddir\F[]
 \- VFS readdir()
 .RE
 .sp
@@ -192,7 +342,7 @@ readdir
 .sp -1
 .IP \(bu 2.3
 .\}
-mkdir
+\FCmkdir\F[]
 \- VFS mkdir()
 .RE
 .sp
@@ -204,7 +354,7 @@ mkdir
 .sp -1
 .IP \(bu 2.3
 .\}
-rmdir
+\FCrmdir\F[]
 \- VFS rmdir()
 .RE
 .sp
@@ -216,7 +366,7 @@ rmdir
 .sp -1
 .IP \(bu 2.3
 .\}
-closedir
+\FCclosedir\F[]
 \- VFS closedir()
 .RE
 .sp
@@ -228,7 +378,7 @@ closedir
 .sp -1
 .IP \(bu 2.3
 .\}
-open
+\FCopen\F[]
 \- VFS open()
 .RE
 .sp
@@ -240,7 +390,7 @@ open
 .sp -1
 .IP \(bu 2.3
 .\}
-close
+\FCclose\F[]
 \- VFS close()
 .RE
 .sp
@@ -252,7 +402,7 @@ close
 .sp -1
 .IP \(bu 2.3
 .\}
-read
+\FCread\F[]
 \- VFS read()
 .RE
 .sp
@@ -264,7 +414,7 @@ read
 .sp -1
 .IP \(bu 2.3
 .\}
-write
+\FCwrite\F[]
 \- VFS write()
 .RE
 .sp
@@ -276,7 +426,7 @@ write
 .sp -1
 .IP \(bu 2.3
 .\}
-lseek
+\FClseek\F[]
 \- VFS lseek()
 .RE
 .sp
@@ -288,7 +438,7 @@ lseek
 .sp -1
 .IP \(bu 2.3
 .\}
-rename
+\FCrename\F[]
 \- VFS rename()
 .RE
 .sp
@@ -300,7 +450,7 @@ rename
 .sp -1
 .IP \(bu 2.3
 .\}
-fsync
+\FCfsync\F[]
 \- VFS fsync()
 .RE
 .sp
@@ -312,7 +462,7 @@ fsync
 .sp -1
 .IP \(bu 2.3
 .\}
-stat
+\FCstat\F[]
 \- VFS stat()
 .RE
 .sp
@@ -324,7 +474,7 @@ stat
 .sp -1
 .IP \(bu 2.3
 .\}
-fstat
+\FCfstat\F[]
 \- VFS fstat()
 .RE
 .sp
@@ -336,7 +486,7 @@ fstat
 .sp -1
 .IP \(bu 2.3
 .\}
-lstat
+\FClstat\F[]
 \- VFS lstat()
 .RE
 .sp
@@ -348,7 +498,7 @@ lstat
 .sp -1
 .IP \(bu 2.3
 .\}
-unlink
+\FCunlink\F[]
 \- VFS unlink()
 .RE
 .sp
@@ -360,7 +510,7 @@ unlink
 .sp -1
 .IP \(bu 2.3
 .\}
-chmod
+\FCchmod\F[]
 \- VFS chmod()
 .RE
 .sp
@@ -372,7 +522,7 @@ chmod
 .sp -1
 .IP \(bu 2.3
 .\}
-fchmod
+\FCfchmod\F[]
 \- VFS fchmod()
 .RE
 .sp
@@ -384,7 +534,7 @@ fchmod
 .sp -1
 .IP \(bu 2.3
 .\}
-chown
+\FCchown\F[]
 \- VFS chown()
 .RE
 .sp
@@ -396,7 +546,7 @@ chown
 .sp -1
 .IP \(bu 2.3
 .\}
-fchown
+\FCfchown\F[]
 \- VFS fchown()
 .RE
 .sp
@@ -408,7 +558,7 @@ fchown
 .sp -1
 .IP \(bu 2.3
 .\}
-chdir
+\FCchdir\F[]
 \- VFS chdir()
 .RE
 .sp
@@ -420,7 +570,7 @@ chdir
 .sp -1
 .IP \(bu 2.3
 .\}
-getwd
+\FCgetwd\F[]
 \- VFS getwd()
 .RE
 .sp
@@ -432,7 +582,7 @@ getwd
 .sp -1
 .IP \(bu 2.3
 .\}
-utime
+\FCutime\F[]
 \- VFS utime()
 .RE
 .sp
@@ -444,7 +594,7 @@ utime
 .sp -1
 .IP \(bu 2.3
 .\}
-ftruncate
+\FCftruncate\F[]
 \- VFS ftruncate()
 .RE
 .sp
@@ -456,7 +606,7 @@ ftruncate
 .sp -1
 .IP \(bu 2.3
 .\}
-lock
+\FClock\F[]
 \- VFS lock()
 .RE
 .sp
@@ -468,7 +618,7 @@ lock
 .sp -1
 .IP \(bu 2.3
 .\}
-symlink
+\FCsymlink\F[]
 \- VFS symlink()
 .RE
 .sp
@@ -480,7 +630,7 @@ symlink
 .sp -1
 .IP \(bu 2.3
 .\}
-readlink
+\FCreadlink\F[]
 \- VFS readlink()
 .RE
 .sp
@@ -492,7 +642,7 @@ readlink
 .sp -1
 .IP \(bu 2.3
 .\}
-link
+\FClink\F[]
 \- VFS link()
 .RE
 .sp
@@ -504,7 +654,7 @@ link
 .sp -1
 .IP \(bu 2.3
 .\}
-mknod
+\FCmknod\F[]
 \- VFS mknod()
 .RE
 .sp
@@ -516,7 +666,7 @@ mknod
 .sp -1
 .IP \(bu 2.3
 .\}
-realpath
+\FCrealpath\F[]
 \- VFS realpath()
 .sp
 .RE
@@ -531,7 +681,7 @@ realpath
 .sp -1
 .IP \(bu 2.3
 .\}
-conf <smb\&.conf>
+\FCconf <smb\&.conf>\F[]
 \- Load a different configuration file
 .RE
 .sp
@@ -543,7 +693,7 @@ conf <smb\&.conf>
 .sp -1
 .IP \(bu 2.3
 .\}
-help [<command>]
+\FChelp [<command>]\F[]
 \- Get list of commands or info about specified command
 .RE
 .sp
@@ -555,7 +705,7 @@ help [<command>]
 .sp -1
 .IP \(bu 2.3
 .\}
-debuglevel <level>
+\FCdebuglevel <level>\F[]
 \- Set debug level
 .RE
 .sp
@@ -567,7 +717,7 @@ debuglevel <level>
 .sp -1
 .IP \(bu 2.3
 .\}
-freemem
+\FCfreemem\F[]
 \- Free memory currently in use
 .RE
 .sp
@@ -579,7 +729,7 @@ freemem
 .sp -1
 .IP \(bu 2.3
 .\}
-exit
+\FCexit\F[]
 \- Exit vfstest
 .SH "VERSION"
 .PP

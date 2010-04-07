@@ -419,8 +419,71 @@ NTSTATUS rpc_cli_smbd_conn_init(TALLOC_CTX *mem_ctx,
 	return status;
 }
 
+static void rpc_smbd_disconnect(struct rpc_transport_smbd_state *transp)
+{
+	if (transp == NULL) {
+		return;
+	}
+
+	if (transp->conn == NULL) {
+		return;
+	}
+
+	if (transp->conn->cli == NULL) {
+		return;
+	}
+
+	if (transp->conn->cli->fd != -1) {
+		close(transp->conn->cli->fd);
+		transp->conn->cli->fd = -1;
+	}
+
+	transp->conn = NULL;
+}
+
+static bool rpc_smbd_is_connected(void *priv)
+{
+	struct rpc_transport_smbd_state *transp = talloc_get_type_abort(
+		priv, struct rpc_transport_smbd_state);
+	bool ok;
+
+	if (transp->conn == NULL) {
+		return false;
+	}
+
+	if (transp->sub_transp == NULL) {
+		return false;
+	}
+
+	ok = transp->sub_transp->is_connected(transp->sub_transp->priv);
+	if (!ok) {
+		rpc_smbd_disconnect(transp);
+		return false;
+	}
+
+	return true;
+}
+
+static unsigned int rpc_smbd_set_timeout(void *priv, unsigned int timeout)
+{
+	struct rpc_transport_smbd_state *transp = talloc_get_type_abort(
+		priv, struct rpc_transport_smbd_state);
+	bool ok;
+
+	ok = rpc_smbd_is_connected(transp);
+	if (!ok) {
+		return 0;
+	}
+
+	if (transp->sub_transp->set_timeout == NULL) {
+		return 0;
+	}
+
+	return transp->sub_transp->set_timeout(transp->sub_transp->priv, timeout);
+}
+
 struct rpc_smbd_write_state {
-	struct rpc_cli_transport *sub_transp;
+	struct rpc_transport_smbd_state *transp;
 	ssize_t written;
 };
 
@@ -435,12 +498,20 @@ static struct tevent_req *rpc_smbd_write_send(TALLOC_CTX *mem_ctx,
 		priv, struct rpc_transport_smbd_state);
 	struct tevent_req *req, *subreq;
 	struct rpc_smbd_write_state *state;
+	bool ok;
 
 	req = tevent_req_create(mem_ctx, &state, struct rpc_smbd_write_state);
 	if (req == NULL) {
 		return NULL;
 	}
-	state->sub_transp = transp->sub_transp;
+
+	ok = rpc_smbd_is_connected(transp);
+	if (!ok) {
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
+	}
+
+	state->transp = transp;
 
 	subreq = transp->sub_transp->write_send(state, ev, data, size,
 						transp->sub_transp->priv);
@@ -468,9 +539,10 @@ static void rpc_smbd_write_done(struct tevent_req *subreq)
 		req, struct rpc_smbd_write_state);
 	NTSTATUS status;
 
-	status = state->sub_transp->write_recv(subreq, &state->written);
+	status = state->transp->sub_transp->write_recv(subreq, &state->written);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
+		rpc_smbd_disconnect(state->transp);
 		tevent_req_nterror(req, status);
 		return;
 	}
@@ -491,7 +563,7 @@ static NTSTATUS rpc_smbd_write_recv(struct tevent_req *req, ssize_t *pwritten)
 }
 
 struct rpc_smbd_read_state {
-	struct rpc_cli_transport *sub_transp;
+	struct rpc_transport_smbd_state *transp;
 	ssize_t received;
 };
 
@@ -506,12 +578,20 @@ static struct tevent_req *rpc_smbd_read_send(TALLOC_CTX *mem_ctx,
 		priv, struct rpc_transport_smbd_state);
 	struct tevent_req *req, *subreq;
 	struct rpc_smbd_read_state *state;
+	bool ok;
 
 	req = tevent_req_create(mem_ctx, &state, struct rpc_smbd_read_state);
 	if (req == NULL) {
 		return NULL;
 	}
-	state->sub_transp = transp->sub_transp;
+
+	ok = rpc_smbd_is_connected(transp);
+	if (!ok) {
+		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
+		return tevent_req_post(req, ev);
+	}
+
+	state->transp = transp;
 
 	subreq = transp->sub_transp->read_send(state, ev, data, size,
 						transp->sub_transp->priv);
@@ -538,9 +618,10 @@ static void rpc_smbd_read_done(struct tevent_req *subreq)
 		req, struct rpc_smbd_read_state);
 	NTSTATUS status;
 
-	status = state->sub_transp->read_recv(subreq, &state->received);
+	status = state->transp->sub_transp->read_recv(subreq, &state->received);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
+		rpc_smbd_disconnect(state->transp);
 		tevent_req_nterror(req, status);
 		return;
 	}
@@ -645,6 +726,8 @@ NTSTATUS rpc_transport_smbd_init_recv(struct tevent_req *req,
 	state->transport->read_recv = rpc_smbd_read_recv;
 	state->transport->trans_send = NULL;
 	state->transport->trans_recv = NULL;
+	state->transport->is_connected = rpc_smbd_is_connected;
+	state->transport->set_timeout = rpc_smbd_set_timeout;
 
 	*presult = talloc_move(mem_ctx, &state->transport);
 	return NT_STATUS_OK;
@@ -681,14 +764,4 @@ NTSTATUS rpc_transport_smbd_init(TALLOC_CTX *mem_ctx,
  fail:
 	TALLOC_FREE(frame);
 	return status;
-}
-
-struct cli_state *rpc_pipe_smbd_smb_conn(struct rpc_pipe_client *p)
-{
-	struct rpc_transport_smbd_state *state = talloc_get_type(p->transport->priv,
-		struct rpc_transport_smbd_state);
-	if (!state || !state->conn) {
-		return NULL;
-	}
-	return state->conn->cli;
 }

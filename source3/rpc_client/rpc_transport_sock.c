@@ -27,13 +27,49 @@ struct rpc_transport_sock_state {
 	int timeout;
 };
 
-static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *s)
+static void rpc_sock_disconnect(struct rpc_transport_sock_state *s)
 {
 	if (s->fd != -1) {
 		close(s->fd);
 		s->fd = -1;
 	}
+}
+
+static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *s)
+{
+	rpc_sock_disconnect(s);
 	return 0;
+}
+
+static bool rpc_sock_is_connected(void *priv)
+{
+	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
+		priv, struct rpc_transport_sock_state);
+
+	if (sock_transp->fd == -1) {
+		return false;
+	}
+
+	return true;
+}
+
+static unsigned int rpc_sock_set_timeout(void *priv, unsigned int timeout)
+{
+	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
+		priv, struct rpc_transport_sock_state);
+	int orig_timeout;
+	bool ok;
+
+	ok = rpc_sock_is_connected(sock_transp);
+	if (!ok) {
+		return 0;
+	}
+
+	orig_timeout = sock_transp->timeout;
+
+	sock_transp->timeout = timeout;
+
+	return orig_timeout;
 }
 
 struct rpc_sock_read_state {
@@ -58,7 +94,7 @@ static struct tevent_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
 	if (req == NULL) {
 		return NULL;
 	}
-	if (sock_transp->fd == -1) {
+	if (!rpc_sock_is_connected(sock_transp)) {
 		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
 		return tevent_req_post(req, ev);
 	}
@@ -88,15 +124,18 @@ static void rpc_sock_read_done(struct tevent_req *subreq)
 		req, struct rpc_sock_read_state);
 	int err;
 
+	/* We must free subreq in this function as there is
+	  a timer event attached to it. */
+
 	state->received = async_recv_recv(subreq, &err);
+
 	if (state->received == -1) {
-		if (state->transp->fd != -1) {
-			close(state->transp->fd);
-			state->transp->fd = -1;
-		}
+		TALLOC_FREE(subreq);
+		rpc_sock_disconnect(state->transp);
 		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
+	TALLOC_FREE(subreq);
 	tevent_req_done(req);
 }
 
@@ -135,7 +174,7 @@ static struct tevent_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
 	if (req == NULL) {
 		return NULL;
 	}
-	if (sock_transp->fd == -1) {
+	if (!rpc_sock_is_connected(sock_transp)) {
 		tevent_req_nterror(req, NT_STATUS_CONNECTION_INVALID);
 		return tevent_req_post(req, ev);
 	}
@@ -165,15 +204,18 @@ static void rpc_sock_write_done(struct tevent_req *subreq)
 		req, struct rpc_sock_write_state);
 	int err;
 
+	/* We must free subreq in this function as there is
+	  a timer event attached to it. */
+
 	state->sent = async_send_recv(subreq, &err);
+
 	if (state->sent == -1) {
-		if (state->transp->fd != -1) {
-			close(state->transp->fd);
-			state->transp->fd = -1;
-		}
+		TALLOC_FREE(subreq);
+		rpc_sock_disconnect(state->transp);
 		tevent_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
+	TALLOC_FREE(subreq);
 	tevent_req_done(req);
 }
 
@@ -217,44 +259,9 @@ NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 	result->write_recv = rpc_sock_write_recv;
 	result->read_send = rpc_sock_read_send;
 	result->read_recv = rpc_sock_read_recv;
+	result->is_connected = rpc_sock_is_connected;
+	result->set_timeout = rpc_sock_set_timeout;
 
 	*presult = result;
 	return NT_STATUS_OK;
-}
-
-int rpccli_set_sock_timeout(struct rpc_pipe_client *cli, int timeout)
-{
-	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
-							struct rpc_transport_sock_state);
-	int orig_timeout;
-	if (!state) {
-		return 0;
-	}
-	orig_timeout = state->timeout;
-	state->timeout = timeout;
-	return orig_timeout;
-}
-
-void rpccli_close_sock_fd(struct rpc_pipe_client *cli)
-{
-	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
-							struct rpc_transport_sock_state);
-	if (state) {
-		if (state->fd != -1) {
-			close(state->fd);
-			state->fd = -1;
-		}
-	}
-	return;
-}
-
-bool rpc_pipe_tcp_connection_ok(struct rpc_pipe_client *cli)
-{
-	struct rpc_transport_sock_state *state = talloc_get_type(cli->transport->priv,
-							struct rpc_transport_sock_state);
-	if (state && state->fd != -1) {
-		return true;
-	}
-
-	return false;
 }

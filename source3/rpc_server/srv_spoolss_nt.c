@@ -7696,7 +7696,7 @@ WERROR _spoolss_EnumPrinterData(pipes_struct *p,
 				result = WERR_NOMEM;
 				goto done;
 			}
-			*r->out.value_needed = strlen_m(regval_name(val));
+			*r->out.value_needed = strlen_m_term(regval_name(val)) * 2;
 		} else {
 			r->out.value_name = NULL;
 			*r->out.value_needed = 0;
@@ -7741,7 +7741,7 @@ WERROR _spoolss_SetPrinterData(pipes_struct *p,
 	r2.in.value_name	= r->in.value_name;
 	r2.in.type		= r->in.type;
 	r2.in.data		= r->in.data;
-	r2.in._offered		= r->in._offered;
+	r2.in.offered		= r->in.offered;
 
 	return _spoolss_SetPrinterDataEx(p, &r2);
 }
@@ -8589,11 +8589,29 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 
 	if (Printer->printer_type == SPLHND_SERVER) {
 
+		union spoolss_PrinterData data;
+
 		result = getprinterdata_printer_server(p->mem_ctx,
 						       r->in.value_name,
 						       r->out.type,
-						       r->out.data);
-		goto done;
+						       &data);
+		if (!W_ERROR_IS_OK(result)) {
+			goto done;
+		}
+
+		result = push_spoolss_PrinterData(p->mem_ctx, &blob,
+						  *r->out.type, &data);
+		if (!W_ERROR_IS_OK(result)) {
+			goto done;
+		}
+
+		*r->out.needed = blob.length;
+
+		if (r->in.offered >= *r->out.needed) {
+			memcpy(r->out.data, blob.data, blob.length);
+		}
+
+		return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
 	}
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
@@ -8618,8 +8636,10 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	    strequal(r->in.value_name, "ChangeId")) {
 		*r->out.type = REG_DWORD;
 		*r->out.needed = 4;
-		r->out.data->value = printer->info_2->changeid;
-		result = WERR_OK;
+		if (r->in.offered >= *r->out.needed) {
+			SIVAL(r->out.data, 0, printer->info_2->changeid);
+			result = WERR_OK;
+		}
 		goto done;
 	}
 
@@ -8640,12 +8660,9 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	*r->out.needed = regval_size(val);
 	*r->out.type = regval_type(val);
 
-	blob = data_blob_const(regval_data_p(val), regval_size(val));
-
-	result = pull_spoolss_PrinterData(p->mem_ctx, &blob,
-					  r->out.data,
-					  *r->out.type);
-
+	if (r->in.offered >= *r->out.needed) {
+		memcpy(r->out.data, regval_data_p(val), regval_size(val));
+	}
  done:
 	if (printer) {
 		free_a_printer(&printer, 2);
@@ -8655,7 +8672,6 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 		return result;
 	}
 
-	*r->out.needed  = ndr_size_spoolss_PrinterData(r->out.data, *r->out.type, NULL, 0);
 	*r->out.type    = SPOOLSS_BUFFER_OK(*r->out.type, REG_NONE);
 	r->out.data     = SPOOLSS_BUFFER_OK(r->out.data, r->out.data);
 
@@ -8674,7 +8690,6 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 	WERROR 			result = WERR_OK;
 	Printer_entry 		*Printer = find_printer_index_by_hnd(p, r->in.handle);
 	char			*oid_string;
-	DATA_BLOB blob;
 
 	DEBUG(4,("_spoolss_SetPrinterDataEx\n"));
 
@@ -8724,12 +8739,6 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 		oid_string++;
 	}
 
-	result = push_spoolss_PrinterData(p->mem_ctx, &blob,
-					  r->in.type, &r->in.data);
-	if (!W_ERROR_IS_OK(result)) {
-		goto done;
-	}
-
 	/*
 	 * When client side code sets a magic printer data key, detect it and save
 	 * the current printer data and the magic key's data (its the DEVMODE) for
@@ -8737,7 +8746,7 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 	 */
 	if ((r->in.type == REG_BINARY) && strequal(r->in.value_name, PHANTOM_DEVMODE_KEY)) {
 		/* Set devmode and printer initialization info */
-		result = save_driver_init(printer, 2, blob.data, blob.length);
+		result = save_driver_init(printer, 2, r->in.data, r->in.offered);
 
 		srv_spoolss_reset_printerdata(printer->info_2->drivername);
 
@@ -8747,7 +8756,7 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 	/* save the registry data */
 
 	result = set_printer_dataex(printer, r->in.key_name, r->in.value_name,
-				    r->in.type, blob.data, blob.length);
+				    r->in.type, r->in.data, r->in.offered);
 
 	if (W_ERROR_IS_OK(result)) {
 		/* save the OID if one was specified */
@@ -8985,9 +8994,7 @@ static WERROR registry_value_to_printer_enum_value(TALLOC_CTX *mem_ctx,
 						   struct regval_blob *v,
 						   struct spoolss_PrinterEnumValues *r)
 {
-	WERROR result;
-
-	r->data = TALLOC_ZERO_P(mem_ctx, union spoolss_PrinterData);
+	r->data = TALLOC_ZERO_P(mem_ctx, DATA_BLOB);
 	W_ERROR_HAVE_NO_MEMORY(r->data);
 
 	r->value_name	= talloc_strdup(mem_ctx, regval_name(v));
@@ -8997,14 +9004,7 @@ static WERROR registry_value_to_printer_enum_value(TALLOC_CTX *mem_ctx,
 	r->data_length	= regval_size(v);
 
 	if (r->data_length) {
-		DATA_BLOB blob = data_blob_const(regval_data_p(v),
-						 regval_size(v));
-		result = pull_spoolss_PrinterData(mem_ctx, &blob,
-						  r->data,
-						  r->type);
-		if (!W_ERROR_IS_OK(result)) {
-			return result;
-		}
+		*r->data = data_blob_talloc(r->data, regval_data_p(v), regval_size(v));
 	}
 
 	return WERR_OK;

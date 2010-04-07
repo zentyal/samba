@@ -43,7 +43,7 @@
 #include "mount.h"
 
 #define MOUNT_CIFS_VERSION_MAJOR "1"
-#define MOUNT_CIFS_VERSION_MINOR "13"
+#define MOUNT_CIFS_VERSION_MINOR "14"
 
 #ifndef MOUNT_CIFS_VENDOR_SUFFIX
  #ifdef _SAMBA_BUILD_
@@ -87,6 +87,17 @@
 
 /* currently maximum length of IPv6 address string */
 #define MAX_ADDRESS_LEN INET6_ADDRSTRLEN
+
+/*
+ * mount.cifs has been the subject of many "security" bugs that have arisen
+ * because of users and distributions installing it as a setuid root program.
+ * mount.cifs has not been audited for security. Thus, we strongly recommend
+ * that it not be installed setuid root. To make that abundantly clear,
+ * mount.cifs now check whether it's running setuid root and exit with an
+ * error if it is. If you wish to disable this check, then set the following
+ * #define to 1, but please realize that you do so at your own peril.
+ */
+#define CIFS_DISABLE_SETUID_CHECK 0
 
 /*
  * By default, mount.cifs follows the conventions set forth by /bin/mount
@@ -179,7 +190,7 @@ check_mountpoint(const char *progname, char *mountpoint)
 	struct stat statbuf;
 
 	/* does mountpoint exist and is it a directory? */
-	err = stat(mountpoint, &statbuf);
+	err = stat(".", &statbuf);
 	if (err) {
 		fprintf(stderr, "%s: failed to stat %s: %s\n", progname,
 				mountpoint, strerror(errno));
@@ -212,6 +223,29 @@ check_mountpoint(const char *progname, char *mountpoint)
 
 	return 0;
 }
+
+#if CIFS_DISABLE_SETUID_CHECK
+static int
+check_setuid(void)
+{
+	return 0;
+}
+#else /* CIFS_DISABLE_SETUID_CHECK */
+static int
+check_setuid(void)
+{
+	if (getuid() && !geteuid()) {
+		printf("This mount.cifs program has been built with the "
+			"ability to run as a setuid root program disabled.\n"
+			"mount.cifs has not been well audited for security "
+			"holes. Therefore the Samba team does not recommend "
+			"installing it as a setuid root program.\n");
+		return 1;
+	}
+
+	return 0;
+}
+#endif /* CIFS_DISABLE_SETUID_CHECK */
 
 #if CIFS_LEGACY_SETUID_CHECK
 static int
@@ -1165,6 +1199,36 @@ static void print_cifs_mount_version(void)
 		MOUNT_CIFS_VENDOR_SUFFIX);
 }
 
+/*
+ * This function borrowed from fuse-utils...
+ *
+ * glibc's addmntent (at least as of 2.10 or so) doesn't properly encode
+ * newlines embedded within the text fields. To make sure no one corrupts
+ * the mtab, fail the mount if there are embedded newlines.
+ */
+static int check_newline(const char *progname, const char *name)
+{
+    char *s;
+    for (s = "\n"; *s; s++) {
+        if (strchr(name, *s)) {
+            fprintf(stderr, "%s: illegal character 0x%02x in mount entry\n",
+                    progname, *s);
+            return EX_USAGE;
+        }
+    }
+    return 0;
+}
+
+static int check_mtab(const char *progname, const char *devname,
+			const char *dir)
+{
+	if (check_newline(progname, devname) == -1 ||
+	    check_newline(progname, dir) == -1)
+		return EX_USAGE;
+	return 0;
+}
+
+
 int main(int argc, char ** argv)
 {
 	int c;
@@ -1196,6 +1260,9 @@ int main(int argc, char ** argv)
 	struct sockaddr_in *addr4;
 	struct sockaddr_in6 *addr6;
 	FILE * pmntfile;
+
+	if (check_setuid())
+		return EX_USAGE;
 
 	/* setlocale(LC_ALL, "");
 	bindtextdomain(PACKAGE, LOCALEDIR);
@@ -1378,6 +1445,14 @@ int main(int argc, char ** argv)
 	}
 
 	/* make sure mountpoint is legit */
+	rc = chdir(mountpoint);
+	if (rc) {
+		fprintf(stderr, "Couldn't chdir to %s: %s\n", mountpoint,
+				strerror(errno));
+		rc = EX_USAGE;
+		goto mount_exit;
+	}
+
 	rc = check_mountpoint(thisprogram, mountpoint);
 	if (rc)
 		goto mount_exit;
@@ -1440,13 +1515,23 @@ int main(int argc, char ** argv)
 	
 	/* BB save off path and pop after mount returns? */
 	resolved_path = (char *)malloc(PATH_MAX+1);
-	if(resolved_path) {
-		/* Note that if we can not canonicalize the name, we get
-		another chance to see if it is valid when we chdir to it */
-		if (realpath(mountpoint, resolved_path)) {
-			mountpoint = resolved_path; 
-		}
+	if (!resolved_path) {
+		fprintf(stderr, "Unable to allocate memory.\n");
+		rc = EX_SYSERR;
+		goto mount_exit;
 	}
+
+	/* Note that if we can not canonicalize the name, we get
+	   another chance to see if it is valid when we chdir to it */
+	if(!realpath(".", resolved_path)) {
+		fprintf(stderr, "Unable to resolve %s to canonical path: %s\n",
+				mountpoint, strerror(errno));
+		rc = EX_SYSERR;
+		goto mount_exit;
+	}
+
+	mountpoint = resolved_path;
+
 	if(got_user == 0) {
 		/* Note that the password will not be retrieved from the
 		   USER env variable (ie user%password form) as there is
@@ -1590,7 +1675,11 @@ mount_retry:
 	if (verboseflag)
 		fprintf(stderr, "\n");
 
-	if (!fakemnt && mount(dev_name, mountpoint, "cifs", flags, options)) {
+	rc = check_mtab(thisprogram, dev_name, mountpoint);
+	if (rc)
+		goto mount_exit;
+
+	if (!fakemnt && mount(dev_name, ".", "cifs", flags, options)) {
 		switch (errno) {
 		case ECONNREFUSED:
 		case EHOSTUNREACH:

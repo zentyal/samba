@@ -103,8 +103,10 @@ static int talloc_pop(TALLOC_CTX *frame)
 			break;
 		}
 		talloc_free(ts->talloc_stack[i]);
+		ts->talloc_stack[i] = NULL;
 	}
 
+	ts->talloc_stack[i] = NULL;
 	ts->talloc_stacksize = i;
 	return 0;
 }
@@ -181,7 +183,7 @@ TALLOC_CTX *talloc_tos(void)
 	struct talloc_stackframe *ts =
 		(struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
 
-	if (ts == NULL) {
+	if (ts == NULL || ts->talloc_stacksize == 0) {
 		talloc_stackframe();
 		ts = (struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
 		DEBUG(0, ("no talloc stackframe around, leaking memory\n"));

@@ -2334,6 +2334,7 @@ bool cli_is_dos_error(struct cli_state *cli);
 NTSTATUS cli_get_nt_error(struct cli_state *cli);
 void cli_set_nt_error(struct cli_state *cli, NTSTATUS status);
 void cli_reset_error(struct cli_state *cli);
+bool cli_state_is_connected(struct cli_state *cli);
 
 /* The following definitions come from libsmb/clifile.c  */
 
@@ -5291,6 +5292,7 @@ NTSTATUS rpc_pipe_bind(struct rpc_pipe_client *cli,
 		       struct cli_pipe_auth_data *auth);
 unsigned int rpccli_set_timeout(struct rpc_pipe_client *cli,
 				unsigned int timeout);
+bool rpccli_is_connected(struct rpc_pipe_client *rpc_cli);
 bool rpccli_get_pwd_hash(struct rpc_pipe_client *cli, uint8_t nt_hash[16]);
 NTSTATUS rpccli_anon_bind_data(TALLOC_CTX *mem_ctx,
 			       struct cli_pipe_auth_data **presult);
@@ -5384,7 +5386,6 @@ NTSTATUS rpc_transport_np_init(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 			       const struct ndr_syntax_id *abstract_syntax,
 			       struct rpc_cli_transport **presult);
 struct cli_state *rpc_pipe_np_smb_conn(struct rpc_pipe_client *p);
-void rpccli_close_np_fd(struct rpc_pipe_client *p);
 
 /* The following definitions come from rpc_client/rpc_transport_smbd.c  */
 
@@ -5421,9 +5422,6 @@ struct cli_state *rpc_pipe_smbd_smb_conn(struct rpc_pipe_client *p);
 
 NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 				 struct rpc_cli_transport **presult);
-int rpccli_set_sock_timeout(struct rpc_pipe_client *rpccli, int timeout);
-void rpccli_close_sock_fd(struct rpc_pipe_client *rpccli);
-bool rpc_pipe_tcp_connection_ok(struct rpc_pipe_client *rpccli);
 
 /* The following definitions come from rpc_client/cli_samr.c  */
 
@@ -5567,7 +5565,8 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 				     const char *value_name,
 				     uint32_t offered,
 				     enum winreg_Type *type,
-				     union spoolss_PrinterData *data);
+				     uint32_t *needed_p,
+				     uint8_t **data_p);
 WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle,

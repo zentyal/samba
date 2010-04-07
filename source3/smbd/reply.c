@@ -2396,7 +2396,7 @@ static NTSTATUS do_unlink(connection_struct *conn,
 	if (posix_paths) {
 		ret = SMB_VFS_LSTAT(conn, smb_fname);
 	} else {
-		ret = SMB_VFS_LSTAT(conn, smb_fname);
+		ret = SMB_VFS_STAT(conn, smb_fname);
 	}
 	if (ret != 0) {
 		return map_nt_error_from_unix(errno);
@@ -5845,6 +5845,21 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		DEBUG(3, ("rename_internals_fsp: succeeded doing rename on "
 			  "%s -> %s\n", smb_fname_str_dbg(fsp->fsp_name),
 			  smb_fname_str_dbg(smb_fname_dst)));
+
+		if (lp_map_archive(SNUM(conn)) ||
+		    lp_store_dos_attributes(SNUM(conn))) {
+			/* We must set the archive bit on the newly
+			   renamed file. */
+			if (SMB_VFS_STAT(conn, smb_fname_dst) == 0) {
+				uint32_t old_dosmode = dos_mode(conn,
+							smb_fname_dst);
+				file_set_dosmode(conn,
+					smb_fname_dst,
+					old_dosmode | FILE_ATTRIBUTE_ARCHIVE,
+					NULL,
+					true);
+			}
+		}
 
 		notify_rename(conn, fsp->is_directory, fsp->fsp_name,
 			      smb_fname_dst);

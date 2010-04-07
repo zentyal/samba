@@ -56,6 +56,8 @@ option is also defined the password on the command line will
 be silently ingnored and no password will be used.</p></dd><dt><span class="term">-k|--kerberos</span></dt><dd><p>
 Try to authenticate with kerberos. Only useful in
 an Active Directory environment.
+</p></dd><dt><span class="term">-C|--use-ccache</span></dt><dd><p>
+Try to use the credentials cached by winbind.
 </p></dd><dt><span class="term">-A|--authentication-file=filename</span></dt><dd><p>This option allows
 you to specify a file from which to read the username and
 password used in the connection.  The format of the file is
@@ -78,7 +80,7 @@ on the file restrict access from unwanted users.  See the
 many systems the command line of a running process may be seen
 via the <code class="literal">ps</code> command.  To be safe always allow
 <code class="literal">rpcclient</code> to prompt for a password and type
-it in directly. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481697"></a><h2>ACL FORMAT</h2><p>The format of an ACL is one or more ACL entries separated by 
+it in directly. </p></dd></dl></div></div><div class="refsect1" lang="en"><a name="id2481709"></a><h2>ACL FORMAT</h2><p>The format of an ACL is one or more ACL entries separated by 
 	either commas or newlines.  An ACL entry is one of the following: </p><pre class="programlisting"> 
 REVISION:&lt;revision number&gt;
 OWNER:&lt;sid or name&gt;
@@ -103,13 +105,13 @@ ACL:&lt;sid or name&gt;:&lt;type&gt;/&lt;flags&gt;/&lt;mask&gt;
 	file permissions of the same name. </p><div class="itemizedlist"><ul type="disc"><li><p><span class="emphasis"><em>R</em></span> - Allow read access </p></li><li><p><span class="emphasis"><em>W</em></span> - Allow write access</p></li><li><p><span class="emphasis"><em>X</em></span> - Execute permission on the object</p></li><li><p><span class="emphasis"><em>D</em></span> - Delete the object</p></li><li><p><span class="emphasis"><em>P</em></span> - Change permissions</p></li><li><p><span class="emphasis"><em>O</em></span> - Take ownership</p></li></ul></div><p>The following combined permissions can be specified:</p><div class="itemizedlist"><ul type="disc"><li><p><span class="emphasis"><em>READ</em></span> -  Equivalent to 'RX'
 		permissions</p></li><li><p><span class="emphasis"><em>CHANGE</em></span> - Equivalent to 'RXWD' permissions
 		</p></li><li><p><span class="emphasis"><em>FULL</em></span> - Equivalent to 'RWXDPO' 
-		permissions</p></li></ul></div></div><div class="refsect1" lang="en"><a name="id2481861"></a><h2>EXIT STATUS</h2><p>The <code class="literal">smbcacls</code> program sets the exit status 
+		permissions</p></li></ul></div></div><div class="refsect1" lang="en"><a name="id2481873"></a><h2>EXIT STATUS</h2><p>The <code class="literal">smbcacls</code> program sets the exit status 
 	depending on the success or otherwise of the operations performed.  
 	The exit status may be one of the following values. </p><p>If the operation succeeded, smbcacls returns and exit 
 	status of 0.  If <code class="literal">smbcacls</code> couldn't connect to the specified server, 
 	or there was an error getting or setting the ACLs, an exit status 
 	of 1 is returned.  If there was an error parsing any command line 
-	arguments, an exit status of 2 is returned. </p></div><div class="refsect1" lang="en"><a name="id2481894"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2481904"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+	arguments, an exit status of 2 is returned. </p></div><div class="refsect1" lang="en"><a name="id2481906"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2481916"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p><code class="literal">smbcacls</code> was written by Andrew Tridgell 

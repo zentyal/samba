@@ -358,11 +358,8 @@
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H
 
-/* Whether CTDB_CONTROL_TRANS2_ACTIVE() is available */
-#undef HAVE_CTDB_CONTROL_TRANS2_ACTIVE_DECL
-
-/* Whether CTDB_CONTROL_TRANS2_COMMIT_RETRY() is available */
-#undef HAVE_CTDB_CONTROL_TRANS2_COMMIT_RETRY_DECL
+/* Whether CTDB_CONTROL_TRANS3_COMMIT() is available */
+#undef HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL
 
 /* Define to 1 if you have the <ctdb.h> header file. */
 #undef HAVE_CTDB_H
@@ -1729,6 +1726,9 @@
 
 /* Define to 1 if you have the `printf' function. */
 #undef HAVE_PRINTF
+
+/* Do we have pthreads around? */
+#undef HAVE_PTHREAD
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H

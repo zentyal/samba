@@ -12,6 +12,9 @@ samba (2:3.4.7~dfsg-2) UNRELEASED; urgency=low
     removal :/
   * Fix winbind.pam-config to not interfere with password changes for
     non-winbind accounts.  Closes: #573323, LP: #546874.
+  * debian/samba.if-up, debian/rules: add an if-up.d script for samba to
+    try to start nmbd, if it's not running because /etc/init.d/samba ran
+    before the network was up at boot time.  Closes: #576415, LP: #462169.
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 24 Mar 2010 22:02:25 +0100
 

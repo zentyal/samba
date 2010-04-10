@@ -13,9 +13,13 @@ fi
 
 # Samba only cares about inet and inet6. Get thee gone, strange people
 # still using ipx.
-if [ "$ADDRFAM" != inet ] && [ "$ADDRFAM" != inet6 ]; then
-	exit 0
-fi
+case $ADDRFAM in
+	inet|inet6|NetworkManager)
+		;;
+	*)
+		exit 0
+		;;
+esac
 
 status=$(/etc/init.d/samba status)
 

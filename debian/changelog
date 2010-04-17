@@ -1,4 +1,4 @@
-samba (2:3.4.7~dfsg-2) UNRELEASED; urgency=low
+samba (2:3.4.7~dfsg-2) unstable; urgency=low
 
   [ Christian Perrier ]
   * Drop smbfs package (now provided by cifs-utils as a dummy transition
@@ -19,7 +19,7 @@ samba (2:3.4.7~dfsg-2) UNRELEASED; urgency=low
     family... it's obviously /not/ an address family, but it's what gets
     sent when using NM, so we'll cope for now.
 
- -- Christian Perrier <bubulle@debian.org>  Wed, 24 Mar 2010 22:02:25 +0100
+ -- Christian Perrier <bubulle@debian.org>  Sat, 17 Apr 2010 07:49:49 +0200
 
 samba (2:3.4.7~dfsg-1) unstable; urgency=low
 

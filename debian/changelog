@@ -1,3 +1,10 @@
+samba (2:3.4.7~dfsg-3) UNRELEASED; urgency=low
+
+  [ Debcofn translationsi ]  
+  * Spanish (Omar Campagne).  Closes: #579011
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 24 Apr 2010 20:07:56 +0200
+
 samba (2:3.4.7~dfsg-2) unstable; urgency=low
 
   [ Christian Perrier ]

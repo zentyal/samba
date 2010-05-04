@@ -1,9 +1,9 @@
-samba (2:3.5.2~dfsg-2) UNRELEASED-experimental; urgency=low
+samba (2:3.5.2~dfsg-2) experimental; urgency=low
 
   * Resync changes with changes in trunk between 3:3.4.4~dfsg-1 and
     2:3.4.7~dfsg-2
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 04 May 2010 14:39:49 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 04 May 2010 17:13:47 +0200
 
 samba (2:3.4.7~dfsg-2) unstable; urgency=low
 

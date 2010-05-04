@@ -20,5 +20,6 @@ usr/share/man/man8/idmap_tdb2.8
 usr/share/man/man8/idmap_adex.8
 usr/share/man/man8/idmap_hash.8
 lib/security/pam_winbind.so
+usr/share/pam-configs/winbind
 lib/libnss_winbind.so.2
 lib/libnss_wins.so.2

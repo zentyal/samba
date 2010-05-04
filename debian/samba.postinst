@@ -75,7 +75,7 @@ umask 066
 # FIXME: we don't want to pass these through the smbpasswd backend,
 # some of the faking can cause us problems!
 if [ "${GENERATE_SMBPASSWD}" = "true" -a ! -e /var/lib/samba/passdb.tdb -a ! -e /etc/samba/smbpasswd ]; then
-	getent passwd | /usr/sbin/mksmbpasswd > /etc/samba/smbpasswd
+	getent passwd | mksmbpasswd > /etc/samba/smbpasswd
 	pdbedit -i smbpasswd -e tdbsam
 	rm /etc/samba/smbpasswd
 fi

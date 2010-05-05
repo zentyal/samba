@@ -1,3 +1,9 @@
+samba (2:3.5.2~dfsg-3) UNRELEASED; urgency=low
+
+  * Drop duplicate build dependency on ctdb
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 05 May 2010 17:01:56 +0200
+
 samba (2:3.5.2~dfsg-2) experimental; urgency=low
 
   * Resync changes with changes in trunk between 3:3.4.4~dfsg-1 and

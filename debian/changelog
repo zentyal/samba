@@ -1,6 +1,6 @@
 samba (2:3.4.7~dfsg-3) UNRELEASED; urgency=low
 
-  [ Debcofn translationsi ]  
+  [ Debconf translations ]  
   * Spanish (Omar Campagne).  Closes: #579011
 
   [ Christian Perrier ]  

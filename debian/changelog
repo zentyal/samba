@@ -9,6 +9,8 @@ samba (2:3.4.7~dfsg-3) UNRELEASED; urgency=low
   * Enable PIE during configure. Closes: #509135
   * Avoid winbind's logrotate script to fail when there is no
     /var/run/samba directory. Closes: #569926
+  * Add explanations about "passdb backend" default setting change
+    Closes: #553904
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 24 Apr 2010 20:07:56 +0200
 

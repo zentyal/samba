@@ -1,3 +1,26 @@
+samba (2:3.4.0-1) unstable; urgency=low
+
+  * Default passdb backend changed in samba 3.4.0 and above
+  
+    Beginning with samba 3.4.0, the default setting for "passdb
+    backend" changed from "smbpasswd" to "tdbsam".
+    
+    If your smb.conf file does not have an explicit mention of
+    "passdb backend" when upgrading from pre-3.4.0 versions of
+    samba, it is likely that users will no longer be able to
+    authenticate.
+    
+    As a consequence of all this, if you're upgrading from lenny
+    and have no setting of "passdb backend" in smb.conf, you MUST
+    add "passdb backend = smbpasswd" in order to keep your samba
+    server's behaviour.
+    
+    As Debian packages of samba explicitly set "passdb backend = tdbsam"
+    by default since etch, very few users should need to modify their
+    settings.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 07 Jul 2009 20:42:19 +0200
+
 samba (3.0.27a-2) unstable; urgency=low
 
   * Weak authentication methods are disabled by default

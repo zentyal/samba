@@ -24,18 +24,56 @@
 
 struct rpc_transport_sock_state {
 	int fd;
+	int timeout;
 };
 
-static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *s)
+static void rpc_sock_disconnect(struct rpc_transport_sock_state *s)
 {
 	if (s->fd != -1) {
 		close(s->fd);
 		s->fd = -1;
 	}
+}
+
+static int rpc_transport_sock_state_destructor(struct rpc_transport_sock_state *s)
+{
+	rpc_sock_disconnect(s);
 	return 0;
 }
 
+static bool rpc_sock_is_connected(void *priv)
+{
+	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
+		priv, struct rpc_transport_sock_state);
+
+	if (sock_transp->fd == -1) {
+		return false;
+	}
+
+	return true;
+}
+
+static unsigned int rpc_sock_set_timeout(void *priv, unsigned int timeout)
+{
+	struct rpc_transport_sock_state *sock_transp = talloc_get_type_abort(
+		priv, struct rpc_transport_sock_state);
+	int orig_timeout;
+	bool ok;
+
+	ok = rpc_sock_is_connected(sock_transp);
+	if (!ok) {
+		return 0;
+	}
+
+	orig_timeout = sock_transp->timeout;
+
+	sock_transp->timeout = timeout;
+
+	return orig_timeout;
+}
+
 struct rpc_sock_read_state {
+	struct rpc_transport_sock_state *transp;
 	ssize_t received;
 };
 
@@ -51,16 +89,29 @@ static struct async_req *rpc_sock_read_send(TALLOC_CTX *mem_ctx,
 	struct async_req *result;
 	struct tevent_req *subreq;
 	struct rpc_sock_read_state *state;
+	struct timeval endtime;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_sock_read_state)) {
 		return NULL;
 	}
-
+	if (!rpc_sock_is_connected(sock_transp)) {
+		if (!async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID)) {
+			goto fail;
+		}
+		return result;
+	}
+	state->transp = sock_transp;
+	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
 	subreq = async_recv_send(state, ev, sock_transp->fd, data, size, 0);
 	if (subreq == NULL) {
 		goto fail;
 	}
+
+	if (!tevent_req_set_endtime(subreq, ev, endtime)) {
+		goto fail;
+	}
+
 	tevent_req_set_callback(subreq, rpc_sock_read_done, result);
 	return result;
  fail:
@@ -76,11 +127,18 @@ static void rpc_sock_read_done(struct tevent_req *subreq)
 		req->private_data, struct rpc_sock_read_state);
 	int err;
 
+	/* We must free subreq in this function as there is
+	  a timer event attached to it. */
+
 	state->received = async_recv_recv(subreq, &err);
+
 	if (state->received == -1) {
+		TALLOC_FREE(subreq);
+		rpc_sock_disconnect(state->transp);
 		async_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
+	TALLOC_FREE(subreq);
 	async_req_done(req);
 }
 
@@ -98,6 +156,7 @@ static NTSTATUS rpc_sock_read_recv(struct async_req *req, ssize_t *preceived)
 }
 
 struct rpc_sock_write_state {
+	struct rpc_transport_sock_state *transp;
 	ssize_t sent;
 };
 
@@ -113,15 +172,29 @@ static struct async_req *rpc_sock_write_send(TALLOC_CTX *mem_ctx,
 	struct async_req *result;
 	struct tevent_req *subreq;
 	struct rpc_sock_write_state *state;
+	struct timeval endtime;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_sock_write_state)) {
 		return NULL;
 	}
+	if (!rpc_sock_is_connected(sock_transp)) {
+		if (!async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID)) {
+			goto fail;
+		}
+		return result;
+	}
+	state->transp = sock_transp;
+	endtime = timeval_current_ofs(0, sock_transp->timeout * 1000);
 	subreq = async_send_send(state, ev, sock_transp->fd, data, size, 0);
 	if (subreq == NULL) {
 		goto fail;
 	}
+
+	if (!tevent_req_set_endtime(subreq, ev, endtime)) {
+		goto fail;
+	}
+
 	tevent_req_set_callback(subreq, rpc_sock_write_done, result);
 	return result;
  fail:
@@ -137,11 +210,18 @@ static void rpc_sock_write_done(struct tevent_req *subreq)
 		req->private_data, struct rpc_sock_write_state);
 	int err;
 
+	/* We must free subreq in this function as there is
+	  a timer event attached to it. */
+
 	state->sent = async_send_recv(subreq, &err);
+
 	if (state->sent == -1) {
+		TALLOC_FREE(subreq);
+		rpc_sock_disconnect(state->transp);
 		async_req_nterror(req, map_nt_error_from_unix(err));
 		return;
 	}
+	TALLOC_FREE(subreq);
 	async_req_done(req);
 }
 
@@ -176,6 +256,7 @@ NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 	result->priv = state;
 
 	state->fd = fd;
+	state->timeout = 10000; /* 10 seconds. */
 	talloc_set_destructor(state, rpc_transport_sock_state_destructor);
 
 	result->trans_send = NULL;
@@ -184,6 +265,8 @@ NTSTATUS rpc_transport_sock_init(TALLOC_CTX *mem_ctx, int fd,
 	result->write_recv = rpc_sock_write_recv;
 	result->read_send = rpc_sock_read_send;
 	result->read_recv = rpc_sock_read_recv;
+	result->is_connected = rpc_sock_is_connected;
+	result->set_timeout = rpc_sock_set_timeout;
 
 	*presult = result;
 	return NT_STATUS_OK;

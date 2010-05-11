@@ -367,8 +367,6 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 {
 	uint8 ret;
 	pid_t child_pid;
-	struct sigaction act;
-	struct sigaction oldact;
 
 	DEBUG(10, ("winbindd_msg_validate_cache: got validate-cache "
 		   "message.\n"));
@@ -378,7 +376,6 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 	 * so we don't block the main winbindd and the validation
 	 * code can safely use fork/waitpid...
 	 */
-	CatchChild();
 	child_pid = sys_fork();
 
 	if (child_pid == -1) {
@@ -396,16 +393,12 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 
 	/* child */
 
+	if (!winbindd_reinit_after_fork(NULL)) {
+		_exit(0);
+	}
+
 	/* install default SIGCHLD handler: validation code uses fork/waitpid */
-	ZERO_STRUCT(act);
-	act.sa_handler = SIG_DFL;
-#ifdef SA_RESTART
-	/* We *want* SIGALRM to interrupt a system call. */
-	act.sa_flags = SA_RESTART;
-#endif
-	sigemptyset(&act.sa_mask);
-	sigaddset(&act.sa_mask,SIGCHLD);
-	sigaction(SIGCHLD,&act,&oldact);
+	CatchSignal(SIGCHLD, SIG_DFL);
 
 	ret = (uint8)winbindd_validate_cache_nobackup();
 	DEBUG(10, ("winbindd_msg_validata_cache: got return value %d\n", ret));
@@ -1053,6 +1046,15 @@ static void process_loop(void)
 	{
 		struct timeval now;
 		GetTimeOfDay(&now);
+
+                /*
+		 * Initialize this high as event_add_to_select_args()
+		 * uses a timeval_min() on this and next_event. Fix
+		 * from Roel van Meer <rolek@alt001.com>.
+		 */
+
+		ev_timeout.tv_sec = 999999;
+		ev_timeout.tv_usec = 0;
 
 		event_add_to_select_args(winbind_event_context(), &now,
 					 &r_fds, &w_fds, &ev_timeout, &maxfd);

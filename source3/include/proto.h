@@ -2456,6 +2456,7 @@ bool cli_is_dos_error(struct cli_state *cli);
 NTSTATUS cli_get_nt_error(struct cli_state *cli);
 void cli_set_nt_error(struct cli_state *cli, NTSTATUS status);
 void cli_reset_error(struct cli_state *cli);
+bool cli_state_is_connected(struct cli_state *cli);
 
 /* The following definitions come from libsmb/clifile.c  */
 
@@ -4756,6 +4757,7 @@ void load_printers(void);
 bool parse_lpq_entry(enum printing_types printing_type,char *line,
 		     print_queue_struct *buf,
 		     print_status_struct *status,bool first);
+uint32_t print_parse_jobid(const char *fname);
 
 /* The following definitions come from printing/notify.c  */
 
@@ -5274,6 +5276,7 @@ NTSTATUS rpc_pipe_bind(struct rpc_pipe_client *cli,
 		       struct cli_pipe_auth_data *auth);
 unsigned int rpccli_set_timeout(struct rpc_pipe_client *cli,
 				unsigned int timeout);
+bool rpccli_is_connected(struct rpc_pipe_client *rpc_cli);
 bool rpccli_get_pwd_hash(struct rpc_pipe_client *cli, uint8_t nt_hash[16]);
 NTSTATUS rpccli_anon_bind_data(TALLOC_CTX *mem_ctx,
 			       struct cli_pipe_auth_data **presult);
@@ -5557,7 +5560,8 @@ WERROR rpccli_spoolss_getprinterdata(struct rpc_pipe_client *cli,
 				     const char *value_name,
 				     uint32_t offered,
 				     enum winreg_Type *type,
-				     union spoolss_PrinterData *data);
+				     uint32_t *needed_p,
+				     uint8_t **data_p);
 WERROR rpccli_spoolss_enumprinterkey(struct rpc_pipe_client *cli,
 				     TALLOC_CTX *mem_ctx,
 				     struct policy_handle *handle,

@@ -2950,15 +2950,40 @@ NTSTATUS rpc_pipe_bind(struct rpc_pipe_client *cli,
 	return status;
 }
 
+#define RPCCLI_DEFAULT_TIMEOUT 10000 /* 10 seconds. */
+
 unsigned int rpccli_set_timeout(struct rpc_pipe_client *rpc_cli,
 				unsigned int timeout)
 {
-	struct cli_state *cli = rpc_pipe_np_smb_conn(rpc_cli);
+	unsigned int old;
 
-	if (cli == NULL) {
-		return 0;
+	if (rpc_cli->transport == NULL) {
+		return RPCCLI_DEFAULT_TIMEOUT;
 	}
-	return cli_set_timeout(cli, timeout);
+
+	if (rpc_cli->transport->set_timeout == NULL) {
+		return RPCCLI_DEFAULT_TIMEOUT;
+	}
+
+	old = rpc_cli->transport->set_timeout(rpc_cli->transport->priv, timeout);
+	if (old == 0) {
+		return RPCCLI_DEFAULT_TIMEOUT;
+	}
+
+	return old;
+}
+
+bool rpccli_is_connected(struct rpc_pipe_client *rpc_cli)
+{
+	if (rpc_cli == NULL) {
+		return false;
+	}
+
+	if (rpc_cli->transport == NULL) {
+		return false;
+	}
+
+	return rpc_cli->transport->is_connected(rpc_cli->transport->priv);
 }
 
 bool rpccli_get_pwd_hash(struct rpc_pipe_client *rpc_cli, uint8_t nt_hash[16])
@@ -3464,14 +3489,14 @@ NTSTATUS rpc_pipe_open_ncalrpc(TALLOC_CTX *mem_ctx, const char *socket_path,
 	return status;
 }
 
-static int rpc_pipe_client_np_destructor(struct rpc_pipe_client *p)
-{
+struct rpc_pipe_client_np_ref {
 	struct cli_state *cli;
+	struct rpc_pipe_client *pipe;
+};
 
-	cli = rpc_pipe_np_smb_conn(p);
-	if (cli != NULL) {
-		DLIST_REMOVE(cli->pipe_list, p);
-	}
+static int rpc_pipe_client_np_ref_destructor(struct rpc_pipe_client_np_ref *np_ref)
+{
+	DLIST_REMOVE(np_ref->cli->pipe_list, np_ref->pipe);
 	return 0;
 }
 
@@ -3494,6 +3519,7 @@ static NTSTATUS rpc_pipe_open_np(struct cli_state *cli,
 {
 	struct rpc_pipe_client *result;
 	NTSTATUS status;
+	struct rpc_pipe_client_np_ref *np_ref;
 
 	/* sanity check to protect against crashes */
 
@@ -3530,8 +3556,16 @@ static NTSTATUS rpc_pipe_open_np(struct cli_state *cli,
 
 	result->transport->transport = NCACN_NP;
 
-	DLIST_ADD(cli->pipe_list, result);
-	talloc_set_destructor(result, rpc_pipe_client_np_destructor);
+	np_ref = talloc(result->transport, struct rpc_pipe_client_np_ref);
+	if (np_ref == NULL) {
+		TALLOC_FREE(result);
+		return NT_STATUS_NO_MEMORY;
+	}
+	np_ref->cli = cli;
+	np_ref->pipe = result;
+
+	DLIST_ADD(np_ref->cli->pipe_list, np_ref->pipe);
+	talloc_set_destructor(np_ref, rpc_pipe_client_np_ref_destructor);
 
 	*presult = result;
 	return NT_STATUS_OK;

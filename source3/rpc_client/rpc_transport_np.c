@@ -28,9 +28,52 @@ struct rpc_transport_np_state {
 	uint16_t fnum;
 };
 
+static bool rpc_np_is_connected(void *priv)
+{
+	struct rpc_transport_np_state *np_transport = talloc_get_type_abort(
+		priv, struct rpc_transport_np_state);
+	bool ok;
+
+	if (np_transport->cli == NULL) {
+		return false;
+	}
+
+	ok = cli_state_is_connected(np_transport->cli);
+	if (!ok) {
+		np_transport->cli = NULL;
+		return false;
+	}
+
+	return true;
+}
+
+static unsigned int rpc_np_set_timeout(void *priv, unsigned int timeout)
+{
+	struct rpc_transport_np_state *np_transport = talloc_get_type_abort(
+		priv, struct rpc_transport_np_state);
+	bool ok;
+
+	if (np_transport->cli == NULL) {
+		return false;
+	}
+
+	ok = rpc_np_is_connected(np_transport);
+	if (!ok) {
+		return 0;
+	}
+
+	return cli_set_timeout(np_transport->cli, timeout);
+}
+
 static int rpc_transport_np_state_destructor(struct rpc_transport_np_state *s)
 {
 	bool ret;
+
+	if (!rpc_np_is_connected(s)) {
+		DEBUG(10, ("socket was closed, no need to send close request.\n"));
+		return 0;
+	}
+
 	ret = cli_close(s->cli, s->fnum);
 	if (!ret) {
 		DEBUG(1, ("rpc_transport_np_state_destructor: cli_close "
@@ -45,6 +88,7 @@ static int rpc_transport_np_state_destructor(struct rpc_transport_np_state *s)
 }
 
 struct rpc_np_write_state {
+	struct rpc_transport_np_state *np_transport;
 	size_t size;
 	size_t written;
 };
@@ -60,12 +104,25 @@ static struct async_req *rpc_np_write_send(TALLOC_CTX *mem_ctx,
 		priv, struct rpc_transport_np_state);
 	struct async_req *result, *subreq;
 	struct rpc_np_write_state *state;
+	bool ok;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_np_write_state)) {
 		return NULL;
 	}
+
+	ok = rpc_np_is_connected(np_transport);
+	if (!ok) {
+		ok = async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID);
+		if (!ok) {
+			goto fail;
+		}
+		return result;
+	}
+
+	state->np_transport = np_transport;
 	state->size = size;
+
 
 	subreq = cli_write_andx_send(mem_ctx, ev, np_transport->cli,
 				     np_transport->fnum,
@@ -93,6 +150,7 @@ static void rpc_np_write_done(struct async_req *subreq)
 	status = cli_write_andx_recv(subreq, &state->written);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
+		state->np_transport->cli = NULL;
 		async_req_nterror(req, status);
 		return;
 	}
@@ -113,6 +171,7 @@ static NTSTATUS rpc_np_write_recv(struct async_req *req, ssize_t *pwritten)
 }
 
 struct rpc_np_read_state {
+	struct rpc_transport_np_state *np_transport;
 	uint8_t *data;
 	size_t size;
 	ssize_t received;
@@ -129,11 +188,23 @@ static struct async_req *rpc_np_read_send(TALLOC_CTX *mem_ctx,
 		priv, struct rpc_transport_np_state);
 	struct async_req *result, *subreq;
 	struct rpc_np_read_state *state;
+	bool ok;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_np_read_state)) {
 		return NULL;
 	}
+
+	ok = rpc_np_is_connected(np_transport);
+	if (!ok) {
+		ok = async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID);
+		if (!ok) {
+			goto fail;
+		}
+		return result;
+	}
+
+	state->np_transport = np_transport;
 	state->data = data;
 	state->size = size;
 
@@ -159,6 +230,9 @@ static void rpc_np_read_done(struct async_req *subreq)
 	NTSTATUS status;
 	uint8_t *rcvbuf;
 
+	/* We must free subreq in this function as there is
+	   a timer event attached to it. */
+
 	status = cli_read_andx_recv(subreq, &state->received, &rcvbuf);
 	/*
 	 * We can't TALLOC_FREE(subreq) as usual here, as rcvbuf still is a
@@ -169,17 +243,27 @@ static void rpc_np_read_done(struct async_req *subreq)
 	}
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(subreq);
+		state->np_transport->cli = NULL;
 		async_req_nterror(req, status);
 		return;
 	}
 
 	if (state->received > state->size) {
 		TALLOC_FREE(subreq);
+		state->np_transport->cli = NULL;
 		async_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
 		return;
 	}
 
+	if (state->received == 0) {
+		TALLOC_FREE(subreq);
+		state->np_transport->cli = NULL;
+		async_req_nterror(req, NT_STATUS_PIPE_BROKEN);
+		return;
+	}
+
 	memcpy(state->data, rcvbuf, state->received);
+	TALLOC_FREE(subreq);
 	async_req_done(req);
 }
 
@@ -197,7 +281,9 @@ static NTSTATUS rpc_np_read_recv(struct async_req *req, ssize_t *preceived)
 }
 
 struct rpc_np_trans_state {
+	struct rpc_transport_np_state *np_transport;
 	uint16_t setup[2];
+	uint32_t max_rdata_len;
 	uint8_t *rdata;
 	uint32_t rdata_len;
 };
@@ -214,11 +300,24 @@ static struct async_req *rpc_np_trans_send(TALLOC_CTX *mem_ctx,
 		priv, struct rpc_transport_np_state);
 	struct async_req *result, *subreq;
 	struct rpc_np_trans_state *state;
+	bool ok;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_np_trans_state)) {
 		return NULL;
 	}
+
+	ok = rpc_np_is_connected(np_transport);
+	if (!ok) {
+		ok = async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID);
+		if (!ok) {
+			goto fail;
+		}
+		return result;
+	}
+
+	state->np_transport = np_transport;
+	state->max_rdata_len = max_rdata_len;
 
 	SSVAL(state->setup+0, 0, TRANSACT_DCERPCCMD);
 	SSVAL(state->setup+1, 0, np_transport->fnum);
@@ -250,10 +349,27 @@ static void rpc_np_trans_done(struct async_req *subreq)
 	status = cli_trans_recv(subreq, state, NULL, NULL, NULL, NULL,
 				&state->rdata, &state->rdata_len);
 	TALLOC_FREE(subreq);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_BUFFER_TOO_SMALL)) {
+		status = NT_STATUS_OK;
+	}
 	if (!NT_STATUS_IS_OK(status)) {
+		state->np_transport->cli = NULL;
 		async_req_nterror(req, status);
 		return;
 	}
+
+	if (state->rdata_len > state->max_rdata_len) {
+		state->np_transport->cli = NULL;
+		async_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
+		return;
+	}
+
+	if (state->rdata_len == 0) {
+		state->np_transport->cli = NULL;
+		async_req_nterror(req, NT_STATUS_PIPE_BROKEN);
+		return;
+	}
+
 	async_req_done(req);
 }
 
@@ -286,10 +402,20 @@ struct async_req *rpc_transport_np_init_send(TALLOC_CTX *mem_ctx,
 {
 	struct async_req *result, *subreq;
 	struct rpc_transport_np_init_state *state;
+	bool ok;
 
 	if (!async_req_setup(mem_ctx, &result, &state,
 			     struct rpc_transport_np_init_state)) {
 		return NULL;
+	}
+
+	ok = cli_state_is_connected(cli);
+	if (!ok) {
+		ok = async_post_ntstatus(result, ev, NT_STATUS_CONNECTION_INVALID);
+		if (!ok) {
+			goto fail;
+		}
+		return result;
 	}
 
 	state->transport = talloc(state, struct rpc_cli_transport);
@@ -361,6 +487,8 @@ NTSTATUS rpc_transport_np_init_recv(struct async_req *req,
 	state->transport->read_recv = rpc_np_read_recv;
 	state->transport->trans_send = rpc_np_trans_send;
 	state->transport->trans_recv = rpc_np_trans_recv;
+	state->transport->is_connected = rpc_np_is_connected;
+	state->transport->set_timeout = rpc_np_set_timeout;
 
 	*presult = talloc_move(mem_ctx, &state->transport);
 	return NT_STATUS_OK;

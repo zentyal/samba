@@ -1481,8 +1481,11 @@ bool convert_devicemode(const char *printername,
 			return false;
 	}
 
-	rpcstr_push(nt_devmode->devicename, devmode->devicename, 31, 0);
-	rpcstr_push(nt_devmode->formname, devmode->formname, 31, 0);
+	fstrcpy(nt_devmode->devicename, devmode->devicename);
+	fstrcpy(nt_devmode->formname, devmode->formname);
+
+	nt_devmode->devicename[31] = '\0';
+	nt_devmode->formname[31] = '\0';
 
 	nt_devmode->specversion		= devmode->specversion;
 	nt_devmode->driverversion	= devmode->driverversion;
@@ -2487,6 +2490,8 @@ static WERROR getprinterdata_printer_server(TALLOC_CTX *mem_ctx,
 		return WERR_OK;
 	}
 
+	*type = REG_NONE;
+
 	return WERR_INVALID_PARAM;
 }
 
@@ -2497,92 +2502,17 @@ static WERROR getprinterdata_printer_server(TALLOC_CTX *mem_ctx,
 WERROR _spoolss_GetPrinterData(pipes_struct *p,
 			       struct spoolss_GetPrinterData *r)
 {
-	WERROR result;
-	Printer_entry *Printer = find_printer_index_by_hnd(p, r->in.handle);
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	int snum = 0;
+	struct spoolss_GetPrinterDataEx r2;
 
-	/*
-	 * Reminder: when it's a string, the length is in BYTES
-	 * even if UNICODE is negociated.
-	 *
-	 * JFM, 4/19/1999
-	 */
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
+	r2.in.offered		= r->in.offered;
+	r2.out.type		= r->out.type;
+	r2.out.data		= r->out.data;
+	r2.out.needed		= r->out.needed;
 
-	/* in case of problem, return some default values */
-
-	*r->out.needed	= 0;
-	*r->out.type	= 0;
-
-	DEBUG(4,("_spoolss_GetPrinterData\n"));
-
-	if (!Printer) {
-		DEBUG(2,("_spoolss_GetPrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		result = WERR_BADFID;
-		goto done;
-	}
-
-	if (Printer->printer_type == SPLHND_SERVER) {
-		result = getprinterdata_printer_server(p->mem_ctx,
-						       r->in.value_name,
-						       r->out.type,
-						       r->out.data);
-	} else {
-		if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-			result = WERR_BADFID;
-			goto done;
-		}
-
-		result = get_a_printer(Printer, &printer, 2, lp_servicename(snum));
-		if (!W_ERROR_IS_OK(result)) {
-			goto done;
-		}
-
-		/* XP sends this and wants to change id value from the PRINTER_INFO_0 */
-
-		if (strequal(r->in.value_name, "ChangeId")) {
-			*r->out.type = REG_DWORD;
-			r->out.data->value = printer->info_2->changeid;
-			result = WERR_OK;
-		} else {
-			REGISTRY_VALUE *v;
-			DATA_BLOB blob;
-
-			v = get_printer_data(printer->info_2,
-					     SPOOL_PRINTERDATA_KEY,
-					     r->in.value_name);
-			if (!v) {
-				result = WERR_BADFILE;
-				goto done;
-			}
-
-			*r->out.type = v->type;
-
-			blob = data_blob_const(v->data_p, v->size);
-
-			result = pull_spoolss_PrinterData(p->mem_ctx, &blob,
-							  r->out.data,
-							  *r->out.type);
-		}
-	}
-
- done:
-	/* cleanup & exit */
-
-	if (printer) {
-		free_a_printer(&printer, 2);
-	}
-
-	if (!W_ERROR_IS_OK(result)) {
-		return result;
-	}
-
-	*r->out.needed	= ndr_size_spoolss_PrinterData(r->out.data, *r->out.type, NULL, 0);
-	*r->out.type	= SPOOLSS_BUFFER_OK(*r->out.type, REG_NONE);
-	r->out.data	= SPOOLSS_BUFFER_OK(r->out.data, r->out.data);
-
-	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
+	return _spoolss_GetPrinterDataEx(p, &r2);
 }
 
 /*********************************************************
@@ -8139,7 +8069,7 @@ WERROR _spoolss_EnumPrinterData(pipes_struct *p,
 				result = WERR_NOMEM;
 				goto done;
 			}
-			*r->out.value_needed = strlen_m(regval_name(val));
+			*r->out.value_needed = strlen_m_term(regval_name(val)) * 2;
 		} else {
 			r->out.value_name = NULL;
 			*r->out.value_needed = 0;
@@ -8177,81 +8107,16 @@ done:
 WERROR _spoolss_SetPrinterData(pipes_struct *p,
 			       struct spoolss_SetPrinterData *r)
 {
-	NT_PRINTER_INFO_LEVEL *printer = NULL;
-	int snum=0;
-	WERROR result = WERR_OK;
-	Printer_entry *Printer = find_printer_index_by_hnd(p, r->in.handle);
-	DATA_BLOB blob;
+	struct spoolss_SetPrinterDataEx r2;
 
-	DEBUG(5,("_spoolss_SetPrinterData\n"));
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
+	r2.in.type		= r->in.type;
+	r2.in.data		= r->in.data;
+	r2.in.offered		= r->in.offered;
 
-	if (!Printer) {
-		DEBUG(2,("_spoolss_SetPrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		return WERR_BADFID;
-	}
-
-	if (Printer->printer_type == SPLHND_SERVER) {
-		DEBUG(10,("_spoolss_SetPrinterData: "
-			"Not implemented for server handles yet\n"));
-		return WERR_INVALID_PARAM;
-	}
-
-	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
-	}
-
-	/*
-	 * Access check : NT returns "access denied" if you make a
-	 * SetPrinterData call without the necessary privildge.
-	 * we were originally returning OK if nothing changed
-	 * which made Win2k issue **a lot** of SetPrinterData
-	 * when connecting to a printer  --jerry
-	 */
-
-	if (Printer->access_granted != PRINTER_ACCESS_ADMINISTER) {
-		DEBUG(3,("_spoolss_SetPrinterData: "
-			"change denied by handle access permissions\n"));
-		result = WERR_ACCESS_DENIED;
-		goto done;
-	}
-
-	result = get_a_printer(Printer, &printer, 2, lp_const_servicename(snum));
-	if (!W_ERROR_IS_OK(result)) {
-		return result;
-	}
-
-	result = push_spoolss_PrinterData(p->mem_ctx, &blob,
-					  r->in.type, &r->in.data);
-	if (!W_ERROR_IS_OK(result)) {
-		goto done;
-	}
-
-	/*
-	 * When client side code sets a magic printer data key, detect it and save
-	 * the current printer data and the magic key's data (its the DEVMODE) for
-	 * future printer/driver initializations.
-	 */
-	if ((r->in.type == REG_BINARY) && strequal(r->in.value_name, PHANTOM_DEVMODE_KEY)) {
-		/* Set devmode and printer initialization info */
-		result = save_driver_init(printer, 2, blob.data, blob.length);
-
-		srv_spoolss_reset_printerdata(printer->info_2->drivername);
-
-		goto done;
-	}
-
-	result = set_printer_dataex(printer, SPOOL_PRINTERDATA_KEY,
-				    r->in.value_name, r->in.type,
-				    blob.data, blob.length);
-	if (W_ERROR_IS_OK(result)) {
-		result = mod_a_printer(printer, 2);
-	}
-
-done:
-	free_a_printer(&printer, 2);
-
-	return result;
+	return _spoolss_SetPrinterDataEx(p, &r2);
 }
 
 /****************************************************************
@@ -8293,46 +8158,13 @@ WERROR _spoolss_ResetPrinter(pipes_struct *p,
 WERROR _spoolss_DeletePrinterData(pipes_struct *p,
 				  struct spoolss_DeletePrinterData *r)
 {
-	NT_PRINTER_INFO_LEVEL 	*printer = NULL;
-	int 		snum=0;
-	WERROR 		status = WERR_OK;
-	Printer_entry 	*Printer = find_printer_index_by_hnd(p, r->in.handle);
+	struct spoolss_DeletePrinterDataEx r2;
 
-	DEBUG(5,("_spoolss_DeletePrinterData\n"));
+	r2.in.handle		= r->in.handle;
+	r2.in.key_name		= "PrinterDriverData";
+	r2.in.value_name	= r->in.value_name;
 
-	if (!Printer) {
-		DEBUG(2,("_spoolss_DeletePrinterData: Invalid handle (%s:%u:%u).\n",
-			OUR_HANDLE(r->in.handle)));
-		return WERR_BADFID;
-	}
-
-	if (!get_printer_snum(p, r->in.handle, &snum, NULL))
-		return WERR_BADFID;
-
-	if (Printer->access_granted != PRINTER_ACCESS_ADMINISTER) {
-		DEBUG(3, ("_spoolss_DeletePrinterData: "
-			"printer properties change denied by handle\n"));
-		return WERR_ACCESS_DENIED;
-	}
-
-	status = get_a_printer(Printer, &printer, 2, lp_const_servicename(snum));
-	if (!W_ERROR_IS_OK(status))
-		return status;
-
-	if (!r->in.value_name) {
-		free_a_printer(&printer, 2);
-		return WERR_NOMEM;
-	}
-
-	status = delete_printer_dataex( printer, SPOOL_PRINTERDATA_KEY,
-					r->in.value_name );
-
-	if ( W_ERROR_IS_OK(status) )
-		mod_a_printer( printer, 2 );
-
-	free_a_printer(&printer, 2);
-
-	return status;
+	return _spoolss_DeletePrinterDataEx(p, &r2);
 }
 
 /****************************************************************
@@ -9096,9 +8928,6 @@ WERROR _spoolss_GetJob(pipes_struct *p,
 
 /****************************************************************
  _spoolss_GetPrinterDataEx
-
- From MSDN documentation of GetPrinterDataEx: pass request
- to GetPrinterData if key is "PrinterDriverData".
 ****************************************************************/
 
 WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
@@ -9110,6 +8939,7 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	NT_PRINTER_INFO_LEVEL 	*printer = NULL;
 	int 			snum = 0;
 	WERROR result = WERR_OK;
+	DATA_BLOB blob;
 
 	DEBUG(4,("_spoolss_GetPrinterDataEx\n"));
 
@@ -9131,14 +8961,35 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	/* Is the handle to a printer or to the server? */
 
 	if (Printer->printer_type == SPLHND_SERVER) {
-		DEBUG(10,("_spoolss_GetPrinterDataEx: "
-			"Not implemented for server handles yet\n"));
-		result = WERR_INVALID_PARAM;
-		goto done;
+
+		union spoolss_PrinterData data;
+
+		result = getprinterdata_printer_server(p->mem_ctx,
+						       r->in.value_name,
+						       r->out.type,
+						       &data);
+		if (!W_ERROR_IS_OK(result)) {
+			goto done;
+		}
+
+		result = push_spoolss_PrinterData(p->mem_ctx, &blob,
+						  *r->out.type, &data);
+		if (!W_ERROR_IS_OK(result)) {
+			goto done;
+		}
+
+		*r->out.needed = blob.length;
+
+		if (r->in.offered >= *r->out.needed) {
+			memcpy(r->out.data, blob.data, blob.length);
+		}
+
+		return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
 	}
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto done;
 	}
 
 	result = get_a_printer(Printer, &printer, 2, lp_servicename(snum));
@@ -9152,14 +9003,25 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 		goto done;
 	}
 
+	/* XP sends this and wants to change id value from the PRINTER_INFO_0 */
+
+	if (strequal(r->in.key_name, SPOOL_PRINTERDATA_KEY) &&
+	    strequal(r->in.value_name, "ChangeId")) {
+		*r->out.type = REG_DWORD;
+		*r->out.needed = 4;
+		if (r->in.offered >= *r->out.needed) {
+			SIVAL(r->out.data, 0, printer->info_2->changeid);
+			result = WERR_OK;
+		}
+		goto done;
+	}
+
 	if (lookup_printerkey(printer->info_2->data, r->in.key_name) == -1) {
 		DEBUG(4,("_spoolss_GetPrinterDataEx: "
 			"Invalid keyname [%s]\n", r->in.key_name ));
 		result = WERR_BADFILE;
 		goto done;
 	}
-
-	/* When given a new keyname, we should just create it */
 
 	val = get_printer_data(printer->info_2,
 			       r->in.key_name, r->in.value_name);
@@ -9169,22 +9031,24 @@ WERROR _spoolss_GetPrinterDataEx(pipes_struct *p,
 	}
 
 	*r->out.needed = regval_size(val);
-
-	if (*r->out.needed > r->in.offered) {
-		result = WERR_MORE_DATA;
-		goto done;
-	}
-
 	*r->out.type = regval_type(val);
 
-	memcpy(r->out.buffer, regval_data_p(val), regval_size(val));
-
+	if (r->in.offered >= *r->out.needed) {
+		memcpy(r->out.data, regval_data_p(val), regval_size(val));
+	}
  done:
 	if (printer) {
 		free_a_printer(&printer, 2);
 	}
 
-	return result;
+	if (!W_ERROR_IS_OK(result)) {
+		return result;
+	}
+
+	*r->out.type    = SPOOLSS_BUFFER_OK(*r->out.type, REG_NONE);
+	r->out.data     = SPOOLSS_BUFFER_OK(r->out.data, r->out.data);
+
+	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_MORE_DATA);
 }
 
 /****************************************************************
@@ -9248,10 +9112,24 @@ WERROR _spoolss_SetPrinterDataEx(pipes_struct *p,
 		oid_string++;
 	}
 
+	/*
+	 * When client side code sets a magic printer data key, detect it and save
+	 * the current printer data and the magic key's data (its the DEVMODE) for
+	 * future printer/driver initializations.
+	 */
+	if ((r->in.type == REG_BINARY) && strequal(r->in.value_name, PHANTOM_DEVMODE_KEY)) {
+		/* Set devmode and printer initialization info */
+		result = save_driver_init(printer, 2, r->in.data, r->in.offered);
+
+		srv_spoolss_reset_printerdata(printer->info_2->drivername);
+
+		goto done;
+	}
+
 	/* save the registry data */
 
 	result = set_printer_dataex(printer, r->in.key_name, r->in.value_name,
-				    r->in.type, r->in.buffer, r->in.offered);
+				    r->in.type, r->in.data, r->in.offered);
 
 	if (W_ERROR_IS_OK(result)) {
 		/* save the OID if one was specified */
@@ -9489,9 +9367,7 @@ static WERROR registry_value_to_printer_enum_value(TALLOC_CTX *mem_ctx,
 						   REGISTRY_VALUE *v,
 						   struct spoolss_PrinterEnumValues *r)
 {
-	WERROR result;
-
-	r->data = TALLOC_ZERO_P(mem_ctx, union spoolss_PrinterData);
+	r->data = TALLOC_ZERO_P(mem_ctx, DATA_BLOB);
 	W_ERROR_HAVE_NO_MEMORY(r->data);
 
 	r->value_name	= talloc_strdup(mem_ctx, regval_name(v));
@@ -9501,14 +9377,7 @@ static WERROR registry_value_to_printer_enum_value(TALLOC_CTX *mem_ctx,
 	r->data_length	= regval_size(v);
 
 	if (r->data_length) {
-		DATA_BLOB blob = data_blob_const(regval_data_p(v),
-						 regval_size(v));
-		result = pull_spoolss_PrinterData(mem_ctx, &blob,
-						  r->data,
-						  r->type);
-		if (!W_ERROR_IS_OK(result)) {
-			return result;
-		}
+		*r->data = data_blob_talloc(r->data, regval_data_p(v), regval_size(v));
 	}
 
 	return WERR_OK;

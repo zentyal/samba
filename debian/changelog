@@ -2,6 +2,8 @@ samba (2:3.4.8~dfsg-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * New upstream release
+  * Bugs fixed upstream:
+    - Fix writing with vfs_full_audit. Closes: #574011
   * Drop deprecated 'share modes' parameter from default smb.conf
     Closes: #580561
   * Enable PIE during configure. Closes: #509135

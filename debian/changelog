@@ -1,4 +1,4 @@
-samba (2:3.4.8~dfsg-1) UNRELEASED; urgency=low
+samba (2:3.4.8~dfsg-1) unstable; urgency=low
 
   [ Christian Perrier ]
   * New upstream release
@@ -15,7 +15,7 @@ samba (2:3.4.8~dfsg-1) UNRELEASED; urgency=low
   [ Debconf translations ]  
   * Spanish (Omar Campagne).  Closes: #579011
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 24 Apr 2010 20:07:56 +0200
+ -- Christian Perrier <bubulle@debian.org>  Wed, 12 May 2010 05:45:52 +0200
 
 samba (2:3.4.7~dfsg-2) unstable; urgency=low
 

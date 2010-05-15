@@ -1,3 +1,10 @@
+samba (2:3.4.8~dfsg-2) UNRELEASED; urgency=low
+
+  * Drop the per-release smb.conf templates, only needed for upgrade paths
+    that are no longer supported.
+
+ -- Steve Langasek <vorlon@debian.org>  Sat, 15 May 2010 13:23:30 -0700
+
 samba (2:3.4.8~dfsg-1) unstable; urgency=low
 
   [ Christian Perrier ]

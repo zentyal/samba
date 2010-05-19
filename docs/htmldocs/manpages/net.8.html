@@ -506,8 +506,17 @@ Note that you also need to use standard net parameters to connect and authentica
 	net dom renamecomputer -S xp -U XP\\administrator%secret newname=XPNEW account=MYDOM\\administrator password=topsecret reboot.
 </p><p>
 This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret. After successful rename, the computer would reboot.
-</p></div></div><div class="refsect2" lang="en"><a name="id2534906"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2534918"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
-	suite.</p></div><div class="refsect1" lang="en"><a name="id2534928"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
+</p></div></div><div class="refsect2" lang="en"><a name="id2534906"></a><h3>G_LOCK</h3><p>Manage global locks.</p><div class="refsect3" lang="en"><a name="id2534915"></a><h4>G_LOCK DO <em class="replaceable"><code>lockname</code></em> <em class="replaceable"><code>timeout</code></em> <em class="replaceable"><code>command</code></em></h4><p>
+Execute a shell command under a global lock. This might be useful to define the
+order in which serveral shell commands will be executed. The locking information
+is stored in a file called <code class="filename">g_lock.tdb</code>. In setups with CTDB
+running, the locking information will be available on all cluster nodes.
+</p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>LOCKNAME</code></em> defines the name of the global lock.</p></li><li><p><em class="replaceable"><code>TIMEOUT</code></em> defines the timeout.</p></li><li><p><em class="replaceable"><code>COMMAND</code></em> defines the shell command to execute.</p></li></ul></div></div><div class="refsect3" lang="en"><a name="id2534967"></a><h4>G_LOCK LOCKS</h4><p>
+Print a list of all currently existing locknames.
+</p></div><div class="refsect3" lang="en"><a name="id2534978"></a><h4>G_LOCK DUMP <em class="replaceable"><code>lockname</code></em></h4><p>
+Dump the locking table of a certain global lock.
+</p></div></div><div class="refsect2" lang="en"><a name="id2534991"></a><h3>HELP [COMMAND]</h3><p>Gives usage information for the specified command.</p></div></div><div class="refsect1" lang="en"><a name="id2535003"></a><h2>VERSION</h2><p>This man page is complete for version 3 of the Samba 
+	suite.</p></div><div class="refsect1" lang="en"><a name="id2535014"></a><h2>AUTHOR</h2><p>The original Samba software and related utilities 
 	were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar 
 	to the way the Linux kernel is developed.</p><p>The net manpage was written by Jelmer Vernooij.</p></div></div></body></html>

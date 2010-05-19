@@ -28,12 +28,7 @@
         <code class="filename">libnss_winbind</code> library has been correctly
         installed, or an alternate source of names configured, this should always succeed.
 	</p><p>The following nsswitch databases are implemented by
-	the winbindd service: </p><div class="variablelist"><dl><dt><span class="term">-D</span></dt><dd><p>If specified, this parameter causes
-		the server to operate as a daemon. That is, it detaches
-		itself and runs in the background on the appropriate port. 
-		This switch is assumed if <code class="literal">winbindd</code> is 
-		executed on the command line of a shell.
-		</p></dd><dt><span class="term">hosts</span></dt><dd><p>This feature is only available on IRIX.
+	the winbindd service: </p><div class="variablelist"><dl><dt><span class="term">hosts</span></dt><dd><p>This feature is only available on IRIX.
 		User information traditionally stored in
 		the <code class="filename">hosts(5)</code> file and used by
 		<code class="literal">gethostbyname(3)</code> functions. Names are
@@ -60,7 +55,12 @@ hosts:          files dns wins
 	resolve hostnames from <code class="filename">/etc/hosts</code> and then from the
 	WINS server.</p><pre class="programlisting">
 hosts:		files wins
-</pre></div><div class="refsect1" lang="en"><a name="id2481543"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-F</span></dt><dd><p>If specified, this parameter causes
+</pre></div><div class="refsect1" lang="en"><a name="id2481522"></a><h2>OPTIONS</h2><div class="variablelist"><dl><dt><span class="term">-D</span></dt><dd><p>If specified, this parameter causes
+		the server to operate as a daemon. That is, it detaches
+		itself and runs in the background on the appropriate port.
+		This switch is assumed if <code class="literal">winbindd</code> is
+		executed on the command line of a shell.
+		</p></dd><dt><span class="term">-F</span></dt><dd><p>If specified, this parameter causes
 		the main <code class="literal">winbindd</code> process to not daemonize,
 		i.e. double-fork and disassociate with the terminal.
 		Child processes are still created as normal to service

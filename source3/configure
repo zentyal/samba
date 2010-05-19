@@ -12545,14 +12545,13 @@ else
 fi
 
 
-LD=ld
-{ $as_echo "$as_me:$LINENO: checking if the linker ($LD) is GNU ld" >&5
-$as_echo_n "checking if the linker ($LD) is GNU ld... " >&6; }
+{ $as_echo "$as_me:$LINENO: checking if the linker used by compiler is GNU ld" >&5
+$as_echo_n "checking if the linker used by compiler is GNU ld... " >&6; }
 if test "${ac_cv_prog_gnu_ld+set}" = set; then
   $as_echo_n "(cached) " >&6
 else
   # I'd rather use --version here, but apparently some GNU ld's only accept -v.
-if $LD -v 2>&1 </dev/null | egrep '(GNU|with BFD)' 1>&5; then
+if $CC -Wl,-v /dev/null 2>&1 </dev/null | egrep '(GNU|with BFD)' 1>&5; then
   ac_cv_prog_gnu_ld=yes
 else
   ac_cv_prog_gnu_ld=no
@@ -12563,7 +12562,7 @@ $as_echo "$ac_cv_prog_gnu_ld" >&6; }
 
 
 if test "$ac_cv_prog_gnu_ld" = "yes"; then
-	ac_cv_gnu_ld_version=`$LD -v 2>/dev/null | head -1`
+	ac_cv_gnu_ld_version=`$CC -Wl,-v /dev/null 2>/dev/null | head -1`
 	{ $as_echo "$as_me:$LINENO: checking GNU ld release date" >&5
 $as_echo_n "checking GNU ld release date... " >&6; }
 		ac_cv_gnu_ld_date=`echo $ac_cv_gnu_ld_version | sed -n 's,^.*\([2-9][0-9][0-9][0-9]\)[-]*\([01][0-9]\)[-]*\([0-3][0-9]\).*$,\1\2\3,p'`
@@ -29840,6 +29839,144 @@ _ACEOF
 fi
 fi
 
+{ $as_echo "$as_me:$LINENO: checking for IPV6_V6ONLY support" >&5
+$as_echo_n "checking for IPV6_V6ONLY support... " >&6; }
+if test "${libreplace_cv_HAVE_IPV6_V6ONLY+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <stdlib.h> /* for NULL */
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
+#include <netinet/in.h>
+
+int
+main ()
+{
+
+#ifndef IPV6_V6ONLY
+#error no IPV6_V6ONLY
+#endif
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+		libreplace_cv_HAVE_IPV6_V6ONLY=yes
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+		libreplace_cv_HAVE_IPV6_V6ONLY=no
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $libreplace_cv_HAVE_IPV6_V6ONLY" >&5
+$as_echo "$libreplace_cv_HAVE_IPV6_V6ONLY" >&6; }
+if test x"$libreplace_cv_HAVE_IPV6_V6ONLY" != x"yes"; then
+      { $as_echo "$as_me:$LINENO: checking for IPV6_V6ONLY in linux/in6.h" >&5
+$as_echo_n "checking for IPV6_V6ONLY in linux/in6.h... " >&6; }
+if test "${libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+	#include <linux/in6.h>
+
+int
+main ()
+{
+
+	#if (IPV6_V6ONLY != 26)
+	#error no linux IPV6_V6ONLY
+	#endif
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+		libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26=yes
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+		libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26=no
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26" >&5
+$as_echo "$libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26" >&6; }
+	if test x"$libreplace_cv_HAVE_LINUX_IPV6_V6ONLY_26" = x"yes"; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LINUX_IPV6_V6ONLY_26 1
+_ACEOF
+
+	fi
+fi
+
 { $as_echo "$as_me:$LINENO: checking for ipv6 support" >&5
 $as_echo_n "checking for ipv6 support... " >&6; }
 if test "${libreplace_cv_HAVE_IPV6+set}" = set; then
@@ -29873,6 +30010,14 @@ if (ret != 0) {
 	const char *es = gai_strerror(ret);
 }
 freeaddrinfo(ai);
+{
+	int val = 1;
+	#ifdef HAVE_LINUX_IPV6_V6ONLY_26
+	#define IPV6_V6ONLY 26
+	#endif
+	ret = setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+			 (const void *)&val, sizeof(val));
+}
 
   ;
   return 0;
@@ -51507,19 +51652,24 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 			BLDSHARED="true"
-			LDSHFLAGS="-G"
-			SONAMEFLAG="-h "
 			if test "${GCC}" = "yes"; then
 				PICFLAG="-fPIC"
 				SONAMEFLAG="-Wl,-soname="
 				if test "${ac_cv_prog_gnu_ld}" = "yes"; then
 					DYNEXP="-Wl,-E"
 				fi
+				# TODO: need to add $CFLAGS here for explicit 64-bit builds?
+				LDSHFLAGS="-shared"
 			else
 				PICFLAG="-KPIC"
 				## ${CFLAGS} added for building 64-bit shared
 				## libs using Sun's Compiler
 				LDSHFLAGS="-G \${CFLAGS}"
+			fi
+			if test "$ac_cv_prog_gnu_ld" = "yes"; then
+				SONAMEFLAG="-Wl,-soname="
+			else
+				SONAMEFLAG="-Wl,-h,"
 			fi
 
 cat >>confdefs.h <<\_ACEOF

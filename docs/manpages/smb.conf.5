@@ -1,12 +1,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 03/30/2010
+.\"      Date: 05/17/2010
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 3.5
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "03/30/2010" "Samba 3\&.5" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "05/17/2010" "Samba 3\&.5" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * (re)Define some macros
 .\" -----------------------------------------------------------------
@@ -10976,8 +10976,6 @@ and
 .\}
 \fI<sfu | rfc2307 >\fR
 \- When Samba is running in security = ads and your Active Directory Domain Controller does support the Microsoft "Services for Unix" (SFU) LDAP schema, winbind can retrieve the login shell and the home directory attributes directly from your Directory Server\&. Note that retrieving UID and GID from your ADS\-Server requires to use
-\fIidmap backend\fR
-= ad or
 \fIidmap config DOMAIN:backend\fR
 = ad as well\&.
 .sp
@@ -10987,7 +10985,7 @@ Default:
 \fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCtemplate\F[]\fR\fI \fR
 .sp
 Example:
-\fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCtemplate sfu\F[]\fR\fI \fR
+\fI\fIwinbind nss info\fR\fR\fI = \fR\fI\FCsfu\F[]\fR\fI \fR
 .RE
 
 winbind offline logon (G)

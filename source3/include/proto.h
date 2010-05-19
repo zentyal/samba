@@ -4777,6 +4777,7 @@ void load_printers(void);
 bool parse_lpq_entry(enum printing_types printing_type,char *line,
 		     print_queue_struct *buf,
 		     print_status_struct *status,bool first);
+uint32_t print_parse_jobid(const char *fname);
 
 /* The following definitions come from printing/notify.c  */
 
@@ -6481,6 +6482,7 @@ NTSTATUS resolve_dfspath_wcard(TALLOC_CTX *ctx,
 				connection_struct *conn,
 				bool dfs_pathnames,
 				const char *name_in,
+				bool allow_wcards,
 				char **pp_name_out,
 				bool *ppath_contains_wcard);
 NTSTATUS create_conn_struct(TALLOC_CTX *ctx,

@@ -6481,31 +6481,30 @@ winbind normalize names (G)
 
 winbind nss info (G)
 </h3></div></div></div><a class="indexterm" name="id2566096"></a><a name="WINBINDNSSINFO"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control how Winbind retrieves Name
-	Service Information to construct a user's home directory and login shell. 
-	Currently the following settings are available: 
+	Service Information to construct a user's home directory and login shell.
+	Currently the following settings are available:
 
-	</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>template</code></em> 
-			- The default, using the parameters of <em class="parameter"><code>template 
+	</p><div class="itemizedlist"><ul type="disc"><li><p><em class="parameter"><code>template</code></em>
+			- The default, using the parameters of <em class="parameter"><code>template
 			shell</code></em> and <em class="parameter"><code>template homedir</code></em>)
 			</p></li><li><p><em class="parameter"><code>&lt;sfu | rfc2307 &gt;</code></em>
 			- When Samba is running in security = ads and your Active Directory
 			Domain Controller does support the Microsoft "Services for Unix" (SFU)
 			LDAP schema, winbind can retrieve the login shell and the home
 			directory attributes directly from your Directory Server. Note that
-			retrieving UID and GID from your ADS-Server requires to 
-			use <em class="parameter"><code>idmap backend</code></em> = ad 
-			or <em class="parameter"><code>idmap config DOMAIN:backend</code></em> = ad 
+			retrieving UID and GID from your ADS-Server requires to
+			use <em class="parameter"><code>idmap config DOMAIN:backend</code></em> = ad
 			as well.
 			</p></li></ul></div><p>
 
 </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind nss info</code></em> = <code class="literal">template</code>
 </em></span>
-</p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind nss info</code></em> = <code class="literal">template sfu</code>
+</p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind nss info</code></em> = <code class="literal">sfu</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566215"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566209"></a>
 
 winbind offline logon (G)
-</h3></div></div></div><a class="indexterm" name="id2566216"></a><a name="WINBINDOFFLINELOGON"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should
+</h3></div></div></div><a class="indexterm" name="id2566210"></a><a name="WINBINDOFFLINELOGON"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should
 	allow to login with the <em class="parameter"><code>pam_winbind</code></em> 
 	module using Cached Credentials. If enabled, winbindd will store user credentials
 	from successful logins encrypted in a local cache.
@@ -6513,37 +6512,37 @@ winbind offline logon (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind offline logon</code></em> = <code class="literal">true</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566284"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566278"></a>
 
 winbind reconnect delay (G)
-</h3></div></div></div><a class="indexterm" name="id2566285"></a><a name="WINBINDRECONNECTDELAY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of
+</h3></div></div></div><a class="indexterm" name="id2566279"></a><a name="WINBINDRECONNECTDELAY"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies the number of
 	seconds the <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon will wait between
 	attempts to contact a Domain controller for a domain that is
 	determined to be down or not contactable.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind reconnect delay</code></em> = <code class="literal">30</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566337"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566331"></a>
 
 winbind refresh tickets (G)
-</h3></div></div></div><a class="indexterm" name="id2566338"></a><a name="WINBINDREFRESHTICKETS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should refresh Kerberos Tickets
+</h3></div></div></div><a class="indexterm" name="id2566332"></a><a name="WINBINDREFRESHTICKETS"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is designed to control whether Winbind should refresh Kerberos Tickets
 	retrieved using the <em class="parameter"><code>pam_winbind</code></em> module.
 
 </p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind refresh tickets</code></em> = <code class="literal">false</code>
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind refresh tickets</code></em> = <code class="literal">true</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566404"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566398"></a>
 
 winbind rpc only (G)
-</h3></div></div></div><a class="indexterm" name="id2566405"></a><a name="WINBINDRPCONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2566399"></a><a name="WINBINDRPCONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	Setting this parameter to <code class="literal">yes</code> forces 
 	winbindd to use RPC instead of LDAP to retrieve information from Domain
         Controllers.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind rpc only</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566453"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566447"></a>
 
 winbind separator (G)
-</h3></div></div></div><a class="indexterm" name="id2566454"></a><a name="WINBINDSEPARATOR"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter allows an admin to define the character 
+</h3></div></div></div><a class="indexterm" name="id2566448"></a><a name="WINBINDSEPARATOR"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter allows an admin to define the character 
 	used when listing a username of the form of <em class="replaceable"><code>DOMAIN
 	</code></em>\<em class="replaceable"><code>user</code></em>.  This parameter 
 	is only applicable when using the <code class="filename">pam_winbind.so</code>
@@ -6554,10 +6553,10 @@ winbind separator (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind separator</code></em> = <code class="literal">+</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566540"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566534"></a>
 
 winbind trusted domains only (G)
-</h3></div></div></div><a class="indexterm" name="id2566541"></a><a name="WINBINDTRUSTEDDOMAINSONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2566535"></a><a name="WINBINDTRUSTEDDOMAINSONLY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This parameter is designed to allow Samba servers that are members 
 	of a Samba controlled domain to use UNIX accounts distributed via NIS, 
 	rsync, or LDAP as the uid's for winbindd users in the hosts primary domain.
@@ -6568,10 +6567,10 @@ winbind trusted domains only (G)
 	Refer to the <a class="citerefentry" href="idmap_nss.8.html"><span class="citerefentry"><span class="refentrytitle">idmap_nss</span>(8)</span></a> man page for more information.
 	</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>winbind trusted domains only</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566607"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566601"></a>
 
 winbind use default domain (G)
-</h3></div></div></div><a class="indexterm" name="id2566608"></a><a name="WINBINDUSEDEFAULTDOMAIN"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies whether the
+</h3></div></div></div><a class="indexterm" name="id2566602"></a><a name="WINBINDUSEDEFAULTDOMAIN"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter specifies whether the
 	 <a class="citerefentry" href="winbindd.8.html"><span class="citerefentry"><span class="refentrytitle">winbindd</span>(8)</span></a> daemon should operate on users  
 	without domain component in their username. Users without a domain
 	component are treated as is part of the winbindd server's own
@@ -6581,10 +6580,10 @@ winbind use default domain (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>winbind use default domain</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566680"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566674"></a>
 
 wins hook (G)
-</h3></div></div></div><a class="indexterm" name="id2566681"></a><a name="WINSHOOK"></a><div class="variablelist"><dl><dt></dt><dd><p>When Samba is running as a WINS server this 
+</h3></div></div></div><a class="indexterm" name="id2566675"></a><a name="WINSHOOK"></a><div class="variablelist"><dl><dt></dt><dd><p>When Samba is running as a WINS server this 
 	allows you to call an external program for all changes to the 
 	WINS database. The primary use for this option is to allow the 
 	dynamic update of external name resolution databases such as 
@@ -6605,17 +6604,17 @@ wins hook (G)
 			addresses currently registered for that name. If this list is 
 			empty then the name should be deleted.</p></li></ul></div><p>An example script that calls the BIND dynamic DNS update 
 	program <code class="literal">nsupdate</code> is provided in the examples 
-	directory of the Samba source code. </p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566786"></a>
+	directory of the Samba source code. </p><p><span class="emphasis"><em>No default</em></span></p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566781"></a>
 
 wins proxy (G)
-</h3></div></div></div><a class="indexterm" name="id2566788"></a><a name="WINSPROXY"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> will respond to broadcast name 
+</h3></div></div></div><a class="indexterm" name="id2566782"></a><a name="WINSPROXY"></a><div class="variablelist"><dl><dt></dt><dd><p>This is a boolean that controls if <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> will respond to broadcast name 
 	queries on behalf of  other hosts. You may need to set this 
 	to <code class="constant">yes</code> for some older clients.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>wins proxy</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566841"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566835"></a>
 
 wins server (G)
-</h3></div></div></div><a class="indexterm" name="id2566842"></a><a name="WINSSERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This specifies the IP address (or DNS name: IP 
+</h3></div></div></div><a class="indexterm" name="id2566836"></a><a name="WINSSERVER"></a><div class="variablelist"><dl><dt></dt><dd><p>This specifies the IP address (or DNS name: IP 
 	address for preference) of the WINS server that <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> should register with. If you have a WINS server on 
 	your network then you should set this to the WINS server's IP.</p><p>You should point this at your WINS server if you have a
 	multi-subnetted network.</p><p>If you want to work in multiple namespaces, you can 
@@ -6634,19 +6633,19 @@ wins server (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>wins server</code></em> = <code class="literal">192.9.200.1 192.168.2.61</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566952"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2566946"></a>
 
 wins support (G)
-</h3></div></div></div><a class="indexterm" name="id2566953"></a><a name="WINSSUPPORT"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean controls if the <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> process in Samba will act as a WINS server. You should 
+</h3></div></div></div><a class="indexterm" name="id2566947"></a><a name="WINSSUPPORT"></a><div class="variablelist"><dl><dt></dt><dd><p>This boolean controls if the <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a> process in Samba will act as a WINS server. You should 
 	not set this to <code class="constant">yes</code> unless you have a multi-subnetted network and 
 	you wish a particular <code class="literal">nmbd</code> to be your WINS server. 
 	Note that you should <span class="emphasis"><em>NEVER</em></span> set this to <code class="constant">yes</code>
 	on more than one machine in your network.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>wins support</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567022"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567016"></a>
 
 workgroup (G)
-</h3></div></div></div><a class="indexterm" name="id2567023"></a><a name="WORKGROUP"></a><div class="variablelist"><dl><dt></dt><dd><p>This controls what workgroup your server will 
+</h3></div></div></div><a class="indexterm" name="id2567017"></a><a name="WORKGROUP"></a><div class="variablelist"><dl><dt></dt><dd><p>This controls what workgroup your server will 
 	appear to be in when queried by clients. Note that this parameter 
 	also controls the Domain name used with 
 	the <a class="link" href="smb.conf.5.html#SECURITY" target="_top">security = domain</a>
@@ -6654,18 +6653,18 @@ workgroup (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>workgroup</code></em> = <code class="literal">MYGROUP</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567094"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567088"></a>
 
 <a name="WRITABLE"></a>writable
-</h3></div></div></div><a class="indexterm" name="id2567095"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#WRITEABLE">writeable</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567125"></a>
+</h3></div></div></div><a class="indexterm" name="id2567089"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter is a synonym for <a class="link" href="#WRITEABLE">writeable</a>.</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567120"></a>
 
 writeable (S)
-</h3></div></div></div><a class="indexterm" name="id2567126"></a><a name="WRITEABLE"></a><div class="variablelist"><dl><dt></dt><dd><p>Inverted synonym for <a class="link" href="smb.conf.5.html#READONLY" target="_top">read only</a>.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>writeable</code></em> = <code class="literal">no</code>
+</h3></div></div></div><a class="indexterm" name="id2567121"></a><a name="WRITEABLE"></a><div class="variablelist"><dl><dt></dt><dd><p>Inverted synonym for <a class="link" href="smb.conf.5.html#READONLY" target="_top">read only</a>.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>writeable</code></em> = <code class="literal">no</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567176"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567171"></a>
 
 write cache size (S)
-</h3></div></div></div><a class="indexterm" name="id2567178"></a><a name="WRITECACHESIZE"></a><div class="variablelist"><dl><dt></dt><dd><p>If this integer parameter is set to non-zero value,
+</h3></div></div></div><a class="indexterm" name="id2567172"></a><a name="WRITECACHESIZE"></a><div class="variablelist"><dl><dt></dt><dd><p>If this integer parameter is set to non-zero value,
     Samba will create an in-memory cache for each oplocked file 
     (it does <span class="emphasis"><em>not</em></span> do this for 
     non-oplocked files). All writes that the client does not request 
@@ -6683,10 +6682,10 @@ write cache size (S)
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>write cache size</code></em> = <code class="literal">262144
 #  for a 256k cache size per file</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567260"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567254"></a>
 
 write list (S)
-</h3></div></div></div><a class="indexterm" name="id2567261"></a><a name="WRITELIST"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2567255"></a><a name="WRITELIST"></a><div class="variablelist"><dl><dt></dt><dd><p>
     This is a list of users that are given read-write access to a service. If the 
     connecting user is in this list then they will be given write access, no matter 
     what the <a class="link" href="smb.conf.5.html#READONLY" target="_top">read only</a> option is set to. The list can 
@@ -6701,17 +6700,17 @@ write list (S)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>write list</code></em> = <code class="literal">admin, root, @staff</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567353"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567347"></a>
 
 write raw (G)
-</h3></div></div></div><a class="indexterm" name="id2567354"></a><a name="WRITERAW"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether or not the server 
+</h3></div></div></div><a class="indexterm" name="id2567348"></a><a name="WRITERAW"></a><div class="variablelist"><dl><dt></dt><dd><p>This parameter controls whether or not the server 
     will support raw write SMB's when transferring data from clients. 
     You should never need to change this parameter.</p><p>Default: <span class="emphasis"><em><em class="parameter"><code>write raw</code></em> = <code class="literal">yes</code>
 </em></span>
-</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567397"></a>
+</p></dd></dl></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="id2567391"></a>
 
 wtmp directory (G)
-</h3></div></div></div><a class="indexterm" name="id2567398"></a><a name="WTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>
+</h3></div></div></div><a class="indexterm" name="id2567392"></a><a name="WTMPDIRECTORY"></a><div class="variablelist"><dl><dt></dt><dd><p>
 	This parameter is only available if Samba has been configured and compiled with the option <code class="literal">
 	--with-utmp</code>. It specifies a directory pathname that is used to store the wtmp or wtmpx files (depending on 
 	the UNIX system) that record user connections to a Samba server. The difference with the utmp directory is the fact 
@@ -6723,7 +6722,7 @@ wtmp directory (G)
 </em></span>
 </p><p>Example: <span class="emphasis"><em><em class="parameter"><code>wtmp directory</code></em> = <code class="literal">/var/log/wtmp</code>
 </em></span>
-</p></dd></dl></div></div></div></div><div class="refsect1" lang="en"><a name="id2567481"></a><h2>WARNINGS</h2><p>
+</p></dd></dl></div></div></div></div><div class="refsect1" lang="en"><a name="id2567475"></a><h2>WARNINGS</h2><p>
 	Although the configuration file permits service names to contain spaces, your client software may not.
 	Spaces will be ignored in comparisons anyway, so it shouldn't be a problem - but be aware of the possibility.
 	</p><p>
@@ -6736,8 +6735,8 @@ wtmp directory (G)
 	for an administrator easy, but the various combinations of default attributes can be tricky. Take extreme
 	care when designing these sections. In particular, ensure that the permissions on spool directories are
 	correct.
-	</p></div><div class="refsect1" lang="en"><a name="id2567531"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2567542"></a><h2>SEE ALSO</h2><p>
-	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="smbpasswd.8.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(8)</span></a>, <a class="citerefentry" href="swat.8.html"><span class="citerefentry"><span class="refentrytitle">swat</span>(8)</span></a>, <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="smbclient.1.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(1)</span></a>, <a class="citerefentry" href="nmblookup.1.html"><span class="citerefentry"><span class="refentrytitle">nmblookup</span>(1)</span></a>, <a class="citerefentry" href="testparm.1.html"><span class="citerefentry"><span class="refentrytitle">testparm</span>(1)</span></a>, <a class="citerefentry" href="testprns.1.html"><span class="citerefentry"><span class="refentrytitle">testprns</span>(1)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2567621"></a><h2>AUTHOR</h2><p>
+	</p></div><div class="refsect1" lang="en"><a name="id2567525"></a><h2>VERSION</h2><p>This man page is correct for version 3 of the Samba suite.</p></div><div class="refsect1" lang="en"><a name="id2567536"></a><h2>SEE ALSO</h2><p>
+	<a class="citerefentry" href="samba.7.html"><span class="citerefentry"><span class="refentrytitle">samba</span>(7)</span></a>, <a class="citerefentry" href="smbpasswd.8.html"><span class="citerefentry"><span class="refentrytitle">smbpasswd</span>(8)</span></a>, <a class="citerefentry" href="swat.8.html"><span class="citerefentry"><span class="refentrytitle">swat</span>(8)</span></a>, <a class="citerefentry" href="smbd.8.html"><span class="citerefentry"><span class="refentrytitle">smbd</span>(8)</span></a>, <a class="citerefentry" href="nmbd.8.html"><span class="citerefentry"><span class="refentrytitle">nmbd</span>(8)</span></a>, <a class="citerefentry" href="smbclient.1.html"><span class="citerefentry"><span class="refentrytitle">smbclient</span>(1)</span></a>, <a class="citerefentry" href="nmblookup.1.html"><span class="citerefentry"><span class="refentrytitle">nmblookup</span>(1)</span></a>, <a class="citerefentry" href="testparm.1.html"><span class="citerefentry"><span class="refentrytitle">testparm</span>(1)</span></a>, <a class="citerefentry" href="testprns.1.html"><span class="citerefentry"><span class="refentrytitle">testprns</span>(1)</span></a>.</p></div><div class="refsect1" lang="en"><a name="id2567615"></a><h2>AUTHOR</h2><p>
 	The original Samba software and related utilities were created by Andrew Tridgell. Samba is now developed
 	by the Samba Team as an Open Source project similar to the way the Linux kernel is developed.
 	</p><p>

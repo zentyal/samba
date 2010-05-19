@@ -1430,6 +1430,9 @@
 /* Define to 1 if you have the <linux/inotify.h> header file. */
 #undef HAVE_LINUX_INOTIFY_H
 
+/* Whether the system has IPV6_V6ONLY in linux/in6.h */
+#undef HAVE_LINUX_IPV6_V6ONLY_26
+
 /* Whether the Linux ptrace(2) interface is available. */
 #undef HAVE_LINUX_PTRACE
 

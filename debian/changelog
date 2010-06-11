@@ -1,3 +1,9 @@
+samba (2:3.2.5-4lenny12) stable-security; urgency=low
+
+  * Security update, fix memory corruption vulnerability
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 11 Jun 2010 05:49:37 +0200
+
 samba (2:3.2.5-4lenny11) stable-proposed-updates; urgency=low
 
   * Fix memory leaks  regarding trustdom passwords. Closes: #538819

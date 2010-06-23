@@ -508,7 +508,7 @@ Note that you also need to use standard net parameters to connect and authentica
 This example would connect to a computer named XP as the local administrator using password secret, and rename the joined computer to XPNEW using the MYDOM domain administrator account and password topsecret. After successful rename, the computer would reboot.
 </p></div></div><div class="refsect2" lang="en"><a name="id2534906"></a><h3>G_LOCK</h3><p>Manage global locks.</p><div class="refsect3" lang="en"><a name="id2534915"></a><h4>G_LOCK DO <em class="replaceable"><code>lockname</code></em> <em class="replaceable"><code>timeout</code></em> <em class="replaceable"><code>command</code></em></h4><p>
 Execute a shell command under a global lock. This might be useful to define the
-order in which serveral shell commands will be executed. The locking information
+order in which several shell commands will be executed. The locking information
 is stored in a file called <code class="filename">g_lock.tdb</code>. In setups with CTDB
 running, the locking information will be available on all cluster nodes.
 </p><div class="itemizedlist"><ul type="disc"><li><p><em class="replaceable"><code>LOCKNAME</code></em> defines the name of the global lock.</p></li><li><p><em class="replaceable"><code>TIMEOUT</code></em> defines the timeout.</p></li><li><p><em class="replaceable"><code>COMMAND</code></em> defines the shell command to execute.</p></li></ul></div></div><div class="refsect3" lang="en"><a name="id2534967"></a><h4>G_LOCK LOCKS</h4><p>

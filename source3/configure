@@ -12974,6 +12974,90 @@ fi
 $as_echo "$samba_cv_HAVE_errwarn" >&6; }
 if test x"$samba_cv_HAVE_errwarn" = x"yes"; then
    Werror_FLAGS="-errwarn=%all"
+else
+{ $as_echo "$as_me:$LINENO: checking that the C compiler understands -qhalt" >&5
+$as_echo_n "checking that the C compiler understands -qhalt... " >&6; }
+if test "${samba_cv_HAVE_qhalt+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+
+	old_CFLAGS="$CFLAGS";
+	CFLAGS="$CFLAGS -qhalt=w";
+	export CFLAGS;
+	old_CPPFLAGS="$CPPFLAGS";
+	CPPFLAGS="$CPPFLAGS";
+	export CPPFLAGS;
+	old_LDFLAGS="$LDFLAGS";
+	LDFLAGS="$LDFLAGS";
+	export LDFLAGS;
+	if test "$cross_compiling" = yes; then
+  samba_cv_HAVE_qhalt=cross
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+   int main(void)
+   {
+	return 0;
+   }
+_ACEOF
+rm -f conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  samba_cv_HAVE_qhalt=yes
+else
+  $as_echo "$as_me: program exited with status $ac_status" >&5
+$as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+samba_cv_HAVE_qhalt=no
+fi
+rm -rf conftest.dSYM
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+
+
+	CFLAGS="$old_CFLAGS";
+	old_CFLAGS="";
+	export CFLAGS;
+	CPPFLAGS="$old_CPPFLAGS";
+	old_CPPFLAGS="";
+	export CPPFLAGS;
+	LDFLAGS="$old_LDFLAGS";
+	old_LDFLAGS="";
+	export LDFLAGS;
+
+fi
+{ $as_echo "$as_me:$LINENO: result: $samba_cv_HAVE_qhalt" >&5
+$as_echo "$samba_cv_HAVE_qhalt" >&6; }
+if test x"$samba_cv_HAVE_qhalt" = x"yes"; then
+   Werror_FLAGS="-qhalt=w"
+fi
 fi
 fi
 fi
@@ -51527,14 +51611,18 @@ else
 
 		cat > conftest.c <<EOF
 int foo;
-main () { return 0;}
+int main () { return 0;}
 EOF
-		if { ac_try='${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS -pie -fPIE -o conftest conftest.c 1>&5'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }
+		if
+	{ OUT=`(${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS -pie -fPIE -o conftest conftest.c) 3>&5 2>&1 1>&3`
+	RC=$?
+	echo "\$?=$RC" >&5
+	if test x"$OUT" != x ; then
+		echo "stderr:" >&5
+		echo "$OUT" >&5
+	fi
+	test $RC -eq 0 -a x"$OUT" = x ; }
+
 		then
 			samba_cv_fpie=yes
 		else
@@ -51658,13 +51746,10 @@ _ACEOF
 				if test "${ac_cv_prog_gnu_ld}" = "yes"; then
 					DYNEXP="-Wl,-E"
 				fi
-				# TODO: need to add $CFLAGS here for explicit 64-bit builds?
 				LDSHFLAGS="-shared"
 			else
 				PICFLAG="-KPIC"
-				## ${CFLAGS} added for building 64-bit shared
-				## libs using Sun's Compiler
-				LDSHFLAGS="-G \${CFLAGS}"
+				LDSHFLAGS="-G"
 			fi
 			if test "$ac_cv_prog_gnu_ld" = "yes"; then
 				SONAMEFLAG="-Wl,-soname="
@@ -51748,9 +51833,8 @@ _ACEOF
 			;;
 			esac
 			BLDSHARED="true"
-			LDSHFLAGS="-set_version sgi1.0 -shared"
-			SONAMEFLAG="-soname "
-			SHLD="\${LD}"
+			LDSHFLAGS="-Wl,-set_version,sgi1.0 -shared"
+			SONAMEFLAG="-Wl,-soname,"
 			if test "${GCC}" = "yes"; then
 				PICFLAG="-fPIC"
 			else
@@ -51777,7 +51861,7 @@ _ACEOF
 			# .po will just create compile warnings, use po.o:
 			if test "${GCC}" != "yes"; then
 				## for funky AIX compiler using strncpy()
-				CFLAGS="$CFLAGS -D_LINUX_SOURCE_COMPAT -qmaxmem=32000"
+				CFLAGS="$CFLAGS -D_LINUX_SOURCE_COMPAT -qmaxmem=32000 -qhalt=e"
 			fi
 
 
@@ -52026,6 +52110,7 @@ fi
 { $as_echo "$as_me:$LINENO: result: $BLDSHARED" >&5
 $as_echo "$BLDSHARED" >&6; }
 
+saved_before_as_needed_ldflags="$LDFLAGS"
 for flags in "-Wl,--as-needed" "-Wl,-z,ignore" "-z ignore" ; do
 	saved_ldflags="$LDFLAGS"
 	{ $as_echo "$as_me:$LINENO: checking if $flags works" >&5
@@ -52085,6 +52170,74 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
 	LDFLAGS="$LD_AS_NEEDED_FLAG $saved_ldflags"
 	test x"$ld_as_needed_flag_found" = xyes && break
 done
+
+# check if we have to disable LD_AS_NEEDED_FLAG:
+# On some systems for a veriety of reasons linking with
+# -Wl,--as-needed -lreadline -lncurses fails
+# we have to retest, if these combination is detected before.
+# Bugzilla #7209
+
+if test x$ac_cv_lib_readline_rl_callback_handler_install = xyes ; then
+	if test x$ld_as_needed_flag_found = xyes ; then
+		{ $as_echo "$as_me:$LINENO: checking if $LD_AS_NEEDED_FLAG works with readline" >&5
+$as_echo_n "checking if $LD_AS_NEEDED_FLAG works with readline... " >&6; }
+		# try if check no fails
+		save_LIBS=$LIBS
+		LIBS="$LIBS $TERMLIBS"
+		cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+int
+main ()
+{
+rl_callback_handler_install();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	 { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }; LDFLAGS="$saved_before_as_needed_ldflags"
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+		LIBS="$save_LIBS"
+        fi
+fi
+
+
 
 # for historical reasons almost all linkers don't complain about unresolved
 # symbols in shared libs. Except for the internal samba modules we want to get
@@ -52207,10 +52360,23 @@ else
    ac_cv_shlib_works=no
    # The $SHLD and $LDSHFLAGS variables may contain references to other
    # variables so they need to be eval'ed.
-   $CC $CPPFLAGS $CFLAGS $PICFLAG -c -o \
-	shlib.o ${srcdir-.}/../tests/shlib.c && \
-   `eval echo $SHLD` `eval echo $LDSHFLAGS` -o "shlib.$SHLIBEXT" \
-        shlib.o && ac_cv_shlib_works=yes
+   if { ac_try='$CC $CPPFLAGS $CFLAGS $PICFLAG -c -o shlib.o ${srcdir-.}/../tests/shlib.c 1>&5'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }
+   then
+     if { ac_try='`eval echo "$SHLD $LDSHFLAGS $PICFLAG"` -o "shlib.$SHLIBEXT" shlib.o 1>&5'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }
+     then
+       ac_cv_shlib_works=yes
+     fi
+   fi
    rm -f "shlib.$SHLIBEXT" shlib.o
 
 

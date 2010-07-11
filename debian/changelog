@@ -7,6 +7,8 @@ samba (2:3.4.8~dfsg-2) UNRELEASED; urgency=low
     using invoke-rc.d, to address the irony that the only package I work on
     that *has* a logrotate script is inconsistent with my position in
     bug #445203.
+  * Fix a bashism in the samba postinst that can cause the package
+    installation to fail under dash.  LP: #576307.
 
   [ Christian Perrier ]
   * Don't copy system accounts from /etc/passwd to

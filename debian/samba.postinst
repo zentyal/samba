@@ -111,7 +111,7 @@ then
 		IFS=","
 		for USER in `getent group admin | cut -f4 -d:`; do
 			adduser "$USER" sambashare \
-			|| !getent passwd "$USER" >/dev/null
+			|| ! getent passwd "$USER" >/dev/null
 		done
 		IFS="$OLDIFS"
 	fi

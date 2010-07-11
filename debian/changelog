@@ -3,13 +3,16 @@ samba (2:3.4.8~dfsg-2) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Drop the per-release smb.conf templates, only needed for upgrade paths
     that are no longer supported.
+  * Call /etc/init.d/samba directly from the logrotate script instead of
+    using invoke-rc.d, to address the irony that the only package I work on
+    that *has* a logrotate script is inconsistent with my position in
+    bug #445203.
 
   [ Christian Perrier ]
   * Don't copy system accounts from /etc/passwd to
     /var/lib/samba/passdb.tdb. Closes: #502801
   * Update Standards to 3.9.0 (checked, no change)
    
-
  -- Steve Langasek <vorlon@debian.org>  Sat, 15 May 2010 13:23:30 -0700
 
 samba (2:3.4.8~dfsg-1) unstable; urgency=low

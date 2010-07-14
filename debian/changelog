@@ -9,6 +9,9 @@ samba (2:3.4.8~dfsg-2) UNRELEASED; urgency=low
     bug #445203.
   * Fix a bashism in the samba postinst that can cause the package
     installation to fail under dash.  LP: #576307.
+  * Add symlink from /etc/dhcp/dhclient-enter-hooks.d to
+    /etc/dhcp3/dhclient-enter-hooks.d for the hook location of the new
+    isc-dhcp-client package.  Closes: #585056.
 
   [ Christian Perrier ]
   * Don't copy system accounts from /etc/passwd to

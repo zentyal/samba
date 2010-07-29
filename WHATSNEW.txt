@@ -1,0 +1,133 @@
+                   =================================
+                   Release Notes for Samba 3.6.0pre1
+			     July 28, 2010
+                   =================================
+
+
+This is the first preview release of Samba 3.6.  This is *not*
+intended for production environments and is designed for testing
+purposes only.  Please report any defects via the Samba bug reporting
+system at https://bugzilla.samba.org/.
+
+
+Major enhancements in Samba 3.6.0 include:
+
+
+SMB2 support
+------------
+
+SMB2 support in 3.6.0 is fully functional (with one ommission),
+and can be enabled by setting:
+
+max protocol = SMB2
+
+in the [global] section of your smb.conf and re-starting
+Samba. All features should work over SMB2 except the modification
+of user quotas using the Windows quota management tools.
+
+As this is the first release containing what we consider
+to be a fully featured SMB2 protocol, we are not enabling
+this by default, but encourage users to enable SMB2 and
+test it. Once we have enough confirmation from Samba
+users and OEMs that SMB2 support is stable in wide user
+testing we will enable SMB2 by default in a future Samba
+release.
+
+
+Internal Winbind passdb changes
+-------------------------------
+
+Winbind has been changed to use the internal samr and lsa rpc pipe to get
+local user and group information instead of calling passdb functions. The
+reason is to use more of our infrastructure and test this infrastructure by
+using it. With this approach more code in Winbind is shared.
+
+
+New Spoolss code
+----------------
+
+The spoolss and the old RAP printing code have been completely
+overhauled and refactored.
+
+All calls from lanman/printing code has been changed to go through the
+spoolss RPC interfaces, this allows us to keep all checks in one place
+and avoid special cases in the main printing code.
+Printing code has been therefore confined within the spoolss code.
+
+All the printing code, including the spoolss RPC interfaces has been
+changed to use the winreg RPC interfaces to store all data.
+All data has been migrated from custom, arbitrary TDB files to the
+registry interface. This transition allow us to present correct data to
+windows client accessing the server registry through the winreg RPC
+interfaces to query for printer data. Data is served out from a real
+registry implementation and therefore arguably 100% forward compatible.
+
+Migration code from the previous TDB files formats is provided. This
+code is automatically invoked the first time the new code is run on the
+server. Although manual migration is also available using the 'net
+printer migrate' command.
+
+These changes not only make all the spoolss code much more closer to
+"the spec", it also greatly improves our internal testing of both
+spoolss and winreg interfaces, and reduces overall code duplication.
+
+As part of this work, new tests have been also added to increase
+coverage.
+
+This code will also allow, in future, an easy transition to split out
+the spooling functions into a separate daemon for those OEMs that do not
+need printing functionality in their appliances, reducing the code
+footprint.
+
+
+SMB Traffic Analyzer
+--------------------
+
+Added the new SMB Traffic Analyzer (SMBTA) VFS module protocol 2
+featuring encryption, multiple arguments, and easier parseability. A new
+tool 'smbta-util' has been created to control the encryption behaviour
+of SMBTA. For compatibility, SMBTA by default operates on version 1.
+There are programs consuming the data that the module sends.
+
+More information can be found on
+http://holger123.wordpress.com/smb-traffic-analyzer/
+
+
+######################################################################
+Changes
+#######
+
+smb.conf changes
+----------------
+
+   Parameter Name                      Description     Default
+   --------------                      -----------     -------
+
+   log writeable files on exit	       New	       No
+   ctdb locktime warn threshold	       New	       0
+   smb2 max read		       New	       1048576
+   smb2 max write		       New	       1048576
+   smb2 max trans		       New	       1048576
+   username map cache time	       New	       0
+   async smb echo handler	       New	       No
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.6 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+

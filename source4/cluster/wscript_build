@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+bld.SAMBA_SUBSYSTEM('CLUSTER',
+	source='cluster.c local.c',
+	deps='TDB_WRAP'
+	)
+

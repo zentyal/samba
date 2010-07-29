@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+
+bld.SAMBA_SUBSYSTEM('LIBEVENTS',
+	source='tevent_s4.c',
+	public_deps='tevent'
+	)
+

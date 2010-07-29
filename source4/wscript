@@ -1,0 +1,193 @@
+#! /usr/bin/env python
+
+srcdir = '..'
+blddir = 'bin'
+
+APPNAME='samba'
+VERSION=None
+
+import sys, os
+sys.path.insert(0, srcdir+"/buildtools/wafsamba")
+import wafsamba, Options, samba_dist, Scripting
+
+
+def load_version(have_git=False):
+    '''load samba versions either from ./VERSION or git
+    return a version object for detailed breakdown'''
+    import samba_utils, Utils
+    if not have_git:
+        env = samba_utils.LOAD_ENVIRONMENT()
+        have_git = 'GIT' in env
+    version = wafsamba.samba_version_file("./VERSION", have_git=have_git)
+    Utils.g_module.VERSION = version.STRING
+    return version
+
+
+samba_dist.DIST_DIRS('.')
+
+#This is a list of files that we don't want in the package, for
+#whatever reason.  Directories should be listed with a trailing / to
+#avoid over-exclusion.
+
+#This list includes files that would confuse the recipient of a
+#samba-4.0.0 branded tarball (until the merge is complete) and the
+#core elements of the autotools build system (which is known to
+#produce buggy binaries).
+samba_dist.DIST_BLACKLIST('README Manifest Read-Manifest-Now Roadmap source3/ ' +
+                          'packaging/ docs-xml/ examples/ swat/ WHATSNEW.txt MAINTAINERS ' +
+                          'source4/autogen-autotools.sh source4/Makefile.in source4/configure.ac')
+# install in /usr/local/samba by default
+Options.default_prefix = '/usr/local/samba'
+
+
+def set_options(opt):
+    opt.BUILTIN_DEFAULT('replace')
+    opt.BUNDLED_EXTENSION_DEFAULT('samba4')
+    opt.RECURSE('../lib/replace')
+    opt.RECURSE('dynconfig')
+    opt.RECURSE('scripting/python')
+    opt.RECURSE('lib/ldb')
+    opt.RECURSE('selftest')
+    opt.RECURSE('lib/tls')
+    opt.RECURSE('../lib/nss_wrapper')
+    opt.RECURSE('../lib/socket_wrapper')
+    opt.RECURSE('../lib/uid_wrapper')
+    opt.RECURSE('../pidl')
+
+    gr = opt.option_group('developer options')
+    gr.add_option('--enable-build-farm',
+                   help='enable special build farm options',
+                   action='store_true', dest='BUILD_FARM')
+
+
+def configure(conf):
+    version = load_version(have_git=True)
+
+    conf.DEFINE('PACKAGE_NAME', 'samba', quote=True)
+    conf.DEFINE('PACKAGE_STRING', 'Samba ' + version.STRING, quote=True)
+    conf.DEFINE('PACKAGE_TARNAME',  'samba', quote=True)
+    conf.DEFINE('PACKAGE_URL', "http://www.samba.org/", quote=True)
+    conf.DEFINE('PACKAGE_VERSION', version.STRING, quote=True)
+    conf.DEFINE('PACKAGE_BUGREPORT', 'http://bugzilla.samba.org/', quote=True)
+
+    conf.DEFINE('CONFIG_H_IS_FROM_SAMBA', 1)
+    conf.DEFINE('_SAMBA_BUILD_', version.MAJOR, add_to_cflags=True)
+    conf.DEFINE('HAVE_CONFIG_H', 1, add_to_cflags=True)
+
+    if Options.options.developer:
+        conf.ADD_CFLAGS('-DDEVELOPER -DDEBUG_PASSWORD')
+
+    # this enables smbtorture.static for s3 in the build farm
+    conf.env.BUILD_FARM = Options.options.BUILD_FARM or os.environ.get('RUN_FROM_BUILD_FARM')
+
+    # set a lower limit on recursing in waf preprocessor
+    conf.env.preprocessor_recursion_limit = 10
+
+    conf.ADD_EXTRA_INCLUDES('#source4 #lib #source4/lib #source4/include')
+
+    conf.RECURSE('../lib/replace')
+
+    conf.find_program('python', var='PYTHON', mandatory=True)
+    conf.find_program('perl', var='PERL', mandatory=True)
+    conf.find_program('xsltproc', var='XSLTPROC')
+
+    # enable tool to build python extensions
+    conf.check_tool('python')
+    conf.check_python_version((2,4,2))
+    conf.check_python_headers(mandatory=True)
+
+    conf.RECURSE('dynconfig')
+    conf.RECURSE('scripting/python')
+    conf.RECURSE('lib/ldb')
+    conf.RECURSE('heimdal_build')
+    conf.RECURSE('lib/tls')
+    conf.RECURSE('ntvfs/sysdep')
+    conf.RECURSE('../lib/util')
+    conf.RECURSE('../lib/zlib')
+    conf.RECURSE('../lib/util/charset')
+    conf.RECURSE('auth')
+    conf.RECURSE('../lib/nss_wrapper')
+    conf.RECURSE('../nsswitch')
+    conf.RECURSE('../lib/socket_wrapper')
+    conf.RECURSE('../lib/uid_wrapper')
+    conf.RECURSE('../lib/popt')
+    conf.RECURSE('lib/smbreadline')
+    conf.RECURSE('../pidl')
+    conf.RECURSE('selftest')
+
+    # we don't want PYTHONDIR in config.h, as otherwise changing
+    # --prefix causes a complete rebuild
+    del(conf.env.defines['PYTHONDIR'])
+    conf.SAMBA_CONFIG_H('include/config.h')
+
+
+def etags(ctx):
+    '''build TAGS file using etags'''
+    import Utils
+    source_root = os.path.dirname(Utils.g_module.root_path)
+    cmd = 'etags $(find %s/.. -name "*.[ch]")' % source_root
+    print("Running: %s" % cmd)
+    os.system(cmd)
+
+def ctags(ctx):
+    "build 'tags' file using ctags"
+    import Utils
+    source_root = os.path.dirname(Utils.g_module.root_path)
+    cmd = 'ctags $(find %s/.. -name "*.[ch]" | grep -v "*_proto\.h")' % source_root
+    print("Running: %s" % cmd)
+    os.system(cmd)
+
+# putting this here enabled build in the list
+# of commands in --help
+def build(bld):
+    '''build all targets'''
+    load_version()
+    pass
+
+
+def pydoctor(ctx):
+    '''build python apidocs'''
+    cmd='LD_LIBRARY_PATH=bin/shared PYTHONPATH=bin/python pydoctor --project-name=Samba --project-url=http://www.samba.org --make-html --docformat=restructuredtext --add-package bin/python/samba'
+    print("Running: %s" % cmd)
+    os.system(cmd)
+
+def wafdocs(ctx):
+    '''build wafsamba apidocs'''
+    from samba_utils import recursive_dirlist
+    os.system('pwd')
+    list = recursive_dirlist('../buildtools/wafsamba', '.', pattern='*.py')
+
+    cmd='LD_LIBRARY_PATH=bin/shared PYTHONPATH=bin/python pydoctor --project-name=wafsamba --project-url=http://www.samba.org --make-html --docformat=restructuredtext'
+    print(list)
+    for f in list:
+        cmd += ' --add-module %s' % f
+    print("Running: %s" % cmd)
+    os.system(cmd)
+
+
+def dist():
+    '''makes a tarball for distribution'''
+    load_version()
+    samba_dist.dist()
+
+def distcheck():
+    '''test that distribution tarball builds and installs'''
+    load_version()
+    import Scripting
+    d = Scripting.distcheck
+    d(subdir='source4')
+
+def wildcard_cmd(cmd):
+    '''called on a unknown command'''
+    from samba_wildcard import run_named_build_task
+    run_named_build_task(cmd)
+
+def main():
+    from samba_wildcard import wildcard_main
+    wildcard_main(wildcard_cmd)
+Scripting.main = main
+
+def reconfigure(ctx):
+    '''reconfigure if config scripts have changed'''
+    import samba_utils
+    samba_utils.reconfigure(ctx)

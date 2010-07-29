@@ -1,0 +1,96 @@
+'\" t
+.\"     Title: idmap_ldap
+.\"    Author: [see the "AUTHOR" section]
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 07/28/2010
+.\"    Manual: System Administration tools
+.\"    Source: Samba 3.6
+.\"  Language: English
+.\"
+.TH "IDMAP_LDAP" "8" "07/28/2010" "Samba 3\&.6" "System Administration tools"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+idmap_ldap \- Samba\'s idmap_ldap Backend for Winbind
+.SH "DESCRIPTION"
+.PP
+The idmap_ldap plugin provides a means for Winbind to store and retrieve SID/uid/gid mapping tables in an LDAP directory service\&.
+.PP
+In contrast to read only backends like idmap_rid, it is an allocating backend: This means that it needs to allocate new user and group IDs in order to create new mappings\&. The allocator can be provided by the idmap_ldap backend itself or by any other allocating backend like idmap_tdb or idmap_tdb2\&. This is configured with the parameter
+\fIidmap alloc backend\fR\&.
+.PP
+Note that in order for this (or any other allocating) backend to function at all, the default backend needs to be writeable\&. The ranges used for uid and gid allocation are the default ranges configured by "idmap uid" and "idmap gid"\&.
+.PP
+Furthermore, since there is only one global allocating backend responsible for all domains using writeable idmap backends, any explicitly configured domain with idmap backend ldap should have the same range as the default range, since it needs to use the global uid / gid allocator\&. See the example below\&.
+.SH "IDMAP OPTIONS"
+.PP
+ldap_base_dn = DN
+.RS 4
+Defines the directory base suffix to use when searching for SID/uid/gid mapping entries\&. If not defined, idmap_ldap will default to using the "ldap idmap suffix" option from smb\&.conf\&.
+.RE
+.PP
+ldap_user_dn = DN
+.RS 4
+Defines the user DN to be used for authentication\&. If absent an anonymous bind will be performed\&.
+.RE
+.PP
+ldap_url = ldap://server/
+.RS 4
+Specifies the LDAP server to use when searching for existing SID/uid/gid map entries\&. If not defined, idmap_ldap will assume that ldap://localhost/ should be used\&.
+.RE
+.PP
+range = low \- high
+.RS 4
+Defines the available matching uid and gid range for which the backend is authoritative\&. If the parameter is absent, Winbind fails over to use the "idmap uid" and "idmap gid" options from smb\&.conf\&.
+.RE
+.SH "IDMAP ALLOC OPTIONS"
+.PP
+ldap_base_dn = DN
+.RS 4
+Defines the directory base suffix under which new SID/uid/gid mapping entries should be stored\&. If not defined, idmap_ldap will default to using the "ldap idmap suffix" option from smb\&.conf\&.
+.RE
+.PP
+ldap_user_dn = DN
+.RS 4
+Defines the user DN to be used for authentication\&. If absent an anonymous bind will be performed\&.
+.RE
+.PP
+ldap_url = ldap://server/
+.RS 4
+Specifies the LDAP server to which modify/add/delete requests should be sent\&. If not defined, idmap_ldap will assume that ldap://localhost/ should be used\&.
+.RE
+.SH "EXAMPLES"
+.PP
+The follow sets of a LDAP configuration which uses two LDAP directories, one for storing the ID mappings and one for retrieving new IDs\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+	[global]
+	idmap backend = ldap:ldap://localhost/
+	idmap uid = 1000000\-1999999
+	idmap gid = 1000000\-1999999
+
+	idmap alloc backend = ldap
+	idmap alloc config : ldap_url	= ldap://id\-master/
+	idmap alloc config : ldap_base_dn = ou=idmap,dc=example,dc=com
+	
+.fi
+.if n \{\
+.RE
+.\}
+.SH "NOTE"
+.PP
+In order to use authentication against ldap servers you may need to provide a DN and a password\&. To avoid exposing the password in plain text in the configuration file we store it into a security store\&. The "net idmap " command is used to store a secret for the DN specified in a specific idmap domain\&.
+.SH "AUTHOR"
+.PP
+The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

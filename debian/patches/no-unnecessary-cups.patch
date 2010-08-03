@@ -6,13 +6,13 @@ Bug-Debian: http://bugs.debian.org/479512
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=5525
 Forwarded: yes
 
-Index: experimental/source3/smbd/server.c
+Index: samba-3.6.0pre1/source3/smbd/server_reload.c
 ===================================================================
---- experimental.orig/source3/smbd/server.c
-+++ experimental/source3/smbd/server.c
-@@ -710,6 +710,10 @@
- 	int pnum = lp_servicenumber(PRINTERS_NAME);
- 	const char *pname;
+--- samba-3.6.0pre1.orig/source3/smbd/server_reload.c
++++ samba-3.6.0pre1/source3/smbd/server_reload.c
+@@ -39,6 +39,10 @@
+ 	NTSTATUS status;
+ 	bool skip = false;
  
 +	if (!lp_load_printers()
 +	    && (lp_auto_services() == NULL || !strcmp(lp_auto_services(),"")))
@@ -20,4 +20,4 @@ Index: experimental/source3/smbd/server.c
 +
  	pcap_cache_reload();
  
- 	/* remove stale printers */
+ 	status = make_server_info_system(talloc_tos(), &server_info);

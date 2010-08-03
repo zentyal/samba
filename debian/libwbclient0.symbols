@@ -1,27 +1,10 @@
 libwbclient.so.0 libwbclient0 #MINVER#
- map_wbc_err_from_errno@Base 2:3.5.0~pre2                                                                                     
- tevent_req_is_wbcerr@Base 2:3.5.0~pre2                                                                                       
- tevent_req_simple_recv_wbcerr@Base 2:3.5.0~pre2                                                                              
- wb_context_init@Base 2:3.5.0~pre2                                                                                            
- wb_req_read_recv@Base 2:3.5.0~pre2                                                                                           
- wb_req_read_send@Base 2:3.5.0~pre2                                                                                           
- wb_req_write_recv@Base 2:3.5.0~pre2                                                                                          
- wb_req_write_send@Base 2:3.5.0~pre2                                                                                          
- wb_resp_read_recv@Base 2:3.5.0~pre2                                                                                          
- wb_resp_read_send@Base 2:3.5.0~pre2                                                                                          
- wb_resp_write_recv@Base 2:3.5.0~pre2                                                                                         
- wb_resp_write_send@Base 2:3.5.0~pre2                                                                                         
- wb_simple_trans_recv@Base 2:3.5.0~pre2                                                                                       
- wb_simple_trans_send@Base 2:3.5.0~pre2                                                                                       
- wb_trans_recv@Base 2:3.5.0~pre2                                                                                              
- wb_trans_send@Base 2:3.5.0~pre2                                                                                              
  wbcAllocateGid@Base 2:3.2.0
  wbcAllocateUid@Base 2:3.2.0
  wbcAuthenticateUser@Base 2:3.2.0
  wbcAuthenticateUserEx@Base 2:3.2.0
  wbcChangeTrustCredentials@Base 2:3.5.0~pre2                                                                                  
  wbcCheckTrustCredentials@Base 2:3.2.0
- wbcDebug@Base 2:3.5.0~pre2                                                                                                   
  wbcDomainInfo@Base 2:3.2.0
  wbcEndgrent@Base 2:3.2.0
  wbcEndpwent@Base 2:3.2.0
@@ -48,8 +31,6 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcPingDc@Base 2:3.5.0~rc1~dfsg
  wbcResolveWinsByIP@Base 2:3.2.0
  wbcResolveWinsByName@Base 2:3.2.0
- wbcSetDebug@Base 2:3.5.0~pre2                                                                                                
- wbcSetDebugStderr@Base 2:3.5.0~pre2                                                                                          
  wbcSetGidHwm@Base 2:3.2.0
  wbcSetGidMapping@Base 2:3.2.0
  wbcSetUidHwm@Base 2:3.2.0
